@@ -59,7 +59,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
 
   val readFsm = new StateMachine {
-    val stateIdle = new State with EntryPoint {
+    val stateIdle: State = new State with EntryPoint {
       onEntry {
         io.writeDesc.setIdle()
         rxCaptured.setIdle()
@@ -74,7 +74,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         rxAlloc.io.allocResp.ready := False
       }
     }
-    val stateAllocated = new State {
+    val stateAllocated: State = new State {
       whenIsActive {
         io.writeDesc.payload.payload.addr := rxAllocated.addr
         io.writeDesc.payload.payload.len := rxAllocated.size
@@ -88,7 +88,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         io.writeDesc.valid := False
       }
     }
-    val stateWaitDma = new State {
+    val stateWaitDma: State = new State {
       whenIsActive {
         when(io.writeDescStatus.fire) {
           when(io.writeDescStatus.payload.error === 0) {
@@ -100,7 +100,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         }
       }
     }
-    val stateEnqueuePkt = new State {
+    val stateEnqueuePkt: State = new State {
       whenIsActive {
         rxCaptured.payload.addr := rxDMAed.tag
         rxCaptured.payload.size := rxDMAed.len
@@ -115,7 +115,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val txAckedLength = io.hostTxAck.toReg
 
   val writeFsm = new StateMachine {
-    val stateIdle = new State with EntryPoint {
+    val stateIdle: State = new State with EntryPoint {
       onEntry {
         io.readDesc.setIdle()
       }
@@ -125,7 +125,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         }
       }
     }
-    val statePrepared = new State {
+    val statePrepared: State = new State {
       whenIsActive {
         io.readDesc.payload.payload.addr := io.hostTx.addr
         io.readDesc.payload.payload.len := txAckedLength
@@ -136,7 +136,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         }
       }
     }
-    val stateWaitDma = new State {
+    val stateWaitDma: State = new State {
       whenIsActive {
         when(io.readDescStatus.fire) {
           // FIXME: report error status
