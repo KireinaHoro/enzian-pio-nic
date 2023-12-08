@@ -17,30 +17,62 @@ case class PioNicConfig(axiConfig: Axi4Config = Axi4Config(32, 64, 4),
                         mtu: Int = 9600,
                         maxRxPktsInFlight: Int = 128,
                         maxRxBlockCycles: Int = 10000,
+                        numCores: Int = 4,
                        )
 
-class PioNicEngine(config: PioNicConfig) extends Component {
+class PioNicEngine(implicit config: PioNicConfig) extends Component {
   private val axiConfig = config.axiConfig
   private val axisConfig = config.axisConfig
 
   val io = new Bundle {
     val s_axi = slave(Axi4(axiConfig))
+    val s_axis_rx = slave(Axi4Stream(axisConfig))
+    val m_axis_tx = master(Axi4Stream(axisConfig))
   }
 
-  val pktBuffer = new AxiDpRam(axiConfig)
-  val axiDma = new AxiDma(AxiDmaConfig(axiConfig, axisConfig))
+  // derive cmac incoming packet length
+  val cmacRx = Stream(UInt(config.pktBufAddrWidth bits))
+  val dispatchedCmacRx = StreamDispatcherSequencial(
+    input = cmacRx,
+    outputCount = config.numCores,
+  )
+  // TODO: calculate length of incoming packet
+  cmacRx.assignDontCare()
 
-  val hostXbar = Axi4CrossbarFactory()
+  val pktBufferSize = config.numCores * config.pktBufSizePerCore
+  val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
+
+  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig)
+  val axiDma = new AxiDma(dmaConfig)
+  axiDma.io.m_axi >> pktBuffer.io.s_axi_a
+  axiDma.io.m_axis_read_data >> io.m_axis_tx
+  axiDma.io.s_axis_write_data << io.s_axis_rx
+
+  val axiConfigNode = Axi4(axiConfig)
+
+  val busCtrl = Axi4SlaveFactory(axiConfigNode)
+  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), 0)
+
+  for (id <- 0 until config.numCores) {
+    new PioCoreControl(dmaConfig, id)
+      .driveFrom(busCtrl, (1 + id) * 0x1000)(
+        globalCtrl = globalCtrl,
+        dma = axiDma,
+        cmacRx = dispatchedCmacRx(id),
+      )
+  }
+
+  Axi4CrossbarFactory()
     .addSlaves(
-
+      axiConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
+      pktBuffer.io.s_axi_b -> (0x100000, pktBufferSize),
     )
-
-  pktBuffer.io.s_axi_a << io.s_axi
-
-  ramDp.io.s_axi_a << io.s_axi_a
-  ramDp.io.s_axi_b << axiDma.io.m_axi
+    .addConnections(
+      io.s_axi -> Seq(axiConfigNode, pktBuffer.io.s_axi_b),
+    )
+    .build()
 }
 
 object PioNicEngineVerilog extends App {
-  Config.spinal.generateVerilog(new PioNicEngine(PioNicConfig())).mergeRTLSource("Merged")
+  Config.spinal.generateVerilog(new PioNicEngine()(PioNicConfig())).mergeRTLSource("Merged")
 }

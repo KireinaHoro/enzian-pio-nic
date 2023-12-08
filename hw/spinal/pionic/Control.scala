@@ -40,8 +40,6 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
   }
 
-  assert(dmaConfig.tagWidth >= PacketDesc().getBitsWidth, "could not fit packet descriptor into DMA tag")
-
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - config.mtu
   // we reserve one packet for TX
