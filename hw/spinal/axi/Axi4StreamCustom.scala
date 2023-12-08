@@ -3,6 +3,8 @@ package axi
 import spinal.core._
 import spinal.lib._
 
+import scala.reflect.{ClassTag, classTag}
+
 /**
  * Axi4-Stream for custom data bundles configuration
  *
@@ -80,9 +82,10 @@ object Axi4StreamCustom {
 
   def apply[T <: Data](config: Axi4StreamCustomConfig[T]): Stream[Axi4StreamCustomBundle[T]] = Stream(Axi4StreamCustomBundle(config))
 
-  def apply[T <: Data](source: Stream[T]): Axi4StreamCustom[T] = {
+  // reflection: https://stackoverflow.com/a/21181344
+  def apply[T <: Data : ClassTag](source: Stream[T]): Axi4StreamCustom[T] = {
     source.payload match {
-      case data: T =>
+      case data if classTag[T].runtimeClass.isInstance(data) =>
         val axisStream = Axi4StreamCustom(Axi4StreamCustomConfig(payloadType = data))
         axisStream.payload.payload := data
         axisStream.arbitrationFrom(source)
