@@ -49,7 +49,7 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
 
-  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig)
+  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufAddrWidth)
   val axiDma = new AxiDma(dmaConfig)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
   axiDma.io.m_axis_read_data >> io.m_axis_tx
@@ -64,6 +64,7 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
     new PioCoreControl(dmaConfig, id)
       .driveFrom(busCtrl, (1 + id) * 0x1000)(
         globalCtrl = globalCtrl,
+        // FIXME: use desc mux
         dma = axiDma,
         cmacRx = dispatchedCmacRx(id),
       )

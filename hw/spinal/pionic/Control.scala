@@ -40,6 +40,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
   }
 
+  assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
+
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - config.mtu
   // we reserve one packet for TX
@@ -74,9 +76,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val stateAllocated: State = new State {
       whenIsActive {
-        io.writeDesc.payload.payload.addr := rxAllocated.addr
+        io.writeDesc.payload.payload.addr := rxAllocated.addr.resized
         io.writeDesc.payload.payload.len := rxAllocated.size
-        io.writeDesc.payload.payload.tag := rxAllocated.addr
+        io.writeDesc.payload.payload.tag := rxAllocated.addr.resized
         io.writeDesc.valid := True
         when(io.writeDesc.fire) {
           goto(stateWaitDma)
@@ -100,7 +102,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val stateEnqueuePkt: State = new State {
       whenIsActive {
-        rxCaptured.payload.addr := rxDMAed.tag
+        rxCaptured.payload.addr := rxDMAed.tag.resized
         rxCaptured.payload.size := rxDMAed.len
         rxCaptured.valid := True
         when(rxCaptured.fire) {
@@ -125,7 +127,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val statePrepared: State = new State {
       whenIsActive {
-        io.readDesc.payload.payload.addr := io.hostTx.addr
+        io.readDesc.payload.payload.addr := io.hostTx.addr.resized
         io.readDesc.payload.payload.len := txAckedLength
         io.readDesc.payload.payload.tag := 0
         io.readDesc.valid := True
