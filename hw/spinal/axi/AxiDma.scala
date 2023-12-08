@@ -42,14 +42,14 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
     useUser = axisConfig.useUser,
     userWidth = axisConfig.userWidth,
   )
-  val readDescBus = Axi4StreamCustom(readDescConfig)
-  val readDescStatusBus = Flow(AxiDmaReadDescStatus(this))
+  def readDescBus = Axi4StreamCustom(readDescConfig)
+  def readDescStatusBus = Flow(AxiDmaReadDescStatus(this))
 
   val writeDescConfig = Axi4StreamCustomConfig(
     payloadType = AxiDmaCmd(this),
   )
-  val writeDescBus = Axi4StreamCustom(writeDescConfig)
-  val writeDescStatusBus = Flow(AxiDmaWriteDescStatus(this))
+  def writeDescBus = Axi4StreamCustom(writeDescConfig)
+  def writeDescStatusBus = Flow(AxiDmaWriteDescStatus(this))
 }
 
 class AxiDma(dmaConfig: AxiDmaConfig,
