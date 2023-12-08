@@ -11,11 +11,12 @@ import spinal.lib.bus.amba4.axis._
 
 case class PioNicConfig(axiConfig: Axi4Config = Axi4Config(32, 64, 4),
                         axisConfig: Axi4StreamConfig = Axi4StreamConfig(64),
-                        regWidth: Int = 32,
+                        regWidth: Int = 64,
                         pktBufAddrWidth: Int = 16, // 64KB
                         pktBufSizePerCore: Int = 16 * 1024, // 16KB
                         mtu: Int = 9600,
                         maxRxPktsInFlight: Int = 128,
+                        maxRxBlockCycles: Int = 10000,
                        )
 
 class PioNicEngine(config: PioNicConfig) extends Component {

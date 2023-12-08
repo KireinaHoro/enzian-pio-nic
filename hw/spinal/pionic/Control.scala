@@ -4,7 +4,7 @@ import axi.{AxiDma, AxiDmaConfig}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
-import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.misc._
 import spinal.lib.fsm._
 
 case class GlobalControlBundle(implicit config: PioNicConfig) extends Bundle {
@@ -16,10 +16,43 @@ case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
   val size = UInt(config.pktBufAddrWidth bits)
 }
 
+class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {
+  def readStreamBlockCycles[T <: Data](that: Stream[T], address: BigInt, blockCycles: UInt, maxBlockCycles: BigInt): Unit = {
+    // almost a copy of multiCycleRead
+    val counter = Counter(maxBlockCycles)
+    val wordCount = (1 + that.payload.getBitsWidth - 1) / busCtrl.busDataWidth + 1
+    busCtrl.onReadPrimitive(SizeMapping(address, wordCount * busCtrl.wordAddressInc), haltSensitive = false, null) {
+      counter.increment()
+      when(counter.value < blockCycles && !that.valid) {
+        busCtrl.readHalt()
+      } otherwise {
+        counter.clear()
+      }
+    }
+
+    busCtrl.readStreamNonBlocking(that, address)
+  }
+
+  // block bus until stream ready
+  def driveStream[T <: Data](that: Stream[T], address: BigInt, bitOffset: Int = 0): Unit = {
+    val wordCount = (bitOffset + widthOf(that.payload) - 1) / busCtrl.busDataWidth + 1
+    busCtrl.onWritePrimitive(SizeMapping(address, wordCount * busCtrl.wordAddressInc), haltSensitive = false, null) {
+      when(!that.ready) {
+        busCtrl.writeHalt()
+      }
+    }
+    val flow = busCtrl.createAndDriveFlow(that.payloadType(), address, bitOffset)
+    that << flow.toStream
+  }
+}
+
+implicit def augmentBusSlaveFactory(busCtrl: BusSlaveFactory): RichBusSlaveFactory = new RichBusSlaveFactory(busCtrl)
+
 // Control module for PIO access from one single core
 // Would manage one packet buffer
 class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioNicConfig) extends Component {
   val io = new Bundle {
+    // config from host, but driven only once at global control
     val globalCtrl = in(GlobalControlBundle())
 
     // regs for host
@@ -155,6 +188,12 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     io.cmacRxAlloc << cmacRx
 
-    busCtrl.readStreamNonBlocking()
+    private val regBytes: Int = config.regWidth / 8
+
+    busCtrl.readStreamBlockCycles(io.hostRxNext, baseAddress, globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
+    busCtrl.driveStream(io.hostRxNextAck, baseAddress + regBytes)
+
+    busCtrl.read(io.hostTx, baseAddress + regBytes * 2)
+    busCtrl.driveFlow(io.hostTxAck, baseAddress + regBytes * 3)
   }
 }
