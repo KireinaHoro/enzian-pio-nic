@@ -55,9 +55,9 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
   axiDma.io.m_axis_read_data >> io.m_axis_tx
   axiDma.io.s_axis_write_data << io.s_axis_rx
 
-  val axiConfigNode = Axi4(axiConfig)
+  val axiWideConfigNode = Axi4(axiConfig)
 
-  val busCtrl = Axi4SlaveFactory(axiConfigNode)
+  val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), 0)
 
   for (id <- 0 until config.numCores) {
@@ -71,11 +71,11 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
 
   Axi4CrossbarFactory()
     .addSlaves(
-      axiConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
+      axiWideConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
       pktBuffer.io.s_axi_b -> (0x100000, pktBufferSize),
     )
     .addConnections(
-      io.s_axi -> Seq(axiConfigNode, pktBuffer.io.s_axi_b),
+      io.s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b),
     )
     .build()
 }

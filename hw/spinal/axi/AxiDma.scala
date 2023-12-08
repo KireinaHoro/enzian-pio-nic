@@ -110,6 +110,6 @@ class AxiDma(dmaConfig: AxiDmaConfig,
   }
 
   addRTLPath(axiRTLFile(modName))
-  addRTLPath(axiRTLFile("axi_dma_rd"))
-  addRTLPath(axiRTLFile("axi_dma_wr"))
+  addRTLPath(axiRTLFile(s"${modName}_rd"))
+  addRTLPath(axiRTLFile(s"${modName}_wr"))
 }

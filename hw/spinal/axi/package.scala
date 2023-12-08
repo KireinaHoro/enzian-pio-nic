@@ -1,4 +1,5 @@
 import spinal.core._
+import spinal.lib.bus.amba4.axi._
 
 package object axi {
   def renameAxi4IO(io: Bundle): Unit = {
@@ -11,4 +12,13 @@ package object axi {
   }
 
   def axiRTLFile(name: String) = s"hw/deps/verilog-axi/rtl/$name.v"
+
+  class RichAxi4(axi: Axi4) {
+    def resize(newWidth: Int): Axi4 = {
+      val adapter = new AxiAdapter(axi.config, newWidth)
+      axi >> adapter.io.s_axi
+      adapter.io.m_axi
+    }
+  }
+  implicit def augmentAxi4(axi: Axi4): RichAxi4 = new RichAxi4(axi)
 }
