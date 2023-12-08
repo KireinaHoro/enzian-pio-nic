@@ -11,6 +11,4 @@ package object axi {
   }
 
   def axiRTLFile(name: String) = s"hw/deps/verilog-axi/rtl/$name.v"
-
-  def dmaReadDescBundle()
 }

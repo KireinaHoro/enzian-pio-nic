@@ -5,18 +5,36 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
 
+case class AxiDmaCmd(dmaConfig: AxiDmaConfig) extends Bundle {
+  import dmaConfig._
+  val addr = UInt(axiConfig.addressWidth bits)
+  val len = UInt(lenWidth bits)
+  val tag = UInt(tagWidth bits)
+}
+
+case class AxiDmaReadDescStatus(dmaConfig: AxiDmaConfig) extends Bundle {
+  import dmaConfig._
+  val tag = UInt(tagWidth bits)
+  val error = Bits(4 bits)
+}
+
+case class AxiDmaWriteDescStatus(dmaConfig: AxiDmaConfig) extends Bundle {
+  import dmaConfig._
+  val len = UInt(lenWidth bits)
+  val tag = UInt(tagWidth bits)
+  val id = UInt(axisConfig.idWidth bits)
+  val dest = UInt(axisConfig.destWidth bits)
+  val user = Bits(axisConfig.userWidth bits)
+  val error = Bits(4 bits)
+}
+
 case class AxiDmaConfig(axiConfig: Axi4Config,
                         axisConfig: Axi4StreamConfig,
                         axiMaxBurstLen: Int = 16,
                         lenWidth: Int = 20,
                         tagWidth: Int = 8) {
-  val dmaCmd = new Bundle {
-    val addr = UInt(axiConfig.addressWidth bits)
-    val len = UInt(lenWidth bits)
-    val tag = UInt(tagWidth bits)
-  }
   val readDescConfig = Axi4StreamCustomConfig(
-    payloadType = dmaCmd,
+    payloadType = AxiDmaCmd(this),
     useId = axisConfig.useId,
     idWidth = axisConfig.idWidth,
     useDest = axisConfig.useDest,
@@ -25,27 +43,13 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
     userWidth = axisConfig.userWidth,
   )
   val readDescBus = Axi4StreamCustom(readDescConfig)
-
-  val readDescStatusBundle = new Bundle {
-    val tag = UInt(tagWidth bits)
-    val error = Bits(4 bits)
-  }
-  val readDescStatusBus = Flow(readDescStatusBundle)
+  val readDescStatusBus = Flow(AxiDmaReadDescStatus(this))
 
   val writeDescConfig = Axi4StreamCustomConfig(
-    payloadType = dmaCmd,
+    payloadType = AxiDmaCmd(this),
   )
   val writeDescBus = Axi4StreamCustom(writeDescConfig)
-
-  val writeDescStatusBundle = new Bundle {
-    val len = UInt(lenWidth bits)
-    val tag = UInt(tagWidth bits)
-    val id = UInt(axisConfig.idWidth bits)
-    val dest = UInt(axisConfig.destWidth bits)
-    val user = Bits(axisConfig.userWidth bits)
-    val error = Bits(4 bits)
-  }
-  val writeDescStatusBus = Flow(writeDescStatusBundle)
+  val writeDescStatusBus = Flow(AxiDmaWriteDescStatus(this))
 }
 
 class AxiDma(dmaConfig: AxiDmaConfig,
