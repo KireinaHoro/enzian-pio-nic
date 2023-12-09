@@ -64,8 +64,6 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val readFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
       onEntry {
-        io.writeDesc.setIdle()
-        rxCaptured.setIdle()
         rxAlloc.io.allocResp.ready := True
       }
       whenIsActive {
@@ -88,7 +86,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         }
       }
       onExit {
-        io.writeDesc.valid := False
+        io.writeDesc.setIdle
       }
     }
     val stateWaitDma: State = new State {
@@ -119,9 +117,6 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
   val writeFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
-      onEntry {
-        io.readDesc.setIdle()
-      }
       whenIsActive {
         when(io.hostTxAck.fire) {
           goto(statePrepared)
@@ -137,6 +132,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         when(io.readDesc.fire) {
           goto(stateWaitDma)
         }
+      }
+      onExit {
+        io.readDesc.setIdle
       }
     }
     val stateWaitDma: State = new State {
