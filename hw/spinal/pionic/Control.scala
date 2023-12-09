@@ -55,8 +55,11 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val rxAllocated = rxAlloc.io.allocResp.toReg
   val rxDMAed = io.writeDescStatus.toReg
 
-  val rxCaptured = Stream(PacketDesc())
+  val rxCaptured = Stream(PacketDesc()).setIdle
   rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
+
+  io.readDesc.setIdle
+  io.writeDesc.setIdle
 
   val readFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
