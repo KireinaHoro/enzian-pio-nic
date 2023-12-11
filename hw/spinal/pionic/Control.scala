@@ -1,6 +1,6 @@
 package pionic
 
-import axi.{AxiDma, AxiDmaConfig}
+import axi._
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -147,13 +147,14 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
   }
 
-  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, dma: AxiDma, cmacRx: Stream[UInt]) = new Area {
+  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[UInt]) = new Area {
     io.globalCtrl := globalCtrl
 
-    io.readDesc >> dma.io.s_axis_read_desc
-    io.readDescStatus << dma.io.m_axis_read_desc_status
-    io.writeDesc >> dma.io.s_axis_write_desc
-    io.writeDescStatus << dma.io.m_axis_write_desc_status
+    io.readDesc >> rdMux.io.s_axis_desc(coreID)
+    io.readDescStatus.assignSomeByName(rdMux.io.m_axis_desc_status(coreID))
+
+    wrMux.io.s_axis_desc(coreID) <> io.writeDesc
+    io.writeDescStatus << wrMux.io.m_axis_desc_status(coreID)
 
     io.cmacRxAlloc << cmacRx
 

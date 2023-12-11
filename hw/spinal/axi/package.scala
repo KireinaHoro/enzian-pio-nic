@@ -20,5 +20,6 @@ package object axi {
       adapter.io.m_axi
     }
   }
+
   implicit def augmentAxi4(axi: Axi4): RichAxi4 = new RichAxi4(axi)
 }
