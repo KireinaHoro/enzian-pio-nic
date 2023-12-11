@@ -4,9 +4,18 @@ import spinal.lib.bus.amba4.axi._
 package object axi {
   def renameAxi4IO(io: Bundle): Unit = {
     io.flattenForeach { bt =>
-      val pattern = "^([sm]_.*)(aw|w|b|ar|r)_(?:payload_)?([^_]+)$".r
+      val pattern = "^([sm]_axi.*)(aw|w|b|ar|r)_(?:payload_)?([^_]+)$".r
       for (pm <- pattern.findFirstMatchIn(bt.getName)) {
         bt.setName(pm.group(1) + pm.group(2) + pm.group(3))
+      }
+    }
+  }
+
+  def renameAxi4StreamIO(io: Bundle): Unit = {
+    io.flattenForeach { bt =>
+      val pattern = "^([sm]_axis.*?)(?:payload_)+([^_]+)$".r
+      for (pm <- pattern.findFirstMatchIn(bt.getName)) {
+        bt.setName(pm.group(1) + pm.group(2))
       }
     }
   }

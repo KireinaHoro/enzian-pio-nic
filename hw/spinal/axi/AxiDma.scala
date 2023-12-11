@@ -6,20 +6,26 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
 
 case class AxiDmaCmd(dmaConfig: AxiDmaConfig) extends Bundle {
+
   import dmaConfig._
+
   val addr = UInt(axiConfig.addressWidth bits)
   val len = UInt(lenWidth bits)
   val tag = UInt(tagWidth bits)
 }
 
 case class AxiDmaReadDescStatus(dmaConfig: AxiDmaConfig) extends Bundle {
+
   import dmaConfig._
+
   val tag = UInt(tagWidth bits)
   val error = Bits(4 bits)
 }
 
 case class AxiDmaWriteDescStatus(dmaConfig: AxiDmaConfig) extends Bundle {
+
   import dmaConfig._
+
   val len = UInt(lenWidth bits)
   val tag = UInt(tagWidth bits)
   val id = UInt((if (axisConfig.useId) axisConfig.idWidth else 0) bits)
@@ -42,13 +48,17 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
     useUser = axisConfig.useUser,
     userWidth = axisConfig.userWidth,
   )
+
   def readDescBus = Axi4StreamCustom(readDescConfig)
+
   def readDescStatusBus = Flow(AxiDmaReadDescStatus(this))
 
   val writeDescConfig = Axi4StreamCustomConfig(
     payloadType = AxiDmaCmd(this),
   )
+
   def writeDescBus = Axi4StreamCustom(writeDescConfig)
+
   def writeDescStatusBus = Flow(AxiDmaWriteDescStatus(this))
 }
 
@@ -106,7 +116,7 @@ class AxiDma(dmaConfig: AxiDmaConfig,
 
   addPrePopTask { () =>
     axi.renameAxi4IO(io)
-    // axi.renameAxi4StreamIO(io)
+    axi.renameAxi4StreamIO(io)
   }
 
   addRTLPath(axiRTLFile(modName))
