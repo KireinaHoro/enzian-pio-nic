@@ -153,11 +153,11 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[UInt]) = new Area {
     io.globalCtrl := globalCtrl
 
-    io.readDesc >> rdMux.io.s_axis_desc(coreID)
-    io.readDescStatus.assignSomeByName(rdMux.io.m_axis_desc_status(coreID))
+    io.readDesc >> rdMux.s_axis_desc(coreID)
+    io.readDescStatus.assignSomeByName(rdMux.m_axis_desc_status(coreID))
 
-    wrMux.io.s_axis_desc(coreID) <> io.writeDesc
-    io.writeDescStatus << wrMux.io.m_axis_desc_status(coreID)
+    wrMux.s_axis_desc(coreID) <> io.writeDesc
+    io.writeDescStatus << wrMux.m_axis_desc_status(coreID)
 
     io.cmacRxAlloc << cmacRx
 

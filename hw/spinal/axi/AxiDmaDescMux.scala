@@ -40,10 +40,10 @@ class AxiDmaDescMux(
     // to get all the ports for both read and write
     val m_axis_desc = master(masterDmaConfig.readDescBus)
     val s_axis_desc_status = slave(masterDmaConfig.writeDescStatusBus)
-
-    val s_axis_desc = Vec(slave(readDescBus), numPorts)
-    val m_axis_desc_status = Vec(master(writeDescStatusBus), numPorts)
   }
+
+  val s_axis_desc = new Arrayer(slave(readDescBus), numPorts)
+  val m_axis_desc_status = new Arrayer(master(writeDescStatusBus), numPorts)
 
   mapCurrentClockDomain(io.clk, io.rst)
   noIoPrefix()
