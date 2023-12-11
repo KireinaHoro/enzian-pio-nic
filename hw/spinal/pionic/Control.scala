@@ -67,7 +67,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         rxAlloc.io.allocResp.ready := True
       }
       whenIsActive {
-        when(rxAlloc.io.allocResp.fire) {
+        when(rxAlloc.io.allocResp.valid) {
           goto(stateAllocated)
         }
       }
@@ -81,7 +81,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         io.writeDesc.payload.payload.len := rxAllocated.size
         io.writeDesc.payload.payload.tag := rxAllocated.addr.resized
         io.writeDesc.valid := True
-        when(io.writeDesc.fire) {
+        when(io.writeDesc.ready) {
           goto(stateWaitDma)
         }
       }
@@ -106,9 +106,12 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         rxCaptured.payload.addr := rxDMAed.tag.resized
         rxCaptured.payload.size := rxDMAed.len
         rxCaptured.valid := True
-        when(rxCaptured.fire) {
+        when(rxCaptured.ready) {
           goto(stateIdle)
         }
+      }
+      onExit {
+        rxCaptured.setIdle
       }
     }
   }
@@ -129,7 +132,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         io.readDesc.payload.payload.len := txAckedLength
         io.readDesc.payload.payload.tag := 0
         io.readDesc.valid := True
-        when(io.readDesc.fire) {
+        when(io.readDesc.ready) {
           goto(stateWaitDma)
         }
       }
