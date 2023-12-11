@@ -19,9 +19,9 @@ class AxiAdapter(inConfig: Axi4Config, outDataWidth: Int, convertBurst: Boolean 
     val BUSER_ENABLE = inConfig.useBUser
     val BUSER_WIDTH = if (inConfig.useBUser) inConfig.bUserWidth else 0
     val ARUSER_ENABLE = inConfig.useArUser
-    val ARUSER_RIDTH = if (inConfig.useArUser) inConfig.arUserWidth else 0
+    val ARUSER_WIDTH = if (inConfig.useArUser) inConfig.arUserWidth else 0
     val RUSER_ENABLE = inConfig.useRUser
-    val RUSER_RIDTH = if (inConfig.useRUser) inConfig.rUserWidth else 0
+    val RUSER_WIDTH = if (inConfig.useRUser) inConfig.rUserWidth else 0
     val CONVERT_BURST = convertBurst
     val CONVERT_NARROW_BURST = convertNarrowBurst
     val FORWARD_ID = forwardId
