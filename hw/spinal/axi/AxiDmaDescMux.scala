@@ -61,7 +61,8 @@ class AxiDmaDescMux(
   }
 
   def connectWrite(dma: AxiDma) {
-    dma.io.s_axis_write_desc <> io.m_axis_desc
-    io.s_axis_desc_status <<? dma.io.m_axis_write_desc_status
+    // write desc port does not have id, dest, user
+    dma.io.s_axis_write_desc.translateFrom(io.m_axis_desc)(_ <<? _)
+    io.s_axis_desc_status << dma.io.m_axis_write_desc_status
   }
 }

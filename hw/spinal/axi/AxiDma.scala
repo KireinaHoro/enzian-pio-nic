@@ -42,7 +42,7 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
   val intfAxisConfig = mapToIntf(axisConfig)
   val readDescConfig = Axi4StreamCustomConfig.fromStreamConfig(
     payloadType = AxiDmaCmd(this),
-    config = intfAxisConfig,
+    config = intfAxisConfig.copy(useLast = false)
   )
 
   def readDescBus = Axi4StreamCustom(readDescConfig)
@@ -51,7 +51,7 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
 
   val writeDescConfig = Axi4StreamCustomConfig.fromStreamConfig(
     payloadType = AxiDmaCmd(this),
-    config = intfAxisConfig,
+    config = intfAxisConfig.copy(useLast = false, useDest = false, useUser = false, useId = false)
   )
 
   def writeDescBus = Axi4StreamCustom(writeDescConfig)

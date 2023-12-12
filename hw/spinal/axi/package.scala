@@ -1,3 +1,4 @@
+import axi.Axi4StreamCustom.Axi4StreamCustom
 import spinal.core._
 import spinal.lib
 import spinal.lib.bus.amba4.axi._

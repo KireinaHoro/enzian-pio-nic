@@ -156,7 +156,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     io.readDesc >> rdMux.s_axis_desc(coreID)
     io.readDescStatus <<? rdMux.m_axis_desc_status(coreID)
 
-    wrMux.s_axis_desc(coreID) <> io.writeDesc
+    // dma write desc port does not have id, dest, user
+    wrMux.s_axis_desc(coreID).translateFrom(io.writeDesc)(_ <<? _)
     io.writeDescStatus << wrMux.m_axis_desc_status(coreID)
 
     io.cmacRxAlloc << cmacRx
