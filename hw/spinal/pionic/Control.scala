@@ -154,7 +154,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     io.globalCtrl := globalCtrl
 
     io.readDesc >> rdMux.s_axis_desc(coreID)
-    io.readDescStatus.assignSomeByName(rdMux.m_axis_desc_status(coreID))
+    io.readDescStatus <<? rdMux.m_axis_desc_status(coreID)
 
     wrMux.s_axis_desc(coreID) <> io.writeDesc
     io.writeDescStatus << wrMux.m_axis_desc_status(coreID)

@@ -57,12 +57,11 @@ class AxiDmaDescMux(
 
   def connectRead(dma: AxiDma) {
     dma.io.s_axis_read_desc <> io.m_axis_desc
-    io.s_axis_desc_status.assignSomeByName(dma.io.m_axis_read_desc_status)
-    io.s_axis_desc_status.assignDontCareToUnasigned()
+    io.s_axis_desc_status <<? dma.io.m_axis_read_desc_status
   }
 
   def connectWrite(dma: AxiDma) {
     dma.io.s_axis_write_desc <> io.m_axis_desc
-    io.s_axis_desc_status << dma.io.m_axis_write_desc_status
+    io.s_axis_desc_status <<? dma.io.m_axis_write_desc_status
   }
 }
