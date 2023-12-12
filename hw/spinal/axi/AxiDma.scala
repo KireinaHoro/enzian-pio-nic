@@ -28,9 +28,9 @@ case class AxiDmaWriteDescStatus(dmaConfig: AxiDmaConfig) extends Bundle {
 
   val len = UInt(lenWidth bits)
   val tag = UInt(tagWidth bits)
-  val id = UInt((if (axisConfig.useId) axisConfig.idWidth else 0) bits)
-  val dest = UInt((if (axisConfig.useDest) axisConfig.destWidth else 0) bits)
-  val user = UInt((if (axisConfig.useUser) axisConfig.userWidth else 0) bits)
+  val id = UInt(intfAxisConfig.idWidth bits)
+  val dest = UInt(intfAxisConfig.destWidth bits)
+  val user = UInt(intfAxisConfig.userWidth bits)
   val error = Bits(4 bits)
 }
 
@@ -39,22 +39,19 @@ case class AxiDmaConfig(axiConfig: Axi4Config,
                         axiMaxBurstLen: Int = 16,
                         lenWidth: Int = 20,
                         tagWidth: Int = 8) {
-  val readDescConfig = Axi4StreamCustomConfig(
+  val intfAxisConfig = mapToIntf(axisConfig)
+  val readDescConfig = Axi4StreamCustomConfig.fromStreamConfig(
     payloadType = AxiDmaCmd(this),
-    useId = axisConfig.useId,
-    idWidth = axisConfig.idWidth,
-    useDest = axisConfig.useDest,
-    destWidth = axisConfig.destWidth,
-    useUser = axisConfig.useUser,
-    userWidth = axisConfig.userWidth,
+    config = intfAxisConfig,
   )
 
   def readDescBus = Axi4StreamCustom(readDescConfig)
 
   def readDescStatusBus = Flow(AxiDmaReadDescStatus(this))
 
-  val writeDescConfig = Axi4StreamCustomConfig(
+  val writeDescConfig = Axi4StreamCustomConfig.fromStreamConfig(
     payloadType = AxiDmaCmd(this),
+    config = intfAxisConfig,
   )
 
   def writeDescBus = Axi4StreamCustom(writeDescConfig)
@@ -101,14 +98,22 @@ class AxiDma(dmaConfig: AxiDmaConfig,
 
     val s_axis_read_desc = slave(dmaConfig.readDescBus)
     val m_axis_read_desc_status = master(dmaConfig.readDescStatusBus)
-    val m_axis_read_data = master(Axi4Stream(axisConfig))
+    val m_axis_read_data = master(Axi4Stream(dmaConfig.intfAxisConfig))
 
     val s_axis_write_desc = slave(dmaConfig.writeDescBus)
     val m_axis_write_desc_status = master(dmaConfig.writeDescStatusBus)
-    val s_axis_write_data = slave(Axi4Stream(axisConfig))
+    val s_axis_write_data = slave(Axi4Stream(dmaConfig.intfAxisConfig))
 
     val m_axi = master(Axi4(trimmedAxiConfig))
+
+    val read_enable = in Bool()
+    val write_enable = in Bool()
+    val write_abort = in Bool()
   }
+
+  def readDataMaster = io.m_axis_read_data.toSpinal(axisConfig)
+
+  def writeDataSlave = io.s_axis_write_data.toSpinal(axisConfig)
 
   mapCurrentClockDomain(io.clk, io.rst)
 

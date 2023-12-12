@@ -19,11 +19,11 @@ class AxiDmaDescMux(
     val PORTS = numPorts
     val AXI_ADDR_WIDTH = axiConfig.addressWidth
     val AXIS_ID_ENABLE = axisConfig.useId
-    val AXIS_ID_WIDTH = axisConfig.idWidth
+    val AXIS_ID_WIDTH = masterDmaConfig.intfAxisConfig.idWidth
     val AXIS_DEST_ENABLE = axisConfig.useDest
-    val AXIS_DEST_WIDTH = axisConfig.destWidth
+    val AXIS_DEST_WIDTH = masterDmaConfig.intfAxisConfig.destWidth
     val AXIS_USER_ENABLE = axisConfig.useUser
-    val AXIS_USER_WIDTH = axisConfig.userWidth
+    val AXIS_USER_WIDTH = masterDmaConfig.intfAxisConfig.userWidth
     val LEN_WIDTH = lenWidth
     val S_TAG_WIDTH = tagWidth
     val M_TAG_WIDTH = mTagWidth

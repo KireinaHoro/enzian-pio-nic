@@ -27,12 +27,58 @@ package object axi {
   class RichAxi4(axi: Axi4) {
     def resize(newWidth: Int): Axi4 = {
       val adapter = new AxiAdapter(axi.config, newWidth)
-      axi >> adapter.io.s_axi
-      adapter.io.m_axi
+      axi >> adapter.getSlave
+      adapter.getMaster
+    }
+
+    def toSpinal(config: Axi4Config): Axi4 = {
+      val ret = Axi4(config)
+      val masterChannels: Seq[Axi4 => lib.Stream[_ <: Bundle]] = Seq(_.ar, _.aw, _.w)
+      val slaveChannels: Seq[Axi4 => lib.Stream[_ <: Bundle]] = Seq(_.r, _.b)
+      val driverChannels = if (axi.isMasterInterface) masterChannels else slaveChannels
+      val loadChannels = if (axi.isMasterInterface) slaveChannels else masterChannels
+      driverChannels.foreach { c =>
+        c(ret) arbitrationFrom c(axi)
+        c(ret).payload.assignSomeByName(c(axi).payload)
+      }
+      loadChannels.foreach { c =>
+        c(axi) arbitrationFrom c(ret)
+        c(axi).payload.assignSomeByName(c(ret).payload)
+        c(axi).payload.assignDontCareToUnasigned()
+      }
+      ret
     }
   }
 
   implicit def augmentAxi4(axi: Axi4): RichAxi4 = new RichAxi4(axi)
+
+  // convert a spinal lib Axi4StreamConfig to verilog-axis format
+  def mapToIntf(config: Axi4StreamConfig): Axi4StreamConfig =
+    config.copy(
+      useId = true,
+      idWidth = if (config.useId) config.idWidth else 1,
+      useDest = true,
+      destWidth = if (config.useDest) config.destWidth else 1,
+      useUser = true,
+      userWidth = if (config.useUser) config.userWidth else 1,
+    )
+
+  class RichAxi4Stream(axis: Axi4Stream) {
+    def toSpinal(config: Axi4StreamConfig): Axi4Stream = {
+      val ret = Axi4Stream(config)
+      if (axis.isMasterInterface) {
+        ret.arbitrationFrom(axis)
+        ret.payload.assignSomeByName(axis.payload)
+      } else {
+        axis.arbitrationFrom(ret)
+        axis.payload.assignSomeByName(ret.payload)
+        axis.payload.assignDontCareToUnasigned()
+      }
+      ret
+    }
+  }
+
+  implicit def augmentAxi4Stream(axis: Axi4Stream): RichAxi4Stream = new RichAxi4Stream(axis)
 
   // tracked by: https://github.com/SpinalHDL/SpinalHDL/issues/1258
   class Arrayer[T <: Data](dataType: => T, count: Int) extends Area {

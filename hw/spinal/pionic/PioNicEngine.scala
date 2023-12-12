@@ -17,6 +17,8 @@ case class PioNicConfig(
                          ),
                          axisConfig: Axi4StreamConfig = Axi4StreamConfig(
                            dataWidth = 64, // BYTES
+                           useKeep = true,
+                           useLast = true,
                          ),
                          regWidth: Int = 64,
                          pktBufAddrWidth: Int = 16, // 64KB
@@ -55,8 +57,12 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
 
   val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.io.m_axis_read_data >> io.m_axis_tx
-  axiDma.io.s_axis_write_data << io.s_axis_rx
+  axiDma.readDataMaster >> io.m_axis_tx
+  axiDma.writeDataSlave << io.s_axis_rx
+
+  axiDma.io.read_enable := True
+  axiDma.io.write_enable := True
+  axiDma.io.write_abort := False
 
   // mux descriptors
   axiDmaReadMux.connectRead(axiDma)

@@ -2,6 +2,7 @@ package axi
 
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba4.axis.Axi4StreamConfig
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -24,7 +25,21 @@ case class Axi4StreamCustomConfig[T <: Data](payloadType: HardType[T],
                                              useLast: Boolean = false,
                                              useId: Boolean = false,
                                              useDest: Boolean = false,
-                                             useUser: Boolean = false) {
+                                             useUser: Boolean = false)
+
+object Axi4StreamCustomConfig {
+  def fromStreamConfig[T <: Data](payloadType: HardType[T], config: Axi4StreamConfig) = {
+    Axi4StreamCustomConfig(
+      payloadType,
+      config.idWidth,
+      config.destWidth,
+      config.userWidth,
+      config.useLast,
+      config.useId,
+      config.useDest,
+      config.useUser,
+    )
+  }
 }
 
 object Axi4StreamCustom {
