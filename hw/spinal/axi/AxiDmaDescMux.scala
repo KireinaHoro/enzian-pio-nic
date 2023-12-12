@@ -54,6 +54,7 @@ class AxiDmaDescMux(
 
   addRTLPath(axiRTLFile(modName))
   addRTLPath(axiRTLFile("arbiter"))
+  addRTLPath(axiRTLFile("priority_encoder"))
 
   def connectRead(dma: AxiDma) {
     dma.io.s_axis_read_desc <> io.m_axis_desc

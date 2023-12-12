@@ -44,7 +44,7 @@ $ mill version
 Generate Verilog into `hw/gen/`:
 
 ```console
-$ mill pioNicEngineModule
+$ mill pioNicEngineModule.runMain pionic.PioNicEngineVerilog
 [49/49] pioNicEngineModule.run
 [Runtime] SpinalHDL v1.9.0    git head : 7d30dbacbd3aa1be42fb2a3d4da5675703aae2ae
 [Runtime] JVM max memory : 16012.0MiB
