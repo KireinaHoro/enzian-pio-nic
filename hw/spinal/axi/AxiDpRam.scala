@@ -45,7 +45,7 @@ class AxiDpRam(
   noIoPrefix()
 
   addPrePopTask { () =>
-    axi.renameAxi4IO(io)
+    axi.renameAxi4IO
   }
 
   addRTLPath(axiRTLFile(modName))

@@ -120,8 +120,8 @@ class AxiDma(dmaConfig: AxiDmaConfig,
   noIoPrefix()
 
   addPrePopTask { () =>
-    axi.renameAxi4IO(io)
-    axi.renameAxi4StreamIO(io)
+    axi.renameAxi4IO
+    axi.renameAxi4StreamIO
   }
 
   addRTLPath(axiRTLFile(modName))

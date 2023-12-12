@@ -1,11 +1,14 @@
 import spinal.core._
+import spinal.lib
 import spinal.lib.bus.amba4.axi._
+import spinal.lib.bus.amba4.axis.{Axi4Stream, Axi4StreamConfig}
+import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 
 import scala.collection.mutable
 
 package object axi {
-  def renameAxi4IO(io: Bundle): Unit = {
-    io.flattenForeach { bt =>
+  def renameAxi4IO: Unit = {
+    Component.current.getAllIo.foreach { bt =>
       val pattern = "^([sm]_axi.*)(aw|w|b|ar|r)_(?:payload_)?([^_]+)$".r
       for (pm <- pattern.findFirstMatchIn(bt.getName)) {
         bt.setName(pm.group(1) + pm.group(2) + pm.group(3))
@@ -13,11 +16,13 @@ package object axi {
     }
   }
 
-  def renameAxi4StreamIO(io: Bundle): Unit = {
-    io.flattenForeach { bt =>
-      val pattern = "^([sm]_axis.*?)(?:payload_)+([^_]+)$".r
+  def renameAxi4StreamIO: Unit = {
+    Component.current.getAllIo.foreach { bt =>
+      val pattern = "^([sm]_axis.*?)(?:payload_)*([^_]+)$".r
       for (pm <- pattern.findFirstMatchIn(bt.getName)) {
-        bt.setName(pm.group(1) + pm.group(2))
+        val busName = pm.group(1)
+        val signalName = if (busName.endsWith("data_")) s"t${pm.group(2)}" else pm.group(2)
+        bt.setName(busName + signalName)
       }
     }
   }
