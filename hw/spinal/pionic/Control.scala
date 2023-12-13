@@ -11,9 +11,17 @@ case class GlobalControlBundle(implicit config: PioNicConfig) extends Bundle {
   val rxBlockCycles = UInt(config.regWidth bits)
 }
 
+case class PacketAddr(implicit config: PioNicConfig) extends Bundle {
+  val bits = UInt(config.pktBufAddrWidth bits)
+}
+
+case class PacketLength(implicit config: PioNicConfig) extends Bundle {
+  val bits = UInt(config.pktBufAddrWidth bits)
+}
+
 case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
-  val addr = UInt(config.pktBufAddrWidth bits)
-  val size = UInt(config.pktBufAddrWidth bits)
+  val addr = PacketAddr()
+  val size = PacketLength()
 }
 
 // Control module for PIO access from one single core
@@ -28,10 +36,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val hostRxNextAck = slave Stream PacketDesc()
 
     val hostTx = out(PacketDesc())
-    val hostTxAck = slave Flow UInt(config.pktBufAddrWidth bits) // actual length of the packet
+    val hostTxAck = slave Flow PacketLength() // actual length of the packet
 
     // from CMAC Axis -- ingress packet
-    val cmacRxAlloc = slave Stream UInt(config.pktBufAddrWidth bits)
+    val cmacRxAlloc = slave Stream PacketLength()
 
     // driver for DMA control
     val readDesc = master(dmaConfig.readDescBus)
@@ -45,8 +53,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - config.mtu
   // we reserve one packet for TX
-  io.hostTx.addr := pktBufTxBase
-  io.hostTx.size := config.mtu
+  io.hostTx.addr.bits := pktBufTxBase
+  io.hostTx.size.bits := config.mtu
 
   val rxAlloc = new PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
@@ -77,9 +85,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val stateAllocated: State = new State {
       whenIsActive {
-        io.writeDesc.payload.payload.addr := rxAllocated.addr.resized
-        io.writeDesc.payload.payload.len := rxAllocated.size
-        io.writeDesc.payload.payload.tag := rxAllocated.addr.resized
+        io.writeDesc.payload.payload.addr := rxAllocated.addr.bits.resized
+        io.writeDesc.payload.payload.len := rxAllocated.size.bits
+        io.writeDesc.payload.payload.tag := rxAllocated.addr.bits.resized
         io.writeDesc.valid := True
         when(io.writeDesc.ready) {
           goto(stateWaitDma)
@@ -103,8 +111,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val stateEnqueuePkt: State = new State {
       whenIsActive {
-        rxCaptured.payload.addr := rxDMAed.tag.resized
-        rxCaptured.payload.size := rxDMAed.len
+        rxCaptured.payload.addr.bits := rxDMAed.tag.resized
+        rxCaptured.payload.size.bits := rxDMAed.len
         rxCaptured.valid := True
         when(rxCaptured.ready) {
           goto(stateIdle)
@@ -128,8 +136,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val statePrepared: State = new State {
       whenIsActive {
-        io.readDesc.payload.payload.addr := io.hostTx.addr.resized
-        io.readDesc.payload.payload.len := txAckedLength
+        io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
+        io.readDesc.payload.payload.len := txAckedLength.bits
         io.readDesc.payload.payload.tag := 0
         io.readDesc.valid := True
         when(io.readDesc.ready) {
@@ -150,7 +158,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
   }
 
-  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[UInt]) = new Area {
+  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength]) = new Area {
     io.globalCtrl := globalCtrl
 
     io.readDesc >> rdMux.s_axis_desc(coreID)

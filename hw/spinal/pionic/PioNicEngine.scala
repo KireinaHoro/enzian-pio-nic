@@ -40,7 +40,7 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
   }
 
   // derive cmac incoming packet length
-  val cmacRx = Stream(UInt(config.pktBufAddrWidth bits))
+  val cmacRx = Stream(PacketLength())
   val dispatchedCmacRx = StreamDispatcherSequencial(
     input = cmacRx,
     outputCount = config.numCores,
