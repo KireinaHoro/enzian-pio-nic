@@ -1,6 +1,7 @@
 import axi.Axi4StreamCustom.Axi4StreamCustom
 import spinal.core._
 import spinal.lib
+import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis.{Axi4Stream, Axi4StreamConfig}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
@@ -29,6 +30,7 @@ package object axi {
   }
 
   def axiRTLFile(name: String) = s"hw/deps/verilog-axi/rtl/$name.v"
+  def axisRTLFile(name: String) = s"hw/deps/verilog-axis/rtl/$name.v"
 
   implicit class RichBundle(b: Bundle) {
     def <<?(that: Bundle): Unit = {
@@ -84,6 +86,12 @@ package object axi {
         axis.translateFrom(ret)(_ <<? _)
       }
       ret
+    }
+
+    def length: Flow[UInt] = {
+      val monitor = AxiStreamFrameLen(axis.config)
+      monitor.driveFrom(axis)
+      monitor.io.frame_len
     }
   }
 

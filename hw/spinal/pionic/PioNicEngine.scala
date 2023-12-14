@@ -45,13 +45,10 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
   }
 
   // derive cmac incoming packet length
-  val cmacRx = Stream(PacketLength())
   val dispatchedCmacRx = StreamDispatcherSequencial(
-    input = cmacRx,
+    input = io.s_axis_rx.length.map(PacketLength.fromUInt(_)).toStream, // TODO: record & report overflow
     outputCount = config.numCores,
   )
-  // TODO: calculate length of incoming packet
-  cmacRx.assignDontCare()
 
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))

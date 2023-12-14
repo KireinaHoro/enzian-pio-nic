@@ -13,7 +13,7 @@ object PioNicEngineSim extends App {
     .withFstWave
     .withVerilator
     // verilog-axi flags
-    .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE")
+    .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREP -Wno-ZEROREP")
     .allOptimisation
     .compile(new PioNicEngine())
