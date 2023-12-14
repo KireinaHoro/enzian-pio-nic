@@ -17,10 +17,13 @@ object PacketAllocSim extends App {
     .allOptimisation
     .compile(PacketAlloc(0, 0x40000))
 
+  // TODO: refactor overflow case out
   dut.doSim("simple-allocate-free") { dut =>
     SimTimeout(6000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
+    // this will overflow the larger buffers, but since we free them the allocator should block
+    // TODO: test the block-till-free case properly
     val sizes = mutable.Queue(64 until 9618 by 64: _*)
     val expect = mutable.Queue[Long]()
     val toFree = mutable.Queue[(Long, Long)]()
@@ -55,6 +58,7 @@ object PacketAllocSim extends App {
           f"allocated packet $size%d smaller than expected $expected%d")
         assert(dut.base <= addr && addr < dut.len,
           f"packet addr $addr%#x outside address range [${dut.base}%#x - ${dut.len + dut.base}%#x]")
+        // TODO: assert that the buffer is not previously allocated
         println(f"Allocated addr $addr%#x size $size")
         // hold packets for 20 cycles
         delayed(20) {
