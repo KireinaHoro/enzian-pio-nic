@@ -49,7 +49,7 @@ package object axi {
     }
 
     def toSpinal(config: Axi4Config): Axi4 = {
-      val ret = Axi4(config).setName(s"${axi.name}_toSpinal")
+      val ret = Axi4(config).setCompositeName(axi, "toSpinal", true)
       val masterChannels: Seq[Axi4 => lib.Stream[_ <: Bundle]] = Seq(_.ar, _.aw, _.w)
       val slaveChannels: Seq[Axi4 => lib.Stream[_ <: Bundle]] = Seq(_.r, _.b)
       val driverChannels = if (axi.isMasterInterface) masterChannels else slaveChannels
@@ -77,7 +77,7 @@ package object axi {
 
   implicit class RichAxi4Stream(axis: Axi4Stream) {
     def toSpinal(config: Axi4StreamConfig): Axi4Stream = {
-      val ret = Axi4Stream(config).setName(s"${axis.name}_toSpinal")
+      val ret = Axi4Stream(config).setCompositeName(axis, "toSpinal", true)
       if (axis.isMasterInterface) {
         ret.translateFrom(axis)(_ <<? _)
       } else {
@@ -89,7 +89,7 @@ package object axi {
 
   implicit class RichAxi4StreamCustom[T <: Data](axis: Axi4StreamCustom[T]) {
     def toSpinal(config: Axi4StreamCustomConfig[T]): Axi4StreamCustom[T] = {
-      val ret = Axi4StreamCustom(config).setName(s"${axis.name}_toSpinal")
+      val ret = Axi4StreamCustom(config).setCompositeName(axis, "toSpinal", true)
       if (axis.isMasterInterface) {
         ret.translateFrom(axis)(_ <<? _)
       } else {
