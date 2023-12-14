@@ -56,9 +56,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   io.hostTx.addr.bits := pktBufTxBase
   io.hostTx.size.bits := config.mtu
 
-  val rxAlloc = new PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
+  val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
-  rxAlloc.io.freeReq << io.hostRxNextAck
+  rxAlloc.io.freeReq </< io.hostRxNextAck
 
   val rxAllocated = rxAlloc.io.allocResp.toReg
   val rxDMAed = io.writeDescStatus.toReg

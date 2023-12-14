@@ -6,6 +6,7 @@ import spinal.lib.sim._
 
 import scala.collection.mutable
 
+// TODO: use scalatest to test more configurations
 object PacketAllocSim extends App {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(pktBufAddrWidth = 32)

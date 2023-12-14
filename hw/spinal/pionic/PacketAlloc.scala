@@ -16,13 +16,19 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
 
-  val numPorts = config.pktBufAllocSizeMap.length
+  val roundedMap = config.pktBufAllocSizeMap.map { case (size, ratio) =>
+    val alignedSize = roundUp(size, config.axisConfig.dataWidth).toLong
+    val slots = (len * ratio / alignedSize).toInt
+    (alignedSize, slots)
+  }.filter(_._2 != 0)
+  val numPorts = roundedMap.length
 
-  def roundSize(sz: Long) = roundUp(sz, config.axisConfig.dataWidth).toLong
+  // return largest possible buffer if requested larger than everything
+  val defaultIdx = U(numPorts - 1, log2Up(numPorts) bits)
 
-  def sizeIdx(size: PacketLength) = config.pktBufAllocSizeMap.map(_._1).zipWithIndex
-    .foldRight(U(numPorts)) { case ((maxSize, idx), signal) =>
-      Mux(size.bits <= roundSize(maxSize), idx, signal)
+  def sizeIdx(size: PacketLength) = roundedMap.map(_._1).zipWithIndex
+    .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
+      Mux(size.bits <= alignedSize, idx, signal)
     }
 
   val inProgress: Bool = Reg(Bool()) init False
@@ -42,10 +48,8 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
 
   var curBase = base
 
-  config.pktBufAllocSizeMap.zipWithIndex foreach { case ((size, ratio), idx) =>
+  roundedMap.zipWithIndex foreach { case ((alignedSize, slots), idx) =>
     // round up slot size to streaming bus size to increase bus utilisation
-    val alignedSize = roundSize(size)
-    val slots = (len * ratio / alignedSize).toInt
     println(f"Size $alignedSize: $slots slots @ $curBase%#x")
 
     val slotFifo = StreamFifo(PacketAddr(), slots)
