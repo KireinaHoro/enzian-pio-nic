@@ -34,7 +34,7 @@ case class PioNicConfig(
                          numCores: Int = 4,
                        )
 
-class PioNicEngine(implicit config: PioNicConfig) extends Component {
+case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   private val axiConfig = config.axiConfig
   private val axisConfig = config.axisConfig
 
@@ -97,5 +97,5 @@ class PioNicEngine(implicit config: PioNicConfig) extends Component {
 }
 
 object PioNicEngineVerilog extends App {
-  Config.spinal.generateVerilog(new PioNicEngine()(PioNicConfig())).mergeRTLSource("Merged")
+  Config.spinal.generateVerilog(PioNicEngine()(PioNicConfig())).mergeRTLSource("Merged")
 }

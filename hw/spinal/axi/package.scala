@@ -107,7 +107,7 @@ package object axi {
     }
   }
 
-  // tracked by: https://github.com/SpinalHDL/SpinalHDL/issues/1258
+  // remove once https://github.com/SpinalHDL/SpinalHDL/commit/68b6158700fc2440ea7980406f927262c004faca is into stable
   class Arrayer[T <: Data](dataType: => T, count: Int) extends Area {
     def apply(i: Int) = accesses(i)
 
