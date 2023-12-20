@@ -6,7 +6,7 @@ import spinal.lib.bus.amba4.axis.{Axi4Stream, Axi4StreamConfig}
 
 case class AxiStreamFifo(
                           axisConfig: Axi4StreamConfig,
-                          depthWords: Int = 4096,
+                          depthBytes: Int = 4096,
                           ramPipeline: Boolean = true,
                           outputFifoEnable: Boolean = false,
                           frameFifo: Boolean = false,
@@ -24,7 +24,7 @@ case class AxiStreamFifo(
 
   val intfAxisConfig = mapToIntf(axisConfig)
   val generic = new Generic {
-    val DEPTH = depthWords
+    val DEPTH = depthBytes
     val DATA_WIDTH = axisConfig.dataWidth * 8
     val KEEP_ENABLE = axisConfig.useKeep
     val KEEP_WIDTH = axisConfig.dataWidth
@@ -63,8 +63,8 @@ case class AxiStreamFifo(
     }
 
     val status = out(new Bundle {
-      val depth = UInt(log2Up(depthWords) bits)
-      val depth_commit = UInt(log2Up(depthWords) bits)
+      val depth = UInt(log2Up(depthBytes) bits)
+      val depth_commit = UInt(log2Up(depthBytes) bits)
       val overflow = Bool()
       val bad_frame = Bool()
       val good_frame = Bool()

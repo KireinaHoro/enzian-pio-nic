@@ -45,8 +45,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   }
 
   // buffer incoming packet for packet length
-  val maxWords = (config.mtu.toDouble / axisConfig.dataWidth).ceil.toInt
-  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthWords = maxWords)()
+  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.mtu)()
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
   val dispatchedCmacRx = StreamDispatcherSequential(
