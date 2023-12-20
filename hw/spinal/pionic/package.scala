@@ -15,6 +15,17 @@ package object pionic {
     def toByteString: String = {
       arr.map(v => f"$v%02x").mkString
     }
+
+    // with status bit
+    def toPacketDesc = {
+      val d = BigInt(arr.reverse).toLong
+      if ((d & 1) == 0) {
+        None
+      } else {
+        val desc = (d >> 1).toInt
+        Some(PacketDescSim(desc & 0xffff, (desc >> 16) & 0xffff))
+      }
+    }
   }
 
   implicit class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {

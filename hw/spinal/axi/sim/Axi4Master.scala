@@ -154,7 +154,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     val bytes = (len + 1) * bytePerBeat
     val bytePerBus = 1 << log2Up(busConfig.dataWidth / 8)
 
-    val roundedAddress = (address & (busConfig.bytePerWord - 1)).toInt
+    val roundedAddress = (address - (address & (busConfig.bytePerWord - 1))).toInt
     val padFront = address.toInt - roundedAddress
     val totalLen = roundUp(padFront + data.length, busConfig.bytePerWord).toInt
     val paddedData = (Array.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)

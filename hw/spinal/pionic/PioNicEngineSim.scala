@@ -6,7 +6,11 @@ import spinal.core.sim._
 
 import scala.util._
 
-case class PacketDescSim(addr: Int, size: Int)
+case class PacketDescSim(addr: Int, size: Int) {
+  def toBigInt: BigInt = BigInt(((size & 0xffff) << 16) | (addr & 0xffff))
+
+  def toByteArray: Array[Byte] = toBigInt.toByteArray.reverse.padTo(8, 0.toByte)
+}
 
 object PioNicEngineSim extends App {
   // TODO: test on multiple configs
@@ -18,18 +22,9 @@ object PioNicEngineSim extends App {
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(PioNicEngine())
 
-  def decodeStatus(data: Array[Byte]) = {
-    val d = BigInt(data.reverse).toLong
-    if ((d & 1) == 0) {
-      None
-    } else {
-      val desc = (d >> 1).toInt
-      Some(PacketDescSim(desc & 0xffff, (desc >> 16) & 0xffff))
-    }
-  }
-
-  dut.doSim { dut =>
-    SimTimeout(1000)
+  // TODO: test for various failures
+  dut.doSim("rx-regular") { dut =>
+    SimTimeout(2000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
@@ -42,25 +37,34 @@ object PioNicEngineSim extends App {
         assert(BigInt(data.reverse).toInt == rxBlockCycles, "global config bundle mismatch")
 
         master.read(0x1000, 8) { data =>
-          val status = decodeStatus(data)
-          println(s"Received status register: $status")
-          assert(status.isEmpty, "should not have packet on standby yet")
+          assert(data.toPacketDesc.isEmpty, "should not have packet on standby yet")
 
           val toSend = Array.fill(256)(Random.nextInt.toByte)
           // test for actually receiving a packet
           master.read(0x1000, 8) { data =>
-            val status = decodeStatus(data)
-            println(s"Received status register: $status")
-            assert(status.get.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${status.size}")
+            val desc = data.toPacketDesc.get
+            println(s"Received status register: $desc")
+            assert(desc.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${desc.size}")
 
             // read memory and check data
-            master.read(0x100000 + status.get.addr, status.get.size) { data =>
+            master.read(0x100000 + desc.addr, desc.size) { data =>
               assert(data sameElements toSend,
                 s"""data mismatch:
                    |expected: "${toSend.toByteString}"
                    |got:      "${data.toByteString}"""".stripMargin)
 
-              // TODO: free packet buffer
+              // free packet buffer
+              println(s"desc $desc to bytes: ${desc.toByteArray.toByteString}")
+              master.write(0x1008, desc.toByteArray) {
+                // check for retire
+                delayed(1) {
+                  master.read(0x1020, 8) { data =>
+                    val counter = BigInt(data.reverse).toInt
+                    assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
+                    // we are done!
+                  }
+                }
+              }
             }
           }
 

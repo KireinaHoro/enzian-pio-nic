@@ -46,7 +46,18 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val readDescStatus = slave(dmaConfig.readDescStatusBus)
     val writeDesc = master(dmaConfig.writeDescBus)
     val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
+
+    // statistics
+    val statistics = out(new Bundle {
+      val rxRetiredPacketCount = Reg(UInt(config.regWidth bits)) init 0
+      val txRetiredPacketCount = Reg(UInt(config.regWidth bits)) init 0
+      val rxDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
+      val txDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
+    })
   }
+
+  def inc(reg: UInt) = reg := reg + 1
+
   io.writeDesc.payload.setAsReg()
   io.writeDesc.valid.setAsReg() init False
   io.readDesc.payload.setAsReg()
@@ -63,6 +74,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
+  when(io.hostRxNextAck.fire) {
+    inc(io.statistics.rxRetiredPacketCount)
+  }
+
   rxAlloc.io.allocResp.setBlocked
   val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
@@ -100,7 +115,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
             rxCaptured.valid := True
             goto(stateEnqueuePkt)
           } otherwise {
-            // FIXME: report error status
+            inc(io.statistics.rxDmaErrorCount)
             goto(stateIdle)
           }
         }
@@ -141,7 +156,11 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val stateWaitDma: State = new State {
       whenIsActive {
         when(io.readDescStatus.fire) {
-          // FIXME: report error status
+          when(io.readDescStatus.payload.error === 0) {
+            inc(io.statistics.txRetiredPacketCount)
+          } otherwise {
+            inc(io.statistics.txDmaErrorCount)
+          }
           goto(stateIdle)
         }
       }
@@ -167,5 +186,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     busCtrl.read(io.hostTx, baseAddress + regBytes * 2)
     busCtrl.driveFlow(io.hostTxAck, baseAddress + regBytes * 3)
+
+    io.statistics.elements.zipWithIndex.foreach { case ((name, data), idx) =>
+      busCtrl.read(data, baseAddress + regBytes * (4 + idx))
+    }
   }
 }
