@@ -63,6 +63,8 @@ class AxiDma(dmaConfig: AxiDmaConfig,
              enableSG: Boolean = false,
              enableUnaligned: Boolean = false,
             ) extends BlackBox {
+  assert(clockDomain.config.resetKind == SYNC, "verilog-axi requires synchronous reset")
+
   private val axiConfig = dmaConfig.axiConfig
   private val axisConfig = dmaConfig.axisConfig
 

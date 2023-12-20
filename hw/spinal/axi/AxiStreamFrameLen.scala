@@ -6,6 +6,8 @@ import spinal.lib.bus.amba4.axis._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 
 case class AxiStreamFrameLen(axisConfig: Axi4StreamConfig, lenWidth: Int = 16) extends BlackBox {
+  assert(clockDomain.config.resetKind == SYNC, "verilog-axis requires synchronous reset")
+
   val keepWidth = axisConfig.dataWidth // BYTES
   val generic = new Generic {
     val DATA_WIDTH = axisConfig.dataWidth * 8

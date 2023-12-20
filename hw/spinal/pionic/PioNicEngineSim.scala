@@ -4,23 +4,16 @@ import axi.sim.{Axi4Master, Axi4StreamMaster}
 import spinal.core._
 import spinal.core.sim._
 
-import scala.async.Async.{async, await}
-import scala.concurrent.ExecutionContext
 import scala.util._
 
 object PioNicEngineSim extends App {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig()
-  val spinalConfig = SpinalConfig(defaultClockDomainFrequency = FixedFrequency(250 MHz))
 
-  val dut = SimConfig
-    .withConfig(spinalConfig)
-    .withFstWave
-    .withVerilator
+  val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
-    .allOptimisation
     .compile(PioNicEngine())
 
   dut.doSim { dut =>

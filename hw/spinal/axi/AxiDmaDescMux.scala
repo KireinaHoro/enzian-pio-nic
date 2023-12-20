@@ -9,6 +9,7 @@ class AxiDmaDescMux(
                      arbRoundRobin: Boolean = true,
                      arbLsbHighPriority: Boolean = true,
                    ) extends BlackBox {
+  assert(clockDomain.config.resetKind == SYNC, "verilog-axi requires synchronous reset")
 
   import clientDmaConfig._
 

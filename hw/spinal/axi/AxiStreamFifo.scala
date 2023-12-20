@@ -20,6 +20,8 @@ case class AxiStreamFifo(
                           dropOversizeFrame: Boolean = frameFifo,
                           framePause: Boolean = frameFifo,
                         ) extends BlackBox {
+  assert(clockDomain.config.resetKind == SYNC, "verilog-axis requires synchronous reset")
+
   val intfAxisConfig = mapToIntf(axisConfig)
   val generic = new Generic {
     val DEPTH = depthWords

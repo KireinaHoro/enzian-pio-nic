@@ -10,12 +10,8 @@ import scala.collection.mutable
 object PacketAllocSim extends App {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(pktBufAddrWidth = 32)
-  val spinalConfig = SpinalConfig(defaultClockDomainFrequency = FixedFrequency(250 MHz))
 
-  val dut = SimConfig
-    .withConfig(spinalConfig)
-    .withFstWave
-    .allOptimisation
+  val dut = Config.sim
     .compile(PacketAlloc(0, 0x40000))
 
   // TODO: refactor overflow case out

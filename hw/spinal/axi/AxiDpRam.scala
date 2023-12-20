@@ -13,6 +13,8 @@ class AxiDpRam(
                 aInterleave: Boolean = false,
                 bInterleave: Boolean = false,
               ) extends BlackBox {
+  assert(clockDomain.config.resetKind == SYNC, "verilog-axi requires synchronous reset")
+
   val generic = new Generic {
     val DATA_WIDTH = axiConfig.dataWidth
     val ADDR_WIDTH = axiConfig.addressWidth
