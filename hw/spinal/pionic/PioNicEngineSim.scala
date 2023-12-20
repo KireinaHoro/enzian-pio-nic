@@ -31,18 +31,18 @@ object PioNicEngineSim extends App {
 
         master.read(0x1000, 8) { data =>
           val received = BigInt(data.reverse)
-          println(f"Received status register: $received%#x")
+          println(f"Received status register: $received%#x ${data.toByteString}")
 
           // test for actually receiving a packet
           master.read(0x1000, 8) { data =>
             val received = BigInt(data.reverse)
-            println(f"Received status register: $received%#x")
+            println(f"Received status register: $received%#x ${data.toByteString}")
           }
 
           val toSend = Array.fill(256)(Random.nextInt.toByte)
           delayed(20) {
             axisMaster.send(toSend) {
-              println(f"Sent ${toSend.mkString("")}")
+              println(s"Sent packet ${toSend.toByteString}")
             }
           }
         }

@@ -51,7 +51,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val dispatchedCmacRx = StreamDispatcherSequential(
     input = rxFifo.slavePort.frameLength.map(_.toPacketLength).toStream, // TODO: record & report overflow
     outputCount = config.numCores,
-  )
+  ).setName("packetLenDemux")
 
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
@@ -79,7 +79,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), 0)
 
   for (id <- 0 until config.numCores) {
-    new PioCoreControl(dmaConfig, id)
+    new PioCoreControl(dmaConfig, id).setName(s"coreCtrl_$id")
       .driveFrom(busCtrl, (1 + id) * 0x1000)(
         globalCtrl = globalCtrl,
         rdMux = axiDmaReadMux,

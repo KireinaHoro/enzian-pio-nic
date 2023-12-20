@@ -11,6 +11,12 @@ package object pionic {
     }
   }
 
+  implicit class RichByteArray(arr: Array[Byte]) {
+    def toByteString: String = {
+      arr.map(v => f"$v%02x").mkString
+    }
+  }
+
   implicit class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {
     def readStreamBlockCycles[T <: Data](that: Stream[T], address: BigInt, blockCycles: UInt, maxBlockCycles: BigInt): Unit = {
       // almost a copy of multiCycleRead

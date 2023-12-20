@@ -1,5 +1,6 @@
 package axi.sim
 
+import pionic.RichByteArray
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib.bus.amba4.axis.Axi4Stream._
@@ -21,7 +22,8 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
       log(s"not using strb but length not multiple of data width; data will be zero padded")
     }
 
-    val beats = data.map { byte => (byte, true) } padTo(fullLength, (0.toByte, false)) grouped busConfig.dataWidth
+    val beats = (data.map { byte => (byte, true) } padTo(fullLength, (0.toByte, false)) grouped busConfig.dataWidth).toList
+    log(s"initiating send, ${beats.length} beats in total")
     beats.zipWithIndex.foreach { case (dataWithStrb, idx) =>
       val (data, strbBits) = dataWithStrb.unzip
       queue += { bundle =>
@@ -34,7 +36,7 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
         if (busConfig.useLast) bundle.last #= isLast
         if (busConfig.useKeep) bundle.keep #= strb
 
-        log(f"sent beat: data ${BigInt(data.reverse)}%#x strb $strb%#x last $isLast")
+        log(f"beat #$idx: data ${data.toByteString} strb $strb%#x last $isLast")
 
         if (isLast) callback
       }
