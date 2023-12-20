@@ -49,8 +49,8 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthWords = maxWords)()
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
-  val dispatchedCmacRx = StreamDispatcherSequencial(
-    input = rxFifo.slavePort.length.map(PacketLength.fromUInt(_)).toStream, // TODO: record & report overflow
+  val dispatchedCmacRx = StreamDispatcherSequential(
+    input = rxFifo.slavePort.frameLength.map(_.toPacketLength).toStream, // TODO: record & report overflow
     outputCount = config.numCores,
   )
 

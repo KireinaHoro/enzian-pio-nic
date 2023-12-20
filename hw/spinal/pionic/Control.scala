@@ -18,13 +18,6 @@ case class PacketAddr(implicit config: PioNicConfig) extends Bundle {
 case class PacketLength(implicit config: PioNicConfig) extends Bundle {
   val bits = UInt(config.pktBufAddrWidth bits)
 }
-object PacketLength {
-  def fromUInt(v: UInt)(implicit config: PioNicConfig) = {
-    val len = PacketLength()
-    len.bits := v
-    len
-  }
-}
 
 case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
   val addr = PacketAddr()

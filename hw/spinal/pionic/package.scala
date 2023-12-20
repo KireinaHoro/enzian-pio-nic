@@ -3,7 +3,15 @@ import spinal.lib._
 import spinal.lib.bus.misc._
 
 package object pionic {
-  class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {
+  implicit class RichUInt(v: UInt) {
+    def toPacketLength(implicit config: PioNicConfig) = {
+      val len = PacketLength()
+      len.bits := v
+      len
+    }
+  }
+
+  implicit class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {
     def readStreamBlockCycles[T <: Data](that: Stream[T], address: BigInt, blockCycles: UInt, maxBlockCycles: BigInt): Unit = {
       // almost a copy of multiCycleRead
       val counter = Counter(maxBlockCycles)
@@ -32,6 +40,4 @@ package object pionic {
       that << flow.toStream
     }
   }
-
-  implicit def augmentBusSlaveFactory(busCtrl: BusSlaveFactory): RichBusSlaveFactory = new RichBusSlaveFactory(busCtrl)
 }

@@ -89,7 +89,7 @@ package object axi {
       ret
     }
 
-    def length: Flow[UInt] = {
+    def frameLength: Flow[UInt] = {
       val monitor = AxiStreamFrameLen(axis.config)
       monitor.driveFrom(axis)
       monitor.io.frame_len
