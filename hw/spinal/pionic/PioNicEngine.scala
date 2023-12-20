@@ -57,8 +57,8 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
 
   val dmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufAddrWidth)
-  val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores)
-  val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores)
+  val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
+  val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
   val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a

@@ -1,5 +1,6 @@
 package axi.sim
 
+import pionic.RichByteArray
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
@@ -50,8 +51,35 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     println(s"Axi4Master [$chan]\t: $msg")
   }
 
-  // FIXME: this can only handle one-transaction reads
   def read(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
+    val bytePerBeat = 1 << size
+    val bytes = (len + 1) * bytePerBeat // FIXME: 4K limitation?
+    val numTransactions = (totalBytes.toDouble / bytes).ceil.toInt
+    val builder = new mutable.ArrayBuilder.ofByte
+
+    if (numTransactions > 1) {
+      log("..", f"read $address%#x in $numTransactions transactions")
+    }
+
+    def run(addr: BigInt, totBytes: Int, numTransactions: Int) = {
+      val transactionSize = if (totBytes > bytes) bytes else totBytes
+      readSingle(addr, transactionSize, id, burst, len, size)(handleTransaction(addr, totBytes, numTransactions))
+    }
+
+    def handleTransaction(addr: BigInt, tot: Int, numTransactions: Int)(data: Array[Byte]): Unit = {
+      builder ++= data
+      if (numTransactions == 1) {
+        // we are the last one
+        callback(builder.result())
+      } else {
+        run(addr + data.length, tot - data.length, numTransactions - 1)
+      }
+    }
+
+    run(address, totalBytes, numTransactions)
+  }
+
+  def readSingle(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit): Unit = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
     if (burst != Incr) {
       assert(len <= 15, s"max fixed/wrap burst in one transaction is 16")
@@ -96,7 +124,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
           }
           if (beat == len) {
             val response = builder.result().take(totalBytes)
-            log("R", f"got data ${BigInt(response.reverse)}%#x")
+            log("R", f"got data ${response.toByteString}")
             callback(response)
           }
         }
@@ -113,14 +141,14 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
 
   StreamReadyRandomizer(axi.r, clockDomain)
   StreamMonitor(axi.r, clockDomain) { r =>
-    if (rQueue.nonEmpty) {
-      val id = if (busConfig.useId) r.id.toInt else 0
+    val id = if (busConfig.useId) r.id.toInt else 0
+    if (rQueue(id).nonEmpty) {
       rQueue(id).dequeue()(r)
     }
   }
 
   // FIXME: this can only handle one-transaction writes
-  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit) = {
+  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat
@@ -151,7 +179,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
           }
           if (busConfig.useStrb) w.strb #= strb
           if (busConfig.useLast) w.last #= beat == len
-          log("W", f"data ${BigInt(data.reverse)}%#x strb $strb%#x last ${beat == len}")
+          log("W", f"data ${data.toByteString} strb $strb%#x last ${beat == len}")
         }
       }
 

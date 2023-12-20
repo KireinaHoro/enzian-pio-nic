@@ -47,6 +47,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val writeDesc = master(dmaConfig.writeDescBus)
     val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
   }
+  io.writeDesc.payload.setAsReg()
+  io.writeDesc.valid.setAsReg() init False
+  io.readDesc.payload.setAsReg()
+  io.readDesc.valid.setAsReg() init False
 
   assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
 
@@ -59,48 +63,41 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
+  rxAlloc.io.allocResp.setBlocked
+  val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
-  val rxAllocated = rxAlloc.io.allocResp.toReg
-  val rxDMAed = io.writeDescStatus.toReg
-
-  val rxCaptured = Stream(PacketDesc()).setIdle
+  val rxCaptured = Reg(Stream(PacketDesc())).setIdle
   rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
 
-  io.readDesc.setIdle
-  io.writeDesc.setIdle
-
-  val readFsm = new StateMachine {
+  val rxFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
-      onEntry {
-        rxAlloc.io.allocResp.ready := True
-      }
       whenIsActive {
+        rxAlloc.io.allocResp.ready := True
         when(rxAlloc.io.allocResp.valid) {
+          io.writeDesc.payload.payload.addr := rxAlloc.io.allocResp.addr.bits.resized
+          io.writeDesc.payload.payload.len := allocReq.bits // use the actual size instead of length of buffer
+          io.writeDesc.payload.payload.tag := rxAlloc.io.allocResp.addr.bits.resized
+          io.writeDesc.valid := True
           goto(stateAllocated)
         }
-      }
-      onExit {
-        rxAlloc.io.allocResp.ready := False
       }
     }
     val stateAllocated: State = new State {
       whenIsActive {
-        io.writeDesc.payload.payload.addr := rxAllocated.addr.bits.resized
-        io.writeDesc.payload.payload.len := rxAllocated.size.bits
-        io.writeDesc.payload.payload.tag := rxAllocated.addr.bits.resized
-        io.writeDesc.valid := True
+        rxAlloc.io.allocResp.ready := False
         when(io.writeDesc.ready) {
+          io.writeDesc.setIdle
           goto(stateWaitDma)
         }
-      }
-      onExit {
-        io.writeDesc.setIdle
       }
     }
     val stateWaitDma: State = new State {
       whenIsActive {
         when(io.writeDescStatus.fire) {
           when(io.writeDescStatus.payload.error === 0) {
+            rxCaptured.payload.addr.bits := io.writeDescStatus.tag.resized
+            rxCaptured.payload.size.bits := io.writeDescStatus.len
+            rxCaptured.valid := True
             goto(stateEnqueuePkt)
           } otherwise {
             // FIXME: report error status
@@ -111,22 +108,17 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
     val stateEnqueuePkt: State = new State {
       whenIsActive {
-        rxCaptured.payload.addr.bits := rxDMAed.tag.resized
-        rxCaptured.payload.size.bits := rxDMAed.len
-        rxCaptured.valid := True
         when(rxCaptured.ready) {
+          rxCaptured.setIdle
           goto(stateIdle)
         }
-      }
-      onExit {
-        rxCaptured.setIdle
       }
     }
   }
 
   val txAckedLength = io.hostTxAck.toReg
 
-  val writeFsm = new StateMachine {
+  val txFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
       whenIsActive {
         when(io.hostTxAck.fire) {
@@ -141,11 +133,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         io.readDesc.payload.payload.tag := 0
         io.readDesc.valid := True
         when(io.readDesc.ready) {
+          io.readDesc.setIdle
           goto(stateWaitDma)
         }
-      }
-      onExit {
-        io.readDesc.setIdle
       }
     }
     val stateWaitDma: State = new State {
