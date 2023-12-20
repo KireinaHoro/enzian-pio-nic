@@ -111,9 +111,8 @@ class AxiDma(dmaConfig: AxiDmaConfig,
     val write_abort = in Bool()
   }
 
-  def readDataMaster = io.m_axis_read_data.toSpinal(axisConfig)
-
-  def writeDataSlave = io.s_axis_write_data.toSpinal(axisConfig)
+  lazy val readDataMaster = io.m_axis_read_data.toSpinal(axisConfig)
+  lazy val writeDataSlave = io.s_axis_write_data.toSpinal(axisConfig)
 
   mapCurrentClockDomain(io.clk, io.rst)
 
@@ -121,7 +120,7 @@ class AxiDma(dmaConfig: AxiDmaConfig,
 
   addPrePopTask { () =>
     axi.renameAxi4IO
-    axi.renameAxi4StreamIO
+    axi.renameAxi4StreamIO()
   }
 
   addRTLPath(axiRTLFile(modName))

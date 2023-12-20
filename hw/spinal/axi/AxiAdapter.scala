@@ -45,9 +45,8 @@ class AxiAdapter(inConfig: Axi4Config, outDataWidth: Int, convertBurst: Boolean 
     val m_axi = master(Axi4(intfConfig.copy(dataWidth = outDataWidth)))
   }
 
-  def getSlave = io.s_axi.toSpinal(inConfig)
-
-  def getMaster = io.m_axi.toSpinal(inConfig.copy(dataWidth = outDataWidth))
+  lazy val slavePort = io.s_axi.toSpinal(inConfig)
+  lazy val masterPort = io.m_axi.toSpinal(inConfig.copy(dataWidth = outDataWidth))
 
   mapCurrentClockDomain(io.clk, io.rst)
   noIoPrefix()

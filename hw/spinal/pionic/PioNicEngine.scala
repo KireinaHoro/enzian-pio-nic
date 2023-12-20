@@ -44,9 +44,13 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
     val m_axis_tx = master(Axi4Stream(axisConfig))
   }
 
+  // buffer incoming packet for packet length
+  val maxWords = (config.mtu.toDouble / axisConfig.dataWidth).ceil.toInt
+  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthWords = maxWords)()
+  rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
   val dispatchedCmacRx = StreamDispatcherSequencial(
-    input = io.s_axis_rx.length.map(PacketLength.fromUInt(_)).toStream, // TODO: record & report overflow
+    input = rxFifo.slavePort.length.map(PacketLength.fromUInt(_)).toStream, // TODO: record & report overflow
     outputCount = config.numCores,
   )
 
@@ -60,7 +64,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
   axiDma.readDataMaster >> io.m_axis_tx
-  axiDma.writeDataSlave << io.s_axis_rx
+  axiDma.writeDataSlave << rxFifo.masterPort
 
   axiDma.io.read_enable := True
   axiDma.io.write_enable := True

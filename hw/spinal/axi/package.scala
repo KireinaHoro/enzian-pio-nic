@@ -18,18 +18,19 @@ package object axi {
     }
   }
 
-  def renameAxi4StreamIO: Unit = {
+  def renameAxi4StreamIO(alwaysAddT: Boolean = false): Unit = {
     Component.current.getAllIo.foreach { bt =>
       val pattern = "^([sm]_axis.*?)(?:payload_)*([^_]+)$".r
       for (pm <- pattern.findFirstMatchIn(bt.getName)) {
         val busName = pm.group(1)
-        val signalName = if (busName.endsWith("data_")) s"t${pm.group(2)}" else pm.group(2)
+        val signalName = if (busName.endsWith("data_") || alwaysAddT) s"t${pm.group(2)}" else pm.group(2)
         bt.setName(busName + signalName)
       }
     }
   }
 
   def axiRTLFile(name: String) = s"hw/deps/verilog-axi/rtl/$name.v"
+
   def axisRTLFile(name: String) = s"hw/deps/verilog-axis/rtl/$name.v"
 
   implicit class RichBundle(b: Bundle) {
@@ -46,8 +47,8 @@ package object axi {
   implicit class RichAxi4(axi: Axi4) {
     def resize(newWidth: Int): Axi4 = {
       val adapter = new AxiAdapter(axi.config, newWidth)
-      axi >> adapter.getSlave
-      adapter.getMaster
+      axi >> adapter.slavePort
+      adapter.masterPort
     }
 
     def toSpinal(config: Axi4Config): Axi4 = {
