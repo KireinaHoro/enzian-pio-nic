@@ -47,7 +47,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
   private val maxSize = log2Up(busConfig.bytePerWord)
 
   private def log(chan: String, msg: String): Unit = {
-    println(s"Axi4Master [$chan]: $msg")
+    println(s"Axi4Master [$chan]\t: $msg")
   }
 
   // FIXME: this can only handle one-transaction reads
@@ -120,7 +120,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
   }
 
   // FIXME: this can only handle one-transaction writes
-  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: () => Unit) = {
+  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit) = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat
@@ -158,7 +158,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       bQueue(id) += { b =>
         if (busConfig.useResp) assert(b.resp.toInt == Okay.id, s"bad resp ${b.resp.toInt}")
         log("B", s"transaction finished resp ${b.resp.toInt}")
-        callback()
+        callback
       }
     }
   }
