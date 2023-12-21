@@ -90,6 +90,9 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     assert(totalBytes <= bytes, s"requested length $totalBytes could not be completed in one transaction")
     val bytePerBus = 1 << log2Up(busConfig.dataWidth / 8)
 
+    val roundedAddress = address - (address & (busConfig.bytePerWord - 1))
+    val dropFront = (address - roundedAddress).toInt
+
     arQueue += { ar =>
       ar.addr #= address
       if (busConfig.useId) ar.id #= id
@@ -123,7 +126,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
             }
           }
           if (beat == len) {
-            val response = builder.result().take(totalBytes)
+            val response = builder.result().slice(dropFront, dropFront + totalBytes)
             log("R", f"got data ${response.toByteString}")
             callback(response)
           }
@@ -154,9 +157,10 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     val bytes = (len + 1) * bytePerBeat
     val bytePerBus = 1 << log2Up(busConfig.dataWidth / 8)
 
-    val roundedAddress = (address - (address & (busConfig.bytePerWord - 1))).toInt
-    val padFront = address.toInt - roundedAddress
+    val roundedAddress = address - (address & (busConfig.bytePerWord - 1))
+    val padFront = (address - roundedAddress).toInt
     val totalLen = roundUp(padFront + data.length, busConfig.bytePerWord).toInt
+    val realLen = data.length
     val paddedData = (Array.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)
     val padBack = totalLen - padFront - data.length
 
@@ -172,7 +176,9 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
         wQueue += { w =>
           val data = paddedData.slice(beat * bytePerBeat, (beat + 1) * bytePerBeat)
           w.data #= data
-          val strb = beat match {
+          val strb = if (len == 0) {
+            ((BigInt(1) << realLen) - 1) << padFront
+          } else beat match {
             case 0 => (BigInt(1) << (bytePerBeat - padFront)) - 1
             case `len` => ~((BigInt(1) << padBack) - 1)
             case _ => BigInt(1) << busConfig.bytePerWord

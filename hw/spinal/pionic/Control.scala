@@ -181,14 +181,20 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     private val regBytes: Int = config.regWidth / 8
 
+    println(f"$baseAddress%#x\t: hostRxNext")
     busCtrl.readStreamBlockCycles(io.hostRxNext, baseAddress, globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
+    println(f"${baseAddress + regBytes}%#x\t: hostRxNextAck")
     busCtrl.driveStream(io.hostRxNextAck, baseAddress + regBytes)
 
+    println(f"${baseAddress + regBytes * 2}%#x\t: hostTx")
     busCtrl.read(io.hostTx, baseAddress + regBytes * 2)
+    println(f"${baseAddress + regBytes * 3}%#x\t: hostTxAck")
     busCtrl.driveFlow(io.hostTxAck, baseAddress + regBytes * 3)
 
     io.statistics.elements.zipWithIndex.foreach { case ((name, data), idx) =>
-      busCtrl.read(data, baseAddress + regBytes * (4 + idx))
+      val addr = baseAddress + regBytes * (4 + idx)
+      println(f"$addr%#x\t: $name")
+      busCtrl.read(data, addr)
     }
   }
 }

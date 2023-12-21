@@ -21,6 +21,7 @@ object PioNicEngineSim extends App {
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(PioNicEngine())
+  var doneIssuing = false
 
   // TODO: test for various failures
   dut.doSim("rx-regular") { dut =>
@@ -32,7 +33,7 @@ object PioNicEngineSim extends App {
     // write global config bundle
     val rxBlockCycles = 100
 
-    master.write(0, BigInt(rxBlockCycles).toByteArray) {
+    master.write(0, BigInt(rxBlockCycles).toByteArray.padTo(8, 0.toByte)) {
       master.read(0, 8) { data =>
         assert(BigInt(data.reverse).toInt == rxBlockCycles, "global config bundle mismatch")
 
@@ -57,12 +58,12 @@ object PioNicEngineSim extends App {
               println(s"desc $desc to bytes: ${desc.toByteArray.toByteString}")
               master.write(0x1008, desc.toByteArray) {
                 // check for retire
-                delayed(1) {
-                  master.read(0x1020, 8) { data =>
-                    val counter = BigInt(data.reverse).toInt
-                    assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
-                    // we are done!
-                  }
+                master.read(0x1020, 8) { data =>
+                  val counter = BigInt(data.reverse).toInt
+                  assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
+
+                  // we are done!
+                  doneIssuing = true
                 }
               }
             }
@@ -77,6 +78,6 @@ object PioNicEngineSim extends App {
       }
     }
 
-    dut.clockDomain.waitActiveEdgeWhere(master.idle)
+    dut.clockDomain.waitActiveEdgeWhere(master.idle && doneIssuing)
   }
 }
