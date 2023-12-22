@@ -18,17 +18,16 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
 
   def send(data: Array[Byte])(callback: => Unit): Unit = {
     val fullLength = roundUp(data.length, busConfig.dataWidth).toInt
-    if (fullLength != data.length && !busConfig.useStrb) {
-      log(s"not using strb but length not multiple of data width; data will be zero padded")
+    if (fullLength != data.length && !busConfig.useStrb && !busConfig.useKeep) {
+      log(s"not using strb or keep but length not multiple of data width; data will be zero padded")
     }
 
     val beats = (data.map { byte => (byte, true) } padTo(fullLength, (0.toByte, false)) grouped busConfig.dataWidth).toList
     log(s"initiating send, ${beats.length} beats in total")
     beats.zipWithIndex.foreach { case (dataWithStrb, idx) =>
-      val (data, strbBits) = dataWithStrb.unzip
+      val (data, strb) = dataWithStrb.unzip
       queue += { bundle =>
         val isLast = idx + 1 == beats.length
-        val strb = BigInt(strbBits.map(_.toInt).mkString, 2)
 
         bundle.data #= data
         if (busConfig.useId) bundle.id.randomize()
@@ -36,7 +35,7 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
         if (busConfig.useLast) bundle.last #= isLast
         if (busConfig.useKeep) bundle.keep #= strb
 
-        log(f"beat #$idx: data ${data.toByteString} strb $strb%#x last $isLast")
+        log(f"beat #$idx: data ${data.toByteString} strb ${strb.toBigInt}%#x last $isLast")
 
         if (isLast) callback
       }

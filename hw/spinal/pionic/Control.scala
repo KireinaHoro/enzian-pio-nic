@@ -192,6 +192,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     io.statistics.elements.zipWithIndex.foreach { case ((name, data), idx) =>
       val addr = baseAddress + regBytes * (4 + idx)
+      assert(addr < baseAddress + 0x1000, "status registers overflow address space")
       println(f"$addr%#x\t: $name")
       busCtrl.read(data, addr)
     }
