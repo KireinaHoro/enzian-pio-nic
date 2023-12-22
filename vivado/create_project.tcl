@@ -118,7 +118,7 @@ if { $::argc > 0 } {
 set orig_proj_dir "[file normalize "$origin_dir/pio-nic"]"
 
 # Check for paths and files needed for project creation
-set validate_required 0
+set validate_required 1
 if { $validate_required } {
   if { [checkRequiredFiles $origin_dir] } {
     puts "Tcl file $script_file is valid. All files required for project creation is accesable. "
@@ -227,7 +227,7 @@ if { [get_files PioNicEngine.v] == "" } {
 
 # Proc to create BD design_1
 proc cr_bd_design_1 { parentCell } {
-# The design that will be created by this Tcl proc contains the following 
+# The design that will be created by this Tcl proc contains the following
 # module references:
 # PioNicEngine
 
@@ -246,7 +246,7 @@ proc cr_bd_design_1 { parentCell } {
   ##################################################################
   set bCheckIPs 1
   if { $bCheckIPs == 1 } {
-     set list_check_ips "\ 
+     set list_check_ips "\
   xilinx.com:ip:cmac_usplus:*\
   xilinx.com:ip:proc_sys_reset:*\
   xilinx.com:ip:axis_clock_converter:*\
@@ -279,7 +279,7 @@ proc cr_bd_design_1 { parentCell } {
   ##################################################################
   set bCheckModules 1
   if { $bCheckModules == 1 } {
-     set list_check_mods "\ 
+     set list_check_mods "\
   PioNicEngine\
   "
 
@@ -356,7 +356,7 @@ proc cr_bd_design_1 { parentCell } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-  
+
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus cmac_usplus_0 ]
   set_property -dict [ list \
@@ -582,12 +582,12 @@ pagesize -pg 1 -db -bbox -sgen -130 0 2390 1520
 
   validate_bd_design
   save_bd_design
-  close_bd_design $design_name 
+  close_bd_design $design_name
 }
 # End of cr_bd_design_1()
 cr_bd_design_1 ""
-set_property REGISTERED_WITH_MANAGER "1" [get_files design_1.bd ] 
-set_property SYNTH_CHECKPOINT_MODE "Hierarchical" [get_files design_1.bd ] 
+set_property REGISTERED_WITH_MANAGER "1" [get_files design_1.bd ]
+set_property SYNTH_CHECKPOINT_MODE "Hierarchical" [get_files design_1.bd ]
 
 #call make_wrapper to create wrapper files
 if { [get_property IS_LOCKED [ get_files -norecurse design_1.bd] ] == 1  } {
