@@ -108,7 +108,7 @@ object PioNicEngineSim extends App {
       // write packet data
       master.write(0x100000 + desc.addr, toSend) {
         // write tx commit
-        master.write(0x1018, BigInt(toSend.length).toByteArray.padTo(8, 0.toByte)) {
+        master.write(0x1018, BigInt(toSend.length).toByteArray.reverse.padTo(8, 0.toByte)) {
           // receive from axis
           axisSlave.recv() { data =>
             assert(data sameElements toSend,

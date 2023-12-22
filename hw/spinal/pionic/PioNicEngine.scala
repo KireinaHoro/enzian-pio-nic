@@ -60,7 +60,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
   val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
-  val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig)
+  val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
   axiDma.readDataMaster >> io.m_axis_tx
   axiDma.writeDataSlave << rxFifo.masterPort

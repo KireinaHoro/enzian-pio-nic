@@ -66,6 +66,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
 
   val pktBufBase = coreID * config.pktBufSizePerCore
+  // XXX: tx base unaligned
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - config.mtu
   // we reserve one packet for TX
   io.hostTx.addr.bits := pktBufTxBase
