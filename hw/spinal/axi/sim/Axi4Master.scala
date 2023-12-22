@@ -150,27 +150,73 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     }
   }
 
+  private def padData(address: BigInt, data: Array[Byte]) = {
+    val roundedAddress = address - (address & (busConfig.bytePerWord - 1))
+    val padFront = (address - roundedAddress).toInt
+    val totalLen = roundUp(padFront + data.length, busConfig.bytePerWord).toInt
+    val paddedData = (Array.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)
+    val padBack = totalLen - padFront - data.length
+
+    (roundedAddress, padFront, padBack, paddedData)
+  }
+
   // FIXME: this can only handle one-transaction writes
   def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
+    val bytePerBeat = 1 << size
+    val bytes = (len + 1) * bytePerBeat
+
+    val (_, padFront, _, paddedData) = padData(address, data)
+
+    val numTransactions = paddedData.length / bytes
+    if (numTransactions > 1) {
+      log("..", f"write $address%#x in $numTransactions transactions")
+    }
+
+    def run(addr: BigInt, data: Array[Byte], transactionId: Int): Unit = {
+      val slice = transactionId match {
+        case 0 => data.take(bytes - padFront)
+        case tid if tid == numTransactions - 1 => data
+        case _ => data.take(bytes)
+      }
+      val remaining = data.drop(slice.length)
+      writeSingle(addr, slice, id, burst, len, size)(handleTransaction(addr, transactionId, remaining))
+    }
+
+    def handleTransaction(addr: BigInt, transactionId: Int, remaining: Array[Byte])() = {
+      if (transactionId == numTransactions - 1) {
+        // we are the last one
+        assert(remaining.isEmpty, s"left over ${remaining.length} bytes unsent!")
+        callback
+      } else {
+        val addrInc = if (transactionId == 0) bytes - padFront else bytes
+        run(addr + addrInc, remaining, transactionId + 1)
+      }
+    }
+
+    run(address, data, 0)
+  }
+
+  def writeSingle(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
+    if (burst != Incr) {
+      assert(len <= 15, s"max fixed/wrap burst in one transaction is 16")
+    }
+    assert(len <= 255, s"max burst in one transaction is 256")
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat
     val bytePerBus = 1 << log2Up(busConfig.dataWidth / 8)
 
-    val roundedAddress = address - (address & (busConfig.bytePerWord - 1))
-    val padFront = (address - roundedAddress).toInt
-    val totalLen = roundUp(padFront + data.length, busConfig.bytePerWord).toInt
+    val (roundedAddress, padFront, padBack, paddedData) = padData(address, data)
     val realLen = data.length
-    val paddedData = (Array.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)
-    val padBack = totalLen - padFront - data.length
+    assert(paddedData.length <= bytes, s"requested length ${data.length} (${paddedData.length} with padding) could not be completed in one transaction")
 
     awQueue += { aw =>
-      aw.addr #= address
+      aw.addr #= roundedAddress
       if (busConfig.useId) aw.id #= id
       if (busConfig.useLen) aw.len #= len
       if (busConfig.useSize) aw.size #= size
       if (busConfig.useBurst) aw.burst #= burst.id
-      log("AW", f"addr $address%#x size $size len $len burst $burst")
+      log("AW", f"addr $roundedAddress%#x size $size len $len burst $burst")
 
       for (beat <- 0 to len) {
         wQueue += { w =>

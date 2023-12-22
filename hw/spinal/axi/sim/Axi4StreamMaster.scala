@@ -1,6 +1,6 @@
 package axi.sim
 
-import pionic.RichByteArray
+import pionic.{RichBooleanArray, RichByteArray}
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib.bus.amba4.axis.Axi4Stream._

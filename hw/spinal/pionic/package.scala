@@ -17,7 +17,7 @@ package object pionic {
     }
 
     // with status bit
-    def toPacketDesc = {
+    def toRxPacketDesc = {
       val d = BigInt(arr.reverse).toLong
       if ((d & 1) == 0) {
         None
@@ -26,6 +26,15 @@ package object pionic {
         Some(PacketDescSim(desc & 0xffff, (desc >> 16) & 0xffff))
       }
     }
+
+    def toTxPacketDesc = {
+      val d = BigInt(arr.reverse).toInt
+      PacketDescSim(d & 0xffff, (d >> 16) & 0xffff)
+    }
+  }
+
+  implicit class RichBooleanArray(arr: Array[Boolean]) {
+    def toBigInt: BigInt = arr.foldRight(BigInt(0))((b, res) => (res << 1) + b.toInt)
   }
 
   implicit class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {

@@ -36,7 +36,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val hostRxNextAck = slave Stream PacketDesc()
 
     val hostTx = out(PacketDesc())
-    val hostTxAck = slave Flow PacketLength() // actual length of the packet
+    val hostTxAck = slave Stream PacketLength() // actual length of the packet
 
     // from CMAC Axis -- ingress packet
     val cmacRxAlloc = slave Stream PacketLength()
@@ -74,11 +74,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
-  when(io.hostRxNextAck.fire) {
-    inc(io.statistics.rxRetiredPacketCount)
-  }
 
   rxAlloc.io.allocResp.setBlocked
+  io.hostTxAck.setBlocked
   val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
   val rxCaptured = Reg(Stream(PacketDesc())).setIdle
@@ -125,28 +123,29 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       whenIsActive {
         when(rxCaptured.ready) {
           rxCaptured.setIdle
+          inc(io.statistics.rxRetiredPacketCount)
           goto(stateIdle)
         }
       }
     }
   }
 
-  val txAckedLength = io.hostTxAck.toReg
-
   val txFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
       whenIsActive {
-        when(io.hostTxAck.fire) {
+        io.hostTxAck.ready := True
+        when(io.hostTxAck.valid) {
+          io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
+          io.readDesc.payload.payload.len := io.hostTxAck.payload.bits
+          io.readDesc.payload.payload.tag := 0
+          io.readDesc.valid := True
           goto(statePrepared)
         }
       }
     }
     val statePrepared: State = new State {
       whenIsActive {
-        io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
-        io.readDesc.payload.payload.len := txAckedLength.bits
-        io.readDesc.payload.payload.tag := 0
-        io.readDesc.valid := True
+        io.hostTxAck.ready := False
         when(io.readDesc.ready) {
           io.readDesc.setIdle
           goto(stateWaitDma)
@@ -189,7 +188,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     println(f"${baseAddress + regBytes * 2}%#x\t: hostTx")
     busCtrl.read(io.hostTx, baseAddress + regBytes * 2)
     println(f"${baseAddress + regBytes * 3}%#x\t: hostTxAck")
-    busCtrl.driveFlow(io.hostTxAck, baseAddress + regBytes * 3)
+    busCtrl.driveStream(io.hostTxAck, baseAddress + regBytes * 3)
 
     io.statistics.elements.zipWithIndex.foreach { case ((name, data), idx) =>
       val addr = baseAddress + regBytes * (4 + idx)
