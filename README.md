@@ -61,7 +61,15 @@ hw/gen/Merged.v: ASCII text
 Run test benches:
 
 ```console
-# TODO!
+$ mill pioNicEngineModule.runMain pionic.PioNicEngineSim
+...
+[Progress] Verilator compilation done in 5542.813 ms
+[Progress] Start PioNicEngine rx-regular simulation with seed 1445906924
+...
+[Done] Simulation done in 46.215 ms
+[Progress] Start PioNicEngine tx-regular simulation with seed 71106236
+...
+[Done] Simulation done in 16.665 ms
 ```
 
 Create Vivado project and generate the bitstream:
