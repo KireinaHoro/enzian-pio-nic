@@ -98,6 +98,13 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
       io.s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b),
     )
     .build()
+
+  // rename ports so Vivado could infer interfaces automatically
+  noIoPrefix()
+  addPrePopTask { () =>
+    axi.renameAxi4IO
+    axi.renameAxi4StreamIO(alwaysAddT = true)
+  }
 }
 
 object PioNicEngineVerilog extends App {
