@@ -33,6 +33,11 @@ object PioNicEngineSim extends App {
     // write global config bundle
     val rxBlockCycles = 100
 
+    // the tx interface should never be active!
+    dut.clockDomain.onSamplings {
+      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+    }
+
     master.write(0, BigInt(rxBlockCycles).toByteArray.padTo(8, 0.toByte)) {
       master.read(0, 8) { data =>
         assert(BigInt(data.reverse).toInt == rxBlockCycles, "global config bundle mismatch")

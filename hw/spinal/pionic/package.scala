@@ -45,6 +45,44 @@ package object pionic {
       busCtrl.readStreamNonBlocking(that, address)
     }
 
+    // tracking: https://github.com/SpinalHDL/SpinalHDL/issues/1265
+    def driveFlowWithByteEnable[T <: Data](that: Flow[T],
+                                           address: BigInt,
+                                           bitOffset: Int = 0): Unit = {
+
+      val wordCount = (bitOffset + widthOf(that.payload) - 1) / busCtrl.busDataWidth + 1
+      val byteEnable = busCtrl.writeByteEnable()
+
+      if (wordCount == 1) {
+        that.valid := False
+        busCtrl.onWrite(address) {
+          if (byteEnable != null) {
+            when(byteEnable =/= 0) {
+              that.valid := True
+            }
+          } else {
+            that.valid := True
+          }
+        }
+        busCtrl.nonStopWrite(that.payload, bitOffset)
+      } else {
+        assert(bitOffset == 0, "BusSlaveFactory ERROR [driveFlow] : BitOffset must be equal to 0 if the payload of the Flow is bigger than the data bus width")
+
+        val regValid = RegNext(False) init (False)
+        busCtrl.onWrite(address + ((wordCount - 1) * busCtrl.wordAddressInc)) {
+          if (byteEnable != null) {
+            when(byteEnable =/= 0) {
+              regValid := True
+            }
+          } else {
+            regValid := True
+          }
+        }
+        busCtrl.driveMultiWord(that.payload, address)
+        that.valid := regValid
+      }
+    }
+
     // block bus until stream ready
     def driveStream[T <: Data](that: Stream[T], address: BigInt, bitOffset: Int = 0): Unit = {
       val wordCount = (bitOffset + widthOf(that.payload) - 1) / busCtrl.busDataWidth + 1
@@ -53,7 +91,9 @@ package object pionic {
           busCtrl.writeHalt()
         }
       }
-      val flow = busCtrl.createAndDriveFlow(that.payloadType(), address, bitOffset)
+      val flow = Flow(that.payloadType())
+      busCtrl.driveFlowWithByteEnable(flow, address, bitOffset)
+      // busCtrl.driveFlow(flow, address, bitOffset)
       that << flow.toStream
     }
   }
