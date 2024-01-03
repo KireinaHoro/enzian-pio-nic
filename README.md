@@ -83,6 +83,15 @@ $ file out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.runs/impl_1/pio
 [...]/pio-nic.ltx: ASCII text
 ```
 
+**Note**: if mill complains about not being able to find Vivado, try killing the mill server:
+
+```console
+$ ps aux | grep '[M]illServerMain' | awk '{print $2}' | xargs kill
+$ mill --no-server <...>
+```
+
+This is due to the old mill server still using the old `PATH` environment.  Run mill with `--no-server` to force mill to run as a standalone process (thus forcing the new environment every time).
+
 ## Devs Area
 
 Create project for IntelliJ IDEA:
