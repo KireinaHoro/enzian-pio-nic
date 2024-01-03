@@ -11,7 +11,7 @@ wait_on_run impl_1
 open_run impl_1
 report_utilization -file utilization.rpt
 report_utilization -hierarchical -file utilization_hierarchical.rpt
-report_timing timing.rpt
+report_timing_summary -file timing.rpt
 
 write_bitstream pio-nic.runs/impl_1/pio-nic.bit
 write_debug_probes pio-nic.runs/impl_1/pio-nic.ltx

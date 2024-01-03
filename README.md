@@ -75,7 +75,12 @@ $ mill pioNicEngineModule.runMain pionic.PioNicEngineSim
 Create Vivado project and generate the bitstream:
 
 ```console
-# TODO!
+$ mill pioNicEngineModule.generateBitstream
+...
+
+$ file out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.runs/impl_1/pio-nic.{bit,ltx}
+[...]/pio-nic.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
+[...]/pio-nic.ltx: ASCII text
 ```
 
 ## Devs Area
@@ -84,4 +89,18 @@ Create project for IntelliJ IDEA:
 
 ```console
 $ mill mill.idea.GenIdea/idea
+```
+
+Interact with the Vivado project (e.g. change the block design, read timing reports, etc.):
+
+```console
+$ mill pioNicEngineModule.vivadoProject
+...
+$ vivado out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.xpr
+```
+
+Remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
+
+```tcl
+write_project_tcl -no_ip_version -paths_relative_to ./vivado -validate -force vivado/create_project.tcl
 ```
