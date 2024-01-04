@@ -30,7 +30,7 @@ case class PioNicConfig(
                          ),
                          mtu: Int = 1518, // Ethernet frame!  Don't forget the 802.1Q header
                          maxRxPktsInFlight: Int = 128,
-                         maxRxBlockCycles: Int = 10000,
+                         maxRxBlockCycles: BigInt = 5 * 1000 * 1000 * 1000 / 4, // 5 s @ 250 MHz
                          numCores: Int = 4,
                        )
 
