@@ -75,7 +75,7 @@ $ mill pioNicEngineModule.runMain pionic.PioNicEngineSim
 Create Vivado project and generate the bitstream:
 
 ```console
-$ mill pioNicEngineModule.generateBitstream
+$ mill --no-server pioNicEngineModule.generateBitstream
 ...
 
 $ file out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.runs/impl_1/pio-nic.{bit,ltx}
@@ -90,7 +90,18 @@ $ ps aux | grep '[M]illServerMain' | awk '{print $2}' | xargs kill
 $ mill --no-server <...>
 ```
 
-This is due to the old mill server still using the old `PATH` environment.  Run mill with `--no-server` to force mill to run as a standalone process (thus forcing the new environment every time).
+This is due to the old mill server still using the old `PATH` environment.  Running mill with `--no-server` forces mill to run as a standalone process (thus forcing the new environment every time); this also helps if Vivado's output is not printed to the standard output (but instead to the server process).
+
+Build userspace software (drivers):
+
+```console
+$ cd sw && make
+...
+$ file pionic-test
+pionic-test: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=f5f6636f5ffa34cc6577c7be2778856dfaeb3f80, for GNU/Linux 3.7.0, with debug_info, not stripped
+```
+
+The test should be ran on an Enzian with a PCIe cable between the CPU and FPGA (`zuestoll11-12` at the moment).
 
 ## Devs Area
 
@@ -103,7 +114,7 @@ $ mill mill.idea.GenIdea/idea
 Interact with the Vivado project (e.g. change the block design, read timing reports, etc.):
 
 ```console
-$ mill pioNicEngineModule.vivadoProject
+$ mill --no-server pioNicEngineModule.vivadoProject
 ...
 $ vivado out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.xpr
 ```
