@@ -76,8 +76,9 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val axiWideConfigNode = Axi4(axiConfig)
 
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
-  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), 0)
-  println(f"0x0\t: globalCtrl")
+  val alloc = RegAllocator("global", 0, 0x1000, config.regWidth / 8)
+
+  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("globalCtrl"))
 
   for (id <- 0 until config.numCores) {
     new PioCoreControl(dmaConfig, id).setName(s"coreCtrl_$id")

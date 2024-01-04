@@ -55,8 +55,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     // statistics
     val statistics = out(new Bundle {
-      val rxRetiredPacketCount = Reg(UInt(config.regWidth bits)) init 0
-      val txRetiredPacketCount = Reg(UInt(config.regWidth bits)) init 0
+      val rxPacketCount = Reg(UInt(config.regWidth bits)) init 0
+      val txPacketCount = Reg(UInt(config.regWidth bits)) init 0
       val rxDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
       val txDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
@@ -128,7 +128,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       whenIsActive {
         when(rxCaptured.ready) {
           rxCaptured.setIdle
-          inc(io.statistics.rxRetiredPacketCount)
+          inc(io.statistics.rxPacketCount)
           goto(stateIdle)
         }
       }
@@ -161,7 +161,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       whenIsActive {
         when(io.readDescStatus.fire) {
           when(io.readDescStatus.payload.error === 0) {
-            inc(io.statistics.txRetiredPacketCount)
+            inc(io.statistics.txPacketCount)
           } otherwise {
             inc(io.statistics.txDmaErrorCount)
           }
@@ -183,31 +183,19 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     io.cmacRxAlloc << cmacRx
 
-    object nextAddr {
-      private var addr = baseAddress
-      private val regBytes: Int = config.regWidth / 8
+    val alloc = RegAllocator(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
 
-      // TODO: collect mapping to generate driver header
-      def apply(name: String): BigInt = {
-        val ret = addr
-        addr += regBytes
-        assert(addr < baseAddress + 0x1000, "registers overflow address space")
-        println(f"$ret%#x\t: $name")
-        ret
-      }
-    }
+    busCtrl.readStreamBlockCycles(io.hostRxNext, alloc("hostRxNext"), globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
+    busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
 
-    busCtrl.readStreamBlockCycles(io.hostRxNext, nextAddr("hostRxNext"), globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
-    busCtrl.driveStream(io.hostRxNextAck, nextAddr("hostRxNextAck"))
-
-    busCtrl.read(io.hostTx, nextAddr("hostTx"))
-    busCtrl.driveStream(io.hostTxAck, nextAddr("hostTxAck"))
+    busCtrl.read(io.hostTx, alloc("hostTx"))
+    busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))
 
     io.statistics.elements.foreach { case (name, data) =>
       data match {
-        case d: UInt => busCtrl.read(d, nextAddr(name))
+        case d: UInt => busCtrl.read(d, alloc(name))
         case v: Vec[_] => v.zipWithIndex.foreach { case (elem, idx) =>
-          busCtrl.read(elem, nextAddr(s"${name}_$idx"))
+          busCtrl.read(elem, alloc(s"${name}_$idx"))
         }
         case _ =>
       }
