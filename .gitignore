@@ -3,3 +3,7 @@ hw/gen/
 .idea/
 tmp/
 simWorkspace/
+vivado*.jou
+vivado*.log
+vivado_pid*.str
+.Xil/
