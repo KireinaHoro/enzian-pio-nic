@@ -3,6 +3,47 @@ import spinal.lib._
 import spinal.lib.bus.misc._
 
 package object pionic {
+  object CLZ {
+    // https://electronics.stackexchange.com/a/649761
+    def apply(v: Bits): UInt = new Composite(v, "clz") {
+      val w = v.getWidth
+      val ow = log2Up(w) + 1
+      val olrw = ow - 1
+      val value: UInt = w match {
+        case 2 => v.mux(
+          0 -> 2,
+          1 -> 1,
+          default -> 0,
+        )
+        case _ =>
+          val clzL = CLZ(v(w / 2, w / 2 bits))
+          val clzR = CLZ(v(0, w / 2 bits))
+          ((clzL(olrw - 1) & clzR(olrw - 1)) ## Mux(~clzL(olrw - 1),
+            U("0") ## clzL(0, olrw - 2 bits),
+            ~clzR(olrw - 1) ## clzR(0, olrw - 2 bits))).asUInt
+      }
+    }.value
+  }
+
+  object CTZ {
+    def apply(v: Bits): UInt = {
+      v.getWidth - CLZ(~v)
+    }
+  }
+
+  object StreamDispatcherWithEnable {
+    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits): Vec[Stream[T]] = {
+      // FIXME: same as OHMasking.roundRobin?
+      // FIXME: first packet always goes to core 0
+      val select = Reg(UInt(log2Up(outputCount) bits)) init 0
+      val inc = CTZ(enableMask >> (select + 1)) + 1
+      when(input.fire) {
+        select := select + inc.resized
+      }
+      StreamDemux(input, select, outputCount)
+    }
+  }
+
   object RegAllocator {
     def apply(blockName: String, base: BigInt, blockLen: BigInt, defaultSize: BigInt) = {
       new {
