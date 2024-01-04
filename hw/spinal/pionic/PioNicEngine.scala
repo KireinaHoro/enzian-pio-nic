@@ -48,8 +48,13 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.mtu)()
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
+
+  // report overflow
+  val rxOverflow = Bool()
+  val rxOverflowCounter = Counter(config.regWidth bits, rxOverflow)
+
   val dispatchedCmacRx = StreamDispatcherSequential(
-    input = rxFifo.slavePort.frameLength.map(_.toPacketLength).toStream, // TODO: record & report overflow
+    input = rxFifo.slavePort.frameLength.map(_.toPacketLength).toStream(rxOverflow),
     outputCount = config.numCores,
   ).setName("packetLenDemux")
 
@@ -79,6 +84,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val alloc = RegAllocator("global", 0, 0x1000, config.regWidth / 8)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("globalCtrl"))
+  busCtrl.read(rxOverflowCounter.value, alloc("rxOverflowCount"))
 
   for (id <- 0 until config.numCores) {
     new PioCoreControl(dmaConfig, id).setName(s"coreCtrl_$id")
