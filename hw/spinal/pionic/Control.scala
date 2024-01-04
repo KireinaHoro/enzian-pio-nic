@@ -27,6 +27,12 @@ case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
 // Control module for PIO access from one single core
 // Would manage one packet buffer
 class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioNicConfig) extends Component {
+  val pktBufBase = coreID * config.pktBufSizePerCore
+  val pktBufTxSize = roundUp(config.mtu, config.axisConfig.dataWidth).toInt
+  val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - pktBufTxSize
+  val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
+  println(f"Tx Size $pktBufTxSize @ $pktBufTxBase%#x")
+
   val io = new Bundle {
     // config from host, but driven only once at global control
     val globalCtrl = in(GlobalControlBundle())
@@ -65,14 +71,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
   assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
 
-  val pktBufBase = coreID * config.pktBufSizePerCore
-  // XXX: tx base unaligned
-  val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - config.mtu
   // we reserve one packet for TX
   io.hostTx.addr.bits := pktBufTxBase
-  io.hostTx.size.bits := config.mtu
+  io.hostTx.size.bits := pktBufTxSize
 
-  val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
 

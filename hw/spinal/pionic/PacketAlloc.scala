@@ -50,7 +50,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
 
   roundedMap.zipWithIndex foreach { case ((alignedSize, slots), idx) =>
     // round up slot size to streaming bus size to increase bus utilisation
-    println(f"Size $alignedSize: $slots slots @ $curBase%#x")
+    println(f"Rx Size $alignedSize: $slots slots @ $curBase%#x")
 
     val slotFifo = StreamFifo(PacketAddr(), slots)
 

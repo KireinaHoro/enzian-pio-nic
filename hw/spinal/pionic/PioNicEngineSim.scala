@@ -52,6 +52,7 @@ object PioNicEngineSim extends App {
             val desc = data.toRxPacketDesc.get
             println(s"Received status register: $desc")
             assert(desc.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${desc.size}")
+            assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "rx buffer not aligned!")
 
             // read memory and check data
             master.read(0x100000 + desc.addr, desc.size) { data =>
@@ -99,6 +100,7 @@ object PioNicEngineSim extends App {
     // get tx buffer address
     master.read(0x1010, 8) { data =>
       val desc = data.toTxPacketDesc
+      assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "tx buffer not aligned!")
       println(s"Tx packet desc: $desc")
 
       val toSend = new Array[Byte](256)

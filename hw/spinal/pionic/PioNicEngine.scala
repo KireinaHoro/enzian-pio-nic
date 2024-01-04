@@ -25,10 +25,10 @@ case class PioNicConfig(
                          pktBufSizePerCore: Int = 16 * 1024, // 16KB
                          pktBufAllocSizeMap: Seq[(Int, Double)] = Seq(
                            (128, .6), // 60% 128B packets
-                           (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
-                           (9618, .1), // 10% 9618B packets (max jumbo frame)
+                           (1518, .4), // 30% 1518B packets (max Ethernet frame with MTU 1500)
+                           // (9618, .1), // 10% 9618B packets (max jumbo frame)
                          ),
-                         mtu: Int = 9618, // Ethernet frame!  Don't forget the 802.1Q header
+                         mtu: Int = 1518, // Ethernet frame!  Don't forget the 802.1Q header
                          maxRxPktsInFlight: Int = 128,
                          maxRxBlockCycles: Int = 10000,
                          numCores: Int = 4,
