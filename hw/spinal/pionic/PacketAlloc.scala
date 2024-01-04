@@ -4,24 +4,27 @@ import spinal.core._
 import spinal.lib._
 
 case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) extends Component {
-  val io = new Bundle {
-    val allocReq = slave Stream PacketLength()
-    // size == 0: dropped
-    val allocResp = master Stream PacketDesc()
-    val freeReq = slave Stream PacketDesc()
-  }
-
-  assert(config.pktBufAllocSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
-  assert(log2Up(base + len) <= config.pktBufAddrWidth, "packet buffer address bits overflow")
-  println("==============")
-  println(f"Allocator [$base%#x - ${base + len}%#x]")
-
   val roundedMap = config.pktBufAllocSizeMap.map { case (size, ratio) =>
     val alignedSize = roundUp(size, config.axisConfig.dataWidth).toLong
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)
   val numPorts = roundedMap.length
+
+  val io = new Bundle {
+    val allocReq = slave Stream PacketLength()
+    // size == 0: dropped
+    val allocResp = master Stream PacketDesc()
+    val freeReq = slave Stream PacketDesc()
+
+    // stats
+    val slotOccupancy = out(Vec.fill(numPorts)(UInt(32 bits)))
+  }
+
+  assert(config.pktBufAllocSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
+  assert(log2Up(base + len) <= config.pktBufAddrWidth, "packet buffer address bits overflow")
+  println("==============")
+  println(f"Allocator [$base%#x - ${base + len}%#x]")
 
   // return largest possible buffer if requested larger than everything
   val defaultIdx = U(numPorts - 1, log2Up(numPorts) bits)
@@ -72,6 +75,8 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
       dst.addr := src
       dst.size.bits := alignedSize
     }
+
+    io.slotOccupancy(idx) := slotFifo.io.occupancy.resized
   }
 
   println("==============")

@@ -59,6 +59,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       val txRetiredPacketCount = Reg(UInt(config.regWidth bits)) init 0
       val rxDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
       val txDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
+      val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     })
   }
 
@@ -77,6 +78,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
+  io.statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
 
   rxAlloc.io.allocResp.setBlocked
   io.hostTxAck.setBlocked
@@ -181,23 +183,34 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     io.cmacRxAlloc << cmacRx
 
-    private val regBytes: Int = config.regWidth / 8
+    object nextAddr {
+      private var addr = baseAddress
+      private val regBytes: Int = config.regWidth / 8
 
-    println(f"$baseAddress%#x\t: hostRxNext")
-    busCtrl.readStreamBlockCycles(io.hostRxNext, baseAddress, globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
-    println(f"${baseAddress + regBytes}%#x\t: hostRxNextAck")
-    busCtrl.driveStream(io.hostRxNextAck, baseAddress + regBytes)
+      // TODO: collect mapping to generate driver header
+      def apply(name: String): BigInt = {
+        val ret = addr
+        addr += regBytes
+        assert(addr < baseAddress + 0x1000, "registers overflow address space")
+        println(f"$ret%#x\t: $name")
+        ret
+      }
+    }
 
-    println(f"${baseAddress + regBytes * 2}%#x\t: hostTx")
-    busCtrl.read(io.hostTx, baseAddress + regBytes * 2)
-    println(f"${baseAddress + regBytes * 3}%#x\t: hostTxAck")
-    busCtrl.driveStream(io.hostTxAck, baseAddress + regBytes * 3)
+    busCtrl.readStreamBlockCycles(io.hostRxNext, nextAddr("hostRxNext"), globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
+    busCtrl.driveStream(io.hostRxNextAck, nextAddr("hostRxNextAck"))
 
-    io.statistics.elements.zipWithIndex.foreach { case ((name, data), idx) =>
-      val addr = baseAddress + regBytes * (4 + idx)
-      assert(addr < baseAddress + 0x1000, "status registers overflow address space")
-      println(f"$addr%#x\t: $name")
-      busCtrl.read(data, addr)
+    busCtrl.read(io.hostTx, nextAddr("hostTx"))
+    busCtrl.driveStream(io.hostTxAck, nextAddr("hostTxAck"))
+
+    io.statistics.elements.foreach { case (name, data) =>
+      data match {
+        case d: UInt => busCtrl.read(d, nextAddr(name))
+        case v: Vec[_] => v.zipWithIndex.foreach { case (elem, idx) =>
+          busCtrl.read(elem, nextAddr(s"${name}_$idx"))
+        }
+        case _ =>
+      }
     }
   }
 }
