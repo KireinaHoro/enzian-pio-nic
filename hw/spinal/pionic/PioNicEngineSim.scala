@@ -3,18 +3,26 @@ package pionic
 import axi.sim.{Axi4Master, Axi4StreamMaster, Axi4StreamSlave}
 import spinal.core._
 import spinal.core.sim._
+import spinal.lib.BinaryBuilder
 
 import scala.util._
 
-case class PacketDescSim(addr: Int, size: Int) {
-  def toBigInt: BigInt = BigInt(((size & 0xffff) << 16) | (addr & 0xffff))
+case class PacketDescSim(addr: BigInt, size: BigInt)(implicit config: PioNicConfig) {
+  def toBigInt: BigInt = ((size & config.pktBufLenMask) << config.pktBufAddrWidth) | (addr & config.pktBufAddrMask)
 
   def toByteArray: Array[Byte] = toBigInt.toByteArray.reverse.padTo(8, 0.toByte)
 }
 
+object PacketDescSim {
+  def fromBigInt(v: BigInt)(implicit config: PioNicConfig) = PacketDescSim(v & config.pktBufAddrMask, (v >> config.pktBufAddrWidth) & config.pktBufLenMask)
+}
+
 object PioNicEngineSim extends App {
   // TODO: test on multiple configs
-  implicit val nicConfig = PioNicConfig()
+  implicit val nicConfig = PioNicConfig(
+    numCores = 8, // to test for dispatching
+    pktBufAddrWidth = 32,
+  )
 
   val dut = Config.sim
     // verilog-axi flags
@@ -37,9 +45,9 @@ object PioNicEngineSim extends App {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(0, BigInt(rxBlockCycles).toByteArray.padTo(8, 0.toByte))
+    master.write(0, rxBlockCycles.toSimPayload)
     var data = master.read(0, 8)
-    assert(BigInt(data.reverse).toInt == rxBlockCycles, "global config bundle mismatch")
+    assert(data.toInt == rxBlockCycles, "global config bundle mismatch")
 
     data = master.read(0x1000, 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
@@ -72,7 +80,7 @@ object PioNicEngineSim extends App {
     println(s"desc $desc to bytes: ${desc.toByteArray.toByteString}")
     master.write(0x1008, desc.toByteArray)
     data = master.read(0x1020, 8)
-    val counter = BigInt(data.reverse).toInt
+    val counter = data.toInt
     assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
@@ -98,7 +106,7 @@ object PioNicEngineSim extends App {
     // write packet data
     master.write(0x100000 + desc.addr, toSend)
     // write tx commit
-    master.write(0x1018, BigInt(toSend.length).toByteArray.reverse.padTo(8, 0.toByte))
+    master.write(0x1018, toSend.length.toSimPayload)
     // receive from axis
     data = axisSlave.recv()
     assert(data sameElements toSend,

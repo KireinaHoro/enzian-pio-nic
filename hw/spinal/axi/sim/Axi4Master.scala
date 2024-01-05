@@ -48,14 +48,14 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     println(s"Axi4Master [$chan]\t: $msg")
   }
 
-  def read(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize) = {
+  def read(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize) = {
     val done = new AtomicReference[Array[Byte]](null)
     readCB(address, totalBytes, id, burst, len, size)(done.set)
     clockDomain.waitActiveEdgeWhere(done.get() != null)
     done.get()
   }
 
-  def readCB(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
+  def readCB(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat // FIXME: 4K limitation?
     val numTransactions = (totalBytes.toDouble / bytes).ceil.toInt
@@ -80,7 +80,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       }
     }
 
-    run(address, totalBytes, numTransactions)
+    run(address, totalBytes.toInt, numTransactions)
   }
 
   def readSingle(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit): Unit = {

@@ -22,6 +22,7 @@ case class PioNicConfig(
                          ),
                          regWidth: Int = 64,
                          pktBufAddrWidth: Int = 16, // 64KB
+                         pktBufLenWidth: Int = 16, // max 64KB per packet
                          pktBufSizePerCore: Int = 16 * 1024, // 16KB
                          pktBufAllocSizeMap: Seq[(Int, Double)] = Seq(
                            (128, .6), // 60% 128B packets
@@ -32,7 +33,11 @@ case class PioNicConfig(
                          maxRxPktsInFlight: Int = 128,
                          maxRxBlockCycles: BigInt = 5 * 1000 * 1000 * 1000 / 4, // 5 s @ 250 MHz
                          numCores: Int = 4,
-                       )
+                       ) {
+  def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
+
+  def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
+}
 
 case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   private val axiConfig = config.axiConfig
@@ -56,7 +61,9 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   // only dispatch to enabled cores
   val dispatchMask = Reg(Bits(config.numCores bits))
   val dispatchedCmacRx = StreamDispatcherWithEnable(
-    input = rxFifo.slavePort.frameLength.map(_.toPacketLength).toStream(rxOverflow),
+    input = rxFifo.slavePort.frameLength
+      .map(_.resized.toPacketLength)
+      .toStream(rxOverflow),
     outputCount = config.numCores,
     enableMask = dispatchMask,
   ).setName("packetLenDemux")
@@ -64,7 +71,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
 
-  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufAddrWidth)
+  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
   val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 

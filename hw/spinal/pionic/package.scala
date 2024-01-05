@@ -63,6 +63,10 @@ package object pionic {
     }
   }
 
+  implicit class RichInt(v: Int) {
+    def toSimPayload: Array[Byte] = BigInt(v).toByteArray.reverse.padTo(8, 0.toByte)
+  }
+
   implicit class RichUInt(v: UInt) {
     def toPacketLength(implicit config: PioNicConfig) = {
       val len = PacketLength()
@@ -77,20 +81,22 @@ package object pionic {
     }
 
     // with status bit
-    def toRxPacketDesc = {
+    def toRxPacketDesc(implicit config: PioNicConfig) = {
       val d = BigInt(arr.reverse).toLong
       if ((d & 1) == 0) {
         None
       } else {
-        val desc = (d >> 1).toInt
-        Some(PacketDescSim(desc & 0xffff, (desc >> 16) & 0xffff))
+        Some(PacketDescSim.fromBigInt(d >> 1))
       }
     }
 
-    def toTxPacketDesc = {
-      val d = BigInt(arr.reverse).toInt
-      PacketDescSim(d & 0xffff, (d >> 16) & 0xffff)
+    def toTxPacketDesc(implicit config: PioNicConfig) = {
+      val d = BigInt(arr.reverse)
+      PacketDescSim.fromBigInt(d)
     }
+
+    // for simulation
+    def toInt = BigInt(arr.reverse).toInt // Little Endian
   }
 
   implicit class RichBooleanArray(arr: Array[Boolean]) {
