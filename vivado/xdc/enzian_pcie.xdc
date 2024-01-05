@@ -16,6 +16,9 @@ set_property PACKAGE_PIN AV39 [get_ports cmac0_ref_clk_n]
 set_property PACKAGE_PIN AY26 [get_ports {pgrc0_clk_clk_p}]
 set_property PACKAGE_PIN AY27 [get_ports {pgrc0_clk_clk_n}]
 
-# Configured to 100MHz
+set_property IOSTANDARD DIFF_SSTL12 [get_ports {pgrc0_clk_clk_p}]
+set_property IOSTANDARD DIFF_SSTL12 [get_ports {pgrc0_clk_clk_n}]
+
+# Configured to 100MHz in block design
 #create_clock -period 10.000 -name clk_io [get_ports pgrc0_clk_clk_p]
 
