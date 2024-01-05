@@ -31,9 +31,7 @@ package object pionic {
   }
 
   object CTZ {
-    def apply(v: Bits): UInt = {
-      v.getWidth - CLZ(~v)
-    }
+    def apply(v: Bits): UInt = CLZ(v.reversed)
   }
 
   object StreamDispatcherWithEnable {

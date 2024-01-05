@@ -117,8 +117,46 @@ object PioNicEngineSim extends App {
     master.write(0x1018, toSend.length.toSimPayload)
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
+  }
+
+  dut.doSim("rx-roundrobin-with-mask") { dut =>
+    SimTimeout(4000)
+    dut.clockDomain.forkStimulus(period = 4) // 250 MHz
+
+    val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
+    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
+
+    // the tx interface should never be active!
+    dut.clockDomain.onSamplings {
+      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    dut.clockDomain.waitActiveEdgeWhere(master.idle && doneIssuing)
+    master.write(0x0, 100.toSimPayload) // rxBlockCycles
+
+    val mask = b"01100111"
+    master.write(0x8, mask.toSimPayload) // mask
+
+    val toSend = new Array[Byte](256)
+    Random.nextBytes(toSend)
+
+    // test round robin
+    Seq.fill(3)(0 until nicConfig.numCores).flatten
+      .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
+        axisMaster.sendCB(toSend)()
+
+        val coreBase = 0x1000 * (idx + 1)
+        var descOption: Option[PacketDescSim] = None
+        var tries = 5
+        while (descOption.isEmpty && tries > 0) {
+          descOption = master.read(coreBase + 0, 8).toRxPacketDesc
+          tries -= 1
+        }
+        val desc = descOption.get
+        println(f"Received packet @ ${desc.addr}%#x, ${desc.size} B")
+        assert(desc.size == toSend.length, s"packet length mismatch: got ${desc.size}, expected ${toSend.length}")
+        // we don't need to check data
+      }
+
+    dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 }
