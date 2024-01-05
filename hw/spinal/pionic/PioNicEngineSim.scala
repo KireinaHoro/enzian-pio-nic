@@ -105,15 +105,16 @@ object PioNicEngineSim extends App {
 
     // write packet data
     master.write(0x100000 + desc.addr, toSend)
-    // write tx commit
-    master.write(0x1018, toSend.length.toSimPayload)
     // receive from axis
-    data = axisSlave.recv()
-    assert(data sameElements toSend,
-      s"""data mismatch:
-         |expected: "${toSend.toByteString}"
-         |got:      "${data.toByteString}"
-         |""".stripMargin)
+    axisSlave.recvCB() { data =>
+      assert(data sameElements toSend,
+        s"""data mismatch:
+           |expected: "${toSend.toByteString}"
+           |got:      "${data.toByteString}"
+           |""".stripMargin)
+    }
+    // write tx commit -- make sure axis have a chance to catch the first beat
+    master.write(0x1018, toSend.length.toSimPayload)
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
     }
