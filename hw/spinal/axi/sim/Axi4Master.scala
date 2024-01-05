@@ -3,14 +3,11 @@ package axi.sim
 import pionic.RichByteArray
 import spinal.core._
 import spinal.core.sim._
-import spinal.lib._
 import spinal.lib.bus.amba4.axi._
-import spinal.lib.bus.misc._
 import spinal.lib.sim._
 
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 import scala.collection.mutable
-import scala.concurrent.{Future, Promise}
-import scala.util._
 
 object Axi4Bursts extends Enumeration {
   type Axi4Burst = Value
@@ -51,7 +48,14 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     println(s"Axi4Master [$chan]\t: $msg")
   }
 
-  def read(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
+  def read(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize) = {
+    val done = new AtomicReference[Array[Byte]](null)
+    readCB(address, totalBytes, id, burst, len, size)(done.set)
+    clockDomain.waitActiveEdgeWhere(done.get() != null)
+    done.get()
+  }
+
+  def readCB(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat // FIXME: 4K limitation?
     val numTransactions = (totalBytes.toDouble / bytes).ceil.toInt
@@ -161,7 +165,15 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
   }
 
   // FIXME: this can only handle one-transaction writes
-  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
+  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize): Unit = {
+    val done = new AtomicBoolean(false)
+    writeCB(address, data, id, burst, len, size) {
+      done.set(true)
+    }
+    clockDomain.waitActiveEdgeWhere(done.get())
+  }
+
+  def writeCB(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat
 

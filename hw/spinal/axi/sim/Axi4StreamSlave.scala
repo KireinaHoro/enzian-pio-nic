@@ -5,6 +5,7 @@ import spinal.core.sim._
 import spinal.lib.sim._
 import spinal.lib.bus.amba4.axis.Axi4Stream._
 
+import java.util.concurrent.atomic.AtomicReference
 import scala.collection.mutable
 
 case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
@@ -15,7 +16,13 @@ case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
     println(s"Axi4StreamSlave\t: $msg")
   }
 
-  def recv()(callback: Array[Byte] => Unit): Unit = {
+  def recv(): Array[Byte] = {
+    val res = new AtomicReference[Array[Byte]](null)
+    recvCB()(res.set)
+    clockDomain.waitActiveEdgeWhere(res.get() != null)
+    res.get()
+  }
+  def recvCB()(callback: Array[Byte] => Unit): Unit = {
     val builder = new mutable.ArrayBuilder.ofByte
 
     log(s"initiating recv")

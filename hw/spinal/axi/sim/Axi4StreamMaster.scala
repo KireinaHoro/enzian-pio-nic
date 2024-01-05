@@ -6,6 +6,7 @@ import spinal.core.sim._
 import spinal.lib.bus.amba4.axis.Axi4Stream._
 import spinal.lib.sim._
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable
 
 case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
@@ -16,7 +17,14 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
     println(s"Axi4StreamMaster: $msg")
   }
 
-  def send(data: Array[Byte])(callback: => Unit): Unit = {
+  def send(data: Array[Byte]): Unit = {
+    val done = new AtomicBoolean(false)
+    sendCB(data) {
+      done.set(true)
+    }
+    clockDomain.waitActiveEdgeWhere(done.get())
+  }
+  def sendCB(data: Array[Byte])(callback: => Unit): Unit = {
     val fullLength = roundUp(data.length, busConfig.dataWidth).toInt
     if (fullLength != data.length && !busConfig.useStrb && !busConfig.useKeep) {
       log(s"not using strb or keep but length not multiple of data width; data will be zero padded")
