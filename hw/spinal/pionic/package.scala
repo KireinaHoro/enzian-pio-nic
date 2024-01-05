@@ -6,21 +6,26 @@ package object pionic {
   object CLZ {
     // https://electronics.stackexchange.com/a/649761
     def apply(v: Bits): UInt = new Composite(v, "clz") {
-      val w = v.getWidth
-      val ow = log2Up(w) + 1
-      val olrw = ow - 1
+      val w = v.getWidth // input width
+      assert(w % 2 == 0, s"cannot do clz for odd width $w")
+      val ow = log2Up(w) + 1 // output width
+      val olrw = ow - 1 // output width of halves
       val value: UInt = w match {
+        // encode
         case 2 => v.mux(
-          0 -> 2,
-          1 -> 1,
-          default -> 0,
+          0 -> U(2, ow bits),
+          1 -> U(1, ow bits),
+          default -> U(0, ow bits),
         )
+        // assemble
         case _ =>
           val clzL = CLZ(v(w / 2, w / 2 bits))
           val clzR = CLZ(v(0, w / 2 bits))
-          ((clzL(olrw - 1) & clzR(olrw - 1)) ## Mux(~clzL(olrw - 1),
-            U("0") ## clzL(0, olrw - 2 bits),
-            ~clzR(olrw - 1) ## clzR(0, olrw - 2 bits))).asUInt
+          val first = clzL(olrw - 1) & clzR(olrw - 1)
+          val mux = Mux(~clzL(olrw - 1),
+            U("0") ## clzL(0, olrw - 1 bits),
+            (~clzR(olrw - 1)) ## clzR(0, olrw - 1 bits))
+          (first ## mux).asUInt
       }
     }.value
   }
