@@ -159,3 +159,9 @@ void dump_stats(pionic_ctx_t *ctx, int cid) {
   READ_PRINT(PC_STAT_RX_ALLOC_OCCUPANCY_1)
 #undef READ_PRINT
 }
+
+void pionic_reset_pkt_alloc(pionic_ctx_t *ctx, int cid) {
+  write64(ctx, PIONIC_CORE_REG(cid, PC_ALLOC_RESET), 1);
+  usleep(1); // arbitrary
+  write64(ctx, PIONIC_CORE_REG(cid, PC_ALLOC_RESET), 0);
+}

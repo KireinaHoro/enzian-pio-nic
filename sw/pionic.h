@@ -16,13 +16,14 @@
 #define PC_RX_NEXT_ACK      0x8
 #define PC_TX               0x10
 #define PC_TX_ACK           0x18
+#define PC_ALLOC_RESET      0x20
 
-#define PC_STAT_RX_COUNT   0x20
-#define PC_STAT_TX_COUNT   0x28
-#define PC_STAT_RX_DMA_ERR_COUNT   0x30
-#define PC_STAT_TX_DMA_ERR_COUNT   0x38
-#define PC_STAT_RX_ALLOC_OCCUPANCY_0   0x40
-#define PC_STAT_RX_ALLOC_OCCUPANCY_1   0x48
+#define PC_STAT_RX_COUNT   0x28
+#define PC_STAT_TX_COUNT   0x30
+#define PC_STAT_RX_DMA_ERR_COUNT   0x38
+#define PC_STAT_TX_DMA_ERR_COUNT   0x40
+#define PC_STAT_RX_ALLOC_OCCUPANCY_0   0x48
+#define PC_STAT_RX_ALLOC_OCCUPANCY_1   0x50
 
 #define PIONIC_PKTBUF(off)   ((off) + 0x100000UL)
 
@@ -54,6 +55,7 @@ int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);
 void pionic_fini(pionic_ctx_t *ctx);
 void pionic_set_rx_block_cycles(pionic_ctx_t *ctx, int cycles);
 void pionic_set_core_mask(pionic_ctx_t *ctx, uint64_t mask);
+void pionic_reset_pkt_alloc(pionic_ctx_t *ctx, int cid);
 
 bool pionic_rx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
 bool pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);

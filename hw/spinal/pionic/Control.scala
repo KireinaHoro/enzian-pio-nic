@@ -30,7 +30,12 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = roundUp(config.mtu, config.axisConfig.dataWidth).toInt
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - pktBufTxSize
-  val rxAlloc = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
+
+  val allocReset = Bool()
+  val rxAlloc = new ResetArea(allocReset, true) {
+    private val instance = PacketAlloc(pktBufBase, pktBufTxBase - pktBufBase)
+    val io = instance.io
+  }
   println(f"Tx Size $pktBufTxSize @ $pktBufTxBase%#x")
 
   val io = new Bundle {
@@ -53,6 +58,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val writeDesc = master(dmaConfig.writeDescBus)
     val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
 
+    // reset for packet allocator
+    val allocReset = in(Bool())
+
     // statistics
     val statistics = out(new Bundle {
       val rxPacketCount = Reg(UInt(config.regWidth bits)) init 0
@@ -62,6 +70,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     })
   }
+
+  allocReset := io.allocReset
 
   def inc(reg: UInt) = reg := reg + 1
 
@@ -190,6 +200,8 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     busCtrl.read(io.hostTx, alloc("hostTx"))
     busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))
+
+    busCtrl.driveAndRead(io.allocReset, alloc("allocReset"))
 
     io.statistics.elements.foreach { case (name, data) =>
       data match {
