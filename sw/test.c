@@ -4,64 +4,65 @@
 #include <time.h>
 #include <assert.h>
 #include <string.h>
+#include <setjmp.h>
+#include <signal.h>
 
 #include "pionic.h"
 #include "timeit.h"
 #include "common.h"
 
-static const char test_pattern[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur vestibulum, lacus vitae finibus faucibus, augue nisl ultricies enim, quis lacinia lorem risus ac elit. Donec mauris neque, sollicitudin a diam eu, accumsan lobortis mi. Sed sagittis, nibh ut eleifend gravida, diam mauris porttitor mauris, vel sagittis mi mi eu mi. Duis pellentesque, nunc at tincidunt efficitur, nibh lacus placerat augue, eu elementum leo nisi at sem. Fusce eleifend purus sed rhoncus tristique. Praesent sit amet nunc sit amet dolor fermentum dictum et ut dolor. Sed sit amet orci eu felis posuere accumsan sit amet in odio. Aenean ullamcorper porta nibh id commodo. Phasellus malesuada posuere gravida. Nullam mattis mattis nisi non gravida. Suspendisse risus risus, semper nec eros et, bibendum convallis urna. Sed aliquet vel leo quis iaculis. Pellentesque vel accumsan nulla, vitae tristique dolor.\nInterdum et malesuada fames ac ante ipsum primis in faucibus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras pulvinar laoreet mauris. Nulla facilisi. Etiam fermentum ante sit amet accumsan facilisis. Duis viverra turpis nibh, sed tincidunt odio efficitur nec. Donec dapibus, erat quis dapibus maximus, nibh sapien mollis quam, quis convallis velit nunc a libero. Curabitur interdum fringilla nibh laoreet pharetra. Nullam ultricies nec lorem eu faucibus. Aenean porta ante quis nulla maximus tempor. Nulla ut arcu ac est vestibulum auctor id quis felis. Morbi tincidunt diam felis, sed erat curae.";
+// handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
+static jmp_buf *sigbus_jmp;
 
-static bool recv_timed(pionic_ctx_t *ctx, int cycles, pionic_pkt_desc_t *desc) {
-  if (cycles)
-    pionic_set_rx_block_cycles(ctx, cycles);
-
-  TIMEIT_START(rx)
-
-  bool valid = pionic_rx(ctx, 0, desc);
-
-  TIMEIT_END(rx)
-
-  if (valid) {
-    printf("Received packet with length %ld at %p\n", desc->len, desc->buf);
-  } else {
-    printf("Did not receive packet\n");
+void signal_handler(int sig) {
+  if (sig == SIGBUS) {
+    if (sigbus_jmp) siglongjmp(*sigbus_jmp, 1);
+    abort();
   }
-
-  printf("Elapsed: %lf us\n", TIMEIT_US(rx));
-
-  return valid;
 }
 
-static double tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
-  assert(offset <= sizeof(test_pattern) && offset + length <= sizeof(test_pattern));
+typedef struct {
+  double roundtrip;
+  double rx;
+} measure_t;
 
+static uint8_t *test_data;
+
+static measure_t tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
   pionic_pkt_desc_t desc;
   pionic_tx_get_desc(ctx, 0, &desc);
-  printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
+  // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
 
   char rx_buf[length];
-  const char *tx_buf = &test_pattern[offset];
+  const char *tx_buf = test_data;
 
   TIMEIT_START(rxtx)
 
-  memcpy(desc.buf, tx_buf, length);
-  desc.len = length;
-  pionic_tx(ctx, 0, &desc);
-
-  int tries = 20;
-  while (tries-- > 0) {
-    if (pionic_rx(ctx, 0, &desc)) break;
+  if (length > 0) {
+    memcpy(desc.buf, tx_buf, length);
+    desc.len = length;
+    pionic_tx(ctx, 0, &desc);
   }
-  assert(tries > 0 && "tries exceeded in receiving packet");
 
-  // check rx match with tx
-  assert(desc.len == length && "rx packet length does not match tx");
-  memcpy(rx_buf, desc.buf, desc.len);
-  // pionic_rx_ack(ctx, 0, &desc);
+  TIMEIT_START(rx)
 
-  TIMEIT_END(rxtx);
+  bool got_pkt = pionic_rx(ctx, 0, &desc);
 
-  if (memcmp(rx_buf, tx_buf, length)) {
+  if (length > 0) {
+    assert(got_pkt && "failed to receive packet");
+
+    // check rx match with tx
+    assert(desc.len == length && "rx packet length does not match tx");
+    memcpy(rx_buf, desc.buf, desc.len);
+    pionic_rx_ack(ctx, 0, &desc);
+  } else {
+    assert(!got_pkt && "got packet when not expecting one");
+  }
+
+  TIMEIT_END(rx)
+  TIMEIT_END(rxtx)
+
+  if (length > 0 && memcmp(rx_buf, tx_buf, length)) {
     printf("FAIL: data mismatch!  Expected (tx):\n");
     hexdump(tx_buf, length);
     printf("Rx:\n");
@@ -69,13 +70,31 @@ static double tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
     assert(false);
   }
 
-  return TIMEIT_US(rxtx);
+  measure_t ret = {
+    .roundtrip = TIMEIT_US(rxtx),
+    .rx = TIMEIT_US(rx),
+  };
+  // printf("Tx+Rx: %lf us; Rx: %lf us\n", TIMEIT_US(rxtx), TIMEIT_US(rx));
+
+  return ret;
 }
 
 int main(int argc, char *argv[]) {
   int ret = EXIT_FAILURE;
   if (argc != 2) {
     fprintf(stderr, "usage: %s <pcie dev id>\n", argv[0]);
+    goto fail;
+  }
+
+  test_data = malloc(4096);
+  for (int i = 0; i < 4096; ++i) {
+    test_data[i] = rand();
+  }
+
+  struct sigaction new = { .sa_handler = signal_handler };
+  sigemptyset(&new.sa_mask);
+  if (sigaction(SIGBUS, &new, NULL)) {
+    perror("sigaction");
     goto fail;
   }
 
@@ -86,14 +105,22 @@ int main(int argc, char *argv[]) {
 
   dump_stats(&ctx, 0);
 
-  pionic_pkt_desc_t desc;
-
   // estimate Rx timeout
-  /*
-  for (int us = 40 * 1000; us < 1000 * 1000; us += 1000) {
-    recv_timed(&ctx, us * 1000 / 4, &desc); // 250 MHz
+  jmp_buf sigbus_jmpbuf;
+  sigbus_jmp = &sigbus_jmpbuf;
+  double time_syscall = 0;
+  int count = 0;
+  if (!sigsetjmp(sigbus_jmpbuf, 1)) {
+    for (int us = 40 * 1000; us < 1000 * 1000; us += 1000) {
+      pionic_set_rx_block_cycles(&ctx, us * 1000 / 4); // 250 MHz
+      measure_t m = tx_rx_timed(&ctx, 0, 0);
+      time_syscall += (m.roundtrip - m.rx) / 2;
+      count++;
+    }
+  } else {
+    printf("Caught SIGBUS, continuing...\n");
   }
-  */
+  printf("clock_gettime: %lf us\n", time_syscall / count);
 
   // 40 ms
   pionic_set_rx_block_cycles(&ctx, 40 * 1000 * 1000 / 4);
@@ -102,11 +129,15 @@ int main(int argc, char *argv[]) {
   pionic_set_core_mask(&ctx, 1);
 
   // send packet and check rx data
-  for (int i = 0; i < 1; ++i) {
-    int to_send = 64;
-    double t = tx_rx_timed(&ctx, to_send, i * to_send);
-
-    printf("Roundtrip time: %lf us\n", t);
+  measure_t sum = { 0 };
+  int total = 20;
+  for (int to_send = 64; to_send <= 1518; to_send += 64) {
+    for (int i = 0; i < total; ++i) {
+      measure_t m = tx_rx_timed(&ctx, to_send, i * 64);
+      sum.roundtrip += m.roundtrip;
+      sum.rx += m.rx;
+    }
+    printf("%d B:\tRTT average: %lf, Rx average: %lf\n", to_send, sum.roundtrip / total, sum.rx / total);
   }
 
   ret = EXIT_SUCCESS;
