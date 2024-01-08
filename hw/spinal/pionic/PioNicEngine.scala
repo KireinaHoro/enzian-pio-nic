@@ -29,7 +29,6 @@ case class PioNicConfig(
                            (1518, .4), // 30% 1518B packets (max Ethernet frame with MTU 1500)
                            // (9618, .1), // 10% 9618B packets (max jumbo frame)
                          ),
-                         mtu: Int = 1518, // Ethernet frame!  Don't forget the 802.1Q header
                          maxRxPktsInFlight: Int = 128,
                          maxRxBlockCycles: BigInt = 5 * 1000 * 1000 * 1000 / 4, // 5 s @ 250 MHz
                          numCores: Int = 4,
@@ -37,6 +36,8 @@ case class PioNicConfig(
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
 
   def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
+
+  def mtu = pktBufAllocSizeMap.map(_._1).max
 }
 
 case class PioNicEngine(implicit config: PioNicConfig) extends Component {
