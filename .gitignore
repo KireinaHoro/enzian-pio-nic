@@ -5,5 +5,6 @@ tmp/
 simWorkspace/
 vivado*.jou
 vivado*.log
+vivado*.zip
 vivado_pid*.str
 .Xil/
