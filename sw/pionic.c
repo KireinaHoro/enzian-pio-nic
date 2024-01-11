@@ -87,6 +87,11 @@ int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback) {
   pionic_set_rx_block_cycles(ctx, 200);
   pionic_set_core_mask(ctx, (1 << PIONIC_NUM_CORES) - 1);
 
+  // reset packet buffer allocator
+  for (int i = 0; i < PIONIC_NUM_CORES; ++i) {
+    pionic_reset_pkt_alloc(ctx, i);
+  }
+
   ret = 0;
 
 fail:
