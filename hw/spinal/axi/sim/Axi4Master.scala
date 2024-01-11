@@ -6,7 +6,6 @@ import spinal.core.sim._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.sim._
 
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 import scala.collection.mutable
 
 object Axi4Bursts extends Enumeration {
@@ -49,10 +48,14 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
   }
 
   def read(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize) = {
-    val done = new AtomicReference[Array[Byte]](null)
-    readCB(address, totalBytes, id, burst, len, size)(done.set)
-    clockDomain.waitActiveEdgeWhere(done.get() != null)
-    done.get()
+    var result: Array[Byte] = null
+    val mtx = SimMutex().lock()
+    readCB(address, totalBytes, id, burst, len, size) { data =>
+      result = data
+      mtx.unlock()
+    }
+    mtx.await()
+    result
   }
 
   def readCB(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
@@ -166,11 +169,11 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
 
   // FIXME: this can only handle one-transaction writes
   def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize): Unit = {
-    val done = new AtomicBoolean(false)
+    val mtx = SimMutex().lock()
     writeCB(address, data, id, burst, len, size) {
-      done.set(true)
+      mtx.unlock()
     }
-    clockDomain.waitActiveEdgeWhere(done.get())
+    mtx.await()
   }
 
   def writeCB(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {

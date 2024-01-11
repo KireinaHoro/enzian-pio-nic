@@ -17,11 +17,16 @@ case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
   }
 
   def recv(): Array[Byte] = {
-    val res = new AtomicReference[Array[Byte]](null)
-    recvCB()(res.set)
-    clockDomain.waitActiveEdgeWhere(res.get() != null)
-    res.get()
+    var result: Array[Byte] = null
+    val mtx = SimMutex().lock()
+    recvCB() { data =>
+      result = data
+      mtx.unlock()
+    }
+    mtx.await()
+    result
   }
+
   def recvCB()(callback: Array[Byte] => Unit): Unit = {
     val builder = new mutable.ArrayBuilder.ofByte
 

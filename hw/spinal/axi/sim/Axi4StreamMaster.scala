@@ -6,7 +6,6 @@ import spinal.core.sim._
 import spinal.lib.bus.amba4.axis.Axi4Stream._
 import spinal.lib.sim._
 
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable
 
 case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
@@ -18,11 +17,11 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain) {
   }
 
   def send(data: Array[Byte]): Unit = {
-    val done = new AtomicBoolean(false)
+    val mtx = SimMutex().lock()
     sendCB(data) {
-      done.set(true)
+      mtx.unlock()
     }
-    clockDomain.waitActiveEdgeWhere(done.get())
+    mtx.await()
   }
   def sendCB(data: Array[Byte])(callback: => Unit): Unit = {
     val fullLength = roundUp(data.length, busConfig.dataWidth).toInt
