@@ -2,6 +2,7 @@ package axi
 
 import spinal.core._
 import spinal.lib._
+import spinal.lib.io.InOutVecToBits
 
 class AxiDmaDescMux(
                      clientDmaConfig: AxiDmaConfig,
@@ -43,8 +44,8 @@ class AxiDmaDescMux(
     val s_axis_desc_status = slave(masterDmaConfig.writeDescStatusBus)
   }
 
-  val s_axis_desc = new Arrayer(slave(readDescBus), numPorts)
-  val m_axis_desc_status = new Arrayer(master(writeDescStatusBus), numPorts)
+  val s_axis_desc = new InOutVecToBits(slave(readDescBus), numPorts)
+  val m_axis_desc_status = new InOutVecToBits(master(writeDescStatusBus), numPorts)
 
   mapCurrentClockDomain(io.clk, io.rst)
   noIoPrefix()
