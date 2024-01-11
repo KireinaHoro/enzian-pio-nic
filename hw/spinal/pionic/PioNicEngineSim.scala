@@ -31,6 +31,7 @@ object PioNicEngineSim extends App {
     .compile(PioNicEngine())
 
   // TODO: test for various failures
+  // TODO: use generated register addresses
   dut.doSim("rx-regular") { dut =>
     SimTimeout(2000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
@@ -87,7 +88,7 @@ object PioNicEngineSim extends App {
     // free packet buffer
     println(s"desc $desc to bytes: ${desc.toByteArray.toByteString}")
     master.write(0x1008, desc.toByteArray)
-    data = master.read(0x1020, 8)
+    data = master.read(0x1028, 8)
     val counter = data.toInt
     assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
 
