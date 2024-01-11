@@ -1,8 +1,8 @@
 [submodule "hw/deps/verilog-axis"]
-	path = hw/deps/verilog-axis
+	path = deps/verilog-axis
 	url = https://github.com/alexforencich/verilog-axis
 [submodule "hw/deps/verilog-axi"]
-	path = hw/deps/verilog-axi
+	path = deps/verilog-axi
 	url = https://github.com/alexforencich/verilog-axi
 [submodule "deps/spinalhdl"]
 	path = deps/spinalhdl
