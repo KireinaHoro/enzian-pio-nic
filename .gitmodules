@@ -4,3 +4,6 @@
 [submodule "hw/deps/verilog-axi"]
 	path = hw/deps/verilog-axi
 	url = https://github.com/alexforencich/verilog-axi
+[submodule "deps/spinalhdl"]
+	path = deps/spinalhdl
+	url = git@github.com:KireinaHoro/SpinalHDL

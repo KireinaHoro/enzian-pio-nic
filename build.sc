@@ -2,23 +2,33 @@ import mill._
 import mill.util._
 import scalalib._
 
-val spinalVersion = "1.9.0"
+import $file.deps.spinalhdl.build
 
-object pioNicEngineModule extends SbtModule {
-  def scalaVersion = "2.12.16"
+object v {
+  val scalaVersion = "2.12.18"
+}
+
+trait CommonModule extends SbtModule {
+  override def scalaVersion = v.scalaVersion
+}
+trait SpinalDep { this: SbtModule =>
+  def crossValue = v.scalaVersion
+  def name: String
+  override def millSourcePath = os.pwd / "deps" / "spinalhdl" / name
+}
+
+object spinalCore extends deps.spinalhdl.build.Core with SpinalDep { def name = "core" }
+object spinalLib extends deps.spinalhdl.build.Lib with SpinalDep { def name = "lib" }
+object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with SpinalDep { def name = "idslplugin" }
+
+object pioNicEngineModule extends CommonModule {
   override def millSourcePath = os.pwd
   override def sources = T.sources(
     millSourcePath / "hw" / "spinal"
   )
 
-  override def ivyDeps = Agg(
-    ivy"com.github.spinalhdl::spinalhdl-core:$spinalVersion",
-    ivy"com.github.spinalhdl::spinalhdl-lib:$spinalVersion"
-  )
-
-  override def scalacPluginIvyDeps = Agg(
-    ivy"com.github.spinalhdl::spinalhdl-idsl-plugin:$spinalVersion"
-  )
+  override def scalacOptions = super.scalacOptions() ++ spinalIdslPlugin.pluginOptions()
+  override def moduleDeps = super.moduleDeps ++ Seq(spinalCore, spinalLib)
 
   def generatedSourcesPath = millSourcePath / "hw" / "gen"
   def generateVerilog = T {
