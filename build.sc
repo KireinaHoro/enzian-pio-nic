@@ -5,7 +5,7 @@ import scalalib._
 import $file.deps.spinalhdl.build
 
 object v {
-  val scalaVersion = "2.12.18"
+  val scalaVersion = "2.13.12"
 }
 
 trait CommonModule extends SbtModule {

@@ -42,7 +42,7 @@ case class PioNicConfig(
   def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
 }
 
-case class PioNicEngine(implicit config: PioNicConfig) extends Component {
+case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   private val axiConfig = config.axiConfig
   private val axisConfig = config.axisConfig
 

@@ -7,19 +7,23 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc._
 import spinal.lib.fsm._
 
-case class GlobalControlBundle(implicit config: PioNicConfig) extends Bundle {
+case class GlobalControlBundle()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = GlobalControlBundle()
   val rxBlockCycles = UInt(config.regWidth bits)
 }
 
-case class PacketAddr(implicit config: PioNicConfig) extends Bundle {
+case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = PacketAddr()
   val bits = UInt(config.pktBufAddrWidth bits)
 }
 
-case class PacketLength(implicit config: PioNicConfig) extends Bundle {
+case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = PacketLength()
   val bits = UInt(config.pktBufLenWidth bits)
 }
 
-case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
+case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = PacketDesc()
   val addr = PacketAddr()
   val size = PacketLength()
 }
