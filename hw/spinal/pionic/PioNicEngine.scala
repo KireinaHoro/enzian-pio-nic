@@ -38,6 +38,8 @@ case class PioNicConfig(
   def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
 
   def mtu = pktBufAllocSizeMap.map(_._1).max
+
+  def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
 }
 
 case class PioNicEngine(implicit config: PioNicConfig) extends Component {
@@ -51,7 +53,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   }
 
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.mtu)()
+  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
 

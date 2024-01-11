@@ -28,7 +28,7 @@ case class PacketDesc(implicit config: PioNicConfig) extends Bundle {
 // Would manage one packet buffer
 class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioNicConfig) extends Component {
   val pktBufBase = coreID * config.pktBufSizePerCore
-  val pktBufTxSize = roundUp(config.mtu, config.axisConfig.dataWidth).toInt
+  val pktBufTxSize = config.roundMtu
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - pktBufTxSize
 
   val allocReset = Bool()
