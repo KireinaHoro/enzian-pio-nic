@@ -201,7 +201,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     busCtrl.read(io.hostTx, alloc("hostTx"))
     busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))
 
-    busCtrl.driveAndRead(io.allocReset, alloc("allocReset"))
+    busCtrl.driveAndRead(io.allocReset, alloc("allocReset")) init false
 
     io.statistics.elements.foreach { case (name, data) =>
       data match {

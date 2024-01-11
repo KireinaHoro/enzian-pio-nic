@@ -62,7 +62,7 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val rxOverflowCounter = Counter(config.regWidth bits, rxOverflow)
 
   // only dispatch to enabled cores
-  val dispatchMask = Reg(Bits(config.numCores bits))
+  val dispatchMask = Bits(config.numCores bits)
   val dispatchedCmacRx = StreamDispatcherWithEnable(
     input = rxFifo.slavePort.frameLength
       .map(_.resized.toPacketLength)
@@ -97,7 +97,8 @@ case class PioNicEngine(implicit config: PioNicConfig) extends Component {
   val alloc = RegAllocator("global", 0, 0x1000, config.regWidth / 8)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("globalCtrl"))
-  busCtrl.driveAndRead(dispatchMask, alloc("dispatchMask"))
+  globalCtrl.rxBlockCycles init 10000
+  busCtrl.driveAndRead(dispatchMask, alloc("dispatchMask")) init (1 << config.numCores) - 1
 
   // global statistics
   busCtrl.read(rxOverflowCounter.value, alloc("rxOverflowCount"))

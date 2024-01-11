@@ -45,6 +45,14 @@ object PioNicEngineSim extends App {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
+    // reset value of dispatch mask should be all 1
+    val dispatchMask = master.read(0x8, 8).toInt
+    assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
+
+    // reset value of rx alloc reset should be 0
+    val allocReset = master.read(0x1020, 8).toInt
+    assert(allocReset == 0, "rx alloc reset should be low at boot")
+
     master.write(0, rxBlockCycles.toSimPayload)
     var data = master.read(0, 8)
     assert(data.toInt == rxBlockCycles, "global config bundle mismatch")
