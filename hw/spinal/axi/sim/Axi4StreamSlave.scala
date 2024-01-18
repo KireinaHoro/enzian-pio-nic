@@ -16,8 +16,8 @@ case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
     println(s"Axi4StreamSlave\t: $msg")
   }
 
-  def recv(): Array[Byte] = {
-    var result: Array[Byte] = null
+  def recv(): List[Byte] = {
+    var result: List[Byte] = null
     val mtx = SimMutex().lock()
     recvCB() { data =>
       result = data
@@ -27,7 +27,7 @@ case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
     result
   }
 
-  def recvCB()(callback: Array[Byte] => Unit): Unit = {
+  def recvCB()(callback: List[Byte] => Unit): Unit = {
     val builder = new mutable.ArrayBuilder.ofByte
 
     log(s"initiating recv")
@@ -45,7 +45,7 @@ case class Axi4StreamSlave(axis: Axi4Stream, clockDomain: ClockDomain) {
       builder ++= bundle.data.toBytes.zip(strb).filter(_._2).map(_._1)
 
       if (bundle.last.toBoolean) {
-        callback(builder.result)
+        callback(builder.result.toList)
       } else {
         queue += handleBeat
       }

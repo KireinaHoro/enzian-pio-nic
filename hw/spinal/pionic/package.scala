@@ -2,6 +2,8 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
 
+import scala.language.postfixOps
+
 package object pionic {
   object CLZ {
     // https://electronics.stackexchange.com/a/649761
@@ -66,44 +68,12 @@ package object pionic {
     }
   }
 
-  implicit class RichInt(v: Int) {
-    def toSimPayload: Array[Byte] = BigInt(v).toByteArray.reverse.padTo(8, 0.toByte)
-  }
-
   implicit class RichUInt(v: UInt) {
     def toPacketLength(implicit config: PioNicConfig) = {
       val len = PacketLength()
       len.bits := v
       len
     }
-  }
-
-  implicit class RichByteArray(arr: Array[Byte]) {
-    def toByteString: String = {
-      arr.map(v => f"$v%02x").mkString
-    }
-
-    // with status bit
-    def toRxPacketDesc(implicit config: PioNicConfig) = {
-      val d = BigInt(arr.reverse).toLong
-      if ((d & 1) == 0) {
-        None
-      } else {
-        Some(PacketDescSim.fromBigInt(d >> 1))
-      }
-    }
-
-    def toTxPacketDesc(implicit config: PioNicConfig) = {
-      val d = BigInt(arr.reverse)
-      PacketDescSim.fromBigInt(d)
-    }
-
-    // for simulation
-    def toInt = BigInt(arr.reverse).toInt // Little Endian
-  }
-
-  implicit class RichBooleanArray(arr: Array[Boolean]) {
-    def toBigInt: BigInt = arr.foldRight(BigInt(0))((b, res) => (res << 1) + b.toInt)
   }
 
   implicit class RichBusSlaveFactory(busCtrl: BusSlaveFactory) {

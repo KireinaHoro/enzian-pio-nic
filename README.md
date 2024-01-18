@@ -61,7 +61,7 @@ hw/gen/Merged.v: ASCII text
 Run test benches:
 
 ```console
-$ mill pioNicEngineModule.runMain pionic.PioNicEngineSim
+$ mill pioNicEngineModule.runMain pionic.sim.PioNicEngineSim
 ...
 [Progress] Verilator compilation done in 5542.813 ms
 [Progress] Start PioNicEngine rx-regular simulation with seed 1445906924

@@ -1,8 +1,8 @@
 package axi.sim
 
-import pionic.RichByteArray
 import spinal.core._
 import spinal.core.sim._
+import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.sim._
 
@@ -48,7 +48,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
   }
 
   def read(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize) = {
-    var result: Array[Byte] = null
+    var result: List[Byte] = null
     val mtx = SimMutex().lock()
     readCB(address, totalBytes, id, burst, len, size) { data =>
       result = data
@@ -58,7 +58,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     result
   }
 
-  def readCB(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit) = {
+  def readCB(address: BigInt, totalBytes: BigInt, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: List[Byte] => Unit) = {
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat // FIXME: 4K limitation?
     val numTransactions = (totalBytes.toDouble / bytes).ceil.toInt
@@ -73,11 +73,11 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       readSingle(addr, transactionSize, id, burst, len, size)(handleTransaction(addr, totBytes, numTransactions))
     }
 
-    def handleTransaction(addr: BigInt, tot: Int, numTransactions: Int)(data: Array[Byte]): Unit = {
+    def handleTransaction(addr: BigInt, tot: Int, numTransactions: Int)(data: List[Byte]): Unit = {
       builder ++= data
       if (numTransactions == 1) {
         // we are the last one
-        callback(builder.result())
+        callback(builder.result().toList)
       } else {
         run(addr + data.length, tot - data.length, numTransactions - 1)
       }
@@ -86,7 +86,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     run(address, totalBytes.toInt, numTransactions)
   }
 
-  def readSingle(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: Array[Byte] => Unit): Unit = {
+  def readSingle(address: BigInt, totalBytes: Int, id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: List[Byte] => Unit): Unit = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
     if (burst != Incr) {
       assert(len <= 15, s"max fixed/wrap burst in one transaction is 16")
@@ -133,8 +133,8 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
             }
           }
           if (beat == len) {
-            val response = builder.result().slice(dropFront, dropFront + totalBytes)
-            log("R", f"got data ${response.toByteString}")
+            val response = builder.result().slice(dropFront, dropFront + totalBytes).toList
+            log("R", f"got data ${response.bytesToHex}")
             callback(response)
           }
         }
@@ -157,18 +157,18 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     }
   }
 
-  private def padData(address: BigInt, data: Array[Byte]) = {
+  private def padData(address: BigInt, data: List[Byte]) = {
     val roundedAddress = address - (address & (busConfig.bytePerWord - 1))
     val padFront = (address - roundedAddress).toInt
     val totalLen = roundUp(padFront + data.length, busConfig.bytePerWord).toInt
-    val paddedData = (Array.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)
+    val paddedData = (List.fill(padFront)(0.toByte) ++ data).padTo(totalLen, 0.toByte)
     val padBack = totalLen - padFront - data.length
 
     (roundedAddress, padFront, padBack, paddedData)
   }
 
   // FIXME: this can only handle one-transaction writes
-  def write(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize): Unit = {
+  def write(address: BigInt, data: List[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize): Unit = {
     val mtx = SimMutex().lock()
     writeCB(address, data, id, burst, len, size) {
       mtx.unlock()
@@ -176,7 +176,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     mtx.await()
   }
 
-  def writeCB(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
+  def writeCB(address: BigInt, data: List[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
     val bytePerBeat = 1 << size
     val bytes = (len + 1) * bytePerBeat
 
@@ -187,7 +187,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       log("..", f"write $address%#x in $numTransactions transactions")
     }
 
-    def run(addr: BigInt, data: Array[Byte], transactionId: Int): Unit = {
+    def run(addr: BigInt, data: List[Byte], transactionId: Int): Unit = {
       val slice = transactionId match {
         case 0 => data.take(bytes - padFront)
         case tid if tid == numTransactions - 1 => data
@@ -197,7 +197,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       writeSingle(addr, slice, id, burst, len, size)(handleTransaction(addr, transactionId, remaining))
     }
 
-    def handleTransaction(addr: BigInt, transactionId: Int, remaining: Array[Byte])() = {
+    def handleTransaction(addr: BigInt, transactionId: Int, remaining: List[Byte])() = {
       if (transactionId == numTransactions - 1) {
         // we are the last one
         assert(remaining.isEmpty, s"left over ${remaining.length} bytes unsent!")
@@ -211,7 +211,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
     run(address, data, 0)
   }
 
-  def writeSingle(address: BigInt, data: Array[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
+  def writeSingle(address: BigInt, data: List[Byte], id: Int = 0, burst: Axi4Burst = Incr, len: Int = 0, size: Int = maxSize)(callback: => Unit): Unit = {
     assert(size <= maxSize, s"requested beat size too big: $size vs $maxSize")
     if (burst != Incr) {
       assert(len <= 15, s"max fixed/wrap burst in one transaction is 16")
@@ -236,7 +236,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
       for (beat <- 0 to len) {
         wQueue += { w =>
           val data = paddedData.slice(beat * bytePerBeat, (beat + 1) * bytePerBeat)
-          w.data #= data
+          w.data #= data.toArray
           val strb = if (len == 0) {
             ((BigInt(1) << realLen) - 1) << padFront
           } else beat match {
@@ -246,7 +246,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain) {
           }
           if (busConfig.useStrb) w.strb #= strb
           if (busConfig.useLast) w.last #= beat == len
-          log("W", f"data ${data.toByteString} strb $strb%#x last ${beat == len}")
+          log("W", f"data ${data.bytesToHex} strb $strb%#x last ${beat == len}")
         }
       }
 

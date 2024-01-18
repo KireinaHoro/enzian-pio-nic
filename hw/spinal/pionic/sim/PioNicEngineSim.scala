@@ -1,21 +1,12 @@
-package pionic
+package pionic.sim
 
 import axi.sim.{Axi4Master, Axi4StreamMaster, Axi4StreamSlave}
+import pionic.{Config, PioNicConfig, PioNicEngine}
 import spinal.core._
-import spinal.core.sim._
-import spinal.lib.BinaryBuilder
+import spinal.core.sim.{SimBigIntPimper => _, _}
+import spinal.lib._
 
 import scala.util._
-
-case class PacketDescSim(addr: BigInt, size: BigInt)(implicit config: PioNicConfig) {
-  def toBigInt: BigInt = ((size & config.pktBufLenMask) << config.pktBufAddrWidth) | (addr & config.pktBufAddrMask)
-
-  def toByteArray: Array[Byte] = toBigInt.toByteArray.reverse.padTo(8, 0.toByte)
-}
-
-object PacketDescSim {
-  def fromBigInt(v: BigInt)(implicit config: PioNicConfig) = PacketDescSim(v & config.pktBufAddrMask, (v >> config.pktBufAddrWidth) & config.pktBufLenMask)
-}
 
 object PioNicEngineSim extends App {
   // TODO: test on multiple configs
@@ -47,22 +38,21 @@ object PioNicEngineSim extends App {
     }
 
     // reset value of dispatch mask should be all 1
-    val dispatchMask = master.read(0x8, 8).toInt
+    val dispatchMask = master.read(0x8, 8).bytesToBigInt
     assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
 
     // reset value of rx alloc reset should be 0
-    val allocReset = master.read(0x1020, 8).toInt
+    val allocReset = master.read(0x1020, 8).bytesToBigInt
     assert(allocReset == 0, "rx alloc reset should be low at boot")
 
-    master.write(0, rxBlockCycles.toSimPayload)
+    master.write(0, rxBlockCycles.toBytes)
     var data = master.read(0, 8)
-    assert(data.toInt == rxBlockCycles, "global config bundle mismatch")
+    assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
     data = master.read(0x1000, 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
 
-    val toSend = new Array[Byte](256)
-    Random.nextBytes(toSend)
+    val toSend = Random.nextBytes(256).toList
     fork {
       sleep(20)
       axisMaster.send(toSend)
@@ -79,17 +69,17 @@ object PioNicEngineSim extends App {
 
     // read memory and check data
     data = master.read(0x100000 + desc.addr, desc.size)
-    assert(data sameElements toSend,
+    assert(data == toSend,
       s"""data mismatch:
-         |expected: "${toSend.toByteString}"
-         |got:      "${data.toByteString}"
+         |expected: "${toSend.bytesToHex}"
+         |got:      "${data.bytesToHex}"
          |""".stripMargin)
 
     // free packet buffer
-    println(s"desc $desc to bytes: ${desc.toByteArray.toByteString}")
-    master.write(0x1008, desc.toByteArray)
+    println(s"desc $desc to bytes: ${desc.toBigInt.hexString}")
+    master.write(0x1008, desc.toBigInt.toBytes)
     data = master.read(0x1028, 8)
-    val counter = data.toInt
+    val counter = data.bytesToBigInt
     assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
@@ -108,22 +98,21 @@ object PioNicEngineSim extends App {
     assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
-    val toSend = new Array[Byte](256)
-    Random.nextBytes(toSend)
+    val toSend = Random.nextBytes(256).toList
     assert(toSend.length <= desc.size, s"packet to send too big: requested ${toSend.length}, actual: ${desc.size}")
 
     // write packet data
     master.write(0x100000 + desc.addr, toSend)
     // receive from axis
     axisSlave.recvCB() { data =>
-      assert(data sameElements toSend,
+      assert(data == toSend,
         s"""data mismatch:
-           |expected: "${toSend.toByteString}"
-           |got:      "${data.toByteString}"
+           |expected: "${toSend.bytesToHex}"
+           |got:      "${data.bytesToHex}"
            |""".stripMargin)
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
-    master.write(0x1018, toSend.length.toSimPayload)
+    master.write(0x1018, toSend.length.toBytes)
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
@@ -140,13 +129,12 @@ object PioNicEngineSim extends App {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(0x0, 100.toSimPayload) // rxBlockCycles
+    master.write(0x0, 100.toBytes) // rxBlockCycles
 
     val mask = b"01100111"
-    master.write(0x8, mask.toSimPayload) // mask
+    master.write(0x8, mask.toBytes) // mask
 
-    val toSend = new Array[Byte](256)
-    Random.nextBytes(toSend)
+    val toSend = Random.nextBytes(256).toList
 
     // test round robin
     Seq.fill(3)(0 until nicConfig.numCores).flatten
