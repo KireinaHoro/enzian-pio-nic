@@ -1,10 +1,11 @@
 package pionic.sim
 
-import axi.sim.{Axi4Master, Axi4StreamMaster, Axi4StreamSlave}
 import pionic.{Config, PioNicConfig, PioNicEngine}
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
+import spinal.lib.bus.amba4.axi.sim._
+import spinal.lib.bus.amba4.axis.sim._
 
 import scala.util._
 
