@@ -3,11 +3,12 @@ package pionic
 // alexforencich IPs
 
 import axi._
-
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
+
+import scala.language.postfixOps
 
 case class PioNicConfig(
                          axiConfig: Axi4Config = Axi4Config(
@@ -30,7 +31,7 @@ case class PioNicConfig(
                            // (9618, .1), // 10% 9618B packets (max jumbo frame)
                          ),
                          maxRxPktsInFlight: Int = 128,
-                         maxRxBlockCycles: BigInt = 5 * 1000 * 1000 * 1000 / 4, // 5 s @ 250 MHz
+                         rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
                          numCores: Int = 4,
                        ) {
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)

@@ -7,9 +7,11 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc._
 import spinal.lib.fsm._
 
+import scala.language.postfixOps
+
 case class GlobalControlBundle()(implicit config: PioNicConfig) extends Bundle {
   override def clone = GlobalControlBundle()
-  val rxBlockCycles = UInt(config.regWidth bits)
+  val rxBlockCycles = UInt(config.rxBlockCyclesWidth bits)
 }
 
 case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
@@ -199,7 +201,7 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
 
     val alloc = RegAllocator(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
 
-    busCtrl.readStreamBlockCycles(io.hostRxNext, alloc("hostRxNext"), globalCtrl.rxBlockCycles, config.maxRxBlockCycles)
+    busCtrl.readStreamBlockCycles(io.hostRxNext, alloc("hostRxNext"), globalCtrl.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
 
     busCtrl.read(io.hostTx, alloc("hostTx"))
