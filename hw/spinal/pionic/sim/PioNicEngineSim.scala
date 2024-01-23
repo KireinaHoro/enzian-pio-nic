@@ -22,11 +22,13 @@ object PioNicEngineSim extends App {
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(PioNicEngine())
 
-  def rxDutSetup(dut: PioNicEngine, rxBlockCycles: Int) = {
+  def cyc(c: Int)(implicit dut: PioNicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
+
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
     val globalBlock = nicConfig.allocFactory.blocks("global")
     val coreBlock = nicConfig.allocFactory.blocks("control_0")
 
-    SimTimeout(2000)
+    SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
@@ -51,30 +53,29 @@ object PioNicEngineSim extends App {
     var data = master.read(globalBlock("globalCtrl"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
-    data = master.read(coreBlock("hostRxNext"), 8)
-    assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
-
-
     (master, axisMaster)
   }
 
   // TODO: test for various failures
-  dut.doSim("rx-regular") { dut =>
+  dut.doSim("rx-regular") { implicit dut =>
     val coreBlock = nicConfig.allocFactory.blocks("control_0")
     val pktBufAddr = nicConfig.allocFactory.blocks("pktBuffer")("buffer")
 
     val rxBlockCycles = 100
-    val (master, axisMaster) = rxDutSetup(dut, rxBlockCycles)
+    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+
+    var data = master.read(coreBlock("hostRxNext"), 8)
+    assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
 
     val toSend = Random.nextBytes(256).toList
     fork {
-      sleep(20)
+      sleep(cyc(20))
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
 
     // test for actually receiving a packet
-    var data = master.read(coreBlock("hostRxNext"), 8)
+    data = master.read(coreBlock("hostRxNext"), 8)
 
     val desc = data.toRxPacketDesc.get
     println(s"Received status register: $desc")
@@ -99,8 +100,8 @@ object PioNicEngineSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  dut.doSim("tx-regular") { dut =>
-    SimTimeout(2000)
+  dut.doSim("tx-regular") { implicit dut =>
+    SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val coreBlock = nicConfig.allocFactory.blocks("control_0")
@@ -134,8 +135,8 @@ object PioNicEngineSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  dut.doSim("rx-roundrobin-with-mask") { dut =>
-    SimTimeout(4000)
+  dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
+    SimTimeout(cyc(4000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val globalBlock = nicConfig.allocFactory.blocks("global")
@@ -174,5 +175,85 @@ object PioNicEngineSim extends App {
       }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
+  }
+
+  dut.doSim("rx-timestamped-queued") { implicit dut =>
+    val rxBlockCycles = 100
+    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+
+    val globalBlock = nicConfig.allocFactory.blocks("global")
+    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+
+    val toSend = Random.nextBytes(256).toList
+
+    axisMaster.send(toSend)
+    // ensure that the packet has landed
+    val delayed = 1000
+    sleep(cyc(delayed))
+
+    var data = master.read(coreBlock("hostRxNext"), 8)
+    val desc = data.toRxPacketDesc.get
+    val timestamp = master.read(globalBlock("cyclesCount"), 8).bytesToBigInt
+
+    // commit
+    master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
+
+    println(s"Current timestamp: $timestamp")
+
+    val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
+    val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
+    val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
+    val afterDMAWrite = master.read(coreBlock("hostRxLastProfile", "AfterDMAWrite"), 8).bytesToBigInt
+    val afterDispatch = master.read(coreBlock("hostRxLastProfile", "AfterDispatch"), 8).bytesToBigInt
+
+    println(s"Entry: $entry")
+    println(s"AfterRxQueue: $afterRxQueue")
+    println(s"ReadStart: $readStart")
+    println(s"AfterDMAWrite: $afterDMAWrite")
+    println(s"AfterDispatch: $afterDispatch")
+
+    assert(isSorted(Seq(entry, afterRxQueue, afterDMAWrite, readStart, timestamp, afterDispatch)))
+    assert(readStart - entry >= delayed)
+  }
+
+  dut.doSim("rx-timestamped-stalled") { implicit dut =>
+    val rxBlockCycles = 1000
+    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+
+    val globalBlock = nicConfig.allocFactory.blocks("global")
+    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+
+    val toSend = Random.nextBytes(256).toList
+    val delayed = 500
+
+    fork {
+      sleep(cyc(delayed))
+
+      axisMaster.send(toSend)
+    }
+
+    var data = master.read(coreBlock("hostRxNext"), 8)
+    val desc = data.toRxPacketDesc.get
+    val timestamp = master.read(globalBlock("cyclesCount"), 8).bytesToBigInt
+
+    // commit
+    master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
+
+    println(s"Current timestamp: $timestamp")
+
+    val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
+    val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
+    val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
+    val afterDMAWrite = master.read(coreBlock("hostRxLastProfile", "AfterDMAWrite"), 8).bytesToBigInt
+    val afterDispatch = master.read(coreBlock("hostRxLastProfile", "AfterDispatch"), 8).bytesToBigInt
+
+    println(s"Entry: $entry")
+    println(s"AfterRxQueue: $afterRxQueue")
+    println(s"ReadStart: $readStart")
+    println(s"AfterDMAWrite: $afterDMAWrite")
+    println(s"AfterDispatch: $afterDispatch")
+
+    assert(isSorted(Seq(readStart, entry, afterRxQueue, afterDMAWrite, timestamp, afterDispatch)))
+    assert(entry - readStart >= delayed)
   }
 }

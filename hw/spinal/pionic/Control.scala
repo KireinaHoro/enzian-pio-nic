@@ -69,6 +69,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     val hostRxNext = master Stream PacketDesc()
     val hostRxNextAck = slave Stream PacketDesc()
     val hostRxLastProfile = out(profiler.timestamps.clone).setAsReg()
+    val hostRxNextReq = in Bool()
 
     val hostTx = out(PacketDesc())
     val hostTxAck = slave Stream PacketLength() // actual length of the packet
@@ -94,6 +95,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     })
   }
+  profiler.regInit(io.hostRxLastProfile)
+
   implicit val globalStatus = io.globalStatus
 
   allocReset := io.allocReset
@@ -171,9 +174,10 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
       }
     }
   }
+
   profiler.fillSlots(io.hostRxLastProfile,
     AfterDispatch -> io.hostRxNextAck.fire,
-    ReadStart -> io.hostRxNext.ready.rise(False),
+    ReadStart -> io.hostRxNextReq.rise(False),
   )
 
   val txFsm = new StateMachine {
@@ -227,8 +231,15 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     val alloc = config.allocFactory(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
 
-    busCtrl.readStreamBlockCycles(io.hostRxNext, alloc("hostRxNext"), globalCtrl.rxBlockCycles)
+    val rxNextAddr = alloc("hostRxNext")
+    busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, globalCtrl.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
+
+    // on read primitive (AR for AXI), set hostRxNextReq for timing ReadStart
+    io.hostRxNextReq := False
+    busCtrl.onReadPrimitive(SingleMapping(rxNextAddr), haltSensitive = false, "read request issued") {
+      io.hostRxNextReq := True
+    }
 
     busCtrl.read(io.hostTx, alloc("hostTx"))
     busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))

@@ -20,7 +20,14 @@ case class Timestamps(keys: Seq[NamedType[UInt]]) extends HardMap {
 }
 
 case class Profiler(keys: NamedType[UInt]*)(parent: Profiler = null)(implicit config: PioNicConfig) {
-  val timestamps = Timestamps((if (parent != null) parent.keys else Nil) ++ keys)
+  val allKeys = (if (parent != null) parent.keys else Nil) ++ keys
+  val timestamps = Timestamps(allKeys)
+
+  def regInit(ts: Timestamps) = {
+    allKeys foreach { key =>
+      ts(key) init 0
+    }
+  }
 
   def augment(axisConfig: Axi4StreamConfig): Axi4StreamConfig = {
     if (config.collectTimestamps)
