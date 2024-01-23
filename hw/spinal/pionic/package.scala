@@ -5,6 +5,8 @@ import spinal.lib.bus.misc._
 import scala.language.postfixOps
 
 package object pionic {
+  def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
+
   object CLZ {
     // https://electronics.stackexchange.com/a/649761
     def apply(v: Bits): UInt = new Composite(v, "clz") {
@@ -53,6 +55,7 @@ package object pionic {
   }
 
   object RegAllocator {
+    // TODO: generate register map for consumption by the device driver generator
     def apply(blockName: String, base: BigInt, blockLen: BigInt, defaultSize: BigInt) = {
       new {
         private var addr = base

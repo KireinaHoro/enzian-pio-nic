@@ -4,6 +4,8 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.{Axi4Stream, Axi4StreamConfig}
 
+import scala.language.postfixOps
+
 case class AxiStreamFifo(
                           axisConfig: Axi4StreamConfig,
                           depthBytes: Int = 4096,

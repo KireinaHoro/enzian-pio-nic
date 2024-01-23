@@ -22,16 +22,13 @@ object PioNicEngineSim extends App {
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(PioNicEngine())
 
-  // TODO: test for various failures
-  // TODO: use generated register addresses
-  dut.doSim("rx-regular") { dut =>
+  def rxDutSetup(dut: PioNicEngine, rxBlockCycles: Int) = {
     SimTimeout(2000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
     // write global config bundle
-    val rxBlockCycles = 100
 
     // the tx interface should never be active!
     dut.clockDomain.onSamplings {
@@ -47,11 +44,22 @@ object PioNicEngineSim extends App {
     assert(allocReset == 0, "rx alloc reset should be low at boot")
 
     master.write(0, rxBlockCycles.toBytes)
+
     var data = master.read(0, 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
     data = master.read(0x1000, 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
+
+
+    (master, axisMaster)
+  }
+
+  // TODO: test for various failures
+  // TODO: use generated register addresses
+  dut.doSim("rx-regular") { dut =>
+    val rxBlockCycles = 100
+    val (master, axisMaster) = rxDutSetup(dut, rxBlockCycles)
 
     val toSend = Random.nextBytes(256).toList
     fork {
@@ -61,7 +69,7 @@ object PioNicEngineSim extends App {
     }
 
     // test for actually receiving a packet
-    data = master.read(0x1000, 8)
+    var data = master.read(0x1000, 8)
 
     val desc = data.toRxPacketDesc.get
     println(s"Received status register: $desc")

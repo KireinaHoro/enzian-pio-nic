@@ -11,28 +11,43 @@ import scala.language.postfixOps
 
 case class GlobalControlBundle()(implicit config: PioNicConfig) extends Bundle {
   override def clone = GlobalControlBundle()
+
   val rxBlockCycles = UInt(config.rxBlockCyclesWidth bits)
+}
+
+case class GlobalStatusBundle()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = GlobalStatusBundle()
+
+  val cyclesCount = UInt(config.regWidth bits)
 }
 
 case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketAddr()
+
   val bits = UInt(config.pktBufAddrWidth bits)
 }
 
 case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketLength()
+
   val bits = UInt(config.pktBufLenWidth bits)
 }
 
 case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketDesc()
+
   val addr = PacketAddr()
   val size = PacketLength()
 }
 
 // Control module for PIO access from one single core
 // Would manage one packet buffer
-class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioNicConfig) extends Component {
+class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, profilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
+  val AfterDMAWrite = NamedType(Timestamp) // time in dma mux & writing
+  val AfterDispatch = NamedType(Timestamp) // time in core dispatch queuing
+  val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time
+  val profiler = Profiler(ReadStart, AfterDMAWrite, AfterDispatch)(profilerParent)
+
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = config.roundMtu
   val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - pktBufTxSize
@@ -47,10 +62,13 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
   val io = new Bundle {
     // config from host, but driven only once at global control
     val globalCtrl = in(GlobalControlBundle())
+    // global status (e.g. cycle count for tagging packet times)
+    val globalStatus = in(GlobalStatusBundle())
 
     // regs for host
     val hostRxNext = master Stream PacketDesc()
     val hostRxNextAck = slave Stream PacketDesc()
+    val hostRxLastProfile = out(profiler.timestamps.clone).setAsReg()
 
     val hostTx = out(PacketDesc())
     val hostTxAck = slave Stream PacketLength() // actual length of the packet
@@ -59,10 +77,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     val cmacRxAlloc = slave Stream PacketLength()
 
     // driver for DMA control
-    val readDesc = master(dmaConfig.readDescBus)
-    val readDescStatus = slave(dmaConfig.readDescStatusBus)
-    val writeDesc = master(dmaConfig.writeDescBus)
-    val writeDescStatus = slave(dmaConfig.writeDescStatusBus)
+    val readDesc = master(txDmaConfig.readDescBus).setOutputAsReg()
+    val readDescStatus = slave(txDmaConfig.readDescStatusBus)
+    val writeDesc = master(rxDmaConfig.writeDescBus).setOutputAsReg()
+    val writeDescStatus = slave(rxDmaConfig.writeDescStatusBus)
 
     // reset for packet allocator
     val allocReset = in(Bool())
@@ -76,17 +94,17 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     })
   }
+  implicit val globalStatus = io.globalStatus
 
   allocReset := io.allocReset
 
   def inc(reg: UInt) = reg := reg + 1
 
-  io.writeDesc.payload.setAsReg()
-  io.writeDesc.valid.setAsReg() init False
-  io.readDesc.payload.setAsReg()
-  io.readDesc.valid.setAsReg() init False
+  io.writeDesc.valid init False
+  io.readDesc.valid init False
 
-  assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
+  assert(rxDmaConfig.tagWidth >= config.pktBufAddrWidth, s"Rx DMA tag (${rxDmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
+  assert(txDmaConfig.tagWidth >= config.pktBufAddrWidth, s"Tx DMA tag (${txDmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
 
   // we reserve one packet for TX
   io.hostTx.addr.bits := pktBufTxBase
@@ -132,6 +150,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
             rxCaptured.payload.addr.bits := io.writeDescStatus.tag.resized
             rxCaptured.payload.size.bits := io.writeDescStatus.len
             rxCaptured.valid := True
+
+            profiler.collectInto(io.writeDescStatus.user.asBits, io.hostRxLastProfile)
+            profiler.fillSlot(io.hostRxLastProfile, AfterDMAWrite, True)
             goto(stateEnqueuePkt)
           } otherwise {
             inc(io.statistics.rxDmaErrorCount)
@@ -150,6 +171,10 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
       }
     }
   }
+  profiler.fillSlots(io.hostRxLastProfile,
+    AfterDispatch -> io.hostRxNextAck.fire,
+    ReadStart -> io.hostRxNext.ready.rise(False),
+  )
 
   val txFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
@@ -187,8 +212,9 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
     }
   }
 
-  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength]) = new Area {
+  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength])(implicit globalStatus: GlobalStatusBundle) = new Area {
     io.globalCtrl := globalCtrl
+    io.globalStatus := globalStatus
 
     io.readDesc >> rdMux.s_axis_desc(coreID)
     io.readDescStatus <<? rdMux.m_axis_desc_status(coreID)
@@ -218,5 +244,11 @@ class PioCoreControl(dmaConfig: AxiDmaConfig, coreID: Int)(implicit config: PioN
         case _ =>
       }
     }
+
+    // rx profile results
+    if (config.collectTimestamps)
+      io.hostRxLastProfile.storage.foreach { case (namedType, data) =>
+        busCtrl.read(data, alloc(s"hostRxLastProfile_${namedType.getName}"))
+      }
   }
 }

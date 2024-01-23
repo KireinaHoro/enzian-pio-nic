@@ -5,6 +5,8 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
 
+import scala.language.postfixOps
+
 case class AxiDmaCmd(dmaConfig: AxiDmaConfig) extends Bundle {
 
   import dmaConfig._

@@ -33,6 +33,9 @@ case class PioNicConfig(
                          maxRxPktsInFlight: Int = 128,
                          rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
                          numCores: Int = 4,
+                         // for Profiling
+                         collectTimestamps: Boolean = false,
+                         timestampWidth: Int = 32, // width for a single timestamp
                        ) {
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
 
@@ -47,15 +50,24 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   private val axiConfig = config.axiConfig
   private val axisConfig = config.axisConfig
 
+  // global cycles counter for measurements
+  implicit val globalStatus = GlobalStatusBundle()
+
   val io = new Bundle {
     val s_axi = slave(Axi4(axiConfig))
     val s_axis_rx = slave(Axi4Stream(axisConfig))
     val m_axis_tx = master(Axi4Stream(axisConfig))
   }
 
+  val Entry = NamedType(Timestamp) // packet data from CMAC
+  val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
+  val profiler = Profiler(Entry, AfterRxQueue)()
+  val rxAxisConfig = profiler augment axisConfig
+  println(rxAxisConfig)
+
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()
-  rxFifo.slavePort << io.s_axis_rx
+  val rxFifo = AxiStreamFifo(rxAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()
+  rxFifo.slavePort << profiler.timestamp(io.s_axis_rx, Entry)
   // derive cmac incoming packet length
 
   // report overflow
@@ -75,14 +87,15 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
 
-  val dmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
-  val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
-  val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = config.numCores, arbRoundRobin = false)
+  val txDmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
+  val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
+  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxAxisConfig)
+  val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
-  val axiDma = new AxiDma(axiDmaReadMux.masterDmaConfig, enableUnaligned = true)
+  val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.readDataMaster >> io.m_axis_tx
-  axiDma.writeDataSlave << rxFifo.masterPort
+  axiDma.readDataMaster.translateInto(io.m_axis_tx)(_ <<? _) // ignore TUSER
+  axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue)
 
   axiDma.io.read_enable := True
   axiDma.io.write_enable := True
@@ -104,8 +117,12 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   // global statistics
   busCtrl.read(rxOverflowCounter.value, alloc("rxOverflowCount"))
 
+  val cyclesCounter = CounterFreeRun(config.regWidth bits)
+  globalStatus.cyclesCount := cyclesCounter
+  busCtrl.read(cyclesCounter.value, alloc("cyclesCount")) // for host reference
+
   for (id <- 0 until config.numCores) {
-    new PioCoreControl(dmaConfig, id).setName(s"coreCtrl_$id")
+    new PioCoreControl(rxDmaConfig, txDmaConfig, id, profiler).setName(s"coreCtrl_$id")
       .driveFrom(busCtrl, (1 + id) * 0x1000)(
         globalCtrl = globalCtrl,
         rdMux = axiDmaReadMux,

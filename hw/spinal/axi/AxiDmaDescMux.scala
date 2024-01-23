@@ -59,7 +59,13 @@ class AxiDmaDescMux(
   addRTLPath(axiRTLFile("priority_encoder"))
 
   def connectRead(dma: AxiDma) {
-    dma.io.s_axis_read_desc <> io.m_axis_desc
+    dma.io.s_axis_read_desc.translateFrom(io.m_axis_desc) { case (left, right) =>
+      // only allow resizing USER field
+      left.elements zip right.elements foreach { case (leftElem, rightElem) =>
+        if (leftElem._1 == "user") leftElem._2 := rightElem._2.resized
+        else leftElem._2 := rightElem._2
+      }
+    }
     io.s_axis_desc_status <<? dma.io.m_axis_read_desc_status
   }
 
