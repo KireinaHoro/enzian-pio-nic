@@ -23,6 +23,9 @@ object PioNicEngineSim extends App {
     .compile(PioNicEngine())
 
   def rxDutSetup(dut: PioNicEngine, rxBlockCycles: Int) = {
+    val globalBlock = nicConfig.allocFactory.blocks("global")
+    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+
     SimTimeout(2000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
@@ -36,19 +39,19 @@ object PioNicEngineSim extends App {
     }
 
     // reset value of dispatch mask should be all 1
-    val dispatchMask = master.read(0x8, 8).bytesToBigInt
+    val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
     assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
 
     // reset value of rx alloc reset should be 0
-    val allocReset = master.read(0x1020, 8).bytesToBigInt
+    val allocReset = master.read(coreBlock("allocReset"), 8).bytesToBigInt
     assert(allocReset == 0, "rx alloc reset should be low at boot")
 
     master.write(0, rxBlockCycles.toBytes)
 
-    var data = master.read(0, 8)
+    var data = master.read(globalBlock("globalCtrl"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
-    data = master.read(0x1000, 8)
+    data = master.read(coreBlock("hostRxNext"), 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
 
 
@@ -56,8 +59,10 @@ object PioNicEngineSim extends App {
   }
 
   // TODO: test for various failures
-  // TODO: use generated register addresses
   dut.doSim("rx-regular") { dut =>
+    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+    val pktBufAddr = nicConfig.allocFactory.blocks("pktBuffer")("buffer")
+
     val rxBlockCycles = 100
     val (master, axisMaster) = rxDutSetup(dut, rxBlockCycles)
 
@@ -69,7 +74,7 @@ object PioNicEngineSim extends App {
     }
 
     // test for actually receiving a packet
-    var data = master.read(0x1000, 8)
+    var data = master.read(coreBlock("hostRxNext"), 8)
 
     val desc = data.toRxPacketDesc.get
     println(s"Received status register: $desc")
@@ -77,7 +82,7 @@ object PioNicEngineSim extends App {
     assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "rx buffer not aligned!")
 
     // read memory and check data
-    data = master.read(0x100000 + desc.addr, desc.size)
+    data = master.read(pktBufAddr + desc.addr, desc.size)
     assert(data == toSend,
       s"""data mismatch:
          |expected: "${toSend.bytesToHex}"
@@ -86,8 +91,8 @@ object PioNicEngineSim extends App {
 
     // free packet buffer
     println(s"desc $desc to bytes: ${desc.toBigInt.hexString}")
-    master.write(0x1008, desc.toBigInt.toBytes)
-    data = master.read(0x1028, 8)
+    master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
+    data = master.read(coreBlock("rxPacketCount"), 8)
     val counter = data.bytesToBigInt
     assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
 
@@ -98,11 +103,14 @@ object PioNicEngineSim extends App {
     SimTimeout(2000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
+    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+    val pktBufAddr = nicConfig.allocFactory.blocks("pktBuffer")("buffer")
+
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.clockDomain)
 
     // get tx buffer address
-    var data = master.read(0x1010, 8)
+    var data = master.read(coreBlock("hostTx"), 8)
     val desc = data.toTxPacketDesc
     assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
@@ -111,7 +119,7 @@ object PioNicEngineSim extends App {
     assert(toSend.length <= desc.size, s"packet to send too big: requested ${toSend.length}, actual: ${desc.size}")
 
     // write packet data
-    master.write(0x100000 + desc.addr, toSend)
+    master.write(pktBufAddr + desc.addr, toSend)
     // receive from axis
     axisSlave.recvCB() { data =>
       assert(data == toSend,
@@ -121,7 +129,7 @@ object PioNicEngineSim extends App {
            |""".stripMargin)
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
-    master.write(0x1018, toSend.length.toBytes)
+    master.write(coreBlock("hostTxAck"), toSend.length.toBytes)
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
@@ -129,6 +137,8 @@ object PioNicEngineSim extends App {
   dut.doSim("rx-roundrobin-with-mask") { dut =>
     SimTimeout(4000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
+
+    val globalBlock = nicConfig.allocFactory.blocks("global")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
@@ -138,10 +148,10 @@ object PioNicEngineSim extends App {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(0x0, 100.toBytes) // rxBlockCycles
+    master.write(globalBlock("globalCtrl"), 100.toBytes) // rxBlockCycles
 
     val mask = b"01100111"
-    master.write(0x8, mask.toBytes) // mask
+    master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     val toSend = Random.nextBytes(256).toList
 
@@ -150,11 +160,11 @@ object PioNicEngineSim extends App {
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         axisMaster.sendCB(toSend)()
 
-        val coreBase = 0x1000 * (idx + 1)
+        val coreBlock = nicConfig.allocFactory.blocks(s"control_$idx")
         var descOption: Option[PacketDescSim] = None
         var tries = 5
         while (descOption.isEmpty && tries > 0) {
-          descOption = master.read(coreBase + 0, 8).toRxPacketDesc
+          descOption = master.read(coreBlock("hostRxNext"), 8).toRxPacketDesc
           tries -= 1
         }
         val desc = descOption.get

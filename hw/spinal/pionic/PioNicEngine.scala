@@ -34,7 +34,7 @@ case class PioNicConfig(
                          rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
                          numCores: Int = 4,
                          // for Profiling
-                         collectTimestamps: Boolean = false,
+                         collectTimestamps: Boolean = true,
                          timestampWidth: Int = 32, // width for a single timestamp
                        ) {
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
@@ -44,9 +44,14 @@ case class PioNicConfig(
   def mtu = pktBufAllocSizeMap.map(_._1).max
 
   def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
+
+  val allocFactory = new RegAllocatorFactory
 }
 
 case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
+  // allow second run of elaboration to work
+  config.allocFactory.clear()
+
   private val axiConfig = config.axiConfig
   private val axisConfig = config.axisConfig
 
@@ -108,7 +113,9 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   val axiWideConfigNode = Axi4(axiConfig)
 
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
-  val alloc = RegAllocator("global", 0, 0x1000, config.regWidth / 8)
+
+  val alloc = config.allocFactory("global", 0, 0x1000, config.regWidth / 8)
+  val pktBufferAlloc = config.allocFactory("pktBuffer", 0x100000, pktBufferSize, pktBufferSize)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("globalCtrl"))
   globalCtrl.rxBlockCycles init 10000
@@ -134,7 +141,8 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   Axi4CrossbarFactory()
     .addSlaves(
       axiWideConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
-      pktBuffer.io.s_axi_b -> (0x100000, pktBufferSize),
+      pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), pktBufferSize),
+      // pktBuffer.io.s_axi_b -> (0x100000, pktBufferSize),
     )
     .addConnections(
       io.s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b),
@@ -150,5 +158,7 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
 }
 
 object PioNicEngineVerilog extends App {
-  Config.spinal.generateVerilog(PioNicEngine()(PioNicConfig())).mergeRTLSource("Merged")
+  implicit val config = PioNicConfig()
+  Config.spinal.generateVerilog(PioNicEngine()).mergeRTLSource("Merged")
+  config.allocFactory.dumpAll()
 }

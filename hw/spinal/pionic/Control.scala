@@ -225,7 +225,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     io.cmacRxAlloc << cmacRx
 
-    val alloc = RegAllocator(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
+    val alloc = config.allocFactory(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
 
     busCtrl.readStreamBlockCycles(io.hostRxNext, alloc("hostRxNext"), globalCtrl.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
@@ -238,8 +238,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     io.statistics.elements.foreach { case (name, data) =>
       data match {
         case d: UInt => busCtrl.read(d, alloc(name))
-        case v: Vec[_] => v.zipWithIndex.foreach { case (elem, idx) =>
-          busCtrl.read(elem, alloc(s"${name}_$idx"))
+        case v: Vec[_] => v zip config.pktBufAllocSizeMap.map(_._1) foreach { case (elem, slotSize) =>
+          busCtrl.read(elem, alloc(name, subName = s"upTo_$slotSize"))
         }
         case _ =>
       }
@@ -248,7 +248,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     // rx profile results
     if (config.collectTimestamps)
       io.hostRxLastProfile.storage.foreach { case (namedType, data) =>
-        busCtrl.read(data, alloc(s"hostRxLastProfile_${namedType.getName}"))
+        busCtrl.read(data, alloc("hostRxLastProfile", subName = namedType.getName))
       }
   }
 }

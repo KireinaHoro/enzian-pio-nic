@@ -54,23 +54,6 @@ package object pionic {
     }
   }
 
-  object RegAllocator {
-    // TODO: generate register map for consumption by the device driver generator
-    def apply(blockName: String, base: BigInt, blockLen: BigInt, defaultSize: BigInt) = {
-      new {
-        private var addr = base
-
-        def apply(name: String, size: BigInt = defaultSize): BigInt = {
-          val ret = addr
-          addr += size
-          assert(addr < base + blockLen, f"register alloc overflow block length [$base%#x - ${base + blockLen}%#x]")
-          println(f"[$blockName] $ret%#x\t: $name")
-          ret
-        }
-      }
-    }
-  }
-
   implicit class RichUInt(v: UInt) {
     def toPacketLength(implicit config: PioNicConfig) = {
       val len = PacketLength()
