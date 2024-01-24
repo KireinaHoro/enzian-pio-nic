@@ -43,10 +43,10 @@ case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
 // Control module for PIO access from one single core
 // Would manage one packet buffer
 class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, profilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
-  val AfterDMAWrite = NamedType(Timestamp) // time in dma mux & writing
+  val AfterDmaWrite = NamedType(Timestamp) // time in dma mux & writing
   val AfterDispatch = NamedType(Timestamp) // time in core dispatch queuing
   val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time
-  val profiler = Profiler(ReadStart, AfterDMAWrite, AfterDispatch)(profilerParent)
+  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterDispatch)(profilerParent)
 
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = config.roundMtu
@@ -155,7 +155,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
             rxCaptured.valid := True
 
             profiler.collectInto(io.writeDescStatus.user.asBits, io.hostRxLastProfile)
-            profiler.fillSlot(io.hostRxLastProfile, AfterDMAWrite, True)
+            profiler.fillSlot(io.hostRxLastProfile, AfterDmaWrite, True)
             goto(stateEnqueuePkt)
           } otherwise {
             inc(io.statistics.rxDmaErrorCount)
@@ -229,7 +229,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     io.cmacRxAlloc << cmacRx
 
-    val alloc = config.allocFactory(s"control_$coreID", baseAddress, 0x1000, config.regWidth / 8)
+    val alloc = config.allocFactory(s"control$coreID", baseAddress, 0x1000, config.regWidth / 8)
 
     val rxNextAddr = alloc("hostRxNext")
     busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, globalCtrl.rxBlockCycles)
@@ -250,7 +250,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
       data match {
         case d: UInt => busCtrl.read(d, alloc(name))
         case v: Vec[_] => v zip config.pktBufAllocSizeMap.map(_._1) foreach { case (elem, slotSize) =>
-          busCtrl.read(elem, alloc(name, subName = s"upTo_$slotSize"))
+          busCtrl.read(elem, alloc(name, subName = s"upTo$slotSize"))
         }
         case _ =>
       }

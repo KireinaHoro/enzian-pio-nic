@@ -6,11 +6,15 @@ import scala.collection.mutable
 
 class RegAllocatorFactory {
   case class RegDesc(base: BigInt, size: BigInt)
+
   type BlockMap = mutable.LinkedHashMap[String, RegDesc]
+
   case class RegBlock(base: BigInt, blockLen: BigInt) {
     val blockMap = new BlockMap
+
     def apply(name: String, subName: String = "") = blockMap(genKey(name, subName)).base
   }
+
   type GlobalMap = mutable.LinkedHashMap[String, RegBlock]
 
   var blocks = new GlobalMap
@@ -20,12 +24,42 @@ class RegAllocatorFactory {
     blocks.foreach { case (blockName, block) =>
       println("=============")
       block.blockMap.foreach { case (name, desc) =>
-        println(f"[$blockName] ${desc.base}%#x\t: $name")
+        println(f"[$blockName] ${desc.base}%#x\t: $name (${desc.size} bytes)")
       }
     }
   }
 
   // TODO: emit JSON for driver generator
+  def writeHeader(outPath: os.Path): Unit = {
+    implicit class StringRich(s: String) {
+      def toCMacroName: String = "[A-Z]|\\d+".r.replaceAllIn(s, { m =>
+        "_" + m.group(0)
+      }).toUpperCase.replace(':', '_')
+    }
+
+    val defLines = blocks.flatMap { case (blockName, block) =>
+      val bname = blockName.toCMacroName
+      block.blockMap.flatMap { case (name, desc) =>
+        val rname = name.toCMacroName
+        Seq(
+          f"#define PIONIC_${bname}_$rname ${desc.base}%#x",
+          f"#define PIONIC_${bname}_${rname}_SIZE ${desc.size}%#x",
+        )
+      }.toSeq :+ ""
+    }
+
+    os.remove(outPath)
+    os.write(outPath,
+      defLines.mkString(
+        """|#ifndef __PIONIC_REGS_H__
+           |#define __PIONIC_REGS_H__
+           |
+           |""".stripMargin,
+        "\n",
+        """|
+           |#endif // __PIONIC_REGS_H__
+           |""".stripMargin))
+  }
 
   def genKey(name: String, subName: String) = {
     val delim = if (subName.nonEmpty) ":" else ""

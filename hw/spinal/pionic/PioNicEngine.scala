@@ -10,6 +10,8 @@ import spinal.lib.bus.amba4.axis._
 
 import scala.language.postfixOps
 
+import mainargs._
+
 case class PioNicConfig(
                          axiConfig: Axi4Config = Axi4Config(
                            addressWidth = 64,
@@ -68,7 +70,6 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
   val profiler = Profiler(Entry, AfterRxQueue)()
   val rxAxisConfig = profiler augment axisConfig
-  println(rxAxisConfig)
 
   // buffer incoming packet for packet length
   val rxFifo = AxiStreamFifo(rxAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()
@@ -115,9 +116,9 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
   val alloc = config.allocFactory("global", 0, 0x1000, config.regWidth / 8)
-  val pktBufferAlloc = config.allocFactory("pktBuffer", 0x100000, pktBufferSize, pktBufferSize)
+  val pktBufferAlloc = config.allocFactory("pkt", 0x100000, pktBufferSize, pktBufferSize)
 
-  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("globalCtrl"))
+  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("ctrl"))
   globalCtrl.rxBlockCycles init 10000
   busCtrl.driveAndRead(dispatchMask, alloc("dispatchMask")) init (1 << config.numCores) - 1
 
@@ -157,8 +158,18 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   }
 }
 
-object PioNicEngineVerilog extends App {
+object PioNicEngineVerilog {
   implicit val config = PioNicConfig()
-  Config.spinal.generateVerilog(PioNicEngine()).mergeRTLSource("Merged")
-  config.allocFactory.dumpAll()
+
+  @main
+  def run(@arg(doc = "generate driver headers")
+          genHeaders: Boolean = true,
+          @arg(doc = "print register map")
+          printRegMap: Boolean = true,
+         ): Unit = {
+    Config.spinal.generateVerilog(PioNicEngine()).mergeRTLSource("Merged")
+    if (printRegMap) config.allocFactory.dumpAll()
+    if (genHeaders) config.allocFactory.writeHeader(os.pwd / os.RelPath(Config.outputDirectory) / "regs.h")
+  }
+  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
 }

@@ -28,7 +28,11 @@ object pioNicEngineModule extends CommonModule {
   )
 
   override def scalacOptions = super.scalacOptions() ++ spinalIdslPlugin.pluginOptions()
-  override def moduleDeps = super.moduleDeps ++ Seq(spinalCore, spinalLib)
+  override def moduleDeps = super.moduleDeps ++ Agg(spinalCore, spinalLib)
+  override def ivyDeps = Agg(
+    ivy"com.lihaoyi::os-lib:0.9.3",
+    ivy"com.lihaoyi::mainargs:0.5.4",
+  )
 
   def generatedSourcesPath = millSourcePath / "hw" / "gen"
   def generateVerilog = T {
