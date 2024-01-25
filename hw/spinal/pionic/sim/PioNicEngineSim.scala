@@ -25,8 +25,8 @@ object PioNicEngineSim extends App {
   def cyc(c: Int)(implicit dut: PioNicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
   def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
-    val globalBlock = nicConfig.allocFactory.blocks("global")
-    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
 
     SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
@@ -58,8 +58,8 @@ object PioNicEngineSim extends App {
 
   // TODO: test for various failures
   dut.doSim("rx-regular") { implicit dut =>
-    val coreBlock = nicConfig.allocFactory.blocks("control_0")
-    val pktBufAddr = nicConfig.allocFactory.blocks("pktBuffer")("buffer")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val pktBufAddr = nicConfig.allocFactory.readBack("pktBuffer")("buffer")
 
     val rxBlockCycles = 100
     val (master, axisMaster) = rxDutSetup(rxBlockCycles)
@@ -104,8 +104,8 @@ object PioNicEngineSim extends App {
     SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
-    val coreBlock = nicConfig.allocFactory.blocks("control_0")
-    val pktBufAddr = nicConfig.allocFactory.blocks("pktBuffer")("buffer")
+    val coreBlock = nicConfig.allocFactory.readBack("control_0")
+    val pktBufAddr = nicConfig.allocFactory.readBack("pktBuffer")("buffer")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.clockDomain)
@@ -139,7 +139,7 @@ object PioNicEngineSim extends App {
     SimTimeout(cyc(4000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
-    val globalBlock = nicConfig.allocFactory.blocks("global")
+    val globalBlock = nicConfig.allocFactory.readBack("global")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
@@ -161,7 +161,7 @@ object PioNicEngineSim extends App {
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         axisMaster.sendCB(toSend)()
 
-        val coreBlock = nicConfig.allocFactory.blocks(s"control_$idx")
+        val coreBlock = nicConfig.allocFactory.readBack("control", idx)
         var descOption: Option[PacketDescSim] = None
         var tries = 5
         while (descOption.isEmpty && tries > 0) {
@@ -181,8 +181,8 @@ object PioNicEngineSim extends App {
     val rxBlockCycles = 100
     val (master, axisMaster) = rxDutSetup(rxBlockCycles)
 
-    val globalBlock = nicConfig.allocFactory.blocks("global")
-    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
 
     val toSend = Random.nextBytes(256).toList
 
@@ -220,8 +220,8 @@ object PioNicEngineSim extends App {
     val rxBlockCycles = 1000
     val (master, axisMaster) = rxDutSetup(rxBlockCycles)
 
-    val globalBlock = nicConfig.allocFactory.blocks("global")
-    val coreBlock = nicConfig.allocFactory.blocks("control_0")
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
 
     val toSend = Random.nextBytes(256).toList
     val delayed = 500

@@ -44,9 +44,10 @@ case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
 // Would manage one packet buffer
 class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, profilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
   val AfterDmaWrite = NamedType(Timestamp) // time in dma mux & writing
-  val AfterDispatch = NamedType(Timestamp) // time in core dispatch queuing
+  val AfterCommit = NamedType(Timestamp) // time in core dispatch queuing
   val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time
-  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterDispatch)(profilerParent)
+  val AfterRead = NamedType(Timestamp) // after read finish & core start processing
+  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterRead, AfterCommit)(profilerParent)
 
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = config.roundMtu
@@ -176,8 +177,9 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   }
 
   profiler.fillSlots(io.hostRxLastProfile,
-    AfterDispatch -> io.hostRxNextAck.fire,
     ReadStart -> io.hostRxNextReq.rise(False),
+    AfterRead -> io.hostRxNext.fire,
+    AfterCommit -> io.hostRxNextAck.fire,
   )
 
   val txFsm = new StateMachine {
@@ -229,7 +231,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     io.cmacRxAlloc << cmacRx
 
-    val alloc = config.allocFactory(s"control$coreID", baseAddress, 0x1000, config.regWidth / 8)
+    private val alloc = config.allocFactory("control", coreID)(baseAddress, 0x1000, config.regWidth / 8)
 
     val rxNextAddr = alloc("hostRxNext")
     busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, globalCtrl.rxBlockCycles)

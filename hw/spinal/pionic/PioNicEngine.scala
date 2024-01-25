@@ -48,6 +48,24 @@ case class PioNicConfig(
   def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
 
   val allocFactory = new RegAllocatorFactory
+
+  def writeHeader(outPath: os.Path): Unit = {
+    os.remove(outPath)
+    os.write(outPath,
+      f"""|#ifndef __PIONIC_CONFIG_H__
+          |#define __PIONIC_CONFIG_H__
+          |
+          |#define PIONIC_NUM_CORES $numCores
+          |#define PIONIC_PKT_ADDR_WIDTH $pktBufAddrWidth
+          |#define PIONIC_PKT_ADDR_MASK ((1 << PIONIC_PKT_ADDR_WIDTH) - 1)
+          |#define PIONIC_PKT_LEN_WIDTH $pktBufLenWidth
+          |#define PIONIC_PKT_LEN_MASK ((1 << PIONIC_PKT_LEN_WIDTH) - 1)
+          |
+          |#define PIONIC_CLOCK_FREQ ${Config.spinal.defaultClockDomainFrequency.getValue.toLong}
+          |
+          |#endif // __PIONIC_CONFIG_H__
+          |""".stripMargin)
+  }
 }
 
 case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
@@ -115,8 +133,8 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
 
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
-  val alloc = config.allocFactory("global", 0, 0x1000, config.regWidth / 8)
-  val pktBufferAlloc = config.allocFactory("pkt", 0x100000, pktBufferSize, pktBufferSize)
+  private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)
+  private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, pktBufferSize, pktBufferSize)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("ctrl"))
   globalCtrl.rxBlockCycles init 10000
@@ -169,7 +187,12 @@ object PioNicEngineVerilog {
          ): Unit = {
     Config.spinal.generateVerilog(PioNicEngine()).mergeRTLSource("Merged")
     if (printRegMap) config.allocFactory.dumpAll()
-    if (genHeaders) config.allocFactory.writeHeader(os.pwd / os.RelPath(Config.outputDirectory) / "regs.h")
+    if (genHeaders) {
+      val genDir = os.pwd / os.RelPath(Config.outputDirectory)
+      config.allocFactory.writeHeader(genDir / "regs.h")
+      config.writeHeader(genDir / "config.h")
+    }
   }
+
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
 }
