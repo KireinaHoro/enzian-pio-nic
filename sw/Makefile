@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
-CFLAGS := -O2 -g -pipe
+CFLAGS := -O2 -g -pipe -Wall
 
 SRCS := $(wildcard *.c)
 

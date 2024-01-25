@@ -22,21 +22,22 @@ void signal_handler(int sig) {
 }
 
 typedef struct {
-  double roundtrip;
+  double tx;
   double rx;
+  // TODO: add profiling register values
 } measure_t;
 
 static uint8_t *test_data;
 
-static measure_t tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
+static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
   pionic_pkt_desc_t desc;
   pionic_tx_get_desc(ctx, 0, &desc);
   // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
 
   char rx_buf[length];
-  const char *tx_buf = test_data;
+  const uint8_t *tx_buf = test_data;
 
-  TIMEIT_START(rxtx)
+  TIMEIT_START(ctx, tx)
 
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
@@ -44,7 +45,12 @@ static measure_t tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset
     pionic_tx(ctx, 0, &desc);
   }
 
-  TIMEIT_START(rx)
+  TIMEIT_END(ctx, tx)
+
+  // make sure that the packet hits the rx buffer from the MAC
+  usleep(100);
+
+  TIMEIT_START(ctx, rx)
 
   bool got_pkt = pionic_rx(ctx, 0, &desc);
 
@@ -59,8 +65,7 @@ static measure_t tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset
     assert(!got_pkt && "got packet when not expecting one");
   }
 
-  TIMEIT_END(rx)
-  TIMEIT_END(rxtx)
+  TIMEIT_END(ctx, rx)
 
   if (length > 0 && memcmp(rx_buf, tx_buf, length)) {
     printf("FAIL: data mismatch!  Expected (tx):\n");
@@ -71,7 +76,7 @@ static measure_t tx_rx_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset
   }
 
   measure_t ret = {
-    .roundtrip = TIMEIT_US(rxtx),
+    .tx = TIMEIT_US(tx),
     .rx = TIMEIT_US(rx),
   };
   // printf("Tx+Rx: %lf us; Rx: %lf us\n", TIMEIT_US(rxtx), TIMEIT_US(rx));
@@ -108,37 +113,36 @@ int main(int argc, char *argv[]) {
   // estimate Rx timeout
   jmp_buf sigbus_jmpbuf;
   sigbus_jmp = &sigbus_jmpbuf;
-  double time_syscall = 0;
-  int count = 0;
   if (!sigsetjmp(sigbus_jmpbuf, 1)) {
     for (int us = 40 * 1000; us < 1000 * 1000; us += 1000) {
       pionic_set_rx_block_cycles(&ctx, us * 1000 / 4); // 250 MHz
-      measure_t m = tx_rx_timed(&ctx, 0, 0);
-      time_syscall += (m.roundtrip - m.rx) / 2;
-      count++;
+      loopback_timed(&ctx, 0, 0);
     }
   } else {
     printf("Caught SIGBUS, continuing...\n");
   }
-  printf("clock_gettime: %lf us\n", time_syscall / count);
 
   // 40 ms
-  pionic_set_rx_block_cycles(&ctx, 40 * 1000 * 1000 / 4);
+  pionic_set_rx_block_cycles(&ctx, US_TO_CYCLES(40 * 1000));
 
   // only use core 0
   pionic_set_core_mask(&ctx, 1);
 
+  FILE *out = fopen("out.csv", "w");
+  fprintf(out, "size,tx,rx\n");
+
   // send packet and check rx data
-  measure_t sum = { 0 };
-  int total = 20;
-  for (int to_send = 64; to_send <= 1518; to_send += 64) {
-    for (int i = 0; i < total; ++i) {
-      measure_t m = tx_rx_timed(&ctx, to_send, i * 64);
-      sum.roundtrip += m.roundtrip;
-      sum.rx += m.rx;
+  int num_trials = 20;
+  int min_pkt = 64, max_pkt = 1500, step = 64;
+
+  for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
+    for (int i = 0; i < num_trials; ++i) {
+      measure_t m = loopback_timed(&ctx, to_send, i * 64);
+      fprintf(out, "%d,%lf,%lf\n", to_send, m.tx, m.rx);
     }
-    printf("%d B:\tRTT average: %lf, Rx average: %lf\n", to_send, sum.roundtrip / total, sum.rx / total);
   }
+
+  fclose(out);
 
   ret = EXIT_SUCCESS;
 

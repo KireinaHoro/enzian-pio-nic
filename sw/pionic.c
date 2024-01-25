@@ -7,22 +7,6 @@
 
 #include "pionic.h"
 
-static inline void write64(pionic_ctx_t *ctx, uint64_t addr, uint64_t reg) {
-  ((volatile uint64_t *)ctx->bar)[addr / 8] = reg;
-}
-
-static inline uint64_t read64(pionic_ctx_t *ctx, uint64_t addr) {
-  return ((volatile uint64_t *)ctx->bar)[addr / 8];
-}
-
-static inline void write32(pionic_ctx_t *ctx, uint64_t addr, uint32_t reg) {
-  ((volatile uint32_t *)ctx->bar)[addr / 4] = reg;
-}
-
-static inline uint32_t read32(pionic_ctx_t *ctx, uint64_t addr) {
-  return ((volatile uint32_t *)ctx->bar)[addr / 4];
-}
-
 int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback) {
   int ret = -1;
 
@@ -99,13 +83,13 @@ fail:
 }
 
 void pionic_set_rx_block_cycles(pionic_ctx_t *ctx, int cycles) {
-  write32(ctx, PIONIC_GLB_RX_BLOCK_CYCLES, cycles);
+  write32(ctx, PIONIC_GLOBAL_CTRL, cycles);
 
   printf("Rx block cycles: %d\n", cycles);
 }
 
 void pionic_set_core_mask(pionic_ctx_t *ctx, uint64_t mask) {
-  write64(ctx, PIONIC_GLB_DISPATCH_MASK, mask);
+  write64(ctx, PIONIC_GLOBAL_DISPATCH_MASK, mask);
 
   printf("Dispatcher mask: %#lx\n", mask);
 }
@@ -119,54 +103,59 @@ void pionic_fini(pionic_ctx_t *ctx) {
 }
 
 bool pionic_rx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
-  uint64_t reg = read64(ctx, PIONIC_CORE_REG(cid, PC_RX_NEXT));
+  uint64_t reg = read64(ctx, PIONIC_CONTROL_HOST_RX_NEXT(cid));
   if (reg & 0x1) {
     uint32_t hw_desc = reg >> 1;
-    desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(hw_desc & PKT_ADDR_MASK);
-    desc->len = (hw_desc >> PKT_ADDR_WIDTH) & PKT_LEN_MASK;
+    desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(hw_desc & PIONIC_PKT_ADDR_MASK);
+    desc->len = (hw_desc >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
     return true;
   } else {
     return false;
   }
 }
 
-bool pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
-  uint64_t reg = ((desc->buf - (uint8_t *)(ctx->bar)) & PKT_ADDR_MASK) | ((desc->len & PKT_LEN_MASK) << PKT_ADDR_WIDTH);
+void pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
+  uint64_t reg = ((desc->buf - (uint8_t *)(ctx->bar)) & PIONIC_PKT_ADDR_MASK) | ((desc->len & PIONIC_PKT_LEN_MASK) << PIONIC_PKT_ADDR_WIDTH);
 
-  write64(ctx, PIONIC_CORE_REG(cid, PC_RX_NEXT_ACK), reg);
+  write64(ctx, PIONIC_CONTROL_HOST_RX_NEXT_ACK(cid), reg);
 }
 
 void pionic_tx_get_desc(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
-  uint64_t reg = read64(ctx, PIONIC_CORE_REG(cid, PC_TX));
-  uint64_t buf_off = reg & PKT_ADDR_MASK;
+  uint64_t reg = read64(ctx, PIONIC_CONTROL_HOST_TX(cid));
 
-  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(reg & PKT_LEN_MASK);
-  desc->len = (reg >> PKT_ADDR_WIDTH) & PKT_LEN_MASK;
+  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(reg & PIONIC_PKT_LEN_MASK);
+  desc->len = (reg >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
 }
 
 void pionic_tx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
-  write64(ctx, PIONIC_CORE_REG(cid, PC_TX_ACK), desc->len);
+  write64(ctx, PIONIC_CONTROL_HOST_TX_ACK(cid), desc->len);
 }
 
 void dump_glb_stats(pionic_ctx_t *ctx) {
 #define READ_PRINT(name) printf("%s\t: %#lx\n", #name, read64(ctx, name));
-  READ_PRINT(PIONIC_GLB_RX_OVERFLOW_COUNT)
+  READ_PRINT(PIONIC_GLOBAL_RX_OVERFLOW_COUNT)
 #undef READ_PRINT
 }
 
 void dump_stats(pionic_ctx_t *ctx, int cid) {
-#define READ_PRINT(name) printf("core %d: %s\t: %#lx\n", cid, #name, read64(ctx, PIONIC_CORE_REG(cid, name)));
-  READ_PRINT(PC_STAT_RX_COUNT)
-  READ_PRINT(PC_STAT_TX_COUNT)
-  READ_PRINT(PC_STAT_RX_DMA_ERR_COUNT)
-  READ_PRINT(PC_STAT_TX_DMA_ERR_COUNT)
-  READ_PRINT(PC_STAT_RX_ALLOC_OCCUPANCY_0)
-  READ_PRINT(PC_STAT_RX_ALLOC_OCCUPANCY_1)
+#define READ_PRINT(name) printf("core %d: %s\t: %#lx\n", cid, #name, read64(ctx, name(cid)));
+  READ_PRINT(PIONIC_CONTROL_RX_PACKET_COUNT)
+  READ_PRINT(PIONIC_CONTROL_TX_PACKET_COUNT)
+  READ_PRINT(PIONIC_CONTROL_RX_DMA_ERROR_COUNT)
+  READ_PRINT(PIONIC_CONTROL_TX_DMA_ERROR_COUNT)
+  READ_PRINT(PIONIC_CONTROL_RX_ALLOC_OCCUPANCY_UP_TO_128)
+  READ_PRINT(PIONIC_CONTROL_RX_ALLOC_OCCUPANCY_UP_TO_1518)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__ENTRY)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_QUEUE)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_COMMIT)
 #undef READ_PRINT
 }
 
 void pionic_reset_pkt_alloc(pionic_ctx_t *ctx, int cid) {
-  write64(ctx, PIONIC_CORE_REG(cid, PC_ALLOC_RESET), 1);
+  write64(ctx, PIONIC_CONTROL_ALLOC_RESET(cid), 1);
   usleep(1); // arbitrary
-  write64(ctx, PIONIC_CORE_REG(cid, PC_ALLOC_RESET), 0);
+  write64(ctx, PIONIC_CONTROL_ALLOC_RESET(cid), 0);
 }

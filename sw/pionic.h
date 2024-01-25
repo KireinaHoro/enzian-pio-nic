@@ -4,28 +4,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// TODO: generate from spinal generator
-#define PIONIC_GLB_RX_BLOCK_CYCLES 0x0
-#define PIONIC_GLB_DISPATCH_MASK   0x8
-#define PIONIC_GLB_RX_OVERFLOW_COUNT 0x10
+#include "../hw/gen/regs.h"
+#include "../hw/gen/config.h"
 
-#define PIONIC_NUM_CORES 4
-#define PIONIC_CORE_REG(id, off) (0x1000UL * ((id) + 1) + (off))
-
-#define PC_RX_NEXT          0x0
-#define PC_RX_NEXT_ACK      0x8
-#define PC_TX               0x10
-#define PC_TX_ACK           0x18
-#define PC_ALLOC_RESET      0x20
-
-#define PC_STAT_RX_COUNT   0x28
-#define PC_STAT_TX_COUNT   0x30
-#define PC_STAT_RX_DMA_ERR_COUNT   0x38
-#define PC_STAT_TX_DMA_ERR_COUNT   0x40
-#define PC_STAT_RX_ALLOC_OCCUPANCY_0   0x48
-#define PC_STAT_RX_ALLOC_OCCUPANCY_1   0x50
-
-#define PIONIC_PKTBUF(off)   ((off) + 0x100000UL)
+#define PIONIC_PKTBUF(off)   ((off) + PIONIC_PKT_BUFFER)
 
 #define PIONIC_CMAC_REG(off) ((off) + 0x200000UL)
 #define PM_RX_REG1             0x014
@@ -36,11 +18,8 @@
 
 #define PIONIC_MMAP_END 0x300000UL
 
-// TODO: generate!
-#define PKT_ADDR_WIDTH 16
-#define PKT_ADDR_MASK ((1 << PKT_ADDR_WIDTH) - 1)
-#define PKT_LEN_WIDTH 16
-#define PKT_LEN_MASK ((1 << PKT_LEN_WIDTH) - 1)
+#define US_TO_CYCLES(us) ((uint64_t)(us) * PIONIC_CLOCK_FREQ / 1000 / 1000)
+#define CYCLES_TO_US(cycles) ((uint64_t)(cycles) / (PIONIC_CLOCK_FREQ / 1000 / 1000))
 
 typedef struct {
   void *bar;
@@ -51,6 +30,22 @@ typedef struct {
   size_t len;
 } pionic_pkt_desc_t;
 
+static inline void write64(pionic_ctx_t *ctx, uint64_t addr, uint64_t reg) {
+  ((volatile uint64_t *)ctx->bar)[addr / 8] = reg;
+}
+
+static inline uint64_t read64(pionic_ctx_t *ctx, uint64_t addr) {
+  return ((volatile uint64_t *)ctx->bar)[addr / 8];
+}
+
+static inline void write32(pionic_ctx_t *ctx, uint64_t addr, uint32_t reg) {
+  ((volatile uint32_t *)ctx->bar)[addr / 4] = reg;
+}
+
+static inline uint32_t read32(pionic_ctx_t *ctx, uint64_t addr) {
+  return ((volatile uint32_t *)ctx->bar)[addr / 4];
+}
+
 int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);
 void pionic_fini(pionic_ctx_t *ctx);
 void pionic_set_rx_block_cycles(pionic_ctx_t *ctx, int cycles);
@@ -58,7 +53,7 @@ void pionic_set_core_mask(pionic_ctx_t *ctx, uint64_t mask);
 void pionic_reset_pkt_alloc(pionic_ctx_t *ctx, int cid);
 
 bool pionic_rx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
-bool pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
+void pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
 
 void pionic_tx_get_desc(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
 void pionic_tx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
