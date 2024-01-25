@@ -1,6 +1,6 @@
 package pionic.sim
 
-import pionic.{Config, PioNicConfig, PioNicEngine}
+import pionic.{Config, PioNicConfig, PioNicEngine, RegBlockReadBack}
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
@@ -50,7 +50,7 @@ object PioNicEngineSim extends App {
 
     master.write(0, rxBlockCycles.toBytes)
 
-    var data = master.read(globalBlock("globalCtrl"), 8)
+    var data = master.read(globalBlock("ctrl"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
     (master, axisMaster)
@@ -59,7 +59,7 @@ object PioNicEngineSim extends App {
   // TODO: test for various failures
   dut.doSim("rx-regular") { implicit dut =>
     val coreBlock = nicConfig.allocFactory.readBack("control")
-    val pktBufAddr = nicConfig.allocFactory.readBack("pktBuffer")("buffer")
+    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
     val rxBlockCycles = 100
     val (master, axisMaster) = rxDutSetup(rxBlockCycles)
@@ -104,8 +104,8 @@ object PioNicEngineSim extends App {
     SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
-    val coreBlock = nicConfig.allocFactory.readBack("control_0")
-    val pktBufAddr = nicConfig.allocFactory.readBack("pktBuffer")("buffer")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.clockDomain)
@@ -149,7 +149,7 @@ object PioNicEngineSim extends App {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(globalBlock("globalCtrl"), 100.toBytes) // rxBlockCycles
+    master.write(globalBlock("ctrl"), 100.toBytes) // rxBlockCycles
 
     val mask = b"01100111"
     master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
@@ -177,6 +177,24 @@ object PioNicEngineSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
+  def getTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
+    new {
+      val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
+      val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
+      val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
+      val afterRead = master.read(coreBlock("hostRxLastProfile", "AfterRead"), 8).bytesToBigInt
+      val afterDmaWrite = master.read(coreBlock("hostRxLastProfile", "AfterDmaWrite"), 8).bytesToBigInt
+      val afterCommit = master.read(coreBlock("hostRxLastProfile", "AfterCommit"), 8).bytesToBigInt
+
+      println(s"Entry: $entry")
+      println(s"AfterRxQueue: $afterRxQueue")
+      println(s"ReadStart: $readStart")
+      println(s"AfterRead: $afterRead")
+      println(s"AfterDmaWrite: $afterDmaWrite")
+      println(s"AfterCommit: $afterCommit")
+    }
+  }
+
   dut.doSim("rx-timestamped-queued") { implicit dut =>
     val rxBlockCycles = 100
     val (master, axisMaster) = rxDutSetup(rxBlockCycles)
@@ -198,21 +216,12 @@ object PioNicEngineSim extends App {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
+    val timestamps = getTimestamps(master, coreBlock)
+    import timestamps._
+
     println(s"Current timestamp: $timestamp")
 
-    val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
-    val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
-    val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
-    val afterDMAWrite = master.read(coreBlock("hostRxLastProfile", "AfterDMAWrite"), 8).bytesToBigInt
-    val afterDispatch = master.read(coreBlock("hostRxLastProfile", "AfterDispatch"), 8).bytesToBigInt
-
-    println(s"Entry: $entry")
-    println(s"AfterRxQueue: $afterRxQueue")
-    println(s"ReadStart: $readStart")
-    println(s"AfterDMAWrite: $afterDMAWrite")
-    println(s"AfterDispatch: $afterDispatch")
-
-    assert(isSorted(Seq(entry, afterRxQueue, afterDMAWrite, readStart, timestamp, afterDispatch)))
+    assert(isSorted(Seq(entry, afterRxQueue, afterDmaWrite, readStart, afterRead, timestamp, afterCommit)))
     assert(readStart - entry >= delayed)
   }
 
@@ -239,21 +248,12 @@ object PioNicEngineSim extends App {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
+    val timestamps = getTimestamps(master, coreBlock)
+    import timestamps._
+
     println(s"Current timestamp: $timestamp")
 
-    val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
-    val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
-    val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
-    val afterDMAWrite = master.read(coreBlock("hostRxLastProfile", "AfterDMAWrite"), 8).bytesToBigInt
-    val afterDispatch = master.read(coreBlock("hostRxLastProfile", "AfterDispatch"), 8).bytesToBigInt
-
-    println(s"Entry: $entry")
-    println(s"AfterRxQueue: $afterRxQueue")
-    println(s"ReadStart: $readStart")
-    println(s"AfterDMAWrite: $afterDMAWrite")
-    println(s"AfterDispatch: $afterDispatch")
-
-    assert(isSorted(Seq(readStart, entry, afterRxQueue, afterDMAWrite, timestamp, afterDispatch)))
+    assert(isSorted(Seq(readStart, entry, afterRxQueue, afterDmaWrite, afterRead, timestamp, afterCommit)))
     assert(entry - readStart >= delayed)
   }
 }

@@ -4,6 +4,10 @@ import spinal.core._
 
 import scala.collection.mutable
 
+trait RegBlockReadBack {
+  def apply(name: String, subName: String = ""): BigInt
+}
+
 class RegAllocatorFactory {
   private case class RegDesc(baseOffset: BigInt, size: BigInt) {
     def addr(blockBase: BigInt) = baseOffset + blockBase
@@ -20,10 +24,6 @@ class RegAllocatorFactory {
 
     trait RegBlockAlloc {
       def apply(name: String, subName: String = "", size: BigInt = defaultSize): BigInt
-    }
-
-    trait RegBlockReadBack {
-      def apply(name: String, subName: String = ""): BigInt
     }
 
     def readBack(blockIdx: Int): RegBlockReadBack = {
