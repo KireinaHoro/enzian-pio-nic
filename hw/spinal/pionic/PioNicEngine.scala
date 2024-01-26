@@ -191,7 +191,7 @@ object PioNicEngineVerilog {
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       val genDir = os.pwd / os.RelPath(Config.outputDirectory)
-      config.allocFactory.writeHeader("PioNic", genDir / "regs.h")
+      config.allocFactory.writeHeader("pionic", genDir / "regs.h")
       config.writeHeader(genDir / "config.h")
     }
   }
