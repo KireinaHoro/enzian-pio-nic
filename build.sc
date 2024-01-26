@@ -3,6 +3,7 @@ import mill.util._
 import scalalib._
 
 import $file.deps.spinalhdl.build
+import $file.deps.`spinal-blocks`.build
 
 object v {
   val scalaVersion = "2.13.12"
@@ -11,15 +12,23 @@ object v {
 trait CommonModule extends SbtModule {
   override def scalaVersion = v.scalaVersion
 }
-trait SpinalDep { this: SbtModule =>
+trait ApplyScalaVersion { this: SbtModule =>
   def crossValue = v.scalaVersion
+}
+trait SpinalDep { this: SbtModule =>
   def name: String
   override def millSourcePath = os.pwd / "deps" / "spinalhdl" / name
 }
 
-object spinalCore extends deps.spinalhdl.build.Core with SpinalDep { def name = "core" }
-object spinalLib extends deps.spinalhdl.build.Lib with SpinalDep { def name = "lib" }
-object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with SpinalDep { def name = "idslplugin" }
+object spinalCore extends deps.spinalhdl.build.Core with ApplyScalaVersion with SpinalDep { def name = "core" }
+object spinalLib extends deps.spinalhdl.build.Lib with ApplyScalaVersion with SpinalDep { def name = "lib" }
+object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with ApplyScalaVersion with SpinalDep { def name = "idslplugin" }
+
+object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVersion {
+  override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
+  override def spinalDeps = Agg(spinalCore, spinalLib)
+  override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
+}
 
 object pioNicEngineModule extends CommonModule {
   override def millSourcePath = os.pwd
@@ -28,7 +37,7 @@ object pioNicEngineModule extends CommonModule {
   )
 
   override def scalacOptions = super.scalacOptions() ++ spinalIdslPlugin.pluginOptions()
-  override def moduleDeps = super.moduleDeps ++ Agg(spinalCore, spinalLib)
+  override def moduleDeps = super.moduleDeps ++ Agg(blocks, spinalCore, spinalLib)
   override def ivyDeps = Agg(
     ivy"com.lihaoyi::os-lib:0.9.3",
     ivy"com.lihaoyi::mainargs:0.5.4",

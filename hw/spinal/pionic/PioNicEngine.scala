@@ -2,11 +2,13 @@ package pionic
 
 // alexforencich IPs
 
-import axi._
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
+
+import jsteward.blocks.axi._
+import jsteward.blocks.misc.RegAllocatorFactory
 
 import scala.language.postfixOps
 
@@ -171,8 +173,8 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   // rename ports so Vivado could infer interfaces automatically
   noIoPrefix()
   addPrePopTask { () =>
-    axi.renameAxi4IO
-    axi.renameAxi4StreamIO(alwaysAddT = true)
+    renameAxi4IO
+    renameAxi4StreamIO(alwaysAddT = true)
   }
 }
 
@@ -189,7 +191,7 @@ object PioNicEngineVerilog {
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       val genDir = os.pwd / os.RelPath(Config.outputDirectory)
-      config.allocFactory.writeHeader(genDir / "regs.h")
+      config.allocFactory.writeHeader("PioNic", genDir / "regs.h")
       config.writeHeader(genDir / "config.h")
     }
   }

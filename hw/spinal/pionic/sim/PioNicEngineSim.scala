@@ -1,11 +1,14 @@
 package pionic.sim
 
-import pionic.{Config, PioNicConfig, PioNicEngine, RegBlockReadBack}
+import pionic.{Config, PioNicConfig, PioNicEngine}
+
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.sim._
 import spinal.lib.bus.amba4.axis.sim._
+
+import jsteward.blocks.misc.RegBlockReadBack
 
 import scala.util._
 
