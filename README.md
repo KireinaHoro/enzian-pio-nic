@@ -122,5 +122,5 @@ $ vivado out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.xpr
 Remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
 
 ```tcl
-write_project_tcl -no_ip_version -paths_relative_to ./vivado -validate -force vivado/create_project.tcl
+write_project_tcl -no_ip_version -paths_relative_to ./vivado -force vivado/create_project.tcl
 ```
