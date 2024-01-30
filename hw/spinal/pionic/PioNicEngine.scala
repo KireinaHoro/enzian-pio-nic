@@ -6,12 +6,10 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
-
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.RegAllocatorFactory
+import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
 
 import scala.language.postfixOps
-
 import mainargs._
 
 case class PioNicConfig(
@@ -79,6 +77,7 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
 
   // global cycles counter for measurements
   implicit val globalStatus = GlobalStatusBundle()
+  implicit val clock = globalStatus.cyclesCount
 
   val io = new Bundle {
     val s_axi = slave(Axi4(axiConfig))
@@ -88,7 +87,7 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
 
   val Entry = NamedType(Timestamp) // packet data from CMAC
   val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
-  val profiler = Profiler(Entry, AfterRxQueue)()
+  val profiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
   val rxAxisConfig = profiler augment axisConfig
 
   // buffer incoming packet for packet length
@@ -146,7 +145,7 @@ case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   busCtrl.read(rxOverflowCounter.value, alloc("rxOverflowCount"))
 
   val cyclesCounter = CounterFreeRun(config.regWidth bits)
-  globalStatus.cyclesCount := cyclesCounter
+  globalStatus.cyclesCount.bits := cyclesCounter
   busCtrl.read(cyclesCounter.value, alloc("cyclesCount")) // for host reference
 
   for (id <- 0 until config.numCores) {

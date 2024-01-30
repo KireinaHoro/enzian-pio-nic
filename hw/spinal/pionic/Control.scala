@@ -1,6 +1,7 @@
 package pionic
 
 import jsteward.blocks.axi._
+import jsteward.blocks.misc._
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -18,7 +19,7 @@ case class GlobalControlBundle()(implicit config: PioNicConfig) extends Bundle {
 case class GlobalStatusBundle()(implicit config: PioNicConfig) extends Bundle {
   override def clone = GlobalStatusBundle()
 
-  val cyclesCount = UInt(config.regWidth bits)
+  val cyclesCount = CycleClock(config.regWidth bits)
 }
 
 case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
@@ -47,7 +48,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   val AfterCommit = NamedType(Timestamp) // time in core dispatch queuing
   val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time
   val AfterRead = NamedType(Timestamp) // after read finish & core start processing
-  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterRead, AfterCommit)(profilerParent)
+  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterRead, AfterCommit)(config.collectTimestamps, profilerParent)
 
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = config.roundMtu
@@ -98,7 +99,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   }
   profiler.regInit(io.hostRxLastProfile)
 
-  implicit val globalStatus = io.globalStatus
+  implicit val clock = io.globalStatus.cyclesCount
 
   allocReset := io.allocReset
 
