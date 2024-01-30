@@ -68,7 +68,7 @@ case class PioNicConfig(
   }
 }
 
-case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"))(implicit config: PioNicConfig) extends Component {
+case class PioNicEngine()(implicit config: PioNicConfig) extends Component {
   // allow second run of elaboration to work
   config.allocFactory.clear()
 
@@ -81,28 +81,18 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val io = new Bundle {
     val s_axi = slave(Axi4(axiConfig))
+    val s_axis_rx = slave(Axi4Stream(axisConfig))
     val m_axis_tx = master(Axi4Stream(axisConfig))
   }
 
-  val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
+  val Entry = NamedType(Timestamp) // packet data from CMAC
   val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
   val profiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
-  val profiledAxisConfig = profiler augment axisConfig
-
-  // capture cmac rx lastFire
-  val timestamps = profiler.timestamps.clone
-
-  // XXX: CDC check not yet in place -- see https://github.com/SpinalHDL/SpinalHDL/issues/1299
-  val cmacRxArea = new ClockingArea(cmacRxClock) {
-    val s_axis_rx = slave(Axi4Stream(axisConfig))
-  }.setName("")
-  val axisRxAfterCdc = Axi4Stream(axisConfig)
-  StreamFifoCC(cmacRxArea.s_axis_rx, axisRxAfterCdc, 2, cmacRxClock, clockDomain)
-  profiler.fillSlot(timestamps, Entry, BufferCC(cmacRxArea.s_axis_rx.lastFire, False))
+  val rxAxisConfig = profiler augment axisConfig
 
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()
-  rxFifo.slavePort << axisRxAfterCdc
+  val rxFifo = AxiStreamFifo(rxAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()
+  rxFifo.slavePort << profiler.timestamp(io.s_axis_rx, Entry)
   // derive cmac incoming packet length
 
   // report overflow
@@ -124,13 +114,13 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val txDmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
-  val rxDmaConfig = txDmaConfig.copy(axisConfig = profiledAxisConfig)
+  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxAxisConfig)
   val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
   val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
   axiDma.readDataMaster.translateInto(io.m_axis_tx)(_ <<? _) // ignore TUSER
-  axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = timestamps)
+  axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue)
 
   axiDma.io.read_enable := True
   axiDma.io.write_enable := True

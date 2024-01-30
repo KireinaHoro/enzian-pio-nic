@@ -33,10 +33,9 @@ object PioNicEngineSim extends App {
 
     SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
-    dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.cmacRxArea.s_axis_rx, dut.clockDomain)
+    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
     // write global config bundle
 
     // the tx interface should never be active!
@@ -142,12 +141,11 @@ object PioNicEngineSim extends App {
   dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
     SimTimeout(cyc(4000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
-    dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.cmacRxArea.s_axis_rx, dut.cmacRxClock)
+    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.clockDomain)
 
     // the tx interface should never be active!
     dut.clockDomain.onSamplings {
@@ -227,7 +225,7 @@ object PioNicEngineSim extends App {
     println(s"Current timestamp: $timestamp")
 
     assert(isSorted(Seq(entry, afterRxQueue, afterDmaWrite, readStart, afterRead, timestamp, afterCommit)))
-    assert(readStart - entry >= delayed - 2)
+    assert(readStart - entry >= delayed)
   }
 
   dut.doSim("rx-timestamped-stalled") { implicit dut =>
