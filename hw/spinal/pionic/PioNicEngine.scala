@@ -6,7 +6,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
-import spinal.lib.eda.ConstraintWriter
+import spinal.lib.eda._
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
@@ -96,7 +96,8 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   // capture cmac rx lastFire
   val timestamps = profiler.timestamps.clone
 
-  profiler.fillSlot(timestamps, Entry, PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain))
+  val rxLastFireCdc = PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain)
+  profiler.fillSlot(timestamps, Entry, rxLastFireCdc)
 
   // CDC for tx
   val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
@@ -110,16 +111,17 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   // report overflow
   val rxOverflow = Bool()
-  val rxOverflowCounter = Counter(config.regWidth bits, PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain))
+  val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
+  val rxOverflowCounter = Counter(config.regWidth bits, rxOverflowCdc)
 
   val cmacReq = io.s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
-  val cmacReqAfterCdc = cmacReq.clone
-  StreamFifoCC(cmacReq, cmacReqAfterCdc, 2, cmacRxClock, clockDomain)
+  val cmacReqCdc = cmacReq.clone
+  StreamFifoCC(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
 
   // only dispatch to enabled cores
   val dispatchMask = Bits(config.numCores bits)
   val dispatchedCmacRx = StreamDispatcherWithEnable(
-    input = cmacReqAfterCdc,
+    input = cmacReqCdc,
     outputCount = config.numCores,
     enableMask = dispatchMask,
   ).setName("packetLenDemux")
@@ -201,7 +203,9 @@ object PioNicEngineVerilog {
           @arg(doc = "print register map")
           printRegMap: Boolean = true,
          ): Unit = {
-    Config.spinal.generateVerilog(ConstraintWriter(PioNicEngine())).mergeRTLSource("Merged")
+    val report = Config.spinal.generateVerilog(PioNicEngine())
+    report.mergeRTLSource("Merged")
+    report.writeConstraints()
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       val genDir = os.pwd / os.RelPath(Config.outputDirectory)
