@@ -36,11 +36,11 @@ object PioNicEngineSim extends App {
     dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.cmacRxArea.s_axis_rx, dut.clockDomain)
+    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.cmacRxClock)
     // write global config bundle
 
     // the tx interface should never be active!
-    dut.clockDomain.onSamplings {
+    dut.cmacTxClock.onSamplings {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
@@ -112,7 +112,7 @@ object PioNicEngineSim extends App {
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.clockDomain)
+    val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.cmacTxClock)
 
     // get tx buffer address
     var data = master.read(coreBlock("hostTx"), 8)
@@ -147,10 +147,10 @@ object PioNicEngineSim extends App {
     val globalBlock = nicConfig.allocFactory.readBack("global")
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.cmacRxArea.s_axis_rx, dut.cmacRxClock)
+    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.cmacRxClock)
 
     // the tx interface should never be active!
-    dut.clockDomain.onSamplings {
+    dut.cmacTxClock.onSamplings {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 

@@ -68,7 +68,8 @@ case class PioNicConfig(
   }
 }
 
-case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"))(implicit config: PioNicConfig) extends Component {
+case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"),
+                        cmacTxClock: ClockDomain = ClockDomain.external("cmacTxClock"))(implicit config: PioNicConfig) extends Component {
   // allow second run of elaboration to work
   config.allocFactory.clear()
 
@@ -81,7 +82,8 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val io = new Bundle {
     val s_axi = slave(Axi4(axiConfig))
-    val m_axis_tx = master(Axi4Stream(axisConfig))
+    val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
+    val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
   }
 
   val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
@@ -94,11 +96,14 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   // XXX: CDC check not yet in place -- see https://github.com/SpinalHDL/SpinalHDL/issues/1299
   val cmacRxArea = new ClockingArea(cmacRxClock) {
-    val s_axis_rx = slave(Axi4Stream(axisConfig))
-  }.setName("")
+    val lastFireReg = RegNext(io.s_axis_rx.lastFire) init False
+  }
   val axisRxAfterCdc = Axi4Stream(axisConfig)
-  StreamFifoCC(cmacRxArea.s_axis_rx, axisRxAfterCdc, 2, cmacRxClock, clockDomain)
-  profiler.fillSlot(timestamps, Entry, BufferCC(cmacRxArea.s_axis_rx.lastFire, False))
+  StreamFifoCC(io.s_axis_rx, axisRxAfterCdc, 2, cmacRxClock, clockDomain)
+  profiler.fillSlot(timestamps, Entry, BufferCC(cmacRxArea.lastFireReg, False, inputAttributes = List(crossClockFalsePath)))
+
+  val axisTxBeforeCdc = Axi4Stream(axisConfig)
+  StreamFifoCC(axisTxBeforeCdc, io.m_axis_tx, 2, clockDomain, cmacTxClock)
 
   // buffer incoming packet for packet length
   val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()
@@ -129,7 +134,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.readDataMaster.translateInto(io.m_axis_tx)(_ <<? _) // ignore TUSER
+  axiDma.readDataMaster.translateInto(axisTxBeforeCdc)(_ <<? _) // ignore TUSER
   axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = timestamps)
 
   axiDma.io.read_enable := True
