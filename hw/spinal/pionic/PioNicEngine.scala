@@ -6,6 +6,8 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
+import spinal.lib.eda.ConstraintWriter
+
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
 
@@ -201,7 +203,7 @@ object PioNicEngineVerilog {
           @arg(doc = "print register map")
           printRegMap: Boolean = true,
          ): Unit = {
-    Config.spinal.generateVerilog(PioNicEngine()).mergeRTLSource("Merged")
+    Config.spinal.generateVerilog(ConstraintWriter(PioNicEngine())).mergeRTLSource("Merged")
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       val genDir = os.pwd / os.RelPath(Config.outputDirectory)
