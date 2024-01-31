@@ -96,32 +96,30 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   // capture cmac rx lastFire
   val timestamps = profiler.timestamps.clone
 
-  // XXX: CDC check not yet in place -- see https://github.com/SpinalHDL/SpinalHDL/issues/1299
-  val cmacRxArea = new ClockingArea(cmacRxClock) {
-    val lastFireReg = RegNext(io.s_axis_rx.lastFire) init False
-  }
-  val axisRxAfterCdc = Axi4Stream(axisConfig)
-  StreamFifoCC(io.s_axis_rx, axisRxAfterCdc, 2, cmacRxClock, clockDomain)
-  profiler.fillSlot(timestamps, Entry, BufferCC(cmacRxArea.lastFireReg, False, inputAttributes = List(crossClockFalsePath)))
+  profiler.fillSlot(timestamps, Entry, PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain))
 
-  val axisTxBeforeCdc = Axi4Stream(axisConfig)
-  StreamFifoCC(axisTxBeforeCdc, io.m_axis_tx, 2, clockDomain, cmacTxClock)
+  // CDC for tx
+  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+  txFifo.masterPort >> io.m_axis_tx
 
+  // CDC for rx
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()
-  rxFifo.slavePort << axisRxAfterCdc
+  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
+  rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
 
   // report overflow
   val rxOverflow = Bool()
-  val rxOverflowCounter = Counter(config.regWidth bits, rxOverflow)
+  val rxOverflowCounter = Counter(config.regWidth bits, PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain))
+
+  val cmacReq = io.s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
+  val cmacReqAfterCdc = cmacReq.clone
+  StreamFifoCC(cmacReq, cmacReqAfterCdc, 2, cmacRxClock, clockDomain)
 
   // only dispatch to enabled cores
   val dispatchMask = Bits(config.numCores bits)
   val dispatchedCmacRx = StreamDispatcherWithEnable(
-    input = rxFifo.slavePort.frameLength
-      .map(_.resized.toPacketLength)
-      .toStream(rxOverflow),
+    input = cmacReqAfterCdc,
     outputCount = config.numCores,
     enableMask = dispatchMask,
   ).setName("packetLenDemux")
@@ -136,7 +134,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.readDataMaster.translateInto(axisTxBeforeCdc)(_ <<? _) // ignore TUSER
+  axiDma.readDataMaster.translateInto(txFifo.slavePort)(_ <<? _) // ignore TUSER
   axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = timestamps)
 
   axiDma.io.read_enable := True
