@@ -1,1 +1,0 @@
-../../../deps/spinal-blocks/deps/verilog-axis/syn/vivado/axis_async_fifo.tcl
