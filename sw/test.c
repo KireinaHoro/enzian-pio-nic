@@ -23,36 +23,69 @@ void signal_handler(int sig) {
 
 typedef struct {
   double tx;
-  double rx;
-  // TODO: add profiling register values
+  uint32_t entry;
+  uint32_t after_rx_queue;
+  uint32_t after_dma_write;
+  uint32_t read_start;
+  uint32_t after_read;
+  uint32_t after_commit; // we don't need this
+  uint32_t host_read_complete;
 } measure_t;
 
 static uint8_t *test_data;
 
 static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
+  int cid = 0;
+
   pionic_pkt_desc_t desc;
-  pionic_tx_get_desc(ctx, 0, &desc);
+  pionic_tx_get_desc(ctx, cid, &desc);
   // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
 
   char rx_buf[length];
   const uint8_t *tx_buf = test_data;
 
+  // simple elapsed time for tx
+  // TODO: instrument tx path as well (?)
   TIMEIT_START(ctx, tx)
 
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
     desc.len = length;
-    pionic_tx(ctx, 0, &desc);
+    pionic_tx(ctx, cid, &desc);
   }
 
   TIMEIT_END(ctx, tx)
 
-  // make sure that the packet hits the rx buffer from the MAC
-  usleep(100);
+  // Rx path is well instrumented, so let's take advantage of this.
+  //
+  // Description of all timestamps:
+  //
+  // Entry:         the NIC received the packet from CMAC (lastFire)
+  // AfterRxQueue:  packet exited from all Rx queuing
+  // AfterDmaWrite: packet written to packet buffer
+  // ReadStart:     the NIC received the read command (on hostRxNext)
+  // AfterRead:     the read is finished (on hostRxNext)
+  // AfterCommit:   the host freed the packet (on hostRxNextAck)
+  //
+  // In addition, we take one timestamp HostReadCompleted (over PCIe) when we received the
+  // packet on the CPU.
+  //
+  // XXX: we hope that we get to issue the read before the packet actually come back
+  //      from loopback.  In this case we have the following timestamp sequence:
+  //
+  //      ReadStart, Entry, AfterRxQueue, AfterDmaWrite, AfterRead, HostReadCompleted, AfterCommit
+  //
+  //      In this setup we would not bloat the latency artificially (due to arbitrary latency
+  //      between AfterDmaWrite and ReadStart, as the host is not yet ready).
+  //
+  // Taking HostReadCompleted on the CPU requires one PCIe round-trip, resulting in a measurement too late
+  // by half the RTT.  This is measured beforehand and subtracted during actual interval calculation.
 
-  TIMEIT_START(ctx, rx)
+  measure_t ret = { 0 };
 
-  bool got_pkt = pionic_rx(ctx, 0, &desc);
+  bool got_pkt = pionic_rx(ctx, cid, &desc);
+
+  ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
 
   if (length > 0) {
     assert(got_pkt && "failed to receive packet");
@@ -60,12 +93,11 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
     // check rx match with tx
     assert(desc.len == length && "rx packet length does not match tx");
     memcpy(rx_buf, desc.buf, desc.len);
-    pionic_rx_ack(ctx, 0, &desc);
+    pionic_rx_ack(ctx, cid, &desc);
   } else {
     assert(!got_pkt && "got packet when not expecting one");
   }
 
-  TIMEIT_END(ctx, rx)
 
   if (length > 0 && memcmp(rx_buf, tx_buf, length)) {
     printf("FAIL: data mismatch!  Expected (tx):\n");
@@ -75,10 +107,14 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
     assert(false);
   }
 
-  measure_t ret = {
-    .tx = TIMEIT_US(tx),
-    .rx = TIMEIT_US(rx),
-  };
+  ret.tx = TIMEIT_US(tx);
+  ret.entry = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__ENTRY(cid));
+  ret.after_rx_queue = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_QUEUE(cid));
+  ret.read_start = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START(cid));
+  ret.after_dma_write = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE(cid));
+  ret.after_read = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ(cid));
+  ret.after_commit = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_COMMIT(cid));
+
   // printf("Tx+Rx: %lf us; Rx: %lf us\n", TIMEIT_US(rxtx), TIMEIT_US(rx));
 
   return ret;
@@ -129,7 +165,7 @@ int main(int argc, char *argv[]) {
   pionic_set_core_mask(&ctx, 1);
 
   FILE *out = fopen("out.csv", "w");
-  fprintf(out, "size,tx,rx\n");
+  fprintf(out, "size,tx_us,entry,after_rx_queue,after_dma_write,read_start,after_read,after_commit,host_read_complete\n");
 
   // send packet and check rx data
   int num_trials = 20;
@@ -138,7 +174,7 @@ int main(int argc, char *argv[]) {
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
-      fprintf(out, "%d,%lf,%lf\n", to_send, m.tx, m.rx);
+      fprintf(out, "%d,%lf,%d,%d,%d,%d,%d,%d,%d\n", to_send, m.tx, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_commit, m.host_read_complete);
     }
   }
 
