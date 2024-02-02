@@ -99,15 +99,13 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   val rxLastFireCdc = PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain)
   profiler.fillSlot(timestamps, Entry, rxLastFireCdc)
 
-  val packetBeats = config.roundMtu / config.axisConfig.dataWidth
-
   // CDC for tx
-  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthWords = packetBeats)()(clockDomain, cmacTxClock)
+  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
   txFifo.masterPort >> io.m_axis_tx
 
   // CDC for rx
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthWords = packetBeats)()(cmacRxClock, clockDomain)
+  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
 
