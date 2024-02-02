@@ -99,13 +99,15 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   val rxLastFireCdc = PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain)
   profiler.fillSlot(timestamps, Entry, rxLastFireCdc)
 
+  val packetBeats = config.roundMtu / config.axisConfig.dataWidth
+
   // CDC for tx
-  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthWords = packetBeats)()(clockDomain, cmacTxClock)
   txFifo.masterPort >> io.m_axis_tx
 
   // CDC for rx
   // buffer incoming packet for packet length
-  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
+  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthWords = packetBeats)()(cmacRxClock, clockDomain)
   rxFifo.slavePort << io.s_axis_rx
   // derive cmac incoming packet length
 
@@ -116,7 +118,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val cmacReq = io.s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
   val cmacReqCdc = cmacReq.clone
-  StreamFifoCC(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
+  SimpleAsyncFifo(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
 
   // only dispatch to enabled cores
   val dispatchMask = Bits(config.numCores bits)
