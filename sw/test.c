@@ -161,14 +161,25 @@ int main(int argc, char *argv[]) {
   // 40 ms
   pionic_set_rx_block_cycles(&ctx, US_TO_CYCLES(40 * 1000));
 
+  // estimate pcie roundtrip time
+  FILE *out = fopen("pcie_lat.csv", "w");
+  fprintf(out, "pcie_lat\n");
+  int num_trials = 20;
+  uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+  for (int i = 0; i < num_trials; ++i) {
+    uint64_t new_cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+    fprintf(out, "%ld\n", new_cycles - cycles);
+    cycles = new_cycles;
+  }
+  fclose(out);
+
   // only use core 0
   pionic_set_core_mask(&ctx, 1);
 
-  FILE *out = fopen("out.csv", "w");
+  out = fopen("loopback.csv", "w");
   fprintf(out, "size,tx_us,entry,after_rx_queue,after_dma_write,read_start,after_read,after_commit,host_read_complete\n");
 
   // send packet and check rx data
-  int num_trials = 20;
   int min_pkt = 64, max_pkt = 1500, step = 64;
 
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
