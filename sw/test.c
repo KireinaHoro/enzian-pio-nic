@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
   // estimate pcie roundtrip time
   FILE *out = fopen("pcie_lat.csv", "w");
   fprintf(out, "pcie_lat\n");
-  int num_trials = 20;
+  int num_trials = 50;
   uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
   for (int i = 0; i < num_trials; ++i) {
     uint64_t new_cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
