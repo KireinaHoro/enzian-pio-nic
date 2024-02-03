@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
 
   // estimate pcie roundtrip time
   FILE *out = fopen("pcie_lat.csv", "w");
-  fprintf(out, "pcie_lat\n");
+  fprintf(out, "pcie_lat_cyc\n");
   int num_trials = 50;
   uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
   for (int i = 0; i < num_trials; ++i) {
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
   pionic_set_core_mask(&ctx, 1);
 
   out = fopen("loopback.csv", "w");
-  fprintf(out, "size,tx_us,entry,after_rx_queue,after_dma_write,read_start,after_read,after_commit,host_read_complete\n");
+  fprintf(out, "size,tx_us,entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
   int min_pkt = 64, max_pkt = 1500, step = 64;
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
-      fprintf(out, "%d,%lf,%d,%d,%d,%d,%d,%d,%d\n", to_send, m.tx, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_commit, m.host_read_complete);
+      fprintf(out, "%d,%lf,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.tx, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_commit, m.host_read_complete);
     }
   }
 

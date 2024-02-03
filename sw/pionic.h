@@ -19,7 +19,7 @@
 #define PIONIC_MMAP_END 0x300000UL
 
 #define US_TO_CYCLES(us) ((uint64_t)(us) * PIONIC_CLOCK_FREQ / 1000 / 1000)
-#define CYCLES_TO_US(cycles) ((uint64_t)(cycles) / (PIONIC_CLOCK_FREQ / 1000 / 1000))
+#define CYCLES_TO_US(cycles) ((double)(cycles) / (PIONIC_CLOCK_FREQ / 1000 / 1000))
 
 typedef struct {
   void *bar;
