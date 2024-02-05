@@ -64,15 +64,22 @@ with open(args.loopback, 'r') as f:
             start = int(row[start_col])
             end = int(row[end_col])
             return cyc_to_us(end - start)
-        
+
         append_type('tx', float(row['tx_us']))
-        
+
         append_type('rx queue', cycdiff_to_us('entry_cyc', 'after_rx_queue_cyc'))
-        append_type('dma write', cycdiff_to_us('after_rx_queue_cyc', 'after_dma_write_cyc'))
-        # append_type('wait host', cycdiff_to_us('after_dma_write_cyc', 'read_start_cyc'))
-        append_type('issue cmd', cycdiff_to_us('after_dma_write_cyc', 'after_read_cyc'))
-        append_type('copy packet', cycdiff_to_us('after_read_cyc', 'host_read_complete_cyc') - pcie_lat_median / 2)
-        append_type('process commit', cycdiff_to_us('host_read_complete_cyc', 'after_commit_cyc') - pcie_lat_median / 2)
+        append_type('rx dma write', cycdiff_to_us('after_rx_queue_cyc', 'after_dma_write_cyc'))
+        
+        # only add wait to host if read happens later than entry
+        wait = cycdiff_to_us('after_dma_write_cyc', 'read_start_cyc')
+        if wait > 0:
+            append_type('rx wait host', wait)
+            append_type('rx issue cmd', cycdiff_to_us('read_start_cyc', 'after_read_cyc'))
+        else:
+            append_type('rx issue cmd', cycdiff_to_us('after_dma_write_cyc', 'after_read_cyc'))
+
+        append_type('rx copy packet', cycdiff_to_us('after_read_cyc', 'host_read_complete_cyc') - pcie_lat_median / 2)
+        append_type('rx process commit', cycdiff_to_us('host_read_complete_cyc', 'after_commit_cyc') - pcie_lat_median / 2)
 
 # convert to stackplot layout
 sizes = loopback_stats.keys()
@@ -92,20 +99,31 @@ fig = plt.figure(figsize=fixed_ratio_fig(6/5))
 ax = fig.add_subplot()
 ax.grid(which='major', alpha=0.5)
 ax.grid(which='minor', alpha=0.2)
-ax.set_title('Rx Latency Breakdown')
+ax.set_title('RX Latency Breakdown')
 ax.set_xlabel('Payload Length (B)')
 ax.set_ylabel('Latency (us)')
 
-stack_comps = map(lambda dat: list(map(lambda d: d[0], dat)), label_data.values())
-stack = ax.stackplot(sizes, *stack_comps, labels=label_data.keys())
+comp_labels = []
+comp_data = []
+comp_ci = []
+for lbl, data in label_data.items():
+    if lbl != 'tx':
+        comp_labels.append(lbl[3:]) # strip 'rx '
+        dat, ci = zip(*data)
+        comp_data.append(dat)
+        comp_ci.append(ci)
+
+stack = ax.stackplot(sizes, *comp_data, labels=comp_labels)
 
 ys = np.zeros((len(sizes),), dtype=float)
-for samples in label_data.values():
-    meds = [s[0] for s in samples]
+
+for meds, cis in zip(comp_data, comp_ci):
     ys += meds
-    ci_los = [s[1][0] for s in samples]
-    ci_his = [s[1][1] for s in samples]
+    ci_los, ci_his = zip(*cis)
     ax.errorbar(sizes, ys, yerr=(ci_los, ci_his), fmt='none', color='black')
 
 ax.legend(loc='upper left')
 fig.savefig('lat-breakdown.pdf')
+
+# plot 2: stack plot tx latency component | x=size y=latency contribution
+# TODO
