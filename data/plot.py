@@ -68,7 +68,7 @@ with open(args.loopback, 'r') as f:
         append_type('tx', float(row['tx_us']))
 
         append_type('rx queue', cycdiff_to_us('entry_cyc', 'after_rx_queue_cyc'))
-        append_type('rx dma write', cycdiff_to_us('after_rx_queue_cyc', 'after_dma_write_cyc'))
+        append_type('rx stream buf', cycdiff_to_us('after_rx_queue_cyc', 'after_dma_write_cyc'))
         
         # only add wait to host if read happens later than entry
         wait = cycdiff_to_us('after_dma_write_cyc', 'read_start_cyc')
@@ -78,7 +78,7 @@ with open(args.loopback, 'r') as f:
         else:
             append_type('rx issue cmd', cycdiff_to_us('after_dma_write_cyc', 'after_read_cyc'))
 
-        append_type('rx copy packet', cycdiff_to_us('after_read_cyc', 'host_read_complete_cyc') - pcie_lat_median / 2)
+        append_type('rx read packet', cycdiff_to_us('after_read_cyc', 'host_read_complete_cyc') - pcie_lat_median / 2)
         append_type('rx process commit', cycdiff_to_us('host_read_complete_cyc', 'after_commit_cyc') - pcie_lat_median / 2)
 
 # convert to stackplot layout
@@ -90,18 +90,19 @@ for stats in loopback_stats.values():
 
 # ================ PLOTTING ================
 
-# plot 1: stack plot rx latency component | x=size y=latency contribution
 def fixed_ratio_fig(aspect_ratio):
     figwidth = 5.125 # page width
     return figwidth, figwidth/aspect_ratio
 
+# plot 1: stack plot rx latency component | x=size y=latency contribution
 fig = plt.figure(figsize=fixed_ratio_fig(6/5))
 ax = fig.add_subplot()
 ax.grid(which='major', alpha=0.5)
 ax.grid(which='minor', alpha=0.2)
-ax.set_title('RX Latency Breakdown')
+ax.set_title('RX Latency Breakdown (PIO)')
 ax.set_xlabel('Payload Length (B)')
 ax.set_ylabel('Latency (us)')
+ax.set_ylim(0, 140)
 
 comp_labels = []
 comp_data = []
