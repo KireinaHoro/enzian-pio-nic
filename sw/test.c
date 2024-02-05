@@ -68,7 +68,8 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
   // AfterCommit:   the host freed the packet (on hostRxNextAck)
   //
   // In addition, we take one timestamp HostReadCompleted (over PCIe) when we received the
-  // packet on the CPU.
+  // packet on the CPU (into the registers).  This includes the memcpy from PCIe into the
+  // CPU registers.
   //
   // XXX: we hope that we get to issue the read before the packet actually come back
   //      from loopback.  In this case we have the following timestamp sequence:
@@ -85,14 +86,15 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
 
   bool got_pkt = pionic_rx(ctx, cid, &desc);
 
-  ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
-
   if (length > 0) {
     assert(got_pkt && "failed to receive packet");
 
     // check rx match with tx
     assert(desc.len == length && "rx packet length does not match tx");
     memcpy(rx_buf, desc.buf, desc.len);
+
+    ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+
     pionic_rx_ack(ctx, cid, &desc);
   } else {
     assert(!got_pkt && "got packet when not expecting one");
