@@ -49,6 +49,8 @@ case class PioNicConfig(
 
   def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
 
+  def coreIDWidth = log2Up(numCores)
+
   val allocFactory = new RegAllocatorFactory
 
   def writeHeader(outPath: os.Path): Unit = {
@@ -90,18 +92,35 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
   val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
-  val profiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
-  val profiledAxisConfig = profiler augment axisConfig
+  val rxProfiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
+
+  val Exit = NamedType(Timestamp)
+  val txProfiler = Profiler(Exit)(config.collectTimestamps)
 
   // capture cmac rx lastFire
-  val timestamps = profiler.timestamps.clone
-
+  val rxTimestamps = rxProfiler.timestamps.clone
   val rxLastFireCdc = PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain)
-  profiler.fillSlot(timestamps, Entry, rxLastFireCdc)
+  rxProfiler.fillSlot(rxTimestamps, Entry, rxLastFireCdc)
+  val txAxisConfig = axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
 
   // CDC for tx
-  val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
-  txFifo.masterPort >> io.m_axis_tx
+  val txFifo = AxiStreamAsyncFifo(txAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+  txFifo.masterPort.translateInto(io.m_axis_tx)(_ <<? _) // ignore TUSER
+
+  val txTimestamps = txProfiler.timestamps.clone
+
+  val txClkArea = new ClockingArea(cmacTxClock) {
+    val lastCoreIDFlow = ValidFlow(RegNext(txFifo.masterPort.user)).takeWhen(txFifo.masterPort.lastFire)
+  }
+
+  val lastCoreIDFlowCdc = txClkArea.lastCoreIDFlow.ccToggle(cmacTxClock, clockDomain)
+  txProfiler.fillSlot(txTimestamps, Exit, lastCoreIDFlowCdc.fire)
+
+  // demux timestamps: generate valid for Flow[Timestamps] back into Control
+  val txTimestampsFlows = Seq.tabulate(config.numCores) { coreID =>
+    val delayedCoreIDFlow = RegNext(lastCoreIDFlowCdc)
+    ValidFlow(txTimestamps).takeWhen(delayedCoreIDFlow.valid && delayedCoreIDFlow.payload === coreID)
+  }
 
   // CDC for rx
   // buffer incoming packet for packet length
@@ -129,15 +148,21 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   val pktBufferSize = config.numCores * config.pktBufSizePerCore
   val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
 
-  val txDmaConfig = AxiDmaConfig(axiConfig, axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
+  // TX DMA USER: core ID to demux timestamp
+  val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
-  val rxDmaConfig = txDmaConfig.copy(axisConfig = profiledAxisConfig)
+  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment axisConfig)
   val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
   val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
   axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.readDataMaster.translateInto(txFifo.slavePort)(_ <<? _) // ignore TUSER
-  axiDma.writeDataSlave << profiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = timestamps)
+  axiDma.readDataMaster.translateInto(txFifo.slavePort) { case (fifo, dma) =>
+    fifo.user := dma.user.resized
+    fifo.assignUnassignedByName(dma)
+  }
+  val rxFifoTimestamped = rxProfiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = rxTimestamps)
+  axiDma.writeDataSlave << rxFifoTimestamped
+  println(f"rx fifo timestamped: $rxFifoTimestamped")
 
   axiDma.io.read_enable := True
   axiDma.io.write_enable := True
@@ -166,12 +191,13 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   busCtrl.read(cyclesCounter.value, alloc("cyclesCount")) // for host reference
 
   for (id <- 0 until config.numCores) {
-    new PioCoreControl(rxDmaConfig, txDmaConfig, id, profiler).setName(s"coreCtrl_$id")
+    new PioCoreControl(rxDmaConfig, txDmaConfig, id, rxProfiler, txProfiler).setName(s"coreCtrl_$id")
       .driveFrom(busCtrl, (1 + id) * 0x1000)(
         globalCtrl = globalCtrl,
         rdMux = axiDmaReadMux,
         wrMux = axiDmaWriteMux,
         cmacRx = dispatchedCmacRx(id),
+        txTimestamps = txTimestampsFlows(id),
       )
   }
 
