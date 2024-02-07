@@ -3,10 +3,10 @@ package pionic
 import spinal.lib._
 
 package object sim {
-  def isSorted[T](s: Seq[T])(implicit ord: Ordering[T]): Boolean = s match {
+  def isSorted[T](s: T*)(implicit ord: Ordering[T]): Boolean = s.toList match {
     case Nil => true
-    case x :: Nil => true
-    case x :: xs => ord.lteq(x, xs.head) && isSorted(xs)
+    case _ :: Nil => true
+    case x :: xs => ord.lteq(x, xs.head) && isSorted(xs: _*)
   }
 
   implicit class PacketDescBytesRicher(lb: List[Byte])(implicit config: PioNicConfig) {
@@ -21,7 +21,7 @@ package object sim {
     }
 
     def toTxPacketDesc = {
-      PacketDescSim.fromBigInt(lb.bytesToBigInt)
+      PacketDescSim.fromBigInt(lb.bytesToBigInt >> 1)
     }
   }
 

@@ -43,12 +43,17 @@ case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
 
 // Control module for PIO access from one single core
 // Would manage one packet buffer
-class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, profilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
+class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, rxProfilerParent: Profiler = null, txProfilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
   val AfterDmaWrite = NamedType(Timestamp) // time in dma mux & writing
-  val AfterCommit = NamedType(Timestamp) // time in core dispatch queuing
+  val AfterRxCommit = NamedType(Timestamp) // time in core dispatch queuing
   val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time
   val AfterRead = NamedType(Timestamp) // after read finish & core start processing
-  val profiler = Profiler(ReadStart, AfterDmaWrite, AfterRead, AfterCommit)(config.collectTimestamps, profilerParent)
+  val rxProfiler = Profiler(ReadStart, AfterDmaWrite, AfterRead, AfterRxCommit)(config.collectTimestamps, rxProfilerParent)
+
+  val Acquire = NamedType(Timestamp)
+  val AfterTxCommit = NamedType(Timestamp)
+  val AfterDmaRead = NamedType(Timestamp)
+  val txProfiler = Profiler(Acquire, AfterTxCommit, AfterDmaRead)(config.collectTimestamps, txProfilerParent)
 
   val pktBufBase = coreID * config.pktBufSizePerCore
   val pktBufTxSize = config.roundMtu
@@ -70,11 +75,13 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     // regs for host
     val hostRxNext = master Stream PacketDesc()
     val hostRxNextAck = slave Stream PacketDesc()
-    val hostRxLastProfile = out(profiler.timestamps.clone).setAsReg()
+    val hostRxLastProfile = out(rxProfiler.timestamps.clone).setAsReg()
     val hostRxNextReq = in Bool()
 
-    val hostTx = out(PacketDesc())
+    val hostTx = master Stream PacketDesc()
     val hostTxAck = slave Stream PacketLength() // actual length of the packet
+    val hostTxLastProfile = out(txProfiler.timestamps.clone).setAsReg()
+    val hostTxExitTimestamps = slave(Flow(txProfilerParent.timestamps.clone))
 
     // from CMAC Axis -- ingress packet
     val cmacRxAlloc = slave Stream PacketLength()
@@ -97,7 +104,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     })
   }
-  profiler.regInit(io.hostRxLastProfile)
+  rxProfiler.regInit(io.hostRxLastProfile)
+  txProfiler.regInit(io.hostTxLastProfile)
 
   implicit val clock = io.globalStatus.cyclesCount
 
@@ -114,6 +122,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   // we reserve one packet for TX
   io.hostTx.addr.bits := pktBufTxBase
   io.hostTx.size.bits := pktBufTxSize
+  io.hostTx.valid := True
 
   rxAlloc.io.allocReq << io.cmacRxAlloc
   rxAlloc.io.freeReq </< io.hostRxNextAck
@@ -156,8 +165,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
             rxCaptured.payload.size.bits := io.writeDescStatus.len
             rxCaptured.valid := True
 
-            profiler.collectInto(io.writeDescStatus.user.asBits, io.hostRxLastProfile)
-            profiler.fillSlot(io.hostRxLastProfile, AfterDmaWrite, True)
+            rxProfiler.collectInto(io.writeDescStatus.user.asBits, io.hostRxLastProfile)
+            rxProfiler.fillSlot(io.hostRxLastProfile, AfterDmaWrite, True)
             goto(stateEnqueuePkt)
           } otherwise {
             inc(io.statistics.rxDmaErrorCount)
@@ -177,10 +186,10 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     }
   }
 
-  profiler.fillSlots(io.hostRxLastProfile,
+  rxProfiler.fillSlots(io.hostRxLastProfile,
     ReadStart -> io.hostRxNextReq.rise(False),
     AfterRead -> io.hostRxNext.fire,
-    AfterCommit -> io.hostRxNextAck.fire,
+    AfterRxCommit -> io.hostRxNextAck.fire,
   )
 
   val txFsm = new StateMachine {
@@ -191,6 +200,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
           io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
           io.readDesc.payload.payload.len := io.hostTxAck.payload.bits
           io.readDesc.payload.payload.tag := 0
+          io.readDesc.payload.user := coreID
           io.readDesc.valid := True
           goto(statePrepared)
         }
@@ -210,6 +220,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
         when(io.readDescStatus.fire) {
           when(io.readDescStatus.payload.error === 0) {
             inc(io.statistics.txPacketCount)
+
+            txProfiler.fillSlot(io.hostTxLastProfile, AfterDmaRead, True)
           } otherwise {
             inc(io.statistics.txDmaErrorCount)
           }
@@ -219,7 +231,15 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     }
   }
 
-  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength])(implicit globalStatus: GlobalStatusBundle) = new Area {
+  when(io.hostTxExitTimestamps.fire) {
+    txProfiler.collectInto(io.hostTxExitTimestamps.payload.asBits, io.hostTxLastProfile)
+  }
+  txProfiler.fillSlots(io.hostTxLastProfile,
+    Acquire -> io.hostTx.fire,
+    AfterTxCommit -> io.hostTxAck.fire,
+  )
+
+  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength], txTimestamps: Flow[Timestamps])(implicit globalStatus: GlobalStatusBundle) = new Area {
     io.globalCtrl := globalCtrl
     io.globalStatus := globalStatus
 
@@ -244,7 +264,11 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
       io.hostRxNextReq := True
     }
 
-    busCtrl.read(io.hostTx, alloc("hostTx"))
+    // exit timestamp for tx, demux'ed for this core
+    io.hostTxExitTimestamps << txTimestamps
+
+    // should not block; only for profiling (to use ready signal)
+    busCtrl.readStreamNonBlocking(io.hostTx, alloc("hostTx"))
     busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))
 
     busCtrl.driveAndRead(io.allocReset, alloc("allocReset")) init false
@@ -260,9 +284,13 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     }
 
     // rx profile results
-    if (config.collectTimestamps)
+    if (config.collectTimestamps) {
       io.hostRxLastProfile.storage.foreach { case (namedType, data) =>
-        busCtrl.read(data, alloc("hostRxLastProfile", subName = namedType.getName))
+        busCtrl.read(data, alloc("hostRxLastProfile", subName = namedType.getName()))
       }
+      io.hostTxLastProfile.storage.foreach { case (namedType, data) =>
+        busCtrl.read(data, alloc("hostTxLastProfile", subName = namedType.getName()))
+      }
+    }
   }
 }

@@ -27,22 +27,18 @@ object PioNicEngineSim extends App {
 
   def cyc(c: Int)(implicit dut: PioNicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
-  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
     SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
     dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
+    dut.cmacTxClock.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
     val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.cmacRxClock)
-    // write global config bundle
-
-    // the tx interface should never be active!
-    dut.cmacTxClock.onSamplings {
-      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
-    }
+    val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.cmacTxClock)
 
     // reset value of dispatch mask should be all 1
     val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
@@ -52,12 +48,28 @@ object PioNicEngineSim extends App {
     val allocReset = master.read(coreBlock("allocReset"), 8).bytesToBigInt
     assert(allocReset == 0, "rx alloc reset should be low at boot")
 
+    // write global config bundle
     master.write(0, rxBlockCycles.toBytes)
 
     var data = master.read(globalBlock("ctrl"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
-    (master, axisMaster)
+    (master, axisMaster, axisSlave)
+  }
+
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
+    // the tx interface should never be active!
+    dut.cmacTxClock.onSamplings {
+      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+    }
+
+    val (axiMaster, axisMaster, _) = commonDutSetup(rxBlockCycles)
+    (axiMaster, axisMaster)
+  }
+
+  def txDutSetup()(implicit dut: PioNicEngine) = {
+    val (axiMaster, _, axisSlave) = commonDutSetup(10000) // arbitrary rxBlockCycles
+    (axiMaster, axisSlave)
   }
 
   // TODO: test for various failures
@@ -65,8 +77,7 @@ object PioNicEngineSim extends App {
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
-    val rxBlockCycles = 100
-    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+    val (master, axisMaster) = rxDutSetup(100)
 
     var data = master.read(coreBlock("hostRxNext"), 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
@@ -106,13 +117,11 @@ object PioNicEngineSim extends App {
 
   dut.doSim("tx-regular") { implicit dut =>
     SimTimeout(cyc(2000))
-    dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
-    val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.cmacTxClock)
+    val (master, axisSlave) = txDutSetup()
 
     // get tx buffer address
     var data = master.read(coreBlock("hostTx"), 8)
@@ -141,13 +150,10 @@ object PioNicEngineSim extends App {
 
   dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
     SimTimeout(cyc(4000))
-    dut.clockDomain.forkStimulus(period = 4) // 250 MHz
-    dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
 
-    val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.cmacRxClock)
+    val (master, axisMaster) = rxDutSetup(10000)
 
     // the tx interface should never be active!
     dut.cmacTxClock.onSamplings {
@@ -182,27 +188,40 @@ object PioNicEngineSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  def getTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
+  def getRxTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
     new {
       val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
       val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
       val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
       val afterRead = master.read(coreBlock("hostRxLastProfile", "AfterRead"), 8).bytesToBigInt
       val afterDmaWrite = master.read(coreBlock("hostRxLastProfile", "AfterDmaWrite"), 8).bytesToBigInt
-      val afterCommit = master.read(coreBlock("hostRxLastProfile", "AfterCommit"), 8).bytesToBigInt
+      val afterRxCommit = master.read(coreBlock("hostRxLastProfile", "AfterRxCommit"), 8).bytesToBigInt
 
       println(s"Entry: $entry")
       println(s"AfterRxQueue: $afterRxQueue")
       println(s"ReadStart: $readStart")
       println(s"AfterRead: $afterRead")
       println(s"AfterDmaWrite: $afterDmaWrite")
-      println(s"AfterCommit: $afterCommit")
+      println(s"AfterCommit: $afterRxCommit")
+    }
+  }
+
+  def getTxTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
+    new {
+      val acquire = master.read(coreBlock("hostTxLastProfile", "Acquire"), 8).bytesToBigInt
+      val afterTxCommit = master.read(coreBlock("hostTxLastProfile", "AfterTxCommit"), 8).bytesToBigInt
+      val afterDmaRead = master.read(coreBlock("hostTxLastProfile", "AfterDmaRead"), 8).bytesToBigInt
+      val exit = master.read(coreBlock("hostTxLastProfile", "Exit"), 8).bytesToBigInt
+
+      println(s"Acquire: $acquire")
+      println(s"AfterTxCommit: $afterTxCommit")
+      println(s"AfterDmaRead: $afterDmaRead")
+      println(s"Exit: $exit")
     }
   }
 
   dut.doSim("rx-timestamped-queued") { implicit dut =>
-    val rxBlockCycles = 100
-    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+    val (master, axisMaster) = rxDutSetup(100)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
@@ -221,18 +240,17 @@ object PioNicEngineSim extends App {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
-    val timestamps = getTimestamps(master, coreBlock)
+    val timestamps = getRxTimestamps(master, coreBlock)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
 
-    assert(isSorted(Seq(entry, afterRxQueue, afterDmaWrite, readStart, afterRead, timestamp, afterCommit)))
+    assert(isSorted(entry, afterRxQueue, afterDmaWrite, readStart, afterRead, timestamp, afterRxCommit))
     assert(readStart - entry >= delayed - 2)
   }
 
   dut.doSim("rx-timestamped-stalled") { implicit dut =>
-    val rxBlockCycles = 1000
-    val (master, axisMaster) = rxDutSetup(rxBlockCycles)
+    val (master, axisMaster) = rxDutSetup(1000)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
@@ -253,12 +271,41 @@ object PioNicEngineSim extends App {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
-    val timestamps = getTimestamps(master, coreBlock)
+    val timestamps = getRxTimestamps(master, coreBlock)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
 
-    assert(isSorted(Seq(readStart, entry, afterRxQueue, afterDmaWrite, afterRead, timestamp, afterCommit)))
+    assert(isSorted(readStart, entry, afterRxQueue, afterDmaWrite, afterRead, timestamp, afterRxCommit))
     assert(entry - readStart >= delayed)
+  }
+
+  dut.doSim("tx-timestamped") { implicit dut =>
+    val (master, axisSlave) = txDutSetup()
+
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
+
+    val toSend = Random.nextBytes(256).toList
+    val desc = master.read(coreBlock("hostTx"), 8).toTxPacketDesc
+    val delayed = 500
+
+    master.write(pktBufAddr + desc.addr, toSend)
+
+    // insert delay
+    fork {
+      sleep(cyc(delayed))
+      master.write(coreBlock("hostTxAck"), toSend.length.toBytes)
+    }
+
+    // receive packet, check timestamps
+    axisSlave.recv()
+
+    val timestamps = getTxTimestamps(master, coreBlock)
+    import timestamps._
+
+    assert(isSorted(acquire, afterTxCommit, afterDmaRead, exit))
+    assert(afterTxCommit - acquire >= delayed)
   }
 }
