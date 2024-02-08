@@ -140,7 +140,10 @@ int main(int argc, char *argv[]) {
     test_data[i] = rand();
   }
 
-  struct sigaction new = { .sa_handler = signal_handler };
+  struct sigaction new = {
+    .sa_handler = signal_handler,
+    .sa_flags = SA_RESETHAND, // only catch once
+  };
   sigemptyset(&new.sa_mask);
   if (sigaction(SIGBUS, &new, NULL)) {
     perror("sigaction");
@@ -188,13 +191,17 @@ int main(int argc, char *argv[]) {
   fprintf(out, "size,acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_rx_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
-  int min_pkt = 64, max_pkt = 1500, step = 64;
+  int min_pkt = 64, max_pkt = 9600, step = 64;
 
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
+    printf("Testing packet size %d", to_send);
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
       fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
+      printf(".");
+      fflush(stdout);
     }
+    printf("\n");
   }
 
   fclose(out);

@@ -7,7 +7,8 @@
 #include "../hw/gen/regs.h"
 #include "../hw/gen/config.h"
 
-#define PIONIC_PKTBUF(off)   ((off) + PIONIC_PKT_BUFFER)
+#define PIONIC_PKTBUF_OFF_TO_ADDR(off)   ((off)  + PIONIC_PKT_BUFFER)
+#define PIONIC_ADDR_TO_PKTBUF_OFF(addr)  ((addr) - PIONIC_PKT_BUFFER)
 
 #define PIONIC_CMAC_REG(off) ((off) + 0x200000UL)
 #define PM_RX_REG1             0x014
