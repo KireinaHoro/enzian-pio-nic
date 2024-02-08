@@ -253,9 +253,9 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     io.cmacRxAlloc << cmacRx
 
-    private val alloc = config.allocFactory("control", coreID)(baseAddress, 0x1000, config.regWidth / 8)
+    private val alloc = config.allocFactory("control", coreID)(baseAddress, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
 
-    val rxNextAddr = alloc("hostRxNext")
+    val rxNextAddr = alloc("hostRxNext", readSensitive = true)
     busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, globalCtrl.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
 
@@ -269,7 +269,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     io.hostTxExitTimestamps << txTimestamps
 
     // should not block; only for profiling (to use ready signal)
-    busCtrl.readStreamNonBlocking(io.hostTx, alloc("hostTx"))
+    busCtrl.readStreamNonBlocking(io.hostTx, alloc("hostTx", readSensitive = true))
     busCtrl.driveStream(io.hostTxAck, alloc("hostTxAck"))
 
     busCtrl.driveAndRead(io.allocReset, alloc("allocReset")) init false
