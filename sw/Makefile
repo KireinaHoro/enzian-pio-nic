@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
-CFLAGS := -O2 -g -pipe -Wall
+CFLAGS := -O2 -pipe -Wall
 
 SRCS := $(wildcard *.c)
 
@@ -12,6 +12,9 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 
 all: pionic-test
+
+debug: CFLAGS += -DDEBUG -DDEBUG_REG -g
+debug: pionic-test
 
 %.o: %.c
 %.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
