@@ -28,7 +28,7 @@ case class PioNicConfig(
                          regWidth: Int = 64,
                          pktBufAddrWidth: Int = 24,
                          pktBufLenWidth: Int = 16, // max 64KB per packet
-                         pktBufSizePerCore: Int = 64 * 1024, // 16KB
+                         pktBufSizePerCore: Int = 64 * 1024, // 64KB
                          pktBufAllocSizeMap: Seq[(Int, Double)] = Seq(
                            (128, .6), // 60% 128B packets
                            (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
@@ -44,6 +44,8 @@ case class PioNicConfig(
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
 
   def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
+
+  def pktBufSize = numCores * pktBufSizePerCore
 
   def mtu = pktBufAllocSizeMap.map(_._1).max
 
@@ -145,8 +147,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
     enableMask = dispatchMask,
   ).setName("packetLenDemux")
 
-  val pktBufferSize = config.numCores * config.pktBufSizePerCore
-  val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufferSize)))
+  val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(config.pktBufSize)))
 
   // TX DMA USER: core ID to demux timestamp
   val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
@@ -177,7 +178,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
   private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)
-  private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, pktBufferSize, pktBufferSize)
+  private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("ctrl"))
   globalCtrl.rxBlockCycles init 10000
@@ -204,7 +205,7 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   Axi4CrossbarFactory()
     .addSlaves(
       axiWideConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
-      pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), pktBufferSize),
+      pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), config.pktBufSize),
       // pktBuffer.io.s_axi_b -> (0x100000, pktBufferSize),
     )
     .addConnections(
