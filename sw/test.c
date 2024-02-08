@@ -194,10 +194,14 @@ int main(int argc, char *argv[]) {
   int min_pkt = 64, max_pkt = 9600, step = 64;
 
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
+    printf("Testing packet size %d", to_send);
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
       fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
+      printf(".");
+      fflush(stdout);
     }
+    printf("\n");
   }
 
   fclose(out);
