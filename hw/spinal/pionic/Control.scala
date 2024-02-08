@@ -235,6 +235,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     txProfiler.collectInto(io.hostTxExitTimestamps.payload.asBits, io.hostTxLastProfile)
   }
   txProfiler.fillSlots(io.hostTxLastProfile,
+    // FIXME: this not reliable since hostTx sits in the same 512B word as other regs, so a read on other regs will also trigger this
     Acquire -> io.hostTx.fire,
     AfterTxCommit -> io.hostTxAck.fire,
   )
