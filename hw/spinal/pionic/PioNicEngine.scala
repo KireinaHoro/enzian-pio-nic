@@ -177,8 +177,8 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
 
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
-  private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)
-  private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)
+  private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
+  private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)(config.axiConfig.dataWidth)
 
   val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("ctrl"))
   globalCtrl.rxBlockCycles init 10000
