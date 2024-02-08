@@ -24,6 +24,7 @@ void signal_handler(int sig) {
 typedef struct {
   // TX timestamps
   uint32_t acquire;
+  uint32_t host_got_tx_buf; // needed because acquire is not reliable
   uint32_t after_tx_commit;
   uint32_t after_dma_read;
   uint32_t exit;
@@ -49,7 +50,14 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
   char rx_buf[length];
   const uint8_t *tx_buf = test_data;
 
-  // Tx path is instrumented completely with hardware timestamps.
+  measure_t ret = { 0 };
+
+  // Tx path is instrumented with hardware timestamps.
+  // However, Acquire is not reliable: it fires on read, but sits in the same 512B
+  // as other registers, so a read on those would also trigger Acquire.
+  // Use a host-side timestamp as substitute.
+  ret.host_got_tx_buf = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
     desc.len = length;
@@ -81,8 +89,6 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
   //
   // Taking HostReadCompleted on the CPU requires one PCIe round-trip, resulting in a measurement too late
   // by half the RTT.  This is measured beforehand and subtracted during actual interval calculation.
-
-  measure_t ret = { 0 };
 
   bool got_pkt = pionic_rx(ctx, cid, &desc);
 
@@ -188,7 +194,9 @@ int main(int argc, char *argv[]) {
   pionic_set_core_mask(&ctx, 1);
 
   out = fopen("loopback.csv", "w");
-  fprintf(out, "size,acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_rx_commit_cyc,host_read_complete_cyc\n");
+  fprintf(out, "size,"
+      "acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,host_got_tx_buf_cyc,"
+      "entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_rx_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
   int min_pkt = 64, max_pkt = 9600, step = 64;
@@ -197,7 +205,9 @@ int main(int argc, char *argv[]) {
     printf("Testing packet size %d", to_send);
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
-      fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
+      fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
+          m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.host_got_tx_buf,
+          m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
       printf(".");
       fflush(stdout);
     }
