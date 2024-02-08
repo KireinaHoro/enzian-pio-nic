@@ -22,13 +22,18 @@ void signal_handler(int sig) {
 }
 
 typedef struct {
-  double tx;
+  // TX timestamps
+  uint32_t acquire;
+  uint32_t after_tx_commit;
+  uint32_t after_dma_read;
+  uint32_t exit;
+  // RX timestamps
   uint32_t entry;
   uint32_t after_rx_queue;
   uint32_t after_dma_write;
   uint32_t read_start;
   uint32_t after_read;
-  uint32_t after_commit; // we don't need this
+  uint32_t after_rx_commit; // we don't need this
   uint32_t host_read_complete;
 } measure_t;
 
@@ -44,17 +49,12 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
   char rx_buf[length];
   const uint8_t *tx_buf = test_data;
 
-  // simple elapsed time for tx
-  // TODO: instrument tx path as well (?)
-  TIMEIT_START(ctx, tx)
-
+  // Tx path is instrumented completely with hardware timestamps.
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
     desc.len = length;
     pionic_tx(ctx, cid, &desc);
   }
-
-  TIMEIT_END(ctx, tx)
 
   // Rx path is well instrumented, so let's take advantage of this.
   //
@@ -109,15 +109,17 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
     assert(false);
   }
 
-  ret.tx = TIMEIT_US(tx);
+  ret.acquire = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__ACQUIRE(cid));
+  ret.after_tx_commit = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_TX_COMMIT(cid));
+  ret.after_dma_read = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_DMA_READ(cid));
+  ret.exit = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__EXIT(cid));
+
   ret.entry = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__ENTRY(cid));
   ret.after_rx_queue = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_QUEUE(cid));
   ret.read_start = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START(cid));
   ret.after_dma_write = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE(cid));
   ret.after_read = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ(cid));
-  ret.after_commit = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_COMMIT(cid));
-
-  // printf("Tx+Rx: %lf us; Rx: %lf us\n", TIMEIT_US(rxtx), TIMEIT_US(rx));
+  ret.after_rx_commit = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_COMMIT(cid));
 
   return ret;
 }
@@ -179,7 +181,7 @@ int main(int argc, char *argv[]) {
   pionic_set_core_mask(&ctx, 1);
 
   out = fopen("loopback.csv", "w");
-  fprintf(out, "size,tx_us,entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_commit_cyc,host_read_complete_cyc\n");
+  fprintf(out, "size,acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_rx_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
   int min_pkt = 64, max_pkt = 1500, step = 64;
@@ -187,7 +189,7 @@ int main(int argc, char *argv[]) {
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(&ctx, to_send, i * 64);
-      fprintf(out, "%d,%lf,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.tx, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_commit, m.host_read_complete);
+      fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send, m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
     }
   }
 
