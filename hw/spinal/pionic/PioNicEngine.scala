@@ -30,9 +30,9 @@ case class PioNicConfig(
                          pktBufLenWidth: Int = 16, // max 64KB per packet
                          pktBufSizePerCore: Int = 64 * 1024, // 64KB
                          pktBufAllocSizeMap: Seq[(Int, Double)] = Seq(
-                           (128, .6), // 60% 128B packets
-                           (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
-                           (9618, .1), // 10% 9618B packets (max jumbo frame)
+                           (128, .1),
+                           (1518, .3), // max Ethernet frame with MTU 1500
+                           (9618, .6), // max jumbo frame
                          ),
                          maxRxPktsInFlight: Int = 128,
                          rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
