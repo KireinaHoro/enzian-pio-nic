@@ -122,9 +122,10 @@ void pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
 
 void pionic_tx_get_desc(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
   uint64_t reg = read64(ctx, PIONIC_CONTROL_HOST_TX(cid));
+  uint32_t hw_desc = reg >> 1;
 
-  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(reg & PIONIC_PKT_LEN_MASK);
-  desc->len = (reg >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
+  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(hw_desc & PIONIC_PKT_ADDR_MASK);
+  desc->len = (hw_desc >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
 }
 
 void pionic_tx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
@@ -150,7 +151,11 @@ void dump_stats(pionic_ctx_t *ctx, int cid) {
   READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START)
   READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE)
   READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_COMMIT)
+  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_COMMIT)
+  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__ACQUIRE)
+  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_TX_COMMIT)
+  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_DMA_READ)
+  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__EXIT)
 #undef READ_PRINT
 }
 
