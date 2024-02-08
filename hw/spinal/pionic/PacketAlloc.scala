@@ -24,6 +24,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
   }
 
   assert(config.pktBufAllocSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
+  assert(roundedMap.length == config.pktBufAllocSizeMap.length, "some packet categories did not manage to get any slots")
   assert(log2Up(base + len) <= config.pktBufAddrWidth, "packet buffer address bits overflow")
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
@@ -57,6 +58,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
     // round up slot size to streaming bus size to increase bus utilisation
     println(f"Rx Size $alignedSize: $slots slots @ $curBase%#x")
 
+    // FIXME: what happens if try to allocate when empty?
     val slotFifo = StreamFifo(PacketAddr(), slots)
 
     val initDone = RegInit(False).setWeakName("initDone")
