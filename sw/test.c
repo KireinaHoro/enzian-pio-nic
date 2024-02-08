@@ -140,7 +140,10 @@ int main(int argc, char *argv[]) {
     test_data[i] = rand();
   }
 
-  struct sigaction new = { .sa_handler = signal_handler };
+  struct sigaction new = {
+    .sa_handler = signal_handler,
+    .sa_flags = SA_RESETHAND, // only catch once
+  };
   sigemptyset(&new.sa_mask);
   if (sigaction(SIGBUS, &new, NULL)) {
     perror("sigaction");
