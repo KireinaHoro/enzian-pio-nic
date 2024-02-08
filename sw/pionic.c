@@ -106,16 +106,25 @@ bool pionic_rx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
   uint64_t reg = read64(ctx, PIONIC_CONTROL_HOST_RX_NEXT(cid));
   if (reg & 0x1) {
     uint32_t hw_desc = reg >> 1;
-    desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(hw_desc & PIONIC_PKT_ADDR_MASK);
-    desc->len = (hw_desc >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
+    uint64_t read_addr = PIONIC_PKTBUF_OFF_TO_ADDR(hw_desc & PIONIC_PKT_ADDR_MASK);
+    uint64_t pkt_len = (hw_desc >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
+    desc->buf = (uint8_t *)(ctx->bar) + read_addr;
+    desc->len = pkt_len;
+#ifdef DEBUG
+    printf("Got packet at pktbuf %#lx len %#lx\n", PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
+#endif
     return true;
   } else {
+#ifdef DEBUG
+    printf("Did not get packet\n");
+#endif
     return false;
   }
 }
 
 void pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
-  uint64_t reg = ((desc->buf - (uint8_t *)(ctx->bar)) & PIONIC_PKT_ADDR_MASK) | ((desc->len & PIONIC_PKT_LEN_MASK) << PIONIC_PKT_ADDR_WIDTH);
+  uint64_t read_addr = desc->buf - (uint8_t *)(ctx->bar);
+  uint64_t reg = (PIONIC_ADDR_TO_PKTBUF_OFF(read_addr) & PIONIC_PKT_ADDR_MASK) | ((desc->len & PIONIC_PKT_LEN_MASK) << PIONIC_PKT_ADDR_WIDTH);
 
   write64(ctx, PIONIC_CONTROL_HOST_RX_NEXT_ACK(cid), reg);
 }
@@ -124,7 +133,7 @@ void pionic_tx_get_desc(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
   uint64_t reg = read64(ctx, PIONIC_CONTROL_HOST_TX(cid));
   uint32_t hw_desc = reg >> 1;
 
-  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF(hw_desc & PIONIC_PKT_ADDR_MASK);
+  desc->buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF_OFF_TO_ADDR(hw_desc & PIONIC_PKT_ADDR_MASK);
   desc->len = (hw_desc >> PIONIC_PKT_ADDR_WIDTH) & PIONIC_PKT_LEN_MASK;
 }
 
