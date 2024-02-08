@@ -16,7 +16,6 @@ object PioNicEngineSim extends App {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(
     numCores = 8, // to test for dispatching
-    pktBufAddrWidth = 32,
   )
 
   val dut = Config.sim
