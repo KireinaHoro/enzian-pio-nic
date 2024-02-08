@@ -11,6 +11,7 @@ import spinal.lib.bus.amba4.axis.sim._
 import jsteward.blocks.misc.RegBlockReadBack
 
 import scala.util._
+import scala.util.control.TailCalls._
 
 object PioNicEngineSim extends App {
   // TODO: test on multiple configs
@@ -30,7 +31,6 @@ object PioNicEngineSim extends App {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
-    SimTimeout(cyc(2000))
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
     dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
     dut.cmacTxClock.forkStimulus(period = 4) // 250 MHz
@@ -56,6 +56,19 @@ object PioNicEngineSim extends App {
     (master, axisMaster, axisSlave)
   }
 
+  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: PioNicEngine): TailRec[Option[PacketDescSim]] = {
+    if (maxTries == 0) done(None)
+    else {
+      println(s"Reading packet desc, $maxTries tries left...")
+      master.read(coreBlock("hostRxNext"), 8).toRxPacketDesc match {
+        case Some(x) => done(Some(x))
+        case None =>
+          sleep(cyc(200))
+          tailcall(tryReadPacketDesc(master, coreBlock, maxTries - 1))
+      }
+    }
+  }
+
   def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
     // the tx interface should never be active!
     dut.cmacTxClock.onSamplings {
@@ -71,33 +84,27 @@ object PioNicEngineSim extends App {
     (axiMaster, axisSlave)
   }
 
-  // TODO: test for various failures
-  dut.doSim("rx-regular") { implicit dut =>
+  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: PioNicEngine) = {
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
-    val (master, axisMaster) = rxDutSetup(100)
-
-    var data = master.read(coreBlock("hostRxNext"), 8)
-    assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
-
-    val toSend = Random.nextBytes(256).toList
     fork {
       sleep(cyc(20))
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
 
-    // test for actually receiving a packet
-    data = master.read(coreBlock("hostRxNext"), 8)
+    val counterBefore = master.read(coreBlock("rxPacketCount"), 8).bytesToBigInt
 
-    val desc = data.toRxPacketDesc.get
+    // test for actually receiving a packet
+    val desc = tryReadPacketDesc(master, coreBlock).result.get
     println(s"Received status register: $desc")
     assert(desc.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${desc.size}")
     assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "rx buffer not aligned!")
+    assert(desc.addr < nicConfig.pktBufSize, f"packet address out of bounds: ${desc.addr}%#x")
 
     // read memory and check data
-    data = master.read(pktBufAddr + desc.addr, desc.size)
+    val data = master.read(pktBufAddr + desc.addr, desc.size)
     assert(data == toSend,
       s"""data mismatch:
          |expected: "${toSend.bytesToHex}"
@@ -107,9 +114,34 @@ object PioNicEngineSim extends App {
     // free packet buffer
     println(s"desc $desc to bytes: ${desc.toBigInt.hexString}")
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
-    data = master.read(coreBlock("rxPacketCount"), 8)
-    val counter = data.bytesToBigInt
-    assert(counter == 1, s"retired packet count mismatch: expected 1, got $counter")
+
+    val counter = master.read(coreBlock("rxPacketCount"), 8).bytesToBigInt
+    assert(counter == 1 + counterBefore, s"retired packet count mismatch: expected ${counterBefore + 1}, got $counter")
+  }
+
+  // TODO: test for various failures
+  dut.doSim("rx-regular") { implicit dut =>
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val (master, axisMaster) = rxDutSetup(100)
+
+    var data = master.read(coreBlock("hostRxNext"), 8)
+    assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
+
+    // set core mask to only schedule to core 0
+    val mask = b"00000001"
+    master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
+
+    // reset packet allocator
+    master.write(coreBlock("allocReset"), 1.toBytes);
+    sleep(cyc(200))
+    master.write(coreBlock("allocReset"), 0.toBytes);
+
+    // test for 200 runs
+    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 512)) {
+      val toSend = Random.nextBytes(size).toList
+      0 until 50 foreach { _ => rxSimple(master, axisMaster, toSend) }
+    }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
