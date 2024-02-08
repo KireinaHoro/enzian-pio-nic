@@ -31,19 +31,41 @@ typedef struct {
 } pionic_pkt_desc_t;
 
 static inline void write64(pionic_ctx_t *ctx, uint64_t addr, uint64_t reg) {
+#ifdef DEBUG_REG
+  printf("W %#lx <- %#lx\n", addr, reg);
+#endif
   ((volatile uint64_t *)ctx->bar)[addr / 8] = reg;
 }
 
 static inline uint64_t read64(pionic_ctx_t *ctx, uint64_t addr) {
-  return ((volatile uint64_t *)ctx->bar)[addr / 8];
+#ifdef DEBUG_REG
+  printf("R %#lx -> ", addr);
+  fflush(stdout);
+#endif
+  uint64_t reg = ((volatile uint64_t *)ctx->bar)[addr / 8];
+#ifdef DEBUG_REG
+  printf("%#lx\n", reg);
+#endif
+  return reg;
 }
 
 static inline void write32(pionic_ctx_t *ctx, uint64_t addr, uint32_t reg) {
+#ifdef DEBUG_REG
+  printf("W %#lx <- %#x\n", addr, reg);
+#endif
   ((volatile uint32_t *)ctx->bar)[addr / 4] = reg;
 }
 
 static inline uint32_t read32(pionic_ctx_t *ctx, uint64_t addr) {
-  return ((volatile uint32_t *)ctx->bar)[addr / 4];
+#ifdef DEBUG_REG
+  printf("R %#lx -> ", addr);
+  fflush(stdout);
+#endif
+  uint32_t reg = ((volatile uint32_t *)ctx->bar)[addr / 4];
+#ifdef DEBUG_REG
+  printf("%#x\n", reg);
+#endif
+  return reg;
 }
 
 int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);

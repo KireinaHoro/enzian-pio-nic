@@ -90,6 +90,10 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
     assert(got_pkt && "failed to receive packet");
 
     // check rx match with tx
+#ifdef DEBUG
+    printf("rx packet len: %ld; tx packet len: %d\n", desc.len, length);
+    printf("Reading out packet @ %p, %ld bytes\n", desc.buf, desc.len);
+#endif
     assert(desc.len == length && "rx packet length does not match tx");
     memcpy(rx_buf, desc.buf, desc.len);
 
