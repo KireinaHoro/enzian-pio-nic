@@ -7,12 +7,12 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.eda._
-
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
 
 import scala.language.postfixOps
 import mainargs._
+import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
 case class PioNicConfig(
                          axiConfig: Axi4Config = Axi4Config(
@@ -230,9 +230,9 @@ object PioNicEngineVerilog {
           @arg(doc = "print register map")
           printRegMap: Boolean = true,
          ): Unit = {
-    val report = Config.spinal.generateVerilog(PioNicEngine())
+    val report = Config.spinal.generateVhdl(PioNicEngine())
     report.mergeRTLSource("Merged")
-    report.writeConstraints()
+    VivadoConstraintWriter(report)
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       val genDir = os.pwd / os.RelPath(Config.outputDirectory)
