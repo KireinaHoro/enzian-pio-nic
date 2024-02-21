@@ -1,81 +1,19 @@
-package pionic
-
-// alexforencich IPs
+package pionic.pcie
 
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis._
-import spinal.lib.eda._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
 
 import scala.language.postfixOps
 import mainargs._
+import pionic._
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
-case class PioNicConfig(
-                         axiConfig: Axi4Config = Axi4Config(
-                           addressWidth = 64,
-                           dataWidth = 512,
-                           idWidth = 4,
-                         ),
-                         axisConfig: Axi4StreamConfig = Axi4StreamConfig(
-                           dataWidth = 64, // BYTES
-                           useKeep = true,
-                           useLast = true,
-                         ),
-                         regWidth: Int = 64,
-                         pktBufAddrWidth: Int = 24,
-                         pktBufLenWidth: Int = 16, // max 64KB per packet
-                         pktBufSizePerCore: Int = 64 * 1024, // 64KB
-                         pktBufAllocSizeMap: Seq[(Int, Double)] = Seq(
-                           (128, .1),
-                           (1518, .3), // max Ethernet frame with MTU 1500
-                           (9618, .6), // max jumbo frame
-                         ),
-                         maxRxPktsInFlight: Int = 128,
-                         rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
-                         numCores: Int = 4,
-                         // for Profiling
-                         collectTimestamps: Boolean = true,
-                         timestampWidth: Int = 32, // width for a single timestamp
-                       ) {
-  def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
-
-  def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
-
-  def pktBufSize = numCores * pktBufSizePerCore
-
-  def mtu = pktBufAllocSizeMap.map(_._1).max
-
-  def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
-
-  def coreIDWidth = log2Up(numCores)
-
-  val allocFactory = new RegAllocatorFactory
-
-  def writeHeader(outPath: os.Path): Unit = {
-    os.remove(outPath)
-    os.write(outPath,
-      f"""|#ifndef __PIONIC_CONFIG_H__
-          |#define __PIONIC_CONFIG_H__
-          |
-          |#define PIONIC_NUM_CORES $numCores
-          |#define PIONIC_PKT_ADDR_WIDTH $pktBufAddrWidth
-          |#define PIONIC_PKT_ADDR_MASK ((1 << PIONIC_PKT_ADDR_WIDTH) - 1)
-          |#define PIONIC_PKT_LEN_WIDTH $pktBufLenWidth
-          |#define PIONIC_PKT_LEN_MASK ((1 << PIONIC_PKT_LEN_WIDTH) - 1)
-          |
-          |#define PIONIC_CLOCK_FREQ ${Config.spinal.defaultClockDomainFrequency.getValue.toLong}
-          |
-          |#endif // __PIONIC_CONFIG_H__
-          |""".stripMargin)
-  }
-}
-
-case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"),
-                        cmacTxClock: ClockDomain = ClockDomain.external("cmacTxClock"))(implicit config: PioNicConfig) extends Component {
+case class PcieEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"),
+                      cmacTxClock: ClockDomain = ClockDomain.external("cmacTxClock"))(implicit config: PioNicConfig) extends Component {
   // allow second run of elaboration to work
   config.allocFactory.clear()
 
@@ -221,8 +159,8 @@ case class PioNicEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxC
   }
 }
 
-object PioNicEngineVerilog {
-  implicit val config = PioNicConfig()
+object GenEngineVerilog {
+  implicit val config = new PioNicConfig
 
   @main
   def run(@arg(doc = "generate driver headers")
@@ -230,14 +168,15 @@ object PioNicEngineVerilog {
           @arg(doc = "print register map")
           printRegMap: Boolean = true,
          ): Unit = {
-    val report = Config.spinal.generateVhdl(PioNicEngine())
-    report.mergeRTLSource("Merged")
+    val report = Config.spinal.generateVerilog(PcieEngine())
+    report.mergeRTLSource("PcieEngine_ips")
     VivadoConstraintWriter(report)
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
-      val genDir = os.pwd / os.RelPath(Config.outputDirectory)
+      val genDir = os.pwd / os.RelPath(Config.outputDirectory) / "pcie"
+      os.makeDir.all(genDir)
       config.allocFactory.writeHeader("pionic", genDir / "regs.h")
-      config.writeHeader(genDir / "config.h")
+      writeHeader(genDir / "config.h")
     }
   }
 

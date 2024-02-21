@@ -6,7 +6,6 @@ import scala.language.postfixOps
 
 package object pionic {
   def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
-
   object CLZ {
     // https://electronics.stackexchange.com/a/649761
     def apply(v: Bits): UInt = new Composite(v, "clz") {
