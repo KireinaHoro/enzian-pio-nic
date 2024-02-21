@@ -17,7 +17,7 @@
 
 #else
 
-#include "../hw/gen/regs.h"
+#include "../../hw/gen/pcie/regs.h"
 
 #define TIMEIT_START(ctx, name) \
   uint64_t __##name##_start, __##name##_end; \
