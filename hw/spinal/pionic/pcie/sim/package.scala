@@ -1,5 +1,6 @@
-package pionic
+package pionic.pcie
 
+import pionic.PioNicConfig
 import spinal.lib._
 
 package object sim {

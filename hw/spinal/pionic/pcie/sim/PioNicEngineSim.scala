@@ -1,13 +1,12 @@
-package pionic.sim
+package pionic.pcie.sim
 
-import pionic.{Config, PioNicConfig, PioNicEngine}
-
+import pionic.{Config, PioNicConfig}
+import pionic.pcie.PcieEngine
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.sim._
 import spinal.lib.bus.amba4.axis.sim._
-
 import jsteward.blocks.misc.RegBlockReadBack
 
 import scala.util._
@@ -23,11 +22,11 @@ object PioNicEngineSim extends App {
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
-    .compile(PioNicEngine())
+    .compile(PcieEngine())
 
-  def cyc(c: Int)(implicit dut: PioNicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
+  def cyc(c: Int)(implicit dut: PcieEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
-  def commonDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int)(implicit dut: PcieEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
@@ -56,7 +55,7 @@ object PioNicEngineSim extends App {
     (master, axisMaster, axisSlave)
   }
 
-  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: PioNicEngine): TailRec[Option[PacketDescSim]] = {
+  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: PcieEngine): TailRec[Option[PacketDescSim]] = {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
@@ -69,7 +68,7 @@ object PioNicEngineSim extends App {
     }
   }
 
-  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PioNicEngine) = {
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PcieEngine) = {
     // the tx interface should never be active!
     dut.cmacTxClock.onSamplings {
       assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
@@ -79,12 +78,12 @@ object PioNicEngineSim extends App {
     (axiMaster, axisMaster)
   }
 
-  def txDutSetup()(implicit dut: PioNicEngine) = {
+  def txDutSetup()(implicit dut: PcieEngine) = {
     val (axiMaster, _, axisSlave) = commonDutSetup(10000) // arbitrary rxBlockCycles
     (axiMaster, axisSlave)
   }
 
-  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: PioNicEngine) = {
+  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: PcieEngine) = {
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
