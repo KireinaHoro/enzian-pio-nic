@@ -12,7 +12,7 @@ import jsteward.blocks.misc.RegBlockReadBack
 import scala.util._
 import scala.util.control.TailCalls._
 
-object PioNicEngineSim extends App {
+object NicSim extends App {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(
     numCores = 8, // to test for dispatching

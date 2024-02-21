@@ -44,24 +44,19 @@ $ mill version
 Generate Verilog into `hw/gen/`:
 
 ```console
-$ mill pioNicEngineModule.runMain pionic.PioNicEngineVerilog
-[49/49] pioNicEngineModule.run
-[Runtime] SpinalHDL v1.9.0    git head : 7d30dbacbd3aa1be42fb2a3d4da5675703aae2ae
-[Runtime] JVM max memory : 16012.0MiB
-[Runtime] Current date : 2023.12.11 16:53:30
-[Progress] at 0.000 : Elaborate components
-[Progress] at 0.405 : Checks and transforms
-[Progress] at 0.581 : Generate Verilog
-[Warning] 206 signals were pruned. You can call printPruned on the backend report to get more informations.
-[Done] at 0.714
-$ file hw/gen/Merged.v
-hw/gen/Merged.v: ASCII text
+$ mill pcie.generateVerilog
+$ file hw/gen/PcieEngine{{,_ips}.v,{,_ooc}.xdc}
+hw/gen/PcieEngine.v:       ASCII text
+hw/gen/PcieEngine_ips.v:   ASCII text
+hw/gen/PcieEngine.xdc:     ASCII text
+hw/gen/PcieEngine_ooc.xdc: ASCII text
+TODO ECI
 ```
 
 Run test benches:
 
 ```console
-$ mill pioNicEngineModule.runMain pionic.sim.PioNicEngineSim
+$ mill pcie.runMain pionic.pcie.sim.NicSim
 ...
 [Progress] Verilator compilation done in 5542.813 ms
 [Progress] Start PioNicEngine rx-regular simulation with seed 1445906924
@@ -70,17 +65,18 @@ $ mill pioNicEngineModule.runMain pionic.sim.PioNicEngineSim
 [Progress] Start PioNicEngine tx-regular simulation with seed 71106236
 ...
 [Done] Simulation done in 16.665 ms
+$ # TODO ECI
 ```
 
 Create Vivado project and generate the bitstream:
 
 ```console
-$ mill --no-server pioNicEngineModule.generateBitstream
+$ mill --no-server pcie.generateBitstream
 ...
 
-$ file out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.runs/impl_1/pio-nic.{bit,ltx}
-[...]/pio-nic.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
-[...]/pio-nic.ltx: ASCII text
+$ file out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.{bit,ltx}
+[...]/pio-nic-pcie.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
+[...]/pio-nic-pcie.ltx: ASCII text
 ```
 
 **Note**: if mill complains about not being able to find Vivado, try killing the mill server:
@@ -95,13 +91,14 @@ This is due to the old mill server still using the old `PATH` environment.  Runn
 Build userspace software (drivers):
 
 ```console
-$ cd sw && make
+$ cd sw/pcie && make
 ...
 $ file pionic-test
 pionic-test: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=f5f6636f5ffa34cc6577c7be2778856dfaeb3f80, for GNU/Linux 3.7.0, with debug_info, not stripped
+$ # TODO ECI
 ```
 
-The test should be ran on an Enzian with a PCIe cable between the CPU and FPGA (`zuestoll11-12` at the moment).
+The PCIe test should be ran on an Enzian with a PCIe cable between the CPU and FPGA (`zuestoll11-12` at the moment).
 
 ## Devs Area
 
@@ -114,13 +111,13 @@ $ mill mill.idea.GenIdea/idea
 Interact with the Vivado project (e.g. change the block design, read timing reports, etc.):
 
 ```console
-$ mill --no-server pioNicEngineModule.vivadoProject
+$ mill --no-server pcie.vivadoProject
 ...
-$ vivado out/pioNicEngineModule/vivadoProject.dest/pio-nic/pio-nic.xpr
+$ vivado out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.xpr
 ```
 
 Remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
 
 ```tcl
-write_project_tcl -no_ip_version -paths_relative_to ./vivado -force vivado/create_project.tcl
+write_project_tcl -no_ip_version -paths_relative_to ./vivado/pcie -force vivado/pcie/create_project.tcl
 ```

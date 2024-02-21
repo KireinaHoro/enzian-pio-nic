@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "../hw/gen/regs.h"
-#include "../hw/gen/config.h"
+#include "../../hw/gen/pcie/regs.h"
+#include "../../hw/gen/pcie/config.h"
 
 #define PIONIC_PKTBUF_OFF_TO_ADDR(off)   ((off)  + PIONIC_PKT_BUFFER)
 #define PIONIC_ADDR_TO_PKTBUF_OFF(addr)  ((addr) - PIONIC_PKT_BUFFER)
