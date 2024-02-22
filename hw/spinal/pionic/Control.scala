@@ -240,7 +240,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     AfterTxCommit -> io.hostTxAck.fire,
   )
 
-  def driveFrom(busCtrl: BusSlaveFactory, baseAddress: BigInt)(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength], txTimestamps: Flow[Timestamps])(implicit globalStatus: GlobalStatusBundle) = new Area {
+  def drivePlatformAgnostic(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength], txTimestamps: Flow[Timestamps])(implicit globalStatus: GlobalStatusBundle) = new Area {
     io.globalCtrl := globalCtrl
     io.globalStatus := globalStatus
 
@@ -253,10 +253,15 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
 
     io.cmacRxAlloc << cmacRx
 
+    // exit timestamp for tx, demux'ed for this core
+    io.hostTxExitTimestamps << txTimestamps
+  }
+
+  def drivePcie(busCtrl: BusSlaveFactory, baseAddress: BigInt) = new Area {
     private val alloc = config.allocFactory("control", coreID)(baseAddress, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
 
     val rxNextAddr = alloc("hostRxNext", readSensitive = true)
-    busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, globalCtrl.rxBlockCycles)
+    busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, io.globalCtrl.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
 
     // on read primitive (AR for AXI), set hostRxNextReq for timing ReadStart
@@ -264,9 +269,6 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     busCtrl.onReadPrimitive(SingleMapping(rxNextAddr), haltSensitive = false, "read request issued") {
       io.hostRxNextReq := True
     }
-
-    // exit timestamp for tx, demux'ed for this core
-    io.hostTxExitTimestamps << txTimestamps
 
     // should not block; only for profiling (to use ready signal)
     busCtrl.readStreamNonBlocking(io.hostTx, alloc("hostTx", readSensitive = true))

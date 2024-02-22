@@ -35,8 +35,8 @@ object NicSim extends App {
     dut.cmacTxClock.forkStimulus(period = 4) // 250 MHz
 
     val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.io.s_axis_rx, dut.cmacRxClock)
-    val axisSlave = Axi4StreamSlave(dut.io.m_axis_tx, dut.cmacTxClock)
+    val axisMaster = Axi4StreamMaster(dut.s_axis_rx, dut.cmacRxClock)
+    val axisSlave = Axi4StreamSlave(dut.m_axis_tx, dut.cmacTxClock)
 
     // reset value of dispatch mask should be all 1
     val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
@@ -71,7 +71,7 @@ object NicSim extends App {
   def rxDutSetup(rxBlockCycles: Int)(implicit dut: PcieEngine) = {
     // the tx interface should never be active!
     dut.cmacTxClock.onSamplings {
-      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+      assert(!dut.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
     val (axiMaster, axisMaster, _) = commonDutSetup(rxBlockCycles)
@@ -187,7 +187,7 @@ object NicSim extends App {
 
     // the tx interface should never be active!
     dut.cmacTxClock.onSamplings {
-      assert(!dut.io.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+      assert(!dut.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
     master.write(globalBlock("ctrl"), 100.toBytes) // rxBlockCycles

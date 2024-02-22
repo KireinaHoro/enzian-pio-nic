@@ -12,114 +12,21 @@ import mainargs._
 import pionic._
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
-case class PcieEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClock"),
-                      cmacTxClock: ClockDomain = ClockDomain.external("cmacTxClock"))(implicit config: PioNicConfig) extends Component {
+case class PcieEngine()(implicit val config: PioNicConfig) extends CmacInterface {
   // allow second run of elaboration to work
   config.allocFactory.clear()
 
-  private val axiConfig = config.axiConfig
-  private val axisConfig = config.axisConfig
-
-  // global cycles counter for measurements
-  implicit val globalStatus = GlobalStatusBundle()
-  implicit val clock = globalStatus.cyclesCount
-
   val io = new Bundle {
-    val s_axi = slave(Axi4(axiConfig))
-    val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
-    val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
+    val s_axi = slave(Axi4(config.axiConfig))
   }
 
-  val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
-  val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
-  val rxProfiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
-
-  val Exit = NamedType(Timestamp)
-  val txProfiler = Profiler(Exit)(config.collectTimestamps)
-
-  // capture cmac rx lastFire
-  val rxTimestamps = rxProfiler.timestamps.clone
-  val rxLastFireCdc = PulseCCByToggle(io.s_axis_rx.lastFire, cmacRxClock, clockDomain)
-  rxProfiler.fillSlot(rxTimestamps, Entry, rxLastFireCdc)
-  val txAxisConfig = axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
-
-  // CDC for tx
-  val txFifo = AxiStreamAsyncFifo(txAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
-  txFifo.masterPort.translateInto(io.m_axis_tx)(_ <<? _) // ignore TUSER
-
-  val txTimestamps = txProfiler.timestamps.clone
-
-  val txClkArea = new ClockingArea(cmacTxClock) {
-    val lastCoreIDFlow = ValidFlow(RegNext(txFifo.masterPort.user)).takeWhen(txFifo.masterPort.lastFire)
-  }
-
-  val lastCoreIDFlowCdc = txClkArea.lastCoreIDFlow.ccToggle(cmacTxClock, clockDomain)
-  txProfiler.fillSlot(txTimestamps, Exit, lastCoreIDFlowCdc.fire)
-
-  // demux timestamps: generate valid for Flow[Timestamps] back into Control
-  val txTimestampsFlows = Seq.tabulate(config.numCores) { coreID =>
-    val delayedCoreIDFlow = RegNext(lastCoreIDFlowCdc)
-    ValidFlow(txTimestamps).takeWhen(delayedCoreIDFlow.valid && delayedCoreIDFlow.payload === coreID)
-  }
-
-  // CDC for rx
-  // buffer incoming packet for packet length
-  val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
-  rxFifo.slavePort << io.s_axis_rx
-  // derive cmac incoming packet length
-
-  // report overflow
-  val rxOverflow = Bool()
-  val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-  val rxOverflowCounter = Counter(config.regWidth bits, rxOverflowCdc)
-
-  val cmacReq = io.s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
-  val cmacReqCdc = cmacReq.clone
-  SimpleAsyncFifo(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
-
-  // only dispatch to enabled cores
-  val dispatchMask = Bits(config.numCores bits)
-  val dispatchedCmacRx = StreamDispatcherWithEnable(
-    input = cmacReqCdc,
-    outputCount = config.numCores,
-    enableMask = dispatchMask,
-  ).setName("packetLenDemux")
-
-  val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(config.pktBufSize)))
-
-  // TX DMA USER: core ID to demux timestamp
-  val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
-  val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
-  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment axisConfig)
-  val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
-
-  val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
-  axiDma.io.m_axi >> pktBuffer.io.s_axi_a
-  axiDma.readDataMaster.translateInto(txFifo.slavePort) { case (fifo, dma) =>
-    fifo.user := dma.user.resized
-    fifo.assignUnassignedByName(dma)
-  }
-  val rxFifoTimestamped = rxProfiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = rxTimestamps)
-  axiDma.writeDataSlave << rxFifoTimestamped
-  println(f"rx fifo timestamped: $rxFifoTimestamped")
-
-  axiDma.io.read_enable := True
-  axiDma.io.write_enable := True
-  axiDma.io.write_abort := False
-
-  // mux descriptors
-  axiDmaReadMux.connectRead(axiDma)
-  axiDmaWriteMux.connectWrite(axiDma)
-
-  val axiWideConfigNode = Axi4(axiConfig)
-
+  val axiWideConfigNode = Axi4(config.axiConfig)
   val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
   private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
   private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)(config.axiConfig.dataWidth)
 
-  val globalCtrl = busCtrl.createReadAndWrite(GlobalControlBundle(), alloc("ctrl"))
-  globalCtrl.rxBlockCycles init 10000
+  busCtrl.driveAndRead(globalCtrl, alloc("ctrl"))
   busCtrl.driveAndRead(dispatchMask, alloc("dispatchMask")) init (1 << config.numCores) - 1
 
   // global statistics
@@ -128,17 +35,6 @@ case class PcieEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClo
   val cyclesCounter = CounterFreeRun(config.regWidth bits)
   globalStatus.cyclesCount.bits := cyclesCounter
   busCtrl.read(cyclesCounter.value, alloc("cyclesCount")) // for host reference
-
-  for (id <- 0 until config.numCores) {
-    new PioCoreControl(rxDmaConfig, txDmaConfig, id, rxProfiler, txProfiler).setName(s"coreCtrl_$id")
-      .driveFrom(busCtrl, (1 + id) * 0x1000)(
-        globalCtrl = globalCtrl,
-        rdMux = axiDmaReadMux,
-        wrMux = axiDmaWriteMux,
-        cmacRx = dispatchedCmacRx(id),
-        txTimestamps = txTimestampsFlows(id),
-      )
-  }
 
   Axi4CrossbarFactory()
     .addSlaves(
@@ -150,6 +46,10 @@ case class PcieEngine(cmacRxClock: ClockDomain = ClockDomain.external("cmacRxClo
       io.s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b),
     )
     .build()
+
+  coreCtrls.zipWithIndex map { case (ctrl, id) =>
+    ctrl.drivePcie(busCtrl, (1 + id) * 0x1000)
+  }
 
   // rename ports so Vivado could infer interfaces automatically
   noIoPrefix()
