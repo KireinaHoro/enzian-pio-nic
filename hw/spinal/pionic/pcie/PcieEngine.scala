@@ -3,19 +3,14 @@ package pionic.pcie
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
-import spinal.lib.bus.amba4.axis._
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.{Profiler, RegAllocatorFactory}
 
 import scala.language.postfixOps
 import mainargs._
 import pionic._
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
-case class PcieEngine()(implicit val config: PioNicConfig) extends CmacInterface {
-  // allow second run of elaboration to work
-  config.allocFactory.clear()
-
+case class PcieEngine()(implicit val config: PioNicConfig) extends NicEngine with CmacInterface {
   val io = new Bundle {
     val s_axi = slave(Axi4(config.axiConfig))
   }
@@ -36,6 +31,9 @@ case class PcieEngine()(implicit val config: PioNicConfig) extends CmacInterface
   globalStatus.cyclesCount.bits := cyclesCounter
   busCtrl.read(cyclesCounter.value, alloc("cyclesCount")) // for host reference
 
+  val pktBuffer = new AxiDpRam(config.axiConfig.copy(addressWidth = log2Up(config.pktBufSize)))
+  axiDma.io.m_axi >> pktBuffer.io.s_axi_a
+
   Axi4CrossbarFactory()
     .addSlaves(
       axiWideConfigNode -> (0x0, (config.numCores + 1) * 0x1000),
@@ -49,13 +47,6 @@ case class PcieEngine()(implicit val config: PioNicConfig) extends CmacInterface
 
   coreCtrls.zipWithIndex map { case (ctrl, id) =>
     ctrl.drivePcie(busCtrl, (1 + id) * 0x1000)
-  }
-
-  // rename ports so Vivado could infer interfaces automatically
-  noIoPrefix()
-  addPrePopTask { () =>
-    renameAxi4IO
-    renameAxi4StreamIO(alwaysAddT = true)
   }
 }
 
@@ -73,10 +64,11 @@ object GenEngineVerilog {
     VivadoConstraintWriter(report)
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
-      val genDir = os.pwd / os.RelPath(Config.outputDirectory) / "pcie"
+      val commonGenDir = os.pwd / os.RelPath(Config.outputDirectory)
+      val genDir = commonGenDir / "eci"
       os.makeDir.all(genDir)
       config.allocFactory.writeHeader("pionic", genDir / "regs.h")
-      writeHeader(genDir / "config.h")
+      writeHeader(commonGenDir / "config.h")
     }
   }
 
