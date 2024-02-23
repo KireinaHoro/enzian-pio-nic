@@ -8,9 +8,8 @@ import jsteward.blocks.misc.Profiler
 
 import scala.language.postfixOps
 
-// FIXME: should be a trait to allow further mixin; tracking issue: https://github.com/SpinalHDL/SpinalHDL/issues/1322
-abstract class CmacInterface extends Component {
-  protected[this] implicit val config: PioNicConfig
+trait CmacInterface {
+  this: NicEngine =>
 
   val cmacRxClock = ClockDomain.external("cmacRxClock")
   val cmacTxClock = ClockDomain.external("cmacTxClock")
@@ -77,8 +76,6 @@ abstract class CmacInterface extends Component {
     enableMask = dispatchMask,
   ).setName("packetLenDemux")
 
-  val pktBuffer = new AxiDpRam(config.axiConfig.copy(addressWidth = log2Up(config.pktBufSize)))
-
   // TX DMA USER: core ID to demux timestamp
   val txDmaConfig = AxiDmaConfig(config.axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
@@ -86,7 +83,6 @@ abstract class CmacInterface extends Component {
   val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = config.numCores, arbRoundRobin = false)
 
   val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
-  axiDma.io.m_axi >> pktBuffer.io.s_axi_a
   axiDma.readDataMaster.translateInto(txFifo.slavePort) { case (fifo, dma) =>
     fifo.user := dma.user.resized
     fifo.assignUnassignedByName(dma)
