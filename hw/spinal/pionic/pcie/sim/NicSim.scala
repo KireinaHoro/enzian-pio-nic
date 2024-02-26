@@ -34,7 +34,7 @@ object NicSim extends App {
     dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
     dut.cmacTxClock.forkStimulus(period = 4) // 250 MHz
 
-    val master = Axi4Master(dut.io.s_axi, dut.clockDomain)
+    val master = Axi4Master(dut.s_axi, dut.clockDomain)
     val axisMaster = Axi4StreamMaster(dut.s_axis_rx, dut.cmacRxClock)
     val axisSlave = Axi4StreamSlave(dut.m_axis_tx, dut.cmacTxClock)
 
