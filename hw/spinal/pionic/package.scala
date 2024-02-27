@@ -74,7 +74,7 @@ package object pionic {
           |#define PIONIC_PKT_LEN_WIDTH $pktBufLenWidth
           |#define PIONIC_PKT_LEN_MASK ((1 << PIONIC_PKT_LEN_WIDTH) - 1)
           |
-          |#define PIONIC_CLOCK_FREQ ${Config.spinal.defaultClockDomainFrequency.getValue.toLong}
+          |#define PIONIC_CLOCK_FREQ ${Config.spinal().defaultClockDomainFrequency.getValue.toLong}
           |
           |#endif // __PIONIC_CONFIG_H__
           |""".stripMargin)
