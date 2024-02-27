@@ -39,21 +39,16 @@ trait CommonModule extends SbtModule {
     ivy"com.lihaoyi::os-lib:0.9.3",
     ivy"com.lihaoyi::mainargs:0.5.4",
   )
-  def generatedSourcesPath = millSourcePath / "hw" / "gen"
 
-  def generatorMainClass: String
-  def generatedModuleName: String
+  def variant: String
+  def generatedSourcesPath = millSourcePath / "hw" / "gen" / variant
+
   def generateVerilog = T {
     sources()
-    Jvm.runSubprocess(generatorMainClass,
-      runClasspath().map(_.path),
-      forkArgs(),
-      forkEnv(),
-      workingDir = forkWorkingDir(),
-      useCpPassingJar = runUseArgsFile()
-    )
+    runMain("pionic.GenEngineVerilog",
+      "--name", variant)()
 
-    Seq(s"$generatedModuleName-ips.v", s"$generatedModuleName.v").map(fn => PathRef(generatedSourcesPath / fn))
+    Seq("NicEngine_ips.v", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
   }
 
   def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path): Unit = {
@@ -64,8 +59,8 @@ trait CommonModule extends SbtModule {
       args).call(stdout = os.Inherit, stderr = os.Inherit, cwd = cwd)
   }
 
-  def vivadoRoot: os.Path
-  def vivadoProjectName: String
+  def vivadoRoot = millSourcePath / "vivado" / variant
+  def vivadoProjectName = s"pio-nic-$variant"
   def projectTcl = T.source(vivadoRoot / "create_project.tcl")
   def vivadoProject = T {
     generateVerilog()
@@ -81,20 +76,7 @@ trait CommonModule extends SbtModule {
   }
 }
 
-object pcie extends CommonModule {
-  def generatedModuleName = "PcieEngine"
-  def generatorMainClass = s"pionic.pcie.GenEngineVerilog"
-
-  def vivadoRoot = millSourcePath / "vivado" / "pcie"
-  def vivadoProjectName = "pio-nic-pcie"
-}
-
-object eci extends CommonModule {
-  def generatedModuleName = "EciEngine"
-  def generatorMainClass = s"pionic.eci.GenEngineVerilog"
-
-  def vivadoRoot = millSourcePath / "vivado" / "eci"
-  def vivadoProjectName = "pio-nic-eci"
-}
+object pcie extends CommonModule { def variant = "pcie" }
+object eci extends CommonModule { def variant = "eci" }
 
 // vi: ft=scala

@@ -6,9 +6,7 @@ import pionic.pcie.PcieBridgeInterfacePlugin
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
 object GenEngineVerilog {
-  implicit val config = new PioNicConfig
-
-  def engineFromName(name: String) = name match {
+  def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
     case "pcie" => NicEngine(Seq(new CmacInterfacePlugin, new PcieBridgeInterfacePlugin))
     case "eci" => NicEngine(Seq(new CmacInterfacePlugin, new EciInterfacePlugin))
   }
@@ -22,6 +20,8 @@ object GenEngineVerilog {
            @arg(doc = "print register map")
            printRegMap: Boolean = true,
          ): Unit = {
+    implicit val config = PioNicConfig()
+
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)
 
