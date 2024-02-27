@@ -6,13 +6,6 @@ import spinal.lib.misc.plugin._
 
 class NicEngine extends Component {
   val host = new PluginHost
-
-  // rename ports so Vivado could infer interfaces automatically
-  noIoPrefix()
-  addPrePopTask { () =>
-    renameAxi4IO
-    renameAxi4StreamIO(alwaysAddT = true)
-  }
 }
 
 object NicEngine {
@@ -20,7 +13,14 @@ object NicEngine {
     config.allocFactory.clear()
 
     val n = new NicEngine
-    n.host.asHostOf(plugins)
+    n.host.asHostOf(plugins :+ new FiberPlugin {
+      // FIXME: guarantee that this is going to run last?
+      during build {
+        // rename ports so Vivado could infer interfaces automatically
+        renameAxi4IO()
+        renameAxi4StreamIO(n, alwaysAddT = true)
+      }
+    })
     n
   }
 }
