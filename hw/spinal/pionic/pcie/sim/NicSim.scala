@@ -1,13 +1,13 @@
 package pionic.pcie.sim
 
-import pionic.{Config, PioNicConfig}
-import pionic.pcie.PcieEngine
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.sim._
 import spinal.lib.bus.amba4.axis.sim._
 import jsteward.blocks.misc.RegBlockReadBack
+import pionic._
+import pionic.pcie.PcieBridgeInterfacePlugin
 
 import scala.util._
 import scala.util.control.TailCalls._
@@ -22,21 +22,25 @@ object NicSim extends App {
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
-    .compile(PcieEngine())
+    .compile(pionic.GenEngineVerilog.engineFromName("pcie"))
 
-  def cyc(c: Int)(implicit dut: PcieEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
+  def cyc(c: Int)(implicit dut: NicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
-  def commonDutSetup(rxBlockCycles: Int)(implicit dut: PcieEngine) = {
+  def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
-    dut.cmacRxClock.forkStimulus(period = 4) // 250 MHz
-    dut.cmacTxClock.forkStimulus(period = 4) // 250 MHz
 
-    val master = Axi4Master(dut.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(dut.s_axis_rx, dut.cmacRxClock)
-    val axisSlave = Axi4StreamSlave(dut.m_axis_tx, dut.cmacTxClock)
+    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+    val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
+
+    cmacIf.cmacRxClock.forkStimulus(period = 4) // 250 MHz
+    cmacIf.cmacTxClock.forkStimulus(period = 4) // 250 MHz
+
+    val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
+    val axisMaster = Axi4StreamMaster(cmacIf.s_axis_rx, cmacIf.cmacRxClock)
+    val axisSlave = Axi4StreamSlave(cmacIf.m_axis_tx, cmacIf.cmacTxClock)
 
     // reset value of dispatch mask should be all 1
     val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
@@ -55,7 +59,7 @@ object NicSim extends App {
     (master, axisMaster, axisSlave)
   }
 
-  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: PcieEngine): TailRec[Option[PacketDescSim]] = {
+  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[PacketDescSim]] = {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
@@ -68,22 +72,24 @@ object NicSim extends App {
     }
   }
 
-  def rxDutSetup(rxBlockCycles: Int)(implicit dut: PcieEngine) = {
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
+    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+
     // the tx interface should never be active!
-    dut.cmacTxClock.onSamplings {
-      assert(!dut.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+    cmacIf.cmacTxClock.onSamplings {
+      assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
     val (axiMaster, axisMaster, _) = commonDutSetup(rxBlockCycles)
     (axiMaster, axisMaster)
   }
 
-  def txDutSetup()(implicit dut: PcieEngine) = {
+  def txDutSetup()(implicit dut: NicEngine) = {
     val (axiMaster, _, axisSlave) = commonDutSetup(10000) // arbitrary rxBlockCycles
     (axiMaster, axisSlave)
   }
 
-  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: PcieEngine) = {
+  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
@@ -179,6 +185,8 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
+    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+
     SimTimeout(cyc(4000))
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -186,8 +194,8 @@ object NicSim extends App {
     val (master, axisMaster) = rxDutSetup(10000)
 
     // the tx interface should never be active!
-    dut.cmacTxClock.onSamplings {
-      assert(!dut.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+    cmacIf.cmacTxClock.onSamplings {
+      assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
     master.write(globalBlock("ctrl"), 100.toBytes) // rxBlockCycles
