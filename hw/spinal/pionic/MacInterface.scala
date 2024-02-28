@@ -14,10 +14,13 @@ import scala.language.postfixOps
 // service for potential other mac interface
 trait MacInterfaceService {
   def retainer: Retainer
+
   def txDmaConfig: AxiDmaConfig
+
   def txProfiler: Profiler
 
   def rxDmaConfig: AxiDmaConfig
+
   def rxProfiler: Profiler
 
   def packetBufDmaMaster: Axi4
@@ -127,14 +130,20 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
 
     retainer.await()
 
-    // core control modules
+    // drive mac interface of core control modules
     cores.foreach { c =>
-      c.logic.ctrl.driveMacIf(
-        rdMux = axiDmaReadMux,
-        wrMux = axiDmaWriteMux,
-        cmacRx = dispatchedCmacRx(c.coreID),
-        txTimestamps = txTimestampsFlows(c.coreID),
-      )
+      val cio = c.logic.ctrl.io
+      cio.readDesc >> axiDmaReadMux.s_axis_desc(c.coreID)
+      cio.readDescStatus <<? axiDmaReadMux.m_axis_desc_status(c.coreID)
+
+      // dma write desc port does not have id, dest, user
+      axiDmaWriteMux.s_axis_desc(c.coreID).translateFrom(cio.writeDesc)(_ <<? _)
+      cio.writeDescStatus << axiDmaWriteMux.m_axis_desc_status(c.coreID)
+
+      cio.cmacRxAlloc << dispatchedCmacRx(c.coreID)
+
+      // exit timestamp for tx, demux'ed for this core
+      cio.hostTxExitTimestamps << txTimestampsFlows(c.coreID)
     }
   }
 
