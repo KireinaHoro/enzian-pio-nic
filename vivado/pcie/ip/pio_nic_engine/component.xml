@@ -589,7 +589,7 @@
         <spirit:displayName>Synthesis</spirit:displayName>
         <spirit:envIdentifier>:vivado.xilinx.com:synthesis</spirit:envIdentifier>
         <spirit:language>Verilog</spirit:language>
-        <spirit:modelName>PcieEngine</spirit:modelName>
+        <spirit:modelName>NicEngine</spirit:modelName>
         <spirit:fileSetRef>
           <spirit:localName>xilinx_anylanguagesynthesis_view_fileset</spirit:localName>
         </spirit:fileSetRef>
@@ -605,7 +605,7 @@
         <spirit:displayName>Simulation</spirit:displayName>
         <spirit:envIdentifier>:vivado.xilinx.com:simulation</spirit:envIdentifier>
         <spirit:language>Verilog</spirit:language>
-        <spirit:modelName>PcieEngine</spirit:modelName>
+        <spirit:modelName>NicEngine</spirit:modelName>
         <spirit:fileSetRef>
           <spirit:localName>xilinx_anylanguagebehavioralsimulation_view_fileset</spirit:localName>
         </spirit:fileSetRef>
@@ -1575,7 +1575,7 @@
         </spirit:define>
       </spirit:file>
       <spirit:file>
-        <spirit:name>PcieEngine.xdc</spirit:name>
+        <spirit:name>NicEngine.xdc</spirit:name>
         <spirit:userFileType>xdc</spirit:userFileType>
         <spirit:define>
           <spirit:name>processing_order</spirit:name>
@@ -1583,16 +1583,16 @@
         </spirit:define>
       </spirit:file>
       <spirit:file>
-        <spirit:name>PcieEngine_ooc.xdc</spirit:name>
+        <spirit:name>NicEngine_ooc.xdc</spirit:name>
         <spirit:userFileType>xdc</spirit:userFileType>
         <spirit:userFileType>USED_IN_out_of_context</spirit:userFileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>PcieEngine_ips.v</spirit:name>
+        <spirit:name>NicEngine_ips.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>PcieEngine.v</spirit:name>
+        <spirit:name>NicEngine.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
         <spirit:userFileType>CHECKSUM_7aefd1f0</spirit:userFileType>
       </spirit:file>
@@ -1600,11 +1600,11 @@
     <spirit:fileSet>
       <spirit:name>xilinx_anylanguagebehavioralsimulation_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>PcieEngine_ips.v</spirit:name>
+        <spirit:name>NicEngine_ips.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>PcieEngine.v</spirit:name>
+        <spirit:name>NicEngine.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
       </spirit:file>
     </spirit:fileSet>

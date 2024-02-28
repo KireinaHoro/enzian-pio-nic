@@ -45,11 +45,11 @@ Generate Verilog into `hw/gen/`:
 
 ```console
 $ mill pcie.generateVerilog
-$ file hw/gen/PcieEngine{{,_ips}.v,{,_ooc}.xdc}
-hw/gen/PcieEngine.v:       ASCII text
-hw/gen/PcieEngine_ips.v:   ASCII text
-hw/gen/PcieEngine.xdc:     ASCII text
-hw/gen/PcieEngine_ooc.xdc: ASCII text
+$ file hw/gen/pcie/NicEngine{{,_ips}.v,{,_ooc}.xdc}
+hw/gen/pcie/NicEngine.v:       ASCII text
+hw/gen/pcie/NicEngine_ips.v:   ASCII text
+hw/gen/pcie/NicEngine.xdc:     ASCII text
+hw/gen/pcie/NicEngine_ooc.xdc: ASCII text
 TODO ECI
 ```
 
