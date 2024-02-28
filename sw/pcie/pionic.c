@@ -83,7 +83,7 @@ fail:
 }
 
 void pionic_set_rx_block_cycles(pionic_ctx_t *ctx, int cycles) {
-  write32(ctx, PIONIC_GLOBAL_CTRL, cycles);
+  write32(ctx, PIONIC_GLOBAL_RX_BLOCK_CYCLES, cycles);
 
   printf("Rx block cycles: %d\n", cycles);
 }

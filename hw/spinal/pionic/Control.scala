@@ -7,20 +7,9 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc._
 import spinal.lib.fsm._
+import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
-
-case class GlobalControlBundle()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = GlobalControlBundle()
-
-  val rxBlockCycles = UInt(config.rxBlockCyclesWidth bits)
-}
-
-case class GlobalStatusBundle()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = GlobalStatusBundle()
-
-  val cyclesCount = CycleClock(config.regWidth bits)
-}
 
 case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketAddr()
@@ -39,6 +28,24 @@ case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
 
   val addr = PacketAddr()
   val size = PacketLength()
+}
+
+class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends FiberPlugin {
+  lazy val macIf = host[MacInterfaceService]
+  lazy val csr = host[GlobalCSRPlugin].logic.get
+  lazy val hs = host[HostService]
+
+  val logic = during setup new Area {
+    val rg = retains(hs.retainer, macIf.retainer)
+
+    awaitBuild()
+
+    val ctrl = new PioCoreControl(macIf.rxDmaConfig, macIf.txDmaConfig, coreID, macIf.rxProfiler, macIf.txProfiler)
+    rg.release()
+
+    ctrl.io.rxBlockCycles := csr.ctrl.rxBlockCycles
+    ctrl.io.cycles := csr.status.cycles
+  }
 }
 
 // Control module for PIO access from one single core
@@ -67,10 +74,8 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   println(f"Tx Size $pktBufTxSize @ $pktBufTxBase%#x")
 
   val io = new Bundle {
-    // config from host, but driven only once at global control
-    val globalCtrl = in(GlobalControlBundle())
-    // global status (e.g. cycle count for tagging packet times)
-    val globalStatus = in(GlobalStatusBundle())
+    val rxBlockCycles = in(UInt(config.regWidth bits))
+    val cycles = in(CycleClock(config.regWidth bits))
 
     // regs for host
     val hostRxNext = master Stream PacketDesc()
@@ -107,7 +112,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   rxProfiler.regInit(io.hostRxLastProfile)
   txProfiler.regInit(io.hostTxLastProfile)
 
-  implicit val clock = io.globalStatus.cyclesCount
+  implicit val clock = io.cycles
 
   allocReset := io.allocReset
 
@@ -240,10 +245,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     AfterTxCommit -> io.hostTxAck.fire,
   )
 
-  def drivePlatformAgnostic(globalCtrl: GlobalControlBundle, rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength], txTimestamps: Flow[Timestamps])(implicit globalStatus: GlobalStatusBundle) = new Area {
-    io.globalCtrl := globalCtrl
-    io.globalStatus := globalStatus
-
+  def driveMacIf(rdMux: AxiDmaDescMux, wrMux: AxiDmaDescMux, cmacRx: Stream[PacketLength], txTimestamps: Flow[Timestamps]) = new Area {
     io.readDesc >> rdMux.s_axis_desc(coreID)
     io.readDescStatus <<? rdMux.m_axis_desc_status(coreID)
 
@@ -261,7 +263,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     private val alloc = config.allocFactory("control", coreID)(baseAddress, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
 
     val rxNextAddr = alloc("hostRxNext", readSensitive = true)
-    busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, io.globalCtrl.rxBlockCycles)
+    busCtrl.readStreamBlockCycles(io.hostRxNext, rxNextAddr, io.rxBlockCycles)
     busCtrl.driveStream(io.hostRxNextAck, alloc("hostRxNextAck"))
 
     // on read primitive (AR for AXI), set hostRxNextReq for timing ReadStart

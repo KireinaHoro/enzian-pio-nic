@@ -56,7 +56,7 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
   // However, Acquire is not reliable: it fires on read, but sits in the same 512B
   // as other registers, so a read on those would also trigger Acquire.
   // Use a host-side timestamp as substitute.
-  ret.host_got_tx_buf = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+  ret.host_got_tx_buf = read64(ctx, PIONIC_GLOBAL_CYCLES);
 
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
@@ -103,7 +103,7 @@ static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t off
     assert(desc.len == length && "rx packet length does not match tx");
     memcpy(rx_buf, desc.buf, desc.len);
 
-    ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+    ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES);
 
     pionic_rx_ack(ctx, cid, &desc);
   } else {
@@ -182,9 +182,9 @@ int main(int argc, char *argv[]) {
   FILE *out = fopen("pcie_lat.csv", "w");
   fprintf(out, "pcie_lat_cyc\n");
   int num_trials = 50;
-  uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+  uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES);
   for (int i = 0; i < num_trials; ++i) {
-    uint64_t new_cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES_COUNT);
+    uint64_t new_cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES);
     fprintf(out, "%ld\n", new_cycles - cycles);
     cycles = new_cycles;
   }

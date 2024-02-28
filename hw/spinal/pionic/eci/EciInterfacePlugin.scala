@@ -12,7 +12,7 @@ import spinal.lib.misc.plugin._
 import scala.language.postfixOps
 
 class EciInterfacePlugin(implicit val config: PioNicConfig) extends FiberPlugin {
-  lazy val ci = host[CmacInterfacePlugin].logic.get
+  lazy val ci = host[MacInterfaceService]
 
   val logic = during build new Area {
     val dcsOdd = DcsInterface(config.axiConfig)

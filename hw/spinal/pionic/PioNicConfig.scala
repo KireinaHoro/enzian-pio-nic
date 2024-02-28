@@ -20,7 +20,6 @@ case class PioNicConfig(
                          pktBufLenWidth: Int = 16, // max 64KB per packet
                          pktBufSizePerCore: Int = 64 * 1024, // 64KB
                          maxRxPktsInFlight: Int = 128,
-                         rxBlockCyclesWidth: Int = log2Up(BigInt(5) * 1000 * 1000 * 1000 / 4), // 5 s @ 250 MHz
                          numCores: Int = 4,
                          // for Profiling
                          collectTimestamps: Boolean = true,
