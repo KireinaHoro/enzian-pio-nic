@@ -12,7 +12,7 @@ import scala.language.postfixOps
 
 class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
-  lazy val csr = host[GlobalCSRPlugin].logic.get
+  lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
   val retainer = Retainer()
 
@@ -24,15 +24,9 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
 
     private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(config.axiConfig.dataWidth)
-    private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)(config.axiConfig.dataWidth)
+    csr.readAndWrite(busCtrl, alloc(_))
 
-    csr.ctrl.elements.foreach { case (name, data) =>
-      assert(data.isReg, "control CSR should always be register")
-      busCtrl.readAndWrite(data, alloc(name))
-    }
-    csr.status.elements.foreach { case (name, data) =>
-      busCtrl.read(data, alloc(name))
-    }
+    private val pktBufferAlloc = config.allocFactory("pkt")(0x100000, config.pktBufSize, config.pktBufSize)(config.axiConfig.dataWidth)
 
     val pktBuffer = new AxiDpRam(config.axiConfig.copy(addressWidth = log2Up(config.pktBufSize)))
 

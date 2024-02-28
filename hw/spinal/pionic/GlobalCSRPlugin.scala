@@ -3,6 +3,7 @@ package pionic
 import jsteward.blocks.misc.CycleClock
 import spinal.core._
 import spinal.lib.CounterFreeRun
+import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
@@ -20,5 +21,15 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     }
 
     status.cycles.bits := CounterFreeRun(config.regWidth bits)
+  }
+
+  def readAndWrite(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
+    logic.ctrl.elements.foreach { case (name, data) =>
+      assert(data.isReg, "control CSR should always be register")
+      busCtrl.readAndWrite(data, alloc(name))
+    }
+    logic.status.elements.foreach { case (name, data) =>
+      busCtrl.read(data, alloc(name))
+    }
   }
 }
