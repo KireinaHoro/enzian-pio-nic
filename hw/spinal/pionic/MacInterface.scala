@@ -24,35 +24,29 @@ trait MacInterfaceService {
 }
 
 class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with MacInterfaceService {
-  // break logic access loop: we access logic of the core already so we need to expose these
-  // tracking: https://github.com/SpinalHDL/SpinalHDL/issues/1331
-  var txDmaConfig: AxiDmaConfig = null
-  var rxDmaConfig: AxiDmaConfig = null
-  var txProfiler: Profiler = null
-  var rxProfiler: Profiler = null
-  var packetBufDmaMaster: Axi4 = null
-
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val cores = host.list[CoreControlPlugin]
   lazy val hs = host[HostService]
   val retainer = Retainer()
+
+  val pk = new Area {
+    val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
+    val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
+    val Exit = NamedType(Timestamp)
+  } setName ""
+
+  val rxProfiler = Profiler(pk.Entry, pk.AfterRxQueue)(config.collectTimestamps)
+  val txProfiler = Profiler(pk.Exit)(config.collectTimestamps)
+
+  val txAxisConfig = config.axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
+  val txDmaConfig = AxiDmaConfig(config.axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
+  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment config.axisConfig)
 
   val logic = during setup new Area {
     val clockDomain = ClockDomain.current
 
     val cmacRxClock = ClockDomain.external("cmacRxClock")
     val cmacTxClock = ClockDomain.external("cmacTxClock")
-
-    val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
-    val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
-    rxProfiler = Profiler(Entry, AfterRxQueue)(config.collectTimestamps)
-
-    val Exit = NamedType(Timestamp)
-    txProfiler = Profiler(Exit)(config.collectTimestamps)
-
-    val txAxisConfig = config.axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
-    txDmaConfig = AxiDmaConfig(config.axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
-    rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment config.axisConfig)
 
     val hostLock = hs.retainer()
 
@@ -66,7 +60,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     // capture cmac rx lastFire
     val rxTimestamps = rxProfiler.timestamps.clone
     val rxLastFireCdc = PulseCCByToggle(s_axis_rx.lastFire, cmacRxClock, clockDomain)
-    rxProfiler.fillSlot(rxTimestamps, Entry, rxLastFireCdc)
+    rxProfiler.fillSlot(rxTimestamps, pk.Entry, rxLastFireCdc)
 
     // CDC for tx
     val txFifo = AxiStreamAsyncFifo(txAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
@@ -79,7 +73,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     }
 
     val lastCoreIDFlowCdc = txClkArea.lastCoreIDFlow.ccToggle(cmacTxClock, clockDomain)
-    txProfiler.fillSlot(txTimestamps, Exit, lastCoreIDFlowCdc.fire)
+    txProfiler.fillSlot(txTimestamps, pk.Exit, lastCoreIDFlowCdc.fire)
 
     // demux timestamps: generate valid for Flow[Timestamps] back into Control
     val txTimestampsFlows = Seq.tabulate(cores.length) { coreID =>
@@ -118,14 +112,13 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
       fifo.user := dma.user.resized
       fifo.assignUnassignedByName(dma)
     }
-    val rxFifoTimestamped = rxProfiler.timestamp(rxFifo.masterPort, AfterRxQueue, base = rxTimestamps)
+    val rxFifoTimestamped = rxProfiler.timestamp(rxFifo.masterPort, pk.AfterRxQueue, base = rxTimestamps)
     axiDma.writeDataSlave << rxFifoTimestamped
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
     axiDma.io.write_abort := False
 
-    packetBufDmaMaster = axiDma.io.m_axi
     hostLock.release()
 
     // mux descriptors
@@ -143,5 +136,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
         txTimestamps = txTimestampsFlows(c.coreID),
       )
     }
-  } setName ""
+  }
+
+  def packetBufDmaMaster: Axi4 = logic.axiDma.io.m_axi
 }
