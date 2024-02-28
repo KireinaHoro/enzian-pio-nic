@@ -4,11 +4,17 @@ import mainargs._
 import pionic.eci.EciInterfacePlugin
 import pionic.pcie.PcieBridgeInterfacePlugin
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
+import spinal.lib.misc.plugin._
 
 object GenEngineVerilog {
+  def base(implicit config: PioNicConfig) = Seq(
+    new GlobalCSRPlugin,
+    new XilinxCmacPlugin,
+  ) ++ Seq.tabulate(config.numCores)(new CoreControlPlugin(_))
+
   def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
-    case "pcie" => NicEngine(Seq(new CmacInterfacePlugin, new PcieBridgeInterfacePlugin))
-    case "eci" => NicEngine(Seq(new CmacInterfacePlugin, new EciInterfacePlugin))
+    case "pcie" => NicEngine(base :+ new PcieBridgeInterfacePlugin)
+    case "eci" => NicEngine(base :+ new EciInterfacePlugin)
   }
 
   @main

@@ -32,7 +32,7 @@ object NicSim extends App {
 
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
-    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+    val cmacIf = dut.host[XilinxCmacPlugin].logic.get
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
 
     cmacIf.cmacRxClock.forkStimulus(period = 4) // 250 MHz
@@ -53,7 +53,7 @@ object NicSim extends App {
     // write global config bundle
     master.write(0, rxBlockCycles.toBytes)
 
-    var data = master.read(globalBlock("ctrl"), 8)
+    var data = master.read(globalBlock("rxBlockCycles"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
     (master, axisMaster, axisSlave)
@@ -73,7 +73,7 @@ object NicSim extends App {
   }
 
   def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
-    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+    val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
     // the tx interface should never be active!
     cmacIf.cmacTxClock.onSamplings {
@@ -185,7 +185,7 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
-    val cmacIf = dut.host[CmacInterfacePlugin].logic.get
+    val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
     SimTimeout(cyc(4000))
 
@@ -198,7 +198,7 @@ object NicSim extends App {
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(globalBlock("ctrl"), 100.toBytes) // rxBlockCycles
+    master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
     val mask = b"01100111"
     master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
@@ -273,7 +273,7 @@ object NicSim extends App {
 
     var data = master.read(coreBlock("hostRxNext"), 8)
     val desc = data.toRxPacketDesc.get
-    val timestamp = master.read(globalBlock("cyclesCount"), 8).bytesToBigInt
+    val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
@@ -304,7 +304,7 @@ object NicSim extends App {
 
     var data = master.read(coreBlock("hostRxNext"), 8)
     val desc = data.toRxPacketDesc.get
-    val timestamp = master.read(globalBlock("cyclesCount"), 8).bytesToBigInt
+    val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
