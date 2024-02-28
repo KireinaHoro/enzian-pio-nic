@@ -113,7 +113,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = cores.length, arbRoundRobin = false)
     val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = cores.length, arbRoundRobin = false)
 
-    val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig, enableUnaligned = true)
+    val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
     axiDma.readDataMaster.translateInto(txFifo.slavePort) { case (fifo, dma) =>
       fifo.user := dma.user.resized
       fifo.assignUnassignedByName(dma)
