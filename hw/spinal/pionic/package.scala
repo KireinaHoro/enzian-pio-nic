@@ -8,12 +8,12 @@ package object pionic {
   def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
   object CLZ {
     // https://electronics.stackexchange.com/a/649761
-    def apply(v: Bits): UInt = new Composite(v, "clz") {
+    def apply(v: Bits): UInt = new ImplicitArea[UInt] {
       val w = v.getWidth // input width
-      assert(w % 2 == 0, s"cannot do clz for odd width $w")
+      assert(w % 2 == 0 && w > 0, s"cannot do clz for width $w")
       val ow = log2Up(w) + 1 // output width
       val olrw = ow - 1 // output width of halves
-      val value: UInt = w match {
+      val implicitValue: UInt = w match {
         // encode
         case 2 => v.mux(
           0 -> U(2, ow bits),
@@ -30,15 +30,15 @@ package object pionic {
             (~clzR(olrw - 1)) ## clzR(0, olrw - 1 bits))
           (first ## mux).asUInt
       }
-    }.value
+    } setName "clz"
   }
 
   object CTZ {
-    def apply(v: Bits): UInt = CLZ(v.reversed)
+    def apply(v: Bits): UInt = CLZ(v.reversed) setName "ctz"
   }
 
   object StreamDispatcherWithEnable {
-    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits): Vec[Stream[T]] = {
+    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
       // FIXME: same as OHMasking.roundRobin?
       // FIXME: first packet always goes to core 0
       assert(outputCount == enableMask.getWidth, "enable mask bit width does not match with output count")
@@ -49,8 +49,8 @@ package object pionic {
       when(input.fire) {
         select := select + inc.resized
       }
-      StreamDemux(input, select, outputCount)
-    }
+      val implicitValue = StreamDemux(input, select, outputCount)
+    } setName "streamDispatch"
   }
 
   implicit class RichUInt(v: UInt) {
