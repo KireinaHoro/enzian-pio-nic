@@ -52,5 +52,5 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
     cores foreach { c =>
       c.logic.get.ctrl.drivePcie(busCtrl, (1 + c.coreID) * 0x1000)
     }
-  } setName ""
+  }
 }
