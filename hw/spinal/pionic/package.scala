@@ -30,11 +30,11 @@ package object pionic {
             (~clzR(olrw - 1)) ## clzR(0, olrw - 1 bits))
           (first ## mux).asUInt
       }
-    } setName "clz"
+    }.setCompositeName(v, "clz", true)
   }
 
   object CTZ {
-    def apply(v: Bits): UInt = CLZ(v.reversed) setName "ctz"
+    def apply(v: Bits): UInt = CLZ(v.reversed).setCompositeName(v, "ctz", true)
   }
 
   object StreamDispatcherWithEnable {
@@ -50,7 +50,7 @@ package object pionic {
         select := select + inc.resized
       }
       val implicitValue = StreamDemux(input, select, outputCount)
-    } setName "streamDispatch"
+    }.setCompositeName(input, "streamDispatch", true)
   }
 
   implicit class RichUInt(v: UInt) {
