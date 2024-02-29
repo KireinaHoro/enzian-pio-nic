@@ -244,4 +244,26 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     Acquire -> io.hostTx.fire,
     AfterTxCommit -> io.hostTxAck.fire,
   )
+
+  def reportStatistics(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
+    io.statistics.elements.foreach { case (name, data) =>
+      data match {
+        case d: UInt => busCtrl.read(d, alloc(name, ""))
+        case v: Vec[_] => v zip config.pktBufAllocSizeMap.map(_._1) foreach { case (elem, slotSize) =>
+          busCtrl.read(elem, alloc(name, s"upTo$slotSize"))
+        }
+        case _ =>
+      }
+    }
+
+    // rx profile results
+    if (config.collectTimestamps) {
+      io.hostRxLastProfile.storage.foreach { case (namedType, data) =>
+        busCtrl.read(data, alloc("hostRxLastProfile", namedType.getName()))
+      }
+      io.hostTxLastProfile.storage.foreach { case (namedType, data) =>
+        busCtrl.read(data, alloc("hostTxLastProfile", namedType.getName()))
+      }
+    }
+  }
 }
