@@ -7,7 +7,7 @@ import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{Profiler, Timestamps}
 import spinal.core.fiber.Retainer
-import spinal.lib.bus.amba4.axi.Axi4
+import spinal.lib.bus.amba4.axi._
 
 import scala.language.postfixOps
 
@@ -41,8 +41,16 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
   val rxProfiler = Profiler(pk.Entry, pk.AfterRxQueue)(config.collectTimestamps)
   val txProfiler = Profiler(pk.Exit)(config.collectTimestamps)
 
+  // config for packetBufDmaMaster
+  // we fix here and downstream should adapt
+  val axiConfig = Axi4Config(
+    addressWidth = 64,
+    dataWidth = 512,
+    idWidth = 4,
+  )
+
   val txAxisConfig = config.axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
-  val txDmaConfig = AxiDmaConfig(config.axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
+  val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment config.axisConfig)
 
   val logic = during setup new Area {

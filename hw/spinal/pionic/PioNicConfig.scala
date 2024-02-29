@@ -6,11 +6,7 @@ import spinal.lib.bus.amba4.axi.Axi4Config
 import spinal.lib.bus.amba4.axis.Axi4StreamConfig
 
 case class PioNicConfig(
-                         axiConfig: Axi4Config = Axi4Config(
-                           addressWidth = 64,
-                           dataWidth = 512,
-                           idWidth = 4,
-                         ),
+                         // TODO: move to MacInterface
                          axisConfig: Axi4StreamConfig = Axi4StreamConfig(
                            dataWidth = 64, // BYTES
                            useKeep = true,
