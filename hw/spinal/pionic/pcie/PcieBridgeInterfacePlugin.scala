@@ -73,8 +73,7 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
       busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true))
       busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck"))
 
-      busCtrl.driveAndRead(cio.allocReset, alloc("allocReset")) init false
-
+      c.logic.ctrl.connectControl(busCtrl, alloc(_))
       c.logic.ctrl.reportStatistics(busCtrl, alloc(_, _))
     }
   }

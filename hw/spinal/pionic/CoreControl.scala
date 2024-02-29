@@ -245,6 +245,10 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
     AfterTxCommit -> io.hostTxAck.fire,
   )
 
+  def connectControl(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
+    busCtrl.driveAndRead(io.allocReset, alloc("allocReset")) init false
+  }
+
   def reportStatistics(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
     io.statistics.elements.foreach { case (name, data) =>
       data match {
