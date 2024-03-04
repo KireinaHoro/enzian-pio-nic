@@ -1,7 +1,8 @@
 package pionic.eci
 
-import jsteward.blocks.eci.{DcsInterface, EciCmdDefs, EciDcsDefs, EciWord}
+import jsteward.blocks.eci._
 import jsteward.blocks.axi._
+import jsteward.blocks.misc._
 import pionic._
 import spinal.core._
 import spinal.core.fiber.Retainer
@@ -35,6 +36,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
   )
 
   val logic = during setup new Area {
+    // even and odd in ALIASED addresses
+    // Refer to Chapter 9.4 in CCKit
     val dcsOdd = DcsInterface(axiConfig)
     val dcsEven = DcsInterface(axiConfig)
 
@@ -74,8 +77,86 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       }: _*)
       .build()
 
+    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
+      cmds.zipWithIndex.map { case (cmd, idx) =>
+        // core interfaces use UNALIASED addresses
+        val acmd = cmd.mapPayloadElement(addrLocator)(a => EciCmdDefs.aliasAddress(a.asUInt))
+        // lowest 7 bits are byte offset
+        val dcsIdx = addrLocator(acmd.payload)(7).asUInt
+
+        // assemble ECI channel
+        val chanStream = Stream(LclChannel())
+        chanStream.translateFrom(acmd) { case (chan, data) =>
+          chan.data := data
+          chan.vc := dcsIdx.asBool ? B(oddVc) | B(evenVc)
+          chan.size := 1
+        }
+
+        StreamDemux(chanStream, dcsIdx, 2).toSeq
+      }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) =>
+        chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
+      }
+    }
+
+    def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], hreqIdLocator: EciWord => Bits, addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
+      Seq(dcsEven, dcsOdd).map { dcs =>
+        val chan = chanLocator(dcs)
+        val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
+        StreamDemux(chanLocator(dcs), coreIdx, cores.length).toSeq
+      }.transpose.zip(resps) foreach { case (chans, resp) =>
+        val resps = chans.map { c =>
+          // dcs use ALIASED addresses
+          val unaliased = c.mapPayloadElement(cc => addrLocator(cc.data))(a => EciCmdDefs.unaliasAddress(a).asBits)
+          unaliased.translateWith(unaliased.data)
+        }
+        resp << StreamArbiterFactory().roundRobin.on(resps)
+      }
+    }
+
+    // mux LCL request (LCI)
+    assert(log2Up(cores.length) <= EciCmdDefs.ECI_HREQID_WIDTH, s"${cores.length} cores cannot fit inside hreq id of ${EciCmdDefs.ECI_HREQID_WIDTH}!")
+    val coresLci = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
+    bindCoreCmdsToLclChans(coresLci.zipWithIndex.map { case (addr, idx) =>
+      val ret = Stream(EciWord())
+
+      // generating a LCI -- refer to Table 7.9 of CCKit
+      ret.payload.lci.opcode := B("00001")
+      ret.payload.lci.hreqId := B(idx, EciCmdDefs.ECI_HREQID_WIDTH bits)
+      ret.payload.lci.dmask := B("1111")
+      ret.payload.lci.ns := True
+      ret.payload.lci.rnode := B("01")
+      ret.payload.lci.address := addr.payload
+      ret.arbitrationFrom(addr)
+
+      ret
+    }, _.lci.address, 17, 16, _.cleanMaybeInvReq)
+
+    // demux LCL response (LCIA)
+    val coresLcia = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
+    bindLclChansToCoreResps(coresLcia.map { lcia =>
+      val ret = Stream(EciWord())
+
+      lcia.payload := ret.payload.lcia.address
+      lcia.arbitrationFrom(ret)
+
+      ret
+    }, _.lcia.hreqId, _.lcia.address, _.cleanMaybeInvResp)
+
+    // mux LCL unlock response
+    val coresUl = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
+    bindCoreCmdsToLclChans(coresUl.map { addr =>
+      val ret = Stream(EciWord())
+
+      // generating a UL -- refer to Table 7.11 of CCKit
+      ret.payload.ul.opcode := B("00010")
+      ret.payload.ul.address := addr.payload
+      ret.arbitrationFrom(addr)
+
+      ret
+    }, _.ul.address, 19, 18, _.unlockResp)
+
     // drive core control interface -- datapath per core
-    cores lazyZip coreNodes lazyZip dcsNodes foreach { case (c, dmaNode, dcsNode) =>
+    cores lazyZip coreNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul) =>
       val baseAddress = (1 + c.coreID) * 0x1000
       val alloc = config.allocFactory("coreControl", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_ctrl_axil.config.dataWidth)
       val cio = c.logic.ctrl.io
@@ -98,6 +179,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       // double buffering for packet metadata
       val rxPacketCtrl = Vec.fill(2)(PacketCtrlInfo())
+      rxPacketCtrl.assignDontCare()
 
       // generate control -- first half of first two cachelines
       dcsBusCtrl.read(rxPacketCtrl(0), 0)
@@ -105,6 +187,18 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       // load packet data
       dcsBusCtrl.readSyncMemWordAligned(pktBuffer, 0xc0)
+
+      // TODO: generate ECI reqs
+      lci.setIdle()
+      ul.setIdle()
+      lcia.setBlocked()
+
+      // TODO: drive core controls
+      cio.hostTxAck.setIdle()
+      cio.hostTx.setBlocked()
+      cio.hostRxNextAck.setIdle()
+      cio.hostRxNext.setBlocked()
+      cio.hostRxNextReq := False
 
       // CSR for the core
       c.logic.ctrl.connectControl(csrCtrl, alloc(_))

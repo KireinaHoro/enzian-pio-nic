@@ -5,7 +5,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.{Profiler, Timestamps}
+import jsteward.blocks.misc._
 import spinal.core.fiber.Retainer
 import spinal.lib.bus.amba4.axi._
 
