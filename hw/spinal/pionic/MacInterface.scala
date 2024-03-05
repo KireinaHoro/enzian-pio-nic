@@ -53,7 +53,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
   val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
   val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment config.axisConfig)
 
-  val logic = during setup new Area {
+  val logic = during build new Area {
     val clockDomain = ClockDomain.current
 
     val cmacRxClock = ClockDomain.external("cmacRxClock")
@@ -63,8 +63,6 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
 
     val m_axis_tx = master(Axi4Stream(config.axisConfig)) addTag ClockDomainTag(cmacTxClock)
     val s_axis_rx = slave(Axi4Stream(config.axisConfig)) addTag ClockDomainTag(cmacRxClock)
-
-    awaitBuild()
 
     implicit val clock = csr.status.cycles
 
