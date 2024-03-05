@@ -16,7 +16,7 @@ object Config {
       resetKind = SYNC,
     ),
     onlyStdLogicVectorAtTopLevelIo = true
-  )
+  ).addStandardMemBlackboxing(blackboxAll)
 
   def sim = SimConfig.withConfig(spinal())
     .withFstWave
