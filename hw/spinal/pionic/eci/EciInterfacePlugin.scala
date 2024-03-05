@@ -13,19 +13,19 @@ import spinal.lib.misc.plugin._
 import spinal.lib.bus.misc.SizeMapping
 
 import scala.language.postfixOps
+import scala.util.Random
 
-case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
-  val valid = Bool()
-  val size = PacketLength()
-
-  assert(getBitsWidth <= 512, "packet info larger than half a cacheline")
-}
-
+/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in `EciPioProtocol` */
 class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
+  lazy val protos = host.list[EciPioProtocol]
   val retainer = Retainer()
+
+  val sizePerMtuPerDirection = roundUp((512 / 8) + config.roundMtu, EciCmdDefs.ECI_CL_SIZE_BYTES)
+  val rxSizePerCore = config.pktBufSizePerCore - config.roundMtu
+  val txSizePerCore = config.roundMtu
 
   // dcs_2_axi AXI config
   val axiConfig = Axi4Config(
@@ -40,6 +40,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     // Refer to Chapter 9.4 in CCKit
     val dcsOdd = DcsInterface(axiConfig)
     val dcsEven = DcsInterface(axiConfig)
+
+    dcsOdd.axi.setName("s_axi_dcs_odd")
+    dcsEven.axi.setName("s_axi_dcs_even")
 
     val s_ctrl_axil = slave(AxiLite4(addressWidth = 44, dataWidth = 64))
 
@@ -58,14 +61,15 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     // mux both DCS AXI masters to all cores
-    val cachelineInBytesPerCore = roundUp((512 / 8) + config.roundMtu, EciCmdDefs.ECI_CL_SIZE_BYTES)
+    // RX + TX, one MTU each
+    val sizePerCore = 2 * sizePerMtuPerDirection
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
       // 2 masters, ID width + 1
       idWidth = axiConfig.idWidth + 1,
     )))
     Axi4CrossbarFactory()
       .addSlaves(dcsNodes.zipWithIndex map { case (node, idx) =>
-        node -> SizeMapping(cachelineInBytesPerCore * idx, cachelineInBytesPerCore)
+        node -> SizeMapping(sizePerCore * idx, sizePerCore)
       }: _*)
       .addConnections(Seq(dcsOdd, dcsEven) map { dcs =>
         dcs.axi.remapAddr { a =>
@@ -76,7 +80,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      cmds.zipWithIndex.map { case (cmd, idx) =>
+      cmds.zipWithIndex.map { case (cmd, idx) => new Area {
         // core interfaces use UNALIASED addresses
         val acmd = cmd.mapPayloadElement(addrLocator)(a => EciCmdDefs.aliasAddress(a.asUInt))
         // lowest 7 bits are byte offset
@@ -90,31 +94,36 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
           chan.size := 1
         }
 
-        StreamDemux(chanStream, dcsIdx, 2).toSeq
-      }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) =>
+        val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
+      }.setName("demuxCoreCmds").ret
+      }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) => new Area {
         chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
+      }.setName("arbitrateIntoLcl")
       }
     }
 
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], hreqIdLocator: EciWord => Bits, addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
       Seq(dcsEven, dcsOdd).map { dcs =>
-        val chan = chanLocator(dcs)
-        val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
-        StreamDemux(chanLocator(dcs), coreIdx, cores.length).toSeq
-      }.transpose.zip(resps) foreach { case (chans, resp) =>
+        new Area {
+          val chan = chanLocator(dcs)
+          val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
+          val ret = StreamDemux(chanLocator(dcs), coreIdx, cores.length).toSeq
+        }.setName("demuxLcl").ret
+      }.transpose.zip(resps) foreach { case (chans, resp) => new Area {
         val resps = chans.map { c =>
           // dcs use ALIASED addresses
           val unaliased = c.mapPayloadElement(cc => addrLocator(cc.data))(a => EciCmdDefs.unaliasAddress(a).asBits)
           unaliased.translateWith(unaliased.data)
         }
         resp << StreamArbiterFactory().roundRobin.on(resps)
+      }.setName("arbitrateIntoCoreCmds")
       }
     }
 
     // mux LCL request (LCI)
     assert(log2Up(cores.length) <= EciCmdDefs.ECI_HREQID_WIDTH, s"${cores.length} cores cannot fit inside hreq id of ${EciCmdDefs.ECI_HREQID_WIDTH}!")
     val coresLci = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
-    bindCoreCmdsToLclChans(coresLci.zipWithIndex.map { case (addr, idx) =>
+    bindCoreCmdsToLclChans(coresLci.zipWithIndex.map { case (addr, idx) => new Area {
       val ret = Stream(EciWord())
 
       // generating a LCI -- refer to Table 7.9 of CCKit
@@ -124,83 +133,79 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       ret.payload.lci.ns := True
       ret.payload.lci.rnode := B("01")
       ret.payload.lci.address := addr.payload
-      ret.arbitrationFrom(addr)
 
-      ret
+      ret.payload.lci.xb1 := False
+      ret.payload.lci.xb2 := B(0, 2 bits)
+      ret.payload.lci.xb3 := B(0, 3 bits)
+
+      ret.arbitrationFrom(addr)
+    }.setName("bindLci").ret
     }, _.lci.address, 17, 16, _.cleanMaybeInvReq)
 
     // demux LCL response (LCIA)
     val coresLcia = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
     bindLclChansToCoreResps(coresLcia.map { lcia =>
-      val ret = Stream(EciWord())
+      new Area {
+        val ret = Stream(EciWord())
 
-      lcia.payload := ret.payload.lcia.address
-      lcia.arbitrationFrom(ret)
-
-      ret
+        lcia.payload := ret.payload.lcia.address
+        lcia.arbitrationFrom(ret)
+      }.setName("bindLcia").ret
     }, _.lcia.hreqId, _.lcia.address, _.cleanMaybeInvResp)
 
     // mux LCL unlock response
     val coresUl = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
     bindCoreCmdsToLclChans(coresUl.map { addr =>
-      val ret = Stream(EciWord())
+      new Area {
+        val ret = Stream(EciWord())
 
-      // generating a UL -- refer to Table 7.11 of CCKit
-      ret.payload.ul.opcode := B("00010")
-      ret.payload.ul.address := addr.payload
-      ret.arbitrationFrom(addr)
+        // generating a UL -- refer to Table 7.11 of CCKit
+        ret.payload.ul.opcode := B("00010")
+        ret.payload.ul.address := addr.payload
 
-      ret
+        ret.payload.ul.xb19 := B(0, 19 bits)
+
+        ret.arbitrationFrom(addr)
+      }.setName("bindUl").ret
     }, _.ul.address, 19, 18, _.unlockResp)
 
     // drive core control interface -- datapath per core
-    cores lazyZip coreNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul) =>
+    cores lazyZip coreNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
       val alloc = config.allocFactory("coreControl", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_ctrl_axil.config.dataWidth)
       val cio = c.logic.ctrl.io
 
       // per-core packet buffer
       val wordWidth = axiConfig.dataWidth
-      val numWords = config.pktBufSizePerCore / (wordWidth / 8)
-      val pktBuffer = Mem(Bits(wordWidth bits), numWords)
+      val rxNumWords = rxSizePerCore / (wordWidth / 8)
+      val txNumWords = txSizePerCore / (wordWidth / 8)
 
-      val dmaBusCtrl = Axi4SlaveFactory(dmaNode)
-      dmaBusCtrl.readSyncMemWordAligned(pktBuffer, 0)
-      dmaBusCtrl.writeMemWordAligned(pktBuffer, 0)
+      // FIXME: fix naming in lambda functions
+      val rxPktBuffer = Mem(Bits(wordWidth bits), rxNumWords)
+      val txPktBuffer = Mem(Bits(wordWidth bits), txNumWords)
 
+      // packet data DMA into packet buffer
       // TODO: datapath pipeline attach point (accelerators, rpc request decode, etc.)
+      val dmaBusCtrl = Axi4SlaveFactory(dmaNode)
+      dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
+      dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
 
-      val dcsBusCtrl = Axi4SlaveFactory(dcsNode.remapAddr { a =>
-        // remap packet data in first control cacheline to second
-        (a === 0x40) ? U(0xc0) | a
-      })
+      proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
 
-      // double buffering for packet metadata
-      val rxPacketCtrl = Vec.fill(2)(PacketCtrlInfo())
-      rxPacketCtrl.assignDontCare()
+      lci << proto.lci
+      ul << proto.ul
+      lcia >> proto.lcia
 
-      // generate control -- first half of first two cachelines
-      dcsBusCtrl.read(rxPacketCtrl(0), 0)
-      dcsBusCtrl.read(rxPacketCtrl(1), 0x80)
-
-      // load packet data
-      dcsBusCtrl.readSyncMemWordAligned(pktBuffer, 0xc0)
-
-      // TODO: generate ECI reqs
-      lci.setIdle()
-      ul.setIdle()
-      lcia.setBlocked()
-
-      // TODO: drive core controls
-      cio.hostTxAck.setIdle()
-      cio.hostTx.setBlocked()
-      cio.hostRxNextAck.setIdle()
-      cio.hostRxNext.setBlocked()
-      cio.hostRxNextReq := False
+      cio.hostTxAck << proto.hostTxAck
+      cio.hostTx >> proto.hostTx
+      cio.hostRxNextAck << proto.hostRxNextAck
+      cio.hostRxNext >> proto.hostRxNext
+      cio.hostRxNextReq := proto.hostRxNextReq
 
       // CSR for the core
       c.logic.ctrl.connectControl(csrCtrl, alloc(_))
       c.logic.ctrl.reportStatistics(csrCtrl, alloc(_, _))
+    }.setName("bindProtoToCoreCtrl")
     }
   }
 }

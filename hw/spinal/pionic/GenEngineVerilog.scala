@@ -1,7 +1,7 @@
 package pionic
 
 import mainargs._
-import pionic.eci.EciInterfacePlugin
+import pionic.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
 import pionic.pcie.PcieBridgeInterfacePlugin
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 import spinal.lib.misc.plugin._
@@ -14,7 +14,9 @@ object GenEngineVerilog {
 
   def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
     case "pcie" => NicEngine(base :+ new PcieBridgeInterfacePlugin)
-    case "eci" => NicEngine(base :+ new EciInterfacePlugin)
+    case "eci" => NicEngine(base
+      ++ Seq(new EciInterfacePlugin)
+      ++ Seq.tabulate(config.numCores)(new EciDecoupledRxTxProtocol(_)))
   }
 
   @main
