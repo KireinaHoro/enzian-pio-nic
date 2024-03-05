@@ -51,6 +51,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 // Control module for PIO access from one single core
 // Would manage one packet buffer
 class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreID: Int, rxProfilerParent: Profiler = null, txProfilerParent: Profiler = null)(implicit config: PioNicConfig) extends Component {
+  // TODO: move profiler to separate plugin
   val AfterDmaWrite = NamedType(Timestamp) // time in dma mux & writing
   val AfterRxCommit = NamedType(Timestamp) // time in core dispatch queuing
   val ReadStart = NamedType(Timestamp) // start time of read, to measure queuing / stalling time

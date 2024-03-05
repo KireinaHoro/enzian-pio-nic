@@ -35,15 +35,13 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     idWidth = 4,
   )
 
-  val logic = during setup new Area {
+  val logic = during build new Area {
     // even and odd in ALIASED addresses
     // Refer to Chapter 9.4 in CCKit
     val dcsOdd = DcsInterface(axiConfig)
     val dcsEven = DcsInterface(axiConfig)
 
     val s_ctrl_axil = slave(AxiLite4(addressWidth = 44, dataWidth = 64))
-
-    awaitBuild()
 
     val csrCtrl = AxiLite4SlaveFactory(s_ctrl_axil)
     private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_ctrl_axil.config.dataWidth)

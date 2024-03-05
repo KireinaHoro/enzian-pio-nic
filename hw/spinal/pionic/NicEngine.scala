@@ -2,6 +2,7 @@ package pionic
 
 import jsteward.blocks.axi._
 import spinal.core._
+import spinal.core.fiber.Fiber.awaitPatch
 import spinal.lib.misc.plugin._
 
 class NicEngine extends Component {
@@ -15,6 +16,8 @@ object NicEngine {
     val n = new NicEngine
     n.host.asHostOf(plugins :+ new FiberPlugin {
       during build {
+        awaitPatch()
+
         // strip plugin prefixes from IO ports
         Component.current.getAllIo.foreach { io =>
           val pattern = "^.*Plugin_logic_(.*)$".r

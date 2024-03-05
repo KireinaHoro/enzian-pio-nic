@@ -24,9 +24,8 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
     idWidth = 4,
   )
 
-  val logic = during setup new Area {
+  val logic = during build new Area {
     val s_axi = slave(Axi4(axiConfig))
-    awaitBuild()
 
     val axiWideConfigNode = Axi4(axiConfig)
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(config.regWidth))
