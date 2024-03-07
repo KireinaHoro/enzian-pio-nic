@@ -80,22 +80,23 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      cmds.zipWithIndex.map { case (cmd, idx) => new Area {
-        // core interfaces use UNALIASED addresses
-        val acmd = cmd.mapPayloadElement(addrLocator)(a => EciCmdDefs.aliasAddress(a.asUInt))
-        // lowest 7 bits are byte offset
-        val dcsIdx = addrLocator(acmd.payload)(7).asUInt
+      cmds.map { cmd =>
+        new Area {
+          // core interfaces use UNALIASED addresses
+          val acmd = cmd.mapPayloadElement(addrLocator)(a => EciCmdDefs.aliasAddress(a.asUInt))
+          // lowest 7 bits are byte offset
+          val dcsIdx = addrLocator(acmd.payload)(7).asUInt
 
-        // assemble ECI channel
-        val chanStream = Stream(LclChannel())
-        chanStream.translateFrom(acmd) { case (chan, data) =>
-          chan.data := data
-          chan.vc := dcsIdx.asBool ? B(oddVc) | B(evenVc)
-          chan.size := 1
-        }
+          // assemble ECI channel
+          val chanStream = Stream(LclChannel())
+          chanStream.translateFrom(acmd) { case (chan, data) =>
+            chan.data := data
+            chan.vc := dcsIdx.asBool ? B(oddVc) | B(evenVc)
+            chan.size := 1
+          }
 
-        val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
-      }.setName("demuxCoreCmds").ret
+          val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
+        }.setName("demuxCoreCmds").ret
       }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) => new Area {
         chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
       }.setName("arbitrateIntoLcl")
