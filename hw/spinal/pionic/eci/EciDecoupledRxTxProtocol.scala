@@ -43,11 +43,14 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   }
 
   def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits]): Unit = new Area {
+    // address offset for this core in CoreControl descriptors
     val descOffset = config.pktBufSizePerCore * coreID
+
     val rxSize = host[EciInterfacePlugin].rxSizePerCore
     val txSize = host[EciInterfacePlugin].txSizePerCore
 
-    // remap packet data
+    // remap packet data: first cacheline inline packet data -> second one
+    // such that we have continuous address when handling packet data
     val busCtrl = Axi4SlaveFactory(bus.remapAddr { addr =>
       addr.mux(
         U(0x40) -> U(0xc0),
@@ -57,37 +60,41 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     })
 
     hostRxNextReq := False
+    logic.txReq := False
     Seq(0, 1) foreach { idx =>
-      busCtrl.onReadPrimitive(SingleMapping(idx * 0x80), false, null) {
+      val rxCtrlAddr = idx * 0x80
+      busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         hostRxNextReq := True
       }
+      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, logic.rxTimeouts(idx))
 
-      // only allow loads when no invalidation is pending
-      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), idx * 0x80, csr.ctrl.rxBlockCycles, logic.rxTimeouts(idx))
-
-      // allow read since host need to bring cacheline in to modify
-      busCtrl.readAndWrite(logic.txPacketCtrl(idx), txOffset + idx * 0x80)
+      val txCtrlAddr = txOffset + idx * 0x80
+      busCtrl.driveStream(logic.txPacketCtrl(idx), txCtrlAddr)
+      // dummy read for tx ctrl cacheline loads
+      busCtrl.readAllOnes(txCtrlAddr, 64)
+      busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
+        logic.txReq := True
+      }
     }
 
-    val rxMapping = SizeMapping(descOffset, rxSize)
-    val txMapping = SizeMapping(descOffset + rxSize, txSize)
+    val rxBufMapping = SizeMapping(descOffset, rxSize)
 
-    // cpu not supposed to modify rx packet data
-    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = rxMapping.removeOffset(logic.savedHostRx.addr.bits).resized)
+    // cpu not supposed to modify rx packet data, so omitting write
+    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = rxBufMapping.removeOffset(logic.savedHostRx.addr.bits).resized)
 
-    // dummy read for tx cacheline reload
-    busCtrl.readPrimitive(Bits(busCtrl.busDataWidth bits).setAll(), txMapping, 0, null)
+    // tx buffer always start at 0
     busCtrl.writeMemWordAligned(txPktBuffer, txOffset + 0xc0)
+    // dummy read for tx overflow cacheline loads
+    busCtrl.readAllOnes(txOffset + 0xc0, txSize)
   }.setName("driveDcsBus")
 
   val logic = during build new Area {
-    val ctrlInfo = PacketCtrlInfo()
-    ctrlInfo.size := hostRxNext.payload.size
-    val rxDispatchIdx = Reg(Bool()) init False
+    val rxCurrClIdx = Reg(Bool()) init False
+    val txCurrClIdx = Reg(Bool()) init False
+
     val rxTimeouts = Vec.fill(2)(Bool())
 
-    val txPacketCtrl = Vec.fill(2)(Stream(PacketCtrlInfo()))
-    txPacketCtrl.assignDontCare()
+    val txReq = Bool()
 
     lci.setIdle()
     lci.valid.setAsReg()
@@ -101,25 +108,26 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     hostRxNextAck.setIdle()
     hostTx.setBlocked()
-    hostTxAck.setIdle()
 
-    val overflowInvIssued, overflowInvAcked = Counter(overflowCountWidth bits)
-    val overflowToInvalidate = Reg(UInt(overflowCountWidth bits))
+    val rxOverflowInvIssued, rxOverflowInvAcked = Counter(overflowCountWidth bits)
+    val rxOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
+    val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
+    val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
     val savedHostRx = RegNextWhen(hostRxNext.payload, hostRxNext.fire)
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          overflowToInvalidate.clearAll()
-          overflowInvAcked.clear()
-          overflowInvIssued.clear()
+          rxOverflowToInvalidate.clearAll()
+          rxOverflowInvAcked.clear()
+          rxOverflowInvIssued.clear()
 
           when (hostRxNext.fire) {
-            overflowToInvalidate := packetSizeToNumOverflowCls(savedHostRx.size.bits)
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(savedHostRx.size.bits)
             goto(gotPacket)
           }
-          when (rxTimeouts(rxDispatchIdx.asUInt)) {
+          when (rxTimeouts(rxCurrClIdx.asUInt)) {
             goto(invalidateCtrl)
           }
         }
@@ -131,19 +139,23 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             hostRxNextAck.payload := savedHostRx
             hostRxNextAck.valid := True
             when (hostRxNextAck.fire) {
-              goto(invalidatePacketData)
+              when (rxOverflowToInvalidate > 0) {
+                goto(invalidatePacketData)
+              } otherwise {
+                goto(invalidateCtrl)
+              }
             }
           }
         }
       }
       val invalidatePacketData: State = new State {
         whenIsActive {
-          when (overflowInvIssued < overflowToInvalidate) {
-            lci.payload := overflowIdxToAddr(overflowInvIssued)
+          when (rxOverflowInvIssued < rxOverflowToInvalidate) {
+            lci.payload := overflowIdxToAddr(rxOverflowInvIssued)
             lci.valid := True
             when (lci.fire) {
-              overflowInvIssued.increment()
-              when (overflowInvIssued === overflowToInvalidate) { lci.valid := False }
+              rxOverflowInvIssued.increment()
+              when (rxOverflowInvIssued === rxOverflowToInvalidate) { lci.valid := False }
             }
           }
 
@@ -153,18 +165,18 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             ul.payload := lcia.payload
             ul.valid := True
 
-            overflowInvAcked.increment()
+            rxOverflowInvAcked.increment()
           }
 
           // count till all overflow cachelines are invalidated
-          when (overflowInvAcked === overflowToInvalidate) {
+          when (rxOverflowInvAcked === rxOverflowToInvalidate) {
             goto(invalidateCtrl)
           }
         }
       }
       val invalidateCtrl: State = new State {
         whenIsActive {
-          lci.payload := ctrlToAddr(rxDispatchIdx.asUInt)
+          lci.payload := ctrlToAddr(rxCurrClIdx.asUInt)
           lci.valid := True
           when (lci.fire) { lci.valid := False }
 
@@ -177,21 +189,97 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             ul.valid := True
 
             // always toggle, even if NACK was sent
-            rxDispatchIdx.toggleWhen(True)
+            rxCurrClIdx.toggleWhen(True)
 
             goto(idle)
           }
         }
       }
     }
-    val ctrlInfoStream = hostRxNext.translateWith(ctrlInfo).continueWhen(rxFsm.isActive(rxFsm.idle))
-    val rxPacketCtrl = StreamDemux(ctrlInfoStream, rxDispatchIdx.asUInt, 2)
+    val ctrlInfo = PacketCtrlInfo()
+    ctrlInfo.size := hostRxNext.payload.size
+    val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo).continueWhen(rxFsm.isActive(rxFsm.idle))
+    val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2)
 
+    when (txReq) {
+      // pop hostTx to honour the protocol
+      hostTx.freeRun()
+    }
+    val txPacketCtrl = Vec.fill(2)(Stream(PacketCtrlInfo()))
+    val muxed = StreamMux(txCurrClIdx.asUInt, txPacketCtrl)
     val txFsm = new StateMachine {
-      val stateIdle: State = new State with EntryPoint {
+      val idle: State = new State with EntryPoint {
         whenIsActive {
+          when (txReq) { goto(waitPacket) }
+        }
+      }
+      val waitPacket: State = new State {
+        whenIsActive {
+          txOverflowInvIssued.clear()
+          txOverflowInvAcked.clear()
+          txOverflowToInvalidate.clearAll()
+          when (txReq) {
+            when (muxed.fire) {
+              val toInv = txOverflowToInvalidate.clone
+              toInv := packetSizeToNumOverflowCls(muxed.payload.size.bits)
+              txOverflowToInvalidate := toInv
+              when (toInv > 0) {
+                goto(invalidatePacketData)
+              } otherwise {
+                goto(invalidateCtrl)
+              }
+            }
+          }
+        }
+      }
+      val invalidatePacketData: State = new State {
+        whenIsActive {
+          when(txOverflowInvIssued < txOverflowToInvalidate) {
+            lci.payload := overflowIdxToAddr(txOverflowInvIssued, isTx = true)
+            lci.valid := True
+            when (lci.fire) {
+              txOverflowInvIssued.increment()
+              when (txOverflowInvIssued === txOverflowToInvalidate) { lci.valid := False }
+            }
+          }
+
+          lcia.freeRun()
+          when (lcia.fire) {
+            // unlock immediately
+            ul.payload := lcia.payload
+            ul.valid := True
+
+            txOverflowInvAcked.increment()
+          }
+
+          when (txOverflowInvAcked === txOverflowToInvalidate) {
+            goto(invalidateCtrl)
+          }
+        }
+      }
+      val invalidateCtrl: State = new State {
+        whenIsActive {
+          lci.payload := ctrlToAddr(txCurrClIdx.asUInt, isTx = true)
+          lci.valid := True
+          when (lci.fire) { lci.valid := False }
+
+          lcia.freeRun()
+          when (lcia.fire) {
+            // immediately unlock
+            ul.payload := lcia.payload
+            ul.valid := True
+
+            goto(tx)
+          }
+        }
+      }
+      val tx: State = new State {
+        whenIsActive {
+          txCurrClIdx.toggleWhen(True)
+          goto(waitPacket)
         }
       }
     }
+    hostTxAck << muxed.translateWith(muxed.payload.size).continueWhen(txFsm.isActive(txFsm.tx))
   } setCompositeName(this, s"logic_$coreID")
 }
