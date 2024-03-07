@@ -144,7 +144,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   val rxFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
       whenIsActive {
-        rxAlloc.io.allocResp.ready := True
+        rxAlloc.io.allocResp.freeRun()
         when(rxAlloc.io.allocResp.valid) {
           io.writeDesc.payload.payload.addr := rxAlloc.io.allocResp.addr.bits.resized
           io.writeDesc.payload.payload.len := allocReq.bits // use the actual size instead of length of buffer
@@ -201,7 +201,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   val txFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {
       whenIsActive {
-        io.hostTxAck.ready := True
+        io.hostTxAck.freeRun()
         when(io.hostTxAck.valid) {
           io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
           io.readDesc.payload.payload.len := io.hostTxAck.payload.bits
