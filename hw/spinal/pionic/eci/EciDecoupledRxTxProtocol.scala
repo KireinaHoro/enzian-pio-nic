@@ -63,8 +63,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
 
       // only allow loads when no invalidation is pending
-      val blocked = logic.rxPacketCtrl(idx).continueWhen(logic.rxFsm.isActive(logic.rxFsm.idle))
-      busCtrl.readStreamBlockCycles(blocked, idx * 0x80, csr.ctrl.rxBlockCycles, logic.rxTimeouts(idx))
+      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), idx * 0x80, csr.ctrl.rxBlockCycles, logic.rxTimeouts(idx))
 
       // allow read since host need to bring cacheline in to modify
       busCtrl.readAndWrite(logic.txPacketCtrl(idx), txOffset + idx * 0x80)
@@ -74,7 +73,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val txMapping = SizeMapping(descOffset + rxSize, txSize)
 
     // cpu not supposed to modify rx packet data
-    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = rxMapping.removeOffset(logic.rxNextAddr.bits).resized)
+    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = rxMapping.removeOffset(logic.savedHostRx.addr.bits).resized)
 
     // dummy read for tx cacheline reload
     busCtrl.readPrimitive(Bits(busCtrl.busDataWidth bits).setAll(), txMapping, 0, null)
@@ -84,11 +83,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   val logic = during build new Area {
     val ctrlInfo = PacketCtrlInfo()
     ctrlInfo.size := hostRxNext.payload.size
-    val ctrlInfoStream = hostRxNext.translateWith(ctrlInfo)
     val rxDispatchIdx = Reg(Bool()) init False
-
-    val rxPacketCtrl = StreamDemux(ctrlInfoStream, rxDispatchIdx.asUInt, 2)
-    val rxNextAddr = RegNextWhen(hostRxNext.payload.addr, hostRxNext.valid)
     val rxTimeouts = Vec.fill(2)(Bool())
 
     val txPacketCtrl = Vec.fill(2)(Stream(PacketCtrlInfo()))
@@ -116,8 +111,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          hostRxNext.freeRun()
-
           overflowToInvalidate.clearAll()
           overflowInvAcked.clear()
           overflowInvIssued.clear()
@@ -191,6 +184,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
         }
       }
     }
+    val ctrlInfoStream = hostRxNext.translateWith(ctrlInfo).continueWhen(rxFsm.isActive(rxFsm.idle))
+    val rxPacketCtrl = StreamDemux(ctrlInfoStream, rxDispatchIdx.asUInt, 2)
+
     val txFsm = new StateMachine {
       val stateIdle: State = new State with EntryPoint {
         whenIsActive {
