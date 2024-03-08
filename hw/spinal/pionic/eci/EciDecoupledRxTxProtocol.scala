@@ -22,6 +22,8 @@ case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
 }
 
 class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
+  withPrefix(s"core_$coreID")
+
   lazy val csr = host[GlobalCSRPlugin].logic
   lazy val numOverflowCls = host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1
   lazy val overflowCountWidth = log2Up(numOverflowCls)
@@ -281,5 +283,5 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
     }
     hostTxAck << muxed.translateWith(muxed.payload.size).continueWhen(txFsm.isActive(txFsm.tx))
-  } setCompositeName(this, s"logic_$coreID")
+  }
 }

@@ -31,6 +31,8 @@ case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
 }
 
 class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends FiberPlugin {
+  withPrefix(s"core_$coreID")
+
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val hs = host[HostService]
