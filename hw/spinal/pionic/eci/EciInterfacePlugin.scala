@@ -15,7 +15,7 @@ import spinal.lib.bus.misc.SizeMapping
 import scala.language.postfixOps
 import scala.util.Random
 
-/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in `EciPioProtocol` */
+/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.eci.EciPioProtocol]]. */
 class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
