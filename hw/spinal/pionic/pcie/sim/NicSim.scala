@@ -8,6 +8,7 @@ import spinal.lib.bus.amba4.axis.sim._
 import jsteward.blocks.misc.RegBlockReadBack
 import pionic._
 import pionic.pcie.PcieBridgeInterfacePlugin
+import pionic.sim.XilinxCmacSim
 
 import scala.util._
 import scala.util.control.TailCalls._
@@ -32,16 +33,8 @@ object NicSim extends App {
 
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
-    val cmacIf = dut.host[XilinxCmacPlugin].logic.get
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
-
-    cmacIf.cmacRxClock.forkStimulus(period = 4) // 250 MHz
-    cmacIf.cmacTxClock.forkStimulus(period = 4) // 250 MHz
-
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
-    val axisMaster = Axi4StreamMaster(cmacIf.s_axis_rx, cmacIf.cmacRxClock)
-    val axisSlave = Axi4StreamSlave(cmacIf.m_axis_tx, cmacIf.cmacTxClock)
-
     // reset value of dispatch mask should be all 1
     val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
     assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
@@ -56,6 +49,7 @@ object NicSim extends App {
     var data = master.read(globalBlock("rxBlockCycles"), 8)
     assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
 
+    val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     (master, axisMaster, axisSlave)
   }
 

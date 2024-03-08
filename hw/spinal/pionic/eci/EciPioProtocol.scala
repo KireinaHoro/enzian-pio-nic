@@ -11,7 +11,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 
 /** PIO cacheline protocol state machine interface.
  * Does not handle actual packet data (in the second half-cacheline and into the overflow cachelines;
- * that is handled inside `EciInterfacePlugin`.
+ * that is handled inside [[pionic.eci.EciInterfacePlugin]].
  */
 trait EciPioProtocol extends FiberPlugin {
   implicit val config: PioNicConfig

@@ -1,6 +1,6 @@
-package pionic.pcie.sim
+package pionic.sim
 
-import pionic.{Config, PioNicConfig, PacketAlloc}
+import pionic.{Config, PacketAlloc, PioNicConfig}
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib.sim._
