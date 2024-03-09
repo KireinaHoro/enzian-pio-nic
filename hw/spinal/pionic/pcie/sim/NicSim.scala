@@ -8,12 +8,17 @@ import spinal.lib.bus.amba4.axis.sim._
 import jsteward.blocks.misc.RegBlockReadBack
 import pionic._
 import pionic.pcie.PcieBridgeInterfacePlugin
-import pionic.sim.XilinxCmacSim
+import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim}
 
 import scala.util._
 import scala.util.control.TailCalls._
 
 object NicSim extends App {
+  implicit val axiAsMaster = new AsSimBusMaster[Axi4Master] {
+    def read(b: Axi4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
+    def write(b: Axi4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
+  }
+
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(
     numCores = 8, // to test for dispatching
@@ -35,19 +40,8 @@ object NicSim extends App {
 
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
-    // reset value of dispatch mask should be all 1
-    val dispatchMask = master.read(globalBlock("dispatchMask"), 8).bytesToBigInt
-    assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
 
-    // reset value of rx alloc reset should be 0
-    val allocReset = master.read(coreBlock("allocReset"), 8).bytesToBigInt
-    assert(allocReset == 0, "rx alloc reset should be low at boot")
-
-    // write global config bundle
-    master.write(0, rxBlockCycles.toBytes)
-
-    var data = master.read(globalBlock("rxBlockCycles"), 8)
-    assert(data.bytesToBigInt == rxBlockCycles, "global config bundle mismatch")
+    CSRSim.csrSanityChecks(globalBlock, coreBlock, master, rxBlockCycles)(nicConfig)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     (master, axisMaster, axisSlave)
