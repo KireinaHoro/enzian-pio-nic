@@ -1,6 +1,7 @@
 out/
 hw/gen/
 .idea/
+.bsp/
 tmp/
 simWorkspace/
 vivado*.jou
