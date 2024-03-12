@@ -114,6 +114,8 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-regular") { implicit dut =>
+    SimTimeout(cyc(2000))
+
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
