@@ -44,9 +44,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     // assert dcs interfaces never drop valid when ready is low
     def checkStreamValidDrop[T <: Data](s: Stream[T]) = {
       assert(
-        assertion = !(s.valid.fall && !s.ready),
-        message = "Valid dropped when ready was low",
-        severity = ERROR
+        assertion = !(s.valid.fall && !s.ready && !s.ready.fall),
+        message = s"${s.getName()}: Valid dropped when ready was low",
+        severity = FAILURE
       )
     }
 
