@@ -15,6 +15,7 @@ import scala.language.postfixOps
 
 case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketCtrlInfo()
+
   val size = PacketLength()
 
   // plus one for readStreamBlockCycles
@@ -25,7 +26,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   withPrefix(s"core_$coreID")
 
   lazy val csr = host[GlobalCSRPlugin].logic
-  lazy val numOverflowCls = host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1
+  lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
   lazy val overflowCountWidth = log2Up(numOverflowCls)
   lazy val txOffset = host[EciInterfacePlugin].sizePerMtuPerDirection
 
@@ -102,9 +103,15 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     lci.valid.setAsReg()
     lci.payload.setAsReg()
 
-    ul.setIdle()
-    ul.valid.setAsReg()
-    ul.payload.setAsReg()
+    val ulFlow = Flow(ul.payload.clone).setIdle()
+    val ulOverflow = Bool()
+    // max number of inflight ULs: overflow CLs + 2 ctrl CLs
+    ul << ulFlow.toStream(ulOverflow).queue(numOverflowCls + 2)
+    assert(
+      assertion = !ulOverflow,
+      message = s"UL flow overflow",
+      severity = FAILURE
+    )
 
     lcia.setBlocked()
 
@@ -164,8 +171,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           lcia.freeRun()
           when (lcia.fire) {
             // unlock immediately since we guarantee that the CPU only loads the overflow cachelines after control
-            ul.payload := lcia.payload
-            ul.valid := True
+            ulFlow.payload := lcia.payload
+            ulFlow.valid := True
 
             rxOverflowInvAcked.increment()
           }
@@ -180,15 +187,21 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
         whenIsActive {
           lci.payload := ctrlToAddr(rxCurrClIdx.asUInt)
           lci.valid := True
-          when (lci.fire) { lci.valid := False }
-
+          when(lci.fire) {
+            lci.valid := False
+            goto(waitInvResp)
+          }
+        }
+      }
+      val waitInvResp: State = new State {
+        whenIsActive {
           lcia.freeRun()
           when (lcia.fire) {
             // FIXME: should we check the response address?
 
             // immediately unlock so that we can see later load requests
-            ul.payload := lcia.payload
-            ul.valid := True
+            ulFlow.payload := lcia.payload
+            ulFlow.valid := True
 
             // always toggle, even if NACK was sent
             rxCurrClIdx.toggleWhen(True)
@@ -248,8 +261,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           lcia.freeRun()
           when (lcia.fire) {
             // unlock immediately
-            ul.payload := lcia.payload
-            ul.valid := True
+            ulFlow.payload := lcia.payload
+            ulFlow.valid := True
 
             txOverflowInvAcked.increment()
           }
@@ -268,8 +281,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           lcia.freeRun()
           when (lcia.fire) {
             // immediately unlock
-            ul.payload := lcia.payload
-            ul.valid := True
+            ulFlow.payload := lcia.payload
+            ulFlow.valid := True
 
             goto(tx)
           }
