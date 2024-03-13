@@ -54,13 +54,13 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // remap packet data: first cacheline inline packet data -> second one
     // such that we have continuous address when handling packet data
-    val busCtrl = Axi4SlaveFactory(bus.remapAddr { addr =>
+    val busCtrl = Axi4SlaveFactory(bus).remapAddress { addr =>
       addr.mux(
         U(0x40) -> U(0xc0),
         U(txOffset + 0x40) -> U(txOffset + 0xc0),
         default -> addr
       )
-    })
+    }
 
     hostRxNextReq := False
     logic.txReq := False
@@ -76,7 +76,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       bufferedStreamTimeout.setWhen(streamTimeout)
       busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, streamTimeout)
       logic.rxTriggerInv(idx) := False
-      busCtrl.onRead(rxCtrlAddr + 0x40) {
+      busCtrl.onRead(0xc0) {
         logic.rxTriggerInv(idx) := bufferedStreamTimeout | streamTimeout
         bufferedStreamTimeout.clear()
       }
