@@ -13,9 +13,12 @@ import spinal.lib.bus.amba4.axis.sim.Axi4StreamMaster
 import scala.util._
 import scala.util.control.TailCalls._
 
-case class CtrlInfoSim(size: BigInt)
+case class CtrlInfoSim(size: BigInt, addr: BigInt)
 object CtrlInfoSim {
-  def fromBigInt(v: BigInt)(implicit config: PioNicConfig) = CtrlInfoSim(v & config.pktBufLenMask)
+  def fromBigInt(v: BigInt, nextCl: Int)(implicit config: PioNicConfig) =
+    CtrlInfoSim(v & config.pktBufLenMask,
+      // since we flipped nextCl already
+      (1 - nextCl) * 0x80 + 0x40)
 }
 
 object NicSim extends App {
@@ -81,7 +84,7 @@ object NicSim extends App {
         tailcall(tryReadPacketDesc(dcsMaster, maxTries - 1))
       } else {
         // got packet!
-        done(Some(CtrlInfoSim.fromBigInt(control >> 1)))
+        done(Some(CtrlInfoSim.fromBigInt(control >> 1, nextCl)))
       }
     }
   }
@@ -100,9 +103,9 @@ object NicSim extends App {
     assert(info.size == toSend.size, s"packet length mismatch: expected ${toSend.length}, got ${info.size}")
 
     // read memory and check data
-    var data = dcsMaster.read(nextCl * 0x80 + 0x40, 64)
+    var data = dcsMaster.read(info.addr, info.size.toInt)
     if (toSend.size > 64) {
-      data = data ++ dcsMaster.read(0x100, toSend.size - 64)
+      data ++= dcsMaster.read(0x100, toSend.size - 64)
     }
 
     assert(data == toSend,
