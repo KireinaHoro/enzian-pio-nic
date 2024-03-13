@@ -64,12 +64,22 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     hostRxNextReq := False
     logic.txReq := False
-    Seq(0, 1) foreach { idx =>
+    Seq(0, 1) foreach { idx => new Area {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         hostRxNextReq := True
       }
-      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, logic.rxTimeouts(idx))
+
+      // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
+      val streamTimeout = Bool()
+      val bufferedStreamTimeout = Reg(Bool()) init False
+      bufferedStreamTimeout.setWhen(streamTimeout)
+      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, streamTimeout)
+      logic.rxTriggerInv(idx) := False
+      busCtrl.onRead(rxCtrlAddr + 0x40) {
+        logic.rxTriggerInv(idx) := bufferedStreamTimeout | streamTimeout
+        bufferedStreamTimeout.clear()
+      }
 
       val txCtrlAddr = txOffset + idx * 0x80
       busCtrl.driveStream(logic.txPacketCtrl(idx), txCtrlAddr)
@@ -78,6 +88,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
         logic.txReq := True
       }
+    }.setCompositeName(this, "driveBusCtrl")
     }
 
     val rxBufMapping = SizeMapping(descOffset, rxSize)
@@ -95,7 +106,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
 
-    val rxTimeouts = Vec.fill(2)(Bool())
+    val rxTriggerInv = Vec.fill(2)(Bool())
 
     val txReq = Bool()
 
@@ -136,7 +147,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(savedHostRx.size.bits)
             goto(gotPacket)
           }
-          when (rxTimeouts(rxCurrClIdx.asUInt)) {
+          when (rxTriggerInv(rxCurrClIdx.asUInt)) {
             goto(invalidateCtrl)
           }
         }
