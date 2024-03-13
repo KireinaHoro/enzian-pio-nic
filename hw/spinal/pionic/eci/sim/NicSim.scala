@@ -114,6 +114,8 @@ object NicSim extends App {
          |got:      "${data.bytesToHex}"
          |""".stripMargin)
 
+    println(s"Successfully received packet $info")
+
     // next packet will be acknowledged by reading next packet
   }
 
