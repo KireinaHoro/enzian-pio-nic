@@ -37,15 +37,15 @@ object NicSim extends App {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
-    dut.clockDomain.forkStimulus(period = 4)
-
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_ctrl_axil, dut.clockDomain)
 
-    CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)(nicConfig)
-
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
+
+    dut.clockDomain.forkStimulus(period = 4)
+
+    CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)(nicConfig)
 
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
