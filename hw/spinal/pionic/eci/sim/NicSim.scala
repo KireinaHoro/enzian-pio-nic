@@ -74,12 +74,13 @@ object NicSim extends App {
       println(s"Reading packet desc, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(nextCl * 0x80, 64).bytesToBigInt
+      // always toggle cacheline
+      nextCl = 1 - nextCl
       if ((control & 1) == 0) {
         sleep(cyc(20))
         tailcall(tryReadPacketDesc(dcsMaster, maxTries - 1))
       } else {
         // got packet!
-        nextCl = 1 - nextCl
         done(Some(CtrlInfoSim.fromBigInt(control >> 1)))
       }
     }
