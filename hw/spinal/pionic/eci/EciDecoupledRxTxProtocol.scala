@@ -144,7 +144,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           rxOverflowInvIssued.clear()
 
           when (hostRxNext.fire) {
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(savedHostRx.size.bits)
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
             goto(gotPacket)
           }
           when (rxTriggerInv(rxCurrClIdx.asUInt)) {
