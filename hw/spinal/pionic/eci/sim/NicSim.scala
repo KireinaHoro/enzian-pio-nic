@@ -103,7 +103,8 @@ object NicSim extends App {
     assert(info.size == toSend.size, s"packet length mismatch: expected ${toSend.length}, got ${info.size}")
 
     // read memory and check data
-    var data = dcsMaster.read(info.addr, info.size.toInt)
+    val firstReadSize = if (toSend.size > 64) 64 else toSend.size
+    var data = dcsMaster.read(info.addr, firstReadSize)
     if (toSend.size > 64) {
       data ++= dcsMaster.read(0x100, toSend.size - 64)
     }
