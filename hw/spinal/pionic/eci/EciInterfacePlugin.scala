@@ -34,6 +34,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     dataWidth = 512,
     idWidth = 4,
   )
+  val pktBufWordWidth = axiConfig.dataWidth
 
   val logic = during build new Area {
     // even and odd in ALIASED addresses
@@ -191,13 +192,12 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       val cio = c.logic.ctrl.io
 
       // per-core packet buffer
-      val wordWidth = axiConfig.dataWidth
-      val rxNumWords = rxSizePerCore / (wordWidth / 8)
-      val txNumWords = txSizePerCore / (wordWidth / 8)
+      val rxNumWords = rxSizePerCore / (pktBufWordWidth / 8)
+      val txNumWords = txSizePerCore / (pktBufWordWidth / 8)
 
       // FIXME: fix naming in lambda functions
-      val rxPktBuffer = Mem(Bits(wordWidth bits), rxNumWords)
-      val txPktBuffer = Mem(Bits(wordWidth bits), txNumWords)
+      val rxPktBuffer = Mem(Bits(pktBufWordWidth bits), rxNumWords)
+      val txPktBuffer = Mem(Bits(pktBufWordWidth bits), txNumWords)
 
       // packet data DMA into packet buffer
       // TODO: datapath pipeline attach point (accelerators, rpc request decode, etc.)
