@@ -121,7 +121,7 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-regular") { implicit dut =>
-    SimTimeout(cyc(20000))
+    SimTimeout(cyc(200000))
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
@@ -140,8 +140,8 @@ object NicSim extends App {
     csrMaster.write(coreBlock("allocReset"), 0.toBytes);
 
     // test for 200 runs
-    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 512)) {
-      0 until 50 foreach { _ =>
+    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 1024)) {
+      0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
         rxSimple(dcsMaster, axisMaster, toSend)
       }
