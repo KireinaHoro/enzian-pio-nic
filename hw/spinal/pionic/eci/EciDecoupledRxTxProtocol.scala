@@ -27,6 +27,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
   lazy val csr = host[GlobalCSRPlugin].logic
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
+  lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8
   lazy val overflowCountWidth = log2Up(numOverflowCls)
   lazy val txOffset = host[EciInterfacePlugin].sizePerMtuPerDirection
 
@@ -94,7 +95,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxBufMapping = SizeMapping(descOffset, rxSize)
 
     // cpu not supposed to modify rx packet data, so omitting write
-    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = rxBufMapping.removeOffset(logic.savedHostRx.addr.bits).resized)
+    // memOffset is in memory words (64B)
+    val memOffset = rxBufMapping.removeOffset(logic.savedHostRx.addr.bits) >> log2Up(pktBufWordNumBytes)
+    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = memOffset.resized)
 
     // tx buffer always start at 0
     busCtrl.writeMemWordAligned(txPktBuffer, txOffset + 0xc0)
