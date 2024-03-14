@@ -171,7 +171,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val invalidatePacketData: State = new State {
         whenIsActive {
           when (rxOverflowInvIssued < rxOverflowToInvalidate) {
-            lci.payload := overflowIdxToAddr(rxOverflowInvIssued)
+            lci.payload := overflowIdxToAddr(rxOverflowInvIssued.valueNext)
             lci.valid := True
             when (lci.fire) {
               rxOverflowInvIssued.increment()
