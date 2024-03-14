@@ -1,10 +1,18 @@
 import spinal.core._
-import spinal.lib._
+import spinal.lib.{Stream, _}
 import spinal.lib.bus.misc._
 
 import scala.language.postfixOps
 
 package object pionic {
+  def checkStreamValidDrop[T <: Data](s: Stream[T]) = {
+    assert(
+      assertion = !(s.valid.fall && ((!s.ready && !s.ready.fall) || s.ready.rise)),
+      message = s"${s.getName()}: Valid dropped when ready was low",
+      severity = FAILURE
+    )
+  }
+
   def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
   object CLZ {
     // https://electronics.stackexchange.com/a/649761

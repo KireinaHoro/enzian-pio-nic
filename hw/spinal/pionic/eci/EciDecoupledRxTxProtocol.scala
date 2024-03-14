@@ -2,7 +2,7 @@ package pionic.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{GlobalCSRPlugin, PacketLength, PioNicConfig}
+import pionic.{GlobalCSRPlugin, PacketLength, PioNicConfig, checkStreamValidDrop}
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -116,6 +116,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     lci.setIdle()
     lci.valid.setAsReg()
     lci.payload.setAsReg()
+    checkStreamValidDrop(lci)
 
     val ulFlow = Flow(ul.payload.clone).setIdle()
     val ulOverflow = Bool()
