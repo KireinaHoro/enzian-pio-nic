@@ -76,9 +76,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val bufferedStreamTimeout = Reg(Bool()) init False
       bufferedStreamTimeout.setWhen(streamTimeout)
       busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, streamTimeout)
-      logic.rxTriggerInv(idx) := False
       busCtrl.onRead(0xc0) {
-        logic.rxTriggerInv(idx) := bufferedStreamTimeout | streamTimeout
+        logic.rxTriggerInv.setWhen(bufferedStreamTimeout | streamTimeout)
         bufferedStreamTimeout.clear()
       }
 
@@ -109,7 +108,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
 
-    val rxTriggerInv = Vec.fill(2)(Bool())
+    val rxTriggerInv = False
 
     val txReq = Bool()
 
@@ -151,7 +150,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
             goto(gotPacket)
           }
-          when (rxTriggerInv(rxCurrClIdx.asUInt)) {
+          when (rxTriggerInv) {
             goto(invalidateCtrl)
           }
         }
@@ -229,7 +228,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val ctrlInfo = PacketCtrlInfo()
     ctrlInfo.size := hostRxNext.payload.size
     val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo).continueWhen(rxFsm.isActive(rxFsm.idle))
-    val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2)
+    val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
 
     when (txReq) {
       // pop hostTx to honour the protocol
