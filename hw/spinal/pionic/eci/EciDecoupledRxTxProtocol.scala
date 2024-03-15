@@ -77,7 +77,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       bufferedStreamTimeout.setWhen(streamTimeout)
       busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, streamTimeout)
       busCtrl.onRead(0xc0) {
-        logic.rxTriggerInv.setWhen(bufferedStreamTimeout | streamTimeout)
+        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
+          // do not trigger inv when we got a packet right at the timeout
+          && !logic.rxFsm.isActive(logic.rxFsm.gotPacket))
         bufferedStreamTimeout.clear()
       }
 
@@ -108,7 +110,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
 
-    val rxTriggerInv = False
+    // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
+    // finish issuing
+    val rxNackTriggerInv = Reg(Bool()) init False
 
     val txReq = Bool()
 
