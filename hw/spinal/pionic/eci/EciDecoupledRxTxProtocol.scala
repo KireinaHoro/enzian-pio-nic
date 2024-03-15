@@ -150,7 +150,15 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
             goto(gotPacket)
           }
-          when (rxTriggerInv) {
+          when (rxNackTriggerInv) {
+            goto(noPacket)
+            rxNackTriggerInv.clear()
+          }
+        }
+      }
+      val noPacket: State = new State {
+        whenIsActive {
+          when (hostRxNextReq) {
             goto(invalidateCtrl)
           }
         }
