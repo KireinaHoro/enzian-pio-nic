@@ -74,9 +74,10 @@ object NicSim extends App {
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
     if (maxTries == 0) done(None)
     else {
-      println(s"Reading packet desc, $maxTries times left...")
+      val clAddr = nextCl * 0x80
+      println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
-      val control = dcsMaster.read(nextCl * 0x80, 64).bytesToBigInt
+      val control = dcsMaster.read(clAddr, 64).bytesToBigInt
       // always toggle cacheline
       nextCl = 1 - nextCl
       if ((control & 1) == 0) {
@@ -120,8 +121,8 @@ object NicSim extends App {
     // next packet will be acknowledged by reading next packet
   }
 
-  dut.doSim("rx-regular") { implicit dut =>
-    SimTimeout(cyc(200000))
+  dut.doSim("rx-regular", 1599956934) { implicit dut =>
+    SimTimeout(cyc(2000000))
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
@@ -135,12 +136,12 @@ object NicSim extends App {
     csrMaster.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     // reset packet allocator
-    csrMaster.write(coreBlock("allocReset"), 1.toBytes);
+    csrMaster.write(coreBlock("allocReset"), 1.toBytes)
     sleep(cyc(200))
-    csrMaster.write(coreBlock("allocReset"), 0.toBytes);
+    csrMaster.write(coreBlock("allocReset"), 0.toBytes)
 
     // test for 200 runs
-    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 1024)) {
+    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 9618)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
         rxSimple(dcsMaster, axisMaster, toSend)
