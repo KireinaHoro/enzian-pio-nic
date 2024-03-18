@@ -69,6 +69,11 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         hostRxNextReq := True
+        // only allow read request to proceed when we are idle (no inv pending, etc.)
+        // this covers both NACK and actual packets
+        when (!logic.rxFsm.isActive(logic.rxFsm.idle)) {
+          busCtrl.readHalt()
+        }
       }
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
@@ -239,7 +244,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     }
     val ctrlInfo = PacketCtrlInfo()
     ctrlInfo.size := hostRxNext.payload.size
-    val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo).continueWhen(rxFsm.isActive(rxFsm.idle))
+    val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo)
     val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
 
     when (txReq) {
