@@ -121,9 +121,7 @@ object NicSim extends App {
     // next packet will be acknowledged by reading next packet
   }
 
-  dut.doSim("rx-regular", 1599956934) { implicit dut =>
-    SimTimeout(cyc(2000000))
-
+  dut.doSim("rx-regular") { implicit dut =>
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
