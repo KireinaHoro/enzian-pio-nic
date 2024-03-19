@@ -63,24 +63,37 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       )
     }
 
-    hostRxNextReq := False
+    hostRxNextReq := logic.rxReqs.reduce(_ || _)
     logic.txReq := False
+    val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
     Seq(0, 1) foreach { idx => new Area {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
-        hostRxNextReq := True
-        // only allow read request to proceed when we are idle (no inv pending, etc.)
+        logic.rxReqs(idx).set()
+        // only allow read request for a new packet to proceed when we are idle (no inv pending, etc.)
         // this covers both NACK and actual packets
-        when (!logic.rxFsm.isActive(logic.rxFsm.idle)) {
+        when (!logic.rxFsm.isActive(logic.rxFsm.idle) && idx =/= logic.rxCurrClIdx.asUInt) {
           busCtrl.readHalt()
         }
+      }
+
+      // we latch the rx stream during any possible host reload replays
+      val needRepeat = logic.rxFsm.isActive(logic.rxFsm.gotPacket) || logic.rxFsm.isActive(logic.rxFsm.noPacket)
+      val latched = RegNextWhen(logic.rxPacketCtrl(idx),
+        // latch exactly when the first read happened, to prevent valid going high in between
+        logic.rxFsm.isActive(logic.rxFsm.idle) && busCtrl.isReading(rxCtrlAddr)).asFlow
+      val repeated = StreamMux(needRepeat.asUInt, Seq(logic.rxPacketCtrl(idx), latched.toStream)) setName "repeated"
+
+      // disable block cycles when we are in repeat
+      when (needRepeat) {
+        blockCycles(logic.rxCurrClIdx.asUInt) := U(0).resized
       }
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
       val bufferedStreamTimeout = Reg(Bool()) init False
       bufferedStreamTimeout.setWhen(streamTimeout)
-      busCtrl.readStreamBlockCycles(logic.rxPacketCtrl(idx), rxCtrlAddr, csr.ctrl.rxBlockCycles, streamTimeout)
+      busCtrl.readStreamBlockCycles(repeated, rxCtrlAddr, blockCycles(idx), streamTimeout)
       busCtrl.onRead(0xc0) {
         logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
           // do not trigger inv when we got a packet right at the timeout
@@ -117,8 +130,10 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
+    // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
 
+    val rxReqs = Vec(False, 2)
     val txReq = Bool()
 
     lci.setIdle()
@@ -150,6 +165,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
+        onEntry {
+          rxNackTriggerInv.clear()
+        }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
@@ -161,20 +179,19 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           }
           when (rxNackTriggerInv) {
             goto(noPacket)
-            rxNackTriggerInv.clear()
           }
         }
       }
       val noPacket: State = new State {
         whenIsActive {
-          when (hostRxNextReq) {
+          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
             goto(invalidateCtrl)
           }
         }
       }
       val gotPacket: State = new State {
         whenIsActive {
-          when (hostRxNextReq) {
+          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
             // current control already is valid, must be the other one
             hostRxNextAck.payload := savedHostRx
             hostRxNextAck.valid := True
@@ -251,7 +268,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
-    val txPacketCtrl = Vec.fill(2)(Stream(PacketCtrlInfo()))
+    val txPacketCtrl = Vec(Stream(PacketCtrlInfo()), 2)
     val muxed = StreamMux(txCurrClIdx.asUInt, txPacketCtrl)
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {

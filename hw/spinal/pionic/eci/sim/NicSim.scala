@@ -138,7 +138,7 @@ object NicSim extends App {
     sleep(cyc(200))
     csrMaster.write(coreBlock("allocReset"), 0.toBytes)
 
-    // test for 200 runs
+    // sweep from 64B to 9600B
     for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 9618)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
