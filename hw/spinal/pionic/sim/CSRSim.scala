@@ -24,6 +24,6 @@ object CSRSim {
     asMaster.write(bus, 0, rxBlockCycles.toBytes)
 
     val cycles = asMaster.read(bus, globalBlock("rxBlockCycles"), 8).bytesToBigInt
-    assert(cycles == rxBlockCycles, "global config bundle mismatch")
+    assert(cycles == rxBlockCycles, s"global config bundle mismatch: $cycles vs $rxBlockCycles")
   }
 }

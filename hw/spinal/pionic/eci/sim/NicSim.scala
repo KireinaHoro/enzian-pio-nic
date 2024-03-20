@@ -22,7 +22,7 @@ object CtrlInfoSim {
 }
 
 object NicSim extends App {
-  implicit val axiAsMaster = new AsSimBusMaster[AxiLite4Master] {
+  implicit val axiliteAsMaster = new AsSimBusMaster[AxiLite4Master] {
     def read(b: AxiLite4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
     def write(b: AxiLite4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
   }
@@ -125,7 +125,7 @@ object NicSim extends App {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
 
     assert(tryReadPacketDesc(dcsMaster).result.isEmpty, "should not have packet on standby yet");
 
