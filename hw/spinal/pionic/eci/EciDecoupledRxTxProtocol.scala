@@ -2,7 +2,7 @@ package pionic.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{GlobalCSRPlugin, PacketLength, PioNicConfig, checkStreamValidDrop}
+import pionic.{ConfigWriter, GlobalCSRPlugin, PacketLength, PioNicConfig, checkStreamValidDrop}
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -31,6 +31,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   lazy val overflowCountWidth = log2Up(numOverflowCls)
   lazy val txOffset = host[EciInterfacePlugin].sizePerMtuPerDirection
 
+  lazy val configWriter = host[ConfigWriter]
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
     val clSize = EciCmdDefs.ECI_CL_SIZE_BYTES
     ((s <= 64) ? U(0) | ((s - 64 + clSize - 1) / clSize)).resize(overflowCountWidth)
@@ -127,6 +128,11 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   val logic = during build new Area {
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+
+    configWriter.postConfig("eci rx base", 0)
+    configWriter.postConfig("eci rx overflow", 0x100)
+    configWriter.postConfig("eci tx base", txOffset)
+    configWriter.postConfig("eci tx overflow", txOffset + 0x100)
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
