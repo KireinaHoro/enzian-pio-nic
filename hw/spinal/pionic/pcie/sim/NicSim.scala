@@ -116,7 +116,7 @@ object NicSim extends App {
   dut.doSim("rx-regular") { implicit dut =>
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
-    val (master, axisMaster) = rxDutSetup(100)
+    val (master, axisMaster) = rxDutSetup(10000)
 
     var data = master.read(coreBlock("hostRxNext"), 8)
     assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
@@ -247,7 +247,7 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-timestamped-queued") { implicit dut =>
-    val (master, axisMaster) = rxDutSetup(100)
+    val (master, axisMaster) = rxDutSetup(10000)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
@@ -276,7 +276,7 @@ object NicSim extends App {
   }
 
   dut.doSim("rx-timestamped-stalled") { implicit dut =>
-    val (master, axisMaster) = rxDutSetup(1000)
+    val (master, axisMaster) = rxDutSetup(10000)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
