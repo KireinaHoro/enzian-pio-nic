@@ -3,12 +3,12 @@ package pionic.eci.sim
 import jsteward.blocks.eci.sim.DcsAppMaster
 import pionic.eci.EciInterfacePlugin
 import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim}
-import pionic.{Config, NicEngine, PioNicConfig, XilinxCmacPlugin}
+import pionic.{Config, ConfigWriter, NicEngine, PioNicConfig, XilinxCmacPlugin}
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
-import spinal.lib.bus.amba4.axis.sim.Axi4StreamMaster
+import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 
 import scala.util._
 import scala.util.control.TailCalls._
@@ -70,22 +70,22 @@ object NicSim extends App {
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  var nextCl: Int = 0
+  var rxNextCl: Int = 0
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
     if (maxTries == 0) done(None)
     else {
-      val clAddr = nextCl * 0x80
+      val clAddr = rxNextCl * 0x80 + dut.host[ConfigWriter].getConfig[Int]("eci rx base")
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(clAddr, 64).bytesToBigInt
       // always toggle cacheline
-      nextCl = 1 - nextCl
+      rxNextCl = 1 - rxNextCl
       if ((control & 1) == 0) {
         sleep(cyc(20))
         tailcall(tryReadPacketDesc(dcsMaster, maxTries - 1))
       } else {
         // got packet!
-        done(Some(CtrlInfoSim.fromBigInt(control >> 1, nextCl)))
+        done(Some(CtrlInfoSim.fromBigInt(control >> 1, rxNextCl)))
       }
     }
   }
@@ -107,7 +107,7 @@ object NicSim extends App {
     val firstReadSize = if (toSend.size > 64) 64 else toSend.size
     var data = dcsMaster.read(info.addr, firstReadSize)
     if (toSend.size > 64) {
-      data ++= dcsMaster.read(0x100, toSend.size - 64)
+      data ++= dcsMaster.read(dut.host[ConfigWriter].getConfig[Int]("eci rx overflow"), toSend.size - 64)
     }
 
     assert(data == toSend,
@@ -118,7 +118,7 @@ object NicSim extends App {
 
     println(s"Successfully received packet $info")
 
-    // next packet will be acknowledged by reading next packet
+    // packet will be acknowledged by reading next packet
   }
 
   dut.doSim("rx-regular") { implicit dut =>
