@@ -65,7 +65,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     }
 
     hostRxNextReq := logic.rxReqs.reduce(_ || _)
-    logic.txReq := False
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
     Seq(0, 1) foreach { idx => new Area {
       val rxCtrlAddr = idx * 0x80
@@ -107,7 +106,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       // dummy read for tx ctrl cacheline loads
       busCtrl.readAllOnes(txCtrlAddr, 64)
       busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
-        logic.txReq := True
+        logic.rxReqs(idx).set()
       }
     }.setCompositeName(this, "driveBusCtrl")
     }
@@ -140,7 +139,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxNackTriggerInv = Reg(Bool()) init False
 
     val rxReqs = Vec(False, 2)
-    val txReq = Bool()
+    val txReqs = Vec(False, 2)
 
     lci.setIdle()
     lci.valid.setAsReg()
@@ -161,6 +160,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     hostRxNextAck.setIdle()
     hostTx.setBlocked()
+    hostTxAck.setIdle()
 
     val rxOverflowInvIssued, rxOverflowInvAcked = Counter(overflowCountWidth bits)
     val rxOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
@@ -198,7 +198,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val gotPacket: State = new State {
         whenIsActive {
           when (rxReqs(1 - rxCurrClIdx.asUInt)) {
-            // current control already is valid, must be the other one
             hostRxNextAck.payload := savedHostRx
             hostRxNextAck.valid := True
             when (hostRxNextAck.fire) {
@@ -270,16 +269,18 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo)
     val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
 
-    when (txReq) {
+    val txPacketCtrl = Vec(Stream(PacketCtrlInfo()), 2)
+    when (txPacketCtrl.map(_.fire).reduce(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
-    val txPacketCtrl = Vec(Stream(PacketCtrlInfo()), 2)
-    val muxed = StreamMux(txCurrClIdx.asUInt, txPacketCtrl)
+
+    val selectedTxCtrl = StreamMux(txCurrClIdx.asUInt, txPacketCtrl)
+    val savedTxCtrl = selectedTxCtrl.toReg()
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          when (txReq) { goto(waitPacket) }
+          when (txReqs(txCurrClIdx.asUInt)) { goto(waitPacket) }
         }
       }
       val waitPacket: State = new State {
@@ -287,16 +288,36 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           txOverflowInvIssued.clear()
           txOverflowInvAcked.clear()
           txOverflowToInvalidate.clearAll()
-          when (txReq) {
-            when (muxed.fire) {
-              val toInv = txOverflowToInvalidate.clone
-              toInv := packetSizeToNumOverflowCls(muxed.payload.size.bits)
-              txOverflowToInvalidate := toInv
-              when (toInv > 0) {
-                goto(invalidatePacketData)
-              } otherwise {
-                goto(invalidateCtrl)
-              }
+          when (txReqs(1 - txCurrClIdx.asUInt)) {
+            // invalidate control first to know how many overflows do we need to invalidate
+            goto(invalidateCtrl)
+          }
+        }
+      }
+      val invalidateCtrl: State = new State {
+        whenIsActive {
+          lci.payload := ctrlToAddr(txCurrClIdx.asUInt, isTx = true)
+          lci.valid := True
+          when(lci.fire) {
+            lci.valid := False
+            goto(waitInvResp)
+          }
+        }
+      }
+      val waitInvResp: State = new State {
+        whenIsActive {
+          lcia.freeRun()
+          when (lcia.fire) {
+            // immediately unlock
+            ulFlow.payload := lcia.payload
+            ulFlow.valid := True
+
+            // we should've latched ctrl in savedTxCtrl
+            txOverflowToInvalidate := packetSizeToNumOverflowCls(savedTxCtrl.size.bits)
+            when (txOverflowToInvalidate > 0) {
+              goto(invalidatePacketData)
+            } otherwise {
+              goto(tx)
             }
           }
         }
@@ -306,10 +327,10 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           when(txOverflowInvIssued < txOverflowToInvalidate) {
             lci.payload := overflowIdxToAddr(txOverflowInvIssued, isTx = true)
             lci.valid := True
-            when (lci.fire) {
-              txOverflowInvIssued.increment()
-              when (txOverflowInvIssued === txOverflowToInvalidate) { lci.valid := False }
-            }
+          }
+
+          when (lci.fire) {
+            txOverflowInvIssued.increment()
           }
 
           lcia.freeRun()
@@ -322,33 +343,21 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           }
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
-            goto(invalidateCtrl)
-          }
-        }
-      }
-      val invalidateCtrl: State = new State {
-        whenIsActive {
-          lci.payload := ctrlToAddr(txCurrClIdx.asUInt, isTx = true)
-          lci.valid := True
-          when (lci.fire) { lci.valid := False }
-
-          lcia.freeRun()
-          when (lcia.fire) {
-            // immediately unlock
-            ulFlow.payload := lcia.payload
-            ulFlow.valid := True
-
             goto(tx)
           }
         }
       }
       val tx: State = new State {
         whenIsActive {
-          txCurrClIdx.toggleWhen(True)
-          goto(waitPacket)
+          hostTxAck.payload := savedTxCtrl.size
+          hostTxAck.valid := True
+
+          when (hostTxAck.fire) {
+            txCurrClIdx.toggleWhen(True)
+            goto(idle)
+          }
         }
       }
     }
-    hostTxAck << muxed.translateWith(muxed.payload.size).continueWhen(txFsm.isActive(txFsm.tx))
   }
 }
