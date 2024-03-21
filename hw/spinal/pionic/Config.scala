@@ -8,7 +8,7 @@ import scala.language.postfixOps
 object Config {
   val outputDirectory = "hw/gen"
 
-  def spinal(outDir: String = outputDirectory, blackboxPolicy: MemBlackboxingPolicy = blackboxAll) = SpinalConfig(
+  def spinal(outDir: String = outputDirectory, blackboxPolicy: MemBlackboxingPolicy = blackboxAllWhatsYouCan) = SpinalConfig(
     targetDirectory = outDir,
     defaultClockDomainFrequency = FixedFrequency(250 MHz),
     defaultConfigForClockDomains = ClockDomainConfig(

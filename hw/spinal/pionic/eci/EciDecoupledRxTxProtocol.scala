@@ -119,9 +119,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = memOffset.resized)
 
     // tx buffer always start at 0
-    busCtrl.writeMemWordAligned(txPktBuffer, txOffset + 0xc0)
-    // dummy read for tx overflow cacheline loads
-    busCtrl.readAllOnes(txOffset + 0xc0, txSize)
+    // allow reloading from the packet buffer for partial flush due to voluntary invalidations
+    busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0)
   }.setName("driveDcsBus")
 
   val logic = during build new Area {
