@@ -80,8 +80,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       }: _*)
       .addConnections(Seq(dcsOdd, dcsEven) map { dcs =>
         dcs.axi.remapAddr { a =>
+          val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
-          EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).resized
+          (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)) | byteOffset.resized).resized
         } -> dcsNodes
       }: _*)
       .build()
