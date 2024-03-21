@@ -23,7 +23,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
   lazy val protos = host.list[EciPioProtocol]
   val retainer = Retainer()
 
-  val sizePerMtuPerDirection = roundUp((512 / 8) + config.roundMtu, EciCmdDefs.ECI_CL_SIZE_BYTES)
+  val sizePerMtuPerDirection = (512 / 8) * 3 + config.roundMtu
   val rxSizePerCore = config.pktBufSizePerCore - config.roundMtu
   val txSizePerCore = config.roundMtu
 

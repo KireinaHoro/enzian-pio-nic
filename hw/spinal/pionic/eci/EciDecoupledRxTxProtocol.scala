@@ -102,12 +102,16 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
 
       val txCtrlAddr = txOffset + idx * 0x80
-      busCtrl.driveStream(logic.txPacketCtrl(idx), txCtrlAddr)
-      // dummy read for tx ctrl cacheline loads
-      busCtrl.readAllOnes(txCtrlAddr, 64)
       busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
-        logic.rxReqs(idx).set()
+        logic.txReqs(idx).set()
+        // only allow write load request when we are idle
+        when (!logic.txFsm.isActive(logic.txFsm.idle) && idx =/= logic.txCurrClIdx.asUInt) {
+          busCtrl.readHalt()
+        }
       }
+
+      busCtrl.driveStream(logic.txPacketCtrl(idx), txCtrlAddr)
+      busCtrl.read(logic.savedTxCtrl, txCtrlAddr)
     }.setCompositeName(this, "driveBusCtrl")
     }
 
@@ -116,11 +120,14 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     // cpu not supposed to modify rx packet data, so omitting write
     // memOffset is in memory words (64B)
     val memOffset = rxBufMapping.removeOffset(logic.savedHostRx.addr.bits) >> log2Up(pktBufWordNumBytes)
-    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0, memOffset = memOffset.resized)
+    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
+      memOffset = memOffset.resized,
+      mappingLength = config.roundMtu)
 
     // tx buffer always start at 0
     // allow reloading from the packet buffer for partial flush due to voluntary invalidations
-    busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0)
+    busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0,
+      mappingLength = config.roundMtu)
   }.setName("driveDcsBus")
 
   val logic = during build new Area {
@@ -268,7 +275,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo)
     val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
 
-    val txPacketCtrl = Vec(Stream(PacketCtrlInfo()), 2)
+    val txPacketCtrl = Vec(Stream(Bits(512 bits)), 2)
     when (txPacketCtrl.map(_.fire).reduce(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
@@ -312,7 +319,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             ulFlow.valid := True
 
             // we should've latched ctrl in savedTxCtrl
-            txOverflowToInvalidate := packetSizeToNumOverflowCls(savedTxCtrl.size.bits)
+            txOverflowToInvalidate := packetSizeToNumOverflowCls(savedTxCtrl.asUInt)
             when (txOverflowToInvalidate > 0) {
               goto(invalidatePacketData)
             } otherwise {
@@ -348,7 +355,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
       val tx: State = new State {
         whenIsActive {
-          hostTxAck.payload := savedTxCtrl.size
+          hostTxAck.payload.bits := savedTxCtrl.asUInt.resized
           hostTxAck.valid := True
 
           when (hostTxAck.fire) {
