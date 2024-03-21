@@ -146,4 +146,58 @@ object NicSim extends SimApp {
 
     // TODO: check DCS master cacheline state
   }
+
+  var txNextCl: Int = 0
+  def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte])(implicit dut: NicEngine): Unit = {
+    var received = false
+    fork {
+      val data = axisSlave.recv()
+
+      assert(data == toSend,
+        s"""data mismatch:
+           |expected: "${toSend.bytesToHex}"
+           |got:      "${data.bytesToHex}"
+           |""".stripMargin)
+
+      println(s"Packet received from TX interface and validated")
+
+      received = true
+    }
+
+    def clAddr = txNextCl * 0x80 + dut.host[ConfigWriter].getConfig[Int]("eci tx base")
+    println(f"Writing packet desc to $clAddr%#x...")
+    dcsMaster.write(clAddr, toSend.length.toBytes)
+
+    val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
+    dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
+    if (toSend.size > 64) {
+      dcsMaster.write(dut.host[ConfigWriter].getConfig[Int]("eci tx overflow"), toSend.drop(firstWriteSize))
+    }
+
+    // trigger a read on the next cacheline
+    // FIXME: we shouldn't need to do this manually here (only due to us wanting to check the response in the same func)
+    println(s"Sent packet at $clAddr, waiting validation...")
+
+    txNextCl = 1 - txNextCl
+    dcsMaster.read(clAddr, 1)
+
+    waitUntil(received)
+
+    // packet will be acknowledged by writing next packet
+  }
+
+  test("tx-regular") { implicit dut =>
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val coreBlock = nicConfig.allocFactory.readBack("coreControl")
+
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+
+    // sweep from 64B to 9600B
+    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 9618)) {
+      0 until 25 + Random.nextInt(25) foreach { _ =>
+        val toSend = Random.nextBytes(size).toList
+        txSimple(dcsMaster, axisSlave, toSend)
+      }
+    }
+  }
 }
