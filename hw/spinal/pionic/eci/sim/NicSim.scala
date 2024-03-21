@@ -2,7 +2,7 @@ package pionic.eci.sim
 
 import jsteward.blocks.eci.sim.DcsAppMaster
 import pionic.eci.EciInterfacePlugin
-import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim}
+import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim, SimApp}
 import pionic.{Config, ConfigWriter, NicEngine, PioNicConfig, XilinxCmacPlugin}
 import spinal.core._
 import spinal.core.sim._
@@ -21,7 +21,7 @@ object CtrlInfoSim {
       (1 - nextCl) * 0x80 + 0x40)
 }
 
-object NicSim extends App {
+object NicSim extends SimApp {
   implicit val axiliteAsMaster = new AsSimBusMaster[AxiLite4Master] {
     def read(b: AxiLite4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
     def write(b: AxiLite4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
@@ -33,8 +33,6 @@ object NicSim extends App {
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(pionic.GenEngineVerilog.engineFromName("eci"))
-
-  def cyc(c: Int)(implicit dut: NicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -81,7 +79,7 @@ object NicSim extends App {
       // always toggle cacheline
       rxNextCl = 1 - rxNextCl
       if ((control & 1) == 0) {
-        sleep(cyc(20))
+        sleepCycles(20)
         tailcall(tryReadPacketDesc(dcsMaster, maxTries - 1))
       } else {
         // got packet!
@@ -92,7 +90,7 @@ object NicSim extends App {
 
   def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine): Unit = {
     fork {
-      sleep(cyc(20))
+      sleepCycles(20)
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
@@ -121,7 +119,7 @@ object NicSim extends App {
     // packet will be acknowledged by reading next packet
   }
 
-  dut.doSim("rx-regular") { implicit dut =>
+  test("rx-regular") { implicit dut =>
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
@@ -135,7 +133,7 @@ object NicSim extends App {
 
     // reset packet allocator
     csrMaster.write(coreBlock("allocReset"), 1.toBytes)
-    sleep(cyc(200))
+    sleepCycles(200)
     csrMaster.write(coreBlock("allocReset"), 0.toBytes)
 
     // sweep from 64B to 9600B

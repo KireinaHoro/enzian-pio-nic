@@ -8,12 +8,12 @@ import spinal.lib.bus.amba4.axis.sim._
 import jsteward.blocks.misc.RegBlockReadBack
 import pionic._
 import pionic.pcie.PcieBridgeInterfacePlugin
-import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim}
+import pionic.sim.{AsSimBusMaster, CSRSim, SimApp, XilinxCmacSim}
 
 import scala.util._
 import scala.util.control.TailCalls._
 
-object NicSim extends App {
+object NicSim extends SimApp {
   implicit val axiAsMaster = new AsSimBusMaster[Axi4Master] {
     def read(b: Axi4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
     def write(b: Axi4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
@@ -29,8 +29,6 @@ object NicSim extends App {
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .compile(pionic.GenEngineVerilog.engineFromName("pcie"))
-
-  def cyc(c: Int)(implicit dut: NicEngine): TimeNumber = dut.clockDomain.frequency.getValue.toTime * c / 1000
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -54,7 +52,7 @@ object NicSim extends App {
       master.read(coreBlock("hostRxNext"), 8).toRxPacketDesc match {
         case Some(x) => done(Some(x))
         case None =>
-          sleep(cyc(200))
+          sleepCycles(200)
           tailcall(tryReadPacketDesc(master, coreBlock, maxTries - 1))
       }
     }
@@ -82,7 +80,7 @@ object NicSim extends App {
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
     fork {
-      sleep(cyc(20))
+      sleepCycles(20)
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
@@ -113,7 +111,7 @@ object NicSim extends App {
   }
 
   // TODO: test for various failures
-  dut.doSim("rx-regular") { implicit dut =>
+  test("rx-regular") { implicit dut =>
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val (master, axisMaster) = rxDutSetup(10000)
@@ -127,7 +125,7 @@ object NicSim extends App {
 
     // reset packet allocator
     master.write(coreBlock("allocReset"), 1.toBytes);
-    sleep(cyc(200))
+    sleepCycles(200)
     master.write(coreBlock("allocReset"), 0.toBytes);
 
     // test for 200 runs
@@ -139,9 +137,7 @@ object NicSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  dut.doSim("tx-regular") { implicit dut =>
-    SimTimeout(cyc(2000))
-
+  test("tx-regular") { implicit dut =>
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
@@ -172,10 +168,8 @@ object NicSim extends App {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  dut.doSim("rx-roundrobin-with-mask") { implicit dut =>
+  test("rx-roundrobin-with-mask") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
-
-    SimTimeout(cyc(4000))
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
 
@@ -246,7 +240,7 @@ object NicSim extends App {
     }
   }
 
-  dut.doSim("rx-timestamped-queued") { implicit dut =>
+  test("rx-timestamped-queued") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -257,7 +251,7 @@ object NicSim extends App {
     axisMaster.send(toSend)
     // ensure that the packet has landed
     val delayed = 1000
-    sleep(cyc(delayed))
+    sleepCycles(delayed)
 
     var data = master.read(coreBlock("hostRxNext"), 8)
     val desc = data.toRxPacketDesc.get
@@ -275,7 +269,7 @@ object NicSim extends App {
     assert(readStart - entry >= delayed - 2)
   }
 
-  dut.doSim("rx-timestamped-stalled") { implicit dut =>
+  test("rx-timestamped-stalled") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -285,7 +279,7 @@ object NicSim extends App {
     val delayed = 500
 
     fork {
-      sleep(cyc(delayed))
+      sleepCycles(delayed)
 
       axisMaster.send(toSend)
     }
@@ -306,7 +300,7 @@ object NicSim extends App {
     assert(entry - readStart >= delayed)
   }
 
-  dut.doSim("tx-timestamped") { implicit dut =>
+  test("tx-timestamped") { implicit dut =>
     val (master, axisSlave) = txDutSetup()
 
     val globalBlock = nicConfig.allocFactory.readBack("global")
@@ -321,7 +315,7 @@ object NicSim extends App {
 
     // insert delay
     fork {
-      sleep(cyc(delayed))
+      sleepCycles(delayed)
       master.write(coreBlock("hostTxAck"), toSend.length.toBytes)
     }
 
