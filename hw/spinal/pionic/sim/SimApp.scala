@@ -5,7 +5,7 @@ import pionic.NicEngine
 import spinal.core.sim._
 
 import scala.collection.mutable
-import scala.util.Random
+import scala.util.{Failure, Random, Success, Try}
 
 trait SimApp extends DelayedInit {
   def dut: SimCompiled[NicEngine]
@@ -26,18 +26,17 @@ trait SimApp extends DelayedInit {
 
     val p = testPattern.r
 
-    try {
-      tests.foreach { case (name, body) =>
-        p.findFirstIn(name) match {
-          case Some(_) =>
-            dut.doSim(name, seed = globalSeed)(body)
-          case None =>
-            println(s"[info] skipping test $name")
-        }
-      }
-    } catch {
-      case e: Throwable =>
-        println(s"[info] failed seed: $globalSeed")
+    tests.map { case (name, body) =>
+      (p.findFirstIn(name) match {
+        case Some(_) =>
+          Try(dut.doSim(name, seed = globalSeed)(body))
+        case None =>
+          println(s"[info] skipping test $name")
+          Success()
+      }, name)
+    }.dropWhile(_._1.isSuccess).head match {
+      case (Failure(e), name) =>
+        println(s"[info] test $name failed with seed $globalSeed")
         throw e
     }
   }
