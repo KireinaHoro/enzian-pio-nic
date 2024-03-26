@@ -28,6 +28,7 @@ object NicSim extends SimApp {
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
+    .workspaceName("pcie")
     .compile(pionic.GenEngineVerilog.engineFromName("pcie"))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {

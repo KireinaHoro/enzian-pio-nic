@@ -28,38 +28,46 @@ trait SimApp extends DelayedInit {
     // initialize TB (elaborate component, etc.)
     initCodes.foreach(_.apply())
 
-    // write simulation log to a file
-    val sc = dut.simConfig
-    val logFilePath = s"${sc._workspacePath}/${sc._workspaceName}/sim_transcript_$globalSeed.log"
-    val logFileStream = new FileOutputStream(logFilePath)
+    val p = testPattern.r
+    tests.view.map { case (name, body) =>
+      (p.findFirstIn(name) match {
+        case Some(_) =>
+          // write simulation log to a file
+          val sc = dut.simConfig
+          val testWorkspace = os.pwd / os.RelPath(sc._workspacePath) / sc._workspaceName / name
+          os.makeDir.all(testWorkspace)
 
-    Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream)) {
-      // prepend simulation timestamp
-      override def println(x: Object): Unit = {
-        if (SimManagerContext.current != null) {
-          print(s"[${SimManagerContext.current.manager.time}] ")
-        }
-        super.println(x)
-      }
-    }) {
-      println(s"====== simulation transcript ${getClass.getCanonicalName} (seed: $globalSeed) =====\n")
+          val logFilePath = testWorkspace / s"sim_transcript_$globalSeed.log"
+          val logFileStream = new FileOutputStream(logFilePath.toString)
 
-      val p = testPattern.r
+          println(s"[info] transcript at $logFilePath")
 
-      tests.view.map { case (name, body) =>
-        (p.findFirstIn(name) match {
-          case Some(_) =>
-            Try(dut.doSim(name, seed = globalSeed)(body))
-          case None =>
-            println(s"[info] skipping test $name")
-            Success()
-        }, name)
-      }.dropWhile(_._1.isSuccess).headOption match {
-        case Some((Failure(e), name)) =>
-          println(s"[info] test $name failed with seed $globalSeed, exception:\n")
-          e.printStackTrace(Console.out)
+          Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream)) {
+            // prepend simulation timestamp
+            override def println(x: Object): Unit = {
+              if (SimManagerContext.current != null) {
+                print(s"[${SimManagerContext.current.manager.time}] ")
+              }
+              super.println(x)
+            }
+          }) {
+            println(s"===== simulation transcript ${getClass.getCanonicalName} for test $name (seed: $globalSeed) =====\n")
+
+            Try(dut.doSim(name, seed = globalSeed)(body)).recoverWith {
+              case e =>
+                e.printStackTrace(Console.out)
+                // prevent other tests from running
+                Failure(e)
+            }
+          }
         case None =>
-      }
+          println(s"[info] skipping test $name")
+          Success()
+      }, name)
+    }.dropWhile(_._1.isSuccess).headOption match {
+      case Some((_, name)) =>
+        println(s"[info] test $name failed with seed $globalSeed")
+      case None =>
     }
   }
 
