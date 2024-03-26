@@ -32,6 +32,7 @@ object NicSim extends SimApp {
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
+    .workspaceName("eci")
     .compile(pionic.GenEngineVerilog.engineFromName("eci"))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
