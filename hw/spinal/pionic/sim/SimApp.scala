@@ -20,13 +20,15 @@ trait SimApp extends DelayedInit {
   def run(
            @arg(doc = "regex of test names to include")
            testPattern: String = ".*",
+           @arg(doc = "simulation setup random seed")
+           setupSeed: Option[Int],
            @arg(doc = "simulation random seed")
-           seed: Option[Int],
+           simSeed: Option[Int],
            @arg(doc = "print simulation log (transcript) to stdout")
            printSimLog: Flag,
          ): Unit = {
-    val globalSeed = seed.getOrElse(Random.nextInt)
-    Random.setSeed(globalSeed)
+    val gseed = setupSeed.getOrElse(Random.nextInt)
+    Random.setSeed(gseed)
 
     // initialize TB (elaborate component, etc.)
     initCodes.foreach(_.apply())
@@ -40,7 +42,10 @@ trait SimApp extends DelayedInit {
           val testWorkspace = os.pwd / os.RelPath(sc._workspacePath) / sc._workspaceName / name
           os.makeDir.all(testWorkspace)
 
-          val logFilePath = testWorkspace / s"sim_transcript_$globalSeed.log.gz"
+          val lseed = simSeed.getOrElse(Random.nextInt)
+          Random.setSeed(lseed)
+
+          val logFilePath = testWorkspace / s"sim_transcript.log.gz"
           val logFileStream = new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(logFilePath.toString)))
 
           println(s"[info] simulation transcript at $logFilePath")
@@ -57,9 +62,9 @@ trait SimApp extends DelayedInit {
           }
 
           val res = Console.withOut(printStream) {
-            println(s"===== simulation transcript ${getClass.getCanonicalName} for test $name (seed: $globalSeed) =====\n")
+            println(s"===== simulation transcript ${getClass.getCanonicalName} for test $name (setup: $gseed, sim: $lseed) =====\n")
 
-            Try(dut.doSim(name, seed = globalSeed)(body)).recoverWith {
+            Try(dut.doSim(name, seed = lseed)(body)).recoverWith {
               case e =>
                 e.printStackTrace(Console.out)
                 // prevent other tests from running
@@ -76,7 +81,7 @@ trait SimApp extends DelayedInit {
       }, name)
     }.dropWhile(_._1.isSuccess).headOption match {
       case Some((_, name)) =>
-        println(s"[info] test $name failed with seed $globalSeed")
+        println(s"[info] test $name failed")
         System.exit(1)
       case None =>
         System.exit(0)
