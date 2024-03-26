@@ -4,6 +4,7 @@ import mainargs._
 import org.apache.commons.io.output.TeeOutputStream
 import pionic.NicEngine
 import spinal.core.sim._
+import spinal.sim._
 
 import java.io.{FileOutputStream, PrintStream}
 import scala.collection.mutable
@@ -32,7 +33,15 @@ trait SimApp extends DelayedInit {
     val logFilePath = s"${sc._workspacePath}/${sc._workspaceName}/sim_transcript_$globalSeed.log"
     val logFileStream = new FileOutputStream(logFilePath)
 
-    Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream))) {
+    Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream)) {
+      // prepend simulation timestamp
+      override def println(x: Object): Unit = {
+        if (SimManagerContext.current != null) {
+          print(s"[${SimManagerContext.current.manager.time}] ")
+        }
+        super.println(x)
+      }
+    }) {
       println(s"====== simulation transcript ${getClass.getCanonicalName} (seed: $globalSeed) =====\n")
 
       val p = testPattern.r
