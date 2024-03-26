@@ -1,9 +1,11 @@
 package pionic.sim
 
 import mainargs._
+import org.apache.commons.io.output.TeeOutputStream
 import pionic.NicEngine
 import spinal.core.sim._
 
+import java.io.{FileOutputStream, PrintStream}
 import scala.collection.mutable
 import scala.util.{Failure, Random, Success, Try}
 
@@ -19,25 +21,36 @@ trait SimApp extends DelayedInit {
            @arg(doc = "simulation random seed")
            seed: Option[Int]
          ): Unit = {
-    initCodes.foreach(_.apply())
-
     val globalSeed = seed.getOrElse(Random.nextInt)
     Random.setSeed(globalSeed)
 
-    val p = testPattern.r
+    // initialize TB (elaborate component, etc.)
+    initCodes.foreach(_.apply())
 
-    tests.map { case (name, body) =>
-      (p.findFirstIn(name) match {
-        case Some(_) =>
-          Try(dut.doSim(name, seed = globalSeed)(body))
+    // write simulation log to a file
+    val sc = dut.simConfig
+    val logFilePath = s"${sc._workspacePath}/${sc._workspaceName}/sim_transcript_$globalSeed.log"
+    val logFileStream = new FileOutputStream(logFilePath)
+
+    Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream))) {
+      println(s"====== simulation transcript ${getClass.getCanonicalName} (seed: $globalSeed) =====\n")
+
+      val p = testPattern.r
+
+      tests.view.map { case (name, body) =>
+        (p.findFirstIn(name) match {
+          case Some(_) =>
+            Try(dut.doSim(name, seed = globalSeed)(body))
+          case None =>
+            println(s"[info] skipping test $name")
+            Success()
+        }, name)
+      }.dropWhile(_._1.isSuccess).headOption match {
+        case Some((Failure(e), name)) =>
+          println(s"[info] test $name failed with seed $globalSeed, exception:\n")
+          e.printStackTrace(Console.out)
         case None =>
-          println(s"[info] skipping test $name")
-          Success()
-      }, name)
-    }.dropWhile(_._1.isSuccess).head match {
-      case (Failure(e), name) =>
-        println(s"[info] test $name failed with seed $globalSeed")
-        throw e
+      }
     }
   }
 
