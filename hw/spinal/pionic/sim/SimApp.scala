@@ -62,7 +62,8 @@ trait SimApp extends DelayedInit {
           }
 
           val res = Console.withOut(printStream) {
-            println(s"===== simulation transcript ${getClass.getCanonicalName} for test $name (setup: $gseed, sim: $lseed) =====\n")
+            println(s">>>>> Simulation transcript ${getClass.getCanonicalName} for test $name")
+            println(s">>>>> To reproduce: mill ${sc._workspaceName}.runMain ${getClass.getCanonicalName.init} --testPattern $name --printSimLog --setupSeed $gseed --simSeed $lseed\n")
 
             Try(dut.doSim(name, seed = lseed)(body)).recoverWith {
               case e =>
@@ -73,7 +74,10 @@ trait SimApp extends DelayedInit {
           }
 
           printStream.flush()
-          printStream.close()
+
+          if (printSimLog.value)
+            println(s"[info] simulation transcript at $logFilePath")
+
           res
         case None =>
           println(s"[info] skipping test $name")
