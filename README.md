@@ -71,7 +71,7 @@ $ # TODO ECI
 Simulation transcripts are stored in `simWorkspace/<design>/<test>/sim_transcript_<setup seed>_<sim seed>.log.gz`; they are compressed to save disk space.  You can reproduce a specific simulation (for debugging) by supplying the exact setup and sim seeds to `NicSim`.  To browse the transcript:
 
 ```console
-$ zcat <transcript> | vim - # to view in an editor, after the simulation has finished
+$ vim <transcript>          # to view in an editor, after the simulation has finished (vim supports gz files)
 $ gztool -T <transcript>    # to follow the transcript (in the same way as `tail -f`)
 ```
 
