@@ -6,7 +6,8 @@ import pionic.NicEngine
 import spinal.core.sim._
 import spinal.sim._
 
-import java.io.{FileOutputStream, PrintStream}
+import java.io.{BufferedOutputStream, FileOutputStream, PrintStream}
+import java.util.zip.GZIPOutputStream
 import scala.collection.mutable
 import scala.util.{Failure, Random, Success, Try}
 
@@ -20,7 +21,9 @@ trait SimApp extends DelayedInit {
            @arg(doc = "regex of test names to include")
            testPattern: String = ".*",
            @arg(doc = "simulation random seed")
-           seed: Option[Int]
+           seed: Option[Int],
+           @arg(doc = "print simulation log (transcript) to stdout")
+           printSimLog: Flag,
          ): Unit = {
     val globalSeed = seed.getOrElse(Random.nextInt)
     Random.setSeed(globalSeed)
@@ -37,12 +40,13 @@ trait SimApp extends DelayedInit {
           val testWorkspace = os.pwd / os.RelPath(sc._workspacePath) / sc._workspaceName / name
           os.makeDir.all(testWorkspace)
 
-          val logFilePath = testWorkspace / s"sim_transcript_$globalSeed.log"
-          val logFileStream = new FileOutputStream(logFilePath.toString)
+          val logFilePath = testWorkspace / s"sim_transcript_$globalSeed.log.gz"
+          val logFileStream = new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(logFilePath.toString)))
 
-          println(s"[info] transcript at $logFilePath")
+          println(s"[info] simulation transcript at $logFilePath")
 
-          Console.withOut(new PrintStream(new TeeOutputStream(System.out, logFileStream)) {
+          val simOutStream = if (printSimLog.value) new TeeOutputStream(System.out, logFileStream) else logFileStream
+          val printStream = new PrintStream(simOutStream) {
             // prepend simulation timestamp
             override def println(x: Object): Unit = {
               if (SimManagerContext.current != null) {
@@ -50,7 +54,9 @@ trait SimApp extends DelayedInit {
               }
               super.println(x)
             }
-          }) {
+          }
+
+          val res = Console.withOut(printStream) {
             println(s"===== simulation transcript ${getClass.getCanonicalName} for test $name (seed: $globalSeed) =====\n")
 
             Try(dut.doSim(name, seed = globalSeed)(body)).recoverWith {
@@ -60,6 +66,10 @@ trait SimApp extends DelayedInit {
                 Failure(e)
             }
           }
+
+          printStream.flush()
+          printStream.close()
+          res
         case None =>
           println(s"[info] skipping test $name")
           Success()

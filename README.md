@@ -68,6 +68,13 @@ $ mill pcie.runMain pionic.pcie.sim.NicSim
 $ # TODO ECI
 ```
 
+Simulation transcripts are stored in `simWorkspace/<design>/<test>/sim_transcript_<seed>.log.gz`; they are compressed to save disk space.  To browse the transcript:
+
+```console
+$ zcat <transcript> | vim - # to view in an editor, after the simulation has finished
+$ gztool -T <transcript>    # to follow the transcript (in the same way as `tail -f`)
+```
+
 Create Vivado project and generate the bitstream:
 
 ```console
