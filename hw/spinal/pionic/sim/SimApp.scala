@@ -77,7 +77,9 @@ trait SimApp extends DelayedInit {
     }.dropWhile(_._1.isSuccess).headOption match {
       case Some((_, name)) =>
         println(s"[info] test $name failed with seed $globalSeed")
+        System.exit(1)
       case None =>
+        System.exit(0)
     }
   }
 
