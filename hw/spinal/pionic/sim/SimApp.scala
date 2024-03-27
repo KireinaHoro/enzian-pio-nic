@@ -63,7 +63,7 @@ trait SimApp extends DelayedInit {
 
           val res = Console.withOut(printStream) {
             println(s">>>>> Simulation transcript ${getClass.getCanonicalName} for test $name")
-            println(s">>>>> To reproduce: mill ${sc._workspaceName}.runMain ${getClass.getCanonicalName.init} --testPattern $name --printSimLog --setupSeed $gseed --simSeed $lseed\n")
+            println(s">>>>> To reproduce: mill ${sc._workspaceName}.runMain ${getClass.getCanonicalName.init} --testPattern $name --setupSeed $gseed --simSeed $lseed --printSimLog\n")
 
             Try(dut.doSim(name, seed = lseed)(body)).recoverWith {
               case e =>
