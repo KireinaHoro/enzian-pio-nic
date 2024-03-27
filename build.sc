@@ -38,6 +38,7 @@ trait CommonModule extends SbtModule {
   override def ivyDeps = Agg(
     ivy"com.lihaoyi::os-lib:0.9.3",
     ivy"com.lihaoyi::mainargs:0.5.4",
+    ivy"commons-io:commons-io:2.15.1",
   )
 
   def variant: String

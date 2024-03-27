@@ -1,13 +1,13 @@
 package pionic.sim
 
 import mainargs._
-import org.apache.commons.io.output.TeeOutputStream
 import pionic.NicEngine
 import spinal.core.sim._
 import spinal.sim._
 
-import java.io.{BufferedOutputStream, FileOutputStream, PrintStream}
+import java.io.{FileOutputStream, PrintStream}
 import java.util.zip.GZIPOutputStream
+import org.apache.commons.io.output.TeeOutputStream
 import scala.collection.mutable
 import scala.util.{Failure, Random, Success, Try}
 
@@ -46,7 +46,7 @@ trait SimApp extends DelayedInit {
           Random.setSeed(lseed)
 
           val logFilePath = testWorkspace / s"sim_transcript.log.gz"
-          val logFileStream = new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(logFilePath.toString)))
+          val logFileStream = new GZIPOutputStream(new FileOutputStream(logFilePath.toString), 64 * 1024)
 
           println(s"[info] simulation transcript at $logFilePath")
 
