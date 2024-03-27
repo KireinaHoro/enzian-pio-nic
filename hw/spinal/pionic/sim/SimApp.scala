@@ -74,6 +74,8 @@ trait SimApp extends DelayedInit {
           }
 
           printStream.flush()
+          logFileStream.flush()
+          logFileStream.close()
 
           if (printSimLog.value)
             println(s"[info] simulation transcript at $logFilePath")
@@ -84,8 +86,10 @@ trait SimApp extends DelayedInit {
           Success()
       }, name)
     }.dropWhile(_._1.isSuccess).headOption match {
-      case Some((_, name)) =>
+      case Some((Failure(e), name)) =>
         println(s"[info] test $name failed")
+        if (!printSimLog.value)
+          e.printStackTrace()
         System.exit(1)
       case None =>
         System.exit(0)
