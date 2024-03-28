@@ -29,7 +29,7 @@ if { $::argc > 0 } {
 }
 
 set project "pio-nic-eci"
-set part "xcvu0p-flgb2104-3-e"
+set part "xcvu9p-flgb2104-3-e"
 set top_module "pio_nic_eci"
 
 # repo for custom IPs, if any
@@ -42,7 +42,7 @@ set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
-create_project $project
+create_project $project -part $part
 set proj [current_project]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
