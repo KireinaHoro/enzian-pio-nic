@@ -37,7 +37,7 @@ set top_module "pio_nic_eci"
 
 set src_dir "$origin_dir"
 set spinal_gen_dir "$src_dir/../../hw/gen/eci/"
-set hw_deps_dir "src_dir/../../deps/spinal-blocks/deps"
+set hw_deps_dir "$src_dir/../../deps/spinal-blocks/deps"
 set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
