@@ -40,7 +40,7 @@ object NicSim extends SimApp {
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
-    val csrMaster = AxiLite4Master(eciIf.s_ctrl_axil, dut.clockDomain)
+    val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
