@@ -4,3 +4,12 @@
 [submodule "deps/spinal-blocks"]
 	path = deps/spinal-blocks
 	url = https://github.com/KireinaHoro/spinal-blocks
+[submodule "vivado/eci/static-shell"]
+	path = vivado/eci/static-shell
+	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/static-shell.git
+[submodule "vivado/eci/directory-controller-slice"]
+	path = vivado/eci/directory-controller-slice
+	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/directory-controller-slice.git
+[submodule "vivado/eci/eci-toolkit"]
+	path = vivado/eci/eci-toolkit
+	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/eci-toolkit.git
