@@ -32,7 +32,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     // ECI address width
     addressWidth = EciDcsDefs.DS_ADDR_WIDTH,
     dataWidth = 512,
-    idWidth = 4,
+    idWidth = 7,
+    useRegion = false,
+    useQos = false,
   )
   val pktBufWordWidth = axiConfig.dataWidth
 
@@ -51,10 +53,12 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     dcsOdd.axi.setName("s_axi_dcs_odd")
     dcsEven.axi.setName("s_axi_dcs_even")
 
-    val s_ctrl_axil = slave(AxiLite4(addressWidth = 44, dataWidth = 64))
+    val s_axil_ctrl = slave(AxiLite4(
+      addressWidth = 44, dataWidth = 64,
+    ))
 
-    val csrCtrl = AxiLite4SlaveFactory(s_ctrl_axil)
-    private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_ctrl_axil.config.dataWidth)
+    val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
+    private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc(_))
 
     // axi DMA write steered into each core's packet buffer
@@ -181,7 +185,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     // drive core control interface -- datapath per core
     cores lazyZip coreNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
-      val alloc = config.allocFactory("coreControl", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_ctrl_axil.config.dataWidth)
+      val alloc = config.allocFactory("coreControl", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
       val cio = c.logic.ctrl.io
 
       // per-core packet buffer
