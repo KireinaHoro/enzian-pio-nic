@@ -127,6 +127,37 @@ set_property "top" "${top_module}" [get_filesets sources_1]
 puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"
 
+# Create CMAC IP
+set cmac_ip [create_ip -name cmac_usplus -vendor xilinx.com -library ip -module_name cmac_usplus_0]
+set_property -dict {
+    CONFIG.ADD_GT_CNRL_STS_PORTS {1}
+    CONFIG.CMAC_CAUI4_MODE {1}
+    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y2}
+    CONFIG.ENABLE_AXI_INTERFACE {1}
+    CONFIG.GT_DRP_CLK {250}
+    CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11}
+    CONFIG.GT_REF_CLK_FREQ {322.265625}
+    CONFIG.GT_RX_BUFFER_BYPASS {0}
+    CONFIG.INCLUDE_STATISTICS_COUNTERS {1}
+    CONFIG.LANE10_GT_LOC {NA}
+    CONFIG.LANE1_GT_LOC {X0Y8}
+    CONFIG.LANE2_GT_LOC {X0Y9}
+    CONFIG.LANE3_GT_LOC {X0Y10}
+    CONFIG.LANE4_GT_LOC {X0Y11}
+    CONFIG.LANE5_GT_LOC {NA}
+    CONFIG.LANE6_GT_LOC {NA}
+    CONFIG.LANE7_GT_LOC {NA}
+    CONFIG.LANE8_GT_LOC {NA}
+    CONFIG.LANE9_GT_LOC {NA}
+    CONFIG.NUM_LANES {4x25}
+    CONFIG.RX_FLOW_CONTROL {0}
+    CONFIG.RX_GT_BUFFER {1}
+    CONFIG.RX_MAX_PACKET_LEN {9622}
+    CONFIG.TX_FLOW_CONTROL {0}
+    CONFIG.USER_INTERFACE {AXIS}
+} $cmac_ip
+generate_target all $cmac_ip
+
 close_project
 
 # local config file for static-shell flows
