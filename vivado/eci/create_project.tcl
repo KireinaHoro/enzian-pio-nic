@@ -128,7 +128,7 @@ puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"
 
 # Create CMAC IP
-set cmac_ip [create_ip -name cmac_usplus -vendor xilinx.com -library ip -module_name cmac_usplus_0]
+create_ip -name cmac_usplus -vendor xilinx.com -library ip -module_name cmac_usplus_0
 set_property -dict {
     CONFIG.ADD_GT_CNRL_STS_PORTS {1}
     CONFIG.CMAC_CAUI4_MODE {1}
@@ -155,8 +155,8 @@ set_property -dict {
     CONFIG.RX_MAX_PACKET_LEN {9622}
     CONFIG.TX_FLOW_CONTROL {0}
     CONFIG.USER_INTERFACE {AXIS}
-} $cmac_ip
-generate_target all $cmac_ip
+} [get_ips cmac_usplus_0]
+generate_target all [get_ips cmac_usplus_0]
 
 close_project
 
