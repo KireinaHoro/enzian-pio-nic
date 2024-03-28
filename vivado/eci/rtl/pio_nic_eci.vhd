@@ -324,7 +324,7 @@ port (
 );
 end pio_nic_eci;
 
-architecture Behavioral of enzian_app_dcs is
+architecture Behavioral of pio_nic_eci is
 
 component eci_gateway is
 generic (
@@ -751,6 +751,305 @@ port (
     s_ctrl_axil_rready        : in std_logic
 );
 end component;
+
+COMPONENT cmac_usplus_0
+  PORT (
+    gt_txp_out : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txn_out : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxp_in : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxn_in : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txusrclk2 : OUT STD_LOGIC;
+    gt_loopback_in : IN STD_LOGIC_VECTOR(11 DOWNTO 0);
+    gt_eyescanreset : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_eyescantrigger : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxcdrhold : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxpolarity : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxrate : IN STD_LOGIC_VECTOR(11 DOWNTO 0);
+    gt_txdiffctrl : IN STD_LOGIC_VECTOR(19 DOWNTO 0);
+    gt_txpolarity : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txinhibit : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txpippmen : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txpippmsel : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txpostcursor : IN STD_LOGIC_VECTOR(19 DOWNTO 0);
+    gt_txprbsforceerr : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txprecursor : IN STD_LOGIC_VECTOR(19 DOWNTO 0);
+    gt_eyescandataerror : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_ref_clk_out : OUT STD_LOGIC;
+    gt_rxrecclkout : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_powergoodout : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txbufstatus : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    gt_rxdfelpmreset : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxlpmen : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxprbscntreset : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxprbserr : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxprbssel : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt_rxresetdone : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_txprbssel : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt_txresetdone : OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+    gt_rxbufstatus : OUT STD_LOGIC_VECTOR(11 DOWNTO 0);
+    gtwiz_reset_tx_datapath : IN STD_LOGIC;
+    gtwiz_reset_rx_datapath : IN STD_LOGIC;
+    gt_drpclk : IN STD_LOGIC;
+    gt0_drpdo : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt0_drprdy : OUT STD_LOGIC;
+    gt0_drpen : IN STD_LOGIC;
+    gt0_drpwe : IN STD_LOGIC;
+    gt0_drpaddr : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    gt0_drpdi : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt1_drpdo : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt1_drprdy : OUT STD_LOGIC;
+    gt1_drpen : IN STD_LOGIC;
+    gt1_drpwe : IN STD_LOGIC;
+    gt1_drpaddr : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    gt1_drpdi : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt2_drpdo : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt2_drprdy : OUT STD_LOGIC;
+    gt2_drpen : IN STD_LOGIC;
+    gt2_drpwe : IN STD_LOGIC;
+    gt2_drpaddr : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    gt2_drpdi : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt3_drpdo : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    gt3_drprdy : OUT STD_LOGIC;
+    gt3_drpen : IN STD_LOGIC;
+    gt3_drpwe : IN STD_LOGIC;
+    gt3_drpaddr : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    gt3_drpdi : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    s_axi_aclk : IN STD_LOGIC;
+    s_axi_sreset : IN STD_LOGIC;
+    pm_tick : IN STD_LOGIC;
+    s_axi_awaddr : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
+    s_axi_awvalid : IN STD_LOGIC;
+    s_axi_awready : OUT STD_LOGIC;
+    s_axi_wdata : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
+    s_axi_wstrb : IN STD_LOGIC_VECTOR(3 DOWNTO 0);
+    s_axi_wvalid : IN STD_LOGIC;
+    s_axi_wready : OUT STD_LOGIC;
+    s_axi_bresp : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    s_axi_bvalid : OUT STD_LOGIC;
+    s_axi_bready : IN STD_LOGIC;
+    s_axi_araddr : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
+    s_axi_arvalid : IN STD_LOGIC;
+    s_axi_arready : OUT STD_LOGIC;
+    s_axi_rdata : OUT STD_LOGIC_VECTOR(31 DOWNTO 0);
+    s_axi_rresp : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    s_axi_rvalid : OUT STD_LOGIC;
+    s_axi_rready : IN STD_LOGIC;
+    user_reg0 : OUT STD_LOGIC_VECTOR(31 DOWNTO 0);
+    sys_reset : IN STD_LOGIC;
+    gt_ref_clk_p : IN STD_LOGIC;
+    gt_ref_clk_n : IN STD_LOGIC;
+    init_clk : IN STD_LOGIC;
+    common0_drpaddr : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    common0_drpdi : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    common0_drpwe : IN STD_LOGIC;
+    common0_drpen : IN STD_LOGIC;
+    common0_drprdy : OUT STD_LOGIC;
+    common0_drpdo : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    rx_axis_tvalid : OUT STD_LOGIC;
+    rx_axis_tdata : OUT STD_LOGIC_VECTOR(511 DOWNTO 0);
+    rx_axis_tlast : OUT STD_LOGIC;
+    rx_axis_tkeep : OUT STD_LOGIC_VECTOR(63 DOWNTO 0);
+    rx_axis_tuser : OUT STD_LOGIC;
+    rx_otn_bip8_0 : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    rx_otn_bip8_1 : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    rx_otn_bip8_2 : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    rx_otn_bip8_3 : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    rx_otn_bip8_4 : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+    rx_otn_data_0 : OUT STD_LOGIC_VECTOR(65 DOWNTO 0);
+    rx_otn_data_1 : OUT STD_LOGIC_VECTOR(65 DOWNTO 0);
+    rx_otn_data_2 : OUT STD_LOGIC_VECTOR(65 DOWNTO 0);
+    rx_otn_data_3 : OUT STD_LOGIC_VECTOR(65 DOWNTO 0);
+    rx_otn_data_4 : OUT STD_LOGIC_VECTOR(65 DOWNTO 0);
+    rx_otn_ena : OUT STD_LOGIC;
+    rx_otn_lane0 : OUT STD_LOGIC;
+    rx_otn_vlmarker : OUT STD_LOGIC;
+    rx_preambleout : OUT STD_LOGIC_VECTOR(55 DOWNTO 0);
+    usr_rx_reset : OUT STD_LOGIC;
+    gt_rxusrclk2 : OUT STD_LOGIC;
+    stat_rx_aligned : OUT STD_LOGIC;
+    stat_rx_aligned_err : OUT STD_LOGIC;
+    stat_rx_bad_code : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_bad_fcs : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_bad_preamble : OUT STD_LOGIC;
+    stat_rx_bad_sfd : OUT STD_LOGIC;
+    stat_rx_bip_err_0 : OUT STD_LOGIC;
+    stat_rx_bip_err_1 : OUT STD_LOGIC;
+    stat_rx_bip_err_10 : OUT STD_LOGIC;
+    stat_rx_bip_err_11 : OUT STD_LOGIC;
+    stat_rx_bip_err_12 : OUT STD_LOGIC;
+    stat_rx_bip_err_13 : OUT STD_LOGIC;
+    stat_rx_bip_err_14 : OUT STD_LOGIC;
+    stat_rx_bip_err_15 : OUT STD_LOGIC;
+    stat_rx_bip_err_16 : OUT STD_LOGIC;
+    stat_rx_bip_err_17 : OUT STD_LOGIC;
+    stat_rx_bip_err_18 : OUT STD_LOGIC;
+    stat_rx_bip_err_19 : OUT STD_LOGIC;
+    stat_rx_bip_err_2 : OUT STD_LOGIC;
+    stat_rx_bip_err_3 : OUT STD_LOGIC;
+    stat_rx_bip_err_4 : OUT STD_LOGIC;
+    stat_rx_bip_err_5 : OUT STD_LOGIC;
+    stat_rx_bip_err_6 : OUT STD_LOGIC;
+    stat_rx_bip_err_7 : OUT STD_LOGIC;
+    stat_rx_bip_err_8 : OUT STD_LOGIC;
+    stat_rx_bip_err_9 : OUT STD_LOGIC;
+    stat_rx_block_lock : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_broadcast : OUT STD_LOGIC;
+    stat_rx_fragment : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_framing_err_0 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_1 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_10 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_11 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_12 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_13 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_14 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_15 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_16 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_17 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_18 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_19 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_2 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_3 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_4 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_5 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_6 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_7 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_8 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_9 : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+    stat_rx_framing_err_valid_0 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_1 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_10 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_11 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_12 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_13 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_14 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_15 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_16 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_17 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_18 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_19 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_2 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_3 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_4 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_5 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_6 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_7 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_8 : OUT STD_LOGIC;
+    stat_rx_framing_err_valid_9 : OUT STD_LOGIC;
+    stat_rx_got_signal_os : OUT STD_LOGIC;
+    stat_rx_hi_ber : OUT STD_LOGIC;
+    stat_rx_inrangeerr : OUT STD_LOGIC;
+    stat_rx_internal_local_fault : OUT STD_LOGIC;
+    stat_rx_jabber : OUT STD_LOGIC;
+    stat_rx_local_fault : OUT STD_LOGIC;
+    stat_rx_mf_err : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_mf_len_err : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_mf_repeat_err : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_misaligned : OUT STD_LOGIC;
+    stat_rx_multicast : OUT STD_LOGIC;
+    stat_rx_oversize : OUT STD_LOGIC;
+    stat_rx_packet_1024_1518_bytes : OUT STD_LOGIC;
+    stat_rx_packet_128_255_bytes : OUT STD_LOGIC;
+    stat_rx_packet_1519_1522_bytes : OUT STD_LOGIC;
+    stat_rx_packet_1523_1548_bytes : OUT STD_LOGIC;
+    stat_rx_packet_1549_2047_bytes : OUT STD_LOGIC;
+    stat_rx_packet_2048_4095_bytes : OUT STD_LOGIC;
+    stat_rx_packet_256_511_bytes : OUT STD_LOGIC;
+    stat_rx_packet_4096_8191_bytes : OUT STD_LOGIC;
+    stat_rx_packet_512_1023_bytes : OUT STD_LOGIC;
+    stat_rx_packet_64_bytes : OUT STD_LOGIC;
+    stat_rx_packet_65_127_bytes : OUT STD_LOGIC;
+    stat_rx_packet_8192_9215_bytes : OUT STD_LOGIC;
+    stat_rx_packet_bad_fcs : OUT STD_LOGIC;
+    stat_rx_packet_large : OUT STD_LOGIC;
+    stat_rx_packet_small : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    core_rx_reset : IN STD_LOGIC;
+    rx_clk : IN STD_LOGIC;
+    stat_rx_received_local_fault : OUT STD_LOGIC;
+    stat_rx_remote_fault : OUT STD_LOGIC;
+    stat_rx_status : OUT STD_LOGIC;
+    stat_rx_stomped_fcs : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_synced : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_synced_err : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_test_pattern_mismatch : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_toolong : OUT STD_LOGIC;
+    stat_rx_total_bytes : OUT STD_LOGIC_VECTOR(6 DOWNTO 0);
+    stat_rx_total_good_bytes : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+    stat_rx_total_good_packets : OUT STD_LOGIC;
+    stat_rx_total_packets : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_truncated : OUT STD_LOGIC;
+    stat_rx_undersize : OUT STD_LOGIC_VECTOR(2 DOWNTO 0);
+    stat_rx_unicast : OUT STD_LOGIC;
+    stat_rx_vlan : OUT STD_LOGIC;
+    stat_rx_pcsl_demuxed : OUT STD_LOGIC_VECTOR(19 DOWNTO 0);
+    stat_rx_pcsl_number_0 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_1 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_10 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_11 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_12 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_13 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_14 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_15 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_16 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_17 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_18 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_19 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_2 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_3 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_4 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_5 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_6 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_7 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_8 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_rx_pcsl_number_9 : OUT STD_LOGIC_VECTOR(4 DOWNTO 0);
+    stat_tx_bad_fcs : OUT STD_LOGIC;
+    stat_tx_broadcast : OUT STD_LOGIC;
+    stat_tx_frame_error : OUT STD_LOGIC;
+    stat_tx_local_fault : OUT STD_LOGIC;
+    stat_tx_multicast : OUT STD_LOGIC;
+    stat_tx_packet_1024_1518_bytes : OUT STD_LOGIC;
+    stat_tx_packet_128_255_bytes : OUT STD_LOGIC;
+    stat_tx_packet_1519_1522_bytes : OUT STD_LOGIC;
+    stat_tx_packet_1523_1548_bytes : OUT STD_LOGIC;
+    stat_tx_packet_1549_2047_bytes : OUT STD_LOGIC;
+    stat_tx_packet_2048_4095_bytes : OUT STD_LOGIC;
+    stat_tx_packet_256_511_bytes : OUT STD_LOGIC;
+    stat_tx_packet_4096_8191_bytes : OUT STD_LOGIC;
+    stat_tx_packet_512_1023_bytes : OUT STD_LOGIC;
+    stat_tx_packet_64_bytes : OUT STD_LOGIC;
+    stat_tx_packet_65_127_bytes : OUT STD_LOGIC;
+    stat_tx_packet_8192_9215_bytes : OUT STD_LOGIC;
+    stat_tx_packet_large : OUT STD_LOGIC;
+    stat_tx_packet_small : OUT STD_LOGIC;
+    stat_tx_total_bytes : OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+    stat_tx_total_good_bytes : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+    stat_tx_total_good_packets : OUT STD_LOGIC;
+    stat_tx_total_packets : OUT STD_LOGIC;
+    stat_tx_unicast : OUT STD_LOGIC;
+    stat_tx_vlan : OUT STD_LOGIC;
+    ctl_tx_send_idle : IN STD_LOGIC;
+    ctl_tx_send_rfi : IN STD_LOGIC;
+    ctl_tx_send_lfi : IN STD_LOGIC;
+    core_tx_reset : IN STD_LOGIC;
+    tx_axis_tready : OUT STD_LOGIC;
+    tx_axis_tvalid : IN STD_LOGIC;
+    tx_axis_tdata : IN STD_LOGIC_VECTOR(511 DOWNTO 0);
+    tx_axis_tlast : IN STD_LOGIC;
+    tx_axis_tkeep : IN STD_LOGIC_VECTOR(63 DOWNTO 0);
+    tx_axis_tuser : IN STD_LOGIC;
+    tx_ovfout : OUT STD_LOGIC;
+    tx_unfout : OUT STD_LOGIC;
+    tx_preamblein : IN STD_LOGIC_VECTOR(55 DOWNTO 0);
+    usr_tx_reset : OUT STD_LOGIC;
+    core_drp_reset : IN STD_LOGIC;
+    drp_clk : IN STD_LOGIC;
+    drp_addr : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    drp_di : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    drp_en : IN STD_LOGIC;
+    drp_do : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+    drp_rdy : OUT STD_LOGIC;
+    drp_we : IN STD_LOGIC 
+  );
+END COMPONENT;
 
 type ECI_PACKET_RX is record
     c6_gsync            : ECI_CHANNEL;
@@ -1374,6 +1673,309 @@ port map (
   p_axi_bresp   => dcs_odd_axi.bresp,
   p_axi_bvalid  => dcs_odd_axi.bvalid,
   p_axi_bready  => dcs_odd_axi.bready
+
+);
+
+cmac : cmac_usplus_0
+  PORT MAP (
+    gt_txp_out => gt_txp_out,
+    gt_txn_out => gt_txn_out,
+    gt_rxp_in => gt_rxp_in,
+    gt_rxn_in => gt_rxn_in,
+    gt_txusrclk2 => gt_txusrclk2,
+    gt_loopback_in => gt_loopback_in,
+    gt_eyescanreset => gt_eyescanreset,
+    gt_eyescantrigger => gt_eyescantrigger,
+    gt_rxcdrhold => gt_rxcdrhold,
+    gt_rxpolarity => gt_rxpolarity,
+    gt_rxrate => gt_rxrate,
+    gt_txdiffctrl => gt_txdiffctrl,
+    gt_txpolarity => gt_txpolarity,
+    gt_txinhibit => gt_txinhibit,
+    gt_txpippmen => gt_txpippmen,
+    gt_txpippmsel => gt_txpippmsel,
+    gt_txpostcursor => gt_txpostcursor,
+    gt_txprbsforceerr => gt_txprbsforceerr,
+    gt_txprecursor => gt_txprecursor,
+    gt_eyescandataerror => gt_eyescandataerror,
+    gt_ref_clk_out => gt_ref_clk_out,
+    gt_rxrecclkout => gt_rxrecclkout,
+    gt_powergoodout => gt_powergoodout,
+    gt_txbufstatus => gt_txbufstatus,
+    gt_rxdfelpmreset => gt_rxdfelpmreset,
+    gt_rxlpmen => gt_rxlpmen,
+    gt_rxprbscntreset => gt_rxprbscntreset,
+    gt_rxprbserr => gt_rxprbserr,
+    gt_rxprbssel => gt_rxprbssel,
+    gt_rxresetdone => gt_rxresetdone,
+    gt_txprbssel => gt_txprbssel,
+    gt_txresetdone => gt_txresetdone,
+    gt_rxbufstatus => gt_rxbufstatus,
+    gtwiz_reset_tx_datapath => gtwiz_reset_tx_datapath,
+    gtwiz_reset_rx_datapath => gtwiz_reset_rx_datapath,
+    gt_drpclk => gt_drpclk,
+    gt0_drpdo => gt0_drpdo,
+    gt0_drprdy => gt0_drprdy,
+    gt0_drpen => gt0_drpen,
+    gt0_drpwe => gt0_drpwe,
+    gt0_drpaddr => gt0_drpaddr,
+    gt0_drpdi => gt0_drpdi,
+    gt1_drpdo => gt1_drpdo,
+    gt1_drprdy => gt1_drprdy,
+    gt1_drpen => gt1_drpen,
+    gt1_drpwe => gt1_drpwe,
+    gt1_drpaddr => gt1_drpaddr,
+    gt1_drpdi => gt1_drpdi,
+    gt2_drpdo => gt2_drpdo,
+    gt2_drprdy => gt2_drprdy,
+    gt2_drpen => gt2_drpen,
+    gt2_drpwe => gt2_drpwe,
+    gt2_drpaddr => gt2_drpaddr,
+    gt2_drpdi => gt2_drpdi,
+    gt3_drpdo => gt3_drpdo,
+    gt3_drprdy => gt3_drprdy,
+    gt3_drpen => gt3_drpen,
+    gt3_drpwe => gt3_drpwe,
+    gt3_drpaddr => gt3_drpaddr,
+    gt3_drpdi => gt3_drpdi,
+    s_axi_aclk => s_axi_aclk,
+    s_axi_sreset => s_axi_sreset,
+    pm_tick => pm_tick,
+    s_axi_awaddr => s_axi_awaddr,
+    s_axi_awvalid => s_axi_awvalid,
+    s_axi_awready => s_axi_awready,
+    s_axi_wdata => s_axi_wdata,
+    s_axi_wstrb => s_axi_wstrb,
+    s_axi_wvalid => s_axi_wvalid,
+    s_axi_wready => s_axi_wready,
+    s_axi_bresp => s_axi_bresp,
+    s_axi_bvalid => s_axi_bvalid,
+    s_axi_bready => s_axi_bready,
+    s_axi_araddr => s_axi_araddr,
+    s_axi_arvalid => s_axi_arvalid,
+    s_axi_arready => s_axi_arready,
+    s_axi_rdata => s_axi_rdata,
+    s_axi_rresp => s_axi_rresp,
+    s_axi_rvalid => s_axi_rvalid,
+    s_axi_rready => s_axi_rready,
+    user_reg0 => user_reg0,
+    sys_reset => sys_reset,
+    gt_ref_clk_p => gt_ref_clk_p,
+    gt_ref_clk_n => gt_ref_clk_n,
+    init_clk => init_clk,
+    common0_drpaddr => common0_drpaddr,
+    common0_drpdi => common0_drpdi,
+    common0_drpwe => common0_drpwe,
+    common0_drpen => common0_drpen,
+    common0_drprdy => common0_drprdy,
+    common0_drpdo => common0_drpdo,
+    rx_axis_tvalid => rx_axis_tvalid,
+    rx_axis_tdata => rx_axis_tdata,
+    rx_axis_tlast => rx_axis_tlast,
+    rx_axis_tkeep => rx_axis_tkeep,
+    rx_axis_tuser => rx_axis_tuser,
+    rx_otn_bip8_0 => rx_otn_bip8_0,
+    rx_otn_bip8_1 => rx_otn_bip8_1,
+    rx_otn_bip8_2 => rx_otn_bip8_2,
+    rx_otn_bip8_3 => rx_otn_bip8_3,
+    rx_otn_bip8_4 => rx_otn_bip8_4,
+    rx_otn_data_0 => rx_otn_data_0,
+    rx_otn_data_1 => rx_otn_data_1,
+    rx_otn_data_2 => rx_otn_data_2,
+    rx_otn_data_3 => rx_otn_data_3,
+    rx_otn_data_4 => rx_otn_data_4,
+    rx_otn_ena => rx_otn_ena,
+    rx_otn_lane0 => rx_otn_lane0,
+    rx_otn_vlmarker => rx_otn_vlmarker,
+    rx_preambleout => rx_preambleout,
+    usr_rx_reset => usr_rx_reset,
+    gt_rxusrclk2 => gt_rxusrclk2,
+    stat_rx_aligned => stat_rx_aligned,
+    stat_rx_aligned_err => stat_rx_aligned_err,
+    stat_rx_bad_code => stat_rx_bad_code,
+    stat_rx_bad_fcs => stat_rx_bad_fcs,
+    stat_rx_bad_preamble => stat_rx_bad_preamble,
+    stat_rx_bad_sfd => stat_rx_bad_sfd,
+    stat_rx_bip_err_0 => stat_rx_bip_err_0,
+    stat_rx_bip_err_1 => stat_rx_bip_err_1,
+    stat_rx_bip_err_10 => stat_rx_bip_err_10,
+    stat_rx_bip_err_11 => stat_rx_bip_err_11,
+    stat_rx_bip_err_12 => stat_rx_bip_err_12,
+    stat_rx_bip_err_13 => stat_rx_bip_err_13,
+    stat_rx_bip_err_14 => stat_rx_bip_err_14,
+    stat_rx_bip_err_15 => stat_rx_bip_err_15,
+    stat_rx_bip_err_16 => stat_rx_bip_err_16,
+    stat_rx_bip_err_17 => stat_rx_bip_err_17,
+    stat_rx_bip_err_18 => stat_rx_bip_err_18,
+    stat_rx_bip_err_19 => stat_rx_bip_err_19,
+    stat_rx_bip_err_2 => stat_rx_bip_err_2,
+    stat_rx_bip_err_3 => stat_rx_bip_err_3,
+    stat_rx_bip_err_4 => stat_rx_bip_err_4,
+    stat_rx_bip_err_5 => stat_rx_bip_err_5,
+    stat_rx_bip_err_6 => stat_rx_bip_err_6,
+    stat_rx_bip_err_7 => stat_rx_bip_err_7,
+    stat_rx_bip_err_8 => stat_rx_bip_err_8,
+    stat_rx_bip_err_9 => stat_rx_bip_err_9,
+    stat_rx_block_lock => stat_rx_block_lock,
+    stat_rx_broadcast => stat_rx_broadcast,
+    stat_rx_fragment => stat_rx_fragment,
+    stat_rx_framing_err_0 => stat_rx_framing_err_0,
+    stat_rx_framing_err_1 => stat_rx_framing_err_1,
+    stat_rx_framing_err_10 => stat_rx_framing_err_10,
+    stat_rx_framing_err_11 => stat_rx_framing_err_11,
+    stat_rx_framing_err_12 => stat_rx_framing_err_12,
+    stat_rx_framing_err_13 => stat_rx_framing_err_13,
+    stat_rx_framing_err_14 => stat_rx_framing_err_14,
+    stat_rx_framing_err_15 => stat_rx_framing_err_15,
+    stat_rx_framing_err_16 => stat_rx_framing_err_16,
+    stat_rx_framing_err_17 => stat_rx_framing_err_17,
+    stat_rx_framing_err_18 => stat_rx_framing_err_18,
+    stat_rx_framing_err_19 => stat_rx_framing_err_19,
+    stat_rx_framing_err_2 => stat_rx_framing_err_2,
+    stat_rx_framing_err_3 => stat_rx_framing_err_3,
+    stat_rx_framing_err_4 => stat_rx_framing_err_4,
+    stat_rx_framing_err_5 => stat_rx_framing_err_5,
+    stat_rx_framing_err_6 => stat_rx_framing_err_6,
+    stat_rx_framing_err_7 => stat_rx_framing_err_7,
+    stat_rx_framing_err_8 => stat_rx_framing_err_8,
+    stat_rx_framing_err_9 => stat_rx_framing_err_9,
+    stat_rx_framing_err_valid_0 => stat_rx_framing_err_valid_0,
+    stat_rx_framing_err_valid_1 => stat_rx_framing_err_valid_1,
+    stat_rx_framing_err_valid_10 => stat_rx_framing_err_valid_10,
+    stat_rx_framing_err_valid_11 => stat_rx_framing_err_valid_11,
+    stat_rx_framing_err_valid_12 => stat_rx_framing_err_valid_12,
+    stat_rx_framing_err_valid_13 => stat_rx_framing_err_valid_13,
+    stat_rx_framing_err_valid_14 => stat_rx_framing_err_valid_14,
+    stat_rx_framing_err_valid_15 => stat_rx_framing_err_valid_15,
+    stat_rx_framing_err_valid_16 => stat_rx_framing_err_valid_16,
+    stat_rx_framing_err_valid_17 => stat_rx_framing_err_valid_17,
+    stat_rx_framing_err_valid_18 => stat_rx_framing_err_valid_18,
+    stat_rx_framing_err_valid_19 => stat_rx_framing_err_valid_19,
+    stat_rx_framing_err_valid_2 => stat_rx_framing_err_valid_2,
+    stat_rx_framing_err_valid_3 => stat_rx_framing_err_valid_3,
+    stat_rx_framing_err_valid_4 => stat_rx_framing_err_valid_4,
+    stat_rx_framing_err_valid_5 => stat_rx_framing_err_valid_5,
+    stat_rx_framing_err_valid_6 => stat_rx_framing_err_valid_6,
+    stat_rx_framing_err_valid_7 => stat_rx_framing_err_valid_7,
+    stat_rx_framing_err_valid_8 => stat_rx_framing_err_valid_8,
+    stat_rx_framing_err_valid_9 => stat_rx_framing_err_valid_9,
+    stat_rx_got_signal_os => stat_rx_got_signal_os,
+    stat_rx_hi_ber => stat_rx_hi_ber,
+    stat_rx_inrangeerr => stat_rx_inrangeerr,
+    stat_rx_internal_local_fault => stat_rx_internal_local_fault,
+    stat_rx_jabber => stat_rx_jabber,
+    stat_rx_local_fault => stat_rx_local_fault,
+    stat_rx_mf_err => stat_rx_mf_err,
+    stat_rx_mf_len_err => stat_rx_mf_len_err,
+    stat_rx_mf_repeat_err => stat_rx_mf_repeat_err,
+    stat_rx_misaligned => stat_rx_misaligned,
+    stat_rx_multicast => stat_rx_multicast,
+    stat_rx_oversize => stat_rx_oversize,
+    stat_rx_packet_1024_1518_bytes => stat_rx_packet_1024_1518_bytes,
+    stat_rx_packet_128_255_bytes => stat_rx_packet_128_255_bytes,
+    stat_rx_packet_1519_1522_bytes => stat_rx_packet_1519_1522_bytes,
+    stat_rx_packet_1523_1548_bytes => stat_rx_packet_1523_1548_bytes,
+    stat_rx_packet_1549_2047_bytes => stat_rx_packet_1549_2047_bytes,
+    stat_rx_packet_2048_4095_bytes => stat_rx_packet_2048_4095_bytes,
+    stat_rx_packet_256_511_bytes => stat_rx_packet_256_511_bytes,
+    stat_rx_packet_4096_8191_bytes => stat_rx_packet_4096_8191_bytes,
+    stat_rx_packet_512_1023_bytes => stat_rx_packet_512_1023_bytes,
+    stat_rx_packet_64_bytes => stat_rx_packet_64_bytes,
+    stat_rx_packet_65_127_bytes => stat_rx_packet_65_127_bytes,
+    stat_rx_packet_8192_9215_bytes => stat_rx_packet_8192_9215_bytes,
+    stat_rx_packet_bad_fcs => stat_rx_packet_bad_fcs,
+    stat_rx_packet_large => stat_rx_packet_large,
+    stat_rx_packet_small => stat_rx_packet_small,
+    core_rx_reset => core_rx_reset,
+    rx_clk => rx_clk,
+    stat_rx_received_local_fault => stat_rx_received_local_fault,
+    stat_rx_remote_fault => stat_rx_remote_fault,
+    stat_rx_status => stat_rx_status,
+    stat_rx_stomped_fcs => stat_rx_stomped_fcs,
+    stat_rx_synced => stat_rx_synced,
+    stat_rx_synced_err => stat_rx_synced_err,
+    stat_rx_test_pattern_mismatch => stat_rx_test_pattern_mismatch,
+    stat_rx_toolong => stat_rx_toolong,
+    stat_rx_total_bytes => stat_rx_total_bytes,
+    stat_rx_total_good_bytes => stat_rx_total_good_bytes,
+    stat_rx_total_good_packets => stat_rx_total_good_packets,
+    stat_rx_total_packets => stat_rx_total_packets,
+    stat_rx_truncated => stat_rx_truncated,
+    stat_rx_undersize => stat_rx_undersize,
+    stat_rx_unicast => stat_rx_unicast,
+    stat_rx_vlan => stat_rx_vlan,
+    stat_rx_pcsl_demuxed => stat_rx_pcsl_demuxed,
+    stat_rx_pcsl_number_0 => stat_rx_pcsl_number_0,
+    stat_rx_pcsl_number_1 => stat_rx_pcsl_number_1,
+    stat_rx_pcsl_number_10 => stat_rx_pcsl_number_10,
+    stat_rx_pcsl_number_11 => stat_rx_pcsl_number_11,
+    stat_rx_pcsl_number_12 => stat_rx_pcsl_number_12,
+    stat_rx_pcsl_number_13 => stat_rx_pcsl_number_13,
+    stat_rx_pcsl_number_14 => stat_rx_pcsl_number_14,
+    stat_rx_pcsl_number_15 => stat_rx_pcsl_number_15,
+    stat_rx_pcsl_number_16 => stat_rx_pcsl_number_16,
+    stat_rx_pcsl_number_17 => stat_rx_pcsl_number_17,
+    stat_rx_pcsl_number_18 => stat_rx_pcsl_number_18,
+    stat_rx_pcsl_number_19 => stat_rx_pcsl_number_19,
+    stat_rx_pcsl_number_2 => stat_rx_pcsl_number_2,
+    stat_rx_pcsl_number_3 => stat_rx_pcsl_number_3,
+    stat_rx_pcsl_number_4 => stat_rx_pcsl_number_4,
+    stat_rx_pcsl_number_5 => stat_rx_pcsl_number_5,
+    stat_rx_pcsl_number_6 => stat_rx_pcsl_number_6,
+    stat_rx_pcsl_number_7 => stat_rx_pcsl_number_7,
+    stat_rx_pcsl_number_8 => stat_rx_pcsl_number_8,
+    stat_rx_pcsl_number_9 => stat_rx_pcsl_number_9,
+    stat_tx_bad_fcs => stat_tx_bad_fcs,
+    stat_tx_broadcast => stat_tx_broadcast,
+    stat_tx_frame_error => stat_tx_frame_error,
+    stat_tx_local_fault => stat_tx_local_fault,
+    stat_tx_multicast => stat_tx_multicast,
+    stat_tx_packet_1024_1518_bytes => stat_tx_packet_1024_1518_bytes,
+    stat_tx_packet_128_255_bytes => stat_tx_packet_128_255_bytes,
+    stat_tx_packet_1519_1522_bytes => stat_tx_packet_1519_1522_bytes,
+    stat_tx_packet_1523_1548_bytes => stat_tx_packet_1523_1548_bytes,
+    stat_tx_packet_1549_2047_bytes => stat_tx_packet_1549_2047_bytes,
+    stat_tx_packet_2048_4095_bytes => stat_tx_packet_2048_4095_bytes,
+    stat_tx_packet_256_511_bytes => stat_tx_packet_256_511_bytes,
+    stat_tx_packet_4096_8191_bytes => stat_tx_packet_4096_8191_bytes,
+    stat_tx_packet_512_1023_bytes => stat_tx_packet_512_1023_bytes,
+    stat_tx_packet_64_bytes => stat_tx_packet_64_bytes,
+    stat_tx_packet_65_127_bytes => stat_tx_packet_65_127_bytes,
+    stat_tx_packet_8192_9215_bytes => stat_tx_packet_8192_9215_bytes,
+    stat_tx_packet_large => stat_tx_packet_large,
+    stat_tx_packet_small => stat_tx_packet_small,
+    stat_tx_total_bytes => stat_tx_total_bytes,
+    stat_tx_total_good_bytes => stat_tx_total_good_bytes,
+    stat_tx_total_good_packets => stat_tx_total_good_packets,
+    stat_tx_total_packets => stat_tx_total_packets,
+    stat_tx_unicast => stat_tx_unicast,
+    stat_tx_vlan => stat_tx_vlan,
+    ctl_tx_send_idle => ctl_tx_send_idle,
+    ctl_tx_send_rfi => ctl_tx_send_rfi,
+    ctl_tx_send_lfi => ctl_tx_send_lfi,
+    core_tx_reset => core_tx_reset,
+    tx_axis_tready => tx_axis_tready,
+    tx_axis_tvalid => tx_axis_tvalid,
+    tx_axis_tdata => tx_axis_tdata,
+    tx_axis_tlast => tx_axis_tlast,
+    tx_axis_tkeep => tx_axis_tkeep,
+    tx_axis_tuser => tx_axis_tuser,
+    tx_ovfout => tx_ovfout,
+    tx_unfout => tx_unfout,
+    tx_preamblein => tx_preamblein,
+    usr_tx_reset => usr_tx_reset,
+    core_drp_reset => core_drp_reset,
+    drp_clk => drp_clk,
+    drp_addr => drp_addr,
+    drp_di => drp_di,
+    drp_en => drp_en,
+    drp_do => drp_do,
+    drp_rdy => drp_rdy,
+    drp_we => drp_we
+  );
+  
+engine: NicEngine
+port map (
 
 );
 
