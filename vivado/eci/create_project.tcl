@@ -42,7 +42,7 @@ set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
-create_project $project -part $part
+create_project $project ./$project -part $part
 set proj [current_project]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
