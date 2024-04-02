@@ -607,15 +607,15 @@ component axil_regs_interconnect
     ADDR_WIDTH : integer := 44;
     STRB_WIDTH : integer := DATA_WIDTH/8;
     M_REGIONS : integer := 1;
-    -- registers for NIC engine
+    -- registers for NIC engine [0x0 - 0x200000]
     M00_BASE_ADDR : integer := 0;
-    M00_ADDR_WIDTH : integer := 44;
+    M00_ADDR_WIDTH : integer := 21;
     M00_CONNECT_READ : integer := 1;
     M00_CONNECT_WRITE : integer := 1;
     M00_SECURE : integer := 0;
-    -- registers for CMAC
+    -- registers for CMAC [0x200000 - 0x210000]
     M01_BASE_ADDR : integer := 16#200000#;
-    M01_ADDR_WIDTH : integer := 32;
+    M01_ADDR_WIDTH : integer := 16;
     M01_CONNECT_READ : integer := 1;
     M01_CONNECT_WRITE : integer := 1;
     M01_SECURE : integer := 0
