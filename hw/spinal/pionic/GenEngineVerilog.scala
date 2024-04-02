@@ -3,10 +3,12 @@ package pionic
 import mainargs._
 import pionic.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
 import pionic.pcie.PcieBridgeInterfacePlugin
+import spinal.core.{DoubleToBuilder, FixedFrequency, IntToBuilder, SpinalConfig}
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 import spinal.lib.misc.plugin._
 
 import scala.collection.mutable
+import scala.language.postfixOps
 
 // FIXME: use the more holistic Database approach
 class ConfigWriter extends FiberPlugin {
@@ -20,7 +22,7 @@ class ConfigWriter extends FiberPlugin {
     configs(name).asInstanceOf[T]
   }
 
-  def writeConfigs(outPath: os.Path)(implicit config: PioNicConfig): Unit = {
+  def writeConfigs(outPath: os.Path, spinalConfig: SpinalConfig)(implicit config: PioNicConfig): Unit = {
     import config._
     os.remove(outPath)
     os.write(outPath,
@@ -33,7 +35,7 @@ class ConfigWriter extends FiberPlugin {
           |#define PIONIC_PKT_LEN_WIDTH $pktBufLenWidth
           |#define PIONIC_PKT_LEN_MASK ((1 << PIONIC_PKT_LEN_WIDTH) - 1)
           |
-          |#define PIONIC_CLOCK_FREQ ${Config.spinal().defaultClockDomainFrequency.getValue.toLong}
+          |#define PIONIC_CLOCK_FREQ ${spinalConfig.defaultClockDomainFrequency.getValue.toLong}
           |
             ${
         configs.map { case (k, v) =>
@@ -74,13 +76,19 @@ object GenEngineVerilog {
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)
 
-    val report = Config.spinal(genDir.toString).generateVerilog(engineFromName(name))
+    val elabConfig = Config.spinal(genDir.toString).copy(
+      defaultClockDomainFrequency = FixedFrequency(name match {
+        case "pcie" => 250 MHz
+        case "eci" => 322.265625 MHz
+      })
+    )
+    val report = elabConfig.generateVerilog(engineFromName(name))
     report.mergeRTLSource("NicEngine_ips")
     VivadoConstraintWriter(report)
     if (printRegMap) config.allocFactory.dumpAll()
     if (genHeaders) {
       config.allocFactory.writeHeader("pionic", genDir / "regs.h")
-      report.toplevel.host[ConfigWriter].writeConfigs(genDir / "config.h")
+      report.toplevel.host[ConfigWriter].writeConfigs(genDir / "config.h", elabConfig)
     }
   }
 
