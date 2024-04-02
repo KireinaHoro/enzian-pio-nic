@@ -683,6 +683,58 @@ component axil_regs_interconnect
   );
 end component;
 
+component axil_adapter
+    generic (
+      ADDR_WIDTH : integer := 32;
+      S_DATA_WIDTH : integer := 64;
+      S_STRB_WIDTH : integer := S_STRB_WIDTH/8;
+      M_DATA_WIDTH : integer := 32;
+      M_STRB_WIDTH : integer := M_DATA_WIDTH/8
+    );
+    port (
+      clk : in std_logic;
+      rst : in std_logic;
+      s_axil_awaddr : in std_logic_vector  (ADDR_WIDTH-1 downto 0);
+      s_axil_awprot : in std_logic_vector  (2 downto 0);
+      s_axil_awvalid : in std_logic;
+      s_axil_awready : out std_logic;
+      s_axil_wdata : in std_logic_vector  (S_DATA_WIDTH-1 downto 0);
+      s_axil_wstrb : in std_logic_vector  (S_STRB_WIDTH-1 downto 0);
+      s_axil_wvalid : in std_logic;
+      s_axil_wready : out std_logic;
+      s_axil_bresp : out std_logic_vector  (1 downto 0);
+      s_axil_bvalid : out std_logic;
+      s_axil_bready : in std_logic;
+      s_axil_araddr : in std_logic_vector  (ADDR_WIDTH-1 downto 0);
+      s_axil_arprot : in std_logic_vector  (2 downto 0);
+      s_axil_arvalid : in std_logic;
+      s_axil_arready : out std_logic;
+      s_axil_rdata : out std_logic_vector  (S_DATA_WIDTH-1 downto 0);
+      s_axil_rresp : out std_logic_vector  (1 downto 0);
+      s_axil_rvalid : out std_logic;
+      s_axil_rready : in std_logic;
+      m_axil_awaddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+      m_axil_awprot : out std_logic_vector  (2 downto 0);
+      m_axil_awvalid : out std_logic;
+      m_axil_awready : in std_logic;
+      m_axil_wdata : out std_logic_vector  (M_DATA_WIDTH-1 downto 0);
+      m_axil_wstrb : out std_logic_vector  (M_STRB_WIDTH-1 downto 0);
+      m_axil_wvalid : out std_logic;
+      m_axil_wready : in std_logic;
+      m_axil_bresp : in std_logic_vector  (1 downto 0);
+      m_axil_bvalid : in std_logic;
+      m_axil_bready : out std_logic;
+      m_axil_araddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+      m_axil_arprot : out std_logic_vector  (2 downto 0);
+      m_axil_arvalid : out std_logic;
+      m_axil_arready : in std_logic;
+      m_axil_rdata : in std_logic_vector  (M_DATA_WIDTH-1 downto 0);
+      m_axil_rresp : in std_logic_vector  (1 downto 0);
+      m_axil_rvalid : in std_logic;
+      m_axil_rready : out std_logic
+    );
+  end component;
+
 component NicEngine is
 port (
     clk, reset : in std_logic;
@@ -1303,9 +1355,32 @@ type REGS_AXIL is record
     bready  : std_logic;
 end record REGS_AXIL;
 
-signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
+type REGS_AXIL_NARROW is record
+    araddr  : std_logic_vector(43 downto 0);
+    arprot  : std_logic_vector( 2 downto 0);
+    arvalid : std_logic;
+    arready : std_logic;
+    rdata   : std_logic_vector(31 downto 0);
+    rresp   : std_logic_vector( 1 downto 0);
+    rvalid  : std_logic;
+    rready  : std_logic;
 
+    awaddr  : std_logic_vector (43 downto 0);
+    awprot  : std_logic_vector ( 2 downto 0);
+    awvalid : std_logic;
+    awready : std_logic ;
+    wdata   : std_logic_vector (31 downto 0);
+    wstrb   : std_logic_vector (3 downto 0);
+    wvalid  : std_logic;
+    wready  : std_logic;
+    bresp   : std_logic_vector( 1 downto 0);
+    bvalid  : std_logic;
+    bready  : std_logic;
+end record REGS_AXIL_NARROW;
+
+signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
 signal cmac_reg_axil, nic_engine_axil : REGS_AXIL;
+signal cmac_reg_axil_narrow : REGS_AXIL_NARROW;
 
 signal m0_bscan : BSCAN;
 
@@ -1821,6 +1896,52 @@ port map (
     \out\ => txclk_reset
 );
 
+axil_adapter_inst : axil_adapter
+  port map (
+    clk => clk_sys,
+    rst => reset_sys,
+
+    s_axil_awaddr => cmac_reg_axil.awaddr(31 downto 0),
+    s_axil_awprot => cmac_reg_axil.awprot,
+    s_axil_awvalid => cmac_reg_axil.awvalid,
+    s_axil_awready => cmac_reg_axil.awready,
+    s_axil_wdata => cmac_reg_axil.wdata,
+    s_axil_wstrb => cmac_reg_axil.wstrb,
+    s_axil_wvalid => cmac_reg_axil.wvalid,
+    s_axil_wready => cmac_reg_axil.wready,
+    s_axil_bresp => cmac_reg_axil.bresp,
+    s_axil_bvalid => cmac_reg_axil.bvalid,
+    s_axil_bready => cmac_reg_axil.bready,
+    s_axil_araddr => cmac_reg_axil.araddr(31 downto 0),
+    s_axil_arprot => cmac_reg_axil.arprot,
+    s_axil_arvalid => cmac_reg_axil.arvalid,
+    s_axil_arready => cmac_reg_axil.arready,
+    s_axil_rdata => cmac_reg_axil.rdata,
+    s_axil_rresp => cmac_reg_axil.rresp,
+    s_axil_rvalid => cmac_reg_axil.rvalid,
+    s_axil_rready => cmac_reg_axil.rready,
+
+    m_axil_awaddr => cmac_reg_axil_narrow.awaddr,
+    m_axil_awprot => cmac_reg_axil_narrow.awprot,
+    m_axil_awvalid => cmac_reg_axil_narrow.awvalid,
+    m_axil_awready => cmac_reg_axil_narrow.awready,
+    m_axil_wdata => cmac_reg_axil_narrow.wdata,
+    m_axil_wstrb => cmac_reg_axil_narrow.wstrb,
+    m_axil_wvalid => cmac_reg_axil_narrow.wvalid,
+    m_axil_wready => cmac_reg_axil_narrow.wready,
+    m_axil_bresp => cmac_reg_axil_narrow.bresp,
+    m_axil_bvalid => cmac_reg_axil_narrow.bvalid,
+    m_axil_bready => cmac_reg_axil_narrow.bready,
+    m_axil_araddr => cmac_reg_axil_narrow.araddr,
+    m_axil_arprot => cmac_reg_axil_narrow.arprot,
+    m_axil_arvalid => cmac_reg_axil_narrow.arvalid,
+    m_axil_arready => cmac_reg_axil_narrow.arready,
+    m_axil_rdata => cmac_reg_axil_narrow.rdata,
+    m_axil_rresp => cmac_reg_axil_narrow.rresp,
+    m_axil_rvalid => cmac_reg_axil_narrow.rvalid,
+    m_axil_rready => cmac_reg_axil_narrow.rready
+  );
+
 axil_regs_interconnect_inst : axil_regs_interconnect
   port map (
     clk => clk_sys,
@@ -1933,23 +2054,23 @@ cmac : cmac_usplus_0
     pm_tick => '0',
     s_axi_aclk => clk_sys,
     s_axi_sreset => reset_sys,
-    s_axi_awaddr => cmac_reg_axil.awaddr,
-    s_axi_awvalid => cmac_reg_axil.awvalid,
-    s_axi_awready => cmac_reg_axil.awready,
-    s_axi_wdata => cmac_reg_axil.wdata,
-    s_axi_wstrb => cmac_reg_axil.wstrb,
-    s_axi_wvalid => cmac_reg_axil.wvalid,
-    s_axi_wready => cmac_reg_axil.wready,
-    s_axi_bresp => cmac_reg_axil.bresp,
-    s_axi_bvalid => cmac_reg_axil.bvalid,
-    s_axi_bready => cmac_reg_axil.bready,
-    s_axi_araddr => cmac_reg_axil.araddr,
-    s_axi_arvalid => cmac_reg_axil.arvalid,
-    s_axi_arready => cmac_reg_axil.arready,
-    s_axi_rdata => cmac_reg_axil.rdata,
-    s_axi_rresp => cmac_reg_axil.rresp,
-    s_axi_rvalid => cmac_reg_axil.rvalid,
-    s_axi_rready => cmac_reg_axil.rready,
+    s_axi_awaddr => cmac_reg_axil_narrow.awaddr,
+    s_axi_awvalid => cmac_reg_axil_narrow.awvalid,
+    s_axi_awready => cmac_reg_axil_narrow.awready,
+    s_axi_wdata => cmac_reg_axil_narrow.wdata,
+    s_axi_wstrb => cmac_reg_axil_narrow.wstrb,
+    s_axi_wvalid => cmac_reg_axil_narrow.wvalid,
+    s_axi_wready => cmac_reg_axil_narrow.wready,
+    s_axi_bresp => cmac_reg_axil_narrow.bresp,
+    s_axi_bvalid => cmac_reg_axil_narrow.bvalid,
+    s_axi_bready => cmac_reg_axil_narrow.bready,
+    s_axi_araddr => cmac_reg_axil_narrow.araddr,
+    s_axi_arvalid => cmac_reg_axil_narrow.arvalid,
+    s_axi_arready => cmac_reg_axil_narrow.arready,
+    s_axi_rdata => cmac_reg_axil_narrow.rdata,
+    s_axi_rresp => cmac_reg_axil_narrow.rresp,
+    s_axi_rvalid => cmac_reg_axil_narrow.rvalid,
+    s_axi_rready => cmac_reg_axil_narrow.rready,
 
     -- unused GT debug ports
     gt_loopback_in => (others => '0'),
