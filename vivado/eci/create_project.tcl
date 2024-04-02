@@ -42,6 +42,10 @@ set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
+# generate AXI-Lite interconnect for regs access
+exec python3 $hw_deps_dir/verilog-axi/rtl/axil_interconnect_wrap.py -p 1 2 \
+    -n axil_regs_interconnect -o $spinal_gen_dir/axil_regs_interconnect.v
+
 create_project $project -part $part
 set proj [current_project]
 
@@ -115,14 +119,20 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/Ram_1w_1rs_Generic.v" \
     "$spinal_gen_dir/NicEngine_ips.v" \
-    "$spinal_gen_dir/NicEngine.v"
+    "$spinal_gen_dir/NicEngine.v" \
+    "$spinal_gen_dir/axil_regs_interconnect.v" \
+    "$hw_deps_dir/verilog-axis/rtl/sync_reset.v"
 
 # Add constraints from us
 add_files -fileset [get_filesets constrs_1] -norecurse \
     "$spinal_gen_dir/NicEngine.xdc" \
-    "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl"
+    "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
+    "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl"
 
 set_property "top" "${top_module}" [get_filesets sources_1]
+
+# use newer version of VHDL -- from Manuel Hässig
+set_property file_type {VHDL 2008} [get_files -filter {FILE_TYPE == VHDL}]
 
 puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"

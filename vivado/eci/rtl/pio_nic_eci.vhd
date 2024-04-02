@@ -591,6 +591,98 @@ port (
 );
 end component;
 
+component sync_reset is
+generic (
+    N : integer := 2
+);
+port (
+    clk, rst : in std_logic;
+    \out\ : out std_logic
+);
+end component;
+
+component axil_regs_interconnect
+  generic (
+    DATA_WIDTH : integer := 64;
+    ADDR_WIDTH : integer := 44;
+    STRB_WIDTH : integer := DATA_WIDTH/8;
+    M_REGIONS : integer := 1;
+    -- registers for NIC engine
+    M00_BASE_ADDR : integer := 0;
+    M00_ADDR_WIDTH : integer := 44;
+    M00_CONNECT_READ : integer := 1;
+    M00_CONNECT_WRITE : integer := 1;
+    M00_SECURE : integer := 0;
+    -- registers for CMAC
+    M01_BASE_ADDR : integer := 16#200000#;
+    M01_ADDR_WIDTH : integer := 32;
+    M01_CONNECT_READ : integer := 1;
+    M01_CONNECT_WRITE : integer := 1;
+    M01_SECURE : integer := 0
+  );
+  port (
+    clk : in std_logic;
+    rst : in std_logic;
+    s00_axil_awaddr : in std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    s00_axil_awprot : in std_logic_vector  (2 downto 0);
+    s00_axil_awvalid : in std_logic;
+    s00_axil_awready : out std_logic;
+    s00_axil_wdata : in std_logic_vector  (DATA_WIDTH-1 downto 0);
+    s00_axil_wstrb : in std_logic_vector  (STRB_WIDTH-1 downto 0);
+    s00_axil_wvalid : in std_logic;
+    s00_axil_wready : out std_logic;
+    s00_axil_bresp : out std_logic_vector  (1 downto 0);
+    s00_axil_bvalid : out std_logic;
+    s00_axil_bready : in std_logic;
+    s00_axil_araddr : in std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    s00_axil_arprot : in std_logic_vector  (2 downto 0);
+    s00_axil_arvalid : in std_logic;
+    s00_axil_arready : out std_logic;
+    s00_axil_rdata : out std_logic_vector  (DATA_WIDTH-1 downto 0);
+    s00_axil_rresp : out std_logic_vector  (1 downto 0);
+    s00_axil_rvalid : out std_logic;
+    s00_axil_rready : in std_logic;
+    m00_axil_awaddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    m00_axil_awprot : out std_logic_vector  (2 downto 0);
+    m00_axil_awvalid : out std_logic;
+    m00_axil_awready : in std_logic;
+    m00_axil_wdata : out std_logic_vector  (DATA_WIDTH-1 downto 0);
+    m00_axil_wstrb : out std_logic_vector  (STRB_WIDTH-1 downto 0);
+    m00_axil_wvalid : out std_logic;
+    m00_axil_wready : in std_logic;
+    m00_axil_bresp : in std_logic_vector  (1 downto 0);
+    m00_axil_bvalid : in std_logic;
+    m00_axil_bready : out std_logic;
+    m00_axil_araddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    m00_axil_arprot : out std_logic_vector  (2 downto 0);
+    m00_axil_arvalid : out std_logic;
+    m00_axil_arready : in std_logic;
+    m00_axil_rdata : in std_logic_vector  (DATA_WIDTH-1 downto 0);
+    m00_axil_rresp : in std_logic_vector  (1 downto 0);
+    m00_axil_rvalid : in std_logic;
+    m00_axil_rready : out std_logic;
+    m01_axil_awaddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    m01_axil_awprot : out std_logic_vector  (2 downto 0);
+    m01_axil_awvalid : out std_logic;
+    m01_axil_awready : in std_logic;
+    m01_axil_wdata : out std_logic_vector  (DATA_WIDTH-1 downto 0);
+    m01_axil_wstrb : out std_logic_vector  (STRB_WIDTH-1 downto 0);
+    m01_axil_wvalid : out std_logic;
+    m01_axil_wready : in std_logic;
+    m01_axil_bresp : in std_logic_vector  (1 downto 0);
+    m01_axil_bvalid : in std_logic;
+    m01_axil_bready : out std_logic;
+    m01_axil_araddr : out std_logic_vector  (ADDR_WIDTH-1 downto 0);
+    m01_axil_arprot : out std_logic_vector  (2 downto 0);
+    m01_axil_arvalid : out std_logic;
+    m01_axil_arready : in std_logic;
+    m01_axil_rdata : in std_logic_vector  (DATA_WIDTH-1 downto 0);
+    m01_axil_rresp : in std_logic_vector  (1 downto 0);
+    m01_axil_rvalid : in std_logic;
+    m01_axil_rready : out std_logic
+  );
+end component;
+
 component NicEngine is
 port (
     clk, reset : in std_logic;
@@ -1180,6 +1272,41 @@ type LCL_CHANNEL is record
   ready : std_logic;
 end record LCL_CHANNEL;
 
+type CMAC_AXIS is record
+    tvalid : std_logic;
+    tready : std_logic;
+    tdata : std_logic_vector(511 downto 0);
+    tkeep : std_logic_vector(63 downto 0);
+    tlast : std_logic;
+end record CMAC_AXIS;
+
+type REGS_AXIL is record
+    araddr  : std_logic_vector(43 downto 0);
+    arprot  : std_logic_vector( 2 downto 0);
+    arvalid : std_logic;
+    arready : std_logic;
+    rdata   : std_logic_vector(63 downto 0);
+    rresp   : std_logic_vector( 1 downto 0);
+    rvalid  : std_logic;
+    rready  : std_logic;
+
+    awaddr  : std_logic_vector (43 downto 0);
+    awprot  : std_logic_vector ( 2 downto 0);
+    awvalid : std_logic;
+    awready : std_logic ;
+    wdata   : std_logic_vector (63 downto 0);
+    wstrb   : std_logic_vector (7 downto 0);
+    wvalid  : std_logic;
+    wready  : std_logic;
+    bresp   : std_logic_vector( 1 downto 0);
+    bvalid  : std_logic;
+    bready  : std_logic;
+end record REGS_AXIL;
+
+signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
+
+signal cmac_reg_axil, nic_engine_axil : REGS_AXIL;
+
 signal m0_bscan : BSCAN;
 
 signal link_eci_packet_rx : ECI_PACKET_RX;
@@ -1188,6 +1315,9 @@ signal link_eci_packet_tx : ECI_PACKET_TX;
 signal clk, clk_io : std_logic;
 signal reset : std_logic;
 signal reset_n : std_logic;
+
+signal txclk, rxclk : std_logic;
+signal txclk_reset, rxclk_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -1676,307 +1806,553 @@ port map (
 
 );
 
+-- reset synchronizers for RX and TX clocks
+rx_rst_sync : sync_reset
+port map (
+    clk => rxclk,
+    rst => reset_sys,
+    \out\ => rxclk_reset
+);
+
+tx_rst_sync : sync_reset
+port map (
+    clk => txclk,
+    rst => reset_sys,
+    \out\ => txclk_reset
+);
+
+axil_regs_interconnect_inst : axil_regs_interconnect
+  port map (
+    clk => clk_sys,
+    rst => reset_sys,
+
+    s00_axil_awaddr => s_io_axil_awaddr,
+    s00_axil_awprot => (others => "0"),
+    s00_axil_awvalid => s_io_axil_awvalid,
+    s00_axil_awready => s_io_axil_awready,
+    s00_axil_wdata => s_io_axil_wdata,
+    s00_axil_wstrb => s_io_axil_wstrb,
+    s00_axil_wvalid => s_io_axil_wvalid,
+    s00_axil_wready => s_io_axil_wready,
+    s00_axil_bresp => s_io_axil_bresp,
+    s00_axil_bvalid => s_io_axil_bvalid,
+    s00_axil_bready => s_io_axil_bready,
+    s00_axil_araddr => s_io_axil_araddr,
+    s00_axil_arprot => (others => "0"),
+    s00_axil_arvalid => s_io_axil_arvalid,
+    s00_axil_arready => s_io_axil_arready,
+    s00_axil_rdata => s_io_axil_rdata,
+    s00_axil_rresp => s_io_axil_rresp,
+    s00_axil_rvalid => s_io_axil_rvalid,
+    s00_axil_rready => s_io_axil_rready,
+
+    m00_axil_awaddr => nic_engine_axil.awaddr,
+    m00_axil_awprot => nic_engine_axil.awprot,
+    m00_axil_awvalid => nic_engine_axil.awvalid,
+    m00_axil_awready => nic_engine_axil.awready,
+    m00_axil_wdata => nic_engine_axil.wdata,
+    m00_axil_wstrb => nic_engine_axil.wstrb,
+    m00_axil_wvalid => nic_engine_axil.wvalid,
+    m00_axil_wready => nic_engine_axil.wready,
+    m00_axil_bresp => nic_engine_axil.bresp,
+    m00_axil_bvalid => nic_engine_axil.bvalid,
+    m00_axil_bready => nic_engine_axil.bready,
+    m00_axil_araddr => nic_engine_axil.araddr,
+    m00_axil_arprot => nic_engine_axil.arprot,
+    m00_axil_arvalid => nic_engine_axil.arvalid,
+    m00_axil_arready => nic_engine_axil.arready,
+    m00_axil_rdata => nic_engine_axil.rdata,
+    m00_axil_rresp => nic_engine_axil.rresp,
+    m00_axil_rvalid => nic_engine_axil.rvalid,
+    m00_axil_rready => nic_engine_axil.rready,
+
+    m01_axil_awaddr => cmac_reg_axil.awaddr,
+    m01_axil_awprot => cmac_reg_axil.awprot,
+    m01_axil_awvalid => cmac_reg_axil.awvalid,
+    m01_axil_awready => cmac_reg_axil.awready,
+    m01_axil_wdata => cmac_reg_axil.wdata,
+    m01_axil_wstrb => cmac_reg_axil.wstrb,
+    m01_axil_wvalid => cmac_reg_axil.wvalid,
+    m01_axil_wready => cmac_reg_axil.wready,
+    m01_axil_bresp => cmac_reg_axil.bresp,
+    m01_axil_bvalid => cmac_reg_axil.bvalid,
+    m01_axil_bready => cmac_reg_axil.bready,
+    m01_axil_araddr => cmac_reg_axil.araddr,
+    m01_axil_arprot => cmac_reg_axil.arprot,
+    m01_axil_arvalid => cmac_reg_axil.arvalid,
+    m01_axil_arready => cmac_reg_axil.arready,
+    m01_axil_rdata => cmac_reg_axil.rdata,
+    m01_axil_rresp => cmac_reg_axil.rresp,
+    m01_axil_rvalid => cmac_reg_axil.rvalid,
+    m01_axil_rready => cmac_reg_axil.rready
+  );
+
 cmac : cmac_usplus_0
   PORT MAP (
-    gt_txp_out => gt_txp_out,
-    gt_txn_out => gt_txn_out,
-    gt_rxp_in => gt_rxp_in,
-    gt_rxn_in => gt_rxn_in,
-    gt_txusrclk2 => gt_txusrclk2,
-    gt_loopback_in => gt_loopback_in,
-    gt_eyescanreset => gt_eyescanreset,
-    gt_eyescantrigger => gt_eyescantrigger,
-    gt_rxcdrhold => gt_rxcdrhold,
-    gt_rxpolarity => gt_rxpolarity,
-    gt_rxrate => gt_rxrate,
-    gt_txdiffctrl => gt_txdiffctrl,
-    gt_txpolarity => gt_txpolarity,
-    gt_txinhibit => gt_txinhibit,
-    gt_txpippmen => gt_txpippmen,
-    gt_txpippmsel => gt_txpippmsel,
-    gt_txpostcursor => gt_txpostcursor,
-    gt_txprbsforceerr => gt_txprbsforceerr,
-    gt_txprecursor => gt_txprecursor,
-    gt_eyescandataerror => gt_eyescandataerror,
-    gt_ref_clk_out => gt_ref_clk_out,
-    gt_rxrecclkout => gt_rxrecclkout,
-    gt_powergoodout => gt_powergoodout,
-    gt_txbufstatus => gt_txbufstatus,
-    gt_rxdfelpmreset => gt_rxdfelpmreset,
-    gt_rxlpmen => gt_rxlpmen,
-    gt_rxprbscntreset => gt_rxprbscntreset,
-    gt_rxprbserr => gt_rxprbserr,
-    gt_rxprbssel => gt_rxprbssel,
-    gt_rxresetdone => gt_rxresetdone,
-    gt_txprbssel => gt_txprbssel,
-    gt_txresetdone => gt_txresetdone,
-    gt_rxbufstatus => gt_rxbufstatus,
-    gtwiz_reset_tx_datapath => gtwiz_reset_tx_datapath,
-    gtwiz_reset_rx_datapath => gtwiz_reset_rx_datapath,
-    gt_drpclk => gt_drpclk,
-    gt0_drpdo => gt0_drpdo,
-    gt0_drprdy => gt0_drprdy,
-    gt0_drpen => gt0_drpen,
-    gt0_drpwe => gt0_drpwe,
-    gt0_drpaddr => gt0_drpaddr,
-    gt0_drpdi => gt0_drpdi,
-    gt1_drpdo => gt1_drpdo,
-    gt1_drprdy => gt1_drprdy,
-    gt1_drpen => gt1_drpen,
-    gt1_drpwe => gt1_drpwe,
-    gt1_drpaddr => gt1_drpaddr,
-    gt1_drpdi => gt1_drpdi,
-    gt2_drpdo => gt2_drpdo,
-    gt2_drprdy => gt2_drprdy,
-    gt2_drpen => gt2_drpen,
-    gt2_drpwe => gt2_drpwe,
-    gt2_drpaddr => gt2_drpaddr,
-    gt2_drpdi => gt2_drpdi,
-    gt3_drpdo => gt3_drpdo,
-    gt3_drprdy => gt3_drprdy,
-    gt3_drpen => gt3_drpen,
-    gt3_drpwe => gt3_drpwe,
-    gt3_drpaddr => gt3_drpaddr,
-    gt3_drpdi => gt3_drpdi,
-    s_axi_aclk => s_axi_aclk,
-    s_axi_sreset => s_axi_sreset,
-    pm_tick => pm_tick,
-    s_axi_awaddr => s_axi_awaddr,
-    s_axi_awvalid => s_axi_awvalid,
-    s_axi_awready => s_axi_awready,
-    s_axi_wdata => s_axi_wdata,
-    s_axi_wstrb => s_axi_wstrb,
-    s_axi_wvalid => s_axi_wvalid,
-    s_axi_wready => s_axi_wready,
-    s_axi_bresp => s_axi_bresp,
-    s_axi_bvalid => s_axi_bvalid,
-    s_axi_bready => s_axi_bready,
-    s_axi_araddr => s_axi_araddr,
-    s_axi_arvalid => s_axi_arvalid,
-    s_axi_arready => s_axi_arready,
-    s_axi_rdata => s_axi_rdata,
-    s_axi_rresp => s_axi_rresp,
-    s_axi_rvalid => s_axi_rvalid,
-    s_axi_rready => s_axi_rready,
-    user_reg0 => user_reg0,
-    sys_reset => sys_reset,
-    gt_ref_clk_p => gt_ref_clk_p,
-    gt_ref_clk_n => gt_ref_clk_n,
-    init_clk => init_clk,
-    common0_drpaddr => common0_drpaddr,
-    common0_drpdi => common0_drpdi,
-    common0_drpwe => common0_drpwe,
-    common0_drpen => common0_drpen,
-    common0_drprdy => common0_drprdy,
-    common0_drpdo => common0_drpdo,
-    rx_axis_tvalid => rx_axis_tvalid,
-    rx_axis_tdata => rx_axis_tdata,
-    rx_axis_tlast => rx_axis_tlast,
-    rx_axis_tkeep => rx_axis_tkeep,
-    rx_axis_tuser => rx_axis_tuser,
-    rx_otn_bip8_0 => rx_otn_bip8_0,
-    rx_otn_bip8_1 => rx_otn_bip8_1,
-    rx_otn_bip8_2 => rx_otn_bip8_2,
-    rx_otn_bip8_3 => rx_otn_bip8_3,
-    rx_otn_bip8_4 => rx_otn_bip8_4,
-    rx_otn_data_0 => rx_otn_data_0,
-    rx_otn_data_1 => rx_otn_data_1,
-    rx_otn_data_2 => rx_otn_data_2,
-    rx_otn_data_3 => rx_otn_data_3,
-    rx_otn_data_4 => rx_otn_data_4,
-    rx_otn_ena => rx_otn_ena,
-    rx_otn_lane0 => rx_otn_lane0,
-    rx_otn_vlmarker => rx_otn_vlmarker,
-    rx_preambleout => rx_preambleout,
-    usr_rx_reset => usr_rx_reset,
-    gt_rxusrclk2 => gt_rxusrclk2,
-    stat_rx_aligned => stat_rx_aligned,
-    stat_rx_aligned_err => stat_rx_aligned_err,
-    stat_rx_bad_code => stat_rx_bad_code,
-    stat_rx_bad_fcs => stat_rx_bad_fcs,
-    stat_rx_bad_preamble => stat_rx_bad_preamble,
-    stat_rx_bad_sfd => stat_rx_bad_sfd,
-    stat_rx_bip_err_0 => stat_rx_bip_err_0,
-    stat_rx_bip_err_1 => stat_rx_bip_err_1,
-    stat_rx_bip_err_10 => stat_rx_bip_err_10,
-    stat_rx_bip_err_11 => stat_rx_bip_err_11,
-    stat_rx_bip_err_12 => stat_rx_bip_err_12,
-    stat_rx_bip_err_13 => stat_rx_bip_err_13,
-    stat_rx_bip_err_14 => stat_rx_bip_err_14,
-    stat_rx_bip_err_15 => stat_rx_bip_err_15,
-    stat_rx_bip_err_16 => stat_rx_bip_err_16,
-    stat_rx_bip_err_17 => stat_rx_bip_err_17,
-    stat_rx_bip_err_18 => stat_rx_bip_err_18,
-    stat_rx_bip_err_19 => stat_rx_bip_err_19,
-    stat_rx_bip_err_2 => stat_rx_bip_err_2,
-    stat_rx_bip_err_3 => stat_rx_bip_err_3,
-    stat_rx_bip_err_4 => stat_rx_bip_err_4,
-    stat_rx_bip_err_5 => stat_rx_bip_err_5,
-    stat_rx_bip_err_6 => stat_rx_bip_err_6,
-    stat_rx_bip_err_7 => stat_rx_bip_err_7,
-    stat_rx_bip_err_8 => stat_rx_bip_err_8,
-    stat_rx_bip_err_9 => stat_rx_bip_err_9,
-    stat_rx_block_lock => stat_rx_block_lock,
-    stat_rx_broadcast => stat_rx_broadcast,
-    stat_rx_fragment => stat_rx_fragment,
-    stat_rx_framing_err_0 => stat_rx_framing_err_0,
-    stat_rx_framing_err_1 => stat_rx_framing_err_1,
-    stat_rx_framing_err_10 => stat_rx_framing_err_10,
-    stat_rx_framing_err_11 => stat_rx_framing_err_11,
-    stat_rx_framing_err_12 => stat_rx_framing_err_12,
-    stat_rx_framing_err_13 => stat_rx_framing_err_13,
-    stat_rx_framing_err_14 => stat_rx_framing_err_14,
-    stat_rx_framing_err_15 => stat_rx_framing_err_15,
-    stat_rx_framing_err_16 => stat_rx_framing_err_16,
-    stat_rx_framing_err_17 => stat_rx_framing_err_17,
-    stat_rx_framing_err_18 => stat_rx_framing_err_18,
-    stat_rx_framing_err_19 => stat_rx_framing_err_19,
-    stat_rx_framing_err_2 => stat_rx_framing_err_2,
-    stat_rx_framing_err_3 => stat_rx_framing_err_3,
-    stat_rx_framing_err_4 => stat_rx_framing_err_4,
-    stat_rx_framing_err_5 => stat_rx_framing_err_5,
-    stat_rx_framing_err_6 => stat_rx_framing_err_6,
-    stat_rx_framing_err_7 => stat_rx_framing_err_7,
-    stat_rx_framing_err_8 => stat_rx_framing_err_8,
-    stat_rx_framing_err_9 => stat_rx_framing_err_9,
-    stat_rx_framing_err_valid_0 => stat_rx_framing_err_valid_0,
-    stat_rx_framing_err_valid_1 => stat_rx_framing_err_valid_1,
-    stat_rx_framing_err_valid_10 => stat_rx_framing_err_valid_10,
-    stat_rx_framing_err_valid_11 => stat_rx_framing_err_valid_11,
-    stat_rx_framing_err_valid_12 => stat_rx_framing_err_valid_12,
-    stat_rx_framing_err_valid_13 => stat_rx_framing_err_valid_13,
-    stat_rx_framing_err_valid_14 => stat_rx_framing_err_valid_14,
-    stat_rx_framing_err_valid_15 => stat_rx_framing_err_valid_15,
-    stat_rx_framing_err_valid_16 => stat_rx_framing_err_valid_16,
-    stat_rx_framing_err_valid_17 => stat_rx_framing_err_valid_17,
-    stat_rx_framing_err_valid_18 => stat_rx_framing_err_valid_18,
-    stat_rx_framing_err_valid_19 => stat_rx_framing_err_valid_19,
-    stat_rx_framing_err_valid_2 => stat_rx_framing_err_valid_2,
-    stat_rx_framing_err_valid_3 => stat_rx_framing_err_valid_3,
-    stat_rx_framing_err_valid_4 => stat_rx_framing_err_valid_4,
-    stat_rx_framing_err_valid_5 => stat_rx_framing_err_valid_5,
-    stat_rx_framing_err_valid_6 => stat_rx_framing_err_valid_6,
-    stat_rx_framing_err_valid_7 => stat_rx_framing_err_valid_7,
-    stat_rx_framing_err_valid_8 => stat_rx_framing_err_valid_8,
-    stat_rx_framing_err_valid_9 => stat_rx_framing_err_valid_9,
-    stat_rx_got_signal_os => stat_rx_got_signal_os,
-    stat_rx_hi_ber => stat_rx_hi_ber,
-    stat_rx_inrangeerr => stat_rx_inrangeerr,
-    stat_rx_internal_local_fault => stat_rx_internal_local_fault,
-    stat_rx_jabber => stat_rx_jabber,
-    stat_rx_local_fault => stat_rx_local_fault,
-    stat_rx_mf_err => stat_rx_mf_err,
-    stat_rx_mf_len_err => stat_rx_mf_len_err,
-    stat_rx_mf_repeat_err => stat_rx_mf_repeat_err,
-    stat_rx_misaligned => stat_rx_misaligned,
-    stat_rx_multicast => stat_rx_multicast,
-    stat_rx_oversize => stat_rx_oversize,
-    stat_rx_packet_1024_1518_bytes => stat_rx_packet_1024_1518_bytes,
-    stat_rx_packet_128_255_bytes => stat_rx_packet_128_255_bytes,
-    stat_rx_packet_1519_1522_bytes => stat_rx_packet_1519_1522_bytes,
-    stat_rx_packet_1523_1548_bytes => stat_rx_packet_1523_1548_bytes,
-    stat_rx_packet_1549_2047_bytes => stat_rx_packet_1549_2047_bytes,
-    stat_rx_packet_2048_4095_bytes => stat_rx_packet_2048_4095_bytes,
-    stat_rx_packet_256_511_bytes => stat_rx_packet_256_511_bytes,
-    stat_rx_packet_4096_8191_bytes => stat_rx_packet_4096_8191_bytes,
-    stat_rx_packet_512_1023_bytes => stat_rx_packet_512_1023_bytes,
-    stat_rx_packet_64_bytes => stat_rx_packet_64_bytes,
-    stat_rx_packet_65_127_bytes => stat_rx_packet_65_127_bytes,
-    stat_rx_packet_8192_9215_bytes => stat_rx_packet_8192_9215_bytes,
-    stat_rx_packet_bad_fcs => stat_rx_packet_bad_fcs,
-    stat_rx_packet_large => stat_rx_packet_large,
-    stat_rx_packet_small => stat_rx_packet_small,
-    core_rx_reset => core_rx_reset,
-    rx_clk => rx_clk,
-    stat_rx_received_local_fault => stat_rx_received_local_fault,
-    stat_rx_remote_fault => stat_rx_remote_fault,
-    stat_rx_status => stat_rx_status,
-    stat_rx_stomped_fcs => stat_rx_stomped_fcs,
-    stat_rx_synced => stat_rx_synced,
-    stat_rx_synced_err => stat_rx_synced_err,
-    stat_rx_test_pattern_mismatch => stat_rx_test_pattern_mismatch,
-    stat_rx_toolong => stat_rx_toolong,
-    stat_rx_total_bytes => stat_rx_total_bytes,
-    stat_rx_total_good_bytes => stat_rx_total_good_bytes,
-    stat_rx_total_good_packets => stat_rx_total_good_packets,
-    stat_rx_total_packets => stat_rx_total_packets,
-    stat_rx_truncated => stat_rx_truncated,
-    stat_rx_undersize => stat_rx_undersize,
-    stat_rx_unicast => stat_rx_unicast,
-    stat_rx_vlan => stat_rx_vlan,
-    stat_rx_pcsl_demuxed => stat_rx_pcsl_demuxed,
-    stat_rx_pcsl_number_0 => stat_rx_pcsl_number_0,
-    stat_rx_pcsl_number_1 => stat_rx_pcsl_number_1,
-    stat_rx_pcsl_number_10 => stat_rx_pcsl_number_10,
-    stat_rx_pcsl_number_11 => stat_rx_pcsl_number_11,
-    stat_rx_pcsl_number_12 => stat_rx_pcsl_number_12,
-    stat_rx_pcsl_number_13 => stat_rx_pcsl_number_13,
-    stat_rx_pcsl_number_14 => stat_rx_pcsl_number_14,
-    stat_rx_pcsl_number_15 => stat_rx_pcsl_number_15,
-    stat_rx_pcsl_number_16 => stat_rx_pcsl_number_16,
-    stat_rx_pcsl_number_17 => stat_rx_pcsl_number_17,
-    stat_rx_pcsl_number_18 => stat_rx_pcsl_number_18,
-    stat_rx_pcsl_number_19 => stat_rx_pcsl_number_19,
-    stat_rx_pcsl_number_2 => stat_rx_pcsl_number_2,
-    stat_rx_pcsl_number_3 => stat_rx_pcsl_number_3,
-    stat_rx_pcsl_number_4 => stat_rx_pcsl_number_4,
-    stat_rx_pcsl_number_5 => stat_rx_pcsl_number_5,
-    stat_rx_pcsl_number_6 => stat_rx_pcsl_number_6,
-    stat_rx_pcsl_number_7 => stat_rx_pcsl_number_7,
-    stat_rx_pcsl_number_8 => stat_rx_pcsl_number_8,
-    stat_rx_pcsl_number_9 => stat_rx_pcsl_number_9,
-    stat_tx_bad_fcs => stat_tx_bad_fcs,
-    stat_tx_broadcast => stat_tx_broadcast,
-    stat_tx_frame_error => stat_tx_frame_error,
-    stat_tx_local_fault => stat_tx_local_fault,
-    stat_tx_multicast => stat_tx_multicast,
-    stat_tx_packet_1024_1518_bytes => stat_tx_packet_1024_1518_bytes,
-    stat_tx_packet_128_255_bytes => stat_tx_packet_128_255_bytes,
-    stat_tx_packet_1519_1522_bytes => stat_tx_packet_1519_1522_bytes,
-    stat_tx_packet_1523_1548_bytes => stat_tx_packet_1523_1548_bytes,
-    stat_tx_packet_1549_2047_bytes => stat_tx_packet_1549_2047_bytes,
-    stat_tx_packet_2048_4095_bytes => stat_tx_packet_2048_4095_bytes,
-    stat_tx_packet_256_511_bytes => stat_tx_packet_256_511_bytes,
-    stat_tx_packet_4096_8191_bytes => stat_tx_packet_4096_8191_bytes,
-    stat_tx_packet_512_1023_bytes => stat_tx_packet_512_1023_bytes,
-    stat_tx_packet_64_bytes => stat_tx_packet_64_bytes,
-    stat_tx_packet_65_127_bytes => stat_tx_packet_65_127_bytes,
-    stat_tx_packet_8192_9215_bytes => stat_tx_packet_8192_9215_bytes,
-    stat_tx_packet_large => stat_tx_packet_large,
-    stat_tx_packet_small => stat_tx_packet_small,
-    stat_tx_total_bytes => stat_tx_total_bytes,
-    stat_tx_total_good_bytes => stat_tx_total_good_bytes,
-    stat_tx_total_good_packets => stat_tx_total_good_packets,
-    stat_tx_total_packets => stat_tx_total_packets,
-    stat_tx_unicast => stat_tx_unicast,
-    stat_tx_vlan => stat_tx_vlan,
-    ctl_tx_send_idle => ctl_tx_send_idle,
-    ctl_tx_send_rfi => ctl_tx_send_rfi,
-    ctl_tx_send_lfi => ctl_tx_send_lfi,
-    core_tx_reset => core_tx_reset,
-    tx_axis_tready => tx_axis_tready,
-    tx_axis_tvalid => tx_axis_tvalid,
-    tx_axis_tdata => tx_axis_tdata,
-    tx_axis_tlast => tx_axis_tlast,
-    tx_axis_tkeep => tx_axis_tkeep,
-    tx_axis_tuser => tx_axis_tuser,
-    tx_ovfout => tx_ovfout,
-    tx_unfout => tx_unfout,
-    tx_preamblein => tx_preamblein,
-    usr_tx_reset => usr_tx_reset,
-    core_drp_reset => core_drp_reset,
-    drp_clk => drp_clk,
-    drp_addr => drp_addr,
-    drp_di => drp_di,
-    drp_en => drp_en,
-    drp_do => drp_do,
-    drp_rdy => drp_rdy,
-    drp_we => drp_we
-  );
-  
-engine: NicEngine
-port map (
+    -- GT connections
+    gt_txp_out => F_MAC0_TX_P,
+    gt_txn_out => F_MAC0_TX_N,
+    gt_rxp_in => F_MAC0_RX_P,
+    gt_rxn_in => F_MAC0_RX_N,
+    gt_ref_clk_p => F_MAC0C_CLK_P,
+    gt_ref_clk_n => F_MAC0C_CLK_N,
+    gt_rxpolarity => "0011",
+    gt_txpolarity => "0011",
 
+    -- clocking & reset (single-ended)
+    init_clk => clk_io,
+    gt_drpclk => clk_io,
+    drp_clk => clk_io,
+    rx_clk => rxclk,
+    gt_txusrclk2 => txclk,
+    gt_rxusrclk2 => rxclk,
+    -- we use reset_sys to reset the entire engine
+    sys_reset => sys_reset,
+    usr_rx_reset => open,
+    usr_tx_reset => open,
+    core_drp_reset => "0",
+    core_tx_reset => "0",
+    core_rx_reset => "0",
+
+    -- TX interface
+    tx_axis_tready => cmac_tx_axis.tready,
+    tx_axis_tvalid => cmac_tx_axis.tvalid,
+    tx_axis_tdata => cmac_tx_axis.tdata,
+    tx_axis_tlast => cmac_tx_axis.tlast,
+    tx_axis_tkeep => cmac_tx_axis.tkeep,
+    tx_axis_tuser => (others => "0"),
+
+    -- RX interface (no tready!)
+    rx_axis_tvalid => cmac_rx_axis.tvalid,
+    rx_axis_tdata => cmac_rx_axis.tdata,
+    rx_axis_tlast => cmac_rx_axis.tlast,
+    rx_axis_tkeep => cmac_rx_axis.tkeep,
+    rx_axis_tuser => open,
+
+    -- AXI lite reg interface
+    pm_tick => "0",
+    s_axi_aclk => clk_sys,
+    s_axi_sreset => reset_sys,
+    s_axi_awaddr => cmac_reg_axil.awaddr,
+    s_axi_awvalid => cmac_reg_axil.awvalid,
+    s_axi_awready => cmac_reg_axil.awready,
+    s_axi_wdata => cmac_reg_axil.wdata,
+    s_axi_wstrb => cmac_reg_axil.wstrb,
+    s_axi_wvalid => cmac_reg_axil.wvalid,
+    s_axi_wready => cmac_reg_axil.wready,
+    s_axi_bresp => cmac_reg_axil.bresp,
+    s_axi_bvalid => cmac_reg_axil.bvalid,
+    s_axi_bready => cmac_reg_axil.bready,
+    s_axi_araddr => cmac_reg_axil.araddr,
+    s_axi_arvalid => cmac_reg_axil.arvalid,
+    s_axi_arready => cmac_reg_axil.arready,
+    s_axi_rdata => cmac_reg_axil.rdata,
+    s_axi_rresp => cmac_reg_axil.rresp,
+    s_axi_rvalid => cmac_reg_axil.rvalid,
+    s_axi_rready => cmac_reg_axil.rready,
+
+    -- unused GT debug ports
+    gt_loopback_in => (others => "0"),
+    gt_eyescanreset => (others => "0"),
+    gt_eyescantrigger => (others => "0"),
+    gt_rxcdrhold => (others => "0"),
+    gt_rxrate => (others => "0"),
+    gt_txdiffctrl => (others => "0"),
+    gt_txinhibit => (others => "0"),
+    gt_txpippmen => (others => "0"),
+    gt_txpippmsel => (others => "0"),
+    gt_txpostcursor => (others => "0"),
+    gt_txprbsforceerr => (others => "0"),
+    gt_txprecursor => (others => "0"),
+    gt_eyescandataerror => open,
+    gt_ref_clk_out => open,
+    gt_rxrecclkout => open,
+    gt_powergoodout => open,
+    gt_txbufstatus => open,
+    gt_rxdfelpmreset => (others => "0"),
+    gt_rxlpmen => (others => "0"),
+    gt_rxprbscntreset => (others => "0"),
+    gt_rxprbserr => open,
+    gt_rxprbssel => (others => "0"),
+    gt_rxresetdone => open,
+    gt_txprbssel => (others => "0"),
+    gt_txresetdone => open,
+    gt_rxbufstatus => open,
+    gtwiz_reset_tx_datapath => "0",
+    gtwiz_reset_rx_datapath => "0",
+
+    -- CMAC statistics; left open since they can be accessed from the AXI lite reg interface
+    stat_rx_aligned => open,
+    stat_rx_aligned_err => open,
+    stat_rx_bad_code => open,
+    stat_rx_bad_fcs => open,
+    stat_rx_bad_preamble => open,
+    stat_rx_bad_sfd => open,
+    stat_rx_bip_err_0 => open,
+    stat_rx_bip_err_1 => open,
+    stat_rx_bip_err_10 => open,
+    stat_rx_bip_err_11 => open,
+    stat_rx_bip_err_12 => open,
+    stat_rx_bip_err_13 => open,
+    stat_rx_bip_err_14 => open,
+    stat_rx_bip_err_15 => open,
+    stat_rx_bip_err_16 => open,
+    stat_rx_bip_err_17 => open,
+    stat_rx_bip_err_18 => open,
+    stat_rx_bip_err_19 => open,
+    stat_rx_bip_err_2 => open,
+    stat_rx_bip_err_3 => open,
+    stat_rx_bip_err_4 => open,
+    stat_rx_bip_err_5 => open,
+    stat_rx_bip_err_6 => open,
+    stat_rx_bip_err_7 => open,
+    stat_rx_bip_err_8 => open,
+    stat_rx_bip_err_9 => open,
+    stat_rx_block_lock => open,
+    stat_rx_broadcast => open,
+    stat_rx_fragment => open,
+    stat_rx_framing_err_0 => open,
+    stat_rx_framing_err_1 => open,
+    stat_rx_framing_err_10 => open,
+    stat_rx_framing_err_11 => open,
+    stat_rx_framing_err_12 => open,
+    stat_rx_framing_err_13 => open,
+    stat_rx_framing_err_14 => open,
+    stat_rx_framing_err_15 => open,
+    stat_rx_framing_err_16 => open,
+    stat_rx_framing_err_17 => open,
+    stat_rx_framing_err_18 => open,
+    stat_rx_framing_err_19 => open,
+    stat_rx_framing_err_2 => open,
+    stat_rx_framing_err_3 => open,
+    stat_rx_framing_err_4 => open,
+    stat_rx_framing_err_5 => open,
+    stat_rx_framing_err_6 => open,
+    stat_rx_framing_err_7 => open,
+    stat_rx_framing_err_8 => open,
+    stat_rx_framing_err_9 => open,
+    stat_rx_framing_err_valid_0 => open,
+    stat_rx_framing_err_valid_1 => open,
+    stat_rx_framing_err_valid_10 => open,
+    stat_rx_framing_err_valid_11 => open,
+    stat_rx_framing_err_valid_12 => open,
+    stat_rx_framing_err_valid_13 => open,
+    stat_rx_framing_err_valid_14 => open,
+    stat_rx_framing_err_valid_15 => open,
+    stat_rx_framing_err_valid_16 => open,
+    stat_rx_framing_err_valid_17 => open,
+    stat_rx_framing_err_valid_18 => open,
+    stat_rx_framing_err_valid_19 => open,
+    stat_rx_framing_err_valid_2 => open,
+    stat_rx_framing_err_valid_3 => open,
+    stat_rx_framing_err_valid_4 => open,
+    stat_rx_framing_err_valid_5 => open,
+    stat_rx_framing_err_valid_6 => open,
+    stat_rx_framing_err_valid_7 => open,
+    stat_rx_framing_err_valid_8 => open,
+    stat_rx_framing_err_valid_9 => open,
+    stat_rx_got_signal_os => open,
+    stat_rx_hi_ber => open,
+    stat_rx_inrangeerr => open,
+    stat_rx_internal_local_fault => open,
+    stat_rx_jabber => open,
+    stat_rx_local_fault => open,
+    stat_rx_mf_err => open,
+    stat_rx_mf_len_err => open,
+    stat_rx_mf_repeat_err => open,
+    stat_rx_misaligned => open,
+    stat_rx_multicast => open,
+    stat_rx_oversize => open,
+    stat_rx_packet_1024_1518_bytes => open,
+    stat_rx_packet_128_255_bytes => open,
+    stat_rx_packet_1519_1522_bytes => open,
+    stat_rx_packet_1523_1548_bytes => open,
+    stat_rx_packet_1549_2047_bytes => open,
+    stat_rx_packet_2048_4095_bytes => open,
+    stat_rx_packet_256_511_bytes => open,
+    stat_rx_packet_4096_8191_bytes => open,
+    stat_rx_packet_512_1023_bytes => open,
+    stat_rx_packet_64_bytes => open,
+    stat_rx_packet_65_127_bytes => open,
+    stat_rx_packet_8192_9215_bytes => open,
+    stat_rx_packet_bad_fcs => open,
+    stat_rx_packet_large => open,
+    stat_rx_packet_small => open,
+    stat_rx_received_local_fault => open,
+    stat_rx_remote_fault => open,
+    stat_rx_status => open,
+    stat_rx_stomped_fcs => open,
+    stat_rx_synced => open,
+    stat_rx_synced_err => open,
+    stat_rx_test_pattern_mismatch => open,
+    stat_rx_toolong => open,
+    stat_rx_total_bytes => open,
+    stat_rx_total_good_bytes => open,
+    stat_rx_total_good_packets => open,
+    stat_rx_total_packets => open,
+    stat_rx_truncated => open,
+    stat_rx_undersize => open,
+    stat_rx_unicast => open,
+    stat_rx_vlan => open,
+    stat_rx_pcsl_demuxed => open,
+    stat_rx_pcsl_number_0 => open,
+    stat_rx_pcsl_number_1 => open,
+    stat_rx_pcsl_number_10 => open,
+    stat_rx_pcsl_number_11 => open,
+    stat_rx_pcsl_number_12 => open,
+    stat_rx_pcsl_number_13 => open,
+    stat_rx_pcsl_number_14 => open,
+    stat_rx_pcsl_number_15 => open,
+    stat_rx_pcsl_number_16 => open,
+    stat_rx_pcsl_number_17 => open,
+    stat_rx_pcsl_number_18 => open,
+    stat_rx_pcsl_number_19 => open,
+    stat_rx_pcsl_number_2 => open,
+    stat_rx_pcsl_number_3 => open,
+    stat_rx_pcsl_number_4 => open,
+    stat_rx_pcsl_number_5 => open,
+    stat_rx_pcsl_number_6 => open,
+    stat_rx_pcsl_number_7 => open,
+    stat_rx_pcsl_number_8 => open,
+    stat_rx_pcsl_number_9 => open,
+    stat_tx_bad_fcs => open,
+    stat_tx_broadcast => open,
+    stat_tx_frame_error => open,
+    stat_tx_local_fault => open,
+    stat_tx_multicast => open,
+    stat_tx_packet_1024_1518_bytes => open,
+    stat_tx_packet_128_255_bytes => open,
+    stat_tx_packet_1519_1522_bytes => open,
+    stat_tx_packet_1523_1548_bytes => open,
+    stat_tx_packet_1549_2047_bytes => open,
+    stat_tx_packet_2048_4095_bytes => open,
+    stat_tx_packet_256_511_bytes => open,
+    stat_tx_packet_4096_8191_bytes => open,
+    stat_tx_packet_512_1023_bytes => open,
+    stat_tx_packet_64_bytes => open,
+    stat_tx_packet_65_127_bytes => open,
+    stat_tx_packet_8192_9215_bytes => open,
+    stat_tx_packet_large => open,
+    stat_tx_packet_small => open,
+    stat_tx_total_bytes => open,
+    stat_tx_total_good_bytes => open,
+    stat_tx_total_good_packets => open,
+    stat_tx_total_packets => open,
+    stat_tx_unicast => open,
+    stat_tx_vlan => open,
+
+    -- DRP ports
+    drp_addr => (others => "0"),
+    drp_di => (others => "0"),
+    drp_we => "0",
+    drp_en => "0",
+    drp_rdy => open,
+    drp_do => open,
+    common0_drpaddr => (others => "0"),
+    common0_drpdi => (others => "0"),
+    common0_drpwe => "0",
+    common0_drpen => "0",
+    common0_drprdy => open,
+    common0_drpdo => open,
+    gt0_drpdo => open,
+    gt0_drprdy => open,
+    gt0_drpen => "0",
+    gt0_drpwe => "0",
+    gt0_drpaddr => (others => "0"),
+    gt0_drpdi => (others => "0"),
+    gt1_drpdo => open,
+    gt1_drprdy => open,
+    gt1_drpen => "0",
+    gt1_drpwe => "0",
+    gt1_drpaddr => (others => "0"),
+    gt1_drpdi => (others => "0"),
+    gt2_drpdo => open,
+    gt2_drprdy => open,
+    gt2_drpen => "0",
+    gt2_drpwe => "0",
+    gt2_drpaddr => (others => "0"),
+    gt2_drpdi => (others => "0"),
+    gt3_drpdo => open,
+    gt3_drprdy => open,
+    gt3_drpen => "0",
+    gt3_drpwe => "0",
+    gt3_drpaddr => (others => "0"),
+    gt3_drpdi => (others => "0"),
+
+    -- misc
+    ctl_tx_send_idle => "0",
+    ctl_tx_send_rfi => "0",
+    ctl_tx_send_lfi => "0",
+    tx_ovfout => open,
+    tx_unfout => open,
+    tx_preamblein => (others => "0"),
+    user_reg0 => open,
+    rx_otn_bip8_0 => open,
+    rx_otn_bip8_1 => open,
+    rx_otn_bip8_2 => open,
+    rx_otn_bip8_3 => open,
+    rx_otn_bip8_4 => open,
+    rx_otn_data_0 => open,
+    rx_otn_data_1 => open,
+    rx_otn_data_2 => open,
+    rx_otn_data_3 => open,
+    rx_otn_data_4 => open,
+    rx_otn_ena => open,
+    rx_otn_lane0 => open,
+    rx_otn_vlmarker => open,
+    rx_preambleout => open
 );
+
+NicEngine_inst : entity work.NicEngine
+  port map (
+    -- 322 MHz clock from ECI
+    clk => clk_sys,
+    reset => reset_sys,
+    -- CMAC clocks
+    cmacRxClock_clk => rxclk,
+    cmacRxClock_reset => rxclk_reset,
+    cmacTxClock_clk => txclk,
+    cmacTxClock_reset => txclk_reset,
+
+    -- CMAC interface
+    s_axis_rx_tvalid => cmac_rx_axis.tvalid,
+    s_axis_rx_tready => cmac_rx_axis.tready,
+    s_axis_rx_tdata => cmac_rx_axis.tdata,
+    s_axis_rx_tlast => cmac_rx_axis.tlast,
+    s_axis_rx_tkeep => cmac_rx_axis.tkeep,
+
+    s_axis_tx_tvalid => cmac_tx_axis.tvalid,
+    s_axis_tx_tready => cmac_tx_axis.tready,
+    s_axis_tx_tdata => cmac_tx_axis.tdata,
+    s_axis_tx_tlast => cmac_tx_axis.tlast,
+    s_axis_tx_tkeep => cmac_tx_axis.tkeep,
+
+    -- DCS odd interface
+    s_axi_dcs_odd_awvalid => dcs_odd_axi.awvalid,
+    s_axi_dcs_odd_awready => dcs_odd_axi.awready,
+    s_axi_dcs_odd_awaddr => dcs_odd_axi.awaddr,
+    s_axi_dcs_odd_awid => dcs_odd_axi.awid,
+    s_axi_dcs_odd_awlen => dcs_odd_axi.awlen,
+    s_axi_dcs_odd_awsize => dcs_odd_axi.awsize,
+    s_axi_dcs_odd_awburst => dcs_odd_axi.awburst,
+    s_axi_dcs_odd_awlock => dcs_odd_axi.awlock,
+    s_axi_dcs_odd_awcache => dcs_odd_axi.awcache,
+    s_axi_dcs_odd_awprot => dcs_odd_axi.awprot,
+    s_axi_dcs_odd_wvalid => dcs_odd_axi.wvalid,
+    s_axi_dcs_odd_wready => dcs_odd_axi.wready,
+    s_axi_dcs_odd_wdata => dcs_odd_axi.wdata,
+    s_axi_dcs_odd_wstrb => dcs_odd_axi.wstrb,
+    s_axi_dcs_odd_wlast => dcs_odd_axi.wlast,
+    s_axi_dcs_odd_bvalid => dcs_odd_axi.bvalid,
+    s_axi_dcs_odd_bready => dcs_odd_axi.bready,
+    s_axi_dcs_odd_bid => dcs_odd_axi.bid,
+    s_axi_dcs_odd_bresp => dcs_odd_axi.bresp,
+    s_axi_dcs_odd_arvalid => dcs_odd_axi.arvalid,
+    s_axi_dcs_odd_arready => dcs_odd_axi.arready,
+    s_axi_dcs_odd_araddr => dcs_odd_axi.araddr,
+    s_axi_dcs_odd_arid => dcs_odd_axi.arid,
+    s_axi_dcs_odd_arlen => dcs_odd_axi.arlen,
+    s_axi_dcs_odd_arsize => dcs_odd_axi.arsize,
+    s_axi_dcs_odd_arburst => dcs_odd_axi.arburst,
+    s_axi_dcs_odd_arlock => dcs_odd_axi.arlock,
+    s_axi_dcs_odd_arcache => dcs_odd_axi.arcache,
+    s_axi_dcs_odd_arprot => dcs_odd_axi.arprot,
+    s_axi_dcs_odd_rvalid => dcs_odd_axi.rvalid,
+    s_axi_dcs_odd_rready => dcs_odd_axi.rready,
+    s_axi_dcs_odd_rdata => dcs_odd_axi.rdata,
+    s_axi_dcs_odd_rid => dcs_odd_axi.rid,
+    s_axi_dcs_odd_rresp => dcs_odd_axi.rresp,
+    s_axi_dcs_odd_rlast => dcs_odd_axi.rlast,
+
+    dcsOdd_cleanMaybeInvReq_valid => dcs_c16_i.valid,
+    dcsOdd_cleanMaybeInvReq_ready => dcs_c16_i.ready,
+    dcsOdd_cleanMaybeInvReq_payload_data => dcs_c16_i.data,
+    dcsOdd_cleanMaybeInvReq_payload_size => dcs_c16_i.size,
+    dcsOdd_cleanMaybeInvReq_payload_vc => dcs_c16_i.vc_no,
+    dcsOdd_cleanMaybeInvResp_valid => dcs_c18_o.valid,
+    dcsOdd_cleanMaybeInvResp_ready => dcs_c18_o.ready,
+    dcsOdd_cleanMaybeInvResp_payload_data => dcs_c18_o.data,
+    dcsOdd_cleanMaybeInvResp_payload_size => dcs_c18_o.size,
+    dcsOdd_cleanMaybeInvResp_payload_vc => dcs_c18_o.vc_no,
+    dcsOdd_unlockResp_valid => dcs_c18_i.valid,
+    dcsOdd_unlockResp_ready => dcs_c18_i.ready,
+    dcsOdd_unlockResp_payload_data => dcs_c18_i.data,
+    dcsOdd_unlockResp_payload_size => dcs_c18_i.size,
+    dcsOdd_unlockResp_payload_vc => dcs_c18_i.vc_no,
+
+    -- DCS even interface
+    s_axi_dcs_even_awvalid => dcs_even_axi.awvalid,
+    s_axi_dcs_even_awready => dcs_even_axi.awready,
+    s_axi_dcs_even_awaddr => dcs_even_axi.awaddr,
+    s_axi_dcs_even_awid => dcs_even_axi.awid,
+    s_axi_dcs_even_awlen => dcs_even_axi.awlen,
+    s_axi_dcs_even_awsize => dcs_even_axi.awsize,
+    s_axi_dcs_even_awburst => dcs_even_axi.awburst,
+    s_axi_dcs_even_awlock => dcs_even_axi.awlock,
+    s_axi_dcs_even_awcache => dcs_even_axi.awcache,
+    s_axi_dcs_even_awprot => dcs_even_axi.awprot,
+    s_axi_dcs_even_wvalid => dcs_even_axi.wvalid,
+    s_axi_dcs_even_wready => dcs_even_axi.wready,
+    s_axi_dcs_even_wdata => dcs_even_axi.wdata,
+    s_axi_dcs_even_wstrb => dcs_even_axi.wstrb,
+    s_axi_dcs_even_wlast => dcs_even_axi.wlast,
+    s_axi_dcs_even_bvalid => dcs_even_axi.bvalid,
+    s_axi_dcs_even_bready => dcs_even_axi.bready,
+    s_axi_dcs_even_bid => dcs_even_axi.bid,
+    s_axi_dcs_even_bresp => dcs_even_axi.bresp,
+    s_axi_dcs_even_arvalid => dcs_even_axi.arvalid,
+    s_axi_dcs_even_arready => dcs_even_axi.arready,
+    s_axi_dcs_even_araddr => dcs_even_axi.araddr,
+    s_axi_dcs_even_arid => dcs_even_axi.arid,
+    s_axi_dcs_even_arlen => dcs_even_axi.arlen,
+    s_axi_dcs_even_arsize => dcs_even_axi.arsize,
+    s_axi_dcs_even_arburst => dcs_even_axi.arburst,
+    s_axi_dcs_even_arlock => dcs_even_axi.arlock,
+    s_axi_dcs_even_arcache => dcs_even_axi.arcache,
+    s_axi_dcs_even_arprot => dcs_even_axi.arprot,
+    s_axi_dcs_even_rvalid => dcs_even_axi.rvalid,
+    s_axi_dcs_even_rready => dcs_even_axi.rready,
+    s_axi_dcs_even_rdata => dcs_even_axi.rdata,
+    s_axi_dcs_even_rid => dcs_even_axi.rid,
+    s_axi_dcs_even_rresp => dcs_even_axi.rresp,
+    s_axi_dcs_even_rlast => dcs_even_axi.rlast,
+
+    dcsEven_cleanMaybeInvReq_valid => dcs_c17_i.valid,
+    dcsEven_cleanMaybeInvReq_ready => dcs_c17_i.ready,
+    dcsEven_cleanMaybeInvReq_payload_data => dcs_c17_i.data,
+    dcsEven_cleanMaybeInvReq_payload_size => dcs_c17_i.size,
+    dcsEven_cleanMaybeInvReq_payload_vc => dcs_c17_i.vc_no,
+    dcsEven_cleanMaybeInvResp_valid => dcs_c19_o.valid,
+    dcsEven_cleanMaybeInvResp_ready => dcs_c19_o.ready,
+    dcsEven_cleanMaybeInvResp_payload_data => dcs_c19_o.data,
+    dcsEven_cleanMaybeInvResp_payload_size => dcs_c19_o.size,
+    dcsEven_cleanMaybeInvResp_payload_vc => dcs_c19_o.vc_no,
+    dcsEven_unlockResp_valid => dcs_c19_i.valid,
+    dcsEven_unlockResp_ready => dcs_c19_i.ready,
+    dcsEven_unlockResp_payload_data => dcs_c19_i.data,
+    dcsEven_unlockResp_payload_size => dcs_c19_i.size,
+    dcsEven_unlockResp_payload_vc => dcs_c19_i.vc_no,
+
+    -- regs
+    s_axil_ctrl_awvalid => nic_engine_axil.awvalid,
+    s_axil_ctrl_awready => nic_engine_axil.awready,
+    s_axil_ctrl_awaddr => nic_engine_axil.awaddr,
+    s_axil_ctrl_awprot => nic_engine_axil.awprot,
+    s_axil_ctrl_wvalid => nic_engine_axil.wvalid,
+    s_axil_ctrl_wready => nic_engine_axil.wready,
+    s_axil_ctrl_wdata => nic_engine_axil.wdata,
+    s_axil_ctrl_wstrb => nic_engine_axil.wstrb,
+    s_axil_ctrl_bvalid => nic_engine_axil.bvalid,
+    s_axil_ctrl_bready => nic_engine_axil.bready,
+    s_axil_ctrl_bresp => nic_engine_axil.bresp,
+    s_axil_ctrl_arvalid => nic_engine_axil.arvalid,
+    s_axil_ctrl_arready => nic_engine_axil.arready,
+    s_axil_ctrl_araddr => nic_engine_axil.araddr,
+    s_axil_ctrl_arprot => nic_engine_axil.arprot,
+    s_axil_ctrl_rvalid => nic_engine_axil.rvalid,
+    s_axil_ctrl_rready => nic_engine_axil.rready,
+    s_axil_ctrl_rdata => nic_engine_axil.rdata,
+    s_axil_ctrl_rresp => nic_engine_axil.rresp
+  );
 
 end Behavioral;
