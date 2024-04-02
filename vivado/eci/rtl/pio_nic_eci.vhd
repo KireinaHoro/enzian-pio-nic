@@ -1920,7 +1920,7 @@ cmac : cmac_usplus_0
     tx_axis_tdata => cmac_tx_axis.tdata,
     tx_axis_tlast => cmac_tx_axis.tlast,
     tx_axis_tkeep => cmac_tx_axis.tkeep,
-    tx_axis_tuser => (others => '0'),
+    tx_axis_tuser => '0',
 
     -- RX interface (no tready!)
     rx_axis_tvalid => cmac_rx_axis.tvalid,
