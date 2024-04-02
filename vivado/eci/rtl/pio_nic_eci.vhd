@@ -23,8 +23,6 @@ entity pio_nic_eci is
 port (
 -- 322.265625 MHz
     clk_sys                 : in std_logic;
--- 100MHz
-    clk_io_out              : out std_logic;
 -- programmed to 100MHz
     prgc0_clk_p             : in std_logic;
     prgc0_clk_n             : in std_logic;
@@ -1409,7 +1407,6 @@ signal dcs_c19_i               : LCL_CHANNEL; -- LCL RSP WOD
 begin
 
 clk <= clk_sys;
-clk_io_out <= clk_io;
 
 i_eci_gateway : eci_gateway
   generic map (
