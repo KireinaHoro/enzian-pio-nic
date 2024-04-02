@@ -117,7 +117,8 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/axil_regs_interconnect.v" \
     "$spinal_gen_dir/NicEngine_ips.v" \
     "$spinal_gen_dir/NicEngine.v" \
-    "$hw_deps_dir/verilog-axis/rtl/sync_reset.v"
+    "$hw_deps_dir/verilog-axis/rtl/sync_reset.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axil_interconnect.v"
 
 # Add constraints from us
 add_files -fileset [get_filesets constrs_1] -norecurse \
