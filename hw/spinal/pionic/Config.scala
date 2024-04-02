@@ -10,7 +10,6 @@ object Config {
 
   def spinal(outDir: String = outputDirectory, blackboxPolicy: MemBlackboxingPolicy = blackboxAllWhatsYouCan) = SpinalConfig(
     targetDirectory = outDir,
-    defaultClockDomainFrequency = FixedFrequency(250 MHz),
     defaultConfigForClockDomains = ClockDomainConfig(
       resetActiveLevel = HIGH,
       resetKind = SYNC,
