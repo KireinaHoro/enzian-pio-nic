@@ -6,6 +6,45 @@
 #include <sys/mman.h>
 
 #include "pionic.h"
+#include "../include/cmac.h"
+
+void write64(pionic_ctx_t *ctx, uint64_t addr, uint64_t reg) {
+#ifdef DEBUG_REG
+  printf("W %#lx <- %#lx\n", addr, reg);
+#endif
+  ((volatile uint64_t *)ctx->bar)[addr / 8] = reg;
+}
+
+uint64_t read64(pionic_ctx_t *ctx, uint64_t addr) {
+#ifdef DEBUG_REG
+  printf("R %#lx -> ", addr);
+  fflush(stdout);
+#endif
+  uint64_t reg = ((volatile uint64_t *)ctx->bar)[addr / 8];
+#ifdef DEBUG_REG
+  printf("%#lx\n", reg);
+#endif
+  return reg;
+}
+
+void write32(pionic_ctx_t *ctx, uint64_t addr, uint32_t reg) {
+#ifdef DEBUG_REG
+  printf("W %#lx <- %#x\n", addr, reg);
+#endif
+  ((volatile uint32_t *)ctx->bar)[addr / 4] = reg;
+}
+
+uint32_t read32(pionic_ctx_t *ctx, uint64_t addr) {
+#ifdef DEBUG_REG
+  printf("R %#lx -> ", addr);
+  fflush(stdout);
+#endif
+  uint32_t reg = ((volatile uint32_t *)ctx->bar)[addr / 4];
+#ifdef DEBUG_REG
+  printf("%#x\n", reg);
+#endif
+  return reg;
+}
 
 int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback) {
   int ret = -1;
@@ -39,33 +78,7 @@ int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback) {
   fclose(fp);
 
   // configure CMAC
-  uint32_t status;
-
-  write32(ctx, PIONIC_CMAC_REG(PM_RX_REG1), 1); // ctl_rx_enable
-  write32(ctx, PIONIC_CMAC_REG(PM_TX_REG1), 0x10); // ctl_tx_send_rfi
-
-  while (true) {
-    write32(ctx, PIONIC_CMAC_REG(PM_TICK_REG), 1);
-    status = read32(ctx, PIONIC_CMAC_REG(PM_STAT_RX_STATUS_REG));
-    if (status & 2) break; // RX_aligned
-    usleep(1000);
-  }
-
-  write32(ctx, PIONIC_CMAC_REG(PM_TX_REG1), 1); // ctl_tx_enable, !ctl_tx_send_rfi
-
-  // FIXME: why do we need this?
-  while (true) {
-    write32(ctx, PIONIC_CMAC_REG(PM_TICK_REG), 1);
-    status = read32(ctx, PIONIC_CMAC_REG(PM_STAT_RX_STATUS_REG));
-    if (status == 3) break; // RX_aligned && RX_status
-    usleep(1000);
-  }
-
-  write32(ctx, PIONIC_CMAC_REG(PM_GT_LOOPBACK_REG), loopback);
-
-  printf("Loopback enabled: %s\n", loopback ? "true" : "false");
-
-  // flow control disabled - skipping regs
+  start_cmac(ctx, PIONIC_CMAC_BASE, loopback);
 
   // set defaults
   pionic_set_rx_block_cycles(ctx, 200);
@@ -96,8 +109,7 @@ void pionic_set_core_mask(pionic_ctx_t *ctx, uint64_t mask) {
 
 void pionic_fini(pionic_ctx_t *ctx) {
   // disable CMAC
-  write32(ctx, PIONIC_CMAC_REG(PM_RX_REG1), 0); // !ctl_rx_enable
-  write32(ctx, PIONIC_CMAC_REG(PM_TX_REG1), 0); // !ctl_tx_enable
+  stop_cmac(ctx, PIONIC_CMAC_BASE);
 
   munmap(ctx->bar, PIONIC_MMAP_END);
 }
