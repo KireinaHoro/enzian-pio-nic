@@ -514,7 +514,7 @@ port (
   lcl_fwd_wod_pkt_ready_o : out std_logic;
 
   -- ECI packet for local rsp without data. (VC 18 or 19).
-  -- lcl unlock response message. 
+  -- lcl unlock response message.
   lcl_rsp_wod_hdr_i       : in std_logic_vector(63 downto 0);
   lcl_rsp_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
   lcl_rsp_wod_pkt_vc_i    : in std_logic_vector( 4 downto 0); --5 bits not 4.
@@ -1139,7 +1139,7 @@ COMPONENT cmac_usplus_0
     drp_en : IN STD_LOGIC;
     drp_do : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
     drp_rdy : OUT STD_LOGIC;
-    drp_we : IN STD_LOGIC 
+    drp_we : IN STD_LOGIC
   );
 END COMPONENT;
 
@@ -1515,7 +1515,7 @@ link_eci_packet_tx.c10_gsync.vc_no <= "1010";
 link_eci_packet_tx.c10_gsync.size <= "000";
 
 -- RX packetizer.
--- Packetize data from eci_gateway into ECI packet. 
+-- Packetize data from eci_gateway into ECI packet.
 -- RX rsp_wd VC5.
 i_dcs_c5_eci_channel_to_bus : eci_channel_bus_converter
 port map (
@@ -1549,7 +1549,7 @@ port map (
 );
 
 -- RX packetizer.
--- Packetize data from eci_gateway into ECI packet. 
+-- Packetize data from eci_gateway into ECI packet.
 -- RX rsp_wd VC4.
 i_dcs_c4_eci_channel_to_bus : eci_channel_bus_converter
 port map (
@@ -1583,7 +1583,7 @@ port map (
 );
 
 -- DC Slices: One DCS for odd and another for even VCs.
--- DCS for even VCs ie odd CL indices. 
+-- DCS for even VCs ie odd CL indices.
 dcs_even : dcs_2_axi
 port map (
   clk   => clk,
@@ -1624,7 +1624,7 @@ port map (
   lcl_rsp_wod_pkt_vc_i    => dcs_c18_i.vc_no, --5 bits not 4.
   lcl_rsp_wod_pkt_valid_i => dcs_c18_i.valid,
   lcl_rsp_wod_pkt_ready_o => dcs_c18_i.ready,
-  
+
   -- Output ECI events. (rsp without data, rsp with data).
   -- VC 10,11
   rsp_wod_hdr_o                  => link_eci_packet_tx.dcs_c10.data(0),
@@ -1642,7 +1642,7 @@ port map (
   rsp_wd_pkt_ready_i             => link_eci_packet_tx.dcs_c4_wd_pkt_ready,
 
   -- ECI fwd without data (VC 8 or 9)
-  fwd_wod_hdr_o       => link_eci_packet_tx.dcs_c8.data(0), 
+  fwd_wod_hdr_o       => link_eci_packet_tx.dcs_c8.data(0),
   fwd_wod_pkt_size_o  => open,
   fwd_wod_pkt_vc_o    => link_eci_packet_tx.dcs_c8.vc_no,
   fwd_wod_pkt_valid_o => link_eci_packet_tx.dcs_c8.valid,
@@ -1654,7 +1654,7 @@ port map (
   lcl_rsp_wod_pkt_vc_o    => dcs_c18_o.vc_no, --5 bits not 4.
   lcl_rsp_wod_pkt_valid_o => dcs_c18_o.valid,
   lcl_rsp_wod_pkt_ready_i => dcs_c18_o.ready,
-  
+
   -- Primary AXI rd/wr i/f.
   p_axi_arid    => dcs_even_axi.arid,
   p_axi_araddr  => dcs_even_axi.araddr,
@@ -1694,7 +1694,7 @@ port map (
   p_axi_bready  => dcs_even_axi.bready
   );
 
--- DCS for odd VCs ie even CL indices. 
+-- DCS for odd VCs ie even CL indices.
 dcs_odd : dcs_2_axi
 port map (
   clk   => clk,
@@ -1753,7 +1753,7 @@ port map (
   rsp_wd_pkt_ready_i             => link_eci_packet_tx.dcs_c5_wd_pkt_ready,
 
   -- ECI fwd without data (VC 8 or 9)
-  fwd_wod_hdr_o       => link_eci_packet_tx.dcs_c9.data(0), 
+  fwd_wod_hdr_o       => link_eci_packet_tx.dcs_c9.data(0),
   fwd_wod_pkt_size_o  => open,
   fwd_wod_pkt_vc_o    => link_eci_packet_tx.dcs_c9.vc_no,
   fwd_wod_pkt_valid_o => link_eci_packet_tx.dcs_c9.valid,
@@ -1827,7 +1827,7 @@ axil_regs_interconnect_inst : axil_regs_interconnect
     rst => reset_sys,
 
     s00_axil_awaddr => s_io_axil_awaddr,
-    s00_axil_awprot => (others => "0"),
+    s00_axil_awprot => (others => '0'),
     s00_axil_awvalid => s_io_axil_awvalid,
     s00_axil_awready => s_io_axil_awready,
     s00_axil_wdata => s_io_axil_wdata,
@@ -1838,7 +1838,7 @@ axil_regs_interconnect_inst : axil_regs_interconnect
     s00_axil_bvalid => s_io_axil_bvalid,
     s00_axil_bready => s_io_axil_bready,
     s00_axil_araddr => s_io_axil_araddr,
-    s00_axil_arprot => (others => "0"),
+    s00_axil_arprot => (others => '0'),
     s00_axil_arvalid => s_io_axil_arvalid,
     s00_axil_arready => s_io_axil_arready,
     s00_axil_rdata => s_io_axil_rdata,
@@ -1907,12 +1907,12 @@ cmac : cmac_usplus_0
     gt_txusrclk2 => txclk,
     gt_rxusrclk2 => rxclk,
     -- we use reset_sys to reset the entire engine
-    sys_reset => sys_reset,
+    sys_reset => reset_sys,
     usr_rx_reset => open,
     usr_tx_reset => open,
-    core_drp_reset => "0",
-    core_tx_reset => "0",
-    core_rx_reset => "0",
+    core_drp_reset => '0',
+    core_tx_reset => '0',
+    core_rx_reset => '0',
 
     -- TX interface
     tx_axis_tready => cmac_tx_axis.tready,
@@ -1920,7 +1920,7 @@ cmac : cmac_usplus_0
     tx_axis_tdata => cmac_tx_axis.tdata,
     tx_axis_tlast => cmac_tx_axis.tlast,
     tx_axis_tkeep => cmac_tx_axis.tkeep,
-    tx_axis_tuser => (others => "0"),
+    tx_axis_tuser => (others => '0'),
 
     -- RX interface (no tready!)
     rx_axis_tvalid => cmac_rx_axis.tvalid,
@@ -1930,7 +1930,7 @@ cmac : cmac_usplus_0
     rx_axis_tuser => open,
 
     -- AXI lite reg interface
-    pm_tick => "0",
+    pm_tick => '0',
     s_axi_aclk => clk_sys,
     s_axi_sreset => reset_sys,
     s_axi_awaddr => cmac_reg_axil.awaddr,
@@ -1952,34 +1952,34 @@ cmac : cmac_usplus_0
     s_axi_rready => cmac_reg_axil.rready,
 
     -- unused GT debug ports
-    gt_loopback_in => (others => "0"),
-    gt_eyescanreset => (others => "0"),
-    gt_eyescantrigger => (others => "0"),
-    gt_rxcdrhold => (others => "0"),
-    gt_rxrate => (others => "0"),
-    gt_txdiffctrl => (others => "0"),
-    gt_txinhibit => (others => "0"),
-    gt_txpippmen => (others => "0"),
-    gt_txpippmsel => (others => "0"),
-    gt_txpostcursor => (others => "0"),
-    gt_txprbsforceerr => (others => "0"),
-    gt_txprecursor => (others => "0"),
+    gt_loopback_in => (others => '0'),
+    gt_eyescanreset => (others => '0'),
+    gt_eyescantrigger => (others => '0'),
+    gt_rxcdrhold => (others => '0'),
+    gt_rxrate => (others => '0'),
+    gt_txdiffctrl => (others => '0'),
+    gt_txinhibit => (others => '0'),
+    gt_txpippmen => (others => '0'),
+    gt_txpippmsel => (others => '0'),
+    gt_txpostcursor => (others => '0'),
+    gt_txprbsforceerr => (others => '0'),
+    gt_txprecursor => (others => '0'),
     gt_eyescandataerror => open,
     gt_ref_clk_out => open,
     gt_rxrecclkout => open,
     gt_powergoodout => open,
     gt_txbufstatus => open,
-    gt_rxdfelpmreset => (others => "0"),
-    gt_rxlpmen => (others => "0"),
-    gt_rxprbscntreset => (others => "0"),
+    gt_rxdfelpmreset => (others => '0'),
+    gt_rxlpmen => (others => '0'),
+    gt_rxprbscntreset => (others => '0'),
     gt_rxprbserr => open,
-    gt_rxprbssel => (others => "0"),
+    gt_rxprbssel => (others => '0'),
     gt_rxresetdone => open,
-    gt_txprbssel => (others => "0"),
+    gt_txprbssel => (others => '0'),
     gt_txresetdone => open,
     gt_rxbufstatus => open,
-    gtwiz_reset_tx_datapath => "0",
-    gtwiz_reset_rx_datapath => "0",
+    gtwiz_reset_tx_datapath => '0',
+    gtwiz_reset_rx_datapath => '0',
 
     -- CMAC statistics; left open since they can be accessed from the AXI lite reg interface
     stat_rx_aligned => open,
@@ -2142,50 +2142,50 @@ cmac : cmac_usplus_0
     stat_tx_vlan => open,
 
     -- DRP ports
-    drp_addr => (others => "0"),
-    drp_di => (others => "0"),
-    drp_we => "0",
-    drp_en => "0",
+    drp_addr => (others => '0'),
+    drp_di => (others => '0'),
+    drp_we => '0',
+    drp_en => '0',
     drp_rdy => open,
     drp_do => open,
-    common0_drpaddr => (others => "0"),
-    common0_drpdi => (others => "0"),
-    common0_drpwe => "0",
-    common0_drpen => "0",
+    common0_drpaddr => (others => '0'),
+    common0_drpdi => (others => '0'),
+    common0_drpwe => '0',
+    common0_drpen => '0',
     common0_drprdy => open,
     common0_drpdo => open,
     gt0_drpdo => open,
     gt0_drprdy => open,
-    gt0_drpen => "0",
-    gt0_drpwe => "0",
-    gt0_drpaddr => (others => "0"),
-    gt0_drpdi => (others => "0"),
+    gt0_drpen => '0',
+    gt0_drpwe => '0',
+    gt0_drpaddr => (others => '0'),
+    gt0_drpdi => (others => '0'),
     gt1_drpdo => open,
     gt1_drprdy => open,
-    gt1_drpen => "0",
-    gt1_drpwe => "0",
-    gt1_drpaddr => (others => "0"),
-    gt1_drpdi => (others => "0"),
+    gt1_drpen => '0',
+    gt1_drpwe => '0',
+    gt1_drpaddr => (others => '0'),
+    gt1_drpdi => (others => '0'),
     gt2_drpdo => open,
     gt2_drprdy => open,
-    gt2_drpen => "0",
-    gt2_drpwe => "0",
-    gt2_drpaddr => (others => "0"),
-    gt2_drpdi => (others => "0"),
+    gt2_drpen => '0',
+    gt2_drpwe => '0',
+    gt2_drpaddr => (others => '0'),
+    gt2_drpdi => (others => '0'),
     gt3_drpdo => open,
     gt3_drprdy => open,
-    gt3_drpen => "0",
-    gt3_drpwe => "0",
-    gt3_drpaddr => (others => "0"),
-    gt3_drpdi => (others => "0"),
+    gt3_drpen => '0',
+    gt3_drpwe => '0',
+    gt3_drpaddr => (others => '0'),
+    gt3_drpdi => (others => '0'),
 
     -- misc
-    ctl_tx_send_idle => "0",
-    ctl_tx_send_rfi => "0",
-    ctl_tx_send_lfi => "0",
+    ctl_tx_send_idle => '0',
+    ctl_tx_send_rfi => '0',
+    ctl_tx_send_lfi => '0',
     tx_ovfout => open,
     tx_unfout => open,
-    tx_preamblein => (others => "0"),
+    tx_preamblein => (others => '0'),
     user_reg0 => open,
     rx_otn_bip8_0 => open,
     rx_otn_bip8_1 => open,
@@ -2221,11 +2221,11 @@ NicEngine_inst : entity work.NicEngine
     s_axis_rx_tlast => cmac_rx_axis.tlast,
     s_axis_rx_tkeep => cmac_rx_axis.tkeep,
 
-    s_axis_tx_tvalid => cmac_tx_axis.tvalid,
-    s_axis_tx_tready => cmac_tx_axis.tready,
-    s_axis_tx_tdata => cmac_tx_axis.tdata,
-    s_axis_tx_tlast => cmac_tx_axis.tlast,
-    s_axis_tx_tkeep => cmac_tx_axis.tkeep,
+    m_axis_tx_tvalid => cmac_tx_axis.tvalid,
+    m_axis_tx_tready => cmac_tx_axis.tready,
+    m_axis_tx_tdata => cmac_tx_axis.tdata,
+    m_axis_tx_tlast => cmac_tx_axis.tlast,
+    m_axis_tx_tkeep => cmac_tx_axis.tkeep,
 
     -- DCS odd interface
     s_axi_dcs_odd_awvalid => dcs_odd_axi.awvalid,
