@@ -687,7 +687,7 @@ component axil_adapter
     generic (
       ADDR_WIDTH : integer := 32;
       S_DATA_WIDTH : integer := 64;
-      S_STRB_WIDTH : integer := S_STRB_WIDTH/8;
+      S_STRB_WIDTH : integer := S_DATA_WIDTH/8;
       M_DATA_WIDTH : integer := 32;
       M_STRB_WIDTH : integer := M_DATA_WIDTH/8
     );
@@ -1356,7 +1356,7 @@ type REGS_AXIL is record
 end record REGS_AXIL;
 
 type REGS_AXIL_NARROW is record
-    araddr  : std_logic_vector(43 downto 0);
+    araddr  : std_logic_vector(31 downto 0);
     arprot  : std_logic_vector( 2 downto 0);
     arvalid : std_logic;
     arready : std_logic;
@@ -1365,7 +1365,7 @@ type REGS_AXIL_NARROW is record
     rvalid  : std_logic;
     rready  : std_logic;
 
-    awaddr  : std_logic_vector (43 downto 0);
+    awaddr  : std_logic_vector (31 downto 0);
     awprot  : std_logic_vector ( 2 downto 0);
     awvalid : std_logic;
     awready : std_logic ;
