@@ -687,7 +687,7 @@ component axil_adapter
     generic (
       ADDR_WIDTH : integer := 32;
       S_DATA_WIDTH : integer := 64;
-      S_STRB_WIDTH : integer := S_STRB_WIDTH/8;
+      S_STRB_WIDTH : integer := S_DATA_WIDTH/8;
       M_DATA_WIDTH : integer := 32;
       M_STRB_WIDTH : integer := M_DATA_WIDTH/8
     );
