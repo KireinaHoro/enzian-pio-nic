@@ -127,7 +127,8 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 # Add constraints from us
 add_files -fileset [get_filesets constrs_1] -norecurse \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
-    "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl"
+    "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl" \
+    "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"
 
 # implementation-only constraints: copied to out dir
 set impl_constrs_dir "$project/xdc/impl"
