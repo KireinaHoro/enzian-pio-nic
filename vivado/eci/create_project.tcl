@@ -142,6 +142,25 @@ set_property file_type {VHDL 2008} [get_files -filter {FILE_TYPE == VHDL}]
 puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"
 
+# Create clock wizard for DC clock to nic engine
+create_ip -name clk_wiz -vendor xilinx.com -library ip -module_name clk_wiz_0
+set_property -dict {
+    CONFIG.OPTIMIZE_CLOCKING_STRUCTURE_EN {true}
+    CONFIG.PRIM_IN_FREQ {322.265625}
+    CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250}
+    CONFIG.USE_LOCKED {false}
+    CONFIG.USE_RESET {false}
+    CONFIG.CLKIN1_JITTER_PS {31.03}
+    CONFIG.MMCM_DIVCLK_DIVIDE {5}
+    CONFIG.MMCM_CLKFBOUT_MULT_F {16.000}
+    CONFIG.MMCM_CLKIN1_PERIOD {3.103}
+    CONFIG.MMCM_CLKIN2_PERIOD {10.0}
+    CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.125}
+    CONFIG.CLKOUT1_JITTER {116.787}
+    CONFIG.CLKOUT1_PHASE_ERROR {114.068}
+} [get_ips clk_wiz_0]
+generate_target all [get_ips clk_wiz_0]
+
 # Create CMAC IP
 create_ip -name cmac_usplus -vendor xilinx.com -library ip -module_name cmac_usplus_0
 set_property -dict {
