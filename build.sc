@@ -72,7 +72,7 @@ trait CommonModule extends SbtModule {
   def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
   def generateBitstream = T {
     val proj = vivadoProject().path
-    callVivado(bitstreamTcl().path, Seq(), proj)
+    callVivado(bitstreamTcl().path, Seq(), proj / os.up)
     Seq("bit", "ltx").map(ext => PathRef(proj / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
   }
 }

@@ -42,7 +42,7 @@ set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
-create_project $project -part $part
+create_project $project ./$project -part $part
 set proj [current_project]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
@@ -126,9 +126,13 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 
 # Add constraints from us
 add_files -fileset [get_filesets constrs_1] -norecurse \
-    "$spinal_gen_dir/NicEngine.xdc" \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
     "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl"
+
+# implementation-only constraints: copied to out dir
+set impl_constrs_dir "$project/xdc/impl"
+file mkdir $impl_constrs_dir
+file copy -force "$spinal_gen_dir/NicEngine.xdc" "$impl_constrs_dir"
 
 set_property "top" "${top_module}" [get_filesets sources_1]
 
