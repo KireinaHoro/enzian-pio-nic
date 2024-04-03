@@ -60,9 +60,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
     val s_axil_ctrl = slave(AxiLite4(
       addressWidth = 44, dataWidth = 64,
-    ))
+    )) addTag ClockDomainTag(dcsClock)
 
-    val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
+    val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl.cdc(dcsClock, clockDomain))
     private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc(_))
 
