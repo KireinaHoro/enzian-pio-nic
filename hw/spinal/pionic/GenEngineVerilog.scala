@@ -79,7 +79,7 @@ object GenEngineVerilog {
     val elabConfig = Config.spinal(genDir.toString).copy(
       defaultClockDomainFrequency = FixedFrequency(name match {
         case "pcie" => 250 MHz
-        case "eci" => 322.265625 MHz
+        case "eci" => 250 MHz
       })
     )
     val report = elabConfig.generateVerilog(engineFromName(name))

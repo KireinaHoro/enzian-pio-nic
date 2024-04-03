@@ -733,6 +733,14 @@ component axil_adapter
     );
   end component;
 
+component clk_wiz_0
+port
+    (
+    clk_out1          : out    std_logic;
+    clk_in1           : in     std_logic
+    );
+end component;
+
 component NicEngine is
 port (
     clk, reset : in std_logic;
@@ -756,6 +764,9 @@ port (
 
     -- CMAC interface: TX clock domain
     cmacTxClock_clk, cmacTxClock_reset: in std_logic;
+
+    -- DC interface: clock domain
+    dcsClock_clk, dcsClock_reset: in std_logic;
 
     -- DC interface: odd AXI slave
     s_axi_dcs_odd_arid    : out std_logic_vector( 6 downto 0);
@@ -1391,6 +1402,8 @@ signal reset_n : std_logic;
 
 signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
+
+signal app_clk, app_clk_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -2321,16 +2334,34 @@ cmac : cmac_usplus_0
     rx_preambleout => open
 );
 
-NicEngine_inst : entity work.NicEngine
+app_clkwiz : clk_wiz_0
+   port map (
+  -- Clock out ports
+   clk_out1 => app_clk,
+   -- Clock in ports
+   clk_in1 => clk_sys
+ );
+
+app_rst_sync : sync_reset
+port map (
+    clk => app_clk,
+    rst => reset_sys,
+    \out\ => app_clk_reset
+);
+
+NicEngine_inst : NicEngine
   port map (
     -- 322 MHz clock from ECI
-    clk => clk_sys,
-    reset => reset_sys,
+    clk => app_clk,
+    reset => app_clk_reset,
     -- CMAC clocks
     cmacRxClock_clk => rxclk,
     cmacRxClock_reset => rxclk_reset,
     cmacTxClock_clk => txclk,
     cmacTxClock_reset => txclk_reset,
+    -- DC clocks
+    dcsClock_clk => clk_sys,
+    dcsClock_reset => reset_sys,
 
     -- CMAC interface
     s_axis_rx_tvalid => cmac_rx_axis.tvalid,
