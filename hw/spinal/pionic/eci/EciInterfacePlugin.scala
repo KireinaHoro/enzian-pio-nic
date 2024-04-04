@@ -106,10 +106,12 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      cmds.map { cmd =>
+      cmds.zipWithIndex.map { case (cmd, idx) =>
         new Area {
           // core interfaces use UNALIASED addresses
-          val acmd = cmd.mapPayloadElement(addrLocator)(a => EciCmdDefs.aliasAddress(a.asUInt))
+          val acmd = cmd.mapPayloadElement(addrLocator) { a =>
+            EciCmdDefs.aliasAddress(a.asUInt + coreOffset * idx)
+          }
           // lowest 7 bits are byte offset
           val dcsIdx = addrLocator(acmd.payload)(7).asUInt
 
@@ -136,13 +138,15 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
           val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
           val ret = StreamDemux(chanLocator(dcs), coreIdx, cores.length).toSeq
         }.setName("demuxLcl").ret
-      }.transpose.zip(resps) foreach { case (chans, resp) => new Area {
+      }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), idx) => new Area {
         val resps = chans.map { c =>
           val chanCdc = c.clone
           SimpleAsyncFifo(c, chanCdc, 2, dcsClock, clockDomain)
 
           // dcs use ALIASED addresses
-          val unaliased = chanCdc.mapPayloadElement(cc => addrLocator(cc.data))(a => EciCmdDefs.unaliasAddress(a).asBits)
+          val unaliased = chanCdc.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
+            (EciCmdDefs.unaliasAddress(a) - coreOffset * idx).asBits
+          }
           unaliased.translateWith(unaliased.data)
         }
         resp << StreamArbiterFactory().roundRobin.on(resps)
