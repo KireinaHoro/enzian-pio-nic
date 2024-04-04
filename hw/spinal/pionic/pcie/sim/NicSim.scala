@@ -184,7 +184,7 @@ object NicSim extends SimApp {
 
     master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
-    val mask = b"01100110"
+    val mask = b"01101110"
     master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     // wait for the mask to take effect

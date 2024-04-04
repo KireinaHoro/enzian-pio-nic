@@ -18,6 +18,7 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     val status = new Bundle {
       val cycles = CycleClock(config.regWidth bits)
       val rxOverflowCount = UInt(config.regWidth bits)
+      val dispatchMaskChanged = Bool()
     }
 
     status.cycles.bits := CounterFreeRun(config.regWidth bits)
@@ -26,7 +27,17 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
   def readAndWrite(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
     logic.ctrl.elements.foreach { case (name, data) =>
       assert(data.isReg, "control CSR should always be register")
-      busCtrl.readAndWrite(data, alloc(name))
+      val addr = alloc(name)
+      busCtrl.readAndWrite(data, addr)
+
+      // special case: assert dispatchMaskChanged when dispatchMask is updated
+      name == "dispatchMask" generate {
+        val changed = False
+        busCtrl.onWrite(addr) {
+          changed := True
+        }
+        logic.status.dispatchMaskChanged := RegNext(changed)
+      }
     }
     logic.status.elements.foreach { case (name, data) =>
       busCtrl.read(data, alloc(name))

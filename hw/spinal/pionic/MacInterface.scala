@@ -110,6 +110,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
       input = cmacReqCdc,
       outputCount = cores.length,
       enableMask = csr.ctrl.dispatchMask,
+      maskChanged = csr.status.dispatchMaskChanged,
     ).setName("packetLenDemux")
 
     // TX DMA USER: core ID to demux timestamp
