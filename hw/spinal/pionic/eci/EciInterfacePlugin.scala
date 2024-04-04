@@ -68,14 +68,16 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc(_))
 
-    // axi DMA write steered into each core's packet buffer
-    val coreNodes = Seq.fill(cores.length)(Axi4(axiConfig))
+    // axi DMA traffic steered into each core's packet buffers
+    val dmaNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
+      addressWidth = log2Up(config.pktBufSizePerCore - 1),
+    )))
     Axi4CrossbarFactory()
-      .addSlaves(coreNodes.zipWithIndex map { case (node, idx) =>
+      .addSlaves(dmaNodes.zipWithIndex map { case (node, idx) =>
         node -> SizeMapping(config.pktBufSizePerCore * idx, config.pktBufSizePerCore)
       }: _*)
       // FIXME: we could need an adapter here
-      .addConnection(macIf.packetBufDmaMaster -> coreNodes)
+      .addConnection(macIf.packetBufDmaMaster -> dmaNodes)
       .build()
 
     // mux both DCS AXI masters to all cores
@@ -88,6 +90,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
       // 2 masters, ID width + 1
       idWidth = axiConfig.idWidth + 1,
+      addressWidth = log2Up(coreOffset - 1),
     )))
     Axi4CrossbarFactory()
       .addSlaves(dcsNodes.zipWithIndex map { case (node, idx) =>
@@ -197,7 +200,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     }, _.ul.address, 19, 18, _.unlockResp)
 
     // drive core control interface -- datapath per core
-    cores lazyZip coreNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
+    cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
       val alloc = config.allocFactory("coreControl", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
       val cio = c.logic.ctrl.io
