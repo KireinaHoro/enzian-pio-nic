@@ -16,11 +16,17 @@ package object pionic {
   def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
 
   object StreamDispatcherWithEnable {
-    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
+    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits, maskChanged: Bool): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
       // FIXME: same as OHMasking.roundRobin?
-      // FIXME: first packet always goes to core 0
       assert(outputCount == enableMask.getWidth, "enable mask bit width does not match with output count")
-      val select = Reg(UInt(log2Up(outputCount) bits)) init 0
+      val select = Reg(UInt(log2Up(outputCount) bits))
+
+      // reset select when mask changes
+      // FIXME: can this happen when a request is ongoing?
+      when (maskChanged) {
+        select := CountTrailingZeroes(enableMask).resized
+      }
+
       val doubleMask = enableMask ## enableMask
       val shiftedMask = doubleMask >> (select + 1)
       val inc = CountTrailingZeroes(shiftedMask.resize(outputCount)) + 1
