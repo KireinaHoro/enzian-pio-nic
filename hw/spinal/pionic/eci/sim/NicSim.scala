@@ -13,18 +13,23 @@ import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
+import scala.collection.mutable
 
 case class CtrlInfoSim(size: BigInt, addr: BigInt)
+
 object CtrlInfoSim {
-  def fromBigInt(v: BigInt, nextCl: Int)(implicit config: PioNicConfig) =
+  def fromBigInt(v: BigInt, nextCl: Int, cid: Int)(implicit config: PioNicConfig, dut: NicEngine) =
     CtrlInfoSim(v & config.pktBufLenMask,
       // since we flipped nextCl already
-      (1 - nextCl) * 0x80 + 0x40)
+      (1 - nextCl) * 0x80 + 0x40 +
+        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
+        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid)
 }
 
 object NicSim extends SimApp {
   implicit val axiliteAsMaster = new AsSimBusMaster[AxiLite4Master] {
     def read(b: AxiLite4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
+
     def write(b: AxiLite4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
   }
   implicit val nicConfig = PioNicConfig()
@@ -71,27 +76,30 @@ object NicSim extends SimApp {
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  var rxNextCl: Int = 0
-  def tryReadPacketDesc(dcsMaster: DcsAppMaster, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
+  val rxNextCl = mutable.ArrayBuffer.fill(nicConfig.numCores)(0)
+
+  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
     if (maxTries == 0) done(None)
     else {
-      val clAddr = rxNextCl * 0x80 + dut.host[ConfigWriter].getConfig[Int]("eci rx base")
+      val clAddr = rxNextCl(cid) * 0x80 +
+        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
+        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(clAddr, 64).bytesToBigInt
       // always toggle cacheline
-      rxNextCl = 1 - rxNextCl
+      rxNextCl(cid) = 1 - rxNextCl(cid)
       if ((control & 1) == 0) {
         sleepCycles(20)
-        tailcall(tryReadPacketDesc(dcsMaster, maxTries - 1))
+        tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1))
       } else {
         // got packet!
-        done(Some(CtrlInfoSim.fromBigInt(control >> 1, rxNextCl)))
+        done(Some(CtrlInfoSim.fromBigInt(control >> 1, rxNextCl(cid), cid)))
       }
     }
   }
 
-  def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine): Unit = {
+  def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     fork {
       sleepCycles(20)
       axisMaster.send(toSend)
@@ -100,7 +108,7 @@ object NicSim extends SimApp {
 
     // TODO: check performance counters
 
-    val info = tryReadPacketDesc(dcsMaster).result.get
+    val info = tryReadPacketDesc(dcsMaster, cid).result.get
     println(s"Received status register: $info")
     assert(info.size == toSend.size, s"packet length mismatch: expected ${toSend.length}, got ${info.size}")
 
@@ -122,16 +130,16 @@ object NicSim extends SimApp {
     // packet will be acknowledged by reading next packet
   }
 
-  test("rx-regular") { implicit dut =>
+  def rxTestRange(startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("coreControl")
+    val coreBlock = nicConfig.allocFactory.readBack("coreControl", cid)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
 
-    assert(tryReadPacketDesc(dcsMaster).result.isEmpty, "should not have packet on standby yet");
+    assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet");
 
-    // set core mask to only schedule to core 0
-    val mask = b"00000001"
+    // set core mask to only schedule to one core
+    val mask = 1 << cid
     csrMaster.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     // reset packet allocator
@@ -140,15 +148,28 @@ object NicSim extends SimApp {
     csrMaster.write(coreBlock("allocReset"), 0.toBytes)
 
     // sweep from 64B to 9600B
-    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 9618)) {
+    for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
-        rxSimple(dcsMaster, axisMaster, toSend)
+        rxSimple(dcsMaster, axisMaster, toSend, cid)
       }
     }
 
     // TODO: check DCS master cacheline state
   }
+
+  test("rx-scan-sizes") { implicit dut =>
+    rxTestRange(64, 9618, 64, 0)
+  }
+
+  test("rx-all-cores-serialized") { implicit dut =>
+    0 until nicConfig.numCores foreach { idx =>
+      println(s"====> Testing core $idx")
+      rxTestRange(64, 256, 64, idx)
+    }
+  }
+
+  // TODO: test multiple cores interleaving
 
   var txNextCl: Int = 0
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte])(implicit dut: NicEngine): Unit = {
@@ -168,6 +189,7 @@ object NicSim extends SimApp {
     }
 
     def clAddr = txNextCl * 0x80 + dut.host[ConfigWriter].getConfig[Int]("eci tx base")
+
     println(f"Writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
 
