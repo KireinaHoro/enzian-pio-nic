@@ -10,6 +10,7 @@ import pionic._
 import pionic.pcie.PcieBridgeInterfacePlugin
 import pionic.sim.{AsSimBusMaster, CSRSim, SimApp, XilinxCmacSim}
 
+import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
@@ -35,7 +36,7 @@ object NicSim extends SimApp {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
-    dut.clockDomain.forkStimulus(period = 4) // 250 MHz
+    dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)

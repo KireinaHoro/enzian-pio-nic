@@ -2,7 +2,7 @@ package pionic.eci.sim
 
 import jsteward.blocks.eci.sim.DcsAppMaster
 import pionic.eci.EciInterfacePlugin
-import pionic.sim.{AsSimBusMaster, CSRSim, XilinxCmacSim, SimApp}
+import pionic.sim.{AsSimBusMaster, CSRSim, SimApp, XilinxCmacSim}
 import pionic.{Config, ConfigWriter, NicEngine, PioNicConfig, XilinxCmacPlugin}
 import spinal.core._
 import spinal.core.sim._
@@ -10,6 +10,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
 import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 
+import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
@@ -40,12 +41,13 @@ object NicSim extends SimApp {
     val coreBlock = nicConfig.allocFactory.readBack("coreControl")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
-    val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
+    val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, eciIf.dcsClock)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
-    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
+    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, eciIf.dcsClock)
 
-    dut.clockDomain.forkStimulus(period = 4)
+    dut.clockDomain.forkStimulus(frequency = 250 MHz)
+    eciIf.dcsClock.forkStimulus(frequency = 322.265625 MHz)
 
     CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)(nicConfig)
 
