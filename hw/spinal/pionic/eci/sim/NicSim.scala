@@ -116,7 +116,10 @@ object NicSim extends SimApp {
     val firstReadSize = if (toSend.size > 64) 64 else toSend.size
     var data = dcsMaster.read(info.addr, firstReadSize)
     if (toSend.size > 64) {
-      data ++= dcsMaster.read(dut.host[ConfigWriter].getConfig[Int]("eci rx overflow"), toSend.size - 64)
+      data ++= dcsMaster.read(
+        dut.host[ConfigWriter].getConfig[Int]("eci rx overflow") +
+        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+        toSend.size - 64)
     }
 
     assert(data == toSend,
