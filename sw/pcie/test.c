@@ -9,7 +9,8 @@
 
 #include "pionic.h"
 #include "timeit.h"
-#include "common.h"
+#include "../include/common.h"
+#include "../include/api.h"
 
 // handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
 static jmp_buf *sigbus_jmp;
