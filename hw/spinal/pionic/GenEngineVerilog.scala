@@ -37,6 +37,8 @@ class ConfigWriter extends FiberPlugin {
           |
           |#define PIONIC_CLOCK_FREQ ${spinalConfig.defaultClockDomainFrequency.getValue.toLong}
           |
+          |#define PIONIC_MTU $mtu
+          |
             ${
         configs.map { case (k, v) =>
           s"|#define PIONIC_${k.toUpperCase.replace(' ', '_')} ($v)"
