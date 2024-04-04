@@ -133,11 +133,9 @@ object NicSim extends SimApp {
     // packet will be acknowledged by reading next packet
   }
 
-  def rxTestRange(startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
+  def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("coreControl", cid)
-
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
 
     assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet");
 
@@ -162,13 +160,17 @@ object NicSim extends SimApp {
   }
 
   test("rx-scan-sizes") { implicit dut =>
-    rxTestRange(64, 9618, 64, 0)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
+
+    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, 0)
   }
 
   test("rx-all-cores-serialized") { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
+
     0 until nicConfig.numCores foreach { idx =>
       println(s"====> Testing core $idx")
-      rxTestRange(64, 256, 64, idx)
+      rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, idx)
     }
   }
 
