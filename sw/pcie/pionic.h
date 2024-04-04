@@ -7,6 +7,7 @@
 #include "../../hw/gen/pcie/regs.h"
 #include "../../hw/gen/pcie/config.h"
 
+#include "../include/api.h"
 #include "../include/hal.h"
 
 #define PIONIC_PKTBUF_OFF_TO_ADDR(off)   ((off)  + PIONIC_PKT_BUFFER)
@@ -21,23 +22,6 @@
 struct pionic_ctx {
   void *bar;
 };
-
-typedef struct {
-  uint8_t *buf;
-  size_t len;
-} pionic_pkt_desc_t;
-
-int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);
-void pionic_fini(pionic_ctx_t *ctx);
-void pionic_set_rx_block_cycles(pionic_ctx_t *ctx, int cycles);
-void pionic_set_core_mask(pionic_ctx_t *ctx, uint64_t mask);
-void pionic_reset_pkt_alloc(pionic_ctx_t *ctx, int cid);
-
-bool pionic_rx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
-void pionic_rx_ack(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
-
-void pionic_tx_get_desc(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
-void pionic_tx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc);
 
 void dump_glb_stats(pionic_ctx_t *ctx);
 void dump_stats(pionic_ctx_t *ctx, int cid);
