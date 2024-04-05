@@ -118,7 +118,7 @@ object NicSim extends SimApp {
     if (toSend.size > 64) {
       data ++= dcsMaster.read(
         dut.host[ConfigWriter].getConfig[Int]("eci rx overflow") +
-        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
         toSend.size - 64)
     }
 
@@ -159,11 +159,13 @@ object NicSim extends SimApp {
     // TODO: check DCS master cacheline state
   }
 
-  test("rx-scan-sizes") { implicit dut =>
+  def rxScanOnCore(cid: Int) = test(s"rx-scan-sizes-core$cid") { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
 
-    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, 0)
+    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid)
   }
+
+  0 until nicConfig.numCores foreach rxScanOnCore
 
   test("rx-all-cores-serialized") { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
@@ -176,8 +178,9 @@ object NicSim extends SimApp {
 
   // TODO: test multiple cores interleaving
 
-  var txNextCl: Int = 0
-  def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte])(implicit dut: NicEngine): Unit = {
+  var txNextCl = mutable.ArrayBuffer.fill(nicConfig.numCores)(0)
+
+  def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     var received = false
     fork {
       val data = axisSlave.recv()
@@ -193,7 +196,9 @@ object NicSim extends SimApp {
       received = true
     }
 
-    def clAddr = txNextCl * 0x80 + dut.host[ConfigWriter].getConfig[Int]("eci tx base")
+    def clAddr = txNextCl(cid) * 0x80 +
+      dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
+      dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
 
     println(f"Writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
@@ -201,14 +206,16 @@ object NicSim extends SimApp {
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
-      dcsMaster.write(dut.host[ConfigWriter].getConfig[Int]("eci tx overflow"), toSend.drop(firstWriteSize))
+      dcsMaster.write(
+        dut.host[ConfigWriter].getConfig[Int]("eci tx overflow") +
+          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+        toSend.drop(firstWriteSize))
     }
 
-    // trigger a read on the next cacheline
-    // FIXME: we shouldn't need to do this manually here (only due to us wanting to check the response in the same func)
+    // trigger a read on the next cacheline to actually send the packet
     println(s"Sent packet at $clAddr, waiting validation...")
 
-    txNextCl = 1 - txNextCl
+    txNextCl(cid) = 1 - txNextCl(cid)
     dcsMaster.read(clAddr, 1)
 
     waitUntil(received)
@@ -216,18 +223,37 @@ object NicSim extends SimApp {
     // packet will be acknowledged by writing next packet
   }
 
-  test("tx-regular") { implicit dut =>
+  def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control")
 
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    // set core mask to only schedule to one core
+    val mask = 1 << cid
+    csrMaster.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     // sweep from 64B to 9600B
-    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 9618)) {
+    for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
-        txSimple(dcsMaster, axisSlave, toSend)
+        txSimple(dcsMaster, axisSlave, toSend, cid)
       }
+    }
+  }
+
+  def txScanOnCore(cid: Int) = test(s"tx-scan-sizes-core$cid") { implicit dut =>
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+
+    txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
+  }
+
+  0 until nicConfig.numCores foreach txScanOnCore
+
+  test("tx-all-cores-serialized") { implicit dut =>
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+
+    0 until nicConfig.numCores foreach { idx =>
+      println(s"====> Testing core $idx")
+      txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 }
