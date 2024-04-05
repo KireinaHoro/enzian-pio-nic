@@ -7,10 +7,9 @@
 #include <setjmp.h>
 #include <signal.h>
 
-#include "pionic.h"
-#include "timeit.h"
-#include "../include/common.h"
-#include "../include/api.h"
+#include "common.h"
+#include "api.h"
+#include "debug.h"
 
 // handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
 static jmp_buf *sigbus_jmp;
@@ -41,7 +40,7 @@ typedef struct {
 
 static uint8_t *test_data;
 
-static measure_t loopback_timed(pionic_ctx_t *ctx, uint32_t length, uint32_t offset) {
+static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offset) {
   int cid = 0;
 
   pionic_pkt_desc_t desc;
@@ -162,37 +161,37 @@ int main(int argc, char *argv[]) {
     goto fini;
   }
 
-  dump_stats(&ctx, 0);
+  pionic_dump_core_stats(ctx, 0);
 
   // estimate Rx timeout
   jmp_buf sigbus_jmpbuf;
   sigbus_jmp = &sigbus_jmpbuf;
   if (!sigsetjmp(sigbus_jmpbuf, 1)) {
     for (int us = 40 * 1000; us < 1000 * 1000; us += 1000) {
-      pionic_set_rx_block_cycles(&ctx, us * 1000 / 4); // 250 MHz
-      loopback_timed(&ctx, 0, 0);
+      pionic_set_rx_block_cycles(ctx, us * 1000 / 4); // 250 MHz
+      loopback_timed(ctx, 0, 0);
     }
   } else {
     printf("Caught SIGBUS, continuing...\n");
   }
 
   // 40 ms
-  pionic_set_rx_block_cycles(&ctx, US_TO_CYCLES(40 * 1000));
+  pionic_set_rx_block_cycles(ctx, US_TO_CYCLES(40 * 1000));
 
   // estimate pcie roundtrip time
   FILE *out = fopen("pcie_lat.csv", "w");
   fprintf(out, "pcie_lat_cyc\n");
   int num_trials = 50;
-  uint64_t cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES);
+  uint64_t cycles = read64(ctx, PIONIC_GLOBAL_CYCLES);
   for (int i = 0; i < num_trials; ++i) {
-    uint64_t new_cycles = read64(&ctx, PIONIC_GLOBAL_CYCLES);
+    uint64_t new_cycles = read64(ctx, PIONIC_GLOBAL_CYCLES);
     fprintf(out, "%ld\n", new_cycles - cycles);
     cycles = new_cycles;
   }
   fclose(out);
 
   // only use core 0
-  pionic_set_core_mask(&ctx, 1);
+  pionic_set_core_mask(ctx, 1);
 
   out = fopen("loopback.csv", "w");
   fprintf(out, "size,"
@@ -205,7 +204,7 @@ int main(int argc, char *argv[]) {
   for (int to_send = min_pkt; to_send <= max_pkt; to_send += step) {
     printf("Testing packet size %d", to_send);
     for (int i = 0; i < num_trials; ++i) {
-      measure_t m = loopback_timed(&ctx, to_send, i * 64);
+      measure_t m = loopback_timed(ctx, to_send, i * 64);
       fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
           m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.host_got_tx_buf,
           m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
