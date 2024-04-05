@@ -1,6 +1,10 @@
 #ifndef __PIONIC_API_H__
 #define __PIONIC_API_H__
 
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 struct pionic_ctx;
 typedef struct pionic_ctx pionic_ctx_t;
 

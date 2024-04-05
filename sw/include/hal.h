@@ -1,6 +1,8 @@
 #ifndef __PIONIC_HAL_H__
 #define __PIONIC_HAL_H__
 
+#include "api.h"
+
 // methods to access the configuration register phase for driving components
 // e.g. CMAC
 void write64(pionic_ctx_t *ctx, uint64_t addr, uint64_t reg);
