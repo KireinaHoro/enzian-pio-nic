@@ -43,7 +43,7 @@ object NicSim extends SimApp {
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("coreControl")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, eciIf.dcsClock)
@@ -135,7 +135,7 @@ object NicSim extends SimApp {
 
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("coreControl", cid)
+    val coreBlock = nicConfig.allocFactory.readBack("control", cid)
 
     assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet");
 
@@ -218,7 +218,7 @@ object NicSim extends SimApp {
 
   test("tx-regular") { implicit dut =>
     val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("coreControl")
+    val coreBlock = nicConfig.allocFactory.readBack("control")
 
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
