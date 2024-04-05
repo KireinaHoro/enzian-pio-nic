@@ -23,7 +23,4 @@ struct pionic_ctx {
   void *bar;
 };
 
-void dump_glb_stats(pionic_ctx_t *ctx);
-void dump_stats(pionic_ctx_t *ctx, int cid);
-
 #endif

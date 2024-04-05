@@ -153,13 +153,13 @@ void pionic_tx(pionic_ctx_t *ctx, int cid, pionic_pkt_desc_t *desc) {
   write64(ctx, PIONIC_CONTROL_HOST_TX_ACK(cid), desc->len);
 }
 
-void dump_glb_stats(pionic_ctx_t *ctx) {
+void pionic_dump_glb_stats(pionic_ctx_t *ctx) {
 #define READ_PRINT(name) printf("%s\t: %#lx\n", #name, read64(ctx, name));
   READ_PRINT(PIONIC_GLOBAL_RX_OVERFLOW_COUNT)
 #undef READ_PRINT
 }
 
-void dump_stats(pionic_ctx_t *ctx, int cid) {
+void pionic_dump_core_stats(pionic_ctx_t *ctx, int cid) {
 #define READ_PRINT(name) printf("core %d: %s\t: %#lx\n", cid, #name, read64(ctx, name(cid)));
   READ_PRINT(PIONIC_CONTROL_RX_PACKET_COUNT)
   READ_PRINT(PIONIC_CONTROL_TX_PACKET_COUNT)
