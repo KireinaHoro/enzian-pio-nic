@@ -5,9 +5,23 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#include "pionic.h"
+#include "api.h"
+#include "hal.h"
 #include "cmac.h"
 #include "debug.h"
+
+#include "../../hw/gen/pcie/regs.h"
+#include "../../hw/gen/pcie/config.h"
+
+struct pionic_ctx {
+  void *bar;
+};
+
+#define PIONIC_PKTBUF_OFF_TO_ADDR(off)   ((off)  + PIONIC_PKT_BUFFER)
+#define PIONIC_ADDR_TO_PKTBUF_OFF(addr)  ((addr) - PIONIC_PKT_BUFFER)
+
+#define PIONIC_CMAC_BASE 0x200000UL
+#define PIONIC_MMAP_END 0x300000UL
 
 void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG

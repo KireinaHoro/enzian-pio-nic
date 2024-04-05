@@ -10,6 +10,7 @@
 #include "common.h"
 #include "api.h"
 #include "debug.h"
+#include "profile.h"
 
 // handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
 static jmp_buf *sigbus_jmp;
@@ -21,24 +22,14 @@ void signal_handler(int sig) {
   }
 }
 
-typedef struct {
-  // TX timestamps
-  uint32_t acquire;
-  uint32_t host_got_tx_buf; // needed because acquire is not reliable
-  uint32_t after_tx_commit;
-  uint32_t after_dma_read;
-  uint32_t exit;
-  // RX timestamps
-  uint32_t entry;
-  uint32_t after_rx_queue;
-  uint32_t after_dma_write;
-  uint32_t read_start;
-  uint32_t after_read;
-  uint32_t after_rx_commit; // we don't need this
-  uint32_t host_read_complete;
-} measure_t;
-
 static uint8_t *test_data;
+
+typedef struct {
+  uint32_t host_got_tx_buf;
+  uint32_t host_read_complete;
+
+  pionic_core_ctrl_timestamps_t ts;
+} measure_t;
 
 static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offset) {
   int cid = 0;
@@ -56,7 +47,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   // However, Acquire is not reliable: it fires on read, but sits in the same 512B
   // as other registers, so a read on those would also trigger Acquire.
   // Use a host-side timestamp as substitute.
-  ret.host_got_tx_buf = read64(ctx, PIONIC_GLOBAL_CYCLES);
+  ret.host_got_tx_buf = pionic_get_cycles(ctx);
 
   if (length > 0) {
     memcpy(desc.buf, tx_buf, length);
@@ -103,7 +94,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
     assert(desc.len == length && "rx packet length does not match tx");
     memcpy(rx_buf, desc.buf, desc.len);
 
-    ret.host_read_complete = read64(ctx, PIONIC_GLOBAL_CYCLES);
+    ret.host_read_complete = pionic_get_cycles(ctx);
 
     pionic_rx_ack(ctx, cid, &desc);
   } else {
@@ -119,17 +110,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
     assert(false);
   }
 
-  ret.acquire = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__ACQUIRE(cid));
-  ret.after_tx_commit = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_TX_COMMIT(cid));
-  ret.after_dma_read = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_DMA_READ(cid));
-  ret.exit = read64(ctx, PIONIC_CONTROL_HOST_TX_LAST_PROFILE__EXIT(cid));
-
-  ret.entry = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__ENTRY(cid));
-  ret.after_rx_queue = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_QUEUE(cid));
-  ret.read_start = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START(cid));
-  ret.after_dma_write = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE(cid));
-  ret.after_read = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ(cid));
-  ret.after_rx_commit = read64(ctx, PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_COMMIT(cid));
+  pionic_read_timestamps_core_ctrl(ctx, cid, &ret.ts);
 
   return ret;
 }
@@ -176,15 +157,15 @@ int main(int argc, char *argv[]) {
   }
 
   // 40 ms
-  pionic_set_rx_block_cycles(ctx, US_TO_CYCLES(40 * 1000));
+  pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(40 * 1000));
 
   // estimate pcie roundtrip time
   FILE *out = fopen("pcie_lat.csv", "w");
   fprintf(out, "pcie_lat_cyc\n");
   int num_trials = 50;
-  uint64_t cycles = read64(ctx, PIONIC_GLOBAL_CYCLES);
+  uint64_t cycles = pionic_get_cycles(ctx);
   for (int i = 0; i < num_trials; ++i) {
-    uint64_t new_cycles = read64(ctx, PIONIC_GLOBAL_CYCLES);
+    uint64_t new_cycles = pionic_get_cycles(ctx);
     fprintf(out, "%ld\n", new_cycles - cycles);
     cycles = new_cycles;
   }
@@ -196,7 +177,8 @@ int main(int argc, char *argv[]) {
   out = fopen("loopback.csv", "w");
   fprintf(out, "size,"
       "acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,host_got_tx_buf_cyc,"
-      "entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,after_rx_commit_cyc,host_read_complete_cyc\n");
+      "entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,"
+      "after_rx_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
   int min_pkt = 64, max_pkt = 9600, step = 64;
@@ -206,8 +188,9 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(ctx, to_send, i * 64);
       fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
-          m.acquire, m.after_tx_commit, m.after_dma_read, m.exit, m.host_got_tx_buf,
-          m.entry, m.after_rx_queue, m.after_dma_write, m.read_start, m.after_read, m.after_rx_commit, m.host_read_complete);
+          m.ts.acquire, m.ts.after_tx_commit, m.ts.after_dma_read, m.ts.exit,
+          m.host_got_tx_buf, m.ts.entry, m.ts.after_rx_queue, m.ts.after_dma_write,
+          m.ts.read_start, m.ts.after_read, m.ts.after_rx_commit, m.host_read_complete);
       printf(".");
       fflush(stdout);
     }

@@ -3,7 +3,7 @@ CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
 CFLAGS := -O2 -pipe -Wall -I../include
 
-DRIVERS := cmac debug
+DRIVERS := cmac debug profile
 NIC_IMPL := pcie
 APP := pionic-test
 
@@ -33,7 +33,7 @@ $(DEPDIR): ; @mkdir -p $@
 DEPFILES := $(foreach s,$(SRCS),$(patsubst %.c,$(DEPDIR)/%.d,$(notdir $(s))))
 $(DEPFILES):
 
-libpionic.a: pionic.o $(DRIVER_OBJS)
+libpionic.a: core.o $(DRIVER_OBJS)
 	$(AR) rcs $@ $^
 
 $(APP): $(APP).o libpionic.a
