@@ -10,7 +10,7 @@
 #define PM_TICK_REG            0x2b0
 #define PM_GT_LOOPBACK_REG     0x090
 
-void start_cmac(pionic_ctx_t *ctx, uint64_t base, bool loopback);
-void stop_cmac(pionic_ctx_t *ctx, uint64_t base);
+void start_cmac(pionic_ctx_t ctx, uint64_t base, bool loopback);
+void stop_cmac(pionic_ctx_t ctx, uint64_t base);
 
 #endif // __PIONIC_CMAC_H__

@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-void start_cmac(pionic_ctx_t *ctx, uint64_t base, bool loopback) {
+void start_cmac(pionic_ctx_t ctx, uint64_t base, bool loopback) {
   uint32_t status;
 
   write32(ctx, PIONIC_CMAC_REG(base, PM_RX_REG1), 1); // ctl_rx_enable
@@ -33,7 +33,7 @@ void start_cmac(pionic_ctx_t *ctx, uint64_t base, bool loopback) {
   // flow control disabled - skipping regs
 }
 
-void stop_cmac(pionic_ctx_t *ctx, uint64_t base) {
+void stop_cmac(pionic_ctx_t ctx, uint64_t base) {
   write32(ctx, PIONIC_CMAC_REG(base, PM_RX_REG1), 0); // !ctl_rx_enable
   write32(ctx, PIONIC_CMAC_REG(base, PM_TX_REG1), 0); // !ctl_tx_enable
 }

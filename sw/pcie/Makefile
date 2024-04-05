@@ -3,7 +3,9 @@ CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
 CFLAGS := -O2 -pipe -Wall -I../include
 
-DRIVERS := cmac
+DRIVERS := cmac debug
+NIC_IMPL := pcie
+APP := pionic-test
 
 SRCS := $(wildcard *.c) $(DRIVERS:%=../%.c)
 DRIVER_OBJS := $(DRIVERS:%=%.o)
@@ -14,17 +16,17 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 
-all: pionic-test
+all: $(APP)
 
 debug: CFLAGS += -DDEBUG -DDEBUG_REG -g
-debug: pionic-test
+debug: $(APP)
 
 %.o: %.c
 %.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
 	$(COMPILE.c) $(OUTPUT_OPTION) $<
 
 $(DRIVER_OBJS): %.o: ../%.c $(DEPDIR)/%.d | $(DEPDIR)
-	$(COMPILE.c) $(OUTPUT_OPTION) $<
+	$(COMPILE.c) -I../../hw/gen/$(NIC_IMPL)/ $(OUTPUT_OPTION) $<
 
 $(DEPDIR): ; @mkdir -p $@
 
@@ -34,11 +36,11 @@ $(DEPFILES):
 libpionic.a: pionic.o $(DRIVER_OBJS)
 	$(AR) rcs $@ $^
 
-pionic-test: test.o libpionic.a
+$(APP): $(APP).o libpionic.a
 	$(CC) $(CFLAGS) $< -L. -lpionic -o $@
 
 clean:
-	rm -f *.o *.a pionic-test
+	rm -f *.o *.a $(APP)
 	rm -rf $(DEPDIR)
 
 .PHONY: all clean
