@@ -11,6 +11,7 @@ import org.apache.commons.io.output.TeeOutputStream
 import scala.collection.mutable
 import scala.util.{Failure, Random, Success, Try}
 
+// TODO: refactor to use scalatest
 trait SimApp extends DelayedInit {
   def dut: SimCompiled[NicEngine]
 
