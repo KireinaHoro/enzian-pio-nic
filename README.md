@@ -16,8 +16,8 @@ $ curl -L https://raw.githubusercontent.com/lefou/millw/0.4.10/millw > $HOME/.lo
 Install the latest version of [Verilator](https://github.com/verilator/verilator) (the version with Ubuntu 22.04 is too old):
 
 ```console
-$ wget https://github.com/verilator/verilator/archive/refs/tags/v5.018.tar.gz -O verilator.tgz
-$ tar xvf verilator.tgz && cd verilator-5.018
+$ wget https://github.com/verilator/verilator/archive/refs/tags/v5.019.tar.gz -O verilator.tgz
+$ tar xvf verilator.tgz && cd verilator-5.019
 $ sudo apt install build-essential autoconf flex bison help2man
 $ autoconf
 $ ./configure --prefix=$PWD/install
@@ -26,7 +26,7 @@ $ make install
 $ echo "export PATH=\"$PWD/install/bin:\$PATH\"" >> ~/.bashrc # or your shell of choice
 $ echo "export VERILATOR_ROOT=\"$PWD\"" >> ~/.bashrc
 $ source ~/.bashrc && verilator --version
-Verilator 5.018 2023-10-30 rev UNKNOWN.REV
+Verilator 5.019 devel rev v5.018-84-g79620e9b5
 ```
 
 Clone with submodules and check if mill is working:
@@ -50,29 +50,44 @@ hw/gen/pcie/NicEngine.v:       ASCII text
 hw/gen/pcie/NicEngine_ips.v:   ASCII text
 hw/gen/pcie/NicEngine.xdc:     ASCII text
 hw/gen/pcie/NicEngine_ooc.xdc: ASCII text
-TODO ECI
+$ mill eci.generateVerilog
+$ file hw/gen/eci/NicEngine{{,_ips}.v,{,_ooc}.xdc}
+hw/gen/eci/NicEngine.v:       ASCII text
+hw/gen/eci/NicEngine_ips.v:   ASCII text
+hw/gen/eci/NicEngine.xdc:     ASCII text
+hw/gen/eci/NicEngine_ooc.xdc: ASCII text
 ```
 
 Run test benches:
 
 ```console
-$ mill pcie.runMain pionic.pcie.sim.NicSim
+$ mill gen.test # run all test suites
 ...
-[Progress] Verilator compilation done in 5542.813 ms
-[Progress] Start PioNicEngine rx-regular simulation with seed 1445906924
+[Progress] Verilator compilation done in 4941.624 ms
+NicSim:
+[info] simulation transcript at /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/pcie/rx-regular/sim_transcript.log.gz
+- rx-regular
 ...
-[Done] Simulation done in 46.215 ms
-[Progress] Start PioNicEngine tx-regular simulation with seed 71106236
+$ mill gen.test.testOnly pionic.eci.NicSim # run only the test suite for ECI integration test
 ...
-[Done] Simulation done in 16.665 ms
-$ # TODO ECI
 ```
 
-Simulation transcripts are stored in `simWorkspace/<design>/<test>/sim_transcript_<setup seed>_<sim seed>.log.gz`; they are compressed to save disk space.  You can reproduce a specific simulation (for debugging) by supplying the exact setup and sim seeds to `NicSim`.  To browse the transcript:
+Simulation transcripts are stored in `simWorkspace/<design>/<test>/sim_transcript_<setup seed>_<sim seed>.log.gz`; they are compressed to save disk space.  To browse the transcript:
 
 ```console
 $ vim <transcript>          # to view in an editor, after the simulation has finished (vim supports gz files)
 $ gztool -T <transcript>    # to follow the transcript (in the same way as `tail -f`)
+```
+
+You can reproduce a specific simulation (for debugging) by supplying the exact setup and sim seeds to `NicSim` with the command at the start of the transcript:
+
+```console
+$ zcat /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/PacketAlloc/simple-allocate-free/sim_transcript.log.gz
+>>>>> Simulation transcript pionic.PacketAllocSim for test simple-allocate-free
+>>>>> To reproduce: mill gen.test.testOnly pionic.PacketAllocSim -- -t simple-allocate-free -DsetupSeed=1024949829 -DsimSeed=-1610542669 -DprintSimLog=true
+
+[0] [Progress] Start PacketAlloc simple-allocate-free simulation with seed 565014101
+...
 ```
 
 Create Vivado project and generate the bitstream:
@@ -84,6 +99,7 @@ $ mill --no-server pcie.generateBitstream
 $ file out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.{bit,ltx}
 [...]/pio-nic-pcie.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
 [...]/pio-nic-pcie.ltx: ASCII text
+$ mill --no-server eci.generateBitstream
 ```
 
 **Note**: if mill complains about not being able to find Vivado, try killing the mill server:
@@ -101,11 +117,11 @@ Build userspace software (drivers):
 $ cd sw/pcie && make
 ...
 $ file pionic-test
-pionic-test: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=f5f6636f5ffa34cc6577c7be2778856dfaeb3f80, for GNU/Linux 3.7.0, with debug_info, not stripped
-$ # TODO ECI
+pionic-test: ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=898cb76f926551cdf354110ac0a269dbe271c93e, for GNU/Linux 3.7.0, not stripped
+$ cd sw/eci && make
 ```
 
-The PCIe test should be ran on an Enzian with a PCIe cable between the CPU and FPGA (`zuestoll11-12` at the moment).
+The PCIe test should be ran on an Enzian with a PCIe cable between the CPU and FPGA (`zuestoll11-12` at the moment).  The ECI test should work on any Enzian.
 
 ## Devs Area
 
@@ -123,8 +139,10 @@ $ mill --no-server pcie.vivadoProject
 $ vivado out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.xpr
 ```
 
-Remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
+For the PCIe project, remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
 
 ```tcl
 write_project_tcl -no_ip_version -paths_relative_to ./vivado/pcie -force vivado/pcie/create_project.tcl
 ```
+
+Update `vivado/eci/create_project.tcl` accordingly (the script is hand-written).
