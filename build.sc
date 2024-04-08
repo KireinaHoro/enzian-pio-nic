@@ -9,16 +9,17 @@ object v {
   val scalaVersion = "2.13.12"
 }
 
-trait ApplyScalaVersion { this: SbtModule =>
+trait ApplyScalaVersion { this: ScalaModule =>
   def crossValue = v.scalaVersion
 }
-trait SpinalDep { this: SbtModule =>
+trait SpinalDep { this: ScalaModule =>
   def name: String
   override def millSourcePath = os.pwd / "deps" / "spinalhdl" / name
 }
 
 object spinalCore extends deps.spinalhdl.build.Core with ApplyScalaVersion with SpinalDep { def name = "core" }
 object spinalLib extends deps.spinalhdl.build.Lib with ApplyScalaVersion with SpinalDep { def name = "lib" }
+object spinalTester extends deps.spinalhdl.build.CrossTester with ApplyScalaVersion with SpinalDep { def name = "tester" }
 object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with ApplyScalaVersion with SpinalDep { def name = "idslplugin" }
 
 object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVersion {
@@ -27,7 +28,7 @@ object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVer
   override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
 }
 
-trait CommonModule extends SbtModule {
+trait CommonModule extends ScalaModule {
   override def scalaVersion = v.scalaVersion
   override def millSourcePath = os.pwd
   override def sources = T.sources(
@@ -35,12 +36,15 @@ trait CommonModule extends SbtModule {
   )
   override def scalacOptions = super.scalacOptions() ++ spinalIdslPlugin.pluginOptions()
   override def moduleDeps = super.moduleDeps ++ Agg(blocks, spinalCore, spinalLib)
+
   override def ivyDeps = Agg(
     ivy"com.lihaoyi::os-lib:0.9.3",
     ivy"com.lihaoyi::mainargs:0.5.4",
     ivy"commons-io:commons-io:2.15.1",
   )
+}
 
+trait HwProjModule extends CommonModule {
   def variant: String
   def generatedSourcesPath = millSourcePath / "hw" / "gen" / variant
 
@@ -77,7 +81,15 @@ trait CommonModule extends SbtModule {
   }
 }
 
-object pcie extends CommonModule { def variant = "pcie" }
-object eci extends CommonModule { def variant = "eci" }
+object pcie extends HwProjModule { def variant = "pcie" }
+object eci extends HwProjModule { def variant = "eci" }
+
+object tester extends CommonModule { outer =>
+  object test extends ScalaTests with TestModule.ScalaTest {
+    override def moduleDeps = super.moduleDeps ++ Agg(spinalTester)
+    override def millSourcePath = outer.millSourcePath
+    override def sources = T.sources(millSourcePath / "hw" / "tests")
+  }
+}
 
 // vi: ft=scala
