@@ -44,13 +44,12 @@ trait CommonModule extends ScalaModule {
   )
 }
 
-trait HwProjModule extends CommonModule {
+trait HwProjModule extends Module {
   def variant: String
   def generatedSourcesPath = millSourcePath / "hw" / "gen" / variant
 
   def generateVerilog = T {
-    sources()
-    runMain("pionic.GenEngineVerilog",
+    gen.runMain("pionic.GenEngineVerilog",
       "--name", variant)()
 
     Seq("NicEngine_ips.v", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
@@ -81,15 +80,15 @@ trait HwProjModule extends CommonModule {
   }
 }
 
-object pcie extends HwProjModule { def variant = "pcie" }
-object eci extends HwProjModule { def variant = "eci" }
-
-object tester extends CommonModule { outer =>
+object gen extends CommonModule { outer =>
   object test extends ScalaTests with TestModule.ScalaTest {
     override def moduleDeps = super.moduleDeps ++ Agg(spinalTester)
     override def millSourcePath = outer.millSourcePath
     override def sources = T.sources(millSourcePath / "hw" / "tests")
   }
 }
+
+object pcie extends HwProjModule { def variant = "pcie" }
+object eci extends HwProjModule { def variant = "eci" }
 
 // vi: ft=scala

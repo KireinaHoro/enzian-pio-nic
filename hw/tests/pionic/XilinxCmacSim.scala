@@ -1,9 +1,7 @@
-package pionic.sim
+package pionic
 
-import spinal.core.sim._
-import pionic._
-import pionic.pcie.PcieBridgeInterfacePlugin
 import spinal.core.IntToBuilder
+import spinal.core.sim._
 import spinal.lib.bus.amba4.axis.sim._
 
 import scala.language.postfixOps

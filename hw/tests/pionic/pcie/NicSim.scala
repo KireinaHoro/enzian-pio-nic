@@ -1,25 +1,18 @@
-package pionic.pcie.sim
+package pionic.pcie
 
+import jsteward.blocks.misc.RegBlockReadBack
+import pionic._
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.sim._
 import spinal.lib.bus.amba4.axis.sim._
-import jsteward.blocks.misc.RegBlockReadBack
-import pionic._
-import pionic.pcie.PcieBridgeInterfacePlugin
-import pionic.sim.{AsSimBusMaster, CSRSim, SimApp, XilinxCmacSim}
 
 import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
-object NicSim extends SimApp {
-  implicit val axiAsMaster = new AsSimBusMaster[Axi4Master] {
-    def read(b: Axi4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
-    def write(b: Axi4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
-  }
-
+class NicSim extends DutSimFunSuite[NicEngine] {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(
     numCores = 8, // to test for dispatching

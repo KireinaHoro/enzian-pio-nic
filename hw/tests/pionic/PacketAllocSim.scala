@@ -1,14 +1,12 @@
-package pionic.sim
+package pionic
 
-import pionic.{Config, PacketAlloc, PioNicConfig}
-import spinal.core._
 import spinal.core.sim._
 import spinal.lib.sim._
 
 import scala.collection.mutable
 
 // TODO: use scalatest to test more configurations
-object PacketAllocSim extends App {
+class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
   // TODO: test on multiple configs
   implicit val nicConfig = PioNicConfig(
     pktBufAddrWidth = 32,
@@ -24,7 +22,7 @@ object PacketAllocSim extends App {
     .compile(PacketAlloc(0, nicConfig.pktBufSizePerCore))
 
   // TODO: refactor overflow case out
-  dut.doSim("simple-allocate-free") { dut =>
+  test("simple-allocate-free") { dut =>
     SimTimeout(6000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
