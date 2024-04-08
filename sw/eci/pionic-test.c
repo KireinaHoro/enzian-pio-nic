@@ -4,23 +4,11 @@
 #include <time.h>
 #include <assert.h>
 #include <string.h>
-#include <setjmp.h>
-#include <signal.h>
 
 #include "common.h"
 #include "api.h"
 #include "debug.h"
 #include "profile.h"
-
-// handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
-static jmp_buf *sigbus_jmp;
-
-void signal_handler(int sig) {
-  if (sig == SIGBUS) {
-    if (sigbus_jmp) siglongjmp(*sigbus_jmp, 1);
-    abort();
-  }
-}
 
 static uint8_t *test_data;
 
@@ -127,16 +115,6 @@ int main(int argc, char *argv[]) {
     test_data[i] = rand();
   }
 
-  struct sigaction new = {
-    .sa_handler = signal_handler,
-    .sa_flags = SA_RESETHAND, // only catch once
-  };
-  sigemptyset(&new.sa_mask);
-  if (sigaction(SIGBUS, &new, NULL)) {
-    perror("sigaction");
-    goto fail;
-  }
-
   pionic_ctx_t ctx;
   if (pionic_init(&ctx, argv[1], true) < 0) {
     goto fini;
@@ -145,16 +123,8 @@ int main(int argc, char *argv[]) {
   pionic_dump_core_stats(ctx, 0);
 
   // estimate Rx timeout
-  jmp_buf sigbus_jmpbuf;
-  sigbus_jmp = &sigbus_jmpbuf;
-  if (!sigsetjmp(sigbus_jmpbuf, 1)) {
-    for (int us = 40 * 1000; us < 1000 * 1000; us += 1000) {
-      pionic_set_rx_block_cycles(ctx, us * 1000 / 4); // 250 MHz
-      loopback_timed(ctx, 0, 0);
-    }
-  } else {
-    printf("Caught SIGBUS, continuing...\n");
-  }
+  pionic_probe_rx_block_cycles(ctx);
+  exit(EXIT_SUCCESS);
 
   // 40 ms
   pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(40 * 1000));
