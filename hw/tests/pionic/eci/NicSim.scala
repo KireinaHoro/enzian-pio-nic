@@ -1,19 +1,17 @@
-package pionic.eci.sim
+package pionic.eci
 
 import jsteward.blocks.eci.sim.DcsAppMaster
-import pionic.eci.EciInterfacePlugin
-import pionic.sim.{AsSimBusMaster, CSRSim, SimApp, XilinxCmacSim}
-import pionic.{Config, ConfigWriter, NicEngine, PioNicConfig, XilinxCmacPlugin}
+import pionic._
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
 import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 
+import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
-import scala.collection.mutable
 
 case class CtrlInfoSim(size: BigInt, addr: BigInt)
 
@@ -26,12 +24,7 @@ object CtrlInfoSim {
         dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid)
 }
 
-object NicSim extends SimApp {
-  implicit val axiliteAsMaster = new AsSimBusMaster[AxiLite4Master] {
-    def read(b: AxiLite4Master, addr: BigInt, totalBytes: BigInt) = b.read(addr, totalBytes)
-
-    def write(b: AxiLite4Master, addr: BigInt, data: List[Byte]) = b.write(addr, data)
-  }
+class NicSim extends DutSimFunSuite[NicEngine] {
   implicit val nicConfig = PioNicConfig()
 
   val dut = Config.sim
@@ -61,6 +54,7 @@ object NicSim extends SimApp {
 
   def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
+    for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
 
     // the tx interface should never be active!
     cmacIf.cmacTxClock.onSamplings {
@@ -73,6 +67,8 @@ object NicSim extends SimApp {
 
   def txDutSetup()(implicit dut: NicEngine) = {
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+    for (i <- txNextCl.indices) { txNextCl(i) = 0 }
+
     (csrMaster, axisSlave, dcsMaster)
   }
 
@@ -137,7 +133,7 @@ object NicSim extends SimApp {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control", cid)
 
-    assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet");
+    assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet")
 
     // set core mask to only schedule to one core
     val mask = 1 << cid

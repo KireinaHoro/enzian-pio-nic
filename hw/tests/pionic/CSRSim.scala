@@ -1,14 +1,8 @@
-package pionic.sim
+package pionic
 
 import jsteward.blocks.misc.RegBlockReadBack
-import pionic.PioNicConfig
 import spinal.core.assert
-import spinal.lib._
-
-trait AsSimBusMaster[B] {
-  def read(b: B, addr: BigInt, totalBytes: BigInt): List[Byte]
-  def write(b: B, addr: BigInt, data: List[Byte]): Unit
-}
+import spinal.lib.{BytesRicher, IntRicher}
 
 object CSRSim {
   def csrSanityChecks[B](globalBlock: RegBlockReadBack, coreBlock: RegBlockReadBack, bus: B, rxBlockCycles: Int)(nicConfig: PioNicConfig)(implicit asMaster: AsSimBusMaster[B]): Unit = {

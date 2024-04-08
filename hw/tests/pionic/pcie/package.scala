@@ -1,9 +1,8 @@
-package pionic.pcie
+package pionic
 
-import pionic.PioNicConfig
 import spinal.lib._
 
-package object sim {
+package object pcie {
   def isSorted[T](s: T*)(implicit ord: Ordering[T]): Boolean = s.toList match {
     case Nil => true
     case _ :: Nil => true
