@@ -8,7 +8,7 @@
 #include "api.h"
 #include "hal.h"
 #include "cmac.h"
-#include "debug.h"
+#include "diag.h"
 
 #include "../../hw/gen/pcie/regs.h"
 #include "../../hw/gen/pcie/config.h"
