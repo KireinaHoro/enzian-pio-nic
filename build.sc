@@ -38,9 +38,7 @@ trait CommonModule extends ScalaModule {
   override def moduleDeps = super.moduleDeps ++ Agg(blocks, spinalCore, spinalLib)
 
   override def ivyDeps = Agg(
-    ivy"com.lihaoyi::os-lib:0.9.3",
     ivy"com.lihaoyi::mainargs:0.5.4",
-    ivy"commons-io:commons-io:2.15.1",
   )
 }
 
@@ -85,6 +83,11 @@ object gen extends CommonModule { outer =>
     override def moduleDeps = super.moduleDeps ++ Agg(spinalTester)
     override def millSourcePath = outer.millSourcePath
     override def sources = T.sources(millSourcePath / "hw" / "tests")
+
+    override def ivyDeps = Agg(
+      ivy"com.lihaoyi::os-lib:0.9.3",
+      ivy"commons-io:commons-io:2.15.1",
+    )
   }
 }
 
