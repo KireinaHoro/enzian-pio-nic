@@ -221,7 +221,10 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       // packet data DMA into packet buffer
       // TODO: datapath pipeline attach point (accelerators, rpc request decode, etc.)
-      val dmaBusCtrl = Axi4SlaveFactory(dmaNode)
+      val dmaBusCtrl = Axi4SlaveFactory(dmaNode.pipelined(
+        ar = StreamPipe.FULL,
+        aw = StreamPipe.FULL,
+      ))
       dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
       dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
 
