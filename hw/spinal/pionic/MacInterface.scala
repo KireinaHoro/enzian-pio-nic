@@ -103,7 +103,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
 
     val cmacReq = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
     val cmacReqCdc = cmacReq.clone
-    SimpleAsyncFifo(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
+    val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
 
     // only dispatch to enabled cores
     val dispatchedCmacRx = StreamDispatcherWithEnable(

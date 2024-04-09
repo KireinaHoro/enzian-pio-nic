@@ -126,7 +126,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
           val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) => new Area {
-        SimpleAsyncFifo(StreamArbiterFactory().roundRobin.on(chan), chanLocator(dcs), 2, clockDomain, dcsClock)
+        val chanCdcFifo = SimpleAsyncFifo(StreamArbiterFactory().roundRobin.on(chan), chanLocator(dcs), 2, clockDomain, dcsClock)
       }.setName("arbitrateIntoLcl")
       }
     }
@@ -140,16 +140,18 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         }.setName("demuxLcl").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), idx) => new Area {
         val resps = chans.map { c =>
-          val chanCdc = c.clone
-          SimpleAsyncFifo(c, chanCdc, 2, dcsClock, clockDomain)
+          new Composite(c) {
+            val chanCdc = c.clone
+            val chanCdcFifo = SimpleAsyncFifo(c, chanCdc, 2, dcsClock, clockDomain)
 
-          // dcs use ALIASED addresses
-          val unaliased = chanCdc.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
-            (EciCmdDefs.unaliasAddress(a) - coreOffset * idx).asBits
+            // dcs use ALIASED addresses
+            val unaliased = chanCdc.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
+              (EciCmdDefs.unaliasAddress(a) - coreOffset * idx).asBits
+            }
+            val ret = unaliased.translateWith(unaliased.data)
           }
-          unaliased.translateWith(unaliased.data)
         }
-        resp << StreamArbiterFactory().roundRobin.on(resps)
+        resp << StreamArbiterFactory().roundRobin.on(resps.map(_.ret))
       }.setName("arbitrateIntoCoreCmds")
       }
     }
