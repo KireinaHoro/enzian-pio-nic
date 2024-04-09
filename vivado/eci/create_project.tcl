@@ -58,9 +58,9 @@ set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_c
 # Make sure any repository IP is visible.
 # update_ip_catalog
 
+# Add ECI toolkit sources and synth constraints
 add_files -fileset [get_filesets sources_1] "${src_dir}/eci-toolkit/hdl"
 add_files -fileset [get_filesets constrs_1] "${src_dir}/eci-toolkit/xdc"
-set_property used_in_implementation false  [get_files -of_objects [get_filesets constrs_1]]
 
 # Add DCS sources.
 # eci_cmd_defs is got from eci_toolkit.
@@ -122,22 +122,22 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_rd.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_wr.v"
 
-# Add constraints from us
+# Add constraints from us necessary for synthesis
 set synth_constrs [list \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
     "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl" \
     "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"]
 add_files -fileset [get_filesets constrs_1] -norecurse $synth_constrs
-set_property USED_IN_IMPLEMENTATION false [get_files $synth_constrs]
+
+# implementation constraints are separately loaded during impl
+set_property used_in_implementation false [get_files -of_objects [get_filesets constrs_1]]
 
 # implementation-only constraints: copied to out dir
 set impl_constrs_dir "$project/xdc/impl"
 file mkdir $impl_constrs_dir
 file copy -force \
     "$spinal_gen_dir/NicEngine.xdc" \
-    "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
-    "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl" \
-    "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl" \
+    {*}$synth_constrs \
     "$impl_constrs_dir"
 
 set_property "top" "${top_module}" [get_filesets sources_1]
