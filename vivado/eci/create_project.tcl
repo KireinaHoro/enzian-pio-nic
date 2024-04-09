@@ -120,7 +120,10 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axil_interconnect.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_rd.v" \
-    "$hw_deps_dir/verilog-axi/rtl/axil_adapter_wr.v"
+    "$hw_deps_dir/verilog-axi/rtl/axil_adapter_wr.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axil_cdc.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axil_cdc_rd.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axil_cdc_wr.v"
 
 # Add constraints from us necessary for synthesis
 set synth_constrs [list \
