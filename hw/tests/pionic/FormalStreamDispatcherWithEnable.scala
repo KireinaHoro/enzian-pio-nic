@@ -66,7 +66,7 @@ class FormalStreamDispatcherWithEnable extends SpinalFormalFunSuite {
       })
   }
 
-  test("basic test") {
+  test("basic-test") {
     tester()
   }
 }

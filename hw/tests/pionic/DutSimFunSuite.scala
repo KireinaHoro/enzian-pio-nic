@@ -8,10 +8,10 @@ import java.io.{FileOutputStream, PrintStream}
 import java.util.zip.GZIPOutputStream
 import scala.util.Random
 import org.apache.commons.io.output.TeeOutputStream
-import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap, Failed, Outcome}
+import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap, Failed, Outcome, ParallelTestExecution}
 import org.scalatest.funsuite.FixtureAnyFunSuite
 
-abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with BeforeAndAfterAllConfigMap {
+abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with BeforeAndAfterAllConfigMap with ParallelTestExecution {
   var simSeed: Option[Int] = None
   var setupSeed: Int = Random.nextInt
   var printSimLog: Boolean = false

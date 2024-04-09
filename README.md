@@ -61,7 +61,7 @@ hw/gen/eci/NicEngine_ooc.xdc: ASCII text
 Run test benches:
 
 ```console
-$ mill gen.test # run all test suites
+$ mill gen.test -- -P8 # run all test suites in parallel with 8 threads
 ...
 [Progress] Verilator compilation done in 4941.624 ms
 NicSim:
