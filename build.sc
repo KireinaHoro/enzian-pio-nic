@@ -45,6 +45,7 @@ trait CommonModule extends ScalaModule {
 trait HwProjModule extends Module {
   def variant: String
   def generatedSourcesPath = millSourcePath / "hw" / "gen" / variant
+  override def millSourcePath = os.pwd
 
   def generateVerilog = T {
     gen.runMain("pionic.GenEngineVerilog",
