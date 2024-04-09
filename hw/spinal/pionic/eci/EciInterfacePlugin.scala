@@ -46,19 +46,27 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
     // even and odd in ALIASED addresses
     // Refer to Chapter 9.4 in CCKit
-    val dcsOdd = DcsInterface(axiConfig) addTag ClockDomainTag(dcsClock)
-    val dcsEven = DcsInterface(axiConfig) addTag ClockDomainTag(dcsClock)
-
-    // assert dcs interfaces never drop valid when ready is low
-    dcsClock on {
-      Seq(dcsOdd, dcsEven) foreach { dcs =>
-        checkStreamValidDrop(dcs.cleanMaybeInvReq)
-        checkStreamValidDrop(dcs.unlockResp)
-      }
-    }
+    val dcsOdd = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(dcsClock)
+    val dcsEven = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(dcsClock)
 
     dcsOdd.axi.setName("s_axi_dcs_odd")
     dcsEven.axi.setName("s_axi_dcs_even")
+
+    val dcsCdcIntfs = Seq(dcsEven, dcsOdd) map { dcs =>
+      new Composite(dcs, "cdc") {
+        val ret = dcs.clone
+        dcs.axi.cdc(dcsClock, clockDomain) >> ret.axi
+        val lciFifo = SimpleAsyncFifo(ret.cleanMaybeInvReq, dcs.cleanMaybeInvReq, 2, clockDomain, dcsClock)
+        val ulFifo = SimpleAsyncFifo(ret.unlockResp, dcs.unlockResp, 2, clockDomain, dcsClock)
+        val lciaFifo = SimpleAsyncFifo(dcs.cleanMaybeInvResp, ret.cleanMaybeInvResp, 2, dcsClock, clockDomain)
+      }.ret
+    }
+
+    // assert dcs interfaces never drop valid when ready is low
+    dcsCdcIntfs foreach { dcs =>
+      checkStreamValidDrop(dcs.cleanMaybeInvReq)
+      checkStreamValidDrop(dcs.unlockResp)
+    }
 
     val s_axil_ctrl = slave(AxiLite4(
       addressWidth = 44, dataWidth = 64,
@@ -96,8 +104,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .addSlaves(dcsNodes.zipWithIndex map { case (node, idx) =>
         node -> SizeMapping(coreOffset * idx, sizePerCore)
       }: _*)
-      .addConnections(Seq(dcsOdd, dcsEven) map { dcs =>
-        dcs.axi.cdc(dcsClock, clockDomain).remapAddr { a =>
+      .addConnections(dcsCdcIntfs map { dcs =>
+        dcs.axi.remapAddr { a =>
           val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
           (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)) | byteOffset.resized).resized
@@ -125,14 +133,14 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
           val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
-      }.transpose.zip(Seq(dcsEven, dcsOdd)) foreach { case (chan, dcs) => new Area {
-        val chanCdcFifo = SimpleAsyncFifo(StreamArbiterFactory().roundRobin.on(chan), chanLocator(dcs), 2, clockDomain, dcsClock)
+      }.transpose.zip(dcsCdcIntfs) foreach { case (chan, dcs) => new Area {
+        chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
       }.setName("arbitrateIntoLcl")
       }
     }
 
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], hreqIdLocator: EciWord => Bits, addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      Seq(dcsEven, dcsOdd).map { dcs =>
+      dcsCdcIntfs.map { dcs =>
         new Area {
           val chan = chanLocator(dcs)
           val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
@@ -141,11 +149,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), idx) => new Area {
         val resps = chans.map { c =>
           new Composite(c) {
-            val chanCdc = c.clone
-            val chanCdcFifo = SimpleAsyncFifo(c, chanCdc, 2, dcsClock, clockDomain)
-
             // dcs use ALIASED addresses
-            val unaliased = chanCdc.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
+            val unaliased = c.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
               (EciCmdDefs.unaliasAddress(a) - coreOffset * idx).asBits
             }
             val ret = unaliased.translateWith(unaliased.data)
