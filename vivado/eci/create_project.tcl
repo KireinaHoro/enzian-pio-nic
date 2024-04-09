@@ -123,10 +123,12 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_wr.v"
 
 # Add constraints from us
-add_files -fileset [get_filesets constrs_1] -norecurse \
+set synth_constrs [list \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
     "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl" \
-    "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"
+    "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"]
+add_files -fileset [get_filesets constrs_1] -norecurse $synth_constrs
+set_property USED_IN_IMPLEMENTATION false [get_files $synth_constrs]
 
 # implementation-only constraints: copied to out dir
 set impl_constrs_dir "$project/xdc/impl"
