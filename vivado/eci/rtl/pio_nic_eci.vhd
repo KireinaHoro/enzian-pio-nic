@@ -518,7 +518,7 @@ type REGS_AXIL_NARROW is record
 end record REGS_AXIL_NARROW;
 
 signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
-signal cmac_reg_axil, nic_engine_axil : REGS_AXIL;
+signal cmac_reg_axil, nic_engine_axil, io_reg_axil_cdc : REGS_AXIL;
 signal cmac_reg_axil_narrow : REGS_AXIL_NARROW;
 
 signal m0_bscan : BSCAN;
@@ -1036,6 +1036,59 @@ port map (
     \out\ => txclk_reset
 );
 
+axil_cdc_inst : entity work.axil_cdc
+  generic map (
+    DATA_WIDTH => 64,
+    ADDR_WIDTH => 44
+  )
+  port map (
+    s_clk => clk_sys,
+    s_rst => reset_sys,
+
+    s_axil_awaddr => s_io_axil_awaddr,
+    s_axil_awprot => (others => '0'),
+    s_axil_awvalid => s_io_axil_awvalid,
+    s_axil_awready => s_io_axil_awready,
+    s_axil_wdata => s_io_axil_wdata,
+    s_axil_wstrb => s_io_axil_wstrb,
+    s_axil_wvalid => s_io_axil_wvalid,
+    s_axil_wready => s_io_axil_wready,
+    s_axil_bresp => s_io_axil_bresp,
+    s_axil_bvalid => s_io_axil_bvalid,
+    s_axil_bready => s_io_axil_bready,
+    s_axil_araddr => s_io_axil_araddr,
+    s_axil_arprot => (others => '0'),
+    s_axil_arvalid => s_io_axil_arvalid,
+    s_axil_arready => s_io_axil_arready,
+    s_axil_rdata => s_io_axil_rdata,
+    s_axil_rresp => s_io_axil_rresp,
+    s_axil_rvalid => s_io_axil_rvalid,
+    s_axil_rready => s_io_axil_rready,
+
+    m_clk => app_clk,
+    m_rst => app_clk_reset,
+
+    m_axil_awaddr => io_reg_axil_cdc.awaddr,
+    m_axil_awprot => io_reg_axil_cdc.awprot,
+    m_axil_awvalid => io_reg_axil_cdc.awvalid,
+    m_axil_awready => io_reg_axil_cdc.awready,
+    m_axil_wdata => io_reg_axil_cdc.wdata,
+    m_axil_wstrb => io_reg_axil_cdc.wstrb,
+    m_axil_wvalid => io_reg_axil_cdc.wvalid,
+    m_axil_wready => io_reg_axil_cdc.wready,
+    m_axil_bresp => io_reg_axil_cdc.bresp,
+    m_axil_bvalid => io_reg_axil_cdc.bvalid,
+    m_axil_bready => io_reg_axil_cdc.bready,
+    m_axil_araddr => io_reg_axil_cdc.araddr,
+    m_axil_arprot => io_reg_axil_cdc.arprot,
+    m_axil_arvalid => io_reg_axil_cdc.arvalid,
+    m_axil_arready => io_reg_axil_cdc.arready,
+    m_axil_rdata => io_reg_axil_cdc.rdata,
+    m_axil_rresp => io_reg_axil_cdc.rresp,
+    m_axil_rvalid => io_reg_axil_cdc.rvalid,
+    m_axil_rready => io_reg_axil_cdc.rready
+  );
+
 axil_adapter_inst : entity work.axil_adapter
   generic map (
     ADDR_WIDTH => 32,
@@ -1099,28 +1152,28 @@ axil_adapter_inst : entity work.axil_adapter
     M01_ADDR_WIDTH = 21
   )
   port map (
-    clk => clk_sys,
-    rst => reset_sys,
+    clk => app_clk,
+    rst => app_clk_reset,
 
-    s00_axil_awaddr => s_io_axil_awaddr,
-    s00_axil_awprot => (others => '0'),
-    s00_axil_awvalid => s_io_axil_awvalid,
-    s00_axil_awready => s_io_axil_awready,
-    s00_axil_wdata => s_io_axil_wdata,
-    s00_axil_wstrb => s_io_axil_wstrb,
-    s00_axil_wvalid => s_io_axil_wvalid,
-    s00_axil_wready => s_io_axil_wready,
-    s00_axil_bresp => s_io_axil_bresp,
-    s00_axil_bvalid => s_io_axil_bvalid,
-    s00_axil_bready => s_io_axil_bready,
-    s00_axil_araddr => s_io_axil_araddr,
-    s00_axil_arprot => (others => '0'),
-    s00_axil_arvalid => s_io_axil_arvalid,
-    s00_axil_arready => s_io_axil_arready,
-    s00_axil_rdata => s_io_axil_rdata,
-    s00_axil_rresp => s_io_axil_rresp,
-    s00_axil_rvalid => s_io_axil_rvalid,
-    s00_axil_rready => s_io_axil_rready,
+    s00_axil_awaddr => io_reg_axil_cdc.awaddr,
+    s00_axil_awprot => io_reg_axil_cdc.awprot,
+    s00_axil_awvalid => io_reg_axil_cdc.awvalid,
+    s00_axil_awready => io_reg_axil_cdc.awready,
+    s00_axil_wdata => io_reg_axil_cdc.wdata,
+    s00_axil_wstrb => io_reg_axil_cdc.wstrb,
+    s00_axil_wvalid => io_reg_axil_cdc.wvalid,
+    s00_axil_wready => io_reg_axil_cdc.wready,
+    s00_axil_bresp => io_reg_axil_cdc.bresp,
+    s00_axil_bvalid => io_reg_axil_cdc.bvalid,
+    s00_axil_bready => io_reg_axil_cdc.bready,
+    s00_axil_araddr => io_reg_axil_cdc.araddr,
+    s00_axil_arprot => io_reg_axil_cdc.arprot,
+    s00_axil_arvalid => io_reg_axil_cdc.arvalid,
+    s00_axil_arready => io_reg_axil_cdc.arready,
+    s00_axil_rdata => io_reg_axil_cdc.rdata,
+    s00_axil_rresp => io_reg_axil_cdc.rresp,
+    s00_axil_rvalid => io_reg_axil_cdc.rvalid,
+    s00_axil_rready => io_reg_axil_cdc.rready,
 
     m00_axil_awaddr => nic_engine_axil.awaddr,
     m00_axil_awprot => nic_engine_axil.awprot,
@@ -1207,8 +1260,8 @@ axil_adapter_inst : entity work.axil_adapter
 
     -- AXI lite reg interface
     pm_tick => '0',
-    s_axi_aclk => clk_sys,
-    s_axi_sreset => reset_sys,
+    s_axi_aclk => app_clk,
+    s_axi_sreset => app_clk_reset,
     s_axi_awaddr => cmac_reg_axil_narrow.awaddr,
     s_axi_awvalid => cmac_reg_axil_narrow.awvalid,
     s_axi_awready => cmac_reg_axil_narrow.awready,
