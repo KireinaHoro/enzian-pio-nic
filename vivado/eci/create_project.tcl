@@ -152,55 +152,8 @@ set_property file_type {VHDL 2008} [get_files -filter {FILE_TYPE == VHDL}]
 puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"
 
-# Create clock wizard for DC clock to nic engine
-create_ip -name clk_wiz -vendor xilinx.com -library ip -module_name clk_wiz_0
-set_property -dict {
-    CONFIG.OPTIMIZE_CLOCKING_STRUCTURE_EN {true}
-    CONFIG.PRIM_IN_FREQ {322.265625}
-    CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250}
-    CONFIG.USE_LOCKED {false}
-    CONFIG.USE_RESET {false}
-    CONFIG.CLKIN1_JITTER_PS {31.03}
-    CONFIG.MMCM_DIVCLK_DIVIDE {5}
-    CONFIG.MMCM_CLKFBOUT_MULT_F {16.000}
-    CONFIG.MMCM_CLKIN1_PERIOD {3.103}
-    CONFIG.MMCM_CLKIN2_PERIOD {10.0}
-    CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.125}
-    CONFIG.CLKOUT1_JITTER {116.787}
-    CONFIG.CLKOUT1_PHASE_ERROR {114.068}
-} [get_ips clk_wiz_0]
-generate_target all [get_ips clk_wiz_0]
-
-# Create CMAC IP
-create_ip -name cmac_usplus -vendor xilinx.com -library ip -module_name cmac_usplus_0
-set_property -dict {
-    CONFIG.ADD_GT_CNRL_STS_PORTS {1}
-    CONFIG.CMAC_CAUI4_MODE {1}
-    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y2}
-    CONFIG.ENABLE_AXI_INTERFACE {1}
-    CONFIG.GT_DRP_CLK {250}
-    CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11}
-    CONFIG.GT_REF_CLK_FREQ {322.265625}
-    CONFIG.GT_RX_BUFFER_BYPASS {0}
-    CONFIG.INCLUDE_STATISTICS_COUNTERS {1}
-    CONFIG.LANE10_GT_LOC {NA}
-    CONFIG.LANE1_GT_LOC {X0Y8}
-    CONFIG.LANE2_GT_LOC {X0Y9}
-    CONFIG.LANE3_GT_LOC {X0Y10}
-    CONFIG.LANE4_GT_LOC {X0Y11}
-    CONFIG.LANE5_GT_LOC {NA}
-    CONFIG.LANE6_GT_LOC {NA}
-    CONFIG.LANE7_GT_LOC {NA}
-    CONFIG.LANE8_GT_LOC {NA}
-    CONFIG.LANE9_GT_LOC {NA}
-    CONFIG.NUM_LANES {4x25}
-    CONFIG.RX_FLOW_CONTROL {0}
-    CONFIG.RX_GT_BUFFER {1}
-    CONFIG.RX_MAX_PACKET_LEN {9622}
-    CONFIG.TX_FLOW_CONTROL {0}
-    CONFIG.USER_INTERFACE {AXIS}
-} [get_ips cmac_usplus_0]
-generate_target all [get_ips cmac_usplus_0]
+# create block design for CMAC and clocking
+source "${src_dir}/bd/design_1.tcl"
 
 close_project
 
