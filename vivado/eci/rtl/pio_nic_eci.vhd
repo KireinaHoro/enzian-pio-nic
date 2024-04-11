@@ -1227,8 +1227,7 @@ axil_adapter_inst : entity work.axil_adapter
     gt_ref_clk_clk_p => F_MAC0C_CLK_P,
 
     -- clocking & reset
-    prgc0_clk_n => prgc0_clk_n,
-    prgc0_clk_p => prgc0_clk_p,
+    clk_io => clk_io,
     app_clk => app_clk,
     rxclk => rxclk,
     txclk => txclk,
