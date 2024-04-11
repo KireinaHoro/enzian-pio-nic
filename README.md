@@ -99,7 +99,12 @@ $ mill --no-server pcie.generateBitstream
 $ file out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.{bit,ltx}
 [...]/pio-nic-pcie.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
 [...]/pio-nic-pcie.ltx: ASCII text
-$ mill --no-server eci.generateBitstream
+```
+
+To create a bitstream for the ECI NIC, we need a checkpoint of the [static shell](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/static-shell).  Assuming you have `static_shell_routed.dcp` in `~/Downloads`:
+
+```console
+$ ENZIAN_SHELL_DIR=~/Downloads mill --no-server eci.generateBitstream
 ```
 
 **Note**: if mill complains about not being able to find Vivado, try killing the mill server:
