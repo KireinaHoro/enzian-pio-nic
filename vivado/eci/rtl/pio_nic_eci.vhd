@@ -1096,8 +1096,8 @@ axil_adapter_inst : entity work.axil_adapter
     M_DATA_WIDTH => 32
   )
   port map (
-    clk => clk_sys,
-    rst => reset_sys,
+    clk => app_clk,
+    rst => app_clk_reset,
 
     s_axil_awaddr => cmac_reg_axil.awaddr(31 downto 0),
     s_axil_awprot => cmac_reg_axil.awprot,
