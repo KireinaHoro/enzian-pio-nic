@@ -142,12 +142,19 @@ Interact with the Vivado project (e.g. change the block design, read timing repo
 $ mill --no-server pcie.vivadoProject
 ...
 $ vivado out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.xpr
+$ vivado out/eci/vivadoProject.dest/pio-nic-eci/pio-nic-eci.xpr # synth-only project!
 ```
 
 For the PCIe project, remember to export the project Tcl again to keep the build process reproducible.  In Vivado's Tcl console:
 
 ```tcl
 write_project_tcl -no_ip_version -paths_relative_to ./vivado/pcie -force vivado/pcie/create_project.tcl
+```
+
+For the ECI project, remember to export the block design Tcl again.  In Vivado's Tcl console:
+
+```tcl
+write_bd_tcl -force vivado/eci/bd/design_1.tcl
 ```
 
 Update `vivado/eci/create_project.tcl` accordingly (the script is hand-written).
