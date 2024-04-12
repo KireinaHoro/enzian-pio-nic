@@ -229,6 +229,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       val dmaBusCtrl = Axi4SlaveFactory(dmaNode.pipelined(
         ar = StreamPipe.FULL,
         aw = StreamPipe.FULL,
+        b = StreamPipe.FULL,
       ))
       dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
       dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
