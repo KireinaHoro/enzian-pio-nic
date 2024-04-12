@@ -290,6 +290,9 @@ proc create_root_design { parentCell } {
    CONFIG.USE_RESET {false} \
  ] $clk_wiz_0
 
+  # Create instance: cmac_init_clk_reset, and set properties
+  set cmac_init_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 cmac_init_clk_reset ]
+
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
   set_property -dict [ list \
@@ -297,7 +300,7 @@ proc create_root_design { parentCell } {
    CONFIG.CMAC_CAUI4_MODE {1} \
    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y2} \
    CONFIG.ENABLE_AXI_INTERFACE {1} \
-   CONFIG.GT_DRP_CLK {250} \
+   CONFIG.GT_DRP_CLK {100} \
    CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11} \
    CONFIG.GT_REF_CLK_FREQ {322.265625} \
    CONFIG.GT_RX_BUFFER_BYPASS {0} \
@@ -337,12 +340,12 @@ proc create_root_design { parentCell } {
   # Create port connections
   connect_bd_net -net app_clk_reset_bus_struct_reset [get_bd_pins app_clk_reset/bus_struct_reset] [get_bd_pins cmac_usplus_0/s_axi_sreset]
   connect_bd_net -net app_clk_reset_mb_reset [get_bd_ports app_clk_reset] [get_bd_pins app_clk_reset/mb_reset]
-  connect_bd_net -net app_clk_reset_peripheral_reset [get_bd_pins app_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
-  connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1]
-  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins clk_wiz_0/clk_out1] [get_bd_pins cmac_usplus_0/drp_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/drp_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk]
+  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins clk_wiz_0/clk_out1] [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  connect_bd_net -net cmac_init_clk_reset_peripheral_reset [get_bd_pins cmac_init_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_pins cmac_usplus_0/rx_clk]
   connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_ports txclk] [get_bd_pins cmac_usplus_0/gt_txusrclk2]
-  connect_bd_net -net reset_sys_1 [get_bd_ports reset_sys] [get_bd_pins app_clk_reset/ext_reset_in]
+  connect_bd_net -net reset_sys_1 [get_bd_ports reset_sys] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity] [get_bd_pins xlconstant_0/dout]
 
   # Create address segments
