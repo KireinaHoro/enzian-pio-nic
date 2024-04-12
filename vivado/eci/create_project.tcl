@@ -152,17 +152,10 @@ set_property file_type {VHDL 2008} [get_files -filter {FILE_TYPE == VHDL}]
 puts "Regenerating IPs..."
 source "${src_dir}/eci-toolkit/create_ips.tcl"
 
-# create block design for CMAC and clocking -- Global mode
+# create block design for CMAC and clocking
 source "${src_dir}/bd/design_1.tcl"
-# set bd_file [get_files design_1.bd]
-# set_property synth_checkpoint_mode None $bd_file
-# generate_target all $bd_file
-
-# disable clk_wiz constraint due to conflict with ECI toolkit clocks def
-# https://docs.amd.com/r/2021.2-English/ug939-vivado-designing-with-ip-tutorial/Step-3-Disable-XDC-Files
-# set clk_wiz_file [get_files design_1_clk_wiz_0_0.xci]
-# set clk_wiz_xdc [get_files -of_objects $clk_wiz_file -filter {FILE_TYPE == XDC}]
-# set_property is_enabled false [get_files $clk_wiz_xdc]
+set bd_file [get_files design_1.bd]
+generate_target all $bd_file
 
 close_project
 
