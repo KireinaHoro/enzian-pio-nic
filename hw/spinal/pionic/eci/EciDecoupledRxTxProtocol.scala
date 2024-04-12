@@ -59,6 +59,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val busCtrl = Axi4SlaveFactory(bus.pipelined(
       aw = StreamPipe.FULL,
       ar = StreamPipe.FULL,
+      b = StreamPipe.FULL,
     )).remapAddress { addr =>
       addr.mux(
         U(0x40) -> U(0xc0),
