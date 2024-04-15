@@ -8,7 +8,7 @@ import java.io.{FileOutputStream, PrintStream}
 import java.util.zip.GZIPOutputStream
 import scala.util.Random
 import org.apache.commons.io.output.TeeOutputStream
-import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap, Failed, Outcome, ParallelTestExecution}
+import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap, Failed, Outcome, ParallelTestExecution, Succeeded}
 import org.scalatest.funsuite.FixtureAnyFunSuite
 
 abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with BeforeAndAfterAllConfigMap with ParallelTestExecution {
@@ -53,7 +53,7 @@ abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with Be
         super.println(x)
       }
     }
-    var outcome: Outcome = null
+    var outcome: Outcome = Succeeded
 
     try {
       Console.withOut(printStream) {
@@ -62,14 +62,17 @@ abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with Be
         println(s">>>>> To reproduce: mill gen.test.testOnly ${getClass.getCanonicalName} -- -t ${test.name} -DsetupSeed=$setupSeed -DsimSeed=$lseed -DprintSimLog=true\n")
 
         dut.doSim(test.name) { dut =>
-          outcome = withFixture(test.toNoArgTest(dut))
-          outcome match {
+          withFixture(test.toNoArgTest(dut)) match {
             case Failed(e: JvmThreadUnschedule) => throw e
-            case _ =>
+            case Succeeded =>
           }
-          println(s"outcome: $outcome")
         }
       }
+    } catch {
+      case e: Throwable =>
+        printStream.println()
+        e.printStackTrace(printStream)
+        outcome = Failed(e)
     } finally {
       printStream.flush()
       logFileStream.flush()
@@ -78,6 +81,7 @@ abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with Be
       if (printSimLog)
         println(s"[info] simulation transcript at $logFilePath")
     }
+
     outcome
   }
 
