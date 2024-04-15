@@ -88,7 +88,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES: 
+   # USE CASES:
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -122,7 +122,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\ 
+   set list_check_ips "\
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:cmac_usplus:3.1\
@@ -298,18 +298,18 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
    CONFIG.CMAC_CAUI4_MODE {1} \
-   CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y2} \
+   CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y3} \
    CONFIG.ENABLE_AXI_INTERFACE {1} \
    CONFIG.GT_DRP_CLK {100} \
-   CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11} \
+   CONFIG.GT_GROUP_SELECT {X0Y20~X0Y23} \
    CONFIG.GT_REF_CLK_FREQ {322.265625} \
    CONFIG.GT_RX_BUFFER_BYPASS {0} \
    CONFIG.INCLUDE_STATISTICS_COUNTERS {1} \
    CONFIG.LANE10_GT_LOC {NA} \
-   CONFIG.LANE1_GT_LOC {X0Y8} \
-   CONFIG.LANE2_GT_LOC {X0Y9} \
-   CONFIG.LANE3_GT_LOC {X0Y10} \
-   CONFIG.LANE4_GT_LOC {X0Y11} \
+   CONFIG.LANE1_GT_LOC {X0Y20} \
+   CONFIG.LANE2_GT_LOC {X0Y21} \
+   CONFIG.LANE3_GT_LOC {X0Y22} \
+   CONFIG.LANE4_GT_LOC {X0Y23} \
    CONFIG.LANE5_GT_LOC {NA} \
    CONFIG.LANE6_GT_LOC {NA} \
    CONFIG.LANE7_GT_LOC {NA} \
