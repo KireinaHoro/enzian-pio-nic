@@ -29,7 +29,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
   lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8
   lazy val overflowCountWidth = log2Up(numOverflowCls)
-  lazy val txOffset = host[EciInterfacePlugin].sizePerMtuPerDirection
+
+  // map at aligned address to eliminate long comb paths
+  lazy val txOffset = 0x4000
 
   lazy val configWriter = host[ConfigWriter]
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
@@ -56,11 +58,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // remap packet data: first cacheline inline packet data -> second one
     // such that we have continuous address when handling packet data
-    val busCtrl = Axi4SlaveFactory(bus.pipelined(
-      aw = StreamPipe.FULL,
-      ar = StreamPipe.FULL,
-      b = StreamPipe.FULL,
-    )).remapAddress { addr =>
+    val busCtrl = Axi4SlaveFactory(bus.fullPipe()).remapAddress { addr =>
       addr.mux(
         U(0x40) -> U(0xc0),
         U(txOffset + 0x40) -> U(txOffset + 0xc0),
@@ -137,6 +135,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   val logic = during build new Area {
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+
+    assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
     configWriter.postConfig("eci rx base", 0)
     configWriter.postConfig("eci rx overflow", 0x100)
