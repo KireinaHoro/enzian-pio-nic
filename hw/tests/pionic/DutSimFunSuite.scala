@@ -63,8 +63,8 @@ abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with Be
 
         dut.doSim(test.name) { dut =>
           withFixture(test.toNoArgTest(dut)) match {
-            case Failed(e: JvmThreadUnschedule) => throw e
-            case Succeeded =>
+            case Failed(e) => throw e
+            case _ =>
           }
         }
       }

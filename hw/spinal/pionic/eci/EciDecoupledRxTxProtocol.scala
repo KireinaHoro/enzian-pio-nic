@@ -12,6 +12,7 @@ import spinal.lib.fsm._
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
+import scala.math.BigInt.int2bigInt
 
 case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketCtrlInfo()
@@ -61,11 +62,20 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     // remap packet data: first cacheline inline packet data -> second one
     // such that we have continuous address when handling packet data
     val busCtrl = Axi4SlaveFactory(bus.fullPipe()).remapAddress { addr =>
-      addr.mux(
-        U(0x40) -> U(0xc0),
-        U(txOffset + 0x40) -> U(txOffset + 0xc0),
-        default -> addr
-      )
+      new Composite(addr, "mask_remap") {
+        val n = CombInit(addr)
+        val mask = txOffset - 1
+        n(7).setWhen((addr & mask) === U(0x40)) // map XX040 to XX0c0
+
+        val o = addr.mux(
+          U(0x40) -> U(0xc0),
+          U(txOffset + 0x40) -> U(txOffset + 0xc0),
+          default -> addr
+        )
+
+        // check that optimized version issues the correct value
+        assert(n === o)
+      }.n
     }
 
     hostRxNextReq := logic.rxReqs.reduce(_ || _)
