@@ -30,4 +30,6 @@ trait EciPioProtocol extends FiberPlugin {
 
   // dcs busCtrl for control cacheline
   def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits])
+
+  def sizePerCore: BigInt
 }

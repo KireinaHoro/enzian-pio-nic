@@ -89,10 +89,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     // mux both DCS AXI masters to all cores
-    // RX + TX, one MTU each
-    val sizePerCore = 2 * sizePerMtuPerDirection
     val coreOffset = 0x100000
-    assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core")
     configWriter.postConfig("eci core offset", coreOffset)
 
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
@@ -102,6 +99,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     )))
     Axi4CrossbarFactory()
       .addSlaves(dcsNodes.zipWithIndex map { case (node, idx) =>
+        val sizePerCore = host.list[EciPioProtocol].apply(idx).sizePerCore
+        assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core")
         node -> SizeMapping(coreOffset * idx, sizePerCore)
       }: _*)
       .addConnections(dcsCdcIntfs map { dcs =>

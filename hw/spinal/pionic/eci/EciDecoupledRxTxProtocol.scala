@@ -31,7 +31,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
   // map at aligned address to eliminate long comb paths
-  lazy val txOffset = 0x4000
+  val txOffset = 0x10000
+
+  val sizePerCore = 2 * txOffset
 
   lazy val configWriter = host[ConfigWriter]
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
