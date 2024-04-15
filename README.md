@@ -16,17 +16,15 @@ $ curl -L https://raw.githubusercontent.com/lefou/millw/0.4.10/millw > $HOME/.lo
 Install the latest version of [Verilator](https://github.com/verilator/verilator) (the version with Ubuntu 22.04 is too old):
 
 ```console
-$ wget https://github.com/verilator/verilator/archive/refs/tags/v5.019.tar.gz -O verilator.tgz
-$ tar xvf verilator.tgz && cd verilator-5.019
+$ git clone https://github.com/verilator/verilator -b v5.024 --depth=1 && cd verilator
 $ sudo apt install build-essential autoconf flex bison help2man
 $ autoconf
 $ ./configure --prefix=$PWD/install
 $ make -j$(nproc)
 $ make install
 $ echo "export PATH=\"$PWD/install/bin:\$PATH\"" >> ~/.bashrc # or your shell of choice
-$ echo "export VERILATOR_ROOT=\"$PWD\"" >> ~/.bashrc
 $ source ~/.bashrc && verilator --version
-Verilator 5.019 devel rev v5.018-84-g79620e9b5
+Verilator 5.024 2024-04-05 rev v5.024
 ```
 
 Clone with submodules and check if mill is working:
