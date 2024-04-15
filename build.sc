@@ -73,6 +73,7 @@ trait HwProjModule extends Module {
 
   def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
   def generateBitstream = T {
+    generateVerilog()
     val proj = vivadoProject().path
     callVivado(bitstreamTcl().path, Seq(), proj / os.up)
     Seq("bit", "ltx").map(ext => PathRef(proj / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
