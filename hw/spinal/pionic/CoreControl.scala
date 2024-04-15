@@ -141,7 +141,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
   val rxCaptured = Reg(Stream(PacketDesc())).setIdle
-  rxCaptured.queue(config.maxRxPktsInFlight).pipelined(StreamPipe.FULL) >> io.hostRxNext
+  rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
 
   val rxFsm = new StateMachine {
     val stateIdle: State = new State with EntryPoint {

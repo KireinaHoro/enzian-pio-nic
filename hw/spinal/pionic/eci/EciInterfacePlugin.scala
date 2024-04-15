@@ -226,11 +226,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       // packet data DMA into packet buffer
       // TODO: datapath pipeline attach point (accelerators, rpc request decode, etc.)
-      val dmaBusCtrl = Axi4SlaveFactory(dmaNode.pipelined(
-        ar = StreamPipe.FULL,
-        aw = StreamPipe.FULL,
-        b = StreamPipe.FULL,
-      ))
+      val dmaBusCtrl = Axi4SlaveFactory(dmaNode.fullPipe())
       dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
       dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
 
@@ -240,10 +236,10 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       ul << proto.ul
       lcia >> proto.lcia
 
-      cio.hostTxAck << proto.hostTxAck
-      cio.hostTx >> proto.hostTx
-      cio.hostRxNextAck << proto.hostRxNextAck
-      cio.hostRxNext >> proto.hostRxNext
+      cio.hostTxAck <-/< proto.hostTxAck
+      cio.hostTx >/-> proto.hostTx
+      cio.hostRxNextAck <-/< proto.hostRxNextAck
+      cio.hostRxNext >/-> proto.hostRxNext
       cio.hostRxNextReq := proto.hostRxNextReq
 
       // CSR for the core
