@@ -20,12 +20,18 @@ set script_folder [_tcl::get_script_folder]
 ################################################################
 # Check if script is running in correct Vivado version.
 ################################################################
-set scripts_vivado_version 2022.1
+set scripts_vivado_version 2023.2
 set current_vivado_version [version -short]
 
 if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
    puts ""
-   catch {common::send_gid_msg -ssname BD::TCL -id 2041 -severity "ERROR" "This script was generated using Vivado <$scripts_vivado_version> and is being run in <$current_vivado_version> of Vivado. Please run the script in Vivado <$scripts_vivado_version> then open the design in Vivado <$current_vivado_version>. Upgrade the design by running \"Tools => Report => Report IP Status...\", then run write_bd_tcl to create an updated script."}
+   if { [string compare $scripts_vivado_version $current_vivado_version] > 0 } {
+      catch {common::send_gid_msg -ssname BD::TCL -id 2042 -severity "ERROR" " This script was generated using Vivado <$scripts_vivado_version> and is being run in <$current_vivado_version> of Vivado. Sourcing the script failed since it was created with a future version of Vivado."}
+
+   } else {
+     catch {common::send_gid_msg -ssname BD::TCL -id 2041 -severity "ERROR" "This script was generated using Vivado <$scripts_vivado_version> and is being run in <$current_vivado_version> of Vivado. Please run the script in Vivado <$scripts_vivado_version> then open the design in Vivado <$current_vivado_version>. Upgrade the design by running \"Tools => Report => Report IP Status...\", then run write_bd_tcl to create an updated script."}
+
+   }
 
    return 1
 }
@@ -88,7 +94,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -122,7 +128,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
+   set list_check_ips "\ 
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:cmac_usplus:3.1\
@@ -272,63 +278,55 @@ proc create_root_design { parentCell } {
 
   # Create instance: clk_wiz_0, and set properties
   set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_0 ]
-  set_property -dict [ list \
-   CONFIG.CLKOUT1_JITTER {98.427} \
-   CONFIG.CLKOUT1_PHASE_ERROR {87.466} \
-   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250} \
-   CONFIG.CLKOUT2_JITTER {130.958} \
-   CONFIG.CLKOUT2_PHASE_ERROR {98.575} \
-   CONFIG.CLKOUT2_USED {false} \
-   CONFIG.MMCM_CLKFBOUT_MULT_F {11.875} \
-   CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.750} \
-   CONFIG.MMCM_CLKOUT1_DIVIDE {1} \
-   CONFIG.MMCM_DIVCLK_DIVIDE {1} \
-   CONFIG.NUM_OUT_CLKS {1} \
-   CONFIG.OPTIMIZE_CLOCKING_STRUCTURE_EN {true} \
-   CONFIG.PRIM_SOURCE {No_buffer} \
-   CONFIG.USE_LOCKED {false} \
-   CONFIG.USE_RESET {false} \
- ] $clk_wiz_0
+  set_property -dict [list \
+    CONFIG.CLKOUT1_JITTER {98.427} \
+    CONFIG.CLKOUT1_PHASE_ERROR {87.466} \
+    CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250} \
+    CONFIG.CLKOUT2_JITTER {130.958} \
+    CONFIG.CLKOUT2_PHASE_ERROR {98.575} \
+    CONFIG.CLKOUT2_USED {false} \
+    CONFIG.MMCM_CLKFBOUT_MULT_F {11.875} \
+    CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.750} \
+    CONFIG.MMCM_CLKOUT1_DIVIDE {1} \
+    CONFIG.MMCM_DIVCLK_DIVIDE {1} \
+    CONFIG.NUM_OUT_CLKS {1} \
+    CONFIG.OPTIMIZE_CLOCKING_STRUCTURE_EN {true} \
+    CONFIG.PRIM_SOURCE {No_buffer} \
+    CONFIG.USE_LOCKED {false} \
+    CONFIG.USE_RESET {false} \
+  ] $clk_wiz_0
+
 
   # Create instance: cmac_init_clk_reset, and set properties
   set cmac_init_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 cmac_init_clk_reset ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
-  set_property -dict [ list \
-   CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
-   CONFIG.CMAC_CAUI4_MODE {1} \
-   CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y3} \
-   CONFIG.ENABLE_AXI_INTERFACE {1} \
-   CONFIG.GT_DRP_CLK {100} \
-   CONFIG.GT_GROUP_SELECT {X0Y20~X0Y23} \
-   CONFIG.GT_REF_CLK_FREQ {322.265625} \
-   CONFIG.GT_RX_BUFFER_BYPASS {0} \
-   CONFIG.INCLUDE_STATISTICS_COUNTERS {1} \
-   CONFIG.LANE10_GT_LOC {NA} \
-   CONFIG.LANE1_GT_LOC {X0Y20} \
-   CONFIG.LANE2_GT_LOC {X0Y21} \
-   CONFIG.LANE3_GT_LOC {X0Y22} \
-   CONFIG.LANE4_GT_LOC {X0Y23} \
-   CONFIG.LANE5_GT_LOC {NA} \
-   CONFIG.LANE6_GT_LOC {NA} \
-   CONFIG.LANE7_GT_LOC {NA} \
-   CONFIG.LANE8_GT_LOC {NA} \
-   CONFIG.LANE9_GT_LOC {NA} \
-   CONFIG.NUM_LANES {4x25} \
-   CONFIG.RX_FLOW_CONTROL {0} \
-   CONFIG.RX_GT_BUFFER {1} \
-   CONFIG.RX_MAX_PACKET_LEN {9622} \
-   CONFIG.TX_FLOW_CONTROL {0} \
-   CONFIG.USER_INTERFACE {AXIS} \
- ] $cmac_usplus_0
+  set_property -dict [list \
+    CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
+    CONFIG.CMAC_CAUI4_MODE {1} \
+    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y3} \
+    CONFIG.ENABLE_AXI_INTERFACE {1} \
+    CONFIG.GT_DRP_CLK {100} \
+    CONFIG.GT_GROUP_SELECT {X0Y20~X0Y23} \
+    CONFIG.GT_REF_CLK_FREQ {322.265625} \
+    CONFIG.INCLUDE_STATISTICS_COUNTERS {1} \
+    CONFIG.NUM_LANES {4x25} \
+    CONFIG.RX_FLOW_CONTROL {0} \
+    CONFIG.RX_GT_BUFFER {1} \
+    CONFIG.RX_MAX_PACKET_LEN {9622} \
+    CONFIG.TX_FLOW_CONTROL {0} \
+    CONFIG.USER_INTERFACE {AXIS} \
+  ] $cmac_usplus_0
+
 
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
-  set_property -dict [ list \
-   CONFIG.CONST_VAL {0b0011} \
-   CONFIG.CONST_WIDTH {4} \
- ] $xlconstant_0
+  set_property -dict [list \
+    CONFIG.CONST_VAL {0b0011} \
+    CONFIG.CONST_WIDTH {4} \
+  ] $xlconstant_0
+
 
   # Create interface connections
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
@@ -339,14 +337,14 @@ proc create_root_design { parentCell } {
 
   # Create port connections
   connect_bd_net -net app_clk_reset_bus_struct_reset [get_bd_pins app_clk_reset/bus_struct_reset] [get_bd_pins cmac_usplus_0/s_axi_sreset]
-  connect_bd_net -net app_clk_reset_mb_reset [get_bd_ports app_clk_reset] [get_bd_pins app_clk_reset/mb_reset]
-  connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/drp_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk]
-  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins clk_wiz_0/clk_out1] [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  connect_bd_net -net app_clk_reset_mb_reset [get_bd_pins app_clk_reset/mb_reset] [get_bd_ports app_clk_reset]
+  connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk] [get_bd_pins cmac_usplus_0/drp_clk]
+  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_wiz_0/clk_out1] [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset [get_bd_pins cmac_init_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
-  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_pins cmac_usplus_0/rx_clk]
-  connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_ports txclk] [get_bd_pins cmac_usplus_0/gt_txusrclk2]
+  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/rx_clk]
+  connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_pins cmac_usplus_0/gt_txusrclk2] [get_bd_ports txclk]
   connect_bd_net -net reset_sys_1 [get_bd_ports reset_sys] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity] [get_bd_pins xlconstant_0/dout]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins xlconstant_0/dout] [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity]
 
   # Create address segments
   assign_bd_address -offset 0x00000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces reg_axil] [get_bd_addr_segs cmac_usplus_0/s_axi/Reg] -force
