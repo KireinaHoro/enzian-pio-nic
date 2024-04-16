@@ -1219,12 +1219,12 @@ axil_adapter_inst : entity work.axil_adapter
   design_1_i: entity work.design_1
   PORT MAP (
     -- GT connections
-    gt_grx_n => F_MAC0_RX_N,
-    gt_grx_p => F_MAC0_RX_P,
-    gt_gtx_n => F_MAC0_TX_N,
-    gt_gtx_p => F_MAC0_TX_P,
-    gt_ref_clk_clk_n => F_MAC0C_CLK_N,
-    gt_ref_clk_clk_p => F_MAC0C_CLK_P,
+    gt_grx_n => F_MAC1_RX_N,
+    gt_grx_p => F_MAC1_RX_P,
+    gt_gtx_n => F_MAC1_TX_N,
+    gt_gtx_p => F_MAC1_TX_P,
+    gt_ref_clk_clk_n => F_MAC1C_CLK_N,
+    gt_ref_clk_clk_p => F_MAC1C_CLK_P,
 
     -- clocking & reset
     clk_io => clk_io,
