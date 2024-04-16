@@ -89,7 +89,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       .build()
 
     // mux both DCS AXI masters to all cores
-    val coreOffset = 0x100000
+    val coreOffset = 0x10000
     configWriter.postConfig("eci core offset", coreOffset)
 
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
