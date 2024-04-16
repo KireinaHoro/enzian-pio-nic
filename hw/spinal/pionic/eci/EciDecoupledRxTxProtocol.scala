@@ -6,7 +6,7 @@ import pionic.{ConfigWriter, GlobalCSRPlugin, PacketLength, PioNicConfig, checkS
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4AwUnburstified, Axi4SlaveFactory}
 import spinal.lib.bus.misc.{SingleMapping, SizeMapping}
 import spinal.lib.fsm._
 import spinal.lib.misc.plugin.FiberPlugin
@@ -36,6 +36,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
   val sizePerCore = 2 * txOffset
 
+  var writeCmd: Stream[Fragment[Axi4AwUnburstified]] = null
+  var txRwPort: MemReadWritePort[_] = null
+
   lazy val configWriter = host[ConfigWriter]
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
     val clSize = EciCmdDefs.ECI_CL_SIZE_BYTES
@@ -62,7 +65,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     // remap packet data: first cacheline inline packet data -> second one
     // such that we have continuous address when handling packet data
     val busCtrl = Axi4SlaveFactory(bus.fullPipe()).remapAddress { addr =>
-      new Composite(addr, "mask_remap") {
+      new Composite(addr, "remapHalfCl") {
         val n = CombInit(addr)
         val mask = txOffset - 1
         n(7).setWhen((addr & mask) === U(0x40)) // map XX040 to XX0c0
@@ -75,7 +78,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
         // check that optimized version issues the correct value
         assert(n === o)
-      }.n
+      }.o
     }
 
     hostRxNextReq := logic.rxReqs.reduce(_ || _)
@@ -140,8 +143,10 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // tx buffer always start at 0
     // allow reloading from the packet buffer for partial flush due to voluntary invalidations
-    busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0,
+    txRwPort = busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0,
       mappingLength = config.roundMtu)
+
+    writeCmd = busCtrl.writeCmd
   }.setName("driveDcsBus")
 
   val logic = during build new Area {

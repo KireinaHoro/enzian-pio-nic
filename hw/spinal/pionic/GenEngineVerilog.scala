@@ -5,6 +5,7 @@ import pionic.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
 import pionic.pcie.PcieBridgeInterfacePlugin
 import spinal.core.{DoubleToBuilder, FixedFrequency, IntToBuilder, SpinalConfig}
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
+import spinal.lib.misc.PathTracer
 import spinal.lib.misc.plugin._
 
 import scala.collection.mutable
@@ -91,6 +92,15 @@ object GenEngineVerilog {
     if (genHeaders) {
       config.allocFactory.writeHeader("pionic", genDir / "regs.h")
       report.toplevel.host[ConfigWriter].writeConfigs(genDir / "config.h", elabConfig)
+    }
+
+    // timing paths
+    if (name == "eci") {
+      val plugin = report.toplevel.host.list[EciDecoupledRxTxProtocol].head
+      val start = plugin.writeCmd.payload.addr
+      val end = plugin.txRwPort.enable
+
+      println(PathTracer.impl(start, end).report())
     }
   }
 
