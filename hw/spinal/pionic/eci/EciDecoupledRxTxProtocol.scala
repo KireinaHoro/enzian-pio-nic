@@ -64,13 +64,13 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // remap packet data: first cacheline inline packet data -> second one
     // such that we have continuous address when handling packet data
-    val busCtrl = Axi4SlaveFactory(bus.fullPipe(), cmdPipeline = StreamPipe.FULL).remapAddress { addr =>
+    val busCtrl = Axi4SlaveFactory(bus.fullPipe(), cmdPipeline = StreamPipe.FULL, addrRemapFunc = { addr =>
       addr.mux(
         U(0x40) -> U(0xc0),
         U(txOffset + 0x40) -> U(txOffset + 0xc0),
         default -> addr
       )
-    }
+    })
 
     hostRxNextReq := logic.rxReqs.reduce(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
