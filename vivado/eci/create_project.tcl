@@ -157,6 +157,18 @@ source "${src_dir}/bd/design_1.tcl"
 set bd_file [get_files design_1.bd]
 generate_target all $bd_file
 
+# create ILA for ECI channels ready/valid
+create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_eci_chans_arb
+set ila_ip [get_ips ila_eci_chans_arb]
+set_property -dict [list \
+    CONFIG.C_ADV_TRIGGER {true} \
+    CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_NUM_OF_PROBES {34} \
+    CONFIG.C_TRIGIN_EN {false} \
+    CONFIG.C_TRIGOUT_EN {false} \
+    ] $ila_ip
+generate_target all $ila_ip
+
 close_project
 
 # local config file for static-shell flows
