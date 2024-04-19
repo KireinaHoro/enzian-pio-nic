@@ -65,9 +65,9 @@ trait HwProjModule extends Module {
   def vivadoRoot = millSourcePath / "vivado" / variant
   def vivadoProjectName = s"pio-nic-$variant"
   def projectTcl = T.source(vivadoRoot / "create_project.tcl")
-  def projectMiscFiles = T.source(vivadoRoot)
+  def projectTclDeps = T.source(vivadoRoot / "bd" / "design_1.tcl")
   def vivadoProject = T {
-    projectMiscFiles()
+    projectTclDeps()
     generateVerilog()
     callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), T.dest)
     PathRef(T.dest / vivadoProjectName)
