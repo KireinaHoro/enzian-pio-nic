@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
-CFLAGS ?= -O2 -pipe -Wall -I../include -static
+CFLAGS ?= -O2 -pipe -Wall -Wno-unused-function -I../include -static
 
 DRIVERS := $(patsubst ../%.c,%,$(wildcard ../*.c))
 

@@ -8,22 +8,25 @@
 #include "api.h"
 #include "hal.h"
 #include "cmac.h"
-#include "debug.h"
+#include "diag.h"
 
 #include "../../hw/gen/eci/regs.h"
 #include "../../hw/gen/eci/config.h"
 
 #define CMAC_BASE 0x200000UL
 
-#define SHELL_REGS_BASE (0x900000000000UL)
-#define SHELL_REGS_SIZE (1UL << 44)
-#define SHELL_VERSION_ADDR (0x7effffffff8)
+#define PIONIC_REGS_BASE (0x900000000000UL)
+#define PIONIC_REGS_SIZE(ctx) ((PIONIC_NUM_CORES + 1) * ((ctx)->page_size))
+
+#define SHELL_REGS_BASE (0x97EFFFFFF000UL)
+#define SHELL_REGS_VERSION_ADDR (0xff8)
 
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define FPGA_MEM_SIZE (1UL << 30) // 1 TiB
 
 struct pionic_ctx {
-  void *regs_region;
+  void *shell_regs_region;
+  void *nic_regs_region;
   void *mem_region;
 
   struct {
@@ -34,14 +37,16 @@ struct pionic_ctx {
     // FIXME: this precludes passing packet in the registers and forces a copy
     uint8_t *rx_pkt_buf, *tx_pkt_buf;
   } core_states[PIONIC_NUM_CORES];
+
+  uint32_t page_size;
 };
 
-// HAL functions that access regs_region (over the ECI IO bridge)
+// HAL functions that access regs region (over the ECI IO bridge)
 void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
   printf("[Reg] WQ %#lx <- %#lx\n", addr, reg);
 #endif
-  ((volatile uint64_t *)ctx->regs_region)[addr / 8] = reg;
+  ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8] = reg;
 }
 
 uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
@@ -49,7 +54,7 @@ uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
   printf("[Reg] RQ %#lx -> ", addr);
   fflush(stdout);
 #endif
-  uint64_t reg = ((volatile uint64_t *)ctx->regs_region)[addr / 8];
+  uint64_t reg = ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8];
 #ifdef DEBUG_REG
   printf("%#lx\n", reg);
 #endif
@@ -60,7 +65,7 @@ void write32(pionic_ctx_t ctx, uint64_t addr, uint32_t reg) {
 #ifdef DEBUG_REG
   printf("[Reg] WD %#lx <- %#x\n", addr, reg);
 #endif
-  ((volatile uint32_t *)ctx->regs_region)[addr / 4] = reg;
+  ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4] = reg;
 }
 
 uint32_t read32(pionic_ctx_t ctx, uint64_t addr) {
@@ -68,9 +73,28 @@ uint32_t read32(pionic_ctx_t ctx, uint64_t addr) {
   printf("[Reg] RD %#lx -> ", addr);
   fflush(stdout);
 #endif
-  uint32_t reg = ((volatile uint32_t *)ctx->regs_region)[addr / 4];
+  uint32_t reg = ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4];
 #ifdef DEBUG_REG
   printf("%#x\n", reg);
+#endif
+  return reg;
+}
+
+static void write64_shell(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
+#ifdef DEBUG_REG
+  printf("[Shell] WQ %#lx <- %#lx\n", addr, reg);
+#endif
+  ((volatile uint64_t *)ctx->shell_regs_region)[addr / 8] = reg;
+}
+
+static uint64_t read64_shell(pionic_ctx_t ctx, uint64_t addr) {
+#ifdef DEBUG_REG
+  printf("[Shell] RQ %#lx -> ", addr);
+  fflush(stdout);
+#endif
+  uint64_t reg = ((volatile uint64_t *)ctx->shell_regs_region)[addr / 8];
+#ifdef DEBUG_REG
+  printf("%#lx\n", reg);
 #endif
   return reg;
 }
@@ -79,6 +103,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   int ret = -1;
 
   pionic_ctx_t ctx = *usr_ctx = malloc(sizeof(struct pionic_ctx));
+  ctx->page_size = sysconf(_SC_PAGESIZE);
 
   int fd = open("/dev/mem", O_RDWR);
   if (fd < 0) {
@@ -86,17 +111,28 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     goto fail;
   }
 
-  // map the entire regs region (44 bits)
-  ctx->regs_region = mmap(NULL, SHELL_REGS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SHELL_REGS_BASE);
-  if (ctx->regs_region == MAP_FAILED) {
+  printf("Opened /dev/mem\n");
+
+  // map regs for nic engine
+  ctx->nic_regs_region = mmap(NULL, PIONIC_REGS_SIZE(ctx), PROT_READ | PROT_WRITE, MAP_SHARED, fd, PIONIC_REGS_BASE);
+  if (ctx->nic_regs_region == MAP_FAILED) {
     perror("mmap regs space");
     goto fail;
   }
+  printf("Mapped NIC regs region with /dev/mem\n");
+
+  // map regs for shell
+  ctx->shell_regs_region = mmap(NULL, ctx->page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SHELL_REGS_BASE);
+  if (ctx->shell_regs_region == MAP_FAILED) {
+    perror("mmap shell regs space");
+    goto fail;
+  }
+  printf("Mapped shell regs region with /dev/mem\n");
 
   close(fd);
 
   // read out shell version number
-  printf("Enzian shell version: %08x\n", read32(ctx, SHELL_VERSION_ADDR));
+  printf("Enzian shell version: %08lx\n", read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
 
   fd = open("/dev/fpgamem", O_RDWR);
   if (fd < 0) {
@@ -160,7 +196,8 @@ void pionic_fini(pionic_ctx_t *usr_ctx) {
   stop_cmac(ctx, CMAC_BASE);
 
   munmap(ctx->mem_region, FPGA_MEM_SIZE);
-  munmap(ctx->regs_region, SHELL_REGS_SIZE);
+  munmap(ctx->nic_regs_region, PIONIC_REGS_SIZE(ctx));
+  munmap(ctx->shell_regs_region, ctx->page_size);
 
   // free rx buffers
   for (int i = 0; i < PIONIC_NUM_CORES; ++i) {
@@ -223,7 +260,7 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
     }
 
 #ifdef DEBUG
-    printf("Got packet at pktbuf %#lx len %#lx\n", PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
+    printf("Got packet len %#lx\n", pkt_len);
 #endif
     return true;
   } else {

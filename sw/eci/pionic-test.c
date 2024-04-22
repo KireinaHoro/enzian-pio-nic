@@ -7,7 +7,7 @@
 
 #include "common.h"
 #include "api.h"
-#include "debug.h"
+#include "diag.h"
 #include "profile.h"
 
 static uint8_t *test_data;
@@ -105,8 +105,8 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
 
 int main(int argc, char *argv[]) {
   int ret = EXIT_FAILURE;
-  if (argc != 2) {
-    fprintf(stderr, "usage: %s <pcie dev id>\n", argv[0]);
+  if (argc != 1) {
+    fprintf(stderr, "usage: %s\n", argv[0]);
     goto fail;
   }
 
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
   }
 
   pionic_ctx_t ctx;
-  if (pionic_init(&ctx, argv[1], true) < 0) {
+  if (pionic_init(&ctx, NULL, true) < 0) {
     goto fini;
   }
 
