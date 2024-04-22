@@ -93,15 +93,6 @@ object GenEngineVerilog {
       config.allocFactory.writeHeader("pionic", genDir / "regs.h")
       report.toplevel.host[ConfigWriter].writeConfigs(genDir / "config.h", elabConfig)
     }
-
-    // timing paths
-    if (name == "eci") {
-      val plugin = report.toplevel.host.list[EciDecoupledRxTxProtocol].head
-      val start = plugin.writeCmd.payload.addr
-      val end = plugin.txRwPort.enable
-
-      println(PathTracer.impl(start, end).report())
-    }
   }
 
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
