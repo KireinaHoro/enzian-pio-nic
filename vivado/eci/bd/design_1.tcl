@@ -427,9 +427,9 @@ proc create_root_design { parentCell } {
 
 
   # Create interface connections
-connect_bd_intf_net -intf_net Conn [get_bd_intf_ports regs_axil] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
-connect_bd_intf_net -intf_net Conn1 [get_bd_intf_ports dcs_even_axi] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
-connect_bd_intf_net -intf_net Conn2 [get_bd_intf_ports dcs_odd_axi] [get_bd_intf_pins system_ila_0/SLOT_2_AXI]
+connect_bd_intf_net -intf_net DCS_EVEN_AXI [get_bd_intf_ports dcs_even_axi] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
+connect_bd_intf_net -intf_net DCS_ODD_AXI [get_bd_intf_ports dcs_odd_axi] [get_bd_intf_pins system_ila_0/SLOT_2_AXI]
+connect_bd_intf_net -intf_net REGS_AXIL [get_bd_intf_ports regs_axil] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
