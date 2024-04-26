@@ -16,7 +16,7 @@
 #define CMAC_BASE 0x200000UL
 
 #define PIONIC_REGS_BASE (0x900000000000UL)
-#define PIONIC_REGS_SIZE(ctx) ((PIONIC_NUM_CORES + 1) * ((ctx)->page_size))
+#define PIONIC_REGS_SIZE(ctx) (0x300000)
 
 #define SHELL_REGS_BASE (0x97EFFFFFF000UL)
 #define SHELL_REGS_VERSION_ADDR (0xff8)
@@ -102,8 +102,13 @@ static uint64_t read64_shell(pionic_ctx_t ctx, uint64_t addr) {
 int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   int ret = -1;
 
+  printf("Initializing ECI PIO NIC...\n");
+
   pionic_ctx_t ctx = *usr_ctx = malloc(sizeof(struct pionic_ctx));
   ctx->page_size = sysconf(_SC_PAGESIZE);
+  ctx->nic_regs_region = MAP_FAILED;
+  ctx->shell_regs_region = MAP_FAILED;
+  ctx->mem_region = MAP_FAILED;
 
   int fd = open("/dev/mem", O_RDWR);
   if (fd < 0) {
@@ -188,16 +193,24 @@ void pionic_set_core_mask(pionic_ctx_t ctx, uint64_t mask) {
 }
 
 void pionic_fini(pionic_ctx_t *usr_ctx) {
+  printf("Uninitializing ECI PIO NIC...\n");
+
   pionic_ctx_t ctx = *usr_ctx;
 
   *usr_ctx = NULL;
 
-  // disable CMAC
-  stop_cmac(ctx, CMAC_BASE);
+  if (ctx->nic_regs_region != MAP_FAILED) {
+    // disable CMAC
+    stop_cmac(ctx, CMAC_BASE);
 
-  munmap(ctx->mem_region, FPGA_MEM_SIZE);
-  munmap(ctx->nic_regs_region, PIONIC_REGS_SIZE(ctx));
-  munmap(ctx->shell_regs_region, ctx->page_size);
+    munmap(ctx->nic_regs_region, PIONIC_REGS_SIZE(ctx));
+  }
+
+  if (ctx->mem_region != MAP_FAILED)
+    munmap(ctx->mem_region, FPGA_MEM_SIZE);
+
+  if (ctx->shell_regs_region != MAP_FAILED)
+    munmap(ctx->shell_regs_region, ctx->page_size);
 
   // free rx buffers
   for (int i = 0; i < PIONIC_NUM_CORES; ++i) {
