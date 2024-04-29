@@ -397,6 +397,7 @@ proc create_root_design { parentCell } {
   # Create instance: system_ila_0, and set properties
   set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
   set_property -dict [list \
+    CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {4} \
     CONFIG.C_NUM_OF_PROBES {30} \
