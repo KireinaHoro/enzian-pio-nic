@@ -5,6 +5,10 @@ import scalalib._
 import $file.deps.spinalhdl.build
 import $file.deps.`spinal-blocks`.build
 
+// mill-vcs-version for version CSR
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
+import de.tobiasroeser.mill.vcs.version.VcsVersion
+
 object v {
   val scalaVersion = "2.13.12"
 }
@@ -47,9 +51,16 @@ trait HwProjModule extends Module {
   def generatedSourcesPath = millSourcePath / "hw" / "gen" / variant
   override def millSourcePath = os.pwd
 
+  // 8 bytes
+  def gitVersion = T { VcsVersion.vcsState().currentRevision.take(16) }
+
   def generateVerilog = T {
-    gen.runMain("pionic.GenEngineVerilog",
-      "--name", variant)()
+    gen.runForkedTask(
+      mainClass = T.task { "pionic.GenEngineVerilog" },
+      args = T.task {
+        Args("--name", variant, "--version", gitVersion())
+      }
+    )()
 
     Seq("NicEngine_ips.v", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
   }
