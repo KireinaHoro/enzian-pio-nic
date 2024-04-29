@@ -3,9 +3,9 @@ package pionic
 import mainargs._
 import pionic.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
 import pionic.pcie.PcieBridgeInterfacePlugin
-import spinal.core.{DoubleToBuilder, FixedFrequency, IntToBuilder, SpinalConfig}
+import spinal.core.{FixedFrequency, IntToBuilder, SpinalConfig}
+import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
-import spinal.lib.misc.PathTracer
 import spinal.lib.misc.plugin._
 
 import scala.collection.mutable
@@ -73,8 +73,10 @@ object GenEngineVerilog {
            genHeaders: Boolean = true,
            @arg(doc = "print register map")
            printRegMap: Boolean = true,
+           @arg(doc = "git version (for embedding as CSR)")
+           version: Option[String],
          ): Unit = {
-    implicit val config = PioNicConfig()
+    implicit val config = PioNicConfig(gitVersion = version.map(_.asHex.toLong).getOrElse(~0L))
 
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)

@@ -26,6 +26,7 @@ case class PioNicConfig(
                            (9618, .6), // max jumbo frame
                          ),
                          regWidth: Int = 64,
+                         gitVersion: Long,
                        ) {
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
   def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)

@@ -16,11 +16,14 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
       val dispatchMask = Reg(Bits(numCores bits)) init ((1 << numCores) - 1)
     }
     val status = new Bundle {
+      val version = Bits(config.regWidth bits)
       val cycles = CycleClock(config.regWidth bits)
       val rxOverflowCount = UInt(config.regWidth bits)
       val dispatchMaskChanged = Bool()
     }
 
+    println(f"Git version: ${config.gitVersion}%x")
+    status.version := B(config.gitVersion)
     status.cycles.bits := CounterFreeRun(config.regWidth bits)
   }
 
