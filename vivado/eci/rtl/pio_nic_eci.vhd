@@ -1147,9 +1147,9 @@ axil_adapter_inst : entity work.axil_adapter
     -- registers for NIC engine [0x0 - 0x200000]
     M00_BASE_ADDR => 0,
     M00_ADDR_WIDTH = 21,
-    -- registers for NIC engine [0x0 - 0x200000]
+    -- registers for CMAC [0x200000 - 0x2007ff]
     M01_BASE_ADDR => 16#200000#,
-    M01_ADDR_WIDTH = 21
+    M01_ADDR_WIDTH = 11
   )
   port map (
     clk => app_clk,
