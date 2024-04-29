@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <assert.h>
 #include <sys/mman.h>
 
 #include "api.h"
@@ -138,6 +139,11 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
 
   // read out shell version number
   printf("Enzian shell version: %08lx\n", read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
+
+  // read out NicEngine version number
+  uint64_t ver = read64(ctx, PIONIC_GLOBAL_VERSION);
+  uint64_t cur_time = read64(ctx, PIONIC_GLOBAL_CYCLES);
+  printf("NicEngine version: %08lx, current timestamp %ld\n", ver, cur_time);
 
   fd = open("/dev/fpgamem", O_RDWR);
   if (fd < 0) {
