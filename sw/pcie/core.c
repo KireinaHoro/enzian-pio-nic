@@ -95,7 +95,10 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   fclose(fp);
 
   // configure CMAC
-  start_cmac(ctx, PIONIC_CMAC_BASE, loopback);
+  if (start_cmac(ctx, PIONIC_CMAC_BASE, loopback)) {
+    printf("Failed to start CMAC\n");
+    goto fail;
+  }
 
   // set defaults
   pionic_set_rx_block_cycles(ctx, 200);
