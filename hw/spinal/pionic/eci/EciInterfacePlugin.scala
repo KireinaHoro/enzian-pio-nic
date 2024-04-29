@@ -42,28 +42,19 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
   val logic = during build new Area {
     val clockDomain = ClockDomain.current
-    val dcsClock = ClockDomain.external("dcsClock")
 
     // even and odd in ALIASED addresses
     // Refer to Chapter 9.4 in CCKit
-    val dcsOdd = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(dcsClock)
-    val dcsEven = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(dcsClock)
+    val dcsOdd = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(clockDomain)
+    val dcsEven = slave(DcsInterface(axiConfig)) addTag ClockDomainTag(clockDomain)
 
     dcsOdd.axi.setName("s_axi_dcs_odd")
     dcsEven.axi.setName("s_axi_dcs_even")
 
-    val dcsCdcIntfs = Seq(dcsEven, dcsOdd) map { dcs =>
-      new Composite(dcs, "cdc") {
-        val ret = dcs.clone
-        dcs.axi.cdc(dcsClock, clockDomain) >> ret.axi
-        val lciFifo = SimpleAsyncFifo(ret.cleanMaybeInvReq, dcs.cleanMaybeInvReq, 2, clockDomain, dcsClock)
-        val ulFifo = SimpleAsyncFifo(ret.unlockResp, dcs.unlockResp, 2, clockDomain, dcsClock)
-        val lciaFifo = SimpleAsyncFifo(dcs.cleanMaybeInvResp, ret.cleanMaybeInvResp, 2, dcsClock, clockDomain)
-      }.ret
-    }
+    val dcsIntfs = Seq(dcsEven, dcsOdd)
 
     // assert dcs interfaces never drop valid when ready is low
-    dcsCdcIntfs foreach { dcs =>
+    dcsIntfs foreach { dcs =>
       checkStreamValidDrop(dcs.cleanMaybeInvReq)
       checkStreamValidDrop(dcs.unlockResp)
     }
@@ -103,7 +94,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core")
         node -> SizeMapping(coreOffset * idx, sizePerCore)
       }: _*)
-      .addConnections(dcsCdcIntfs map { dcs =>
+      .addConnections(dcsIntfs map { dcs =>
         dcs.axi.remapAddr { a =>
           val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
@@ -132,14 +123,14 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
           val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
-      }.transpose.zip(dcsCdcIntfs) foreach { case (chan, dcs) => new Area {
+      }.transpose.zip(dcsIntfs) foreach { case (chan, dcs) => new Area {
         chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
       }.setName("arbitrateIntoLcl")
       }
     }
 
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], hreqIdLocator: EciWord => Bits, addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      dcsCdcIntfs.map { dcs =>
+      dcsIntfs.map { dcs =>
         new Area {
           val chan = chanLocator(dcs)
           val coreIdx = hreqIdLocator(chan.data).asUInt.resize(log2Up(cores.length))
