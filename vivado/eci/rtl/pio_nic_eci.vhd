@@ -799,10 +799,13 @@ port map (
 
 -- DC Slices: One DCS for odd and another for even VCs.
 -- DCS for even VCs ie odd CL indices.
-dcs_even : entity work.dcs_2_axi
+dcs_even : entity work.dcs_cdc
 port map (
-  clk   => clk,
-  reset => reset,
+  eci_clk   => clk,
+  eci_reset => reset,
+
+  app_clk   => app_clk,
+  app_reset => app_clk_reset,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -910,10 +913,13 @@ port map (
   );
 
 -- DCS for odd VCs ie even CL indices.
-dcs_odd : entity work.dcs_2_axi
+dcs_odd : entity work.dcs_cdc
 port map (
-  clk   => clk,
-  reset => reset,
+  eci_clk   => clk,
+  eci_reset => reset,
+
+  app_clk   => app_clk,
+  app_reset => app_clk_reset,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -1430,9 +1436,6 @@ NicEngine_inst : entity work.NicEngine
     cmacRxClock_reset => rxclk_reset,
     cmacTxClock_clk => txclk,
     cmacTxClock_reset => txclk_reset,
-    -- DC clocks
-    dcsClock_clk => clk,
-    dcsClock_reset => reset,
 
     -- CMAC interface
     s_axis_rx_tvalid => cmac_rx_axis.tvalid,

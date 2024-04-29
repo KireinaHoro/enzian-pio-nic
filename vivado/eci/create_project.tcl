@@ -112,6 +112,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 # Add sources from us
 add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/dcs_2_axi.sv" \
+    "$src_dir/rtl/dcs_cdc.sv" \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/axil_regs_interconnect.v" \
     "$spinal_gen_dir/NicEngine_ips.v" \
