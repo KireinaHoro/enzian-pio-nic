@@ -76,7 +76,7 @@ object GenEngineVerilog {
            @arg(doc = "git version (for embedding as CSR)")
            version: Option[String],
          ): Unit = {
-    implicit val config = PioNicConfig(gitVersion = version.map(_.asHex.toLong).getOrElse(~0L))
+    implicit val config = PioNicConfig(gitVersion = version.map(_.asHex).getOrElse((BigInt(1) << 64) - 1))
 
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)
