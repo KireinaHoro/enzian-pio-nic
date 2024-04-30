@@ -55,6 +55,8 @@ void signal_handler(int sig) {
 }
 
 void pionic_probe_rx_block_cycles(pionic_ctx_t ctx) {
+  printf("Testing for maximum blocking time...\n");
+
   struct sigaction new = {
     .sa_handler = signal_handler,
     .sa_flags = SA_RESETHAND, // only catch once
@@ -67,7 +69,7 @@ void pionic_probe_rx_block_cycles(pionic_ctx_t ctx) {
 
   jmp_buf sigbus_jmpbuf;
   sigbus_jmp = &sigbus_jmpbuf;
-  int us;
+  volatile int us = -1;
 
   if (!sigsetjmp(sigbus_jmpbuf, 1)) {
     // probe from 1 ms to 1 s
