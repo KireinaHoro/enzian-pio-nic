@@ -51,15 +51,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     dcsOdd.axi.setName("s_axi_dcs_odd")
     dcsEven.axi.setName("s_axi_dcs_even")
 
-    val dcsIntfs = Seq(dcsEven, dcsOdd) map { dcs =>
-      new Composite(dcs, "pipeline") {
-        val ret = dcs.clone
-        ret.axi               <<   dcs.axi.fullPipe()
-        ret.cleanMaybeInvReq  >/-> dcs.cleanMaybeInvReq
-        ret.cleanMaybeInvResp <-/< dcs.cleanMaybeInvResp
-        ret.unlockResp        >/-> dcs.unlockResp
-      }.ret
-    }
+    val dcsIntfs = Seq(dcsEven, dcsOdd)
 
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
