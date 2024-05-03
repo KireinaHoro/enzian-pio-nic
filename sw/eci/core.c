@@ -23,7 +23,7 @@
 #define SHELL_REGS_VERSION_ADDR (0xff8)
 
 #define FPGA_MEM_BASE (0x10000000000UL)
-#define FPGA_MEM_SIZE (1UL << 30) // 1 TiB
+#define FPGA_MEM_SIZE (1UL << 40) // 1 TiB
 
 struct pionic_ctx {
   void *shell_regs_region;
@@ -152,7 +152,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   }
 
   // map the entire fpga memory region (1 TiB)
-  ctx->mem_region = mmap(NULL, FPGA_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, FPGA_MEM_BASE);
+  ctx->mem_region = mmap((void *)FPGA_MEM_BASE, FPGA_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (ctx->mem_region == MAP_FAILED) {
     perror("mmap fpga mem space");
     goto fail;
