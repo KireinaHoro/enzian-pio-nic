@@ -2,7 +2,7 @@ package pionic.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{ConfigWriter, GlobalCSRPlugin, PacketLength, PioNicConfig, checkStreamValidDrop}
+import pionic.{ConfigWriter, DebugPlugin, GlobalCSRPlugin, PacketLength, PioNicConfig, checkStreamValidDrop}
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -377,5 +377,11 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
         }
       }
     }
+
+    // make rx and tx fsm states available to top for debug
+    rxFsm.build()
+    txFsm.build()
+    host[DebugPlugin].postDebug(s"rxFsm_${coreID}_stateReg", rxFsm.stateReg)
+    host[DebugPlugin].postDebug(s"txFsm_${coreID}_stateReg", txFsm.stateReg)
   }
 }

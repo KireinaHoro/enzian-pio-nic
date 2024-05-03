@@ -338,6 +338,14 @@ proc create_root_design { parentCell } {
   set dcsOdd_unlockResp_payload_data [ create_bd_port -dir I -from 63 -to 0 -type data dcsOdd_unlockResp_payload_data ]
   set dcsOdd_unlockResp_payload_size [ create_bd_port -dir I -from 4 -to 0 -type data dcsOdd_unlockResp_payload_size ]
   set dcsOdd_unlockResp_payload_vc [ create_bd_port -dir I -from 4 -to 0 -type data dcsOdd_unlockResp_payload_vc ]
+  set txFsm_0_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_0_stateReg ]
+  set rxFsm_0_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_0_stateReg ]
+  set txFsm_1_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_1_stateReg ]
+  set rxFsm_1_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_1_stateReg ]
+  set txFsm_2_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_2_stateReg ]
+  set rxFsm_2_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_2_stateReg ]
+  set txFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_3_stateReg ]
+  set rxFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_3_stateReg ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -400,7 +408,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {4} \
-    CONFIG.C_NUM_OF_PROBES {30} \
+    CONFIG.C_NUM_OF_PROBES {38} \
     CONFIG.C_SLOT {3} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {44} \
     CONFIG.C_SLOT_0_AXI_DATA_WIDTH {64} \
@@ -469,6 +477,14 @@ connect_bd_intf_net -intf_net SHELL_IO_AXIL [get_bd_intf_ports shell_io_axil] [g
   connect_bd_net -net dcsOdd_unlockResp_ready_1 [get_bd_ports dcsOdd_unlockResp_ready] [get_bd_pins system_ila_0/probe26]
   connect_bd_net -net dcsOdd_unlockResp_valid_1 [get_bd_ports dcsOdd_unlockResp_valid] [get_bd_pins system_ila_0/probe25]
   connect_bd_net -net reset_sys_1 [get_bd_ports reset] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
+  connect_bd_net -net rxFsm_0_stateReg_1 [get_bd_ports rxFsm_0_stateReg] [get_bd_pins system_ila_0/probe30]
+  connect_bd_net -net rxFsm_1_stateReg_1 [get_bd_ports rxFsm_1_stateReg] [get_bd_pins system_ila_0/probe32]
+  connect_bd_net -net rxFsm_2_stateReg_1 [get_bd_ports rxFsm_2_stateReg] [get_bd_pins system_ila_0/probe34]
+  connect_bd_net -net rxFsm_3_stateReg_1 [get_bd_ports rxFsm_3_stateReg] [get_bd_pins system_ila_0/probe36]
+  connect_bd_net -net txFsm_0_stateReg_1 [get_bd_ports txFsm_0_stateReg] [get_bd_pins system_ila_0/probe31]
+  connect_bd_net -net txFsm_1_stateReg_1 [get_bd_ports txFsm_1_stateReg] [get_bd_pins system_ila_0/probe33]
+  connect_bd_net -net txFsm_2_stateReg_1 [get_bd_ports txFsm_2_stateReg] [get_bd_pins system_ila_0/probe35]
+  connect_bd_net -net txFsm_3_stateReg_1 [get_bd_ports txFsm_3_stateReg] [get_bd_pins system_ila_0/probe37]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins xlconstant_0/dout] [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity]
 
   # Create address segments

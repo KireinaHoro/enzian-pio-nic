@@ -547,6 +547,12 @@ signal dcs_c19_o               : LCL_CHANNEL; -- LCL RSP WOD
 signal dcs_c18_i               : LCL_CHANNEL; -- LCL RSP WOD
 signal dcs_c19_i               : LCL_CHANNEL; -- LCL RSP WOD
 
+-- debug signals to system ILA
+signal rxFsm_0_stateReg, txFsm_0_stateReg : std_logic_vector(2 downto 0);
+signal rxFsm_1_stateReg, txFsm_1_stateReg : std_logic_vector(2 downto 0);
+signal rxFsm_2_stateReg, txFsm_2_stateReg : std_logic_vector(2 downto 0);
+signal rxFsm_3_stateReg, txFsm_3_stateReg : std_logic_vector(2 downto 0);
+
 begin
 
 clk <= clk_sys;
@@ -1421,7 +1427,16 @@ axil_adapter_inst : entity work.axil_adapter
     dcsEven_unlockResp_ready => dcs_c19_i.ready,
     dcsEven_unlockResp_payload_data => dcs_c19_i.data,
     dcsEven_unlockResp_payload_size => dcs_c19_i.size,
-    dcsEven_unlockResp_payload_vc => dcs_c19_i.vc_no
+    dcsEven_unlockResp_payload_vc => dcs_c19_i.vc_no,
+
+    rxFsm_0_stateReg => rxFsm_0_stateReg,
+    rxFsm_1_stateReg => rxFsm_1_stateReg,
+    rxFsm_2_stateReg => rxFsm_2_stateReg,
+    rxFsm_3_stateReg => rxFsm_3_stateReg,
+    txFsm_0_stateReg => txFsm_0_stateReg,
+    txFsm_1_stateReg => txFsm_1_stateReg,
+    txFsm_2_stateReg => txFsm_2_stateReg,
+    txFsm_3_stateReg => txFsm_3_stateReg
   );
 
 NicEngine_inst : entity work.NicEngine
@@ -1573,7 +1588,17 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rvalid => nic_engine_axil.rvalid,
     s_axil_ctrl_rready => nic_engine_axil.rready,
     s_axil_ctrl_rdata => nic_engine_axil.rdata,
-    s_axil_ctrl_rresp => nic_engine_axil.rresp
+    s_axil_ctrl_rresp => nic_engine_axil.rresp,
+
+    -- ILA debug signals
+    rxFsm_0_stateReg => rxFsm_0_stateReg,
+    rxFsm_1_stateReg => rxFsm_1_stateReg,
+    rxFsm_2_stateReg => rxFsm_2_stateReg,
+    rxFsm_3_stateReg => rxFsm_3_stateReg,
+    txFsm_0_stateReg => txFsm_0_stateReg,
+    txFsm_1_stateReg => txFsm_1_stateReg,
+    txFsm_2_stateReg => txFsm_2_stateReg,
+    txFsm_3_stateReg => txFsm_3_stateReg
   );
 
 i_ila_eci_chans_arb : entity work.ila_eci_chans_arb
