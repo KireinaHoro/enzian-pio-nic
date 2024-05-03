@@ -25,6 +25,8 @@
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define FPGA_MEM_SIZE (1UL << 40) // 1 TiB
 
+#define BARRIER asm volatile ("dmb sy\nisb");
+
 struct pionic_ctx {
   void *shell_regs_region;
   void *nic_regs_region;
@@ -266,6 +268,8 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   bool *next_cl = &ctx->core_states[cid].rx_next_cl;
   uint64_t ctrl = read64_fpgamem(ctx, *next_cl * 0x80 + rx_base);
 
+  BARRIER
+
   // always toggle CL
   *next_cl ^= true;
 
@@ -337,6 +341,8 @@ void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   }
 
   *next_cl ^= true;
+
+  BARRIER
 
   // trigger actual sending by doing a dummy read on the next cacheline
   read64_fpgamem(ctx, *next_cl * 0x80 + tx_base);
