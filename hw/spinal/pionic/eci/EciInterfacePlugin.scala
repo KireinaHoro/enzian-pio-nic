@@ -111,7 +111,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
             EciCmdDefs.aliasAddress(a.asUInt + coreOffset * idx)
           }
           // lowest 7 bits are byte offset
-          val dcsIdx = addrLocator(acmd.payload)(7).asUInt
+          // even addr -> odd VC, vice versa
+          val dcsIdx = (~addrLocator(acmd.payload)(7)).asUInt
 
           // assemble ECI channel
           val chanStream = Stream(LclChannel())
@@ -171,7 +172,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       ret.arbitrationFrom(addr)
     }.setName("bindLci").ret
-    }, _.lci.address, 17, 16, _.cleanMaybeInvReq)
+    }, _.lci.address, 16, 17, _.cleanMaybeInvReq)
 
     // demux LCL response (LCIA)
     val coresLcia = Seq.fill(cores.length)(Stream(EciCmdDefs.EciAddress))
@@ -198,7 +199,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
         ret.arbitrationFrom(addr)
       }.setName("bindUl").ret
-    }, _.ul.address, 19, 18, _.unlockResp)
+    }, _.ul.address, 18, 19, _.unlockResp)
 
     // drive core control interface -- datapath per core
     cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
