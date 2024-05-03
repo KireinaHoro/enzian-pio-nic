@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
-CFLAGS ?= -O2 -pipe -Wall -Wno-unused-function -I../include -static
+CFLAGS ?= -pipe -Wall -Wno-unused-function -I../include -static
 
 DRIVERS := $(patsubst ../%.c,%,$(wildcard ../*.c))
 
@@ -14,9 +14,10 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 
+all: CFLAGS += -O2
 all: $(APP)
 
-debug: CFLAGS += -DDEBUG -DDEBUG_REG -g
+debug: CFLAGS += -DDEBUG -DDEBUG_REG -g -O0
 debug: $(APP)
 
 %.o: %.c
