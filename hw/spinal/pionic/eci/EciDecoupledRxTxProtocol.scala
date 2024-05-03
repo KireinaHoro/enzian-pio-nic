@@ -7,7 +7,7 @@ import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4AwUnburstified, Axi4SlaveFactory}
-import spinal.lib.bus.misc.{SingleMapping, SizeMapping}
+import spinal.lib.bus.misc.{BusSlaveFactory, SingleMapping, SizeMapping}
 import spinal.lib.fsm._
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -26,7 +26,20 @@ case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
 class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
   withPrefix(s"core_$coreID")
 
+  def driveControl(busCtrl: BusSlaveFactory, alloc: String => BigInt) = {
+    // TODO: do we actually need resync?
+    //       we need to drain all pending ULs, etc., rather complicated
+    // val r = busCtrl.driveAndRead(logic.resync, alloc("eciResync")) init false
+    // r.clearWhen(r)
+
+    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState"))
+    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx"))
+
+    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState"))
+    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx"))
+  }
   lazy val csr = host[GlobalCSRPlugin].logic
+
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
   lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8
   lazy val overflowCountWidth = log2Up(numOverflowCls)

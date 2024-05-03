@@ -7,6 +7,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
+import scala.collection.mutable
 
 class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
   lazy val numCores = host.list[CoreControlPlugin].length
@@ -27,8 +28,16 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     status.cycles.bits := CounterFreeRun(config.regWidth bits)
   }
 
+  private val implRegs = new mutable.HashMap[String, (Data, Boolean)]
+  private def roImplRegs = implRegs.filter(!_._2._2).map { case (n, (d, _)) => (n, d) }.iterator
+  private def rwImplRegs = implRegs.filter(_._2._2).map { case (n, (d, _)) => (n, d) }.iterator
+  def pushImplReg(name: String, data: Data, isWritable: Boolean = false) = {
+    assert(!implRegs.contains(name), s"implementation-specific global reg $name already exists!")
+    implRegs(name) = (data, isWritable)
+  }
+
   def readAndWrite(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
-    logic.ctrl.elements.foreach { case (name, data) =>
+    (logic.ctrl.elements ++ rwImplRegs).foreach { case (name, data) =>
       assert(data.isReg, "control CSR should always be register")
       val addr = alloc(name)
       busCtrl.readAndWrite(data, addr)
@@ -42,7 +51,7 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
         logic.status.dispatchMaskChanged := RegNext(changed)
       }
     }
-    logic.status.elements.foreach { case (name, data) =>
+    (logic.status.elements ++ roImplRegs).foreach { case (name, data) =>
       busCtrl.read(data, alloc(name))
     }
   }

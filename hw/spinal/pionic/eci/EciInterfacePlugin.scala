@@ -158,16 +158,16 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       val ret = Stream(EciWord())
 
       // generating a LCI -- refer to Table 7.9 of CCKit
-      ret.payload.lci.opcode := B("00001")
-      ret.payload.lci.hreqId := B(idx, EciCmdDefs.ECI_HREQID_WIDTH bits)
-      ret.payload.lci.dmask := B("1111")
-      ret.payload.lci.ns := True
-      ret.payload.lci.rnode := B("01")
+      ret.payload.lci.opcode  := B("00001")
+      ret.payload.lci.hreqId  := B(idx, EciCmdDefs.ECI_HREQID_WIDTH bits)
+      ret.payload.lci.dmask   := B("1111")
+      ret.payload.lci.ns      := True
+      ret.payload.lci.rnode   := B("01")
       ret.payload.lci.address := addr.payload
 
-      ret.payload.lci.xb1 := False
-      ret.payload.lci.xb2 := B(0, 2 bits)
-      ret.payload.lci.xb3 := B(0, 3 bits)
+      ret.payload.lci.xb1     := False
+      ret.payload.lci.xb2     := B(0, 2 bits)
+      ret.payload.lci.xb3     := B(0, 3 bits)
 
       ret.arbitrationFrom(addr)
     }.setName("bindLci").ret
@@ -191,10 +191,10 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         val ret = Stream(EciWord())
 
         // generating a UL -- refer to Table 7.11 of CCKit
-        ret.payload.ul.opcode := B("00010")
+        ret.payload.ul.opcode  := B("00010")
         ret.payload.ul.address := addr.payload
 
-        ret.payload.ul.xb19 := B(0, 19 bits)
+        ret.payload.ul.xb19    := B(0, 19 bits)
 
         ret.arbitrationFrom(addr)
       }.setName("bindUl").ret
@@ -220,21 +220,22 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
       dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
 
-      proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
-
-      lci << proto.lci
-      ul << proto.ul
+      lci  << proto.lci
+      ul   << proto.ul
       lcia >> proto.lcia
 
-      cio.hostTxAck <-/< proto.hostTxAck
-      cio.hostTx >/-> proto.hostTx
+      cio.hostTxAck     <-/< proto.hostTxAck
+      cio.hostTx        >/-> proto.hostTx
       cio.hostRxNextAck <-/< proto.hostRxNextAck
-      cio.hostRxNext >/-> proto.hostRxNext
-      cio.hostRxNextReq := proto.hostRxNextReq
+      cio.hostRxNext    >/-> proto.hostRxNext
+      cio.hostRxNextReq :=   proto.hostRxNextReq
 
       // CSR for the core
       c.logic.ctrl.connectControl(csrCtrl, alloc(_))
       c.logic.ctrl.reportStatistics(csrCtrl, alloc(_, _))
+
+      proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
+      proto.driveControl(csrCtrl, alloc(_))
     }.setName("bindProtoToCoreCtrl")
     }
   }
