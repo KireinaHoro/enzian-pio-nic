@@ -42,10 +42,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
-    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, eciIf.dcsClock)
+    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
-    eciIf.dcsClock.forkStimulus(frequency = 322.265625 MHz)
 
     CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)(nicConfig)
 
@@ -187,7 +186,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
            |got:      "${data.bytesToHex}"
            |""".stripMargin)
 
-      println(s"Packet received from TX interface and validated")
+      println(s"Core $cid: packet received from TX interface and validated")
 
       received = true
     }
@@ -196,7 +195,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
       dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
 
-    println(f"Writing packet desc to $clAddr%#x...")
+    println(f"Core $cid: writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
@@ -209,7 +208,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
 
     // trigger a read on the next cacheline to actually send the packet
-    println(s"Sent packet at $clAddr, waiting validation...")
+    println(f"Core $cid: sent packet at $clAddr%#x, waiting validation...")
 
     txNextCl(cid) = 1 - txNextCl(cid)
     dcsMaster.read(clAddr, 1)
