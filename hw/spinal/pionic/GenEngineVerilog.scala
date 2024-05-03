@@ -56,6 +56,7 @@ object GenEngineVerilog {
     new ConfigWriter,
     new GlobalCSRPlugin,
     new XilinxCmacPlugin,
+    new DebugPlugin,
   ) ++ Seq.tabulate(config.numCores)(new CoreControlPlugin(_))
 
   def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
