@@ -126,8 +126,8 @@ int main(int argc, char *argv[]) {
   pionic_probe_rx_block_cycles(ctx);
   exit(EXIT_SUCCESS);
 
-  // 40 ms
-  pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(40 * 1000));
+  // 1 ms
+  pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(1 * 1000));
 
   // estimate pcie roundtrip time
   FILE *out = fopen("pcie_lat.csv", "w");

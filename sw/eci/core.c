@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 
 #include "api.h"
@@ -40,6 +41,8 @@ struct pionic_ctx {
     // FIXME: this precludes passing packet in the registers and forces a copy
     uint8_t *rx_pkt_buf, *tx_pkt_buf;
   } core_states[PIONIC_NUM_CORES];
+
+  int fpgamem_fd;
 
   uint32_t page_size;
 };
@@ -102,6 +105,10 @@ static uint64_t read64_shell(pionic_ctx_t ctx, uint64_t addr) {
   return reg;
 }
 
+static void cl_hit_inv(pionic_ctx_t ctx, uint64_t phys_addr) {
+  ioctl(ctx->fpgamem_fd, 4, phys_addr + (uint64_t)ctx->mem_region);
+}
+
 int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   int ret = -1;
 
@@ -147,7 +154,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   uint64_t cur_time = read64(ctx, PIONIC_GLOBAL_CYCLES);
   printf("NicEngine version: %08lx, current timestamp %ld\n", ver, cur_time);
 
-  fd = open("/dev/fpgamem", O_RDWR);
+  fd = ctx->fpgamem_fd = open("/dev/fpgamem", O_RDWR);
   if (fd < 0) {
     perror("open /dev/fpgamem");
     goto fail;
@@ -159,8 +166,6 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     perror("mmap fpga mem space");
     goto fail;
   }
-
-  close(fd);
 
   // set defaults
   pionic_set_rx_block_cycles(ctx, 200);
@@ -188,6 +193,14 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     ctx->core_states[i].tx_pkt_buf = malloc(PIONIC_MTU);
   }
 
+  // clean all control cachelines
+  for (int cid = 0; cid < PIONIC_NUM_CORES; ++cid) {
+    for (int next_cl = 0; next_cl < 2; ++next_cl) {
+      cl_hit_inv(ctx, PIONIC_ECI_RX_BASE + cid * PIONIC_ECI_CORE_OFFSET + 0x80 * next_cl);
+      cl_hit_inv(ctx, PIONIC_ECI_TX_BASE + cid * PIONIC_ECI_CORE_OFFSET + 0x80 * next_cl);
+    }
+  }
+
   ret = 0;
 
 fail:
@@ -212,6 +225,8 @@ void pionic_fini(pionic_ctx_t *usr_ctx) {
   pionic_ctx_t ctx = *usr_ctx;
 
   *usr_ctx = NULL;
+
+  close(ctx->fpgamem_fd);
 
   if (ctx->nic_regs_region != MAP_FAILED) {
     // disable CMAC
@@ -266,6 +281,11 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   // FIXME: should we read the entire 64B of control information?
   uint64_t rx_base = PIONIC_ECI_RX_BASE + cid * PIONIC_ECI_CORE_OFFSET;
   bool *next_cl = &ctx->core_states[cid].rx_next_cl;
+
+#ifdef DEBUG
+  printf("pionic_rx: next cacheline ID: %d\n", *next_cl);
+#endif
+
   uint64_t ctrl = read64_fpgamem(ctx, *next_cl * 0x80 + rx_base);
 
   BARRIER
@@ -327,6 +347,11 @@ void pionic_tx_get_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
 void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   uint64_t tx_base = PIONIC_ECI_TX_BASE + cid * PIONIC_ECI_CORE_OFFSET;
   bool *next_cl = &ctx->core_states[cid].tx_next_cl;
+
+#ifdef DEBUG
+  printf("pionic_tx: next cacheline ID: %d\n", *next_cl);
+#endif
+
   uint64_t pkt_len = desc->len;
 
   // write packet length to control
