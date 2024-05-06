@@ -346,6 +346,7 @@ proc create_root_design { parentCell } {
   set rxFsm_2_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_2_stateReg ]
   set txFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_3_stateReg ]
   set rxFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_3_stateReg ]
+  set cycles_bits [ create_bd_port -dir I -from 63 -to 0 -type data cycles_bits ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -408,7 +409,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {4} \
-    CONFIG.C_NUM_OF_PROBES {38} \
+    CONFIG.C_NUM_OF_PROBES {39} \
     CONFIG.C_SLOT {3} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {44} \
     CONFIG.C_SLOT_0_AXI_DATA_WIDTH {64} \
@@ -446,6 +447,7 @@ connect_bd_intf_net -intf_net SHELL_IO_AXIL [get_bd_intf_ports shell_io_axil] [g
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset [get_bd_pins cmac_init_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/rx_clk]
   connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_pins cmac_usplus_0/gt_txusrclk2] [get_bd_ports txclk]
+  connect_bd_net -net cycles_bits_1 [get_bd_ports cycles_bits] [get_bd_pins system_ila_0/probe38]
   connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_data_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_data] [get_bd_pins system_ila_0/probe2]
   connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_size_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_size] [get_bd_pins system_ila_0/probe3]
   connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_vc_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_vc] [get_bd_pins system_ila_0/probe4]
