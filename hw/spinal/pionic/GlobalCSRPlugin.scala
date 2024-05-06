@@ -26,6 +26,8 @@ class GlobalCSRPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     println(f"Git version: ${config.gitVersion}%x")
     status.version := B(config.gitVersion)
     status.cycles.bits := CounterFreeRun(config.regWidth bits)
+
+    host[DebugPlugin].postDebug("cycles", status.cycles)
   }
 
   private val implRegs = new mutable.HashMap[String, (Data, Boolean)]
