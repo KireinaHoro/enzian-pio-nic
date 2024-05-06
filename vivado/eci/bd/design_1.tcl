@@ -347,6 +347,14 @@ proc create_root_design { parentCell } {
   set txFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data txFsm_3_stateReg ]
   set rxFsm_3_stateReg [ create_bd_port -dir I -from 2 -to 0 -type data rxFsm_3_stateReg ]
   set cycles_bits [ create_bd_port -dir I -from 63 -to 0 -type data cycles_bits ]
+  set rxCurrClIdx_0 [ create_bd_port -dir I -type data rxCurrClIdx_0 ]
+  set txCurrClIdx_0 [ create_bd_port -dir I -type data txCurrClIdx_0 ]
+  set rxCurrClIdx_1 [ create_bd_port -dir I -type data rxCurrClIdx_1 ]
+  set txCurrClIdx_1 [ create_bd_port -dir I -type data txCurrClIdx_1 ]
+  set rxCurrClIdx_2 [ create_bd_port -dir I -type data rxCurrClIdx_2 ]
+  set txCurrClIdx_2 [ create_bd_port -dir I -type data txCurrClIdx_2 ]
+  set rxCurrClIdx_3 [ create_bd_port -dir I -type data rxCurrClIdx_3 ]
+  set txCurrClIdx_3 [ create_bd_port -dir I -type data txCurrClIdx_3 ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -409,7 +417,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {4} \
-    CONFIG.C_NUM_OF_PROBES {39} \
+    CONFIG.C_NUM_OF_PROBES {47} \
     CONFIG.C_SLOT {3} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {44} \
     CONFIG.C_SLOT_0_AXI_DATA_WIDTH {64} \
@@ -479,10 +487,18 @@ connect_bd_intf_net -intf_net SHELL_IO_AXIL [get_bd_intf_ports shell_io_axil] [g
   connect_bd_net -net dcsOdd_unlockResp_ready_1 [get_bd_ports dcsOdd_unlockResp_ready] [get_bd_pins system_ila_0/probe26]
   connect_bd_net -net dcsOdd_unlockResp_valid_1 [get_bd_ports dcsOdd_unlockResp_valid] [get_bd_pins system_ila_0/probe25]
   connect_bd_net -net reset_sys_1 [get_bd_ports reset] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
+  connect_bd_net -net rxCurrClIdx_0_1 [get_bd_ports rxCurrClIdx_0] [get_bd_pins system_ila_0/probe39]
+  connect_bd_net -net rxCurrClIdx_1_1 [get_bd_ports rxCurrClIdx_1] [get_bd_pins system_ila_0/probe41]
+  connect_bd_net -net rxCurrClIdx_2_1 [get_bd_ports rxCurrClIdx_2] [get_bd_pins system_ila_0/probe43]
+  connect_bd_net -net rxCurrClIdx_3_1 [get_bd_ports rxCurrClIdx_3] [get_bd_pins system_ila_0/probe45]
   connect_bd_net -net rxFsm_0_stateReg_1 [get_bd_ports rxFsm_0_stateReg] [get_bd_pins system_ila_0/probe30]
   connect_bd_net -net rxFsm_1_stateReg_1 [get_bd_ports rxFsm_1_stateReg] [get_bd_pins system_ila_0/probe32]
   connect_bd_net -net rxFsm_2_stateReg_1 [get_bd_ports rxFsm_2_stateReg] [get_bd_pins system_ila_0/probe34]
   connect_bd_net -net rxFsm_3_stateReg_1 [get_bd_ports rxFsm_3_stateReg] [get_bd_pins system_ila_0/probe36]
+  connect_bd_net -net txCurrClIdx_0_1 [get_bd_ports txCurrClIdx_0] [get_bd_pins system_ila_0/probe40]
+  connect_bd_net -net txCurrClIdx_1_1 [get_bd_ports txCurrClIdx_1] [get_bd_pins system_ila_0/probe42]
+  connect_bd_net -net txCurrClIdx_2_1 [get_bd_ports txCurrClIdx_2] [get_bd_pins system_ila_0/probe44]
+  connect_bd_net -net txCurrClIdx_3_1 [get_bd_ports txCurrClIdx_3] [get_bd_pins system_ila_0/probe46]
   connect_bd_net -net txFsm_0_stateReg_1 [get_bd_ports txFsm_0_stateReg] [get_bd_pins system_ila_0/probe31]
   connect_bd_net -net txFsm_1_stateReg_1 [get_bd_ports txFsm_1_stateReg] [get_bd_pins system_ila_0/probe33]
   connect_bd_net -net txFsm_2_stateReg_1 [get_bd_ports txFsm_2_stateReg] [get_bd_pins system_ila_0/probe35]

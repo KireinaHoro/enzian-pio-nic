@@ -553,6 +553,13 @@ signal rxFsm_1_stateReg, txFsm_1_stateReg : std_logic_vector(2 downto 0);
 signal rxFsm_2_stateReg, txFsm_2_stateReg : std_logic_vector(2 downto 0);
 signal rxFsm_3_stateReg, txFsm_3_stateReg : std_logic_vector(2 downto 0);
 
+signal rxCurrClIdx_0, txCurrClIdx_0 : std_logic;
+signal rxCurrClIdx_1, txCurrClIdx_1 : std_logic;
+signal rxCurrClIdx_2, txCurrClIdx_2 : std_logic;
+signal rxCurrClIdx_3, txCurrClIdx_3 : std_logic;
+
+signal cycles_bits : std_logic_vector(63 downto 0);
+
 begin
 
 clk <= clk_sys;
@@ -1436,7 +1443,18 @@ axil_adapter_inst : entity work.axil_adapter
     txFsm_0_stateReg => txFsm_0_stateReg,
     txFsm_1_stateReg => txFsm_1_stateReg,
     txFsm_2_stateReg => txFsm_2_stateReg,
-    txFsm_3_stateReg => txFsm_3_stateReg
+    txFsm_3_stateReg => txFsm_3_stateReg,
+
+    rxCurrClIdx_0 => rxCurrClIdx_0,
+    rxCurrClIdx_1 => rxCurrClIdx_1,
+    rxCurrClIdx_2 => rxCurrClIdx_2,
+    rxCurrClIdx_3 => rxCurrClIdx_3,
+    txCurrClIdx_0 => txCurrClIdx_0,
+    txCurrClIdx_1 => txCurrClIdx_1,
+    txCurrClIdx_2 => txCurrClIdx_2,
+    txCurrClIdx_3 => txCurrClIdx_3,
+
+    cycles_bits => cycles_bits
   );
 
 NicEngine_inst : entity work.NicEngine
@@ -1598,7 +1616,18 @@ NicEngine_inst : entity work.NicEngine
     txFsm_0_stateReg => txFsm_0_stateReg,
     txFsm_1_stateReg => txFsm_1_stateReg,
     txFsm_2_stateReg => txFsm_2_stateReg,
-    txFsm_3_stateReg => txFsm_3_stateReg
+    txFsm_3_stateReg => txFsm_3_stateReg,
+
+    rxFsm_0_currClIdx => rxCurrClIdx_0,
+    rxFsm_1_currClIdx => rxCurrClIdx_1,
+    rxFsm_2_currClIdx => rxCurrClIdx_2,
+    rxFsm_3_currClIdx => rxCurrClIdx_3,
+    txFsm_0_currClIdx => txCurrClIdx_0,
+    txFsm_1_currClIdx => txCurrClIdx_1,
+    txFsm_2_currClIdx => txCurrClIdx_2,
+    txFsm_3_currClIdx => txCurrClIdx_3,
+
+    cycles_bits => cycles_bits
   );
 
 i_ila_eci_chans_arb : entity work.ila_eci_chans_arb
