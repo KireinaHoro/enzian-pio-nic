@@ -17,8 +17,24 @@ RUN ./configure --prefix=$PWD/install
 RUN make -j$(nproc)
 RUN make install
 
+ENV PATH="${PATH}:/mill:/verilator/install/bin"
+WORKDIR /
+
 # aarch64 cross compiler
 RUN apt-get -y install gcc-aarch64-linux-gnu
 
-ENV PATH="${PATH}:/mill:/verilator/install/bin"
-WORKDIR /
+# timezone and locale for Vivado
+ENV DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true
+RUN <<EOF
+cat > /preseed.txt << __eof__
+tzdata tzdata/Areas select Europe
+tzdata tzdata/Zones/Europe select Zurich
+
+locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8
+locales locales/default_environment_locale select en_US.UTF-8
+__eof__
+debconf-set-selections /preseed.txt
+
+apt-get -y install locales tzdata
+EOF
+ENV LANG=en_US.UTF-8
