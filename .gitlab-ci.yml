@@ -40,6 +40,8 @@ build-sw-eci:
 .build-hw:
   extends: .docker-image
   stage: build-hw
+  needs:
+    - fast-tests
   before_script:
     - source /opt/Xilinx/Vivado/2023.2/settings64.sh
   script:
