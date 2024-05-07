@@ -72,15 +72,12 @@ void pionic_probe_rx_block_cycles(pionic_ctx_t ctx) {
   volatile int us = -1;
 
   if (!sigsetjmp(sigbus_jmpbuf, 1)) {
-    // probe from 100 us to 1 s
-    for (us = 100; us < 1000 * 1000; us += 100) {
+    // probe from 1 ms to 1 s
+    for (us = 1000; us < 1000 * 1000; us += 1000) {
       pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(us));
-      // test each timeout for 10 times
-      for (int i = 0; i < 10; ++i) {
-        pionic_pkt_desc_t desc;
-        bool got_pkt = pionic_rx(ctx, 0, &desc);
-        assert(!got_pkt);
-      }
+      pionic_pkt_desc_t desc;
+      bool got_pkt = pionic_rx(ctx, 0, &desc);
+      assert(!got_pkt);
     }
   } else {
     printf("Caught SIGBUS when blocking for %d us\n", us);
