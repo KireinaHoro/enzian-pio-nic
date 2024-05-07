@@ -13,6 +13,8 @@ import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
+import org.scalatest.tagobjects.Slow
+
 case class CtrlInfoSim(size: BigInt, addr: BigInt)
 
 object CtrlInfoSim {
@@ -154,7 +156,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // TODO: check DCS master cacheline state
   }
 
-  def rxScanOnCore(cid: Int) = test(s"rx-scan-sizes-core$cid") { implicit dut =>
+  def rxScanOnCore(cid: Int) = test(s"rx-scan-sizes-core$cid", Slow) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid)
@@ -235,7 +237,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
   }
 
-  def txScanOnCore(cid: Int) = test(s"tx-scan-sizes-core$cid") { implicit dut =>
+  def txScanOnCore(cid: Int) = test(s"tx-scan-sizes-core$cid", Slow) { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
     txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
