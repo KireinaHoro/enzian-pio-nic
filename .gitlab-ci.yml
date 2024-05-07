@@ -49,9 +49,10 @@ build-hw-pcie:
   variables:
     PIONIC_DESIGN: pcie
   artifacts:
-    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
-    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
-    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
+    paths:
+      - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
+      - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
+      - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
 
 # # WIP: pull static shell release
 # build-hw-eci:
@@ -62,9 +63,10 @@ build-hw-pcie:
 #     PIONIC_DESIGN: eci
 #     ENZIAN_SHELL_DIR: <fill in here>
 #   artifacts:
-#     - out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
-#     - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
-#     - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
+#     paths:
+#       - out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
+#       - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
+#       - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
 
 # release:
 #   stage: release
