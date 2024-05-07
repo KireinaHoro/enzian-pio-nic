@@ -76,14 +76,33 @@ build-hw-pcie:
 #       - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
 #       - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
 
-# release:
-#   stage: release
-#   image: registry.gitlab.com/gitlab-org/release-cli:latest
-#   rules:
-#     - if: '$CI_COMMIT_TAG'
-#   needs:
-#     - job: build_bitstream
-#       artifacts: true
-#   release:
-#     tag_name: '$CI_COMMIT_TAG'
-#     description: 'Release for version $CI_COMMIT_TAG'
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  needs:
+    - job: build-hw-pcie
+      artifacts: true
+  script:
+    - |
+      url() {
+        echo https://gitlab.ethz.ch/api/v4/projects/47960/packages/generic/release/$CI_COMMIT_TAG/$1
+
+      }
+      upload() {
+        curl --fail --user "${PKG_REGISTRY_USER}:${PKG_REGISTRY_KEY}" --upload-file $1/$2 $(url $2)
+      }
+
+      asset_links=()
+
+      for artifact_file in pio-nic-pcie.{bit,ltx} design_1_wrapper_postroute_physopt.dcp; do
+        upload out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1 ${artifact_file}
+        asset_links+=("--assets-link" "{\"name\":\"${artifact_file}\",\"url\":\"$(url ${artifact_file})\",\"link_type\":\"other\"}")
+      done
+      
+      release-cli create --name "Release $CI_COMMIT_TAG" --tag-name $CI_COMMIT_TAG "${asset_links[@]}"
+      
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Software and hardware artifacts for version $CI_COMMIT_TAG.'
