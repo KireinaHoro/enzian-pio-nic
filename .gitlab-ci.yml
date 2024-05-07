@@ -45,9 +45,9 @@ build-sw-eci:
   before_script:
     - source /opt/Xilinx/Vivado/2023.2/settings64.sh
   script:
-    - mill --no-server $PIONIC_DESIGN.generateBitstream
+    - LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1" mill --no-server $PIONIC_DESIGN.generateBitstream
   variables:
-    - LD_PRELOAD: /lib/x86_64-linux-gnu/libudev.so.1
+    - XILINXD_LICENSE_FILE: "2100@idvm-infk-systems03.inf.ethz.ch:2100@sgv-license-01.ethz.ch"
 
 build-hw-pcie:
   extends: .build-hw
