@@ -54,7 +54,9 @@ build-hw-pcie:
   variables:
     PIONIC_DESIGN: pcie
   artifacts:
+    when: always
     paths:
+      - out/pcie/vivadoProject.dest/*.log
       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
