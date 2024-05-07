@@ -46,6 +46,8 @@ build-sw-eci:
     - source /opt/Xilinx/Vivado/2023.2/settings64.sh
   script:
     - mill --no-server $PIONIC_DESIGN.generateBitstream
+  variables:
+    - LD_PRELOAD: /lib/x86_64-linux-gnu/libudev.so.1
 
 build-hw-pcie:
   extends: .build-hw
