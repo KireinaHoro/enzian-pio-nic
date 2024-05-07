@@ -11,6 +11,7 @@ variables:
 .docker-image:
   tags:
     - enzian-docker
+    - vivado
   image: "registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest"
 
 fast-tests:
@@ -37,10 +38,10 @@ build-sw-eci:
     PIONIC_DESIGN: eci
 
 .build-hw:
-  tags:
-    - enzian-shell
-    - vivado
+  extends: .docker-image
   stage: build-hw
+  before_script:
+    - source /opt/Xilinx/Vivado/2023.2/settings64.sh
   script:
     - mill --no-server $PIONIC_DESIGN.generateBitstream
 
