@@ -1,0 +1,30 @@
+stages:
+  - build
+  - release
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_FORCE_HTTPS: "true"
+
+build:
+  stage: build
+  tags:
+    - enzian-shell
+  script:
+    - curl -L https://raw.githubusercontent.com/lefou/millw/0.4.10/millw > millw && chmod +x millw
+    - ./millw eci.generateVerilog
+  artifacts:
+    paths:
+      - hw/gen/eci/NicEngine.v
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script:
+    - echo "running release job"
+  needs:
+    - job: build
+      artifacts: true
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Release for $CI_COMMIT_TAG'
