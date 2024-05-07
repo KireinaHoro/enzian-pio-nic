@@ -35,6 +35,6 @@ locales locales/default_environment_locale select en_US.UTF-8
 __eof__
 debconf-set-selections /preseed.txt
 
-apt-get -y install locales tzdata
+apt-get -y install locales tzdata libtinfo5
 EOF
 ENV LANG=en_US.UTF-8
