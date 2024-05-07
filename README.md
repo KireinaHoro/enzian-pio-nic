@@ -4,37 +4,16 @@ This repo contains a very simple programmed I/O-based NIC for Enzians.
 
 ## Setup
 
-Install [Mill](https://github.com/com-lihaoyi/mill), the better build tool for Scala:
+The recommended way to set up the environment is to use the [Docker container](./Dockerfile),
+available at the ETH registry `registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest`.
+This image is also used by the department GitLab CI for running unit tests and
+building bitstreams.  For a local setup, refer to the Dockerfile for instructions.
 
-```console
-$ sudo apt install default-jdk
-$ mkdir -p $HOME/.local/bin
-$ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc # or your shell of choice
-$ curl -L https://raw.githubusercontent.com/lefou/millw/0.4.10/millw > $HOME/.local/bin/mill && chmod +x $HOME/.local/bin/mill
-```
-
-Install the latest version of [Verilator](https://github.com/verilator/verilator) (the version with Ubuntu 22.04 is too old):
-
-```console
-$ git clone https://github.com/verilator/verilator -b v5.024 --depth=1 && cd verilator
-$ sudo apt install build-essential autoconf flex bison help2man
-$ autoconf
-$ ./configure --prefix=$PWD/install
-$ make -j$(nproc)
-$ make install
-$ echo "export PATH=\"$PWD/install/bin:\$PATH\"" >> ~/.bashrc # or your shell of choice
-$ source ~/.bashrc && verilator --version
-Verilator 5.024 2024-04-05 rev v5.024
-```
-
-Clone with submodules and check if mill is working:
+Clone with submodules:
 
 ```console
 $ git clone --recursive git@gitlab.inf.ethz.ch:pengxu/enzian-pio-nic.git
 $ cd enzian-pio-nic
-$ mill version
-[1/1] version
-0.11.6
 ```
 
 ## Generate Output Products
@@ -67,6 +46,7 @@ NicSim:
 - rx-regular
 ...
 $ mill gen.test.testOnly pionic.eci.NicSim # run only the test suite for ECI integration test
+$ mill gen.test -l org.scalatest.tags.Slow # exclude slow-running integration tests
 ...
 ```
 
