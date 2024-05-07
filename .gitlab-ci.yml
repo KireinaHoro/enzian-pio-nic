@@ -1,30 +1,42 @@
 stages:
-  - build
+  - tests
+  - build_bitstream
   - release
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
 
-build:
-  stage: build
+tests:
   tags:
-    - enzian-shell
+    - enzian-docker
+  image: "registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest"
+  stage: tests
   script:
-    - curl -L https://raw.githubusercontent.com/lefou/millw/0.4.10/millw > millw && chmod +x millw
-    - ./millw eci.generateVerilog
-  artifacts:
-    paths:
-      - hw/gen/eci/NicEngine.v
+    - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
 
-release:
-  stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
-  script:
-    - echo "running release job"
-  needs:
-    - job: build
-      artifacts: true
-  release:
-    tag_name: '$CI_COMMIT_TAG'
-    description: 'Release for $CI_COMMIT_TAG'
+# WIP: pull static shell release
+# build_bitstream:
+#   tags:
+#     - enzian-shell
+#     - vivado
+#   stage: build_bitstream
+#   script:
+#     - curl -
+#     - mill eci.generateVerilog
+#   artifacts:
+#     - out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
+#     - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
+#     - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
+
+# release:
+#   stage: release
+#   image: registry.gitlab.com/gitlab-org/release-cli:latest
+#   rules:
+#     - if: '$CI_COMMIT_TAG'
+#   needs:
+#     - job: build_bitstream
+#       artifacts: true
+#   release:
+#     tag_name: '$CI_COMMIT_TAG'
+#     description: 'Release for version $CI_COMMIT_TAG'
