@@ -1,29 +1,66 @@
 stages:
-  - tests
-  - build_bitstream
+  - test
+  - build-sw
+  - build-hw
   - release
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
 
-tests:
+.docker-image:
   tags:
     - enzian-docker
   image: "registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest"
-  stage: tests
+
+fast-tests:
+  extends: .docker-image
+  stage: test
   script:
     - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
 
-# WIP: pull static shell release
-# build_bitstream:
-#   tags:
-#     - enzian-shell
-#     - vivado
-#   stage: build_bitstream
-#   script:
-#     - curl -
-#     - mill eci.generateVerilog
+.build-sw:
+  extends: .docker-image
+  stage: build-sw
+  script:
+    - mill $PIONIC_DESIGN.generateVerilog
+    - make -C sw/$PIONIC_DESIGN
+
+build-sw-pcie:
+  extends: .build-sw
+  variables:
+    PIONIC_DESIGN: pcie
+
+build-sw-eci:
+  extends: .build-sw
+  variables:
+    PIONIC_DESIGN: eci
+
+.build-hw:
+  tags:
+    - enzian-shell
+    - vivado
+  stage: build-hw
+  script:
+    - mill --no-server $PIONIC_DESIGN.generateBitstream
+
+build-hw-pcie:
+  extends: .build-hw
+  variables:
+    PIONIC_DESIGN: pcie
+  artifacts:
+    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
+    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
+    - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
+
+# # WIP: pull static shell release
+# build-hw-eci:
+#   extends: .build-hw
+#   before_script:
+#     - curl <... download static shell dcp ...>
+#   variables:
+#     PIONIC_DESIGN: eci
+#     ENZIAN_SHELL_DIR: <fill in here>
 #   artifacts:
 #     - out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
 #     - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
