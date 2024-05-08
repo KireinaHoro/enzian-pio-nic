@@ -90,6 +90,8 @@ publish:
       artifacts: true
     - job: build-sw-eci
       artifacts: true
+    - job: build-hw-pcie
+      artifacts: true
   variables:
     PROJECT_ID: 47960
     PACKAGE_NAME: release
@@ -98,3 +100,6 @@ publish:
     ARTIFACT_PATHS: |
       sw/pcie/pionic-test
       sw/eci/pionic-test
+      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
+      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
+      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
