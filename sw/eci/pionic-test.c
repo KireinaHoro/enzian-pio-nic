@@ -83,6 +83,13 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   // by half the RTT.  This is measured beforehand and subtracted during actual interval calculation.
 
   bool got_pkt = pionic_rx(ctx, cid, &desc);
+  /*
+  int tries = 10;
+  bool got_pkt;
+  while (!(got_pkt = pionic_rx(ctx, cid, &desc)) && (--tries > 0)) {
+    printf("Didn't get packet, %d tries left...\n", tries);
+  }
+  */
 
   if (length > 0) {
     assert(got_pkt && "failed to receive packet");
