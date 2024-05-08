@@ -297,8 +297,12 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   printf("pionic_rx: next cacheline ID: %d\n", *next_cl);
 #endif
 
+  // make sure TX actually took effect before e.g. we attempt to RX
+  BARRIER
+
   uint64_t ctrl = read64_fpgamem(ctx, *next_cl * 0x80 + rx_base);
 
+  // make sure that we don't read data before we actually get the control
   BARRIER
 
   // always toggle CL
@@ -318,6 +322,10 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
       copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_RX_OVERFLOW, desc->buf + 64,
           pkt_len - 64);
     }
+
+    // make sure reading of the next ctrl cl does not get reordered before the
+    // overflow reads
+    BARRIER
 
 #ifdef DEBUG
     printf("Got packet len %#lx\n", pkt_len);
@@ -378,8 +386,13 @@ void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
 
   *next_cl ^= true;
 
+  // make sure packet data actually hit L2, before the FPGA invalidates
   BARRIER
 
   // trigger actual sending by doing a dummy read on the next cacheline
   read64_fpgamem(ctx, *next_cl * 0x80 + tx_base);
+
+  // make sure TX actually took effect before e.g. we attempt to RX
+  // make sure next_cl tracking is not out of sync due to reordering
+  BARRIER
 }

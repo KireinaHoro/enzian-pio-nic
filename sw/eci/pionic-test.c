@@ -10,6 +10,8 @@
 #include "diag.h"
 #include "profile.h"
 
+#define BARRIER asm volatile ("dmb sy\nisb");
+
 static uint8_t *test_data;
 
 typedef struct {
@@ -49,6 +51,10 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
     desc.len = length;
     pionic_tx(ctx, cid, &desc);
   }
+
+  BARRIER
+  sleep(1);
+  BARRIER
 
   // Rx path is well instrumented, so let's take advantage of this.
   //
