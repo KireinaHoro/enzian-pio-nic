@@ -14,6 +14,7 @@
 
 #include "../../hw/gen/eci/regs.h"
 #include "../../hw/gen/eci/config.h"
+#include "common.h"
 
 #define CMAC_BASE 0x200000UL
 
@@ -269,10 +270,20 @@ static uint64_t read64_fpgamem(pionic_ctx_t ctx, uint64_t addr) {
 }
 
 static void copy_from_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *dest, size_t len) {
+#ifdef DEBUG_REG
+  printf("[Mem] RM %#lx ->\n", addr);
+#endif
   memcpy(dest, (uint8_t *)ctx->mem_region + addr, len);
+#ifdef DEBUG_REG
+  hexdump(dest, len);
+#endif
 }
 
 static void copy_to_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *src, size_t len) {
+#ifdef DEBUG_REG
+  printf("[Mem] WM %#lx <-\n", addr);
+  hexdump(src, len);
+#endif
   memcpy((uint8_t *)ctx->mem_region + addr, src, len);
 }
 

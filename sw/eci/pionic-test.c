@@ -19,6 +19,12 @@ typedef struct {
   pionic_core_ctrl_timestamps_t ts;
 } measure_t;
 
+static void rand_fill(uint8_t *buf, size_t len) {
+  for (int i = 0; i < len; ++i) {
+    buf[i] = rand();
+  }
+}
+
 static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offset) {
   int cid = 0;
 
@@ -28,6 +34,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
 
   char rx_buf[length];
   const uint8_t *tx_buf = test_data;
+  rand_fill(test_data, 4096);
 
   measure_t ret = { 0 };
 
@@ -111,9 +118,6 @@ int main(int argc, char *argv[]) {
   }
 
   test_data = malloc(4096);
-  for (int i = 0; i < 4096; ++i) {
-    test_data[i] = rand();
-  }
 
   pionic_ctx_t ctx;
   if (pionic_init(&ctx, NULL, true) < 0) {
