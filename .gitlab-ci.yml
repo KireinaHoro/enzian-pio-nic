@@ -12,7 +12,7 @@ variables:
   tags:
     - enzian-docker
     - vivado
-  image: "registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest"
+  image: "registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04"
 
 fast-tests:
   extends: .docker-image
@@ -26,6 +26,9 @@ fast-tests:
   script:
     - mill $PIONIC_DESIGN.generateVerilog
     - make -C sw/$PIONIC_DESIGN
+  artifacts:
+    paths:
+      - sw/$PIONIC_DESIGN/pionic-test
 
 build-sw-pcie:
   extends: .build-sw
@@ -76,33 +79,21 @@ build-hw-pcie:
 #       - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
 #       - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
 
-release:
+publish:
   stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  image: registry.ethz.ch/project-openenzian/ci-images/publish:ubuntu-22.04
   rules:
     - if: '$CI_COMMIT_TAG'
   needs:
-    - job: build-hw-pcie
+    - job: build-sw-pcie
       artifacts: true
-  script:
-    - |
-      url() {
-        echo https://gitlab.ethz.ch/api/v4/projects/47960/packages/generic/release/$CI_COMMIT_TAG/$1
-
-      }
-      upload() {
-        curl --fail --user "${PKG_REGISTRY_USER}:${PKG_REGISTRY_KEY}" --upload-file $1/$2 $(url $2)
-      }
-
-      asset_links=()
-
-      for artifact_file in pio-nic-pcie.{bit,ltx} design_1_wrapper_postroute_physopt.dcp; do
-        upload out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1 ${artifact_file}
-        asset_links+=("--assets-link" "{\"name\":\"${artifact_file}\",\"url\":\"$(url ${artifact_file})\",\"link_type\":\"other\"}")
-      done
-      
-      release-cli create --name "Release $CI_COMMIT_TAG" --tag-name $CI_COMMIT_TAG "${asset_links[@]}"
-      
-  release:
-    tag_name: '$CI_COMMIT_TAG'
-    description: 'Software and hardware artifacts for version $CI_COMMIT_TAG.'
+    - job: build-sw-eci
+      artifacts: true
+  variables:
+    PROJECT_ID: 47960
+    PACKAGE_NAME: release
+    RELEASE_NAME: 'Release $CI_COMMIT_TAG'
+    RELEASE_TAG: '$CI_COMMIT_TAG'
+    ARTIFACT_PATHS: |
+      sw/pcie/pionic-test
+      sw/eci/pionic-test
