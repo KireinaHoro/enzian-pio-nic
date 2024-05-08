@@ -82,6 +82,7 @@ build-hw-pcie:
 publish:
   stage: release
   image: registry.ethz.ch/project-openenzian/ci-images/publish:ubuntu-22.04
+  script: /publish_artifacts
   rules:
     - if: '$CI_COMMIT_TAG'
   needs:
