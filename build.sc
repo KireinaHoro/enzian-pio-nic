@@ -9,8 +9,12 @@ import $file.deps.`spinal-blocks`.build
 import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 
+// download static-shell release checkpoint
+import $ivy.`com.lihaoyi::requests:0.8.2`
+
 object v {
   val scalaVersion = "2.13.12"
+  val eciStaticShellVersion = "v0.1.0"
 }
 
 trait ApplyScalaVersion { this: ScalaModule =>
@@ -65,12 +69,19 @@ trait HwProjModule extends Module {
     Seq("NicEngine_ips.v", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
   }
 
-  def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path): Unit = {
+  def extraEnvironment = T { Map.empty[String, String] }
+
+  def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
     os.proc("vivado",
       "-mode", "batch",
       "-source", tcl,
       "-tclargs",
-      args).call(stdout = os.Inherit, stderr = os.Inherit, cwd = cwd)
+      args).call(
+        stdout = os.Inherit,
+        stderr = os.Inherit,
+        cwd = cwd,
+        env = env,
+      )
   }
 
   def vivadoRoot = millSourcePath / "vivado" / variant
@@ -85,11 +96,12 @@ trait HwProjModule extends Module {
   }
 
   def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
+
+  def bitstreamEnv = T { Map.empty[String, String] }
   def generateBitstream = T {
     generateVerilog()
-    val proj = vivadoProject().path
-    callVivado(bitstreamTcl().path, Seq(), proj / os.up)
-    Seq("bit", "ltx").map(ext => PathRef(proj / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
+    callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
+    Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
   }
 }
 
@@ -107,6 +119,14 @@ object gen extends CommonModule { outer =>
 }
 
 object pcie extends HwProjModule { def variant = "pcie" }
-object eci extends HwProjModule { def variant = "eci" }
+object eci extends HwProjModule {
+  def variant = "eci"
+  override def bitstreamEnv = T {
+    println(s"Downloading static shell ${v.eciStaticShellVersion} checkpoint...")
+    val staticShellCkptUrl = s"https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/${v.eciStaticShellVersion}/build_static_shell_routed.dcp"
+    os.write(T.dest / "static_shell_routed.dcp", requests.get.stream(staticShellCkptUrl))
+    Map("ENZIAN_SHELL_DIR" -> T.dest.toString)
+  }
+}
 
 // vi: ft=scala
