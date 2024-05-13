@@ -321,7 +321,7 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
     int first_read_size = pkt_len > 64 ? 64 : pkt_len;
     copy_from_fpgamem(ctx, inline_data_addr, desc->buf, first_read_size);
     if (pkt_len > 64) {
-      copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_RX_OVERFLOW, desc->buf + 64,
+      copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->buf + 64,
           pkt_len - 64);
     }
 
@@ -382,7 +382,7 @@ void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   int first_write_size = pkt_len > 64 ? 64 : pkt_len;
   copy_to_fpgamem(ctx, *next_cl * 0x80 + 0x40 + tx_base, desc->buf, first_write_size);
   if (pkt_len > 64) {
-    copy_to_fpgamem(ctx, tx_base + PIONIC_ECI_TX_OVERFLOW, desc->buf + 64,
+    copy_to_fpgamem(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->buf + 64,
         pkt_len - 64);
   }
 

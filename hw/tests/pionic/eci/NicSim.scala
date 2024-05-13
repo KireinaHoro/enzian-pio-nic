@@ -114,7 +114,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     var data = dcsMaster.read(info.addr, firstReadSize)
     if (toSend.size > 64) {
       data ++= dcsMaster.read(
-        dut.host[ConfigWriter].getConfig[Int]("eci rx overflow") +
+        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
+          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
           dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
         toSend.size - 64)
     }
@@ -204,7 +205,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
       dcsMaster.write(
-        dut.host[ConfigWriter].getConfig[Int]("eci tx overflow") +
+        dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
+          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
           dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
         toSend.drop(firstWriteSize))
     }
