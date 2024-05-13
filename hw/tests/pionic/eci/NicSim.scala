@@ -255,4 +255,15 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
+
+  test("tx-no-voluntary-inv") { implicit dut =>
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    dcsMaster.voluntaryInvProb = 0
+    dcsMaster.doPartialWrite = false
+
+    0 until nicConfig.numCores foreach { idx =>
+      println(s"====> Testing core $idx")
+      txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
+    }
+  }
 }
