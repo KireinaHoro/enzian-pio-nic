@@ -305,6 +305,8 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   // make sure that we don't read data before we actually get the control
   BARRIER
 
+  uint64_t inline_data_addr = *next_cl * 0x80 + 0x40 + rx_base;
+
   // always toggle CL
   *next_cl ^= true;
 
@@ -317,7 +319,7 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
 
     // copy to prepared buffer
     int first_read_size = pkt_len > 64 ? 64 : pkt_len;
-    copy_from_fpgamem(ctx, *next_cl * 0x80 + 0x40 + rx_base, desc->buf, first_read_size);
+    copy_from_fpgamem(ctx, inline_data_addr, desc->buf, first_read_size);
     if (pkt_len > 64) {
       copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_RX_OVERFLOW, desc->buf + 64,
           pkt_len - 64);
