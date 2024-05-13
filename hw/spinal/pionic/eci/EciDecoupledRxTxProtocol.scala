@@ -344,8 +344,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             ulFlow.valid := True
 
             // we should've latched ctrl in savedTxCtrl
-            txOverflowToInvalidate := packetSizeToNumOverflowCls(savedTxCtrl.asUInt)
-            when (txOverflowToInvalidate > 0) {
+            val toInvalidate = packetSizeToNumOverflowCls(savedTxCtrl.asUInt)
+            txOverflowToInvalidate := toInvalidate
+            when (toInvalidate > 0) {
               goto(invalidatePacketData)
             } otherwise {
               goto(tx)
@@ -355,8 +356,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
       val invalidatePacketData: State = new State {
         whenIsActive {
-          when(txOverflowInvIssued < txOverflowToInvalidate) {
-            lci.payload := overflowIdxToAddr(txOverflowInvIssued, isTx = true)
+          when(txOverflowInvIssued.valueNext < txOverflowToInvalidate) {
+            lci.payload := overflowIdxToAddr(txOverflowInvIssued.valueNext, isTx = true)
             lci.valid := True
           }
 
