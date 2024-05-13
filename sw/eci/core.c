@@ -194,11 +194,19 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     ctx->core_states[i].tx_pkt_buf = malloc(PIONIC_MTU);
   }
 
-  // clean all control cachelines
+  // clean all cachelines
   for (int cid = 0; cid < PIONIC_NUM_CORES; ++cid) {
+    uint64_t rx_base = PIONIC_ECI_RX_BASE + cid * PIONIC_ECI_CORE_OFFSET;
+    uint64_t tx_base = PIONIC_ECI_TX_BASE + cid * PIONIC_ECI_CORE_OFFSET;
+
     for (int next_cl = 0; next_cl < 2; ++next_cl) {
-      cl_hit_inv(ctx, PIONIC_ECI_RX_BASE + cid * PIONIC_ECI_CORE_OFFSET + 0x80 * next_cl);
-      cl_hit_inv(ctx, PIONIC_ECI_TX_BASE + cid * PIONIC_ECI_CORE_OFFSET + 0x80 * next_cl);
+      cl_hit_inv(ctx, rx_base + 0x80 * next_cl);
+      cl_hit_inv(ctx, tx_base + 0x80 * next_cl);
+    }
+
+    for (int overflow_cl = 0; overflow_cl < PIONIC_ECI_NUM_OVERFLOW_CL; ++overflow_cl) {
+      cl_hit_inv(ctx, rx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
+      cl_hit_inv(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
     }
   }
 
