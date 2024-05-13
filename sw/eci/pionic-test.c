@@ -53,8 +53,6 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   }
 
   BARRIER
-  sleep(1);
-  BARRIER
 
   // Rx path is well instrumented, so let's take advantage of this.
   //
