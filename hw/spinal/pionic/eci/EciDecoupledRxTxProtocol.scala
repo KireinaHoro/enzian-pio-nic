@@ -39,8 +39,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx"))
   }
   lazy val csr = host[GlobalCSRPlugin].logic
-
-  lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
   lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
@@ -153,6 +151,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     writeCmd = busCtrl.writeCmd
   }.setName("driveDcsBus")
 
+  lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
+
   val logic = during build new Area {
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
@@ -162,6 +162,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     configWriter.postConfig("eci rx base", 0)
     configWriter.postConfig("eci tx base", txOffset)
     configWriter.postConfig("eci overflow offset", 0x100)
+    configWriter.postConfig("eci num overflow cl", numOverflowCls)
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
