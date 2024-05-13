@@ -11,10 +11,14 @@ import org.apache.commons.io.output.TeeOutputStream
 import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap, Failed, Outcome, ParallelTestExecution, Succeeded}
 import org.scalatest.funsuite.FixtureAnyFunSuite
 
-abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with BeforeAndAfterAllConfigMap with ParallelTestExecution {
+object SimConfig {
   var simSeed: Option[Int] = None
   var setupSeed: Int = Random.nextInt
   var printSimLog: Boolean = false
+}
+
+abstract class DutSimFunSuite[T <: Component] extends FixtureAnyFunSuite with BeforeAndAfterAllConfigMap with ParallelTestExecution {
+  import SimConfig._
 
   override def beforeAll(cm: ConfigMap): Unit = {
     cm.get("setupSeed").foreach { case s: String =>
