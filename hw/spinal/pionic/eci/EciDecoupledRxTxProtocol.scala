@@ -160,9 +160,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
     configWriter.postConfig("eci rx base", 0)
-    configWriter.postConfig("eci rx overflow", 0x100)
     configWriter.postConfig("eci tx base", txOffset)
-    configWriter.postConfig("eci tx overflow", txOffset + 0x100)
+    configWriter.postConfig("eci overflow offset", 0x100)
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
