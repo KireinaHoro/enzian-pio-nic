@@ -151,13 +151,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   // read out shell version number
   printf("Enzian shell version: %08lx\n", read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
 
-  /*
-  // reset application
-  printf("Resetting application...\n");
-  uint64_t old_csr = read64_shell(ctx, SHELL_REGS_CSR_ADDR);
-  write64_shell(ctx, SHELL_REGS_CSR_ADDR, old_csr | 0x2);
-  write64_shell(ctx, SHELL_REGS_CSR_ADDR, old_csr & ~0x2);
-  */
+  // TODO: implement resync
 
   // read out NicEngine version number
   uint64_t ver = read64(ctx, PIONIC_GLOBAL_VERSION);
