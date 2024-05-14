@@ -47,7 +47,7 @@ void pionic_reset_pkt_alloc(pionic_ctx_t ctx, int cid) {
 // handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728
 static jmp_buf *sigbus_jmp;
 
-void signal_handler(int sig) {
+static void signal_handler(int sig) {
   if (sig == SIGBUS) {
     if (sigbus_jmp) siglongjmp(*sigbus_jmp, 1);
     abort();
