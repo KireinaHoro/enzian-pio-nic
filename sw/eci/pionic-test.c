@@ -144,9 +144,9 @@ int main(int argc, char *argv[]) {
   // 20 ms
   pionic_set_rx_block_cycles(ctx, pionic_us_to_cycles(20 * 1000));
 
-  // estimate pcie roundtrip time
-  FILE *out = fopen("pcie_lat.csv", "w");
-  fprintf(out, "pcie_lat_cyc\n");
+  // estimate eci I/O roundtrip time
+  FILE *out = fopen("eci_lat.csv", "w");
+  fprintf(out, "eci_lat_cyc\n");
   int num_trials = 50;
   uint64_t cycles = pionic_get_cycles(ctx);
   for (int i = 0; i < num_trials; ++i) {
