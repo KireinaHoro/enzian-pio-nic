@@ -1,2 +1,2 @@
-*-lat-breakdown.pdf
-*.pickle
+**/*.pdf
+**/.~lock*.csv#
