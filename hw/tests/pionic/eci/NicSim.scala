@@ -198,7 +198,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
       dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
 
-    println(f"Core $cid: writing packet desc to $clAddr%#x...")
+    println(f"Core $cid: sending packet of length ${toSend.length}, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
