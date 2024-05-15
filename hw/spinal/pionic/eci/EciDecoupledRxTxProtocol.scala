@@ -213,8 +213,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           when (hostRxNext.fire) {
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
             goto(gotPacket)
-          }
-          when (rxNackTriggerInv) {
+          } elsewhen (rxNackTriggerInv) {
             goto(noPacket)
           }
         }
