@@ -13,6 +13,9 @@ typedef struct {
   size_t len;
 } pionic_pkt_desc_t;
 
+// implementation details
+int pionic_get_mtu();
+
 // allocate and release ctx
 int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);
 void pionic_fini(pionic_ctx_t *ctx);

@@ -12,8 +12,6 @@
 
 #define BARRIER asm volatile ("dmb sy\nisb");
 
-static uint8_t *test_data;
-
 typedef struct {
   uint32_t host_got_tx_buf;
   uint32_t host_read_complete;
@@ -27,6 +25,8 @@ static void rand_fill(uint8_t *buf, size_t len) {
   }
 }
 
+static uint8_t *rx_buf, *tx_buf;
+
 static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offset) {
   int cid = 0;
 
@@ -34,9 +34,11 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   pionic_tx_get_desc(ctx, cid, &desc);
   // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
 
-  char rx_buf[length];
-  const uint8_t *tx_buf = test_data;
-  rand_fill(test_data, 4096);
+  // make sure we don't read past the end of the tx buffer
+  assert(length <= pionic_get_mtu());
+
+  // randomize packet contents
+  rand_fill(tx_buf, length);
 
   measure_t ret = { 0 };
 
@@ -80,14 +82,13 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   // Taking HostReadCompleted on the CPU requires one PCIe round-trip, resulting in a measurement too late
   // by half the RTT.  This is measured beforehand and subtracted during actual interval calculation.
 
-  bool got_pkt = pionic_rx(ctx, cid, &desc);
-  /*
   int tries = 10;
   bool got_pkt;
   while (!(got_pkt = pionic_rx(ctx, cid, &desc)) && (--tries > 0)) {
-    printf("Didn't get packet, %d tries left...\n", tries);
+    // printf("Didn't get packet, %d tries left...\n", tries);
+    printf("~");
+    fflush(stdout);
   }
-  */
 
   if (length > 0) {
     assert(got_pkt && "failed to receive packet");
@@ -109,7 +110,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
 
 
   if (length > 0 && memcmp(rx_buf, tx_buf, length)) {
-    printf("FAIL: data mismatch!  Expected (tx):\n");
+    printf("FAIL: data mismatch for length %d!  Expected (tx):\n", length);
     hexdump(tx_buf, length);
     printf("Rx:\n");
     hexdump(rx_buf, length);
@@ -128,7 +129,8 @@ int main(int argc, char *argv[]) {
     goto fail;
   }
 
-  test_data = malloc(4096);
+  rx_buf = malloc(pionic_get_mtu());
+  tx_buf = malloc(pionic_get_mtu());
 
   pionic_ctx_t ctx;
   if (pionic_init(&ctx, NULL, true) < 0) {
