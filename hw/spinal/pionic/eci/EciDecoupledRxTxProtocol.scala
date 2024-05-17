@@ -89,19 +89,22 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         logic.rxReqs(idx).set()
-        // only allow read request for a new packet to proceed when we are idle (no inv pending, etc.)
-        // this covers both NACK and actual packets
-        when (!logic.rxFsm.isActive(logic.rxFsm.idle) && idx =/= logic.rxCurrClIdx.asUInt) {
+        // halt read bus when:
+        // - we are not leaving idle (we are processing a packet / waiting for a packet)
+        // - we are not in noPacket / gotPacket (where repeat could happen)
+        when (!(logic.rxFsm.isExiting(logic.rxFsm.idle) ||
+            logic.rxFsm.isActive(logic.rxFsm.noPacket) ||
+            logic.rxFsm.isActive(logic.rxFsm.gotPacket))) {
           busCtrl.readHalt()
         }
       }
 
       // we latch the rx stream during any possible host reload replays
-      val needRepeat = logic.rxFsm.isActive(logic.rxFsm.gotPacket) || logic.rxFsm.isActive(logic.rxFsm.noPacket)
-      val latched = RegNextWhen(logic.rxPacketCtrl(idx),
-        // latch exactly when the first read happened, to prevent valid going high in between
-        logic.rxFsm.isActive(logic.rxFsm.idle) && busCtrl.isReading(rxCtrlAddr)).asFlow
-      val repeated = StreamMux(needRepeat.asUInt, Seq(logic.rxPacketCtrl(idx), latched.toStream)) setName "repeated"
+      val inResponse = logic.rxFsm.isActive(logic.rxFsm.gotPacket) || logic.rxFsm.isActive(logic.rxFsm.noPacket)
+      // first beat goes to CoreControl; other beats go to the dummy latched source
+      val needRepeat = inResponse && RegNext(inResponse)
+      val latched = ValidFlow(logic.rxPacketCtrl(idx).asFlow.toReg()).toStream
+      val repeated = StreamMux(needRepeat.asUInt, Seq(logic.rxPacketCtrl(idx), latched)) setName "repeated"
 
       // disable block cycles when we are in repeat
       when (needRepeat) {
@@ -198,7 +201,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
-    val savedHostRx = RegNextWhen(hostRxNext.payload, hostRxNext.fire)
+    val savedHostRx = RegNextWhen(hostRxNext.payload, hostRxNext.valid)
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -210,7 +213,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           rxOverflowInvAcked.clear()
           rxOverflowInvIssued.clear()
 
-          when (hostRxNext.fire) {
+          when (hostRxNext.valid) {
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
             goto(gotPacket)
           } elsewhen (rxNackTriggerInv) {
@@ -297,6 +300,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val ctrlInfo = PacketCtrlInfo()
     ctrlInfo.size := hostRxNext.payload.size
     val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo)
+
     val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
 
     val txPacketCtrl = Vec(Stream(Bits(512 bits)), 2)

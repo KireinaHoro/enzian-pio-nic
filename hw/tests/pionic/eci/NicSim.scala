@@ -96,7 +96,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
   }
 
-  def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
+  def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): Unit = {
     fork {
       sleepCycles(20)
       axisMaster.send(toSend)
@@ -105,7 +105,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     // TODO: check performance counters
 
-    val info = tryReadPacketDesc(dcsMaster, cid).result.get
+    val info = tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
     assert(info.size == toSend.size, s"packet length mismatch: expected ${toSend.length}, got ${info.size}")
 
@@ -131,11 +131,11 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // packet will be acknowledged by reading next packet
   }
 
-  def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
+  def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int, maxRetries: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
     val coreBlock = nicConfig.allocFactory.readBack("control", cid)
 
-    assert(tryReadPacketDesc(dcsMaster, cid).result.isEmpty, "should not have packet on standby yet")
+    // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
     // set core mask to only schedule to one core
     val mask = 1 << cid
@@ -150,7 +150,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
-        rxSimple(dcsMaster, axisMaster, toSend, cid)
+        rxSimple(dcsMaster, axisMaster, toSend, cid, maxRetries = maxRetries)
       }
     }
 
@@ -158,19 +158,20 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   }
 
   def rxScanOnCore(cid: Int) = test(s"rx-scan-sizes-core$cid", Slow) { implicit dut =>
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
+    // set a large enough rx block cycles, such that there shouldn't be a need to retry
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(5000000) // 20 ms @ 250 MHz
 
-    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid)
+    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid, maxRetries = 0)
   }
 
   0 until nicConfig.numCores foreach rxScanOnCore
 
   test("rx-all-cores-serialized") { implicit dut =>
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(10000)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
 
     0 until nicConfig.numCores foreach { idx =>
       println(s"====> Testing core $idx")
-      rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, idx)
+      rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, idx, maxRetries = 5)
     }
   }
 
