@@ -70,7 +70,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (axiMaster, axisSlave)
   }
 
-  def rxSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
+  def rxTestSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
     val coreBlock = nicConfig.allocFactory.readBack("control")
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
@@ -126,7 +126,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // test for 200 runs
     for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 512)) {
       val toSend = Random.nextBytes(size).toList
-      0 until 50 foreach { _ => rxSimple(master, axisMaster, toSend) }
+      0 until 50 foreach { _ => rxTestSimple(master, axisMaster, toSend) }
     }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)

@@ -96,30 +96,35 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
   }
 
-  def rxSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+  def rxSingle(dcsMaster: DcsAppMaster, cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): List[Byte] = {
+    val info = tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.get
+    println(s"Received status register: $info")
+    val sz = info.size.toInt
+
+    val firstReadSize = Math.min(sz, 64)
+    var data = dcsMaster.read(info.addr, firstReadSize)
+    if (sz > 64) {
+      data ++= dcsMaster.read(
+        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
+          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
+          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+        sz - 64)
+    }
+
+    data
+  }
+
+  def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): Unit = {
     fork {
-      sleepCycles(20)
+      sleepCycles(Random.nextInt(200))
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
 
     // TODO: check performance counters
 
-    val info = tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.get
-    println(s"Received status register: $info")
-    assert(info.size == toSend.size, s"packet length mismatch: expected ${toSend.length}, got ${info.size}")
-
     // read memory and check data
-    val firstReadSize = if (toSend.size > 64) 64 else toSend.size
-    var data = dcsMaster.read(info.addr, firstReadSize)
-    if (toSend.size > 64) {
-      data ++= dcsMaster.read(
-        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
-          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
-          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
-        toSend.size - 64)
-    }
-
+    val data = rxSingle(dcsMaster, cid, maxRetries)
     assert(data == toSend,
       s"""data mismatch:
          |expected: "${toSend.bytesToHex}"
@@ -150,7 +155,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
-        rxSimple(dcsMaster, axisMaster, toSend, cid, maxRetries = maxRetries)
+        rxTestSimple(dcsMaster, axisMaster, toSend, cid, maxRetries = maxRetries)
       }
     }
 
@@ -265,6 +270,41 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     0 until nicConfig.numCores foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
+    }
+  }
+
+  test("rx-multiple-packets") { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+    val globalBlock = nicConfig.allocFactory.readBack("global")
+
+    val mask = 1
+    val numPackets = 5
+    csrMaster.write(globalBlock("dispatchMask"), mask.toBytes)
+
+    val toCheck = new mutable.Queue[List[Byte]]
+    val size = 128
+    fork {
+      0 until numPackets foreach { pid =>
+        val toSend = Random.nextBytes(size).toList
+        axisMaster.send(toSend)
+        println(s"Sent packet #$pid of length ${toSend.length}")
+
+        toCheck.enqueue(toSend)
+      }
+    }
+
+    0 until numPackets foreach { pid =>
+      waitUntil(toCheck.nonEmpty)
+      val toRecv = toCheck.dequeue()
+      val data = rxSingle(dcsMaster, maxRetries = 0)
+      assert(data == toRecv,
+        s"""data mismatch:
+           |expected: "${toRecv.bytesToHex}"
+           |got:      "${data.bytesToHex}"
+           |""".stripMargin)
+
+      println(s"Received packet #$pid of length ${data.length}")
+      sleepCycles(20)
     }
   }
 }
