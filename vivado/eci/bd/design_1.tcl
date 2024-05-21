@@ -411,8 +411,8 @@ proc create_root_design { parentCell } {
   ] $xlconstant_0
 
 
-  # Create instance: sys_ila_app, and set properties
-  set sys_ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 sys_ila_app ]
+  # Create instance: system_ila_0, and set properties
+  set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
   set_property -dict [list \
     CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
@@ -432,110 +432,77 @@ proc create_root_design { parentCell } {
     CONFIG.C_SLOT_2_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_2_MAX_RD_BURSTS {16} \
     CONFIG.C_SLOT_2_MAX_WR_BURSTS {16} \
-    CONFIG.C_TRIGOUT_EN {true} \
-  ] $sys_ila_app
+  ] $system_ila_0
 
-
-  # Create instance: sys_ila_tx, and set properties
-  set sys_ila_tx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 sys_ila_tx ]
-  set_property -dict [list \
-    CONFIG.C_INPUT_PIPE_STAGES {3} \
-    CONFIG.C_SLOT_0_APC_EN {1} \
-    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
-    CONFIG.C_TRIGIN_EN {true} \
-    CONFIG.C_TRIGOUT_EN {true} \
-  ] $sys_ila_tx
-
-
-  # Create instance: sys_ila_rx, and set properties
-  set sys_ila_rx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 sys_ila_rx ]
-  set_property -dict [list \
-    CONFIG.C_INPUT_PIPE_STAGES {3} \
-    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
-    CONFIG.C_TRIGIN_EN {true} \
-  ] $sys_ila_rx
-
-
-  # Create instance: rst_cmac_usplus_0_322M, and set properties
-  set rst_cmac_usplus_0_322M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_cmac_usplus_0_322M ]
-
-  # Create instance: rst_cmac_usplus_0_322M_1, and set properties
-  set rst_cmac_usplus_0_322M_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_cmac_usplus_0_322M_1 ]
 
   # Create interface connections
   connect_bd_intf_net -intf_net CMAC_REGS_AXIL [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
-connect_bd_intf_net -intf_net [get_bd_intf_nets CMAC_REGS_AXIL] [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins sys_ila_app/SLOT_3_AXI]
-connect_bd_intf_net -intf_net DCS_EVEN_AXI [get_bd_intf_ports dcs_even_axi] [get_bd_intf_pins sys_ila_app/SLOT_1_AXI]
-connect_bd_intf_net -intf_net DCS_ODD_AXI [get_bd_intf_ports dcs_odd_axi] [get_bd_intf_pins sys_ila_app/SLOT_2_AXI]
-connect_bd_intf_net -intf_net SHELL_IO_AXIL [get_bd_intf_ports shell_io_axil] [get_bd_intf_pins sys_ila_app/SLOT_0_AXI]
+connect_bd_intf_net -intf_net [get_bd_intf_nets CMAC_REGS_AXIL] [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins system_ila_0/SLOT_3_AXI]
+connect_bd_intf_net -intf_net DCS_EVEN_AXI [get_bd_intf_ports dcs_even_axi] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
+connect_bd_intf_net -intf_net DCS_ODD_AXI [get_bd_intf_ports dcs_odd_axi] [get_bd_intf_pins system_ila_0/SLOT_2_AXI]
+connect_bd_intf_net -intf_net SHELL_IO_AXIL [get_bd_intf_ports shell_io_axil] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
-connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins sys_ila_tx/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
-connect_bd_intf_net -intf_net [get_bd_intf_nets cmac_usplus_0_axis_rx] [get_bd_intf_ports rx_axis] [get_bd_intf_pins sys_ila_rx/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
-  connect_bd_intf_net -intf_net system_ila_0_TRIG_OUT [get_bd_intf_pins sys_ila_app/TRIG_OUT] [get_bd_intf_pins sys_ila_tx/TRIG_IN]
-  connect_bd_intf_net -intf_net system_ila_1_TRIG_OUT [get_bd_intf_pins sys_ila_tx/TRIG_OUT] [get_bd_intf_pins sys_ila_rx/TRIG_IN]
 
   # Create port connections
   connect_bd_net -net app_clk_reset_bus_struct_reset [get_bd_pins app_clk_reset/bus_struct_reset] [get_bd_pins cmac_usplus_0/s_axi_sreset]
   connect_bd_net -net app_clk_reset_mb_reset [get_bd_pins app_clk_reset/mb_reset] [get_bd_ports app_clk_reset]
-  connect_bd_net -net app_clk_reset_peripheral_aresetn [get_bd_pins app_clk_reset/peripheral_aresetn] [get_bd_pins sys_ila_app/resetn]
+  connect_bd_net -net app_clk_reset_peripheral_aresetn [get_bd_pins app_clk_reset/peripheral_aresetn] [get_bd_pins system_ila_0/resetn]
   connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk] [get_bd_pins cmac_usplus_0/drp_clk]
-  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_wiz_0/clk_out1] [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk] [get_bd_pins sys_ila_app/clk]
+  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_wiz_0/clk_out1] [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk] [get_bd_pins system_ila_0/clk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset [get_bd_pins cmac_init_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
-  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/rx_clk] [get_bd_pins sys_ila_rx/clk] [get_bd_pins rst_cmac_usplus_0_322M_1/slowest_sync_clk]
-  connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_pins cmac_usplus_0/gt_txusrclk2] [get_bd_ports txclk] [get_bd_pins sys_ila_tx/clk] [get_bd_pins rst_cmac_usplus_0_322M/slowest_sync_clk]
-  connect_bd_net -net cycles_bits_1 [get_bd_ports cycles_bits] [get_bd_pins sys_ila_app/probe38]
-  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_data_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_data] [get_bd_pins sys_ila_app/probe2]
-  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_size_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_size] [get_bd_pins sys_ila_app/probe3]
-  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_vc_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_vc] [get_bd_pins sys_ila_app/probe4]
-  connect_bd_net -net dcsEven_cleanMaybeInvReq_ready_1 [get_bd_ports dcsEven_cleanMaybeInvReq_ready] [get_bd_pins sys_ila_app/probe1]
-  connect_bd_net -net dcsEven_cleanMaybeInvReq_valid_1 [get_bd_ports dcsEven_cleanMaybeInvReq_valid] [get_bd_pins sys_ila_app/probe0]
-  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_data_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_data] [get_bd_pins sys_ila_app/probe7]
-  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_size_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_size] [get_bd_pins sys_ila_app/probe8]
-  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_vc_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_vc] [get_bd_pins sys_ila_app/probe9]
-  connect_bd_net -net dcsEven_cleanMaybeInvResp_ready_1 [get_bd_ports dcsEven_cleanMaybeInvResp_ready] [get_bd_pins sys_ila_app/probe6]
-  connect_bd_net -net dcsEven_cleanMaybeInvResp_valid_1 [get_bd_ports dcsEven_cleanMaybeInvResp_valid] [get_bd_pins sys_ila_app/probe5]
-  connect_bd_net -net dcsEven_unlockResp_payload_data_1 [get_bd_ports dcsEven_unlockResp_payload_data] [get_bd_pins sys_ila_app/probe12]
-  connect_bd_net -net dcsEven_unlockResp_payload_size_1 [get_bd_ports dcsEven_unlockResp_payload_size] [get_bd_pins sys_ila_app/probe13]
-  connect_bd_net -net dcsEven_unlockResp_payload_vc_1 [get_bd_ports dcsEven_unlockResp_payload_vc] [get_bd_pins sys_ila_app/probe14]
-  connect_bd_net -net dcsEven_unlockResp_ready_1 [get_bd_ports dcsEven_unlockResp_ready] [get_bd_pins sys_ila_app/probe11]
-  connect_bd_net -net dcsEven_unlockResp_valid_1 [get_bd_ports dcsEven_unlockResp_valid] [get_bd_pins sys_ila_app/probe10]
-  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_data_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_data] [get_bd_pins sys_ila_app/probe17]
-  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_size_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_size] [get_bd_pins sys_ila_app/probe18]
-  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_vc_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_vc] [get_bd_pins sys_ila_app/probe19]
-  connect_bd_net -net dcsOdd_cleanMaybeInvReq_ready_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_ready] [get_bd_pins sys_ila_app/probe16]
-  connect_bd_net -net dcsOdd_cleanMaybeInvReq_valid_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_valid] [get_bd_pins sys_ila_app/probe15]
-  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_data_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_data] [get_bd_pins sys_ila_app/probe22]
-  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_size_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_size] [get_bd_pins sys_ila_app/probe23]
-  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_vc_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_vc] [get_bd_pins sys_ila_app/probe24]
-  connect_bd_net -net dcsOdd_cleanMaybeInvResp_ready_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_ready] [get_bd_pins sys_ila_app/probe21]
-  connect_bd_net -net dcsOdd_cleanMaybeInvResp_valid_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_valid] [get_bd_pins sys_ila_app/probe20]
-  connect_bd_net -net dcsOdd_unlockResp_payload_data_1 [get_bd_ports dcsOdd_unlockResp_payload_data] [get_bd_pins sys_ila_app/probe27]
-  connect_bd_net -net dcsOdd_unlockResp_payload_size_1 [get_bd_ports dcsOdd_unlockResp_payload_size] [get_bd_pins sys_ila_app/probe28]
-  connect_bd_net -net dcsOdd_unlockResp_payload_vc_1 [get_bd_ports dcsOdd_unlockResp_payload_vc] [get_bd_pins sys_ila_app/probe29]
-  connect_bd_net -net dcsOdd_unlockResp_ready_1 [get_bd_ports dcsOdd_unlockResp_ready] [get_bd_pins sys_ila_app/probe26]
-  connect_bd_net -net dcsOdd_unlockResp_valid_1 [get_bd_ports dcsOdd_unlockResp_valid] [get_bd_pins sys_ila_app/probe25]
-  connect_bd_net -net reset_sys_1 [get_bd_ports reset] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in] [get_bd_pins rst_cmac_usplus_0_322M/ext_reset_in] [get_bd_pins rst_cmac_usplus_0_322M_1/ext_reset_in]
-  connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn [get_bd_pins rst_cmac_usplus_0_322M_1/peripheral_aresetn] [get_bd_pins sys_ila_rx/resetn]
-  connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn [get_bd_pins rst_cmac_usplus_0_322M/peripheral_aresetn] [get_bd_pins sys_ila_tx/resetn]
-  connect_bd_net -net rxCurrClIdx_0_1 [get_bd_ports rxCurrClIdx_0] [get_bd_pins sys_ila_app/probe39]
-  connect_bd_net -net rxCurrClIdx_1_1 [get_bd_ports rxCurrClIdx_1] [get_bd_pins sys_ila_app/probe41]
-  connect_bd_net -net rxCurrClIdx_2_1 [get_bd_ports rxCurrClIdx_2] [get_bd_pins sys_ila_app/probe43]
-  connect_bd_net -net rxCurrClIdx_3_1 [get_bd_ports rxCurrClIdx_3] [get_bd_pins sys_ila_app/probe45]
-  connect_bd_net -net rxFsm_0_stateReg_1 [get_bd_ports rxFsm_0_stateReg] [get_bd_pins sys_ila_app/probe30]
-  connect_bd_net -net rxFsm_1_stateReg_1 [get_bd_ports rxFsm_1_stateReg] [get_bd_pins sys_ila_app/probe32]
-  connect_bd_net -net rxFsm_2_stateReg_1 [get_bd_ports rxFsm_2_stateReg] [get_bd_pins sys_ila_app/probe34]
-  connect_bd_net -net rxFsm_3_stateReg_1 [get_bd_ports rxFsm_3_stateReg] [get_bd_pins sys_ila_app/probe36]
-  connect_bd_net -net txCurrClIdx_0_1 [get_bd_ports txCurrClIdx_0] [get_bd_pins sys_ila_app/probe40]
-  connect_bd_net -net txCurrClIdx_1_1 [get_bd_ports txCurrClIdx_1] [get_bd_pins sys_ila_app/probe42]
-  connect_bd_net -net txCurrClIdx_2_1 [get_bd_ports txCurrClIdx_2] [get_bd_pins sys_ila_app/probe44]
-  connect_bd_net -net txCurrClIdx_3_1 [get_bd_ports txCurrClIdx_3] [get_bd_pins sys_ila_app/probe46]
-  connect_bd_net -net txFsm_0_stateReg_1 [get_bd_ports txFsm_0_stateReg] [get_bd_pins sys_ila_app/probe31]
-  connect_bd_net -net txFsm_1_stateReg_1 [get_bd_ports txFsm_1_stateReg] [get_bd_pins sys_ila_app/probe33]
-  connect_bd_net -net txFsm_2_stateReg_1 [get_bd_ports txFsm_2_stateReg] [get_bd_pins sys_ila_app/probe35]
-  connect_bd_net -net txFsm_3_stateReg_1 [get_bd_ports txFsm_3_stateReg] [get_bd_pins sys_ila_app/probe37]
+  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/rx_clk]
+  connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_pins cmac_usplus_0/gt_txusrclk2] [get_bd_ports txclk]
+  connect_bd_net -net cycles_bits_1 [get_bd_ports cycles_bits] [get_bd_pins system_ila_0/probe38]
+  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_data_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_data] [get_bd_pins system_ila_0/probe2]
+  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_size_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_size] [get_bd_pins system_ila_0/probe3]
+  connect_bd_net -net dcsEven_cleanMaybeInvReq_payload_vc_1 [get_bd_ports dcsEven_cleanMaybeInvReq_payload_vc] [get_bd_pins system_ila_0/probe4]
+  connect_bd_net -net dcsEven_cleanMaybeInvReq_ready_1 [get_bd_ports dcsEven_cleanMaybeInvReq_ready] [get_bd_pins system_ila_0/probe1]
+  connect_bd_net -net dcsEven_cleanMaybeInvReq_valid_1 [get_bd_ports dcsEven_cleanMaybeInvReq_valid] [get_bd_pins system_ila_0/probe0]
+  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_data_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_data] [get_bd_pins system_ila_0/probe7]
+  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_size_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_size] [get_bd_pins system_ila_0/probe8]
+  connect_bd_net -net dcsEven_cleanMaybeInvResp_payload_vc_1 [get_bd_ports dcsEven_cleanMaybeInvResp_payload_vc] [get_bd_pins system_ila_0/probe9]
+  connect_bd_net -net dcsEven_cleanMaybeInvResp_ready_1 [get_bd_ports dcsEven_cleanMaybeInvResp_ready] [get_bd_pins system_ila_0/probe6]
+  connect_bd_net -net dcsEven_cleanMaybeInvResp_valid_1 [get_bd_ports dcsEven_cleanMaybeInvResp_valid] [get_bd_pins system_ila_0/probe5]
+  connect_bd_net -net dcsEven_unlockResp_payload_data_1 [get_bd_ports dcsEven_unlockResp_payload_data] [get_bd_pins system_ila_0/probe12]
+  connect_bd_net -net dcsEven_unlockResp_payload_size_1 [get_bd_ports dcsEven_unlockResp_payload_size] [get_bd_pins system_ila_0/probe13]
+  connect_bd_net -net dcsEven_unlockResp_payload_vc_1 [get_bd_ports dcsEven_unlockResp_payload_vc] [get_bd_pins system_ila_0/probe14]
+  connect_bd_net -net dcsEven_unlockResp_ready_1 [get_bd_ports dcsEven_unlockResp_ready] [get_bd_pins system_ila_0/probe11]
+  connect_bd_net -net dcsEven_unlockResp_valid_1 [get_bd_ports dcsEven_unlockResp_valid] [get_bd_pins system_ila_0/probe10]
+  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_data_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_data] [get_bd_pins system_ila_0/probe17]
+  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_size_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_size] [get_bd_pins system_ila_0/probe18]
+  connect_bd_net -net dcsOdd_cleanMaybeInvReq_payload_vc_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_payload_vc] [get_bd_pins system_ila_0/probe19]
+  connect_bd_net -net dcsOdd_cleanMaybeInvReq_ready_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_ready] [get_bd_pins system_ila_0/probe16]
+  connect_bd_net -net dcsOdd_cleanMaybeInvReq_valid_1 [get_bd_ports dcsOdd_cleanMaybeInvReq_valid] [get_bd_pins system_ila_0/probe15]
+  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_data_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_data] [get_bd_pins system_ila_0/probe22]
+  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_size_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_size] [get_bd_pins system_ila_0/probe23]
+  connect_bd_net -net dcsOdd_cleanMaybeInvResp_payload_vc_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_payload_vc] [get_bd_pins system_ila_0/probe24]
+  connect_bd_net -net dcsOdd_cleanMaybeInvResp_ready_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_ready] [get_bd_pins system_ila_0/probe21]
+  connect_bd_net -net dcsOdd_cleanMaybeInvResp_valid_1 [get_bd_ports dcsOdd_cleanMaybeInvResp_valid] [get_bd_pins system_ila_0/probe20]
+  connect_bd_net -net dcsOdd_unlockResp_payload_data_1 [get_bd_ports dcsOdd_unlockResp_payload_data] [get_bd_pins system_ila_0/probe27]
+  connect_bd_net -net dcsOdd_unlockResp_payload_size_1 [get_bd_ports dcsOdd_unlockResp_payload_size] [get_bd_pins system_ila_0/probe28]
+  connect_bd_net -net dcsOdd_unlockResp_payload_vc_1 [get_bd_ports dcsOdd_unlockResp_payload_vc] [get_bd_pins system_ila_0/probe29]
+  connect_bd_net -net dcsOdd_unlockResp_ready_1 [get_bd_ports dcsOdd_unlockResp_ready] [get_bd_pins system_ila_0/probe26]
+  connect_bd_net -net dcsOdd_unlockResp_valid_1 [get_bd_ports dcsOdd_unlockResp_valid] [get_bd_pins system_ila_0/probe25]
+  connect_bd_net -net reset_sys_1 [get_bd_ports reset] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
+  connect_bd_net -net rxCurrClIdx_0_1 [get_bd_ports rxCurrClIdx_0] [get_bd_pins system_ila_0/probe39]
+  connect_bd_net -net rxCurrClIdx_1_1 [get_bd_ports rxCurrClIdx_1] [get_bd_pins system_ila_0/probe41]
+  connect_bd_net -net rxCurrClIdx_2_1 [get_bd_ports rxCurrClIdx_2] [get_bd_pins system_ila_0/probe43]
+  connect_bd_net -net rxCurrClIdx_3_1 [get_bd_ports rxCurrClIdx_3] [get_bd_pins system_ila_0/probe45]
+  connect_bd_net -net rxFsm_0_stateReg_1 [get_bd_ports rxFsm_0_stateReg] [get_bd_pins system_ila_0/probe30]
+  connect_bd_net -net rxFsm_1_stateReg_1 [get_bd_ports rxFsm_1_stateReg] [get_bd_pins system_ila_0/probe32]
+  connect_bd_net -net rxFsm_2_stateReg_1 [get_bd_ports rxFsm_2_stateReg] [get_bd_pins system_ila_0/probe34]
+  connect_bd_net -net rxFsm_3_stateReg_1 [get_bd_ports rxFsm_3_stateReg] [get_bd_pins system_ila_0/probe36]
+  connect_bd_net -net txCurrClIdx_0_1 [get_bd_ports txCurrClIdx_0] [get_bd_pins system_ila_0/probe40]
+  connect_bd_net -net txCurrClIdx_1_1 [get_bd_ports txCurrClIdx_1] [get_bd_pins system_ila_0/probe42]
+  connect_bd_net -net txCurrClIdx_2_1 [get_bd_ports txCurrClIdx_2] [get_bd_pins system_ila_0/probe44]
+  connect_bd_net -net txCurrClIdx_3_1 [get_bd_ports txCurrClIdx_3] [get_bd_pins system_ila_0/probe46]
+  connect_bd_net -net txFsm_0_stateReg_1 [get_bd_ports txFsm_0_stateReg] [get_bd_pins system_ila_0/probe31]
+  connect_bd_net -net txFsm_1_stateReg_1 [get_bd_ports txFsm_1_stateReg] [get_bd_pins system_ila_0/probe33]
+  connect_bd_net -net txFsm_2_stateReg_1 [get_bd_ports txFsm_2_stateReg] [get_bd_pins system_ila_0/probe35]
+  connect_bd_net -net txFsm_3_stateReg_1 [get_bd_ports txFsm_3_stateReg] [get_bd_pins system_ila_0/probe37]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins xlconstant_0/dout] [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity]
 
   # Create address segments
