@@ -560,15 +560,6 @@ signal rxCurrClIdx_3, txCurrClIdx_3 : std_logic;
 
 signal cycles_bits : std_logic_vector(63 downto 0);
 
-signal savedHostRx_0_addr_bits : std_logic_vector(23 downto 0);
-signal savedHostRx_0_size_bits : std_logic_vector(15 downto 0);
-signal savedHostRx_1_addr_bits : std_logic_vector(23 downto 0);
-signal savedHostRx_1_size_bits : std_logic_vector(15 downto 0);
-signal savedHostRx_2_addr_bits : std_logic_vector(23 downto 0);
-signal savedHostRx_2_size_bits : std_logic_vector(15 downto 0);
-signal savedHostRx_3_addr_bits : std_logic_vector(23 downto 0);
-signal savedHostRx_3_size_bits : std_logic_vector(15 downto 0);
-
 begin
 
 clk <= clk_sys;
@@ -1463,16 +1454,7 @@ axil_adapter_inst : entity work.axil_adapter
     txCurrClIdx_2 => txCurrClIdx_2,
     txCurrClIdx_3 => txCurrClIdx_3,
 
-    cycles_bits => cycles_bits,
-
-    savedHostRx_0_addr_bits => savedHostRx_0_addr_bits,
-    savedHostRx_0_size_bits => savedHostRx_0_size_bits,
-    savedHostRx_1_addr_bits => savedHostRx_1_addr_bits,
-    savedHostRx_1_size_bits => savedHostRx_1_size_bits,
-    savedHostRx_2_addr_bits => savedHostRx_2_addr_bits,
-    savedHostRx_2_size_bits => savedHostRx_2_size_bits,
-    savedHostRx_3_addr_bits => savedHostRx_3_addr_bits,
-    savedHostRx_3_size_bits => savedHostRx_3_size_bits
+    cycles_bits => cycles_bits
   );
 
 NicEngine_inst : entity work.NicEngine
@@ -1645,16 +1627,7 @@ NicEngine_inst : entity work.NicEngine
     txFsm_2_currClIdx => txCurrClIdx_2,
     txFsm_3_currClIdx => txCurrClIdx_3,
 
-    cycles_bits => cycles_bits,
-
-    savedHostRx_0_addr_bits => savedHostRx_0_addr_bits,
-    savedHostRx_0_size_bits => savedHostRx_0_size_bits,
-    savedHostRx_1_addr_bits => savedHostRx_1_addr_bits,
-    savedHostRx_1_size_bits => savedHostRx_1_size_bits,
-    savedHostRx_2_addr_bits => savedHostRx_2_addr_bits,
-    savedHostRx_2_size_bits => savedHostRx_2_size_bits,
-    savedHostRx_3_addr_bits => savedHostRx_3_addr_bits,
-    savedHostRx_3_size_bits => savedHostRx_3_size_bits
+    cycles_bits => cycles_bits
   );
 
 i_ila_eci_chans_arb : entity work.ila_eci_chans_arb
