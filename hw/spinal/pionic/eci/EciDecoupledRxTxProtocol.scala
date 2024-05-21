@@ -402,5 +402,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     host[DebugPlugin].postDebug(s"rxFsm_${coreID}_currClIdx", rxCurrClIdx)
     host[DebugPlugin].postDebug(s"txFsm_${coreID}_stateReg", txFsm.stateReg)
     host[DebugPlugin].postDebug(s"txFsm_${coreID}_currClIdx", txCurrClIdx)
+    host[DebugPlugin].postDebug(s"savedHostRx_$coreID", savedHostRx)
   }
 }

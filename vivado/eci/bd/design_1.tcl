@@ -355,6 +355,14 @@ proc create_root_design { parentCell } {
   set txCurrClIdx_2 [ create_bd_port -dir I -type data txCurrClIdx_2 ]
   set rxCurrClIdx_3 [ create_bd_port -dir I -type data rxCurrClIdx_3 ]
   set txCurrClIdx_3 [ create_bd_port -dir I -type data txCurrClIdx_3 ]
+  set savedHostRx_0_addr_bits [ create_bd_port -dir I -from 23 -to 0 -type data savedHostRx_0_addr_bits ]
+  set savedHostRx_0_size_bits [ create_bd_port -dir I -from 15 -to 0 -type data savedHostRx_0_size_bits ]
+  set savedHostRx_1_addr_bits [ create_bd_port -dir I -from 23 -to 0 -type data savedHostRx_1_addr_bits ]
+  set savedHostRx_1_size_bits [ create_bd_port -dir I -from 15 -to 0 -type data savedHostRx_1_size_bits ]
+  set savedHostRx_2_addr_bits [ create_bd_port -dir I -from 23 -to 0 -type data savedHostRx_2_addr_bits ]
+  set savedHostRx_2_size_bits [ create_bd_port -dir I -from 15 -to 0 -type data savedHostRx_2_size_bits ]
+  set savedHostRx_3_addr_bits [ create_bd_port -dir I -from 23 -to 0 -type data savedHostRx_3_addr_bits ]
+  set savedHostRx_3_size_bits [ create_bd_port -dir I -from 15 -to 0 -type data savedHostRx_3_size_bits ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -417,7 +425,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_INPUT_PIPE_STAGES {3} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {4} \
-    CONFIG.C_NUM_OF_PROBES {47} \
+    CONFIG.C_NUM_OF_PROBES {55} \
     CONFIG.C_SLOT {3} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {44} \
     CONFIG.C_SLOT_0_AXI_DATA_WIDTH {64} \
@@ -528,6 +536,14 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets cmac_usplus_0_axis_rx] [get_bd_i
   connect_bd_net -net rxFsm_1_stateReg_1 [get_bd_ports rxFsm_1_stateReg] [get_bd_pins sys_ila_app/probe32]
   connect_bd_net -net rxFsm_2_stateReg_1 [get_bd_ports rxFsm_2_stateReg] [get_bd_pins sys_ila_app/probe34]
   connect_bd_net -net rxFsm_3_stateReg_1 [get_bd_ports rxFsm_3_stateReg] [get_bd_pins sys_ila_app/probe36]
+  connect_bd_net -net savedHostRx_0_addr_bits_1 [get_bd_ports savedHostRx_0_addr_bits] [get_bd_pins sys_ila_app/probe47]
+  connect_bd_net -net savedHostRx_0_size_bits_1 [get_bd_ports savedHostRx_0_size_bits] [get_bd_pins sys_ila_app/probe48]
+  connect_bd_net -net savedHostRx_1_addr_bits_1 [get_bd_ports savedHostRx_1_addr_bits] [get_bd_pins sys_ila_app/probe49]
+  connect_bd_net -net savedHostRx_1_size_bits_1 [get_bd_ports savedHostRx_1_size_bits] [get_bd_pins sys_ila_app/probe50]
+  connect_bd_net -net savedHostRx_2_addr_bits_1 [get_bd_ports savedHostRx_2_addr_bits] [get_bd_pins sys_ila_app/probe51]
+  connect_bd_net -net savedHostRx_2_size_bits_1 [get_bd_ports savedHostRx_2_size_bits] [get_bd_pins sys_ila_app/probe52]
+  connect_bd_net -net savedHostRx_3_addr_bits_1 [get_bd_ports savedHostRx_3_addr_bits] [get_bd_pins sys_ila_app/probe53]
+  connect_bd_net -net savedHostRx_3_size_bits_1 [get_bd_ports savedHostRx_3_size_bits] [get_bd_pins sys_ila_app/probe54]
   connect_bd_net -net txCurrClIdx_0_1 [get_bd_ports txCurrClIdx_0] [get_bd_pins sys_ila_app/probe40]
   connect_bd_net -net txCurrClIdx_1_1 [get_bd_ports txCurrClIdx_1] [get_bd_pins sys_ila_app/probe42]
   connect_bd_net -net txCurrClIdx_2_1 [get_bd_ports txCurrClIdx_2] [get_bd_pins sys_ila_app/probe44]
