@@ -141,6 +141,7 @@ class PioCoreControl(rxDmaConfig: AxiDmaConfig, txDmaConfig: AxiDmaConfig, coreI
   val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
   val rxCaptured = Reg(Stream(PacketDesc())).setIdle
+  // FIXME: how much buffering do we need?
   rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
 
   val rxFsm = new StateMachine {

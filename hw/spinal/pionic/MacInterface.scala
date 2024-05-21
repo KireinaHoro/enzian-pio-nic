@@ -92,6 +92,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
 
     // CDC for rx
     // buffer incoming packet for packet length
+    // FIXME: how much buffering do we need?
     val rxFifo = AxiStreamAsyncFifo(config.axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
     rxFifo.slavePort << s_axis_rx
     // derive cmac incoming packet length
@@ -103,7 +104,8 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
 
     val cmacReq = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
     val cmacReqCdc = cmacReq.clone
-    val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, 2, cmacRxClock, clockDomain)
+    // FIXME: how much buffering do we need?
+    val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
 
     // only dispatch to enabled cores
     val dispatchedCmacRx = StreamDispatcherWithEnable(
