@@ -65,7 +65,8 @@ add_files -fileset [get_filesets constrs_1] "${src_dir}/eci-toolkit/xdc"
 # Add DCS sources.
 # eci_cmd_defs is got from eci_toolkit.
 add_files -fileset [get_filesets sources_1] -norecurse \
-    "$dcs_src_dir/dcs/dcu/eci_dirc_defs/eci_cc_defs.sv" \
+    "$dcs_src_dir/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv" \
+    "$dcs_src_dir/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv" \
     "$dcs_src_dir/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv" \
     "$dcs_src_dir/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv" \
     "$dcs_src_dir/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv" \
@@ -88,7 +89,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$dcs_src_dir/dcs/dcu/dcu_controller/rtl/dcu_controller.sv" \
     "$dcs_src_dir/dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv" \
     "$dcs_src_dir/dcs/dcu/decode_eci_req/rtl/decode_eci_req.sv" \
-    "$dcs_src_dir/dcs/dcu/eci_cc_table/rtl/eci_cc_table.sv" \
     "$dcs_src_dir/dcs/dcu/gen_out_header/rtl/gen_out_header.sv" \
     "$dcs_src_dir/dcs/dcu/ram_tdp/rtl/ram_tdp.sv" \
     "$dcs_src_dir/dcs/dcu/rd_trmgr/rtl/rd_trmgr.sv" \

@@ -9,7 +9,7 @@
 	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/static-shell.git
 [submodule "vivado/eci/directory-controller-slice"]
 	path = vivado/eci/directory-controller-slice
-	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/directory-controller-slice.git
+	url = https://gitlab.inf.ethz.ch/project-openenzian/applications/enzian-pio-nic/directory-controller-slice.git
 [submodule "vivado/eci/eci-toolkit"]
 	path = vivado/eci/eci-toolkit
 	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/eci-toolkit.git
