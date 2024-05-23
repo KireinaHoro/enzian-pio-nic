@@ -8,6 +8,8 @@ import pickle
 
 import matplotlib.pyplot as plt
 
+from common import *
+
 parser = argparse.ArgumentParser(
             prog='plot.py',
             description='Plot data from the PCIe PIO experiment',
@@ -19,22 +21,7 @@ parser.add_argument('--pcie', help='CSV file for PCIe latency measurements', def
 
 args = parser.parse_args()
 
-FREQ = 250e6 # 250 MHz
-
 # ================ DATA PROC ================
-
-def cyc_to_us(cycles):
-    if type(cycles) == str:
-        cycles = int(cycles)
-    return 1e6 / FREQ * cycles
-
-# convert to median + ci
-def vals_to_med_ci(vals, dtype=float):
-    med = np.median(vals)
-    bt_ci = st.bootstrap((vals,), np.median, confidence_level=.95, method='percentile')
-    plot_lo = med - bt_ci.confidence_interval.low
-    plot_hi = bt_ci.confidence_interval.high - med
-    return med, (plot_lo, plot_hi)
 
 # read PCIe RTT
 pcie_lat_us = []
@@ -72,7 +59,7 @@ with open(args.loopback, 'r') as f:
 
         append_type('rx queue', cycdiff_to_us('entry', 'after_rx_queue'))
         append_type('rx stream buf', cycdiff_to_us('after_rx_queue', 'after_dma_write'))
-        
+
         # only add wait to host if read happens later than entry
         wait = cycdiff_to_us('after_dma_write', 'read_start')
         if wait > 0:
@@ -93,20 +80,11 @@ for stats in loopback_stats.values():
 
 # ================ PLOTTING ================
 
-def fixed_ratio_fig(aspect_ratio):
-    figwidth = 5.125 # page width
-    return figwidth, figwidth/aspect_ratio
-
 # stack plot rx latency component | x=size y=latency contribution
 def do_dir(dir):
     assert dir in ['rx', 'tx']
-    fig = plt.figure(figsize=fixed_ratio_fig(6/5))
-    ax = fig.add_subplot()
-    ax.grid(which='major', alpha=0.5)
-    ax.grid(which='minor', alpha=0.2)
-    ax.set_title(f'{dir.upper()} Latency Breakdown (PIO)')
-    ax.set_xlabel('Payload Length (B)')
-    ax.set_ylabel('Latency (us)')
+
+    fig, ax = create_plot(f'{dir.upper()} Latency Breakdown (PCIe PIO)')
     # ax.set_ylim(0, 140)
 
     comp_labels = []
