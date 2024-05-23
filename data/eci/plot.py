@@ -135,6 +135,8 @@ def do_dir(direction):
     fig, ax = create_plot(f'{direction.upper()} Latency (ECI PIO)')
     dat, ci = zip(*label_data[f'{direction} total'])
 
+    print(f'min dat: {min(dat)}, max dat: {max(dat)}')
+
     ax.errorbar(sizes, dat, yerr=list(zip(*cis)), ecolor='black')
 
     fig.savefig(f'{direction}-lat.pdf')

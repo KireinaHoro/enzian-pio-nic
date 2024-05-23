@@ -71,6 +71,10 @@ with open(args.loopback, 'r') as f:
         append_type('rx read packet', cycdiff_to_us('after_read', 'host_read_complete') - pcie_lat_median / 2)
         append_type('rx process commit', cycdiff_to_us('host_read_complete', 'after_rx_commit') - pcie_lat_median / 2)
 
+        # total latency for the simplest plot
+        append_type('tx total', cycdiff_to_us('host_got_tx_buf', 'exit') - pcie_lat_median / 2)
+        append_type('rx total', cycdiff_to_us('entry', 'host_read_complete') - pcie_lat_median / 2)
+
 # convert to stackplot layout
 sizes = loopback_stats.keys()
 label_data = {}
@@ -109,6 +113,16 @@ def do_dir(dir):
 
     ax.legend(loc='upper left')
     fig.savefig(f'{dir}-lat-breakdown.pdf')
+
+    # simplest latency diagram, no breakdown
+    fig, ax = create_plot(f'{dir.upper()} Latency (PCIe PIO)')
+    dat, ci = zip(*label_data[f'{dir} total'])
+
+    print(f'min dat: {min(dat)}, max dat: {max(dat)}')
+
+    ax.errorbar(sizes, dat, yerr=list(zip(*cis)), ecolor='black')
+
+    fig.savefig(f'{dir}-lat.pdf')
 
 do_dir('rx')
 do_dir('tx')
