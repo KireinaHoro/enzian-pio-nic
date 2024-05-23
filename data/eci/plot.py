@@ -9,6 +9,8 @@ import pickle
 import matplotlib.pyplot as plt
 import pprint
 
+from common import *
+
 parser = argparse.ArgumentParser(
             prog='plot.py',
             description='Plot data from the ECI PIO experiment',
@@ -20,28 +22,7 @@ parser.add_argument('--eci', help='CSV file for ECI I/O latency measurements', d
 
 args = parser.parse_args()
 
-FREQ = 250e6 # 250 MHz
-
 # ================ DATA PROC ================
-
-def warn(msg):
-    print('Warning: ', msg)
-
-def cyc_to_us(cycles):
-    if type(cycles) == str:
-        cycles = int(cycles)
-    return 1e6 / FREQ * cycles
-
-# convert to median + ci
-def vals_to_med_ci(vals, dtype=float, name='unknown'):
-    med = np.median(vals)
-    if len(vals) == 1:
-        warn(f'series "{name}" has only {len(vals)} elements, generating dummy CI.')
-        return med, (med, med)
-    bt_ci = st.bootstrap((vals,), np.median, confidence_level=.95, method='percentile')
-    plot_lo = med - bt_ci.confidence_interval.low
-    plot_hi = bt_ci.confidence_interval.high - med
-    return med, (plot_lo, plot_hi)
 
 # read ECI RTT
 eci_lat_us = []
@@ -111,20 +92,6 @@ for size, stats in loopback_stats.items():
         label_data.setdefault(stat_name, []).append(vals_to_med_ci(vals, name=f'{stat_name} @ {size}'))
 
 # ================ PLOTTING ================
-
-def fixed_ratio_fig(aspect_ratio):
-    figwidth = 5.125 # page width
-    return figwidth, figwidth/aspect_ratio
-
-def create_plot(name):
-    fig = plt.figure(figsize=fixed_ratio_fig(6/5))
-    ax = fig.add_subplot()
-    ax.grid(which='major', alpha=0.5)
-    ax.grid(which='minor', alpha=0.2)
-    ax.set_title(name)
-    ax.set_xlabel('Payload Length (B)')
-    ax.set_ylabel('Latency (us)')
-    return fig, ax
 
 # stack plot rx latency component | x=size y=latency contribution
 def do_dir(direction):
