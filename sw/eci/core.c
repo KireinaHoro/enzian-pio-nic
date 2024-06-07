@@ -186,23 +186,12 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
 
   // initialize per-core states
   for (int i = 0; i < PIONIC_NUM_CORES; ++i) {
-    // read out next CL counters
-    bool rx_next_cl = ctx->core_states[i].rx_next_cl =
-      read64(ctx, PIONIC_CONTROL_RX_CURR_CL_IDX(i));
-    bool tx_next_cl = ctx->core_states[i].tx_next_cl =
-      read64(ctx, PIONIC_CONTROL_TX_CURR_CL_IDX(i));
-
-    printf("rx curr cl idx for core %d: %d\n", i, rx_next_cl);
-    printf("tx curr cl idx for core %d: %d\n", i, tx_next_cl);
-
-    // reset packet buffer allocator
-    pionic_reset_pkt_alloc(ctx, i);
-
     // allocate user-facing buffers
     ctx->core_states[i].rx_pkt_buf = malloc(PIONIC_MTU);
     ctx->core_states[i].tx_pkt_buf = malloc(PIONIC_MTU);
 
     // clean all cachelines
+    // we need to do this first, since inv might change tx cl idx
     uint64_t rx_base = PIONIC_ECI_RX_BASE + i * PIONIC_ECI_CORE_OFFSET;
     uint64_t tx_base = PIONIC_ECI_TX_BASE + i * PIONIC_ECI_CORE_OFFSET;
 
@@ -216,13 +205,31 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
       cl_hit_inv(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
     }
 
+    // read out next CL counters
+    bool rx_next_cl = ctx->core_states[i].rx_next_cl =
+      read64(ctx, PIONIC_CONTROL_RX_CURR_CL_IDX(i));
+    bool tx_next_cl = ctx->core_states[i].tx_next_cl =
+      read64(ctx, PIONIC_CONTROL_TX_CURR_CL_IDX(i));
+
+    printf("rx curr cl idx for core %d: %d\n", i, rx_next_cl);
+    printf("tx curr cl idx for core %d: %d\n", i, tx_next_cl);
+
     // drain all rx packets -- stale ones might be hanging around
     pionic_pkt_desc_t desc;
     bool has_left = true;
     int drained = 0;
-    while ((has_left = pionic_rx(ctx, i, &desc))) ++drained;
+    while ((has_left = pionic_rx(ctx, i, &desc))) {
+      printf("stale packet: %ld B\n", desc.len);
+      ++drained;
+    }
     printf("Drained %d stale ingress packets on core %d\n", drained, i);
+
+    // reset packet buffer allocator
+    pionic_reset_pkt_alloc(ctx, i);
   }
+
+  // make sure user TX does not get reordered into before the RX drain
+  BARRIER
 
   ret = 0;
 
