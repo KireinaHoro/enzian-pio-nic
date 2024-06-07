@@ -108,7 +108,7 @@ static uint64_t read64_shell(pionic_ctx_t ctx, uint64_t addr) {
 }
 
 static void cl_hit_inv(pionic_ctx_t ctx, uint64_t phys_addr) {
-  ioctl(ctx->fpgamem_fd, 4, phys_addr + (uint64_t)ctx->mem_region);
+  // ioctl(ctx->fpgamem_fd, 4, phys_addr + (uint64_t)ctx->mem_region);
 }
 
 int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
