@@ -13,6 +13,8 @@
 #define BARRIER asm volatile ("dmb sy\nisb");
 
 typedef struct {
+  bool valid;
+
   uint32_t host_got_tx_buf;
   uint32_t host_read_complete;
 
@@ -20,7 +22,16 @@ typedef struct {
 } measure_t;
 
 static void rand_fill(uint8_t *buf, size_t len) {
-  for (int i = 0; i < len; ++i) {
+  // fill the first word with a sequence number, so we know if a packet has
+  // been replayed
+  static uint32_t next_seq = 0;
+  int start = 0;
+  if (len >= sizeof(next_seq)) {
+    start = sizeof(next_seq);
+    *(uint32_t *)buf = next_seq++;
+  }
+
+  for (int i = start; i < len; ++i) {
     buf[i] = rand();
   }
 }
@@ -91,7 +102,10 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   }
 
   if (length > 0) {
-    assert(got_pkt && "failed to receive packet");
+    if (!got_pkt) {
+      // FIXME: packet loss shouldn't happen
+      return (measure_t){.valid = false};
+    }
 
     // check rx match with tx
 #ifdef DEBUG
@@ -102,6 +116,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
     memcpy(rx_buf, desc.buf, desc.len);
 
     ret.host_read_complete = pionic_get_cycles(ctx);
+    ret.valid = true;
 
     pionic_rx_ack(ctx, cid, &desc);
   } else {
@@ -174,11 +189,17 @@ int main(int argc, char *argv[]) {
     printf("Testing packet size %d", to_send);
     for (int i = 0; i < num_trials; ++i) {
       measure_t m = loopback_timed(ctx, to_send, i * 64);
-      fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
-          m.ts.acquire, m.ts.after_tx_commit, m.ts.after_dma_read, m.ts.exit,
-          m.host_got_tx_buf, m.ts.entry, m.ts.after_rx_queue, m.ts.after_dma_write,
-          m.ts.read_start, m.ts.after_read, m.ts.after_rx_commit, m.host_read_complete);
-      printf(".");
+      if (m.valid) {
+        fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
+            m.ts.acquire, m.ts.after_tx_commit, m.ts.after_dma_read, m.ts.exit,
+            m.host_got_tx_buf, m.ts.entry, m.ts.after_rx_queue, m.ts.after_dma_write,
+            m.ts.read_start, m.ts.after_read, m.ts.after_rx_commit, m.host_read_complete);
+        printf(".");
+      } else {
+        // XXX: try to recover
+        printf("!");
+        --i;
+      }
       fflush(stdout);
     }
     printf("\n");
