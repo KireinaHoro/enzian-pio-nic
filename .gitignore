@@ -10,3 +10,5 @@ vivado*.zip
 vivado_pid*.str
 .Xil/
 hs_err_pid*.log
+# random tests emit verilog directly here
+*.v
