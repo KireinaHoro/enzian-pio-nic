@@ -19,7 +19,8 @@ object Config {
       resetActiveLevel = HIGH,
       resetKind = SYNC,
     ),
-    onlyStdLogicVectorAtTopLevelIo = true
+    onlyStdLogicVectorAtTopLevelIo = true,
+    withTimescale = true
   )
 
   def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested))
