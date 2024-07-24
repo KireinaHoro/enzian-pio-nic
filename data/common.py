@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import scipy.stats as st
 
@@ -24,9 +25,11 @@ def create_plot(name, figsize=fixed_ratio_fig(6/5)):
     ax = fig.add_subplot()
     ax.grid(which='major', alpha=0.5)
     ax.grid(which='minor', alpha=0.2)
+    ax.xaxis.set_major_formatter(ticker.EngFormatter())
     # ax.set_title(name)
-    ax.set_xlabel('Payload Length (B)')
-    ax.set_ylabel('Latency (us)')
+    direction = name[:2]
+    ax.set_xlabel(direction + ' Payload Length (B)')
+    ax.set_ylabel(direction + ' Latency (us)')
     return fig, ax
 
 # convert to median + ci
