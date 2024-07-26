@@ -21,13 +21,14 @@ case class PioNicConfig(
                          ),
                          regWidth: Int = 64,
                          gitVersion: BigInt = 0xffffffffL,
+                         axisDataWidth: Int = 64, // BYTES
                        ) {
   def pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
   def pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
   def pktBufSize = numCores * pktBufSizePerCore
 
   def mtu = pktBufAllocSizeMap.map(_._1).max
-  def roundMtu = roundUp(mtu, axisConfig.dataWidth).toInt
+  def roundMtu = roundUp(mtu, axisDataWidth).toInt
 
   def coreIDWidth = log2Up(numCores)
 

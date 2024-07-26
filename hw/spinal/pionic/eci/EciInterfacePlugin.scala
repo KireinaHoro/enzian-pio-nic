@@ -76,7 +76,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         node -> SizeMapping(config.pktBufSizePerCore * idx, config.pktBufSizePerCore)
       }: _*)
       // FIXME: we could need an adapter here
-      .addConnection(macIf.packetBufDmaMaster -> dmaNodes)
+      .addConnection(host[AxiDmaPlugin].packetBufDmaMaster -> dmaNodes)
       .build()
 
     // mux both DCS AXI masters to all cores
@@ -205,7 +205,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
       val alloc = config.allocFactory("control", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
-      val cio = c.logic.ctrl.io
+      val cio = c.logic.io
 
       // per-core packet buffer
       val rxNumWords = rxSizePerCore / (pktBufWordWidth / 8)
@@ -231,12 +231,14 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       cio.hostRxNextReq :=   proto.hostRxNextReq
 
       // CSR for the core
-      c.logic.ctrl.connectControl(csrCtrl, alloc(_))
-      c.logic.ctrl.reportStatistics(csrCtrl, alloc(_, _))
+      c.logic.connectControl(csrCtrl, alloc(_))
+      c.logic.reportStatistics(csrCtrl, alloc(_, _))
 
       proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
       proto.driveControl(csrCtrl, alloc(_))
     }.setName("bindProtoToCoreCtrl")
     }
+
+    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc(_, _))
   }
 }
