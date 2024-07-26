@@ -13,8 +13,6 @@ import scala.language.postfixOps
 
 // service for potential other mac interface
 trait MacInterfaceService {
-  def txProfiler: Profiler
-  def rxProfiler: Profiler
   def axisConfig: Axi4StreamConfig
 
   def txStream: Axi4Stream
@@ -27,25 +25,17 @@ trait MacInterfaceService {
 class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val cores = host.list[CoreControlPlugin]
-
-  val pk = new Area {
-    val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
-    val AfterRxQueue = NamedType(Timestamp) // time in rx queuing for frame length and global buffer
-    val Exit = NamedType(Timestamp)
-  } setName ""
-
-  val rxProfiler = Profiler(pk.Entry, pk.AfterRxQueue)(config.collectTimestamps)
-  val txProfiler = Profiler(pk.Exit)(config.collectTimestamps)
+  lazy val p = host[ProfilerPlugin]
 
   // matches Xilinx CMAC configuration
   val axisConfig = Axi4StreamConfig(
-    dataWidth = 64, // BYTES
+    dataWidth = config.axisDataWidth,
     useKeep = true,
     useLast = true,
   )
 
   def rxStream = logic.rxFifo.masterPort
-  def txStream = logic.txFifo.masterPort
+  def txStream = logic.txFifo.slavePort
 
   def dispatchedCmacRx: Vec[Stream[PacketLength]] = logic.dispatchedCmacRx
 
@@ -58,40 +48,11 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
     val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
-    implicit val clock = csr.status.cycles
+    val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+    txFifo.masterPort >> m_axis_tx
 
-    // capture cmac rx lastFire
-    val rxTimestamps = rxProfiler.timestamps.clone
-    val rxLastFireCdc = PulseCCByToggle(s_axis_rx.lastFire, cmacRxClock, clockDomain)
-    rxProfiler.fillSlot(rxTimestamps, pk.Entry, rxLastFireCdc)
-
-    val txFifoAxisConfig = axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
-    val txFifo = AxiStreamAsyncFifo(txFifoAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
-    txFifo.masterPort.translateInto(m_axis_tx)(_ <<? _) // drop TUSER that contains core ID
-
-    val txTimestamps = txProfiler.timestamps.clone
-
-    val txClkArea = new ClockingArea(cmacTxClock) {
-      // Tx AXIS from DMA carries core ID of initiator in USER field
-      // used to fill timestamps of the correct core
-      val lastCoreIDFlow = ValidFlow(RegNext(txFifo.masterPort.user)).takeWhen(txFifo.masterPort.lastFire)
-    }
-
-    val lastCoreIDFlowCdc = txClkArea.lastCoreIDFlow.ccToggle(cmacTxClock, clockDomain)
-    txProfiler.fillSlot(txTimestamps, pk.Exit, lastCoreIDFlowCdc.fire)
-
-    // demux timestamps: generate valid for Flow[Timestamps] back into Control
-    val txTimestampsFlows = Seq.tabulate(host.list[CoreControlPlugin].length) { coreID =>
-      val delayedCoreIDFlow = RegNext(lastCoreIDFlowCdc)
-      ValidFlow(txTimestamps).takeWhen(delayedCoreIDFlow.valid && delayedCoreIDFlow.payload === coreID)
-    }
-
-    // CDC for rx
-    // buffer incoming packet for packet length
-    // FIXME: how much buffering do we need?
     val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
     rxFifo.slavePort << s_axis_rx
-    rxProfiler.fillSlot(rxTimestamps, pk.AfterRxQueue, rxStream.lastFire)
 
     // report overflow
     val rxOverflow = Bool()
@@ -117,5 +78,13 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
       enableMask = csr.ctrl.dispatchMask,
       maskChanged = csr.status.dispatchMaskChanged,
     ).setName("packetLenDemux")
+
+    // profile timestamps
+    p.profile(
+      p.RxCmacEntry -> PulseCCByToggle(s_axis_rx.lastFire, cmacRxClock, clockDomain),
+      p.RxAfterCdcQueue -> rxFifo.masterPort.fire,
+      p.TxBeforeCdcQueue -> txFifo.slavePort.fire,
+      p.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
+    )
   }
 }

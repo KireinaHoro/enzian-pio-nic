@@ -21,17 +21,14 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     idWidth = 4,
   )
 
-  val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
+  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
 
   val logic = during build new Area {
     val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
     val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
 
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
-    axiDma.readDataMaster.translateInto(ms.txStream) { case (fifo, dma) =>
-      fifo.user := dma.user.resized
-      fifo.assignUnassignedByName(dma)
-    }
+    axiDma.readDataMaster >> ms.txStream
     axiDma.writeDataSlave << ms.rxStream
 
     axiDma.io.read_enable := True
@@ -44,7 +41,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
 
     // drive mac interface of core control modules
     cores.foreach { c =>
-      val cio = c.logic.ctrl.io
+      val cio = c.logic.io
       cio.readDesc >> axiDmaReadMux.s_axis_desc(c.coreID)
       cio.readDescStatus <<? axiDmaReadMux.m_axis_desc_status(c.coreID)
 
@@ -55,9 +52,6 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
       // TODO: we should pass the decoded control structure (e.g. RPC call num + first args)
       //       instead of just length of packet
       cio.cmacRxAlloc << ms.dispatchedCmacRx(c.coreID)
-
-      // exit timestamp for tx, demux'ed for this core
-      cio.hostTxExitTimestamps << txTimestampsFlows(c.coreID)
     }
   }
 

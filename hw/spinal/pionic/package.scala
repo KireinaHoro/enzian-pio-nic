@@ -12,8 +12,6 @@ package object pionic {
     )
   }
 
-  def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
-
   object StreamDispatcherWithEnable {
     def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits, maskChanged: Bool): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
       // FIXME: same as OHMasking.roundRobin?

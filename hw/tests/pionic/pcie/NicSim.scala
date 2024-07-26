@@ -86,7 +86,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val desc = tryReadPacketDesc(master, coreBlock).result.get
     println(s"Received status register: $desc")
     assert(desc.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${desc.size}")
-    assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "rx buffer not aligned!")
+    assert(desc.addr % implicitly[PioNicConfig].axisDataWidth == 0, "rx buffer not aligned!")
     assert(desc.addr < nicConfig.pktBufSize, f"packet address out of bounds: ${desc.addr}%#x")
 
     // read memory and check data
@@ -141,7 +141,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // get tx buffer address
     var data = master.read(coreBlock("hostTx"), 8)
     val desc = data.toTxPacketDesc
-    assert(desc.addr % implicitly[PioNicConfig].axisConfig.dataWidth == 0, "tx buffer not aligned!")
+    assert(desc.addr % implicitly[PioNicConfig].axisDataWidth == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
     val toSend = Random.nextBytes(256).toList
@@ -206,14 +206,14 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  def getRxTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
+  def getRxTimestamps(master: Axi4Master, globalBlock: RegBlockReadBack) = {
     new {
-      val entry = master.read(coreBlock("hostRxLastProfile", "Entry"), 8).bytesToBigInt
-      val afterRxQueue = master.read(coreBlock("hostRxLastProfile", "AfterRxQueue"), 8).bytesToBigInt
-      val readStart = master.read(coreBlock("hostRxLastProfile", "ReadStart"), 8).bytesToBigInt
-      val afterRead = master.read(coreBlock("hostRxLastProfile", "AfterRead"), 8).bytesToBigInt
-      val afterDmaWrite = master.read(coreBlock("hostRxLastProfile", "AfterDmaWrite"), 8).bytesToBigInt
-      val afterRxCommit = master.read(coreBlock("hostRxLastProfile", "AfterRxCommit"), 8).bytesToBigInt
+      val entry = master.read(globalBlock("lastProfile", "RxCmacEntry"), 8).bytesToBigInt
+      val afterRxQueue = master.read(globalBlock("lastProfile", "RxAfterCdcQueue"), 8).bytesToBigInt
+      val readStart = master.read(globalBlock("lastProfile", "RxCoreReadStart"), 8).bytesToBigInt
+      val afterRead = master.read(globalBlock("lastProfile", "RxCoreReadFinish"), 8).bytesToBigInt
+      val afterDmaWrite = master.read(globalBlock("lastProfile", "RxAfterDmaWrite"), 8).bytesToBigInt
+      val afterRxCommit = master.read(globalBlock("lastProfile", "RxCoreCommit"), 8).bytesToBigInt
 
       println(s"Entry: $entry")
       println(s"AfterRxQueue: $afterRxQueue")
@@ -224,12 +224,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
   }
 
-  def getTxTimestamps(master: Axi4Master, coreBlock: RegBlockReadBack) = {
+  def getTxTimestamps(master: Axi4Master, globalBlock: RegBlockReadBack) = {
     new {
-      val acquire = master.read(coreBlock("hostTxLastProfile", "Acquire"), 8).bytesToBigInt
-      val afterTxCommit = master.read(coreBlock("hostTxLastProfile", "AfterTxCommit"), 8).bytesToBigInt
-      val afterDmaRead = master.read(coreBlock("hostTxLastProfile", "AfterDmaRead"), 8).bytesToBigInt
-      val exit = master.read(coreBlock("hostTxLastProfile", "Exit"), 8).bytesToBigInt
+      val acquire = master.read(globalBlock("lastProfile", "TxCoreAcquire"), 8).bytesToBigInt
+      val afterTxCommit = master.read(globalBlock("lastProfile", "TxCoreCommit"), 8).bytesToBigInt
+      val afterDmaRead = master.read(globalBlock("lastProfile", "TxAfterDmaRead"), 8).bytesToBigInt
+      val exit = master.read(globalBlock("lastProfile", "TxCmacExit"), 8).bytesToBigInt
 
       println(s"Acquire: $acquire")
       println(s"AfterTxCommit: $afterTxCommit")
@@ -258,7 +258,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
-    val timestamps = getRxTimestamps(master, coreBlock)
+    val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -289,7 +289,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // commit
     master.write(coreBlock("hostRxNextAck"), desc.toBigInt.toBytes)
 
-    val timestamps = getRxTimestamps(master, coreBlock)
+    val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -320,7 +320,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // receive packet, check timestamps
     axisSlave.recv()
 
-    val timestamps = getTxTimestamps(master, coreBlock)
+    val timestamps = getTxTimestamps(master, globalBlock)
     import timestamps._
 
     assert(isSorted(acquire, afterTxCommit, afterDmaRead, exit))

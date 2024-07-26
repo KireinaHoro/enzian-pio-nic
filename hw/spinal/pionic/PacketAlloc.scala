@@ -7,7 +7,7 @@ import scala.language.postfixOps
 
 case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) extends Component {
   val roundedMap = config.pktBufAllocSizeMap.map { case (size, ratio) =>
-    val alignedSize = roundUp(size, config.axisConfig.dataWidth).toLong
+    val alignedSize = roundUp(size, config.axisDataWidth).toLong
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)

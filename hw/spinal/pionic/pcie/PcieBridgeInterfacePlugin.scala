@@ -49,17 +49,17 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
     retainer.await()
 
     // FIXME: we could need an adapter here
-    macIf.packetBufDmaMaster >> pktBuffer.io.s_axi_a
+    host[AxiDmaPlugin].packetBufDmaMaster >> pktBuffer.io.s_axi_a
 
     // drive control interface (packet action)
     cores foreach { c =>
       val baseAddress = (1 + c.coreID) * 0x1000
-      val cio = c.logic.ctrl.io
+      val cio = c.logic.io
 
       val alloc = config.allocFactory("control", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(axiConfig.dataWidth)
 
       val rxNextAddr = alloc("hostRxNext", readSensitive = true)
-      busCtrl.readStreamBlockCycles(cio.hostRxNext, rxNextAddr, cio.rxBlockCycles)
+      busCtrl.readStreamBlockCycles(cio.hostRxNext, rxNextAddr, csr.logic.ctrl.rxBlockCycles)
       busCtrl.driveStream(cio.hostRxNextAck, alloc("hostRxNextAck"))
 
       // on read primitive (AR for AXI), set hostRxNextReq for timing ReadStart
@@ -72,8 +72,10 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
       busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true))
       busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck"))
 
-      c.logic.ctrl.connectControl(busCtrl, alloc(_))
-      c.logic.ctrl.reportStatistics(busCtrl, alloc(_, _))
+      c.logic.connectControl(busCtrl, alloc(_))
+      c.logic.reportStatistics(busCtrl, alloc(_, _))
     }
+
+    host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc(_, _))
   }
 }
