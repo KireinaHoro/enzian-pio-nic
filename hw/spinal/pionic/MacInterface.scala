@@ -131,8 +131,9 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
       fifo.user := dma.user.resized
       fifo.assignUnassignedByName(dma)
     }
-    val rxFifoTimestamped = rxProfiler.timestamp(rxFifo.masterPort, pk.AfterRxQueue, base = rxTimestamps)
-    axiDma.writeDataSlave << rxFifoTimestamped
+
+    rxProfiler.fillSlot(rxTimestamps, pk.AfterRxQueue, rxFifo.masterPort.lastFire)
+    axiDma.writeDataSlave << rxFifo.masterPort
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
