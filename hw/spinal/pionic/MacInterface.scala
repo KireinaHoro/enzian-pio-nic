@@ -2,35 +2,31 @@ package pionic
 
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axis.Axi4Stream
+import spinal.lib.bus.amba4.axis._
 import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
-import spinal.core.fiber.Retainer
 import spinal.lib.bus.amba4.axi._
+import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 
 import scala.language.postfixOps
 
 // service for potential other mac interface
 trait MacInterfaceService {
-  def retainer: Retainer
-
-  def txDmaConfig: AxiDmaConfig
-
   def txProfiler: Profiler
-
-  def rxDmaConfig: AxiDmaConfig
-
   def rxProfiler: Profiler
+  def axisConfig: Axi4StreamConfig
 
-  def packetBufDmaMaster: Axi4
+  def txStream: Axi4Stream
+  def rxStream: Axi4Stream
+
+  // FIXME: this is the decoded descriptor and should be produced by the decoder pipeline
+  def dispatchedCmacRx: Vec[Stream[PacketLength]]
 }
 
 class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val cores = host.list[CoreControlPlugin]
-  lazy val hs = host[HostService]
-  val retainer = Retainer()
 
   val pk = new Area {
     val Entry = NamedType(Timestamp) // packet data from CMAC, without ANY queuing (async)
@@ -41,17 +37,17 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
   val rxProfiler = Profiler(pk.Entry, pk.AfterRxQueue)(config.collectTimestamps)
   val txProfiler = Profiler(pk.Exit)(config.collectTimestamps)
 
-  // config for packetBufDmaMaster
-  // we fix here and downstream should adapt
-  val axiConfig = Axi4Config(
-    addressWidth = 64,
-    dataWidth = 512,
-    idWidth = 4,
+  // matches Xilinx CMAC configuration
+  val axisConfig = Axi4StreamConfig(
+    dataWidth = 64, // BYTES
+    useKeep = true,
+    useLast = true,
   )
 
-  val txAxisConfig = config.axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
-  val txDmaConfig = AxiDmaConfig(axiConfig, txAxisConfig, tagWidth = 32, lenWidth = config.pktBufLenWidth)
-  val rxDmaConfig = txDmaConfig.copy(axisConfig = rxProfiler augment config.axisConfig)
+  def rxStream = logic.rxFifo.masterPort
+  def txStream = logic.txFifo.masterPort
+
+  def dispatchedCmacRx: Vec[Stream[PacketLength]] = logic.dispatchedCmacRx
 
   val logic = during build new Area {
     val clockDomain = ClockDomain.current
@@ -59,10 +55,8 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val cmacRxClock = ClockDomain.external("cmacRxClock")
     val cmacTxClock = ClockDomain.external("cmacTxClock")
 
-    val hostLock = hs.retainer()
-
-    val m_axis_tx = master(Axi4Stream(config.axisConfig)) addTag ClockDomainTag(cmacTxClock)
-    val s_axis_rx = slave(Axi4Stream(config.axisConfig)) addTag ClockDomainTag(cmacRxClock)
+    val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
+    val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
     implicit val clock = csr.status.cycles
 
@@ -71,13 +65,15 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val rxLastFireCdc = PulseCCByToggle(s_axis_rx.lastFire, cmacRxClock, clockDomain)
     rxProfiler.fillSlot(rxTimestamps, pk.Entry, rxLastFireCdc)
 
-    // CDC for tx
-    val txFifo = AxiStreamAsyncFifo(txAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
-    txFifo.masterPort.translateInto(m_axis_tx)(_ <<? _) // ignore TUSER
+    val txFifoAxisConfig = axisConfig.copy(userWidth = config.coreIDWidth, useUser = true)
+    val txFifo = AxiStreamAsyncFifo(txFifoAxisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+    txFifo.masterPort.translateInto(m_axis_tx)(_ <<? _) // drop TUSER that contains core ID
 
     val txTimestamps = txProfiler.timestamps.clone
 
     val txClkArea = new ClockingArea(cmacTxClock) {
+      // Tx AXIS from DMA carries core ID of initiator in USER field
+      // used to fill timestamps of the correct core
       val lastCoreIDFlow = ValidFlow(RegNext(txFifo.masterPort.user)).takeWhen(txFifo.masterPort.lastFire)
     }
 
@@ -85,7 +81,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     txProfiler.fillSlot(txTimestamps, pk.Exit, lastCoreIDFlowCdc.fire)
 
     // demux timestamps: generate valid for Flow[Timestamps] back into Control
-    val txTimestampsFlows = Seq.tabulate(cores.length) { coreID =>
+    val txTimestampsFlows = Seq.tabulate(host.list[CoreControlPlugin].length) { coreID =>
       val delayedCoreIDFlow = RegNext(lastCoreIDFlowCdc)
       ValidFlow(txTimestamps).takeWhen(delayedCoreIDFlow.valid && delayedCoreIDFlow.payload === coreID)
     }
@@ -93,9 +89,9 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     // CDC for rx
     // buffer incoming packet for packet length
     // FIXME: how much buffering do we need?
-    val rxFifo = AxiStreamAsyncFifo(config.axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
+    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
     rxFifo.slavePort << s_axis_rx
-    // derive cmac incoming packet length
+    rxProfiler.fillSlot(rxTimestamps, pk.AfterRxQueue, rxStream.lastFire)
 
     // report overflow
     val rxOverflow = Bool()
@@ -103,7 +99,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     csr.status.rxOverflowCount := Counter(config.regWidth bits, rxOverflowCdc)
 
     // extract frame length
-    // TODO: attach point for (IP/UDP/RPC prognum) decoder/main pipeline.  Produce necessary info for scheduler
+    // TODO: attach point for (IP/UDP/RPC prognum) decoder pipeline.  Produce necessary info for scheduler
     //       pipeline should emit:
     //       - a control struct (length of payload stream + scheduler command + additional decoded data, e.g. RPC args)
     //       - a payload stream to DMA
@@ -114,57 +110,12 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
 
     // round-robin dispatch to enabled CPU cores
-    // TODO: replace with more complicated scheduler, based on info from the decoder
+    // TODO: replace with more complicated scheduler after decoder pipeline, based on info from the decoder
     val dispatchedCmacRx = StreamDispatcherWithEnable(
       input = cmacReqCdc,
       outputCount = cores.length,
       enableMask = csr.ctrl.dispatchMask,
       maskChanged = csr.status.dispatchMaskChanged,
     ).setName("packetLenDemux")
-
-    // TX DMA USER: core ID to demux timestamp
-    val axiDmaReadMux = new AxiDmaDescMux(txDmaConfig, numPorts = cores.length, arbRoundRobin = false)
-    val axiDmaWriteMux = new AxiDmaDescMux(rxDmaConfig, numPorts = cores.length, arbRoundRobin = false)
-
-    val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
-    axiDma.readDataMaster.translateInto(txFifo.slavePort) { case (fifo, dma) =>
-      fifo.user := dma.user.resized
-      fifo.assignUnassignedByName(dma)
-    }
-
-    rxProfiler.fillSlot(rxTimestamps, pk.AfterRxQueue, rxFifo.masterPort.lastFire)
-    axiDma.writeDataSlave << rxFifo.masterPort
-
-    axiDma.io.read_enable := True
-    axiDma.io.write_enable := True
-    axiDma.io.write_abort := False
-
-    hostLock.release()
-
-    // mux descriptors
-    axiDmaReadMux.connectRead(axiDma)
-    axiDmaWriteMux.connectWrite(axiDma)
-
-    retainer.await()
-
-    // drive mac interface of core control modules
-    cores.foreach { c =>
-      val cio = c.logic.ctrl.io
-      cio.readDesc >> axiDmaReadMux.s_axis_desc(c.coreID)
-      cio.readDescStatus <<? axiDmaReadMux.m_axis_desc_status(c.coreID)
-
-      // dma write desc port does not have id, dest, user
-      axiDmaWriteMux.s_axis_desc(c.coreID).translateFrom(cio.writeDesc)(_ <<? _)
-      cio.writeDescStatus << axiDmaWriteMux.m_axis_desc_status(c.coreID)
-
-      // TODO: we should pass the decoded control structure (e.g. RPC call num + first args)
-      //       instead of just length of packet
-      cio.cmacRxAlloc << dispatchedCmacRx(c.coreID)
-
-      // exit timestamp for tx, demux'ed for this core
-      cio.hostTxExitTimestamps << txTimestampsFlows(c.coreID)
-    }
   }
-
-  def packetBufDmaMaster: Axi4 = logic.axiDma.io.m_axi
 }
