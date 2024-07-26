@@ -102,12 +102,19 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
     csr.status.rxOverflowCount := Counter(config.regWidth bits, rxOverflowCdc)
 
+    // extract frame length
+    // TODO: attach point for (IP/UDP/RPC prognum) decoder/main pipeline.  Produce necessary info for scheduler
+    //       pipeline should emit:
+    //       - a control struct (length of payload stream + scheduler command + additional decoded data, e.g. RPC args)
+    //       - a payload stream to DMA
+    // FIXME: do we actually need more than one proc pipelines on the NIC?
     val cmacReq = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
     val cmacReqCdc = cmacReq.clone
     // FIXME: how much buffering do we need?
     val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
 
-    // only dispatch to enabled cores
+    // round-robin dispatch to enabled CPU cores
+    // TODO: replace with more complicated scheduler, based on info from the decoder
     val dispatchedCmacRx = StreamDispatcherWithEnable(
       input = cmacReqCdc,
       outputCount = cores.length,
@@ -149,6 +156,8 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
       axiDmaWriteMux.s_axis_desc(c.coreID).translateFrom(cio.writeDesc)(_ <<? _)
       cio.writeDescStatus << axiDmaWriteMux.m_axis_desc_status(c.coreID)
 
+      // TODO: we should pass the decoded control structure (e.g. RPC call num + first args)
+      //       instead of just length of packet
       cio.cmacRxAlloc << dispatchedCmacRx(c.coreID)
 
       // exit timestamp for tx, demux'ed for this core
