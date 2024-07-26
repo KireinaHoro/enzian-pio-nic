@@ -14,6 +14,11 @@ import spinal.lib.misc.plugin.FiberPlugin
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
+// Control info struct sent to the CPU in cache-line reloads.
+// Should not contain buffer address since the CPU does not need it
+// This is separate from the rest of the data inside packet buffer because:
+// - it is expensive to enable unaligned access for the AXI DMA engine
+// - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
 case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketCtrlInfo()
 
@@ -188,6 +193,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
+    // repack packet descriptor from CoreControl into ECI control struct
+    // required since the CoreControl descriptor would contain information that the CPU doesn't need
+    // e.g. offset of additional data in the packet buffer
     val ctrlInfo = PacketCtrlInfo()
     ctrlInfo.size := hostRxNext.payload.size
     ctrlInfo.pktBufAddr := hostRxNext.payload.addr

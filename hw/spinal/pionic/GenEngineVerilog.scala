@@ -63,6 +63,7 @@ object GenEngineVerilog {
     case "pcie" => NicEngine(base :+ new PcieBridgeInterfacePlugin)
     case "eci" => NicEngine(base
       ++ Seq(new EciInterfacePlugin)
+      // TODO: add one DecoupledRxTxProtocol for bypass and numCores CoupledProtocol for RPC requests
       ++ Seq.tabulate(config.numCores)(new EciDecoupledRxTxProtocol(_)))
   }
 

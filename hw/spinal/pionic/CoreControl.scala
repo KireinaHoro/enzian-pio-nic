@@ -11,6 +11,7 @@ import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
+// address of arbitrary data in the packet buffer
 case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketAddr()
 
@@ -23,6 +24,8 @@ case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
   val bits = UInt(config.pktBufLenWidth bits)
 }
 
+// Description of a packet; content of packet is dependent on what protocol it carries.
+// FIXME: this should be renamed to highlight difference between a DecodePipelineDesc and a CoreControlDesc
 case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
   override def clone = PacketDesc()
 
