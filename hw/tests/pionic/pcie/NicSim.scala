@@ -215,12 +215,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       val afterDmaWrite = master.read(globalBlock("lastProfile", "RxAfterDmaWrite"), 8).bytesToBigInt
       val afterRxCommit = master.read(globalBlock("lastProfile", "RxCoreCommit"), 8).bytesToBigInt
 
-      println(s"Entry: $entry")
-      println(s"AfterRxQueue: $afterRxQueue")
-      println(s"ReadStart: $readStart")
-      println(s"AfterRead: $afterRead")
-      println(s"AfterDmaWrite: $afterDmaWrite")
-      println(s"AfterCommit: $afterRxCommit")
+      println(s"RxCmacEntry: $entry")
+      println(s"RxAfterCdcQueue: $afterRxQueue")
+      println(s"RxCoreReadStart: $readStart")
+      println(s"RxCoreReadFinish: $afterRead")
+      println(s"RxAfterDmaWrite: $afterDmaWrite")
+      println(s"RxCoreCommit: $afterRxCommit")
     }
   }
 
@@ -231,10 +231,10 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       val afterDmaRead = master.read(globalBlock("lastProfile", "TxAfterDmaRead"), 8).bytesToBigInt
       val exit = master.read(globalBlock("lastProfile", "TxCmacExit"), 8).bytesToBigInt
 
-      println(s"Acquire: $acquire")
-      println(s"AfterTxCommit: $afterTxCommit")
-      println(s"AfterDmaRead: $afterDmaRead")
-      println(s"Exit: $exit")
+      println(s"TxCoreAcquire: $acquire")
+      println(s"TxCoreCommit: $afterTxCommit")
+      println(s"TxAfterDmaRead: $afterDmaRead")
+      println(s"TxCmacExit: $exit")
     }
   }
 

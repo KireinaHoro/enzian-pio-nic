@@ -22,15 +22,13 @@ class ProfilerPlugin(implicit config: PioNicConfig) extends FiberPlugin {
   val TxBeforeCdcQueue = NamedType(Timestamp) // time before packet passing through Tx CDC fifo
   val TxCmacExit = NamedType(Timestamp) // time exiting to CMAC
 
-  val profiler = Profiler(RxCmacEntry, RxAfterCdcQueue, RxAfterDmaWrite, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
-    TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(config.collectTimestamps)
-
   val logic = during setup new Area {
-    val timestamps = out(Reg(profiler.timestamps.clone))
+    val profiler = Profiler(RxCmacEntry, RxAfterCdcQueue, RxAfterDmaWrite, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
+      TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(config.collectTimestamps)
 
     def reportTimestamps(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
       if (config.collectTimestamps) {
-        timestamps.storage.foreach { case (namedType, data) =>
+        profiler.timestamps.storage.foreach { case (namedType, data) =>
           busCtrl.read(data, alloc("lastProfile", namedType.getName()))
         }
       }
@@ -40,6 +38,6 @@ class ProfilerPlugin(implicit config: PioNicConfig) extends FiberPlugin {
   def profile(keycond: (NamedType[UInt], Bool)*) = {
     implicit val clock = host[GlobalCSRPlugin].logic.get.status.cycles
 
-    profiler.fillSlots(logic.timestamps, keycond: _*)
+    logic.profiler.fillSlots(keycond: _*)
   }
 }
