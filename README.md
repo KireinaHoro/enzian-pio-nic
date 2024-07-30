@@ -45,7 +45,7 @@ NicSim:
 [info] simulation transcript at /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/pcie/rx-regular/sim_transcript.log.gz
 - rx-regular
 ...
-$ mill gen.test.testOnly pionic.eci.NicSim # run only the test suite for ECI integration test
+$ mill gen.test.testOnly pionic.host.eci.NicSim # run only the test suite for ECI integration test
 $ mill gen.test -l org.scalatest.tags.Slow # exclude slow-running integration tests
 ...
 ```

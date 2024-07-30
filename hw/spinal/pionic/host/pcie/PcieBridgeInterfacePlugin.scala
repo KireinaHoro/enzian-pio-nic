@@ -1,7 +1,8 @@
-package pionic.pcie
+package pionic.host.pcie
 
 import jsteward.blocks.axi._
 import pionic._
+import pionic.host.HostService
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._

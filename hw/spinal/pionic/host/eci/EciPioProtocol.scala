@@ -1,4 +1,4 @@
-package pionic.eci
+package pionic.host.eci
 
 import jsteward.blocks.eci.EciCmdDefs
 import pionic.{PacketDesc, PacketLength, PioNicConfig}
@@ -11,7 +11,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 
 /** PIO cacheline protocol state machine interface.
  * Does not handle actual packet data (in the second half-cacheline and into the overflow cachelines;
- * that is handled inside [[pionic.eci.EciInterfacePlugin]].
+ * that is handled inside [[pionic.host.eci.EciInterfacePlugin]].
  */
 trait EciPioProtocol extends FiberPlugin {
   implicit val config: PioNicConfig
