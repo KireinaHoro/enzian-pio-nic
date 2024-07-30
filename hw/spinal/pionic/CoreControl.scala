@@ -2,6 +2,7 @@ package pionic
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
+import pionic.host.HostService
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._

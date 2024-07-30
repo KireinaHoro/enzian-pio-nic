@@ -2,6 +2,8 @@ package pionic
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RichBundle
+import pionic.host.HostService
+import pionic.net.DecoderPipelinePlugin
 import spinal.core._
 import spinal.core.fiber._
 import spinal.lib.bus.amba4.axi._
@@ -12,6 +14,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
   lazy val cores = host.list[CoreControlPlugin]
   lazy val hs = host[HostService]
   lazy val ms = host[MacInterfaceService]
+  lazy val dp = host[DecoderPipelinePlugin]
 
   // config for packetBufDmaMaster
   // we fix here and downstream should adapt
@@ -29,7 +32,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
 
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
     axiDma.readDataMaster >> ms.txStream
-    axiDma.writeDataSlave << ms.rxStream
+    axiDma.writeDataSlave << dp.decodedAuxData
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True

@@ -1,0 +1,5 @@
+package pionic
+
+class SchedulerPlugin {
+
+}

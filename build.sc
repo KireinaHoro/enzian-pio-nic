@@ -36,6 +36,12 @@ object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVer
   override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
 }
 
+object blocksTester extends deps.`spinal-blocks`.build.BlocksTester with ApplyScalaVersion {
+  override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
+  override def spinalDeps = Agg(spinalCore, spinalLib, spinalTester)
+  override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
+}
+
 trait CommonModule extends ScalaModule {
   override def scalaVersion = v.scalaVersion
   override def millSourcePath = os.pwd
@@ -107,7 +113,7 @@ trait HwProjModule extends Module {
 
 object gen extends CommonModule { outer =>
   object test extends ScalaTests with TestModule.ScalaTest {
-    override def moduleDeps = super.moduleDeps ++ Agg(spinalTester)
+    override def moduleDeps = super.moduleDeps ++ Agg(spinalTester, blocksTester)
     override def millSourcePath = outer.millSourcePath
     override def sources = T.sources(millSourcePath / "hw" / "tests")
 

@@ -1,6 +1,7 @@
-package pionic.eci
+package pionic.host.eci
 
 import jsteward.blocks.eci.sim.DcsAppMaster
+import jsteward.blocks.DutSimFunSuite
 import pionic._
 import spinal.core._
 import spinal.core.sim._

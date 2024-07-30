@@ -1,8 +1,8 @@
 package pionic
 
 import mainargs._
-import pionic.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
-import pionic.pcie.PcieBridgeInterfacePlugin
+import pionic.host.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
+import pionic.host.pcie.PcieBridgeInterfacePlugin
 import spinal.core.{FixedFrequency, IntToBuilder, SpinalConfig}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter

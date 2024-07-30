@@ -1,9 +1,10 @@
-package pionic.eci
+package pionic.host.eci
 
 import jsteward.blocks.eci._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import pionic._
+import pionic.host.HostService
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
@@ -15,7 +16,7 @@ import spinal.lib.bus.misc.SizeMapping
 import scala.language.postfixOps
 import scala.util.Random
 
-/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.eci.EciPioProtocol]]. */
+/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]]. */
 class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]

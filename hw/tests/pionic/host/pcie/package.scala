@@ -1,6 +1,7 @@
-package pionic
+package pionic.host
 
 import spinal.lib._
+import pionic._
 
 package object pcie {
   def isSorted[T](s: T*)(implicit ord: Ordering[T]): Boolean = s.toList match {

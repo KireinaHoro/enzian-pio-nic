@@ -1,4 +1,4 @@
-package pionic.eci
+package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs

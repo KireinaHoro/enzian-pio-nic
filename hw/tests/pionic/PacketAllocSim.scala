@@ -3,6 +3,8 @@ package pionic
 import spinal.core.sim._
 import spinal.lib.sim._
 
+import jsteward.blocks.DutSimFunSuite
+
 import scala.collection.mutable
 
 // TODO: use scalatest to test more configurations

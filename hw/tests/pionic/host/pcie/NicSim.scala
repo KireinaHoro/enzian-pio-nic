@@ -1,6 +1,7 @@
-package pionic.pcie
+package pionic.host.pcie
 
 import jsteward.blocks.misc.RegBlockReadBack
+import jsteward.blocks.DutSimFunSuite
 import pionic._
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
