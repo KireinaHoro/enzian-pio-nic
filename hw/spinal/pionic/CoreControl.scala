@@ -86,17 +86,15 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
       // statistics
       val statistics = out(new Bundle {
-        val rxPacketCount = Reg(UInt(config.regWidth bits)) init 0
-        val txPacketCount = Reg(UInt(config.regWidth bits)) init 0
-        val rxDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
-        val txDmaErrorCount = Reg(UInt(config.regWidth bits)) init 0
+        val rxPacketCount = Counter(config.regWidth bits)
+        val txPacketCount = Counter(config.regWidth bits)
+        val rxDmaErrorCount = Counter(config.regWidth bits)
+        val txDmaErrorCount = Counter(config.regWidth bits)
         val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
       })
     }.setAsDirectionLess()
 
     allocReset := io.allocReset
-
-    def inc(reg: UInt) = reg := reg + 1
 
     io.writeDesc.valid init False
     io.readDesc.valid init False
@@ -151,7 +149,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
               p.profile(p.RxAfterDmaWrite -> True)
               goto(stateEnqueuePkt)
             } otherwise {
-              inc(io.statistics.rxDmaErrorCount)
+              io.statistics.rxDmaErrorCount.increment()
               goto(stateIdle)
             }
           }
@@ -161,7 +159,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           when(rxCaptured.ready) {
             rxCaptured.setIdle
-            inc(io.statistics.rxPacketCount)
+            io.statistics.rxPacketCount.increment()
             goto(stateIdle)
           }
         }
@@ -200,11 +198,11 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           when(io.readDescStatus.fire) {
             when(io.readDescStatus.payload.error === 0) {
-              inc(io.statistics.txPacketCount)
+              io.statistics.txPacketCount.increment()
 
               p.profile(p.TxAfterDmaRead -> True)
             } otherwise {
-              inc(io.statistics.txDmaErrorCount)
+              io.statistics.txDmaErrorCount.increment()
             }
             goto(stateIdle)
           }
