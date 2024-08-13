@@ -108,8 +108,8 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     rxAlloc.io.freeReq </< io.hostRxNextAck
     io.statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
 
-    rxAlloc.io.allocResp.setBlocked
-    io.hostTxAck.setBlocked
+    rxAlloc.io.allocResp.setBlocked()
+    io.hostTxAck.setBlocked()
     val allocReq = io.cmacRxAlloc.toFlowFire.toReg
 
     val rxCaptured = Reg(Stream(PacketDesc())).setIdle
@@ -117,7 +117,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
 
     val rxFsm = new StateMachine {
-      val stateIdle: State = new State with EntryPoint {
+      val idle: State = new State with EntryPoint {
         whenIsActive {
           rxAlloc.io.allocResp.freeRun()
           when(rxAlloc.io.allocResp.valid) {
@@ -125,20 +125,20 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
             io.writeDesc.payload.payload.len := allocReq.bits // use the actual size instead of length of buffer
             io.writeDesc.payload.payload.tag := rxAlloc.io.allocResp.addr.bits.resized
             io.writeDesc.valid := True
-            goto(stateAllocated)
+            goto(allocated)
           }
         }
       }
-      val stateAllocated: State = new State {
+      val allocated: State = new State {
         whenIsActive {
           rxAlloc.io.allocResp.ready := False
           when(io.writeDesc.ready) {
-            io.writeDesc.setIdle
-            goto(stateWaitDma)
+            io.writeDesc.setIdle()
+            goto(waitDma)
           }
         }
       }
-      val stateWaitDma: State = new State {
+      val waitDma: State = new State {
         whenIsActive {
           when(io.writeDescStatus.fire) {
             when(io.writeDescStatus.payload.error === 0) {
@@ -147,20 +147,20 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
               rxCaptured.valid := True
 
               p.profile(p.RxAfterDmaWrite -> True)
-              goto(stateEnqueuePkt)
+              goto(enqueuePkt)
             } otherwise {
               io.statistics.rxDmaErrorCount.increment()
-              goto(stateIdle)
+              goto(idle)
             }
           }
         }
       }
-      val stateEnqueuePkt: State = new State {
+      val enqueuePkt: State = new State {
         whenIsActive {
           when(rxCaptured.ready) {
-            rxCaptured.setIdle
+            rxCaptured.setIdle()
             io.statistics.rxPacketCount.increment()
-            goto(stateIdle)
+            goto(idle)
           }
         }
       }
@@ -173,7 +173,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     )
 
     val txFsm = new StateMachine {
-      val stateIdle: State = new State with EntryPoint {
+      val idle: State = new State with EntryPoint {
         whenIsActive {
           io.hostTxAck.freeRun()
           when(io.hostTxAck.valid) {
@@ -181,20 +181,20 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
             io.readDesc.payload.payload.len := io.hostTxAck.payload.bits
             io.readDesc.payload.payload.tag := 0
             io.readDesc.valid := True
-            goto(statePrepared)
+            goto(prepared)
           }
         }
       }
-      val statePrepared: State = new State {
+      val prepared: State = new State {
         whenIsActive {
           io.hostTxAck.ready := False
           when(io.readDesc.ready) {
-            io.readDesc.setIdle
-            goto(stateWaitDma)
+            io.readDesc.setIdle()
+            goto(waitDma)
           }
         }
       }
-      val stateWaitDma: State = new State {
+      val waitDma: State = new State {
         whenIsActive {
           when(io.readDescStatus.fire) {
             when(io.readDescStatus.payload.error === 0) {
@@ -204,7 +204,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
             } otherwise {
               io.statistics.txDmaErrorCount.increment()
             }
-            goto(stateIdle)
+            goto(idle)
           }
         }
       }
