@@ -5,6 +5,7 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import pionic._
 import pionic.host.HostService
+import pionic.net.ProtoDecoder
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
@@ -56,8 +57,8 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
-      checkStreamValidDrop(dcs.cleanMaybeInvReq)
-      checkStreamValidDrop(dcs.unlockResp)
+      dcs.cleanMaybeInvReq.assertPersistence()
+      dcs.unlockResp.assertPersistence()
     }
 
     val s_axil_ctrl = slave(AxiLite4(
@@ -167,10 +168,6 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       ret.payload.lci.rnode   := B("01")
       ret.payload.lci.address := addr.payload
 
-      ret.payload.lci.xb1     := False
-      ret.payload.lci.xb2     := B(0, 2 bits)
-      ret.payload.lci.xb3     := B(0, 3 bits)
-
       ret.arbitrationFrom(addr)
     }.setName("bindLci").ret
     }, _.lci.address, 16, 17, _.cleanMaybeInvReq)
@@ -195,8 +192,6 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         // generating a UL -- refer to Table 7.11 of CCKit
         ret.payload.ul.opcode  := B("00010")
         ret.payload.ul.address := addr.payload
-
-        ret.payload.ul.xb19    := B(0, 19 bits)
 
         ret.arbitrationFrom(addr)
       }.setName("bindUl").ret
@@ -227,9 +222,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       cio.hostTxAck     <-/< proto.hostTxAck
       cio.hostTx        >/-> proto.hostTx
-      cio.hostRxNextAck <-/< proto.hostRxNextAck
-      cio.hostRxNext    >/-> proto.hostRxNext
-      cio.hostRxNextReq :=   proto.hostRxNextReq
+      cio.hostRxAck <-/< proto.hostRxAck
+      cio.hostRx    >/-> proto.hostRx
+      cio.hostRxReq :=   proto.hostRxReq
 
       // CSR for the core
       c.logic.connectControl(csrCtrl, alloc(_))
@@ -237,6 +232,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
       proto.driveControl(csrCtrl, alloc(_))
+
+      // control for the decoders
+      host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc(_, _)))
     }.setName("bindProtoToCoreCtrl")
     }
 

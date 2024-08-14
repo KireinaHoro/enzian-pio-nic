@@ -18,8 +18,7 @@ trait MacInterfaceService {
   def txStream: Axi4Stream
   def rxStream: Axi4Stream
 
-  // FIXME: this is the decoded descriptor and should be produced by the decoder pipeline
-  def dispatchedCmacRx: Vec[Stream[PacketLength]]
+  def frameLen: Stream[PacketLength]
 }
 
 class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with MacInterfaceService {
@@ -37,7 +36,7 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
   def rxStream = logic.rxFifo.masterPort
   def txStream = logic.txFifo.slavePort
 
-  def dispatchedCmacRx: Vec[Stream[PacketLength]] = logic.dispatchedCmacRx
+  def frameLen = logic.frameLenCdc
 
   val logic = during build new Area {
     val clockDomain = ClockDomain.current
@@ -60,24 +59,10 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     csr.status.rxOverflowCount := Counter(config.regWidth bits, rxOverflowCdc)
 
     // extract frame length
-    // TODO: attach point for (IP/UDP/RPC prognum) decoder pipeline.  Produce necessary info for scheduler
-    //       pipeline should emit:
-    //       - a control struct (length of payload stream + scheduler command + additional decoded data, e.g. RPC args)
-    //       - a payload stream to DMA
-    // FIXME: do we actually need more than one proc pipelines on the NIC?
-    val cmacReq = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
-    val cmacReqCdc = cmacReq.clone
+    val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
+    val frameLenCdc = frameLen.clone
     // FIXME: how much buffering do we need?
-    val cmacReqCdcFifo = SimpleAsyncFifo(cmacReq, cmacReqCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
-
-    // round-robin dispatch to enabled CPU cores
-    // TODO: replace with more complicated scheduler after decoder pipeline, based on info from the decoder
-    val dispatchedCmacRx = StreamDispatcherWithEnable(
-      input = cmacReqCdc,
-      outputCount = cores.length,
-      enableMask = csr.ctrl.dispatchMask,
-      maskChanged = csr.status.dispatchMaskChanged,
-    ).setName("packetLenDemux")
+    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
 
     // profile timestamps
     p.profile(

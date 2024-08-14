@@ -5,6 +5,18 @@ import spinal.lib._
 
 import scala.language.postfixOps
 
+/**
+ * Descriptor used to describe a packet (payload of any protocol) in the packet buffer.
+ *
+ * This might get transmitted to the host (e.g. for [[pionic.host.pcie.PcieBridgeInterfacePlugin]], which directly
+ * exposes the packet buffer to the host CPU for reading and writing), or might not be (e.g. for
+ * [[pionic.host.eci.EciInterfacePlugin]], which aliases packet buf buffer to the same address)
+ */
+case class PacketBufDesc()(implicit config: PioNicConfig) extends Bundle {
+  val addr = PacketAddr()
+  val size = PacketLength()
+}
+
 case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) extends Component {
   val roundedMap = config.pktBufAllocSizeMap.map { case (size, ratio) =>
     val alignedSize = roundUp(size, config.axisDataWidth).toLong
@@ -16,8 +28,8 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
   val io = new Bundle {
     val allocReq = slave Stream PacketLength()
     // size == 0: dropped
-    val allocResp = master Stream PacketDesc()
-    val freeReq = slave Stream PacketDesc()
+    val allocResp = master Stream PacketBufDesc()
+    val freeReq = slave Stream PacketBufDesc()
 
     // stats
     val slotOccupancy = out(Vec.fill(numPorts)(UInt(32 bits)))
@@ -45,7 +57,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
   )
 
   val freeDemux = StreamDemux(io.freeReq, sizeIdx(io.freeReq.payload.size), numPorts).setName("freeDemux")
-  val allocRespMux = new StreamMux(PacketDesc(), numPorts).setName("allocRespMux")
+  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts).setName("allocRespMux")
   allocRespMux.io.output.haltWhen(!inProgress) >> io.allocResp
 
   val inIdx = io.allocReq.map(sizeIdx)
@@ -73,7 +85,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
     curBase += alignedSize * slots
 
     // FIXME: we could use a Mux and the initDone signal for less area (but slower startup)
-    slotFifo.io.push << StreamArbiterFactory.lowerFirst.onArgs(freeDemux(idx).map(_.addr), initEnq)
+    slotFifo.io.push << StreamArbiterFactory().lowerFirst.onArgs(freeDemux(idx).map(_.addr), initEnq)
     // pop only when we have a pending request
     slotFifo.io.pop.translateInto(allocRespMux.io.inputs(idx)) { (dst, src) =>
       dst.addr := src
