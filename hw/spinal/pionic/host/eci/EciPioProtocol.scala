@@ -1,7 +1,7 @@
 package pionic.host.eci
 
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{HostPacketDesc, PacketLength, PioNicConfig}
+import pionic.{HostPacketDesc, PacketBufDesc, PacketLength, PioNicConfig}
 import spinal.core._
 import spinal.core.fiber.Handle
 import spinal.lib._
@@ -22,10 +22,10 @@ trait EciPioProtocol extends FiberPlugin {
   val ul = during setup Stream(EciCmdDefs.EciAddress)
 
   // core control interface
-  val hostTx = during setup Stream(HostPacketDesc())
-  val hostTxAck = during setup Stream(PacketLength())
+  val hostTx = during setup Stream(PacketBufDesc())
+  val hostTxAck = during setup Stream(HostPacketDesc())
   val hostRx = during setup Stream(HostPacketDesc())
-  val hostRxAck = during setup Stream(HostPacketDesc())
+  val hostRxAck = during setup Stream(PacketBufDesc())
   val hostRxReq = during setup Bool()
 
   // dcs busCtrl for control cacheline
