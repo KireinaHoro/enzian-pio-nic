@@ -59,14 +59,14 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
 
       val alloc = config.allocFactory("control", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(axiConfig.dataWidth)
 
-      val rxNextAddr = alloc("hostRxNext", readSensitive = true)
-      busCtrl.readStreamBlockCycles(cio.hostRxNext, rxNextAddr, csr.logic.ctrl.rxBlockCycles)
-      busCtrl.driveStream(cio.hostRxNextAck, alloc("hostRxNextAck"))
+      val rxAddr = alloc("hostRx", readSensitive = true)
+      busCtrl.readStreamBlockCycles(cio.hostRx, rxAddr, csr.logic.ctrl.rxBlockCycles)
+      busCtrl.driveStream(cio.hostRxAck, alloc("hostRxAck"))
 
-      // on read primitive (AR for AXI), set hostRxNextReq for timing ReadStart
-      cio.hostRxNextReq := False
-      busCtrl.onReadPrimitive(SingleMapping(rxNextAddr), haltSensitive = false, "read request issued") {
-        cio.hostRxNextReq := True
+      // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
+      cio.hostRxReq := False
+      busCtrl.onReadPrimitive(SingleMapping(rxAddr), haltSensitive = false, "read request issued") {
+        cio.hostRxReq := True
       }
 
       // should not block; only for profiling (to use ready signal)
