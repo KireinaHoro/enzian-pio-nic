@@ -3,18 +3,18 @@ package pionic
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RichBundle
 import pionic.host.HostService
-import pionic.net.DecoderPipelinePlugin
+import pionic.net.ProtoMetadata
 import spinal.core._
-import spinal.core.fiber._
+import spinal.lib._
 import spinal.lib.bus.amba4.axi._
+import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin._
 
 class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
-  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val cores = host.list[CoreControlPlugin]
   lazy val hs = host[HostService]
+
   lazy val ms = host[MacInterfaceService]
-  lazy val dp = host[DecoderPipelinePlugin]
 
   // config for packetBufDmaMaster
   // we fix here and downstream should adapt
@@ -30,9 +30,12 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
     val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
 
+    // select and demux payload
+
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
+    // TODO: replace with encoders input
     axiDma.readDataMaster >> ms.txStream
-    axiDma.writeDataSlave << dp.decodedAuxData
+    axiDma.writeDataSlave << host[PacketSinkService].packetSink
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
@@ -42,7 +45,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     axiDmaReadMux.connectRead(axiDma)
     axiDmaWriteMux.connectWrite(axiDma)
 
-    // drive mac interface of core control modules
+    // consume DMA descriptor interface of core control modules
     cores.foreach { c =>
       val cio = c.logic.io
       cio.readDesc >> axiDmaReadMux.s_axis_desc(c.coreID)
@@ -51,10 +54,6 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
       // dma write desc port does not have id, dest, user
       axiDmaWriteMux.s_axis_desc(c.coreID).translateFrom(cio.writeDesc)(_ <<? _)
       cio.writeDescStatus << axiDmaWriteMux.m_axis_desc_status(c.coreID)
-
-      // TODO: we should pass the decoded control structure (e.g. RPC call num + first args)
-      //       instead of just length of packet
-      cio.cmacRxAlloc << ms.dispatchedCmacRx(c.coreID)
     }
   }
 

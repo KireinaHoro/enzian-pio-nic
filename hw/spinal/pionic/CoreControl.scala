@@ -1,43 +1,62 @@
 package pionic
 
-import jsteward.blocks.axi._
-import jsteward.blocks.misc._
 import pionic.host.HostService
+import pionic.net.{TaggedProtoMetadata, ProtoMetadataType}
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc._
 import spinal.lib.fsm._
 import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
-// address of arbitrary data in the packet buffer
-case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = PacketAddr()
-
-  val bits = UInt(config.pktBufAddrWidth bits)
+object HostPacketDescType extends SpinalEnum {
+  val bypass, oncRpcCall, oncRpcReply = newElement()
 }
 
-case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = PacketLength()
+case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
+  val bypassMeta = newElement(TaggedProtoMetadata())
+  val oncRpcCall = newElement(new Bundle {
+    val funcPtr = Bits(64 bits)
+    val xid = Bits(32 bits)
+    val args = Bits((config.maxHostDescSize - 8 - 4) * 8 bits)
+  })
+  val oncRpcReply = newElement(new Bundle {
 
-  val bits = UInt(config.pktBufLenWidth bits)
+  })
 }
 
-// Description of a packet; content of packet is dependent on what protocol it carries.
-// FIXME: this should be renamed to highlight difference between a DecodePipelineDesc and a CoreControlDesc
-case class PacketDesc()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = PacketDesc()
+/**
+ * Packet descriptor that eventually gets transmitted to the host (e.g. stuffed in a CL or read over
+ * PCIe regs).  Translated from [[TaggedProtoMetadata]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
+ * if it is a bypass core or not)
+ */
+case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = HostPacketDesc()
 
-  val addr = PacketAddr()
-  val size = PacketLength()
+  val buffer = PacketBufDesc()
+  val ty = HostPacketDescType()
+  val data = HostPacketDescData()
+
+  assert(getBitsWidth <= config.maxHostDescSize * 8, s"host packet desc too big ($getBitsWidth)")
 }
 
-// Control module for PIO access from one single core
-// Would manage one packet buffer
+/**
+ * Control module for PIO access from one single core.
+ *
+ * For RX, consumes [[TaggedProtoMetadata]] from the decoder pipeline and produces [[HostPacketDesc]] for consumption
+ * by the host module (e.g. [[pionic.host.eci.EciInterfacePlugin]]) and AXI DMA descriptors for [[AxiDmaPlugin]].
+ * Manages one packet buffer.
+ *
+ * TODO TX control path
+ *
+ * A [[coreID]] of 0 means that this core handles bypass traffic to/from the bypass TAP on the host.  For RX, this
+ * results in all traffic being packed into [[HostPacketDescType.bypass]]; for TX, any packet that does not carry the
+ * bypass type in the host descriptor is an error.
+  */
 class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends FiberPlugin {
   withPrefix(s"core_$coreID")
+  def isBypass = coreID == 0
 
   lazy val dma = host[AxiDmaPlugin]
   lazy val csr = host[GlobalCSRPlugin].logic.get
@@ -50,7 +69,6 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     awaitBuild()
 
     val dmaConfig = dma.dmaConfig
-    assert(dmaConfig.tagWidth >= config.pktBufAddrWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
 
     val pktBufBase = coreID * config.pktBufSizePerCore
     val pktBufTxSize = config.roundMtu
@@ -64,16 +82,25 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     println(f"Tx Size $pktBufTxSize @ $pktBufTxBase%#x")
 
     val io = new Bundle {
-      // regs for host
-      val hostRxNext = master Stream PacketDesc()
-      val hostRxNextAck = slave Stream PacketDesc()
-      val hostRxNextReq = in Bool()
+      // RX protocol:
+      // - hostRxReq:      host started rx read; used for profiling
+      // - hostRx.fire:    packet allocated and presented to core
+      // - hostRxAck.fire: packet consumed by host; buffer entry can be freed
+      val hostRxReq = in Bool()
+      val hostRx = master Stream HostPacketDesc()
+      val hostRxAck = slave Stream PacketBufDesc()
 
-      val hostTx = master Stream PacketDesc()
-      val hostTxAck = slave Stream PacketLength() // actual length of the packet
+      // TX protocol:
+      // - hostTx.fire:    host acquire tx packet buffer; maybe unused if host plugin aliases tx buffer directly (e.g. ECI)
+      // - hostTxAck.fire: host prepared packet descriptor and packet can be sent
+      val hostTx = master Stream PacketBufDesc()
+      val hostTxAck = slave Stream HostPacketDesc()
 
-      // from CMAC Axis -- ingress packet
-      val cmacRxAlloc = slave Stream PacketLength()
+      // from packet sink -- ingress packet metadata
+      val igMetadata = slave Stream TaggedProtoMetadata()
+
+      // TODO: to packet source -- egress packet metadata
+      // val egMetadata = master Stream TaggedProtoMetadata()
 
       // driver for DMA control
       val readDesc = master(dmaConfig.readDescBus).setOutputAsReg()
@@ -104,17 +131,29 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     io.hostTx.size.bits := pktBufTxSize
     io.hostTx.valid := True
 
-    rxAlloc.io.allocReq << io.cmacRxAlloc
-    rxAlloc.io.freeReq </< io.hostRxNextAck
+    // tell allocator how much we need to allocate in the packet buffer
+    // FIXME: what if size is zero due to header only packet?
+    rxAlloc.io.allocReq << io.igMetadata.map(_.getPayloadSize)
+    rxAlloc.io.freeReq </< io.hostRxAck
     io.statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
 
     rxAlloc.io.allocResp.setBlocked()
     io.hostTxAck.setBlocked()
-    val allocReq = io.cmacRxAlloc.toFlowFire.toReg
+    val lastIgReq = io.igMetadata.toFlowFire.toReg()
 
-    val rxCaptured = Reg(Stream(PacketDesc())).setIdle
+    val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
     // FIXME: how much buffering do we need?
-    rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRxNext
+    rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRx
+
+    /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoMetadata]] */
+    case class RxDmaTag() extends Bundle {
+      /** packet buffer address from allocator.  used to fill buffer in [[HostPacketDesc]] */
+      val addr = PacketAddr()
+      val ty = HostPacketDescType()
+      val data = HostPacketDescData()
+
+      assert(dmaConfig.tagWidth >= getBitsWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
+    }
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -122,8 +161,31 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
           rxAlloc.io.allocResp.freeRun()
           when(rxAlloc.io.allocResp.valid) {
             io.writeDesc.payload.payload.addr := rxAlloc.io.allocResp.addr.bits.resized
-            io.writeDesc.payload.payload.len := allocReq.bits // use the actual size instead of length of buffer
-            io.writeDesc.payload.payload.tag := rxAlloc.io.allocResp.addr.bits.resized
+            io.writeDesc.payload.payload.len := lastIgReq.getPayloadSize // use the actual size instead of length of buffer
+
+            // encode proto metadata into DMA tag
+            val tag = RxDmaTag()
+            tag.addr := rxAlloc.io.allocResp.addr
+            if (isBypass) {
+              tag.ty := HostPacketDescType.bypass
+              tag.data.bypassMeta.get := lastIgReq
+            } else {
+              switch (lastIgReq.ty) {
+                is (ProtoMetadataType.oncRpcCall) {
+                  tag.ty := HostPacketDescType.oncRpcCall
+
+                  tag.data.oncRpcCall.funcPtr := lastIgReq.metadata.oncRpcCall.funcPtr
+                  tag.data.oncRpcCall.xid := lastIgReq.metadata.oncRpcCall.hdr.xid
+                  tag.data.oncRpcCall.args := lastIgReq.metadata.oncRpcCall.args
+                }
+                default {
+                  report("unsupported protocol metadata type on non-bypass packet")
+                }
+              }
+            }
+
+            io.writeDesc.payload.payload.tag := tag.asBits
+
             io.writeDesc.valid := True
             goto(allocated)
           }
@@ -142,8 +204,14 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           when(io.writeDescStatus.fire) {
             when(io.writeDescStatus.payload.error === 0) {
-              rxCaptured.payload.addr.bits := io.writeDescStatus.tag.resized
-              rxCaptured.payload.size.bits := io.writeDescStatus.len
+              // fill host descriptor
+              val tag = RxDmaTag()
+              tag.assignFromBits(io.writeDescStatus.tag)
+
+              rxCaptured.buffer.addr.bits := tag.addr
+              rxCaptured.buffer.size.bits := io.writeDescStatus.len
+              rxCaptured.ty := tag.ty
+              rxCaptured.data := tag.data
               rxCaptured.valid := True
 
               p.profile(p.RxAfterDmaWrite -> True)
@@ -167,9 +235,9 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     }
 
     p.profile(
-      p.RxCoreReadStart -> io.hostRxNextReq.rise(False),
-      p.RxCoreReadFinish -> io.hostRxNext.fire,
-      p.RxCoreCommit -> io.hostRxNextAck.fire,
+      p.RxCoreReadStart -> io.hostRxReq.rise(False),
+      p.RxCoreReadFinish -> io.hostRx.fire,
+      p.RxCoreCommit -> io.hostRxAck.fire,
     )
 
     val txFsm = new StateMachine {

@@ -1,4 +1,4 @@
-package pionic.host.eci
+p ackage pionic.host.eci
 
 import jsteward.blocks.eci.sim.DcsAppMaster
 import jsteward.blocks.DutSimFunSuite
@@ -126,11 +126,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     // read memory and check data
     val data = rxSingle(dcsMaster, cid, maxRetries)
-    assert(data == toSend,
-      s"""data mismatch:
-         |expected: "${toSend.bytesToHex}"
-         |got:      "${data.bytesToHex}"
-         |""".stripMargin)
+    check(toSend, data)
 
     println(s"Successfully received packet $info")
 
@@ -190,11 +186,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     fork {
       val data = axisSlave.recv()
 
-      assert(data == toSend,
-        s"""data mismatch:
-           |expected: "${toSend.bytesToHex}"
-           |got:      "${data.bytesToHex}"
-           |""".stripMargin)
+      check(toSend, data)
 
       println(s"Core $cid: packet received from TX interface and validated")
 
@@ -298,11 +290,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       waitUntil(toCheck.nonEmpty)
       val toRecv = toCheck.dequeue()
       val data = rxSingle(dcsMaster, maxRetries = 0)
-      assert(data == toRecv,
-        s"""data mismatch:
-           |expected: "${toRecv.bytesToHex}"
-           |got:      "${data.bytesToHex}"
-           |""".stripMargin)
+      check(toRecv, data)
 
       println(s"Received packet #$pid of length ${data.length}")
       sleepCycles(20)

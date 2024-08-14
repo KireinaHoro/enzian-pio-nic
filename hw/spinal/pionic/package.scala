@@ -4,23 +4,23 @@ import spinal.lib._
 import scala.language.postfixOps
 
 package object pionic {
-  def checkStreamValidDrop[T <: Data](s: Stream[T]) = {
-    assert(
-      assertion = !(s.valid.fall && ((!s.ready && !s.ready.fall) || s.ready.rise)),
-      message = s"${s.getName()}: Valid dropped when ready was low",
-      severity = FAILURE
-    )
-  }
-
   object StreamDispatcherWithEnable {
-    def apply[T <: Data](input: Stream[T], outputCount: Int, enableMask: Bits, maskChanged: Bool): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
+    def apply[T <: Data](
+        input: Stream[T],
+        outputCount: Int,
+        enableMask: Bits,
+        maskChanged: Bool
+    ): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
       // FIXME: same as OHMasking.roundRobin?
-      assert(outputCount == enableMask.getWidth, "enable mask bit width does not match with output count")
+      assert(
+        outputCount == enableMask.getWidth,
+        "enable mask bit width does not match with output count"
+      )
       val select = Reg(UInt(log2Up(outputCount) bits))
 
       // reset select when mask changes
       // FIXME: can this happen when a request is ongoing?
-      when (maskChanged) {
+      when(maskChanged) {
         select := CountTrailingZeroes(enableMask).resized
       }
 
@@ -40,5 +40,23 @@ package object pionic {
       len.bits := v
       len
     }
+  }
+
+  /**
+    * Address of a packet payload (of any protocol) in the packet buffer.
+    */
+  case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
+    override def clone = PacketAddr()
+
+    val bits = UInt(config.pktBufAddrWidth bits)
+  }
+
+  /**
+    * Length of a packet payload (of any protocol) in the packet buffer.
+    */
+  case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
+    override def clone = PacketLength()
+
+    val bits = UInt(config.pktBufLenWidth bits)
   }
 }

@@ -92,11 +92,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     // read memory and check data
     val data = master.read(pktBufAddr + desc.addr, desc.size)
-    assert(data == toSend,
-      s"""data mismatch:
-         |expected: "${toSend.bytesToHex}"
-         |got:      "${data.bytesToHex}"
-         |""".stripMargin)
+    check(toSend, data)
 
     // free packet buffer
     println(s"desc $desc to bytes: ${desc.toBigInt.hexString}")
@@ -152,11 +148,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     master.write(pktBufAddr + desc.addr, toSend)
     // receive from axis
     axisSlave.recvCB() { data =>
-      assert(data == toSend,
-        s"""data mismatch:
-           |expected: "${toSend.bytesToHex}"
-           |got:      "${data.bytesToHex}"
-           |""".stripMargin)
+      check(toSend, data)
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
     master.write(coreBlock("hostTxAck"), toSend.length.toBytes)

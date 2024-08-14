@@ -2,7 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{ConfigWriter, DebugPlugin, GlobalCSRPlugin, PacketAddr, PacketLength, PioNicConfig, checkStreamValidDrop}
+import pionic.{ConfigWriter, DebugPlugin, GlobalCSRPlugin, PacketAddr, PacketLength, PioNicConfig}
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -26,7 +26,7 @@ case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
   val pktBufAddr = PacketAddr()
 
   // plus one for readStreamBlockCycles
-  assert(getBitsWidth + 1 <= 512, "packet info larger than half a cacheline")
+  assert(getBitsWidth + 1 <= config.maxHostDescSize * 8, "packet info larger than half a cacheline")
 }
 
 class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
@@ -89,7 +89,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       )
     })
 
-    hostRxNextReq := logic.rxReqs.reduce(_ || _)
+    hostRxNextReq := logic.rxReqs.reduceBalancedTree(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
     Seq(0, 1) foreach { idx => new Area {
       val rxCtrlAddr = idx * 0x80
@@ -170,7 +170,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     lci.setIdle()
     lci.valid.setAsReg()
     lci.payload.setAsReg()
-    checkStreamValidDrop(lci)
+    lci.assertPersistence()
 
     val ulFlow = Flow(ul.payload.clone).setIdle()
     val ulOverflow = Bool()
@@ -304,7 +304,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     }
 
     val txPacketCtrl = Vec(Stream(Bits(512 bits)), 2)
-    when (txPacketCtrl.map(_.fire).reduce(_ || _)) {
+    when (txPacketCtrl.map(_.fire).reduceBalancedTree(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
