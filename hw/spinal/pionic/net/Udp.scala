@@ -20,6 +20,7 @@ case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with Prot
 
   def getType = ProtoMetadataType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
+  def collectHeaders: Bits = ipMeta.collectHeaders ## hdr.asBits
 }
 
 class UdpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[UdpMetadata] {

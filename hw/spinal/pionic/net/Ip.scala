@@ -29,6 +29,7 @@ case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with Proto
 
   def getType = ProtoMetadataType.ip
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
+  def collectHeaders: Bits = ethMeta.collectHeaders ## hdr.asBits
 }
 
 class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] {

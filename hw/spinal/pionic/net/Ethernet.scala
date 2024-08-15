@@ -19,6 +19,7 @@ case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with
 
   def getType = ProtoMetadataType.ethernet
   def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
+  def collectHeaders: Bits = hdr.asBits
 }
 
 class EthernetDecoder(implicit config: PioNicConfig) extends ProtoDecoder[EthernetMetadata] {
