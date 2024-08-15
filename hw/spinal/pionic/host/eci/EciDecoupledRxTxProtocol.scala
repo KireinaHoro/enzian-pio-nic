@@ -40,7 +40,7 @@ case class TxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
   val len = PacketLength()
   val data = HostPacketDescData()
 
-  assert(getBitsWidth <= config.maxHostDescSize * 8, "tx packet info larger than half a cacheline")
+  assert(getBitsWidth <= config.maxHostDescSize * 8, s"tx packet info larger than half a cacheline ($getBitsWidth)")
 }
 
 class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
