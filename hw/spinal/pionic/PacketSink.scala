@@ -46,7 +46,7 @@ class PacketSink(implicit config: PioNicConfig) extends FiberPlugin with PacketS
         outputCount = cores.length - 1,
         enableMask = coreMask,
         maskChanged = coreMaskChanged,
-      ) zip coreDescUpstreams foreach { case (td, cl) =>
+      ) zip coreDescUpstreams.tail foreach { case (td, cl) =>
         cl.append(td)
       }
     }

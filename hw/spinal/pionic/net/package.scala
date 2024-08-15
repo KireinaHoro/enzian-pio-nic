@@ -121,8 +121,8 @@ package object net {
       }
       }
 
-      val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
-      val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted)
+      val bypassHeader = forkedHeaders.last.takeWhen(!attempted).setName(s"bypassHeader_${getClass.getName}")
+      val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted).setName(s"bypassPayload_${getClass.getName}")
 
       host[PacketSinkService].consume(bypassPayload, bypassHeader)
     }
