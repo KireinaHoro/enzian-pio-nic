@@ -161,7 +161,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
       val ty = HostPacketDescType()
       val data = HostPacketDescData()
 
-      assert(dmaConfig.tagWidth >= getBitsWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit packet buffer address (${config.pktBufAddrWidth} bits)")
+      assert(dmaConfig.tagWidth >= getBitsWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit rx tag ($getBitsWidth bits)")
     }
 
     val rxFsm = new StateMachine {
