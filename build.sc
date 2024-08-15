@@ -39,6 +39,7 @@ object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVer
 object blocksTester extends deps.`spinal-blocks`.build.BlocksTester with ApplyScalaVersion {
   override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
   override def spinalDeps = Agg(spinalCore, spinalLib, spinalTester)
+  override def moduleDeps = super.moduleDeps ++ Agg(blocks)
   override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
 }
 
