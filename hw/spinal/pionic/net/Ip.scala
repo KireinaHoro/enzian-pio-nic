@@ -47,12 +47,10 @@ class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] 
 
     val ipAddress = Reg(Bits(32 bits)) init B("c0a88028") // 192.168.128.40; changed at runtime
 
-    from(host[EthernetDecoder] -> (
-      { meta: EthernetMetadata =>
-        meta.hdr.etherType === B("0800")
-      },
+    from[EthernetMetadata, EthernetDecoder].apply(
+      _.hdr.etherType === B("0800"),
       ethernetHeader, ethernetPayload
-    ))
+    )
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8) // IPv4 without options

@@ -76,14 +76,13 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
     val coreMask = Bits(config.numCores bits)
     val coreMaskChanged = Bool()
 
-    from(host[UdpDecoder] -> (
-      { meta: UdpMetadata =>
+    from[UdpMetadata, UdpDecoder].apply( { meta =>
         listenPorts.map { portSlot =>
-          portSlot.valid && portSlot.payload === meta.hdr.dport
+          portSlot.valid && portSlot.payload === meta.hdr.dport.asUInt
         }.reduceBalancedTree(_ || _)
       },
       udpHeader, udpPayload
-    ))
+    )
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)
