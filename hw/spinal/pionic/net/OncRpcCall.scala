@@ -85,13 +85,15 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
       udpHeader, udpPayload
     )
 
+    val payload = Axi4Stream(macIf.axisConfig)
+    val metadata = Stream(OncRpcCallMetadata())
+    host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
+
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)
     // TODO: add extra decoder to decode first fields in the XDR payload
 
     val currentUdpHeader = udpHeader.toReg()
-    val payload = Axi4Stream(macIf.axisConfig)
-    val metadata = Stream(OncRpcCallMetadata())
 
     val drop = Bool()
     udpPayload >> decoder.io.input
@@ -108,7 +110,5 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
 
       meta
     }
-
-    host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
   }
 }

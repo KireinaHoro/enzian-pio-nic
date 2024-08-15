@@ -53,12 +53,14 @@ class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] 
       ethernetHeader, ethernetPayload
     )
 
+    val payload = Axi4Stream(macIf.axisConfig)
+    val metadata = Stream(IpMetadata())
+    produce(metadata, payload)
+
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8) // IPv4 without options
     // TODO: chain output with secondary decoder to decode IP options
 
-    val payload = Axi4Stream(macIf.axisConfig)
-    val metadata = Stream(IpMetadata())
     val lastEthMeta = ethernetHeader.toReg()
 
     val drop = Bool()
@@ -74,7 +76,5 @@ class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] 
 
       meta
     }
-
-    connectConsumers(metadata, payload)
   }
 }

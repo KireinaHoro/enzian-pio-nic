@@ -80,11 +80,24 @@ package object net {
     // possible upstream carriers
     // e.g. oncRpc.from(Tcp -> <port registered>, Udp -> <port registered>)
     // this is not called for the source decoder (ethernet)
+
+    /**
+     * Specify one possible upstream decoder.  Invoke with `from[_, _].apply(_, _, _)`.
+     *
+     * @tparam M output metadata type for the upstream decoder
+     * @tparam D decoder type
+     */
     def from[M <: ProtoMetadata, D <: ProtoDecoder[M]: ClassTag] = Function.untupled((consumer: DecodeConsumer[M]) => {
       host[D].consumers.append(consumer)
     })
 
-    def connectConsumers(metadata: Stream[T], payload: Axi4Stream) = new Area {
+    /**
+     * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
+     * produce a copy for bypass to the [[PacketSink]].
+     * @param metadata metadata stream produced by this stage
+     * @param payload payload data stream produced by this stage
+     */
+    def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Area {
       // FIXME: do we need synchronous here?
       val forkedHeaders = StreamFork(metadata, consumers.length + 1)//, synchronous = true)
       val forkedPayloads = StreamFork(payload, consumers.length + 1)
