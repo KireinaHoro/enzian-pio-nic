@@ -13,6 +13,8 @@ import scala.language.postfixOps
  * [[pionic.host.eci.EciInterfacePlugin]], which aliases packet buf buffer to the same address)
  */
 case class PacketBufDesc()(implicit config: PioNicConfig) extends Bundle {
+  override def clone = PacketBufDesc()
+
   val addr = PacketAddr()
   val size = PacketLength()
 }
