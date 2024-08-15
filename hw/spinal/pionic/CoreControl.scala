@@ -1,7 +1,7 @@
 package pionic
 
 import pionic.host.HostService
-import pionic.net.{TaggedProtoMetadata, ProtoMetadataType}
+import pionic.net.{EthernetHeader, ProtoMetadataType, TaggedProtoMetadata}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
