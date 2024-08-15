@@ -7,7 +7,9 @@ import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import spinal.lib.bus.misc.BusSlaveFactory
 
+import scala.Function.untupled
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 package object net {
   /**
@@ -67,11 +69,9 @@ package object net {
     // possible upstream carriers
     // e.g. oncRpc.from(Tcp -> <port registered>, Udp -> <port registered>)
     // this is not called for the source decoder (ethernet)
-    def from[K <: ProtoMetadata](carrier: (ProtoDecoder[K], DecodeConsumer[K])): Unit = {
-      carrier match { case (dec, consumer) =>
-        dec.consumers.append(consumer)
-      }
-    }
+    def from[M <: ProtoMetadata, D <: ProtoDecoder[M]: ClassTag] = Function.untupled((consumer: DecodeConsumer[M]) => {
+      host[D].consumers.append(consumer)
+    })
 
     def connectConsumers(metadata: Stream[T], payload: Axi4Stream) = new Area {
       // FIXME: do we need synchronous here?

@@ -14,13 +14,15 @@ object HostPacketDescType extends SpinalEnum {
   val bypass, oncRpcCall, oncRpcReply = newElement()
 }
 
+case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
+  val funcPtr = Bits(64 bits)
+  val xid = Bits(32 bits)
+  val args = Bits((config.maxHostDescSize - 8 - 4) * 8 bits)
+}
+
 case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
   val bypassMeta = newElement(TaggedProtoMetadata())
-  val oncRpcCall = newElement(new Bundle {
-    val funcPtr = Bits(64 bits)
-    val xid = Bits(32 bits)
-    val args = Bits((config.maxHostDescSize - 8 - 4) * 8 bits)
-  })
+  val oncRpcCall = newElement(OncRpcCallData())
   val oncRpcReply = newElement(new Bundle {
 
   })
@@ -133,7 +135,11 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
     // tell allocator how much we need to allocate in the packet buffer
     // FIXME: what if size is zero due to header only packet?
-    rxAlloc.io.allocReq << io.igMetadata.map(_.getPayloadSize)
+    rxAlloc.io.allocReq << io.igMetadata.map { meta =>
+      val ret = PacketLength()
+      ret.bits := meta.getPayloadSize
+      ret
+    }
     rxAlloc.io.freeReq </< io.hostRxAck
     io.statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
 
@@ -208,7 +214,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
               val tag = RxDmaTag()
               tag.assignFromBits(io.writeDescStatus.tag)
 
-              rxCaptured.buffer.addr.bits := tag.addr
+              rxCaptured.buffer.addr := tag.addr
               rxCaptured.buffer.size.bits := io.writeDescStatus.len
               rxCaptured.ty := tag.ty
               rxCaptured.data := tag.data
@@ -245,8 +251,8 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           io.hostTxAck.freeRun()
           when(io.hostTxAck.valid) {
-            io.readDesc.payload.payload.addr := io.hostTxAck.buffer.addr
-            io.readDesc.payload.payload.len := io.hostTxAck.buffer.size
+            io.readDesc.payload.payload.addr := io.hostTxAck.buffer.addr.bits
+            io.readDesc.payload.payload.len := io.hostTxAck.buffer.size.bits
             // TODO: hand off io.hostTxAck.{ty,data} to egMetadata
             io.readDesc.payload.payload.tag := 0
             io.readDesc.valid := True
