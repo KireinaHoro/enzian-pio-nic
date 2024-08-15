@@ -7,7 +7,6 @@ import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import spinal.lib.bus.misc.BusSlaveFactory
 
-import scala.Function.untupled
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -76,7 +75,7 @@ package object net {
     // downstream decoder, condition to match
     // e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
     val consumers = mutable.ListBuffer[DecodeConsumer[T]]()
-    val csr = host[GlobalCSRPlugin].logic
+    lazy val csr = host[GlobalCSRPlugin].logic
 
     // possible upstream carriers
     // e.g. oncRpc.from(Tcp -> <port registered>, Udp -> <port registered>)
