@@ -245,8 +245,9 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           io.hostTxAck.freeRun()
           when(io.hostTxAck.valid) {
-            io.readDesc.payload.payload.addr := io.hostTx.addr.bits.resized
-            io.readDesc.payload.payload.len := io.hostTxAck.payload.bits
+            io.readDesc.payload.payload.addr := io.hostTxAck.buffer.addr
+            io.readDesc.payload.payload.len := io.hostTxAck.buffer.size
+            // TODO: hand off io.hostTxAck.{ty,data} to egMetadata
             io.readDesc.payload.payload.tag := 0
             io.readDesc.valid := True
             goto(prepared)
