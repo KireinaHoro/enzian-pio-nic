@@ -1,8 +1,9 @@
 package pionic
 
 import mainargs._
-import pionic.host.eci.{EciDecoupledRxTxProtocol, EciInterfacePlugin}
-import pionic.host.pcie.PcieBridgeInterfacePlugin
+import pionic.host.eci._
+import pionic.host.pcie._
+import pionic.net._
 import spinal.core.{FixedFrequency, IntToBuilder, SpinalConfig}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
@@ -54,19 +55,25 @@ class ConfigWriter extends FiberPlugin {
 object GenEngineVerilog {
   def base(implicit config: PioNicConfig) = Seq(
     new ConfigWriter,
-    new GlobalCSRPlugin,
-    new AxiDmaPlugin,
-    new XilinxCmacPlugin,
     new DebugPlugin,
     new ProfilerPlugin,
-  ) ++ Seq.tabulate(config.numCores)(new CoreControlPlugin(_))
+    new GlobalCSRPlugin,
+    // packet pipeline
+    new XilinxCmacPlugin,
+    new EthernetDecoder,
+    new IpDecoder,
+    new UdpDecoder,
+    new OncRpcCallDecoder,
+    new PacketSink,
+    new AxiDmaPlugin,
+  ) ++ Seq.tabulate(config.numCores + 1)(new CoreControlPlugin(_))
 
   def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
     case "pcie" => NicEngine(base :+ new PcieBridgeInterfacePlugin)
     case "eci" => NicEngine(base
       ++ Seq(new EciInterfacePlugin)
-      // TODO: add one DecoupledRxTxProtocol for bypass and numCores CoupledProtocol for RPC requests
-      ++ Seq.tabulate(config.numCores)(new EciDecoupledRxTxProtocol(_)))
+      // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
+      ++ Seq.tabulate(config.numCores + 1)(new EciDecoupledRxTxProtocol(_)))
   }
 
   @main
