@@ -15,6 +15,8 @@ case class UdpHeader() extends Bundle {
 }
 
 case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+  override def clone = UdpMetadata()
+
   val hdr = UdpHeader()
   val ipMeta = IpMetadata()
 
@@ -37,7 +39,7 @@ class UdpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[UdpMetadata
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
     from[IpMetadata, IpDecoder].apply(
-      _.hdr.proto === B("11"), // 17 for UDP
+      _.hdr.proto === B("8'x11"), // 17 for UDP
       ipHeader, ipPayload
     )
 

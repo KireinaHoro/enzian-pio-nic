@@ -14,6 +14,8 @@ case class EthernetHeader() extends Bundle {
 }
 
 case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+  override def clone = EthernetMetadata()
+
   val frameLen = PacketLength()
   val hdr = EthernetHeader()
 

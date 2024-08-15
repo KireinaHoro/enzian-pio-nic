@@ -22,7 +22,7 @@ case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
 
 case class HostBypassHeaders()(implicit config: PioNicConfig) extends Bundle {
   val ty = ProtoMetadataType()
-  val hdr = Bits((config.maxHostDescSize * 8 - ty.getBitsWidth) bits)
+  val hdr = Bits(54 * 8 bits) // ETH + IP + TCP
 }
 
 case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {

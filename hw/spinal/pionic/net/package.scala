@@ -36,6 +36,8 @@ package object net {
    * [[ProtoMetadata]] plus type information. Used between [[PacketSink]] and [[CoreControlPlugin]].
    */
   case class TaggedProtoMetadata()(implicit config: PioNicConfig) extends Bundle {
+    override def clone = TaggedProtoMetadata()
+
     val ty = ProtoMetadataType()
     val metadata = new Union {
       val ethernet = newElement(EthernetMetadata())

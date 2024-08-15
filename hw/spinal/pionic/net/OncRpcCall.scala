@@ -19,6 +19,8 @@ case class OncRpcCallHeader() extends Bundle {
 }
 
 case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+  override def clone = OncRpcCallMetadata()
+
   val funcPtr = Bits(64 bits)
   // first fields in the XDR payload
   val args = Bits(config.maxOncRpcInlineBytes * 8 bits)
