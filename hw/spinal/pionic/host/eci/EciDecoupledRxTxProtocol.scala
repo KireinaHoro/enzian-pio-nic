@@ -2,7 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import pionic.{ConfigWriter, DebugPlugin, GlobalCSRPlugin, PacketAddr, PacketLength, PioNicConfig}
+import pionic._
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -14,19 +14,33 @@ import spinal.lib.misc.plugin.FiberPlugin
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
-// Control info struct sent to the CPU in cache-line reloads.
-// Should not contain buffer address since the CPU does not need it
-// This is separate from the rest of the data inside packet buffer because:
-// - it is expensive to enable unaligned access for the AXI DMA engine
-// - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
-case class PacketCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
-  override def clone = PacketCtrlInfo()
-
-  val size = PacketLength()
-  val pktBufAddr = PacketAddr()
+/**
+ * Control info struct sent to the CPU in cache-line reloads for RX packets.
+ *
+ * This is separate from the rest of the data inside packet buffer because:
+ * - it is expensive to enable unaligned access for the AXI DMA engine
+ * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
+ */
+case class RxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
+  val ty = HostPacketDescType()
+  val data = HostPacketDescData()
 
   // plus one for readStreamBlockCycles
-  assert(getBitsWidth + 1 <= config.maxHostDescSize * 8, "packet info larger than half a cacheline")
+  assert(getBitsWidth + 1 <= config.maxHostDescSize * 8, "rx packet info larger than half a cacheline")
+}
+
+/**
+ * Control info struct received from the CPU for TX packets.
+ *
+ * We need the length field here to know how many cache-lines we should invalidate.  This is also used by the
+ * AXI DMA to fetch exactly what's used from the packet buffer.
+ */
+case class TxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
+  val ty = HostPacketDescType()
+  val len = PacketLength()
+  val data = HostPacketDescData()
+
+  assert(getBitsWidth <= config.maxHostDescSize * 8, "tx packet info larger than half a cacheline")
 }
 
 class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
@@ -89,7 +103,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       )
     })
 
-    hostRxNextReq := logic.rxReqs.reduceBalancedTree(_ || _)
+    hostRxReq := logic.rxReqs.reduceBalancedTree(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
     Seq(0, 1) foreach { idx => new Area {
       val rxCtrlAddr = idx * 0x80
@@ -98,16 +112,17 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
 
       // we latch the rx stream during any possible host reload replays
-      val repeated = Stream(PacketCtrlInfo())
-      repeated.valid := logic.rxPacketCtrl(idx).valid
-      repeated.payload := logic.rxPacketCtrl(idx).payload
-      logic.rxPacketCtrl(idx).ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
+      val rxHostCtrlInfo = Stream(RxHostCtrlInfo())
+      rxHostCtrlInfo.valid := logic.demuxedRxDescs(idx).valid
+      // drop packet buffer info
+      rxHostCtrlInfo.payload.assignAllByName(logic.demuxedRxDescs(idx).payload)
+      logic.demuxedRxDescs(idx).ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
       val bufferedStreamTimeout = Reg(Bool()) init False
       bufferedStreamTimeout.setWhen(streamTimeout)
-      busCtrl.readStreamBlockCycles(repeated, rxCtrlAddr, blockCycles(idx), streamTimeout)
+      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles(idx), streamTimeout)
       busCtrl.onRead(0xc0) {
         logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
           // do not trigger inv when we got a packet right at the timeout
@@ -118,14 +133,16 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val txCtrlAddr = txOffset + idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
         logic.txReqs(idx).set()
-        // only allow write load request when we are idle
+        // only allow load request from writing when we are idle
         when (!logic.txFsm.isActive(logic.txFsm.idle) && idx =/= logic.txCurrClIdx.asUInt) {
           busCtrl.readHalt()
         }
       }
 
-      busCtrl.driveStream(logic.txPacketCtrl(idx), txCtrlAddr)
-      busCtrl.read(logic.savedTxCtrl, txCtrlAddr)
+      // host sends out TxHostCtrlInfo without buffer information
+      busCtrl.driveStream(logic.txHostCtrlInfo(idx), txCtrlAddr)
+      // we need to read this again for partial reloads to have the same CL content
+      busCtrl.read(logic.savedTxHostCtrl, txCtrlAddr)
     }.setCompositeName(this, "driveBusCtrl")
     }
 
@@ -133,7 +150,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     // cpu not supposed to modify rx packet data, so omitting write
     // memOffset is in memory words (64B)
-    val memOffset = rxBufMapping.removeOffset(logic.selectedRxCtrl.pktBufAddr.bits) >> log2Up(pktBufWordNumBytes)
+    val memOffset = rxBufMapping.removeOffset(logic.selectedRxDesc.buffer.addr.bits) >> log2Up(pktBufWordNumBytes)
     busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
       memOffset = memOffset.resized,
       mappingLength = config.roundMtu)
@@ -172,7 +189,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     lci.payload.setAsReg()
     lci.assertPersistence()
 
-    val ulFlow = Flow(ul.payload.clone).setIdle()
+    val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
     val ulOverflow = Bool()
     // max number of inflight ULs: overflow CLs + 2 ctrl CLs
     ul << ulFlow.toStream(ulOverflow).queue(numOverflowCls + 2)
@@ -184,7 +201,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     lcia.setBlocked()
 
-    hostRxNextAck.setIdle()
+    hostRxAck.setIdle()
     hostTx.setBlocked()
     hostTxAck.setIdle()
 
@@ -193,19 +210,12 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
-    // repack packet descriptor from CoreControl into ECI control struct
-    // required since the CoreControl descriptor would contain information that the CPU doesn't need
-    // e.g. offset of additional data in the packet buffer
-    val ctrlInfo = PacketCtrlInfo()
-    ctrlInfo.size := hostRxNext.payload.size
-    ctrlInfo.pktBufAddr := hostRxNext.payload.addr
-    val rxCtrlInfoStream = hostRxNext.translateWith(ctrlInfo)
-    val rxPacketCtrl = StreamDemux(rxCtrlInfoStream, rxCurrClIdx.asUInt, 2) setName "rxPacketCtrl"
+    val demuxedRxDescs = StreamDemux(hostRx, rxCurrClIdx.asUInt, 2) setName "demuxedRxDescs"
 
     // latch accepted host rx packet for:
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
-    val selectedRxCtrl = rxPacketCtrl(rxCurrClIdx.asUInt)
+    val selectedRxDesc = demuxedRxDescs(rxCurrClIdx.asUInt)
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -217,8 +227,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
           rxOverflowInvAcked.clear()
           rxOverflowInvIssued.clear()
 
-          when (hostRxNext.valid) {
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRxNext.payload.size.bits)
+          when (hostRx.valid) {
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
             goto(gotPacket)
           } elsewhen (rxNackTriggerInv) {
             goto(noPacket)
@@ -235,10 +245,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       val gotPacket: State = new State {
         whenIsActive {
           when (rxReqs(1 - rxCurrClIdx.asUInt)) {
-            hostRxNextAck.payload.addr := selectedRxCtrl.pktBufAddr
-            hostRxNextAck.payload.size := selectedRxCtrl.size
-            hostRxNextAck.valid := True
-            when (hostRxNextAck.fire) {
+            hostRxAck.payload := selectedRxDesc.buffer
+            hostRxAck.valid := True
+            when (hostRxAck.fire) {
               when (rxOverflowToInvalidate > 0) {
                 goto(invalidatePacketData)
               } otherwise {
@@ -303,14 +312,15 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
     }
 
-    val txPacketCtrl = Vec(Stream(Bits(512 bits)), 2)
-    when (txPacketCtrl.map(_.fire).reduceBalancedTree(_ || _)) {
+    val txHostCtrlInfo = Vec(Stream(TxHostCtrlInfo()), 2)
+    when (txHostCtrlInfo.map(_.fire).reduceBalancedTree(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
+    val savedTxAddr = hostTx.toFlowFire.toReg()
 
-    val selectedTxCtrl = StreamMux(txCurrClIdx.asUInt, txPacketCtrl)
-    val savedTxCtrl = selectedTxCtrl.toReg()
+    val selectedTxHostCtrl = StreamMux(txCurrClIdx.asUInt, txHostCtrlInfo)
+    val savedTxHostCtrl = selectedTxHostCtrl.toReg()
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -346,8 +356,8 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
             ulFlow.payload := lcia.payload
             ulFlow.valid := True
 
-            // we should've latched ctrl in savedTxCtrl
-            val toInvalidate = packetSizeToNumOverflowCls(savedTxCtrl.asUInt)
+            // we should've latched tx descriptor in savedTxDesc
+            val toInvalidate = packetSizeToNumOverflowCls(savedTxHostCtrl.len.bits)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
               goto(invalidatePacketData)
@@ -384,7 +394,9 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
       }
       val tx: State = new State {
         whenIsActive {
-          hostTxAck.payload.bits := savedTxCtrl.asUInt.resized
+          hostTxAck.get.assignSomeByName(savedTxHostCtrl)
+          hostTxAck.get.buffer.size := savedTxHostCtrl.len
+          hostTxAck.get.buffer.addr := savedTxAddr.addr
           hostTxAck.valid := True
 
           when (hostTxAck.fire) {
