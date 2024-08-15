@@ -60,6 +60,6 @@ class EthernetDecoder(implicit config: PioNicConfig) extends ProtoDecoder[Ethern
       meta
     }
 
-    connectConsumers(metadata, payload)
+    produce(metadata, payload)
   }
 }
