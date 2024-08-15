@@ -21,13 +21,14 @@ case class OncRpcCallHeader() extends Bundle {
 case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
   val funcPtr = Bits(64 bits)
   // first fields in the XDR payload
-  val args = Bits((config.maxHostDescSize - 8 - 4) * 8 bits)
+  val args = Bits(config.maxOncRpcInlineBytes * 8 bits)
   // TODO: protection domain information? aux data?
   val hdr = OncRpcCallHeader()
   val udpMeta = UdpMetadata()
 
   def getType = ProtoMetadataType.oncRpcCall
   def getPayloadSize: UInt = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
+  def collectHeaders: Bits = udpMeta.collectHeaders ## hdr.asBits
 }
 
 class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(implicit config: PioNicConfig) extends ProtoDecoder[OncRpcCallMetadata] {

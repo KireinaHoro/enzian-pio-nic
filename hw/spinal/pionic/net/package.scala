@@ -30,6 +30,7 @@ package object net {
     // used to tag metadata sent to cores
     def getType: ProtoMetadataType.E
     def getPayloadSize: UInt
+    def collectHeaders: Bits
   }
 
   /**
@@ -45,14 +46,25 @@ package object net {
     }
 
     def getPayloadSize: UInt = {
-      val ret = UInt(16 bits)
+      val ret = CombInit(U(0, 16 bits))
       switch (ty) {
         import ProtoMetadataType._
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
         is (ip) { ret := metadata.ip.getPayloadSize }
         is (udp) { ret := metadata.udp.getPayloadSize }
         is (oncRpcCall) { ret := metadata.oncRpcCall.getPayloadSize }
-        default { ret := 0 }
+      }
+      ret
+    }
+
+    def collectHeaders: Bits = {
+      val ret = CombInit(B(0, 512 bits))
+      switch (ty) {
+        import ProtoMetadataType._
+        is (ethernet) { ret := metadata.ethernet.collectHeaders }
+        is (ip) { ret := metadata.ip.collectHeaders }
+        is (udp) { ret := metadata.udp.collectHeaders }
+        is (oncRpcCall) { ret := metadata.oncRpcCall.collectHeaders }
       }
       ret
     }

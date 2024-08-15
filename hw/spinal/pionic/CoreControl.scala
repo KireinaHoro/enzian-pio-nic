@@ -17,11 +17,16 @@ object HostPacketDescType extends SpinalEnum {
 case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
-  val args = Bits((config.maxHostDescSize - 8 - 4) * 8 bits)
+  val args = Bits(config.maxOncRpcInlineBytes * 8 bits)
+}
+
+case class HostBypassHeaders()(implicit config: PioNicConfig) extends Bundle {
+  val ty = ProtoMetadataType()
+  val hdr = Bits((config.maxHostDescSize * 8 - ty.getBitsWidth) bits)
 }
 
 case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
-  val bypassMeta = newElement(TaggedProtoMetadata())
+  val bypassMeta = newElement(HostBypassHeaders())
   val oncRpcCall = newElement(OncRpcCallData())
   val oncRpcReply = newElement(new Bundle {
 
@@ -39,8 +44,6 @@ case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
   val buffer = PacketBufDesc()
   val ty = HostPacketDescType()
   val data = HostPacketDescData()
-
-  assert(getBitsWidth <= config.maxHostDescSize * 8, s"host packet desc too big ($getBitsWidth)")
 }
 
 /**
@@ -174,7 +177,8 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
             tag.addr := rxAlloc.io.allocResp.addr
             if (isBypass) {
               tag.ty := HostPacketDescType.bypass
-              tag.data.bypassMeta.get := lastIgReq
+              tag.data.bypassMeta.ty := lastIgReq.ty
+              tag.data.bypassMeta.hdr := lastIgReq.collectHeaders
             } else {
               switch (lastIgReq.ty) {
                 is (ProtoMetadataType.oncRpcCall) {
