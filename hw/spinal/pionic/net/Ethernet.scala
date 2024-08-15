@@ -36,7 +36,7 @@ class EthernetDecoder(implicit config: PioNicConfig) extends ProtoDecoder[Ethern
     private val payload = Axi4Stream(macIf.axisConfig)
     private val metadata = Stream(EthernetMetadata())
 
-    val macAddress = Reg(Bits(48 bits)) init B("0C5331030028") // zuestoll01 FPGA; changed at runtime
+    val macAddress = Reg(Bits(48 bits)) init B("48'x0C_53_31_03_00_28") // zuestoll01 FPGA; changed at runtime
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)

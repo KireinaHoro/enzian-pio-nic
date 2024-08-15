@@ -46,7 +46,7 @@ package object net {
     }
 
     def getPayloadSize: UInt = {
-      val ret = CombInit(U(0, 16 bits))
+      val ret = CombInit(U("16'x0"))
       switch (ty) {
         import ProtoMetadataType._
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
@@ -58,7 +58,7 @@ package object net {
     }
 
     def collectHeaders: Bits = {
-      val ret = CombInit(B(0, 512 bits))
+      val ret = CombInit(B("512'x0"))
       switch (ty) {
         import ProtoMetadataType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders }
