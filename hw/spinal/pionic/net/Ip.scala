@@ -23,13 +23,13 @@ case class IpHeader() extends Bundle {
   val daddr = Bits(32 bits)
 }
 
-case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
   override def clone = IpMetadata()
 
   val hdr = IpHeader()
   val ethMeta = EthernetMetadata()
 
-  def getType = ProtoMetadataType.ip
+  def getType = ProtoPacketDescType.ip
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = ethMeta.collectHeaders ## hdr.asBits
 }

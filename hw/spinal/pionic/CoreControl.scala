@@ -1,7 +1,7 @@
 package pionic
 
 import pionic.host.HostService
-import pionic.net.{EthernetHeader, ProtoMetadataType, TaggedProtoMetadata}
+import pionic.net.{EthernetHeader, ProtoPacketDescType, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -21,7 +21,7 @@ case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
 }
 
 case class HostBypassHeaders()(implicit config: PioNicConfig) extends Bundle {
-  val ty = ProtoMetadataType()
+  val ty = ProtoPacketDescType()
   val hdr = Bits(54 * 8 bits) // ETH + IP + TCP
 }
 
@@ -35,7 +35,7 @@ case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
 
 /**
  * Packet descriptor that eventually gets transmitted to the host (e.g. stuffed in a CL or read over
- * PCIe regs).  Translated from [[TaggedProtoMetadata]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
+ * PCIe regs).  Translated from [[TaggedProtoPacketDesc]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
  * if it is a bypass core or not)
  */
 case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
@@ -49,7 +49,7 @@ case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
 /**
  * Control module for PIO access from one single core.
  *
- * For RX, consumes [[TaggedProtoMetadata]] from the decoder pipeline and produces [[HostPacketDesc]] for consumption
+ * For RX, consumes [[TaggedProtoPacketDesc]] from the decoder pipeline and produces [[HostPacketDesc]] for consumption
  * by the host module (e.g. [[pionic.host.eci.EciInterfacePlugin]]) and AXI DMA descriptors for [[AxiDmaPlugin]].
  * Manages one packet buffer.
  *
@@ -102,7 +102,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
       val hostTxAck = slave Stream HostPacketDesc()
 
       // from packet sink -- ingress packet metadata
-      val igMetadata = slave Stream TaggedProtoMetadata()
+      val igMetadata = slave Stream TaggedProtoPacketDesc()
 
       // TODO: to packet source -- egress packet metadata
       // val egMetadata = master Stream TaggedProtoMetadata()
@@ -154,7 +154,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     // FIXME: how much buffering do we need?
     rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRx
 
-    /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoMetadata]] */
+    /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
     case class RxDmaTag() extends Bundle {
       /** packet buffer address from allocator.  used to fill buffer in [[HostPacketDesc]] */
       val addr = PacketAddr()
@@ -181,7 +181,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
               tag.data.bypassMeta.hdr := lastIgReq.collectHeaders
             } else {
               switch (lastIgReq.ty) {
-                is (ProtoMetadataType.oncRpcCall) {
+                is (ProtoPacketDescType.oncRpcCall) {
                   tag.ty := HostPacketDescType.oncRpcCall
 
                   tag.data.oncRpcCall.funcPtr := lastIgReq.metadata.oncRpcCall.funcPtr

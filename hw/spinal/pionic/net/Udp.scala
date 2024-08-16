@@ -14,13 +14,13 @@ case class UdpHeader() extends Bundle {
   val csum = Bits(16 bits)
 }
 
-case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
   override def clone = UdpMetadata()
 
   val hdr = UdpHeader()
   val ipMeta = IpMetadata()
 
-  def getType = ProtoMetadataType.udp
+  def getType = ProtoPacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = ipMeta.collectHeaders ## hdr.asBits
 }
