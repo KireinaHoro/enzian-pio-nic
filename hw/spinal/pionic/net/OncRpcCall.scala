@@ -84,7 +84,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
     val coreMask = Bits(config.numCores bits)
     val coreMaskChanged = Bool()
 
-    from[UdpMetadata, UdpDecoder].apply( { meta =>
+    from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
           portSlot.valid && portSlot.payload === meta.hdr.dport.asUInt
         }.reduceBalancedTree(_ || _)

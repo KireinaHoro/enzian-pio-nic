@@ -55,7 +55,7 @@ class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] 
 
     val ipAddress = Reg(Bits(32 bits)) init B("32'xc0_a8_80_28") // 192.168.128.40; changed at runtime
 
-    from[EthernetMetadata, EthernetDecoder].apply(
+    from[EthernetMetadata, EthernetDecoder](
       _.hdr.etherType === B("16'x0800"),
       ethernetHeader, ethernetPayload
     )
