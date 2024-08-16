@@ -1,7 +1,7 @@
 package pionic
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import pionic.net.{ProtoMetadata, TaggedProtoMetadata}
+import pionic.net.{ProtoPacketDesc, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
@@ -11,7 +11,7 @@ import scala.collection.mutable
 
 trait PacketSinkService {
   // called by packet decoders to post packets for DMA
-  def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null)
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null)
   // consumed by AXI DMA engine
   def packetSink: Axi4Stream
 }
@@ -20,15 +20,15 @@ class PacketSink(implicit config: PioNicConfig) extends FiberPlugin with PacketS
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
 
-  lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoMetadata]]())
+  lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]())
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  override def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool): Unit = new Area {
+  override def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool): Unit = new Area {
     // handle payload data
     payloadSources.append(payloadSink)
 
     // handle metadata
     val tagged = metadataSink.map { md =>
-      val ret = TaggedProtoMetadata()
+      val ret = TaggedProtoPacketDesc()
       ret.ty := md.getType
       ret.metadata.assignFromBits(md.asBits)
       ret

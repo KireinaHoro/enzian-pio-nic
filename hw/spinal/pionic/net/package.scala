@@ -12,9 +12,9 @@ import scala.reflect.ClassTag
 
 package object net {
   /**
-   * Type of the (potentially partially) decoded packet. Used by [[TaggedProtoMetadata]] as well as [[HostPacketDesc]].
+   * Type of the (potentially partially) decoded packet. Used by [[TaggedProtoPacketDesc]] as well as [[HostPacketDesc]].
    */
-  object ProtoMetadataType extends SpinalEnum {
+  object ProtoPacketDescType extends SpinalEnum {
     val ethernet, ip, udp, oncRpcCall = newElement()
   }
 
@@ -25,15 +25,15 @@ package object net {
    * interface (bypass).  [[CoreControlPlugin]] will translate this to a [[HostPacketDesc]], dropping fields that the
    * host does not need.
    */
-  trait ProtoMetadata extends Data {
+  trait ProtoPacketDesc extends Data {
     // used to tag metadata sent to cores
-    def getType: ProtoMetadataType.E
+    def getType: ProtoPacketDescType.E
     def getPayloadSize: UInt
     def collectHeaders: Bits
   }
 
   /**
-   * [[ProtoMetadata]] plus type information. Used between [[PacketSink]] and [[CoreControlPlugin]].
+   * [[ProtoPacketDesc]] plus type information. Used between [[PacketSink]] and [[CoreControlPlugin]].
    */
   case class TaggedProtoMetadata()(implicit config: PioNicConfig) extends Bundle {
     override def clone = TaggedProtoMetadata()
@@ -49,7 +49,7 @@ package object net {
     def getPayloadSize: UInt = {
       val ret = CombInit(U("16'x0"))
       switch (ty) {
-        import ProtoMetadataType._
+        import ProtoPacketDescType._
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
         is (ip) { ret := metadata.ip.getPayloadSize }
         is (udp) { ret := metadata.udp.getPayloadSize }
@@ -61,7 +61,7 @@ package object net {
     def collectHeaders: Bits = {
       val ret = CombInit(B("512'x0"))
       switch (ty) {
-        import ProtoMetadataType._
+        import ProtoPacketDescType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders }
         is (ip) { ret := metadata.ip.collectHeaders }
         is (udp) { ret := metadata.udp.collectHeaders }
@@ -71,9 +71,9 @@ package object net {
     }
   }
 
-  type DecodeConsumer[T <: ProtoMetadata] = (T => Bool, Stream[T], Axi4Stream)
+  type DecodeConsumer[T <: ProtoPacketDesc] = (T => Bool, Stream[T], Axi4Stream)
 
-  trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
+  trait ProtoDecoder[T <: ProtoPacketDesc] extends FiberPlugin {
     // downstream decoder, condition to match
     // e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
     val consumers = mutable.ListBuffer[DecodeConsumer[T]]()
@@ -89,7 +89,7 @@ package object net {
      * @tparam M output metadata type for the upstream decoder
      * @tparam D decoder type
      */
-    def from[M <: ProtoMetadata, D <: ProtoDecoder[M]: ClassTag] = Function.untupled((consumer: DecodeConsumer[M]) => {
+    def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag] = Function.untupled((consumer: DecodeConsumer[M]) => {
       host[D].consumers.append(consumer)
     })
 

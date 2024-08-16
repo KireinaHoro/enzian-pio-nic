@@ -3,7 +3,7 @@ package pionic
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RichBundle
 import pionic.host.HostService
-import pionic.net.ProtoMetadata
+import pionic.net.ProtoPacketDesc
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._

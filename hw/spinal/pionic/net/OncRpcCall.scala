@@ -18,7 +18,7 @@ case class OncRpcCallHeader() extends Bundle {
   val verifier = Bits(64 bits)
 }
 
-case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
@@ -28,7 +28,7 @@ case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle wi
   val hdr = OncRpcCallHeader()
   val udpMeta = UdpMetadata()
 
-  def getType = ProtoMetadataType.oncRpcCall
+  def getType = ProtoPacketDescType.oncRpcCall
   def getPayloadSize: UInt = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = udpMeta.collectHeaders ## hdr.asBits
 }
@@ -89,6 +89,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
 
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(OncRpcCallMetadata())
+    // we do not invoke produce anymore: there should not be downstream decoders
     host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
 
     awaitBuild()
@@ -107,6 +108,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
 
       val matches = serviceSlots.map(_.matchHeader(meta.hdr))
       drop := !matches.reduceBalancedTree(_ || _)
+      // TODO: also drop malformed packets (e.g. payload too short)
 
       meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
 

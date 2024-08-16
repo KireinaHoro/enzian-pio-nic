@@ -13,13 +13,13 @@ case class EthernetHeader() extends Bundle {
   val etherType = Bits(16 bits)
 }
 
-case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoMetadata {
+case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
   override def clone = EthernetMetadata()
 
   val frameLen = PacketLength()
   val hdr = EthernetHeader()
 
-  def getType = ProtoMetadataType.ethernet
+  def getType = ProtoPacketDescType.ethernet
   def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits
 }
