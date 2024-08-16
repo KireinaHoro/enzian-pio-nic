@@ -64,7 +64,7 @@ object GenEngineVerilog {
     new IpDecoder,
     new UdpDecoder,
     new OncRpcCallDecoder,
-    new PacketSink,
+    new RxPacketDispatch,
     new AxiDmaPlugin,
   ) ++ Seq.tabulate(config.numCores + 1)(new CoreControlPlugin(_))
 

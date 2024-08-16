@@ -44,7 +44,7 @@ package object net {
   }
 
   /**
-   * [[ProtoPacketDesc]] plus type information. Used between [[PacketSink]] and [[CoreControlPlugin]].
+   * [[ProtoPacketDesc]] plus type information. Used between [[RxPacketDispatch]] and [[CoreControlPlugin]].
    */
   case class TaggedProtoPacketDesc()(implicit config: PioNicConfig) extends Bundle {
     override def clone = TaggedProtoPacketDesc()
@@ -107,7 +107,8 @@ package object net {
 
     /**
      * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
-     * produce a copy for bypass to the [[PacketSink]].  Should only be invoked **once** in the setup phase.
+     * produce a copy for bypass to the [[RxPacketDispatch]].  Should only be invoked **once** in the setup phase.
+ *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      */
@@ -136,12 +137,13 @@ package object net {
       val bypassHeader = forkedHeaders.last.takeWhen(!attempted).setName(s"bypassHeader_${getClass.getName}")
       val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted).setName(s"bypassPayload_${getClass.getName}")
 
-      host[PacketSinkService].consume(bypassPayload, bypassHeader)
+      host[RxPacketDispatchService].consume(bypassPayload, bypassHeader)
     }
 
     /**
-     * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[PacketSink]] directly.  May be
+     * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxPacketDispatch]] directly.  May be
      * invoked multiple times during setup phase; useful when decoder takes multiple upstreams (using [[from]]).
+ *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      * @param coreMask enable mask of non-bypass cores; used for scheduling
@@ -149,7 +151,7 @@ package object net {
      *                        TODO: get rid of this?
      */
     protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Bits, coreMaskChanged: Bool): Unit = {
-      host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
+      host[RxPacketDispatchService].consume(payload, metadata, coreMask, coreMaskChanged)
     }
 
     /**

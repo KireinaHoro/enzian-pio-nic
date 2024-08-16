@@ -9,14 +9,25 @@ import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 
-trait PacketSinkService {
-  // called by packet decoders to post packets for DMA
+/**
+ * Service for RX decoder pipeline plugins as well as the AXI DMA engine to invoke.
+ *
+ * Most decoder plugins inheriting [[pionic.net.ProtoDecoder]] should not need to interact with this service directly,
+ * as the API is used in the base class already.
+ */
+trait RxPacketDispatchService {
+  /** called by packet decoders to post packets for DMA */
   def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null)
-  // consumed by AXI DMA engine
+  /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
 }
 
-class PacketSink(implicit config: PioNicConfig) extends FiberPlugin with PacketSinkService {
+/**
+ * Dispatch unit for RX packet metadata and payload.  Metadata from decoder stages gets dispatched to cores and muxed
+ * into a single stream, before passed to [[CoreControlPlugin]] for further translation.  Bypass metadata gets collected
+ * and dispatched to the bypass core (#0).  Payload data is arbitrated into a single AXI-Stream and fed into [[AxiDmaPlugin]].
+ */
+class RxPacketDispatch(implicit config: PioNicConfig) extends FiberPlugin with RxPacketDispatchService {
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
 
@@ -64,6 +75,7 @@ class PacketSink(implicit config: PioNicConfig) extends FiberPlugin with PacketS
     cores zip coreDescUpstreams foreach { case (c, us) =>
       val cio = c.logic.io
 
+      // TODO: priority among different protocols?
       cio.igMetadata << StreamArbiterFactory().roundRobin.on(us)
     }
   }

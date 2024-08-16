@@ -36,7 +36,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
     // TODO: replace with encoders input
     axiDma.readDataMaster >> ms.txStream
-    axiDma.writeDataSlave << host[PacketSinkService].packetSink
+    axiDma.writeDataSlave << host[RxPacketDispatchService].packetSink
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
