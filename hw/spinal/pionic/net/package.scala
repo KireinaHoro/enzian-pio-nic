@@ -64,14 +64,16 @@ package object net {
       ret
     }
 
-    def collectHeaders: Bits = {
-      val ret = CombInit(B("512'x0"))
+    def collectHeaders(implicit config: PioNicConfig): Bits = {
+      val ret = CombInit(B(0, config.bypassHeaderMaxWidth bits))
       switch (ty) {
         import ProtoPacketDescType._
-        is (ethernet) { ret := metadata.ethernet.collectHeaders }
-        is (ip) { ret := metadata.ip.collectHeaders }
-        is (udp) { ret := metadata.udp.collectHeaders }
-        is (oncRpcCall) { ret := metadata.oncRpcCall.collectHeaders }
+        is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
+        is (ip) { ret := metadata.ip.collectHeaders.resized }
+        is (udp) { ret := metadata.udp.collectHeaders.resized }
+        is (oncRpcCall) {
+          report("oncRpcCall header too big and cannot fit into bypass, should not be collected")
+        }
       }
       ret
     }

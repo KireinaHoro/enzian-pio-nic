@@ -1,7 +1,7 @@
 package pionic
 
 import pionic.host.HostService
-import pionic.net.{EthernetHeader, ProtoPacketDescType, TaggedProtoPacketDesc}
+import pionic.net.{ProtoPacketDescType, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -14,6 +14,14 @@ object HostPacketDescType extends SpinalEnum {
   val bypass, oncRpcCall, oncRpcReply = newElement()
 }
 
+/** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
+case class RxDmaTag()(implicit config: PioNicConfig) extends Bundle {
+  /** packet buffer address from allocator.  used to fill buffer in [[HostPacketDesc]] */
+  val addr = PacketAddr()
+  val ty = HostPacketDescType()
+  val data = HostPacketDescData()
+}
+
 case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
@@ -22,7 +30,7 @@ case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
 
 case class HostBypassHeaders()(implicit config: PioNicConfig) extends Bundle {
   val ty = ProtoPacketDescType()
-  val hdr = Bits(54 * 8 bits) // ETH + IP + TCP
+  val hdr = Bits(config.bypassHeaderMaxWidth bits)
 }
 
 case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
@@ -35,7 +43,7 @@ case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
 
 /**
  * Packet descriptor that eventually gets transmitted to the host (e.g. stuffed in a CL or read over
- * PCIe regs).  Translated from [[TaggedProtoPacketDesc]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
+ * PCIe regs).  Translated from [[pionic.net.TaggedProtoPacketDesc]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
  * if it is a bypass core or not)
  */
 case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
@@ -154,16 +162,6 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
     // FIXME: how much buffering do we need?
     rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRx
 
-    /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
-    case class RxDmaTag() extends Bundle {
-      /** packet buffer address from allocator.  used to fill buffer in [[HostPacketDesc]] */
-      val addr = PacketAddr()
-      val ty = HostPacketDescType()
-      val data = HostPacketDescData()
-
-      assert(dmaConfig.tagWidth >= getBitsWidth, s"DMA tag (${dmaConfig.tagWidth} bits) too narrow to fit rx tag ($getBitsWidth bits)")
-    }
-
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -255,7 +253,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
         whenIsActive {
           io.hostTxAck.freeRun()
           when(io.hostTxAck.valid) {
-            io.readDesc.payload.payload.addr := io.hostTxAck.buffer.addr.bits
+            io.readDesc.payload.payload.addr := io.hostTxAck.buffer.addr.bits.resized
             io.readDesc.payload.payload.len := io.hostTxAck.buffer.size.bits
             // TODO: hand off io.hostTxAck.{ty,data} to egMetadata
             io.readDesc.payload.payload.tag := 0

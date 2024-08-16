@@ -101,6 +101,8 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)
     // TODO: add extra decoder to decode first fields in the XDR payload
+    // TODO: endianness swap
+    // TODO: variable length field memory allocation (arena-style?)
 
     val currentUdpHeader = udpHeader.toReg()
 

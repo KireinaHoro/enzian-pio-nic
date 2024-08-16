@@ -24,8 +24,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     idWidth = 4,
   )
 
-  // FIXME: get tag width from RxDmaTag (instead of hardcoding)
-  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = 460, lenWidth = config.pktBufLenWidth)
+  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = config.pktBufLenWidth)
 
   val logic = during build new Area {
     val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
