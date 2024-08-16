@@ -3,6 +3,7 @@ package pionic.host.pcie
 import jsteward.blocks.axi._
 import pionic._
 import pionic.host.HostService
+import pionic.net.ProtoDecoder
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
@@ -76,6 +77,9 @@ class PcieBridgeInterfacePlugin(implicit config: PioNicConfig) extends FiberPlug
       c.logic.connectControl(busCtrl, alloc(_))
       c.logic.reportStatistics(busCtrl, alloc(_, _))
     }
+
+    // control for the decoders
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc(_, _)))
 
     host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc(_, _))
   }
