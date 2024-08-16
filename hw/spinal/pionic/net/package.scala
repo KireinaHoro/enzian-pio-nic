@@ -94,8 +94,11 @@ package object net {
      */
     private val consumers = mutable.ListBuffer[(T => Bool, Stream[T], Axi4Stream)]()
 
+    val rxRg = during setup retains(host[RxPacketDispatchService].retainer)
+
     /**
-     * Specify one possible upstream decoder, where this decoder takes packets from.
+     * Specify one possible upstream decoder, where this decoder takes packets from.  Can be invoked multiple times
+     * in the setup phase.
      * @param matcher condition when a packet from the upstream can be decoded by us.  This precludes other decoders from
      *                attempting to decode.
      * @param metadata output metadata stream
@@ -109,7 +112,7 @@ package object net {
 
     /**
      * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
-     * produce a copy for bypass to the [[RxPacketDispatch]].  Should only be invoked **once** in the setup phase.
+     * produce a copy for bypass to the [[RxPacketDispatch]].  Should only be invoked **once** in the build phase.
  *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
@@ -145,7 +148,7 @@ package object net {
     /**
      * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxPacketDispatch]] directly.  May be
      * invoked multiple times during setup phase; useful when decoder takes multiple upstreams (using [[from]]).
- *
+     *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      * @param coreMask enable mask of non-bypass cores; used for scheduling
@@ -155,6 +158,9 @@ package object net {
     protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Bits, coreMaskChanged: Bool): Unit = {
       host[RxPacketDispatchService].consume(payload, metadata, coreMask, coreMaskChanged)
     }
+
+    /** Release retainer from packet dispatcher to allow it to continue elaborating */
+    protected def produceDone(): Unit = rxRg.release()
 
     /**
      * Drive control interface for this plugin.  Should be called from a host plugin, like [[pionic.host.eci.EciInterfacePlugin]].
