@@ -11,7 +11,7 @@ import spinal.lib.misc.plugin._
 import scala.language.postfixOps
 
 object HostPacketDescType extends SpinalEnum {
-  val bypass, oncRpcCall, oncRpcReply = newElement()
+  val error, bypass, oncRpcCall, oncRpcReply = newElement()
 }
 
 /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
@@ -172,6 +172,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
             // encode proto metadata into DMA tag
             val tag = RxDmaTag()
+            tag.data.raw.assignDontCare()
             tag.addr := rxAlloc.io.allocResp.addr
             if (isBypass) {
               tag.ty := HostPacketDescType.bypass
@@ -187,6 +188,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
                   tag.data.oncRpcCall.args := lastIgReq.metadata.oncRpcCall.args
                 }
                 default {
+                  tag.ty := HostPacketDescType.error
                   report("unsupported protocol metadata type on non-bypass packet")
                 }
               }

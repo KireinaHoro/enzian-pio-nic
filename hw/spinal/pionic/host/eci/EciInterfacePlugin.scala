@@ -167,6 +167,9 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
       ret.payload.lci.ns      := True
       ret.payload.lci.rnode   := B("01")
       ret.payload.lci.address := addr.payload
+      ret.payload.lci.xb1     := False
+      ret.payload.lci.xb2     := B("2'x0")
+      ret.payload.lci.xb3     := B("3'x0")
 
       ret.arbitrationFrom(addr)
     }.setName("bindLci").ret
@@ -192,6 +195,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
         // generating a UL -- refer to Table 7.11 of CCKit
         ret.payload.ul.opcode  := B("00010")
         ret.payload.ul.address := addr.payload
+        ret.payload.ul.xb19    := B("19'x0")
 
         ret.arbitrationFrom(addr)
       }.setName("bindUl").ret
@@ -232,11 +236,11 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
       proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
       proto.driveControl(csrCtrl, alloc(_))
-
-      // control for the decoders
-      host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc(_, _)))
     }.setName("bindProtoToCoreCtrl")
     }
+
+    // control for the decoders
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc(_, _)))
 
     host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc(_, _))
   }

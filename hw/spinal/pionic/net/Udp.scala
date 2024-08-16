@@ -24,7 +24,7 @@ case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with Prot
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = ipMeta.collectHeaders ## hdr.asBits
   def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+    val ret = ProtoPacketDescData().assignDontCare()
     ret.udp.get := this
     ret
   }
