@@ -48,11 +48,13 @@ class UdpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[UdpMetadata
       ipHeader, ipPayload
     )
 
+    awaitBuild()
+
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(UdpMetadata())
     produce(metadata, payload)
+    produceDone()
 
-    awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)
 
     val currentIpHeader = ipHeader.toReg()

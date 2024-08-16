@@ -97,6 +97,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
 
     // we do not invoke produce: there should be no downstream decoders
     produceFinal(metadata, payload, coreMask, coreMaskChanged)
+    produceDone()
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)

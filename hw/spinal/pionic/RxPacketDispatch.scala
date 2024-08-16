@@ -3,6 +3,7 @@ package pionic
 import jsteward.blocks.axi.AxiStreamArbMux
 import pionic.net.{ProtoPacketDesc, TaggedProtoPacketDesc}
 import spinal.core._
+import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
@@ -17,9 +18,11 @@ import scala.collection.mutable
  */
 trait RxPacketDispatchService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null)
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null): Unit
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
+
+  def retainer: Retainer
 }
 
 /**
@@ -30,10 +33,11 @@ trait RxPacketDispatchService {
 class RxPacketDispatch(implicit config: PioNicConfig) extends FiberPlugin with RxPacketDispatchService {
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
+  val retainer = Retainer()
 
   lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]())
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  override def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool): Unit = new Area {
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool): Unit = new Area {
     // handle payload data
     payloadSources.append(payloadSink)
 
@@ -65,6 +69,8 @@ class RxPacketDispatch(implicit config: PioNicConfig) extends FiberPlugin with R
   override def packetSink = logic.axisMux.masterPort
 
   val logic = during build new Area {
+    retainer.await()
+
     // mux payload data axis to DMA
     val axisMux = new AxiStreamArbMux(ms.axisConfig, numSlavePorts = payloadSources.length)
     axisMux.slavePorts zip payloadSources foreach { case (sl, ms) =>

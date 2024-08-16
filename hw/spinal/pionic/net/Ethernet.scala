@@ -68,5 +68,6 @@ class EthernetDecoder(implicit config: PioNicConfig) extends ProtoDecoder[Ethern
     }
 
     produce(metadata, payload)
+    produceDone()
   }
 }
