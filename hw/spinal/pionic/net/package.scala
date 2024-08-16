@@ -26,10 +26,13 @@ package object net {
    * host does not need.
    */
   trait ProtoPacketDesc extends Data {
-    // used to tag metadata sent to cores
+    /** tag metadata sent to cores */
     def getType: ProtoPacketDescType.E
+    /** size of payload for the payload of this stage */
     def getPayloadSize: UInt
+    /** header bits needed to reconstruct packet for bypass delivery */
     def collectHeaders: Bits
+    /** cast to union for assigning to [[ProtoPacketDescData]] */
     def asUnion: ProtoPacketDescData
   }
 
@@ -74,15 +77,20 @@ package object net {
     }
   }
 
+  /**
+   * Base class of one stage in the RX decoder pipeline.  Should in general decode one protocol header (or one segment
+   * in a protocol, e.g. IPv6 optional headers).
+   *
+   * Decoder stages form a DAG.  For example, UDP hosts multiple protocols like ONCRPC, gRPC, and memcached;
+   * ONCRPC might take data from UDP and TCP.  The DAG is specified by [[from]].
+   * @tparam T output metadata type
+   */
   trait ProtoDecoder[T <: ProtoPacketDesc] extends FiberPlugin {
-    // downstream decoder, condition to match
-    // e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
-    val consumers = mutable.ListBuffer[(T => Bool, Stream[T], Axi4Stream)]()
-    lazy val csr = host[GlobalCSRPlugin].logic
-
-    // possible upstream carriers
-    // e.g. oncRpc.from(Tcp -> <port registered>, Udp -> <port registered>)
-    // this is not called for the source decoder (ethernet)
+    /**
+     * Downstream decoders interfaces and their conditions to match.
+     * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
+     */
+    private val consumers = mutable.ListBuffer[(T => Bool, Stream[T], Axi4Stream)]()
 
     /**
      * Specify one possible upstream decoder, where this decoder takes packets from.
@@ -93,17 +101,17 @@ package object net {
      * @tparam M type of upstream packet descriptor
      * @tparam D type of upstream packet decoder
      */
-    def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
+    protected def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
       host[D].consumers.append((matcher, metadata, payload))
     }
 
     /**
      * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
-     * produce a copy for bypass to the [[PacketSink]].
+     * produce a copy for bypass to the [[PacketSink]].  Should only be invoked **once** in the setup phase.
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      */
-    def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Area {
+    protected def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Area {
       // FIXME: do we need synchronous here?
       val forkedHeaders = StreamFork(metadata, consumers.length + 1)//, synchronous = true)
       val forkedPayloads = StreamFork(payload, consumers.length + 1)
@@ -131,6 +139,24 @@ package object net {
       host[PacketSinkService].consume(bypassPayload, bypassHeader)
     }
 
+    /**
+     * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[PacketSink]] directly.  May be
+     * invoked multiple times during setup phase; useful when decoder takes multiple upstreams (using [[from]]).
+     * @param metadata metadata stream produced by this stage
+     * @param payload payload data stream produced by this stage
+     * @param coreMask enable mask of non-bypass cores; used for scheduling
+     * @param coreMaskChanged enable mask has changed (to update stream dispatcher)
+     *                        TODO: get rid of this?
+     */
+    protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Bits, coreMaskChanged: Bool): Unit = {
+      host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
+    }
+
+    /**
+     * Drive control interface for this plugin.  Should be called from a host plugin, like [[pionic.host.eci.EciInterfacePlugin]].
+     * @param busCtrl bus slave factory to host register access
+     * @param alloc reg allocator
+     */
     def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit
   }
 

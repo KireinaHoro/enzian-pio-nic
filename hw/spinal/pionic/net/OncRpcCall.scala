@@ -94,8 +94,9 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
 
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(OncRpcCallMetadata())
-    // we do not invoke produce anymore: there should not be downstream decoders
-    host[PacketSinkService].consume(payload, metadata, coreMask, coreMaskChanged)
+
+    // we do not invoke produce: there should be no downstream decoders
+    produceFinal(metadata, payload, coreMask, coreMaskChanged)
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)
