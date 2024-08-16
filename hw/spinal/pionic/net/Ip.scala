@@ -33,7 +33,7 @@ case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with Proto
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = ethMeta.collectHeaders ## hdr.asBits
   def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+    val ret = ProtoPacketDescData().assignDontCare()
     ret.ip.get := this
     ret
   }

@@ -23,7 +23,7 @@ case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with
   def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits
   def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+    val ret = ProtoPacketDescData().assignDontCare()
     ret.ethernet.get := this
     ret
   }

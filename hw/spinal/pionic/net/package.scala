@@ -53,7 +53,7 @@ package object net {
     val metadata = ProtoPacketDescData()
 
     def getPayloadSize: UInt = {
-      val ret = CombInit(U("16'x0"))
+      val ret = UInt(16 bits)
       switch (ty) {
         import ProtoPacketDescType._
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
@@ -122,7 +122,7 @@ package object net {
       val forkedHeaders = StreamFork(metadata, consumers.length + 1)//, synchronous = true)
       val forkedPayloads = StreamFork(payload, consumers.length + 1)
 
-      val attempted = CombInit(False)
+      val attempts = mutable.ListBuffer[Bool]()
       consumers.zipWithIndex foreach { case ((matchFunc, headerSink, payloadSink), idx) => new Area {
         // is it possible to go to this consumer?
         val hdr = forkedHeaders(idx)
@@ -130,17 +130,17 @@ package object net {
 
         // FIXME: timing!  what happens if the downstream decoder is busy?
         val attempt = matchFunc(hdr.payload)
-
-        // track attempt for bypass
-        attempted := attempted | attempt
+        attempts.append(attempt)
 
         headerSink << hdr.takeWhen(attempt)
         payloadSink << pld.takeFrameWhen(attempt)
       }
       }
 
-      val bypassHeader = forkedHeaders.last.takeWhen(!attempted).setName(s"bypassHeader_${getClass.getName}")
-      val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted).setName(s"bypassPayload_${getClass.getName}")
+      val attempted = attempts.reduceBalancedTree(_ || _)
+
+      val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
+      val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted)
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader)
     }

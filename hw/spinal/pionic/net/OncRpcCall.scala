@@ -51,7 +51,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
     }
     logic.serviceSlots.zipWithIndex foreach { case (serviceSlot, idx) =>
       serviceSlot.flattenForeach { item =>
-        busCtrl.driveAndRead(item, alloc("oncRpcCtrl", s"service_${idx}_${item.getName()}"))
+        busCtrl.driveAndRead(item, alloc("oncRpcCtrl", s"service_${idx}_${item.getName().split("_").last}"))
       }
     }
 
@@ -120,6 +120,8 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
       // TODO: also drop malformed packets (e.g. payload too short)
 
       meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
+      // TODO: decode arguments
+      meta.args.assignDontCare()
 
       meta
     }
