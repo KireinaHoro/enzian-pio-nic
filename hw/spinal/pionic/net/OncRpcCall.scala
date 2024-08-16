@@ -31,6 +31,11 @@ case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle wi
   def getType = ProtoPacketDescType.oncRpcCall
   def getPayloadSize: UInt = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = udpMeta.collectHeaders ## hdr.asBits
+  def asUnion: ProtoPacketDescData = {
+    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+    ret.oncRpcCall.get := this
+    ret
+  }
 }
 
 class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(implicit config: PioNicConfig) extends ProtoDecoder[OncRpcCallMetadata] {

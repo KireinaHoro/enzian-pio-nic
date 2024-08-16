@@ -32,6 +32,11 @@ case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with Proto
   def getType = ProtoPacketDescType.ip
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = ethMeta.collectHeaders ## hdr.asBits
+  def asUnion: ProtoPacketDescData = {
+    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+    ret.ip.get := this
+    ret
+  }
 }
 
 class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] {
