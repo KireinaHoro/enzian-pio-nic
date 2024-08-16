@@ -20,7 +20,8 @@ object Config {
       resetKind = SYNC,
     ),
     onlyStdLogicVectorAtTopLevelIo = true,
-    withTimescale = true
+    // FIXME: this is here due to DMA tag very big at the descriptor mux; is this problematic?
+    bitVectorWidthMax = 16384,
   )
 
   def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested))
