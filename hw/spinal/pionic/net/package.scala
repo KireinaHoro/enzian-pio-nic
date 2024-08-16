@@ -74,12 +74,10 @@ package object net {
     }
   }
 
-  type DecodeConsumer[T <: ProtoPacketDesc] = (T => Bool, Stream[T], Axi4Stream)
-
   trait ProtoDecoder[T <: ProtoPacketDesc] extends FiberPlugin {
     // downstream decoder, condition to match
     // e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
-    val consumers = mutable.ListBuffer[DecodeConsumer[T]]()
+    val consumers = mutable.ListBuffer[(T => Bool, Stream[T], Axi4Stream)]()
     lazy val csr = host[GlobalCSRPlugin].logic
 
     // possible upstream carriers
@@ -87,14 +85,17 @@ package object net {
     // this is not called for the source decoder (ethernet)
 
     /**
-     * Specify one possible upstream decoder.  Invoke with `from[_, _].apply(_, _, _)`.
-     *
-     * @tparam M output metadata type for the upstream decoder
-     * @tparam D decoder type
+     * Specify one possible upstream decoder, where this decoder takes packets from.
+     * @param matcher condition when a packet from the upstream can be decoded by us.  This precludes other decoders from
+     *                attempting to decode.
+     * @param metadata output metadata stream
+     * @param payload output payload stream
+     * @tparam M type of upstream packet descriptor
+     * @tparam D type of upstream packet decoder
      */
-    def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag] = Function.untupled((consumer: DecodeConsumer[M]) => {
-      host[D].consumers.append(consumer)
-    })
+    def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
+      host[D].consumers.append((matcher, metadata, payload))
+    }
 
     /**
      * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and

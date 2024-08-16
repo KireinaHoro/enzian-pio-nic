@@ -43,7 +43,7 @@ class UdpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[UdpMetadata
     val ipHeader = Stream(IpMetadata())
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
-    from[IpMetadata, IpDecoder].apply(
+    from[IpMetadata, IpDecoder](
       _.hdr.proto === B("8'x11"), // 17 for UDP
       ipHeader, ipPayload
     )
