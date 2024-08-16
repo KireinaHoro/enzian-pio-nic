@@ -30,7 +30,7 @@ class PacketSink(implicit config: PioNicConfig) extends FiberPlugin with PacketS
     val tagged = metadataSink.map { md =>
       val ret = TaggedProtoPacketDesc()
       ret.ty := md.getType
-      ret.metadata.assignFromBits(md.asBits)
+      ret.metadata := md.asUnion
       ret
     }
 

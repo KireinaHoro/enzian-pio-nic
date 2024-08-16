@@ -30,21 +30,24 @@ package object net {
     def getType: ProtoPacketDescType.E
     def getPayloadSize: UInt
     def collectHeaders: Bits
+    def asUnion: ProtoPacketDescData
+  }
+
+  case class ProtoPacketDescData()(implicit config: PioNicConfig) extends Union {
+    val ethernet = newElement(EthernetMetadata())
+    val ip = newElement(IpMetadata())
+    val udp = newElement(UdpMetadata())
+    val oncRpcCall = newElement(OncRpcCallMetadata())
   }
 
   /**
    * [[ProtoPacketDesc]] plus type information. Used between [[PacketSink]] and [[CoreControlPlugin]].
    */
-  case class TaggedProtoMetadata()(implicit config: PioNicConfig) extends Bundle {
-    override def clone = TaggedProtoMetadata()
+  case class TaggedProtoPacketDesc()(implicit config: PioNicConfig) extends Bundle {
+    override def clone = TaggedProtoPacketDesc()
 
-    val ty = ProtoMetadataType()
-    val metadata = new Union {
-      val ethernet = newElement(EthernetMetadata())
-      val ip = newElement(IpMetadata())
-      val udp = newElement(UdpMetadata())
-      val oncRpcCall = newElement(OncRpcCallMetadata())
-    }
+    val ty = ProtoPacketDescType()
+    val metadata = ProtoPacketDescData()
 
     def getPayloadSize: UInt = {
       val ret = CombInit(U("16'x0"))
