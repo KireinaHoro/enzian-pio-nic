@@ -21,14 +21,17 @@ trait MacInterfaceService {
   def frameLen: Stream[PacketLength]
 }
 
-class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with MacInterfaceService {
+class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val cores = host.list[CoreControlPlugin]
   lazy val p = host[ProfilerPlugin]
 
+  val axisDataWidth = 64
+  postConfig("axis data width", axisDataWidth)
+
   // matches Xilinx CMAC configuration
   val axisConfig = Axi4StreamConfig(
-    dataWidth = config.axisDataWidth,
+    dataWidth = axisDataWidth,
     useKeep = true,
     useLast = true,
   )
@@ -47,22 +50,22 @@ class XilinxCmacPlugin(implicit config: PioNicConfig) extends FiberPlugin with M
     val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
     val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
-    val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(clockDomain, cmacTxClock)
+    val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(clockDomain, cmacTxClock)
     txFifo.masterPort >> m_axis_tx
 
-    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = config.roundMtu)()(cmacRxClock, clockDomain)
+    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(cmacRxClock, clockDomain)
     rxFifo.slavePort << s_axis_rx
 
     // report overflow
     val rxOverflow = Bool()
     val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-    csr.status.rxOverflowCount := Counter(config.regWidth bits, rxOverflowCdc)
+    csr.status.rxOverflowCount := Counter(regWidth bits, rxOverflowCdc)
 
     // extract frame length
     val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
     val frameLenCdc = frameLen.clone
     // FIXME: how much buffering do we need?
-    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, config.maxRxPktsInFlight, cmacRxClock, clockDomain)
+    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, c[Int]("max rx pkts in flight"), cmacRxClock, clockDomain)
 
     // profile timestamps
     p.profile(

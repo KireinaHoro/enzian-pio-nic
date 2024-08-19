@@ -1,41 +1,38 @@
+import jsteward.blocks.misc.RegAllocatorFactory
 import spinal.core._
-import spinal.lib._
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
+import scala.reflect.runtime.universe._
 
 package object pionic {
-  object StreamDispatcherWithEnable {
-    def apply[T <: Data](
-        input: Stream[T],
-        outputCount: Int,
-        enableMask: Bits,
-        maskChanged: Bool
-    ): Vec[Stream[T]] = new ImplicitArea[Vec[Stream[T]]] {
-      // FIXME: same as OHMasking.roundRobin?
-      assert(
-        outputCount == enableMask.getWidth,
-        "enable mask bit width does not match with output count"
-      )
-      val select = Reg(UInt(log2Up(outputCount) bits))
+  abstract class PioNicPlugin extends FiberPlugin {
+    implicit lazy val c = host[ConfigDatabase]
 
-      // reset select when mask changes
-      // FIXME: can this happen when a request is ongoing?
-      when(maskChanged) {
-        select := CountTrailingZeroes(enableMask).resized
-      }
+    // alias commonly used config values
+    lazy val numCores = c[Int]("num cores")
+    lazy val regWidth = c[Int]("reg width")
 
-      val doubleMask = enableMask ## enableMask
-      val shiftedMask = doubleMask >> (select + 1)
-      val inc = CountTrailingZeroes(shiftedMask.resize(outputCount)) + 1
-      when(input.fire) {
-        select := select + inc.resized
-      }
-      val implicitValue = StreamDemux(input, select, outputCount)
-    }.setCompositeName(input, "streamDispatch", true)
+    lazy val mtu = c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1).max
+    lazy val roundMtu = roundUp(mtu, c[Int]("axis data width")).toInt
+
+    lazy val pktBufAddrWidth = c[Int]("pkt buf addr width")
+    lazy val pktBufLenWidth = c[Int]("pkt buf len width")
+    lazy val pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
+    lazy val pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
+    lazy val pktBufSize = numCores * c[Int]("pkt buf size per core")
+
+    def postConfig[T: TypeTag](name: String, value: T): Unit = {
+      during setup c.postConfig(name, value)
+    }
+  }
+
+  class RegAlloc extends FiberPlugin {
+    val f = new RegAllocatorFactory
   }
 
   implicit class RichUInt(v: UInt) {
-    def toPacketLength(implicit config: PioNicConfig) = {
+    def toPacketLength(implicit c: ConfigDatabase) = {
       val len = PacketLength()
       len.bits := v
       len
@@ -45,18 +42,18 @@ package object pionic {
   /**
     * Address of a packet payload (of any protocol) in the packet buffer.
     */
-  case class PacketAddr()(implicit config: PioNicConfig) extends Bundle {
+  case class PacketAddr()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = PacketAddr()
 
-    val bits = UInt(config.pktBufAddrWidth bits)
+    val bits = UInt(c[Int]("pkt buf addr width") bits)
   }
 
   /**
     * Length of a packet payload (of any protocol) in the packet buffer.
     */
-  case class PacketLength()(implicit config: PioNicConfig) extends Bundle {
+  case class PacketLength()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = PacketLength()
 
-    val bits = UInt(config.pktBufLenWidth bits)
+    val bits = UInt(c[Int]("pkt buf len width") bits)
   }
 }

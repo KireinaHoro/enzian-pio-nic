@@ -10,9 +10,7 @@ class NicEngine extends Component {
 }
 
 object NicEngine {
-  def apply(plugins: Seq[Hostable])(implicit config: PioNicConfig): NicEngine = {
-    config.allocFactory.clear()
-
+  def apply(plugins: Seq[Hostable]): NicEngine = {
     val n = new NicEngine
     n.host.asHostOf(plugins :+ new FiberPlugin {
       during build {

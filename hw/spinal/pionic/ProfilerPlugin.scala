@@ -1,13 +1,13 @@
 package pionic
 
 import spinal.core._
-import spinal.lib.misc.plugin._
 import jsteward.blocks.misc._
 import spinal.lib.bus.misc.BusSlaveFactory
 
-class ProfilerPlugin(implicit config: PioNicConfig) extends FiberPlugin {
+class ProfilerPlugin extends PioNicPlugin {
   setName("")
-  def Timestamp(implicit config: PioNicConfig) = UInt(config.timestampWidth bits)
+
+  def Timestamp = UInt(c[Int]("timestamp width") bits)
 
   val RxCmacEntry = NamedType(Timestamp)
   val RxAfterCdcQueue = NamedType(Timestamp)
@@ -24,10 +24,10 @@ class ProfilerPlugin(implicit config: PioNicConfig) extends FiberPlugin {
 
   val logic = during setup new Area {
     val profiler = Profiler(RxCmacEntry, RxAfterCdcQueue, RxAfterDmaWrite, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
-      TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(config.collectTimestamps)
+      TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(c[Boolean]("collect timestamps"))
 
     def reportTimestamps(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
-      if (config.collectTimestamps) {
+      if (c[Boolean]("collect timestamps")) {
         profiler.timestamps.storage.foreach { case (namedType, data) =>
           busCtrl.read(data, alloc("lastProfile", namedType.getName()))
         }

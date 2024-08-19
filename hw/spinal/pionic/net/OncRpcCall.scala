@@ -7,6 +7,8 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 
+import scala.language.postfixOps
+
 case class OncRpcCallHeader() extends Bundle {
   val xid = Bits(32 bits)
   val msgType = Bits(32 bits)
@@ -18,12 +20,12 @@ case class OncRpcCallHeader() extends Bundle {
   val verifier = Bits(64 bits)
 }
 
-case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
+case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
   // first fields in the XDR payload
-  val args = Bits(config.maxOncRpcInlineBytes * 8 bits)
+  val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
   // TODO: protection domain information? aux data?
   val hdr = OncRpcCallHeader()
   val udpMeta = UdpMetadata()
@@ -38,8 +40,11 @@ case class OncRpcCallMetadata()(implicit config: PioNicConfig) extends Bundle wi
   }
 }
 
-class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(implicit config: PioNicConfig) extends ProtoDecoder[OncRpcCallMetadata] {
+class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
+
+  // FIXME: can we fit more?
+  postConfig("max onc rpc inline bytes", 4 * 12)
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
     logic.decoder.io.statistics.flattenForeach { stat =>
@@ -81,7 +86,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4)(impli
       def matchHeader(h: OncRpcCallHeader) = enabled && progNum === h.progNum && progVer === h.progVer && proc === h.proc
     })
 
-    val coreMask = Bits(config.numCores bits)
+    val coreMask = Bits(numCores bits)
     val coreMaskChanged = Bool()
 
     from[UdpMetadata, UdpDecoder]( { meta =>

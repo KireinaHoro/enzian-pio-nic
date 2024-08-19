@@ -6,10 +6,6 @@ import spinal.lib.{BytesRicher, IntRicher}
 
 object CSRSim {
   def csrSanityChecks[B](globalBlock: RegBlockReadBack, coreBlock: RegBlockReadBack, bus: B, rxBlockCycles: Int)(nicConfig: PioNicConfig)(implicit asMaster: AsSimBusMaster[B]): Unit = {
-    // reset value of dispatch mask should be all 1
-    val dispatchMask = asMaster.read(bus, globalBlock("dispatchMask"), 8).bytesToBigInt
-    assert(dispatchMask == ((1 << nicConfig.numCores) - 1), f"dispatch mask should be all 1 on reset; got $dispatchMask%#x")
-
     // reset value of rx alloc reset should be 0
     val allocReset = asMaster.read(bus, coreBlock("allocReset"), 8).bytesToBigInt
     assert(allocReset == 0, "rx alloc reset should be low at boot")

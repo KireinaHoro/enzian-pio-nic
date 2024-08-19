@@ -13,7 +13,7 @@ case class EthernetHeader() extends Bundle {
   val etherType = Bits(16 bits)
 }
 
-case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
+case class EthernetMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
   override def clone = EthernetMetadata()
 
   val frameLen = PacketLength()
@@ -29,7 +29,7 @@ case class EthernetMetadata()(implicit config: PioNicConfig) extends Bundle with
   }
 }
 
-class EthernetDecoder(implicit config: PioNicConfig) extends ProtoDecoder[EthernetMetadata] {
+class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {

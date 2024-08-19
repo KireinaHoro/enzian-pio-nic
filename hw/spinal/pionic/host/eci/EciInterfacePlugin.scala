@@ -18,18 +18,20 @@ import scala.language.postfixOps
 import scala.util.Random
 
 /** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]]. */
-class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with HostService {
+class EciInterfacePlugin extends PioNicPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
   lazy val protos = host.list[EciPioProtocol]
+  lazy val allocFactory = host[RegAlloc].f
   val retainer = Retainer()
 
-  val sizePerMtuPerDirection = (512 / 8) * 3 + config.roundMtu
-  val rxSizePerCore = config.pktBufSizePerCore - config.roundMtu
-  val txSizePerCore = config.roundMtu
+  lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
+  lazy val pktBufSizePerCore = c[Int]("pkt buf size per core")
+  lazy val rxSizePerCore = pktBufSizePerCore - roundMtu
+  lazy val txSizePerCore = roundMtu
 
-  lazy val configWriter = host[ConfigWriter]
+  postConfig("max host desc size", 64) // BYTES
 
   // dcs_2_axi AXI config
   val axiConfig = Axi4Config(
@@ -66,16 +68,16 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     )) addTag ClockDomainTag(clockDomain)
 
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
-    private val alloc = config.allocFactory("global")(0, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
+    private val alloc = allocFactory("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc(_))
 
     // axi DMA traffic steered into each core's packet buffers
     val dmaNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
-      addressWidth = log2Up(config.pktBufSizePerCore - 1),
+      addressWidth = log2Up(pktBufSizePerCore - 1),
     )))
     Axi4CrossbarFactory()
       .addSlaves(dmaNodes.zipWithIndex map { case (node, idx) =>
-        node -> SizeMapping(config.pktBufSizePerCore * idx, config.pktBufSizePerCore)
+        node -> SizeMapping(pktBufSizePerCore * idx, pktBufSizePerCore)
       }: _*)
       // FIXME: we could need an adapter here
       .addConnection(host[AxiDmaPlugin].packetBufDmaMaster -> dmaNodes)
@@ -83,7 +85,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
 
     // mux both DCS AXI masters to all cores
     val coreOffset = 0x10000
-    configWriter.postConfig("eci core offset", coreOffset)
+    postConfig("eci core offset", coreOffset)
 
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
       // 2 masters, ID width + 1
@@ -204,7 +206,7 @@ class EciInterfacePlugin(implicit config: PioNicConfig) extends FiberPlugin with
     // drive core control interface -- datapath per core
     cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
-      val alloc = config.allocFactory("control", c.coreID)(baseAddress, 0x1000, config.regWidth / 8)(s_axil_ctrl.config.dataWidth)
+      val alloc = allocFactory("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
       val cio = c.logic.io
 
       // per-core packet buffer

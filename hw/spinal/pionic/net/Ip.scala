@@ -7,6 +7,8 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.bus.misc.BusSlaveFactory
 
+import scala.language.postfixOps
+
 // IPv4
 case class IpHeader() extends Bundle {
   val version = Bits(4 bits)
@@ -23,7 +25,7 @@ case class IpHeader() extends Bundle {
   val daddr = Bits(32 bits)
 }
 
-case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
+case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
   override def clone = IpMetadata()
 
   val hdr = IpHeader()
@@ -39,7 +41,7 @@ case class IpMetadata()(implicit config: PioNicConfig) extends Bundle with Proto
   }
 }
 
-class IpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[IpMetadata] {
+class IpDecoder extends ProtoDecoder[IpMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {

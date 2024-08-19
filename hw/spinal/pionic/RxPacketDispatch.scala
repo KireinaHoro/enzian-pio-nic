@@ -1,12 +1,12 @@
 package pionic
 
 import jsteward.blocks.axi.AxiStreamArbMux
+import jsteward.blocks.misc.StreamDispatcherWithEnable
 import pionic.net.{ProtoPacketDesc, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
-import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 
@@ -30,7 +30,7 @@ trait RxPacketDispatchService {
  * into a single stream, before passed to [[CoreControlPlugin]] for further translation.  Bypass metadata gets collected
  * and dispatched to the bypass core (#0).  Payload data is arbitrated into a single AXI-Stream and fed into [[AxiDmaPlugin]].
  */
-class RxPacketDispatch(implicit config: PioNicConfig) extends FiberPlugin with RxPacketDispatchService {
+class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
   val retainer = Retainer()

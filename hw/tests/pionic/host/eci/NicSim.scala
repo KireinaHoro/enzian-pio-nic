@@ -23,8 +23,8 @@ object CtrlInfoSim {
     CtrlInfoSim(v & config.pktBufLenMask,
       // since we flipped nextCl already
       (1 - nextCl) * 0x80 + 0x40 +
-        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
-        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid)
+        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
+        dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid)
 }
 
 class NicSim extends DutSimFunSuite[NicEngine] {
@@ -80,8 +80,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     if (maxTries == 0) done(None)
     else {
       val clAddr = rxNextCl(cid) * 0x80 +
-        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
-        dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
+        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
+        dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(clAddr, 64).bytesToBigInt
@@ -106,9 +106,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     var data = dcsMaster.read(info.addr, firstReadSize)
     if (sz > 64) {
       data ++= dcsMaster.read(
-        dut.host[ConfigWriter].getConfig[Int]("eci rx base") +
-          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
-          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
+          dut.host[ConfigDatabase].getConfig[Int]("eci overflow offset") +
+          dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid,
         sz - 64)
     }
 
@@ -194,8 +194,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
 
     def clAddr = txNextCl(cid) * 0x80 +
-      dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
-      dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid
+      dut.host[ConfigDatabase].getConfig[Int]("eci tx base") +
+      dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid
 
     println(f"Core $cid: sending packet of length ${toSend.length}, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
@@ -204,9 +204,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
       dcsMaster.write(
-        dut.host[ConfigWriter].getConfig[Int]("eci tx base") +
-          dut.host[ConfigWriter].getConfig[Int]("eci overflow offset") +
-          dut.host[ConfigWriter].getConfig[Int]("eci core offset") * cid,
+        dut.host[ConfigDatabase].getConfig[Int]("eci tx base") +
+          dut.host[ConfigDatabase].getConfig[Int]("eci overflow offset") +
+          dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid,
         toSend.drop(firstWriteSize))
     }
 
