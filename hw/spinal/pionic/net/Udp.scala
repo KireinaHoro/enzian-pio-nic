@@ -7,6 +7,8 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 
+import scala.language.postfixOps
+
 case class UdpHeader() extends Bundle {
   val sport = Bits(16 bits)
   val dport = Bits(16 bits)
@@ -14,7 +16,7 @@ case class UdpHeader() extends Bundle {
   val csum = Bits(16 bits)
 }
 
-case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with ProtoPacketDesc {
+case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
   override def clone = UdpMetadata()
 
   val hdr = UdpHeader()
@@ -30,7 +32,7 @@ case class UdpMetadata()(implicit config: PioNicConfig) extends Bundle with Prot
   }
 }
 
-class UdpDecoder(implicit config: PioNicConfig) extends ProtoDecoder[UdpMetadata] {
+class UdpDecoder extends ProtoDecoder[UdpMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {

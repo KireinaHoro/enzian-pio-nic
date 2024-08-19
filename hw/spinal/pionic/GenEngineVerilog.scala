@@ -4,76 +4,39 @@ import mainargs._
 import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
-import spinal.core.{FixedFrequency, IntToBuilder, SpinalConfig}
+import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
-import spinal.lib.misc.plugin._
 
-import scala.collection.mutable
 import scala.language.postfixOps
 
-// FIXME: use the more holistic Database approach
-class ConfigWriter extends FiberPlugin {
-  private val configs = mutable.HashMap[String, Any]()
-
-  def postConfig[T](name: String, value: T): Unit = {
-    configs += name -> value
-  }
-
-  def getConfig[T](name: String): T = {
-    configs(name).asInstanceOf[T]
-  }
-
-  def writeConfigs(outPath: os.Path, spinalConfig: SpinalConfig)(implicit config: PioNicConfig): Unit = {
-    import config._
-    os.remove(outPath)
-    os.write(outPath,
-      f"""|#ifndef __PIONIC_CONFIG_H__
-          |#define __PIONIC_CONFIG_H__
-          |
-          |#define PIONIC_NUM_CORES $numCores
-          |#define PIONIC_PKT_ADDR_WIDTH $pktBufAddrWidth
-          |#define PIONIC_PKT_ADDR_MASK ((1 << PIONIC_PKT_ADDR_WIDTH) - 1)
-          |#define PIONIC_PKT_LEN_WIDTH $pktBufLenWidth
-          |#define PIONIC_PKT_LEN_MASK ((1 << PIONIC_PKT_LEN_WIDTH) - 1)
-          |
-          |#define PIONIC_CLOCK_FREQ ${spinalConfig.defaultClockDomainFrequency.getValue.toLong}
-          |
-          |#define PIONIC_MTU $mtu
-          |
-            ${
-        configs.map { case (k, v) =>
-          s"|#define PIONIC_${k.toUpperCase.replace(' ', '_')} ($v)"
-        }.mkString("\n")
-      }
-          |
-          |#endif // __PIONIC_CONFIG_H__
-          |""".stripMargin)
-  }
-}
-
 object GenEngineVerilog {
-  def base(implicit config: PioNicConfig) = Seq(
-    new ConfigWriter,
-    new DebugPlugin,
-    new ProfilerPlugin,
-    new GlobalCSRPlugin,
-    // packet pipeline
-    new XilinxCmacPlugin,
-    new EthernetDecoder,
-    new IpDecoder,
-    new UdpDecoder,
-    new OncRpcCallDecoder,
-    new RxPacketDispatch,
-    new AxiDmaPlugin,
-  ) ++ Seq.tabulate(config.numCores + 1)(new CoreControlPlugin(_))
+  private def base(c: ConfigDatabase) = {
+    Seq(
+      c,
+      new DebugPlugin,
+      new ProfilerPlugin,
+      new GlobalCSRPlugin,
+      new RegAlloc,
+      // packet pipeline
+      new XilinxCmacPlugin,
+      new EthernetDecoder,
+      new IpDecoder,
+      new UdpDecoder,
+      new OncRpcCallDecoder,
+      new RxPacketDispatch,
+      new AxiDmaPlugin,
+    ) ++ Seq.tabulate(c[Int]("num cores") + 1)(new CoreControlPlugin(_))
+  }
 
-  def engineFromName(name: String)(implicit config: PioNicConfig) = name match {
-    case "pcie" => NicEngine(base :+ new PcieBridgeInterfacePlugin)
-    case "eci" => NicEngine(base
-      ++ Seq(new EciInterfacePlugin)
+  def engine(c: ConfigDatabase) = {
+    val b = base(c)
+    val plugins = c[String]("host interface") match {
+      case "pcie" => b :+ new PcieBridgeInterfacePlugin
       // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
-      ++ Seq.tabulate(config.numCores + 1)(new EciDecoupledRxTxProtocol(_)))
+      case "eci" => b ++ Seq(new EciInterfacePlugin) ++ Seq.tabulate(c[Int]("num cores") + 1)(new EciDecoupledRxTxProtocol(_))
+    }
+    NicEngine(plugins)
   }
 
   @main
@@ -87,8 +50,7 @@ object GenEngineVerilog {
            @arg(doc = "git version (for embedding as CSR)")
            version: Option[String],
          ): Unit = {
-    implicit val config = PioNicConfig(gitVersion = version.map(_.asHex).getOrElse((BigInt(1) << 64) - 1))
-
+    val gitVersion = version.map(_.asHex).getOrElse((BigInt(1) << 64) - 1)
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)
 
@@ -98,13 +60,22 @@ object GenEngineVerilog {
         case "eci" => 250 MHz
       })
     )
-    val report = elabConfig.generateVerilog(engineFromName(name))
+
+    val report = elabConfig.generateVerilog {
+      val c = new ConfigDatabase()
+      c.postConfig("host interface", name, emitHeader = false)
+      c.postConfig("git version", gitVersion, update = true, emitHeader = false)
+
+      engine(c)
+    }
+
+    val host = report.toplevel.host
     report.mergeRTLSource("NicEngine_ips")
     VivadoConstraintWriter(report)
-    if (printRegMap) config.allocFactory.dumpAll()
+    if (printRegMap) host[RegAlloc].f.dumpAll()
     if (genHeaders) {
-      config.allocFactory.writeHeader("pionic", genDir / "regs.h")
-      report.toplevel.host[ConfigWriter].writeConfigs(genDir / "config.h", elabConfig)
+      host[RegAlloc].f.writeHeader("pionic", genDir / "regs.h")
+      host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
     }
   }
 

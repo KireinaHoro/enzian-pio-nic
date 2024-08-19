@@ -10,7 +10,7 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin._
 
-class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
+class AxiDmaPlugin extends PioNicPlugin {
   lazy val cores = host.list[CoreControlPlugin]
   lazy val hs = host[HostService]
 
@@ -24,7 +24,7 @@ class AxiDmaPlugin(implicit config: PioNicConfig) extends FiberPlugin {
     idWidth = 4,
   )
 
-  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = config.pktBufLenWidth)
+  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = pktBufLenWidth)
 
   val logic = during build new Area {
     val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)

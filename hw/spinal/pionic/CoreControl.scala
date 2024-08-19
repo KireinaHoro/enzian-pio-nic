@@ -6,7 +6,6 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
 import spinal.lib.fsm._
-import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
@@ -15,25 +14,25 @@ object HostPacketDescType extends SpinalEnum {
 }
 
 /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
-case class RxDmaTag()(implicit config: PioNicConfig) extends Bundle {
+case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
   /** packet buffer address from allocator.  used to fill buffer in [[HostPacketDesc]] */
   val addr = PacketAddr()
   val ty = HostPacketDescType()
   val data = HostPacketDescData()
 }
 
-case class OncRpcCallData()(implicit config: PioNicConfig) extends Bundle {
+case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
-  val args = Bits(config.maxOncRpcInlineBytes * 8 bits)
+  val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
 }
 
-case class HostBypassHeaders()(implicit config: PioNicConfig) extends Bundle {
+case class HostBypassHeaders()(implicit c: ConfigDatabase) extends Bundle {
   val ty = ProtoPacketDescType()
-  val hdr = Bits(config.bypassHeaderMaxWidth bits)
+  val hdr = Bits(c[Int]("bypass header max width") bits)
 }
 
-case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
+case class HostPacketDescData()(implicit c: ConfigDatabase) extends Union {
   val bypassMeta = newElement(HostBypassHeaders())
   val oncRpcCall = newElement(OncRpcCallData())
   val oncRpcReply = newElement(new Bundle {
@@ -46,7 +45,7 @@ case class HostPacketDescData()(implicit config: PioNicConfig) extends Union {
  * PCIe regs).  Translated from [[pionic.net.TaggedProtoPacketDesc]] by dropping irrelevant fields ([[CoreControlPlugin]] knows
  * if it is a bypass core or not)
  */
-case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
+case class HostPacketDesc()(implicit c: ConfigDatabase) extends Bundle {
   override def clone = HostPacketDesc()
 
   val buffer = PacketBufDesc()
@@ -67,7 +66,7 @@ case class HostPacketDesc()(implicit config: PioNicConfig) extends Bundle {
  * results in all traffic being packed into [[HostPacketDescType.bypass]]; for TX, any packet that does not carry the
  * bypass type in the host descriptor is an error.
   */
-class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends FiberPlugin {
+class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
   withPrefix(s"core_$coreID")
   def isBypass = coreID == 0
 
@@ -76,6 +75,8 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
   lazy val hs = host[HostService]
   lazy val p = host[ProfilerPlugin]
 
+  lazy val pktBufSizePerCore = c[Int]("pkt buf size per core")
+
   val logic = during setup new Area {
     val rg = retains(hs.retainer) //, dma.retainer)
 
@@ -83,9 +84,9 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
     val dmaConfig = dma.dmaConfig
 
-    val pktBufBase = coreID * config.pktBufSizePerCore
-    val pktBufTxSize = config.roundMtu
-    val pktBufTxBase = pktBufBase + config.pktBufSizePerCore - pktBufTxSize
+    val pktBufBase = coreID * pktBufSizePerCore
+    val pktBufTxSize = roundMtu
+    val pktBufTxBase = pktBufBase + pktBufSizePerCore - pktBufTxSize
 
     val allocReset = Bool()
     val rxAlloc = new ResetArea(allocReset, true) {
@@ -126,10 +127,10 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
       // statistics
       val statistics = out(new Bundle {
-        val rxPacketCount = Counter(config.regWidth bits)
-        val txPacketCount = Counter(config.regWidth bits)
-        val rxDmaErrorCount = Counter(config.regWidth bits)
-        val txDmaErrorCount = Counter(config.regWidth bits)
+        val rxPacketCount = Counter(regWidth bits)
+        val txPacketCount = Counter(regWidth bits)
+        val rxDmaErrorCount = Counter(regWidth bits)
+        val txDmaErrorCount = Counter(regWidth bits)
         val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
       })
     }.setAsDirectionLess()
@@ -160,7 +161,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
 
     val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
     // FIXME: how much buffering do we need?
-    rxCaptured.queue(config.maxRxPktsInFlight) >> io.hostRx
+    rxCaptured.queue(c[Int]("max rx pkts in flight")) >> io.hostRx
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -303,7 +304,7 @@ class CoreControlPlugin(val coreID: Int)(implicit config: PioNicConfig) extends 
       io.statistics.elements.foreach { case (name, data) =>
         data match {
           case d: UInt => busCtrl.read(d, alloc(name, ""))
-          case v: Vec[_] => v zip config.pktBufAllocSizeMap.map(_._1) foreach { case (elem, slotSize) =>
+          case v: Vec[_] => v zip c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1) foreach { case (elem, slotSize) =>
             busCtrl.read(elem, alloc(name, s"upTo$slotSize"))
           }
           case _ =>

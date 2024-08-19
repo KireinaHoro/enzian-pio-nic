@@ -21,12 +21,12 @@ import scala.math.BigInt.int2bigInt
  * - it is expensive to enable unaligned access for the AXI DMA engine
  * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
  */
-case class RxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
+case class RxHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   val ty = HostPacketDescType()
   val data = HostPacketDescData()
 
   // plus one for readStreamBlockCycles
-  assert(getBitsWidth + 1 <= config.maxHostDescSize * 8, "rx packet info larger than half a cacheline")
+  assert(getBitsWidth + 1 <= c[Int]("max host desc size") * 8, "rx packet info larger than half a cacheline")
 }
 
 /**
@@ -35,15 +35,15 @@ case class RxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
  * We need the length field here to know how many cache-lines we should invalidate.  This is also used by the
  * AXI DMA to fetch exactly what's used from the packet buffer.
  */
-case class TxHostCtrlInfo()(implicit config: PioNicConfig) extends Bundle {
+case class TxHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   val ty = HostPacketDescType()
   val len = PacketLength()
   val data = HostPacketDescData()
 
-  assert(getBitsWidth <= config.maxHostDescSize * 8, s"tx packet info larger than half a cacheline ($getBitsWidth)")
+  assert(getBitsWidth <= c[Int]("max host desc size") * 8, s"tx packet info larger than half a cacheline ($getBitsWidth)")
 }
 
-class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) extends FiberPlugin with EciPioProtocol {
+class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
   withPrefix(s"core_$coreID")
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: String => BigInt) = {
@@ -70,7 +70,6 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
   var writeCmd: Stream[Fragment[Axi4AwUnburstified]] = null
   var txRwPort: MemReadWritePort[_] = null
 
-  lazy val configWriter = host[ConfigWriter]
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
     val clSize = EciCmdDefs.ECI_CL_SIZE_BYTES
     ((s <= 64) ? U(0) | ((s - 64 + clSize - 1) / clSize)).resize(overflowCountWidth)
@@ -88,7 +87,7 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
   def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits]): Unit = new Area {
     // address offset for this core in CoreControl descriptors
-    val descOffset = config.pktBufSizePerCore * coreID
+    val descOffset = c[Int]("pkt buf size per core") * coreID
 
     val rxSize = host[EciInterfacePlugin].rxSizePerCore
     val txSize = host[EciInterfacePlugin].txSizePerCore
@@ -153,12 +152,12 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
     val memOffset = rxBufMapping.removeOffset(logic.selectedRxDesc.buffer.addr.bits) >> log2Up(pktBufWordNumBytes)
     busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
       memOffset = memOffset.resized,
-      mappingLength = config.roundMtu)
+      mappingLength = roundMtu)
 
     // tx buffer always start at 0
     // allow reloading from the packet buffer for partial flush due to voluntary invalidations
     txRwPort = busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0,
-      mappingLength = config.roundMtu)
+      mappingLength = roundMtu)
 
     writeCmd = busCtrl.writeCmd
   }.setName("driveDcsBus")
@@ -171,10 +170,12 @@ class EciDecoupledRxTxProtocol(coreID: Int)(implicit val config: PioNicConfig) e
 
     assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
-    configWriter.postConfig("eci rx base", 0)
-    configWriter.postConfig("eci tx base", txOffset)
-    configWriter.postConfig("eci overflow offset", 0x100)
-    configWriter.postConfig("eci num overflow cl", numOverflowCls)
+    if (coreID == 0) {
+      postConfig("eci rx base", 0)
+      postConfig("eci tx base", txOffset)
+      postConfig("eci overflow offset", 0x100)
+      postConfig("eci num overflow cl", numOverflowCls)
+    }
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing

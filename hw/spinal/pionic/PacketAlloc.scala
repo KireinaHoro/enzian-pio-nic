@@ -12,16 +12,18 @@ import scala.language.postfixOps
  * exposes the packet buffer to the host CPU for reading and writing), or might not be (e.g. for
  * [[pionic.host.eci.EciInterfacePlugin]], which aliases packet buf buffer to the same address)
  */
-case class PacketBufDesc()(implicit config: PioNicConfig) extends Bundle {
+case class PacketBufDesc()(implicit c: ConfigDatabase) extends Bundle {
   override def clone = PacketBufDesc()
 
   val addr = PacketAddr()
   val size = PacketLength()
 }
 
-case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) extends Component {
-  val roundedMap = config.pktBufAllocSizeMap.map { case (size, ratio) =>
-    val alignedSize = roundUp(size, config.axisDataWidth).toLong
+case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extends Component {
+  val bufSizeMap = c[Seq[(Int, Double)]]("pkt buf alloc size map")
+
+  val roundedMap = bufSizeMap.map { case (size, ratio) =>
+    val alignedSize = roundUp(size, c[Int]("axis data width")).toLong
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)
@@ -37,9 +39,9 @@ case class PacketAlloc(base: Long, len: Long)(implicit config: PioNicConfig) ext
     val slotOccupancy = out(Vec.fill(numPorts)(UInt(32 bits)))
   }
 
-  assert(config.pktBufAllocSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
-  assert(roundedMap.length == config.pktBufAllocSizeMap.length, "some packet categories did not manage to get any slots")
-  assert(log2Up(base + len) <= config.pktBufAddrWidth, "packet buffer address bits overflow")
+  assert(bufSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
+  assert(roundedMap.length == bufSizeMap.length, "some packet categories did not manage to get any slots")
+  assert(log2Up(base + len) <= c[Int]("pkt buf addr width"), "packet buffer address bits overflow")
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
 

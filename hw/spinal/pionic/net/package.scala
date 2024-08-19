@@ -8,6 +8,7 @@ import jsteward.blocks.axi._
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable
+import scala.language.postfixOps
 import scala.reflect.ClassTag
 
 package object net {
@@ -36,7 +37,7 @@ package object net {
     def asUnion: ProtoPacketDescData
   }
 
-  case class ProtoPacketDescData()(implicit config: PioNicConfig) extends Union {
+  case class ProtoPacketDescData()(implicit c: ConfigDatabase) extends Union {
     val ethernet = newElement(EthernetMetadata())
     val ip = newElement(IpMetadata())
     val udp = newElement(UdpMetadata())
@@ -46,7 +47,7 @@ package object net {
   /**
    * [[ProtoPacketDesc]] plus type information. Used between [[RxPacketDispatch]] and [[CoreControlPlugin]].
    */
-  case class TaggedProtoPacketDesc()(implicit config: PioNicConfig) extends Bundle {
+  case class TaggedProtoPacketDesc()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = TaggedProtoPacketDesc()
 
     val ty = ProtoPacketDescType()
@@ -64,8 +65,8 @@ package object net {
       ret
     }
 
-    def collectHeaders(implicit config: PioNicConfig): Bits = {
-      val ret = CombInit(B(0, config.bypassHeaderMaxWidth bits))
+    def collectHeaders(implicit c: ConfigDatabase): Bits = {
+      val ret = CombInit(B(0, c[Int]("bypass header max width") bits))
       switch (ty) {
         import ProtoPacketDescType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
@@ -87,7 +88,7 @@ package object net {
    * ONCRPC might take data from UDP and TCP.  The DAG is specified by [[from]].
    * @tparam T output metadata type
    */
-  trait ProtoDecoder[T <: ProtoPacketDesc] extends FiberPlugin {
+  trait ProtoDecoder[T <: ProtoPacketDesc] extends PioNicPlugin {
     /**
      * Downstream decoders interfaces and their conditions to match.
      * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]

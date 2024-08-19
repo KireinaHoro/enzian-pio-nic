@@ -28,7 +28,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val coreBlock = nicConfig.allocFactory.readBack("core")
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
@@ -45,7 +45,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
-      master.read(coreBlock("hostRxNext"), 8).toRxPacketDesc match {
+      master.read(coreBlock("hostRx"), 8).toRxPacketDesc match {
         case Some(x) => done(Some(x))
         case None =>
           sleepCycles(200)
@@ -71,8 +71,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (axiMaster, axisSlave)
   }
 
-  def rxTestSimple(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+  def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
+    val coreBlock = nicConfig.allocFactory.readBack("core", blockIdx = 0)
     val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
 
     fork {
