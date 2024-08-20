@@ -70,6 +70,21 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
   withPrefix(s"core_$coreID")
   def isBypass = coreID == 0
 
+  postConfig("host packet desc width", HostPacketDesc().getBitsWidth)
+  postConfig("host packet desc type width", HostPacketDescType().getBitsWidth)
+  // FIXME: think of a way to automate this -- with reflection?
+  // TODO: generic framework to dump Bundle/Union structure
+  postConfig("host packet desc type error", 0)
+  postConfig("host packet desc type bypass", 1)
+  postConfig("host packet desc type onc rpc call", 2)
+  postConfig("host packet desc type onc rpc reply", 3)
+
+  postConfig("proto packet desc type width", ProtoPacketDescType().getBitsWidth)
+  postConfig("proto packet desc type ethernet", 0)
+  postConfig("proto packet desc type ip", 1)
+  postConfig("proto packet desc type udp", 2)
+  postConfig("proto packet desc type onc rpc call", 3)
+
   lazy val dma = host[AxiDmaPlugin]
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val hs = host[HostService]

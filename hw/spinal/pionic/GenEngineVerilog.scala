@@ -63,8 +63,8 @@ object GenEngineVerilog {
 
     val report = elabConfig.generateVerilog {
       val c = new ConfigDatabase()
-      c.postConfig("host interface", name, emitHeader = false)
-      c.postConfig("git version", gitVersion, update = true, emitHeader = false)
+      c.post("host interface", name, emitHeader = false)
+      c.post("git version", gitVersion, action = ConfigDatabase.Override, emitHeader = false)
 
       engine(c)
     }

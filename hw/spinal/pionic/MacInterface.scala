@@ -27,7 +27,7 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
   lazy val p = host[ProfilerPlugin]
 
   val axisDataWidth = 64
-  postConfig("axis data width", axisDataWidth)
+  postConfig("axis data width", axisDataWidth, action = ConfigDatabase.Unique)
 
   // matches Xilinx CMAC configuration
   val axisConfig = Axi4StreamConfig(
