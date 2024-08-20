@@ -6,7 +6,7 @@ import jsteward.blocks.misc.sim.BigIntRicher
 import spinal.core.IntToBuilder
 
 package object pcie {
-  implicit class PacketDescBytesRicher(lb: List[Byte])(implicit config: PioNicConfig) {
+  implicit class PacketDescBytesRicher(lb: List[Byte])(implicit c: ConfigDatabase) {
     // with status bit
     def toRxPacketDesc = {
       val d = lb.bytesToBigInt.toLong
