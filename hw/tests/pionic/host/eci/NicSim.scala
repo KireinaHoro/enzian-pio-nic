@@ -19,27 +19,29 @@ import org.scalatest.tagobjects.Slow
 case class CtrlInfoSim(size: BigInt, addr: BigInt)
 
 object CtrlInfoSim {
-  def fromBigInt(v: BigInt, nextCl: Int, cid: Int)(implicit config: PioNicConfig, dut: NicEngine) =
-    CtrlInfoSim(v & config.pktBufLenMask,
+  def fromBigInt(v: BigInt, nextCl: Int, cid: Int)(implicit dut: NicEngine) = {
+    val c = dut.host[ConfigDatabase]
+    CtrlInfoSim(v & c[Int]("pkt buf len mask"),
       // since we flipped nextCl already
-      (1 - nextCl) * 0x80 + 0x40 +
-        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
-        dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid)
+      (1 - nextCl) * 0x80 + 0x40 + c[Int]("eci rx base") + c[Int]("eci core offset") * cid)
+  }
 }
 
 class NicSim extends DutSimFunSuite[NicEngine] {
-  implicit val nicConfig = PioNicConfig()
+  implicit val c = new ConfigDatabase
+  c.post("host interface", "eci")
 
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .workspaceName("eci")
-    .compile(pionic.GenEngineVerilog.engineFromName("eci"))
+    .compile(pionic.GenEngineVerilog.engine(c))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
@@ -49,7 +51,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
-    CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)(nicConfig)
+    CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)
 
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
@@ -74,14 +76,13 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  val rxNextCl = mutable.ArrayBuffer.fill(nicConfig.numCores)(0)
+  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
 
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
     if (maxTries == 0) done(None)
     else {
       val clAddr = rxNextCl(cid) * 0x80 +
-        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
-        dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid
+        c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(clAddr, 64).bytesToBigInt
@@ -106,9 +107,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     var data = dcsMaster.read(info.addr, firstReadSize)
     if (sz > 64) {
       data ++= dcsMaster.read(
-        dut.host[ConfigDatabase].getConfig[Int]("eci rx base") +
-          dut.host[ConfigDatabase].getConfig[Int]("eci overflow offset") +
-          dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid,
+        c[Int]("eci rx base") +
+          c[Int]("eci overflow offset") +
+          c[Int]("eci core offset") * cid,
         sz - 64)
     }
 
@@ -134,8 +135,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   }
 
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int, maxRetries: Int)(implicit dut: NicEngine) = {
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control", cid)
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core", cid)
 
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
@@ -166,12 +168,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid, maxRetries = 0)
   }
 
-  0 until nicConfig.numCores foreach rxScanOnCore
+  0 until c[Int]("num cores") foreach rxScanOnCore
 
   test("rx-all-cores-serialized") { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
 
-    0 until nicConfig.numCores foreach { idx =>
+    0 until c[Int]("num cores") foreach { idx =>
       println(s"====> Testing core $idx")
       rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, idx, maxRetries = 5)
     }
@@ -179,7 +181,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
   // TODO: test multiple cores interleaving
 
-  var txNextCl = mutable.ArrayBuffer.fill(nicConfig.numCores)(0)
+  var txNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
 
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     var received = false
@@ -194,8 +196,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
 
     def clAddr = txNextCl(cid) * 0x80 +
-      dut.host[ConfigDatabase].getConfig[Int]("eci tx base") +
-      dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid
+      c[Int]("eci tx base") +
+      c[Int]("eci core offset") * cid
 
     println(f"Core $cid: sending packet of length ${toSend.length}, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, toSend.length.toBytes)
@@ -204,9 +206,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
       dcsMaster.write(
-        dut.host[ConfigDatabase].getConfig[Int]("eci tx base") +
-          dut.host[ConfigDatabase].getConfig[Int]("eci overflow offset") +
-          dut.host[ConfigDatabase].getConfig[Int]("eci core offset") * cid,
+        c[Int]("eci tx base") +
+          c[Int]("eci overflow offset") +
+          c[Int]("eci core offset") * cid,
         toSend.drop(firstWriteSize))
     }
 
@@ -222,8 +224,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   }
 
   def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
 
     // set core mask to only schedule to one core
     val mask = 1 << cid
@@ -244,12 +247,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
   }
 
-  0 until nicConfig.numCores foreach txScanOnCore
+  0 until c[Int]("num cores") foreach txScanOnCore
 
   test("tx-all-cores-serialized") { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
-    0 until nicConfig.numCores foreach { idx =>
+    0 until c[Int]("num cores") foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
@@ -260,15 +263,16 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
 
-    0 until nicConfig.numCores foreach { idx =>
+    0 until c[Int]("num cores") foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 
   test("rx-multiple-packets") { implicit dut =>
+    val allocFactory = dut.host[RegAlloc].f
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
-    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val globalBlock = allocFactory.readBack("global")
 
     val mask = 1
     val numPackets = 5

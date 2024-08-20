@@ -2,10 +2,11 @@ package pionic.host.pcie
 
 import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.DutSimFunSuite
+import jsteward.blocks.misc.sim.isSorted
 import pionic._
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
-import spinal.lib._
+import spinal.lib.{io => _, _}
 import spinal.lib.bus.amba4.axi.sim._
 import spinal.lib.bus.amba4.axis.sim._
 
@@ -15,27 +16,28 @@ import scala.util.control.TailCalls._
 
 class NicSim extends DutSimFunSuite[NicEngine] {
   // TODO: test on multiple configs
-  implicit val nicConfig = PioNicConfig(
-    numCores = 8, // to test for dispatching
-  )
+  implicit val c = new ConfigDatabase
+  c.post("num cores", 8, action = ConfigDatabase.Override) // to test for dispatching
+  c.post("host interface", "pcie", emitHeader = false)
 
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
     .workspaceName("pcie")
-    .compile(pionic.GenEngineVerilog.engineFromName("pcie"))
+    .compile(pionic.GenEngineVerilog.engine(c))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("core")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
 
-    CSRSim.csrSanityChecks(globalBlock, coreBlock, master, rxBlockCycles)(nicConfig)
+    CSRSim.csrSanityChecks(globalBlock, coreBlock, master, rxBlockCycles)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     (master, axisMaster, axisSlave)
@@ -71,12 +73,22 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (axiMaster, axisSlave)
   }
 
-  def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster, toSend: List[Byte])(implicit dut: NicEngine) = {
-    val coreBlock = nicConfig.allocFactory.readBack("core", blockIdx = 0)
-    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
+  /** test sending a ethernet frame to trigger bypass */
+  def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster)(implicit dut: NicEngine) = {
+    val c = dut.host[ConfigDatabase]
+    val allocFactory = dut.host[RegAlloc].f
+    val coreBlock = allocFactory.readBack("core", blockIdx = 0)
+    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
+
+    // FIXME: generate proper ethernet/ip/udp frame
+    val toSend = Random.nextBytes(Random.nextInt(100)).toList
 
     fork {
       sleepCycles(20)
+
+      // TODO: send frames of different protocol to test for bypass
+      //       since we didn't arm any ONCRPC services, it should always be bypass
+
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
@@ -86,9 +98,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // test for actually receiving a packet
     val desc = tryReadPacketDesc(master, coreBlock).result.get
     println(s"Received status register: $desc")
+
     assert(desc.size == toSend.length, s"packet length mismatch: expected ${toSend.length}, got ${desc.size}")
-    assert(desc.addr % implicitly[PioNicConfig].axisDataWidth == 0, "rx buffer not aligned!")
-    assert(desc.addr < nicConfig.pktBufSize, f"packet address out of bounds: ${desc.addr}%#x")
+    assert(desc.addr % c[Int]("axis data width") == 0, "rx buffer not aligned!")
+    assert(desc.addr < c[Int]("pkt buf size"), f"packet address out of bounds: ${desc.addr}%#x")
+
+    // check ethernet header
 
     // read memory and check data
     val data = master.read(pktBufAddr + desc.addr, desc.size)
@@ -104,8 +119,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
   // TODO: test for various failures
   test("rx-regular") { implicit dut =>
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
 
     var data = master.read(coreBlock("hostRxNext"), 8)
@@ -121,24 +137,22 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     master.write(coreBlock("allocReset"), 0.toBytes);
 
     // test for 200 runs
-    for (size <- Iterator.from(1).map(_ * 64).takeWhile(_ <= 512)) {
-      val toSend = Random.nextBytes(size).toList
-      0 until 50 foreach { _ => rxTestSimple(master, axisMaster, toSend) }
-    }
+    0 until 200 foreach { _ => rxTestBypass(master, axisMaster) }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
   test("tx-regular") { implicit dut =>
-    val coreBlock = nicConfig.allocFactory.readBack("control")
-    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
+    val allocFactory = dut.host[RegAlloc].f
+    val coreBlock = allocFactory.readBack("core")
+    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
     val (master, axisSlave) = txDutSetup()
 
     // get tx buffer address
     var data = master.read(coreBlock("hostTx"), 8)
     val desc = data.toTxPacketDesc
-    assert(desc.addr % implicitly[PioNicConfig].axisDataWidth == 0, "tx buffer not aligned!")
+    assert(desc.addr % c[Int]("axis data width") == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
     val toSend = Random.nextBytes(256).toList
@@ -159,7 +173,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   test("rx-roundrobin-with-mask") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
-    val globalBlock = nicConfig.allocFactory.readBack("global")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
 
     val (master, axisMaster) = rxDutSetup(10000)
 
@@ -178,12 +193,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     val toSend = Random.nextBytes(256).toList
 
-    // test round robin
-    Seq.fill(3)(0 until nicConfig.numCores).flatten
+    // test round-robin
+    Seq.fill(3)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         axisMaster.sendCB(toSend)()
 
-        val coreBlock = nicConfig.allocFactory.readBack("control", idx)
+        val coreBlock = allocFactory.readBack("core", idx)
         var descOption: Option[PacketDescSim] = None
         var tries = 5
         while (descOption.isEmpty && tries > 0) {
@@ -234,8 +249,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   test("rx-timestamped-queued") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
 
     val toSend = Random.nextBytes(256).toList
 
@@ -263,8 +279,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   test("rx-timestamped-stalled") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
 
     val toSend = Random.nextBytes(256).toList
     val delayed = 500
@@ -294,9 +311,10 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   test("tx-timestamped") { implicit dut =>
     val (master, axisSlave) = txDutSetup()
 
-    val globalBlock = nicConfig.allocFactory.readBack("global")
-    val coreBlock = nicConfig.allocFactory.readBack("control")
-    val pktBufAddr = nicConfig.allocFactory.readBack("pkt")("buffer")
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    val coreBlock = allocFactory.readBack("core")
+    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
     val toSend = Random.nextBytes(256).toList
     val desc = master.read(coreBlock("hostTx"), 8).toTxPacketDesc

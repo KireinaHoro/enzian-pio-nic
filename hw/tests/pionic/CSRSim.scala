@@ -5,7 +5,7 @@ import spinal.core.assert
 import spinal.lib.{BytesRicher, IntRicher}
 
 object CSRSim {
-  def csrSanityChecks[B](globalBlock: RegBlockReadBack, coreBlock: RegBlockReadBack, bus: B, rxBlockCycles: Int)(nicConfig: PioNicConfig)(implicit asMaster: AsSimBusMaster[B]): Unit = {
+  def csrSanityChecks[B](globalBlock: RegBlockReadBack, coreBlock: RegBlockReadBack, bus: B, rxBlockCycles: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
     // reset value of rx alloc reset should be 0
     val allocReset = asMaster.read(bus, coreBlock("allocReset"), 8).bytesToBigInt
     assert(allocReset == 0, "rx alloc reset should be low at boot")
