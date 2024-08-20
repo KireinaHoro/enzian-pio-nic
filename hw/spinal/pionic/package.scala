@@ -22,8 +22,8 @@ package object pionic {
     lazy val pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
     lazy val pktBufSize = numCores * c[Int]("pkt buf size per core")
 
-    def postConfig[T: TypeTag](name: String, value: T): Unit = {
-      during setup c.postConfig(name, value)
+    def postConfig[T: TypeTag](name: String, value: => T, action: ConfigDatabase.PostAction = ConfigDatabase.OneShot): Unit = {
+      during setup c.post(name, value, action)
     }
   }
 

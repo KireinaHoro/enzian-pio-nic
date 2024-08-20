@@ -44,7 +44,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
   lazy val macIf = host[MacInterfaceService]
 
   // FIXME: can we fit more?
-  postConfig("max onc rpc inline bytes", 4 * 12)
+  postConfig("max onc rpc inline bytes", 4 * 12, action = ConfigDatabase.Unique)
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
     logic.decoder.io.statistics.flattenForeach { stat =>

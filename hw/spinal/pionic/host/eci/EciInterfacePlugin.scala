@@ -31,7 +31,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
   lazy val rxSizePerCore = pktBufSizePerCore - roundMtu
   lazy val txSizePerCore = roundMtu
 
-  postConfig("max host desc size", 64) // BYTES
+  postConfig("max host desc size", 64, action = ConfigDatabase.Unique) // BYTES
 
   // dcs_2_axi AXI config
   val axiConfig = Axi4Config(
@@ -85,7 +85,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
 
     // mux both DCS AXI masters to all cores
     val coreOffset = 0x10000
-    postConfig("eci core offset", coreOffset)
+    postConfig("eci core offset", coreOffset, action = ConfigDatabase.Unique)
 
     val dcsNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
       // 2 masters, ID width + 1

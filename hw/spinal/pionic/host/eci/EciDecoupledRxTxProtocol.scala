@@ -170,12 +170,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
-    if (coreID == 0) {
-      postConfig("eci rx base", 0)
-      postConfig("eci tx base", txOffset)
-      postConfig("eci overflow offset", 0x100)
-      postConfig("eci num overflow cl", numOverflowCls)
-    }
+    postConfig("eci rx base", 0)
+    postConfig("eci tx base", txOffset)
+    postConfig("eci overflow offset", 0x100)
+    postConfig("eci num overflow cl", numOverflowCls)
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
