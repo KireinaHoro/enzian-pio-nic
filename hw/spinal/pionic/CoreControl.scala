@@ -142,13 +142,17 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
 
       // statistics
       val statistics = out(new Bundle {
-        val rxPacketCount = Counter(regWidth bits)
-        val txPacketCount = Counter(regWidth bits)
-        val rxDmaErrorCount = Counter(regWidth bits)
-        val txDmaErrorCount = Counter(regWidth bits)
+        val rxPacketCount = Reg(UInt(regWidth bits)) init 0
+        val txPacketCount = Reg(UInt(regWidth bits)) init 0
+        val rxDmaErrorCount = Reg(UInt(regWidth bits)) init 0
+        val txDmaErrorCount = Reg(UInt(regWidth bits)) init 0
         val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
       })
     }.setAsDirectionLess()
+
+    def inc(f: io.statistics.type => UInt) = {
+      f(io.statistics) := f(io.statistics) + 1
+    }
 
     allocReset := io.allocReset
 
@@ -243,7 +247,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
               p.profile(p.RxAfterDmaWrite -> True)
               goto(enqueuePkt)
             } otherwise {
-              io.statistics.rxDmaErrorCount.increment()
+              inc(_.rxDmaErrorCount)
               goto(idle)
             }
           }
@@ -253,7 +257,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
         whenIsActive {
           when(rxCaptured.ready) {
             rxCaptured.setIdle()
-            io.statistics.rxPacketCount.increment()
+            inc(_.rxPacketCount)
             goto(idle)
           }
         }
@@ -293,11 +297,11 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
         whenIsActive {
           when(io.readDescStatus.fire) {
             when(io.readDescStatus.payload.error === 0) {
-              io.statistics.txPacketCount.increment()
+              inc(_.txPacketCount)
 
               p.profile(p.TxAfterDmaRead -> True)
             } otherwise {
-              io.statistics.txDmaErrorCount.increment()
+              inc(_.txDmaErrorCount)
             }
             goto(idle)
           }
@@ -322,7 +326,6 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
           case v: Vec[_] => v zip c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1) foreach { case (elem, slotSize) =>
             busCtrl.read(elem, alloc(name, s"upTo$slotSize"))
           }
-          case _ =>
         }
       }
     }
