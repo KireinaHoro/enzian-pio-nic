@@ -63,6 +63,7 @@ package object sim {
         udpBuilder
           .srcAddr(srcAddr)
           .dstAddr(dstAddr)
+      case _ =>
     }
 
     val ipBuilder = (new IpV4Packet.Builder)
@@ -124,7 +125,7 @@ package object sim {
           rawPayloadBuilder())
     }
 
-    println(s"prepared $proto packet with payload len $payloadLen")
+    println(s"prepared $proto packet with payload len $payloadLen, mtu is $mtu")
 
     (ret, proto)
   }

@@ -93,7 +93,7 @@ package object net {
      * Downstream decoders interfaces and their conditions to match.
      * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
      */
-    private val consumers = mutable.ListBuffer[(T => Bool, Stream[T], Axi4Stream)]()
+    private val consumers = mutable.ListBuffer[(String, T => Bool, Stream[T], Axi4Stream)]()
 
     val rxRg = during setup retains(host[RxPacketDispatchService].retainer)
 
@@ -108,7 +108,7 @@ package object net {
      * @tparam D type of upstream packet decoder
      */
     protected def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
-      host[D].consumers.append((matcher, metadata, payload))
+      host[D].consumers.append((this.getDisplayName(), matcher, metadata, payload))
     }
 
     /**
@@ -124,7 +124,7 @@ package object net {
       val forkedPayloads = StreamFork(payload, consumers.length + 1)
 
       val attempts = mutable.ListBuffer[Bool]()
-      consumers.zipWithIndex foreach { case ((matchFunc, headerSink, payloadSink), idx) => new Area {
+      consumers.zipWithIndex foreach { case ((name, matchFunc, headerSink, payloadSink), idx) => new Area {
         // is it possible to go to this consumer?
         val hdr = forkedHeaders(idx)
         val pld = forkedPayloads(idx)
@@ -135,7 +135,7 @@ package object net {
 
         headerSink << hdr.takeWhen(attempt)
         payloadSink << pld.takeFrameWhen(attempt)
-      }
+      } setCompositeName (this, s"to_$name")
       }
 
       val attempted = attempts.reduceBalancedTree(_ || _)
@@ -143,8 +143,8 @@ package object net {
       val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
       val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted)
 
-      host[RxPacketDispatchService].consume(bypassPayload, bypassHeader)
-    }
+      host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
+    } setCompositeName(this, "produce")
 
     /**
      * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxPacketDispatch]] directly.  May be
@@ -157,7 +157,7 @@ package object net {
      *                        TODO: get rid of this?
      */
     protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Bits, coreMaskChanged: Bool): Unit = {
-      host[RxPacketDispatchService].consume(payload, metadata, coreMask, coreMaskChanged)
+      host[RxPacketDispatchService].consume(payload, metadata, coreMask, coreMaskChanged) setCompositeName(this, "dispatch")
     }
 
     /** Release retainer from packet dispatcher to allow it to continue elaborating */

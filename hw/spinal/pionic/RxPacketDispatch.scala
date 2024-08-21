@@ -18,7 +18,7 @@ import scala.collection.mutable
  */
 trait RxPacketDispatchService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null): Unit
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits = null, coreMaskChanged: Bool = null): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
 
@@ -37,7 +37,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
 
   lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]())
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool): Unit = new Area {
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Bits, coreMaskChanged: Bool) = new Area {
     // handle payload data
     payloadSources.append(payloadSink)
 
