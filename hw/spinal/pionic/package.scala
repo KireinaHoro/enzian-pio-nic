@@ -14,6 +14,7 @@ package object pionic {
     lazy val regWidth = c[Int]("reg width")
 
     lazy val mtu = c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1).max
+    postConfig("mtu", mtu)
     lazy val roundMtu = roundUp(mtu, c[Int]("axis data width")).toInt
 
     lazy val pktBufAddrWidth = c[Int]("pkt buf addr width")

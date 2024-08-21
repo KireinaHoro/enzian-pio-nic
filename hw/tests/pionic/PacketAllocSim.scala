@@ -18,6 +18,7 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
     (9618, .1), // 10% 9618B packets (max jumbo frame)
   ), action = ConfigDatabase.Override)
   c.post("pkt buf size per core", 0x40000, action = ConfigDatabase.Override)
+  c.post("axis data width", 64)
 
   val dut = Config.sim
     .compile(PacketAlloc(0, c[Int]("pkt buf size per core")))
