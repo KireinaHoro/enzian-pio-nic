@@ -121,6 +121,8 @@ object gen extends CommonModule { outer =>
     override def ivyDeps = Agg(
       ivy"com.lihaoyi::os-lib:0.9.3",
       ivy"commons-io:commons-io:2.15.1",
+      ivy"org.pcap4j:pcap4j-core:1.8.2",
+      ivy"org.pcap4j:pcap4j-packetfactory-static:1.8.2",
     )
   }
 }
