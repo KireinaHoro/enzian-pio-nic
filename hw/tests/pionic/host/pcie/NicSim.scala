@@ -80,6 +80,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster)(implicit dut: NicEngine) = {
     implicit val c = dut.host[ConfigDatabase]
     val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core", blockIdx = 0)
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
@@ -96,6 +97,10 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
 
     val counterBefore = master.read(coreBlock("rxPacketCount"), 8).bytesToBigInt
+
+    // set promisc mode
+    // TODO: also test non promisc mode
+    master.write(globalBlock("ethernetCtrl", "promisc"), 1.toBytes)
 
     // test for actually receiving a packet
     // since we didn't arm any ONCRPC services, it should always be bypass

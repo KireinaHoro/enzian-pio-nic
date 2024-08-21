@@ -37,6 +37,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
       busCtrl.read(stat, alloc("ethernetStats", stat.getName()))
     }
     busCtrl.readAndWrite(logic.macAddress, alloc("ethernetCtrl", "macAddress"))
+    busCtrl.readAndWrite(logic.promisc, alloc("ethernetCtrl", "promisc"))
   }
 
   val logic = during setup new Area {
@@ -44,6 +45,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     private val metadata = Stream(EthernetMetadata())
 
     val macAddress = Reg(Bits(48 bits)) init B("48'x0C_53_31_03_00_28") // zuestoll01 FPGA; changed at runtime
+    val promisc = Reg(Bool()) init False
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)
@@ -56,15 +58,16 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     val drop = Bool()
     payload << decoder.io.output.throwFrameWhen(drop)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
-      val meta = EthernetMetadata()
-      meta.hdr.assignFromBits(hdr)
-      meta.frameLen := lastFrameLen
+      new Composite(this, "remap") {
+        val meta = EthernetMetadata()
+        meta.hdr.assignFromBits(hdr)
+        meta.frameLen := lastFrameLen
 
-      // allow unicast and broadcast, if promisc mode is not on
-      // TODO: multicast?
-      drop := macAddress =/= meta.hdr.dst
-
-      meta
+        // allow unicast and broadcast
+        // TODO: multicast?
+        val isBroadcast = meta.hdr.dst.asBools.reduceBalancedTree(_ && _)
+        drop := (macAddress =/= meta.hdr.dst || !isBroadcast) && !promisc
+      }.meta
     }
 
     produce(metadata, payload)
