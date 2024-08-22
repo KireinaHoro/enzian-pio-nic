@@ -75,8 +75,9 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     val lastEthMeta = ethernetHeader.toReg()
 
     val drop = Bool()
+    val dropFlow = decoder.io.header.asFlow ~ drop
     ethernetPayload >> decoder.io.input
-    payload << decoder.io.output.throwFrameWhen(drop)
+    payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = IpMetadata()
       meta.hdr.assignFromBits(hdr)

@@ -113,8 +113,9 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     val currentUdpHeader = udpHeader.toReg()
 
     val drop = Bool()
+    val dropFlow = decoder.io.header.asFlow ~ drop
     udpPayload >> decoder.io.input
-    payload << decoder.io.output.throwFrameWhen(drop)
+    payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = OncRpcCallMetadata()
       meta.hdr.assignFromBits(hdr)
