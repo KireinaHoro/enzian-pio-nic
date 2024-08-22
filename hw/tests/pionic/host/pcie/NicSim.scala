@@ -46,15 +46,15 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (master, axisMaster, axisSlave)
   }
 
-  def tryReadPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[PacketDescSim]] = {
+  def tryReadRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[PacketDescSim]] = {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
-      master.read(coreBlock("hostRx"), 8).toRxPacketDesc match {
+      readRxPacketDesc(master, coreBlock) match {
         case Some(x) => done(Some(x))
         case None =>
           sleepCycles(200)
-          tailcall(tryReadPacketDesc(master, coreBlock, maxTries - 1))
+          tailcall(tryReadRxPacketDesc(master, coreBlock, maxTries - 1))
       }
     }
   }
@@ -104,10 +104,9 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     // test for actually receiving a packet
     // since we didn't arm any ONCRPC services, it should always be bypass
-    val desc = tryReadPacketDesc(master, coreBlock).result.get
+    val desc = tryReadRxPacketDesc(master, coreBlock).result.get
     println(s"Received status register: $desc")
 
-    assert(desc.size == payload.length, s"packet length mismatch: expected ${payload.length}, got ${desc.size}")
     assert(desc.addr % c[Int]("axis data width") == 0, "rx buffer not aligned!")
     assert(desc.addr < c[Int]("pkt buf size per core"), f"packet address out of bounds: ${desc.addr}%#x")
 
@@ -115,6 +114,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     assert(desc.isInstanceOf[BypassPacketDescSim], "should only receive bypass packet!")
     val bypassDesc = desc.asInstanceOf[BypassPacketDescSim]
     assert(proto.id == bypassDesc.ty, s"proto mismatch: received $proto, got ${PacketType(bypassDesc.ty.toInt)}")
+    assert(desc.size == payload.length, s"packet length mismatch: expected ${payload.length}, got ${desc.size}")
     checkHeader(proto, packet, bypassDesc.pkt)
 
     // read memory and check payload data
@@ -134,8 +134,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val coreBlock = allocFactory.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val data = master.read(coreBlock("hostRx"), 8)
-    assert(data.toRxPacketDesc.isEmpty, "should not have packet on standby yet")
+    assert(readRxPacketDesc(master, coreBlock).isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
     master.write(coreBlock("allocReset"), 1.toBytes);
@@ -208,7 +207,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
         var descOption: Option[PacketDescSim] = None
         var tries = 5
         while (descOption.isEmpty && tries > 0) {
-          descOption = master.read(coreBlock("hostRx"), 8).toRxPacketDesc
+          descOption = readRxPacketDesc(master, coreBlock)
           tries -= 1
         }
         val desc = descOption.get
@@ -266,8 +265,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val delayed = 1000
     sleepCycles(delayed)
 
-    var data = master.read(coreBlock("hostRx"), 8)
-    val desc = data.toRxPacketDesc.get
+    val desc = readRxPacketDesc(master, coreBlock).get
     val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit
@@ -298,8 +296,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       axisMaster.send(toSend)
     }
 
-    var data = master.read(coreBlock("hostRx"), 8)
-    val desc = data.toRxPacketDesc.get
+    val desc = readRxPacketDesc(master, coreBlock).get
     val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit

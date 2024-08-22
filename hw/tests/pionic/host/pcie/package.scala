@@ -1,24 +1,25 @@
 package pionic.host
 
+import jsteward.blocks.misc.RegBlockReadBack
 import spinal.lib._
 import pionic._
 import jsteward.blocks.misc.sim.BigIntRicher
 import org.pcap4j.packet.{EthernetPacket, UdpPacket}
 import pionic.sim._
-import spinal.core.IntToBuilder
+import spinal.core.{IntToBuilder, roundUp}
+import spinal.lib.bus.amba4.axi.sim.Axi4Master
 
 package object pcie {
-  implicit class PacketDescBytesRicher(lb: List[Byte])(implicit c: ConfigDatabase) {
-    // with status bit
-    def toRxPacketDesc = {
-      val d = lb.bytesToBigInt.toLong
-      if ((d & 1) == 0) {
-        None
-      } else {
-        Some(PacketDescSim.fromBigInt(d >> 1))
-      }
+  def readRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack)(implicit c: ConfigDatabase): Option[PacketDescSim] = {
+    val numBytes = roundUp(c[Int]("host packet desc width"), 8) / 8
+    val data = master.read(coreBlock("hostRx"), numBytes).bytesToBigInt
+    (data & 1).toInt match {
+      case 0 => None
+      case 1 => Some(PacketDescSim.fromBigInt(data >> 1))
     }
+  }
 
+  implicit class PacketDescBytesRicher(lb: List[Byte])(implicit c: ConfigDatabase) {
     def toTxPacketDesc = {
       PacketDescSim.fromBigInt(lb.bytesToBigInt >> 1)
     }
