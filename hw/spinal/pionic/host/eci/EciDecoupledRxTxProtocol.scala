@@ -104,7 +104,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     hostRxReq := logic.rxReqs.reduceBalancedTree(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
-    Seq(0, 1) foreach { idx => new Area {
+    Seq(0, 1) foreach { idx => new Composite(this, "driveBusCtrl") {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         logic.rxReqs(idx).set()
@@ -142,7 +142,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       busCtrl.driveStream(logic.txHostCtrlInfo(idx), txCtrlAddr)
       // we need to read this again for partial reloads to have the same CL content
       busCtrl.read(logic.savedTxHostCtrl, txCtrlAddr)
-    }.setCompositeName(this, "driveBusCtrl")
+    }
     }
 
     val rxBufMapping = SizeMapping(descOffset, rxSize)
