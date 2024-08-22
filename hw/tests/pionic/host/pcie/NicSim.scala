@@ -100,7 +100,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     // set promisc mode
     // TODO: also test non promisc mode
-    master.write(globalBlock("ethernetCtrl", "promisc"), 1.toBytes)
+    master.write(globalBlock("promisc"), 1.toBytes)
 
     // test for actually receiving a packet
     // since we didn't arm any ONCRPC services, it should always be bypass
