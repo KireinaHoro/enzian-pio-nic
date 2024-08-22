@@ -59,7 +59,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     val ipAddress = Reg(Bits(32 bits)) init B("32'xc0_a8_80_28") // 192.168.128.40; changed at runtime
 
     from[EthernetMetadata, EthernetDecoder](
-      _.hdr.etherType === B("16'x0800"),
+      _.hdr.etherType === EndiannessSwap(B("16'x0800")),
       ethernetHeader, ethernetPayload
     )
 
@@ -85,7 +85,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
       meta.ethMeta := lastEthMeta
 
       // TODO: verify header checksum
-      drop := meta.hdr.daddr =/= ipAddress && !csr.ctrl.promisc
+      drop := meta.hdr.daddr =/= EndiannessSwap(ipAddress) && !csr.ctrl.promisc
 
       meta
     }
