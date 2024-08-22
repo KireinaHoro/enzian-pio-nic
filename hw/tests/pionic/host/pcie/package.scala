@@ -38,7 +38,9 @@ package object pcie {
   }
   case class BypassPacketDescSim(addr: BigInt, size: BigInt, ty: BigInt, hdr: BigInt) extends PacketDescSim {
     // decode hdr as actual ethernet packet
-    private val hdrBytes = hdr.toByteArray
+    // XXX: we won't actually have endianness problem on the CPU, since to bypass is a simple memcpy
+    //      however, since SpinalSim passes vectors in little endian, we still need to reverse
+    private val hdrBytes = hdr.toByteArray.reverse
     val pkt = EthernetPacket.newPacket(hdrBytes, 0, hdrBytes.length)
   }
   case class OncRpcCallPacketDescSim(addr: BigInt, size: BigInt, funcPtr: BigInt, xid: BigInt, args: BigInt) extends PacketDescSim {
