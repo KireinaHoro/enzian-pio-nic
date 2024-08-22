@@ -83,7 +83,10 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       val funcPtr = Bits(64 bits)
       // TODO: protection domain information? aux data?
 
-      def matchHeader(h: OncRpcCallHeader) = enabled && progNum === h.progNum && progVer === h.progVer && proc === h.proc
+      def matchHeader(h: OncRpcCallHeader) = enabled &&
+        progNum === EndiannessSwap(h.progNum) &&
+        progVer === EndiannessSwap(h.progVer) &&
+        proc === EndiannessSwap(h.proc)
     })
 
     val coreMask = Bits(numCores bits)
@@ -91,7 +94,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
 
     from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
-          portSlot.valid && portSlot.payload === meta.hdr.dport.asUInt
+          portSlot.valid && portSlot.payload === EndiannessSwap(meta.hdr.dport.asUInt)
         }.reduceBalancedTree(_ || _)
       },
       udpHeader, udpPayload
