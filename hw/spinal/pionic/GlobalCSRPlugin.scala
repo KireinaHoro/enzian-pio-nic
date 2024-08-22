@@ -11,6 +11,7 @@ class GlobalCSRPlugin extends PioNicPlugin {
   val logic = during build new Area {
     val ctrl = new Bundle {
       val rxBlockCycles = Reg(UInt(regWidth bits)) init 10000
+      val promisc = Reg(Bool()) init False
     }
     val status = new Bundle {
       val version = Bits(regWidth bits)

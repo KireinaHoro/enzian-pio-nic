@@ -43,6 +43,7 @@ case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPac
 
 class IpDecoder extends ProtoDecoder[IpMetadata] {
   lazy val macIf = host[MacInterfaceService]
+  lazy val csr = host[GlobalCSRPlugin].logic
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
     logic.decoder.io.statistics.flattenForeach { stat =>
@@ -84,7 +85,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
       meta.ethMeta := lastEthMeta
 
       // TODO: verify header checksum
-      drop := meta.hdr.daddr =/= ipAddress
+      drop := meta.hdr.daddr =/= ipAddress && !csr.ctrl.promisc
 
       meta
     }
