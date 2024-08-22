@@ -55,6 +55,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     // FIXME: backpressure so that overflow reporting actually works
     val lastFrameLen = macIf.frameLen.toReg()
 
+    // TODO: dropped packets counter
     val drop = Bool()
     payload << decoder.io.output.throwFrameWhen(drop)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>

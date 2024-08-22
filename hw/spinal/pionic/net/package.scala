@@ -118,13 +118,13 @@ package object net {
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      */
-    protected def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Area {
+    protected def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "produce") {
       // FIXME: do we need synchronous here?
       val forkedHeaders = StreamFork(metadata, consumers.length + 1)//, synchronous = true)
       val forkedPayloads = StreamFork(payload, consumers.length + 1)
 
       val attempts = mutable.ListBuffer[Bool]()
-      consumers.zipWithIndex foreach { case ((name, matchFunc, headerSink, payloadSink), idx) => new Area {
+      consumers.zipWithIndex foreach { case ((name, matchFunc, headerSink, payloadSink), idx) => new Composite(this, s"to_$name") {
         // is it possible to go to this consumer?
         val hdr = forkedHeaders(idx)
         val pld = forkedPayloads(idx)
@@ -135,7 +135,7 @@ package object net {
 
         headerSink << hdr.takeWhen(attempt)
         payloadSink << pld.takeFrameWhen(attempt)
-      } setCompositeName (this, s"to_$name")
+      }
       }
 
       val attempted = attempts.reduceBalancedTree(_ || _)
@@ -144,7 +144,7 @@ package object net {
       val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted)
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
-    } setCompositeName(this, "produce")
+    }
 
     /**
      * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxPacketDispatch]] directly.  May be
