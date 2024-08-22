@@ -109,7 +109,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     assert(desc.size == payload.length, s"packet length mismatch: expected ${payload.length}, got ${desc.size}")
     assert(desc.addr % c[Int]("axis data width") == 0, "rx buffer not aligned!")
-    assert(desc.addr < c[Int]("pkt buf size"), f"packet address out of bounds: ${desc.addr}%#x")
+    assert(desc.addr < c[Int]("pkt buf size per core"), f"packet address out of bounds: ${desc.addr}%#x")
 
     // check received protocol headers
     assert(desc.isInstanceOf[BypassPacketDescSim], "should only receive bypass packet!")

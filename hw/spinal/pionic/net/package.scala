@@ -134,14 +134,14 @@ package object net {
         attempts.append(attempt)
 
         headerSink << hdr.takeWhen(attempt)
-        payloadSink << pld.takeFrameWhen(attempt)
+        payloadSink << pld.takeFrameWhen(hdr.asFlow ~ attempt)
       }
       }
 
       val attempted = attempts.reduceBalancedTree(_ || _)
 
       val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
-      val bypassPayload = forkedPayloads.last.takeFrameWhen(!attempted)
+      val bypassPayload = forkedPayloads.last.takeFrameWhen(bypassHeader.asFlow ~ True)
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
     }

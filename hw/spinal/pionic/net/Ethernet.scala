@@ -57,7 +57,8 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
 
     // TODO: dropped packets counter
     val drop = Bool()
-    payload << decoder.io.output.throwFrameWhen(drop)
+    val dropFlow = decoder.io.header.asFlow ~ drop
+    payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       new Composite(this, "remap") {
         val meta = EthernetMetadata()
