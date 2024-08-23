@@ -66,14 +66,14 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       }
     }
   }
-  override def packetSink = logic.axisMux.masterPort
+  override def packetSink = logic.axisMux.m_axis
 
   val logic = during build new Area {
     retainer.await()
 
     // mux payload data axis to DMA
     val axisMux = new AxiStreamArbMux(ms.axisConfig, numSlavePorts = payloadSources.length)
-    axisMux.slavePorts zip payloadSources foreach { case (sl, ms) =>
+    axisMux.s_axis zip payloadSources foreach { case (sl, ms) =>
       sl << ms
     }
 

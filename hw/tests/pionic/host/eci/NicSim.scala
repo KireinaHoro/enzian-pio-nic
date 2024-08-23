@@ -35,6 +35,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
+    // wb2axip flags
+    .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("eci")
     .compile(pionic.GenEngineVerilog.engine(c))
 
