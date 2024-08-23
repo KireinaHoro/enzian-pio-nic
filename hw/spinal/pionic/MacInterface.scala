@@ -36,8 +36,8 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
     useLast = true,
   )
 
-  def rxStream = logic.rxFifo.masterPort
-  def txStream = logic.txFifo.slavePort
+  def rxStream = logic.rxFifo.m_axis
+  def txStream = logic.txFifo.s_axis
 
   def frameLen = logic.frameLenCdc
 
@@ -51,10 +51,10 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
     val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
     val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(clockDomain, cmacTxClock)
-    txFifo.masterPort >> m_axis_tx
+    txFifo.m_axis >> m_axis_tx
 
     val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(cmacRxClock, clockDomain)
-    rxFifo.slavePort << s_axis_rx
+    rxFifo.s_axis << s_axis_rx
 
     // report overflow
     val rxOverflow = Bool()
@@ -70,8 +70,8 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
     // profile timestamps
     p.profile(
       p.RxCmacEntry -> PulseCCByToggle(s_axis_rx.lastFire, cmacRxClock, clockDomain),
-      p.RxAfterCdcQueue -> rxFifo.masterPort.fire,
-      p.TxBeforeCdcQueue -> txFifo.slavePort.fire,
+      p.RxAfterCdcQueue -> rxFifo.m_axis.fire,
+      p.TxBeforeCdcQueue -> txFifo.s_axis.fire,
       p.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
     )
   }

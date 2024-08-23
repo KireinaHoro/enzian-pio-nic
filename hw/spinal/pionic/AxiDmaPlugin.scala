@@ -22,6 +22,8 @@ class AxiDmaPlugin extends PioNicPlugin {
     addressWidth = 64,
     dataWidth = 512,
     idWidth = 4,
+    useQos = false,
+    useRegion = false,
   )
 
   lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = pktBufLenWidth)
@@ -30,12 +32,14 @@ class AxiDmaPlugin extends PioNicPlugin {
     val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
     val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
 
-    // select and demux payload
-
+    // XXX: decoder pipeline requires unaligned transfer
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)
     // TODO: replace with encoders input
-    axiDma.readDataMaster >> ms.txStream
-    axiDma.writeDataSlave << host[RxPacketDispatchService].packetSink
+    axiDma.m_axis_read_data >> ms.txStream
+
+    val packer = AxiStreamPacker(dmaConfig.axisConfig)
+    host[RxPacketDispatchService].packetSink >> packer.s_axis
+    axiDma.s_axis_write_data << packer.m_axis
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
