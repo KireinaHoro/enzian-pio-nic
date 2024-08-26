@@ -24,7 +24,7 @@ case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPa
 
   def getType = ProtoPacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
-  def collectHeaders: Bits = ipMeta.collectHeaders ## hdr.asBits
+  def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData().assignDontCare()
     ret.udp.get := this

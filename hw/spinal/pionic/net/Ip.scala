@@ -33,7 +33,7 @@ case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPac
 
   def getType = ProtoPacketDescType.ip
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
-  def collectHeaders: Bits = ethMeta.collectHeaders ## hdr.asBits
+  def collectHeaders: Bits = hdr.asBits ## ethMeta.collectHeaders
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData().assignDontCare()
     ret.ip.get := this
