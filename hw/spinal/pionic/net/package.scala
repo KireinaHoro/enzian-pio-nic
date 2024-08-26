@@ -139,9 +139,12 @@ package object net {
       }
 
       val attempted = attempts.reduceBalancedTree(_ || _)
+      val bypassThrow = Flow(Bool())
+      bypassThrow.payload := attempted
+      bypassThrow.valid := attempted
 
       val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
-      val bypassPayload = forkedPayloads.last.takeFrameWhen(bypassHeader.asFlow ~ True)
+      val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
     }
