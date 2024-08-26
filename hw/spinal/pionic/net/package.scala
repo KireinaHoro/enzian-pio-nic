@@ -114,7 +114,7 @@ package object net {
     /**
      * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
      * produce a copy for bypass to the [[RxPacketDispatch]].  Should only be invoked **once** in the build phase.
- *
+     *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      */
