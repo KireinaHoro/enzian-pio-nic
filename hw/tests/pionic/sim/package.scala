@@ -34,8 +34,8 @@ package object sim {
     Seq(Ethernet, Ip, Udp) foreach checkLevel
   }
 
-  def randomExclude(n: Int)(excludes: Int*): Int = {
-    var attempt = Random.nextInt(n)
+  def randomExclude(lowerInclusive: Int, upperInclusive: Int)(excludes: Int*): Int = {
+    var attempt = Random.between(lowerInclusive, upperInclusive)
     for (e <- excludes.sorted) {
       if (attempt < e) {
         return attempt
@@ -108,13 +108,16 @@ package object sim {
       case Ethernet =>
         payloadLen = randomPayloadLen(14)
         ethernetPacket(
-          EtherType.getInstance(randomExclude(0x10000)(0x0800).toShort),
+          EtherType.getInstance(
+            // we want random EtherType values, not 802.3 Length
+            // exclude IP (0x0800)
+            randomExclude(EtherType.IEEE802_3_MAX_LENGTH + 1, 0xFFFF)(0x0800).toShort),
           rawPayloadBuilder())
 
       case Ip =>
         payloadLen = randomPayloadLen(14 + 20) // no IP extensions
         ipPacket(
-          IpNumber.getInstance(randomExclude(256)(6, 17).toByte),
+          IpNumber.getInstance(randomExclude(0, 255)(6, 17).toByte),
           rawPayloadBuilder())
 
       case Udp =>
