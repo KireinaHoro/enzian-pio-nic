@@ -115,17 +115,19 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // check received protocol headers
     assert(desc.isInstanceOf[BypassPacketDescSim], "should only receive bypass packet!")
     val bypassDesc = desc.asInstanceOf[BypassPacketDescSim]
-    assert(proto.id == bypassDesc.ty, s"proto mismatch: received $proto, got ${PacketType(bypassDesc.ty.toInt)}")
+    assert(proto.id == bypassDesc.ty, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.ty.toInt)}")
     checkHeader(proto, packet, bypassDesc.pkt)
 
     // check payload length
     // Ethernet enforces a 64 B frame => 14 B hdr + 46 B payload + 4 B FCS.  Smaller packets will be padded
-    val ethernetMinPayloadLen = 46
-    if (payload.length < ethernetMinPayloadLen) {
-      assert(desc.size == ethernetMinPayloadLen, s"packet length mismatch: expected 46, got ${desc.size}")
-    } else {
-      assert(desc.size == payload.length, s"packet length mismatch: expected ${payload.length}, got ${desc.size}")
+    val minDescLen = proto match {
+      case Ethernet => 46
+      case Ip => 26
+      case Udp => 18
+      case _ => 0
     }
+    val expectedLen = if (payload.length < minDescLen) minDescLen else payload.length
+    assert(desc.size == expectedLen, s"packet length mismatch: expected $expectedLen, got ${desc.size}")
 
     // read memory and check payload data
     val data = master.read(pktBufAddr + desc.addr, payload.length)
