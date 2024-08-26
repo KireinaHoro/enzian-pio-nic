@@ -11,8 +11,8 @@ import scala.language.postfixOps
 
 // IPv4
 case class IpHeader() extends Bundle {
-  val version = Bits(4 bits)
   val ihl = Bits(4 bits)
+  val version = Bits(4 bits)
   val tos = Bits(8 bits)
   val len = Bits(16 bits)
   val id = Bits(16 bits)
@@ -84,7 +84,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
       meta.hdr.assignFromBits(hdr)
       meta.ethMeta := lastEthMeta
 
-      // TODO: verify header checksum
+      // TODO: verify header checksum, version, etc.
       drop := meta.hdr.daddr =/= EndiannessSwap(ipAddress) && !csr.ctrl.promisc
 
       meta

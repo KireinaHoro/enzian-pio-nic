@@ -69,7 +69,7 @@ package object sim {
     val ipBuilder = (new IpV4Packet.Builder)
       .version(IpVersion.IPV4)
       .protocol(ty)
-      .tos(IpV4Rfc791Tos.newInstance(0))
+      .tos(IpV4Rfc1349Tos.newInstance(0))
       .ttl(Random.nextInt().toByte)
       .srcAddr(srcAddr)
       .dstAddr(dstAddr)
