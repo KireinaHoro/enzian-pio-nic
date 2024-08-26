@@ -32,7 +32,7 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
 
   def getType = ProtoPacketDescType.oncRpcCall
   def getPayloadSize: UInt = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
-  def collectHeaders: Bits = udpMeta.collectHeaders ## hdr.asBits
+  def collectHeaders: Bits = hdr.asBits ## udpMeta.collectHeaders
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData() setCompositeName (this, "union")
     ret.oncRpcCall.get := this
