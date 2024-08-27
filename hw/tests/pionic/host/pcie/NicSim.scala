@@ -15,7 +15,8 @@ import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
-import org.pcap4j.packet._
+import org.pcap4j.core.Pcaps
+import org.pcap4j.packet.namednumber.DataLinkType
 
 class NicSim extends DutSimFunSuite[NicEngine] {
   // TODO: test on multiple configs
@@ -187,11 +188,13 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  test("rx-roundrobin-with-mask") { implicit dut =>
+  /** test enabling a ONCRPC service */
+  test("rx-oncrpc-roundrobin") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
     val allocFactory = dut.host[RegAlloc].f
     val globalBlock = allocFactory.readBack("global")
+    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
     val (master, axisMaster) = rxDutSetup(10000)
 
@@ -203,29 +206,76 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
     val mask = b"01101110"
-    master.write(globalBlock("dispatchMask"), mask.toBytes) // mask
+    master.write(globalBlock("oncRpcCtrl", "coreMask"), mask.toBytes) // mask
 
-    // wait for the mask to take effect
+    // TODO: also test non promisc mode
+    master.write(globalBlock("promisc"), 1.toBytes)
+
+    // generate ONCRPC packet
+    val sport, dport = Random.nextInt(65535)
+    val prog, progVer, procNum = Random.nextInt()
+    // 48-bit pointer; avoid generating negative number
+    val funcPtr = Random.nextLong(0x1000000000000L)
+
+    // dump generated packet
+    val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString)
+
+    def getPacket = {
+      // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
+      val payloadWords = Random.nextInt(24)
+      val payloadLen = payloadWords * 4
+      val payload = Random.nextBytes(payloadLen).toList
+      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
+      dumper.dump(packet)
+      dumper.flush()
+      (packet, payload)
+    }
+
+    // activate service
+    master.write(globalBlock("oncRpcCtrl", "listenPort_0"), dport.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "listenPort_0_enabled"), 1.toBytes)
+
+    master.write(globalBlock("oncRpcCtrl", "service_0_progNum"), prog.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_progVer"), progVer.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_proc"), procNum.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_funcPtr"), funcPtr.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_enabled"), 1.toBytes)
+
+    // wait for mask and service configs to take effect
     sleepCycles(20)
-
-    val toSend = Random.nextBytes(256).toList
 
     // test round-robin
     Seq.fill(3)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
+        val (packet, payload) = getPacket
+        val toSend = packet.getRawData.toList
         axisMaster.sendCB(toSend)()
 
         val coreBlock = allocFactory.readBack("core", idx)
-        var descOption: Option[PacketDescSim] = None
-        var tries = 5
-        while (descOption.isEmpty && tries > 0) {
-          descOption = readRxPacketDesc(master, coreBlock)
-          tries -= 1
+        val desc = tryReadRxPacketDesc(master, coreBlock).result.get
+        println(f"Received status register: $desc")
+
+        desc match { case OncRpcCallPacketDescSim(addr, size, fp, xid, args) =>
+          assert(funcPtr == fp, s"funcPtr mismatch: got $fp, expected $funcPtr")
+
+          val inlineMaxLen = c[Int]("max onc rpc inline bytes")
+
+          // check inline data
+          // TODO: check if args is endian-swapped correctly
+          val inlinedWords = args.toBytes
+          check(inlinedWords, payload.take(inlinedWords.length))
+
+          payload.length match {
+            case l if l > inlineMaxLen =>
+              assert(inlinedWords.length == inlineMaxLen, s"inlined words length mismatch: got ${inlinedWords.length}, expected $inlineMaxLen")
+              assert(size == l - inlineMaxLen, s"overflow payload length mismatch: got $size, expected ${l - inlineMaxLen}")
+              // check data
+              val data = master.read(pktBufAddr + addr, size)
+              check(data, payload.drop(inlineMaxLen))
+            case l =>
+              assert(size == 0, s"payload shorter than inline length but still overflowed: got $l bytes")
+          }
         }
-        val desc = descOption.get
-        println(f"Received packet @ ${desc.addr}%#x, ${desc.size} B")
-        assert(desc.size == toSend.length, s"packet length mismatch: got ${desc.size}, expected ${toSend.length}")
-        // we don't need to check data
       }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
