@@ -91,6 +91,26 @@ package object sim {
     ipPacket(IpNumber.UDP, udpBuilder)
   }
 
+  def oncRpcCallPacket(sport: Int, dport: Int, prog: Int, progVer: Int, procNum: Int, payload: List[Byte]) = {
+    // construct header
+    udpPacket(sport, dport,
+      rawPayloadBuilder(
+        Seq(
+          Random.nextInt(), // xid
+          0, // message type: Call (0)
+          2, // rpc version
+          prog,
+          progVer,
+          procNum,
+        ).flatMap(intToBytesBE(_)).toArray
+          // 16B credentials + verifier
+          ++ Array.fill(16)(0.toByte)
+          ++ payload
+      )
+    )
+  }
+
+  def rawPayloadBuilder(payload: Array[Byte]) = (new UnknownPacket.Builder).rawData(payload)
 
   def randomPacket(mtu: Int)(protocols: PacketType*): (Packet, PacketType) = {
     val proto = choose(protocols.iterator, Random)
@@ -102,7 +122,7 @@ package object sim {
       else totalLen - headerLen
     }
 
-    def rawPayloadBuilder() = (new UnknownPacket.Builder).rawData(Random.nextBytes(payloadLen))
+    def builder() = rawPayloadBuilder(Random.nextBytes(payloadLen))
 
     val ret = proto match {
       case Ethernet =>
@@ -112,20 +132,20 @@ package object sim {
             // we want random EtherType values, not 802.3 Length
             // exclude IP (0x0800)
             randomExclude(EtherType.IEEE802_3_MAX_LENGTH + 1, 0xFFFF)(0x0800).toShort),
-          rawPayloadBuilder())
+          builder())
 
       case Ip =>
         payloadLen = randomPayloadLen(14 + 20) // no IP extensions
         ipPacket(
           IpNumber.getInstance(randomExclude(0, 255)(6, 17).toByte),
-          rawPayloadBuilder())
+          builder())
 
       case Udp =>
         payloadLen = randomPayloadLen(14 + 20 + 8)
         udpPacket(
           Random.nextInt(65536),
           Random.nextInt(65536),
-          rawPayloadBuilder())
+          builder())
     }
 
     println(s"prepared $proto packet with payload len $payloadLen, mtu is $mtu")
