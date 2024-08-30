@@ -246,7 +246,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     sleepCycles(20)
 
     // test round-robin
-    Seq.fill(10)(0 until c[Int]("num cores")).flatten
+    Seq.fill(40)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         val (packet, payload) = getPacket
         val toSend = packet.getRawData.toList
@@ -264,12 +264,13 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
           // check inline data
           // TODO: check if args is endian-swapped correctly
-          // XXX: we drop extra bytes introduced by BigInt.toByteArray for sign bits
-          val inlinedWords = args.toBytes.take(inlineMaxLen)
+          // XXX: spinal.lib.LiteralRicher.toBytes adds an extra byte for positive BigInts
+          val inlinedWords = spinal.core.sim.SimBigIntPimper(args).toBytes().toList
           check(payload.take(inlinedWords.length), inlinedWords)
 
           payload.length match {
             case l if l > inlineMaxLen =>
+              // assert(inlinedWords.length == inlineMaxLen, s"inlined words length mismatch: got ${inlinedWords.length}, expected $inlineMaxLen")
               assert(size == l - inlineMaxLen, s"overflow payload length mismatch: got $size, expected ${l - inlineMaxLen}")
               // check data
               val data = master.read(pktBufAddr + addr, size)
@@ -277,6 +278,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
             case l =>
               assert(size == 0, s"payload shorter than inline length but still overflowed: got $l bytes")
           }
+
+          // TODO: free packet!
         }
       }
 
