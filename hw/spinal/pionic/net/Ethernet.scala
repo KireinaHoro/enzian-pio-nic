@@ -47,7 +47,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     val macAddress = Reg(Bits(48 bits)) init B("48'x0C_53_31_03_00_28") // zuestoll01 FPGA; changed at runtime
 
     awaitBuild()
-    val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)
+    val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)()
     decoder.io.input << macIf.rxStream
 
     // extract frame length

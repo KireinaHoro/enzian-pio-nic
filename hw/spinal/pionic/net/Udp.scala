@@ -57,7 +57,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     produce(metadata, payload)
     produceDone()
 
-    val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)
+    val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)()
 
     val currentIpHeader = ipHeader.toReg()
 

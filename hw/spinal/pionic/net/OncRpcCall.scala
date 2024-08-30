@@ -31,7 +31,11 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   val udpMeta = UdpMetadata()
 
   def getType = ProtoPacketDescType.oncRpcCall
-  def getPayloadSize: UInt = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
+  def getPayloadSize: UInt = {
+    val inlineLen = c[Int]("max onc rpc inline bytes")
+    val payloadLen = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
+    (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
+  }
   def collectHeaders: Bits = hdr.asBits ## udpMeta.collectHeaders
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData() setCompositeName (this, "union")
@@ -102,8 +106,9 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     produceDone()
 
     awaitBuild()
-    val decoder = AxiStreamExtractHeader(macIf.axisConfig, OncRpcCallHeader().getBitsWidth / 8)
-    // TODO: add extra decoder to decode first fields in the XDR payload
+    val minLen = OncRpcCallHeader().getBitsWidth / 8
+    val maxLen = minLen + c[Int]("max onc rpc inline bytes")
+    val decoder = AxiStreamExtractHeader(macIf.axisConfig, maxLen)(minLen)
     // TODO: endianness swap
     // TODO: variable length field memory allocation (arena-style?)
 
@@ -115,7 +120,8 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = OncRpcCallMetadata()
-      meta.hdr.assignFromBits(hdr)
+      meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
+      meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
       meta.udpMeta := currentUdpHeader
 
       val matches = serviceSlots.map(_.matchHeader(meta.hdr))
@@ -123,8 +129,6 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       // TODO: also drop malformed packets (e.g. payload too short)
 
       meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
-      // TODO: decode arguments
-      meta.args.assignDontCare()
 
       meta
     }
