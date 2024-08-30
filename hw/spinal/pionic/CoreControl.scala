@@ -214,14 +214,25 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
               }
             }
 
-            io.writeDesc.payload.payload.tag := tag.asBits
+            when (lastIgReq.getPayloadSize === 0) {
+              // no payload to DMA -- directly enqueue packet
+              rxCaptured.buffer.addr := rxAlloc.io.allocResp.addr
+              rxCaptured.buffer.size.bits := 0
+              rxCaptured.ty := tag.ty
+              rxCaptured.data := tag.data
+              rxCaptured.valid := True
 
-            io.writeDesc.valid := True
-            goto(allocated)
+              goto(enqueuePkt)
+            } otherwise {
+              // issue DMA cmd
+              io.writeDesc.payload.payload.tag := tag.asBits
+              io.writeDesc.valid := True
+              goto(sendDmaCmd)
+            }
           }
         }
       }
-      val allocated: State = new State {
+      val sendDmaCmd: State = new State {
         whenIsActive {
           rxAlloc.io.allocResp.ready := False
           when(io.writeDesc.ready) {
