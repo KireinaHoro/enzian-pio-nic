@@ -156,11 +156,9 @@ package object net {
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
      * @param coreMask enable mask of non-bypass cores; used for scheduling
-     * @param coreMaskChanged enable mask has changed (to update stream dispatcher)
-     *                        TODO: get rid of this?
      */
-    protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Bits, coreMaskChanged: Bool): Unit = {
-      host[RxPacketDispatchService].consume(payload, metadata, coreMask, coreMaskChanged) setCompositeName(this, "dispatch")
+    protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Flow[Bits]): Unit = {
+      host[RxPacketDispatchService].consume(payload, metadata, coreMask) setCompositeName(this, "dispatch")
     }
 
     /** Release retainer from packet dispatcher to allow it to continue elaborating */
