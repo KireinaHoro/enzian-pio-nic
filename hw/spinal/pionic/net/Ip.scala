@@ -70,7 +70,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     produce(metadata, payload)
     produceDone()
 
-    val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8) // IPv4 without options
+    val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8)() // IPv4 without options
     // TODO: chain output with secondary decoder to decode IP options
 
     val lastEthMeta = ethernetHeader.toReg()
