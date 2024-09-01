@@ -245,7 +245,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     sleepCycles(20)
 
     // test round-robin
-    Seq.fill(40)(0 until c[Int]("num cores")).flatten
+    Seq.fill(50)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         val (packet, payload) = getPacket
         val toSend = packet.getRawData.toList
@@ -278,7 +278,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
               assert(size == 0, s"payload shorter than inline length but still overflowed: got $l bytes")
           }
 
-          // TODO: free packet!
+          // free packet
+          master.write(coreBlock("hostRxAck"), desc.toAck.toBytes)
         }
       }
 
