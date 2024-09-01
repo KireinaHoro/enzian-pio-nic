@@ -222,8 +222,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     def getPacket = {
       // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
-      // val payloadWords = Random.nextInt(24)
-      val payloadWords = Random.between(14, 24)
+      val payloadWords = Random.nextInt(24)
       val payloadLen = payloadWords * 4
       val payload = Random.nextBytes(payloadLen).toList
       val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)

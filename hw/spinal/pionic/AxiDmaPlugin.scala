@@ -39,7 +39,8 @@ class AxiDmaPlugin extends PioNicPlugin {
 
     val packer = AxiStreamPacker(dmaConfig.axisConfig)
     host[RxPacketDispatchService].packetSink >> packer.s_axis
-    axiDma.s_axis_write_data << packer.m_axis
+    // packer does not remove completely NULL streams
+    axiDma.s_axis_write_data << packer.m_axis.throwWhen(packer.m_axis.payload.keep === 0)
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
