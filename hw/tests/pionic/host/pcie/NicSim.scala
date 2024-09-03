@@ -49,7 +49,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (master, axisMaster, axisSlave)
   }
 
-  def tryReadRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[PacketDescSim]] = {
+  def tryReadRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[HostPacketDescSim]] = {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
@@ -116,7 +116,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // check received protocol headers
     assert(desc.isInstanceOf[BypassPacketDescSim], "should only receive bypass packet!")
     val bypassDesc = desc.asInstanceOf[BypassPacketDescSim]
-    assert(proto.id == bypassDesc.ty, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.ty.toInt)}")
+    assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
     checkHeader(proto, packet, bypassDesc.pkt)
 
     // check payload length
@@ -135,7 +135,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     check(payload, data)
 
     // free packet buffer
-    master.write(coreBlock("hostRxAck"), desc.toAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
 
     val counter = master.read(coreBlock("rxPacketCount"), 8).bytesToBigInt
     assert(counter == 1 + counterBefore, s"retired packet count mismatch: expected ${counterBefore + 1}, got $counter")
@@ -162,14 +162,14 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
   test("tx-regular") { implicit dut =>
     val allocFactory = dut.host[RegAlloc].f
+    // test sending with bypass core
     val coreBlock = allocFactory.readBack("core")
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
     val (master, axisSlave) = txDutSetup()
 
     // get tx buffer address
-    var data = master.read(coreBlock("hostTx"), 8)
-    val desc = data.toTxPacketDesc
+    val desc = readTxBufDesc(master, coreBlock).get
     assert(desc.addr % c[Int]("axis data width") == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
@@ -179,13 +179,16 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // write packet data
     master.write(pktBufAddr + desc.addr, toSend)
     // receive from axis
+
+    var checkDone = false
     axisSlave.recvCB() { data =>
       check(toSend, data)
+      checkDone = true
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
-    master.write(coreBlock("hostTxAck"), toSend.length.toBytes)
+    master.write(coreBlock("hostTxAck"), desc.toTxAck.toBytes)
 
-    dut.clockDomain.waitActiveEdgeWhere(master.idle)
+    dut.clockDomain.waitActiveEdgeWhere(checkDone)
   }
 
   /** test enabling a ONCRPC service */
@@ -279,7 +282,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
           }
 
           // free packet
-          master.write(coreBlock("hostRxAck"), desc.toAck.toBytes)
+          master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
         }
       }
 
@@ -336,7 +339,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit
-    master.write(coreBlock("hostRxAck"), desc.toAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
 
     val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._
@@ -367,7 +370,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
 
     // commit
-    master.write(coreBlock("hostRxAck"), desc.toAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
 
     val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._
@@ -387,7 +390,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
     val toSend = Random.nextBytes(256).toList
-    val desc = master.read(coreBlock("hostTx"), 8).toTxPacketDesc
+    val desc = readTxBufDesc(master, coreBlock).get
     val delayed = 500
 
     master.write(pktBufAddr + desc.addr, toSend)
@@ -395,7 +398,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // insert delay
     fork {
       sleepCycles(delayed)
-      master.write(coreBlock("hostTxAck"), toSend.length.toBytes)
+      master.write(coreBlock("hostTxAck"), desc.toTxAck.toBytes)
     }
 
     // receive packet, check timestamps
