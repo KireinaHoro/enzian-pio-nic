@@ -38,6 +38,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core")
 
+    SimTimeout(1e10.toLong)
+
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
@@ -186,7 +188,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       checkDone = true
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
-    master.write(coreBlock("hostTxAck"), desc.toTxAck.toBytes)
+    println(s"Sending ${toSend.length} bytes")
+    master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxAck.toBytes)
 
     dut.clockDomain.waitActiveEdgeWhere(checkDone)
   }
@@ -398,7 +401,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // insert delay
     fork {
       sleepCycles(delayed)
-      master.write(coreBlock("hostTxAck"), desc.toTxAck.toBytes)
+      master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxAck.toBytes)
     }
 
     // receive packet, check timestamps
