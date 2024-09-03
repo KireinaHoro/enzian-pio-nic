@@ -256,7 +256,6 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
               rxCaptured.data := tag.data
               rxCaptured.valid := True
 
-              p.profile(p.RxAfterDmaWrite -> True)
               goto(enqueuePkt)
             } otherwise {
               inc(_.rxDmaErrorCount)
@@ -266,6 +265,9 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
         }
       }
       val enqueuePkt: State = new State {
+        onEntry {
+          p.profile(p.RxEnqueueToHost -> True)
+        }
         whenIsActive {
           when(rxCaptured.ready) {
             rxCaptured.setIdle()

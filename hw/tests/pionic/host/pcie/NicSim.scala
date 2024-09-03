@@ -194,6 +194,50 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dut.clockDomain.waitActiveEdgeWhere(checkDone)
   }
 
+  def oncRpcCallPacketFactory(master: Axi4Master, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine) = {
+    // generate ONCRPC packet
+    val sport, dport = Random.nextInt(65535)
+    val prog, progVer, procNum = Random.nextInt()
+    // 48-bit pointer; avoid generating negative number
+    val funcPtr = Random.nextLong(0x1000000000000L)
+
+    // dump generated packet
+    val dumper = if (dumpPacket) Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString) else null
+
+    // enable all cores by default
+    master.write(globalBlock("oncRpcCtrl", "coreMask"), b"11111111".toBytes) // mask
+
+    // TODO: also test non promisc mode
+    master.write(globalBlock("promisc"), 1.toBytes)
+
+    // activate service
+    master.write(globalBlock("oncRpcCtrl", "listenPort_0"), dport.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "listenPort_0_enabled"), 1.toBytes)
+
+    master.write(globalBlock("oncRpcCtrl", "service_0_progNum"), prog.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_progVer"), progVer.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_proc"), procNum.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_funcPtr"), funcPtr.toBytes)
+    master.write(globalBlock("oncRpcCtrl", "service_0_enabled"), 1.toBytes)
+
+    // wait for mask and service configs to take effect
+    sleepCycles(20)
+
+    def getPacket = {
+      // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
+      val payloadWords = Random.nextInt(24)
+      val payloadLen = payloadWords * 4
+      val payload = Random.nextBytes(payloadLen).toList
+      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
+      if (dumper != null) {
+        dumper.dump(packet)
+        dumper.flush()
+      }
+      (packet, payload)
+    }
+    (funcPtr, getPacket _)
+  }
+
   /** test enabling a ONCRPC service */
   test("rx-oncrpc-roundrobin") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
@@ -211,49 +255,15 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
+    val (funcPtr, getPacket) = oncRpcCallPacketFactory(master, globalBlock, dumpPacket = true)
+
     val mask = b"01101110"
     master.write(globalBlock("oncRpcCtrl", "coreMask"), mask.toBytes) // mask
-
-    // TODO: also test non promisc mode
-    master.write(globalBlock("promisc"), 1.toBytes)
-
-    // generate ONCRPC packet
-    val sport, dport = Random.nextInt(65535)
-    val prog, progVer, procNum = Random.nextInt()
-    // 48-bit pointer; avoid generating negative number
-    val funcPtr = Random.nextLong(0x1000000000000L)
-
-    // dump generated packet
-    val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString)
-
-    def getPacket = {
-      // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
-      val payloadWords = Random.nextInt(24)
-      val payloadLen = payloadWords * 4
-      val payload = Random.nextBytes(payloadLen).toList
-      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
-      dumper.dump(packet)
-      dumper.flush()
-      (packet, payload)
-    }
-
-    // activate service
-    master.write(globalBlock("oncRpcCtrl", "listenPort_0"), dport.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "listenPort_0_enabled"), 1.toBytes)
-
-    master.write(globalBlock("oncRpcCtrl", "service_0_progNum"), prog.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_progVer"), progVer.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_proc"), procNum.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_funcPtr"), funcPtr.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_enabled"), 1.toBytes)
-
-    // wait for mask and service configs to take effect
-    sleepCycles(20)
 
     // test round-robin
     Seq.fill(50)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
-        val (packet, payload) = getPacket
+        val (packet, payload) = getPacket()
         val toSend = packet.getRawData.toList
         axisMaster.sendCB(toSend)()
 
@@ -298,14 +308,14 @@ class NicSim extends DutSimFunSuite[NicEngine] {
       val afterRxQueue = master.read(globalBlock("lastProfile", "RxAfterCdcQueue"), 8).bytesToBigInt
       val readStart = master.read(globalBlock("lastProfile", "RxCoreReadStart"), 8).bytesToBigInt
       val afterRead = master.read(globalBlock("lastProfile", "RxCoreReadFinish"), 8).bytesToBigInt
-      val afterDmaWrite = master.read(globalBlock("lastProfile", "RxAfterDmaWrite"), 8).bytesToBigInt
+      val enqueueToHost = master.read(globalBlock("lastProfile", "RxEnqueueToHost"), 8).bytesToBigInt
       val afterRxCommit = master.read(globalBlock("lastProfile", "RxCoreCommit"), 8).bytesToBigInt
 
       println(s"RxCmacEntry: $entry")
       println(s"RxAfterCdcQueue: $afterRxQueue")
       println(s"RxCoreReadStart: $readStart")
       println(s"RxCoreReadFinish: $afterRead")
-      println(s"RxAfterDmaWrite: $afterDmaWrite")
+      println(s"RxEnqueueToHost: $enqueueToHost")
       println(s"RxCoreCommit: $afterRxCommit")
     }
   }
@@ -325,13 +335,16 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   }
 
   test("rx-timestamped-queued") { implicit dut =>
+    // test timestamp collection with oncrpc call
     val (master, axisMaster) = rxDutSetup(10000)
 
     val allocFactory = dut.host[RegAlloc].f
     val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
+    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
-    val toSend = Random.nextBytes(256).toList
+    val (_, getPacket) = oncRpcCallPacketFactory(master, globalBlock)
+    val (packet, _) = getPacket()
+    val toSend = packet.getRawData.toList
 
     axisMaster.send(toSend)
     // ensure that the packet has landed
@@ -349,7 +362,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     println(s"Current timestamp: $timestamp")
 
-    assert(isSorted(entry, afterRxQueue, afterDmaWrite, readStart, afterRead, timestamp, afterRxCommit))
+    assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, afterRead, timestamp, afterRxCommit))
     assert(readStart - entry >= delayed - 2)
   }
 
@@ -358,9 +371,11 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     val allocFactory = dut.host[RegAlloc].f
     val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
+    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
-    val toSend = Random.nextBytes(256).toList
+    val (_, getPacket) = oncRpcCallPacketFactory(master, globalBlock)
+    val (packet, _) = getPacket()
+    val toSend = packet.getRawData.toList
     val delayed = 500
 
     fork {
@@ -380,7 +395,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     println(s"Current timestamp: $timestamp")
 
-    assert(isSorted(readStart, entry, afterRxQueue, afterDmaWrite, afterRead, timestamp, afterRxCommit))
+    assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, afterRead, timestamp, afterRxCommit))
     assert(entry - readStart >= delayed)
   }
 
