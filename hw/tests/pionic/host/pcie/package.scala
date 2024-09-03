@@ -9,8 +9,13 @@ import spinal.core.{IntToBuilder, roundUp}
 import spinal.lib.bus.amba4.axi.sim.Axi4Master
 
 package object pcie {
+  def aw(implicit c: ConfigDatabase) = c[Int]("pkt buf addr width")
+  def lw(implicit c: ConfigDatabase) = c[Int]("pkt buf len width")
+  def tw(implicit c: ConfigDatabase) = c[Int]("host packet desc type width")
+  def dw(implicit c: ConfigDatabase) = c[Int]("host packet desc data width")
+
   def readRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack)(implicit c: ConfigDatabase): Option[HostPacketDescSim] = {
-    val numBytes = roundUp(c[Int]("host packet desc width"), 8) / 8
+    val numBytes = roundUp(aw+lw+tw+dw, 8) / 8
     val data = master.read(coreBlock("hostRx"), numBytes).bytesToBigInt
     (data & 1).toInt match {
       case 0 => None
@@ -21,8 +26,6 @@ package object pcie {
   def readTxBufDesc(master: Axi4Master, coreBlock: RegBlockReadBack)(implicit c: ConfigDatabase): Option[PacketBufDescSim] = {
     val data = master.read(coreBlock("hostTx"), 8).bytesToBigInt
     if (data(0)) {
-      val aw = c[Int]("pkt buf addr width")
-      val lw = c[Int]("pkt buf len width")
       Some(PacketBufDescSim(data(aw downto 1), data(aw + lw downto aw + 1)))
     } else {
       None
@@ -37,22 +40,16 @@ package object pcie {
 
     /** generate a [[pionic.PacketBufDesc]] for freeing */
     def toRxAck(implicit c: ConfigDatabase): BigInt = {
-      val aw = c[Int]("pkt buf addr width")
-      val lw = c[Int]("pkt buf len width")
       BigInt(0)
         .assignToRange(aw-1     downto 0, addr)
         .assignToRange(aw+lw-1  downto aw, size)
     }
     def toTxAck(implicit c: ConfigDatabase): BigInt = {
-      val aw = c[Int]("pkt buf addr width")
-      val lw = c[Int]("pkt buf len width")
-      val htw = c[Int]("host packet desc type width")
-      val dw = c[Int]("host packet desc width")
       BigInt(0)
-        .assignToRange(htw-1          downto 0, ty)
-        .assignToRange(htw+dw-1       downto htw, data)
-        .assignToRange(htw+dw+aw-1    downto htw+dw, addr)
-        .assignToRange(htw+dw+aw+lw-1 downto htw+dw+aw, size)
+        .assignToRange(tw-1          downto 0, ty)
+        .assignToRange(tw+dw-1       downto tw, data)
+        .assignToRange(tw+dw+aw-1    downto tw+dw, addr)
+        .assignToRange(tw+dw+aw+lw-1 downto tw+dw+aw, size)
     }
   }
   case class PacketBufDescSim(addr: BigInt, size: BigInt) extends HostPacketDescSim {
@@ -69,12 +66,10 @@ package object pcie {
     // TODO: implement when we have the TX encoder pipeline
     def ty = 1
     def data = {
-      val dw = c[Int]("host packet desc width")
       val btw = c[Int]("proto packet desc type width")
       BigInt(0)
         .assignToRange(btw-1 downto 0, packetType)
-        .assignToRange(dw-1  downto btw, packetHdr)
-    }
+        .assignToRange(dw-1  downto btw, packetHdr) }
   }
   case class OncRpcCallPacketDescSim(addr: BigInt, size: BigInt, funcPtr: BigInt, xid: BigInt, args: BigInt)(implicit c: ConfigDatabase) extends HostPacketDescSim {
     // TODO: implement when we have the TX encoder pipeline
@@ -104,15 +99,10 @@ package object pcie {
 
   object HostPacketDescSim {
     def fromBigInt(v: BigInt)(implicit c: ConfigDatabase) = {
-      val aw = c[Int]("pkt buf addr width")
-      val lw = c[Int]("pkt buf len width")
-      val htw = c[Int]("host packet desc type width")
-      val dw = c[Int]("host packet desc width")
-
-      val addr = v(aw-1           downto 0).toInt
-      val size = v(aw+lw-1        downto aw).toInt
-      val ty =   v(aw+lw+htw-1    downto aw+lw).toInt
-      val data = v(aw+lw+htw+dw-1 downto aw+lw+htw)
+      val ty =   v(tw-1          downto 0).toInt
+      val data = v(tw+dw-1       downto tw)
+      val addr = v(tw+dw+aw-1    downto tw+dw).toInt
+      val size = v(tw+dw+aw+lw-1 downto tw+dw+aw).toInt
       ty match {
         case 0 => throw new RuntimeException("error host packet desc received")
         case 1 =>
