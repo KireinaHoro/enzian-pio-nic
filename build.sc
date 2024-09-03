@@ -27,7 +27,7 @@ trait SpinalDep { this: ScalaModule =>
 
 object spinalCore extends deps.spinalhdl.build.Core with ApplyScalaVersion with SpinalDep { def name = "core" }
 object spinalLib extends deps.spinalhdl.build.Lib with ApplyScalaVersion with SpinalDep { def name = "lib" }
-object spinalTester extends deps.spinalhdl.build.CrossTester with ApplyScalaVersion with SpinalDep { def name = "tester" }
+object spinalTester extends deps.spinalhdl.build.Tester with ApplyScalaVersion with SpinalDep { def name = "tester" }
 object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with ApplyScalaVersion with SpinalDep { def name = "idslplugin" }
 
 object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVersion {
