@@ -48,9 +48,10 @@ case class HostPacketDescData()(implicit c: ConfigDatabase) extends Union {
 case class HostPacketDesc()(implicit c: ConfigDatabase) extends Bundle {
   override def clone = HostPacketDesc()
 
-  val buffer = PacketBufDesc()
   val ty = HostPacketDescType()
   val data = HostPacketDescData()
+  // we place buffer info at the end to always trigger stream valid (for PCIe)
+  val buffer = PacketBufDesc()
 }
 
 /**
@@ -70,7 +71,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
   withPrefix(s"core_$coreID")
   def isBypass = coreID == 0
 
-  postConfig("host packet desc width", HostPacketDesc().getBitsWidth)
+  postConfig("host packet desc data width", HostPacketDescData().getBitsWidth)
   postConfig("host packet desc type width", HostPacketDescType().getBitsWidth)
   // FIXME: think of a way to automate this -- with reflection?
   // TODO: generic framework to dump Bundle/Union structure
