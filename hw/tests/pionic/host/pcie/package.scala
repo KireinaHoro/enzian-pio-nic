@@ -46,10 +46,13 @@ package object pcie {
     }
     def toTxAck(implicit c: ConfigDatabase): BigInt = {
       BigInt(0)
-        .assignToRange(tw-1          downto 0, ty)
-        .assignToRange(tw+dw-1       downto tw, data)
-        .assignToRange(tw+dw+aw-1    downto tw+dw, addr)
-        .assignToRange(tw+dw+aw+lw-1 downto tw+dw+aw, size)
+        // FIXME: alignment on CPU?
+        .assignToRange(aw-1          downto 0, addr)
+        .assignToRange(aw+lw-1       downto aw, size)
+        .assignToRange(aw+lw+tw-1    downto aw+lw, ty)
+        .assignToRange(aw+lw+tw+dw-1 downto aw+lw+tw, data)
+        // XXX: set one extra bit to trigger writing to last word
+        .assignToRange(aw+lw+tw+dw   downto aw+lw+tw+dw, 1)
     }
   }
   case class PacketBufDescSim(addr: BigInt, size: BigInt) extends HostPacketDescSim {
@@ -99,10 +102,10 @@ package object pcie {
 
   object HostPacketDescSim {
     def fromBigInt(v: BigInt)(implicit c: ConfigDatabase) = {
-      val ty =   v(tw-1          downto 0).toInt
-      val data = v(tw+dw-1       downto tw)
-      val addr = v(tw+dw+aw-1    downto tw+dw).toInt
-      val size = v(tw+dw+aw+lw-1 downto tw+dw+aw).toInt
+      val addr = v(aw-1          downto 0).toInt
+      val size = v(aw+lw-1       downto aw).toInt
+      val ty =   v(aw+lw+tw-1    downto aw+lw).toInt
+      val data = v(aw+lw+tw+dw-1 downto aw+lw+tw)
       ty match {
         case 0 => throw new RuntimeException("error host packet desc received")
         case 1 =>
