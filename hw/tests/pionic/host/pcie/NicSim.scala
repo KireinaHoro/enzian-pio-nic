@@ -51,7 +51,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (master, axisMaster, axisSlave)
   }
 
-  def tryReadRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[HostPacketDescSim]] = {
+  def tryReadRxPacketDesc(master: Axi4Master, coreBlock: RegBlockReadBack, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[PcieHostPacketDescSim]] = {
     if (maxTries == 0) done(None)
     else {
       println(s"Reading packet desc, $maxTries tries left...")
@@ -116,8 +116,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     assert(desc.addr < c[Int]("pkt buf size per core"), f"packet address out of bounds: ${desc.addr}%#x")
 
     // check received protocol headers
-    assert(desc.isInstanceOf[BypassPacketDescSim], "should only receive bypass packet!")
-    val bypassDesc = desc.asInstanceOf[BypassPacketDescSim]
+    assert(desc.isInstanceOf[BypassPacketDescSimPcie], "should only receive bypass packet!")
+    val bypassDesc = desc.asInstanceOf[BypassPacketDescSimPcie]
     assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
     checkHeader(proto, packet, bypassDesc.pkt)
 
@@ -272,7 +272,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
         val desc = tryReadRxPacketDesc(master, coreBlock).result.get
         println(f"Received status register: $desc")
 
-        desc match { case OncRpcCallPacketDescSim(addr, size, fp, xid, args) =>
+        desc match { case OncRpcCallPacketDescSimPcie(addr, size, fp, xid, args) =>
           assert(funcPtr == fp, s"funcPtr mismatch: got $fp, expected $funcPtr")
 
           val inlineMaxLen = c[Int]("max onc rpc inline bytes")
