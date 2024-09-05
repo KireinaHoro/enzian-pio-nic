@@ -14,35 +14,6 @@ import spinal.lib.misc.plugin.FiberPlugin
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
-/**
- * Control info struct sent to the CPU in cache-line reloads for RX packets.
- *
- * This is separate from the rest of the data inside packet buffer because:
- * - it is expensive to enable unaligned access for the AXI DMA engine
- * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
- */
-case class RxHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
-  val ty = HostPacketDescType()
-  val data = HostPacketDescData()
-
-  // plus one for readStreamBlockCycles
-  assert(getBitsWidth + 1 <= c[Int]("max host desc size") * 8, "rx packet info larger than half a cacheline")
-}
-
-/**
- * Control info struct received from the CPU for TX packets.
- *
- * We need the length field here to know how many cache-lines we should invalidate.  This is also used by the
- * AXI DMA to fetch exactly what's used from the packet buffer.
- */
-case class TxHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
-  val ty = HostPacketDescType()
-  val len = PacketLength()
-  val data = HostPacketDescData()
-
-  assert(getBitsWidth <= c[Int]("max host desc size") * 8, s"tx packet info larger than half a cacheline ($getBitsWidth)")
-}
-
 class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
   withPrefix(s"core_$coreID")
 
@@ -111,11 +82,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
 
       // we latch the rx stream during any possible host reload replays
-      val rxHostCtrlInfo = Stream(RxHostCtrlInfo())
-      rxHostCtrlInfo.valid := logic.demuxedRxDescs(idx).valid
-      // drop packet buffer info
-      rxHostCtrlInfo.payload.assignAllByName(logic.demuxedRxDescs(idx).payload)
-      logic.demuxedRxDescs(idx).ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
+      val rxDesc = logic.demuxedRxDescs(idx)
+      val rxHostCtrlInfo = Stream(EciHostCtrlInfo())
+      rxHostCtrlInfo.valid := rxDesc.valid
+      rxHostCtrlInfo.ty := rxDesc.ty
+      rxHostCtrlInfo.data := rxDesc.data
+      rxHostCtrlInfo.len := rxDesc.buffer.size
+      rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
@@ -311,7 +284,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
     }
 
-    val txHostCtrlInfo = Vec(Stream(TxHostCtrlInfo()), 2)
+    val txHostCtrlInfo = Vec(Stream(EciHostCtrlInfo()), 2)
     when (txHostCtrlInfo.map(_.fire).reduceBalancedTree(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
