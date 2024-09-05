@@ -212,11 +212,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
     var received = false
     fork {
       val data = axisSlave.recv()
-
       check(toSend, data)
-
       println(s"Core $cid: packet received from TX interface and validated")
-
       received = true
     }
 
@@ -224,8 +221,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
       c[Int]("eci tx base") +
       c[Int]("eci core offset") * cid
 
-    println(f"Core $cid: sending packet of length ${toSend.length}, writing packet desc to $clAddr%#x...")
-    dcsMaster.write(clAddr, toSend.length.toBytes)
+    val txDesc = ErrorCtrlInfoSim(toSend.length)
+    println(f"Core $cid: sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
+    dcsMaster.write(clAddr, txDesc.toBytes)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
@@ -248,15 +246,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
     // packet will be acknowledged by writing next packet
   }
 
+  // TODO: convert this to a tx bypass test
   def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
-    val allocFactory = dut.host[RegAlloc].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
-
-    // set core mask to only schedule to one core
-    val mask = 1 << cid
-    csrMaster.write(globalBlock("dispatchMask"), mask.toBytes) // mask
-
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>

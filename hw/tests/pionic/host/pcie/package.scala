@@ -19,11 +19,11 @@ package object pcie {
     }
   }
 
-  def readTxBufDesc(master: Axi4Master, coreBlock: RegBlockReadBack)(implicit c: ConfigDatabase): Option[PacketBufDescSimPcie] = {
+  def readTxBufDesc(master: Axi4Master, coreBlock: RegBlockReadBack)(implicit c: ConfigDatabase): Option[ErrorPacketDescSimPcie] = {
     import Widths._
     val data = master.read(coreBlock("hostTx"), 8).bytesToBigInt
     if (data(0)) {
-      Some(PacketBufDescSimPcie(data(aw downto 1), data(aw + lw downto aw + 1)))
+      Some(ErrorPacketDescSimPcie(data(aw downto 1), data(aw + lw downto aw + 1)))
     } else {
       None
     }

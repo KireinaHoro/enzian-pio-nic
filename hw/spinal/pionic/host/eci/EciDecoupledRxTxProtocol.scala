@@ -366,7 +366,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
       val tx: State = new State {
         whenIsActive {
-          hostTxAck.get.assignSomeByName(savedTxHostCtrl)
+          hostTxAck.get.ty := savedTxHostCtrl.ty
+          hostTxAck.get.data := savedTxHostCtrl.data
           hostTxAck.get.buffer.size := savedTxHostCtrl.len
           hostTxAck.get.buffer.addr := savedTxAddr.addr
           hostTxAck.valid := True

@@ -6,11 +6,15 @@ import spinal.core.IntToBuilder
 import jsteward.blocks.misc.sim.BigIntRicher
 
 sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
+  import Widths._
   def len: Int
-  // FIXME: is this abstraction enough for both decoupled and coupled protocols?
-  def toRxAck(implicit c: ConfigDatabase): BigInt = BigInt(0)
-  // TODO: what do we send back?
-  def toTxAck(implicit c: ConfigDatabase): BigInt = BigInt(0)
+  def toBigInt(implicit c: ConfigDatabase): BigInt = BigInt(0)
+    .assignToRange(tw-1       downto 0, ty)
+    .assignToRange(tw+lw-1    downto tw, len)
+    .assignToRange(tw+lw+dw-1 downto tw+lw, data)
+  def toBytes(implicit c: ConfigDatabase): List[Byte] = spinal.core.sim.SimBigIntPimper(toBigInt)
+    // make sure we encode all zero bytes as well
+    .toBytes(tw+lw+dw).toList
 }
 
 object EciHostCtrlInfoSim {
@@ -42,6 +46,8 @@ object EciHostCtrlInfoSim {
   }
 }
 
+/** only used when Tx pipeline is not implemented */
+case class ErrorCtrlInfoSim(len: Int) extends EciHostCtrlInfoSim with ErrorPacketDescSim
 case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends EciHostCtrlInfoSim with BypassPacketDescSim
 case class OncRpcCallCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallPacketDescSim
 case class OncRpcReplyCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, rets: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyPacketDescSim
