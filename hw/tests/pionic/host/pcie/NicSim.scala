@@ -18,7 +18,7 @@ import scala.util.control.TailCalls._
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.namednumber.DataLinkType
 
-class NicSim extends DutSimFunSuite[NicEngine] {
+class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
   // TODO: test on multiple configs
   implicit val c = new ConfigDatabase
   c.post("num cores", 8, action = ConfigDatabase.Override) // to test for dispatching
@@ -184,50 +184,6 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     dut.clockDomain.waitActiveEdgeWhere(checkDone)
   }
 
-  def oncRpcCallPacketFactory(master: Axi4Master, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine) = {
-    // generate ONCRPC packet
-    val sport, dport = Random.nextInt(65535)
-    val prog, progVer, procNum = Random.nextInt()
-    // 48-bit pointer; avoid generating negative number
-    val funcPtr = Random.nextLong(0x1000000000000L)
-
-    // dump generated packet
-    val dumper = if (dumpPacket) Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString) else null
-
-    // enable all cores by default
-    master.write(globalBlock("oncRpcCtrl", "coreMask"), b"11111111".toBytes) // mask
-
-    // TODO: also test non promisc mode
-    master.write(globalBlock("promisc"), 1.toBytes)
-
-    // activate service
-    master.write(globalBlock("oncRpcCtrl", "listenPort_0"), dport.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "listenPort_0_enabled"), 1.toBytes)
-
-    master.write(globalBlock("oncRpcCtrl", "service_0_progNum"), prog.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_progVer"), progVer.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_proc"), procNum.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_funcPtr"), funcPtr.toBytes)
-    master.write(globalBlock("oncRpcCtrl", "service_0_enabled"), 1.toBytes)
-
-    // wait for mask and service configs to take effect
-    sleepCycles(20)
-
-    def getPacket = {
-      // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
-      val payloadWords = Random.nextInt(24)
-      val payloadLen = payloadWords * 4
-      val payload = Random.nextBytes(payloadLen).toList
-      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
-      if (dumper != null) {
-        dumper.dump(packet)
-        dumper.flush()
-      }
-      (packet, payload)
-    }
-    (funcPtr, getPacket _)
-  }
-
   /** test enabling a ONCRPC service */
   test("rx-oncrpc-roundrobin") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
@@ -262,31 +218,11 @@ class NicSim extends DutSimFunSuite[NicEngine] {
         val desc = tryReadRxPacketDesc(master, coreBlock).result.get
         println(f"Received status register: $desc")
 
-        desc match { case OncRpcCallPacketDescSimPcie(addr, size, fp, xid, args) =>
-          assert(funcPtr == fp, s"funcPtr mismatch: got $fp, expected $funcPtr")
+        assert(desc.isInstanceOf[OncRpcCallPacketDescSimPcie], s"desc type unexpected")
+        checkOncRpcCall(desc, desc.size.toInt, funcPtr, payload, master.read(pktBufAddr + desc.addr, desc.size))
 
-          val inlineMaxLen = c[Int]("max onc rpc inline bytes")
-
-          // check inline data
-          // TODO: check if args is endian-swapped correctly
-          // XXX: spinal.lib.LiteralRicher.toBytes adds an extra byte for positive BigInts
-          val inlinedWords = spinal.core.sim.SimBigIntPimper(args).toBytes().toList
-          check(payload.take(inlinedWords.length), inlinedWords)
-
-          payload.length match {
-            case l if l > inlineMaxLen =>
-              // assert(inlinedWords.length == inlineMaxLen, s"inlined words length mismatch: got ${inlinedWords.length}, expected $inlineMaxLen")
-              assert(size == l - inlineMaxLen, s"overflow payload length mismatch: got $size, expected ${l - inlineMaxLen}")
-              // check data
-              val data = master.read(pktBufAddr + addr, size)
-              check(payload.drop(inlineMaxLen), data)
-            case l =>
-              assert(size == 0, s"payload shorter than inline length but still overflowed: got $l bytes")
-          }
-
-          // free packet
-          master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
-        }
+        // free packet
+        master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
       }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
