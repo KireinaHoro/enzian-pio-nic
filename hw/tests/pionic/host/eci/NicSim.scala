@@ -18,7 +18,7 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
-class NicSim extends DutSimFunSuite[NicEngine] {
+class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
   implicit val c = new ConfigDatabase
   c.post("host interface", "eci")
 
@@ -69,7 +69,8 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
+  // we have one more core as bypass
+  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores") + 1)(0)
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
@@ -184,7 +185,27 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  // TODO: test oncrpc on multiple cores
+  /** test enabling an ONCRPC service */
+  test("rx-oncrpc-roundrobin") { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+
+    val (funcPtr, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock, dumpPacket = true)
+
+    Seq.fill(50)(0 until c[Int]("num cores")).flatten.foreach { idx =>
+      val (packet, payload) = getPacket()
+      val toSend = packet.getRawData.toList
+      // asynchronously send
+      axisMaster.sendCB(toSend)()
+
+      val cid = idx + 1
+      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid).result.get
+      println(f"Received status register: $desc")
+
+      checkOncRpcCall(desc, desc.len, funcPtr, payload, dcsMaster.read(overflowAddr, desc.len))
+    }
+  }
 
   var txNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {

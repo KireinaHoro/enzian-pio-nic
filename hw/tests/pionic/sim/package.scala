@@ -1,7 +1,7 @@
 package pionic
 
-import org.pcap4j.packet._
 import jsteward.blocks.misc.sim._
+import org.pcap4j.packet._
 import org.pcap4j.packet.namednumber._
 import org.pcap4j.util.MacAddress
 import spinal.core.IntToBuilder
