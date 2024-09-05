@@ -2,7 +2,10 @@ package pionic.host.eci
 
 import jsteward.blocks.eci.sim.DcsAppMaster
 import jsteward.blocks.DutSimFunSuite
+import org.pcap4j.packet.Packet
 import pionic._
+import pionic.sim._
+import pionic.sim.PacketType.PacketType
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
@@ -13,19 +16,7 @@ import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
-
 import org.scalatest.tagobjects.Slow
-
-case class CtrlInfoSim(size: BigInt, addr: BigInt)
-
-object CtrlInfoSim {
-  def fromBigInt(v: BigInt, nextCl: Int, cid: Int)(implicit dut: NicEngine) = {
-    val c = dut.host[ConfigDatabase]
-    CtrlInfoSim(v & c[Int]("pkt buf len mask"),
-      // since we flipped nextCl already
-      (1 - nextCl) * 0x80 + 0x40 + c[Int]("eci rx base") + c[Int]("eci core offset") * cid)
-  }
-}
 
 class NicSim extends DutSimFunSuite[NicEngine] {
   implicit val c = new ConfigDatabase
@@ -79,12 +70,12 @@ class NicSim extends DutSimFunSuite[NicEngine] {
   }
 
   val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
-
-  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[CtrlInfoSim]] = {
+  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
       val clAddr = rxNextCl(cid) * 0x80 +
         c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val overflowAddr = clAddr + 0x40
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       val control = dcsMaster.read(clAddr, 64).bytesToBigInt
@@ -95,32 +86,43 @@ class NicSim extends DutSimFunSuite[NicEngine] {
         tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1))
       } else {
         // got packet!
-        done(Some(CtrlInfoSim.fromBigInt(control >> 1, rxNextCl(cid), cid)))
+        done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
       }
     }
   }
 
-  def rxSingle(dcsMaster: DcsAppMaster, cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): List[Byte] = {
-    val info = tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.get
+  /** read back and check one single bypass packet */
+  def rxSingle(dcsMaster: DcsAppMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+    val (info, addr) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
-    val sz = info.size.toInt
+    assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
 
-    val firstReadSize = Math.min(sz, 64)
-    var data = dcsMaster.read(info.addr, firstReadSize)
-    if (sz > 64) {
+    val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
+    assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
+    checkHeader(proto, packet, bypassDesc.pkt)
+
+    // check payload length
+    val payload = getPayloadAndCheckLen(packet, proto, info.len)
+
+    // read payload back and check data
+    val firstReadSize = Math.min(payload.length, 64)
+    var data = dcsMaster.read(addr, firstReadSize)
+    if (payload.length > 64) {
       data ++= dcsMaster.read(
         c[Int]("eci rx base") +
-          c[Int]("eci overflow offset") +
-          c[Int]("eci core offset") * cid,
-        sz - 64)
+          c[Int]("eci overflow offset"),
+        payload.length - 64)
     }
 
-    data
+    check(payload, data)
   }
 
-  def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, toSend: List[Byte], cid: Int = 0, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+  /** test reading one bypass packet; when called multiple times, this checks in a blockign fashion */
+  def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
     fork {
       sleepCycles(Random.nextInt(200))
+
+      val toSend = packet.getRawData.toList
       axisMaster.send(toSend)
       println(s"Sent packet of length ${toSend.length}")
     }
@@ -128,24 +130,19 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // TODO: check performance counters
 
     // read memory and check data
-    val data = rxSingle(dcsMaster, cid, maxRetries)
-    check(toSend, data)
+    rxSingle(dcsMaster, packet, proto, maxRetries)
 
-    println(s"Successfully received packet $info")
+    println(s"Successfully received packet")
 
     // packet will be acknowledged by reading next packet
   }
 
-  def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int, maxRetries: Int)(implicit dut: NicEngine) = {
+  /** test scanning a range of lengths of packets to send and check */
+  def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, maxRetries: Int)(implicit dut: NicEngine) = {
     val allocFactory = dut.host[RegAlloc].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core", cid)
+    val coreBlock = allocFactory.readBack("core", blockIdx = 0)
 
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
-
-    // set core mask to only schedule to one core
-    val mask = 1 << cid
-    csrMaster.write(globalBlock("dispatchMask"), mask.toBytes) // mask
 
     // reset packet allocator
     csrMaster.write(coreBlock("allocReset"), 1.toBytes)
@@ -155,36 +152,41 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
-        val toSend = Random.nextBytes(size).toList
-        rxTestSimple(dcsMaster, axisMaster, toSend, cid, maxRetries = maxRetries)
+        import PacketType._
+        val (packet, proto) = randomPacket(size, randomizeLen = false)(Ethernet, Ip, Udp)
+        rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
       }
     }
 
     // TODO: check DCS master cacheline state
   }
 
-  def rxScanOnCore(cid: Int) = test(s"rx-scan-sizes-core$cid", Slow) { implicit dut =>
+  test("rx-bypass-scan-sizes", Slow) { implicit dut =>
     // set a large enough rx block cycles, such that there shouldn't be a need to retry
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(5000000) // 20 ms @ 250 MHz
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
 
-    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, cid, maxRetries = 0)
+    // enable promisc mode
+    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+
+    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
 
-  0 until c[Int]("num cores") foreach rxScanOnCore
-
-  test("rx-all-cores-serialized") { implicit dut =>
+  test("rx-bypass-simple") { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
 
-    0 until c[Int]("num cores") foreach { idx =>
-      println(s"====> Testing core $idx")
-      rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, idx, maxRetries = 5)
-    }
+    // enable promisc mode
+    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+
+    rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  // TODO: test multiple cores interleaving
+  // TODO: test oncrpc on multiple cores
 
   var txNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
-
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     var received = false
     fork {
@@ -271,34 +273,36 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     }
   }
 
-  test("rx-multiple-packets") { implicit dut =>
+  test("rx-bypass-pipelined") { implicit dut =>
     val allocFactory = dut.host[RegAlloc].f
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
     val globalBlock = allocFactory.readBack("global")
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
-    val mask = 1
     val numPackets = 5
-    csrMaster.write(globalBlock("dispatchMask"), mask.toBytes)
 
-    val toCheck = new mutable.Queue[List[Byte]]
+    // enable promisc mode
+    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+
+    val toCheck = new mutable.Queue[(Packet, PacketType)]
     val size = 128
     fork {
       0 until numPackets foreach { pid =>
-        val toSend = Random.nextBytes(size).toList
+        import PacketType._
+        val (packet, proto) = randomPacket(size)(Ethernet, Ip, Udp)
+        val toSend = packet.getRawData.toList
         axisMaster.send(toSend)
         println(s"Sent packet #$pid of length ${toSend.length}")
 
-        toCheck.enqueue(toSend)
+        toCheck.enqueue((packet, proto))
       }
     }
 
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
-      val toRecv = toCheck.dequeue()
-      val data = rxSingle(dcsMaster, maxRetries = 0)
-      check(toRecv, data)
+      val (packet, proto) = toCheck.dequeue()
+      rxSingle(dcsMaster, packet, proto, maxRetries = 0)
 
-      println(s"Received packet #$pid of length ${data.length}")
+      println(s"Received packet #$pid")
       sleepCycles(20)
     }
   }
