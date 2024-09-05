@@ -91,7 +91,6 @@ class NicSim extends DutSimFunSuite[NicEngine] {
 
     import PacketType._
     val (packet, proto) = randomPacket(c[Int]("mtu"))(Ethernet, Ip, Udp)
-    val payload = packet.get(typeToPcap4jClass(proto)).getPayload.getRawData.toList
 
     fork {
       sleepCycles(20)
@@ -121,16 +120,7 @@ class NicSim extends DutSimFunSuite[NicEngine] {
     assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
     checkHeader(proto, packet, bypassDesc.pkt)
 
-    // check payload length
-    // Ethernet enforces a 64 B frame => 14 B hdr + 46 B payload + 4 B FCS.  Smaller packets will be padded
-    val minDescLen = proto match {
-      case Ethernet => 46
-      case Ip => 26
-      case Udp => 18
-      case _ => 0
-    }
-    val expectedLen = if (payload.length < minDescLen) minDescLen else payload.length
-    assert(desc.size == expectedLen, s"packet length mismatch: expected $expectedLen, got ${desc.size}")
+    val payload = getPayloadAndCheckLen(packet, proto, desc.size.toInt)
 
     // read memory and check payload data
     val data = master.read(pktBufAddr + desc.addr, payload.length)

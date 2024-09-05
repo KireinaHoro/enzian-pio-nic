@@ -113,12 +113,12 @@ package object sim {
 
   def rawPayloadBuilder(payload: Array[Byte]) = (new UnknownPacket.Builder).rawData(payload)
 
-  def randomPacket(mtu: Int)(protocols: PacketType*): (Packet, PacketType) = {
+  def randomPacket(mtu: Int, randomizeLen: Boolean = true)(protocols: PacketType*): (Packet, PacketType) = {
     val proto = choose(protocols.iterator, Random)
     var payloadLen: Int = 0
 
     def randomPayloadLen(headerLen: Int) = {
-      val totalLen = Random.nextInt(mtu)
+      val totalLen = if (randomizeLen) Random.nextInt(mtu) else mtu
       if (totalLen < headerLen) 0
       else totalLen - headerLen
     }
@@ -152,6 +152,21 @@ package object sim {
     println(s"prepared $proto packet with payload len $payloadLen, mtu is $mtu")
 
     (ret, proto)
+  }
+
+  def getPayloadAndCheckLen(packet: Packet, proto: PacketType, descLen: Int) = {
+    val payload = packet.get(typeToPcap4jClass(proto)).getPayload.getRawData.toList
+    // check payload length
+    // Ethernet enforces a 64 B frame => 14 B hdr + 46 B payload + 4 B FCS.  Smaller packets will be padded
+    val minDescLen = proto match {
+      case Ethernet => 46
+      case Ip => 26
+      case Udp => 18
+      case _ => 0
+    }
+    val expectedLen = if (payload.length < minDescLen) minDescLen else payload.length
+    assert(descLen == expectedLen, s"packet length mismatch: expected $expectedLen, got $descLen")
+    payload
   }
 
   object Widths {

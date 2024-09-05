@@ -72,6 +72,11 @@ package object pcie {
             data(63 downto 0),
             data(95 downto 64),
             data(oargw + 95 downto 96))
+        case 3 =>
+          OncRpcReplyPacketDescSimPcie(addr, size,
+            data(63 downto 0),
+            data(95 downto 64),
+            data(oargw + 95 downto 96))
       }
     }
   }
