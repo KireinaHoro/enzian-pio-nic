@@ -20,6 +20,10 @@ fast-tests:
   script:
     - apt-get install -y libpcap0.8
     - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
+  artifacts:
+    paths:
+      - simWorkspace/**/sim_transcript.log.gz
+      - simWorkspace/**/wave.fst
 
 .build-sw:
   extends: .docker-image
