@@ -312,6 +312,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
       val (packet, proto) = toCheck.dequeue()
+
+      // FIXME: occasionally the packet received is out of order
+      //        e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+      //        resulting in Ethernet packet arriving first
+      //        should we allow this?
       rxSingle(dcsMaster, packet, proto, maxRetries = 0)
 
       println(s"Received packet #$pid")
