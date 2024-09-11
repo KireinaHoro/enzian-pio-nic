@@ -74,7 +74,7 @@ trait HwProjModule extends Module {
     )()
 
     // use .sv suffix for IPs
-    os.move(generatedSourcesPath / "NicEngine_ips.v", generatedSourcesPath / "NicEngine_ips.sv")
+    os.move.over(generatedSourcesPath / "NicEngine_ips.v", generatedSourcesPath / "NicEngine_ips.sv")
 
     Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
   }
