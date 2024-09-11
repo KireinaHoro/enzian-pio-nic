@@ -73,7 +73,10 @@ trait HwProjModule extends Module {
       }
     )()
 
-    Seq("NicEngine_ips.v", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
+    // use .sv suffix for IPs
+    os.move(generatedSourcesPath / "NicEngine_ips.v", generatedSourcesPath / "NicEngine_ips.sv")
+
+    Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath / fn))
   }
 
   def extraEnvironment = T { Map.empty[String, String] }
