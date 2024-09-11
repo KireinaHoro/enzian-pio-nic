@@ -50,10 +50,6 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)()
     decoder.io.input << macIf.rxStream
 
-    // extract frame length
-    // FIXME: backpressure so that overflow reporting actually works
-    val lastFrameLen = macIf.frameLen.toReg()
-
     // TODO: dropped packets counter
     val drop = Bool()
     val dropFlow = decoder.io.header.asFlow ~ drop
@@ -62,7 +58,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
       new Composite(this, "remap") {
         val meta = EthernetMetadata()
         meta.hdr.assignFromBits(hdr)
-        meta.frameLen := lastFrameLen
+        meta.frameLen := macIf.frameLen
 
         // allow unicast and broadcast
         // TODO: multicast?
@@ -70,6 +66,9 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
         drop := (EndiannessSwap(macAddress) =/= meta.hdr.dst || !isBroadcast) && !csr.ctrl.promisc
       }.meta
     }
+
+    // frameLen.valid must be high when we have a metadata fire
+    macIf.frameLen.ready := metadata.fire
 
     produce(metadata, payload)
     produceDone()
