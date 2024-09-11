@@ -130,7 +130,8 @@ package object net {
         val pld = forkedPayloads(idx)
 
         // FIXME: timing!  what happens if the downstream decoder is busy?
-        val attempt = matchFunc(hdr.payload)
+        // only mark attempt when header is valid
+        val attempt = matchFunc(hdr.payload) && hdr.valid
         attempts.append(attempt)
 
         headerSink << hdr.takeWhen(attempt)
