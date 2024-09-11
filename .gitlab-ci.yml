@@ -18,7 +18,6 @@ fast-tests:
   extends: .docker-image
   stage: test
   script:
-    - apt-get install -y libpcap0.8
     - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
   artifacts:
     paths:
