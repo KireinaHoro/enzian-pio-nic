@@ -13,3 +13,6 @@
 [submodule "vivado/eci/eci-toolkit"]
 	path = vivado/eci/eci-toolkit
 	url = https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/eci-toolkit.git
+[submodule "deps/mackerel2"]
+	path = deps/mackerel2
+	url = https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2.git
