@@ -1,0 +1,538 @@
+/*
+ * cmac.dev: register description of the Xilinx 100G CMAC.
+ *
+ * Describes registers exposed over the AXI-Lite interface, as described in PG203 (v3.1) Ch.6.7.2.
+ */
+
+device cmac lsbfirst (addr base) "Xilinx 100G CMAC" {
+    register gt_reset rw addr(base, 0x0000) "GT_RESET_REG" {
+        gt_reset_all            1  rwc  "reset GT";
+        _                       31;
+    };
+
+    register reset rw addr(base, 0x0004) "RESET_REG" {
+        usr_rx_serdes_reset     10      "reset PCS lane logic";
+        _                       18;
+        ctl_an_reset            1  rwc  "reset Auto-Negotiation module";
+        _                       1;
+        usr_rx_reset            1       "reset RX path";
+        usr_tx_reset            1       "reset TX path";
+    };
+
+    register switch_core_mode rw addr(base, 0x0008) "SWITCH_CORE_MODE_REG" {
+        mode_switch             1  rwc  "enable mode switch between CAUI-10 and CAUI-4";
+        _                       31;
+    };
+
+    register conf_tx_1 rw addr(base, 0x000c) "CONFIGURATION_TX_REG1" {
+        ctl_tx_enable           1;
+        _                       2;
+        ctl_tx_send_lfi         1;
+        ctl_tx_send_rfi         1;
+        ctl_tx_send_idle        1;
+        _                       10;
+        ctl_tx_test_pattern     1;
+        _                       15;
+    };
+
+    register conf_rx_1 rw addr(base, 0x0014) "CONFIGURATION_RX_REG1" {
+        ctl_rx_enable           1;
+        _                       6;
+        ctl_rx_force_resync     1;
+        ctl_rx_test_pattern     1;
+        _                       23;
+    };
+
+    constants core_mode_enum width(2) "core CAUI mode" {
+        caui10                  = 0b00 "CAUI10";
+        caui4                   = 0b01 "CAUI4";
+        caui10_switch           = 0b10 "Runtime Switchable CAUI10";
+        caui4_switch            = 0b11 "Runtime Switchable CAUI4";
+    };
+
+    register core_mode ro addr(base, 0x0020) "CORE_MODE_REG" {
+        mode                    2 type(core_mode_enum);
+        _                       30;
+    };
+
+    register core_version ro addr(base, 0x0024) "CORE_VERSION_REG" {
+        minor                   8;
+        major                   8;
+        _                       16;
+    };
+
+    register conf_tx_bip_override rw addr(base, 0x002c) "CONFIGURATION_TX_BIP_OVERRIDE" {
+        ctl_tx_lane0_vlm_bip7_override_value 8;
+        ctl_tx_lane0_vlm_bip7_override 1;
+        _                       23;
+    };
+
+    regarray conf_tx_fc_refresh rw addr(base, 0x0034) [9] "CONFIGURATION_TX_FLOW_CONTROL_REFRESH_REG" type(uint16);
+    regarray conf_tx_fc_quanta rw addr(base, 0x0048) [9] "CONFIGURATION_TX_FLOW_CONTROL_QUANTA_REG" type(uint16);
+
+    register conf_tx_otn_pkt_len rw addr(base, 0x005c) "CONFIGURATION_TX_OTN_PKT_LEN_REG" {
+        ctl_tx_min_packet_len   8;
+        ctl_tx_max_packet_len   15;
+        _                       9;
+    };
+
+    register conf_tx_otn_ctl rw addr(base, 0x0060) "CONFIGURATION_TX_OTN_CTL_REG" {
+        ctl_tx_check_sfd        1;
+        ctl_tx_check_preamble   1;
+        ctl_tx_ignore_fcs       1;
+        _                       29;
+    };
+
+    register conf_rx_fc_ctl_1 rw addr(base, 0x0084) "CONFIGURATION_RX_FLOW_CONTROL_CONTROL_REG1" {
+        ctl_rx_pause_enable     9;
+        _                       1;
+        ctl_rx_enable_gcp       1;
+        ctl_rx_enable_pcp       1;
+        ctl_rx_enable_gpp       1;
+        ctl_rx_enable_ppp       1;
+        _                       1;
+        ctl_rx_pause_ack        9;
+        _                       8;
+    };
+
+    register conf_rx_fc_ctl_2 rw addr(base, 0x0088) "CONFIGURATION_RX_FLOW_CONTROL_CONTROL_REG2" {
+        ctl_rx_check_mcast_gcp  1;
+        ctl_rx_check_ucast_gcp  1;
+        ctl_rx_check_sa_gcp     1;
+        ctl_rx_check_etype_gcp  1;
+        ctl_rx_check_opcode_gcp 1;
+        ctl_rx_check_mcast_pcp  1;
+        ctl_rx_check_ucast_pcp  1;
+        ctl_rx_check_sa_pcp     1;
+        ctl_rx_check_etype_pcp  1;
+        ctl_rx_check_opcode_pcp 1;
+        ctl_rx_check_mcast_gpp  1;
+        ctl_rx_check_ucast_gpp  1;
+        ctl_rx_check_sa_gpp     1;
+        ctl_rx_check_etype_gpp  1;
+        ctl_rx_check_opcode_gpp 1;
+        ctl_rx_check_mcast_ppp  1;
+        ctl_rx_check_ucast_ppp  1;
+        ctl_rx_check_sa_ppp     1;
+        ctl_rx_check_etype_ppp  1;
+        ctl_rx_check_opcode_ppp 1;
+        _                       12;
+    };
+
+    register gt_loopback rw addr(base, 0x0090) "GT_LOOPBACK_REG" {
+        ctl_gt_loopback         1       "0 for Normal operation (external loopback); 1 for Near End PMA loopback (internal loopback)";
+        _                       31;
+    };
+
+    register conf_an_ctl_1 rw addr(base, 0x00a0) "CONFIGURATION_AN_CONTROL_REG1" {
+        ctl_autoneg_enable      1;
+        ctl_autoneg_bypass      1;
+        ctl_an_nonce_seed       8;
+        ctl_an_pseudo_sel       1;
+        ctl_restart_negotiation 1;
+        ctl_an_local_fault      1;
+        _                       19;
+    };
+
+    register conf_an_ctl_2 rw addr(base, 0x00a4) "CONFIGURATION_AN_CONTROL_REG2" {
+        ctl_an_pause            1;
+        ctl_an_asmdir           1;
+        _                       16;
+        ctl_an_cl91_fec_request 1;
+        ctl_an_cl91_fec_ability 1;
+        ctl_an_fec_25g_rs_request 1;
+        _                       1;
+        ctl_an_loc_np           1;
+        ctl_an_lp_np_ack        1;
+        _                       8;
+    };
+
+    regtype an_ability {
+        an_1000base_kx             1;
+        an_10gbase_kx4             1;
+        an_10gbase_kr              1;
+        an_40gbase_kr4             1;
+        an_40gbase_cr4             1;
+        an_100gbase_cr10           1;
+        an_100gbase_kp4            1;
+        an_100gbase_kr4            1;
+        an_100gbase_cr4            1;
+        an_25gbase_krcr_s          1;
+        an_25gbase_krcr            1;
+        an_2_5gbase_kx             1;
+        an_5gbase_kr               1;
+        an_50gbase_krcr            1;
+        an_100gbase_kr2cr2         1;
+        an_200gbase_kr4cr4         1;
+        an_25gbase_kr1             1;
+        an_25gbase_cr1             1;
+        an_50gbase_kr2             1;
+        an_50gbase_cr2             1;
+        _                       12;
+    };
+
+    register conf_an_ability rw addr(base, 0x00a8) "CONFIGURATION_AN_ABILITY" type(an_ability);
+
+    register conf_lt_ctl rw addr(base, 0x00ac) "CONFIGURATION_LT_CONTROL_REG1" {
+        ctl_lt_training_enable  1;
+        ctl_lt_restart_training 1;
+        _                       30;
+    };
+
+    register conf_lt_trained rw addr(base, 0x00b0) "CONFIGURATION_LT_TRAINED_REG" {
+        ctl_lt_rx_trained       4;
+        _                       28;
+    };
+
+    register conf_lt_preset rw addr(base, 0x00b4) "CONFIGURATION_LT_PRESET_REG" {
+        ctl_lt_preset_to_tx     4;
+        _                       28;
+    };
+
+    register conf_lt_init rw addr(base, 0x00b8) "CONFIGURATION_LT_INIT_REG" {
+        ctl_lt_initialize_to_tx 4;
+        _                       28;
+    };
+
+    regarray conf_lt_seed rw addr(base, 0x00bc) [4] "CONFIGURATION_LT_SEED_REG" {
+        ctl_lt_pseudo_seed      11;
+        _                       5;
+    };
+
+    regtype lt_coeff {
+        lt_k_p1_to_tx       2;
+        lt_k0_to_tx         2;
+        lt_k_m1_to_tx       2;
+        lt_stat_p1_to_tx    2;
+        lt_stat0_to_tx      2;
+        lt_stat_m1_to_tx    2;
+        _                       4;
+    };
+
+    regarray conf_lt_coeff rw addr(base, 0x00c4) [4] "CONFIGURATION_LT_COEFFICIENT_REG" type(lt_coeff);
+
+    register user rw addr(base, 0x00cc) "USER_REG0" type(uint64);
+
+    register conf_rsfec_ind_corr rw addr(base, 0x1000) "RSFEC_CONFIG_INDICATION_CORRECTION" {
+        ctl_rx_rsfec_enable_correction 1;
+        ctl_rx_rsfec_enable_indication 1;
+        ctl_rx_rsfec_ieee_error_indication_mode 1;
+        _                       29;
+    };
+
+    register conf_rsfec_enable rw addr(base, 0x107c) "RSFEC_CONFIG_ENABLE" {
+        ctl_rx_rsfec_enable     1;
+        ctl_tx_rsfec_enable     1 "or ctl_rsfec_enable";
+        _                       30;
+    };
+
+    register stat_tx_status rc addr(base, 0x0200) "STAT_TX_STATUS_REG" {
+        stat_tx_local_fault     1;
+        _                       31;
+    };
+
+    register stat_rx_status rc addr(base, 0x0204) "STAT_RX_STATUS_REG" {
+        stat_rx_status          1;
+        stat_rx_aligned         1;
+        stat_rx_misaligned      1;
+        stat_rx_aligned_err     1;
+        stat_rx_hi_ber          1;
+        stat_rx_remote_fault    1;
+        stat_rx_local_fault     1;
+        stat_rx_internal_local_fault 1;
+        stat_rx_received_local_fault 1;
+        stat_rx_test_pattern_mismatch 3;
+        stat_rx_bad_preamble    1;
+        stat_rx_bad_sfd         1;
+        stat_rx_got_signal_os   1;
+        _                       17;
+    };
+
+    register stat_status_1 rc addr(base, 0x0208) "STAT_STATUS_REG1" {
+        _                       4;
+        stat_tx_ptp_fifo_read_error 1;
+        stat_tx_ptp_fifo_write_error 1;
+        _                       26;
+    };
+
+    regtype counter_20b {
+        value                   20;
+        _                       12;
+    };
+
+    register stat_rx_block_lock rc addr(base, 0x020c) "STAT_RX_BLOCK_LOCK_REG" type(counter_20b);
+    register stat_rx_lane_sync rc addr(base, 0x0210) "STAT_RX_LANE_SYNC_REG" type(counter_20b);
+    register stat_rx_lane_sync_err rc addr(base, 0x0214) "STAT_RX_LANE_SYNC_ERR_REG" type(counter_20b);
+    register stat_rx_am_err rc addr(base, 0x0218) "STAT_RX_AM_ERR_REG" type(counter_20b);
+    register stat_rx_am_len_err rc addr(base, 0x021c) "STAT_RX_AM_LEN_ERR_REG" type(counter_20b);
+    register stat_rx_am_repeat_err rc addr(base, 0x0220) "STAT_RX_AM_REPEAT_ERR_REG" type(counter_20b);
+    register stat_rx_pcsl_demuxed ro addr(base, 0x0224) "STAT_RX_PCSL_DEMUXED_REG" type(counter_20b);
+
+    regarray stat_rx_pcs_lane_num ro addr(base, 0x0228) [4] "STAT_RX_PCS_LANE_NUM_REG" {
+        stat_rx_pcsl_number_0   5;
+        stat_rx_pcsl_number_1   5;
+        stat_rx_pcsl_number_2   5;
+        stat_rx_pcsl_number_3   5;
+        stat_rx_pcsl_number_4   5;
+        stat_rx_pcsl_number_5   5;
+        _                       2;
+    };
+
+    register stat_rx_bip_override ro addr(base, 0x0238) "STAT_RX_BIP_OVERRIDE_REG" {
+        stat_rx_lane0_vlm_bip7  8;
+        stat_rx_lane0_vlm_bip7_valid 1;
+        _                       23;
+    };
+
+    register stat_tx_otn_status rc addr(base, 0x023c) "STAT_TX_OTN_STATUS_REG" {
+        stat_tx_remote_fault    1;
+        stat_tx_internal_local_fault 1;
+        stat_tx_received_local_fault 1;
+        stat_tx_test_pattern_mismatch 3;
+        stat_tx_bad_preamble    1;
+        stat_tx_bad_sfd         1;
+        stat_tx_got_signal_os   1;
+        _                       23;
+    };
+
+    register stat_an_status ro addr(base, 0x0258) "STAT_AN_STATUS_REG" {
+        stat_an_fec_enable      1;
+        stat_an_rs_fec_enable   1;
+        stat_an_autoneg_complete 1;
+        stat_an_parallel_detection_fault 1;
+        stat_an_tx_pause_enable 1;
+        stat_an_rx_pause_enable 1;
+        stat_an_lp_ability_valid 1  rc;
+        stat_an_lp_autoneg_able 1;
+        stat_an_lp_pause        1;
+        stat_an_lp_asm_dir      1;
+        stat_an_lp_rf           1;
+        stat_an_lp_fec_10g_ability 1;
+        stat_an_lp_fec_10g_request 1;
+        stat_an_lp_extended_ability_valid 1  rc;
+        stat_an_lp_ability_extended_fec 4;
+        stat_an_lp_fec_25g_rs_request 1;
+        stat_an_lp_fec_25g_baser_request 1;
+        _                       12;
+    };
+
+    register stat_an_ability ro addr(base, 0x025c) "STAT_AN_ABILITY_REG" type(an_ability);
+
+    register stat_an_link_ctl_1 ro addr(base, 0x0260) "STAT_AN_LINK_CTL_REG_1" {
+        stat_an_link_cntl_1000base_kx             2;
+        stat_an_link_cntl_10gbase_kx4             2;
+        stat_an_link_cntl_10gbase_kr              2;
+        stat_an_link_cntl_40gbase_kr4             2;
+        stat_an_link_cntl_40gbase_cr4             2;
+        stat_an_link_cntl_100gbase_cr10           2;
+        stat_an_link_cntl_100gbase_kp4            2;
+        stat_an_link_cntl_100gbase_kr4            2;
+        stat_an_link_cntl_100gbase_cr4            2;
+        stat_an_link_cntl_25gbase_krcr_s          2;
+        stat_an_link_cntl_25gbase_krcr            2;
+        stat_an_link_cntl_2_5gbase_kx             2;
+        stat_an_link_cntl_5gbase_kr               2;
+        stat_an_link_cntl_50gbase_krcr            2;
+        stat_an_link_cntl_100gbase_kr2cr2         2;
+        stat_an_link_cntl_200gbase_kr4cr4         2;
+    };
+
+    register stat_an_link_ctl_2 ro addr(base, 0x027c) "STAT_AN_LINK_CTL_REG_2" {
+        stat_an_link_cntl_25gbase_kr1             2;
+        stat_an_link_cntl_25gbase_cr1             2;
+        stat_an_link_cntl_50gbase_kr2             2;
+        stat_an_link_cntl_50gbase_cr2             2;
+        _                                         24;
+    };
+
+    register stat_lt_status_1 ro addr(base, 0x0264) "STAT_LT_STATUS_REG1" {
+        stat_lt_initialize_from_rx  4;
+        _                           12;
+        stat_lt_preset_from_rx      4;
+        _                           12;
+    };
+
+    register stat_lt_status_2 ro addr(base, 0x0268) "STAT_LT_STATUS_REG2" {
+        stat_lt_training            4;
+        _                           12;
+        stat_lt_frame_lock          4;
+        _                           12;
+    };
+
+    register stat_lt_status_3 ro addr(base, 0x026c) "STAT_LT_STATUS_REG3" {
+        stat_lt_signal_detect       4;
+        _                           12;
+        stat_lt_training_fail       4;
+        _                           12;
+    };
+
+    register stat_lt_status_4 ro addr(base, 0x0270) "STAT_LT_STATUS_REG4" {
+        stat_lt_rx_sof              4;
+        _                           28;
+    };
+
+    regarray stat_lt_coeff ro addr(base, 0x0274) [4] "STAT_LT_COEFFICIENT_REG" type(lt_coeff);
+
+    register stat_rsfec_status ro addr(base, 0x1004) "STAT_RSFEC_STATUS_REG" {
+        _                           2;
+        stat_rx_rsfec_hi_ser        1;
+        stat_rx_rsfec_hi_ser_lh     1;
+        _                           4;
+        stat_rx_rsfec_am_lock0      1;
+        stat_rx_rsfec_am_lock1      1;
+        stat_rx_rsfec_am_lock2      1;
+        stat_rx_rsfec_am_lock3      1;
+        _                           2;
+        stat_rx_rsfec_lane_alignment_status 1;
+        _                           17;
+    };
+
+    register stat_rsfec_lane_mapping ro addr(base, 0x1018) "STAT_RSFEC_LANE_MAPPING_REG" {
+        stat_rx_rsfec_lane_mapping0 2;
+        stat_rx_rsfec_lane_mapping1 2;
+        stat_rx_rsfec_lane_mapping2 2;
+        stat_rx_rsfec_lane_mapping3 2;
+        _                           24;
+    };
+
+    register stat_tx_otn_rsfec_status ro addr(base, 0x1044) "STAT_TX_OTN_RSFEC_STATUS_REG" {
+        stat_tx_rsfec_block_lock    1;
+        stat_tx_rsfec_am_lock       1;
+        stat_tx_rsfec_lane_alignment_status 1;
+        _                           29;
+    };
+
+    register tick wo addr(base, 0x02b0) "TICK_REG" {
+        tick_reg                    1;
+        _                           31;
+    };
+
+    regtype counter_48b {
+        value                   48;
+        _                       16;
+    };
+
+    register stat_cycle_count ro addr(base, 0x02b8) "STAT_CYCLE_COUNT" type(counter_48b);
+    register stat_rx_bip_err_0 ro addr(base, 0x02c0) "STAT_RX_BIP_ERR_0" type(counter_48b);
+    register stat_rx_bip_err_1 ro addr(base, 0x02c8) "STAT_RX_BIP_ERR_1" type(counter_48b);
+    register stat_rx_bip_err_2 ro addr(base, 0x02d0) "STAT_RX_BIP_ERR_2" type(counter_48b);
+    register stat_rx_bip_err_3 ro addr(base, 0x02d8) "STAT_RX_BIP_ERR_3" type(counter_48b);
+    register stat_rx_bip_err_4 ro addr(base, 0x02e0) "STAT_RX_BIP_ERR_4" type(counter_48b);
+    register stat_rx_bip_err_5 ro addr(base, 0x02e8) "STAT_RX_BIP_ERR_5" type(counter_48b);
+    register stat_rx_bip_err_6 ro addr(base, 0x02f0) "STAT_RX_BIP_ERR_6" type(counter_48b);
+    register stat_rx_bip_err_7 ro addr(base, 0x02f8) "STAT_RX_BIP_ERR_7" type(counter_48b);
+    register stat_rx_bip_err_8 ro addr(base, 0x0300) "STAT_RX_BIP_ERR_8" type(counter_48b);
+    register stat_rx_bip_err_9 ro addr(base, 0x0308) "STAT_RX_BIP_ERR_9" type(counter_48b);
+    register stat_rx_bip_err_10 ro addr(base, 0x0310) "STAT_RX_BIP_ERR_10" type(counter_48b);
+    register stat_rx_bip_err_11 ro addr(base, 0x0318) "STAT_RX_BIP_ERR_11" type(counter_48b);
+    register stat_rx_bip_err_12 ro addr(base, 0x0320) "STAT_RX_BIP_ERR_12" type(counter_48b);
+    register stat_rx_bip_err_13 ro addr(base, 0x0328) "STAT_RX_BIP_ERR_13" type(counter_48b);
+    register stat_rx_bip_err_14 ro addr(base, 0x0330) "STAT_RX_BIP_ERR_14" type(counter_48b);
+    register stat_rx_bip_err_15 ro addr(base, 0x0338) "STAT_RX_BIP_ERR_15" type(counter_48b);
+    register stat_rx_bip_err_16 ro addr(base, 0x0340) "STAT_RX_BIP_ERR_16" type(counter_48b);
+    register stat_rx_bip_err_17 ro addr(base, 0x0348) "STAT_RX_BIP_ERR_17" type(counter_48b);
+    register stat_rx_bip_err_18 ro addr(base, 0x0350) "STAT_RX_BIP_ERR_18" type(counter_48b);
+    register stat_rx_bip_err_19 ro addr(base, 0x0358) "STAT_RX_BIP_ERR_19" type(counter_48b);
+    register stat_rx_framing_err_0 ro addr(base, 0x0360) "STAT_RX_FRAMING_ERR_0" type(counter_48b);
+    register stat_rx_framing_err_1 ro addr(base, 0x0368) "STAT_RX_FRAMING_ERR_1" type(counter_48b);
+    register stat_rx_framing_err_2 ro addr(base, 0x0370) "STAT_RX_FRAMING_ERR_2" type(counter_48b);
+    register stat_rx_framing_err_3 ro addr(base, 0x0378) "STAT_RX_FRAMING_ERR_3" type(counter_48b);
+    register stat_rx_framing_err_4 ro addr(base, 0x0380) "STAT_RX_FRAMING_ERR_4" type(counter_48b);
+    register stat_rx_framing_err_5 ro addr(base, 0x0388) "STAT_RX_FRAMING_ERR_5" type(counter_48b);
+    register stat_rx_framing_err_6 ro addr(base, 0x0390) "STAT_RX_FRAMING_ERR_6" type(counter_48b);
+    register stat_rx_framing_err_7 ro addr(base, 0x0398) "STAT_RX_FRAMING_ERR_7" type(counter_48b);
+    register stat_rx_framing_err_8 ro addr(base, 0x03a0) "STAT_RX_FRAMING_ERR_8" type(counter_48b);
+    register stat_rx_framing_err_9 ro addr(base, 0x03a8) "STAT_RX_FRAMING_ERR_9" type(counter_48b);
+    register stat_rx_framing_err_10 ro addr(base, 0x03b0) "STAT_RX_FRAMING_ERR_10" type(counter_48b);
+    register stat_rx_framing_err_11 ro addr(base, 0x03b8) "STAT_RX_FRAMING_ERR_11" type(counter_48b);
+    register stat_rx_framing_err_12 ro addr(base, 0x03c0) "STAT_RX_FRAMING_ERR_12" type(counter_48b);
+    register stat_rx_framing_err_13 ro addr(base, 0x03c8) "STAT_RX_FRAMING_ERR_13" type(counter_48b);
+    register stat_rx_framing_err_14 ro addr(base, 0x03d0) "STAT_RX_FRAMING_ERR_14" type(counter_48b);
+    register stat_rx_framing_err_15 ro addr(base, 0x03d8) "STAT_RX_FRAMING_ERR_15" type(counter_48b);
+    register stat_rx_framing_err_16 ro addr(base, 0x03e0) "STAT_RX_FRAMING_ERR_16" type(counter_48b);
+    register stat_rx_framing_err_17 ro addr(base, 0x03e8) "STAT_RX_FRAMING_ERR_17" type(counter_48b);
+    register stat_rx_framing_err_18 ro addr(base, 0x03f0) "STAT_RX_FRAMING_ERR_18" type(counter_48b);
+    register stat_rx_framing_err_19 ro addr(base, 0x03f8) "STAT_RX_FRAMING_ERR_19" type(counter_48b);
+
+    register stat_rx_bad_code ro addr(base, 0x0418) "STAT_RX_BAD_CODE" type(counter_48b);
+    register stat_tx_frame_error ro addr(base, 0x0458) "STAT_TX_FRAME_ERROR" type(counter_48b);
+
+    register stat_tx_total_packets ro addr(base, 0x0500) "STAT_TX_TOTAL_PACKETS" type(counter_48b);
+    register stat_tx_total_good_packets ro addr(base, 0x0508) "STAT_TX_TOTAL_GOOD_PACKETS" type(counter_48b);
+    register stat_tx_total_bytes ro addr(base, 0x0510) "STAT_TX_TOTAL_BYTES" type(counter_48b);
+    register stat_tx_total_good_bytes ro addr(base, 0x0518) "STAT_TX_TOTAL_GOOD_BYTES" type(counter_48b);
+    register stat_tx_packet_64_bytes ro addr(base, 0x0520) "STAT_TX_PACKET_64_BYTES" type(counter_48b);
+    register stat_tx_packet_65_127_bytes ro addr(base, 0x0528) "STAT_TX_PACKET_65_127_BYTES" type(counter_48b);
+    register stat_tx_packet_128_255_bytes ro addr(base, 0x0530) "STAT_TX_PACKET_128_255_BYTES" type(counter_48b);
+    register stat_tx_packet_256_511_bytes ro addr(base, 0x0538) "STAT_TX_PACKET_256_511_BYTES" type(counter_48b);
+    register stat_tx_packet_512_1023_bytes ro addr(base, 0x0540) "STAT_TX_PACKET_512_1023_BYTES" type(counter_48b);
+    register stat_tx_packet_1024_1518_bytes ro addr(base, 0x0548) "STAT_TX_PACKET_1024_1518_BYTES" type(counter_48b);
+    register stat_tx_packet_1519_1522_bytes ro addr(base, 0x0550) "STAT_TX_PACKET_1519_1522_BYTES" type(counter_48b);
+    register stat_tx_packet_1523_1548_bytes ro addr(base, 0x0558) "STAT_TX_PACKET_1523_1548_BYTES" type(counter_48b);
+    register stat_tx_packet_1549_2047_bytes ro addr(base, 0x0560) "STAT_TX_PACKET_1549_2047_BYTES" type(counter_48b);
+    register stat_tx_packet_2048_4095_bytes ro addr(base, 0x0568) "STAT_TX_PACKET_2048_4095_BYTES" type(counter_48b);
+    register stat_tx_packet_4096_8191_bytes ro addr(base, 0x0570) "STAT_TX_PACKET_4096_8191_BYTES" type(counter_48b);
+    register stat_tx_packet_8192_9215_bytes ro addr(base, 0x0578) "STAT_TX_PACKET_8192_9215_BYTES" type(counter_48b);
+    register stat_tx_packet_large ro addr(base, 0x0580) "STAT_TX_PACKET_LARGE" type(counter_48b);
+    register stat_tx_packet_small ro addr(base, 0x0588) "STAT_TX_PACKET_SMALL" type(counter_48b);
+
+    register stat_tx_bad_fcs ro addr(base, 0x05b8) "STAT_TX_BAD_FCS" type(counter_48b);
+
+    register stat_tx_unicast ro addr(base, 0x05d0) "STAT_TX_UNICAST" type(counter_48b);
+    register stat_tx_multicast ro addr(base, 0x05d8) "STAT_TX_MULTICAST" type(counter_48b);
+    register stat_tx_broadcast ro addr(base, 0x05e0) "STAT_TX_BROADCAST" type(counter_48b);
+    register stat_tx_vlan ro addr(base, 0x05e8) "STAT_TX_VLAN" type(counter_48b);
+    register stat_tx_pause ro addr(base, 0x05f0) "STAT_TX_PAUSE" type(counter_48b);
+    register stat_tx_user_pause ro addr(base, 0x05f8) "STAT_TX_USER_PAUSE" type(counter_48b);
+
+    register stat_rx_total_packets ro addr(base, 0x0608) "STAT_RX_TOTAL_PACKETS" type(counter_48b);
+    register stat_rx_total_good_packets ro addr(base, 0x0610) "STAT_RX_TOTAL_GOOD_PACKETS" type(counter_48b);
+    register stat_rx_total_bytes ro addr(base, 0x0618) "STAT_RX_TOTAL_BYTES" type(counter_48b);
+    register stat_rx_total_good_bytes ro addr(base, 0x0620) "STAT_RX_TOTAL_GOOD_BYTES" type(counter_48b);
+    register stat_rx_packet_64_bytes ro addr(base, 0x0628) "STAT_RX_PACKET_64_BYTES" type(counter_48b);
+    register stat_rx_packet_65_127_bytes ro addr(base, 0x0630) "STAT_RX_PACKET_65_127_BYTES" type(counter_48b);
+    register stat_rx_packet_128_255_bytes ro addr(base, 0x0638) "STAT_RX_PACKET_128_255_BYTES" type(counter_48b);
+    register stat_rx_packet_256_511_bytes ro addr(base, 0x0640) "STAT_RX_PACKET_256_511_BYTES" type(counter_48b);
+    register stat_rx_packet_512_1023_bytes ro addr(base, 0x0648) "STAT_RX_PACKET_512_1023_BYTES" type(counter_48b);
+    register stat_rx_packet_1024_1518_bytes ro addr(base, 0x0650) "STAT_RX_PACKET_1024_1518_BYTES" type(counter_48b);
+    register stat_rx_packet_1519_1522_bytes ro addr(base, 0x0658) "STAT_RX_PACKET_1519_1522_BYTES" type(counter_48b);
+    register stat_rx_packet_1523_1548_bytes ro addr(base, 0x0660) "STAT_RX_PACKET_1523_1548_BYTES" type(counter_48b);
+    register stat_rx_packet_1549_2047_bytes ro addr(base, 0x0668) "STAT_RX_PACKET_1549_2047_BYTES" type(counter_48b);
+    register stat_rx_packet_2048_4095_bytes ro addr(base, 0x0670) "STAT_RX_PACKET_2048_4095_BYTES" type(counter_48b);
+    register stat_rx_packet_4096_8191_bytes ro addr(base, 0x0678) "STAT_RX_PACKET_4096_8191_BYTES" type(counter_48b);
+    register stat_rx_packet_8192_9215_bytes ro addr(base, 0x0680) "STAT_RX_PACKET_8192_9215_BYTES" type(counter_48b);
+    register stat_rx_packet_large ro addr(base, 0x0688) "STAT_RX_PACKET_LARGE" type(counter_48b);
+    register stat_rx_packet_small ro addr(base, 0x0690) "STAT_RX_PACKET_SMALL" type(counter_48b);
+    register stat_rx_undersize ro addr(base, 0x0698) "STAT_RX_UNDERSIZE" type(counter_48b);
+    register stat_rx_fragment ro addr(base, 0x06a0) "STAT_RX_FRAGMENT" type(counter_48b);
+    register stat_rx_oversize ro addr(base, 0x06a8) "STAT_RX_OVERSIZE" type(counter_48b);
+    register stat_rx_toolong ro addr(base, 0x06b0) "STAT_RX_TOOLONG" type(counter_48b);
+    register stat_rx_jabber ro addr(base, 0x06b8) "STAT_RX_JABBER" type(counter_48b);
+    register stat_rx_bad_fcs ro addr(base, 0x06c0) "STAT_RX_BAD_FCS" type(counter_48b);
+    register stat_rx_packet_bad_fcs ro addr(base, 0x06c8) "STAT_RX_PACKET_BAD_FCS" type(counter_48b);
+    register stat_rx_stomped_fcs ro addr(base, 0x06d0) "STAT_RX_STOMPED_FCS" type(counter_48b);
+    register stat_rx_unicast ro addr(base, 0x06d8) "STAT_RX_UNICAST" type(counter_48b);
+    register stat_rx_multicast ro addr(base, 0x06e0) "STAT_RX_MULTICAST" type(counter_48b);
+    register stat_rx_broadcast ro addr(base, 0x06e8) "STAT_RX_BROADCAST" type(counter_48b);
+    register stat_rx_vlan ro addr(base, 0x06f0) "STAT_RX_VLAN" type(counter_48b);
+    register stat_rx_pause ro addr(base, 0x06f8) "STAT_RX_PAUSE" type(counter_48b);
+    register stat_rx_user_pause ro addr(base, 0x0700) "STAT_RX_USER_PAUSE" type(counter_48b);
+    register stat_rx_inrangeerr ro addr(base, 0x0708) "STAT_RX_INRANGEERR" type(counter_48b);
+    register stat_rx_truncated ro addr(base, 0x0710) "STAT_RX_TRUNCATED" type(counter_48b);
+    register stat_otn_tx_jabber ro addr(base, 0x0718) "STAT_OTN_TX_JABBER" type(counter_48b);
+    register stat_otn_tx_oversize ro addr(base, 0x0720) "STAT_OTN_TX_OVERSIZE" type(counter_48b);
+    register stat_otn_tx_undersize ro addr(base, 0x0728) "STAT_OTN_TX_UNDERSIZE" type(counter_48b);
+    register stat_otn_tx_toolong ro addr(base, 0x0730) "STAT_OTN_TX_TOOLONG" type(counter_48b);
+    register stat_otn_tx_fragment ro addr(base, 0x0738) "STAT_OTN_TX_FRAGMENT" type(counter_48b);
+    register stat_otn_tx_packet_bad_fcs ro addr(base, 0x0740) "STAT_OTN_TX_PACKET_BAD_FCS" type(counter_48b);
+    register stat_otn_tx_stomped_fcs ro addr(base, 0x0748) "STAT_OTN_TX_STOMPED_FCS" type(counter_48b);
+    register stat_otn_tx_bad_code ro addr(base, 0x0750) "STAT_OTN_TX_BAD_CODE" type(counter_48b);
+
+    register stat_rx_rsfec_corrected_cw_inc ro addr(base, 0x1008) "STAT_RX_RSFEC_CORRECTED_CW_INC" type(counter_48b);
+    register stat_rx_rsfec_uncorrected_cw_inc ro addr(base, 0x1010) "STAT_RX_RSFEC_UNCORRECTED_CW_INC" type(counter_48b);
+    register stat_rx_rsfec_err_count0_inc ro addr(base, 0x101c) "STAT_RX_RSFEC_ERR_COUNT0_INC" type(counter_48b);
+    register stat_rx_rsfec_err_count1_inc ro addr(base, 0x1024) "STAT_RX_RSFEC_ERR_COUNT1_INC" type(counter_48b);
+    register stat_rx_rsfec_err_count2_inc ro addr(base, 0x102c) "STAT_RX_RSFEC_ERR_COUNT2_INC" type(counter_48b);
+    register stat_rx_rsfec_err_count3_inc ro addr(base, 0x1034) "STAT_RX_RSFEC_ERR_COUNT3_INC" type(counter_48b);
+    register stat_rx_rsfec_cw_inc ro addr(base, 0x103c) "STAT_RX_RSFEC_CW_INC" type(counter_48b);
+};
