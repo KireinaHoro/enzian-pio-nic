@@ -1,5 +1,5 @@
 import mill._, util._, scalalib._
-
+import mill.define.ModuleRef
 import $file.deps.spinalhdl.build
 import $file.deps.`spinal-blocks`.build
 
@@ -20,13 +20,13 @@ trait MySpinal { this: deps.spinalhdl.build.SpinalModule =>
   def crossValue = v.scalaVersion
   override def millSourcePath = os.pwd / "deps" / "spinalhdl" / name
 
-  override def coreMod = Some(spinalCore)
-  override def libMod = Some(spinalLib)
-  override def idslpluginMod = Some(spinalIdslPlugin)
+  override def coreMod = ModuleRef(spinalCore)
+  override def libMod = ModuleRef(spinalLib)
+  override def idslpluginMod = ModuleRef(spinalIdslPlugin)
 }
 trait MyBlocks { this: deps.`spinal-blocks`.build.BlocksBaseModule =>
   def crossValue = v.scalaVersion
-  override def blocksMod = Some(blocks)
+  override def blocksMod = ModuleRef(blocks)
   override def spinalDeps: Agg[ScalaModule] = Agg(spinalCore, spinalLib, spinalTester)
   override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
   override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
