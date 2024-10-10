@@ -1,6 +1,4 @@
-import mill._
-import mill.util._
-import scalalib._
+import mill._, util._, scalalib._
 
 import $file.deps.spinalhdl.build
 import $file.deps.`spinal-blocks`.build
@@ -17,31 +15,30 @@ object v {
   val eciStaticShellVersion = "v0.1.0"
 }
 
-trait ApplyScalaVersion { this: ScalaModule =>
-  def crossValue = v.scalaVersion
-}
-trait SpinalDep { this: ScalaModule =>
+trait MySpinal { this: deps.spinalhdl.build.SpinalModule =>
   def name: String
+  def crossValue = v.scalaVersion
   override def millSourcePath = os.pwd / "deps" / "spinalhdl" / name
+
+  override def coreMod = Some(spinalCore)
+  override def libMod = Some(spinalLib)
+  override def idslpluginMod = Some(spinalIdslPlugin)
 }
-
-object spinalCore extends deps.spinalhdl.build.Core with ApplyScalaVersion with SpinalDep { def name = "core" }
-object spinalLib extends deps.spinalhdl.build.Lib with ApplyScalaVersion with SpinalDep { def name = "lib" }
-object spinalTester extends deps.spinalhdl.build.Tester with ApplyScalaVersion with SpinalDep { def name = "tester" }
-object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with ApplyScalaVersion with SpinalDep { def name = "idslplugin" }
-
-object blocks extends deps.`spinal-blocks`.build.BlocksModule with ApplyScalaVersion {
-  override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
-  override def spinalDeps = Agg(spinalCore, spinalLib)
+trait MyBlocks { this: deps.`spinal-blocks`.build.BlocksBaseModule =>
+  def crossValue = v.scalaVersion
+  override def blocksMod = Some(blocks)
+  override def spinalDeps: Agg[ScalaModule] = Agg(spinalCore, spinalLib, spinalTester)
   override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
+  override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
 }
 
-object blocksTester extends deps.`spinal-blocks`.build.BlocksTester with ApplyScalaVersion {
-  override def millSourcePath = os.pwd / "deps" / "spinal-blocks"
-  override def spinalDeps = Agg(spinalCore, spinalLib, spinalTester)
-  override def moduleDeps = super.moduleDeps ++ Agg(blocks)
-  override def spinalPluginOptions = spinalIdslPlugin.pluginOptions
-}
+object spinalCore extends deps.spinalhdl.build.Core with MySpinal { def name = "core" }
+object spinalLib extends deps.spinalhdl.build.Lib with MySpinal { def name = "lib" }
+object spinalTester extends deps.spinalhdl.build.Tester with MySpinal { def name = "tester" }
+object spinalIdslPlugin extends deps.spinalhdl.build.IdslPlugin with MySpinal { def name = "idslplugin" }
+
+object blocks extends deps.`spinal-blocks`.build.BlocksModule with MyBlocks
+object blocksTester extends deps.`spinal-blocks`.build.BlocksTester with MyBlocks
 
 trait CommonModule extends ScalaModule {
   override def scalaVersion = v.scalaVersion
