@@ -73,7 +73,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       )
     })
 
-    hostRxReq := logic.rxReqs.reduceBalancedTree(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
     Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
       val rxCtrlAddr = idx * 0x80
@@ -202,10 +201,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // - driving mem offset for packet buffer load
     val selectedRxDesc = demuxedRxDescs(rxCurrClIdx.asUInt)
 
+    // read start is when request for the selected CL is active
+    hostRxReq := RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
+
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         onEntry {
           rxNackTriggerInv.clear()
+          hostRxReq.clear()
         }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()

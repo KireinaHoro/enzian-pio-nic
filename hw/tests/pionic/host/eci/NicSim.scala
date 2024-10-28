@@ -362,11 +362,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val globalBlock = allocFactory.readBack("global")
     // test on first non-bypass core
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(2000)
 
     val (_, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock)
     val (packet, _) = getPacket()
     val toSend = packet.getRawData.toList
+
+    // we test only one iteration -- no retries
     val delayed = 1000
 
     fork {
@@ -374,7 +376,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       axisMaster.send(toSend)
     }
 
-    val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+    val (desc, _) = tryReadPacketDesc(dcsMaster, 1, maxTries = 1).result.get
     val timestamp = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
 
     val timestamps = getRxTimestamps(csrMaster, globalBlock)
