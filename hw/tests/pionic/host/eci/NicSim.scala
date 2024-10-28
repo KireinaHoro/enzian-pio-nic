@@ -2,6 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.eci.sim.DcsAppMaster
 import jsteward.blocks.DutSimFunSuite
+import jsteward.blocks.misc.sim.isSorted
 import org.pcap4j.packet.Packet
 import pionic._
 import pionic.sim._
@@ -18,7 +19,7 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
-class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
+class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with TimestampSuiteFactory {
   implicit val c = new ConfigDatabase
   c.post("host interface", "eci")
 
@@ -322,5 +323,65 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
       println(s"Received packet #$pid")
       sleepCycles(20)
     }
+  }
+
+  test("rx-timestamped-queued") { implicit dut =>
+    // test timestamp collection with oncrpc call
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    // test on first non-bypass core
+    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+
+    val (_, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock)
+    val (packet, _) = getPacket()
+    val toSend = packet.getRawData.toList
+
+    axisMaster.send(toSend)
+    // ensure that packet has landed in the queue
+    val delayed = 1000
+    sleepCycles(delayed)
+
+    val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+    val timestamp = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+
+    // we don't use the commit timestamp since commit is tied to read next
+    val timestamps = getRxTimestamps(csrMaster, globalBlock)
+    import timestamps._
+
+    println(s"Current timestamp: $timestamp")
+
+    assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, timestamp))
+    assert(readStart - entry >= delayed)
+  }
+
+  test("rx-timestamped-stalled") { implicit dut =>
+    // test timestamp collection with oncrpc call
+    val allocFactory = dut.host[RegAlloc].f
+    val globalBlock = allocFactory.readBack("global")
+    // test on first non-bypass core
+    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+
+    val (_, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock)
+    val (packet, _) = getPacket()
+    val toSend = packet.getRawData.toList
+    val delayed = 1000
+
+    fork {
+      sleepCycles(delayed)
+      axisMaster.send(toSend)
+    }
+
+    val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+    val timestamp = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+
+    val timestamps = getRxTimestamps(csrMaster, globalBlock)
+    import timestamps._
+
+    println(s"Current timestamp: $timestamp")
+
+    assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, timestamp))
+    assert(entry - readStart >= delayed)
   }
 }

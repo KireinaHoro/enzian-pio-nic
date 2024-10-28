@@ -18,7 +18,7 @@ import scala.util.control.TailCalls._
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.namednumber.DataLinkType
 
-class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
+class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with TimestampSuiteFactory {
   // TODO: test on multiple configs
   implicit val c = new ConfigDatabase
   c.post("num cores", 8, action = ConfigDatabase.Override) // to test for dispatching
@@ -226,38 +226,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcDutFactory {
       }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
-  }
-
-  def getRxTimestamps(master: Axi4Master, globalBlock: RegBlockReadBack) = {
-    new {
-      val entry = master.read(globalBlock("lastProfile", "RxCmacEntry"), 8).bytesToBigInt
-      val afterRxQueue = master.read(globalBlock("lastProfile", "RxAfterCdcQueue"), 8).bytesToBigInt
-      val readStart = master.read(globalBlock("lastProfile", "RxCoreReadStart"), 8).bytesToBigInt
-      val afterRead = master.read(globalBlock("lastProfile", "RxCoreReadFinish"), 8).bytesToBigInt
-      val enqueueToHost = master.read(globalBlock("lastProfile", "RxEnqueueToHost"), 8).bytesToBigInt
-      val afterRxCommit = master.read(globalBlock("lastProfile", "RxCoreCommit"), 8).bytesToBigInt
-
-      println(s"RxCmacEntry: $entry")
-      println(s"RxAfterCdcQueue: $afterRxQueue")
-      println(s"RxCoreReadStart: $readStart")
-      println(s"RxCoreReadFinish: $afterRead")
-      println(s"RxEnqueueToHost: $enqueueToHost")
-      println(s"RxCoreCommit: $afterRxCommit")
-    }
-  }
-
-  def getTxTimestamps(master: Axi4Master, globalBlock: RegBlockReadBack) = {
-    new {
-      val acquire = master.read(globalBlock("lastProfile", "TxCoreAcquire"), 8).bytesToBigInt
-      val afterTxCommit = master.read(globalBlock("lastProfile", "TxCoreCommit"), 8).bytesToBigInt
-      val afterDmaRead = master.read(globalBlock("lastProfile", "TxAfterDmaRead"), 8).bytesToBigInt
-      val exit = master.read(globalBlock("lastProfile", "TxCmacExit"), 8).bytesToBigInt
-
-      println(s"TxCoreAcquire: $acquire")
-      println(s"TxCoreCommit: $afterTxCommit")
-      println(s"TxAfterDmaRead: $afterDmaRead")
-      println(s"TxCmacExit: $exit")
-    }
   }
 
   test("rx-timestamped-queued") { implicit dut =>
