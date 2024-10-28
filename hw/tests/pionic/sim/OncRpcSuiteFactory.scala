@@ -9,7 +9,7 @@ import spinal.lib._
 
 import scala.util.Random
 
-trait OncRpcDutFactory { this: DutSimFunSuite[NicEngine] =>
+trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
     // generate ONCRPC packet
     val sport, dport = Random.nextInt(65535)
