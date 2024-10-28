@@ -80,7 +80,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       val overflowAddr = clAddr + 0x40
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
-      val control = dcsMaster.read(clAddr, 64).bytesToBigInt
+      // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
+      val control = dcsMaster.read(clAddr, 64, doInvIdemptCheck = false).bytesToBigInt
       // always toggle cacheline
       rxNextCl(cid) = 1 - rxNextCl(cid)
       if ((control & 1) == 0) {

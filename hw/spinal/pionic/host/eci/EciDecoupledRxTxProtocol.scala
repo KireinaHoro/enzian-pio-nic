@@ -75,19 +75,32 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     hostRxReq := logic.rxReqs.reduceBalancedTree(_ || _)
     val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
-    Seq(0, 1) foreach { idx => new Composite(this, "driveBusCtrl") {
+    Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
         logic.rxReqs(idx).set()
       }
 
-      // we latch the rx stream during any possible host reload replays
+      // we need to freeze the read control cacheline when we are in noPacket
+      // to avoid the following corner case:
+      // - L2 issues reload, no packet => rxFsm == noPacket
+      // - core didn't have a chance to read NACK, L2 evicted
+      // - packet arrived while we are in noPacket
+      // - L2 reload, core sees valid = 1, packet delivered
+      // - packet NOT consumed yet since we didn't exit from gotPacket
+      // - core reads again, packet delivered AGAIN
+      // we still cannot do full voluntary reload idempotency check, since packet
+      // will be DMA'ed into packet buffer anyways -- difficult to control from here
+      // TODO: can we fabricate a test case for this?
       val rxDesc = logic.demuxedRxDescs(idx)
-      val rxHostCtrlInfo = Stream(EciHostCtrlInfo())
-      rxHostCtrlInfo.valid := rxDesc.valid
-      rxHostCtrlInfo.ty := rxDesc.ty
-      rxHostCtrlInfo.data := rxDesc.data
-      rxHostCtrlInfo.len := rxDesc.buffer.size
+      val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
+      rxHostCtrlInfo.valid init False
+      when (!logic.rxFsm.isActive(logic.rxFsm.noPacket)) {
+        rxHostCtrlInfo.valid := rxDesc.valid
+        rxHostCtrlInfo.ty := rxDesc.ty
+        rxHostCtrlInfo.data := rxDesc.data
+        rxHostCtrlInfo.len := rxDesc.buffer.size
+      }
       rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
@@ -133,7 +146,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       mappingLength = roundMtu)
 
     writeCmd = busCtrl.writeCmd
-  }.setName("driveDcsBus")
+  }.setName(s"driveDcsBus_core$coreID")
 
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
