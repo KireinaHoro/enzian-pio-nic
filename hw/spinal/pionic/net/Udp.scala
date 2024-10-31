@@ -1,6 +1,7 @@
 package pionic.net
 
 import jsteward.blocks.axi.AxiStreamExtractHeader
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
 import spinal.core._
 import spinal.lib._
@@ -35,9 +36,9 @@ case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPa
 class UdpDecoder extends ProtoDecoder[UdpMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
-    logic.decoder.io.statistics.flattenForeach { stat =>
-      busCtrl.read(stat, alloc("udpStats", stat.getName()))
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
+      busCtrl.read(stat, alloc("udpStats", name))
     }
   }
 

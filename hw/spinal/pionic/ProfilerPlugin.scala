@@ -26,7 +26,7 @@ class ProfilerPlugin extends PioNicPlugin {
     val profiler = Profiler(RxCmacEntry, RxAfterCdcQueue, RxEnqueueToHost, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
       TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(c[Boolean]("collect timestamps"))
 
-    def reportTimestamps(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
+    def reportTimestamps(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       if (c[Boolean]("collect timestamps")) {
         profiler.timestamps.storage.foreach { case (namedType, data) =>
           busCtrl.read(data, alloc("lastProfile", namedType.getName()))

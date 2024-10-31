@@ -34,7 +34,7 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(regWidth))
 
     private val alloc = allocFactory("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
-    csr.readAndWrite(busCtrl, alloc(_))
+    csr.readAndWrite(busCtrl, alloc.toGeneric)
 
     private val pktBufferAlloc = allocFactory("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
@@ -75,13 +75,13 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
       busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true))
       busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck"))
 
-      c.logic.connectControl(busCtrl, alloc(_))
-      c.logic.reportStatistics(busCtrl, alloc(_, _))
+      c.logic.connectControl(busCtrl, alloc.toGeneric)
+      c.logic.reportStatistics(busCtrl, alloc.toGeneric)
     }
 
     // control for the decoders
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc(_, _)))
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc.toGeneric))
 
-    host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc(_, _))
+    host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc.toGeneric)
   }
 }

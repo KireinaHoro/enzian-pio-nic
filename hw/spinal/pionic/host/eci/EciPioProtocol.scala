@@ -1,6 +1,7 @@
 package pionic.host.eci
 
 import jsteward.blocks.eci.EciCmdDefs
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
 import spinal.core._
 import spinal.lib._
@@ -27,7 +28,7 @@ trait EciPioProtocol extends PioNicPlugin {
   // dcs busCtrl for control cacheline
   def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits])
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: String => BigInt)
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc)
 
   def sizePerCore: BigInt
 }

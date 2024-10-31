@@ -1,6 +1,6 @@
 package pionic
 
-import jsteward.blocks.misc.CycleClock
+import jsteward.blocks.misc.{CycleClock, RegBlockAlloc}
 import spinal.core._
 import spinal.lib.CounterFreeRun
 import spinal.lib.bus.misc.BusSlaveFactory
@@ -27,7 +27,7 @@ class GlobalCSRPlugin extends PioNicPlugin {
     host[DebugPlugin].postDebug("cycles", status.cycles)
   }
 
-  def readAndWrite(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
+  def readAndWrite(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.ctrl.elements.foreach { case (name, data) =>
       assert(data.isReg, "control CSR should always be register")
       val addr = alloc(name)

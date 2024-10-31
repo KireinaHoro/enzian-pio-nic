@@ -69,7 +69,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
 
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
     private val alloc = allocFactory("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
-    csr.readAndWrite(csrCtrl, alloc(_))
+    csr.readAndWrite(csrCtrl, alloc.toGeneric)
 
     // axi DMA traffic steered into each core's packet buffers
     val dmaNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
@@ -233,17 +233,17 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
       cio.hostRxReq :=   proto.hostRxReq
 
       // CSR for the core
-      c.logic.connectControl(csrCtrl, alloc(_))
-      c.logic.reportStatistics(csrCtrl, alloc(_, _))
+      c.logic.connectControl(csrCtrl, alloc.toGeneric)
+      c.logic.reportStatistics(csrCtrl, alloc.toGeneric)
 
       proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
-      proto.driveControl(csrCtrl, alloc(_))
+      proto.driveControl(csrCtrl, alloc.toGeneric)
     }.setName("bindProtoToCoreCtrl")
     }
 
     // control for the decoders
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc(_, _)))
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc.toGeneric))
 
-    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc(_, _))
+    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc.toGeneric)
   }
 }

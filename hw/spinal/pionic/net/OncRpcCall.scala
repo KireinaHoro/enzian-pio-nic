@@ -1,6 +1,7 @@
 package pionic.net
 
 import jsteward.blocks.axi._
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
 import spinal.core._
 import spinal.lib._
@@ -44,23 +45,42 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   }
 }
 
+case class OncRpcCallServiceDef() extends Bundle {
+  val enabled = Bool()
+  val progNum = Bits(32 bits)
+  val progVer = Bits(32 bits)
+  val proc = Bits(32 bits)
+  val funcPtr = Bits(64 bits)
+  // TODO: protection domain information? aux data?
+
+  def matchHeader(h: OncRpcCallHeader) = enabled &&
+    progNum === EndiannessSwap(h.progNum) &&
+    progVer === EndiannessSwap(h.progVer) &&
+    proc === EndiannessSwap(h.proc)
+}
+
 class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
   // FIXME: can we fit more?
   postConfig("max onc rpc inline bytes", 4 * 12, action = ConfigDatabase.Unique)
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
-    logic.decoder.io.statistics.flattenForeach { stat =>
-      busCtrl.read(stat, alloc("oncRpcStats", stat.getName()))
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
+      busCtrl.read(stat, alloc("oncRpcStats", name))
     }
+    val listenEnableBlock = alloc.block("oncRpcCtrl", "listenPort_enabled", numListenPorts)
+    val listenBlock = alloc.block("oncRpcCtrl", "listenPort", numListenPorts)
     logic.listenPorts.zipWithIndex foreach { case (portSlot, idx) =>
-      busCtrl.driveAndRead(portSlot.valid, alloc("oncRpcCtrl", s"listenPort_${idx}_enabled")) init False
-      busCtrl.driveAndRead(portSlot.payload, alloc("oncRpcCtrl", s"listenPort_${idx}"))
+      busCtrl.driveAndRead(portSlot.valid, listenEnableBlock(idx)) init False
+      busCtrl.driveAndRead(portSlot.payload, listenBlock(idx))
+    }
+    val serviceBlockMap = OncRpcCallServiceDef().elements.foldLeft(Map[String, Seq[BigInt]]()) { case (acc, (name, _)) =>
+      acc + (name -> alloc.block("oncRpcCtrl", s"service_$name", numServiceSlots))
     }
     logic.serviceSlots.zipWithIndex foreach { case (serviceSlot, idx) =>
-      serviceSlot.flattenForeach { item =>
-        busCtrl.driveAndRead(item, alloc("oncRpcCtrl", s"service_${idx}_${item.getName().split("_").last}"))
+      serviceSlot.elements.foreach { case (name, item) =>
+        busCtrl.driveAndRead(item, serviceBlockMap(name)(idx))
       }
     }
 
@@ -74,19 +94,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     val udpPayload = Axi4Stream(macIf.axisConfig)
 
     val listenPorts = Vec.fill(numListenPorts)(Flow(UInt(16 bits)))
-    val serviceSlots = Vec.fill(numServiceSlots)(new Bundle {
-      val enabled = Bool()
-      val progNum = Bits(32 bits)
-      val progVer = Bits(32 bits)
-      val proc = Bits(32 bits)
-      val funcPtr = Bits(64 bits)
-      // TODO: protection domain information? aux data?
-
-      def matchHeader(h: OncRpcCallHeader) = enabled &&
-        progNum === EndiannessSwap(h.progNum) &&
-        progVer === EndiannessSwap(h.progVer) &&
-        proc === EndiannessSwap(h.proc)
-    })
+    val serviceSlots = Vec.fill(numServiceSlots)(OncRpcCallServiceDef())
 
     val coreMask = Flow(Bits(numCores bits))
 

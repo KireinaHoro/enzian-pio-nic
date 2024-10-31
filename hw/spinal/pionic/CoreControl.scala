@@ -1,5 +1,6 @@
 package pionic
 
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic.host.HostService
 import pionic.net.{ProtoPacketDescType, TaggedProtoPacketDesc}
 import spinal.core._
@@ -329,11 +330,11 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
       p.TxCoreCommit -> io.hostTxAck.fire,
     )
 
-    def connectControl(busCtrl: BusSlaveFactory, alloc: String => BigInt): Unit = {
+    def connectControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       busCtrl.driveAndRead(io.allocReset, alloc("allocReset")) init false
     }
 
-    def reportStatistics(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
+    def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       io.statistics.elements.foreach { case (name, data) =>
         data match {
           case d: UInt => busCtrl.read(d, alloc(name, ""))
