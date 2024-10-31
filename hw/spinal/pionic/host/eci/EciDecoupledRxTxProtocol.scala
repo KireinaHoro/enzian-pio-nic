@@ -2,6 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
 import spinal.core._
 import spinal.core.fiber.Handle._
@@ -17,7 +18,7 @@ import scala.math.BigInt.int2bigInt
 class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
   withPrefix(s"core_$coreID")
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: String => BigInt) = {
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
     // TODO: do we actually need resync?
     //       we need to drain all pending ULs, etc., rather complicated
     // val r = busCtrl.driveAndRead(logic.resync, alloc("eciResync")) init false

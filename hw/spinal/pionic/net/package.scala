@@ -5,6 +5,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
+import jsteward.blocks.misc.RegBlockAlloc
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable
@@ -170,7 +171,7 @@ package object net {
      * @param busCtrl bus slave factory to host register access
      * @param alloc reg allocator
      */
-    def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit
+    def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
   }
 
   trait ProtoEncoder {

@@ -1,6 +1,7 @@
 package pionic.net
 
 import jsteward.blocks.axi._
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
 import spinal.core._
 import spinal.lib._
@@ -33,9 +34,9 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin].logic
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: (String, String) => BigInt): Unit = {
-    logic.decoder.io.statistics.flattenForeach { stat =>
-      busCtrl.read(stat, alloc("ethernetStats", stat.getName()))
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
+      busCtrl.read(stat, alloc("ethernetStats", name))
     }
     busCtrl.readAndWrite(logic.macAddress, alloc("ethernetCtrl", "macAddress"))
   }
