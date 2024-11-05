@@ -6,7 +6,7 @@ import spinal.core.IntToBuilder
 import jsteward.blocks.misc.sim.BigIntRicher
 
 sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
-  import Widths._
+  import pionic.Widths._
   def len: Int
   def toBigInt(implicit c: ConfigDatabase): BigInt = BigInt(0)
     .assignToRange(tw-1       downto 0, ty)
@@ -19,7 +19,7 @@ sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
 
 object EciHostCtrlInfoSim {
   def fromBigInt(v: BigInt)(implicit c: ConfigDatabase): EciHostCtrlInfoSim = {
-    import Widths._
+    import pionic.Widths._
     val ty   = v(tw-1       downto 0).toInt
     val len  = v(tw+lw-1    downto tw).toInt
     val data = v(tw+lw+dw-1 downto tw+lw)

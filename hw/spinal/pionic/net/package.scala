@@ -67,7 +67,7 @@ package object net {
     }
 
     def collectHeaders(implicit c: ConfigDatabase): Bits = {
-      val ret = CombInit(B(0, c[Int]("bypass header max width") bits))
+      val ret = CombInit(B(0, Widths.bphw bits))
       switch (ty) {
         import ProtoPacketDescType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
