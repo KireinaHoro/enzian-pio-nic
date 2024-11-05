@@ -17,7 +17,6 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
-  lazy val allocFactory = host[RegAlloc].f
   val retainer = Retainer()
 
   // PCIe bridge block AXI config
@@ -33,10 +32,10 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
     val axiWideConfigNode = Axi4(axiConfig)
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(regWidth))
 
-    private val alloc = allocFactory("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
+    private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
     csr.readAndWrite(busCtrl, alloc.toGeneric)
 
-    private val pktBufferAlloc = allocFactory("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
+    private val pktBufferAlloc = c.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
     // TODO: partition buffer for each core (and steer DMA writes) for max throughput
     val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufSize)))
@@ -59,7 +58,7 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
       val baseAddress = (1 + c.coreID) * 0x1000
       val cio = c.logic.io
 
-      val alloc = allocFactory("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(axiConfig.dataWidth)
+      val alloc = host[ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(axiConfig.dataWidth)
 
       val rxAddr = alloc("hostRx", readSensitive = true)
       busCtrl.readStreamBlockCycles(cio.hostRx, rxAddr, csr.logic.ctrl.rxBlockCycles)

@@ -1,5 +1,6 @@
 package pionic
 
+import jsteward.blocks.misc.RegAllocatorFactory
 import spinal.core.SpinalConfig
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -90,4 +91,6 @@ class ConfigDatabase extends FiberPlugin {
           |#endif // __PIONIC_CONFIG_H__
           |""".stripMargin)
   }
+
+  val f = new RegAllocatorFactory
 }

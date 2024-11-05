@@ -36,9 +36,6 @@ case class HostBypassHeaders()(implicit c: ConfigDatabase) extends Bundle {
 case class HostPacketDescData()(implicit c: ConfigDatabase) extends Union {
   val bypassMeta = newElement(HostBypassHeaders())
   val oncRpcCall = newElement(OncRpcCallData())
-  val oncRpcReply = newElement(new Bundle {
-
-  })
 }
 
 /**

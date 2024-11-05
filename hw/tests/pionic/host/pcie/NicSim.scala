@@ -34,7 +34,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     .compile(pionic.GenEngineVerilog.engine(c))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core")
 
@@ -84,7 +84,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   /** test sending a ethernet frame to trigger bypass */
   def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster)(implicit dut: NicEngine) = {
     implicit val c = dut.host[ConfigDatabase]
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core", blockIdx = 0)
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
@@ -135,7 +135,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   // TODO: test for various failures
   test("rx-regular") { implicit dut =>
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val coreBlock = allocFactory.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
 
@@ -153,7 +153,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   test("tx-regular") { implicit dut =>
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     // test sending with bypass core
     val coreBlock = allocFactory.readBack("core")
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
@@ -188,7 +188,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   test("rx-oncrpc-roundrobin") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")
 
@@ -232,7 +232,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // test timestamp collection with oncrpc call
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
@@ -263,7 +263,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   test("rx-timestamped-stalled") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
@@ -296,7 +296,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   test("tx-timestamped") { implicit dut =>
     val (master, axisSlave) = txDutSetup()
 
-    val allocFactory = dut.host[RegAlloc].f
+    val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core")
     val pktBufAddr = allocFactory.readBack("pkt")("buffer")

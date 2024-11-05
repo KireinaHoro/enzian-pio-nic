@@ -5,7 +5,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable
