@@ -1,11 +1,12 @@
 package pionic
 
-import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
 import pionic.host.HostService
 import pionic.net.{ProtoPacketDescType, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
+import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 
 import scala.language.postfixOps
@@ -334,9 +335,9 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
     def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       io.statistics.elements.foreach { case (name, data) =>
         data match {
-          case d: UInt => busCtrl.read(d, alloc(name, ""))
+          case d: UInt => busCtrl.read(d, alloc(name, "", attr = RO))
           case v: Vec[_] => v zip c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1) foreach { case (elem, slotSize) =>
-            busCtrl.read(elem, alloc(name, s"upTo$slotSize"))
+            busCtrl.read(elem, alloc(name, s"upTo$slotSize", attr = RO))
           }
         }
       }

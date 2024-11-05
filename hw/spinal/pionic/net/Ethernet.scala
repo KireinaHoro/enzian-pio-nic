@@ -7,6 +7,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
 
 case class EthernetHeader() extends Bundle {
   val dst = Bits(48 bits)
@@ -36,7 +37,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("ethernetStats", name))
+      busCtrl.read(stat, alloc("ethernetStats", name, attr = RO))
     }
     busCtrl.readAndWrite(logic.macAddress, alloc("ethernetCtrl", "macAddress"))
   }

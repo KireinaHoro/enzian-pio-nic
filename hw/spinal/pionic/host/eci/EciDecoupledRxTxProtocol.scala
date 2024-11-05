@@ -9,6 +9,7 @@ import spinal.core.fiber.Handle._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4AwUnburstified, Axi4SlaveFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SingleMapping, SizeMapping}
+import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -24,11 +25,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // val r = busCtrl.driveAndRead(logic.resync, alloc("eciResync")) init false
     // r.clearWhen(r)
 
-    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState"))
-    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx"))
+    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO))
+    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO))
 
-    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState"))
-    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx"))
+    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO))
+    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO))
   }
   lazy val csr = host[GlobalCSRPlugin].logic
   lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8

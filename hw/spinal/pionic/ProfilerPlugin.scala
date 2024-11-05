@@ -3,6 +3,7 @@ package pionic
 import spinal.core._
 import jsteward.blocks.misc._
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
 
 class ProfilerPlugin extends PioNicPlugin {
   setName("")
@@ -29,7 +30,7 @@ class ProfilerPlugin extends PioNicPlugin {
     def reportTimestamps(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       if (c[Boolean]("collect timestamps")) {
         profiler.timestamps.storage.foreach { case (namedType, data) =>
-          busCtrl.read(data, alloc("lastProfile", namedType.getName()))
+          busCtrl.read(data, alloc("lastProfile", namedType.getName(), attr = RO))
         }
       }
     }

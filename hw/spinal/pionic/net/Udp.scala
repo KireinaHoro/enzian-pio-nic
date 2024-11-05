@@ -7,6 +7,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
@@ -38,7 +39,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("udpStats", name))
+      busCtrl.read(stat, alloc("udpStats", name, attr = RO))
     }
   }
 

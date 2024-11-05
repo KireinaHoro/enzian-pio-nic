@@ -7,6 +7,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType
 
 import scala.language.postfixOps
 
@@ -67,7 +68,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("oncRpcStats", name))
+      busCtrl.read(stat, alloc("oncRpcStats", name, attr = AccessType.RO))
     }
     val listenEnableBlock = alloc.block("oncRpcCtrl", "listenPort_enabled", numListenPorts)
     val listenBlock = alloc.block("oncRpcCtrl", "listenPort", numListenPorts)
@@ -85,7 +86,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     }
 
     // generate coreMask and changed signal for packet sink scheduler
-    val coreMaskAddr = alloc("oncRpcCtrl", "coreMask")
+    val coreMaskAddr = alloc("oncRpcCtrl", "coreMask", attr = AccessType.WO)
     busCtrl.driveFlow(logic.coreMask, coreMaskAddr)
   }
 
