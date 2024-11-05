@@ -406,4 +406,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     host[DebugPlugin].postDebug(s"txFsm_${coreID}_stateReg", txFsm.stateReg)
     host[DebugPlugin].postDebug(s"txFsm_${coreID}_currClIdx", txCurrClIdx)
   }
+
+  // FIXME: mackerel does not support:
+  //  - fragmenting large fields, or
+  //  - declaring arrays inside datatypes
+  //  until one of these is implemented, do not emit datatype definition
+  // during build EciHostCtrlInfo().addMackerel
 }

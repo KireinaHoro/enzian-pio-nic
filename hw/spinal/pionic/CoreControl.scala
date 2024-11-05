@@ -13,6 +13,17 @@ import scala.language.postfixOps
 
 object HostPacketDescType extends SpinalEnum {
   val error, bypass, oncRpcCall, oncRpcReply = newElement()
+
+  def addMackerel(f: RegAllocatorFactory)(implicit c: ConfigDatabase) = {
+    f.addMackerelEpilogue(getClass,
+      s"""
+        |constants host_packet_desc_type width(${Widths.bptw}) "Host Packet Descriptor Type" {
+        |  error         = 0b00 "Error";
+        |  bypass        = 0b01 "Bypass";
+        |  onc_rpc_call  = 0b10 "ONC-RPC Call";
+        |  onc_rpc_reply = 0b11 "ONC-RPC Reply";
+        |};""".stripMargin)
+  }
 }
 
 /** RX DMA tag used to construct [[HostPacketDesc]] after DMA.  Filled from [[TaggedProtoPacketDesc]] */
