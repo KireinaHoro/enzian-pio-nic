@@ -1,5 +1,6 @@
 package pionic.host.eci
 
+import jsteward.blocks.misc.RegAllocatorFactory
 import pionic._
 import spinal.core._
 

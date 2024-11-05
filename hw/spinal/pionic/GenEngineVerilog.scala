@@ -17,7 +17,6 @@ object GenEngineVerilog {
       new DebugPlugin,
       new ProfilerPlugin,
       new GlobalCSRPlugin,
-      new RegAlloc,
       // packet pipeline
       new XilinxCmacPlugin,
       new EthernetDecoder,
@@ -72,9 +71,9 @@ object GenEngineVerilog {
     val host = report.toplevel.host
     report.mergeRTLSource("NicEngine_ips")
     VivadoConstraintWriter(report)
-    if (printRegMap) host[RegAlloc].f.dumpAll()
+    if (printRegMap) host[ConfigDatabase].f.dumpAll()
     if (genHeaders) {
-      host[RegAlloc].f.writeHeader("pionic", genDir / "regs.h")
+      host[ConfigDatabase].f.writeHeader("pionic", genDir / "regs.h")
       host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
     }
   }

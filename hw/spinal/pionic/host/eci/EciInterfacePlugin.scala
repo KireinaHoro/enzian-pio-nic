@@ -23,7 +23,6 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
   lazy val protos = host.list[EciPioProtocol]
-  lazy val allocFactory = host[RegAlloc].f
   val retainer = Retainer()
 
   lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
@@ -68,7 +67,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     )) addTag ClockDomainTag(clockDomain)
 
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
-    private val alloc = allocFactory("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
+    private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc.toGeneric)
 
     // axi DMA traffic steered into each core's packet buffers
@@ -206,7 +205,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     // drive core control interface -- datapath per core
     cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos foreach { case ((c, dmaNode, dcsNode, lci), lcia, ul, proto) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
-      val alloc = allocFactory("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
+      val alloc = host[pionic.ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
       val cio = c.logic.io
 
       // per-core packet buffer

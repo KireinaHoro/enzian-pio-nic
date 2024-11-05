@@ -28,10 +28,6 @@ package object pionic {
     }
   }
 
-  class RegAlloc extends FiberPlugin {
-    val f = new RegAllocatorFactory
-  }
-
   implicit class RichUInt(v: UInt) {
     def toPacketLength(implicit c: ConfigDatabase) = {
       val len = PacketLength()
