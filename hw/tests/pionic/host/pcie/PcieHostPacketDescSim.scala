@@ -6,7 +6,7 @@ import pionic.sim._
 import spinal.core.IntToBuilder
 
 sealed abstract class PcieHostPacketDescSim extends HostPacketDescSim {
-  import Widths._
+  import pionic.Widths._
 
   // fields of HostPacketDesc()
   val addr, size: BigInt
@@ -31,7 +31,7 @@ sealed abstract class PcieHostPacketDescSim extends HostPacketDescSim {
 
 object PcieHostPacketDescSim {
   def fromBigInt(v: BigInt)(implicit c: ConfigDatabase) = {
-    import Widths._
+    import pionic.Widths._
     val addr = v(aw-1          downto 0).toInt
     val size = v(aw+lw-1       downto aw).toInt
     val ty =   v(aw+lw+tw-1    downto aw+lw).toInt

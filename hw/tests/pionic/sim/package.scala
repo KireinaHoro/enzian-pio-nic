@@ -168,13 +168,4 @@ package object sim {
     assert(descLen == expectedLen, s"packet length mismatch: expected $expectedLen, got $descLen")
     payload
   }
-
-  object Widths {
-    def aw(implicit c: ConfigDatabase) = c[Int]("pkt buf addr width")
-    def lw(implicit c: ConfigDatabase) = c[Int]("pkt buf len width")
-    def tw(implicit c: ConfigDatabase) = c[Int]("host packet desc type width")
-    def dw(implicit c: ConfigDatabase) = c[Int]("host packet desc data width")
-    def bptw(implicit c: ConfigDatabase) = c[Int]("proto packet desc type width")
-    def oargw(implicit c: ConfigDatabase) = c[Int]("max onc rpc inline bytes") * 8
-  }
 }

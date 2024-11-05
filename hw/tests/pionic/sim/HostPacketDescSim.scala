@@ -17,7 +17,7 @@ trait ErrorPacketDescSim { this: HostPacketDescSim =>
 }
 
 trait BypassPacketDescSim { this: HostPacketDescSim =>
-  import Widths._
+  import pionic.Widths._
   def packetType: BigInt
   def packetHdr: BigInt
 
@@ -36,7 +36,7 @@ trait BypassPacketDescSim { this: HostPacketDescSim =>
 }
 
 trait OncRpcCallPacketDescSim { this: HostPacketDescSim =>
-  import Widths._
+  import pionic.Widths._
   // XXX: TX call is only needed for nested RPC calls
   def funcPtr: BigInt
   def xid: BigInt
@@ -51,7 +51,7 @@ trait OncRpcCallPacketDescSim { this: HostPacketDescSim =>
 }
 
 trait OncRpcReplyPacketDescSim { this: HostPacketDescSim =>
-  import Widths._
+  import pionic.Widths._
   // XXX: RX reply is only needed for nested RPC calls
   def funcPtr: BigInt
   def xid: BigInt

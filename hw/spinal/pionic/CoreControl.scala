@@ -30,7 +30,7 @@ case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
 
 case class HostBypassHeaders()(implicit c: ConfigDatabase) extends Bundle {
   val ty = ProtoPacketDescType()
-  val hdr = Bits(c[Int]("bypass header max width") bits)
+  val hdr = Bits(Widths.bphw bits)
 }
 
 case class HostPacketDescData()(implicit c: ConfigDatabase) extends Union {
