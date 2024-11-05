@@ -9,6 +9,7 @@ import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc.SingleMapping
+import spinal.lib.bus.regif.AccessType.{RO, WO}
 import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
@@ -60,9 +61,9 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
 
       val alloc = host[ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(axiConfig.dataWidth)
 
-      val rxAddr = alloc("hostRx", readSensitive = true)
+      val rxAddr = alloc("hostRx", readSensitive = true, attr = RO)
       busCtrl.readStreamBlockCycles(cio.hostRx, rxAddr, csr.logic.ctrl.rxBlockCycles)
-      busCtrl.driveStream(cio.hostRxAck, alloc("hostRxAck"))
+      busCtrl.driveStream(cio.hostRxAck, alloc("hostRxAck", attr = WO))
 
       // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
       cio.hostRxReq := False
@@ -71,8 +72,8 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
       }
 
       // should not block; only for profiling (to use ready signal)
-      busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true))
-      busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck"))
+      busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true, attr = RO))
+      busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck", attr = WO))
 
       c.logic.connectControl(busCtrl, alloc.toGeneric)
       c.logic.reportStatistics(busCtrl, alloc.toGeneric)

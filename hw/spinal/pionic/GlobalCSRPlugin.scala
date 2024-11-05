@@ -4,6 +4,7 @@ import jsteward.blocks.misc.{CycleClock, RegBlockAlloc}
 import spinal.core._
 import spinal.lib.CounterFreeRun
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
@@ -34,7 +35,7 @@ class GlobalCSRPlugin extends PioNicPlugin {
       busCtrl.readAndWrite(data, addr)
     }
     logic.status.elements.foreach { case (name, data) =>
-      busCtrl.read(data, alloc(name))
+      busCtrl.read(data, alloc(name, attr = RO))
     }
   }
 }

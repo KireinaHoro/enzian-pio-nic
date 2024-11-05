@@ -7,6 +7,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
@@ -48,7 +49,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("ipStats", name))
+      busCtrl.read(stat, alloc("ipStats", name, attr = RO))
     }
     busCtrl.readAndWrite(logic.ipAddress, alloc("ipCtrl", "ipAddress"))
   }
