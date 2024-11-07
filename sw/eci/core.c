@@ -1,19 +1,19 @@
+#include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <assert.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include "api.h"
-#include "hal.h"
 #include "cmac.h"
 #include "diag.h"
+#include "hal.h"
 
-#include "../../hw/gen/eci/regs.h"
 #include "../../hw/gen/eci/config.h"
+#include "../../hw/gen/eci/regs.h"
 #include "common.h"
 
 #define CMAC_BASE 0x200000UL
@@ -28,7 +28,7 @@
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define FPGA_MEM_SIZE (1UL << 40) // 1 TiB
 
-#define BARRIER asm volatile ("dmb sy\nisb");
+#define BARRIER asm volatile("dmb sy\nisb");
 
 struct pionic_ctx {
   void *shell_regs_region;
@@ -131,7 +131,9 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   printf("Opened /dev/mem\n");
 
   // map regs for nic engine
-  ctx->nic_regs_region = mmap(NULL, PIONIC_REGS_SIZE(ctx), PROT_READ | PROT_WRITE, MAP_SHARED, fd, PIONIC_REGS_BASE);
+  ctx->nic_regs_region =
+      mmap(NULL, PIONIC_REGS_SIZE(ctx), PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+           PIONIC_REGS_BASE);
   if (ctx->nic_regs_region == MAP_FAILED) {
     perror("mmap regs space");
     goto fail;
@@ -139,7 +141,8 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   printf("Mapped NIC regs region with /dev/mem\n");
 
   // map regs for shell
-  ctx->shell_regs_region = mmap(NULL, ctx->page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SHELL_REGS_BASE);
+  ctx->shell_regs_region = mmap(NULL, ctx->page_size, PROT_READ | PROT_WRITE,
+                                MAP_SHARED, fd, SHELL_REGS_BASE);
   if (ctx->shell_regs_region == MAP_FAILED) {
     perror("mmap shell regs space");
     goto fail;
@@ -149,7 +152,8 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   close(fd);
 
   // read out shell version number
-  printf("Enzian shell version: %08lx\n", read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
+  printf("Enzian shell version: %08lx\n",
+         read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
 
   // TODO: implement resync
 
@@ -165,7 +169,8 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   }
 
   // map the entire fpga memory region (1 TiB)
-  ctx->mem_region = mmap((void *)FPGA_MEM_BASE, FPGA_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  ctx->mem_region = mmap((void *)FPGA_MEM_BASE, FPGA_MEM_SIZE,
+                         PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (ctx->mem_region == MAP_FAILED) {
     perror("mmap fpga mem space");
     goto fail;
@@ -200,16 +205,19 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
       cl_hit_inv(ctx, tx_base + 0x80 * next_cl);
     }
 
-    for (int overflow_cl = 0; overflow_cl < PIONIC_ECI_NUM_OVERFLOW_CL; ++overflow_cl) {
-      cl_hit_inv(ctx, rx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
-      cl_hit_inv(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
+    for (int overflow_cl = 0; overflow_cl < PIONIC_ECI_NUM_OVERFLOW_CL;
+         ++overflow_cl) {
+      cl_hit_inv(ctx,
+                 rx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
+      cl_hit_inv(ctx,
+                 tx_base + PIONIC_ECI_OVERFLOW_OFFSET + 0x80 * overflow_cl);
     }
 
     // read out next CL counters
     bool rx_next_cl = ctx->core_states[i].rx_next_cl =
-      read64(ctx, PIONIC_CONTROL_RX_CURR_CL_IDX(i));
+        read64(ctx, PIONIC_CONTROL_RX_CURR_CL_IDX(i));
     bool tx_next_cl = ctx->core_states[i].tx_next_cl =
-      read64(ctx, PIONIC_CONTROL_TX_CURR_CL_IDX(i));
+        read64(ctx, PIONIC_CONTROL_TX_CURR_CL_IDX(i));
 
     printf("rx curr cl idx for core %d: %d\n", i, rx_next_cl);
     printf("tx curr cl idx for core %d: %d\n", i, tx_next_cl);
@@ -298,7 +306,8 @@ static uint64_t read64_fpgamem(pionic_ctx_t ctx, uint64_t addr) {
   return reg;
 }
 
-static void copy_from_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *dest, size_t len) {
+static void copy_from_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *dest,
+                              size_t len) {
 #ifdef DEBUG_REG
   printf("[Mem] RM %#lx ->\n", addr);
 #endif
@@ -308,7 +317,8 @@ static void copy_from_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *dest, size_
 #endif
 }
 
-static void copy_to_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *src, size_t len) {
+static void copy_to_fpgamem(pionic_ctx_t ctx, uint64_t addr, void *src,
+                            size_t len) {
 #ifdef DEBUG_REG
   printf("[Mem] WM %#lx <-\n", addr);
   hexdump(src, len);
@@ -350,8 +360,8 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
     int first_read_size = pkt_len > 64 ? 64 : pkt_len;
     copy_from_fpgamem(ctx, inline_data_addr, desc->buf, first_read_size);
     if (pkt_len > 64) {
-      copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->buf + 64,
-          pkt_len - 64);
+      copy_from_fpgamem(ctx, rx_base + PIONIC_ECI_OVERFLOW_OFFSET,
+                        desc->buf + 64, pkt_len - 64);
     }
 
     // make sure reading of the next ctrl cl does not get reordered before the
@@ -409,10 +419,11 @@ void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
 
   // copy from prepared buffer
   int first_write_size = pkt_len > 64 ? 64 : pkt_len;
-  copy_to_fpgamem(ctx, *next_cl * 0x80 + 0x40 + tx_base, desc->buf, first_write_size);
+  copy_to_fpgamem(ctx, *next_cl * 0x80 + 0x40 + tx_base, desc->buf,
+                  first_write_size);
   if (pkt_len > 64) {
     copy_to_fpgamem(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->buf + 64,
-        pkt_len - 64);
+                    pkt_len - 64);
   }
 
   *next_cl ^= true;
