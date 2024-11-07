@@ -65,6 +65,8 @@ void pionic_oncrpc_service_enable(pionic_ctx_t ctx, int idx, int prog_num,
                                   int ver, int proc, void *func_ptr);
 void pionic_oncrpc_service_disable(pionic_ctx_t ctx, int idx);
 
+void pionic_oncrpc_set_core_mask(pionic_ctx_t ctx, int mask);
+
 // receive packet
 bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);
 // acknowledge received packet (for NIC to free packet)

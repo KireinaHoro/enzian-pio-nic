@@ -56,15 +56,13 @@ debug: $(APP)
 # escape percent sign to pass it actually to filter
 PERCENT := %
 .SECONDEXPANSION:
-$(RT_OBJS): %.o: $$(filter $$(PERCENT)/%.c,$$(ALL_SRCS)) $(DEPDIR)/%.d | $(DEPDIR)
-	$(COMPILE.c) -I$(SW_ROOT)/../hw/gen/$(NIC_IMPL)/ -I$(RT_HEADERS) $(OUTPUT_OPTION) $<
+$(RT_OBJS): %.o: $$(filter $$(PERCENT)/%.c,$$(ALL_SRCS)) $(DEPDIR)/%.d $(DEVICE_HEADERS) | $(DEPDIR)
+	$(COMPILE.c) -I$(SW_ROOT)/../hw/gen/$(NIC_IMPL)/ -I$(RT_HEADERS) -I$(MACKEREL_ROOT) $(OUTPUT_OPTION) $<
 
 $(MACKEREL):
-	pushd $(MACKEREL_ROOT) && \
-	$(CARGO) compile --release && \
-	popd
+	$(CARGO) build --release --manifest-path=$(MACKEREL_ROOT)/Cargo.toml
 
-$(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL)
+$(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL) | $(RT_HEADERS_GEN)
 	$(MACKEREL) -c $< -o $@
 
 $(DEPDIR) $(RT_HEADERS_GEN): ; @mkdir -p $@
