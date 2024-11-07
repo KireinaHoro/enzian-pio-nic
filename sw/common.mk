@@ -1,12 +1,39 @@
+# https://stackoverflow.com/a/324782
+SW_ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
+
+# NIC_IMPL must be defined
+ifndef NIC_IMPL
+$(error Please set NIC_IMPL to either eci or pcie)
+endif
+
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
-CFLAGS ?= -pipe -Wall -Wno-unused-function -I../include -static
+CFLAGS ?= -pipe -Wall -Wno-unused-function -I$(SW_ROOT)/usr-include -static
 
-DRIVERS := $(patsubst ../%.c,%,$(wildcard ../*.c))
+CARGO := cargo
+MACKEREL_ROOT := $(SW_ROOT)/../deps/mackerel2
+MACKEREL := $(MACKEREL_ROOT)/target/release/mackerel2
 
-SRCS := $(wildcard *.c) $(DRIVERS:%=../%.c)
-DRIVER_OBJS := $(DRIVERS:%=%.o)
+RT_HEADERS := $(SW_ROOT)/rt-include
+RT_HEADERS_GEN := $(RT_HEADERS)/gen
+
+DEVFILES_DIR := $(SW_ROOT)/devices
+DEVICES := $(patsubst $(DEVFILES_DIR)/%.dev,%,$(wildcard $(DEVFILES_DIR)/*.dev))
+DEVICE_HEADERS := $(DEVICES:%=$(RT_HEADERS_GEN)/%.h)
+
+DRIVERS_DIR := $(SW_ROOT)/drivers
+DRIVER_SRCS := $(wildcard $(DRIVERS_DIR)/*.c)
+DRIVER_OBJS := $(patsubst $(DRIVERS_DIR)/%.c,%.o,$(DRIVER_SRCS))
+
+IMPL_DIR := $(SW_ROOT)/$(NIC_IMPL)
+IMPL_SRCS := $(wildcard $(IMPL_DIR)/*.c)
+IMPL_OBJS := $(patsubst $(IMPL_DIR)/%.c,%.o,$(IMPL_SRCS))
+
+RT_SRCS := $(DRIVER_SRCS) $(IMPL_SRCS)
+RT_OBJS := $(DRIVER_OBJS) $(IMPL_OBJS)
+
+ALL_SRCS := $(wildcard *.c) $(RT_SRCS)
 
 # https://make.mad-scientist.net/papers/advanced-auto-dependency-generation/
 DEPDIR := .deps
@@ -20,16 +47,29 @@ all: $(APP)
 debug: CFLAGS += -DDEBUG -DDEBUG_REG -g -O0
 debug: $(APP)
 
+# application object files -- no runtime headers allowed
 %.o: %.c
 %.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
 	$(COMPILE.c) $(OUTPUT_OPTION) $<
 
-$(DRIVER_OBJS): %.o: ../%.c $(DEPDIR)/%.d | $(DEPDIR)
-	$(COMPILE.c) -I../../hw/gen/$(NIC_IMPL)/ $(OUTPUT_OPTION) $<
+# runtime object files -- include runtime headers
+# escape percent sign to pass it actually to filter
+PERCENT := %
+.SECONDEXPANSION:
+$(RT_OBJS): %.o: $$(filter $$(PERCENT)/%.c,$$(ALL_SRCS)) $(DEPDIR)/%.d | $(DEPDIR)
+	$(COMPILE.c) -I$(SW_ROOT)/../hw/gen/$(NIC_IMPL)/ -I$(RT_HEADERS) $(OUTPUT_OPTION) $<
 
-$(DEPDIR): ; @mkdir -p $@
+$(MACKEREL):
+	pushd $(MACKEREL_ROOT) && \
+	$(CARGO) compile --release && \
+	popd
 
-DEPFILES := $(foreach s,$(SRCS),$(patsubst %.c,$(DEPDIR)/%.d,$(notdir $(s))))
+$(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL)
+	$(MACKEREL) -c $< -o $@
+
+$(DEPDIR) $(RT_HEADERS_GEN): ; @mkdir -p $@
+
+DEPFILES := $(foreach s,$(ALL_SRCS),$(patsubst %.c,$(DEPDIR)/%.d,$(notdir $(s))))
 $(DEPFILES):
 
 libpionic.a: core.o $(DRIVER_OBJS)
@@ -40,6 +80,7 @@ $(APP): $(APP).o libpionic.a
 
 clean:
 	rm -f *.o *.a $(APP)
+	rm -rf $(RT_HEADERS_GEN)
 	rm -rf $(DEPDIR)
 
 .PHONY: all clean
