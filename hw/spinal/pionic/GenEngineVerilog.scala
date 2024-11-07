@@ -73,7 +73,7 @@ object GenEngineVerilog {
     VivadoConstraintWriter(report)
     if (printRegMap) host[ConfigDatabase].f.dumpAll()
     if (genHeaders) {
-      host[ConfigDatabase].f.writeMackerel(name, genDir / s"pionic_$name.dev")
+      host[ConfigDatabase].f.writeMackerel(name, os.pwd / "sw" / "devices" / s"pionic_$name.dev")
       host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
     }
   }
