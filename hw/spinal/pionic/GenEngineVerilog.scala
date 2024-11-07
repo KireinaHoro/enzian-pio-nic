@@ -73,7 +73,9 @@ object GenEngineVerilog {
     VivadoConstraintWriter(report)
     if (printRegMap) host[ConfigDatabase].f.dumpAll()
     if (genHeaders) {
-      host[ConfigDatabase].f.writeMackerel(name, os.pwd / "sw" / "devices" / s"pionic_$name.dev")
+      println("Generating headers and mackerel device files")
+      host[ConfigDatabase].f.writeMackerel(name, os.pwd / "sw" / "devices", s"pionic_$name")
+      host[ConfigDatabase].f.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
       host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
     }
   }
