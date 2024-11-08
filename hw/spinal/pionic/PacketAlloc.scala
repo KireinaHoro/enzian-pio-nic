@@ -17,6 +17,8 @@ case class PacketBufDesc()(implicit c: ConfigDatabase) extends Bundle {
 
   val addr = PacketAddr()
   val size = PacketLength()
+
+  assert(getBitsWidth <= 64, "packet buf desc size too big!")
 }
 
 case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extends Component {
