@@ -98,9 +98,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       rxHostCtrlInfo.valid init False
       when (!logic.rxFsm.isActive(logic.rxFsm.noPacket)) {
         rxHostCtrlInfo.valid := rxDesc.valid
-        rxHostCtrlInfo.ty := rxDesc.ty
-        rxHostCtrlInfo.data := rxDesc.data
-        rxHostCtrlInfo.len := rxDesc.buffer.size
+        rxHostCtrlInfo.packFrom(rxDesc)
       }
       rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 
@@ -384,9 +382,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
       val tx: State = new State {
         whenIsActive {
-          hostTxAck.get.ty := savedTxHostCtrl.ty
-          hostTxAck.get.data := savedTxHostCtrl.data
-          hostTxAck.get.buffer.size := savedTxHostCtrl.len
+          savedTxHostCtrl.unpackTo(hostTxAck.get)
           hostTxAck.get.buffer.addr := savedTxAddr.addr
           hostTxAck.valid := True
 
@@ -411,5 +407,5 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
   //  - fragmenting large fields, or
   //  - declaring arrays inside datatypes
   //  until one of these is implemented, do not emit datatype definition
-  // during build EciHostCtrlInfo().addMackerel
+  during build EciHostCtrlInfo().addMackerel
 }

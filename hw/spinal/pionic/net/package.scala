@@ -23,10 +23,10 @@ package object net {
       f.addMackerelEpilogue(getClass,
         """
           |constants proto_packet_desc_type width(2) "Protocol Packet Descriptor Type" {
-          |  ethernet        = 0b00 "Ethernet";
-          |  ip              = 0b01 "IP";
-          |  udp             = 0b10 "UDP";
-          |  onc_rpc_call_bp = 0b11 "ONC-RPC Call (bypass)";
+          |  hdr_ethernet     = 0b00 "Ethernet";
+          |  hdr_ip           = 0b01 "IP";
+          |  hdr_udp          = 0b10 "UDP";
+          |  hdr_onc_rpc_call = 0b11 "ONC-RPC Call (bypass)";
           |};""".stripMargin)
     }
   }

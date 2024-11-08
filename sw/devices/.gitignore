@@ -1,3 +1,3 @@
 *.h
-pionic_eci_*.dev
-pionic_pcie_*.dev
+pionic_eci*.dev
+pionic_pcie*.dev

@@ -37,7 +37,7 @@ case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
 case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
-  val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
+  val args = Bits(Widths.oargw bits)
 }
 
 case class HostBypassHeaders()(implicit c: ConfigDatabase) extends Bundle {

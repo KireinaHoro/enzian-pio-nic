@@ -2,6 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.misc.RegAllocatorFactory
 import pionic._
+import pionic.net.ProtoPacketDescType
 import spinal.core._
 
 /**
@@ -12,6 +13,8 @@ import spinal.core._
  * - it is expensive to enable unaligned access for the AXI DMA engine
  * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
  *
+ * We repack [[pionic.HostPacketDesc]] to save space and also align things nicer for CPU.
+ *
  * We need the length field here:
  * - for TX, to know how many cache-lines we should invalidate for TX
  * - for TX, to fetch exactly what's needed from the packet buffer with the AXI DMA
@@ -19,43 +22,88 @@ import spinal.core._
  * - for RX, to check if we got a too-short RPC call request
  */
 case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
-  val ty = HostPacketDescType()
-  val len = PacketLength()
-  val data = HostPacketDescData()
+  // reserve one bit for valid in readStream
+  val ty = HostPacketDescType() // 2b
+  val len = PacketLength() // 16b
+  val data = new Union {
+    case class BypassBundle() extends Bundle {
+      val ty = ProtoPacketDescType() // 2b
+      val xb11 = Bits(11 bits) // make sure header is byte aligned
+      val hdr = Bits(Widths.bphw bits)
+    }
+    val bypass = newElement(BypassBundle())
+
+    case class OncRpcCallBundle() extends Bundle {
+      val xb13 = Bits(13 bits) // make sure xid is word aligned
+      val xid = Bits(32 bits)
+      val funcPtr = Bits(64 bits)
+      val args = Bits(Widths.oargw bits)
+    }
+    val oncRpcCall = newElement(OncRpcCallBundle())
+  }
+
+  def packFrom(desc: HostPacketDesc) = {
+    ty := desc.ty
+    switch (desc.ty) {
+      is (HostPacketDescType.bypass) {
+        data.bypass.assignSomeByName(desc.data.bypassMeta)
+        data.bypass.xb11 := 0
+      }
+      is (HostPacketDescType.oncRpcCall) {
+        data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
+        data.oncRpcCall.xb13 := 0
+      }
+    }
+    len := desc.buffer.size
+  }
+
+  def unpackTo(desc: HostPacketDesc) = {
+    desc.ty := ty
+    switch (ty) {
+      is (HostPacketDescType.bypass) {
+        desc.data.bypassMeta.assignSomeByName(data.bypass)
+      }
+      is (HostPacketDescType.oncRpcCall) {
+        desc.data.oncRpcCall.assignSomeByName(data.oncRpcCall)
+      }
+    }
+    desc.buffer.size := len
+  }
 
   // plus one for readStreamBlockCycles
   assert(getBitsWidth + 1 <= c[Int]("max host desc size") * 8, "host control info larger than half a cacheline")
 
   def addMackerel = {
-    // post layout declarations to regfactory
+    // post header type enum to mackerel
     HostPacketDescType.addMackerel(c.f)
+    ProtoPacketDescType.addMackerel(c.f)
 
-    val o = OncRpcCallData()
-
+    // post descriptor header to mackerel (first 128 bits)
     import Widths._
     c.f.addMackerelEpilogue(this.getClass,
       s"""
-         |datatype eci_host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
-         |  ty   $tw type(host_packet_desc_type) "Type of descriptor (should be error)";
-         |  len  $lw "Length of packet";
-         |  _    ${512-tw-lw} rsvd;
+         |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
+         |  valid 1;
+         |  ty    $tw type(host_packet_desc_type) "Type of descriptor (should be error)";
+         |  len   $lw "Length of packet";
+         |  _     13 rsvd;
          |};
          |
-         |datatype eci_host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
+         |datatype host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
+         |  valid    1;
          |  ty       $tw type(host_packet_desc_type) "Type of descriptor (should be bypass)";
          |  len      $lw "Length of packet";
          |  hdr_ty   $bptw type(proto_packet_desc_type) "Type of bypass header";
-         |  hdr      $bphw "Header data";
-         |  _        ${512-tw-lw-HostBypassHeaders().getBitsWidth} rsvd;
+         |  _        11 rsvd;
          |};
          |
-         |datatype eci_host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
+         |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
+         |  valid     1;
          |  ty        $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
          |  len       $lw "Length of packet";
-         |  func_ptr  ${o.funcPtr.getBitsWidth} "Function pointer for RPC call handler";
-         |  xid       ${o.xid.getBitsWidth} "XID of incoming request";
-         |  args      ${o.args.getBitsWidth} "Inlined ONC-RPC Call arguments";
-         |  _         ${512-tw-lw-o.getBitsWidth} rsvd;
+         |  _         13 rsvd;
+         |  xid       32 "XID of incoming request";
+         |  func_ptr  64 "Function pointer for RPC call handler";
          |};""".stripMargin)
   }
 }
