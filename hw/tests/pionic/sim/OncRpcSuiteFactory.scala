@@ -27,14 +27,14 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
 
     // activate service
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort_0"), dport.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort_0_enabled"), 1.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort"), dport.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort_enabled"), 1.toBytes)
 
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_0_progNum"), prog.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_0_progVer"), progVer.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_0_proc"), procNum.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_0_funcPtr"), funcPtr.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_0_enabled"), 1.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytes)
 
     // wait for mask and service configs to take effect
     sleepCycles(20)
