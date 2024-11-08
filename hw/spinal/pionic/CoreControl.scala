@@ -80,8 +80,6 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
   withPrefix(s"core_$coreID")
   def isBypass = coreID == 0
 
-  // FIXME: alignment on CPU?
-  postConfig("host packet desc data width", HostPacketDescData().getBitsWidth)
   postConfig("host packet desc type width", HostPacketDescType().getBitsWidth)
   // FIXME: think of a way to automate this -- with reflection?
   // TODO: generic framework to dump Bundle/Union structure
