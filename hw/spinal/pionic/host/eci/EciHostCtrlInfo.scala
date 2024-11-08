@@ -95,6 +95,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  len      $lw "Length of packet";
          |  hdr_ty   $bptw type(proto_packet_desc_type) "Type of bypass header";
          |  _        11 rsvd;
+         |  // hdr follows
          |};
          |
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
@@ -104,6 +105,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  _         13 rsvd;
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";
+         |  // args follows
          |};""".stripMargin)
   }
 }
