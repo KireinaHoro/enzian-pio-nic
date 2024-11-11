@@ -28,7 +28,7 @@ object GenEngineVerilog {
     ) ++ Seq.tabulate(c[Int]("num cores") + 1)(new CoreControlPlugin(_))
   }
 
-  def engine(c: ConfigDatabase) = {
+  def engine(implicit c: ConfigDatabase) = {
     val b = base(c)
     val plugins = c[String]("host interface") match {
       case "pcie" => b :+ new PcieBridgeInterfacePlugin

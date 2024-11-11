@@ -30,7 +30,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
   lazy val rxSizePerCore = pktBufSizePerCore - roundMtu
   lazy val txSizePerCore = roundMtu
 
-  postConfig("max host desc size", 64, action = ConfigDatabase.Unique) // BYTES
+  postConfig("host desc size", 64*8, action = ConfigDatabase.Unique) // BYTES
 
   // dcs_2_axi AXI config
   val axiConfig = Axi4Config(
