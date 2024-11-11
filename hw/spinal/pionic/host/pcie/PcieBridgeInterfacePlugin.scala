@@ -14,7 +14,7 @@ import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
-class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
+class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugin with HostService {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
@@ -33,10 +33,10 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
     val axiWideConfigNode = Axi4(axiConfig)
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(regWidth))
 
-    private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
+    private val alloc = cc.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
     csr.readAndWrite(busCtrl, alloc.toGeneric)
 
-    private val pktBufferAlloc = c.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
+    private val pktBufferAlloc = cc.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
     // TODO: partition buffer for each core (and steer DMA writes) for max throughput
     val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufSize)))
@@ -61,8 +61,13 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
 
       val alloc = host[ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(axiConfig.dataWidth)
 
-      val rxAddr = alloc("hostRx", readSensitive = true, attr = RO)
-      busCtrl.readStreamBlockCycles(cio.hostRx, rxAddr, csr.logic.ctrl.rxBlockCycles)
+      val rxHostDesc = cio.hostRx.map(PcieHostCtrlInfo.packFrom)
+
+      val hostDescSizeRound = roundUp(rxHostDesc.payload.getBitsWidth+1, 64) / 8
+      postConfig("host desc size", hostDescSizeRound.toInt * 8, action = ConfigDatabase.OneShot)
+
+      val rxAddr = alloc("hostRx", readSensitive = true, attr = RO, size = hostDescSizeRound)
+      busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
       busCtrl.driveStream(cio.hostRxAck, alloc("hostRxAck", attr = WO))
 
       // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
@@ -73,7 +78,12 @@ class PcieBridgeInterfacePlugin extends PioNicPlugin with HostService {
 
       // should not block; only for profiling (to use ready signal)
       busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true, attr = RO))
-      busCtrl.driveStream(cio.hostTxAck, alloc("hostTxAck", attr = WO))
+
+      val txHostDesc = Stream(PcieHostCtrlInfo())
+      busCtrl.driveStream(txHostDesc, alloc("hostTxAck", attr = WO, size = hostDescSizeRound))
+      cio.hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
+        h.unpackTo(cc)
+      }
 
       c.logic.connectControl(busCtrl, alloc.toGeneric)
       c.logic.reportStatistics(busCtrl, alloc.toGeneric)

@@ -93,12 +93,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       // we still cannot do full voluntary reload idempotency check, since packet
       // will be DMA'ed into packet buffer anyways -- difficult to control from here
       // TODO: can we fabricate a test case for this?
-      val rxDesc = logic.demuxedRxDescs(idx)
       val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
+      val rxDesc = logic.demuxedRxDescs(idx).map(EciHostCtrlInfo.packFrom)
       rxHostCtrlInfo.valid init False
       when (!logic.rxFsm.isActive(logic.rxFsm.noPacket)) {
         rxHostCtrlInfo.valid := rxDesc.valid
-        rxHostCtrlInfo.packFrom(rxDesc)
+        rxHostCtrlInfo.payload := rxDesc.payload
       }
       rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 

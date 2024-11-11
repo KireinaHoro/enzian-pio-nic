@@ -1,13 +1,14 @@
 package pionic.host.eci
 
 import jsteward.blocks.misc.RegAllocatorFactory
+import pionic.Widths.dw
 import pionic._
 import pionic.net.ProtoPacketDescType
 import spinal.core._
 
 /**
- * Control info struct sent to the CPU in cache-line reloads for RX packets, as well as struct received from the
- * CPU for TX packets.
+ * Control info struct sent to the CPU in cache-line reloads for RX packets,
+ * as well as struct received from the CPU for TX packets.
  *
  * This is separate from the rest of the data inside packet buffer because:
  * - it is expensive to enable unaligned access for the AXI DMA engine
@@ -22,6 +23,8 @@ import spinal.core._
  * - for RX, to check if we got a too-short RPC call request
  */
 case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
+  override def clone: EciHostCtrlInfo = EciHostCtrlInfo()
+
   // reserve one bit for valid in readStream
   val ty = HostPacketDescType() // 2b
   val len = PacketLength() // 16b
@@ -42,23 +45,9 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val oncRpcCall = newElement(OncRpcCallBundle())
   }
 
-  def packFrom(desc: HostPacketDesc) = {
-    ty := desc.ty
-    switch (desc.ty) {
-      is (HostPacketDescType.bypass) {
-        data.bypass.assignSomeByName(desc.data.bypassMeta)
-        data.bypass.xb11 := 0
-      }
-      is (HostPacketDescType.oncRpcCall) {
-        data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
-        data.oncRpcCall.xb13 := 0
-      }
-    }
-    len := desc.buffer.size
-  }
-
   def unpackTo(desc: HostPacketDesc) = {
     desc.ty := ty
+    desc.data.assignDontCare()
     switch (ty) {
       is (HostPacketDescType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
@@ -71,7 +60,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   }
 
   // plus one for readStreamBlockCycles
-  assert(getBitsWidth + 1 <= c[Int]("max host desc size") * 8, "host control info larger than half a cacheline")
+  assert(getBitsWidth + 1 <= dw, "host control info larger than half a cacheline")
 
   def addMackerel = {
     // post header type enum to mackerel
@@ -108,4 +97,23 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  // args follows
          |};""".stripMargin)
   }
+}
+
+object EciHostCtrlInfo {
+  def packFrom(desc: HostPacketDesc)(implicit c: ConfigDatabase) = new Area {
+    val ret = EciHostCtrlInfo()
+    ret.ty := desc.ty
+    ret.data.assignDontCare()
+    switch (desc.ty) {
+      is (HostPacketDescType.bypass) {
+        ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
+        ret.data.bypass.xb11 := 0
+      }
+      is (HostPacketDescType.oncRpcCall) {
+        ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
+        ret.data.oncRpcCall.xb13 := 0
+      }
+    }
+    ret.len := desc.buffer.size
+  }.ret
 }

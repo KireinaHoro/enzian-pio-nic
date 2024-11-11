@@ -12,10 +12,10 @@ sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
   def toBigInt(implicit c: ConfigDatabase): BigInt = BigInt(0)
     .assignToRange(tw-1       downto 0, ty)
     .assignToRange(tw+lw-1    downto tw, len)
-    .assignToRange(511        downto tw+lw, encode)
+    .assignToRange(dw-1       downto tw+lw, encode)
   def toBytes(implicit c: ConfigDatabase): List[Byte] = spinal.core.sim.SimBigIntPimper(toBigInt)
     // make sure we encode all zero bytes as well
-    .toBytes(512).toList
+    .toBytes(dw).toList
 }
 
 object EciHostCtrlInfoSim {
@@ -23,7 +23,7 @@ object EciHostCtrlInfoSim {
     import pionic.Widths._
     val ty   = v(tw-1       downto 0).toInt
     val len  = v(tw+lw-1    downto tw).toInt
-    val data = v(511        downto tw+lw)
+    val data = v(dw-1       downto tw+lw)
     ty match {
       case 0 => throw new RuntimeException("error host packet desc received")
       case 1 =>
@@ -62,7 +62,4 @@ case class OncRpcCallCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, args: B
       .assignToRange(64+32+13-1 downto 32+13, funcPtr)
       .assignToRange(oargw+64+32+13-1 downto 64+32+13, args)
   }
-}
-case class OncRpcReplyCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, rets: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyPacketDescSim {
-  override def encode(implicit c: ConfigDatabase): BigInt = ???
 }
