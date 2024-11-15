@@ -56,7 +56,7 @@ object PcieHostPacketDescSim {
 case class ErrorPacketDescSimPcie(addr: BigInt, size: BigInt) extends PcieHostPacketDescSim with ErrorPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = BigInt(0)
 }
-case class BypassPacketDescSimPcie(addr: BigInt, size: BigInt, packetType: BigInt, packetHdr: BigInt) extends PcieHostPacketDescSim with BypassPacketDescSim {
+case class BypassPacketDescSimPcie(addr: BigInt, size: BigInt, packetType: BigInt, packetHdr: BigInt)(implicit val c: ConfigDatabase) extends PcieHostPacketDescSim with BypassPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = {
     import pionic.Widths._
     BigInt(0)

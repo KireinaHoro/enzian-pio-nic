@@ -102,7 +102,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
     val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
     assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
-    checkHeader(proto, packet, bypassDesc.pkt)
+    checkHeader(proto, packet, bypassDesc.hdrP4jPacket)
 
     // check payload length
     val payload = getPayloadAndCheckLen(packet, proto, info.len)
