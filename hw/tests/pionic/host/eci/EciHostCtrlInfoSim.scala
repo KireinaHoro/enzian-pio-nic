@@ -46,7 +46,7 @@ object EciHostCtrlInfoSim {
 case class ErrorCtrlInfoSim(len: Int) extends EciHostCtrlInfoSim with ErrorPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = BigInt(0)
 }
-case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends EciHostCtrlInfoSim with BypassPacketDescSim {
+case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt)(implicit val c: ConfigDatabase) extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = {
     import pionic.Widths._
     BigInt(0)
