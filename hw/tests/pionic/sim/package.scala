@@ -28,7 +28,9 @@ package object sim {
     def checkLevel(proto: PacketType) = {
       if (packetType >= proto) {
         val e = expected.get(typeToPcap4jClass(proto)).getHeader
-        val g = got.get(typeToPcap4jClass(proto)).getHeader
+        val p4jClass = typeToPcap4jClass(proto)
+        assert(got.contains(p4jClass), s"$proto not in packet $got")
+        val g = got.get(p4jClass).getHeader
         assert(e == g, s"$proto header mismatch: expected $e, got $g")
       }
     }
