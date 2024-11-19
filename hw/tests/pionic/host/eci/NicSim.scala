@@ -103,7 +103,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       // check payload length
       val payload = getPayloadAndCheckLen(expectedPacket, expectedProto, gotDesc.len)
 
-      check(payload, gotPacket)
+      // we have already checked length, truncate the received data to expected len
+      check(payload, gotPacket.take(payload.length))
     } match {
       case Failure(a: AssertionError) =>
         println(s"Check single packet failed with assertion $a")
@@ -351,9 +352,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
             case None => fail("failed to find received packet in expect queue")
           }
         case None =>
-          println(s"Received packet #$pid")
           toCheck.removeHead()
       }
+      println(s"Received packet #$pid")
       sleepCycles(20)
     }
   }
