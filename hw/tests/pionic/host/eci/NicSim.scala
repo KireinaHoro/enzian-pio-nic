@@ -118,7 +118,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   /** read back and check one single bypass packet */
-  def rxSingle(dcsMaster: DcsAppMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Option[(BypassCtrlInfoSim, List[Byte])] = {
+  def rxSingle(dcsMaster: DcsAppMaster, maxRetries: Int)(implicit dut: NicEngine): (BypassCtrlInfoSim, List[Byte]) = {
     val (info, addr) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
     assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
@@ -135,11 +135,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         info.len - 64)
     }
 
-    if (checkSingle(packet, proto, data, bypassDesc)) {
-      None
-    } else {
-      Some((bypassDesc, data))
-    }
+    (bypassDesc, data)
   }
 
   /** test reading one bypass packet; when called multiple times, this checks in a blockign fashion */
@@ -155,7 +151,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // TODO: check performance counters
 
     // read memory and check data
-    rxSingle(dcsMaster, packet, proto, maxRetries)
+    val (desc, data) = rxSingle(dcsMaster, maxRetries)
+    assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
 
     println(s"Successfully received packet")
 
@@ -335,24 +332,17 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
-      val (packet, proto) = toCheck.head
+      val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
 
-      rxSingle(dcsMaster, packet, proto, maxRetries = 0) match {
-        case Some((desc, data)) =>
-          // packet did not match
-          // XXX: occasionally the packet received is out of order
-          //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
-          //      resulting in Ethernet packet arriving first
-          println("Potential out of order packet, checking later in queue")
-          toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
-            .zipWithIndex.dropWhile(!_._1).headOption match {
-            case Some((_, idx)) =>
-              println(s"Found expected packet as #$idx in queue")
-              toCheck.remove(idx)
-            case None => fail("failed to find received packet in expect queue")
-          }
-        case None =>
-          toCheck.removeHead()
+      // XXX: occasionally the packet received is out of order
+      //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+      //      resulting in Ethernet packet arriving first
+      toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
+        .zipWithIndex.dropWhile(!_._1).headOption match {
+        case Some((_, idx)) =>
+          println(s"Found expected packet as #$idx in queue")
+          toCheck.remove(idx)
+        case None => fail("failed to find received packet in expect queue")
       }
       println(s"Received packet #$pid")
       sleepCycles(20)
