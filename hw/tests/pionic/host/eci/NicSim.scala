@@ -4,6 +4,7 @@ import jsteward.blocks.eci.sim.DcsAppMaster
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.isSorted
 import org.pcap4j.packet.Packet
+import org.scalatest.exceptions.TestFailedException
 import pionic._
 import pionic.sim._
 import pionic.sim.PacketType.PacketType
@@ -94,30 +95,50 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     }
   }
 
+  def checkSingle(expectedPacket: Packet, expectedProto: PacketType, gotPacket: List[Byte], gotDesc: BypassCtrlInfoSim): Boolean = {
+    Try {
+      assert(expectedProto.id == gotDesc.packetType, s"proto mismatch: expected $expectedProto, got ${PacketType(gotDesc.packetType.toInt)}")
+      checkHeader(expectedProto, expectedPacket, gotDesc.hdrP4jPacket)
+
+      // check payload length
+      val payload = getPayloadAndCheckLen(expectedPacket, expectedProto, gotDesc.len)
+
+      check(payload, gotPacket)
+    } match {
+      case Failure(a: AssertionError) =>
+        println(s"Check single packet failed with assertion $a")
+        false
+      case Failure(e: TestFailedException) =>
+        println(s"Check single packet failed with $e")
+        false
+      case Success(_) =>
+        true
+    }
+  }
+
   /** read back and check one single bypass packet */
-  def rxSingle(dcsMaster: DcsAppMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+  def rxSingle(dcsMaster: DcsAppMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Option[(BypassCtrlInfoSim, List[Byte])] = {
     val (info, addr) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
     assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
 
     val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
-    assert(proto.id == bypassDesc.packetType, s"proto mismatch: expected $proto, got ${PacketType(bypassDesc.packetType.toInt)}")
-    checkHeader(proto, packet, bypassDesc.hdrP4jPacket)
-
-    // check payload length
-    val payload = getPayloadAndCheckLen(packet, proto, info.len)
 
     // read payload back and check data
-    val firstReadSize = Math.min(payload.length, 64)
+    val firstReadSize = Math.min(info.len, 64)
     var data = dcsMaster.read(addr, firstReadSize)
-    if (payload.length > 64) {
+    if (info.len > 64) {
       data ++= dcsMaster.read(
         c[Int]("eci rx base") +
           c[Int]("eci overflow offset"),
-        payload.length - 64)
+        info.len - 64)
     }
 
-    check(payload, data)
+    if (checkSingle(packet, proto, data, bypassDesc)) {
+      None
+    } else {
+      Some((bypassDesc, data))
+    }
   }
 
   /** test reading one bypass packet; when called multiple times, this checks in a blockign fashion */
@@ -297,7 +318,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // enable promisc mode
     csrMaster.write(globalBlock("promisc"), 1.toBytes)
 
-    val toCheck = new mutable.Queue[(Packet, PacketType)]
+    val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
     val size = 128
     fork {
       0 until numPackets foreach { pid =>
@@ -307,21 +328,32 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         axisMaster.send(toSend)
         println(s"Sent packet #$pid of length ${toSend.length}")
 
-        toCheck.enqueue((packet, proto))
+        toCheck.append((packet, proto))
       }
     }
 
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
-      val (packet, proto) = toCheck.dequeue()
+      val (packet, proto) = toCheck.head
 
-      // FIXME: occasionally the packet received is out of order
-      //        e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
-      //        resulting in Ethernet packet arriving first
-      //        should we allow this?
-      rxSingle(dcsMaster, packet, proto, maxRetries = 0)
-
-      println(s"Received packet #$pid")
+      rxSingle(dcsMaster, packet, proto, maxRetries = 0) match {
+        case Some((desc, data)) =>
+          // packet did not match
+          // XXX: occasionally the packet received is out of order
+          //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+          //      resulting in Ethernet packet arriving first
+          println("Potential out of order packet, checking later in queue")
+          toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
+            .zipWithIndex.dropWhile(!_._1).headOption match {
+            case Some((_, idx)) =>
+              println(s"Found expected packet as #$idx in queue")
+              toCheck.remove(idx)
+            case None => fail("failed to find received packet in expect queue")
+          }
+        case None =>
+          println(s"Received packet #$pid")
+          toCheck.removeHead()
+      }
       sleepCycles(20)
     }
   }
