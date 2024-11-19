@@ -9,13 +9,15 @@ sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
   import pionic.Widths._
   def len: Int
   def encode(implicit c: ConfigDatabase): BigInt
-  def toBigInt(implicit c: ConfigDatabase): BigInt = BigInt(0)
-    .assignToRange(tw-1       downto 0, ty)
-    .assignToRange(tw+lw-1    downto tw, len)
-    .assignToRange(dw-1       downto tw+lw, encode)
-  def toBytes(implicit c: ConfigDatabase): List[Byte] = spinal.core.sim.SimBigIntPimper(toBigInt)
+  /** generate a [[EciHostCtrlInfo]] for TX use */
+  def toTxDesc(implicit c: ConfigDatabase): List[Byte] = {
+    val b = BigInt(0)
+      .assignToRange(tw       downto 1, ty)
+      .assignToRange(tw+lw    downto tw+1, len)
+      .assignToRange(dw       downto tw+lw+1, encode)
     // make sure we encode all zero bytes as well
-    .toBytes(dw).toList
+    spinal.core.sim.SimBigIntPimper(b).toBytes(dw+1).toList
+  }
 }
 
 object EciHostCtrlInfoSim {

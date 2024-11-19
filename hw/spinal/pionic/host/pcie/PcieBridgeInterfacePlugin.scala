@@ -1,6 +1,7 @@
 package pionic.host.pcie
 
 import jsteward.blocks.axi._
+import jsteward.blocks.misc.RichStream
 import pionic._
 import pionic.host.HostService
 import pionic.net.ProtoDecoder
@@ -68,7 +69,8 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
 
       val rxAddr = alloc("hostRx", readSensitive = true, attr = RO, size = hostDescSizeRound)
       busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
-      busCtrl.driveStream(cio.hostRxAck, alloc("hostRxAck", attr = WO))
+
+      busCtrl.driveStream(cio.hostRxAck.padSlave(1), alloc("hostRxAck", attr = WO))
 
       // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
       cio.hostRxReq := False
@@ -80,7 +82,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
       busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true, attr = RO))
 
       val txHostDesc = Stream(PcieHostCtrlInfo())
-      busCtrl.driveStream(txHostDesc, alloc("hostTxAck", attr = WO, size = hostDescSizeRound))
+      busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck", attr = WO, size = hostDescSizeRound))
       cio.hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
         h.unpackTo(cc)
       }

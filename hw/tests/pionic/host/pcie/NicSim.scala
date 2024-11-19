@@ -179,7 +179,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     }
     // write tx commit -- make sure axis have a chance to catch the first beat
     println(s"Sending ${toSend.length} bytes")
-    master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxAck.toBytes)
+    master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxDesc)
 
     dut.clockDomain.waitActiveEdgeWhere(checkDone)
   }
@@ -310,7 +310,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // insert delay
     fork {
       sleepCycles(delayed)
-      master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxAck.toBytes)
+      master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxDesc)
     }
 
     // receive packet, check timestamps

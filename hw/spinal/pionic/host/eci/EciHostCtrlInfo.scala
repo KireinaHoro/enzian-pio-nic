@@ -69,17 +69,18 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 
     // post descriptor header to mackerel (first 128 bits)
     import Widths._
+    // FIXME: should we include valid here? valid is present for rx but not for tx
     c.f.addMackerelEpilogue(this.getClass,
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
-         |  valid 1;
+         |  valid 1 "RX descriptor valid (rsvd for TX)";
          |  ty    $tw type(host_packet_desc_type) "Type of descriptor (should be error)";
          |  len   $lw "Length of packet";
          |  _     13 rsvd;
          |};
          |
          |datatype host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
-         |  valid    1;
+         |  valid    1 "RX descriptor valid (rsvd for TX)";
          |  ty       $tw type(host_packet_desc_type) "Type of descriptor (should be bypass)";
          |  len      $lw "Length of packet";
          |  hdr_ty   $bptw type(proto_packet_desc_type) "Type of bypass header";
@@ -88,7 +89,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |};
          |
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
-         |  valid     1;
+         |  valid     1 "RX descriptor valid (rsvd for TX)";
          |  ty        $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
          |  len       $lw "Length of packet";
          |  _         13 rsvd;
