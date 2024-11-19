@@ -2,7 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.misc.{RegBlockAlloc, RichStream}
 import pionic._
 import spinal.core._
 import spinal.core.fiber.Handle._
@@ -124,7 +124,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
 
       // host sends out TxHostCtrlInfo without buffer information
-      busCtrl.driveStream(logic.txHostCtrlInfo(idx), txCtrlAddr)
+      busCtrl.driveStream(logic.txHostCtrlInfo(idx).padSlave(1), txCtrlAddr)
       // we need to read this again for partial reloads to have the same CL content
       busCtrl.read(logic.savedTxHostCtrl, txCtrlAddr)
     }

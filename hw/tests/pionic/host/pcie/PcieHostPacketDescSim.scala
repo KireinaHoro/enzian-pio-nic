@@ -14,18 +14,18 @@ sealed abstract class PcieHostPacketDescSim extends HostPacketDescSim {
   /** generate a [[pionic.PacketBufDesc]] for freeing */
   def toRxAck(implicit c: ConfigDatabase): BigInt = {
     BigInt(0)
-      .assignToRange(aw-1     downto 0, addr)
-      .assignToRange(aw+lw-1  downto aw, size)
+      .assignToRange(aw     downto 1, addr)
+      .assignToRange(aw+lw  downto aw+1, size)
   }
-  def toTxAck(implicit c: ConfigDatabase): BigInt = {
-    BigInt(0)
-      // FIXME: alignment on CPU?
-      .assignToRange(aw-1          downto 0, addr)
-      .assignToRange(aw+lw-1       downto aw, size)
-      .assignToRange(aw+lw+tw-1    downto aw+lw, ty)
-      .assignToRange(aw+lw+tw+dw-1 downto aw+lw+tw, encode)
-      // XXX: set one extra bit to trigger writing to last word
-      .assignToRange(aw+lw+tw+dw   downto aw+lw+tw+dw, 1)
+  /** generate a [[PcieHostCtrlInfo]] for TX use */
+  def toTxDesc(implicit c: ConfigDatabase): List[Byte] = {
+    val b = BigInt(0)
+      .assignToRange(aw          downto 1, addr)
+      .assignToRange(aw+lw       downto aw+1, size)
+      .assignToRange(aw+lw+tw    downto aw+lw+1, ty)
+      .assignToRange(aw+lw+tw+dw downto aw+lw+tw+1, encode)
+    // make sure we encode all zero bytes as well
+    spinal.core.sim.SimBigIntPimper(b).toBytes(aw+lw+tw+dw+1).toList
   }
 }
 

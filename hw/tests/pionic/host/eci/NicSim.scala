@@ -244,7 +244,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
     val txDesc = ErrorCtrlInfoSim(toSend.length)
     println(f"Core $cid: sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
-    dcsMaster.write(clAddr, txDesc.toBytes)
+    dcsMaster.write(clAddr, txDesc.toTxDesc)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
