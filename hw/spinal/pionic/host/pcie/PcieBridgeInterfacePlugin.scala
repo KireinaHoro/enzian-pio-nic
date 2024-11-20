@@ -67,10 +67,17 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
       val hostDescSizeRound = roundUp(rxHostDesc.payload.getBitsWidth+1, 64) / 8
       postConfig("host desc size", hostDescSizeRound.toInt * 8, action = ConfigDatabase.OneShot)
 
-      val rxAddr = alloc("hostRx", readSensitive = true, attr = RO, size = hostDescSizeRound)
+      val rxAddr = alloc("hostRx",
+        readSensitive = true,
+        attr = RO,
+        size = hostDescSizeRound,
+        // TODO: what's the syntax for allowing multiple aliases for datatype reg?
+        ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
       busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
 
-      busCtrl.driveStream(cio.hostRxAck.padSlave(1), alloc("hostRxAck", attr = WO))
+      busCtrl.driveStream(cio.hostRxAck.padSlave(1), alloc("hostRxAck",
+        attr = WO,
+        ty = "host_pkt_buf_desc"))
 
       // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
       cio.hostRxReq := False
@@ -79,10 +86,17 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
       }
 
       // should not block; only for profiling (to use ready signal)
-      busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx", readSensitive = true, attr = RO))
+      busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx",
+        readSensitive = true,
+        attr = RO,
+        ty = "host_pkt_buf_desc"))
 
       val txHostDesc = Stream(PcieHostCtrlInfo())
-      busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck", attr = WO, size = hostDescSizeRound))
+      busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck",
+        attr = WO,
+        size = hostDescSizeRound,
+        // TODO: what's the syntax for allowing multiple aliases for datatype reg?
+        ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
       cio.hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
         h.unpackTo(cc)
       }
@@ -95,5 +109,10 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
     host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc.toGeneric))
 
     host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc.toGeneric)
+  }
+
+  during build {
+    PcieHostCtrlInfo().addMackerel
+    PacketBufDesc().addMackerel
   }
 }

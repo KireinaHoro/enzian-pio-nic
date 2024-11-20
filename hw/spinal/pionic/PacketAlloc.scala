@@ -19,6 +19,21 @@ case class PacketBufDesc()(implicit c: ConfigDatabase) extends Bundle {
   val size = PacketLength()
 
   assert(getBitsWidth <= 64, "packet buf desc size too big!")
+
+  def addMackerel = {
+    import Widths._
+    c.f.addMackerelEpilogue(this.getClass,
+      s"""
+         |regtype host_pkt_buf_desc "PCIe Host Packet Buffer Descriptor" {
+         |  valid 1   "TX descriptor valid (rsvd for RX)";
+         |  addr  $aw "Address in packet buffer";
+         |  size  $lw "Length of packet";
+         |  _     ${63-aw-lw} rsvd;
+         |};
+         |""".stripMargin,
+      target = "core"
+    )
+  }
 }
 
 case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extends Component {
