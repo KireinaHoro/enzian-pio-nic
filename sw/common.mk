@@ -63,7 +63,7 @@ $(MACKEREL):
 	$(CARGO) build --release --manifest-path=$(MACKEREL_ROOT)/Cargo.toml
 
 $(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL) | $(RT_HEADERS_GEN)
-	$(MACKEREL) -c $< -o $@
+	$(MACKEREL) -c $< -I$(SW_ROOT)/devices/ -o $@
 
 $(DEPDIR) $(RT_HEADERS_GEN): ; @mkdir -p $@
 

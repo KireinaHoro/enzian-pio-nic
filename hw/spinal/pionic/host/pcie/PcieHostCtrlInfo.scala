@@ -47,7 +47,46 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     desc.buffer := buffer
   }
 
-  def addMackerel = ???
+  def addMackerel = {
+    // post header type enum to mackerel
+    HostPacketDescType.addMackerel(c.f)
+    ProtoPacketDescType.addMackerel(c.f)
+
+    // post descriptor header to mackerel
+    import Widths._
+    c.f.addMackerelEpilogue(this.getClass,
+      s"""
+         |datatype host_ctrl_info_error lsbfirst(64) "PCIe Host Control Info (Error)" {
+         |  valid 1   "RX descriptor valid (rsvd for TX)";
+         |  addr  $aw "Address in packet buffer";
+         |  size  $lw "Length of packet";
+         |  ty    $tw type(host_packet_desc_type) "Type of descriptor (should be error)";
+         |  _     21  rsvd;
+         |};
+         |datatype host_ctrl_info_bypass lsbfirst(64) "PCIe Host Control Info (Bypass)" {
+         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  addr   $aw "Address in packet buffer";
+         |  size   $lw "Length of packet";
+         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be bypass)";
+         |  hdr_ty $bptw type(proto_packet_desc_type) "Type of bypass header";
+         |  _      19 rsvd;
+         |  // hdr follows
+         |  // TODO: actually define hdr field as address-only
+         |};
+         |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
+         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  addr   $aw "Address in packet buffer";
+         |  size   $lw "Length of packet";
+         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
+         |  _      21   rsvd;
+         |  xid    32  "XID of incoming request";
+         |  func_ptr 64 "Function pointer for RPC call handler";
+         |  // args follows
+         |  // TODO: actually define args field as address-only
+         |};
+         |""".stripMargin
+    )
+  }
 }
 
 object PcieHostCtrlInfo {
