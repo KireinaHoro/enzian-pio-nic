@@ -13,18 +13,19 @@ import spinal.core._
 case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   override def clone: PcieHostCtrlInfo = PcieHostCtrlInfo()
 
-  val buffer = PacketBufDesc() // 24 + 16
-  val ty = HostPacketDescType() // 2
+  // reserve one bit from valid in readStream
+  val buffer = PacketBufDesc() // 24 + 16b
+  val ty = HostPacketDescType() // 2b
   val data = new Union {
     case class BypassBundle() extends Bundle {
-      val ty = ProtoPacketDescType() // 2
-      val xb4 = Bits(4 bits) // make sure header is byte aligned
+      val ty = ProtoPacketDescType() // 2b
+      val xb19 = Bits(19 bits) // make sure header is word aligned
       val hdr = Bits(Widths.bphw bits)
     }
     val bypass = newElement(BypassBundle())
 
     case class OncRpcCallBundle() extends Bundle {
-      val xb6 = Bits(6 bits)
+      val xb21 = Bits(21 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(Widths.oargw bits)
@@ -57,11 +58,11 @@ object PcieHostCtrlInfo {
     switch (desc.ty) {
       is (HostPacketDescType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
-        ret.data.bypass.xb4 := 0
+        ret.data.bypass.xb19 := 0
       }
       is (HostPacketDescType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
-        ret.data.oncRpcCall.xb6 := 0
+        ret.data.oncRpcCall.xb21 := 0
       }
     }
     ret.buffer := desc.buffer

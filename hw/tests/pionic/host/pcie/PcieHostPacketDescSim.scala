@@ -39,14 +39,16 @@ object PcieHostPacketDescSim {
     ty match {
       case 0 => throw new RuntimeException("error host packet desc received")
       case 1 =>
+        val pad = 19
         BypassPacketDescSimPcie(addr, size,
           data(bptw-1 downto 0),
-          data(bptw+bphw+4-1 downto bptw+4))
+          data(bptw+bphw+pad-1 downto bptw+pad))
       case 2 =>
+        val pad = 21
         OncRpcCallPacketDescSimPcie(addr, size,
-          data(63+32+6 downto 32+6),
-          data(31+6 downto 6),
-          data(oargw+64+32+6-1 downto 64+32+6))
+          data(63+32+pad downto 32+pad),
+          data(31+pad downto pad),
+          data(oargw+64+32+pad-1 downto 64+32+pad))
       case 3 => ???
     }
   }
@@ -58,18 +60,20 @@ case class ErrorPacketDescSimPcie(addr: BigInt, size: BigInt) extends PcieHostPa
 }
 case class BypassPacketDescSimPcie(addr: BigInt, size: BigInt, packetType: BigInt, packetHdr: BigInt)(implicit val c: ConfigDatabase) extends PcieHostPacketDescSim with BypassPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = {
+    val pad = 19
     import pionic.Widths._
     BigInt(0)
       .assignToRange(bptw-1 downto 0, packetType)
-      .assignToRange(bptw+bphw+4-1 downto bptw+4, packetHdr)
+      .assignToRange(bptw+bphw+pad-1 downto bptw+pad, packetHdr)
   }
 }
 case class OncRpcCallPacketDescSimPcie(addr: BigInt, size: BigInt, funcPtr: BigInt, xid: BigInt, args: BigInt) extends PcieHostPacketDescSim with OncRpcCallPacketDescSim {
   override def encode(implicit c: ConfigDatabase): BigInt = {
     import pionic.Widths._
+    val pad = 21
     BigInt(0)
-      .assignToRange(32+6-1 downto 6, xid)
-      .assignToRange(64+32+6-1 downto 32+6, funcPtr)
-      .assignToRange(oargw+64+32+13-1 downto 64+32+6, args)
+      .assignToRange(32+pad-1 downto pad, xid)
+      .assignToRange(64+32+pad-1 downto 32+pad, funcPtr)
+      .assignToRange(oargw+64+32+pad-1 downto 64+32+pad, args)
   }
 }
