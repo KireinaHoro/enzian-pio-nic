@@ -42,7 +42,7 @@ package object pionic {
   case class PacketAddr()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = PacketAddr()
 
-    val bits = UInt(c[Int]("pkt buf addr width") bits)
+    val bits = UInt(Widths.aw bits)
   }
 
   /**
@@ -51,7 +51,7 @@ package object pionic {
   case class PacketLength()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = PacketLength()
 
-    val bits = UInt(c[Int]("pkt buf len width") bits)
+    val bits = UInt(Widths.lw bits)
   }
 
   object Widths {

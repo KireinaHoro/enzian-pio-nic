@@ -31,7 +31,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   val data = new Union {
     case class BypassBundle() extends Bundle {
       val ty = ProtoPacketDescType() // 2b
-      val xb11 = Bits(11 bits) // make sure header is byte aligned
+      val xb11 = Bits(11 bits) // make sure header is word aligned
       val hdr = Bits(Widths.bphw bits)
     }
     val bypass = newElement(BypassBundle())
@@ -86,6 +86,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  hdr_ty   $bptw type(proto_packet_desc_type) "Type of bypass header";
          |  _        11 rsvd;
          |  // hdr follows
+         |  // TODO: actually define hdr field as address-only
          |};
          |
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
@@ -96,6 +97,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows
+         |  // TODO: actually define args field as address-only
          |};""".stripMargin)
   }
 }
