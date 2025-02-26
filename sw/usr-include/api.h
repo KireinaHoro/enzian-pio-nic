@@ -8,16 +8,19 @@
 struct pionic_ctx;
 typedef struct pionic_ctx *pionic_ctx_t;
 
+#define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
+
+typedef enum {
+  TY_ERROR,
+  TY_BYPASS,
+  TY_ONCRPC_CALL,
+} pionic_pkt_desc_type_t;
+
 // descriptor for one packet / transaction
 // must be allocated / freed by the respective functions, since we
 // want to decouple implementation size choices from application
 typedef struct {
-  enum {
-    TY_ERROR,
-    TY_BYPASS,
-    TY_ONCRPC_CALL,
-  } type;
-
+  pionic_pkt_desc_type_t type;
   // transaction metadata (packet header, RPC session data, etc.)
   union {
     struct {
@@ -27,7 +30,7 @@ typedef struct {
         HDR_UDP,
         HDR_ONCRPC_CALL,
       } header_type;
-      uint8_t *header_buf;
+      uint8_t header[PIONIC_BYPASS_HEADER_SIZE];
     } bypass;
     struct {
       void *func_ptr;
@@ -72,7 +75,8 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);
 // acknowledge received packet (for NIC to free packet)
 void pionic_rx_ack(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);
 
-// prepare TX packet descriptor (get output buffer addr)
+// prepare TX packet descriptor (desc->type must be set to correctly set up
+// header/args pointers)
 void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);
 // send packet
 void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);
