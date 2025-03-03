@@ -47,14 +47,25 @@ int thread_function(void *data) {
 // Define ioctl numbers properly
 // https://www.kernel.org/doc/Documentation/ioctl/ioctl-number.txt
 #define IOCTL_YIELD _IO('p', 'y')
+#define IOCTL_TEST_ACTIVATE_PID _IOW('t', 'a', pid_t)
 // Others...
 
+pid_t active_pid = -1;
 
 // ioctl handler
 static long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+  
+
   switch(cmd) {
     case IOCTL_YIELD:
       pr_info("The calling process is \"%s\" (pid %i)\n", current->comm, current->pid);
+      break;
+    case IOCTL_TEST_ACTIVATE_PID:
+      if (copy_from_user(&active_pid, (pid_t *) arg, sizeof(active_pid))) {
+        pr_err("IOCTL_TEST_ACTIVATE_PID: copy_from_user failed\n");
+        break;
+      }
+      pr_info("Going to activate pid %i\n", active_pid);
       break;
     default:
       pr_err("Unknown ioctl command %u\n", cmd);
@@ -97,7 +108,7 @@ static int __init mod_init(void) {
   // Register the device
 
   // Use char device for now...
-  if(alloc_chrdev_region(&dev, 0, 1, "pionic_device") < 0){
+  if (alloc_chrdev_region(&dev, 0, 1, "pionic_device") < 0){
     pr_err("alloc_chrdev_region failed\n");
     ret = -1;
     goto err_alloc_chrdev_region;

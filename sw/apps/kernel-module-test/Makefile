@@ -1,5 +1,8 @@
-kernel-module-test:
-	gcc -g -Wall kernel-module-test.c -o kernel-module-test
+handler: handler.c
+	gcc -g -Wall $^ -o $@
+
+activator: activator.c
+	gcc -g -Wall $^ -o $@
 
 clean:
 	rm kernel-module-test
