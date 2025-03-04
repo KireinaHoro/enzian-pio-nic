@@ -3,7 +3,9 @@ package pionic.host.eci
 import jsteward.blocks.eci.sim.DcsAppMaster
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.isSorted
+import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.Packet
+import org.pcap4j.packet.namednumber.DataLinkType
 import org.scalatest.exceptions.TestFailedException
 import pionic._
 import pionic.sim._
@@ -318,10 +320,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
     val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
     val size = 128
+
+    val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-bypass-pipelined") / "packets.pcap").toString)
+
     fork {
       0 until numPackets foreach { pid =>
         import PacketType._
         val (packet, proto) = randomPacket(size)(Ethernet, Ip, Udp)
+        dumper.dump(packet)
+        dumper.flush()
+
         val toSend = packet.getRawData.toList
         axisMaster.send(toSend)
         println(s"Sent packet #$pid of length ${toSend.length}")
