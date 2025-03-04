@@ -146,3 +146,8 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     }
   }
 }
+
+// TODO: for nested RPC calls (outgoing)
+class OncRpcCallEncoder extends ProtoEncoder[OncRpcCallMetadata] {
+
+}
