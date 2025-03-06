@@ -51,7 +51,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
 
     // dispatch to cores
     if (coreMask == null) {
-      // bypass-core (#0) only
+      // dispatching to the bypass-core (#0) only
       coreDescUpstreams.head.append(tagged)
     } else {
       // round-robin dispatch to all other (non-bypass) cores that are enabled
