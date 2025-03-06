@@ -161,22 +161,28 @@ package object net {
         val hdr = forkedHeaders(idx)
         val pld = forkedPayloads(idx)
 
-        // FIXME: timing!  what happens if the downstream decoder is busy?
-        // only mark attempt when header is valid
+        // mark attempt when header is valid
+        // we don't mark on fire, since decoder should still attempt eventually, even if it's busy right now
         val attempt = matchFunc(hdr.payload) && hdr.valid
         attempts.append(attempt)
 
+        // XXX: this works even when downstream decoder is not immediately ready:
+        //      hdr is supposed to be persistent
         headerSink << hdr.takeWhen(attempt)
         payloadSink << pld.takeFrameWhen(hdr.asFlow ~ attempt)
       }
       }
 
+      // did at least one downstream decoder attempt to decode this packet?
+      // XXX: we assume decoder outputs the captured header first, before giving output
+      //      otherwise all beats before header would not be thrown properly
       val attempted = attempts.reduceBalancedTree(_ || _)
       val bypassThrow = Flow(Bool())
       bypassThrow.payload := attempted
       bypassThrow.valid := attempted
 
-      val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
+      // do not give to bypass (throw), when any downstream decoders would attempt to decode
+      val bypassHeader = forkedHeaders.last.throwWhen(attempted)
       val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
