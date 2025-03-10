@@ -9,19 +9,22 @@
  
 #define IOCTL_YIELD _IO('p', 'y')
  
-int main() {
+int main(int argc, const char* argv[], const char* envp[]) {
   int fd;
   // int32_t value, number;
   
-  printf("Opening device\n");
+  // printf("Opening device\n");
   fd = open("/dev/pionic", O_RDWR);
   if (fd < 0) {
     printf("Cannot open device file...\n");
     return 0;
   }
 
+  pid_t my_pid = getpid();
+  printf("%i: going to yield\n", my_pid);
   ioctl(fd, IOCTL_YIELD); 
+  printf("%i: activated\n", my_pid);
 
-  printf("Closing device\n");
+  // printf("Closing device\n");
   close(fd);
 }
