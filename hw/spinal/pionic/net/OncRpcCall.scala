@@ -121,7 +121,10 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     // TODO: endianness swap
     // TODO: variable length field memory allocation (arena-style?)
 
-    val currentUdpHeader = udpHeader.toReg()
+    val currentUdpHeader = udpHeader.toFlowFire.toReg()
+    udpHeader.ready.setAsReg().init(True)
+      .clearWhen(udpHeader.fire)
+      .setWhen(decoder.io.header.fire)
 
     val drop = Bool()
     val dropFlow = decoder.io.header.asFlow ~ drop
@@ -142,4 +145,9 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       meta
     }
   }
+}
+
+// TODO: for nested RPC calls (outgoing)
+class OncRpcCallEncoder extends ProtoEncoder[OncRpcCallMetadata] {
+
 }

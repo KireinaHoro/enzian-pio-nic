@@ -35,6 +35,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
   lazy val cores = host.list[CoreControlPlugin]
   val retainer = Retainer()
 
+  // possible decoder upstreams for each core (bypass for core 0, protocols that called produceFinal for others)
   lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]())
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
   def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Flow[Bits]) = new Area {
@@ -51,7 +52,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
 
     // dispatch to cores
     if (coreMask == null) {
-      // bypass-core (#0) only
+      // dispatching to the bypass-core (#0) only
       coreDescUpstreams.head.append(tagged)
     } else {
       // round-robin dispatch to all other (non-bypass) cores that are enabled

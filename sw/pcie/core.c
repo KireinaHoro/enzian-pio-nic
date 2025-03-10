@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #include "hal.h"
 
 #include "config.h"
+#include "gen/pionic_pcie.h"
 #include "gen/pionic_pcie_core.h"
 #include "gen/pionic_pcie_global.h"
 #include "regblock_bases.h"
@@ -110,17 +112,63 @@ void pionic_fini(pionic_ctx_t *usr_ctx) {
 }
 
 bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  // TODO: write entire descriptor
-  // FIXME: the descriptor is bigger than uint64_t!
-  uint64_t reg = pionic_pcie_core_host_rx_rd(&ctx->core_dev[cid]);
-  if (reg & 0x1) {
-    uint64_t hw_desc = reg >> 1;
-    uint64_t read_addr =
-        PIONIC_PKTBUF_OFF_TO_ADDR(hw_desc & PIONIC_PKT_BUF_ADDR_MASK);
-    uint64_t pkt_len =
-        (hw_desc >> PIONIC_PKT_BUF_ADDR_WIDTH) & PIONIC_PKT_BUF_LEN_MASK;
+  // XXX: host rx (unlike host tx) has separate FIFO pop doorbell
+  uint8_t *host_rx =
+      (uint8_t *)(PIONIC_PCIE_CORE_BASE(cid) + PIONIC_PCIE_CORE_HOST_RX_BASE);
+
+  if (pionic_pcie_host_ctrl_info_error_valid_extract(host_rx)) {
+    // parse host control info
+    pionic_pcie_host_packet_desc_type_t ty =
+        pionic_pcie_host_ctrl_info_error_ty_extract(host_rx);
+    uint32_t read_addr = PIONIC_PKTBUF_OFF_TO_ADDR(
+        pionic_pcie_host_ctrl_info_error_addr_extract(host_rx));
+    uint32_t pkt_len = pionic_pcie_host_ctrl_info_error_size_extract(host_rx);
+
+    // fill out user-facing struct
     desc->payload_buf = (uint8_t *)(ctx->bar) + read_addr;
     desc->payload_len = pkt_len;
+
+    switch (ty) {
+    case pionic_pcie_bypass:
+      desc->type = TY_BYPASS;
+
+      // decode header type
+      switch (pionic_pcie_host_ctrl_info_bypass_hdr_ty_extract(host_rx)) {
+      case pionic_pcie_hdr_ethernet:
+        desc->bypass.header_type = HDR_ETHERNET;
+        break;
+      case pionic_pcie_hdr_ip:
+        desc->bypass.header_type = HDR_IP;
+        break;
+      case pionic_pcie_hdr_udp:
+        desc->bypass.header_type = HDR_UDP;
+        break;
+      case pionic_pcie_hdr_onc_rpc_call:
+        desc->bypass.header_type = HDR_ONCRPC_CALL;
+        break;
+      }
+
+      // parsed bypass header is aligned after the descriptor header
+      desc->bypass.header = host_rx + pionic_pcie_host_ctrl_info_bypass_size;
+      break;
+
+    case pionic_pcie_onc_rpc_call:
+      desc->type = TY_ONCRPC_CALL;
+      desc->oncrpc_call.func_ptr =
+          (void *)pionic_pcie_host_ctrl_info_onc_rpc_call_func_ptr_extract(
+              host_rx);
+      desc->oncrpc_call.xid =
+          pionic_pcie_host_ctrl_info_onc_rpc_call_xid_extract(host_rx);
+
+      // parsed oncrpc arguments are aligned after the descriptor header
+      desc->oncrpc_call.args =
+          (uint32_t *)(host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size);
+      break;
+
+    default:
+      desc->type = TY_ERROR;
+    }
+
 #ifdef DEBUG
     printf("Got packet at pktbuf %#lx len %#lx\n",
            PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
@@ -136,27 +184,97 @@ bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
 
 void pionic_rx_ack(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   uint64_t read_addr = desc->payload_buf - (uint8_t *)(ctx->bar);
-  uint64_t reg =
-      (PIONIC_ADDR_TO_PKTBUF_OFF(read_addr) & PIONIC_PKT_BUF_ADDR_MASK) |
-      ((desc->payload_len & PIONIC_PKT_BUF_LEN_MASK)
-       << PIONIC_PKT_BUF_ADDR_WIDTH);
 
-  // TODO: write entire descriptor
+  // valid for host-driven descriptor doesn't actually do anything so we don't
+  // bother
+  pionic_pcie_core_host_pkt_buf_desc_t reg =
+      pionic_pcie_core_host_pkt_buf_desc_size_insert(
+          pionic_pcie_core_host_pkt_buf_desc_addr_insert(
+              pionic_pcie_core_host_pkt_buf_desc_default,
+              PIONIC_ADDR_TO_PKTBUF_OFF(read_addr)),
+          desc->payload_len);
+
+  // XXX: write rx ack reg in one go since this reg has FIFO semantics
   pionic_pcie_core_host_rx_ack_wr(&ctx->core_dev[cid], reg);
 }
 
 void pionic_tx_get_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  uint64_t reg = pionic_pcie_core_host_tx_rd(&ctx->core_dev[cid]);
-  uint64_t hw_desc = reg >> 1;
+  // XXX: read tx reg in one go since this reg has FIFO semantics
+  pionic_pcie_core_host_pkt_buf_desc_t reg =
+      pionic_pcie_core_host_tx_rd(&ctx->core_dev[cid]);
 
-  desc->payload_buf =
-      (uint8_t *)(ctx->bar) +
-      PIONIC_PKTBUF_OFF_TO_ADDR(hw_desc & PIONIC_PKT_BUF_ADDR_MASK);
-  desc->payload_len =
-      (hw_desc >> PIONIC_PKT_BUF_ADDR_WIDTH) & PIONIC_PKT_BUF_LEN_MASK;
+  // for now, TX desc should always be valid
+  assert(pionic_pcie_core_host_pkt_buf_desc_valid_extract(reg));
+  uint32_t off = pionic_pcie_core_host_pkt_buf_desc_addr_extract(reg);
+  uint32_t len = pionic_pcie_core_host_pkt_buf_desc_size_extract(reg);
+
+  desc->payload_buf = (uint8_t *)(ctx->bar) + PIONIC_PKTBUF_OFF_TO_ADDR(off);
+  desc->payload_len = len;
+
+  // set up correct header/args pointers, so that application directly writes
+  // into descriptor
+  switch (desc->type) {
+  case TY_BYPASS:
+    desc->bypass.header = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
+    break;
+  case TY_ONCRPC_CALL:
+    desc->bypass.args = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
+    break;
+  }
 }
 
 void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  // TODO: write entire descriptor
-  pionic_pcie_core_host_tx_ack_wr(&ctx->core_dev[cid], desc->payload_len);
+  // XXX: host tx ack (unlike host rx ack) has separate FIFO push doorbell
+  uint8_t *host_tx_ack = (uint8_t *)(PIONIC_PCIE_CORE_BASE(cid) +
+                                     PIONIC_PCIE_CORE_HOST_TX_ACK_BASE);
+
+  uint64_t write_addr = desc->payload_buf - (uint8_t *)(ctx->bar);
+
+  // fill out packet buffer desc
+  pionic_pcie_host_ctrl_info_error_addr_insert(
+      host_tx_ack, PIONIC_ADDR_TO_PKTBUF_OFF(write_addr));
+  pionic_pcie_host_ctrl_info_error_size_insert(host_tx_ack, desc->payload_len);
+
+  // valid doesn't matter, not setting
+
+  switch (desc->type) {
+  case TY_BYPASS:
+    pionic_pcie_host_ctrl_info_bypass_ty_insert(host_tx_ack,
+                                                pionic_pcie_bypass);
+
+    // encode header type
+    switch (desc->bypass.header_type) {
+    case HDR_ETHERNET:
+      pionic_pcie_host_ctrl_info_bypass_hdr_ty_insert(host_tx_ack,
+                                                      pionic_pcie_hdr_ethernet);
+      break;
+    case HDR_IP:
+      pionic_pcie_host_ctrl_info_bypass_hdr_ty_insert(host_tx_ack,
+                                                      pionic_pcie_hdr_ip);
+      break;
+    case HDR_UDP:
+      pionic_pcie_host_ctrl_info_bypass_hdr_ty_insert(host_tx_ack,
+                                                      pionic_pcie_hdr_udp);
+      break;
+    case HDR_ONCRPC_CALL:
+      pionic_pcie_host_ctrl_info_bypass_hdr_ty_insert(
+          host_tx_ack, pionic_pcie_hdr_onc_rpc_call);
+      break;
+    }
+    break;
+
+  case TY_ONCRPC_CALL:
+    pionic_pcie_host_ctrl_info_onc_rpc_call_ty_insert(host_tx_ack,
+                                                      pionic_pcie_onc_rpc_call);
+    pionic_pcie_host_ctrl_info_onc_rpc_call_func_ptr_insert(
+        host_tx_ack, desc->oncrpc_call.func_ptr);
+    pionic_pcie_host_ctrl_info_onc_rpc_call_xid_insert(host_tx_ack,
+                                                       desc->oncrpc_call.xid);
+    break;
+
+  default:
+  }
+
+  // ring doorbell: tx packet ready
+  // TODO
 }
