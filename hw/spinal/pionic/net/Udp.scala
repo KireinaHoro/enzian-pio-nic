@@ -61,7 +61,10 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
 
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)()
 
-    val currentIpHeader = ipHeader.toReg()
+    val currentIpHeader = ipHeader.toFlowFire.toReg()
+    ipHeader.ready.setAsReg().init(True)
+      .clearWhen(ipHeader.fire)
+      .setWhen(decoder.io.header.fire)
 
     ipPayload >> decoder.io.input
     payload << decoder.io.output

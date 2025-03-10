@@ -32,6 +32,7 @@ package object sim {
         assert(got.contains(p4jClass), s"$proto not in packet $got")
         val g = got.get(p4jClass).getHeader
         assert(e == g, s"$proto header mismatch: expected $e, got $g")
+        println(s"$proto matched successfully")
       }
     }
     Seq(Ethernet, Ip, Udp) foreach checkLevel

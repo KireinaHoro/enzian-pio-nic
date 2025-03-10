@@ -17,7 +17,7 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[TaggedProtoPacketDesc]] as well as [[HostPacketDesc]].
    */
   object ProtoPacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCall = newElement()
+    val ethernet, ip, udp, oncRpcCall /*, oncRpcReply */= newElement()
 
     def addMackerel(f: RegAllocatorFactory) = {
       f.addMackerelEpilogue(getClass,
@@ -37,6 +37,10 @@ package object net {
    * Should also provide all information needed to reconstruct the entire packet for exceptional delivery to the TAP
    * interface (bypass).  [[CoreControlPlugin]] will translate this to a [[HostPacketDesc]], dropping fields that the
    * host does not need.
+   *
+   * Also used in the encoder pipeline.  Each stage is only responsible of filling in the information that it can
+   * obtain.  E.g. ONC-RPC encoder does not need to fill in Ethernet addresses; this is responsibility of the IP
+   * encoder.
    */
   trait ProtoPacketDesc extends Data {
     /** tag metadata sent to cores */
@@ -93,6 +97,22 @@ package object net {
   }
 
   /**
+    * Base class of module that holds state for one protocol.  The respective [[ProtoDecoder]] and [[ProtoEncoder]]
+    * will consult this module for states; examples:
+    *
+    * - ARP cache: mappings between IP and Ethernet addresses (used by IP decoders and encoders)
+    * - ONCRPC sessions: mappings between (funcPtr, xid) and (IP addr, UDP port num) (used by non-nested ONCRPC call/replies)
+    */
+  trait ProtoState extends PioNicPlugin {
+    /**
+      * Drive control interface for this plugin.  Should be called from a host plugin, like [[pionic.host.eci.EciInterfacePlugin]].
+      * @param busCtrl bus slave factory to host register access
+      * @param alloc reg allocator
+      */
+    def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
+  }
+
+  /**
    * Base class of one stage in the RX decoder pipeline.  Should in general decode one protocol header (or one segment
    * in a protocol, e.g. IPv6 optional headers).
    *
@@ -141,22 +161,28 @@ package object net {
         val hdr = forkedHeaders(idx)
         val pld = forkedPayloads(idx)
 
-        // FIXME: timing!  what happens if the downstream decoder is busy?
-        // only mark attempt when header is valid
+        // mark attempt when header is valid
+        // we don't mark on fire, since decoder should still attempt eventually, even if it's busy right now
         val attempt = matchFunc(hdr.payload) && hdr.valid
         attempts.append(attempt)
 
-        headerSink << hdr.takeWhen(attempt)
-        payloadSink << pld.takeFrameWhen(hdr.asFlow ~ attempt)
+        // XXX: this works even when downstream decoder is not immediately ready:
+        //      hdr is supposed to be persistent
+        headerSink <-/< hdr.takeWhen(attempt)
+        payloadSink <-/< pld.takeFrameWhen(hdr.asFlow ~ attempt)
       }
       }
 
+      // did at least one downstream decoder attempt to decode this packet?
+      // XXX: we assume decoder outputs the captured header first, before giving output
+      //      otherwise all beats before header would not be thrown properly
       val attempted = attempts.reduceBalancedTree(_ || _)
       val bypassThrow = Flow(Bool())
       bypassThrow.payload := attempted
       bypassThrow.valid := attempted
 
-      val bypassHeader = forkedHeaders.last.takeWhen(!attempted)
+      // do not give to bypass (throw), when any downstream decoders would attempt to decode
+      val bypassHeader = forkedHeaders.last.throwWhen(attempted)
       val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
 
       host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
@@ -179,13 +205,39 @@ package object net {
 
     /**
      * Drive control interface for this plugin.  Should be called from a host plugin, like [[pionic.host.eci.EciInterfacePlugin]].
+     * TODO: move to [[ProtoState]]
      * @param busCtrl bus slave factory to host register access
      * @param alloc reg allocator
      */
     def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
   }
 
-  trait ProtoEncoder {
+  /**
+    * Base class of one stage in the TX encoder pipeline.
+    *
+    * Encoder stages form a DAG, analogous to [[ProtoDecoder]].  The DAG is specified by [[to]].
+    * @tparam T input metadata type
+    */
+  trait ProtoEncoder[T <: ProtoPacketDesc] extends PioNicPlugin {
+    /**
+      * Upstream encoders interfaces.  E.g. Ip.ups = [ Tcp, Udp ]
+      */
+    private val producers = mutable.ListBuffer[(String, Stream[T], Axi4Stream)]()
 
+    /**
+      * Specify one possible downstream encoder, where this encoder pushes packets to.  Can be invoked multiple times
+      * in the setup phase.
+      * @param metadata output metadata stream for downstream decoder
+      * @param payload output payload stream (with our header encoded)
+      * @tparam M type of downstream packet descriptor
+      * @tparam E type of downstream packet decoder
+      */
+    protected def to[M <: ProtoPacketDesc, E <: ProtoEncoder[M]: ClassTag](metadata: Stream[M], payload: Axi4Stream): Unit = {
+      host[E].producers.append((this.getDisplayName(), metadata, payload))
+    }
+
+    protected def consume(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "consume") {
+      // TODO
+    }
   }
 }
