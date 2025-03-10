@@ -4,5 +4,6 @@ handler: handler.c
 activator: activator.c
 	gcc -g -Wall $^ -o $@
 
+.PHONY: clean
 clean:
-	rm kernel-module-test
+	rm handler activator
