@@ -8,14 +8,19 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
 
-.docker-image:
+.docker-image-hw:
   tags:
     - enzian-docker
     - vivado
   image: "registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04"
 
+.docker-image-sw:
+  tags:
+    - enzian-docker
+  image: "registry.ethz.ch/project-openenzian/ci-images/spinal-rust:ubuntu-22.04"
+
 fast-tests:
-  extends: .docker-image
+  extends: .docker-image-hw
   stage: test
   script:
     - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
@@ -25,7 +30,7 @@ fast-tests:
       - simWorkspace/**/wave.fst
 
 .build-sw:
-  extends: .docker-image
+  extends: .docker-image-sw
   stage: build-sw
   script:
     - mill $PIONIC_DESIGN.generateVerilog
@@ -45,7 +50,7 @@ build-sw-eci:
     PIONIC_DESIGN: eci
 
 .build-hw:
-  extends: .docker-image
+  extends: .docker-image-hw
   stage: build-hw
   needs:
     - fast-tests
