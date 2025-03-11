@@ -40,7 +40,7 @@ class AxiDmaPlugin extends PioNicPlugin {
     val aligner = AxiStreamAligner(dmaConfig.axisConfig)
     host[RxPacketDispatchService].packetSink >> aligner.io.input
     // packer does not remove completely NULL streams
-    axiDma.s_axis_write_data << aligner.io.output
+    axiDma.s_axis_write_data <-/< aligner.io.output
 
     axiDma.io.read_enable := True
     axiDma.io.write_enable := True
