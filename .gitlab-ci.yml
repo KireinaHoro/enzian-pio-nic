@@ -16,7 +16,7 @@ variables:
 
 .docker-image-sw:
   tags:
-    - enzian-docker
+    - enzian
   image: "registry.ethz.ch/project-openenzian/ci-images/spinal-rust:ubuntu-22.04"
 
 fast-tests:
