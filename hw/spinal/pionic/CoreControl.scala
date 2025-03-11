@@ -173,18 +173,13 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
     io.hostTx.size.bits := pktBufTxSize
     io.hostTx.valid := True
 
-    // tell allocator how much we need to allocate in the packet buffer
-    // FIXME: what if size is zero due to header only packet?
-    rxAlloc.io.allocReq << io.igMetadata.map { meta =>
-      val ret = PacketLength()
-      ret.bits := meta.getPayloadSize
-      ret
-    }
     rxAlloc.io.freeReq </< io.hostRxAck
     io.statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
 
     rxAlloc.io.allocResp.setBlocked()
     io.hostTxAck.setBlocked()
+
+    // XXX: requires blocking allocReq
     val lastIgReq = io.igMetadata.toFlowFire.toReg()
 
     val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
@@ -330,6 +325,14 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
         }
       }
     }
+
+    // tell allocator how much we need to allocate in the packet buffer
+    // FIXME: what if size is zero due to header only packet?
+    rxAlloc.io.allocReq << io.igMetadata.map { meta =>
+      val ret = PacketLength()
+      ret.bits := meta.getPayloadSize
+      ret
+    }.haltWhen(!rxFsm.isActive(rxFsm.idle)) // do not pass through alloc req to avoid lastIgReq being confused
 
     p.profile(
       // FIXME: this not reliable since hostTx sits in the same 512B word as other regs, so a read on other regs will also trigger this
