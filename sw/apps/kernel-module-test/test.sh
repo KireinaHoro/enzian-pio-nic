@@ -13,13 +13,16 @@ for i in {0..3}; do
 done
 
 printf "Handlers:"
-for pid in "${cases[@]}"; do
+for pid in "${pids[@]}"; do
     printf " %i" $pid
 done
 printf "\n"
 
-read -p "Press enter to continue"
+sleep 1
+read -p "Press enter to continue\n"
 
-for pid in "${cases[@]}"; do
-    kill $pid
+set +e
+for pid in "${pids[@]}"; do
+    echo "Killing $pid..."
+    sudo kill $pid
 done
