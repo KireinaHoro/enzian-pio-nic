@@ -70,8 +70,9 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be bypass)";
          |  hdr_ty $bptw type(proto_packet_desc_type) "Type of bypass header";
          |  _      19 rsvd;
-         |  // hdr follows
-         |  // TODO: actually define hdr field as address-only
+         |  // hdr follows -- need to calculate address manually
+         |  // TODO: actually define args in the datatype.  Possible approach:
+         |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |};
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
@@ -81,8 +82,10 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  _      21   rsvd;
          |  xid    32  "XID of incoming request";
          |  func_ptr 64 "Function pointer for RPC call handler";
-         |  // args follows
-         |  // TODO: actually define args field as address-only
+         |  // args follows -- need to calculate address manually
+         |  // TODO: actually define args in the datatype.  Two possible approaches:
+         |  // - as an address-only field, so no hdr+size pointer calculation in user code
+         |  // - as an array, so Mackerel would emit access functions
          |};
          |""".stripMargin
     )
