@@ -4,6 +4,7 @@ import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
 import jsteward.blocks.misc.{RegBlockAlloc, RichStream}
 import pionic._
+import pionic.host.eci.EciDecoupledRxTxProtocol.emittedMackerel
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
@@ -403,9 +404,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     host[DebugPlugin].postDebug(s"txFsm_${coreID}_currClIdx", txCurrClIdx)
   }
 
-  // FIXME: mackerel does not support:
-  //  - fragmenting large fields, or
-  //  - declaring arrays inside datatypes
-  //  until one of these is implemented, do not emit datatype definition
-  during build EciHostCtrlInfo().addMackerel
+  during build {
+    if (!emittedMackerel) {
+      EciHostCtrlInfo().addMackerel
+      emittedMackerel = true
+    }
+  }
+}
+
+object EciDecoupledRxTxProtocol {
+  var emittedMackerel = false
 }
