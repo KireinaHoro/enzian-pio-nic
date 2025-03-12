@@ -169,7 +169,7 @@ package object net {
         // XXX: this works even when downstream decoder is not immediately ready:
         //      hdr is supposed to be persistent
         headerSink << hdr.takeWhen(attempt)
-        payloadSink << pld.takeFrameWhen(hdr.asFlow ~ attempt)
+        payloadSink </< pld.takeFrameWhen(hdr.asFlow ~ attempt)
       }
       }
 
