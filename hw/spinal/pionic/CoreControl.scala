@@ -36,6 +36,7 @@ case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
 
 case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
+  val tid = Bits(c[Int]("thread id width") bits)
   val xid = Bits(32 bits)
   val args = Bits(Widths.oargw bits)
 }
@@ -208,6 +209,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
                   tag.ty := HostPacketDescType.oncRpcCall
 
                   tag.data.oncRpcCall.funcPtr := lastIgReq.metadata.oncRpcCall.funcPtr
+                  tag.data.oncRpcCall.tid := lastIgReq.metadata.oncRpcCall.tid
                   tag.data.oncRpcCall.xid := lastIgReq.metadata.oncRpcCall.hdr.xid
                   tag.data.oncRpcCall.args := lastIgReq.metadata.oncRpcCall.args
                 }
