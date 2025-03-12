@@ -36,7 +36,7 @@ class ConfigDatabase extends FiberPlugin {
   post("bypass header max width", 54 * 8) // ETH + IP + TCP
 
   // scheduler default settings
-  post("thread id width", 13) // fits into EciHostCtrlInfo.OncRpcCallBundle
+  post("process id width", 13) // fits into EciHostCtrlInfo.OncRpcCallBundle
 
 
   import ConfigDatabase._
