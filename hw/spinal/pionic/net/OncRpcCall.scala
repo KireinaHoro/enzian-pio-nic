@@ -26,9 +26,9 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
+  val tid = Bits(c[Int]("thread id width") bits)
   // first fields in the XDR payload
   val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
-  // TODO: protection domain information? aux data?
   val hdr = OncRpcCallHeader()
   val udpMeta = UdpMetadata()
 
@@ -46,13 +46,13 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   }
 }
 
-case class OncRpcCallServiceDef() extends Bundle {
+case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val enabled = Bool()
   val progNum = Bits(32 bits)
   val progVer = Bits(32 bits)
   val proc = Bits(32 bits)
   val funcPtr = Bits(64 bits)
-  // TODO: protection domain information? aux data?
+  val tid = Bits(c[Int]("thread id width") bits)
 
   def matchHeader(h: OncRpcCallHeader) = enabled &&
     progNum === EndiannessSwap(h.progNum) &&
@@ -141,9 +141,13 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       // TODO: also drop malformed packets (e.g. payload too short)
 
       meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
+      meta.tid := PriorityMux(matches, serviceSlots.map(_.tid))
 
       meta
     }
+
+    // TODO: record (tid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
+    //       this is used by the host for now and the reply encoder module in the future
   }
 }
 

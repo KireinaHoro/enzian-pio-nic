@@ -35,6 +35,10 @@ class ConfigDatabase extends FiberPlugin {
   post("git version", BigInt(0xffffffffL), emitHeader = false)
   post("bypass header max width", 54 * 8) // ETH + IP + TCP
 
+  // scheduler default settings
+  post("thread id width", 13) // fits into EciHostCtrlInfo.OncRpcCallBundle
+
+
   import ConfigDatabase._
 
   def post[T: TypeTag](name: String, value: => T, action: PostAction = Unique, emitHeader: Boolean = true): Unit = {
