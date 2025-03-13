@@ -30,15 +30,15 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   // first fields in the XDR payload
   val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
   val hdr = OncRpcCallHeader()
-  val udpMeta = UdpMetadata()
+  val udpPayloadSize = UInt(Widths.lw bits)
 
   def getType = ProtoPacketDescType.oncRpcCall
   def getPayloadSize: UInt = {
     val inlineLen = c[Int]("max onc rpc inline bytes")
-    val payloadLen = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
+    val payloadLen = udpPayloadSize - hdr.getBitsWidth / 8
     (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
   }
-  def collectHeaders: Bits = hdr.asBits ## udpMeta.collectHeaders
+  def collectHeaders: Bits = ??? // never collected
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData() setCompositeName (this, "union")
     ret.oncRpcCall.get := this
@@ -134,7 +134,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       val meta = OncRpcCallMetadata()
       meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
       meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
-      meta.udpMeta := currentUdpHeader
+      meta.udpPayloadSize := currentUdpHeader.getPayloadSize
 
       val matches = serviceSlots.map(_.matchHeader(meta.hdr))
       drop := !matches.reduceBalancedTree(_ || _)
