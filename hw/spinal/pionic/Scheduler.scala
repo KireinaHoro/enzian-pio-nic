@@ -5,17 +5,9 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.io.InOutVecToBits
 
-/** A schedule decision issued by [[Scheduler]] to [[CoreControlPlugin]]. */
-case class DescWithSched()(implicit c: ConfigDatabase) extends Bundle {
-  /** Host-agnostic description, to be translated and sent by [[pionic.CoreControlPlugin]] */
-  val desc = OncRpcCallMetadata()
-  /** Thread ID to schedule on the core. */
-  val tid = Bits(c[Int]("thread id width") bits)
-}
-
 case class PidTidMapping()(implicit c: ConfigDatabase) extends Bundle {
-  val pid = Bits(c[Int]("process id width") bits)
-  val tid = Bits(c[Int]("thread id width") bits)
+  val pid = Bits(Widths.pidw bits)
+  val tid = Bits(Widths.tidw bits)
 }
 
 /**
@@ -34,6 +26,8 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
   val generic = new Generic {
     val NUM_CORES = numCores
     val PID_QUEUE_DEPTH = c[Int]("max rx pkts in flight")
+    val PID_WIDTH = Widths.pidw
+    val TID_WIDTH = Widths.tidw
   }
 
   val clk = in Bool()
@@ -42,19 +36,34 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
   /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
   val rxMeta = slave(Stream(OncRpcCallMetadata()))
 
-  /** Packet metadata with schedule decision issued to the downstream [[CoreControlPlugin]]. */
-  val coreMeta = Vec(master(Stream(DescWithSched())), numCores)
-
+  /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
+    * information -- switching threads on a core is requested through the [[corePreempt]] interfaces. */
+  val coreMeta = Vec(master(Stream(OncRpcCallMetadata())), numCores)
 
   /**
-    * Requests to cancel a packet that is being processed.  The [[CoreControlPlugin]] will issue an interrupt
-    * to the corresponding core and assert coreMeta(i).ready eventually.  Ignored by the [[CoreControlPlugin]] when
-    * the corresponding coreMeta.ready is high.
+    * Request a core to switch to a different thread.  Interaction with [[coreMeta]] happens in the following order:
+    *  - hold requests in [[coreMeta]] (valid === False)
+    *  - issue request on [[corePreempt]] (wait until ready && valid === True)
+    *  - re-assign PID queue, allow requests to continue on [[coreMeta]]
+    *
+    * Will be stalled (ready === False) when a preemption is in progress.
     */
-  val coreCancel = out(Bits(numCores bits))
+  val corePreempt = Vec(master(Stream(Bits(Widths.tidw bits))), numCores)
 
-  // config interfaces
+  /** Create a thread in a process.  Implies that a process is also created, if it's the first time seeing this PID.
+    * Note that all requests that make it to the scheduler should have a process and thus at least one thread
+    * registered -- otherwise they should've been filtered out by [[pionic.net.OncRpcCallDecoder]].  The SW should keep
+    * these states consistent.
+    */
   val createThread = slave(Stream(PidTidMapping()))
+
+  /** Destroy a process due to either it exiting on the host, or being killed by [[CoreControlPlugin]] due to a timeout
+    * in the CL critical region.  Should remove all PID-TID mappings.
+    *
+    * This interface should be driven from the CPU in kernel space -- SW should also keep the decoder state consistent
+    * with this.
+    */
+  val destroyProcess = slave(Stream(Bits(Widths.pidw bits)))
 
   mapCurrentClockDomain(clk, rst)
 }
@@ -63,10 +72,15 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
 object Scheduler extends App {
   implicit val c = new ConfigDatabase
   c.post("max onc rpc inline bytes", 4 * 12, action = ConfigDatabase.Unique)
-  SpinalVhdl(new Component {
+
+  case class SchedTmpl() extends Component {
     val sched = Scheduler()
     sched.rxMeta.setIdle()
     sched.coreMeta.foreach(_.setBlocked())
     sched.createThread.setIdle()
-  })
+    sched.destroyProcess.setIdle()
+    sched.corePreempt.foreach(_.setBlocked())
+  }
+
+  SpinalVhdl(SpinalConfig(targetDirectory = "hw/vhdl"))(SchedTmpl())
 }

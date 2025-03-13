@@ -26,7 +26,7 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
-  val pid = Bits(c[Int]("process id width") bits)
+  val pid = Bits(Widths.pidw bits)
   // first fields in the XDR payload
   val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
   val hdr = OncRpcCallHeader()
@@ -52,7 +52,7 @@ case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val progVer = Bits(32 bits)
   val proc = Bits(32 bits)
   val funcPtr = Bits(64 bits)
-  val pid = Bits(c[Int]("process id width") bits)
+  val pid = Bits(Widths.pidw bits)
 
   def matchHeader(h: OncRpcCallHeader) = enabled &&
     progNum === EndiannessSwap(h.progNum) &&

@@ -62,5 +62,8 @@ package object pionic {
     def bptw(implicit c: ConfigDatabase) = c[Int]("proto packet desc type width")
     def bphw(implicit c: ConfigDatabase) = c[Int]("bypass header max width")
     def oargw(implicit c: ConfigDatabase) = c[Int]("max onc rpc inline bytes") * 8
+
+    def pidw(implicit c: ConfigDatabase) = c[Int]("process id width")
+    def tidw(implicit c: ConfigDatabase) = c[Int]("thread id width")
   }
 }
