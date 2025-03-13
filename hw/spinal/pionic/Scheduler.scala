@@ -43,9 +43,6 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
   val rxMeta = slave(Stream(OncRpcCallMetadata()))
 
   /** Packet metadata with schedule decision issued to the downstream [[CoreControlPlugin]]. */
-  // val coreMeta = new InOutVecToBits(master(Stream(DescWithSched())), numCores)
-  // FIXME: Vec form is diffcult to parameterize, but InOutVecToBits would emit way too big vectors for something like
-  //        16 cores
   val coreMeta = Vec(master(Stream(DescWithSched())), numCores)
 
 
@@ -69,7 +66,6 @@ object Scheduler extends App {
   SpinalVhdl(new Component {
     val sched = Scheduler()
     sched.rxMeta.setIdle()
-    // sched.coreMeta.accesses.foreach(_.setBlocked())
     sched.coreMeta.foreach(_.setBlocked())
     sched.createThread.setIdle()
   })
