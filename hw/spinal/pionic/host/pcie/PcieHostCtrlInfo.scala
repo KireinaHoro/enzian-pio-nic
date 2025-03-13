@@ -25,8 +25,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val bypass = newElement(BypassBundle())
 
     case class OncRpcCallBundle() extends Bundle {
-      val xb8 = Bits(8 bits)
-      val pid = Bits(c[Int]("process id width") bits)
+      val xb21 = Bits(21 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(Widths.oargw bits)
@@ -80,8 +79,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  addr   $aw "Address in packet buffer";
          |  size   $lw "Length of packet";
          |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
-         |  _      8   rsvd;
-         |  pid    13  "Process ID for RPC call handler";
+         |  _      21  rsvd;
          |  xid    32  "XID of incoming request";
          |  func_ptr 64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
@@ -106,7 +104,7 @@ object PcieHostCtrlInfo {
       }
       is (HostPacketDescType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
-        ret.data.oncRpcCall.xb8 := 0
+        ret.data.oncRpcCall.xb21 := 0
       }
     }
     ret.buffer := desc.buffer
