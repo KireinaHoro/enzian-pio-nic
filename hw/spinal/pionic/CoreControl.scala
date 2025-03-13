@@ -185,6 +185,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
 
     val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
     // FIXME: how much buffering do we need?
+    // TODO: remove queuing here, backpressure to scheduler and let scheduler queue in URAM
     rxCaptured.queue(c[Int]("max rx pkts in flight")) >> io.hostRx
 
     val rxFsm = new StateMachine {

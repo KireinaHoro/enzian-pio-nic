@@ -37,9 +37,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val bypass = newElement(BypassBundle())
 
     case class OncRpcCallBundle() extends Bundle {
-      val pid = Bits(c[Int]("process id width") bits) // make sure xid is word aligned
-      assert(pid.getWidth <= 13, "PID does not fit in EciHostCtrlInfo")
-
+      val xb13 = Bits(13 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(Widths.oargw bits)
@@ -97,7 +95,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
          |  ty        $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
          |  len       $lw "Length of packet";
-         |  pid       13 "Process ID for RPC call handler";
+         |  _         13 rsvd;
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
@@ -120,6 +118,7 @@ object EciHostCtrlInfo {
       }
       is (HostPacketDescType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
+        ret.data.oncRpcCall.xb13 := 0
       }
     }
     ret.len := desc.buffer.size
