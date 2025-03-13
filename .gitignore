@@ -15,7 +15,6 @@ vivado_pid*.str
 hs_err_pid*.log
 # random tests emit verilog directly here
 *.v
-*.vhd
 *.core
 mill.*
 
