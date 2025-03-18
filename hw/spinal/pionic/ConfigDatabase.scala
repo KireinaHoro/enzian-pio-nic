@@ -37,8 +37,6 @@ class ConfigDatabase extends FiberPlugin {
 
   // scheduler default settings
   post("process id width", 44) // PID_MAX on Linux
-  post("thread id width", 44)  // PID_MAX on Linux
-
 
   import ConfigDatabase._
 

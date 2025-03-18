@@ -1,6 +1,6 @@
 -- Generator : SpinalHDL dev    git head : 750302cd3da8ae1c10144bafd6252e2be617bf4d
 -- Component : SchedTmpl
--- Git hash  : ab11c97907c1475d5414ea6bed2180058698c88a
+-- Git hash  : b4019fc3309bb3ab696d719024e7273fd37bd5e0
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -476,15 +476,14 @@ architecture arch of SchedTmpl is
   signal sched_corePreempt_2_payload : std_logic_vector(43 downto 0);
   signal sched_corePreempt_3_valid : std_logic;
   signal sched_corePreempt_3_payload : std_logic_vector(43 downto 0);
-  signal sched_createThread_ready : std_logic;
+  signal sched_createProcess_ready : std_logic;
   signal sched_destroyProcess_ready : std_logic;
 
   component Scheduler is
     generic( 
       NUM_CORES : integer ;
       PID_QUEUE_DEPTH : integer ;
-      PID_WIDTH : integer ;
-      TID_WIDTH : integer  
+      PID_WIDTH : integer  
     );
     port( 
       clk : in std_logic;
@@ -571,10 +570,9 @@ architecture arch of SchedTmpl is
       corePreempt_3_valid : out std_logic;
       corePreempt_3_ready : in std_logic;
       corePreempt_3_payload : out std_logic_vector;
-      createThread_valid : in std_logic;
-      createThread_ready : out std_logic;
-      createThread_payload_pid : in std_logic_vector;
-      createThread_payload_tid : in std_logic_vector;
+      createProcess_valid : in std_logic;
+      createProcess_ready : out std_logic;
+      createProcess_payload : in std_logic_vector;
       destroyProcess_valid : in std_logic;
       destroyProcess_ready : out std_logic;
       destroyProcess_payload : in std_logic_vector 
@@ -587,8 +585,7 @@ begin
     generic map( 
       NUM_CORES => 4,
       PID_QUEUE_DEPTH => 128,
-      PID_WIDTH => 44,
-      TID_WIDTH => 44 
+      PID_WIDTH => 44 
     )
     port map ( 
       clk => clk,
@@ -675,10 +672,9 @@ begin
       corePreempt_3_valid => sched_corePreempt_3_valid,
       corePreempt_3_ready => pkg_toStdLogic(false),
       corePreempt_3_payload => sched_corePreempt_3_payload,
-      createThread_valid => pkg_toStdLogic(false),
-      createThread_ready => sched_createThread_ready,
-      createThread_payload_pid => pkg_stdLogicVector("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
-      createThread_payload_tid => pkg_stdLogicVector("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
+      createProcess_valid => pkg_toStdLogic(false),
+      createProcess_ready => sched_createProcess_ready,
+      createProcess_payload => pkg_stdLogicVector("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
       destroyProcess_valid => pkg_toStdLogic(false),
       destroyProcess_ready => sched_destroyProcess_ready,
       destroyProcess_payload => pkg_stdLogicVector("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX") 
