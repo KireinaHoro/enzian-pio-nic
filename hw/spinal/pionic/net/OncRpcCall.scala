@@ -26,19 +26,19 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
+  val pid = Bits(Widths.pidw bits)
   // first fields in the XDR payload
   val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
-  // TODO: protection domain information? aux data?
   val hdr = OncRpcCallHeader()
-  val udpMeta = UdpMetadata()
+  val udpPayloadSize = UInt(Widths.lw bits)
 
   def getType = ProtoPacketDescType.oncRpcCall
   def getPayloadSize: UInt = {
     val inlineLen = c[Int]("max onc rpc inline bytes")
-    val payloadLen = udpMeta.getPayloadSize - hdr.getBitsWidth / 8
+    val payloadLen = udpPayloadSize - hdr.getBitsWidth / 8
     (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
   }
-  def collectHeaders: Bits = hdr.asBits ## udpMeta.collectHeaders
+  def collectHeaders: Bits = ??? // never collected
   def asUnion: ProtoPacketDescData = {
     val ret = ProtoPacketDescData() setCompositeName (this, "union")
     ret.oncRpcCall.get := this
@@ -46,13 +46,13 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   }
 }
 
-case class OncRpcCallServiceDef() extends Bundle {
+case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val enabled = Bool()
   val progNum = Bits(32 bits)
   val progVer = Bits(32 bits)
   val proc = Bits(32 bits)
   val funcPtr = Bits(64 bits)
-  // TODO: protection domain information? aux data?
+  val pid = Bits(Widths.pidw bits)
 
   def matchHeader(h: OncRpcCallHeader) = enabled &&
     progNum === EndiannessSwap(h.progNum) &&
@@ -134,16 +134,20 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       val meta = OncRpcCallMetadata()
       meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
       meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
-      meta.udpMeta := currentUdpHeader
+      meta.udpPayloadSize := currentUdpHeader.getPayloadSize
 
       val matches = serviceSlots.map(_.matchHeader(meta.hdr))
       drop := !matches.reduceBalancedTree(_ || _)
       // TODO: also drop malformed packets (e.g. payload too short)
 
       meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
+      meta.pid := PriorityMux(matches, serviceSlots.map(_.pid))
 
       meta
     }
+
+    // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
+    //       this is used by the host for now and the reply encoder module in the future
   }
 }
 

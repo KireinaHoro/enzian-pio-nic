@@ -35,6 +35,9 @@ class ConfigDatabase extends FiberPlugin {
   post("git version", BigInt(0xffffffffL), emitHeader = false)
   post("bypass header max width", 54 * 8) // ETH + IP + TCP
 
+  // scheduler default settings
+  post("process id width", 44) // PID_MAX on Linux
+
   import ConfigDatabase._
 
   def post[T: TypeTag](name: String, value: => T, action: PostAction = Unique, emitHeader: Boolean = true): Unit = {

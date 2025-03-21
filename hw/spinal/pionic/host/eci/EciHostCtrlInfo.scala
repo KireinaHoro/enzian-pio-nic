@@ -37,7 +37,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val bypass = newElement(BypassBundle())
 
     case class OncRpcCallBundle() extends Bundle {
-      val xb13 = Bits(13 bits) // make sure xid is word aligned
+      val xb13 = Bits(13 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(Widths.oargw bits)
