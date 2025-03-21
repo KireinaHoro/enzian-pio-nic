@@ -56,7 +56,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       coreDescUpstreams.head.append(tagged)
     } else {
       // round-robin dispatch to all other (non-bypass) cores that are enabled
-      // TODO: replace with more complicated scheduler?
+      // TODO: replace with Scheduler
       StreamDispatcherWithEnable(
         input = tagged,
         outputCount = cores.length - 1,
