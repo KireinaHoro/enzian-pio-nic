@@ -5,46 +5,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "lauberhorn.h"  // get lauberhorn_pkt_desc_t etc. and rename below
+#define pionic_pkt_desc_t lauberhorn_pkt_desc_t
+#define pionic_pkt_desc_type_t lauberhorn_pkt_desc_type_t
+
 struct pionic_ctx;
 typedef struct pionic_ctx *pionic_ctx_t;
-
-#define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
-
-typedef enum {
-  TY_ERROR,
-  TY_BYPASS,
-  TY_ONCRPC_CALL,
-} pionic_pkt_desc_type_t;
-
-// descriptor for one packet / transaction
-// must be allocated / freed by the respective functions, since we
-// want to decouple implementation size choices from application
-typedef struct {
-  pionic_pkt_desc_type_t type;
-  // transaction metadata (packet header, RPC session data, etc.)
-  union {
-    struct {
-      enum {
-        HDR_ETHERNET,
-        HDR_IP,
-        HDR_UDP,
-        HDR_ONCRPC_CALL,
-      } header_type;
-      uint8_t header[PIONIC_BYPASS_HEADER_SIZE];
-    } bypass;
-    struct {
-      void *func_ptr;
-      int xid;
-      uint32_t *args;
-    } oncrpc_call;
-  };
-
-  // extra payload
-  uint8_t *payload_buf;
-  size_t payload_len;
-} pionic_pkt_desc_t;
-pionic_pkt_desc_t *pionic_alloc_pkt_desc();
-void pionic_free_pkt_desc(pionic_pkt_desc_t *desc);
 
 // implementation details
 int pionic_get_mtu();
