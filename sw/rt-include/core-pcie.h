@@ -47,34 +47,25 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
     case pionic_pcie_bypass:
       desc->type = TY_BYPASS;
 
-      // parsed bypass header is aligned after the descriptor header
-      // FIXME: @PX is this what you want?
-      desc->bypass.header = host_rx + pionic_pcie_host_ctrl_info_bypass_size;
-
       // decode header type
       switch (pionic_pcie_host_ctrl_info_bypass_hdr_ty_extract(host_rx)) {
       case pionic_pcie_hdr_ethernet:
         desc->bypass.header_type = HDR_ETHERNET;
-        desc->payload_buf += HDR_ETHERNET_SIZE;
-        desc->payload_len -= HDR_ETHERNET_SIZE;
         break;
       case pionic_pcie_hdr_ip:
         desc->bypass.header_type = HDR_IP;
-        desc->payload_buf += HDR_IP_SIZE;
-        desc->payload_len -= HDR_IP_SIZE;
         break;
       case pionic_pcie_hdr_udp:
         desc->bypass.header_type = HDR_UDP;
-        desc->payload_buf += HDR_UDP_SIZE;
-        desc->payload_len -= HDR_UDP_SIZE;
         break;
       case pionic_pcie_hdr_onc_rpc_call:
         desc->bypass.header_type = HDR_ONCRPC_CALL;
-        desc->payload_buf += HDR_ONC_RPC_CALL_SIZE;
-        desc->payload_len -= HDR_ONC_RPC_CALL_SIZE;
         break;
       }
 
+      // parsed bypass header is aligned after the descriptor header
+      // XXX: we don't have the actual size of the header, copy maximum
+      memcpy(desc->bypass.header, host_rx + pionic_pcie_host_ctrl_info_bypass_size, sizeof(desc->bypass.header));
       
       break;
 
@@ -87,8 +78,9 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
           pionic_pcie_host_ctrl_info_onc_rpc_call_xid_extract(host_rx);
 
       // parsed oncrpc arguments are aligned after the descriptor header
-      desc->oncrpc_call.args =
-          (uint32_t *)(host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size);
+      // XXX: we don't have the actual count of args, copy maximum
+      memcpy(desc->oncrpc_call.args, host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size, sizeof(desc->oncrpc_call.args));
+
       break;
 
     default:
@@ -96,7 +88,7 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
     }
 
     pr_debug("Got packet at pktbuf %#lx len %#lx\n",
-           PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
+             PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
     return true;
   } else {
     pr_debug("Did not get packet\n");

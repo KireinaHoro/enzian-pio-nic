@@ -16,10 +16,9 @@ one thread.
 The app should uses headers in `rt-include`. The app may require `sudo` to
 access the device.
 
-* FULL_PCIE: compiles a kernel module and a user library; the kernel module
-  creates `/dev/pionic` and uses the PCIe rt as the backend; the user library
+* FULL_ECI: compiles a kernel module and a user library; the kernel module
+  creates `/dev/pionic` and uses the ECI rt as the backend; the user library
   operates on the device.
-* FULL_ECI: similar, but the kernel module uses the ECI rt.
 * FULL_MOCK: the kernel module acts as a mock device for the hardware; the user
   library additionally provides APIs for mock tests.
 
@@ -30,3 +29,5 @@ The app should use `usr-include/lauberhorn.h` and additionally
 
 To differenciate rt and usr, rt APIs start with `pionic_` while usr APIs start
 with `lauberhorn_`.
+
+No FULL_PCIe. Hardware scheduling is implemented only on the ECI NIC.

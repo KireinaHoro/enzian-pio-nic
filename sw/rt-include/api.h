@@ -5,9 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "lauberhorn.h"  // get lauberhorn_pkt_desc_t etc. and rename below
-#define pionic_pkt_desc_t lauberhorn_pkt_desc_t
-#define pionic_pkt_desc_type_t lauberhorn_pkt_desc_type_t
+#define __PIONIC_RT__
+#include "pionic.h"  // get pionic_pkt_desc_t etc. and rename below
 
 struct pionic_ctx;
 typedef struct pionic_ctx *pionic_ctx_t;

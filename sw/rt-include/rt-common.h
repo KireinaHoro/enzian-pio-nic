@@ -19,11 +19,13 @@
 #else  // not __KERNEL__
 
 // headers for user-space library
-#ifdef DEBUG
 #include <stdio.h>
+#define pr_err printf
+#ifdef DEBUG
 #define pr_debug printf
 #else
 #define pr_debug
+#endif  // DEBUG
 
 #endif  // __KERNEL__
 
