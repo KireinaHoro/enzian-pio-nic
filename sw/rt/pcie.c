@@ -112,8 +112,8 @@ void pionic_rx_ack(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   core_pcie_rx_ack(ctx->bar, &ctx->core_dev[cid], desc);
 }
 
-void pionic_tx_get_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  core_pcie_tx_get_desc(ctx->bar, &ctx->core_dev[cid], desc);
+void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
+  core_pcie_tx_prepare_desc(ctx->bar, &ctx->core_dev[cid], desc);
 }
 
 void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {

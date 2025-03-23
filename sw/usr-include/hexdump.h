@@ -1,5 +1,5 @@
-#ifndef __COMMON_H__
-#define __COMMON_H__
+#ifndef __HEXDUMP_H__
+#define __HEXDUMP_H__
 
 #include <stdio.h>
 
@@ -32,4 +32,4 @@ static void hexdump(const void* data, size_t size) {
   }
 }
 
-#endif
+#endif  // __HEXDUMP_H__

@@ -1,4 +1,4 @@
-// Core Data Exchange paths using PCIe
+// Core data exchange paths using PCIe
 // All functions here operates on mapped pages and should be inlined to rt/usr
 
 // XXX: PCIe worker (core) pages can be mapped to individual threads, but data
@@ -8,26 +8,13 @@
 #ifndef __PIONIC_CORE_PCIE_H__
 #define __PIONIC_CORE_PCIE_H__
 
-#ifdef __KERNEL__
+#include "rt-common.h"
 
-// headers for kernel
-#error "unimplemented"
-
-#else
-
-// headers for user-space library
-#include <assert.h>
-#ifdef DEBUG
-#include <stdio.h>
-#define pr_debug printf
-#else
-#define pr_debug
-
-#endif
-
-#include "lauberhorn.h"  // get lauberhorn_pkt_desc_t etc.
+#define __PIONIC_RT__
+#include "pionic.h"  // get pionic_pkt_desc_t etc. (but not other usr functions)
 
 // mackerel
+// provide pionic_pcie_*, pionic_pcie_host_*, pionic_pcie_core_*,
 #include "gen/pionic_pcie.h"
 #include "gen/pionic_pcie_core.h"
 #include "gen/pionic_pcie_global.h"
@@ -54,29 +41,41 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
     // fill out user-facing struct
     desc->payload_buf = (uint8_t *)bar + read_addr;
     desc->payload_len = pkt_len;
+    // payload_buf and payload_len will be offseted below
 
     switch (ty) {
     case pionic_pcie_bypass:
       desc->type = TY_BYPASS;
 
+      // parsed bypass header is aligned after the descriptor header
+      // FIXME: @PX is this what you want?
+      desc->bypass.header = host_rx + pionic_pcie_host_ctrl_info_bypass_size;
+
       // decode header type
       switch (pionic_pcie_host_ctrl_info_bypass_hdr_ty_extract(host_rx)) {
       case pionic_pcie_hdr_ethernet:
         desc->bypass.header_type = HDR_ETHERNET;
+        desc->payload_buf += HDR_ETHERNET_SIZE;
+        desc->payload_len -= HDR_ETHERNET_SIZE;
         break;
       case pionic_pcie_hdr_ip:
         desc->bypass.header_type = HDR_IP;
+        desc->payload_buf += HDR_IP_SIZE;
+        desc->payload_len -= HDR_IP_SIZE;
         break;
       case pionic_pcie_hdr_udp:
         desc->bypass.header_type = HDR_UDP;
+        desc->payload_buf += HDR_UDP_SIZE;
+        desc->payload_len -= HDR_UDP_SIZE;
         break;
       case pionic_pcie_hdr_onc_rpc_call:
         desc->bypass.header_type = HDR_ONCRPC_CALL;
+        desc->payload_buf += HDR_ONC_RPC_CALL_SIZE;
+        desc->payload_len -= HDR_ONC_RPC_CALL_SIZE;
         break;
       }
 
-      // parsed bypass header is aligned after the descriptor header
-      desc->bypass.header = host_rx + pionic_pcie_host_ctrl_info_bypass_size;
+      
       break;
 
     case pionic_pcie_onc_rpc_call:
@@ -98,7 +97,6 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
 
     pr_debug("Got packet at pktbuf %#lx len %#lx\n",
            PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
-
     return true;
   } else {
     pr_debug("Did not get packet\n");
@@ -122,7 +120,7 @@ static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt
   pionic_pcie_core_host_rx_ack_wr(core_dev, reg);
 }
 
-static void core_pcie_tx_get_desc(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
   // XXX: read tx reg in one go since this reg has FIFO semantics
   pionic_pcie_core_host_pkt_buf_desc_t reg =
       pionic_pcie_core_host_tx_rd(core_dev);
@@ -139,9 +137,12 @@ static void core_pcie_tx_get_desc(void *bar, pionic_pcie_core_t *core_dev, pioni
   // into descriptor
   switch (desc->type) {
   case TY_BYPASS:
+    // FIXME: host_tx_ack? where is the backing storage of header buf?
     desc->bypass.header = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
+    desc->bypass.args = NULL;
     break;
   case TY_ONCRPC_CALL:
+    desc->bypass.header = NULL;
     desc->bypass.args = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
     break;
   }

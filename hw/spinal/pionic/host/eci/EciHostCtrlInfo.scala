@@ -102,7 +102,19 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  // TODO: actually define args in the datatype.  Two possible approaches:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |  // - as an array, so Mackerel would emit access functions
-         |};""".stripMargin)
+         |};
+         |
+         |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
+         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
+         |  _         7 rsvd;
+         |  busy      1 "the thread is in the critical section";
+         |  _         7 rsvd;
+         |  rx_parity 1 "SOFTWARE MAINTAINED parity bit for RX CLs";
+         |  _         7 rsvd;
+         |  tx_parity 1 "SOFTWARE MAINTAINED parity bit for TX CLs";
+         |  _         7 rsvd;
+         |};
+         """.stripMargin)
   }
 }
 
