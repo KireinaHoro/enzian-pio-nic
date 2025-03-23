@@ -7,7 +7,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// #define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
+// generated hw header
+#include "config.h"
+
+#define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
+#define PIONIC_ONC_RPC_INLINE_ARG_CNT (PIONIC_MAX_ONC_RPC_INLINE_BYTES / 4)
 
 typedef enum {
   TY_ERROR,
@@ -29,12 +33,14 @@ typedef struct {
         HDR_UDP,
         HDR_ONCRPC_CALL,
       } header_type;
-      uint8_t *header;
+      uint8_t header[PIONIC_BYPASS_HEADER_SIZE];
+      // remaining payload goes to payload_buf
     } bypass;
     struct {
       void *func_ptr;
       int xid;
-      uint32_t *args;
+      uint32_t args[PIONIC_ONC_RPC_INLINE_ARG_CNT];
+      // remaining args go to payload_buf
     } oncrpc_call;
   };
 
