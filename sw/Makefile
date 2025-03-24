@@ -2,9 +2,9 @@
 SW_ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
 # NIC_IMPL must be defined
-ifndef NIC_IMPL
-$(error Please set NIC_IMPL to either eci or pcie)
-endif
+# ifndef NIC_IMPL
+# $(error Please set NIC_IMPL to either eci or pcie)
+# endif
 
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
@@ -41,6 +41,11 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 
+headers: $(DEVICE_HEADERS)
+
+$(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL) | $(RT_HEADERS_GEN)
+	$(MACKEREL) -c $< -I$(SW_ROOT)/devices/ -o $@
+
 all: CFLAGS += -O2
 all: $(APP)
 
@@ -61,9 +66,6 @@ $(RT_OBJS): %.o: $$(filter $$(PERCENT)/%.c,$$(ALL_SRCS)) $(DEPDIR)/%.d $(DEVICE_
 
 $(MACKEREL):
 	$(CARGO) build --release --manifest-path=$(MACKEREL_ROOT)/Cargo.toml
-
-$(DEVICE_HEADERS): $(RT_HEADERS_GEN)/%.h: $(SW_ROOT)/devices/%.dev $(MACKEREL) | $(RT_HEADERS_GEN)
-	$(MACKEREL) -c $< -I$(SW_ROOT)/devices/ -o $@
 
 $(DEPDIR) $(RT_HEADERS_GEN): ; @mkdir -p $@
 

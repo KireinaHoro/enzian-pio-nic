@@ -51,6 +51,7 @@ STATIC_ASSERT(PIONIC_ECI_CORE_OFFSET >= PIONIC_ECI_WORKER_CTRL_INFO_BASE + PIONI
 
 
 #define BARRIER asm volatile("dmb sy\nisb");
+#define CAS __sync_val_compare_and_swap
 
 // buf must be large enough to hold the maximum packet (PIONIC_MTU)
 static bool core_eci_rx(void *base, pionic_pkt_desc_t *desc) {
@@ -61,13 +62,11 @@ static bool core_eci_rx(void *base, pionic_pkt_desc_t *desc) {
 
   uint64_t worker_ctrl_addr = (uint64_t)base + PIONIC_ECI_WORKER_CTRL_INFO_BASE;
   
-  pr_debug("eci_rx: waiting for READY\n");
-  // XXX: mackerel functions don't use volatile?
-  while (!pionic_eci_host_worker_ctrl_ready_extract(worker_ctrl_addr));
-
+  pr_debug("eci_rx: waiting for READY and setting BUSY\n");
+  while (!CAS((uint8_t *)worker_ctrl_addr, 0b01, 0b11))
 
   pionic_eci_host_worker_ctrl_busy_insert(worker_ctrl_addr, 1);
-  BARRIER  // make sure BUSY actually took effect
+  BARRIER  // make sure BUSY actually took effect // TODO: do we need it?
 critical_section_start:
   pr_debug("eci_rx: entered critical section\n");
 
