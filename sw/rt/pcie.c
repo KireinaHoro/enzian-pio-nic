@@ -13,6 +13,10 @@
 
 #include "core-pcie.h"
 
+#ifdef __KERNEL__
+#error "PCIe rt is not ready for the kernel module
+#endif
+
 struct pionic_ctx {
   void *bar;
   pionic_pcie_global_t glb_dev;
@@ -41,7 +45,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
       mmap(NULL, PIONIC_MMAP_END, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (ctx->bar == MAP_FAILED) {
     perror("mmap resource");
-    goto fail;
+    goto fail_mmap;
   }
 
   close(fd);
@@ -61,7 +65,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   FILE *fp = fopen(enable_path, "w");
   if (!fp) {
     perror("open pcie enable");
-    goto fail;
+    goto fail_enable;
   }
   fputc('1', fp);
   fclose(fp);
@@ -69,7 +73,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   // configure CMAC
   if (start_cmac(ctx, PIONIC_CMAC_BASE, loopback)) {
     printf("Failed to start CMAC\n");
-    goto fail;
+    goto fail_start_cmac;
   }
 
   // set defaults
@@ -82,8 +86,14 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   }
 
   ret = 0;
+  return ret;
 
-fail:
+// error handling
+  stop_cmac(ctx, PIONIC_CMAC_BASE);
+fail_start_cmac:
+fail_enable:
+  munmap(ctx->bar, PIONIC_MMAP_END);
+fail_mmap:
   return ret;
 }
 

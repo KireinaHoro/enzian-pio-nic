@@ -4,13 +4,9 @@
 #include <linux/fs.h>
 #include <linux/wait.h>
 #include <linux/uaccess.h>  // copy_to/from_user
-#include "common.h"
 
-// Define ioctl numbers properly
-// https://www.kernel.org/doc/Documentation/ioctl/ioctl-number.txt
-#define IOCTL_YIELD _IO('p', 'y')
-#define IOCTL_TEST_ACTIVATE_PID _IOW('t', 'a', pid_t)
-// Others...
+#include "ioctl.h"
+#include "debug.h"
 
 DECLARE_WAIT_QUEUE_HEAD(wq);
 pid_t active_pid = -1;

@@ -9,7 +9,7 @@
 #ifndef __PIONIC_CORE_PCIE_H__
 #define __PIONIC_CORE_PCIE_H__
 
-#include "rt-common.h"
+#include "debug.h"
 
 #define __PIONIC_RT__
 #include "pionic.h"  // get pionic_pkt_desc_t etc. (but not other usr functions)
@@ -132,11 +132,9 @@ static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, p
 }
 
 static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
-  // FIXME: adapt this function...
-  
   // XXX: host tx ack (unlike host rx ack) has separate FIFO push doorbell
-  uint8_t *host_tx_ack = (uint8_t *)(PIONIC_PCIE_CORE_BASE(cid) +
-                                     PIONIC_PCIE_CORE_HOST_TX_ACK_BASE);
+  uint8_t *host_tx_ack = (uint8_t *)core_dev->base +
+                                     PIONIC_PCIE_CORE_HOST_TX_ACK_BASE;
 
   uint64_t write_addr = desc->payload_buf - (uint8_t *)bar;
 
@@ -171,6 +169,11 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
           host_tx_ack, pionic_pcie_hdr_onc_rpc_call);
       break;
     }
+    
+    // parsed bypass header is aligned after the descriptor header
+    // XXX: we don't have the actual size of the header, copy maximum
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
+    
     break;
 
   case TY_ONCRPC_CALL:
@@ -180,13 +183,17 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
         host_tx_ack, desc->oncrpc_call.func_ptr);
     pionic_pcie_host_ctrl_info_onc_rpc_call_xid_insert(host_tx_ack,
                                                        desc->oncrpc_call.xid);
+    // parsed oncrpc arguments are aligned after the descriptor header
+    // XXX: we don't have the actual count of args, copy maximum
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
+
     break;
 
   default:
   }
 
   // ring doorbell: tx packet ready
-  // TODO
+  // TODO: @PX, how?
 }
 
 

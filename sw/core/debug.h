@@ -21,6 +21,9 @@
 // headers for user-space library
 #include <stdio.h>
 #define pr_err printf
+#define pr_warn printf
+#define pr_info printf
+
 #ifdef DEBUG
 #define pr_debug printf
 #else
@@ -28,10 +31,5 @@
 #endif  // DEBUG
 
 #endif  // __KERNEL__
-
-#define HDR_ETHERNET_SIZE TODO:
-#define HDR_IP_SIZE TODO:
-#define HDR_UDP_SIZE TODO:
-#define HDR_ONC_RPC_CALL_SIZE TODO:
 
 #endif  // __RT_COMMON_H__
