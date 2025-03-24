@@ -29,7 +29,7 @@ fast-tests:
       - simWorkspace/**/sim_transcript.log.gz
       - simWorkspace/**/wave.fst
 
-.build-sw:
+build-sw:
   extends: .docker-image-sw
   stage: build-sw
   script:
