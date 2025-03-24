@@ -1,5 +1,6 @@
 // Core data exchange paths using PCIe
-// All functions here operates on mapped pages and should be inlined to rt/usr
+// Hardware scheduling is NOT implemented only on the PCIe NIC.
+// All functions here operates on mapped pages and should be inlined to rt
 
 // XXX: PCIe worker (core) pages can be mapped to individual threads, but data
 //      addr can point to anywhere in bar - currently we assume the whole bar
@@ -25,6 +26,7 @@
 
 #define PIONIC_PKTBUF_OFF_TO_ADDR(off) ((off) + PIONIC_PCIE_PKT_BASE)
 #define PIONIC_ADDR_TO_PKTBUF_OFF(addr) ((addr) - PIONIC_PCIE_PKT_BASE)
+
 
 static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
   // XXX: host rx (unlike host tx) has separate FIFO pop doorbell

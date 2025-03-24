@@ -53,8 +53,7 @@ STATIC_ASSERT(PIONIC_ECI_CORE_OFFSET >= PIONIC_ECI_WORKER_CTRL_INFO_BASE + PIONI
 #define BARRIER asm volatile("dmb sy\nisb");
 #define CAS __sync_val_compare_and_swap
 
-// buf must be large enough to hold the maximum packet (PIONIC_MTU)
-static bool core_eci_rx(void *base, pionic_pkt_desc_t *desc) {
+static bool core_eci_rx(void *base, volatile bool *rx_parity_ptr, pionic_pkt_desc_t *desc) {
 
   // make sure previous RX/TX actually took effect before we attempt to RX
   // TODO: is this needed?
@@ -68,7 +67,7 @@ static bool core_eci_rx(void *base, pionic_pkt_desc_t *desc) {
 critical_section_start:
   pr_debug("eci_rx: entered critical section\n");
 
-  bool rx_parity = pionic_eci_host_worker_ctrl_rx_parity_extract(worker_ctrl_addr);
+  bool rx_parity = *rx_parity_ptr;
   // TODO: @JS please check if saving the parity to local variable **here** is OK
   pr_debug("pionic_rx: current cacheline ID: %d\n", rx_parity);
 
@@ -78,7 +77,7 @@ critical_section_start:
   BARRIER  // make sure the CL is actually read
 
   // always toggle CL
-  pionic_eci_host_worker_ctrl_rx_parity_insert(worker_ctrl_addr, !rx_parity);
+  *rx_parity_ptr = !rx_parity;
 
   // decode the packet
   if (!valid) {
