@@ -110,6 +110,9 @@ static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt
 
   // XXX: write rx ack reg in one go since this reg has FIFO semantics
   pionic_pcie_core_host_rx_ack_wr(core_dev, reg);
+
+  desc->payload_buf = NULL;
+  desc->payload_len = 0;
 }
 
 static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
@@ -124,23 +127,11 @@ static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, p
 
   desc->payload_buf = (uint8_t *)bar + PIONIC_PKTBUF_OFF_TO_ADDR(off);
   desc->payload_len = len;
-
-  // set up correct header/args pointers, so that application directly writes
-  // into descriptor
-  switch (desc->type) {
-  case TY_BYPASS:
-    // FIXME: host_tx_ack? where is the backing storage of header buf?
-    desc->bypass.header = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
-    desc->bypass.args = NULL;
-    break;
-  case TY_ONCRPC_CALL:
-    desc->bypass.header = NULL;
-    desc->bypass.args = host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size;
-    break;
-  }
 }
 
 static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+  // FIXME: adapt this function...
+  
   // XXX: host tx ack (unlike host rx ack) has separate FIFO push doorbell
   uint8_t *host_tx_ack = (uint8_t *)(PIONIC_PCIE_CORE_BASE(cid) +
                                      PIONIC_PCIE_CORE_HOST_TX_ACK_BASE);

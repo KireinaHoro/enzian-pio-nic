@@ -64,8 +64,6 @@ static bool core_eci_rx(void *base, pionic_pkt_desc_t *desc) {
   
   pr_debug("eci_rx: waiting for READY and setting BUSY\n");
   while (!CAS((uint8_t *)worker_ctrl_addr, 0b01, 0b11))
-
-  pionic_eci_host_worker_ctrl_busy_insert(worker_ctrl_addr, 1);
   BARRIER  // make sure BUSY actually took effect // TODO: do we need it?
 critical_section_start:
   pr_debug("eci_rx: entered critical section\n");
@@ -137,7 +135,6 @@ critical_section_start:
       desc->type = TY_ERROR;
     }
 
-    // TODO: @PX does pkt_len excludes the decoded hdr/args that directly follows the ctrl_info?
     if (pkt_len == 0) {
       desc->payload_buf = NULL;
       desc->payload_len = 0;
@@ -155,7 +152,7 @@ critical_section_start:
     // All data in sofware buf, good to exit the critical section
   }
 
-  pionic_eci_host_worker_ctrl_busy_insert(worker_ctrl_addr, 0);
+  pionic_eci_host_worker_ctrl_busy_insert(worker_ctrl_addr, 0);  // TODO: is this OK?
   BARRIER  // make sure !BUSY actually took effect
 critical_section_end:
   pr_debug("eci_rx: exited critical section\n");
