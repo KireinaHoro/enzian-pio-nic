@@ -33,21 +33,14 @@ fast-tests:
   extends: .docker-image-sw
   stage: build-sw
   script:
-    - mill $PIONIC_DESIGN.generateVerilog
-    - make -C sw/$PIONIC_DESIGN
+    - mill pcie.generateVerilog
+    - mill eci.generateVerilog
+    - make -C sw
   artifacts:
     paths:
-      - sw/$PIONIC_DESIGN/pionic-test
-
-build-sw-pcie:
-  extends: .build-sw
-  variables:
-    PIONIC_DESIGN: pcie
-
-build-sw-eci:
-  extends: .build-sw
-  variables:
-    PIONIC_DESIGN: eci
+      - hw/gen/*/*.h
+      - sw/devices/pionic_*.dev
+      - sw/rt-include/gen/**
 
 .build-hw:
   extends: .docker-image-hw
@@ -86,9 +79,7 @@ publish:
   rules:
     - if: '$CI_COMMIT_TAG'
   needs:
-    - job: build-sw-pcie
-      artifacts: true
-    - job: build-sw-eci
+    - job: build-sw
       artifacts: true
     - job: build-hw-pcie
       artifacts: true
