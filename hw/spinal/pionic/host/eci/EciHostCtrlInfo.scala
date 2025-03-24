@@ -107,11 +107,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
          |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
          |  busy      1 "the thread is in the critical section";
-         |  _         14 rsvd;
-         |  rx_parity 1 "SOFTWARE MAINTAINED parity bit for RX CLs";
-         |  _         7 rsvd;
-         |  tx_parity 1 "SOFTWARE MAINTAINED parity bit for TX CLs";
-         |  _         7 rsvd;
+         |  _         6 rsvd;
          |};
          """.stripMargin)
   }
