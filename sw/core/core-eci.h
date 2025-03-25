@@ -179,11 +179,6 @@ static void core_eci_tx_prepare_desc(void *base, pionic_pkt_desc_t *desc) {
 
 static void core_eci_tx(void *base, volatile bool *tx_parity_ptr, pionic_pkt_desc_t *desc) {
   // ECI backend: do not release payload_buf
-
-  if (desc->type != TY_BYPASS && desc->type != TY_ONCRPC_REPLY) {
-    pr_err("eci_tx: invalid desc->type %d\n", desc->type);
-    return;
-  }
   
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER
@@ -224,9 +219,22 @@ critical_section_start:
     payload_write_base = host_tx + pionic_eci_host_ctrl_info_bypass_size + sizeof(desc->bypass.header);
     break;
   
-  case TY_ONCRPC_REPLY;
+  case TY_ONCRPC_CALL;
     pionic_eci_host_ctrl_info_error_ty_insert(tx_base, pionic_eci_onc_rpc_reply);
-    
+    pionic_eci_host_ctrl_info_onc_rpc_call_func_ptr_insert(
+      tx_base, desc->oncrpc_call.func_ptr);
+    pionic_eci_host_ctrl_info_onc_rpc_call_xid_insert(tx_base,
+                                                      desc->oncrpc_call.xid);
+    break;
+  
+    memcpy(host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
+    payload_write_base = host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size + sizeof(desc->oncrpc_call.args);
+    break;
+
+  case TY_ONCRPC_REPLY:
+    pionic_eci_host_ctrl_info_onc_rpc_reply_ty_insert(tx_base, pionic_eci_onc_rpc_reply);
+    memcpy(tx_base + pionic_eci_host_ctrl_info_onc_rpc_reply_size, desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
+    payload_write_base = host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size + sizeof(desc->oncrpc_call.args);
     break;
   
   default:
@@ -235,7 +243,9 @@ critical_section_start:
   }
   
 
-
+  if (desc->payload != NULL) {
+    TODO: ...
+  }
   
 
   uint64_t pkt_len = desc->len;
