@@ -97,11 +97,22 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |  len       $lw "Length of packet";
          |  _         13 rsvd;
          |  xid       32 "XID of incoming request";
+         |  // TODO: this is enough for recv in rx but to make nested calls in tx, we need more (progNum, ver...)?
+         |  // may be a good idea to seperate them
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |  // - as an array, so Mackerel would emit access functions
+         |};
+         |
+         |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
+         |  valid     1 "RX descriptor valid (rsvd for TX)";
+         |  ty        $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_reply)";
+         |  len       $lw "Length of packet";
+         |  _         13 rsvd;
+         |  // buffer follows
+         |  // TODO: for now, reply software-serialized data...
          |};
          |
          |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {

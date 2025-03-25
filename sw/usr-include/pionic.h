@@ -3,6 +3,7 @@
 #ifndef __PIONIC_H__
 #define __PIONIC_H__
 
+#include <cstdint>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -12,6 +13,9 @@
 
 #define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
 #define PIONIC_ONC_RPC_INLINE_ARG_CNT (PIONIC_MAX_ONC_RPC_INLINE_BYTES / 4)
+
+// TODO: @PX move this to OncRpcReply.scala
+#define PIONIC_ONC_RPC_REPLY_INLINE_SIZE 60
 
 typedef enum {
   TY_ERROR,
@@ -41,6 +45,10 @@ typedef struct {
       uint32_t args[PIONIC_ONC_RPC_INLINE_ARG_CNT];
       // remaining args go to payload_buf
     } oncrpc_call;
+    struct {
+      // TODO: for now, reply software-serialized data
+      uint8_t buf[PIONIC_ONC_RPC_REPLY_INLINE_SIZE];
+    } oncrpc_reply;
   };
 
   // extra payload

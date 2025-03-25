@@ -89,11 +89,11 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
       desc->type = TY_ERROR;
     }
 
-    pr_debug("Got packet at pktbuf %#lx len %#lx\n",
+    pr_debug("pcie_rx: got packet at pktbuf %#lx len %#lx\n",
              PIONIC_ADDR_TO_PKTBUF_OFF(read_addr), pkt_len);
     return true;
   } else {
-    pr_debug("Did not get packet\n");
+    pr_debug("pcie_rx: did not get packet\n");
     return false;
   }
 }
@@ -193,11 +193,18 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
 
     break;
 
+  case TY_ONCRPC_REPLY:
+    pionic_pcie_host_ctrl_info_onc_rpc_reply_ty_insert(host_tx_ack, pionic_pcie_onc_rpc_reply);
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_reply_size, desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
+    break;
   default:
+      pr_err("pcie_tx: unsupported desc->type %d\n", desc->type);
+      break;
   }
 
   // ring doorbell: tx packet ready
   // TODO: @PX, how?
+  ???
 }
 
 
