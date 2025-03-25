@@ -30,6 +30,8 @@
 #define pr_debug
 #endif  // DEBUG
 
+#define pr_flush() fflush(stdout);
+
 #endif  // __KERNEL__
 
 #endif  // __RT_COMMON_H__

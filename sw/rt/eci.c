@@ -14,7 +14,7 @@
 
 #include "../../hw/gen/eci/config.h"
 #include "../../hw/gen/eci/regs.h"
-#include "common.h"
+#include "debug.h"
 
 #define CMAC_BASE 0x200000UL
 
@@ -49,18 +49,20 @@ struct pionic_ctx {
   uint32_t page_size;
 };
 
+// TODO: these MMIO functions are to be removed after migrating everthing (e.g. cmac) to Mackerel
+
 // HAL functions that access regs region (over the ECI IO bridge)
 void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
-  printf("[Reg] WQ %#lx <- %#lx\n", addr, reg);
+  pr_debug("[Reg] WQ %#lx <- %#lx\n", addr, reg);
 #endif
   ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8] = reg;
 }
 
 uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
 #ifdef DEBUG_REG
-  printf("[Reg] RQ %#lx -> ", addr);
-  fflush(stdout);
+  pr_debug("[Reg] RQ %#lx -> ", addr);
+  pr_flush();
 #endif
   uint64_t reg = ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8];
 #ifdef DEBUG_REG
@@ -71,38 +73,38 @@ uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
 
 void write32(pionic_ctx_t ctx, uint64_t addr, uint32_t reg) {
 #ifdef DEBUG_REG
-  printf("[Reg] WD %#lx <- %#x\n", addr, reg);
+  pr_debug("[Reg] WD %#lx <- %#x\n", addr, reg);
 #endif
   ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4] = reg;
 }
 
 uint32_t read32(pionic_ctx_t ctx, uint64_t addr) {
 #ifdef DEBUG_REG
-  printf("[Reg] RD %#lx -> ", addr);
-  fflush(stdout);
+  pr_debug("[Reg] RD %#lx -> ", addr);
+  pr_flush();
 #endif
   uint32_t reg = ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4];
 #ifdef DEBUG_REG
-  printf("%#x\n", reg);
+  pr_debug("%#x\n", reg);
 #endif
   return reg;
 }
 
 static void write64_shell(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
-  printf("[Shell] WQ %#lx <- %#lx\n", addr, reg);
+  pr_debug("[Shell] WQ %#lx <- %#lx\n", addr, reg);
 #endif
   ((volatile uint64_t *)ctx->shell_regs_region)[addr / 8] = reg;
 }
 
 static uint64_t read64_shell(pionic_ctx_t ctx, uint64_t addr) {
 #ifdef DEBUG_REG
-  printf("[Shell] RQ %#lx -> ", addr);
-  fflush(stdout);
+  pr_debug("[Shell] RQ %#lx -> ", addr);
+  pr_flush();
 #endif
   uint64_t reg = ((volatile uint64_t *)ctx->shell_regs_region)[addr / 8];
 #ifdef DEBUG_REG
-  printf("%#lx\n", reg);
+  pr_debug("%#lx\n", reg);
 #endif
   return reg;
 }
@@ -297,7 +299,7 @@ static void write64_fpgamem(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 static uint64_t read64_fpgamem(pionic_ctx_t ctx, uint64_t addr) {
 #ifdef DEBUG_REG
   printf("[Mem] R %#lx -> ", addr);
-  fflush(stdout);
+  pr_flush();
 #endif
   uint64_t reg = ((volatile uint64_t *)ctx->mem_region)[addr / 8];
 #ifdef DEBUG_REG

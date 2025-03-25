@@ -17,6 +17,7 @@ typedef enum {
   TY_ERROR,
   TY_BYPASS,
   TY_ONCRPC_CALL,
+  TY_ONCRPC_REPLY,
 } pionic_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
@@ -101,8 +102,11 @@ bool pionic_thd_rx(pionic_thd t, pionic_pkt_desc_t *desc);
 void pionic_thd_rx_ack(pionic_thd t, pionic_pkt_desc_t *desc);
 
 
-// prepare TX packet descriptor (desc->type must be set to correctly set up
-// header/args pointers)
+// prepare TX packet descriptor
+// desc->payload_buf must be NULL and payload_len must be 0 when calling the function
+// Depending on the backend (PCIe or ECI):
+//   if returned desc->payload_buf is not NULL, use this buffer (will be released on tx)
+//   if returned desc->payload_buf is NULL, the user can attached a buffer before tx but should also free the buffer (tx does nothing)
 void pionic_thd_tx_prepare_desc(pionic_thd t, pionic_pkt_desc_t *desc);
 // send packet
 void pionic_thd_tx(pionic_thd t, pionic_pkt_desc_t *desc);

@@ -118,6 +118,8 @@ static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt
 }
 
 static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+  // PCIe backend: set payload_buf with the buffer requested from the NIC
+  
   // XXX: read tx reg in one go since this reg has FIFO semantics
   pionic_pcie_core_host_pkt_buf_desc_t reg =
       pionic_pcie_core_host_tx_rd(core_dev);
@@ -132,6 +134,8 @@ static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, p
 }
 
 static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+  // PCIe backend: will give the payload_buf back to NIC
+  
   // XXX: host tx ack (unlike host rx ack) has separate FIFO push doorbell
   uint8_t *host_tx_ack = (uint8_t *)core_dev->base +
                                      PIONIC_PCIE_CORE_HOST_TX_ACK_BASE;

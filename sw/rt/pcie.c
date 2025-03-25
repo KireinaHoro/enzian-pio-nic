@@ -12,6 +12,7 @@
 #include "hal.h"
 
 #include "core-pcie.h"
+#include "debug.h"
 
 #ifdef __KERNEL__
 #error "PCIe rt is not ready for the kernel module
@@ -25,6 +26,46 @@ struct pionic_ctx {
 
 #define PIONIC_CMAC_BASE 0x200000UL
 #define PIONIC_MMAP_END 0x300000UL
+
+// TODO: these MMIO functions are to be removed after migrating everthing (e.g. cmac) to Mackerel
+
+void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
+#ifdef DEBUG_REG
+  pr_debug("W %#lx <- %#lx\n", addr, reg);
+#endif
+  ((volatile uint64_t *)ctx->bar)[addr / 8] = reg;
+}
+
+uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
+#ifdef DEBUG_REG
+  pr_debug("R %#lx -> ", addr);
+  pr_flush();
+#endif
+  uint64_t reg = ((volatile uint64_t *)ctx->bar)[addr / 8];
+#ifdef DEBUG_REG
+  pr_debug("%#lx\n", reg);
+#endif
+  return reg;
+}
+
+void write32(pionic_ctx_t ctx, uint64_t addr, uint32_t reg) {
+#ifdef DEBUG_REG
+  pr_debug("W %#lx <- %#x\n", addr, reg);
+#endif
+  ((volatile uint32_t *)ctx->bar)[addr / 4] = reg;
+}
+
+uint32_t read32(pionic_ctx_t ctx, uint64_t addr) {
+#ifdef DEBUG_REG
+  pr_debug("R %#lx -> ", addr);
+  pr_flush();
+#endif
+  uint32_t reg = ((volatile uint32_t *)ctx->bar)[addr / 4];
+#ifdef DEBUG_REG
+  pr_debug("%#x\n", reg);
+#endif
+  return reg;
+}
 
 int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   int ret = -1;
