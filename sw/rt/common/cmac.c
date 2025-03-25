@@ -1,7 +1,11 @@
+// CMAC driver
+// TODO: migrate to Mackerel
+
 #include <stdio.h>
 #include <unistd.h>
 
 #include "cmac.h"
+#include "hal.h"
 #include "debug.h"
 
 #define PIONIC_CMAC_REG(base, off) ((off) + (base))
@@ -14,22 +18,18 @@
 
 #define LINE_UP_MAX_ATTEMPTS 100
 
-static cmac_t cmac_dev;
-
 int start_cmac(pionic_ctx_t ctx, uint64_t base, bool loopback) {
-  cmac_initialize(&cmac_dev, (mackerel_addr_t) base)
-
   uint32_t status;
 
   // verify version
-  cmac_core_version_t ver = cmac_core_version_rd(cmac_dev);
-  uint8_t ver_maj = cmac_core_version_major_extract(ver);
-  uint8_t ver_min = cmac_core_version_minor_rdf(ver);
+  int ver = read32(ctx, PIONIC_CMAC_REG(base, PM_CORE_VERSION_REG));
+  int ver_maj = ver & 0xff;
+  int ver_min = (ver >> 8) & 0xff;
   if (ver == 0) {
-    pr_err("CMAC version register all zero, bug?\n");
+    printf("CMAC version register all zero, bug?\n");
     return -1;
   }
-  pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
+  printf("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
 
   write32(ctx, PIONIC_CMAC_REG(base, PM_RX_REG1), 1); // ctl_rx_enable
   write32(ctx, PIONIC_CMAC_REG(base, PM_TX_REG1), 0x10); // ctl_tx_send_rfi

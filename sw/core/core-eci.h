@@ -4,9 +4,11 @@
 #ifndef __PIONIC_CORE_ECI_H__
 #define __PIONIC_CORE_ECI_H__
 
+#include "debug.h"
 #include "rt-common.h"
 #include <cstddef>
 #include <cstdint>
+#include <stdint.h>
 
 #define __PIONIC_RT__
 #include "pionic.h"  // get pionic_pkt_desc_t etc. (but not other usr functions)
@@ -51,25 +53,24 @@ STATIC_ASSERT(PIONIC_ECI_CORE_OFFSET >= PIONIC_ECI_WORKER_CTRL_INFO_BASE + PIONI
 
 
 #define BARRIER asm volatile("dmb sy\nisb");
-#define CAS __sync_val_compare_and_swap
+#define COMPARE_AND_SWAP __sync_val_compare_and_swap
+#define FETCH_AND_AND __sync_fetch_and_and
 
 static bool core_eci_rx(void *base, volatile bool *rx_parity_ptr, pionic_pkt_desc_t *desc) {
 
   // make sure previous RX/TX actually took effect before we attempt to RX
-  // TODO: is this needed?
   BARRIER
 
   uint64_t worker_ctrl_addr = (uint64_t)base + PIONIC_ECI_WORKER_CTRL_INFO_BASE;
   
   pr_debug("eci_rx: waiting for READY and setting BUSY\n");
-  while (!CAS((uint8_t *)worker_ctrl_addr, 0b01, 0b11))
-  BARRIER  // make sure BUSY actually took effect // TODO: do we need it?
+  while (!COMPARE_AND_SWAP((uint8_t *)worker_ctrl_addr, (uint8_t)0b01, (uint8_t)0b11))
+  BARRIER  // make sure BUSY actually took effect
 critical_section_start:
   pr_debug("eci_rx: entered critical section\n");
 
   bool rx_parity = *rx_parity_ptr;
-  // TODO: @JS please check if saving the parity to local variable **here** is OK
-  pr_debug("pionic_rx: current cacheline ID: %d\n", rx_parity);
+  pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
 
   uint64_t rx_base = (uint64_t)base + PIONIC_ECI_RX_BASE + rx_parity * PIONIC_ECI_CL_SIZE;
 
@@ -138,6 +139,7 @@ critical_section_start:
       desc->payload_buf = NULL;
       desc->payload_len = 0;
     } else {
+      pr_debug("eci_rx: extra payload buffer allocated, len = %d\n", pkt_len);
       desc->payload_buf = malloc(pkt_len);
       desc->payload_len = pkt_len;
       
@@ -151,8 +153,8 @@ critical_section_start:
     // All data in sofware buf, good to exit the critical section
   }
 
-  pionic_eci_host_worker_ctrl_busy_insert(worker_ctrl_addr, 0);  // TODO: is this OK?
-  BARRIER  // make sure !BUSY actually took effect
+  BARRIER  // make sure !BUSY comes after
+  assert(FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10 != 0, "was not in the critical section?");
 critical_section_end:
   pr_debug("eci_rx: exited critical section\n");
     
@@ -170,20 +172,71 @@ static void core_eci_rx_ack(pionic_pkt_desc_t *desc) {
 }
 
 static void core_eci_tx_prepare_desc(void *base, pionic_pkt_desc_t *desc) {
-  // TODO: slow? Alternative: fixed per-thread buffer, but disallow coroutines in one thread
-  desc->payload_buf = malloc(PIONIC_MTU);
-  desc->payload_len = PIONIC_MTU;
+  // ECI backend: do not allocate payload_buf
+  desc->payload_buf = NULL;
+  desc->payload_len = 0;
 }
 
-static void core_eci_tx(void *base, pionic_pkt_desc_t *desc) {
-  // FIXME: to be adapted like rx
+static void core_eci_tx(void *base, volatile bool *tx_parity_ptr, pionic_pkt_desc_t *desc) {
+  // ECI backend: do not release payload_buf
 
-  uint64_t tx_base = PIONIC_ECI_TX_BASE + cid * PIONIC_ECI_CORE_OFFSET;
-  bool *next_cl = &ctx->core_states[cid].tx_next_cl;
+  if (desc->type != TY_BYPASS && desc->type != TY_ONCRPC_REPLY) {
+    pr_err("eci_tx: invalid desc->type %d\n", desc->type);
+    return;
+  }
+  
+  // make sure previous RX/TX actually took effect before we attempt to RX
+  BARRIER
 
-#ifdef DEBUG
-  printf("pionic_tx: next cacheline ID: %d\n", *next_cl);
-#endif
+  uint64_t worker_ctrl_addr = (uint64_t)base + PIONIC_ECI_WORKER_CTRL_INFO_BASE;
+  
+  pr_debug("eci_tx: waiting for READY and setting BUSY\n");
+  while (!COMPARE_AND_SWAP((uint8_t *)worker_ctrl_addr, (uint8_t)0b01, (uint8_t)0b11))
+  BARRIER  // make sure BUSY actually took effect
+critical_section_start:
+  pr_debug("eci_tx: entered critical section\n");
+
+  bool tx_parity = *tx_parity_ptr;
+  pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
+
+  uint64_t tx_base = (uint64_t)base + PIONIC_ECI_TX_BASE + tx_parity * PIONIC_ECI_CL_SIZE;
+
+  uint64_t payload_write_base;
+  
+  switch (desc->type) {
+  case TY_BYPASS:
+    pionic_eci_host_ctrl_info_error_ty_insert(tx_base, pionic_eci_bypass);
+    switch (desc->bypass.header_type) {
+    case HDR_ETHERNET:
+      pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_ethernet);
+      break;
+    case HDR_IP::
+      pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_ip);
+      break;
+    case HDR_UDP:
+      pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_udp);
+      break;
+    case HDR_ONCRPC_CALL:
+      pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_onc_rpc_call);
+      break;
+    }
+    memcpy(host_tx + pionic_eci_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
+    payload_write_base = host_tx + pionic_eci_host_ctrl_info_bypass_size + sizeof(desc->bypass.header);
+    break;
+  
+  case TY_ONCRPC_REPLY;
+    pionic_eci_host_ctrl_info_error_ty_insert(tx_base, pionic_eci_onc_rpc_reply);
+    
+    break;
+  
+  default:
+    pr_err("eci_tx: unhandled desc->type %d\n", desc->type);
+    break;
+  }
+  
+
+
+  
 
   uint64_t pkt_len = desc->len;
 
@@ -199,7 +252,8 @@ static void core_eci_tx(void *base, pionic_pkt_desc_t *desc) {
                     pkt_len - 64);
   }
 
-  *next_cl ^= true;
+  // always toggle CL
+  *tx_parity_ptr = !tx_parity;
 
   // make sure packet data actually hit L2, before the FPGA invalidates
   BARRIER
