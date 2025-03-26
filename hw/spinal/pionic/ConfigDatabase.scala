@@ -36,7 +36,7 @@ class ConfigDatabase extends FiberPlugin {
   post("bypass header max width", 54 * 8) // ETH + IP + TCP
 
   // scheduler default settings
-  post("process id width", 44) // PID_MAX on Linux
+  post("process id width", 16) // unrelated to actual PID width on Linux -- more like "PID group"
 
   import ConfigDatabase._
 
