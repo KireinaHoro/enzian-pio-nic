@@ -150,9 +150,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
-  val logic = during build new Area {
+  val logic = during setup new Area {
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+
+    awaitBuild()
 
     assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
