@@ -20,3 +20,5 @@ mill.*
 
 **/.DS_Store
 
+# TLA+ preferences
+model/lauberhorn.toolbox/.*
