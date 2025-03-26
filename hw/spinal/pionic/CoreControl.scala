@@ -36,7 +36,7 @@ case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
 
 case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
-  val pid = Bits(Widths.pidw bits)
+  val pid = PID()
   val xid = Bits(32 bits)
   val args = Bits(Widths.oargw bits)
 }
