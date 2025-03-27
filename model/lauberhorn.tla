@@ -3,7 +3,7 @@ EXTENDS Sequences, Naturals, FiniteSets, Bags
 
 CONSTANTS Cores, Services, CLs, CLSize, CLValues, CoreCLAssignment, CLCoreAssignment, CLWorkerAssignment
 
-VARIABLES  thxCache, serviceState, eciLink, cacheQueues, fpgaHandlers, coreServiceAssignment\*, eciLink, interrupt, fpgaControl, fpgaData, dataSent, dataReceived
+VARIABLES  thxCache, serviceState, eciLink, cacheQueues, fpgaHandlers, kernel, coreServiceAssignment\*, eciLink, interrupt, fpgaControl, fpgaData, dataSent, dataReceived
 
 \**********************************
 \* CONSTANT DEFINITIONS (IN TLC)
@@ -96,13 +96,18 @@ CacheLineMask == [0..CLSize-1 -> BOOLEAN]
 
 ServiceState == {
     "IDLE",
-    "PREEMPTED",
     "GET_CONTROL",
     "CHECK_CONTROL",
     "OP",
     "BARRIER",
     "SIGNAL",
     "COMPLETE_PREFETCH"
+}
+
+KernelState == {
+    "IDLE",
+    "GET_SERVICE",
+    "GET_FINISHED_ACK"
 }
 
 
@@ -195,20 +200,36 @@ InvAck == [
 
 Interrupt == [
     type: {"Interrupt"},
-    core: Cores,
-    service: Services
+    core: Cores
 ]
 
-InterruptAck == [
-    type: {"InterruptAck"},
+NextServiceReq == [
+    type: {"NextServiceReq"},
+    core: Cores
+]
+
+NextService == [
+    type: {"NextService"},
+    service: Services,
+    core: Cores
+]
+
+PreemptionFinished == [
+    type: {"PreemptionFinished"},
+    core: Cores
+]
+
+PreemptionFinishedAck == [
+    type: {"PreemptionFinishedAck"},
     core: Cores
 ]
 
 
 CoreToCacheMsgs == ReadReq \cup WriteReq \cup PrefetchReq \cup SetBusyCAS \cup UnsetBusyCAS
 CacheToCoreMsgs == ReadAck \cup SetBusyCASAck
-CacheToFPGAMsgs == UpgradeReq \cup InvAck \cup DowngradeReq \cup InterruptAck
-FPGAToCacheMsgs == UpgradeAck \cup InvReq \cup Interrupt
+CacheToFPGAMsgs == UpgradeReq \cup InvAck \cup DowngradeReq \cup NextServiceReq \cup PreemptionFinished
+FPGAToCacheMsgs == UpgradeAck \cup InvReq \cup Interrupt \cup NextService \cup PreemptionFinishedAck
+CoherenceMsgsToFPGA == UpgradeReq \cup InvAck \cup DowngradeReq
 
 
 Link == [
@@ -242,7 +263,10 @@ CacheQueues == [
 
 ]
 
-
+KernelHandler == [
+    state: KernelState,
+    service: Services
+]
          
          
 SWHandler == [
@@ -265,17 +289,16 @@ FPGAStates == {
     "IDLE",
     "AWAIT_ACK",
     "HANDLE",
-    "AWAIT_FLUSH",
-    "FINISH_PREEMPT"
+    "AWAIT_FLUSH"
 }
 
 PreemptStates == {
     "IDLE",
     "START_PREEMPT",
     "GET_CONTROL",
-    "AWAIT_WORKERS",
-    "AWAIT_IPI_ACK",
-    "AWAIT_CONTROL_INV"
+    "AWAIT_SERVICE_REQ",
+    "AWAIT_RESET",
+    "FINISH_SYNC"
 }
 
 FPGAHandler == [
@@ -343,6 +366,12 @@ LauberhornInit ==
 
     \E core \in Cores:
     \E coreService \in {f \in [Cores -> Services]: IsInjective(f)}:
+    /\ kernel = [
+            c \in Cores |-> [
+                            state |-> "IDLE",
+                            service |-> coreService[c]
+                            ]
+                ]                             
     /\ thxCache = [
             cl \in CLs |->  [
                             valid |-> FALSE, 
@@ -443,13 +472,19 @@ SendToCPU(msg) == eciLink' =
                                 !.toCPU = eciLink.toCPU \cup {msg}]
                                 
 
-RecvFromCPU(msg) == eciLink' = [eciLink EXCEPT !.toCPU = eciLink.toCPU \ {msg}]
-RecvFromFPGA(msg) == eciLink' = [eciLink EXCEPT !.toFPGA = eciLink.toFPGA \ {msg}]
+ReceiveFromCPU(msg) == eciLink' = [eciLink EXCEPT !.toCPU = eciLink.toCPU \ {msg}]
+ReceiveFromFPGA(msg) == eciLink' = [eciLink EXCEPT !.toFPGA = eciLink.toFPGA \ {msg}]
 
 ReceiveSendCPU(recv, send) == eciLink' = [
                                    toCPU |-> eciLink.toCPU \ {recv},
                                    toFPGA |-> eciLink.toFPGA \cup {send}
                                    ]
+                                   
+ReceiveSendMultipleFPGA(recv, sendSet) == eciLink' = [
+                                   toCPU |-> eciLink.toCPU \cup sendSet,
+                                   toFPGA |-> eciLink.toFPGA \ {recv}
+                                   ]
+
 
 ReceiveSendFPGA(recv, send) == eciLink' = [
                                    toCPU |-> eciLink.toCPU \cup {send},
@@ -482,7 +517,7 @@ L2InitLocalReq(c) == \E req \in cacheQueues[c].reqs:
                                                         ])
                                                ]
                                ]
-                           /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink, serviceState>>)
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink, serviceState>>)
                         [] req.type = "WriteReq" ->
                               /\ cacheQueues' = [cacheQueues EXCEPT ![c].reqs = cacheQueues[c].reqs \ {req}]
                               /\ thxCache' = 
@@ -492,10 +527,10 @@ L2InitLocalReq(c) == \E req \in cacheQueues[c].reqs:
                                         !.control = req.control
                                      ]
                                   ]
-                               /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
+                               /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
                         [] req.type = "PrefetchReq" ->
                             /\ cacheQueues' = [cacheQueues EXCEPT ![c].reqs = cacheQueues[c].reqs \ {req}]
-                            /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,eciLink, serviceState, thxCache>>)
+                            /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,eciLink, serviceState, thxCache>>)
                         [] req.type = "SetBusyCAS" ->
                             /\ cacheQueues' = [
                                         cacheQueues EXCEPT ![c] = [
@@ -517,7 +552,7 @@ L2InitLocalReq(c) == \E req \in cacheQueues[c].reqs:
                                         !.control.BUSY = thxCache[req.cl].control.READY
                                      ]
                                   ]
-                           /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
                           [] req.type = "UnsetBusyCAS" ->
                            /\ cacheQueues' = [cacheQueues EXCEPT ![c].reqs = cacheQueues[c].reqs \ {req}]
                            /\ thxCache' =
@@ -527,7 +562,7 @@ L2InitLocalReq(c) == \E req \in cacheQueues[c].reqs:
                                         !.BUSY = FALSE
                                      ]
                                   ]
-                          /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
+                          /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,eciLink, serviceState>>)
                         [] OTHER -> FALSE
                        )
                        
@@ -544,7 +579,7 @@ L2InitRemoteReq(c) == \E req \in cacheQueues[c].reqs:
                                 type |-> "UpgradeReq",
                                 cl |-> req.cl
                            ])
-                     /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
+                     /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
                        
 
 (*L2InitCoreReq(c) == \E req \in cacheQueues[c].reqs:
@@ -601,7 +636,7 @@ L2FinishBarrier(c) == /\ cacheQueues[c].barrier
                       /\ cacheQueues' = [cacheQueues EXCEPT ![c] = 
                                             [cacheQueues[c] EXCEPT !.barrier = FALSE]
                                         ]
-                      /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, thxCache, eciLink>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, thxCache, eciLink>>)
 
 
 (*L2HandleLinkMsg == \E msg \in eciLink.toCPU:
@@ -648,8 +683,8 @@ L2HandleUpgradeAck == \E msg \in eciLink.toCPU:
                                              optype|-> "NONE",
                                              inv |-> thxCache[msg.cl].inv]
                                        ]
-                       /\ RecvFromCPU(msg)
-                       /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState,cacheQueues>>)
+                       /\ ReceiveFromCPU(msg)
+                       /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState,cacheQueues>>)
                      
 L2HandleDataInv == \E msg \in eciLink.toCPU:
                     /\ msg.type = "InvReq" 
@@ -671,7 +706,7 @@ L2HandleDataInv == \E msg \in eciLink.toCPU:
                         control |-> thxCache[msg.cl].control,
                         was_valid |-> thxCache[msg.cl].valid
                        ])
-                    /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
+                    /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
     
 
 L2HandleControlInv == \E msg \in eciLink.toCPU:
@@ -694,7 +729,7 @@ L2HandleControlInv == \E msg \in eciLink.toCPU:
                     control |-> thxCache[msg.cl].control,
                     was_valid |-> thxCache[msg.cl].valid
                    ])
-               /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
+               /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
 
 (*L2HandleUpgradeAck == \E msg \in eciLink.toCPU:
                         /\ msg.type = "UpgradeAck"
@@ -707,7 +742,7 @@ L2HandleControlInv == \E msg \in eciLink.toCPU:
                                              inv |-> thxCache[msg.cl].inv]
                                        ]
                        /\ RecvFromCPU(msg)
-                       /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState,cacheQueues>>)
+                       /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState,cacheQueues>>)
 *)                      
                      
 L2VoluntaryDowngrade == \E cl \in CLs:
@@ -726,7 +761,7 @@ L2VoluntaryDowngrade == \E cl \in CLs:
                                value |-> thxCache[cl].value,
                                control |-> thxCache[cl].control
                                ])
-                /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
+                /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
                 
 L2RequiredDowngrade == \E cl \in CLs:
                         /\ thxCache[cl].valid 
@@ -745,7 +780,7 @@ L2RequiredDowngrade == \E cl \in CLs:
                                value |-> thxCache[cl].value,
                                control |-> thxCache[cl].control
                                ])
-                /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
+                /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,serviceState, cacheQueues>>)
 
 
 SWGetTXValue(s) == NON_EMPTY_CLs
@@ -756,38 +791,57 @@ SWHandleInitSend == \E s \in Services:
                     /\ serviceState[s].state = "IDLE"
                     /\ \lnot serviceState[s].preempted
                     /\ serviceState' = [serviceState EXCEPT ![s].state = "GET_CONTROL", ![s].dataMask = EMPTY_MASK, ![s].data = val, ![s].op = "TX"]
-                    /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>)
+                    /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>)
                     
 
 SWHandleInitRecv == \E s \in Services:
                     /\ serviceState[s].state = "IDLE"
                     /\ \lnot serviceState[s].preempted
                     /\ serviceState' = [serviceState EXCEPT ![s].state = "GET_CONTROL", ![s].dataMask = EMPTY_MASK, ![s].data = EMPTY_CL, ![s].op = "RX"]
-                    /\  UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>)
+                    /\  UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>)
                     
                     
 
-SWGetInterrupt == \E msg \in eciLink.toCPU:
-                  \E s \in Services:
-                  /\ msg.type = "Interrupt"
-                  /\ \lnot serviceState[s].preempted
-                  /\ msg.core = serviceState[s].core
-                  (*an interrupt acts like a barrier, so it can only happen when we have cleared the queues*)
-                  /\ cacheQueues[msg.core].reqs = {}
-                  /\ Len(cacheQueues[msg.core].resps) = 0
+KernelGetInterrupt == \E msg \in eciLink.toCPU:
+                      /\ msg.type = "Interrupt"
+                      /\ kernel[msg.core].state = "IDLE"
+                      /\ \lnot serviceState[kernel[msg.core].service].preempted
+                      (*an interrupt acts like a barrier, so it can only happen when we have cleared the queues*)
+                      /\ cacheQueues[msg.core].reqs = {}
+                      /\ Len(cacheQueues[msg.core].resps) = 0
+                      /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues,thxCache>>)
+                      /\ ReceiveSendCPU(msg, [
+                            type |-> "NextServiceReq",
+                            core |-> msg.core
+                         ])
+                      /\ kernel' = [kernel EXCEPT ![msg.core].state = "GET_SERVICE"]
+                      /\ serviceState' = [serviceState EXCEPT ![kernel[msg.core].service].preempted = TRUE]
+                      
+KernelGetNextService == \E msg \in eciLink.toCPU:
+                          /\ msg.type = "NextService"
+                          /\ kernel[msg.core].state = "GET_SERVICE"
+                          /\ serviceState[kernel[msg.core].service].preempted
+                          /\ kernel' = [kernel EXCEPT ![msg.core] = [
+                                                            state |-> "GET_FINISHED_ACK",
+                                                            service |-> msg.service
+                                                            ]
+                                       ]
+                          /\ ReceiveSendCPU(msg, [
+                                    type |-> "PreemptionFinished",
+                                    core |-> msg.core
+                                    ])
+                          (*if we want migration, this is the place to change the serviceState's core + cache lines!*)
+                          /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues,thxCache,serviceState>>)
+                          
+KernelResume == \E msg \in eciLink.toCPU:
+                  /\ msg.type = "PreemptionFinishedAck"
+                  /\ kernel[msg.core].state = "GET_FINISHED_ACK"
+                  /\ kernel' = [kernel EXCEPT ![msg.core].state = "IDLE"]
+                  /\ serviceState' = [serviceState EXCEPT 
+                                        ![kernel[msg.core].service].preempted = FALSE
+                                     ]
+                  /\ ReceiveFromFPGA(msg)
                   /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues,thxCache>>)
-                  /\ ReceiveSendCPU(msg, [
-                        type |-> "InterruptAck",
-                        core |-> serviceState[s].core
-                     ])
-                  /\ (CASE s = msg.service -> UNCHANGED(<<serviceState>>)
-                      [] OTHER -> serviceState' = [serviceState EXCEPT 
-                                                        ![s].preempted = TRUE,
-                                                        ![msg.service].preempted = FALSE
-                                                  ]
-                    )
-                  (* TODO: perform barrier *)
-                  (* TODO: either switch to other core or choose other service to run *)
                   
 (*SWResume == \E s \in Services:
             \E c \in Cores:
@@ -810,13 +864,13 @@ SWGetControl == \E s \in Services:
                                             ]}
                                    ]
                /\ serviceState' = [serviceState EXCEPT ![s].state = "CHECK_CONTROL"]
-               /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
+               /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
                
 SWCheckControl == \E s \in Services:
                   /\ serviceState[s].state = "CHECK_CONTROL"
                   /\ \lnot serviceState[s].preempted
                   /\ Len(cacheQueues[serviceState[s].core].resps) > 0
-                  /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>) 
+                  /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>) 
                   /\ cacheQueues' = [cacheQueues EXCEPT ![serviceState[s].core].resps 
                                         = Tail(cacheQueues[serviceState[s].core].resps)
                                    ]
@@ -835,7 +889,7 @@ SWHandleOp == \E s \in Services:
               /\ serviceState[s].op \in {"TX", "RX"}
               /\ \lnot serviceState[s].dataMask[i]
               /\ serviceState' = [serviceState EXCEPT ![s].dataMask[i] = TRUE]
-              /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
+              /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
               /\ (CASE serviceState[s].op = "TX" -> 
                     cacheQueues' = [cacheQueues EXCEPT ![serviceState[s].core].reqs =
                                         cacheQueues[serviceState[s].core].reqs \cup 
@@ -863,7 +917,7 @@ SWFinishOP == \E s \in Services:
               /\ serviceState[s].state = "OP"
               /\ \lnot serviceState[s].preempted
               /\  (\A i \in 0..CLSize-1: serviceState[s].dataMask[i])
-              /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
+              /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
               /\ cacheQueues' = [cacheQueues EXCEPT ![serviceState[s].core].barrier = TRUE]
               /\ serviceState' = [serviceState EXCEPT ![s].state = "BARRIER"]
               
@@ -872,7 +926,7 @@ SWConsumeAcks == \E s \in Services:
                  /\ \lnot serviceState[s].preempted
                  /\ Len(cacheQueues[serviceState[s].core].resps) > 0
                  /\ serviceState[s].op = "RX" (*only reads are acked*)
-                 /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
+                 /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
                  /\ cacheQueues' = [cacheQueues EXCEPT ![serviceState[s].core].resps 
                                         = Tail(cacheQueues[serviceState[s].core].resps)
                                    ]
@@ -893,10 +947,10 @@ SWBarrierDone == \E s \in Services:
                                                 ![serviceState[s].core].barrier = TRUE
                                                ]
                            /\ serviceState' = [serviceState EXCEPT ![s].state = "COMPLETE_PREFETCH"]
-                           /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>) 
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>) 
                      [] serviceState[s].op = "RX" ->
                         /\ serviceState' = [serviceState EXCEPT ![s].state = "SIGNAL"]
-                        /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>) 
+                        /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>) 
                      [] OTHER -> FALSE
                     )
                  
@@ -912,7 +966,7 @@ SWSignal == \E s \in Services:
             /\ serviceState[s].state = "SIGNAL"
             /\ \lnot serviceState[s].preempted
                 (*put the retrieved data somewhere?*)
-            /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
+            /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,thxCache, eciLink>>)
             /\ (CASE serviceState[s].op = "TX" ->
                     LET nextIndex == 1 - serviceState[s].control.currentSendCL IN
                     LET nextCL == serviceState[s].sendCLs[nextIndex] IN
@@ -948,11 +1002,11 @@ SWCompleteTXPRefetch == \E s \in Services:
                      /\ \lnot cacheQueues[serviceState[s].core].barrier
                      /\ Len(cacheQueues[serviceState[s].core].resps) = 0
                      /\ serviceState' = [serviceState EXCEPT ![s].state = "SIGNAL"]
-                     /\ UNCHANGED(<<coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>) 
+                     /\ UNCHANGED(<<kernel,coreServiceAssignment,fpgaHandlers,cacheQueues, thxCache, eciLink>>) 
                
 FPGAGetValue(c) == NON_EMPTY_CLs
             
-FPGAHandleCurrentCLMsg == \E msg \in eciLink.toFPGA \ InterruptAck:
+FPGAHandleCurrentCLMsg == \E msg \in eciLink.toFPGA \cap CoherenceMsgsToFPGA:
                       LET c == CLCoreAssignment[msg.cl] IN
                       LET handlerName == CLWorkerAssignment[msg.cl] IN
                       LET handler == fpgaHandlers[c][handlerName] IN
@@ -960,7 +1014,7 @@ FPGAHandleCurrentCLMsg == \E msg \in eciLink.toFPGA \ InterruptAck:
                       /\ handler.state = "IDLE"
                       /\  msg.cl = handler.CLPair[handler.currentCL]
 
-                      /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                       
                       /\ (CASE msg.type = "UpgradeReq" ->   
                             /\ \lnot handler.inCache 
@@ -974,13 +1028,13 @@ FPGAHandleCurrentCLMsg == \E msg \in eciLink.toFPGA \ InterruptAck:
                          [] msg.type = "Downgrade" ->
                             /\ handler.inCache
                             /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].inCache = FALSE, ![c][handlerName].data = msg.value]
-                            /\ RecvFromFPGA(msg)
+                            /\ ReceiveFromFPGA(msg)
                          [] OTHER -> FALSE)
                          
                          
                         
                          
-FPGAInitHandlingNextCL == \E msg \in eciLink.toFPGA \ InterruptAck:
+FPGAInitHandlingNextCL == \E msg \in eciLink.toFPGA \cap CoherenceMsgsToFPGA:
                       LET c == CLCoreAssignment[msg.cl] IN
                       LET handlerName == CLWorkerAssignment[msg.cl] IN
                       LET handler == fpgaHandlers[c][handlerName] IN
@@ -988,7 +1042,7 @@ FPGAInitHandlingNextCL == \E msg \in eciLink.toFPGA \ InterruptAck:
                       /\ handlerName \in {"send", "recv"}
                       /\  msg.cl # handler.CLPair[handler.currentCL]
                       /\ msg.type = "UpgradeReq"
-                      /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                       /\ (CASE handler.inCache ->
                             (*need to invalidate current CL first*)
                              /\ ReceiveSendFPGA(msg, [
@@ -998,20 +1052,20 @@ FPGAInitHandlingNextCL == \E msg \in eciLink.toFPGA \ InterruptAck:
                              /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "AWAIT_ACK", ![c][handlerName].pendingAck = TRUE]
                           [] \lnot handler.inCache ->
                              LET other == handler.CLPair[1-handler.currentCL] IN
-                             /\ RecvFromFPGA(msg)
+                             /\ ReceiveFromFPGA(msg)
                              /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "HANDLE"]
                           [] OTHER -> FALSE)
                           
                           
-FPGARecvDowngrades == \E msg \in eciLink.toFPGA \ InterruptAck:
+FPGARecvDowngrades == \E msg \in eciLink.toFPGA \cap CoherenceMsgsToFPGA:
                          LET c == CLCoreAssignment[msg.cl] IN
                          LET handlerName == CLWorkerAssignment[msg.cl] IN
                          LET handler == fpgaHandlers[c][handlerName] IN
                           /\ handlerName \in {"send", "recv"}
                           /\ handler.state = "AWAIT_ACK" \/ handler.state =  "AWAIT_FLUSH"
                           /\ msg.cl = handler.CLPair[handler.currentCL]
-                          /\ RecvFromFPGA(msg)
-                          /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                          /\ ReceiveFromFPGA(msg)
+                          /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                           /\ (CASE msg.type = "InvAck" ->
                                 
                                 /\ fpgaHandlers' = IF msg.was_valid THEN [
@@ -1036,7 +1090,7 @@ FPGAFinishInvalidations ==  \E c \in Cores:
                            /\ handler.state = "AWAIT_ACK"
                            /\ handler.inCache = FALSE
                            /\ handler.pendingAck = FALSE
-                           /\ UNCHANGED(<<coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
                            /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "HANDLE"]
                            
   
@@ -1044,7 +1098,7 @@ FPGAHandleNextReq == \E c \in Cores:
                     \E handlerName \in {"send", "recv"}:
                      LET handler == fpgaHandlers[c][handlerName] IN 
                      /\ handler.state = "HANDLE"
-                     /\ UNCHANGED(<<coreServiceAssignment,serviceState,thxCache,cacheQueues>>)
+                     /\ UNCHANGED(<<kernel,coreServiceAssignment,serviceState,thxCache,cacheQueues>>)
                      /\ LET next == 1-handler.currentCL IN
                         (CASE handlerName = "send" ->
                             /\  SendToCPU([
@@ -1074,18 +1128,18 @@ FPGAHandleNextReq == \E c \in Cores:
                        [] OTHER -> FALSE)
                                                                      
                              
-FPGAHandleControlReq == \E msg \in eciLink.toFPGA \ InterruptAck:
+FPGAHandleControlReq == \E msg \in eciLink.toFPGA \cap CoherenceMsgsToFPGA:
                       LET c == CLCoreAssignment[msg.cl] IN
                       LET handlerName == CLWorkerAssignment[msg.cl] IN
                       LET handler == fpgaHandlers[c][handlerName] IN
                       /\ handlerName = "control"
-                      /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                       
                       /\ (CASE msg.type = "UpgradeReq" ->
                             /\ \lnot handler.pendingAck
                             (* don't supply the control CL to the CPU when we are waiting on it ourselves *)
                             /\ \lnot handler.state = "GET_CONTROL" 
-                            /\ \lnot handler.state = "AWAIT_CONTROL_INV" 
+                            /\ \lnot handler.state = "AWAIT_RESET" 
                             /\ \lnot handler.inCache 
                             /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].inCache = TRUE]
                             /\ ReceiveSendFPGA(msg, [
@@ -1102,7 +1156,7 @@ FPGAHandleControlReq == \E msg \in eciLink.toFPGA \ InterruptAck:
                                                        (* don't overwrite READY *)
                                                        [msg.control EXCEPT !.READY = fpgaHandlers[c][handlerName].control.READY]
                                ]
-                            /\ RecvFromFPGA(msg)
+                            /\ ReceiveFromFPGA(msg)
                          [] msg.type = "InvAck" ->
                             /\ fpgaHandlers' = IF msg.was_valid THEN [
                                                       fpgaHandlers EXCEPT 
@@ -1115,7 +1169,7 @@ FPGAHandleControlReq == \E msg \in eciLink.toFPGA \ InterruptAck:
                                                         fpgaHandlers EXCEPT
                                                             ![c][handlerName].pendingAck = FALSE
                                                 ]
-                           /\ RecvFromFPGA(msg)
+                           /\ ReceiveFromFPGA(msg)
                          [] OTHER -> FALSE) 
                          
 (*FPGAInitFlushData == \E c \in Cores:
@@ -1154,7 +1208,7 @@ FPGAInitFlushData == \E c \in Cores:
                      LET handler == fpgaHandlers[c][handlerName] IN 
                      /\ handler.state = "IDLE"
                      /\ fpgaHandlers[c]["control"][handlerName \o "Preempt"]
-                     /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                     /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                      /\ (CASE handler.inCache ->
                             /\ fpgaHandlers' = [fpgaHandlers EXCEPT 
                                             ![c][handlerName].data = EMPTY_CL,
@@ -1165,9 +1219,10 @@ FPGAInitFlushData == \E c \in Cores:
                      
                          [] OTHER -> 
                                 /\ fpgaHandlers' = [fpgaHandlers EXCEPT 
-                                            ![c][handlerName].data = EMPTY_CL,
-                                            ![c][handlerName].state = "FINISH_PREEMPT",
+                                            ![c][handlerName].data = [i \in 0..CLSize-1 |-> coreServiceAssignment[c]],
+                                            ![c][handlerName].state = "IDLE",
                                             ![c]["control"][handlerName \o "Preempt"] = FALSE
+                                            
                                         ]
                                 /\ UNCHANGED(<<eciLink>>)
                          
@@ -1179,20 +1234,21 @@ FPGAFinishFlush ==  \E c \in Cores:
                            /\ handler.state = "AWAIT_FLUSH"
                            /\ handler.inCache = FALSE
                            /\ handler.pendingAck = FALSE
-                           /\ UNCHANGED(<<coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
-                           /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "FINISH_PREEMPT",
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
+                           /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "IDLE",
+                                                                   ![c][handlerName].data = [i \in 0..CLSize-1 |-> coreServiceAssignment[c]],
                                                                    ![c]["control"][handlerName \o "Preempt"] = FALSE]
 
-FPGAHandlerFinishPreempt ==  \E c \in Cores:
+(*FPGAHandlerFinishPreempt ==  \E c \in Cores:
                             \E handlerName \in {"send", "recv"}:
                            LET handler == fpgaHandlers[c][handlerName] IN
                            /\ handler.state = "FINISH_PREEMPT"
                            /\ fpgaHandlers[c]["control"].state = "AWAIT_CONTROL_INV"
-                           /\ UNCHANGED(<<coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
+                           /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache, cacheQueues, serviceState, eciLink>>)
                            /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "IDLE",
                                                                    ![c][handlerName].data = [i \in 0..CLSize-1 |-> coreServiceAssignment[c]]
                                               ]
-                
+*)                
                  
                          
 FPGAInitPreemption == \E c \in Cores:
@@ -1200,14 +1256,14 @@ FPGAInitPreemption == \E c \in Cores:
                       LET handler == fpgaHandlers[c][handlerName] IN
                       /\ handler.state = "IDLE"
                       (* check that our service is running on this core?*)
-                      /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues,eciLink>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues,eciLink>>)
                       /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "START_PREEMPT"]
                       
 FPGAStartPreempt == \E c \in Cores:
                       LET handlerName == "control" IN
                       LET handler == fpgaHandlers[c][handlerName] IN
                       /\ handler.state = "START_PREEMPT"
-                      /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                       (* check if we have the control already *)
                       /\ (CASE handler.inCache ->
                                 /\ fpgaHandlers' = [fpgaHandlers EXCEPT
@@ -1220,23 +1276,26 @@ FPGAStartPreempt == \E c \in Cores:
                                             cl |-> handler.controlCL
                                        ])
                           [] OTHER ->
-                                 /\ UNCHANGED(<<eciLink>>)
-                                 /\ (CASE handler.control.BUSY -> 
+                                 
+                                    (CASE handler.control.BUSY -> 
                                         (*we do have the control but it is saying BUSY*)
-                                        fpgaHandlers' = [fpgaHandlers EXCEPT 
+                                        /\ fpgaHandlers' = [fpgaHandlers EXCEPT 
                                                     
                                                     (* stay in state *)
                                                     ![c][handlerName].control.READY = FALSE
                                                 ]
+                                        /\ UNCHANGED(<<eciLink>>)
                                       [] OTHER -> 
                                         (*we have the control and it's not BUSY*)
-                                                fpgaHandlers' = [fpgaHandlers EXCEPT 
+                                            /\    fpgaHandlers' = [fpgaHandlers EXCEPT 
                                                     
-                                                    ![c][handlerName].state = "AWAIT_WORKERS",
-                                                    ![c][handlerName].sendPreempt = TRUE,
-                                                    ![c][handlerName].recvPreempt = TRUE,
+                                                    ![c][handlerName].state = "AWAIT_SERVICE_REQ",
                                                     ![c][handlerName].control.READY = FALSE
                                                   ]
+                                            /\ SendToCPU([
+                                                       type |-> "Interrupt",
+                                                       core |-> c
+                                                      ]) 
                                      )
                            )
                            
@@ -1246,74 +1305,103 @@ FPGAGetControl ==   \E c \in Cores:
                       /\ handler.state = "GET_CONTROL"
                       /\ \lnot handler.pendingAck 
                       /\ \lnot handler.inCache
-                      /\ UNCHANGED(<<coreServiceAssignment,coreServiceAssignment,thxCache,serviceState,eciLink,cacheQueues>>)
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
                       /\ (CASE handler.control.BUSY -> 
                                         (*we do have the control but it is saying BUSY*)
-                                        fpgaHandlers' = [fpgaHandlers EXCEPT 
+                               /\         fpgaHandlers' = [fpgaHandlers EXCEPT 
                                                     
                                                             ![c][handlerName].state = "START_PREEMPT"
                                                         ]
+                               /\ UNCHANGED(<<eciLink>>)
                           [] OTHER -> 
                             (*we have the control and it's not BUSY*)
-                                    fpgaHandlers' = [fpgaHandlers EXCEPT 
+                               /\     fpgaHandlers' = [fpgaHandlers EXCEPT 
                                         
-                                        ![c][handlerName].state = "AWAIT_WORKERS",
-                                        ![c][handlerName].sendPreempt = TRUE,
-                                        ![c][handlerName].recvPreempt = TRUE,
+                                        ![c][handlerName].state = "AWAIT_SERVICE_REQ",
                                         ![c][handlerName].control.READY = FALSE
                                       ]
+                               /\ SendToCPU([
+                                               type |-> "Interrupt",
+                                               core |-> c
+                                              ]) 
                          )   
+(*Need to send interrupt!*)
 
-FPGAAwaitWorkers == \E c \in Cores:
-                    \E s \in Services:
-                      LET handlerName == "control" IN
-                      LET handler == fpgaHandlers[c][handlerName] IN
-                      (*select a service that currently isn't active on any other core*)
-                      /\ \A c2 \in Cores \ {c}: coreServiceAssignment[c2] # s
-                      /\ handler.state = "AWAIT_WORKERS"
-                      /\ handler.sendPreempt = FALSE
-                      /\ handler.recvPreempt = FALSE
-                      /\ UNCHANGED(<<thxCache,serviceState,cacheQueues>>)
-                      /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "AWAIT_IPI_ACK"]
-                      /\ SendToCPU([
-                               type |-> "Interrupt",
-                               core |-> c,
-                               service |-> s
-                              ])
-                      /\ coreServiceAssignment' = [coreServiceAssignment EXCEPT ![c] = s]
-                        
+                       
                     
                                                 
                                                                                        
-FPGAFinishPreempt == \E msg \in eciLink.toFPGA \cap InterruptAck:
+FPGAHandleServiceReq == \E msg \in eciLink.toFPGA \cap NextServiceReq:
+                     \E s \in Services:
                      LET handlerName == "control" IN
                      LET handler == fpgaHandlers[msg.core][handlerName] IN
-                     /\ handler.state = "AWAIT_IPI_ACK"
-                     /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues>>)
+                     (*select a service that currently isn't active on any other core*)
+                     /\ \A c2 \in Cores \ {msg.core}: coreServiceAssignment[c2] # s
+                     /\ handler.state = "AWAIT_SERVICE_REQ"
+                     /\ UNCHANGED(<<kernel,thxCache,serviceState,cacheQueues>>)
+                     /\ coreServiceAssignment' = [coreServiceAssignment EXCEPT ![msg.core] = s]
                      /\ (CASE handler.inCache ->
-                            /\ ReceiveSendFPGA(msg, [
+                            /\ ReceiveSendMultipleFPGA(msg, 
+                                 {[
                                     type |-> "InvReq",
                                     cl |-> handler.controlCL
-                                  ])
-                            /\ fpgaHandlers' = [fpgaHandlers EXCEPT 
-                                                    ![msg.core][handlerName].state = "AWAIT_CONTROL_INV", 
-                                                    ![msg.core][handlerName].pendingAck = TRUE,
-                                                    ![msg.core][handlerName].control.READY = TRUE
-                                                ]
+                                  ],
+                                  [
+                                    type |-> "NextService",
+                                    service |-> s,
+                                    core |-> msg.core
+                                 
+                                  ]
+                                  })
+                            
                        [] OTHER ->
-                             /\ RecvFromFPGA(msg)
-                             /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![msg.core][handlerName].state = "AWAIT_CONTROL_INV", ![msg.core][handlerName].control.READY = TRUE]
+                             /\ ReceiveSendFPGA(msg, 
+                                  [
+                                    type |-> "NextService",
+                                    service |-> s,
+                                    core |-> msg.core
+                                 
+                                  ])
                        )
+                       /\ fpgaHandlers' = [fpgaHandlers EXCEPT 
+                                                    ![msg.core][handlerName].state = "AWAIT_RESET", 
+                                                    ![msg.core][handlerName].pendingAck = handler.inCache,
+                                                    ![msg.core][handlerName].control.READY = TRUE,
+                                                    ![msg.core][handlerName].sendPreempt = TRUE,
+                                                    ![msg.core][handlerName].recvPreempt = TRUE
+                                                    
+                                           ]
+
+FPGAInitReset == \E c \in Cores:
+                      LET handlerName == "control" IN
+                      LET handler == fpgaHandlers[c][handlerName] IN
+                      /\ handler.state = "AWAIT_RESET"
+                      /\ handler.sendPreempt = FALSE
+                      /\ handler.recvPreempt = FALSE
+                      /\ \lnot handler.inCache
+                      /\ \lnot handler.pendingAck
+                      /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues,eciLink>>)
+                      /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "FINISH_SYNC"]
+                      
+
+FPGAFinishSync ==  \E msg \in eciLink.toFPGA \cap PreemptionFinished:   
+                       /\ fpgaHandlers[msg.core]["control"].state = "FINISH_SYNC"
+                       /\ ReceiveSendFPGA(msg, [
+                                type |-> "PreemptionFinishedAck",
+                                core |-> msg.core
+                               ])
+                       /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![msg.core]["control"].state = "IDLE"] 
+                       /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues>>)                                               
                        
-FPGAAwaitInv ==      \E c \in Cores:
+(*FPGAAwaitInv ==      \E c \in Cores:
                      LET handlerName == "control" IN
                      LET handler == fpgaHandlers[c][handlerName] IN
                      /\ handler.state = "AWAIT_CONTROL_INV"
                      /\ \lnot handler.inCache
                      /\ \lnot handler.pendingAck
                      /\ \A worker \in {"send", "recv"}: fpgaHandlers[c][worker].state # "FINISH_PREEMPT"
-                     /\ UNCHANGED(<<coreServiceAssignment,thxCache,serviceState,cacheQueues,eciLink>>)
-                     /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "IDLE"]
+                     /\ UNCHANGED(<<kernel,coreServiceAssignment,thxCache,serviceState,cacheQueues,eciLink>>)
+                     /\ fpgaHandlers' = [fpgaHandlers EXCEPT ![c][handlerName].state = "IDLE"]*)
                       
                                                              
     
@@ -1328,7 +1416,9 @@ LauberhornStep   == \E c \in Cores:
                     \/ SWHandleInitSend 
                     \/ SWHandleInitRecv
                     \/ SWGetControl
-                    \/ SWGetInterrupt
+                    \/ KernelGetInterrupt
+                    \/ KernelGetNextService
+                    \/ KernelResume
                     (*\/ SWResume*)
                     \/ SWCheckControl
                     \/ SWHandleOp
@@ -1345,14 +1435,14 @@ LauberhornStep   == \E c \in Cores:
                     \/ FPGAInitPreemption
                     \/ FPGAStartPreempt
                     \/ FPGAGetControl
-                    \/ FPGAAwaitWorkers
+                    \/ FPGAHandleServiceReq
+                    \/ FPGAInitReset
+                    \/ FPGAFinishSync
                     \/ FPGAHandleControlReq
                     \/ FPGAInitFlushData
                     \/ FPGAFinishFlush
-                    \/ FPGAHandlerFinishPreempt
-                    \/ FPGAFinishPreempt
+                    (*\/ FPGAHandlerFinishPreempt*)
                     \/ L2RequiredDowngrade
-                    \/ FPGAAwaitInv
                     
                    
 \**********************************
@@ -1372,6 +1462,8 @@ LauberhornTypeOk ==
     /\ eciLink \in Link
     /\ \A c \in Cores: 
         fpgaHandlers[c] \in FPGAWorker
+    /\ \A c \in Cores: 
+        kernel[c] \in KernelHandler
     /\ IsInjective(coreServiceAssignment)
       
     (* at most one message to send when delete queue finishes *)
@@ -1412,5 +1504,5 @@ IsolationInvariants ==  /\ \A s \in Services:
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 25 13:01:29 CET 2025 by jasmin
+\* Last modified Thu Mar 27 09:21:46 CET 2025 by jasmin
 \* Created Thu Mar 06 13:29:27 CET 2025 by jasmin
