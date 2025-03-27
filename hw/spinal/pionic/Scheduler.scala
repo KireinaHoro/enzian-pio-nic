@@ -4,6 +4,21 @@ import pionic.net.OncRpcCallMetadata
 import spinal.core._
 import spinal.lib._
 
+/** Type for PIDs. */
+case class PID()(implicit c: ConfigDatabase) extends Bundle {
+  override def clone = PID()
+
+  val bits = UInt(Widths.pidw bits)
+}
+
+/** Command from host to create a process in the scheduler. */
+case class CreateProcCmd()(implicit c: ConfigDatabase) extends Bundle {
+  /** PID of process on the CPU -- not necessarily corresponding to actual process IDs on Linux */
+  val pid = PID()
+  /** maximum number of cores that the process is allowed to run on */
+  val maxCores = Bits(log2Up(c[Int]("num cores")) bits)
+}
+
 /**
   * Top class of Lauberhorn's scheduler, to be instantiated inside [[RxPacketDispatch]].  This is a blackbox --
   * the actual implementation is provided by Adam in VHDL.
@@ -41,7 +56,7 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
     *
     * Will be stalled (ready === False) when a preemption is in progress.
     */
-  val corePreempt = Vec(master(Stream(Bits(Widths.pidw bits))), numCores)
+  val corePreempt = Vec(master(Stream(PID())), numCores)
 
   /** Create a process.
     *
@@ -49,7 +64,7 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
     * -- otherwise they should've been filtered out by [[pionic.net.OncRpcCallDecoder]].  The SW should keep
     * these states consistent.
     */
-  val createProcess = slave(Stream(Bits(Widths.pidw bits)))
+  val createProcess = slave(Stream(CreateProcCmd()))
 
   /** Destroy a process due to either it exiting on the host, or being killed by [[CoreControlPlugin]] due to a timeout
     * in the CL critical region.
@@ -57,7 +72,7 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
     * This interface should be driven from the CPU in kernel space -- SW should also keep the decoder state consistent
     * with this.
     */
-  val destroyProcess = slave(Stream(Bits(Widths.pidw bits)))
+  val destroyProcess = slave(Stream(PID()))
 
   mapCurrentClockDomain(clk, rst)
 }
