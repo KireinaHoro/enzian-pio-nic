@@ -76,7 +76,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       )
     })
 
-    val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
+    val blockCycles = CombInit(csr.ctrl.rxBlockCycles)
     Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
@@ -107,7 +107,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val streamTimeout = Bool()
       val bufferedStreamTimeout = Reg(Bool()) init False
       bufferedStreamTimeout.setWhen(streamTimeout)
-      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles(idx), streamTimeout)
+      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles, streamTimeout)
       busCtrl.onRead(0xc0) {
         logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
           // do not trigger inv when we got a packet right at the timeout
