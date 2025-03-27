@@ -33,6 +33,7 @@ trait RxPacketDispatchService {
 class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
+  lazy val preempts = host.list[PreemptionService]
   val retainer = Retainer()
 
   // possible decoder upstreams for each core (bypass for core 0, protocols that called produceFinal for others)
