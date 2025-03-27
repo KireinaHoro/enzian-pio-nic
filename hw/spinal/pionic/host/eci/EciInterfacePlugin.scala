@@ -274,6 +274,8 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
           preemptUl.setIdle()
           preemptLcia.setBlocked()
           assert(preempt == null)
+          // tie down preemption request for bypass
+          proto.preemptReq.setIdle()
         case Some(pn) => preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
       }
     }.setName("bindProtoToCoreCtrl")

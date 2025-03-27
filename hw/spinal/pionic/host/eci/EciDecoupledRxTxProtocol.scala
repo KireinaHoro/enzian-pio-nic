@@ -77,6 +77,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     })
 
     val blockCycles = CombInit(csr.ctrl.rxBlockCycles)
+    // disable block cycles, when a preemption request is under way
+    // this way we immediately return a NACK, instead of waiting until timeout
+    when (preemptReq.valid) { blockCycles.clearAll() }
+
     Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
@@ -148,11 +152,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     writeCmd = busCtrl.writeCmd
   }.setName(s"driveDcsBus_core$coreID")
 
+  def preemptReq = logic.preemptReq
+
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
   val logic = during setup new Area {
+    // these will be hooked by [[EciPreemptionControlPlugin]]
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+    val preemptReq = Event
 
     awaitBuild()
 
@@ -175,6 +183,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     lci.valid.setAsReg()
     lci.payload.setAsReg()
     lci.assertPersistence()
+    preemptReq.setBlocked()
 
     val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
     val ulOverflow = Bool()
@@ -228,14 +237,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
       val noPacket: State = new State {
         whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
+          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
             goto(invalidateCtrl)
           }
         }
       }
       val gotPacket: State = new State {
         whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
+          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
             hostRxAck.payload := selectedRxDesc.buffer
             hostRxAck.valid := True
             when (hostRxAck.fire) {
@@ -294,8 +303,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
             ulFlow.payload := lcia.payload
             ulFlow.valid := True
 
-            // always toggle, even if NACK was sent
-            rxCurrClIdx.toggleWhen(True)
+            when (preemptReq.valid) {
+              // ack preempReq but DON'T toggle parity
+              preemptReq.ready := True
+            } otherwise {
+              // always toggle, even if NACK was sent
+              rxCurrClIdx.toggleWhen(True)
+            }
 
             goto(idle)
           }
