@@ -31,9 +31,9 @@ case class CreateProcCmd()(implicit c: ConfigDatabase) extends Bundle {
   * system that queues packets -- all existing queuing e.g. inside [[CoreControlPlugin]] needs to be eliminated.
   */
 case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
-  val numCores = c[Int]("num cores")
+  val numWorkerCores = c[Int]("num cores")
   val generic = new Generic {
-    val NUM_CORES = numCores
+    val NUM_CORES = numWorkerCores
     val PID_QUEUE_DEPTH = c[Int]("max rx pkts in flight")
     val PID_WIDTH = Widths.pidw
   }
@@ -46,7 +46,7 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
 
   /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
     * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
-  val coreMeta = Vec(master(Stream(OncRpcCallMetadata())), numCores)
+  val coreMeta = Vec(master(Stream(OncRpcCallMetadata())), numWorkerCores)
 
   /**
     * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
@@ -56,7 +56,7 @@ case class Scheduler()(implicit c: ConfigDatabase) extends BlackBox {
     *
     * Will be stalled (ready === False) when a preemption is in progress.
     */
-  val corePreempt = Vec(master(Stream(PID())), numCores)
+  val corePreempt = Vec(master(Stream(PID())), numWorkerCores)
 
   /** Create a process.
     *

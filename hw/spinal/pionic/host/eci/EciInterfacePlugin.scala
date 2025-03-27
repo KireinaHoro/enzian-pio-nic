@@ -73,7 +73,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     csr.readAndWrite(csrCtrl, alloc.toGeneric)
 
     // axi DMA traffic steered into each core's packet buffers
-    val dmaNodes = Seq.fill(cores.length)(Axi4(axiConfig.copy(
+    val dmaNodes = Seq.fill(numCores)(Axi4(axiConfig.copy(
       addressWidth = log2Up(pktBufSizePerCore - 1),
     )))
     Axi4CrossbarFactory()
@@ -94,7 +94,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     val unitIdShift = Integer.numberOfTrailingZeros(unitIdMask)
 
     // list of data path nodes with optionally the preemption control node
-    val dcsNodes = Seq.tabulate(cores.length) { idx =>
+    val dcsNodes = Seq.tabulate(numCores) { idx =>
       val config = axiConfig.copy(
         // 2 masters, ID width + 1
         idWidth = axiConfig.idWidth + 1,
@@ -159,9 +159,9 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
         new Area {
           val chan = chanLocator(dcs)
           val unaliasedAddr = EciCmdDefs.unaliasAddress(addrLocator(chan.data)).asBits
-          val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * cores.length)).asUInt
+          val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * numCores)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
-          val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * cores.length)
+          val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * numCores)
         }.setName("demuxLcl").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
@@ -179,7 +179,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     }
 
     // mux LCL request (LCI)
-    val coresLci = Seq.fill(cores.length)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresLci = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindCoreCmdsToLclChans(coresLci.flatten.zipWithIndex.map { case (addr, uidx) => new Area {
       val ret = Stream(EciWord())
 
@@ -199,7 +199,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     }, _.lci.address, 16, 17, _.cleanMaybeInvReq)
 
     // demux LCL response (LCIA)
-    val coresLcia = Seq.fill(cores.length)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresLcia = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindLclChansToCoreResps(coresLcia.flatten.zipWithIndex.map { case (lcia, uidx) =>
       new Area {
         val ret = Stream(EciWord())
@@ -214,7 +214,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     }, _.lcia.address, _.cleanMaybeInvResp)
 
     // mux LCL unlock response
-    val coresUl = Seq.fill(cores.length)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresUl = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindCoreCmdsToLclChans(coresUl.flatten.map { addr =>
       new Area {
         val ret = Stream(EciWord())
