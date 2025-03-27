@@ -44,7 +44,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
 
     Axi4CrossbarFactory()
       .addSlaves(
-        axiWideConfigNode -> (0x0, (cores.length + 1) * 0x1000),
+        axiWideConfigNode -> (0x0, numCores * 0x1000),
         pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), pktBufSize),
       )
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
