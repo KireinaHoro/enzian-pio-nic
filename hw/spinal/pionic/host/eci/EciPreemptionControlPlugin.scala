@@ -38,6 +38,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     val rxParity = proto.logic.rxCurrClIdx
     val txParity = proto.logic.txCurrClIdx
+
+    val rxProtoPreemptReq = proto.preemptReq
+    rxProtoPreemptReq.setIdle()
   }
 
   override def preemptReq: Stream[PID] = logic.preemptReq
