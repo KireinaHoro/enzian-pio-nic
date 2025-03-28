@@ -76,7 +76,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
     val schedOutputs = StreamDispatcherWithEnable(
       input = StreamArbiterFactory().roundRobin.on(schedulerUpstreams),
       outputCount = numWorkerCores,
-      enableMask = csr.workerCoreMaskFlow,
+      enableMask = csr.ctrl.workerCoreMask,
     )
     
     // TODO: actually drive preemptReq; tied off for now
