@@ -84,10 +84,6 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
         busCtrl.driveAndRead(item, serviceBlockMap(name)(idx))
       }
     }
-
-    // generate coreMask and changed signal for packet sink scheduler
-    val coreMaskAddr = alloc("oncRpcCtrl", "coreMask", attr = AccessType.WO)
-    busCtrl.driveFlow(logic.coreMask, coreMaskAddr)
   }
 
   val logic = during setup new Area {
@@ -96,8 +92,6 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
 
     val listenPorts = Vec.fill(numListenPorts)(Flow(UInt(16 bits)))
     val serviceSlots = Vec.fill(numServiceSlots)(OncRpcCallServiceDef())
-
-    val coreMask = Flow(Bits(numCores bits))
 
     from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
@@ -111,7 +105,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     val metadata = Stream(OncRpcCallMetadata())
 
     // we do not invoke produce: there should be no downstream decoders
-    produceFinal(metadata, payload, coreMask)
+    produceFinal(metadata, payload)
     produceDone()
 
     awaitBuild()

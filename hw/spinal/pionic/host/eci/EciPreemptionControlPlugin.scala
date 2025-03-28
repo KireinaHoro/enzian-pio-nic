@@ -6,6 +6,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.Axi4
 import spinal.lib.fsm._
+import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
 
 /**
   * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
