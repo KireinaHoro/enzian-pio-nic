@@ -18,7 +18,7 @@ import scala.collection.mutable
  */
 trait RxPacketDispatchService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Flow[Bits] = null): Area
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
 
@@ -31,15 +31,16 @@ trait RxPacketDispatchService {
  * and dispatched to the bypass core (#0).  Payload data is arbitrated into a single AXI-Stream and fed into [[AxiDmaPlugin]].
  */
 class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
+  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
   lazy val preempts = host.list[PreemptionService]
   val retainer = Retainer()
 
-  // possible decoder upstreams for each core (bypass for core 0, protocols that called produceFinal for others)
-  lazy val coreDescUpstreams = Seq.fill(cores.length)(mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]())
+  // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
+  lazy val bypassUpstreams, schedulerUpstreams = mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], coreMask: Flow[Bits]) = new Area {
+  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     // handle payload data
     payloadSources.append(payloadSink)
 
@@ -52,19 +53,11 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
     }
 
     // dispatch to cores
-    if (coreMask == null) {
+    if (isBypass) {
       // dispatching to the bypass-core (#0) only
-      coreDescUpstreams.head.append(tagged)
+      bypassUpstreams.append(tagged)
     } else {
-      // round-robin dispatch to all other (non-bypass) cores that are enabled
-      // TODO: replace with Scheduler
-      StreamDispatcherWithEnable(
-        input = tagged.s2mPipe(),
-        outputCount = cores.length - 1,
-        enableMask = coreMask,
-      ) zip coreDescUpstreams.tail foreach { case (td, cl) =>
-        cl.append(td)
-      }
+      schedulerUpstreams.append(tagged.s2mPipe())
     }
   }
   override def packetSink = logic.axisMux.m_axis
@@ -78,12 +71,21 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       sl << ms
     }
 
+    // round-robin dispatch to all other (non-bypass) cores that are enabled
+    // TODO: replace with Schevduler
+    val schedOutputs = StreamDispatcherWithEnable(
+      input = StreamArbiterFactory().roundRobin.on(schedulerUpstreams),
+      outputCount = numWorkerCores,
+      enableMask = csr.workerCoreMaskFlow,
+    )
+    
+    // TODO: actually drive preemptReq; tied off for now
+    preempts foreach { pu => pu.preemptReq.setIdle() }
+    
     // drive packet descriptors interface of core control modules
-    cores zip coreDescUpstreams foreach { case (c, us) =>
-      val cio = c.logic.io
-
-      // TODO: priority among different protocols?
-      cio.igMetadata << StreamArbiterFactory().roundRobin.on(us)
+    cores.head.logic.io.igMetadata << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
+    cores.tail zip schedOutputs foreach { case (c, so) =>
+      c.logic.io.igMetadata << so
     }
   }
 }
