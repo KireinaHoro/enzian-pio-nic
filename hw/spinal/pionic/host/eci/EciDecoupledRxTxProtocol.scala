@@ -105,6 +105,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
         rxHostCtrlInfo.valid := rxDesc.valid
         rxHostCtrlInfo.payload := rxDesc.payload
       }
+
+      // we can only ACK packet, when the CPU has issued at least one read
+      // otherwise, when packet arrives but CPU is preempted before a read is ever issued,
+      // packet will be dropped and lost
       rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
@@ -215,13 +219,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     val selectedRxDesc = demuxedRxDescs(rxCurrClIdx.asUInt)
 
     // read start is when request for the selected CL is active
-    hostRxReq := RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
+    val hostRxReqReg = RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
+    hostRxReq := hostRxReqReg
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         onEntry {
           rxNackTriggerInv.clear()
-          hostRxReq.clear()
+          hostRxReqReg.clear()
         }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
@@ -243,7 +248,16 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
           }
         }
       }
+      // we got the packet, but the CPU did not issue any read yet
       val gotPacket: State = new State {
+        whenIsActive {
+          when (hostRxReq) {
+            goto(repeatPacket)
+          }
+        }
+      }
+      // we got at least one read, repeating until CPU ack'ed or preempted
+      val repeatPacket: State = new State {
         whenIsActive {
           when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
             hostRxAck.payload := selectedRxDesc.buffer
