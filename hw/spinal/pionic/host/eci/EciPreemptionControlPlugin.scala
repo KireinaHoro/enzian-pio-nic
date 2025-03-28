@@ -14,10 +14,13 @@ import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
   *  - RX & TX parity bits
   *  - next PID
   */
-case class PreemptionControlCl()(implicit c: Config) extends Bundle {
-  val busy, ready = Bool()
+case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
+  val busy = Bool()
+  val xb7 = B("7'x0")
+  val ready = Bool()
+  val xb7_2 = B("7'x0")
   val rxParity, txParity = Bool()
-  val pid = Bits(Widths.pidw bits)
+  val pid = PID()
 }
 
 /**
