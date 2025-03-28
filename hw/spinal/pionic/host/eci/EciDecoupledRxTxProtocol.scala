@@ -113,9 +113,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       bufferedStreamTimeout.setWhen(streamTimeout)
       busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles, streamTimeout)
       busCtrl.onRead(0xc0) {
-        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
+        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout))
           // do not trigger inv when we got a packet right at the timeout
-          && !logic.rxFsm.isActive(logic.rxFsm.gotPacket))
+          // FIXME: is this really needed?  rxNackTriggerInv is only used in idle
+          // && !logic.rxFsm.isActive(logic.rxFsm.gotPacket))
         bufferedStreamTimeout.clear()
       }
 
