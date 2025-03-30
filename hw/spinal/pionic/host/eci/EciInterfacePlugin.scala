@@ -14,6 +14,7 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.misc.plugin._
 import spinal.lib.bus.misc.SizeMapping
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 import scala.util.Random
@@ -277,7 +278,12 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
           assert(preempt == null)
           // tie down preemption request for bypass
           proto.preemptReq.setIdle()
-        case Some(pn) => preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
+
+          // XXX: still allocate ipiAck for bypass core due to allocator limitation
+          alloc("ipiAck", attr = RO, readSensitive = true)
+        case Some(pn) =>
+          preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
+          preempt.driveControl(csrCtrl, alloc)
       }
     }.setName("bindProtoToCoreCtrl")
     }
