@@ -101,9 +101,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
       val rxDesc = logic.demuxedRxDescs(idx).map(EciHostCtrlInfo.packFrom)
       rxHostCtrlInfo.valid init False
-      when (!logic.rxFsm.isActive(logic.rxFsm.noPacket)) {
+      when (logic.rxFsm.isActive(logic.rxFsm.gotPacket)) {
         rxHostCtrlInfo.valid := rxDesc.valid
         rxHostCtrlInfo.payload := rxDesc.payload
+        logic.rxPktBufSaved := hostRx.payload.buffer
       }
 
       // we can only ACK packet, when the CPU has issued at least one read
@@ -144,7 +145,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     // cpu not supposed to modify rx packet data, so omitting write
     // memOffset is in memory words (64B)
-    val memOffset = rxBufMapping.removeOffset(logic.selectedRxDesc.buffer.addr.bits) >> log2Up(pktBufWordNumBytes)
+    val memOffset = rxBufMapping.removeOffset(logic.rxPktBufSaved.addr.bits) >> log2Up(pktBufWordNumBytes)
     busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
       memOffset = memOffset.resized,
       mappingLength = roundMtu)
@@ -213,10 +214,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     val demuxedRxDescs = StreamDemux(hostRx, rxCurrClIdx.asUInt, 2) setName "demuxedRxDescs"
 
-    // latch accepted host rx packet for:
-    // - generating hostRxAck
-    // - driving mem offset for packet buffer load
-    val selectedRxDesc = demuxedRxDescs(rxCurrClIdx.asUInt)
+    // capture packet buffer address for current packet
+    // defined here so that we can use to construct hostRxAck
+    val rxPktBufSaved = Reg(PacketBufDesc())
 
     // read start is when request for the selected CL is active
     val hostRxReqReg = RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
@@ -260,7 +260,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val repeatPacket: State = new State {
         whenIsActive {
           when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
-            hostRxAck.payload := selectedRxDesc.buffer
+            hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
               when (rxOverflowToInvalidate > 0) {
