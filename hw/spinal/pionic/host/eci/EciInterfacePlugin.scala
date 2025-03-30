@@ -3,6 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
+import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import pionic._
 import pionic.host.HostService
 import pionic.net.ProtoDecoder
@@ -70,7 +71,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
 
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
     private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
-    csr.readAndWrite(csrCtrl, alloc.toGeneric)
+    csr.readAndWrite(csrCtrl, alloc)
 
     // axi DMA traffic steered into each core's packet buffers
     val dmaNodes = Seq.fill(numCores)(Axi4(axiConfig.copy(
@@ -262,11 +263,11 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
       cio.hostRxReq :=   proto.hostRxReq
 
       // CSR for the core
-      c.logic.connectControl(csrCtrl, alloc.toGeneric)
-      c.logic.reportStatistics(csrCtrl, alloc.toGeneric)
+      c.logic.connectControl(csrCtrl, alloc)
+      c.logic.reportStatistics(csrCtrl, alloc)
 
       proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
-      proto.driveControl(csrCtrl, alloc.toGeneric)
+      proto.driveControl(csrCtrl, alloc)
 
       preemptNodeOption match {
         case None =>
@@ -282,8 +283,8 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     }
 
     // control for the decoders
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc.toGeneric))
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
 
-    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc.toGeneric)
+    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
   }
 }
