@@ -214,8 +214,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     val demuxedRxDescs = StreamDemux(hostRx, rxCurrClIdx.asUInt, 2) setName "demuxedRxDescs"
 
-    // capture packet buffer address for current packet
-    // defined here so that we can use to construct hostRxAck
+    // register accepted host rx packet for:
+    // - generating hostRxAck
+    // - driving mem offset for packet buffer load
     val rxPktBufSaved = Reg(PacketBufDesc())
 
     // read start is when request for the selected CL is active
