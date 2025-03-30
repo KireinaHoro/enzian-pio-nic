@@ -129,13 +129,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           lcia.freeRun()
           when (lcia.valid) {
             preemptCtrlCl.ready := False
-            when (preemptCtrlCl.busy) {
-              // still busy, give the CPU a chance to de-assert busy
-              goto(unsetReadyUnlock)
-            } otherwise {
-              // already not busy, don't unlock now
-              goto(preemptDataPath)
-            }
+            goto(unsetReadyUnlock)
           }
         }
       }
@@ -152,7 +146,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           rxProtoPreemptReq.valid := True
           when (rxProtoPreemptReq.ready) {
             when (preemptCtrlCl.busy) {
-              // busy and we unlocked -- poll again
+              // busy when we unset ready -- poll again
               goto(readBusyReq)
             } otherwise {
               // busy already low but locked, we can issue IPI
@@ -173,14 +167,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           lcia.freeRun()
           when (lcia.valid) {
-            when (preemptCtrlCl.busy) {
-              // still busy, unlock and poll again
-              goto(readBusyUnlock)      
-            } otherwise {
-              // not busy anymore, but locked -- issue IPI
-              // FIXME: we need to unlock before the kernel can ack the IPI
-              goto(issueIpi)
-            }
+            // always unlock
+            goto(readBusyUnlock)
           }
         }
       }
@@ -188,30 +176,25 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           ul.valid := True
           when (ul.ready) {
-            goto(readBusyReq)
+            when (preemptCtrlCl.busy) {
+              // still busy, poll again
+              goto(readBusyReq)
+            } otherwise {
+              // not busy anymore -- issue IPI
+              goto(issueIpi)
+            }
           }
         }
       }
       val issueIpi: State = new State {
         whenIsActive {
-          // TODO: how to issue IPI?  Is there an ACK?
-          goto(setReady)
+          // TODO: how to issue IPI?
+          goto(ipiWaitAck)
         }
       }
-      val setReady: State = new State {
+      val ipiWaitAck: State = new State {
         whenIsActive {
-          preemptCtrlCl.ready := True
-          ul.valid := True
-          when (ul.ready) {
-            goto(waitKernelPreemptFinished)
-          }
-        }
-      }
-      val waitKernelPreemptFinished: State = new State {
-        whenIsActive {
-          // TODO: what to wait for here?  e.g. an I/O read/write that blocks?
-          when (True) {
-            preemptReq.ready := True
+          when (ipiAckReadReq) {
             goto(idle)
           }
         }
