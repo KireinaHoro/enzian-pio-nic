@@ -22,3 +22,6 @@ mill.*
 
 # TLA+ preferences
 model/lauberhorn.toolbox/.*
+
+# Nix
+.direnv/
