@@ -29,7 +29,7 @@ case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
 case class IpiAckReg()(implicit c: ConfigDatabase) extends Bundle {
   // TODO: Mackerel def
   val rxParity, txParity = Bool()
-  val xb6 = B("6'x0")
+  val xb6 = Bits(6 bits)
   val pid = PID()
 }
 
@@ -43,7 +43,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"core_$coreID")
   
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
-    val ipiAckAddr = alloc("ipiAck", attr = RO)
+    val ipiAckAddr = alloc("ipiAck", attr = RO, readSensitive = true)
     busCtrl.read(logic.ipiAck, ipiAckAddr)
      
     busCtrl.onRead(ipiAckAddr) {
@@ -98,15 +98,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val ipiAck = Reg(IpiAckReg())
     val ipiAckReadReq = CombInit(False)
 
+    awaitBuild()
+
     // Parity bits to serve to the kernel in the preemption control cacheline.  These
     // are also accessible directly as register reads (exposed originally for debugging)
     // in [[EciDecoupledRxTxProtocol]] -- this optimization will save the extra I/O roundtrip
     ipiAck.rxParity := proto.logic.rxCurrClIdx
     ipiAck.txParity := proto.logic.txCurrClIdx
-
+    ipiAck.xb6 := 0
     ipiAck.pid := preemptReq.payload
-
-    awaitBuild()
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
