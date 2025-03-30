@@ -7,19 +7,29 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi.Axi4
 import spinal.lib.fsm._
 import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
+import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType.RO
+import jsteward.blocks.misc.RegBlockAlloc
 
 /**
   * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
   *  - READY & BUSY bits
-  *  - RX & TX parity bits
-  *  - next PID
   */
 case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
   val busy = Bool()
   val ready = Bool()
-  val xb6 = B("6'x0")
+}
+
+/**
+  * Extra information to pass to kernel.  This register will be read by kernel; the read also functions
+  * as an ACK for the IPI.  Information included here:
+  *  - RX & TX parity bits
+  *  - next PID
+  */
+case class IpiAckReg()(implicit c: ConfigDatabase) extends Bundle {
+  // TODO: Mackerel def
   val rxParity, txParity = Bool()
-  val xb6_2 = B("6'x0")
+  val xb6 = B("6'x0")
   val pid = PID()
 }
 
@@ -31,6 +41,15 @@ case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
   */
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"core_$coreID")
+  
+  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
+    val ipiAckAddr = alloc("ipiAck", attr = RO)
+    busCtrl.read(logic.ipiAck, ipiAckAddr)
+     
+    busCtrl.onRead(ipiAckAddr) {
+      logic.ipiAckReadReq := True
+    }
+  }
 
   val requiredAddrSpace = 0x80
   val controlClAddr = 0x0
@@ -38,10 +57,17 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   assert(coreID != 0, "bypass core does not need preemption control!")
 
   val logic = during setup new Area {
+    val proto = host.list[EciDecoupledRxTxProtocol].apply(coreID)
+
     // DCS interfaces
     val lci = Stream(EciCmdDefs.EciAddress)
     val lcia = Stream(EciCmdDefs.EciAddress)
     val ul = Stream(EciCmdDefs.EciAddress)
+    
+    lci.assertPersistence()
+    ul.assertPersistence()
+    
+    // TODO: interface to ECI gateway for IPI
 
     lci.valid := False
     lci.payload := controlClAddr
@@ -69,15 +95,18 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val preemptReq = Stream(PID())
     preemptReq.setBlocked()
 
-    val proto = host.list[EciDecoupledRxTxProtocol].apply(coreID)
-
-    awaitBuild()
+    val ipiAck = Reg(IpiAckReg())
+    val ipiAckReadReq = CombInit(False)
 
     // Parity bits to serve to the kernel in the preemption control cacheline.  These
     // are also accessible directly as register reads (exposed originally for debugging)
     // in [[EciDecoupledRxTxProtocol]] -- this optimization will save the extra I/O roundtrip
-    preemptCtrlCl.rxParity := proto.logic.rxCurrClIdx
-    preemptCtrlCl.txParity := proto.logic.txCurrClIdx
+    ipiAck.rxParity := proto.logic.rxCurrClIdx
+    ipiAck.txParity := proto.logic.txCurrClIdx
+
+    ipiAck.pid := preemptReq.payload
+
+    awaitBuild()
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
@@ -149,6 +178,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
               goto(readBusyUnlock)      
             } otherwise {
               // not busy anymore, but locked -- issue IPI
+              // FIXME: we need to unlock before the kernel can ack the IPI
               goto(issueIpi)
             }
           }
@@ -164,15 +194,13 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val issueIpi: State = new State {
         whenIsActive {
-          // TODO: how to issue IPI?
+          // TODO: how to issue IPI?  Is there an ACK?
           goto(setReady)
         }
       }
       val setReady: State = new State {
         whenIsActive {
           preemptCtrlCl.ready := True
-          // we are guaranteed to be in kernel now, release PID
-          preemptCtrlCl.pid := preemptReq.payload
           ul.valid := True
           when (ul.ready) {
             goto(waitKernelPreemptFinished)
@@ -184,7 +212,6 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           // TODO: what to wait for here?  e.g. an I/O read/write that blocks?
           when (True) {
             preemptReq.ready := True
-            // no need to clear preemptCtrlCl.pid -- kernel will clear and then pin to L2
             goto(idle)
           }
         }
