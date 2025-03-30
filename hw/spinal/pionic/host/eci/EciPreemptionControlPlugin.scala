@@ -16,10 +16,10 @@ import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
   */
 case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
   val busy = Bool()
-  val xb7 = B("7'x0")
   val ready = Bool()
-  val xb7_2 = B("7'x0")
+  val xb6 = B("6'x0")
   val rxParity, txParity = Bool()
+  val xb6_2 = B("6'x0")
   val pid = PID()
 }
 
