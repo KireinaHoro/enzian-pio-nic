@@ -133,22 +133,14 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           lcia.freeRun()
           when (lcia.valid) {
             preemptCtrlCl.ready := False
-            goto(unsetReadyUnlock)
+            goto(unlockCheckBusy)
           }
         }
       }
-      val unsetReadyUnlock: State = new State {
+      val unlockCheckBusy: State = new State {
         whenIsActive {
           ul.valid := True
           when (ul.ready) {
-            goto(preemptDataPath)
-          }
-        }
-      }
-      val preemptDataPath: State = new State {
-        whenIsActive {
-          rxProtoPreemptReq.valid := True
-          when (rxProtoPreemptReq.ready) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready -- poll again
               // TODO: kill process when busy is high for too long
@@ -172,22 +164,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           lcia.freeRun()
           when (lcia.valid) {
-            // always unlock
-            goto(readBusyUnlock)
-          }
-        }
-      }
-      val readBusyUnlock: State = new State {
-        whenIsActive {
-          ul.valid := True
-          when (ul.ready) {
-            when (preemptCtrlCl.busy) {
-              // still busy, poll again
-              goto(readBusyReq)
-            } otherwise {
-              // not busy anymore -- issue IPI
-              goto(issueIpi)
-            }
+            goto(unlockCheckBusy)
           }
         }
       }
@@ -200,6 +177,43 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       val ipiWaitAck: State = new State {
         whenIsActive {
           when (ipiAckReadReq) {
+            // we can only trigger data path preemption once we are sure we are
+            // in the kernel, or the old user thread might have a chance to
+            // corrupt the clean state (e.g. sneak covert data in)
+            goto(preemptDataPath)
+          }
+        }
+      }
+      val preemptDataPath: State = new State {
+        whenIsActive {
+          rxProtoPreemptReq.valid := True
+          when (rxProtoPreemptReq.ready) {
+            // set ready, which the kernel will poll to be 1 before it returns
+            goto(setReadyReq)
+          }
+        }
+      }
+      val setReadyReq: State = new State {
+        whenIsActive {
+          lci.valid := True
+          when (lci.ready) {
+            goto(setReady)
+          }
+        }
+      }
+      val setReady: State = new State {
+        whenIsActive {
+          lcia.freeRun()
+          when (lcia.valid) {
+            preemptCtrlCl.ready := True
+            goto(unlockToIdle)
+          }
+        }
+      }
+      val unlockToIdle: State = new State {
+        whenIsActive {
+          ul.valid := True
+          when (ul.ready) {
             goto(idle)
           }
         }
