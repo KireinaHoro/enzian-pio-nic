@@ -24,12 +24,14 @@ case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
   * Extra information to pass to kernel.  This register will be read by kernel; the read also functions
   * as an ACK for the IPI.  Information included here:
   *  - RX & TX parity bits
+  *  - whether the process was force-killed
   *  - next PID
   */
 case class IpiAckReg()(implicit c: ConfigDatabase) extends Bundle {
   // TODO: Mackerel def
   val rxParity, txParity = Bool()
-  val xb6 = Bits(6 bits)
+  val killed = Bool()
+  val xb5 = Bits(5 bits)
   val pid = PID()
 }
 
@@ -105,7 +107,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // in [[EciDecoupledRxTxProtocol]] -- this optimization will save the extra I/O roundtrip
     ipiAck.rxParity := proto.logic.rxCurrClIdx
     ipiAck.txParity := proto.logic.txCurrClIdx
-    ipiAck.xb6 := 0
+    // TODO: drive killed with counter output
+    ipiAck.killed := False
+    ipiAck.xb5 := 0
     ipiAck.pid := preemptReq.payload
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
@@ -147,6 +151,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           when (rxProtoPreemptReq.ready) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready -- poll again
+              // TODO: kill process when busy is high for too long
               goto(readBusyReq)
             } otherwise {
               // busy already low but locked, we can issue IPI
