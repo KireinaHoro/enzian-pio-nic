@@ -15,6 +15,8 @@ class GlobalCSRPlugin extends PioNicPlugin {
       val promisc = Reg(Bool()) init False
       // mask for all non-bypass cores
       val workerCoreMask = Flow(Bits(numWorkerCores bits))
+      
+      val preemptCritSecTimeout = Reg(UInt(regWidth bits)) init 100000 // 400 us @ 250 MHz
     }
     val status = new Bundle {
       val version = Bits(regWidth bits)
