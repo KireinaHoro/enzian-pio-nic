@@ -43,6 +43,8 @@ case class IpiAckReg()(implicit c: ConfigDatabase) extends Bundle {
   */
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"core_$coreID")
+
+  lazy val csr = host[GlobalCSRPlugin].logic.get
   
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
     val ipiAckAddr = alloc("ipiAck", attr = RO, readSensitive = true)
@@ -116,10 +118,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
     val rxProtoPreemptReq = proto.preemptReq
     rxProtoPreemptReq.setIdle()
+    
+    // Timer for CPU to exit critical section (unset BUSY), before the FPGA kills the
+    // process (sets killed === True) before sending IPI
+    val preemptTimer = Counter(regWidth bits)
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
+          preemptTimer.clear()
           when (preemptReq.valid) {
             lci.valid := True
             when (lci.ready) {
@@ -139,12 +146,19 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val unlockCheckBusy: State = new State {
         whenIsActive {
+          preemptTimer.increment()
           ul.valid := True
           when (ul.ready) {
             when (preemptCtrlCl.busy) {
-              // busy when we unset ready -- poll again
-              // TODO: kill process when busy is high for too long
-              goto(readBusyReq)
+              // busy when we unset ready
+              when (preemptTimer >= csr.ctrl.preemptCritSecTimeout) {
+                // timer has expired -- kill
+                ipiAck.killed := True
+                goto(issueIpi)
+              } otherwise {
+                // timer has not expired -- poll again
+                goto(readBusyReq)
+              }
             } otherwise {
               // busy already low but locked, we can issue IPI
               goto(issueIpi)
@@ -154,6 +168,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val readBusyReq: State = new State {
         whenIsActive {
+          preemptTimer.increment()
           lci.valid := True
           when (lci.ready) {
             goto(readBusy)
@@ -162,6 +177,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val readBusy: State = new State {
         whenIsActive {
+          preemptTimer.increment()
           lcia.freeRun()
           when (lcia.valid) {
             goto(unlockCheckBusy)
