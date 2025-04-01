@@ -108,6 +108,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
       rxDesc.ready := logic.rxAckSched
 
+      when (logic.rxFsm.isEntering(logic.rxFsm.idle)) {
+        // retire the buffered packet when we enter idle.  Two cases:
+        // - packet acknowledged with the scheduler
+        // - preemption request happened: we either
+        //   - have delivered the packet fully, thanks to the critical section, or
+        //   - need to forget the packet (not ACK'ed) i.e. preempted in gotPacket
+        rxHostCtrlInfo.valid := False
+      }
+
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
       val bufferedStreamTimeout = Reg(Bool()) init False
