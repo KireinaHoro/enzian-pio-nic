@@ -10,6 +10,7 @@ import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.eci.EciIntcInterface
 
 /**
   * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
@@ -70,8 +71,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     
     lci.assertPersistence()
     ul.assertPersistence()
-    
-    // TODO: interface to ECI gateway for IPI
+  
+    // muxed interface to ECI interrupt controller
+    val ipiToIntc = Stream(EciIntcInterface())
 
     lci.valid := False
     lci.payload := controlClAddr
@@ -113,6 +115,16 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiAck.killed := False
     ipiAck.xb5 := 0
     ipiAck.pid := preemptReq.payload
+    
+    ipiToIntc.cmd := 0
+    // 8 to 15 are allowed
+    // FIXME: should we use a different interrupt ID for killing a proc?
+    ipiToIntc.intId := 8
+
+    // affLvl0 is a bit mask, but we only send to one at a time
+    ipiToIntc.affLvl0 := UIntToOh(coreID % 16 + csr.ctrl.preemptCoreIDOffset, 16)
+    ipiToIntc.affLvl1 := coreID / 16
+    ipiToIntc.valid := False
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
@@ -186,8 +198,10 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val issueIpi: State = new State {
         whenIsActive {
-          // TODO: how to issue IPI?
-          goto(ipiWaitAck)
+          ipiToIntc.valid := True
+          when (ipiToIntc.ready) {
+            goto(ipiWaitAck)
+          }
         }
       }
       val ipiWaitAck: State = new State {
