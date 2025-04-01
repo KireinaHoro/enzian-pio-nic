@@ -366,6 +366,9 @@ type ECI_PACKET_RX is record
     dcs_c5_wd_pkt_vc    : std_logic_vector(3 downto 0);
     dcs_c5_wd_pkt_valid : std_logic;
     dcs_c5_wd_pkt_ready : std_logic;
+    -- RX VC 12
+    ipi_c12             : ECI_CHANNEL;
+    ipi_c12_ready       : std_logic;
 end record ECI_PACKET_RX;
 
 type ECI_PACKET_TX is record
@@ -399,6 +402,9 @@ type ECI_PACKET_TX is record
     dcs_c8_ready        : std_logic;
     dcs_c9              : ECI_CHANNEL;
     dcs_c9_ready        : std_logic;
+    -- TX VC 12
+    ipi_c12             : ECI_CHANNEL;
+    ipi_c12_ready       : std_logic;
 end record ECI_PACKET_TX;
 
 type DCS_AXI is record
@@ -521,6 +527,9 @@ signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
 signal cmac_reg_axil, nic_engine_axil, io_reg_axil_cdc : REGS_AXIL;
 signal cmac_reg_axil_narrow : REGS_AXIL_NARROW;
 
+signal intc_cmd : std_logic_vector(31 downto 0);
+signal intc_cmd_ready, intc_cmd_valid : std_logic;
+
 signal m0_bscan : BSCAN;
 
 signal link_eci_packet_rx : ECI_PACKET_RX;
@@ -566,13 +575,13 @@ clk <= clk_sys;
 
 i_eci_gateway : entity work.eci_gateway
   generic map (
-    TX_NO_CHANNELS      => 8,
-    RX_NO_CHANNELS      => 9,
-    RX_FILTER_VC        => ("00000100000", "00000010000", "00000110000", "00000100000", "00000010000", "01000000000", "00100000000", "00000001000", "00000000100"),
-    RX_FILTER_TYPE_MASK => ("11111", "11111", "11111", "00000", "00000", "00000", "00000", "00000", "00000"),
-    RX_FILTER_TYPE      => ("11000", "11000", "10100", "00000", "00000", "00000", "00000", "00000", "00000"),
-    RX_FILTER_CLI_MASK  => ((others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0')),
-    RX_FILTER_CLI       => ((others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'))
+    TX_NO_CHANNELS      => 9,
+    RX_NO_CHANNELS      => 10,
+    RX_FILTER_VC        => ("00000100000", "00000010000", "00000110000", "00000100000", "00000010000", "01000000000", "00100000000", "00000001000", "00000000100", "10000000000"),
+    RX_FILTER_TYPE_MASK => ("11111", "11111", "11111", "00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    RX_FILTER_TYPE      => ("11000", "11000", "10100", "00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    RX_FILTER_CLI_MASK  => ((others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0')),
+    RX_FILTER_CLI       => ((others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'))
 )
 port map (
     clk_sys                 => clk,
@@ -666,6 +675,7 @@ port map (
     rx_eci_channels(6)      => link_eci_packet_rx.dcs_c10,
     rx_eci_channels(7)      => link_eci_packet_rx.dcs_c5,
     rx_eci_channels(8)      => link_eci_packet_rx.dcs_c4,
+    rx_eci_channels(9)      => link_eci_packet_rx.ipi_c12,
 
     rx_eci_channels_ready(0)   => link_eci_packet_rx.c7_gsync_ready,
     rx_eci_channels_ready(1)   => link_eci_packet_rx.c6_gsync_ready,
@@ -676,6 +686,7 @@ port map (
     rx_eci_channels_ready(6)   => link_eci_packet_rx.dcs_c10_ready,
     rx_eci_channels_ready(7)   => link_eci_packet_rx.dcs_c5_ready,
     rx_eci_channels_ready(8)   => link_eci_packet_rx.dcs_c4_ready,
+    rx_eci_channels_ready(9)   => link_eci_packet_rx.ipi_c12_ready,
 
     tx_eci_channels(0)      => link_eci_packet_tx.c11_gsync,
     tx_eci_channels(1)      => link_eci_packet_tx.c10_gsync,
@@ -685,6 +696,7 @@ port map (
     tx_eci_channels(5)      => link_eci_packet_tx.dcs_c4,
     tx_eci_channels(6)      => link_eci_packet_tx.dcs_c8,
     tx_eci_channels(7)      => link_eci_packet_tx.dcs_c9,
+    tx_eci_channels(8)      => link_eci_packet_tx.ipi_c12,
 
     tx_eci_channels_ready(0)   => link_eci_packet_tx.c11_gsync_ready,
     tx_eci_channels_ready(1)   => link_eci_packet_tx.c10_gsync_ready,
@@ -693,7 +705,29 @@ port map (
     tx_eci_channels_ready(4)   => link_eci_packet_tx.dcs_c10_ready,
     tx_eci_channels_ready(5)   => link_eci_packet_tx.dcs_c4_ready,
     tx_eci_channels_ready(6)   => link_eci_packet_tx.dcs_c8_ready,
-    tx_eci_channels_ready(7)   => link_eci_packet_tx.dcs_c9_ready
+    tx_eci_channels_ready(7)   => link_eci_packet_tx.dcs_c9_ready,
+    tx_eci_channels_ready(8)   => link_eci_packet_tx.ipi_c12_ready
+);
+
+-- IPI controller on VC12.
+vc12_ipi_ctrl : entity work.eci_interrupt_controller
+port map (
+    clk                        => clk,
+    resetn                     => not reset,
+    eci_req                    => link_eci_packet_rx.ipi_c12,
+    eci_req_ready              => link_eci_packet_rx.ipi_c12_ready,
+    eci_rsp                    => link_eci_packet_tx.ipi_c12,
+    eci_rsp_ready              => link_eci_packet_tx.ipi_c12_ready,
+
+    input_tdata                => intc_cmd,
+    input_tlast                => '1',
+    input_tvalid               => intc_cmd_valid,
+    input_tready               => intc_cmd_ready,
+    -- ignore interrupts from the CPU
+    output_tdata               => open,
+    output_tlast               => open,
+    output_tvalid              => open,
+    output_tready              => '1'
 );
 
 -- GSYNC response handler, sends GSDN.
@@ -1480,6 +1514,14 @@ NicEngine_inst : entity work.NicEngine
     m_axis_tx_tdata => cmac_tx_axis.tdata,
     m_axis_tx_tlast => cmac_tx_axis.tlast,
     m_axis_tx_tkeep => cmac_tx_axis.tkeep,
+    
+    -- ECI interrupt controller
+    ipiToIntc_valid => intc_cmd_valid,
+    ipiToIntc_ready => intc_cmd_ready,
+    ipiToIntc_payload_cmd => intc_cmd(7 downto 0),
+    ipiToIntc_payload_intId => intc_cmd(11 downto 8),
+    ipiToIntc_payload_affLvl0 => intc_cmd(27 downto 12),
+    ipiToIntc_payload_affLvl1 => intc_cmd(31 downto 28),
 
     -- DCS odd interface
     s_axi_dcs_odd_awvalid => dcs_odd_axi.awvalid,
