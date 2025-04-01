@@ -60,6 +60,12 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
 
     val dcsIntfs = Seq(dcsEven, dcsOdd)
 
+    // muxed interface to ECI interrupt controller
+    val ipiToIntc = master(Stream(EciIntcInterface()))
+    val demuxedIpiIntfs = null +: Seq.fill(numWorkerCores)(Stream(EciIntcInterface()))
+    // FIXME: do we need to merge core masks?
+    ipiToIntc << StreamArbiterFactory().roundRobin.on(demuxedIpiIntfs.tail)
+
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
       dcs.cleanMaybeInvReq.assertPersistence()
@@ -231,7 +237,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     }, _.ul.address, 18, 19, _.unlockResp)
 
     // drive core control interface -- datapath per core
-    cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos lazyZip preempts foreach { case (((c, dmaNode, (dcsNode, preemptNodeOption), lci), lcia, ul, proto), preempt) => new Area {
+    cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos lazyZip preempts lazyZip demuxedIpiIntfs foreach { case (((c, dmaNode, (dcsNode, preemptNodeOption), lci), lcia, ul, proto), preempt, ipiCtrl) => new Area {
       val baseAddress = (1 + c.coreID) * 0x1000
       val alloc = host[pionic.ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
       val cio = c.logic.io
@@ -284,6 +290,7 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
         case Some(pn) =>
           preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
           preempt.driveControl(csrCtrl, alloc)
+          preempt.logic.ipiToIntc >> ipiCtrl
       }
     }.setName("bindProtoToCoreCtrl")
     }
