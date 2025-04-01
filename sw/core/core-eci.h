@@ -8,6 +8,7 @@
 #include "rt-common.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <stdint.h>
 
 #define __PIONIC_RT__
@@ -195,8 +196,6 @@ critical_section_start:
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
 
   uint64_t tx_base = (uint64_t)base + PIONIC_ECI_TX_BASE + tx_parity * PIONIC_ECI_CL_SIZE;
-
-  uint64_t payload_write_base;
   
   switch (desc->type) {
   case TY_BYPASS:
@@ -216,7 +215,6 @@ critical_section_start:
       break;
     }
     memcpy(host_tx + pionic_eci_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
-    payload_write_base = host_tx + pionic_eci_host_ctrl_info_bypass_size + sizeof(desc->bypass.header);
     break;
   
   case TY_ONCRPC_CALL;
@@ -228,13 +226,11 @@ critical_section_start:
     break;
   
     memcpy(host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
-    payload_write_base = host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size + sizeof(desc->oncrpc_call.args);
     break;
 
   case TY_ONCRPC_REPLY:
     pionic_eci_host_ctrl_info_onc_rpc_reply_ty_insert(tx_base, pionic_eci_onc_rpc_reply);
     memcpy(tx_base + pionic_eci_host_ctrl_info_onc_rpc_reply_size, desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
-    payload_write_base = host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size + sizeof(desc->oncrpc_call.args);
     break;
   
   default:
@@ -243,37 +239,31 @@ critical_section_start:
   }
   
 
-  if (desc->payload != NULL) {
-    TODO: ...
-  }
-  
-
-  uint64_t pkt_len = desc->len;
-
-  // write packet length to control
-  write64_fpgamem(ctx, *next_cl * 0x80 + tx_base, pkt_len);
-
-  // copy from prepared buffer
-  int first_write_size = pkt_len > 64 ? 64 : pkt_len;
-  copy_to_fpgamem(ctx, *next_cl * 0x80 + 0x40 + tx_base, desc->buf,
-                  first_write_size);
-  if (pkt_len > 64) {
-    copy_to_fpgamem(ctx, tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->buf + 64,
-                    pkt_len - 64);
+  if (desc->payload_buf != NULL) {
+    int first_read_size = min(PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_size);
+    memcpy((void *)(host_tx + PIONIC_ECI_INLINE_DATA_OFFSET), desc->payload_buf, first_read_size);
+    if (desc->payload_size > PIONIC_ECI_INLINE_DATA_SIZE) {
+      // XXX: user can overflow the overflow CLs, better give an error
+      memcpy(tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->payload_buf + PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_size - PIONIC_ECI_INLINE_DATA_SIZE);
+    }
   }
 
-  // always toggle CL
+  BARRIER  // make sure all data is written before we ring the doorbell
+
+  Fetch the other tx cL
+
+  // Flip the parity
   *tx_parity_ptr = !tx_parity;
 
-  // make sure packet data actually hit L2, before the FPGA invalidates
-  BARRIER
+  // Ring the doorbell
+  // TODO: read or prefetch?
+  (void) *((uint8_t *)((uint64_t)base + PIONIC_ECI_TX_BASE + !tx_parity * PIONIC_ECI_CL_SIZE))
 
-  // trigger actual sending by doing a dummy read on the next cacheline
-  read64_fpgamem(ctx, *next_cl * 0x80 + tx_base);
 
-  // make sure TX actually took effect before e.g. we attempt to RX
-  // make sure next_cl tracking is not out of sync due to reordering
-  BARRIER
+  BARRIER  // make sure !BUSY comes after
+  assert(FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10 != 0, "was not in the critical section?");
+critical_section_end:
+  pr_debug("eci_tx: exited critical section\n");
 }
 
 #endif  // __PIONIC_CORE_ECI_H__
