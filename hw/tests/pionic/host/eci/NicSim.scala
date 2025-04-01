@@ -356,6 +356,25 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       sleepCycles(20)
     }
   }
+  
+  test("rx-bypass-no-repeat") { implicit dut =>
+    // send one packet, receive twice -- no second packet should arrive
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+    val allocFactory = dut.host[ConfigDatabase].f
+    val globalBlock = allocFactory.readBack("global")
+    val maxTries = 5
+
+    // enable promisc mode
+    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+    
+    assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "should not have packet on standby yet")
+    
+    import PacketType._
+    val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
+    rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
+
+    assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
+  }
 
   test("rx-timestamped-queued") { implicit dut =>
     // test timestamp collection with oncrpc call
