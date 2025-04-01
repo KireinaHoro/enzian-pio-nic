@@ -106,11 +106,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
         rxHostCtrlInfo.payload := rxDesc.payload
         logic.rxPktBufSaved := hostRx.payload.buffer
       }
-
-      // we can only ACK packet, when the CPU has issued at least one read
-      // otherwise, when packet arrives but CPU is preempted before a read is ever issued,
-      // packet will be dropped and lost
-      rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
+      rxDesc.ready := logic.rxAckSched
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
@@ -181,6 +177,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // finish issuing
     // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
+
+    // ack packet to scheduler
+    val rxAckSched = CombInit(False)
 
     val rxReqs = Vec(False, 2)
     val txReqs = Vec(False, 2)
@@ -253,7 +252,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val gotPacket: State = new State {
         whenIsActive {
           when (hostRxReq) {
+            // we can only ACK packet, when the CPU has issued at least one read
+            // otherwise, when packet arrives but CPU is preempted before a read is ever issued,
+            // packet will be dropped and lost
+            rxAckSched := True
+
             goto(repeatPacket)
+          } elsewhen (preemptReq.valid) {
+            // since CPU did not read anything yet, nothing to invalidate
+            preemptReq.ready := True
+
+            // packet not ACK'ed to scheduler yet -- we can "forget" the packet
+            goto(idle)
           }
         }
       }
