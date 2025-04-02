@@ -57,10 +57,11 @@ case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
   val pid = PID()
 
-  def matchHeader(h: OncRpcCallHeader) = enabled &&
+  def matchHeader(h: OncRpcCallHeader, port: Bits) = enabled &&
     progNum === EndiannessSwap(h.progNum) &&
     progVer === EndiannessSwap(h.progVer) &&
-    proc === EndiannessSwap(h.proc)
+    proc === EndiannessSwap(h.proc) &&
+    listenPort.asBits === port
 }
 
 class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
@@ -150,7 +151,7 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
       meta.udpPayloadSize := currentUdpHeader.getPayloadSize
 
       // FIXME: this will create deep comb paths
-      val matches = serviceSlots.map(_.matchHeader(meta.hdr))
+      val matches = serviceSlots.map(_.matchHeader(meta.hdr, currentUdpHeader.hdr.dport))
       drop := !matches.reduceBalancedTree(_ || _)
       // TODO: also drop malformed packets (e.g. payload too short)
 
