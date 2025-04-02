@@ -37,6 +37,7 @@ class ConfigDatabase extends FiberPlugin {
 
   // scheduler default settings
   post("process id width", 16) // unrelated to actual PID width on Linux -- more like "PID group"
+  post("num service slots", 128)
 
   import ConfigDatabase._
 

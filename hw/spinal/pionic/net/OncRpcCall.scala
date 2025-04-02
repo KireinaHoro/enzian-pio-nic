@@ -48,9 +48,12 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
 
 case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val enabled = Bool()
+
   val progNum = Bits(32 bits)
   val progVer = Bits(32 bits)
   val proc = Bits(32 bits)
+  val listenPort = UInt(16 bits)
+
   val funcPtr = Bits(64 bits)
   val pid = PID()
 
@@ -60,8 +63,10 @@ case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
     proc === EndiannessSwap(h.proc)
 }
 
-class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) extends ProtoDecoder[OncRpcCallMetadata] {
+class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
+  
+  lazy val numServiceSlots = c[Int]("num service slots")
 
   // FIXME: can we fit more?
   postConfig("max onc rpc inline bytes", 4 * 12, action = ConfigDatabase.Unique)
@@ -70,19 +75,24 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("oncRpcStats", name, attr = AccessType.RO))
     }
-    val listenEnableBlock = alloc.block("oncRpcCtrl", "listenPort_enabled", numListenPorts)
-    val listenBlock = alloc.block("oncRpcCtrl", "listenPort", numListenPorts)
-    logic.listenPorts.zipWithIndex foreach { case (portSlot, idx) =>
-      busCtrl.driveAndRead(portSlot.valid, listenEnableBlock(idx)) init False
-      busCtrl.driveAndRead(portSlot.payload, listenBlock(idx))
+
+    // one port for each field + index register to latch into table
+    // XXX: interface is write-only.  SW needs to replicate this
+    val servicePort = OncRpcCallServiceDef()
+    servicePort.elements.foreach { case (name, field) =>
+      busCtrl.drive(field, alloc("oncRpcCtrl", s"service_$name", attr = AccessType.WO))
     }
-    val serviceBlockMap = OncRpcCallServiceDef().elements.foldLeft(Map[String, Seq[BigInt]]()) { case (acc, (name, _)) =>
-      acc + (name -> alloc.block("oncRpcCtrl", s"service_$name", numServiceSlots))
-    }
-    logic.serviceSlots.zipWithIndex foreach { case (serviceSlot, idx) =>
-      serviceSlot.elements.foreach { case (name, item) =>
-        busCtrl.driveAndRead(item, serviceBlockMap(name)(idx))
-      }
+
+    val serviceIdx = UInt(log2Up(numServiceSlots) bits)
+    serviceIdx := 0
+    val serviceIdxAddr = alloc("oncRpcCtrl", "service_idx", attr = AccessType.WO)
+    busCtrl.write(serviceIdx, serviceIdxAddr)
+    busCtrl.onWrite(serviceIdxAddr) {
+      // record service entry in table
+      logic.listenPorts(serviceIdx).payload := servicePort.listenPort
+      logic.listenPorts(serviceIdx).valid := servicePort.enabled
+      
+      logic.serviceSlots(serviceIdx) := servicePort
     }
   }
 
@@ -90,8 +100,17 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
     val udpHeader = Stream(UdpMetadata())
     val udpPayload = Axi4Stream(macIf.axisConfig)
 
-    val listenPorts = Vec.fill(numListenPorts)(Flow(UInt(16 bits)))
-    val serviceSlots = Vec.fill(numServiceSlots)(OncRpcCallServiceDef())
+    // we first check if the packet is from an UDP port that is listened on
+    // otherwise it gets into the bypass interface (to host)
+    // will also be read by [[Scheduler]]
+    val listenPorts = Vec.fill(numServiceSlots)(Reg(Flow(UInt(16 bits))))
+    listenPorts foreach { sl => sl.valid init False }
+
+    // we then try to match against a registered service
+    // if no (func, port) is found, packet is dropped
+    // will also be read by [[Scheduler]]
+    val serviceSlots = Vec.fill(numServiceSlots)(Reg(OncRpcCallServiceDef()))
+    serviceSlots foreach { sl => sl.enabled init False }
 
     from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
@@ -130,6 +149,7 @@ class OncRpcCallDecoder(numListenPorts: Int = 4, numServiceSlots: Int = 4) exten
       meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
       meta.udpPayloadSize := currentUdpHeader.getPayloadSize
 
+      // FIXME: this will create deep comb paths
       val matches = serviceSlots.map(_.matchHeader(meta.hdr))
       drop := !matches.reduceBalancedTree(_ || _)
       // TODO: also drop malformed packets (e.g. payload too short)
