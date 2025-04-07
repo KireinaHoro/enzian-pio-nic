@@ -101,19 +101,19 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
       val rxDesc = logic.demuxedRxDescs(idx).map(EciHostCtrlInfo.packFrom)
       rxHostCtrlInfo.valid init False
-      when (logic.rxFsm.isActive(logic.rxFsm.gotPacket)) {
+      when (logic.rxFsm.isEntering(logic.rxFsm.repeatPacket)) {
         rxHostCtrlInfo.valid := rxDesc.valid
         rxHostCtrlInfo.payload := rxDesc.payload
         logic.rxPktBufSaved := hostRx.payload.buffer
       }
-      rxDesc.ready := logic.rxAckSched
+      rxDesc.ready := logic.rxReadyToSched
 
       when (logic.rxFsm.isEntering(logic.rxFsm.idle)) {
         // retire the buffered packet when we enter idle.  Two cases:
         // - packet acknowledged with the scheduler
         // - preemption request happened: we either
         //   - have delivered the packet fully, thanks to the critical section, or
-        //   - need to forget the packet (not ACK'ed) i.e. preempted in gotPacket
+        //   - need to forget the packet (not ACK'ed) i.e. preempted in idle when hostRx.valid
         rxHostCtrlInfo.valid := False
       }
 
@@ -187,8 +187,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
 
-    // ack packet to scheduler
-    val rxAckSched = CombInit(False)
+    // ready signal to scheduler
+    // XXX: scheduler will dispatch to us, only when we are ready
+    val rxReadyToSched = CombInit(False)
 
     val rxReqs = Vec(False, 2)
     val txReqs = Vec(False, 2)
@@ -228,25 +229,41 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     val rxPktBufSaved = Reg(PacketBufDesc())
 
     // read start is when request for the selected CL is active
-    val hostRxReqReg = RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
-    hostRxReq := hostRxReqReg
+    hostRxReq := rxReqs(rxCurrClIdx.asUInt)
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         onEntry {
           rxNackTriggerInv.clear()
-          hostRxReqReg.clear()
         }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
           rxOverflowInvIssued.clear()
 
+          when (hostRxReq) {
+            goto(hostWaiting)
+          } elsewhen (preemptReq.valid) {
+            preemptReq.ready := True
+          }
+        }
+      }
+      val hostWaiting: State = new State {
+        whenIsActive {
+          rxReadyToSched := True
           when (hostRx.valid) {
+            // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
-            goto(gotPacket)
+            goto(repeatPacket)
           } elsewhen (rxNackTriggerInv) {
+            // packet did not come in time, we returned NACK
             goto(noPacket)
+          } elsewhen (preemptReq.valid) {
+            // since CPU did not read anything yet, nothing to invalidate
+            preemptReq.ready := True
+
+            // packet not ACK'ed to scheduler yet -- we can "forget" the packet
+            goto(idle)
           }
         }
       }
@@ -254,25 +271,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
         whenIsActive {
           when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
             goto(invalidateCtrl)
-          }
-        }
-      }
-      // we got the packet, but the CPU did not issue any read yet
-      val gotPacket: State = new State {
-        whenIsActive {
-          when (hostRxReq) {
-            // we can only ACK packet, when the CPU has issued at least one read
-            // otherwise, when packet arrives but CPU is preempted before a read is ever issued,
-            // packet will be dropped and lost
-            rxAckSched := True
-
-            goto(repeatPacket)
-          } elsewhen (preemptReq.valid) {
-            // since CPU did not read anything yet, nothing to invalidate
-            preemptReq.ready := True
-
-            // packet not ACK'ed to scheduler yet -- we can "forget" the packet
-            goto(idle)
           }
         }
       }
