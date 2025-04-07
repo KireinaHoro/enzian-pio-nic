@@ -27,14 +27,14 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
 
     // activate service
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort"), dport.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort_enabled"), 1.toBytes)
-
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytes)
+
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), 0.toBytes)
 
     // wait for mask and service configs to take effect
     sleepCycles(20)
