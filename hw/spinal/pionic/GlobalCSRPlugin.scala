@@ -23,6 +23,7 @@ class GlobalCSRPlugin extends PioNicPlugin {
       val version = Bits(regWidth bits)
       val cycles = CycleClock(regWidth bits)
       val rxOverflowCount = UInt(regWidth bits)
+      val rxSchedDroppedCount = UInt(regWidth bits)
     }
 
     val gitVersion = c[BigInt]("git version")
