@@ -27,7 +27,7 @@
 #ifdef DEBUG
 #define pr_debug printf
 #else
-#define pr_debug
+#define pr_debug(...)
 #endif  // DEBUG
 
 #define pr_flush() fflush(stdout);

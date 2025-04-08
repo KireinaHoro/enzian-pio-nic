@@ -3,7 +3,7 @@
 
 #include "hal.h"
 
-int start_cmac(pionic_ctx_t ctx, uint64_t base, bool loopback);
-void stop_cmac(pionic_ctx_t ctx, uint64_t base);
+int start_cmac(cmac_t *cmac, bool loopback);
+void stop_cmac(cmac_t *cmac);
 
 #endif // __PIONIC_CMAC_H__

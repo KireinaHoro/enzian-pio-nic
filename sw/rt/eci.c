@@ -12,9 +12,12 @@
 #include "diag.h"
 #include "hal.h"
 
-#include "../../hw/gen/eci/config.h"
-#include "../../hw/gen/eci/regs.h"
+#include "config.h"
 #include "debug.h"
+#include "regblock_bases.h"
+
+#include "gen/pionic_eci_global.h"
+#include "gen/cmac.h"
 
 #define CMAC_BASE 0x200000UL
 
@@ -32,7 +35,8 @@
 
 struct pionic_ctx {
   void *shell_regs_region;
-  void *nic_regs_region;
+  pionic_eci_global_t global;
+  cmac_t cmac;
   void *mem_region;
 
   struct {
@@ -48,47 +52,6 @@ struct pionic_ctx {
 
   uint32_t page_size;
 };
-
-// TODO: these MMIO functions are to be removed after migrating everthing (e.g. cmac) to Mackerel
-
-// HAL functions that access regs region (over the ECI IO bridge)
-void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
-#ifdef DEBUG_REG
-  pr_debug("[Reg] WQ %#lx <- %#lx\n", addr, reg);
-#endif
-  ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8] = reg;
-}
-
-uint64_t read64(pionic_ctx_t ctx, uint64_t addr) {
-#ifdef DEBUG_REG
-  pr_debug("[Reg] RQ %#lx -> ", addr);
-  pr_flush();
-#endif
-  uint64_t reg = ((volatile uint64_t *)ctx->nic_regs_region)[addr / 8];
-#ifdef DEBUG_REG
-  printf("%#lx\n", reg);
-#endif
-  return reg;
-}
-
-void write32(pionic_ctx_t ctx, uint64_t addr, uint32_t reg) {
-#ifdef DEBUG_REG
-  pr_debug("[Reg] WD %#lx <- %#x\n", addr, reg);
-#endif
-  ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4] = reg;
-}
-
-uint32_t read32(pionic_ctx_t ctx, uint64_t addr) {
-#ifdef DEBUG_REG
-  pr_debug("[Reg] RD %#lx -> ", addr);
-  pr_flush();
-#endif
-  uint32_t reg = ((volatile uint32_t *)ctx->nic_regs_region)[addr / 4];
-#ifdef DEBUG_REG
-  pr_debug("%#x\n", reg);
-#endif
-  return reg;
-}
 
 static void write64_shell(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
@@ -116,11 +79,10 @@ static void cl_hit_inv(pionic_ctx_t ctx, uint64_t phys_addr) {
 int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   int ret = -1;
 
-  printf("Initializing ECI PIO NIC...\n");
+  pr_info("Initializing ECI PIO NIC...\n");
 
   pionic_ctx_t ctx = *usr_ctx = malloc(sizeof(struct pionic_ctx));
   ctx->page_size = sysconf(_SC_PAGESIZE);
-  ctx->nic_regs_region = MAP_FAILED;
   ctx->shell_regs_region = MAP_FAILED;
   ctx->mem_region = MAP_FAILED;
 
@@ -130,17 +92,18 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     goto fail;
   }
 
-  printf("Opened /dev/mem\n");
+  pr_info("Opened /dev/mem\n");
 
   // map regs for nic engine
-  ctx->nic_regs_region =
+  void *nic_regs_region =
       mmap(NULL, PIONIC_REGS_SIZE(ctx), PROT_READ | PROT_WRITE, MAP_SHARED, fd,
            PIONIC_REGS_BASE);
-  if (ctx->nic_regs_region == MAP_FAILED) {
+  if (nic_regs_region == MAP_FAILED) {
     perror("mmap regs space");
     goto fail;
   }
-  printf("Mapped NIC regs region with /dev/mem\n");
+  pionic_eci_global_initialize(&ctx->global, nic_regs_region);
+  pr_info("Mapped NIC regs region with /dev/mem\n");
 
   // map regs for shell
   ctx->shell_regs_region = mmap(NULL, ctx->page_size, PROT_READ | PROT_WRITE,
@@ -149,20 +112,20 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
     perror("mmap shell regs space");
     goto fail;
   }
-  printf("Mapped shell regs region with /dev/mem\n");
+  pr_info("Mapped shell regs region with /dev/mem\n");
 
   close(fd);
 
   // read out shell version number
-  printf("Enzian shell version: %08lx\n",
+  pr_info("Enzian shell version: %08lx\n",
          read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
 
   // TODO: implement resync
 
   // read out NicEngine version number
-  uint64_t ver = read64(ctx, PIONIC_GLOBAL_VERSION);
-  uint64_t cur_time = read64(ctx, PIONIC_GLOBAL_CYCLES);
-  printf("NicEngine version: %08lx, current timestamp %ld\n", ver, cur_time);
+  uint64_t ver = pionic_eci_global_version_rd(&ctx->global);
+  uint64_t cur_time = pionic_eci_global_cycles_rd(&ctx->global);
+  pr_info("NicEngine version: %08lx, current timestamp %ld\n", ver, cur_time);
 
   fd = ctx->fpgamem_fd = open("/dev/fpgamem", O_RDWR);
   if (fd < 0) {
@@ -183,11 +146,12 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   pionic_set_core_mask(ctx, (1 << PIONIC_NUM_CORES) - 1);
 
   // verify
-  assert(read64(ctx, PIONIC_GLOBAL_RX_BLOCK_CYCLES) == 200);
+  assert(pionic_get_rx_block_cycles(ctx) == 200);
 
   // configure CMAC
-  if (start_cmac(ctx, CMAC_BASE, loopback)) {
-    printf("Failed to start CMAC\n");
+  cmac_initialize(&ctx->cmac, CMAC_BASE);
+  if (start_cmac(&ctx->cmac, loopback)) {
+    pr_err("Failed to start CMAC\n");
     goto fail;
   }
 
@@ -247,10 +211,13 @@ fail:
   return ret;
 }
 
-void pionic_set_rx_block_cycles(pionic_ctx_t ctx, int cycles) {
-  write64(ctx, PIONIC_GLOBAL_RX_BLOCK_CYCLES, cycles);
+void pionic_set_rx_block_cycles(pionic_ctx_t ctx, uint64_t cycles) {
+  pionic_eci_global_rx_block_cycles_wr(&ctx->global, cycles)
+  pr_debug("Rx block cycles: %d\n", cycles);
+}
 
-  printf("Rx block cycles: %d\n", cycles);
+uint64_t pionic_get_rx_block_cycles(pionic_ctx_t ctx) {
+  return pionic_eci_global_rx_block_cycles_rd(&ctx->global);
 }
 
 void pionic_set_core_mask(pionic_ctx_t ctx, uint64_t mask) {
