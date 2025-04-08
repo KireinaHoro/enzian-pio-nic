@@ -21,7 +21,24 @@ case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
   /** PID of process on the CPU -- not necessarily corresponding to actual process IDs on Linux */
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
-  val maxThreads = Bits(log2Up(c[Int]("num cores")) bits)
+  val maxThreads = UInt(log2Up(c[Int]("num cores")) bits)
+}
+
+/**
+  * Level of urgency on preempting a core.  Core preemption is triggered on packet arrival (otherwise a non-cooperative
+  * core can never be preempted), but actually executed in the pop logic to serialize with blocking request delivery.
+  * This command is used to convey intention between the two parts.
+  *
+  *  - [[idle]]: only preempt, when the core is in the IDLE process (i.e. no services)
+  *  - [[ready]]: preempt, when the core is stuck in a read (i.e. not currently processing a request)
+  *  - [[force]]: kill a running process due to timeout
+  */
+object PreemptCmdType extends SpinalEnum {
+  val idle, ready, force = newElement()
+}
+case class PreemptCmd()(implicit c: ConfigDatabase) extends Bundle {
+  val ty = PreemptCmdType()
+  val pid = PID()
 }
 
 /**
@@ -92,16 +109,21 @@ class Scheduler extends PioNicPlugin {
 
     case class QueueMetadata(offset: Int, capacity: Int)(implicit c: ConfigDatabase) extends Bundle {
       val head, tail = MemAddr
-      val full = Bool()
+      val fill = UInt(log2Up(pktsPerProc) bits)
 
+      def full = fill === capacity
       def empty = head === tail && (!full || Bool(capacity == 0))
       def bound = offset + capacity - 1
+      def almostFull = {
+        // TODO: more flexible metric
+        2 * fill >= capacity
+      }
 
       // actions called on a reg to mutate
       def initEmpty: Unit = {
         head init offset
         tail init offset
-        full init capacity == 0
+        fill init 0
       }
 
       private def advance(ptr: UInt): UInt = {
@@ -117,13 +139,14 @@ class Scheduler extends PioNicPlugin {
 
       def pushOne(): Unit = {
         assert(!full, "trying to push one into a full queue")
-        full := advance(tail) === head
+        advance(tail)
+        fill := fill + 1
       }
 
       def popOne(): Unit = {
         assert(!empty, "trying to pop one from an empty queue")
         advance(head)
-        full := False
+        fill := fill - 1
       }
     }
     val queueMetas = Vec.tabulate(numProcs+1) { idx =>
@@ -136,8 +159,13 @@ class Scheduler extends PioNicPlugin {
 
     // process ID to select which queue the incoming packet goes into
     val procSelOh = procDefs.map { pd =>
-      pd.pid === rxMeta.pid
+      pd.enabled && pd.pid === rxMeta.pid
     }.asBits()
+
+    // decoder pipeline should have filtered out packets that do not belong to
+    // an enabled process
+    assert(CountOne(procSelOh) === 1, "not exactly one proc can handle a packet")
+
     val procTblIdx = OHToUInt(procSelOh)
     val rxProcDef = procDefs(procTblIdx)
     val rxQueueMeta = queueMetas(procTblIdx)
@@ -145,6 +173,21 @@ class Scheduler extends PioNicPlugin {
     // report scheduler packet drop
     val rxSchedDrop = CombInit(False)
     csr.status.rxSchedDroppedCount := Counter(regWidth bits, rxSchedDrop)
+
+    // map of which process is running on which core
+    val corePidMap = Vec.fill(numWorkerCores) {
+      val ret = Reg(PID())
+      // all start in IDLE -- preempt request will move them away
+      ret.bits init 0
+    }
+
+    // core map for the rx process
+    val rxProcCoreMap = corePidMap.map(_ === procTblIdx).asBits()
+    val rxProcCurrThrCount = CountOne(rxProcCoreMap)
+
+    // preempt request to popping side
+    val rxPreemptReq = Reg(Flow(PreemptCmd()))
+    rxPreemptReq.valid := False
 
     rxMeta.setBlocked()
     when (rxMeta.valid) {
@@ -160,19 +203,25 @@ class Scheduler extends PioNicPlugin {
         rxQueueMeta.pushOne()
       }
 
-      // TODO: new packet arrived, select a core to preempt:
-      //       - no process assigned to this queue, and there are idle cores available
-      //       - queue almost full (V_arrival > V_consume, need to scale up)
+      // new packet arrived, try to select a core to preempt
+      // but do not block the RX process
+      when (rxProcCurrThrCount < rxProcDef.maxThreads) {
+        rxPreemptReq.pid := rxMeta.pid
+
+        when (rxProcCoreMap === 0) {
+          // no process assigned to this queue -- idle preempt
+          rxPreemptReq.ty := PreemptCmdType.idle
+          rxPreemptReq.valid := True
+        } elsewhen (rxQueueMeta.almostFull) {
+          // queue almost full (V_arrival > V_consume, need to scale up)
+          // preempt a non-idle, ready core
+          rxPreemptReq.ty := PreemptCmdType.ready
+          rxPreemptReq.valid := True
+        }
+      }
 
       // we either pushed the packet or dropped it, ack
       rxMeta.ready := True
-    }
-
-    // map of which process is running on which core
-    val corePidMap = Vec.fill(numWorkerCores) {
-      val ret = Reg(PID())
-      // all start in IDLE -- preempt request will move them away
-      ret.bits init 0
     }
 
     // each core can raise a pop request, to remove one packet from the queues
@@ -180,6 +229,17 @@ class Scheduler extends PioNicPlugin {
     val arbitratedPopReq = StreamArbiterFactory().roundRobin.on(popReqs)
     val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
     arbitratedPopReq.ready := True
+
+    // victim core selection, based on preemption type
+    val coreIdleMap = corePidMap.map(_ === 0).asBits()
+    val coreReadyMap = coreMeta.map(_.ready).asBits()
+
+    val selectedCoreMap = rxPreemptReq.ty.mux(
+      PreemptCmdType.idle -> coreIdleMap,
+      PreemptCmdType.ready -> coreReadyMap,
+      default -> B(0),
+    )
+    val victimCoreIdx = OHToUInt(OHMasking.firstV2(selectedCoreMap))
 
     0 until numWorkerCores foreach { idx => new Area {
       val toCore = coreMeta(idx)
@@ -194,7 +254,10 @@ class Scheduler extends PioNicPlugin {
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when(toCore.ready && !queueMeta.empty) {
+            when (rxPreemptReq.valid && victimCoreIdx(idx)) {
+              // we are selected as victim
+              goto(preempt)
+            } elsewhen (toCore.ready && !queueMeta.empty) {
               // we can ask for a request to be popped
               popReq.payload := queueMeta.head
               popReq.valid := True
@@ -202,6 +265,16 @@ class Scheduler extends PioNicPlugin {
                 // queue mem read granted.  readSync has one cycle latency
                 goto(readPoppedReq)
               }
+            }
+          }
+        }
+        val preempt: State = new State {
+          whenIsActive {
+            corePreempt(idx).payload := rxPreemptReq.pid
+            corePreempt(idx).valid := True
+            when (corePreempt(idx).ready) {
+              rxPreemptReq.valid := False
+              goto(idle)
             }
           }
         }
