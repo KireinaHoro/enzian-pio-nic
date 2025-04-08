@@ -72,20 +72,22 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
     }
 
     // round-robin dispatch to all other (non-bypass) cores that are enabled
-    // TODO: replace with Schevduler
+    // TODO: replace with Scheduler
     val schedOutputs = StreamDispatcherWithEnable(
       input = StreamArbiterFactory().roundRobin.on(schedulerUpstreams),
       outputCount = numWorkerCores,
       enableMask = csr.ctrl.workerCoreMask,
     )
-    
+
     // TODO: actually drive preemptReq; tied off for now
     preempts foreach { pu => pu.preemptReq.setIdle() }
     
     // drive packet descriptors interface of core control modules
     cores.head.logic.io.igMetadata << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
-    cores.tail zip schedOutputs foreach { case (c, so) =>
-      c.logic.io.igMetadata << so
+    cores.tail zip schedOutputs foreach { case (cc, so) =>
+      // FIXME: we buffer the max inflight number of packets here; this will be inside [[Scheduler]]
+      // FIXME: we are buffering per core here instead of per process
+      cc.logic.io.igMetadata << so.queue(c[Int]("max rx pkts in flight per process"))
     }
   }
 }
