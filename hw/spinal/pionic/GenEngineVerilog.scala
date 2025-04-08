@@ -23,7 +23,10 @@ object GenEngineVerilog {
       new IpDecoder,
       new UdpDecoder,
       new OncRpcCallDecoder,
+      // sched & dispatch
+      new Scheduler,
       new RxPacketDispatch,
+      // DMA to packet buffer
       new AxiDmaPlugin,
     ) ++ Seq.tabulate(c[Int]("num cores") + 1)(new CoreControlPlugin(_))
   }

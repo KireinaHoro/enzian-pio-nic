@@ -1,6 +1,6 @@
 package pionic
 
-import pionic.net.OncRpcCallMetadata
+import pionic.net.{OncRpcCallMetadata, ProtoPacketDescType, TaggedProtoPacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
@@ -21,7 +21,7 @@ case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
   /** PID of process on the CPU -- not necessarily corresponding to actual process IDs on Linux */
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
-  val maxThreads = UInt(log2Up(c[Int]("num cores")) bits)
+  val maxThreads = UInt(log2Up(c[Int]("num cores") + 1) bits)
 }
 
 /**
@@ -35,10 +35,6 @@ case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
   */
 object PreemptCmdType extends SpinalEnum {
   val idle, ready, force = newElement()
-}
-case class PreemptCmd()(implicit c: ConfigDatabase) extends Bundle {
-  val ty = PreemptCmdType()
-  val pid = PID()
 }
 
 /**
@@ -54,6 +50,16 @@ case class PreemptCmd()(implicit c: ConfigDatabase) extends Bundle {
 class Scheduler extends PioNicPlugin {
   lazy val numProcs = c[Int]("num processes")
   lazy val csr = host[GlobalCSRPlugin].logic.get
+  lazy val pktsPerProc = c[Int]("max rx pkts in flight per process")
+
+  def MemAddr = UInt(log2Up(pktsPerProc * numProcs) bits)
+  def ProcTblIdx = UInt(log2Up(numProcs+1) bits)
+
+  case class PreemptCmd()(implicit c: ConfigDatabase) extends Bundle {
+    val ty = PreemptCmdType()
+    val pid = PID()
+    val idx = ProcTblIdx
+  }
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // max number of threads per process (degree of parallelism)
@@ -62,7 +68,7 @@ class Scheduler extends PioNicPlugin {
       busCtrl.drive(field, alloc("sched", s"proc_$name", attr = AccessType.WO))
     }
     
-    val procDefIdx = UInt(log2Up(numProcs) bits)
+    val procDefIdx = ProcTblIdx
     procDefIdx := 0
     val procDefIdxAddr = alloc("sched", "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
@@ -74,11 +80,11 @@ class Scheduler extends PioNicPlugin {
 
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
-    val rxMeta = Stream(OncRpcCallMetadata())
+    val rxMeta = Stream(TaggedProtoPacketDesc())
 
     /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
       * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
-    val coreMeta = Seq.fill(numWorkerCores)(Stream(OncRpcCallMetadata()))
+    val coreMeta = Seq.fill(numWorkerCores)(Stream(TaggedProtoPacketDesc()))
 
     /**
       * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
@@ -89,7 +95,9 @@ class Scheduler extends PioNicPlugin {
       * Will be stalled (ready === False) when a preemption is in progress.
       */
     val corePreempt = Seq.fill(numWorkerCores)(Stream(PID()))
-    
+
+    awaitBuild()
+
     // one per-process queue for every entry in procDefs
     // since all cores start with idx 0 in this table, table entry 0 should be a special "IDLE" process
     val procDefs = Vec.fill(numProcs+1) {
@@ -98,14 +106,9 @@ class Scheduler extends PioNicPlugin {
       ret.maxThreads init numWorkerCores
       ret
     }
-    
-    awaitBuild()
-    
-    // per-process queues are in memory
-    val pktsPerProc = c[Int]("max rx pkts in flight per process")
-    val queueMem = Mem(OncRpcCallMetadata(), numProcs * pktsPerProc)
 
-    def MemAddr = UInt(log2Up(pktsPerProc * numProcs) bits)
+    // per-process queues are in memory
+    val queueMem = Mem(TaggedProtoPacketDesc(), numProcs * pktsPerProc)
 
     case class QueueMetadata(offset: Int, capacity: Int)(implicit c: ConfigDatabase) extends Bundle {
       val head, tail = MemAddr
@@ -113,7 +116,6 @@ class Scheduler extends PioNicPlugin {
 
       def full = fill === capacity
       def empty = head === tail && (!full || Bool(capacity == 0))
-      def bound = offset + capacity - 1
       def almostFull = {
         // TODO: more flexible metric
         2 * fill >= capacity
@@ -128,7 +130,7 @@ class Scheduler extends PioNicPlugin {
 
       private def advance(ptr: UInt): UInt = {
         val newPtr = ptr.clone
-        when (ptr === bound) {
+        when (ptr + 1 === offset + capacity) {
           newPtr := offset
         } otherwise {
           newPtr := ptr + 1
@@ -159,7 +161,7 @@ class Scheduler extends PioNicPlugin {
 
     // process ID to select which queue the incoming packet goes into
     val procSelOh = procDefs.map { pd =>
-      pd.enabled && pd.pid === rxMeta.pid
+      pd.enabled && pd.pid === rxMeta.metadata.oncRpcCall.pid
     }.asBits()
 
     // decoder pipeline should have filtered out packets that do not belong to
@@ -176,9 +178,8 @@ class Scheduler extends PioNicPlugin {
 
     // map of which process is running on which core
     val corePidMap = Vec.fill(numWorkerCores) {
-      val ret = Reg(PID())
       // all start in IDLE -- preempt request will move them away
-      ret.bits init 0
+      Reg(ProcTblIdx) init 0
     }
 
     // core map for the rx process
@@ -191,6 +192,8 @@ class Scheduler extends PioNicPlugin {
 
     rxMeta.setBlocked()
     when (rxMeta.valid) {
+      assert(rxMeta.ty === ProtoPacketDescType.oncRpcCall, "scheduler does not support other req types yet")
+
       // received packet: push into memory
       when (rxQueueMeta.full) {
         // must drop packet since destination is full
@@ -206,7 +209,8 @@ class Scheduler extends PioNicPlugin {
       // new packet arrived, try to select a core to preempt
       // but do not block the RX process
       when (rxProcCurrThrCount < rxProcDef.maxThreads) {
-        rxPreemptReq.pid := rxMeta.pid
+        rxPreemptReq.pid := rxMeta.metadata.oncRpcCall.pid
+        rxPreemptReq.idx := procTblIdx
 
         when (rxProcCoreMap === 0) {
           // no process assigned to this queue -- idle preempt
@@ -234,12 +238,11 @@ class Scheduler extends PioNicPlugin {
     val coreIdleMap = corePidMap.map(_ === 0).asBits()
     val coreReadyMap = coreMeta.map(_.ready).asBits()
 
-    val selectedCoreMap = rxPreemptReq.ty.mux(
+    val victimCoreMap = rxPreemptReq.ty.mux(
       PreemptCmdType.idle -> coreIdleMap,
       PreemptCmdType.ready -> coreReadyMap,
       default -> B(0),
     )
-    val victimCoreIdx = OHToUInt(OHMasking.firstV2(selectedCoreMap))
 
     0 until numWorkerCores foreach { idx => new Area {
       val toCore = coreMeta(idx)
@@ -251,10 +254,12 @@ class Scheduler extends PioNicPlugin {
       val queueIdx = corePidMap(idx)
       val queueMeta = queueMetas(queueIdx)
 
+      corePreempt(idx).setIdle()
+
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (rxPreemptReq.valid && victimCoreIdx(idx)) {
+            when (rxPreemptReq.valid && victimCoreMap(idx)) {
               // we are selected as victim
               goto(preempt)
             } elsewhen (toCore.ready && !queueMeta.empty) {
@@ -274,6 +279,7 @@ class Scheduler extends PioNicPlugin {
             corePreempt(idx).valid := True
             when (corePreempt(idx).ready) {
               rxPreemptReq.valid := False
+              corePidMap(idx) := rxPreemptReq.idx
               goto(idle)
             }
           }

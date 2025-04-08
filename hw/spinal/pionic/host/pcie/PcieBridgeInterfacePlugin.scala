@@ -110,6 +110,8 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
     host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc))
 
     host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc)
+
+    host[Scheduler].driveControl(busCtrl, alloc)
   }
 
   during build {
