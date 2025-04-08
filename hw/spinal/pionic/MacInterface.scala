@@ -64,8 +64,10 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
     // extract frame length
     val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
     val frameLenCdc = frameLen.clone
-    // XXX: not supposed to buffer a lot here -- use 2 as bare minimum
-    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, 2, cmacRxClock, clockDomain)
+    // XXX: this is only buffering packet length.  We should never drop anything here: the decoder pipeline
+    //      should decode everything.  The place where a drop is allowed to happen, is in the scheduler
+    // this FIFO needs to hold max burst rate * inter packet gap on decoder pipeline
+    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, 32, cmacRxClock, clockDomain)
 
     // profile timestamps
     p.profile(
