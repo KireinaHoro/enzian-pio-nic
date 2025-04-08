@@ -2,7 +2,8 @@
 #include "hal.h"
 #include "profile.h"
 
-#include "regs.h"
+#include "gen/pionic_eci_global.h"
+#include "gen/pionic_eci_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,38 +12,32 @@
 #include <signal.h>
 #include <assert.h>
 
-void pionic_dump_glb_stats(pionic_ctx_t ctx) {
-#define READ_PRINT(name) printf("%s\t: %#lx\n", #name, read64(ctx, name));
-  READ_PRINT(PIONIC_GLOBAL_RX_OVERFLOW_COUNT)
+void pionic_dump_glb_stats(pionic_global_t *glb) {
+#define READ_PRINT(name) printf("%s\t: %#lx\n", #name, pionic_global(name ## _rd)(glb))
+  READ_PRINT(rx_overflow_count);
 #undef READ_PRINT
 }
 
-void pionic_dump_core_stats(pionic_ctx_t ctx, int cid) {
-#define READ_PRINT(name) printf("core %d: %s\t: %#lx\n", cid, #name, read64(ctx, name(cid)));
-  READ_PRINT(PIONIC_CONTROL_RX_PACKET_COUNT)
-  READ_PRINT(PIONIC_CONTROL_TX_PACKET_COUNT)
-  READ_PRINT(PIONIC_CONTROL_RX_DMA_ERROR_COUNT)
-  READ_PRINT(PIONIC_CONTROL_TX_DMA_ERROR_COUNT)
-  READ_PRINT(PIONIC_CONTROL_RX_ALLOC_OCCUPANCY_UP_TO_128)
-  READ_PRINT(PIONIC_CONTROL_RX_ALLOC_OCCUPANCY_UP_TO_1518)
-  READ_PRINT(PIONIC_CONTROL_RX_ALLOC_OCCUPANCY_UP_TO_9618)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__ENTRY)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_QUEUE)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__READ_START)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_DMA_WRITE)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_READ)
-  READ_PRINT(PIONIC_CONTROL_HOST_RX_LAST_PROFILE__AFTER_RX_COMMIT)
-  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__ACQUIRE)
-  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_TX_COMMIT)
-  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__AFTER_DMA_READ)
-  READ_PRINT(PIONIC_CONTROL_HOST_TX_LAST_PROFILE__EXIT)
+void pionic_dump_core_stats(pionic_core_t *core) {
+#define READ_PRINT(name) printf("core: %s\t: %#lx\n", #name, pionic_core(name ## _rd)(core))
+  READ_PRINT(rx_packet_count);
+  READ_PRINT(tx_packet_count);
+  READ_PRINT(rx_dma_error_count);
+  READ_PRINT(tx_dma_error_count);
+  READ_PRINT(rx_alloc_occupancy_up_to_128);
+  READ_PRINT(rx_alloc_occupancy_up_to_1518);
+  READ_PRINT(rx_alloc_occupancy_up_to_9618);
+  READ_PRINT(rx_fsm_state);
+  READ_PRINT(rx_curr_cl_idx);
+  READ_PRINT(tx_fsm_state);
+  READ_PRINT(tx_curr_cl_idx);
 #undef READ_PRINT
 }
 
-void pionic_reset_pkt_alloc(pionic_ctx_t ctx, int cid) {
-  write64(ctx, PIONIC_CONTROL_ALLOC_RESET(cid), 1);
+void pionic_reset_pkt_alloc(pionic_core_t *core) {
+  pionic_core(alloc_reset_wr)(core, 1);
   usleep(1); // arbitrary
-  write64(ctx, PIONIC_CONTROL_ALLOC_RESET(cid), 0);
+  pionic_core(alloc_reset_wr)(core, 0);
 }
 
 // handle SIGBUS and resume -- https://stackoverflow.com/a/19416424/5520728

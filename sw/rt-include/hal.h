@@ -3,12 +3,31 @@
 
 #include "api.h"
 
-// TODO: these MMIO functions are to be removed after migrating everthing (e.g. cmac) to Mackerel
+// Mackerel
+#ifndef NIC_IMPL
 
-// HAL functions that access regs region (over the ECI IO bridge)
-void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg);
-uint64_t read64(pionic_ctx_t ctx, uint64_t addr);
-void write32(pionic_ctx_t ctx, uint64_t addr, uint32_t reg);
-uint32_t read32(pionic_ctx_t ctx, uint64_t addr);
+#error "NIC_IMPL must be defined as eci or pcie"
+
+#elif NIC_IMPL == eci
+
+struct pionic_eci_global_t;
+typedef struct pionic_eci_global_t pionic_global_t;
+#define pionic_global(f) pionic_eci_global_ ## f
+
+struct pionic_eci_core_t;
+typedef struct pionic_eci_core_t pionic_core_t;
+#define pionic_core(f) pionic_eci_core_ ## f
+
+#elif NIC_IMPL == pcie
+
+struct pionic_pcie_global_t;
+typedef struct pionic_pcie_global_t pionic_global_t;
+#define pionic_global(f) pionic_pcie_global_ ## f
+
+struct pionic_pcie_core_t;
+typedef struct pionic_pcie_core_t pionic_core_t;
+#define pionic_core(f) pionic_pcie_core_ ## f
+
+#endif
 
 #endif // __PIONIC_HAL_H__

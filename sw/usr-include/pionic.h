@@ -3,7 +3,6 @@
 #ifndef __PIONIC_H__
 #define __PIONIC_H__
 
-#include <cstdint>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

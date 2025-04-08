@@ -3,3 +3,5 @@
 **/*.o
 **/.deps/
 **/.*.swp
+cmake-build-*
+build/
