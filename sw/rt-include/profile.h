@@ -1,6 +1,8 @@
 #ifndef __PIONIC_PROFILE_H__
 #define __PIONIC_PROFILE_H__
 
+#include <stdint.h>
+
 #include "hal.h"
 
 typedef struct {

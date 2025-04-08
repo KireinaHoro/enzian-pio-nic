@@ -55,6 +55,11 @@ typedef struct {
   size_t payload_len;
 } pionic_pkt_desc_t;
 
+typedef struct {
+  uint8_t rx_next_cl;
+  uint8_t tx_next_cl;
+} pionic_core_state_t;
+
 #ifndef __PIONIC_RT__
 
 // --- deprecated for now ---
