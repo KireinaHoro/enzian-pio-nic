@@ -228,8 +228,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // - driving mem offset for packet buffer load
     val rxPktBufSaved = Reg(PacketBufDesc())
 
-    // read start is when request for the selected CL is active
-    hostRxReq := rxReqs(rxCurrClIdx.asUInt)
+    // read start is when request for the selected CL is active for the first time
+    val hostFirstRead = Reg(Bool()) init False
+    hostRxReq := hostFirstRead
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -240,8 +241,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
           rxOverflowInvIssued.clear()
+          hostFirstRead.clear()
 
-          when (hostRxReq) {
+          when (rxReqs(rxCurrClIdx.asUInt)) {
+            hostFirstRead.set()
             goto(hostWaiting)
           } elsewhen (preemptReq.valid) {
             preemptReq.ready := True
