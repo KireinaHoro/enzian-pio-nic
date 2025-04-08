@@ -8,7 +8,7 @@
   outputs = inputs@{ nixpkgs, flake-utils, ... }:
   with builtins;
   with nixpkgs.lib;
-  flake-utils.lib.eachSystem [ "aarch64-darwin" ] (system: let
+  flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
     pkgs = import nixpkgs { inherit system; };
     millw = pkgs.stdenv.mkDerivation {
       name = "millw";
