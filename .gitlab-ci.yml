@@ -34,15 +34,18 @@ build-sw:
   extends: .docker-image-sw
   stage: build-sw
   script:
-    - mill pcie.generateVerilog
+#    - mill pcie.generateVerilog
     - mill eci.generateVerilog
-    - make -C sw
+    - cd sw
+    - mkdir build
+    - cmake -B build
+    - cmake --build build
   artifacts:
     paths:
       - hw/gen/*/*.h
       - sw/devices/pionic_*.dev
       - sw/rt-include/gen/**
-
+      - build/libpionic-rt-eci.a
 .build-hw:
   extends: .docker-image-hw
   stage: build-hw

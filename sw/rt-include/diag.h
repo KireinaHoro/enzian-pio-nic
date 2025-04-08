@@ -2,6 +2,7 @@
 #define __PIONIC_DEBUG_H__
 
 #include "hal.h"
+#include "api.h"
 
 void pionic_dump_glb_stats(pionic_global_t *glb);
 void pionic_dump_core_stats(pionic_core_t *core);

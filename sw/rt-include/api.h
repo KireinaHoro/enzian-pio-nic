@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hal.h"
+
 #define __PIONIC_RT__
 #include "pionic.h"  // get pionic_pkt_desc_t etc. and rename below
 
@@ -21,7 +23,7 @@ void pionic_fini(pionic_ctx_t *ctx);
 // global configurations
 void pionic_set_rx_block_cycles(pionic_ctx_t ctx, uint64_t cycles);
 uint64_t pionic_get_rx_block_cycles(pionic_ctx_t ctx);
-void pionic_set_core_mask(pionic_ctx_t ctx, uint64_t mask);
+// void pionic_set_core_mask(pionic_ctx_t ctx, uint64_t mask);
 void pionic_set_promisc(pionic_ctx_t ctx, bool enable);
 
 // protocol decoder configurations
@@ -35,7 +37,10 @@ void pionic_oncrpc_service_enable(pionic_ctx_t ctx, int idx, int prog_num,
                                   int ver, int proc, void *func_ptr);
 void pionic_oncrpc_service_disable(pionic_ctx_t ctx, int idx);
 
-// void pionic_oncrpc_set_core_mask(pionic_ctx_t ctx, int mask);
+void pionic_oncrpc_set_core_mask(pionic_ctx_t ctx, int mask);
+
+// per core
+void pionic_sync_core_state(pionic_core_state_t *state, pionic_core_t *core);
 
 // receive packet
 bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);

@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
+
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+
+set(TOOLCHAIN_PREFIX aarch64-linux-gnu-)
+set(CMAKE_C_COMPILER   ${TOOLCHAIN_PREFIX}gcc    )
+set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PREFIX}gcc    )
+set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++    )
+
 project(enzian-pio-nic-sw C)
 
 # Mackerel
@@ -30,24 +39,37 @@ foreach (basename ${DEV_BASENAMES})
 endforeach ()
 add_custom_target(gen_headers DEPENDS ${DEV_HEADERS})
 
-# rt
+# pionic-rt
 set(RT_COMMON_SRC
         rt/common/cmac.c
         rt/common/config.c
         rt/common/diag.c
         rt/common/profile.c)
 
-add_library(rt-eci
+add_library(pionic-rt-eci
         ${RT_COMMON_SRC}
         rt/eci.c
         ${DEV_HEADERS})
-target_include_directories(rt-eci PRIVATE
+target_include_directories(pionic-rt-eci PRIVATE
         rt-include
         core
         usr-include  # rt implements usr as a part of it
         ${CMAKE_SOURCE_DIR}/../hw/gen/eci
         ${MACKEREL_ROOT})
-target_compile_definitions(rt-eci PUBLIC
+target_compile_definitions(pionic-rt-eci PRIVATE
         NIC_IMPL=eci)
 
+# TODO: pionic-rt-pcie
 
+# apps
+
+#add_executable(pionic-rt-eci-test
+#        apps/rt-eci-test/rt-eci-test.c)
+#target_include_directories(pionic-rt-eci-test PRIVATE
+#        rt-include
+#        usr-include
+#        ${CMAKE_SOURCE_DIR}/../hw/gen/eci)
+#target_link_libraries(pionic-rt-eci-test
+#        pionic-rt-eci)
+#target_compile_definitions(pionic-rt-eci-test PRIVATE
+#        NIC_IMPL=eci)

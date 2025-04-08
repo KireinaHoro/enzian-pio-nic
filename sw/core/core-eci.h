@@ -4,12 +4,14 @@
 #ifndef __PIONIC_CORE_ECI_H__
 #define __PIONIC_CORE_ECI_H__
 
-#include "debug.h"
-#include "rt-common.h"
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#ifdef __KERNEL__
+#error "are you sure to use core-eci.h in the kernel module?"
+#endif
+
 #include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include <assert.h>
 
 #define __PIONIC_RT__
 #include "pionic.h"  // get pionic_pkt_desc_t etc. (but not other usr functions)
@@ -24,6 +26,9 @@
 #include "config.h"
 #include "regblock_bases.h"
 
+#include "debug.h"
+
+#define min(a,b) ((a) < (b) ? (a) : (b))
 
 // TODO: @PX please move these to the generated header --ZL
 #define PIONIC_ECI_CL_SIZE (0x80)
@@ -62,10 +67,10 @@ static bool core_eci_rx(void *base, volatile bool *rx_parity_ptr, pionic_pkt_des
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER
 
-  uint64_t worker_ctrl_addr = (uint64_t)base + PIONIC_ECI_WORKER_CTRL_INFO_BASE;
+  uint8_t * worker_ctrl_addr = (uint8_t *)base + PIONIC_ECI_WORKER_CTRL_INFO_BASE;
   
   pr_debug("eci_rx: waiting for READY and setting BUSY\n");
-  while (!COMPARE_AND_SWAP((uint8_t *)worker_ctrl_addr, (uint8_t)0b01, (uint8_t)0b11))
+  while (!COMPARE_AND_SWAP(worker_ctrl_addr, (uint8_t)0b01, (uint8_t)0b11))
   BARRIER  // make sure BUSY actually took effect
 critical_section_start:
   pr_debug("eci_rx: entered critical section\n");
@@ -73,7 +78,7 @@ critical_section_start:
   bool rx_parity = *rx_parity_ptr;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
 
-  uint64_t rx_base = (uint64_t)base + PIONIC_ECI_RX_BASE + rx_parity * PIONIC_ECI_CL_SIZE;
+  uint8_t *rx_base = (uint8_t *)base + (PIONIC_ECI_RX_BASE + rx_parity * PIONIC_ECI_CL_SIZE);
 
   bool valid = pionic_eci_host_ctrl_info_error_valid_extract(rx_base);
   BARRIER  // make sure the CL is actually read
@@ -114,7 +119,7 @@ critical_section_start:
 
       // parsed bypass header is aligned after the descriptor header
       // XXX: we don't have the actual size of the header, copy maximum
-      memcpy(desc->bypass.header, host_rx + pionic_eci_host_ctrl_info_bypass_size, sizeof(desc->bypass.header));
+      memcpy(desc->bypass.header, rx_base + pionic_eci_host_ctrl_info_bypass_size, sizeof(desc->bypass.header));
       
       break;
   
@@ -122,13 +127,13 @@ critical_section_start:
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_call.func_ptr =
           (void *)pionic_eci_host_ctrl_info_onc_rpc_call_func_ptr_extract(
-              host_rx);
+              rx_base);
       desc->oncrpc_call.xid =
-          pionic_eci_host_ctrl_info_onc_rpc_call_xid_extract(host_rx);
+          pionic_eci_host_ctrl_info_onc_rpc_call_xid_extract(rx_base);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
-      memcpy(desc->oncrpc_call.args, host_rx + pionic_eci_host_ctrl_info_onc_rpc_call_size, sizeof(desc->oncrpc_call.args));
+      memcpy(desc->oncrpc_call.args, rx_base + pionic_eci_host_ctrl_info_onc_rpc_call_size, sizeof(desc->oncrpc_call.args));
 
       break;
 
@@ -140,7 +145,7 @@ critical_section_start:
       desc->payload_buf = NULL;
       desc->payload_len = 0;
     } else {
-      pr_debug("eci_rx: extra payload buffer allocated, len = %d\n", pkt_len);
+      pr_info("eci_rx: extra payload buffer allocated, len = %zu\n", pkt_len);
       desc->payload_buf = malloc(pkt_len);
       desc->payload_len = pkt_len;
       
@@ -155,7 +160,7 @@ critical_section_start:
   }
 
   BARRIER  // make sure !BUSY comes after
-  assert(FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10 != 0, "was not in the critical section?");
+  assert((FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10) != 0 && "was not in the critical section?");
 critical_section_end:
   pr_debug("eci_rx: exited critical section\n");
     
@@ -172,7 +177,7 @@ static void core_eci_rx_ack(pionic_pkt_desc_t *desc) {
   }
 }
 
-static void core_eci_tx_prepare_desc(void *base, pionic_pkt_desc_t *desc) {
+static void core_eci_tx_prepare_desc(pionic_pkt_desc_t *desc) {
   // ECI backend: do not allocate payload_buf
   desc->payload_buf = NULL;
   desc->payload_len = 0;
@@ -195,7 +200,7 @@ critical_section_start:
   bool tx_parity = *tx_parity_ptr;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
 
-  uint64_t tx_base = (uint64_t)base + PIONIC_ECI_TX_BASE + tx_parity * PIONIC_ECI_CL_SIZE;
+  uint8_t * tx_base = (uint8_t *)base + PIONIC_ECI_TX_BASE + tx_parity * PIONIC_ECI_CL_SIZE;
   
   switch (desc->type) {
   case TY_BYPASS:
@@ -204,7 +209,7 @@ critical_section_start:
     case HDR_ETHERNET:
       pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_ethernet);
       break;
-    case HDR_IP::
+    case HDR_IP:
       pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_ip);
       break;
     case HDR_UDP:
@@ -214,18 +219,17 @@ critical_section_start:
       pionic_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base, pionic_eci_hdr_onc_rpc_call);
       break;
     }
-    memcpy(host_tx + pionic_eci_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
+    memcpy(tx_base + pionic_eci_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
     break;
   
-  case TY_ONCRPC_CALL;
+  case TY_ONCRPC_CALL:
     pionic_eci_host_ctrl_info_error_ty_insert(tx_base, pionic_eci_onc_rpc_reply);
     pionic_eci_host_ctrl_info_onc_rpc_call_func_ptr_insert(
-      tx_base, desc->oncrpc_call.func_ptr);
+      tx_base, (uint64_t) desc->oncrpc_call.func_ptr);
     pionic_eci_host_ctrl_info_onc_rpc_call_xid_insert(tx_base,
                                                       desc->oncrpc_call.xid);
-    break;
   
-    memcpy(host_tx + pionic_eci_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
+    memcpy(tx_base + pionic_eci_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
     break;
 
   case TY_ONCRPC_REPLY:
@@ -240,28 +244,25 @@ critical_section_start:
   
 
   if (desc->payload_buf != NULL) {
-    int first_read_size = min(PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_size);
-    memcpy((void *)(host_tx + PIONIC_ECI_INLINE_DATA_OFFSET), desc->payload_buf, first_read_size);
-    if (desc->payload_size > PIONIC_ECI_INLINE_DATA_SIZE) {
+    int first_read_size = min(PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_len);
+    memcpy((void *)(tx_base + PIONIC_ECI_INLINE_DATA_OFFSET), desc->payload_buf, first_read_size);
+    if (desc->payload_len > PIONIC_ECI_INLINE_DATA_SIZE) {
       // XXX: user can overflow the overflow CLs, better give an error
-      memcpy(tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->payload_buf + PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_size - PIONIC_ECI_INLINE_DATA_SIZE);
+      memcpy(tx_base + PIONIC_ECI_OVERFLOW_OFFSET, desc->payload_buf + PIONIC_ECI_INLINE_DATA_SIZE, desc->payload_len - PIONIC_ECI_INLINE_DATA_SIZE);
     }
   }
 
   BARRIER  // make sure all data is written before we ring the doorbell
-
-  Fetch the other tx cL
 
   // Flip the parity
   *tx_parity_ptr = !tx_parity;
 
   // Ring the doorbell
   // TODO: read or prefetch?
-  (void) *((uint8_t *)((uint64_t)base + PIONIC_ECI_TX_BASE + !tx_parity * PIONIC_ECI_CL_SIZE))
-
+  (void) *((volatile uint8_t *)base + (PIONIC_ECI_TX_BASE + !tx_parity * PIONIC_ECI_CL_SIZE));
 
   BARRIER  // make sure !BUSY comes after
-  assert(FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10 != 0, "was not in the critical section?");
+  assert((FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) & 0b10) != 0 && "was not in the critical section?");
 critical_section_end:
   pr_debug("eci_tx: exited critical section\n");
 }

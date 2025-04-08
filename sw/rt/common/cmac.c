@@ -1,7 +1,7 @@
 // CMAC driver
 // TODO: migrate to Mackerel
 
-#include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include "gen/cmac.h"

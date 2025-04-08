@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "common.h"
+#include "hexdump.h"
 #include "api.h"
 #include "diag.h"
 #include "profile.h"
@@ -42,7 +42,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   int cid = 0;
 
   pionic_pkt_desc_t desc;
-  pionic_tx_get_desc(ctx, cid, &desc);
+  pionic_tx_prepare_desc(ctx, cid, &desc);
   // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
 
   // make sure we don't read past the end of the tx buffer
