@@ -241,6 +241,7 @@ class Scheduler extends PioNicPlugin {
     val victimCoreMap = rxPreemptReq.ty.mux(
       PreemptCmdType.idle -> coreIdleMap,
       PreemptCmdType.ready -> coreReadyMap,
+      // TODO: when do we need the `force` command type?
       default -> B(0),
     )
 
@@ -293,7 +294,11 @@ class Scheduler extends PioNicPlugin {
             // update queue pointers
             queueMeta.popOne()
 
-            goto(idle)
+            when (toCore.ready) {
+              // worker might de-assert ready due to timeout, have to wait until they try again
+              // TODO: what happens if the core went amok and never retried? Kill proc?
+              goto(idle)
+            }
           }
         }
       }

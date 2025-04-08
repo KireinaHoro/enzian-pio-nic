@@ -111,9 +111,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       when (logic.rxFsm.isEntering(logic.rxFsm.idle)) {
         // retire the buffered packet when we enter idle.  Two cases:
         // - packet acknowledged with the scheduler
-        // - preemption request happened: we either
-        //   - have delivered the packet fully, thanks to the critical section, or
-        //   - need to forget the packet (not ACK'ed) i.e. preempted in idle when hostRx.valid
+        // - preemption request happened: we have delivered the packet fully, thanks to the critical section
         rxHostCtrlInfo.valid := False
       }
 
@@ -124,9 +122,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles, streamTimeout)
       busCtrl.onRead(0xc0) {
         logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout))
-          // do not trigger inv when we got a packet right at the timeout
-          // FIXME: is this really needed?  rxNackTriggerInv is only used in idle
-          // && !logic.rxFsm.isActive(logic.rxFsm.gotPacket))
         bufferedStreamTimeout.clear()
       }
 
@@ -259,14 +254,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
             goto(repeatPacket)
           } elsewhen (rxNackTriggerInv) {
-            // packet did not come in time, we returned NACK
+            // we returned NACK due to:
+            // - packet did not come in time, or
+            // - timeout terminated due to preemption
             goto(noPacket)
-          } elsewhen (preemptReq.valid) {
-            // since CPU did not read anything yet, nothing to invalidate
-            preemptReq.ready := True
-
-            // packet not ACK'ed to scheduler yet -- we can "forget" the packet
-            goto(idle)
           }
         }
       }
