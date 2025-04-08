@@ -35,6 +35,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
   lazy val ms = host[MacInterfaceService]
   lazy val cores = host.list[CoreControlPlugin]
   lazy val preempts = host.list[PreemptionService]
+  lazy val sched = host[Scheduler].logic
   val retainer = Retainer()
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
@@ -71,23 +72,13 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       sl << ms
     }
 
-    // round-robin dispatch to all other (non-bypass) cores that are enabled
-    // TODO: replace with Scheduler
-    val schedOutputs = StreamDispatcherWithEnable(
-      input = StreamArbiterFactory().roundRobin.on(schedulerUpstreams),
-      outputCount = numWorkerCores,
-      enableMask = csr.ctrl.workerCoreMask,
-    )
-
-    // TODO: actually drive preemptReq; tied off for now
-    preempts foreach { pu => pu.preemptReq.setIdle() }
+    sched.rxMeta << StreamArbiterFactory().roundRobin.on(schedulerUpstreams)
+    preempts zip sched.corePreempt foreach { case (pu, sp) => pu.preemptReq << sp }
     
     // drive packet descriptors interface of core control modules
     cores.head.logic.io.igMetadata << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
-    cores.tail zip schedOutputs foreach { case (cc, so) =>
-      // FIXME: we buffer the max inflight number of packets here; this will be inside [[Scheduler]]
-      // FIXME: we are buffering per core here instead of per process
-      cc.logic.io.igMetadata << so.queue(c[Int]("max rx pkts in flight per process"))
+    cores.tail zip sched.coreMeta foreach { case (cc, so) =>
+      cc.logic.io.igMetadata << so
     }
   }
 }

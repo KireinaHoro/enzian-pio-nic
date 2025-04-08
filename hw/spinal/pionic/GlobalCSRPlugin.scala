@@ -13,9 +13,7 @@ class GlobalCSRPlugin extends PioNicPlugin {
     val ctrl = new Bundle {
       val rxBlockCycles = Reg(UInt(regWidth bits)) init 10000
       val promisc = Reg(Bool()) init False
-      // mask for all non-bypass cores
-      val workerCoreMask = Flow(Bits(numWorkerCores bits))
-      
+
       val preemptCritSecTimeout = Reg(UInt(regWidth bits)) init 100000 // 400 us @ 250 MHz
       val preemptCoreIDOffset = Reg(UInt(regWidth bits)) init 0
     }
