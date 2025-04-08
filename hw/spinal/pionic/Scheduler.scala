@@ -3,11 +3,10 @@ package pionic
 import pionic.net.OncRpcCallMetadata
 import spinal.core._
 import spinal.lib._
-import pionic.PioNicPlugin
-import spinal.core.fiber.Fiber.awaitBuild
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
 import spinal.lib.bus.regif.AccessType
+import spinal.lib.fsm._
 
 /** Type for PIDs. */
 case class PID()(implicit c: ConfigDatabase) extends Bundle {
@@ -37,7 +36,8 @@ case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
   */
 class Scheduler extends PioNicPlugin {
   lazy val numProcs = c[Int]("num processes")
-  
+  lazy val csr = host[GlobalCSRPlugin].logic.get
+
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // max number of threads per process (degree of parallelism)
     val procDefPort = ProcessDef()
@@ -61,7 +61,7 @@ class Scheduler extends PioNicPlugin {
 
     /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
       * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
-    val coreMeta = Vec(Stream(OncRpcCallMetadata()), numWorkerCores)
+    val coreMeta = Seq.fill(numWorkerCores)(Stream(OncRpcCallMetadata()))
 
     /**
       * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
@@ -71,10 +71,16 @@ class Scheduler extends PioNicPlugin {
       *
       * Will be stalled (ready === False) when a preemption is in progress.
       */
-    val corePreempt = Vec(Stream(PID()), numWorkerCores)
+    val corePreempt = Seq.fill(numWorkerCores)(Stream(PID()))
     
     // one per-process queue for every entry in procDefs
-    val procDefs = Vec.fill(numProcs)(Reg(ProcessDef()))
+    // since all cores start with idx 0 in this table, table entry 0 should be a special "IDLE" process
+    val procDefs = Vec.fill(numProcs+1) {
+      val ret = Reg(ProcessDef())
+      ret.enabled init False
+      ret.maxThreads init numWorkerCores
+      ret
+    }
     
     awaitBuild()
     
@@ -82,28 +88,136 @@ class Scheduler extends PioNicPlugin {
     val pktsPerProc = c[Int]("max rx pkts in flight per process")
     val queueMem = Mem(OncRpcCallMetadata(), numProcs * pktsPerProc)
 
-    case class QueuePointers()(implicit c: ConfigDatabase) extends Bundle {
-      def MemAddr = UInt(log2Up(pktsPerProc * numProcs) bits)
+    def MemAddr = UInt(log2Up(pktsPerProc * numProcs) bits)
+
+    case class QueueMetadata(offset: Int, capacity: Int)(implicit c: ConfigDatabase) extends Bundle {
       val head, tail = MemAddr
+      val full = Bool()
+
+      def empty = head === tail && (!full || Bool(capacity == 0))
+      def bound = offset + capacity - 1
+
+      // actions called on a reg to mutate
+      def initEmpty: Unit = {
+        head init offset
+        tail init offset
+        full init capacity == 0
+      }
+
+      private def advance(ptr: UInt): UInt = {
+        val newPtr = ptr.clone
+        when (ptr === bound) {
+          newPtr := offset
+        } otherwise {
+          newPtr := ptr + 1
+        }
+        ptr := newPtr
+        newPtr
+      }
+
+      def pushOne(): Unit = {
+        assert(!full, "trying to push one into a full queue")
+        full := advance(tail) === head
+      }
+
+      def popOne(): Unit = {
+        assert(!empty, "trying to pop one from an empty queue")
+        advance(head)
+        full := False
+      }
     }
-    val queuePtrs = Vec.tabulate(numProcs) { idx =>
-      val ret = Reg(QueuePointers())
-      val initHead = idx * pktsPerProc
-      ret.head init initHead
-      ret.tail init initHead
+    val queueMetas = Vec.tabulate(numProcs+1) { idx =>
+      val offset = if (idx == 0) 0 else (idx-1) * pktsPerProc
+      val capacity = if (idx == 0) 0 else pktsPerProc
+      val ret = Reg(QueueMetadata(offset, capacity))
+      ret.initEmpty
       ret
     }
-    
-    // receive packet and push into memory
+
+    // process ID to select which queue the incoming packet goes into
+    val procSelOh = procDefs.map { pd =>
+      pd.pid === rxMeta.pid
+    }.asBits()
+    val procTblIdx = OHToUInt(procSelOh)
+    val rxProcDef = procDefs(procTblIdx)
+    val rxQueueMeta = queueMetas(procTblIdx)
+
+    // report scheduler packet drop
+    val rxSchedDrop = CombInit(False)
+    csr.status.rxSchedDroppedCount := Counter(regWidth bits, rxSchedDrop)
+
     rxMeta.setBlocked()
     when (rxMeta.valid) {
-      
-    }
-    
-    // select first non-empty queue to grant packet  
-    val queueNonEmpty = queuePtrs.map { ptr =>
-      ptr.head =/= ptr.tail
+      // received packet: push into memory
+      when (rxQueueMeta.full) {
+        // must drop packet since destination is full
+        rxSchedDrop := True
+      } otherwise {
+        // store at where the tail was
+        queueMem.write(rxQueueMeta.tail, rxMeta.payload)
+
+        // update pointers
+        rxQueueMeta.pushOne()
+      }
+
+      // TODO: new packet arrived, select a core to preempt:
+      //       - no process assigned to this queue, and there are idle cores available
+      //       - queue almost full (V_arrival > V_consume, need to scale up)
+
+      // we either pushed the packet or dropped it, ack
+      rxMeta.ready := True
     }
 
+    // map of which process is running on which core
+    val corePidMap = Vec.fill(numWorkerCores) {
+      val ret = Reg(PID())
+      // all start in IDLE -- preempt request will move them away
+      ret.bits init 0
+    }
+
+    // each core can raise a pop request, to remove one packet from the queues
+    val popReqs = Seq.fill(numWorkerCores)(Stream(MemAddr))
+    val arbitratedPopReq = StreamArbiterFactory().roundRobin.on(popReqs)
+    val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
+    arbitratedPopReq.ready := True
+
+    0 until numWorkerCores foreach { idx => new Area {
+      val toCore = coreMeta(idx)
+      toCore.setIdle()
+
+      val popReq = popReqs(idx)
+      popReq.setIdle()
+
+      val queueIdx = corePidMap(idx)
+      val queueMeta = queueMetas(queueIdx)
+
+      val popFsm = new StateMachine {
+        val idle: State = new State with EntryPoint {
+          whenIsActive {
+            when(toCore.ready && !queueMeta.empty) {
+              // we can ask for a request to be popped
+              popReq.payload := queueMeta.head
+              popReq.valid := True
+              when(popReq.ready) {
+                // queue mem read granted.  readSync has one cycle latency
+                goto(readPoppedReq)
+              }
+            }
+          }
+        }
+        val readPoppedReq: State = new State {
+          whenIsActive {
+            // write popped request to core
+            toCore.payload := poppedReq
+            toCore.valid := True
+
+            // update queue pointers
+            queueMeta.popOne()
+
+            goto(idle)
+          }
+        }
+      }
+    } }
   }
 }
