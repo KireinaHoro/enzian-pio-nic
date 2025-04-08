@@ -183,8 +183,9 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
     // XXX: requires blocking allocReq
     val lastIgReq = io.igMetadata.toFlowFire.toReg()
 
-    val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
-    rxCaptured >/-> io.hostRx
+    val rxCaptured = Reg(Flow(HostPacketDesc()))
+    rxCaptured.valid init False
+    rxCaptured.toStream >> io.hostRx
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -273,7 +274,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
           p.profile(p.RxEnqueueToHost -> True)
         }
         whenIsActive {
-          when(rxCaptured.ready) {
+          when(io.hostRx.ready) {
             rxCaptured.setIdle()
             inc(_.rxPacketCount)
             goto(idle)
