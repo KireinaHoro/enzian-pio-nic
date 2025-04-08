@@ -184,9 +184,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
     val lastIgReq = io.igMetadata.toFlowFire.toReg()
 
     val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
-    // FIXME: how much buffering do we need?
-    // TODO: remove queuing here, backpressure to scheduler and let scheduler queue in URAM
-    rxCaptured.queue(c[Int]("max rx pkts in flight")) >> io.hostRx
+    rxCaptured >/-> io.hostRx
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
