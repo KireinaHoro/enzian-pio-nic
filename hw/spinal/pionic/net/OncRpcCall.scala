@@ -9,6 +9,7 @@ import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
 
+import scala.collection.mutable.ArrayBuffer
 import scala.language.postfixOps
 
 case class OncRpcCallHeader() extends Bundle {
@@ -46,6 +47,7 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   }
 }
 
+// XXX: this is in big endian
 case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val enabled = Bool()
 
@@ -58,9 +60,9 @@ case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
   val pid = PID()
 
   def matchHeader(h: OncRpcCallHeader, port: Bits) = enabled &&
-    progNum === EndiannessSwap(h.progNum) &&
-    progVer === EndiannessSwap(h.progVer) &&
-    proc === EndiannessSwap(h.proc) &&
+    progNum === h.progNum &&
+    progVer === h.progVer &&
+    proc === h.proc &&
     listenPort.asBits === port
 }
 
@@ -89,11 +91,20 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
     val serviceIdxAddr = alloc("oncRpcCtrl", "service_idx", attr = AccessType.WO)
     busCtrl.write(serviceIdx, serviceIdxAddr)
     busCtrl.onWrite(serviceIdxAddr) {
-      // record service entry in table
-      logic.listenPorts(serviceIdx).payload := servicePort.listenPort
+      // record listen port in table
+      // XXX: assumes host is LITTLE ENDIAN
+      //      we swap endianness now already to shorten critical path
+      logic.listenPorts(serviceIdx).payload := EndiannessSwap(servicePort.listenPort).asBits
       logic.listenPorts(serviceIdx).valid := servicePort.enabled
-      
-      logic.serviceSlots(serviceIdx) := servicePort
+
+      // record service entry in table
+      // XXX: assumes host is LITTLE ENDIAN
+      //      we swap endianness now already to shorten critical path
+      (logic.serviceSlots(serviceIdx).elements.toSeq ++ servicePort.elements.toSeq).groupBy(_._1).foreach {
+        case (n, Seq((_, te), (_, po))) if Seq("funcPtr", "pid").contains(n) => te := po
+        case (_, Seq((_, te), (_, po: BitVector)))                           => te := EndiannessSwap(po)
+        case (_, Seq((_, te), (_, po)))                                      => te := po
+      }
     }
   }
 
@@ -104,18 +115,20 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
     // we first check if the packet is from an UDP port that is listened on
     // otherwise it gets into the bypass interface (to host)
     // will also be read by [[Scheduler]]
-    val listenPorts = Vec.fill(numServiceSlots)(Reg(Flow(UInt(16 bits))))
+    // XXX: contents are in BIG ENDIAN (network)
+    val listenPorts = Vec.fill(numServiceSlots)(Reg(Flow(Bits(16 bits))))
     listenPorts foreach { sl => sl.valid init False }
 
     // we then try to match against a registered service
     // if no (func, port) is found, packet is dropped
     // will also be read by [[Scheduler]]
+    // XXX: contents are in BIG ENDIAN (network)
     val serviceSlots = Vec.fill(numServiceSlots)(Reg(OncRpcCallServiceDef()))
     serviceSlots foreach { sl => sl.enabled init False }
 
     from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
-          portSlot.valid && portSlot.payload === EndiannessSwap(meta.hdr.dport.asUInt)
+          portSlot.valid && portSlot.payload === meta.hdr.dport
         }.reduceBalancedTree(_ || _)
       },
       udpHeader, udpPayload
@@ -132,7 +145,6 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
     val minLen = OncRpcCallHeader().getBitsWidth / 8
     val maxLen = minLen + c[Int]("max onc rpc inline bytes")
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, maxLen)(minLen)
-    // TODO: endianness swap
     // TODO: variable length field memory allocation (arena-style?)
 
     val currentUdpHeader = udpHeader.toFlowFire.toReg()
@@ -147,6 +159,7 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = OncRpcCallMetadata()
       meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
+      // TODO: endianness swap: these are in BIG ENDIAN
       meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
       meta.udpPayloadSize := currentUdpHeader.getPayloadSize
 
