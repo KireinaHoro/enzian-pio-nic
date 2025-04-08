@@ -12,7 +12,7 @@ import $ivy.`com.lihaoyi::requests:0.8.2`
 
 object v {
   val scalaVersion = "2.13.12"
-  val eciStaticShellVersion = "v0.1.0"
+  val eciStaticShellVersion = "v0.1.4"
 }
 
 trait MySpinal { this: deps.spinalhdl.build.SpinalModule =>

@@ -23,7 +23,10 @@ object GenEngineVerilog {
       new IpDecoder,
       new UdpDecoder,
       new OncRpcCallDecoder,
+      // sched & dispatch
+      new Scheduler,
       new RxPacketDispatch,
+      // DMA to packet buffer
       new AxiDmaPlugin,
     ) ++ Seq.tabulate(c[Int]("num cores") + 1)(new CoreControlPlugin(_))
   }
@@ -33,7 +36,9 @@ object GenEngineVerilog {
     val plugins = c[String]("host interface") match {
       case "pcie" => b :+ new PcieBridgeInterfacePlugin
       // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
-      case "eci" => b ++ Seq(new EciInterfacePlugin) ++ Seq.tabulate(c[Int]("num cores") + 1)(new EciDecoupledRxTxProtocol(_))
+      case "eci" => b ++ Seq(new EciInterfacePlugin) ++
+        Seq.tabulate(c[Int]("num cores") + 1)(new EciDecoupledRxTxProtocol(_)) ++
+        Seq.tabulate(c[Int]("num cores"))(cid => new EciPreemptionControlPlugin(cid + 1))
     }
     NicEngine(plugins)
   }

@@ -10,7 +10,8 @@ package object pionic {
     implicit lazy val c = host[ConfigDatabase]
 
     // alias commonly used config values
-    lazy val numCores = c[Int]("num cores")
+    lazy val numWorkerCores = c[Int]("num cores")
+    lazy val numCores = numWorkerCores + 1 // with bypass
     lazy val regWidth = c[Int]("reg width")
 
     lazy val mtu = c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1).max

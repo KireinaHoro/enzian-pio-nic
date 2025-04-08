@@ -36,7 +36,7 @@ case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
 
 case class OncRpcCallData()(implicit c: ConfigDatabase) extends Bundle {
   val funcPtr = Bits(64 bits)
-  val pid = Bits(Widths.pidw bits)
+  val pid = PID()
   val xid = Bits(32 bits)
   val args = Bits(Widths.oargw bits)
 }
@@ -183,10 +183,9 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
     // XXX: requires blocking allocReq
     val lastIgReq = io.igMetadata.toFlowFire.toReg()
 
-    val rxCaptured = Reg(Stream(HostPacketDesc())).setIdle()
-    // FIXME: how much buffering do we need?
-    // TODO: remove queuing here, backpressure to scheduler and let scheduler queue in URAM
-    rxCaptured.queue(c[Int]("max rx pkts in flight")) >> io.hostRx
+    val rxCaptured = Reg(Flow(HostPacketDesc()))
+    rxCaptured.valid init False
+    rxCaptured.toStream >> io.hostRx
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -275,7 +274,7 @@ class CoreControlPlugin(val coreID: Int) extends PioNicPlugin {
           p.profile(p.RxEnqueueToHost -> True)
         }
         whenIsActive {
-          when(rxCaptured.ready) {
+          when(io.hostRx.ready) {
             rxCaptured.setIdle()
             inc(_.rxPacketCount)
             goto(idle)

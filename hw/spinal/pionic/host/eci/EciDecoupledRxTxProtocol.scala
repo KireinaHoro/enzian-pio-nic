@@ -76,7 +76,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       )
     })
 
-    val blockCycles = Vec(CombInit(csr.ctrl.rxBlockCycles), 2)
+    val blockCycles = CombInit(csr.ctrl.rxBlockCycles)
+    // disable block cycles, when a preemption request is under way
+    // this way we immediately return a NACK, instead of waiting until timeout
+    when (preemptReq.valid) { blockCycles.clearAll() }
+
     Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
       val rxCtrlAddr = idx * 0x80
       busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
@@ -97,21 +101,27 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
       val rxDesc = logic.demuxedRxDescs(idx).map(EciHostCtrlInfo.packFrom)
       rxHostCtrlInfo.valid init False
-      when (!logic.rxFsm.isActive(logic.rxFsm.noPacket)) {
+      when (logic.rxFsm.isEntering(logic.rxFsm.repeatPacket)) {
         rxHostCtrlInfo.valid := rxDesc.valid
         rxHostCtrlInfo.payload := rxDesc.payload
+        logic.rxPktBufSaved := hostRx.payload.buffer
       }
-      rxDesc.ready := logic.rxFsm.isExiting(logic.rxFsm.gotPacket)
+      rxDesc.ready := logic.rxReadyToSched
+
+      when (logic.rxFsm.isEntering(logic.rxFsm.idle)) {
+        // retire the buffered packet when we enter idle.  Two cases:
+        // - packet acknowledged with the scheduler
+        // - preemption request happened: we have delivered the packet fully, thanks to the critical section
+        rxHostCtrlInfo.valid := False
+      }
 
       // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
       val streamTimeout = Bool()
       val bufferedStreamTimeout = Reg(Bool()) init False
       bufferedStreamTimeout.setWhen(streamTimeout)
-      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles(idx), streamTimeout)
+      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles, streamTimeout)
       busCtrl.onRead(0xc0) {
-        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout)
-          // do not trigger inv when we got a packet right at the timeout
-          && !logic.rxFsm.isActive(logic.rxFsm.gotPacket))
+        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout))
         bufferedStreamTimeout.clear()
       }
 
@@ -135,7 +145,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     // cpu not supposed to modify rx packet data, so omitting write
     // memOffset is in memory words (64B)
-    val memOffset = rxBufMapping.removeOffset(logic.selectedRxDesc.buffer.addr.bits) >> log2Up(pktBufWordNumBytes)
+    val memOffset = rxBufMapping.removeOffset(logic.rxPktBufSaved.addr.bits) >> log2Up(pktBufWordNumBytes)
     busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
       memOffset = memOffset.resized,
       mappingLength = roundMtu)
@@ -148,11 +158,17 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     writeCmd = busCtrl.writeCmd
   }.setName(s"driveDcsBus_core$coreID")
 
+  def preemptReq = logic.preemptReq
+
   lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
-  val logic = during build new Area {
+  val logic = during setup new Area {
+    // these will be hooked by [[EciPreemptionControlPlugin]]
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+    val preemptReq = Event
+
+    awaitBuild()
 
     assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
@@ -166,6 +182,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
 
+    // ready signal to scheduler
+    // XXX: scheduler will dispatch to us, only when we are ready
+    val rxReadyToSched = CombInit(False)
+
     val rxReqs = Vec(False, 2)
     val txReqs = Vec(False, 2)
 
@@ -173,6 +193,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     lci.valid.setAsReg()
     lci.payload.setAsReg()
     lci.assertPersistence()
+    preemptReq.setBlocked()
 
     val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
     val ulOverflow = Bool()
@@ -197,44 +218,61 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     val demuxedRxDescs = StreamDemux(hostRx, rxCurrClIdx.asUInt, 2) setName "demuxedRxDescs"
 
-    // latch accepted host rx packet for:
+    // register accepted host rx packet for:
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
-    val selectedRxDesc = demuxedRxDescs(rxCurrClIdx.asUInt)
+    val rxPktBufSaved = Reg(PacketBufDesc())
 
-    // read start is when request for the selected CL is active
-    hostRxReq := RegInit(False).setWhen(rxReqs(rxCurrClIdx.asUInt))
+    // read start is when request for the selected CL is active for the first time
+    val hostFirstRead = Reg(Bool()) init False
+    hostRxReq := hostFirstRead
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         onEntry {
           rxNackTriggerInv.clear()
-          hostRxReq.clear()
         }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
           rxOverflowInvIssued.clear()
+          hostFirstRead.clear()
 
+          when (rxReqs(rxCurrClIdx.asUInt)) {
+            hostFirstRead.set()
+            goto(hostWaiting)
+          } elsewhen (preemptReq.valid) {
+            preemptReq.ready := True
+          }
+        }
+      }
+      val hostWaiting: State = new State {
+        whenIsActive {
+          rxReadyToSched := True
           when (hostRx.valid) {
+            // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
-            goto(gotPacket)
+            goto(repeatPacket)
           } elsewhen (rxNackTriggerInv) {
+            // we returned NACK due to:
+            // - packet did not come in time, or
+            // - timeout terminated due to preemption
             goto(noPacket)
           }
         }
       }
       val noPacket: State = new State {
         whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
+          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
             goto(invalidateCtrl)
           }
         }
       }
-      val gotPacket: State = new State {
+      // we got at least one read, repeating until CPU ack'ed or preempted
+      val repeatPacket: State = new State {
         whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt)) {
-            hostRxAck.payload := selectedRxDesc.buffer
+          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
+            hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
               when (rxOverflowToInvalidate > 0) {
@@ -292,8 +330,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
             ulFlow.payload := lcia.payload
             ulFlow.valid := True
 
-            // always toggle, even if NACK was sent
-            rxCurrClIdx.toggleWhen(True)
+            when (preemptReq.valid) {
+              // ack preempReq but DON'T toggle parity
+              preemptReq.ready := True
+            } otherwise {
+              // always toggle, even if NACK was sent
+              rxCurrClIdx.toggleWhen(True)
+            }
 
             goto(idle)
           }
