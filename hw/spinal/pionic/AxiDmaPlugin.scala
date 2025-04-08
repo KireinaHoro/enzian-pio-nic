@@ -29,8 +29,8 @@ class AxiDmaPlugin extends PioNicPlugin {
   lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = pktBufLenWidth)
 
   val logic = during build new Area {
-    val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
-    val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = cores.length, arbRoundRobin = false)
+    val axiDmaReadMux = new AxiDmaDescMux(dmaConfig, numPorts = numCores, arbRoundRobin = false)
+    val axiDmaWriteMux = new AxiDmaDescMux(dmaConfig, numPorts = numCores, arbRoundRobin = false)
 
     // XXX: decoder pipeline requires unaligned transfer
     val axiDma = new AxiDma(axiDmaWriteMux.masterDmaConfig)

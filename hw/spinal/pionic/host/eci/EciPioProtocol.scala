@@ -31,4 +31,7 @@ trait EciPioProtocol extends PioNicPlugin {
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc)
 
   def sizePerCore: BigInt
+
+  // preempt request interface
+  def preemptReq: Event
 }

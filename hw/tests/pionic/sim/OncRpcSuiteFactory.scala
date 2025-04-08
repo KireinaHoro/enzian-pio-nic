@@ -21,20 +21,20 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     val dumper = if (dumpPacket) Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString) else null
 
     // enable all cores by default
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "coreMask"), b"11111111".toBytes) // mask
+    asMaster.write(bus, globalBlock("workerCoreMask"), b"11111111".toBytes) // mask
 
     // TODO: also test non promisc mode
     asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
 
     // activate service
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort"), dport.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "listenPort_enabled"), 1.toBytes)
-
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytes)
+
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), 0.toBytes)
 
     // wait for mask and service configs to take effect
     sleepCycles(20)

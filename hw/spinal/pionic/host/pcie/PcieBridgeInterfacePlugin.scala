@@ -2,6 +2,7 @@ package pionic.host.pcie
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RichStream
+import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import pionic._
 import pionic.host.HostService
 import pionic.net.ProtoDecoder
@@ -35,7 +36,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(regWidth))
 
     private val alloc = cc.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
-    csr.readAndWrite(busCtrl, alloc.toGeneric)
+    csr.readAndWrite(busCtrl, alloc)
 
     private val pktBufferAlloc = cc.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
@@ -44,7 +45,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
 
     Axi4CrossbarFactory()
       .addSlaves(
-        axiWideConfigNode -> (0x0, (cores.length + 1) * 0x1000),
+        axiWideConfigNode -> (0x0, numCores * 0x1000),
         pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), pktBufSize),
       )
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
@@ -101,14 +102,16 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
         h.unpackTo(cc)
       }
 
-      c.logic.connectControl(busCtrl, alloc.toGeneric)
-      c.logic.reportStatistics(busCtrl, alloc.toGeneric)
+      c.logic.connectControl(busCtrl, alloc)
+      c.logic.reportStatistics(busCtrl, alloc)
     }
 
     // control for the decoders
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc.toGeneric))
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc))
 
-    host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc.toGeneric)
+    host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc)
+
+    host[Scheduler].driveControl(busCtrl, alloc)
   }
 
   during build {

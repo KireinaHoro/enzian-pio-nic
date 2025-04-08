@@ -27,7 +27,6 @@ class ConfigDatabase extends FiberPlugin {
     (1518, .3), // max Ethernet frame with MTU 1500
     (9618, .6), // max jumbo frame
   ), emitHeader = false)
-  post("max rx pkts in flight", 128)
   post("num cores", 4)
   post("collect timestamps", true, emitHeader = false)
   post("timestamp width", 32)
@@ -36,7 +35,10 @@ class ConfigDatabase extends FiberPlugin {
   post("bypass header max width", 54 * 8) // ETH + IP + TCP
 
   // scheduler default settings
-  post("process id width", 44) // PID_MAX on Linux
+  post("process id width", 16) // unrelated to actual PID width on Linux -- more like "PID group"
+  post("num service slots", 256)
+  post("num processes", 32)
+  post("max rx pkts in flight per process", 32)
 
   import ConfigDatabase._
 

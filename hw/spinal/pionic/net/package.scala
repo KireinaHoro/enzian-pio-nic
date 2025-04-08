@@ -185,7 +185,7 @@ package object net {
       val bypassHeader = forkedHeaders.last.throwWhen(attempted)
       val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
 
-      host[RxPacketDispatchService].consume(bypassPayload, bypassHeader) setCompositeName(this, "dispatchBypass")
+      host[RxPacketDispatchService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
     }
 
     /**
@@ -194,10 +194,9 @@ package object net {
      *
      * @param metadata metadata stream produced by this stage
      * @param payload payload data stream produced by this stage
-     * @param coreMask enable mask of non-bypass cores; used for scheduling
      */
-    protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, coreMask: Flow[Bits]): Unit = {
-      host[RxPacketDispatchService].consume(payload, metadata, coreMask) setCompositeName(this, "dispatch")
+    protected def produceFinal(metadata: Stream[T], payload: Axi4Stream): Unit = {
+      host[RxPacketDispatchService].consume(payload, metadata) setCompositeName(this, "dispatch")
     }
 
     /** Release retainer from packet dispatcher to allow it to continue elaborating */

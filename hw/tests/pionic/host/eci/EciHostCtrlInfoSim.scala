@@ -39,7 +39,7 @@ object EciHostCtrlInfoSim {
           data(63+32+13 downto 32+13),
           data(31+13 downto 13),
           data(oargw + 64+32+13-1 downto 64+32+13))
-      case 3 => ???
+      case 3 => throw new RuntimeException("not expecting a onc_rpc_reply")
     }
   }
 }
