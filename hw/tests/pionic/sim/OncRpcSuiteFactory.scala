@@ -10,22 +10,18 @@ import spinal.lib._
 import scala.util.Random
 
 trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
-  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
-    // generate ONCRPC packet
-    val sport, dport = Random.nextInt(65535)
-    val prog, progVer, procNum = Random.nextInt()
-    // 48-bit pointer; avoid generating negative number
-    val funcPtr = Random.nextLong(0x1000000000000L)
+  /** Enable one process in the scheduler. */
+  def enableProcess[B](bus: B, globalBlock: RegBlockReadBack, pid: Int, maxThreads: Int, idx: Int)(implicit asMaster: AsSimBusMaster[B]) = {
+    // activate process
+    asMaster.write(bus, globalBlock("sched", "proc_pid"), pid.toBytes)
+    asMaster.write(bus, globalBlock("sched", "proc_maxThreads"), maxThreads.toBytes)
+    asMaster.write(bus, globalBlock("sched", "proc_enabled"), 1.toBytes)
 
-    // dump generated packet
-    val dumper = if (dumpPacket) Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString) else null
+    asMaster.write(bus, globalBlock("sched", "proc_idx"), idx.toBytes)
+  }
 
-    // enable all cores by default
-    asMaster.write(bus, globalBlock("workerCoreMask"), b"11111111".toBytes) // mask
-
-    // TODO: also test non promisc mode
-    asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
-
+  /** Enable one service in the given process. */
+  def enableService[B](bus: B, globalBlock: RegBlockReadBack, prog: Int, progVer: Int, procNum: Int, funcPtr: Long, sport: Int, dport: Int, idx: Int, pid: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     // activate service
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytes)
@@ -33,8 +29,30 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytes)
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_pid"), pid.toBytes)
 
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), 0.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytes)
+  }
+
+  lazy val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString)
+
+  /** Used for generating test benches where one service sits in one process.  Tests the following paths:
+    *  - service scaling up from 0 to all cores
+    */
+  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B], c: ConfigDatabase) = {
+    // generate ONCRPC packet
+    val sport, dport = Random.nextInt(65535)
+    val prog, progVer, procNum = Random.nextInt()
+    // 48-bit pointer; avoid generating negative number
+    val funcPtr = Random.nextLong(0x1000000000000L)
+
+    // TODO: also test non promisc mode
+    asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
+
+    // create one process with all cores and enable a service inside
+    val pid = Random.nextInt(65535)
+    enableProcess(bus, globalBlock, pid, c[Int]("num cores"), idx = 1) // slot 0 is for IDLE
+    enableService(bus, globalBlock, prog, progVer, procNum, funcPtr, sport, dport, idx = 0, pid)
 
     // wait for mask and service configs to take effect
     sleepCycles(20)
@@ -45,7 +63,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
       val payloadLen = payloadWords * 4
       val payload = Random.nextBytes(payloadLen).toList
       val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
-      if (dumper != null) {
+      if (dumpPacket) {
         dumper.dump(packet)
         dumper.flush()
       }
