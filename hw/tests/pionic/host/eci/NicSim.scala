@@ -83,22 +83,48 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
-      val clAddr = rxNextCl(cid) * 0x80 +
-        c[Int]("eci rx base") + c[Int]("eci core offset") * cid
-      val overflowAddr = clAddr + 0x40
+      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val preemptCtrlAddr = coreBase + 0x10000
+
+      if (cid != 0) {
+        // CAS READY/BUSY to enter critical region
+        var done = false
+        while (!done) {
+          val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+          if ((busyReady & 0x2) != 0) {
+            // READY is set, set BUSY
+            done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady | 0x1)
+          } // otherwise READY is 0, try again
+        }
+      }
+
+      val clAddr = rxNextCl(cid) * 0x80 + coreBase
+      val overflowAddr: BigInt = clAddr + 0x40
       println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
       val control = dcsMaster.read(clAddr, 64, doInvIdemptCheck = false).bytesToBigInt
       // always toggle cacheline
       rxNextCl(cid) = 1 - rxNextCl(cid)
-      if ((control & 1) == 0) {
+      val ret = if ((control & 1) == 0) {
         sleepCycles(20)
         tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1))
       } else {
         // got packet!
         done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
       }
+
+      if (cid != 0) {
+        // CAS unset BUSY to exit critical region
+        // need CAS, otherwise might overwrite READY that the FPGA might have just cleared
+        var done = false
+        while (!done) {
+          val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+          done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
+        }
+      }
+
+      ret
     }
   }
 
