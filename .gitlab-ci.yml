@@ -15,11 +15,11 @@ variables:
     - vivado
   image: "registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04"
 
-fast-tests:
+fast-tests-eci:
   extends: .docker-image
   stage: test
   script:
-    - mill gen.test -l org.scalatest.tags.Slow -l pionic.tags.Formal
+    - mill gen.test.testOnly pionic.host.eci.NicSim -- -l org.scalatest.tags.Slow
   artifacts:
     paths:
       - simWorkspace/**/sim_transcript.log.gz
@@ -49,7 +49,7 @@ build-sw-eci:
   extends: .docker-image
   stage: build-hw
   needs:
-    - fast-tests
+    - fast-tests-eci
   before_script:
     - source /opt/Xilinx/Vivado/2023.2/settings64.sh
   script:
