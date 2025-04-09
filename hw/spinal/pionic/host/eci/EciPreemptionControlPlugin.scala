@@ -57,7 +57,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   }
 
   val requiredAddrSpace = 0x80
-  val controlClAddr = 0x0
+
+  // we have same address space view as the core control (for LCI/LCIA/UL, and AXI)
+  val controlClAddr = 0x10000
 
   assert(coreID != 0, "bypass core does not need preemption control!")
 
@@ -257,12 +259,12 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   }
 
   override def preemptReq: Stream[PID] = logic.preemptReq
-  def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]) = {
+  def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]) = new Area {
     val busCtrl = Axi4SlaveFactory(bus)
     busCtrl.readAndWrite(logic.preemptCtrlCl, controlClAddr)
 
     lci  << logic.lci
     ul   << logic.ul
     lcia >> logic.lcia
-  }
+  }.setName(s"driveDcsBus_preempt_core$coreID")
 }
