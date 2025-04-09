@@ -110,15 +110,24 @@ class Scheduler extends PioNicPlugin {
     // per-process queues are in memory
     val queueMem = Mem(TaggedProtoPacketDesc(), numProcs * pktsPerProc)
 
-    case class QueueMetadata(offset: Int, capacity: Int)(implicit c: ConfigDatabase) extends Bundle {
-      val head, tail = MemAddr
-      val fill = UInt(log2Up(pktsPerProc) bits)
+    case class QueueMetadata()(off: UInt, cap: UInt)(implicit c: ConfigDatabase) extends Bundle {
+      val offset, head, tail = MemAddr
+      val capacity, fill = UInt(log2Up(pktsPerProc+1) bits)
 
-      def full = fill === capacity
-      def empty = head === tail && (!full || Bool(capacity == 0))
-      def almostFull = {
+      // XXX: offset and capacity must be UInt, since we need to mux to select one
+      offset := off
+      capacity := cap
+
+      // use signalCache to prevent storing these derived signals as registers
+      def full = signalCache(this, "full") {
+        (fill === capacity).setCompositeName(this, "full")
+      }
+      def empty = signalCache(this, "empty") {
+        (head === tail && (!full || capacity === 0)).setCompositeName(this, "empty")
+      }
+      def almostFull = signalCache(this, "almostFull") {
         // TODO: more flexible metric
-        2 * fill >= capacity
+        (2 * fill >= capacity).setCompositeName(this, "almostFull")
       }
 
       // actions called on a reg to mutate
@@ -126,6 +135,8 @@ class Scheduler extends PioNicPlugin {
         head init offset
         tail init offset
         fill init 0
+        offset := off
+        capacity := cap
       }
 
       private def advance(ptr: UInt): UInt = {
@@ -154,7 +165,7 @@ class Scheduler extends PioNicPlugin {
     val queueMetas = Vec.tabulate(numProcs+1) { idx =>
       val offset = if (idx == 0) 0 else (idx-1) * pktsPerProc
       val capacity = if (idx == 0) 0 else pktsPerProc
-      val ret = Reg(QueueMetadata(offset, capacity))
+      val ret = Reg(QueueMetadata()(offset, capacity))
       ret.initEmpty
       ret
     }
