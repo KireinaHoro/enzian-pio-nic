@@ -8,6 +8,8 @@ import jsteward.blocks.misc.RegBlockAlloc
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
+import scala.language.postfixOps
+
 /** Type for PIDs. */
 case class PID()(implicit c: ConfigDatabase) extends Bundle {
   override def clone = PID()
@@ -175,19 +177,18 @@ class Scheduler extends PioNicPlugin {
       meta.metadata.oncRpcCall
     }
     // process ID to select which queue the incoming packet goes into
-    val procSelOh = procDefs.map { pd =>
+    val rxProcSelOh = procDefs.map { pd =>
       pd.enabled && pd.pid === rxOncRpcCall.pid
     }.asBits()
 
     when (rxMeta.valid) {
       // decoder pipeline should have filtered out packets that do not belong to an enabled process
-      assert(CountOne(procSelOh) === 1, "not exactly one proc can handle a packet")
+      assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
       assert(rxMeta.ty === ProtoPacketDescType.oncRpcCall, "scheduler does not support other req types yet")
     }
 
-    val procTblIdx = OHToUInt(procSelOh)
-    val rxProcDef = procDefs(procTblIdx)
-    val rxQueueMeta = queueMetas(procTblIdx)
+    val rxProcTblIdx = OHToUInt(rxProcSelOh)
+    val rxProcDef = procDefs(rxProcTblIdx)
 
     // report scheduler packet drop
     val rxSchedDrop = CombInit(False)
@@ -200,7 +201,7 @@ class Scheduler extends PioNicPlugin {
     }
 
     // core map for the rx process
-    val rxProcCoreMap = corePidMap.map(_ === procTblIdx).asBits()
+    val rxProcCoreMap = corePidMap.map(_ === rxProcTblIdx).asBits()
     val rxProcCurrThrCount = CountOne(rxProcCoreMap)
 
     // preempt request to popping side
@@ -210,28 +211,28 @@ class Scheduler extends PioNicPlugin {
     rxOncRpcCall.setBlocked()
     when (rxOncRpcCall.valid) {
       // received packet: push into memory
-      when (rxQueueMeta.full) {
+      when (queueMetas(rxProcTblIdx).full) {
         // must drop packet since destination is full
         rxSchedDrop := True
       } otherwise {
         // store at where the tail was
-        queueMem.write(rxQueueMeta.tail, rxMeta.payload)
+        queueMem.write(queueMetas(rxProcTblIdx).tail, rxMeta.payload)
 
         // update pointers
-        rxQueueMeta.pushOne()
+        queueMetas(rxProcTblIdx).pushOne()
       }
 
       // new packet arrived, try to select a core to preempt
       // but do not block the RX process
       when (rxProcCurrThrCount < rxProcDef.maxThreads) {
         rxPreemptReq.pid := rxOncRpcCall.pid
-        rxPreemptReq.idx := procTblIdx
+        rxPreemptReq.idx := rxProcTblIdx
 
         when (rxProcCoreMap === 0) {
           // no process assigned to this queue -- idle preempt
           rxPreemptReq.ty := PreemptCmdType.idle
           rxPreemptReq.valid := True
-        } elsewhen (rxQueueMeta.almostFull) {
+        } elsewhen (queueMetas(rxProcTblIdx).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
           // preempt a non-idle, ready core
           rxPreemptReq.ty := PreemptCmdType.ready
@@ -267,8 +268,7 @@ class Scheduler extends PioNicPlugin {
       val popReq = popReqs(idx)
       popReq.setIdle()
 
-      val queueIdx = corePidMap(idx)
-      val queueMeta = queueMetas(queueIdx)
+      val corePopQueueIdx = corePidMap(idx)
 
       corePreempt(idx).setIdle()
 
@@ -278,9 +278,9 @@ class Scheduler extends PioNicPlugin {
             when (rxPreemptReq.valid && victimCoreMap(idx)) {
               // we are selected as victim
               goto(preempt)
-            } elsewhen (toCore.ready && !queueMeta.empty) {
+            } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
               // we can ask for a request to be popped
-              popReq.payload := queueMeta.head
+              popReq.payload := queueMetas(corePopQueueIdx).head
               popReq.valid := True
               when(popReq.ready) {
                 // queue mem read granted.  readSync has one cycle latency
@@ -307,7 +307,7 @@ class Scheduler extends PioNicPlugin {
             toCore.valid := True
 
             // update queue pointers
-            queueMeta.popOne()
+            queueMetas(corePopQueueIdx).popOne()
 
             when (toCore.ready) {
               // worker might de-assert ready due to timeout, have to wait until they try again
@@ -317,6 +317,6 @@ class Scheduler extends PioNicPlugin {
           }
         }
       }
-    } }
+    }.setName(s"sched_rx_pop_core$idx") }
   }
 }
