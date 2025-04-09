@@ -260,6 +260,7 @@ class Scheduler extends PioNicPlugin {
       // TODO: when do we need the `force` command type?
       default -> B(0),
     )
+    val victimCoreMapSel = OHMasking.firstV2(victimCoreMap)
 
     0 until numWorkerCores foreach { idx => new Area {
       val toCore = coreMeta(idx)
@@ -275,7 +276,7 @@ class Scheduler extends PioNicPlugin {
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (rxPreemptReq.valid && victimCoreMap(idx)) {
+            when (rxPreemptReq.valid && victimCoreMapSel(idx)) {
               // we are selected as victim
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
