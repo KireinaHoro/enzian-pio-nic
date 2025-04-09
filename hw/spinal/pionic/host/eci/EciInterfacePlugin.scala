@@ -137,13 +137,9 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
       cmds.zipWithIndex.map { case (cmd, uidx) =>
         new Area {
-          val coreIdx = uidx / 2
-          val isPreempt = uidx % 2
-          val dataPathSize = host.list[EciPioProtocol].apply(coreIdx).sizePerCore
-
           // core interfaces use UNALIASED addresses
           val acmd = cmd.mapPayloadElement(addrLocator) { a =>
-            EciCmdDefs.aliasAddress(a.asUInt + coreOffset * (uidx / 2) + isPreempt * dataPathSize)
+            EciCmdDefs.aliasAddress(a.asUInt + coreOffset * (uidx / 2))
           }
           // lowest 7 bits are byte offset
           // even addr -> odd VC, vice versa
@@ -176,14 +172,11 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
           val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * numCores)
         }.setName("demuxLcl").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
-        val coreIdx = uidx / 2
-        val isPreempt = uidx % 2
-        val dataPathSize = host.list[EciPioProtocol].apply(coreIdx).sizePerCore
         val resps = chans.map { c =>
           new Composite(c) {
             // dcs use ALIASED addresses
             val unaliased = c.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
-              (EciCmdDefs.unaliasAddress(a) - coreOffset * (uidx / 2) - isPreempt * dataPathSize).asBits
+              (EciCmdDefs.unaliasAddress(a) - coreOffset * (uidx / 2)).asBits
             }
             val ret = unaliased.translateWith(unaliased.data)
           }
