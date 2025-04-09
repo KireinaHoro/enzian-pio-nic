@@ -87,6 +87,11 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     }
 
     val preemptCtrlCl = Reg(PreemptionControlCl())
+    // CPU is not in critical section at the very start
+    preemptCtrlCl.busy init False
+    // We are not issuing a preemption request at the start
+    preemptCtrlCl.ready init True
+
     assert(requiredAddrSpace >= preemptCtrlCl.getBitsWidth, "not all information fits in the preemption control CL")
 
     // Preemption request from scheduler.  When issued (valid === True), the scheduler
