@@ -1,6 +1,6 @@
 package pionic.host.eci
 
-import jsteward.blocks.eci.sim.DcsAppMaster
+import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.isSorted
 import org.pcap4j.core.Pcaps
@@ -35,13 +35,18 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     .workspaceName("eci")
     .compile(pionic.GenEngineVerilog.engine(c))
 
-  def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit = (_, _) => ())(implicit dut: NicEngine) = {
     val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
+
+    IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
+      println(s"Received IRQ #$intId for core $coreId")
+      irqCb(coreId, intId)
+    }
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
