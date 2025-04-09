@@ -159,14 +159,20 @@ class Scheduler extends PioNicPlugin {
       ret
     }
 
+    // such that the waveform shows the actual header, not a union
+    val rxOncRpcCall: Stream[OncRpcCallMetadata] = rxMeta.map { meta =>
+      meta.metadata.oncRpcCall
+    }
     // process ID to select which queue the incoming packet goes into
     val procSelOh = procDefs.map { pd =>
-      pd.enabled && pd.pid === rxMeta.metadata.oncRpcCall.pid
+      pd.enabled && pd.pid === rxOncRpcCall.pid
     }.asBits()
 
-    // decoder pipeline should have filtered out packets that do not belong to
-    // an enabled process
-    assert(CountOne(procSelOh) === 1, "not exactly one proc can handle a packet")
+    when (rxMeta.valid) {
+      // decoder pipeline should have filtered out packets that do not belong to an enabled process
+      assert(CountOne(procSelOh) === 1, "not exactly one proc can handle a packet")
+      assert(rxMeta.ty === ProtoPacketDescType.oncRpcCall, "scheduler does not support other req types yet")
+    }
 
     val procTblIdx = OHToUInt(procSelOh)
     val rxProcDef = procDefs(procTblIdx)
@@ -190,10 +196,8 @@ class Scheduler extends PioNicPlugin {
     val rxPreemptReq = Reg(Flow(PreemptCmd()))
     rxPreemptReq.valid := False
 
-    rxMeta.setBlocked()
-    when (rxMeta.valid) {
-      assert(rxMeta.ty === ProtoPacketDescType.oncRpcCall, "scheduler does not support other req types yet")
-
+    rxOncRpcCall.setBlocked()
+    when (rxOncRpcCall.valid) {
       // received packet: push into memory
       when (rxQueueMeta.full) {
         // must drop packet since destination is full
@@ -209,7 +213,7 @@ class Scheduler extends PioNicPlugin {
       // new packet arrived, try to select a core to preempt
       // but do not block the RX process
       when (rxProcCurrThrCount < rxProcDef.maxThreads) {
-        rxPreemptReq.pid := rxMeta.metadata.oncRpcCall.pid
+        rxPreemptReq.pid := rxOncRpcCall.pid
         rxPreemptReq.idx := procTblIdx
 
         when (rxProcCoreMap === 0) {
@@ -225,7 +229,7 @@ class Scheduler extends PioNicPlugin {
       }
 
       // we either pushed the packet or dropped it, ack
-      rxMeta.ready := True
+      rxOncRpcCall.ready := True
     }
 
     // each core can raise a pop request, to remove one packet from the queues
