@@ -2,6 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
+import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.{BigIntRicher, isSorted}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.Packet
@@ -78,7 +79,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
+  def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
     if (cid != 0) {
       println(s"Entering critical section for core $cid...")
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
@@ -86,14 +87,26 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
       // CAS READY/BUSY to enter critical region
       var done = false
+      var attempts = 0
       while (!done) {
-        val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+        assert(attempts < maxAttempts, s"failed to enter critical section for $maxAttempts times!")
+
+        val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
         assert((busyReady & 0x1) == 0, "BUSY already high!")
         if ((busyReady & 0x2) != 0) {
           // READY is set, set BUSY
           done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady | 0x1)
-        } // otherwise READY is 0, try again
+          if (!done) {
+            println("CAS failed, retrying")
+          }
+        } else {
+          // otherwise READY is 0, try again
+          println("READY is 0, retrying...")
+        }
+        attempts += 1
       }
+
+      println(s"Core $cid in critical section")
     }
   }
 
@@ -107,7 +120,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       // need CAS, otherwise might overwrite READY that the FPGA might have just cleared
       var done = false
       while (!done) {
-        val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+        val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
         assert((busyReady & 0x1) != 0, "BUSY not high!")
         done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
       }
