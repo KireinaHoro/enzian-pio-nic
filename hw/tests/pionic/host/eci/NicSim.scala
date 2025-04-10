@@ -127,6 +127,18 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     }
   }
 
+  def ackIrq(csrMaster: AxiLite4Master, coreBlock: RegBlockReadBack) = {
+    val ipiAck = BigIntRicher(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
+
+    // TODO: put into sim data struct to reuse
+    val pidToSched = ipiAck(c[Int]("process id width") + 8 downto 8)
+    val rxParity = ipiAck(0)
+    val txParity = ipiAck(1)
+    val killed = ipiAck(2)
+
+    (pidToSched, rxParity, txParity, killed)
+  }
+
   // we have one more core as bypass
   val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores") + 1)(0)
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
@@ -286,12 +298,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val numWorkerCores = c[Int]("num cores")
     val totalToSend = 50 * numWorkerCores
 
-    val coresScheduled = mutable.ArrayBuffer.fill(numWorkerCores)(false)
+    val irqReceived = mutable.ArrayBuffer.fill(numWorkerCores+1)(false)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
-      assert(!coresScheduled(coreId), s"core $coreId has already been preempted once!")
+      assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
 
-      coresScheduled(coreId) = true
+      irqReceived(coreId) = true
     })
 
     val allocFactory = dut.host[ConfigDatabase].f
@@ -322,7 +334,15 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     1 to numWorkerCores foreach { cid =>
       fork {
         // wait for schedule request
-        waitUntil(coresScheduled(cid - 1))
+        waitUntil(irqReceived(cid))
+        println(s"Received IRQ for core $cid, ack-ing interrupt...")
+
+        val coreBlock = allocFactory.readBack("core", blockIdx = cid)
+        val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
+        assert(pidToSched == pid, "requested PID does not match what we programmed")
+        assert(!rxParity, "no read happened yet, should be on CL #0")
+        assert(!txParity, "no write happened yet, should be on CL #0")
+        assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
 
         // read and check packet against sent
         val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
@@ -540,17 +560,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     println("Received IRQ, ack-ing interrupt")
 
     // ACK interrupt -- we have now arrived in the kernel
-    val ipiAck = BigIntRicher(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
-    val pidToSched = ipiAck(c[Int]("process id width") + 8 downto 8)
+    val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
     assert(pidToSched == pid, "requested PID does not match what we programmed")
-
-    val rxParity = ipiAck(0)
     assert(!rxParity, "no read happened yet, should be on CL #0")
-
-    val txParity = ipiAck(1)
     assert(!txParity, "no write happened yet, should be on CL #0")
-
-    val killed = ipiAck(2)
     assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
 
     // ensure that packet has landed in the queue
