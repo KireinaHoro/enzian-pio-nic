@@ -209,7 +209,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // test round-robin
     Seq.fill(50)(0 until c[Int]("num cores")).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
-        val (packet, payload) = getPacket()
+        val (packet, payload, xid) = getPacket()
         val toSend = packet.getRawData.toList
         axisMaster.sendCB(toSend)()
 
@@ -237,7 +237,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
-    val (packet, _) = getPacket()
+    val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
 
     axisMaster.send(toSend)
@@ -268,7 +268,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
-    val (packet, _) = getPacket()
+    val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
     val delayed = 500
 
