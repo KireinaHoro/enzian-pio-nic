@@ -344,20 +344,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         assert(!txParity, "no write happened yet, should be on CL #0")
         assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
 
-        // read and check packet against sent
-        val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
-        val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
-        println(f"Received status register: $desc")
-        // packet generator return little endian xid but sends in big endian
-        // HW does not change (i.e. we get big endian back)
-        val xid = Integer.reverseBytes(info.xid.toInt)
+        while (packetsReceived != totalToSend) {
+          // read and check packet against sent
+          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
+          val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+          println(f"Received status register: $desc")
+          // packet generator return little endian xid but sends in big endian
+          // HW does not change (i.e. we get big endian back)
+          val xid = Integer.reverseBytes(info.xid.toInt)
 
-        // find the payload that we sent
-        val pld = sentPackets(xid)
-        checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
-        exitCriticalSection(dcsMaster, cid)
+          // find the payload that we sent
+          val pld = sentPackets(xid)
+          checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
+          exitCriticalSection(dcsMaster, cid)
 
-        packetsReceived += 1
+          println(s"Received packet #$packetsReceived")
+          packetsReceived += 1
+        }
       }
     }
 
@@ -617,6 +620,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   /* Test that Lauberhorn can scale up to multiple services */
   test("rx-sched-idle-scale-many") { implicit dut =>
     // on 8 cores, install 4 processes, 2 services each
+  }
+
+  /* Test preempting a process that:
+   * - is not processing a request, AND
+   * - did not receive request for some time
+   */
+  test("rx-sched-preempt") { implicit dut =>
+
   }
 
   /* Test killing a process that did not unset BUSY */
