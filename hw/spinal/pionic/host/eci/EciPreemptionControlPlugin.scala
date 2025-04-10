@@ -251,6 +251,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           ul.valid := True
           when (ul.ready) {
+            preemptReq.ready := True
             goto(idle)
           }
         }
