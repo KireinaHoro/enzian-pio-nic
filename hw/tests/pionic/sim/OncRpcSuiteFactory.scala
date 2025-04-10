@@ -2,12 +2,13 @@ package pionic.sim
 
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import org.pcap4j.core.Pcaps
+import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
 import pionic.{AsSimBusMaster, ConfigDatabase, NicEngine}
 import spinal.lib._
 
 import scala.util.Random
+import scala.collection.mutable
 
 trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Enable one process in the scheduler. */
@@ -34,12 +35,17 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytes)
   }
 
-  lazy val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-oncrpc-roundrobin") / "packets.pcap").toString)
+  val dumpers = mutable.Map[String, PcapDumper]()
+  def getDumper(workspaceName: String): PcapDumper = {
+    dumpers.getOrElseUpdate(workspaceName, {
+      Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(workspaceName) / "packets.pcap").toString)
+    })
+  }
 
   /** Used for generating test benches where one service sits in one process.  Tests the following paths:
     *  - service scaling up from 0 to all cores
     */
-  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, dumpPacket: Boolean = false)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B], c: ConfigDatabase) = {
+  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B], c: ConfigDatabase) = {
     // generate ONCRPC packet
     val sport, dport = Random.nextInt(65535)
     val prog, progVer, procNum = Random.nextInt()
@@ -64,7 +70,8 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
       val payload = Random.nextBytes(payloadLen).toList
       val xid = Random.nextInt()
       val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload, xid)
-      if (dumpPacket) {
+      if (packetDumpWorkspace.nonEmpty) {
+        val dumper = getDumper(packetDumpWorkspace.get)
         dumper.dump(packet)
         dumper.flush()
       }

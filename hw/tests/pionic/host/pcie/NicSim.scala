@@ -201,7 +201,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
     master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
-    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock, dumpPacket = true)
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock,
+      packetDumpWorkspace = Some("rx-oncrpc-roundrobin")
+    )
 
     val mask = b"01101110"
     master.write(globalBlock("workerCoreMask"), mask.toBytes) // mask
