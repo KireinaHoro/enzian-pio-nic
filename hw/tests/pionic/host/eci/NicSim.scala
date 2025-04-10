@@ -2,7 +2,7 @@ package pionic.host.eci
 
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.sim.isSorted
+import jsteward.blocks.misc.sim.{BigIntRicher, isSorted}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.Packet
 import org.pcap4j.packet.namednumber.DataLinkType
@@ -10,7 +10,7 @@ import org.scalatest.exceptions.TestFailedException
 import pionic._
 import pionic.sim._
 import pionic.sim.PacketType.PacketType
-import spinal.core._
+import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.core.sim._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
@@ -35,7 +35,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     .workspaceName("eci")
     .compile(pionic.GenEngineVerilog.engine(c))
 
-  def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit = (_, _) => ())(implicit dut: NicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit)(implicit dut: NicEngine) = {
     val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     val coreBlock = allocFactory.readBack("core")
@@ -58,7 +58,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
 
-  def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
+  def rxDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit = (_, _) => ())(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
     for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
 
@@ -67,12 +67,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles)
+    val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles, irqCb)
     (csrMaster, axisMaster, dcsMaster)
   }
 
   def txDutSetup()(implicit dut: NicEngine) = {
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000, (_, _) => ()) // arbitrary rxBlockCycles
     for (i <- txNextCl.indices) { txNextCl(i) = 0 }
 
     (csrMaster, axisSlave, dcsMaster)
@@ -241,11 +241,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   /** test enabling an ONCRPC service */
   test("rx-oncrpc-roundrobin") { implicit dut =>
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
+      // TODO
+    })
     val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
 
-    val (funcPtr, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock, dumpPacket = true)
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock, dumpPacket = true)
 
     Seq.fill(50)(0 until c[Int]("num cores")).flatten.foreach { idx =>
       val (packet, payload) = getPacket()
@@ -407,65 +409,111 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  test("rx-timestamped-queued") { implicit dut =>
+  test("rx-timestamped") { implicit dut =>
+    // test routine:
+    // - send first packet before core is scheduled, check timestamps (queued)
+    // - host keeps reading, send second packet, check timestamps (stalled)
+
     // test timestamp collection with oncrpc call
     val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
     // test on first non-bypass core
     val coreBlock = allocFactory.readBack("core", blockIdx = 1)
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
-    val (_, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock)
-    val (packet, _) = getPacket()
-    val toSend = packet.getRawData.toList
+    var irqReceived = false
+    var readingSecond = false
 
-    axisMaster.send(toSend)
-    // ensure that packet has landed in the queue
-    val delayed = 1000
-    sleepCycles(delayed)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, { case (coreId, intId) =>
+      assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
 
-    val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
-    val timestamp = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+      assert(!irqReceived, "should only receive one interrupt")
+      irqReceived = true
+    })
 
-    // we don't use the commit timestamp since commit is tied to read next
-    val timestamps = getRxTimestamps(csrMaster, globalBlock)
-    import timestamps._
-
-    println(s"Current timestamp: $timestamp")
-
-    assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, timestamp))
-    assert(readStart - entry >= delayed)
-  }
-
-  test("rx-timestamped-stalled") { implicit dut =>
-    // test timestamp collection with oncrpc call
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    // test on first non-bypass core
-    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(2000)
-
-    val (_, getPacket) = oncRpcCallPacketFactory(csrMaster, globalBlock)
-    val (packet, _) = getPacket()
-    val toSend = packet.getRawData.toList
-
-    // we test only one iteration -- no retries
     val delayed = 1000
 
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock)
     fork {
+      // send first packet -- host not ready yet, packet will be queued
+      val (packet, _) = getPacket()
+      axisMaster.send(packet.getRawData.toList)
+
+      // wait until host is ready and is actively reading
+      waitUntil(readingSecond)
+
+      // ensure the host is actually reading
       sleepCycles(delayed)
-      axisMaster.send(toSend)
+
+      // send second packet -- host already reading and stalled
+      val (packet2, _) = getPacket()
+      axisMaster.send(packet2.getRawData.toList)
     }
 
-    val (desc, _) = tryReadPacketDesc(dcsMaster, 1, maxTries = 1).result.get
-    val timestamp = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+    // wait until we have received the IRQ
+    waitUntil(irqReceived)
+    println("Received IRQ, ack-ing interrupt")
 
-    val timestamps = getRxTimestamps(csrMaster, globalBlock)
-    import timestamps._
+    // ACK interrupt -- we have now arrived in the kernel
+    val ipiAck = BigIntRicher(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
+    val pidToSched = ipiAck(c[Int]("process id width") + 8 downto 8)
+    assert(pidToSched == pid, "requested PID does not match what we programmed")
 
-    println(s"Current timestamp: $timestamp")
+    val rxParity = ipiAck(0)
+    assert(!rxParity, "no read happened yet, should be on CL #0")
 
-    assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, timestamp))
-    assert(entry - readStart >= delayed)
+    val txParity = ipiAck(1)
+    assert(!txParity, "no write happened yet, should be on CL #0")
+
+    val killed = ipiAck(2)
+    assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
+
+    // ensure that packet has landed in the queue
+    sleepCycles(delayed)
+
+    {
+      val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+      // check if decoded packet is what we sent
+      val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+      assert(info.funcPtr == funcPtr, "function pointer mismatch")
+
+      val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+
+      // we don't use the commit timestamp since commit is tied to read next
+      val ts = getRxTimestamps(csrMaster, globalBlock)
+
+      // check timestamps for first packet
+      import ts._
+
+      println(s"Current timestamp after packet 1 done: $curr")
+
+      assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, curr))
+      assert(readStart - entry >= delayed)
+    }
+
+    // we can now read second packet
+    readingSecond = true
+
+    {
+      // retry up to 5 times
+      val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+      val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+      assert(info.funcPtr == funcPtr, "function pointer mismatch")
+      val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+      val ts = getRxTimestamps(csrMaster, globalBlock)
+      import ts._
+      println(s"Current timestamp after packet 2 done: $curr")
+      assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, curr))
+      assert(entry - readStart >= delayed)
+    }
+  }
+
+  /* Test that Lauberhorn can scale up to multiple services */
+  test("rx-sched-idle-scale-many") { implicit dut =>
+    // on 8 cores, install 4 processes, 2 services each
+  }
+
+  /* Test killing a process that did not unset BUSY */
+  test("rx-sched-crit-timeout") { implicit dut =>
+
   }
 }

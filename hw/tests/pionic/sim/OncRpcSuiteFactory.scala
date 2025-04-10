@@ -70,7 +70,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
       (packet, payload)
     }
 
-    (funcPtr, getPacket _)
+    (funcPtr, getPacket _, pid)
   }
 
   def checkOncRpcCall[D <: HostPacketDescSim](hostDesc: D, overflowLen: Int, funcPtr: Long, payload: List[Byte], overflowData: => List[Byte])(implicit c: ConfigDatabase): Unit = {
