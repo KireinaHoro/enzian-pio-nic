@@ -80,6 +80,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
     if (cid != 0) {
+      println(s"Entering critical section for core $cid...")
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
@@ -98,6 +99,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   def exitCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
     if (cid != 0) {
+      println(s"Exiting critical section for core $cid...")
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
@@ -131,15 +133,19 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       rxNextCl(cid) = 1 - rxNextCl(cid)
       val ret = if ((control & 1) == 0) {
         sleepCycles(20)
-        tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1))
+        // we didn't get a packet, exit critical section here irrespective of exitCS
+        exitCriticalSection(dcsMaster, cid)
+
+        // pass exitCS so the retry can skip exitCS if needed
+        tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1, exitCS))
       } else {
         // got packet!
-        done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
-      }
+        if (exitCS) {
+          // should only be used, when there's no intention to check the packet data in overflow
+          exitCriticalSection(dcsMaster, cid)
+        }
 
-      if (exitCS) {
-        // should only be used, when there's no intention to check the packet data in overflow
-        exitCriticalSection(dcsMaster, cid)
+        done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
       }
 
       ret
