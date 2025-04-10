@@ -78,25 +78,48 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  // we have one more core as bypass
-  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores") + 1)(0)
-  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
-    if (maxTries == 0) done(None)
-    else {
+  def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
+    if (cid != 0) {
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
-      if (cid != 0) {
-        // CAS READY/BUSY to enter critical region
-        var done = false
-        while (!done) {
-          val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
-          if ((busyReady & 0x2) != 0) {
-            // READY is set, set BUSY
-            done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady | 0x1)
-          } // otherwise READY is 0, try again
-        }
+      // CAS READY/BUSY to enter critical region
+      var done = false
+      while (!done) {
+        val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+        assert((busyReady & 0x1) == 0, "BUSY already high!")
+        if ((busyReady & 0x2) != 0) {
+          // READY is set, set BUSY
+          done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady | 0x1)
+        } // otherwise READY is 0, try again
       }
+    }
+  }
+
+  def exitCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
+    if (cid != 0) {
+      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val preemptCtrlAddr = coreBase + 0x10000
+
+      // CAS unset BUSY to exit critical region
+      // need CAS, otherwise might overwrite READY that the FPGA might have just cleared
+      var done = false
+      while (!done) {
+        val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
+        assert((busyReady & 0x1) != 0, "BUSY not high!")
+        done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
+      }
+    }
+  }
+
+  // we have one more core as bypass
+  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores") + 1)(0)
+  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
+    if (maxTries == 0) done(None)
+    else {
+      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+
+      enterCriticalSection(dcsMaster, cid)
 
       val clAddr = rxNextCl(cid) * 0x80 + coreBase
       val overflowAddr: BigInt = clAddr + 0x40
@@ -114,14 +137,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
       }
 
-      if (cid != 0) {
-        // CAS unset BUSY to exit critical region
-        // need CAS, otherwise might overwrite READY that the FPGA might have just cleared
-        var done = false
-        while (!done) {
-          val busyReady = dcsMaster.read(preemptCtrlAddr, 1).head
-          done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
-        }
+      if (exitCS) {
+        // should only be used, when there's no intention to check the packet data in overflow
+        exitCriticalSection(dcsMaster, cid)
       }
 
       ret
