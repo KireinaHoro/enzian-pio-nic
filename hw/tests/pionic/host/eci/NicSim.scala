@@ -263,28 +263,72 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  /** test enabling an ONCRPC service */
-  test("rx-oncrpc-roundrobin") { implicit dut =>
+  test("rx-oncrpc-allcores") { implicit dut =>
+    // test routine:
+    // - enable one RPC process with one service, on all cores
+    // - send 50 * numWorkerCores requests
+    // - cores are preempted as requests come in, they start to read
+    // - eventually all packets are received through all cores
+
+    val numWorkerCores = c[Int]("num cores")
+    val totalToSend = 50 * numWorkerCores
+
+    val coresScheduled = mutable.ArrayBuffer.fill(numWorkerCores)(false)
+
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
-      // TODO
+      assert(!coresScheduled(coreId), s"core $coreId has already been preempted once!")
+
+      coresScheduled(coreId) = true
     })
+
     val allocFactory = dut.host[ConfigDatabase].f
     val globalBlock = allocFactory.readBack("global")
 
-    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock, dumpPacket = true)
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock,
+      packetDumpWorkspace = Some("rx-oncrpc-allcores")
+    )
+    val sentPackets = mutable.Map[Int, List[Byte]]()
+    var packetsReceived = 0
 
-    Seq.fill(50)(0 until c[Int]("num cores")).flatten.foreach { idx =>
-      val (packet, payload, xid) = getPacket()
-      val toSend = packet.getRawData.toList
-      // asynchronously send
-      axisMaster.sendCB(toSend)()
+    fork {
+      // send all packets
+      // TODO: flow control?
+      0 until totalToSend foreach { _ =>
+        val (packet, payload, xid) = getPacket()
+        val toSend = packet.getRawData.toList
+        // blocking send
+        axisMaster.send(toSend)
 
-      val cid = idx + 1
-      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid).result.get
-      println(f"Received status register: $desc")
-
-      checkOncRpcCall(desc, desc.len, funcPtr, payload, dcsMaster.read(overflowAddr, desc.len))
+        // record packet in map: xid is key
+        // FIXME: this might collide..
+        assert(!sentPackets.contains(xid), "random packet generation collision")
+        sentPackets(xid) = payload
+      }
     }
+
+    1 to numWorkerCores foreach { cid =>
+      fork {
+        // wait for schedule request
+        waitUntil(coresScheduled(cid - 1))
+
+        // read and check packet against sent
+        val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
+        val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+        println(f"Received status register: $desc")
+        // packet generator return little endian xid but sends in big endian
+        // HW does not change (i.e. we get big endian back)
+        val xid = Integer.reverseBytes(info.xid.toInt)
+
+        // find the payload that we sent
+        val pld = sentPackets(xid)
+        checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
+        exitCriticalSection(dcsMaster, cid)
+
+        packetsReceived += 1
+      }
+    }
+
+    waitUntil(packetsReceived == totalToSend)
   }
 
   var txNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
