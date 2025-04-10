@@ -62,12 +62,13 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
       val payloadWords = Random.nextInt(24)
       val payloadLen = payloadWords * 4
       val payload = Random.nextBytes(payloadLen).toList
-      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload)
+      val xid = Random.nextInt()
+      val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload, xid)
       if (dumpPacket) {
         dumper.dump(packet)
         dumper.flush()
       }
-      (packet, payload)
+      (packet, payload, xid)
     }
 
     (funcPtr, getPacket _, pid)

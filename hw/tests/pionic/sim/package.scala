@@ -95,12 +95,12 @@ package object sim {
     ipPacket(IpNumber.UDP, udpBuilder)
   }
 
-  def oncRpcCallPacket(sport: Int, dport: Int, prog: Int, progVer: Int, procNum: Int, payload: List[Byte]) = {
+  def oncRpcCallPacket(sport: Int, dport: Int, prog: Int, progVer: Int, procNum: Int, payload: List[Byte], xid: Int) = {
     // construct header
     udpPacket(sport, dport,
       rawPayloadBuilder(
         Seq(
-          Random.nextInt(), // xid
+          xid,
           0, // message type: Call (0)
           2, // rpc version
           prog,

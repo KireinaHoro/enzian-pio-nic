@@ -274,7 +274,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock, dumpPacket = true)
 
     Seq.fill(50)(0 until c[Int]("num cores")).flatten.foreach { idx =>
-      val (packet, payload) = getPacket()
+      val (packet, payload, xid) = getPacket()
       val toSend = packet.getRawData.toList
       // asynchronously send
       axisMaster.sendCB(toSend)()
@@ -433,10 +433,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  test("rx-timestamped") { implicit dut =>
+  test("rx-oncrpc-timestamped") { implicit dut =>
     // test routine:
-    // - send first packet before core is scheduled, check timestamps (queued)
-    // - host keeps reading, send second packet, check timestamps (stalled)
+    // - enable one RPC process with one service, on all cores
+    // - send first packet before core is scheduled
+    // - core is preempted to run proc
+    // - read first packet, check timestamps (queued)
+    // - read second packet (stalled)
+    // - send second packet, check timestamps
 
     // test timestamp collection with oncrpc call
     val allocFactory = dut.host[ConfigDatabase].f
@@ -457,9 +461,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val delayed = 1000
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock)
+    val (packet, pld, xid) = getPacket()
+    val (packet2, pld2, xid2) = getPacket()
+
     fork {
       // send first packet -- host not ready yet, packet will be queued
-      val (packet, _) = getPacket()
       axisMaster.send(packet.getRawData.toList)
 
       // wait until host is ready and is actively reading
@@ -469,7 +475,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       sleepCycles(delayed)
 
       // send second packet -- host already reading and stalled
-      val (packet2, _) = getPacket()
       axisMaster.send(packet2.getRawData.toList)
     }
 
@@ -495,10 +500,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     sleepCycles(delayed)
 
     {
-      val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
-      assert(info.funcPtr == funcPtr, "function pointer mismatch")
+      val receivedXid = Integer.reverseBytes(info.xid.toInt)
+      assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
+
+      checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
+      exitCriticalSection(dcsMaster, 1)
 
       val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
 
@@ -518,10 +527,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     readingSecond = true
 
     {
-      // retry up to 5 times
-      val (desc, _) = tryReadPacketDesc(dcsMaster, 1).result.get
+      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
-      assert(info.funcPtr == funcPtr, "function pointer mismatch")
+      val receivedXid = Integer.reverseBytes(info.xid.toInt)
+      assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
+
+      checkOncRpcCall(desc, desc.len, funcPtr, pld2, dcsMaster.read(overflowAddr, desc.len))
+      exitCriticalSection(dcsMaster, 1)
+
       val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
       val ts = getRxTimestamps(csrMaster, globalBlock)
       import ts._
