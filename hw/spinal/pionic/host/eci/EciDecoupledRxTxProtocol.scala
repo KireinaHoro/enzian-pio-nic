@@ -59,6 +59,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     (currIdx * EciCmdDefs.ECI_CL_SIZE_BYTES + (if (isTx) U(txOffset) else U(0))).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
   }
 
+  // FIXME: packets are only DMA'ed into the per-core buffer, after they are scheduled onto a core
+  //        No meaningful queueing can happen in current design
+  // TODO: - get rid of per-core buffers
+  //       - CoreControl becomes global DmaControl, sits before scheduler
+  //       - use one global packet buffer, DMA into this, all ECI protos read from this
   def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits]): Unit = new Area {
     // address offset for this core in CoreControl descriptors
     val descOffset = c[Int]("pkt buf size per core") * coreID
