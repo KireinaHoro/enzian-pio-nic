@@ -5,7 +5,7 @@ import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.{BigIntRicher, isSorted}
 import org.pcap4j.core.Pcaps
-import org.pcap4j.packet.Packet
+import org.pcap4j.packet.{EthernetPacket, Packet}
 import org.pcap4j.packet.namednumber.DataLinkType
 import org.scalatest.exceptions.TestFailedException
 import pionic._
@@ -98,7 +98,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
     if (cid != 0) {
-      println(s"Entering critical section for core $cid...")
+      println(s"[core $cid] Entering critical section...")
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
@@ -123,13 +123,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         attempts += 1
       }
 
-      println(s"Core $cid in critical section")
+      println(s"[core $cid] in critical section")
     }
   }
 
   def exitCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
     if (cid != 0) {
-      println(s"Exiting critical section for core $cid...")
+      println(s"[core $cid] Exiting critical section...")
       val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
@@ -141,6 +141,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         assert((busyReady & 0x1) != 0, "BUSY not high!")
         done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
       }
+
+      println(s"[core $cid] out of critical section")
     }
   }
 
@@ -329,7 +331,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
     )
-    val sentPackets = mutable.Map[Int, List[Byte]]()
+    val sentPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
     var packetsReceived = 0
 
     fork {
@@ -344,15 +346,17 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         // record packet in map: xid is key
         // FIXME: this might collide..
         assert(!sentPackets.contains(xid), "random packet generation collision")
-        sentPackets(xid) = payload
+        sentPackets(xid) = (packet, payload)
       }
     }
 
     1 to numWorkerCores foreach { cid =>
       fork {
+        def log(msg: String) = println(s"[core $cid] $msg")
+
         // wait for schedule request
         waitUntil(irqReceived(cid))
-        println(s"Received IRQ for core $cid, ack-ing interrupt...")
+        log("Received IRQ, ack-ing interrupt...")
 
         val coreBlock = allocFactory.readBack("core", blockIdx = cid)
         val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
@@ -363,24 +367,25 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
         // kernel needs to poll READY to make sure that datapath preemption is done
         pollReady(dcsMaster, cid)
-        println(s"Core returned to userspace")
+        log("returned to userspace")
 
         while (packetsReceived != totalToSend) {
           // read and check packet against sent
           val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
           val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
-          println(f"Received status register: $desc")
+          log(f"Received status register: $desc")
           // packet generator return little endian xid but sends in big endian
           // HW does not change (i.e. we get big endian back)
           val xid = Integer.reverseBytes(info.xid.toInt)
 
           // find the payload that we sent
-          val pld = sentPackets(xid)
+          val (pkt, pld) = sentPackets(xid)
+          log(f"XID $xid%x: Expecting packet: $pkt")
           checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
-          exitCriticalSection(dcsMaster, cid)
-
-          println(s"Received packet #$packetsReceived")
+          log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
+
+          exitCriticalSection(dcsMaster, cid)
         }
       }
     }
