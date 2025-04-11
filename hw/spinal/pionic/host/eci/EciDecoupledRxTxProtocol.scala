@@ -332,6 +332,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
             when (preemptReq.valid) {
               // ack preempReq but DON'T toggle parity
+              // both control CLs are in invalid
+              // only need to make sure parity tracked by CPU and Protocol are the same
               preemptReq.ready := True
             } otherwise {
               // always toggle, even if NACK was sent

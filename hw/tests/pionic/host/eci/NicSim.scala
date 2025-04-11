@@ -79,6 +79,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     (csrMaster, axisSlave, dcsMaster)
   }
 
+  def pollReady(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
+    if (cid != 0) {
+      println(s"Checking READY for core $cid before returning to user space...")
+      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val preemptCtrlAddr = coreBase + 0x10000
+
+      var done = false
+      var attempts = 0
+      while (!done) {
+        assert(attempts < maxAttempts, s"failed to read READY as 1 before returning to userspace")
+        val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
+        done = (busyReady & 0x2) != 0
+        attempts += 1
+      }
+    }
+  }
+
   def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
     if (cid != 0) {
       println(s"Entering critical section for core $cid...")
@@ -344,6 +361,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         assert(!txParity, "no write happened yet, should be on CL #0")
         assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
 
+        // kernel needs to poll READY to make sure that datapath preemption is done
+        pollReady(dcsMaster, cid)
+        println(s"Core returned to userspace")
+
         while (packetsReceived != totalToSend) {
           // read and check packet against sent
           val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
@@ -568,6 +589,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(!rxParity, "no read happened yet, should be on CL #0")
     assert(!txParity, "no write happened yet, should be on CL #0")
     assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
+
+    // kernel needs to poll READY to make sure that datapath preemption is done
+    pollReady(dcsMaster, 1)
+    println(s"Core returned to userspace")
 
     // ensure that packet has landed in the queue
     sleepCycles(delayed)
