@@ -647,6 +647,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     }
   }
 
+  // checks if a core has an IRQ pending.  Checked before and after critical section
+  class CoreIrqState {
+    var irqReceived = false
+    def set() = { irqReceived = true }
+    def unset() = { irqReceived = false }
+  }
+  def genericIrqHandler(coreStates: Seq[CoreIrqState])(coreId: Int, intId: Int) = {
+    coreStates(coreId).set()
+  }
+
   /* Test that Lauberhorn can scale up to multiple services */
   test("rx-sched-idle-scale-many") { implicit dut =>
     // on 8 cores, install 4 processes, 2 services each
@@ -657,7 +667,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
    * - did not receive request for some time
    */
   test("rx-sched-preempt") { implicit dut =>
+    val numWorkerCores = c[Int]("num cores")
+    val coreStates = Seq.fill(numWorkerCores)(new CoreIrqState)
 
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, genericIrqHandler(coreStates))
   }
 
   /* Test killing a process that did not unset BUSY */
