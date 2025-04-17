@@ -69,7 +69,13 @@ typedef struct {
 // void pionic_free_pkt_desc(pionic_pkt_desc_t *desc);
 
 // open/close device
-struct pionic_dev;
+struct pionic_dev {
+	size_t page_len;
+
+	char* page_1;
+	char* page_2;
+	uint64_t fake_struct;
+};
 typedef struct pionic_dev *pionic_dev_t;
 
 int pionic_dev_open(pionic_dev_t *d, const char *dev);
@@ -100,7 +106,13 @@ void pionic_oncrpc_service_deregister(pionic_dev_t d, int idx);
 
 // create/destroy threads
 // XXX: threads... how to name this... actually the only thread (excluding non-RPC-serving threads) in the process.
-struct pionic_thd;
+//struct pionic_thd;
+typedef struct pionic_thd {
+	uint64_t fake_struct;
+	void* pionic_base;
+	bool tx_parity;
+	bool rx_parity;
+} pionic_thd;
 typedef struct pionic_thd *pionic_thd_t;
 
 int pionic_thd_create(pionic_dev_t d, pionic_thd *t);

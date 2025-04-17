@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
 
 set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR aarch64)
+# set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
-set(TOOLCHAIN_PREFIX aarch64-linux-gnu-)
+# set(TOOLCHAIN_PREFIX aarch64-linux-gnu-)
+set(TOOLCHAIN_PREFIX x86_64-linux-gnu-)
 set(CMAKE_C_COMPILER   ${TOOLCHAIN_PREFIX}gcc    )
 set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PREFIX}gcc    )
 set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++    )
@@ -23,9 +25,9 @@ set(DEV_BASENAMES
         pionic_eci
         pionic_eci_core
         pionic_eci_global
-        pionic_pcie
-        pionic_pcie_core
-        pionic_pcie_global
+		#pionic_pcie
+        #pionic_pcie_core
+        #pionic_pcie_global
 )
 SET(DEV_HEADERS)
 foreach (basename ${DEV_BASENAMES})
@@ -57,6 +59,23 @@ target_include_directories(pionic-rt-eci PRIVATE
         ${CMAKE_SOURCE_DIR}/../hw/gen/eci
         ${MACKEREL_ROOT})
 target_compile_definitions(pionic-rt-eci PRIVATE
+        NIC_IMPL=eci)
+
+# pionic-user
+set(USR_COMMON_SRC)
+
+add_library(pionic-usr-eci
+        ${USR_COMMON_SRC}
+		usr/usr.c
+        ${DEV_HEADERS})
+target_include_directories(pionic-usr-eci PRIVATE
+        usr-include
+        rt-include
+        core
+        usr-include  # usr implements usr as a pausr of it
+        ${CMAKE_SOURCE_DIR}/../hw/gen/eci
+        ${MACKEREL_ROOT})
+target_compile_definitions(pionic-usr-eci PRIVATE
         NIC_IMPL=eci)
 
 # TODO: pionic-rt-pcie
