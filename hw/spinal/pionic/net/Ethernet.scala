@@ -15,17 +15,17 @@ case class EthernetHeader() extends Bundle {
   val etherType = Bits(16 bits)
 }
 
-case class EthernetMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
+case class EthernetMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
   override def clone = EthernetMetadata()
 
   val frameLen = PacketLength()
   val hdr = EthernetHeader()
 
-  def getType = ProtoPacketDescType.ethernet
+  def getType = PacketDescType.ethernet
   def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits
-  def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData().assignDontCare()
+  def asUnion: PacketDescData = {
+    val ret = PacketDescData().assignDontCare()
     ret.ethernet.get := this
     ret
   }

@@ -1,6 +1,6 @@
 package pionic
 
-import pionic.net.{OncRpcCallMetadata, ProtoPacketDescType, TaggedProtoPacketDesc}
+import pionic.net.{OncRpcCallMetadata, PacketDescType, PacketDesc}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
@@ -82,11 +82,11 @@ class Scheduler extends PioNicPlugin {
 
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
-    val rxMeta = Stream(TaggedProtoPacketDesc())
+    val rxMeta = Stream(PacketDesc())
 
     /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
       * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
-    val coreMeta = Seq.fill(numWorkerCores)(Stream(TaggedProtoPacketDesc()))
+    val coreMeta = Seq.fill(numWorkerCores)(Stream(PacketDesc()))
 
     /**
       * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
@@ -110,7 +110,7 @@ class Scheduler extends PioNicPlugin {
     }
 
     // per-process queues are in memory
-    val queueMem = Mem(TaggedProtoPacketDesc(), numProcs * pktsPerProc)
+    val queueMem = Mem(PacketDesc(), numProcs * pktsPerProc)
 
     case class QueueMetadata()(off: UInt, cap: UInt)(implicit c: ConfigDatabase) extends Bundle {
       val offset, head, tail = MemAddr
@@ -184,7 +184,7 @@ class Scheduler extends PioNicPlugin {
     when (rxMeta.valid) {
       // decoder pipeline should have filtered out packets that do not belong to an enabled process
       assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
-      assert(rxMeta.ty === ProtoPacketDescType.oncRpcCall, "scheduler does not support other req types yet")
+      assert(rxMeta.ty === PacketDescType.oncRpcCall, "scheduler does not support other req types yet")
     }
 
     val rxProcTblIdx = OHToUInt(rxProcSelOh)

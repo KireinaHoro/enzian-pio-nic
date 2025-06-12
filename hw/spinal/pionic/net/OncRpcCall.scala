@@ -23,7 +23,7 @@ case class OncRpcCallHeader() extends Bundle {
   val verifier = Bits(64 bits)
 }
 
-case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
+case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
@@ -33,15 +33,15 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
   val hdr = OncRpcCallHeader()
   val udpPayloadSize = UInt(Widths.lw bits)
 
-  def getType = ProtoPacketDescType.oncRpcCall
+  def getType = PacketDescType.oncRpcCall
   def getPayloadSize: UInt = {
     val inlineLen = c[Int]("max onc rpc inline bytes")
     val payloadLen = udpPayloadSize - hdr.getBitsWidth / 8
     (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
   }
   def collectHeaders: Bits = ??? // never collected
-  def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData() setCompositeName (this, "union")
+  def asUnion: PacketDescData = {
+    val ret = PacketDescData() setCompositeName (this, "union")
     ret.oncRpcCall.get := this
     ret
   }

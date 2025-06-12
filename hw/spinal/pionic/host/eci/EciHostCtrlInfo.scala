@@ -3,7 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.misc.RegAllocatorFactory
 import pionic.Widths.dw
 import pionic._
-import pionic.net.ProtoPacketDescType
+import pionic.net.PacketDescType
 import spinal.core._
 
 /**
@@ -30,7 +30,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   val len = PacketLength() // 16b
   val data = new Union {
     case class BypassBundle() extends Bundle {
-      val ty = ProtoPacketDescType() // 2b
+      val ty = PacketDescType() // 2b
       val xb11 = Bits(11 bits) // make sure header is word aligned
       val hdr = Bits(Widths.bphw bits)
     }
@@ -65,7 +65,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   def addMackerel = {
     // post header type enum to mackerel
     HostPacketDescType.addMackerel(c.f)
-    ProtoPacketDescType.addMackerel(c.f)
+    PacketDescType.addMackerel(c.f)
 
     // post descriptor header to mackerel (first 128 bits)
     import Widths._

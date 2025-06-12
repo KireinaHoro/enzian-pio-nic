@@ -5,14 +5,14 @@ import pionic.ConfigDatabase
 import spinal.core._
 import spinal.lib.bus.misc.BusSlaveFactory
 
-case class OncRpcReplyMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
+case class OncRpcReplyMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
   def getType = ???
 
   def getPayloadSize: UInt = ???
 
   def collectHeaders: Bits = ???
 
-  def asUnion: ProtoPacketDescData = ???
+  def asUnion: PacketDescData = ???
 }
 
 // TODO: used for nested RPC replies (incoming)
