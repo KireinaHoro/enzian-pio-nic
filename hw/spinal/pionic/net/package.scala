@@ -6,6 +6,7 @@ import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
+import pionic.ConfigDatabase.OneShot
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable
@@ -14,15 +15,15 @@ import scala.reflect.ClassTag
 
 package object net {
   /**
-   * Type of the (potentially partially) decoded packet. Used by [[TaggedProtoPacketDesc]] as well as [[HostPacketDesc]].
+   * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[pionic.host.HostReqBypassHeaders]].
    */
-  object ProtoPacketDescType extends SpinalEnum {
+  object PacketDescType extends SpinalEnum {
     val ethernet, ip, udp, oncRpcCall /*, oncRpcReply */= newElement()
 
     def addMackerel(f: RegAllocatorFactory) = {
       f.addMackerelEpilogue(getClass,
         """
-          |constants proto_packet_desc_type width(2) "Protocol Packet Descriptor Type" {
+          |constants packet_desc_type width(2) "Protocol Packet Descriptor Type" {
           |  hdr_ethernet     = 0b00 "Ethernet";
           |  hdr_ip           = 0b01 "IP";
           |  hdr_udp          = 0b10 "UDP";
@@ -32,28 +33,26 @@ package object net {
   }
 
   /**
-   * Protocol metadata passed along in the decoder pipeline and to the core control module.
+   * Protocol metadata passed along in the decoder pipeline.  Should provide all information needed to reconstruct the
+   * entire packet for exceptional delivery to the bypass interface.  [[DmaControlPlugin]] will translate this to a
+   * [[pionic.host.HostReq]] to enqueue into the [[Scheduler]].
    *
-   * Should also provide all information needed to reconstruct the entire packet for exceptional delivery to the TAP
-   * interface (bypass).  [[CoreControlPlugin]] will translate this to a [[HostPacketDesc]], dropping fields that the
-   * host does not need.
-   *
-   * Also used in the encoder pipeline.  Each stage is only responsible of filling in the information that it can
-   * obtain.  E.g. ONC-RPC encoder does not need to fill in Ethernet addresses; this is responsibility of the IP
+   * Also used in the encoder pipeline.  Each stage is only responsible for filling in the information that it can get.
+   * E.g. ONC-RPC encoder does not need to fill in Ethernet addresses; this is the responsibility of the IP
    * encoder.
    */
-  trait ProtoPacketDesc extends Data {
+  trait ProtoMetadata extends Data {
     /** tag metadata sent to cores */
-    def getType: ProtoPacketDescType.E
+    def getType: PacketDescType.E
     /** size of payload for the payload of this stage */
     def getPayloadSize: UInt
     /** header bits needed to reconstruct packet for bypass delivery */
     def collectHeaders: Bits
-    /** cast to union for assigning to [[ProtoPacketDescData]] */
-    def asUnion: ProtoPacketDescData
+    /** cast to union for assigning to [[PacketDescData]] */
+    def asUnion: PacketDescData
   }
 
-  case class ProtoPacketDescData()(implicit c: ConfigDatabase) extends Union {
+  case class PacketDescData()(implicit c: ConfigDatabase) extends Union {
     val ethernet = newElement(EthernetMetadata())
     val ip = newElement(IpMetadata())
     val udp = newElement(UdpMetadata())
@@ -61,18 +60,18 @@ package object net {
   }
 
   /**
-   * [[ProtoPacketDesc]] plus type information. Used between [[RxPacketDispatch]] and [[CoreControlPlugin]].
+   * [[ProtoMetadata]] plus type information. Used between [[RxPacketDispatch]] and [[DmaControlPlugin]].
    */
-  case class TaggedProtoPacketDesc()(implicit c: ConfigDatabase) extends Bundle {
-    override def clone = TaggedProtoPacketDesc()
+  case class PacketDesc()(implicit c: ConfigDatabase) extends Bundle {
+    override def clone = PacketDesc()
 
-    val ty = ProtoPacketDescType()
-    val metadata = ProtoPacketDescData()
+    val ty = PacketDescType()
+    val metadata = PacketDescData()
 
     def getPayloadSize: UInt = {
       val ret = UInt(16 bits)
       switch (ty) {
-        import ProtoPacketDescType._
+        import PacketDescType._
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
         is (ip) { ret := metadata.ip.getPayloadSize }
         is (udp) { ret := metadata.udp.getPayloadSize }
@@ -84,7 +83,7 @@ package object net {
     def collectHeaders(implicit c: ConfigDatabase): Bits = {
       val ret = CombInit(B(0, Widths.bphw bits))
       switch (ty) {
-        import ProtoPacketDescType._
+        import PacketDescType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
         is (ip) { ret := metadata.ip.collectHeaders.resized }
         is (udp) { ret := metadata.udp.collectHeaders.resized }
@@ -94,6 +93,12 @@ package object net {
       }
       ret
     }
+
+    c.post("packet desc type width", PacketDescType().getBitsWidth, OneShot)
+    c.post("packet desc type ethernet", 0, OneShot)
+    c.post("packet desc type ip", 1, OneShot)
+    c.post("packet desc type udp", 2, OneShot)
+    c.post("packet desc type onc rpc call", 3, OneShot)
   }
 
   /**
@@ -120,7 +125,7 @@ package object net {
    * ONCRPC might take data from UDP and TCP.  The DAG is specified by [[from]].
    * @tparam T output metadata type
    */
-  trait ProtoDecoder[T <: ProtoPacketDesc] extends PioNicPlugin {
+  trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
     /**
      * Downstream decoders interfaces and their conditions to match.
      * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
@@ -139,7 +144,7 @@ package object net {
      * @tparam M type of upstream packet descriptor
      * @tparam D type of upstream packet decoder
      */
-    protected def from[M <: ProtoPacketDesc, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
+    protected def from[M <: ProtoMetadata, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
       host[D].consumers.append((this.getDisplayName(), matcher, metadata, payload))
     }
 
@@ -217,7 +222,7 @@ package object net {
     * Encoder stages form a DAG, analogous to [[ProtoDecoder]].  The DAG is specified by [[to]].
     * @tparam T input metadata type
     */
-  trait ProtoEncoder[T <: ProtoPacketDesc] extends PioNicPlugin {
+  trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
     /**
       * Upstream encoders interfaces.  E.g. Ip.ups = [ Tcp, Udp ]
       */
@@ -231,7 +236,7 @@ package object net {
       * @tparam M type of downstream packet descriptor
       * @tparam E type of downstream packet decoder
       */
-    protected def to[M <: ProtoPacketDesc, E <: ProtoEncoder[M]: ClassTag](metadata: Stream[M], payload: Axi4Stream): Unit = {
+    protected def to[M <: ProtoMetadata, E <: ProtoEncoder[M]: ClassTag](metadata: Stream[M], payload: Axi4Stream): Unit = {
       host[E].producers.append((this.getDisplayName(), metadata, payload))
     }
 

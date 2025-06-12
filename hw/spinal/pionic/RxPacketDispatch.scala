@@ -2,7 +2,7 @@ package pionic
 
 import jsteward.blocks.axi.AxiStreamArbMux
 import jsteward.blocks.misc.StreamDispatcherWithEnable
-import pionic.net.{ProtoPacketDesc, TaggedProtoPacketDesc}
+import pionic.net.{ProtoMetadata, PacketDesc}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
@@ -18,7 +18,7 @@ import scala.collection.mutable
  */
 trait RxPacketDispatchService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
+  def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
 
@@ -39,15 +39,15 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
   val retainer = Retainer()
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
-  lazy val bypassUpstreams, schedulerUpstreams = mutable.ListBuffer[Stream[TaggedProtoPacketDesc]]()
+  lazy val bypassUpstreams, schedulerUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: ProtoPacketDesc](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
+  def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     // handle payload data
     payloadSources.append(payloadSink)
 
     // handle metadata
     val tagged = metadataSink.map { md =>
-      val ret = TaggedProtoPacketDesc()
+      val ret = PacketDesc()
       ret.ty := md.getType
       ret.metadata := md.asUnion
       ret

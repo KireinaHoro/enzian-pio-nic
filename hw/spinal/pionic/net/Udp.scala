@@ -18,17 +18,17 @@ case class UdpHeader() extends Bundle {
   val csum = Bits(16 bits)
 }
 
-case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
+case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
   override def clone = UdpMetadata()
 
   val hdr = UdpHeader()
   val ipMeta = IpMetadata()
 
-  def getType = ProtoPacketDescType.udp
+  def getType = PacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders
-  def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData().assignDontCare()
+  def asUnion: PacketDescData = {
+    val ret = PacketDescData().assignDontCare()
     ret.udp.get := this
     ret
   }

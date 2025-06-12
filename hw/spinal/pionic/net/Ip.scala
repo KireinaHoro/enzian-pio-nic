@@ -27,17 +27,17 @@ case class IpHeader() extends Bundle {
   val daddr = Bits(32 bits)
 }
 
-case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoPacketDesc {
+case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
   override def clone = IpMetadata()
 
   val hdr = IpHeader()
   val ethMeta = EthernetMetadata()
 
-  def getType = ProtoPacketDescType.ip
+  def getType = PacketDescType.ip
   def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits ## ethMeta.collectHeaders
-  def asUnion: ProtoPacketDescData = {
-    val ret = ProtoPacketDescData().assignDontCare()
+  def asUnion: PacketDescData = {
+    val ret = PacketDescData().assignDontCare()
     ret.ip.get := this
     ret
   }
