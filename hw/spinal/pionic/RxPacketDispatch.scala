@@ -2,7 +2,8 @@ package pionic
 
 import jsteward.blocks.axi.AxiStreamArbMux
 import jsteward.blocks.misc.StreamDispatcherWithEnable
-import pionic.net.{ProtoMetadata, PacketDesc}
+import pionic.host.PreemptionService
+import pionic.net.{PacketDesc, ProtoMetadata}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
@@ -73,8 +74,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
     }
 
     sched.rxMeta << StreamArbiterFactory().roundRobin.on(schedulerUpstreams)
-    preempts zip sched.corePreempt foreach { case (pu, sp) => pu.preemptReq << sp }
-    
+
     // drive packet descriptors interface of core control modules
     cores.head.logic.io.igMetadata << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
     cores.tail zip sched.coreMeta foreach { case (cc, so) =>

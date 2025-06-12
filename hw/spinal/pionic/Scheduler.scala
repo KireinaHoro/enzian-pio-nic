@@ -1,10 +1,11 @@
 package pionic
 
-import pionic.net.{OncRpcCallMetadata, PacketDescType, PacketDesc}
+import pionic.net.{OncRpcCallMetadata, PacketDesc, PacketDescType}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
+import pionic.host.PreemptionService
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
@@ -88,6 +89,8 @@ class Scheduler extends PioNicPlugin {
       * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
     val coreMeta = Seq.fill(numWorkerCores)(Stream(PacketDesc()))
 
+    awaitBuild()
+
     /**
       * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
       *  - hold requests in [[coreMeta]] (valid === False)
@@ -96,9 +99,7 @@ class Scheduler extends PioNicPlugin {
       *
       * Will be stalled (ready === False) when a preemption is in progress.
       */
-    val corePreempt = Seq.fill(numWorkerCores)(Stream(PID()))
-
-    awaitBuild()
+    val corePreempt = host.list[PreemptionService].map(_.preemptReq)
 
     // one per-process queue for every entry in procDefs
     // since all cores start with idx 0 in this table, table entry 0 should be a special "IDLE" process

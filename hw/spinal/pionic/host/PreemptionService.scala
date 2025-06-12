@@ -1,5 +1,6 @@
-package pionic
+package pionic.host
 
+import pionic.{PID, PioNicPlugin, Scheduler}
 import spinal.lib._
 
 /**
