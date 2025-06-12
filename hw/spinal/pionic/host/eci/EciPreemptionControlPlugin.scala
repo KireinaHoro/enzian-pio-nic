@@ -11,6 +11,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
+import pionic.host.PreemptionService
 
 /**
   * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
