@@ -60,7 +60,7 @@ package object net {
   }
 
   /**
-   * [[ProtoMetadata]] plus type information. Used between [[RxPacketDispatch]] and [[DmaControlPlugin]].
+   * [[ProtoMetadata]] plus type information. Used between [[RxDecoderSink]] and [[DmaControlPlugin]].
    */
   case class PacketDesc()(implicit c: ConfigDatabase) extends Bundle {
     override def clone = PacketDesc()

@@ -17,7 +17,7 @@ import scala.collection.mutable
  * Most decoder plugins inheriting [[pionic.net.ProtoDecoder]] should not need to interact with this service directly,
  * as the API is used in the base class already.
  */
-trait RxPacketDispatchService {
+trait RxDecoderSinkService {
   /** called by packet decoders to post packets for DMA */
   def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
@@ -27,20 +27,21 @@ trait RxPacketDispatchService {
 }
 
 /**
- * Dispatch unit for RX packet metadata and payload.  Metadata from decoder stages gets dispatched to cores and muxed
- * into a single stream, before passed to [[CoreControlPlugin]] for further translation.  Bypass metadata gets collected
- * and dispatched to the bypass core (#0).  Payload data is arbitrated into a single AXI-Stream and fed into [[AxiDmaPlugin]].
- */
-class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
+  * Dispatch unit for decoded RX packet metadata and payload, collected from all decoder stages.
+  *
+  * [[PacketDesc]] from decoder stages gets muxed into a single stream, before passed to [[DmaControlPlugin]] for
+  * further translation (into [[pionic.host.HostReq]]).  Payload data is arbitrated into a single AXI-Stream and fed
+  * into the DMA engine in [[PacketBuffer]].
+  */
+class RxDecoderSink extends PioNicPlugin with RxDecoderSinkService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val ms = host[MacInterfaceService]
-  lazy val cores = host.list[CoreControlPlugin]
   lazy val preempts = host.list[PreemptionService]
-  lazy val sched = host[Scheduler].logic
+  lazy val dc = host[DmaControlPlugin].logic
   val retainer = Retainer()
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
-  lazy val bypassUpstreams, schedulerUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
+  lazy val bypassUpstreams, requestUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
   def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     // handle payload data
@@ -59,7 +60,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       // dispatching to the bypass-core (#0) only
       bypassUpstreams.append(tagged)
     } else {
-      schedulerUpstreams.append(tagged.s2mPipe())
+      requestUpstreams.append(tagged.s2mPipe())
     }
   }
   override def packetSink = logic.axisMux.m_axis
@@ -73,12 +74,7 @@ class RxPacketDispatch extends PioNicPlugin with RxPacketDispatchService {
       sl << ms
     }
 
-    sched.rxMeta << StreamArbiterFactory().roundRobin.on(schedulerUpstreams)
-
-    // drive packet descriptors interface of core control modules
-    cores.head.logic.io.igMetadata << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
-    cores.tail zip sched.coreMeta foreach { case (cc, so) =>
-      cc.logic.io.igMetadata << so
-    }
+    dc.requestDesc << StreamArbiterFactory().roundRobin.on(requestUpstreams)
+    dc.bypassDesc << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
   }
 }

@@ -3,7 +3,7 @@ package pionic.net
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
 
-import pionic.{PioNicPlugin, RxPacketDispatch, RxPacketDispatchService}
+import pionic.{PioNicPlugin, RxDecoderSink, RxDecoderSinkService}
 
 import spinal.core._
 import spinal.lib._
@@ -29,7 +29,7 @@ trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
     */
   private val consumers = mutable.ListBuffer[(String, T => Bool, Stream[T], Axi4Stream)]()
 
-  val rxRg = during setup retains(host[RxPacketDispatchService].retainer)
+  val rxRg = during setup retains(host[RxDecoderSinkService].retainer)
 
   /**
     * Specify one possible upstream decoder, where this decoder takes packets from.  Can be invoked multiple times
@@ -47,7 +47,7 @@ trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
 
   /**
     * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
-    * produce a copy for bypass to the [[RxPacketDispatch]].  Should only be invoked **once** in the build phase.
+    * produce a copy for bypass to the [[RxDecoderSink]].  Should only be invoked **once** in the build phase.
     *
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
@@ -87,18 +87,18 @@ trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
     val bypassHeader = forkedHeaders.last.throwWhen(attempted)
     val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
 
-    host[RxPacketDispatchService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
+    host[RxDecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
   }
 
   /**
-    * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxPacketDispatch]] directly.  May be
+    * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxDecoderSink]] directly.  May be
     * invoked multiple times during setup phase; useful when decoder takes multiple upstreams (using [[from]]).
     *
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
     */
   protected def produceFinal(metadata: Stream[T], payload: Axi4Stream): Unit = {
-    host[RxPacketDispatchService].consume(payload, metadata) setCompositeName(this, "dispatch")
+    host[RxDecoderSinkService].consume(payload, metadata) setCompositeName(this, "dispatch")
   }
 
   /** Release retainer from packet dispatcher to allow it to continue elaborating */
