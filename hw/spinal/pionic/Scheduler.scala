@@ -1,11 +1,10 @@
 package pionic
 
-import pionic.net.{OncRpcCallMetadata, PacketDesc, PacketDescType}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
-import pionic.host.PreemptionService
+import pionic.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
@@ -43,12 +42,14 @@ object PreemptCmdType extends SpinalEnum {
 /**
   * Top class of Lauberhorn's scheduler, as a plugin.
   *
-  * Takes a [[OncRpcCallMetadata]] from the decoding pipeline and extracts the (PID, funcPtr) pair.  See
+  * Takes a [[pionic.host.HostReq]] from the decoding pipeline and extracts the (PID, funcPtr) pair.  Determines to
+  * which core the packet should go to based on queue occupancy.  Only supports [[OncRpcCallMetadata]] for now.  See the
   * [[https://unlimited.ethz.ch/spaces/sgnetoswiki/pages/216442761/Lauberhorn+Fast+RPC+on+Enzian#Lauberhorn(FastRPConEnzian)-(FPGA-side)schedulerarchitecture wiki page]]
   * for the detailed architecture.
   *
-  * Note: to allow accurate decisions based on queue capacity, the [[Scheduler]] has to be the only component in the
-  * system that queues packets -- all existing queuing e.g. inside [[CoreControlPlugin]] needs to be eliminated.
+  * Interfaces with [[pionic.host.DatapathService]] instances to deliver the dispatched [[pionic.host.HostReq]].
+  *
+  * Note: to allow accurate decisions based on queue capacity, this is the only component in the system that queues packets.
   */
 class Scheduler extends PioNicPlugin {
   lazy val numProcs = c[Int]("num processes")
@@ -83,11 +84,11 @@ class Scheduler extends PioNicPlugin {
 
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
-    val rxMeta = Stream(PacketDesc())
+    val rxMeta = Stream(HostReq())
 
     /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
       * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
-    val coreMeta = Seq.fill(numWorkerCores)(Stream(PacketDesc()))
+    val coreMeta = Seq.fill(numWorkerCores)(Stream(HostReq()))
 
     awaitBuild()
 
@@ -111,7 +112,7 @@ class Scheduler extends PioNicPlugin {
     }
 
     // per-process queues are in memory
-    val queueMem = Mem(PacketDesc(), numProcs * pktsPerProc)
+    val queueMem = Mem(HostReq(), numProcs * pktsPerProc)
 
     case class QueueMetadata()(off: UInt, cap: UInt)(implicit c: ConfigDatabase) extends Bundle {
       val offset, head, tail = MemAddr
@@ -174,8 +175,8 @@ class Scheduler extends PioNicPlugin {
     }
 
     // such that the waveform shows the actual header, not a union
-    val rxOncRpcCall: Stream[OncRpcCallMetadata] = rxMeta.map { meta =>
-      meta.metadata.oncRpcCall
+    val rxOncRpcCall: Stream[HostReqOncRpcCall] = rxMeta.map { meta =>
+      meta.data.oncRpcCall
     }
     // process ID to select which queue the incoming packet goes into
     val rxProcSelOh = procDefs.map { pd =>
@@ -185,7 +186,7 @@ class Scheduler extends PioNicPlugin {
     when (rxMeta.valid) {
       // decoder pipeline should have filtered out packets that do not belong to an enabled process
       assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
-      assert(rxMeta.ty === PacketDescType.oncRpcCall, "scheduler does not support other req types yet")
+      assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
     }
 
     val rxProcTblIdx = OHToUInt(rxProcSelOh)
