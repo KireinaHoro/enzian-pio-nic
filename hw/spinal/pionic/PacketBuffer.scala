@@ -3,6 +3,7 @@ package pionic
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RichBundle
 import pionic.host._
+import pionic.net.RxDecoderSinkService
 import spinal.core._
 import spinal.lib.bus.amba4.axi._
 
