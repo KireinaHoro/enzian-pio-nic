@@ -1,9 +1,8 @@
-package pionic
+package pionic.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import jsteward.blocks.misc.StreamDispatcherWithEnable
 import pionic.host.PreemptionService
-import pionic.net.{PacketDesc, ProtoMetadata}
+import pionic.{DmaControlPlugin, GlobalCSRPlugin, MacInterfaceService, PacketBuffer, PioNicPlugin}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._

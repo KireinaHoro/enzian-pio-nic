@@ -3,7 +3,7 @@ package pionic.net
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
 
-import pionic.{PioNicPlugin, RxDecoderSink, RxDecoderSinkService}
+import pionic.PioNicPlugin
 
 import spinal.core._
 import spinal.lib._
