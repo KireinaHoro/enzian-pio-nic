@@ -1,35 +1,14 @@
-package pionic.net
+package pionic.net.ethernet
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
+import pionic.net.{PacketDescData, PacketDescType, ProtoDecoder, ProtoMetadata}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
-
-case class EthernetHeader() extends Bundle {
-  val dst = Bits(48 bits)
-  val src = Bits(48 bits)
-  val etherType = Bits(16 bits)
-}
-
-case class EthernetMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
-  override def clone = EthernetMetadata()
-
-  val frameLen = PacketLength()
-  val hdr = EthernetHeader()
-
-  def getType = PacketDescType.ethernet
-  def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
-  def collectHeaders: Bits = hdr.asBits
-  def asUnion: PacketDescData = {
-    val ret = PacketDescData().assignDontCare()
-    ret.ethernet.get := this
-    ret
-  }
-}
 
 class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]

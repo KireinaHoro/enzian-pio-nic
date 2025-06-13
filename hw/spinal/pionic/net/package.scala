@@ -8,6 +8,7 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
 import pionic.ConfigDatabase.OneShot
 import pionic.host.HostReq
+import pionic.net.ethernet.EthernetMetadata
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable

@@ -4,6 +4,7 @@ import mainargs._
 import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
+import pionic.net.ethernet.EthernetDecoder
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
