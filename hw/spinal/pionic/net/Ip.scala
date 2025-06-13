@@ -3,6 +3,7 @@ package pionic.net
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
+import pionic.net.ethernet.{EthernetDecoder, EthernetMetadata}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis._
