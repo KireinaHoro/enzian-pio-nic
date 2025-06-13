@@ -48,7 +48,6 @@ case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extend
 
   val io = new Bundle {
     val allocReq = slave Stream PacketLength()
-    // size == 0: dropped
     val allocResp = master Stream PacketBufDesc()
     val freeReq = slave Stream PacketBufDesc()
 
@@ -63,12 +62,14 @@ case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extend
   println(f"Allocator [$base%#x - ${base + len}%#x]")
 
   // return largest possible buffer if requested larger than everything
-  val defaultIdx = U(numPorts - 1, log2Up(numPorts) bits)
+  val defaultIdx = U(numPorts - 1, log2Up(numPorts+1) bits)
 
-  def sizeIdx(size: PacketLength) = roundedMap.map(_._1).zipWithIndex
-    .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
-      Mux(size.bits <= alignedSize, idx, signal)
-    }
+  // when size is 0, select the imaginary FIFO for size 0 at index numPorts
+  def sizeIdx(size: PacketLength) = Mux(size.bits === 0, U(numPorts),
+    roundedMap.map(_._1).zipWithIndex
+      .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
+        Mux(size.bits <= alignedSize, idx, signal)
+      })
 
   val inProgress: Bool = Reg(Bool()) init False
   inProgress := (io.allocReq.fire ## io.allocResp.fire) mux(
@@ -77,9 +78,18 @@ case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extend
     default -> inProgress,
   )
 
-  val freeDemux = StreamDemux(io.freeReq, sizeIdx(io.freeReq.payload.size), numPorts).setName("freeDemux")
-  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts).setName("allocRespMux")
+  val freeReqNoZeroes = io.freeReq.throwWhen(io.freeReq.size.bits === 0)
+  val freeDemux = StreamDemux(
+    freeReqNoZeroes,
+    sizeIdx(freeReqNoZeroes.payload.size),
+    numPorts).setName("freeDemux")
+  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts+1).setName("allocRespMux")
   allocRespMux.io.output.haltWhen(!inProgress) >> io.allocResp
+
+  // for requests with length zero, always return a zero-length buffer at the beginning of buffer
+  allocRespMux.io.inputs(numPorts).valid := True
+  allocRespMux.io.inputs(numPorts).addr.bits := base
+  allocRespMux.io.inputs(numPorts).size.bits := 0
 
   val inIdx = io.allocReq.map(sizeIdx)
   inIdx.ready := !inProgress
