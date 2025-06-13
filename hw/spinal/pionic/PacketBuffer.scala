@@ -63,6 +63,9 @@ class PacketBuffer extends PioNicPlugin {
     axiDma.io.write_abort := False
 
     val memAddrWidth = log2Up(pktBufSize)
+    // TX packet buffers located after all RX buffers, one "rounded mtu" per core
+    c.post("tx pkt buf offset", numCores * c[Int]("rx pkt buf size per core"))
+
     val axiMem = new AxiDpRam(axiConfig.copy(addressWidth = memAddrWidth))
     axiMem.io.s_axi_a <> axiDma.io.m_axi
 

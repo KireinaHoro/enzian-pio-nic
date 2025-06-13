@@ -23,15 +23,13 @@ trait MacInterfaceService {
 
 class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
-  lazy val cores = host.list[CoreControlPlugin]
   lazy val p = host[ProfilerPlugin]
 
   val axisDataWidth = 64
-  postConfig("axis data width", axisDataWidth, action = ConfigDatabase.Unique)
 
   // matches Xilinx CMAC configuration
   val axisConfig = Axi4StreamConfig(
-    dataWidth = axisDataWidth,
+    dataWidth = c[Int]("axis data width"),
     useKeep = true,
     useLast = true,
   )

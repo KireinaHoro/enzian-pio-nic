@@ -1,7 +1,7 @@
 package pionic
 
 import jsteward.blocks.misc.RegAllocatorFactory
-import spinal.core.SpinalConfig
+import spinal.core.{SpinalConfig, roundUp}
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
@@ -21,13 +21,27 @@ class ConfigDatabase extends FiberPlugin {
   // add default values
   post("pkt buf addr width", 24)
   post("pkt buf len width", 16)
-  post("pkt buf size per core", 64 * 1024)
-  post("pkt buf alloc size map", Seq(
+
+  val axisDataWidth = 64
+  val allocSizeMap = Seq(
     (128, .1),
     (1518, .3), // max Ethernet frame with MTU 1500
     (9618, .6), // max jumbo frame
-  ), emitHeader = false)
-  post("num cores", 4)
+  )
+  val mtu = allocSizeMap.map(_._1).max
+  val roundedMtu = roundUp(mtu, axisDataWidth).toInt
+  post("mtu", mtu)
+  post("rounded mtu", roundedMtu)
+
+  post("axis data width", axisDataWidth)
+  post("rx pkt buf alloc size map", allocSizeMap, emitHeader = false)
+
+  val rxPktBufSizePerCore = 64 * 1024
+  post("rx pkt buf size per core", rxPktBufSizePerCore)
+  post("tx pkt buf size per core", roundedMtu)
+  post("pkt buf size per core", rxPktBufSizePerCore + roundedMtu)
+
+  post("num worker cores", 4)
   post("collect timestamps", true, emitHeader = false)
   post("timestamp width", 32)
   post("reg width", 64)

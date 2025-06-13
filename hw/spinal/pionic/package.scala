@@ -10,19 +10,20 @@ package object pionic {
     implicit lazy val c = host[ConfigDatabase]
 
     // alias commonly used config values
-    lazy val numWorkerCores = c[Int]("num cores")
+    lazy val numWorkerCores = c[Int]("num worker cores")
     lazy val numCores = numWorkerCores + 1 // with bypass
     lazy val regWidth = c[Int]("reg width")
 
-    lazy val mtu = c[Seq[(Int, Double)]]("pkt buf alloc size map").map(_._1).max
-    postConfig("mtu", mtu)
-    lazy val roundMtu = roundUp(mtu, c[Int]("axis data width")).toInt
+    lazy val mtu = c[Int]("mtu")
+    lazy val roundMtu = c[Int]("rounded mtu")
 
     lazy val pktBufAddrWidth = c[Int]("pkt buf addr width")
     lazy val pktBufLenWidth = c[Int]("pkt buf len width")
     lazy val pktBufAddrMask = (BigInt(1) << pktBufAddrWidth) - BigInt(1)
     lazy val pktBufLenMask = (BigInt(1) << pktBufLenWidth) - BigInt(1)
     lazy val pktBufSize = numCores * c[Int]("pkt buf size per core")
+
+    assert(log2Up(pktBufSize) <= pktBufAddrWidth, "not the entire packet buffer is addressable!")
 
     def postConfig[T: TypeTag](name: String, value: => T, action: ConfigDatabase.PostAction = ConfigDatabase.OneShot): Unit = {
       during setup c.post(name, value, action)

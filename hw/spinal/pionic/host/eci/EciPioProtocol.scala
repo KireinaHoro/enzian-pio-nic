@@ -3,6 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci.EciCmdDefs
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
+import pionic.host.{DatapathPlugin, HostReq}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.Axi4
