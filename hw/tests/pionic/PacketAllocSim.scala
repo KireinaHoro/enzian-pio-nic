@@ -75,4 +75,10 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
 
     dut.clockDomain.waitActiveEdgeWhere(sizes.isEmpty && expect.isEmpty && toFree.isEmpty)
   }
+
+  test("zero-alloc") { dut =>
+    // should correctly give out alloc resp without popping any buffer
+    // should correctly ignore freeing of zero buffers
+    // TODO
+  }
 }
