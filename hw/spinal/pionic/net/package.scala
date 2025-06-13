@@ -7,6 +7,7 @@ import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
 import pionic.ConfigDatabase.OneShot
+import pionic.host.HostReq
 import spinal.lib.bus.misc.BusSlaveFactory
 
 import scala.collection.mutable

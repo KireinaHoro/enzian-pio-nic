@@ -16,11 +16,10 @@ import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
-class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugin with HostService {
+class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugin {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
-  val retainer = Retainer()
 
   // PCIe bridge block AXI config
   val axiConfig = Axi4Config(
@@ -29,7 +28,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
     idWidth = 4,
   )
 
-  val logic = during build new Area {
+  val logic = during setup new Area {
     val s_axi = slave(Axi4(axiConfig))
 
     val axiWideConfigNode = Axi4(axiConfig)
@@ -40,7 +39,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
 
     private val pktBufferAlloc = cc.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
-    // TODO: partition buffer for each core (and steer DMA writes) for max throughput
+    // TODO: split into a generic packet buffer (for both RX and TX) plugin that is not ECI/PCIe specific
     val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufSize)))
 
     Axi4CrossbarFactory()
@@ -51,7 +50,7 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
       .build()
 
-    retainer.await()
+    awaitBuild()
 
     // FIXME: we could need an adapter here
     host[AxiDmaPlugin].packetBufDmaMaster >> pktBuffer.io.s_axi_a

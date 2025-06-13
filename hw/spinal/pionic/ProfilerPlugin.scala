@@ -10,9 +10,15 @@ class ProfilerPlugin extends PioNicPlugin {
 
   def Timestamp = UInt(c[Int]("timestamp width") bits)
 
+  /** Packet entered Lauberhorn from the CMAC. */
   val RxCmacEntry = NamedType(Timestamp)
+  /** Packet popped from the CDC queue inside [[MacInterfaceService]]. */
   val RxAfterCdcQueue = NamedType(Timestamp)
+  /** Packet finished DMA into [[pionic.PacketBuffer]] and on its way to [[Scheduler]] or bypass
+    * [[pionic.host.DatapathService]] */
   val RxEnqueueToHost = NamedType(Timestamp)
+
+  // FIXME: per-core timestamps, store separately
   val RxCoreReadStart = NamedType(Timestamp)
   val RxCoreReadFinish = NamedType(Timestamp)
   val RxCoreCommit = NamedType(Timestamp)
