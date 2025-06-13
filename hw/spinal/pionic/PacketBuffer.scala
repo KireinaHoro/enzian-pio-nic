@@ -1,9 +1,8 @@
 package pionic
 
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.RichBundle
 import pionic.host._
-import pionic.net.RxDecoderSinkService
+import pionic.net.{RxDecoderSinkService, TxEncoderSourceService}
 import spinal.core._
 import spinal.lib.bus.amba4.axi._
 
@@ -48,9 +47,8 @@ class PacketBuffer extends PioNicPlugin {
   val logic = during build new Area {
     val axiDma = new AxiDma(dmaConfig)
 
-    // TX data to send -- currently directly to [[MacInterfaceService]]
-    // TODO: replace with encoders input
-    axiDma.m_axis_read_data >> ms.txStream
+    // TX data goes to encoder pipeline
+    axiDma.m_axis_read_data >> host[TxEncoderSourceService].packetSource
 
     // RX data from the streaming-mode decoder pipeline
     // may contain gaps at the beginning, align first
