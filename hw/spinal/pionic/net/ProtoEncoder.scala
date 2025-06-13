@@ -1,8 +1,9 @@
 package pionic.net
 
 import pionic.PioNicPlugin
+import pionic.host.HostReq
 import spinal.core.Composite
-import spinal.lib.Stream
+import spinal.lib.{Stream, StreamArbiterFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 
 import scala.collection.mutable
@@ -16,8 +17,13 @@ import scala.reflect.ClassTag
   * @tparam T input metadata type
   */
 trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
+  /** Create one instance of the concrete [[ProtoMetadata]] for this decoder */
+  def getMetadata: T
+
   /**
     * Upstream encoders interfaces.  E.g. Ip.ups = [ Tcp, Udp ]
+    *
+    * Tuple members: (name, header, payload)
     */
   private val producers = mutable.ListBuffer[(String, Stream[T], Axi4Stream)]()
 
@@ -33,7 +39,22 @@ trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
     host[E].producers.append((this.getDisplayName(), metadata, payload))
   }
 
-  protected def consume(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "consume") {
-    // TODO
+  /**
+    * Collect all payload streams of this encoder, from either the host CPU or previous decoder stages.  Must be invoked
+    * from inside the decoder; can be invoked at most once during the setup phase.
+    *
+    * Packets from previous decoder stages are registered through the [[to]] method.
+    *
+    * Packets from the host CPU directly (after translated by [[pionic.DmaControlPlugin]]) will be pulled in as
+    *
+    * @param metadata metadata consumed by this stage
+    * @param payload payload data stream consumed by this stage
+    */
+  protected def collectInto(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "consume") {
+    // TODO: get host-produced descriptor for this encoder from [[TxEncoderSource]]
+    val hostDesc = ???
+    metadata << StreamArbiterFactory().roundRobin.on(
+      producers.map(_._2)
+    )
   }
 }

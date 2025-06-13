@@ -26,6 +26,8 @@ trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
   /**
     * Downstream decoders interfaces and their conditions to match.
     * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
+    *
+    * Tuple members: (name, matchFunc, header, payload)
     */
   private val consumers = mutable.ListBuffer[(String, T => Bool, Stream[T], Axi4Stream)]()
 
