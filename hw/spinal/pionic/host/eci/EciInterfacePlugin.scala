@@ -20,14 +20,13 @@ import scala.language.postfixOps
 import scala.util.Random
 
 /** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]]. */
-class EciInterfacePlugin extends PioNicPlugin with HostService {
+class EciInterfacePlugin extends PioNicPlugin {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val cores = host.list[CoreControlPlugin]
   lazy val protos = host.list[EciPioProtocol]
   // bypass core does not have preemption control
   lazy val preempts = null +: host.list[EciPreemptionControlPlugin]
-  val retainer = Retainer()
 
   lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
   lazy val pktBufSizePerCore = c[Int]("pkt buf size per core")
@@ -245,10 +244,6 @@ class EciInterfacePlugin extends PioNicPlugin with HostService {
       // per-core packet buffer
       val rxNumWords = rxSizePerCore / (pktBufWordWidth / 8)
       val txNumWords = txSizePerCore / (pktBufWordWidth / 8)
-
-      // FIXME: fix naming in lambda functions
-      val rxPktBuffer = Mem(Bits(pktBufWordWidth bits), rxNumWords)
-      val txPktBuffer = Mem(Bits(pktBufWordWidth bits), txNumWords)
 
       // packet data DMA into packet buffer
       val dmaBusCtrl = Axi4SlaveFactory(dmaNode.fullPipe())
