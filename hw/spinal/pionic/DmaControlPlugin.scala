@@ -281,6 +281,15 @@ class DmaControlPlugin extends PioNicPlugin {
             } otherwise {
               inc(_.txDmaErrorCount)
             }
+            goto(sendDesc)
+          }
+        }
+      }
+      val sendDesc: State = new State {
+        whenIsActive {
+          outgoingDesc.payload := txPacketDesc
+          outgoingDesc.valid := True
+          when (outgoingDesc.ready) {
             goto(idle)
           }
         }
