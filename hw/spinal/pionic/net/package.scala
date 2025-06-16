@@ -7,7 +7,7 @@ import spinal.lib.misc.plugin._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
 import pionic.ConfigDatabase.OneShot
-import pionic.host.HostReq
+import pionic.host.{HostReq, HostReqBypassHeaders}
 import pionic.net.ethernet.EthernetMetadata
 import spinal.lib.bus.misc.BusSlaveFactory
 
@@ -20,7 +20,7 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[pionic.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCall /*, oncRpcReply */= newElement()
+    val ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
 
     def addMackerel(f: RegAllocatorFactory) = {
       f.addMackerelEpilogue(getClass,
@@ -82,6 +82,10 @@ package object net {
       ret
     }
 
+    /**
+      * Collect all headers to generate [[pionic.host.HostReqBypassHeaders]].  Called by [[DmaControlPlugin]] to pack
+      * incoming request into a bypass [[HostReq]] to pass to host.
+      */
     def collectHeaders(implicit c: ConfigDatabase): Bits = {
       val ret = CombInit(B(0, Widths.bphw bits))
       switch (ty) {
@@ -89,11 +93,30 @@ package object net {
         is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
         is (ip) { ret := metadata.ip.collectHeaders.resized }
         is (udp) { ret := metadata.udp.collectHeaders.resized }
-        is (oncRpcCall) {
-          report("oncRpcCall header too big and cannot fit into bypass, should not be collected")
+        default {
+          // only decoders with downstream decoders can be passed to host as bypass
+          report("RX packet on bypass interface has unsupported type")
         }
       }
       ret
+    }
+
+    /**
+      * Take header bits in [[HostReqBypassHeaders]] passed by host and fill out relevant fields in this
+      * [[PacketDesc]].  Called by [[DmaControlPlugin]] to pass an outgoing packet on the bypass interface to the
+      * encoder pipeline [[TxEncoderSource]].
+      */
+    def fromHeaders(bypassMeta: HostReqBypassHeaders): Unit = {
+      ty := bypassMeta.ty
+      switch (ty) {
+        import PacketDescType._
+        is (ethernet) { metadata.ethernet.assignFromHdrBits(bypassMeta.hdr) }
+        is (ip) { metadata.ip.assignFromHdrBits(bypassMeta.hdr) }
+        is (udp) { metadata.udp.assignFromHdrBits(bypassMeta.hdr) }
+        default {
+          report("RPC requests should not be sent as bypass")
+        }
+      }
     }
 
     c.post("packet desc type width", PacketDescType().getBitsWidth, OneShot)
