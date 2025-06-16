@@ -27,6 +27,11 @@ case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMe
   def getType = PacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders
+  def assignFromHdrBits(b: Bits): Unit = {
+    ipMeta.assignFromHdrBits(b)
+    hdr.assignFromBits(
+      b(hdr.getBitsWidth-1 + ipMeta.hdr.getBitsWidth downto ipMeta.hdr.getBitsWidth))
+  }
   def asUnion: PacketDescData = {
     val ret = PacketDescData().assignDontCare()
     ret.udp.get := this

@@ -22,6 +22,9 @@ package object ethernet {
     def getType = PacketDescType.ethernet
     def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
     def collectHeaders: Bits = hdr.asBits
+    def assignFromHdrBits(b: Bits): Unit = {
+      hdr.assignFromBits(b(hdr.getBitsWidth-1 downto 0))
+    }
     def asUnion: PacketDescData = {
       val ret = PacketDescData().assignDontCare()
       ret.ethernet.get := this
