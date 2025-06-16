@@ -1,7 +1,6 @@
 package pionic.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import pionic.host.PreemptionService
 import pionic.{DmaControlPlugin, GlobalCSRPlugin, MacInterfaceService, PacketBuffer, PioNicPlugin}
 import spinal.core._
 import spinal.core.fiber.Retainer
@@ -35,7 +34,6 @@ trait RxDecoderSinkService {
 class RxDecoderSink extends PioNicPlugin with RxDecoderSinkService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val ms = host[MacInterfaceService]
-  lazy val preempts = host.list[PreemptionService]
   lazy val dc = host[DmaControlPlugin].logic
   val retainer = Retainer()
 

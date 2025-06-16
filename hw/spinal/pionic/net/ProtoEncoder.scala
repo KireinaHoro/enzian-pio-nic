@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
   * @tparam T input metadata type
   */
 trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
-  /** Create one instance of the concrete [[ProtoMetadata]] for this decoder */
+  /** Create one instance of the concrete [[ProtoMetadata]] for this encoder */
   def getMetadata: T
 
   /**
