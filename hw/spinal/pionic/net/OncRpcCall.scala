@@ -180,6 +180,6 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
 }
 
 // TODO: for nested RPC calls (outgoing)
-class OncRpcCallEncoder extends ProtoEncoder[OncRpcCallMetadata] {
+/* class OncRpcCallEncoder extends ProtoEncoder[OncRpcCallMetadata] {
 
-}
+}*/
