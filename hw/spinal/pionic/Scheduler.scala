@@ -86,8 +86,11 @@ class Scheduler extends PioNicPlugin {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
     val rxMeta = Stream(HostReq())
 
-    /** Packet metadata issued to the downstream [[CoreControlPlugin]].  Note that this does not contain any scheduling
-      * information -- switching processes on a core is requested through the [[corePreempt]] interfaces. */
+    /** Packet metadata issued to the downstream [[pionic.host.DatapathPlugin]].
+      *
+      * Note that this is purely for the datapath and does not contain any scheduling information: switching processes
+      * on a core is requested through the [[corePreempt]] interfaces.
+      */
     val coreMeta = Seq.fill(numWorkerCores)(Stream(HostReq()))
 
     awaitBuild()
