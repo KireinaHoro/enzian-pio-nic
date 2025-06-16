@@ -4,7 +4,7 @@ import mainargs._
 import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
-import pionic.net.ethernet.EthernetDecoder
+import pionic.net.ethernet.{EthernetDecoder, EthernetEncoder}
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
@@ -18,26 +18,32 @@ object GenEngineVerilog {
       new DebugPlugin,
       new ProfilerPlugin,
       new GlobalCSRPlugin,
-      // packet pipeline
+      // packet decoder pipeline
       new XilinxCmacPlugin,
       new EthernetDecoder,
       new IpDecoder,
       new UdpDecoder,
       new OncRpcCallDecoder,
-      // sched & dispatch
-      new Scheduler,
       new RxDecoderSink,
-      // DMA to packet buffer
-      new AxiDmaPlugin,
-    ) ++ Seq.tabulate(c[Int]("num cores") + 1)(new CoreControlPlugin(_))
+      // packet encoder pipeline
+      new EthernetEncoder,
+      new TxEncoderSource,
+      // scheduler
+      new Scheduler,
+      // packet buffer & dma control
+      new DmaControlPlugin,
+      new PacketBuffer,
+    )
   }
 
   def engine(implicit c: ConfigDatabase) = {
     val b = base(c)
     val plugins = c[String]("host interface") match {
-      case "pcie" => b :+ new PcieBridgeInterfacePlugin
-      // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
+      case "pcie" =>
+        // TODO: include PCIe datapath modules
+        b :+ new PcieBridgeInterfacePlugin
       case "eci" => b ++ Seq(new EciInterfacePlugin) ++
+        // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
         Seq.tabulate(c[Int]("num cores") + 1)(new EciDecoupledRxTxProtocol(_)) ++
         Seq.tabulate(c[Int]("num cores"))(cid => new EciPreemptionControlPlugin(cid + 1))
     }
