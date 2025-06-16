@@ -244,6 +244,10 @@ class DmaControlPlugin extends PioNicPlugin {
         whenIsActive {
           txReqMuxed.freeRun()
           when(txReqMuxed.valid) {
+            // check that the actual buffer is used
+            assert(txReqMuxed.buffer.addr.bits >= c[Int]("tx pkt buf offset"),
+              "packet buffer slot out of TX buffer range used")
+
             readDesc.payload.payload.addr := txReqMuxed.buffer.addr.bits.resized
             readDesc.payload.payload.len := txReqMuxed.buffer.size.bits
             readDesc.payload.payload.tag := 0

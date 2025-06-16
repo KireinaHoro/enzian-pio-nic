@@ -5,27 +5,34 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import pionic._
-import pionic.host.HostService
 import pionic.net.ProtoDecoder
 import spinal.core._
-import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
-import spinal.lib.misc.plugin._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
-import scala.util.Random
 
-/** Plumbing logic for DCS interfaces.  Actual cacheline protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]]. */
+/**
+  * Plumbing logic for DCS interfaces.  Performs the following connections:
+  *  - packet data: global [[PacketBuffer]] to [[EciPioProtocol]] instances
+  *  - packet descriptors (non-bypass): [[Scheduler]] to [[EciPioProtocol]] instances
+  *    - bypass descriptors are directly passed in [[DmaControlPlugin]] already
+  *  - DCS access for all [[EciPioProtocol]] instances
+  *
+  * Also implements host register access for everything that has control registers.
+  *
+  * Actual cache-line protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]] (e.g.
+  * [[EciDecoupledRxTxProtocol]]).
+  */
 class EciInterfacePlugin extends PioNicPlugin {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
-  lazy val cores = host.list[CoreControlPlugin]
   lazy val protos = host.list[EciPioProtocol]
-  // bypass core does not have preemption control
+
+  // bypass core does not have preemption control; add null to allow one loop later
   lazy val preempts = null +: host.list[EciPreemptionControlPlugin]
 
   lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
@@ -75,20 +82,22 @@ class EciInterfacePlugin extends PioNicPlugin {
       addressWidth = 44, dataWidth = 64,
     )) addTag ClockDomainTag(clockDomain)
 
+    // connect CSR for global modules
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
     private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc)
+    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
+    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
+    host[Scheduler].driveControl(csrCtrl, alloc)
+    host[DmaControlPlugin].logic.connectControl(csrCtrl, alloc)
+    host[DmaControlPlugin].logic.reportStatistics(csrCtrl, alloc)
 
-    // axi DMA traffic steered into each core's packet buffers
-    val dmaNodes = Seq.fill(numCores)(Axi4(axiConfig.copy(
-      addressWidth = log2Up(pktBufSizePerCore - 1),
-    )))
+    // master nodes for access to packet buffer
+    val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
+    val accessNodes = Seq.fill(numCores)(Axi4(axiConfig))
     Axi4CrossbarFactory()
-      .addSlaves(dmaNodes.zipWithIndex map { case (node, idx) =>
-        node -> SizeMapping(pktBufSizePerCore * idx, pktBufSizePerCore)
-      }: _*)
-      // FIXME: we could need an adapter here
-      .addConnection(host[AxiDmaPlugin].packetBufDmaMaster -> dmaNodes)
+      .addSlave(memNode, SizeMapping(0, pktBufSize))
+      .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
       .build()
 
     // mux both DCS AXI masters to all cores
@@ -236,39 +245,31 @@ class EciInterfacePlugin extends PioNicPlugin {
     }, _.ul.address, 18, 19, _.unlockResp)
 
     // drive core control interface -- datapath per core
-    cores lazyZip dmaNodes lazyZip dcsNodes lazyZip coresLci lazyZip coresLcia lazyZip coresUl lazyZip protos lazyZip preempts lazyZip demuxedIpiIntfs foreach { case (((c, dmaNode, (dcsNode, preemptNodeOption), lci), lcia, ul, proto), preempt, ipiCtrl) => new Area {
-      val baseAddress = (1 + c.coreID) * 0x1000
-      val alloc = host[pionic.ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
-      val cio = c.logic.io
+    0 until numCores foreach { cid => new Area {
+      // get all nodes to bind
+      val (dcsNode, preemptNodeOption) = dcsNodes(cid)
+      val Seq(dataLci, preemptLci) = coresLci(cid)
+      val Seq(dataLcia, preemptLcia) = coresLcia(cid)
+      val Seq(dataUl, preemptUl) = coresUl(cid)
+      val proto = protos(cid)
+      val preempt = preempts(cid)
+      val ipiCtrl = demuxedIpiIntfs(cid)
+      val axiNode = accessNodes(cid)
 
-      // per-core packet buffer
-      val rxNumWords = rxSizePerCore / (pktBufWordWidth / 8)
-      val txNumWords = txSizePerCore / (pktBufWordWidth / 8)
+      val baseAddress = (1 + cid) * 0x1000
 
-      // packet data DMA into packet buffer
-      val dmaBusCtrl = Axi4SlaveFactory(dmaNode.fullPipe())
-      dmaBusCtrl.writeMemWordAligned(rxPktBuffer, 0)
-      dmaBusCtrl.readSyncMemWordAligned(txPktBuffer, rxSizePerCore)
-
-      val Seq(dataLci, preemptLci) = lci
-      val Seq(dataLcia, preemptLcia) = lcia
-      val Seq(dataUl, preemptUl) = ul
-
+      // bind DCS channels to datapath
       dataLci  << proto.lci
       dataUl   << proto.ul
       dataLcia >> proto.lcia
 
-      cio.hostTxAck     <-/< proto.hostTxAck
-      cio.hostTx        >/-> proto.hostTx
-      cio.hostRxAck <-/< proto.hostRxAck
-      cio.hostRx    >/-> proto.hostRx
-      cio.hostRxReq :=   proto.hostRxReq
+      if (cid != 0) {
+        // worker cores get RX descriptors from scheduler
+        // bypass core descriptor already connected by [[DmaControlPlugin]]
+        host[Scheduler].logic.coreMeta(cid - 1) >> proto.hostRx
+      }
 
-      // CSR for the core
-      c.logic.connectControl(csrCtrl, alloc)
-      c.logic.reportStatistics(csrCtrl, alloc)
-
-      proto.driveDcsBus(dcsNode, rxPktBuffer, txPktBuffer)
+      proto.driveDcsBus(dcsNode, axiNode)
       proto.driveControl(csrCtrl, alloc)
 
       preemptNodeOption match {
@@ -289,12 +290,5 @@ class EciInterfacePlugin extends PioNicPlugin {
       }
     }.setName("bindProtoToCoreCtrl")
     }
-
-    // control for the decoders
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
-
-    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
-
-    host[Scheduler].driveControl(csrCtrl, alloc)
   }
 }
