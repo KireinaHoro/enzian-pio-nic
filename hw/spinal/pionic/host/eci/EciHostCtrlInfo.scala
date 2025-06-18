@@ -1,10 +1,12 @@
 package pionic.host.eci
 
-import jsteward.blocks.misc.RegAllocatorFactory
 import pionic.Widths.dw
 import pionic._
+import pionic.host.{HostReq, HostReqType}
 import pionic.net.PacketDescType
 import spinal.core._
+
+import scala.language.postfixOps
 
 /**
  * Control info struct sent to the CPU in cache-line reloads for RX packets,
@@ -26,7 +28,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
   override def clone: EciHostCtrlInfo = EciHostCtrlInfo()
 
   // reserve one bit for valid in readStream
-  val ty = HostPacketDescType() // 2b
+  val ty = HostReqType() // 2b
   val len = PacketLength() // 16b
   val data = new Union {
     case class BypassBundle() extends Bundle {
@@ -45,14 +47,14 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val oncRpcCall = newElement(OncRpcCallBundle())
   }
 
-  def unpackTo(desc: HostPacketDesc) = {
+  def unpackTo(desc: HostReq) = {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
-      is (HostPacketDescType.bypass) {
+      is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
       }
-      is (HostPacketDescType.oncRpcCall) {
+      is (HostReqType.oncRpcCall) {
         desc.data.oncRpcCall.assignSomeByName(data.oncRpcCall)
       }
     }
@@ -64,7 +66,7 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 
   def addMackerel = {
     // post header type enum to mackerel
-    HostPacketDescType.addMackerel(c.f)
+    HostReqType.addMackerel(c.f)
     PacketDescType.addMackerel(c.f)
 
     // post descriptor header to mackerel (first 128 bits)
@@ -107,16 +109,16 @@ case class EciHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 }
 
 object EciHostCtrlInfo {
-  def packFrom(desc: HostPacketDesc)(implicit c: ConfigDatabase) = new Area {
+  def packFrom(desc: HostReq)(implicit c: ConfigDatabase) = new Area {
     val ret = EciHostCtrlInfo()
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
-      is (HostPacketDescType.bypass) {
+      is (HostReqType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
         ret.data.bypass.xb11 := 0
       }
-      is (HostPacketDescType.oncRpcCall) {
+      is (HostReqType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
         ret.data.oncRpcCall.xb13 := 0
       }
