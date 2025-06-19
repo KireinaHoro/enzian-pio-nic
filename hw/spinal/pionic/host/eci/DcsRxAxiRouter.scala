@@ -30,7 +30,7 @@ import scala.language.postfixOps
   * @param pktBufSizePerCore size in bytes of per-core buffer (inside global packet buffer)
   * @param regWidth width of register (for `blockCycles`)
   */
-case class DcsRxAxiRouter[T <: Data](descType: HardType[Stream[T]],
+case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
                                      axiConfig: Axi4Config,
                                      pktBufSizePerCore: Int,
                                      regWidth: Int,
@@ -39,13 +39,18 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[Stream[T]],
   assert(pktBufSizePerCore % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
   /** Incoming RX descriptors from scheduler. */
-  val rxDesc = slave(descType())
+  val rxDesc = slave(Stream(descType()))
 
   /** Number of cycles to block for before returning NACK. */
   val blockCycles = in UInt(regWidth bits)
 
   /** Pulse: just started a new request on a CL */
-  val hostReq  = out Vec(Bool(), 2)
+  val hostReq = out Vec(Bool(), 2)
+
+  /** Current control cache line index.  Used to determine if the host is reading
+    * the same CL, for example due to a conflict miss
+    */
+  val currCl = in UInt(1 bit)
 
   /** Pulse: just sent back a NACK */
   val nackSent = out Bool()
@@ -81,15 +86,15 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[Stream[T]],
   // command saved from DCS in AR
   val dcsCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
 
-  // result of parsing address
-  val controlID = Reg(Bits(1 bit))
-
   // where and how much do we need to read from the pkt buffer
   val pktBufReadAddr = Reg(dcsAxi.ar.addr.clone)
   val pktBufReadLen = Reg(UInt(log2Up(pktBufSizePerCore) bits))
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
+
+  // buffered first half CL for responding to host reloads on the same CL
+  val savedControl = Reg(Bits(512 bits)) init 0
 
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
@@ -107,12 +112,22 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[Stream[T]],
         dcsAr.ready := True
 
         when (dcsCmd.addr === 0x0 || dcsCmd.addr === 0x80) {
-          controlID := dcsCmd.addr === 0x80
+          // host reading the first half CL in either first or second CL
           pktBufReadAddr := 0x0
           pktBufReadLen := 0x40
-          hostReq(controlID.asUInt) := True
-          goto(waitDesc)
+
+          when (dcsCmd.addr === currCl * 0x80) {
+            // reading the same CL, return the same result
+            goto(repeatDesc)
+          } otherwise {
+            // reading opposite CL, try popping a descriptor
+            hostReq(1 - currCl) := True
+            goto(waitDesc)
+          }
         } otherwise {
+          // host reading second half of some CL
+          // XXX: we assume the first half-CL is always read first
+          //      so we can ignore any state change and just serve packet buffer contents
           pktBufReadAddr := dcsCmd.addr - 0xc0
           pktBufReadLen := 0x80
           goto(readPktBuf)
@@ -138,6 +153,19 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[Stream[T]],
         when (dcsR.ready) {
           rxDesc.ready := True
           nackSent := !rxDesc.valid
+          goto(readPktBuf)
+        }
+
+        // save response for potential host-side reload
+        savedControl := dcsR.data
+      }
+    }
+    val repeatDesc: State = new State {
+      whenIsActive {
+        // send saved first beat
+        dcsR.data := savedControl
+        dcsR.valid := True
+        when (dcsR.ready) {
           goto(readPktBuf)
         }
       }
