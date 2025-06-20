@@ -263,6 +263,7 @@ class Scheduler extends PioNicPlugin {
       PreemptCmdType.idle -> coreIdleMap,
       PreemptCmdType.ready -> coreReadyMap,
       // TODO: when do we need the `force` command type?
+      //       when we need to kill a running handler?
       default -> B(0),
     )
     val victimCoreMapSel = OHMasking.firstV2(victimCoreMap)
@@ -282,10 +283,17 @@ class Scheduler extends PioNicPlugin {
         val idle: State = new State with EntryPoint {
           whenIsActive {
             when (rxPreemptReq.valid && victimCoreMapSel(idx)) {
-              // we are selected as victim
+              // we are selected as the eviction target
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
-              // we can ask for a request to be popped
+              // core ready, we can ask for a request to be popped
+              // XXX: this goes against the Stream semantics (https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Libraries/stream.html#semantics):
+              //      "It is recommended that valid does not depend on ready at all":
+              //      we will only assert valid, when a core is ready.
+              //      not a combinatorial dependency, so we are still ok
+              //      needed since we don't want to pop a request when core is not ready, since after popping one:
+              //      - allow preempt?  need to somehow put it back in the queue
+              //      - not allow preempt?  no chance in practice to preempt then
               popReq.payload := queueMetas(corePopQueueIdx).head
               popReq.valid := True
               when(popReq.ready) {
@@ -308,7 +316,7 @@ class Scheduler extends PioNicPlugin {
         }
         val readPoppedReq: State = new State {
           whenIsActive {
-            // write popped request to core
+            // issue the popped request to core
             toCore.payload := poppedReq
             toCore.valid := True
 
@@ -316,7 +324,8 @@ class Scheduler extends PioNicPlugin {
             queueMetas(corePopQueueIdx).popOne()
 
             when (toCore.ready) {
-              // worker might de-assert ready due to timeout, have to wait until they try again
+              // no guarantee that worker must accept request: they might de-assert ready due to a read timeout
+              // have to wait until they try again (and re-assert ready)
               // TODO: what happens if the core went amok and never retried? Kill proc?
               goto(idle)
             }
