@@ -61,14 +61,7 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
   /** Forwarded requests to global packet buffer (starts at 0) */
   val pktBufAxi = master(Axi4(axiConfig.copy(useId = false)))
 
-  when (dcsAxi.ar.valid) {
-    // must match that of desc_to_axi/axi_rd_cl.sv
-    // 128B INCR bursts (2 beats on the 512b bus)
-    assert(dcsAxi.ar.size  === U("110"),     "only support 64B in each beat")
-    assert(dcsAxi.ar.burst === B("01"),      "only support INCR bursts")
-    assert(dcsAxi.ar.len   === 1,            "only support 2 beats in each burst")
-    assert(dcsAxi.ar.addr(6 downto 0) === 0, "only support 128B-aligned addresses")
-  }
+  checkEciAxiCmd(dcsAxi)
 
   // ad-hoc queue size to not block AR channel
   val dcsAr = dcsAxi.ar.queue(8)
