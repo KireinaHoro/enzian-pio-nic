@@ -1,5 +1,7 @@
 package pionic.host.eci
 
+import pionic.{ConfigDatabase, PacketAddr}
+import pionic.host.HostReq
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -25,18 +27,11 @@ import scala.language.postfixOps
   *  - 0xc0 - 0x100: packet buffer 0x0 - 0x40 (aliased)
   *  - 0x100+      : packet buffer 0x40+
   *
-  * @param descType type of packet descriptor from scheduler
   * @param axiConfig AXI parameters of upstream and downstream nodes
-  * @param pktBufSizePerCore size in bytes of per-core buffer (inside global packet buffer)
-  * @param regWidth width of register (for `blockCycles`)
   */
-case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
-                                     axiConfig: Axi4Config,
-                                     pktBufSizePerCore: Int,
-                                     regWidth: Int,
-                                    ) extends Component {
+case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) extends Component {
   assert(axiConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
-  assert(pktBufSizePerCore % 64 == 0, "pkt buffer size (B) should be multiple of 64")
+  assert(c.rxPktBufSizePerCore % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
   /** Incoming RX descriptors from scheduler.
     *
@@ -44,10 +39,10 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
     * request (i.e. assert [[rxDesc.valid]]), unless ready is high.  The router module
     * should not wait for valid as a trigger.
     */
-  val rxDesc = slave(Stream(descType()))
+  val rxDesc = slave(Stream(HostReq()))
 
   /** Number of cycles to block for before returning NACK. */
-  val blockCycles = in UInt(regWidth bits)
+  val blockCycles = in UInt(c[Int]("reg width") bits)
 
   /** Pulse: the host just started a new request on a CL */
   val hostReq = out Vec(Bool(), 2)
@@ -89,9 +84,13 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
   // command saved from DCS in AR
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
 
-  // where and how much do we need to read from the pkt buffer
-  val pktBufReadAddr = Reg(dcsAxi.ar.addr.clone)
-  val pktBufReadLen = Reg(UInt(log2Up(pktBufSizePerCore) bits))
+  // do not read from the packet buffer if current CL served with NACK
+  val noReadPktBuf = Reg(Bool()) init False
+  val lastPktBufSlot = Reg(PacketAddr())
+
+  // offset and length to read from the pkt buffer
+  val pktBufReadOff = Reg(dcsAxi.ar.addr.clone)
+  val pktBufReadLen = Reg(UInt(log2Up(c.rxPktBufSizePerCore) bits))
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
@@ -114,7 +113,7 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
       whenIsActive {
         when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
           // host reading the first half CL in either first or second CL
-          pktBufReadAddr := 0x0
+          pktBufReadOff := 0x0
           pktBufReadLen := 0x40
 
           when (readCmd.addr === 0x80 || readCmd.addr === 0x0) {
@@ -128,7 +127,7 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
           // host reading second half of some CL
           // XXX: we assume the first half-CL is always read first
           //      so we can ignore any state change and just serve packet buffer contents
-          pktBufReadAddr := readCmd.addr - 0xc0
+          pktBufReadOff := readCmd.addr - 0xc0
           pktBufReadLen := 0x80
           goto(readPktBuf)
         }
@@ -144,7 +143,15 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedControl := rxDesc.payload ## rxDesc.valid
+          savedControl := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
+
+          // when a packet is present, read from slot in packet buffer
+          when (rxDesc.valid) {
+            lastPktBufSlot := rxDesc.buffer.addr
+          }
+
+          // can the following requests read from the packet buffer?
+          noReadPktBuf := !rxDesc.valid
           goto(sendDesc)
         }
       }
@@ -162,24 +169,40 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        // send read request to pkt buf axi
-        pktBufAxi.ar.valid := True
-        pktBufAxi.ar.len   := pktBufReadLen - 1
-        pktBufAxi.ar.addr  := pktBufReadAddr
-        pktBufAxi.ar.burst := B("01")
-        pktBufAxi.ar.size  := B("110")
-        when (pktBufAxi.ar.ready) {
+        when (noReadPktBuf) {
+          // do not send AXI request
           goto(sendData)
+        } otherwise {
+          // send read request to pkt buf axi
+          pktBufAxi.ar.valid := True
+          pktBufAxi.ar.len := pktBufReadLen - 1
+          pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits
+          pktBufAxi.ar.burst := B("01")
+          pktBufAxi.ar.size := B("110")
+          when(pktBufAxi.ar.ready) {
+            goto(sendData)
+          }
         }
       }
     }
     val sendData: State = new State {
       whenIsActive {
-        pktBufAxi.r.ready := dcsR.ready
-        dcsR.payload := pktBufAxi.r.payload
-        when (pktBufAxi.r.fire) {
+        when (noReadPktBuf) {
+          // return dummy result for packet buffer fetch
+          dcsR.valid := True
+          dcsR.data := U(0)
+          dcsR.setOKAY()
+          dcsR.last := pktBufReadLen === 64
+        } otherwise {
+          pktBufAxi.r.ready := dcsR.ready
+          dcsR.payload := pktBufAxi.r.payload
+          dcsR.valid := pktBufAxi.r.valid
+        }
+
+        when (dcsR.fire) {
           pktBufReadLen := pktBufReadLen - 64
           when (pktBufReadLen === 0) {
+            assert(dcsR.last, "no more packet buffer to read but last not set")
             goto(idle)
           }
         }
