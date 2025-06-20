@@ -57,7 +57,7 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
     */
   val currCl = in UInt(1 bit)
 
-  /** Pulse: just sent back a NACK */
+  /** Pulse: just sent back a NACK.  Will be repeated if the host reloaded the same CL.  */
   val nackSent = out Bool()
 
   /** Per-core AXI interface from DCS (already demuxed by ECI interface) */
@@ -101,10 +101,6 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
   // buffered first half CL for responding to host reloads on the same CL
   val savedControl = Reg(Bits(512 bits)) init 0
 
-  // saved by fsm.waitDesc
-  val savedDesc = Reg(rxDesc.payload)
-  val savedDescValid = Reg(Bool())
-
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
@@ -125,12 +121,11 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
           pktBufReadAddr := 0x0
           pktBufReadLen := 0x40
 
-          when (dcsCmd.addr === currCl * 0x80) {
-            // reading the same CL, return the same result
-            goto(repeatDesc)
-          } otherwise {
-            // reading opposite CL, try popping a descriptor
-            hostReq(1 - currCl) := True
+          when (dcsCmd.addr === 0x80 || dcsCmd.addr === 0x0) {
+            when (dcsCmd.addr === (1 - currCl) * 0x80) {
+              // reading opposite CL, try popping a descriptor
+              hostReq(1 - currCl) := True
+            }
             goto(waitDesc)
           }
         } otherwise {
@@ -153,8 +148,7 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedDesc := rxDesc.payload
-          savedDescValid := rxDesc.valid
+          savedControl := rxDesc.payload ## rxDesc.valid
           goto(sendDesc)
         }
       }
@@ -162,23 +156,10 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
     val sendDesc: State = new State {
       whenIsActive {
         // send first beat, could be NACK
-        dcsR.data := savedDesc ## savedDescValid
-        dcsR.valid := True
-        when (dcsR.ready) {
-          nackSent := !savedDescValid
-          goto(readPktBuf)
-        }
-
-        // save response for potential host-side reload
-        savedControl := dcsR.data
-      }
-    }
-    val repeatDesc: State = new State {
-      whenIsActive {
-        // send saved first beat
         dcsR.data := savedControl
         dcsR.valid := True
         when (dcsR.ready) {
+          nackSent := !savedControl(0)
           goto(readPktBuf)
         }
       }
