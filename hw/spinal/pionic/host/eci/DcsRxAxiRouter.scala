@@ -154,6 +154,8 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
         // send first beat, could be NACK
         dcsR.data := savedControl
         dcsR.valid := True
+        dcsR.setOKAY()
+        dcsR.last := False
         when (dcsR.ready) {
           nackSent := !savedControl(0)
           goto(readPktBuf)
