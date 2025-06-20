@@ -82,14 +82,12 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
   // initialization to avoid latches
   hostReq.foreach(_ := False)
   nackSent := False
-  dcsAr.setBlocked()
-  dcsR.setIdle()
-  pktBufAxi.ar.setIdle()
-  pktBufAxi.r.setBlocked()
   rxDesc.setBlocked()
+  dcsAxi.setBlocked()
+  pktBufAxi.setIdle()
 
   // command saved from DCS in AR
-  val dcsCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
+  val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
 
   // where and how much do we need to read from the pkt buffer
   val pktBufReadAddr = Reg(dcsAxi.ar.addr.clone)
@@ -107,22 +105,20 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
         dcsAr.freeRun()
         blockTimer.clear()
         when (dcsAr.valid) {
-          dcsCmd := dcsAr.payload
+          readCmd := dcsAr.payload
           goto(decodeAr)
         }
       }
     }
     val decodeAr: State = new State {
       whenIsActive {
-        dcsAr.ready := True
-
-        when (dcsCmd.addr === 0x0 || dcsCmd.addr === 0x80) {
+        when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
           // host reading the first half CL in either first or second CL
           pktBufReadAddr := 0x0
           pktBufReadLen := 0x40
 
-          when (dcsCmd.addr === 0x80 || dcsCmd.addr === 0x0) {
-            when (dcsCmd.addr === (1 - currCl) * 0x80) {
+          when (readCmd.addr === 0x80 || readCmd.addr === 0x0) {
+            when (readCmd.addr === (1 - currCl) * 0x80) {
               // reading opposite CL, try popping a descriptor
               hostReq(1 - currCl) := True
             }
@@ -132,7 +128,7 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
           // host reading second half of some CL
           // XXX: we assume the first half-CL is always read first
           //      so we can ignore any state change and just serve packet buffer contents
-          pktBufReadAddr := dcsCmd.addr - 0xc0
+          pktBufReadAddr := readCmd.addr - 0xc0
           pktBufReadLen := 0x80
           goto(readPktBuf)
         }
