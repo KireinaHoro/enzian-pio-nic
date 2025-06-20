@@ -38,13 +38,18 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
   assert(axiConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
   assert(pktBufSizePerCore % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
-  /** Incoming RX descriptors from scheduler. */
+  /** Incoming RX descriptors from scheduler.
+    *
+    * Note: [[rxDesc.ready]] carries special meaning.  The scheduler will not present a
+    * request (i.e. assert [[rxDesc.valid]]), unless ready is high.  The router module
+    * should not wait for valid as a trigger.
+    */
   val rxDesc = slave(Stream(descType()))
 
   /** Number of cycles to block for before returning NACK. */
   val blockCycles = in UInt(regWidth bits)
 
-  /** Pulse: just started a new request on a CL */
+  /** Pulse: the host just started a new request on a CL */
   val hostReq = out Vec(Bool(), 2)
 
   /** Current control cache line index.  Used to determine if the host is reading
@@ -96,6 +101,10 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
   // buffered first half CL for responding to host reloads on the same CL
   val savedControl = Reg(Bits(512 bits)) init 0
 
+  // saved by fsm.waitDesc
+  val savedDesc = Reg(rxDesc.payload)
+  val savedDescValid = Reg(Bool())
+
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
@@ -138,9 +147,14 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
       whenIsActive {
         // block up to blockCycles
         blockTimer.increment()
+        rxDesc.ready := True
         when (blockTimer >= blockCycles || rxDesc.valid) {
-          // timer expired or cancelled, respond NACK, or
-          // got request
+          // one of two outcomes:
+          // - timer expired or cancelled: respond NACK
+          //   - will drop rxDesc.ready
+          // - got a descriptor: respond with descriptor
+          savedDesc := rxDesc.payload
+          savedDescValid := rxDesc.valid
           goto(sendDesc)
         }
       }
@@ -148,11 +162,10 @@ case class DcsRxAxiRouter[T <: Data](descType: HardType[T],
     val sendDesc: State = new State {
       whenIsActive {
         // send first beat, could be NACK
-        dcsR.data := rxDesc.payload ## rxDesc.valid
+        dcsR.data := savedDesc ## savedDescValid
         dcsR.valid := True
         when (dcsR.ready) {
-          rxDesc.ready := True
-          nackSent := !rxDesc.valid
+          nackSent := !savedDescValid
           goto(readPktBuf)
         }
 
