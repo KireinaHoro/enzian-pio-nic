@@ -172,8 +172,8 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
           pktBufAxi.ar.valid := True
           pktBufAxi.ar.len := pktBufReadLen - 1
           pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits
-          pktBufAxi.ar.burst := B("01")
-          pktBufAxi.ar.size := B("110")
+          pktBufAxi.ar.setFullSize()
+          pktBufAxi.ar.setBurstINCR()
           when(pktBufAxi.ar.ready) {
             goto(sendData)
           }
