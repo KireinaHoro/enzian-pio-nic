@@ -1,18 +1,17 @@
 package pionic.host.eci
 
-import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
-import jsteward.blocks.misc.{RegBlockAlloc, RichStream}
+import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
+import pionic.host.HostReq
 import pionic.host.eci.EciDecoupledRxTxProtocol.emittedMackerel
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4AwUnburstified, Axi4SlaveFactory}
-import spinal.lib.bus.misc.{BusSlaveFactory, SingleMapping, SizeMapping}
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4CrossbarFactory}
+import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
-import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
@@ -21,11 +20,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
   withPrefix(s"core_$coreID")
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
-    // TODO: do we actually need resync?
-    //       we need to drain all pending ULs, etc., rather complicated
-    // val r = busCtrl.driveAndRead(logic.resync, alloc("eciResync")) init false
-    // r.clearWhen(r)
-
     busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO))
     busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO))
 
@@ -33,16 +27,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO))
   }
   lazy val csr = host[GlobalCSRPlugin].logic
-  lazy val pktBufWordNumBytes = host[EciInterfacePlugin].pktBufWordWidth / 8
   lazy val overflowCountWidth = log2Up(numOverflowCls)
+
+  // two control half CLs, one extra first word half CL, one MTU
+  // CL#0: [ control | first data (aliased) ]
+  // CL#1: [ control | first data (aliased) ]
+  // CL#2...: [ rest data ]
+  lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
+  lazy val numOverflowCls = (sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
   // map at aligned address to eliminate long comb paths
   val txOffset = 0x8000
-
   val sizePerCore = 2 * txOffset
-
-  var writeCmd: Stream[Fragment[Axi4AwUnburstified]] = null
-  var txRwPort: MemReadWritePort[_] = null
 
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
     val clSize = EciCmdDefs.ECI_CL_SIZE_BYTES
@@ -59,113 +55,47 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     (currIdx * EciCmdDefs.ECI_CL_SIZE_BYTES + (if (isTx) U(txOffset) else U(0))).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
   }
 
-  // FIXME: packets are only DMA'ed into the per-core buffer, after they are scheduled onto a core
-  //        No meaningful queueing can happen in current design
-  // TODO: - get rid of per-core buffers
-  //       - CoreControl becomes global DmaControl, sits before scheduler
-  //       - use one global packet buffer, DMA into this, all ECI protos read from this
-  def driveDcsBus(bus: Axi4, rxPktBuffer: Mem[Bits], txPktBuffer: Mem[Bits]): Unit = new Area {
-    // address offset for this core in CoreControl descriptors
-    val descOffset = c[Int]("pkt buf size per core") * coreID
-
-    val rxSize = host[EciInterfacePlugin].rxSizePerCore
-    val txSize = host[EciInterfacePlugin].txSizePerCore
-
-    // remap packet data: first cacheline inline packet data -> second one
-    // such that we have continuous address when handling packet data
-    val busCtrl = Axi4SlaveFactory(bus.fullPipe(), cmdPipeline = StreamPipe.FULL, addrRemapFunc = { addr =>
-      addr.mux(
-        U(0x40) -> U(0xc0),
-        U(txOffset + 0x40) -> U(txOffset + 0xc0),
-        default -> addr
+  def driveDcsBus(bus: Axi4, pktBufAxiNode: Axi4): Unit = new Area {
+    // mux RX and TX routers to DCS master
+    val rxDcsNode, txDcsNode = Axi4(bus.config)
+    Axi4CrossbarFactory()
+      .addSlaves(
+        rxDcsNode -> SizeMapping(0, txOffset),
+        txDcsNode -> SizeMapping(txOffset, txOffset)
       )
-    })
+      .addConnection(bus, Seq(rxDcsNode, txDcsNode))
+      .build()
+
+    // RX router
+    val rxRouter = DcsRxAxiRouter(bus.config)
+    rxRouter.rxDesc << hostRx
+    rxRouter.currCl := logic.rxCurrClIdx
+    bus >> rxRouter.dcsAxi
+    logic.rxReqs := rxRouter.hostReq
+
+    // TX router
+    val txRouter = DcsTxAxiRouter(bus.config, c[Int]("tx pkt buf offset") + coreID * roundMtu)
+    txRouter.txDesc >> hostTxAck
+    txRouter.currCl := logic.txCurrClIdx
+    logic.txReqs := txRouter.hostReq
+
+    // mux packet buffer access nodes
+    Axi4CrossbarFactory()
+      .addSlave(pktBufAxiNode, SizeMapping(0, pktBufSize))
+      .addConnections(
+        rxRouter.pktBufAxi -> Seq(pktBufAxiNode),
+        txRouter.pktBufAxi -> Seq(pktBufAxiNode),
+      )
+      .build()
 
     val blockCycles = CombInit(csr.ctrl.rxBlockCycles)
     // disable block cycles, when a preemption request is under way
     // this way we immediately return a NACK, instead of waiting until timeout
     when (preemptReq.valid) { blockCycles.clearAll() }
-
-    Seq(0, 1) foreach { idx => new Composite(this, s"driveBusCtrl_cl$idx") {
-      val rxCtrlAddr = idx * 0x80
-      busCtrl.onReadPrimitive(SingleMapping(rxCtrlAddr), false, null) {
-        logic.rxReqs(idx).set()
-      }
-
-      // we need to freeze the read control cacheline when we are in noPacket
-      // to avoid the following corner case:
-      // - L2 issues reload, no packet => rxFsm == noPacket
-      // - core didn't have a chance to read NACK, L2 evicted
-      // - packet arrived while we are in noPacket
-      // - L2 reload, core sees valid = 1, packet delivered
-      // - packet NOT consumed yet since we didn't exit from gotPacket
-      // - core reads again, packet delivered AGAIN
-      // we still cannot do full voluntary reload idempotency check, since packet
-      // will be DMA'ed into packet buffer anyways -- difficult to control from here
-      // TODO: can we fabricate a test case for this?
-      val rxHostCtrlInfo = Reg(Stream(EciHostCtrlInfo()))
-      val rxDesc = logic.demuxedRxDescs(idx).map(EciHostCtrlInfo.packFrom)
-      rxHostCtrlInfo.valid init False
-      when (logic.rxFsm.isEntering(logic.rxFsm.repeatPacket)) {
-        rxHostCtrlInfo.valid := rxDesc.valid
-        rxHostCtrlInfo.payload := rxDesc.payload
-        logic.rxPktBufSaved := hostRx.payload.buffer
-      }
-      rxDesc.ready := logic.rxReadyToSched
-
-      when (logic.rxFsm.isEntering(logic.rxFsm.idle)) {
-        // retire the buffered packet when we enter idle.  Two cases:
-        // - packet acknowledged with the scheduler
-        // - preemption request happened: we have delivered the packet fully, thanks to the critical section
-        rxHostCtrlInfo.valid := False
-      }
-
-      // readStreamBlockCycles report timeout on last beat of stream, but we need to issue it after the entire reload is finished
-      val streamTimeout = Bool()
-      val bufferedStreamTimeout = Reg(Bool()) init False
-      bufferedStreamTimeout.setWhen(streamTimeout)
-      busCtrl.readStreamBlockCycles(rxHostCtrlInfo, rxCtrlAddr, blockCycles, streamTimeout)
-      busCtrl.onRead(0xc0) {
-        logic.rxNackTriggerInv.setWhen((bufferedStreamTimeout | streamTimeout))
-        bufferedStreamTimeout.clear()
-      }
-
-      val txCtrlAddr = txOffset + idx * 0x80
-      busCtrl.onReadPrimitive(SingleMapping(txCtrlAddr), false, null) {
-        logic.txReqs(idx).set()
-        // only allow load request from writing when we are idle
-        when (!logic.txFsm.isActive(logic.txFsm.idle) && idx =/= logic.txCurrClIdx.asUInt) {
-          busCtrl.readHalt()
-        }
-      }
-
-      // host sends out TxHostCtrlInfo without buffer information
-      busCtrl.driveStream(logic.txHostCtrlInfo(idx).padSlave(1), txCtrlAddr)
-      // we need to read this again for partial reloads to have the same CL content
-      busCtrl.read(logic.savedTxHostCtrl, txCtrlAddr)
-    }
-    }
-
-    val rxBufMapping = SizeMapping(descOffset, rxSize)
-
-    // cpu not supposed to modify rx packet data, so omitting write
-    // memOffset is in memory words (64B)
-    val memOffset = rxBufMapping.removeOffset(logic.rxPktBufSaved.addr.bits) >> log2Up(pktBufWordNumBytes)
-    busCtrl.readSyncMemWordAligned(rxPktBuffer, 0xc0,
-      memOffset = memOffset.resized,
-      mappingLength = roundMtu)
-
-    // tx buffer always start at 0
-    // allow reloading from the packet buffer for partial flush due to voluntary invalidations
-    txRwPort = busCtrl.readWriteSyncMemWordAligned(txPktBuffer, txOffset + 0xc0,
-      mappingLength = roundMtu)
-
-    writeCmd = busCtrl.writeCmd
+    rxRouter.blockCycles := blockCycles
   }.setName(s"driveDcsBus_core$coreID")
 
   def preemptReq = logic.preemptReq
-
-  lazy val numOverflowCls = (host[EciInterfacePlugin].sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
   val logic = during setup new Area {
     // these will be hooked by [[EciPreemptionControlPlugin]]
@@ -175,7 +105,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
 
     awaitBuild()
 
-    assert(txOffset >= host[EciInterfacePlugin].sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
+    assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
     postConfig("eci rx base", 0)
     postConfig("eci tx base", txOffset)
@@ -186,10 +116,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // finish issuing
     // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
-
-    // ready signal to scheduler
-    // XXX: scheduler will dispatch to us, only when we are ready
-    val rxReadyToSched = CombInit(False)
 
     val rxReqs = Vec(False, 2)
     val txReqs = Vec(False, 2)
@@ -221,8 +147,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
-    val demuxedRxDescs = StreamDemux(hostRx, rxCurrClIdx.asUInt, 2) setName "demuxedRxDescs"
-
     // register accepted host rx packet for:
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
@@ -253,7 +177,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
       }
       val hostWaiting: State = new State {
         whenIsActive {
-          rxReadyToSched := True
           when (hostRx.valid) {
             // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
