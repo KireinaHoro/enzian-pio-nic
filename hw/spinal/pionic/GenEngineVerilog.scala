@@ -38,14 +38,15 @@ object GenEngineVerilog {
 
   def engine(implicit c: ConfigDatabase) = {
     val b = base(c)
+    val nc = c[Int]("num cores")
     val plugins = c[String]("host interface") match {
-      case "pcie" =>
-        // TODO: include PCIe datapath modules
-        b :+ new PcieBridgeInterfacePlugin
+      case "pcie" => b ++ Seq(new PcieBridgeInterfacePlugin) ++
+        Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
+        Seq.tabulate(nc)(cid => new PciePreemptionControlPlugin(cid + 1))
       case "eci" => b ++ Seq(new EciInterfacePlugin) ++
         // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
-        Seq.tabulate(c[Int]("num cores") + 1)(new EciDecoupledRxTxProtocol(_)) ++
-        Seq.tabulate(c[Int]("num cores"))(cid => new EciPreemptionControlPlugin(cid + 1))
+        Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
+        Seq.tabulate(nc)(cid => new EciPreemptionControlPlugin(cid + 1))
     }
     NicEngine(plugins)
   }

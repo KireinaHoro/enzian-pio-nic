@@ -1,13 +1,17 @@
 package pionic.host.pcie
 
 import pionic._
+import pionic.host.{HostReq, HostReqType}
 import pionic.net.PacketDescType
 import spinal.core._
+
+import scala.language.postfixOps
 
 /**
   * Control info struct sent to the CPU in RX descriptor load through hostRx,
   * as well as struct received from the CPU for TX through hostTxAck.  Same
-  * principle as [[pionic.host.eci.EciHostCtrlInfo]].
+  * principle as [[pionic.host.eci.EciHostCtrlInfo]] to generate aligned memory
+  * locations.
   */
 // TODO: reduce redundant code
 case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
@@ -15,7 +19,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 
   // reserve one bit from valid in readStream
   val buffer = PacketBufDesc() // 24 + 16b
-  val ty = HostPacketDescType() // 2b
+  val ty = HostReqType() // 2b
   val data = new Union {
     case class BypassBundle() extends Bundle {
       val ty = PacketDescType() // 2b
@@ -33,14 +37,14 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     val oncRpcCall = newElement(OncRpcCallBundle())
   }
 
-  def unpackTo(desc: HostPacketDesc) = {
+  def unpackTo(desc: HostReq) = {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
-      is (HostPacketDescType.bypass) {
+      is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
       }
-      is (HostPacketDescType.oncRpcCall) {
+      is (HostReqType.oncRpcCall) {
         desc.data.oncRpcCall.assignSomeByName(data.oncRpcCall)
       }
     }
@@ -49,7 +53,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 
   def addMackerel = {
     // post header type enum to mackerel
-    HostPacketDescType.addMackerel(c.f)
+    HostReqType.addMackerel(c.f)
     PacketDescType.addMackerel(c.f)
 
     // post descriptor header to mackerel
@@ -93,16 +97,16 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 }
 
 object PcieHostCtrlInfo {
-  def packFrom(desc: HostPacketDesc)(implicit c: ConfigDatabase) = new Area {
+  def packFrom(desc: HostReq)(implicit c: ConfigDatabase) = new Area {
     val ret = PcieHostCtrlInfo()
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
-      is (HostPacketDescType.bypass) {
+      is (HostReqType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
         ret.data.bypass.xb19 := 0
       }
-      is (HostPacketDescType.oncRpcCall) {
+      is (HostReqType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
         ret.data.oncRpcCall.xb21 := 0
       }
