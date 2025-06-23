@@ -20,7 +20,18 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[pionic.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
+    val raw, ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
+
+    def selectData[T <: ProtoMetadata](ty: PacketDescType.E, data: PacketDescData)(implicit c: ConfigDatabase): T = {
+      ty match {
+        case `raw` => NoMetadata().asInstanceOf[T]
+        case `ethernet` => data.ethernet.asInstanceOf[T]
+        case `ip` => data.ip.asInstanceOf[T]
+        case `udp` => data.udp.asInstanceOf[T]
+        case `oncRpcCall` => data.oncRpcCall.asInstanceOf[T]
+        case `oncRpcReply` => data.oncRpcCall.asInstanceOf[T]
+      }
+    }
 
     def addMackerel(f: RegAllocatorFactory) = {
       f.addMackerelEpilogue(getClass,
