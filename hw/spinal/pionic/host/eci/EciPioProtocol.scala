@@ -22,13 +22,6 @@ trait EciPioProtocol extends DatapathPlugin {
   val lcia = during setup Stream(EciCmdDefs.EciAddress)
   val ul = during setup Stream(EciCmdDefs.EciAddress)
 
-  /** datapath interfaces */
-  val hostTx = during setup Stream(PacketBufDesc())
-  val hostTxAck = during setup Stream(HostReq())
-  val hostRx = during setup Stream(HostReq())
-  val hostRxAck = during setup Stream(PacketBufDesc())
-  val hostRxReq = during setup Bool()
-
   /**
     * Connect slave interface to the DCS interfaces.
     * @param bus DCS interface to respond to, demux'ed for this core
