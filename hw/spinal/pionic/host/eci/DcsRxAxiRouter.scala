@@ -185,7 +185,7 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
         when (noReadPktBuf) {
           // return dummy result for packet buffer fetch
           dcsR.valid := True
-          dcsR.data := U(0)
+          dcsR.data := B(0)
           dcsR.setOKAY()
           dcsR.last := pktBufReadLen === 64
         } otherwise {

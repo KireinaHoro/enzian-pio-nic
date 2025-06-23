@@ -20,7 +20,7 @@ object RxPacketDescWithSource {
   def fromPacketDesc(desc: PacketDesc, isBypass: Boolean)(implicit c: ConfigDatabase) = {
     val ret = RxPacketDescWithSource()
     ret.desc := desc
-    ret.isBypass := isBypass
+    ret.isBypass := Bool(isBypass)
     ret
   }
 }

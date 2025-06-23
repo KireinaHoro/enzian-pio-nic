@@ -3,7 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci.EciCmdDefs
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
-import pionic.host.HostReq
+import pionic.host.DatapathPlugin
 import pionic.host.eci.EciDecoupledRxTxProtocol.emittedMackerel
 import spinal.core._
 import spinal.core.fiber.Handle._
@@ -16,7 +16,7 @@ import spinal.lib.fsm._
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
-class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
+class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   withPrefix(s"core_$coreID")
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
@@ -69,14 +69,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends EciPioProtocol {
     // RX router
     val rxRouter = DcsRxAxiRouter(bus.config)
     rxRouter.rxDesc << hostRx
-    rxRouter.currCl := logic.rxCurrClIdx
+    rxRouter.currCl := logic.rxCurrClIdx.asUInt
     bus >> rxRouter.dcsAxi
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
     val txRouter = DcsTxAxiRouter(bus.config, c[Int]("tx pkt buf offset") + coreID * roundMtu)
     txRouter.txDesc >> hostTxAck
-    txRouter.currCl := logic.txCurrClIdx
+    txRouter.currCl := logic.txCurrClIdx.asUInt
     logic.txReqs := txRouter.hostReq
 
     // mux packet buffer access nodes
