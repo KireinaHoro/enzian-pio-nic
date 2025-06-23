@@ -1,11 +1,19 @@
 package pionic.host
 
-import pionic.{PioNicPlugin, ProfilerPlugin}
+import pionic._
 import spinal.core._
+import spinal.lib.Stream
 
 /** Common functionalities of a per-core datapath plugin. */
 abstract class DatapathPlugin(val coreID: Int) extends PioNicPlugin with DatapathService {
   lazy val p = host[ProfilerPlugin]
+
+  /** datapath interfaces */
+  val hostTx = during setup Stream(PacketBufDesc())
+  val hostTxAck = during setup Stream(HostReq())
+  val hostRx = during setup Stream(HostReq())
+  val hostRxAck = during setup Stream(PacketBufDesc())
+  val hostRxReq = during setup Bool()
 
   during setup new Area {
     import p._
