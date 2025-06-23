@@ -13,11 +13,6 @@ import spinal.lib.bus.amba4.axi.Axi4
 trait DatapathService {
   def coreID: Int
 
-  /** AXI master to RX packet buffer in [[PacketBuffer]] */
-  def rxPktBuffer: Axi4
-  /** AXI master to TX packet buffer in [[PacketBuffer]] */
-  def txPktBuffer: Axi4
-
   /** Host ready to process the next request (for statistics) */
   def hostRxReq: Bool
   /** Fully decoded and translated request to pass to host core */

@@ -35,11 +35,6 @@ class EciInterfacePlugin extends PioNicPlugin {
   // bypass core does not have preemption control; add null to allow one loop later
   lazy val preempts = null +: host.list[EciPreemptionControlPlugin]
 
-  lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
-  lazy val pktBufSizePerCore = c[Int]("pkt buf size per core")
-  lazy val rxSizePerCore = pktBufSizePerCore - roundMtu
-  lazy val txSizePerCore = roundMtu
-
   postConfig("host desc size", 64*8, action = ConfigDatabase.Unique) // BYTES
 
   // dcs_2_axi AXI config
