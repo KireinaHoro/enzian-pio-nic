@@ -26,7 +26,7 @@ object GenEngineVerilog {
       new OncRpcCallDecoder,
       new RxDecoderSink,
       // packet encoder pipeline
-      new EthernetEncoder,
+      new RawEncoder,
       new TxEncoderSource,
       // scheduler
       new Scheduler,

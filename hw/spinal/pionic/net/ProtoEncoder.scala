@@ -1,7 +1,7 @@
 package pionic.net
 
+import jsteward.blocks.axi.AxiStreamArbMux
 import pionic.PioNicPlugin
-import pionic.host.HostReq
 import spinal.core.Composite
 import spinal.lib.{Stream, StreamArbiterFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
@@ -40,21 +40,39 @@ trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
   }
 
   /**
-    * Collect all payload streams of this encoder, from either the host CPU or previous decoder stages.  Must be invoked
-    * from inside the decoder; can be invoked at most once during the setup phase.
+    * Collect all payload streams of this encoder, from previous decoder stages.  Will provide packets from:
+    *  - previous decoder stages, registered by them calling the [[to]] method
+    *  - packets from the host, passed through [[TxEncoderSource]]
     *
-    * Packets from previous decoder stages are registered through the [[to]] method.
-    *
-    * Packets from the host CPU directly (after translated by [[pionic.DmaControlPlugin]]) will be pulled in as
+    * Must be invoked from inside the decoder; must be invoked exactly once during the build phase.
     *
     * @param metadata metadata consumed by this stage
     * @param payload payload data stream consumed by this stage
+    * @param acceptHostPackets whether to allow packets from host (e.g. as bypass)
     */
-  protected def collectInto(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "consume") {
-    // TODO: get host-produced descriptor for this encoder from [[TxEncoderSource]]
-    val hostDesc = ???
-    metadata << StreamArbiterFactory().roundRobin.on(
-      producers.map(_._2)
-    )
+  protected def collectInto(metadata: Stream[T], payload: Axi4Stream, acceptHostPackets: Boolean = false): Unit = new Composite(this, "consume") {
+    val descUpstreams = mutable.ListBuffer.from(producers.map(_._2))
+    val payloadUpstreams = mutable.ListBuffer.from(producers.map(_._3))
+
+    if (acceptHostPackets) {
+      val hostDesc = Stream(PacketDescData())
+      val hostPayload = payload.clone
+      val md = getMetadata
+      val ty = md.getType
+
+      host[TxEncoderSource].connect(ty, hostDesc, hostPayload)
+
+      descUpstreams += hostDesc.map { pld =>
+        PacketDescType.selectData(ty, pld)
+      }
+
+      payloadUpstreams += hostPayload
+    }
+
+    metadata << StreamArbiterFactory().roundRobin.on(descUpstreams)
+    val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
+
+    axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }
+    axisMux.m_axis >> payload
   }
 }

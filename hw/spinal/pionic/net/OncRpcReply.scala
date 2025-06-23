@@ -21,5 +21,5 @@ class OncRpcReplyDecoder extends ProtoDecoder[OncRpcReplyMetadata] {
 }
 
 class OncRpcReplyEncoder extends ProtoEncoder[OncRpcReplyMetadata] {
-
+  def getMetadata = ???
 }
