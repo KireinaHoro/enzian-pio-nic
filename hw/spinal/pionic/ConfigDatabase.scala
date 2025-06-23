@@ -41,7 +41,11 @@ class ConfigDatabase extends FiberPlugin {
   post("tx pkt buf size per core", roundedMtu)
   post("pkt buf size per core", rxPktBufSizePerCore + roundedMtu)
 
-  post("num worker cores", 4)
+  val numWorkerCores = 4
+  val numCores = numWorkerCores + 1
+  post("num worker cores", numWorkerCores)
+  post("num cores", numCores)
+
   post("collect timestamps", true, emitHeader = false)
   post("timestamp width", 32)
   post("reg width", 64)

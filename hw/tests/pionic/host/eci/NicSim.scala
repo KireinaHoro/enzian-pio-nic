@@ -159,7 +159,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   // we have one more core as bypass
-  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores") + 1)(0)
+  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
@@ -314,7 +314,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // - cores are preempted as requests come in, they start to read
     // - eventually all packets are received through all cores
 
-    val numWorkerCores = c[Int]("num cores")
+    val numWorkerCores = c[Int]("num worker cores")
     val totalToSend = 50 * numWorkerCores
 
     val irqReceived = mutable.ArrayBuffer.fill(numWorkerCores+1)(false)
@@ -667,7 +667,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
    * - did not receive request for some time
    */
   test("rx-sched-preempt") { implicit dut =>
-    val numWorkerCores = c[Int]("num cores")
+    val numWorkerCores = c[Int]("num worker cores")
     val coreStates = Seq.fill(numWorkerCores)(new CoreIrqState)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, genericIrqHandler(coreStates))
