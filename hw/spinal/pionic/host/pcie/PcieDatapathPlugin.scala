@@ -1,24 +1,56 @@
 package pionic.host.pcie
 
-import pionic._
+import jsteward.blocks.misc.RichStream
+import pionic.{ConfigDatabase, GlobalCSRPlugin}
 import pionic.host.DatapathPlugin
-import spinal.core.Bool
-import spinal.lib
-import spinal.lib.bus.amba4.axi.Axi4
+import spinal.core._
+import spinal.lib._
+import spinal.lib.bus.misc._
+import spinal.lib.bus.regif.AccessType.{RO, WO}
 
 class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
+  lazy val csr = host[GlobalCSRPlugin]
 
-  def rxPktBuffer: Axi4 = ???
+  def driveDatapath(busCtrl: BusSlaveFactory, baseAddr: Int, dataWidth: Int): Unit = {
+    val alloc = host[ConfigDatabase].f("core", coreID)(baseAddr, 0x1000, regWidth / 8)(dataWidth)
 
-  def txPktBuffer: Axi4 = ???
+    val hostDescSizeRound = roundUp(PcieHostCtrlInfo().getBitsWidth+1, 64) / 8
+    postConfig("host desc size", hostDescSizeRound.toInt * 8, action = ConfigDatabase.OneShot)
 
-  def hostRxReq: Bool = ???
+    val rxAddr = alloc("hostRx",
+      readSensitive = true,
+      attr = RO,
+      size = hostDescSizeRound,
+      // TODO: what's the syntax for allowing multiple aliases for datatype reg?
+      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
 
-  def hostRx: lib.Stream[host.HostReq] = ???
+    val rxHostDesc = hostRx.map(PcieHostCtrlInfo.packFrom)
+    busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
 
-  def hostRxAck: lib.Stream[PacketBufDesc] = ???
+    // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
+    hostRxReq := False
+    busCtrl.onReadPrimitive(SingleMapping(rxAddr), haltSensitive = false, "read request issued") {
+      hostRxReq := True
+    }
 
-  def hostTx: lib.Stream[PacketBufDesc] = ???
+    busCtrl.driveStream(hostRxAck.padSlave(1), alloc("hostRxAck",
+      attr = WO,
+      ty = "host_pkt_buf_desc"))
 
-  def hostTxAck: lib.Stream[host.HostReq] = ???
+    // should not block; only for profiling (to use ready signal)
+    busCtrl.readStreamNonBlocking(hostTx, alloc("hostTx",
+      readSensitive = true,
+      attr = RO,
+      ty = "host_pkt_buf_desc"))
+
+    val txHostDesc = Stream(PcieHostCtrlInfo())
+    busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck",
+      attr = WO,
+      size = hostDescSizeRound,
+      // TODO: what's the syntax for allowing multiple aliases for datatype reg?
+      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
+    hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
+      h.unpackTo(cc)
+    }
+  }
 }

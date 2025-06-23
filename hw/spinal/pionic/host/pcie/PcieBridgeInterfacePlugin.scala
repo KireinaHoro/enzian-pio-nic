@@ -1,25 +1,19 @@
 package pionic.host.pcie
 
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.RichStream
 import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import pionic._
-import pionic.host.HostService
 import pionic.net.ProtoDecoder
 import spinal.core._
-import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
-import spinal.lib.bus.misc.SingleMapping
-import spinal.lib.bus.regif.AccessType.{RO, WO}
-import spinal.lib.misc.plugin._
 
 import scala.language.postfixOps
 
-class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugin {
+class PcieBridgeInterfacePlugin extends PioNicPlugin {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
-  lazy val cores = host.list[CoreControlPlugin]
+  lazy val dps = host.list[PcieDatapathPlugin]
 
   // PCIe bridge block AXI config
   val axiConfig = Axi4Config(
@@ -34,13 +28,12 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
     val axiWideConfigNode = Axi4(axiConfig)
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(regWidth))
 
-    private val alloc = cc.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
+    val pktBuffer = host[PacketBuffer].logic.axiMem
+
+    private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(axiConfig.dataWidth)
     csr.readAndWrite(busCtrl, alloc)
 
-    private val pktBufferAlloc = cc.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
-
-    // TODO: split into a generic packet buffer (for both RX and TX) plugin that is not ECI/PCIe specific
-    val pktBuffer = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(pktBufSize)))
+    private val pktBufferAlloc = c.f("pkt")(0x100000, pktBufSize, pktBufSize)(axiConfig.dataWidth)
 
     Axi4CrossbarFactory()
       .addSlaves(
@@ -52,65 +45,17 @@ class PcieBridgeInterfacePlugin(implicit cc: ConfigDatabase) extends PioNicPlugi
 
     awaitBuild()
 
-    // FIXME: we could need an adapter here
-    host[AxiDmaPlugin].packetBufDmaMaster >> pktBuffer.io.s_axi_a
-
     // drive control interface (packet action)
-    cores foreach { c =>
-      val baseAddress = (1 + c.coreID) * 0x1000
-      val cio = c.logic.io
-
-      val alloc = host[ConfigDatabase].f("core", c.coreID)(baseAddress, 0x1000, regWidth / 8)(axiConfig.dataWidth)
-
-      val rxHostDesc = cio.hostRx.map(PcieHostCtrlInfo.packFrom)
-
-      val hostDescSizeRound = roundUp(rxHostDesc.payload.getBitsWidth+1, 64) / 8
-      postConfig("host desc size", hostDescSizeRound.toInt * 8, action = ConfigDatabase.OneShot)
-
-      val rxAddr = alloc("hostRx",
-        readSensitive = true,
-        attr = RO,
-        size = hostDescSizeRound,
-        // TODO: what's the syntax for allowing multiple aliases for datatype reg?
-        ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
-      busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
-
-      busCtrl.driveStream(cio.hostRxAck.padSlave(1), alloc("hostRxAck",
-        attr = WO,
-        ty = "host_pkt_buf_desc"))
-
-      // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
-      cio.hostRxReq := False
-      busCtrl.onReadPrimitive(SingleMapping(rxAddr), haltSensitive = false, "read request issued") {
-        cio.hostRxReq := True
-      }
-
-      // should not block; only for profiling (to use ready signal)
-      busCtrl.readStreamNonBlocking(cio.hostTx, alloc("hostTx",
-        readSensitive = true,
-        attr = RO,
-        ty = "host_pkt_buf_desc"))
-
-      val txHostDesc = Stream(PcieHostCtrlInfo())
-      busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck",
-        attr = WO,
-        size = hostDescSizeRound,
-        // TODO: what's the syntax for allowing multiple aliases for datatype reg?
-        ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
-      cio.hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
-        h.unpackTo(cc)
-      }
-
-      c.logic.connectControl(busCtrl, alloc)
-      c.logic.reportStatistics(busCtrl, alloc)
+    dps foreach { dp =>
+      dp.driveDatapath(busCtrl, (1 + dp.coreID) * 0x1000, axiConfig.dataWidth)
     }
 
     // control for the decoders
     host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc))
-
     host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc)
-
     host[Scheduler].driveControl(busCtrl, alloc)
+    host[DmaControlPlugin].logic.connectControl(busCtrl, alloc)
+    host[DmaControlPlugin].logic.reportStatistics(busCtrl, alloc)
   }
 
   during build {
