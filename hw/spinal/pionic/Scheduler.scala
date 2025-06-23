@@ -23,7 +23,7 @@ case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
   /** PID of process on the CPU -- not necessarily corresponding to actual process IDs on Linux */
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
-  val maxThreads = UInt(log2Up(c[Int]("num cores") + 1) bits)
+  val maxThreads = UInt(log2Up(c[Int]("num worker cores") + 1) bits)
 }
 
 /**
