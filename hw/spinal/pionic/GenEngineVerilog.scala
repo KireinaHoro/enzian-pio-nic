@@ -88,20 +88,20 @@ object GenEngineVerilog {
     val report = elabConfig.generateVerilog {
       val e = engine(4, name)
       e.database on { Global.GIT_VERSION.set(gitVersion) }
-
       e
     }
 
-    val host = report.toplevel.host
+    report.toplevel.database on {
+      ALLOC.dumpAll()
+      if (genHeaders) {
+        println("Generating headers and mackerel device files")
+        ALLOC.writeMackerel(os.pwd / "sw" / "devices", s"pionic_$name")
+        ALLOC.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
+        writeConfigs(genDir / "config.h", elabConfig)
+      }
+    }
     report.mergeRTLSource("NicEngine_ips")
     VivadoConstraintWriter(report)
-    // if (printRegMap) host[ConfigDatabase].f.dumpAll()
-    if (genHeaders) {
-      println("Generating headers and mackerel device files")
-      // host[ConfigDatabase].f.writeMackerel(os.pwd / "sw" / "devices", s"pionic_$name")
-      // host[ConfigDatabase].f.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
-      // host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
-    }
   }
 
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
