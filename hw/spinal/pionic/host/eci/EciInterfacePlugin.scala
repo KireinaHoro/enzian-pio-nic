@@ -255,6 +255,9 @@ class EciInterfacePlugin extends FiberPlugin {
       val ipiCtrl = demuxedIpiIntfs(cid)
       val memNode = accessNodes(cid)
 
+      val baseAddress = (1 + cid) * 0x1000
+      val alloc = ALLOC.get("core", cid)(baseAddress, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
+
       // bind DCS channels to datapath
       dataLci  << proto.lci
       dataUl   << proto.ul
