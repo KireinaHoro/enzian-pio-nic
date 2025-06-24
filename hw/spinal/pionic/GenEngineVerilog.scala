@@ -16,6 +16,7 @@ import scala.language.postfixOps
 object GenEngineVerilog {
   private def base = {
     Seq(
+      new PatchSignalNames,
       new DebugPlugin,
       new ProfilerPlugin,
       new GlobalCSRPlugin,
@@ -39,17 +40,9 @@ object GenEngineVerilog {
 
   def engine(nw: Int, variant: String) = {
     val nc = nw + 1
-    val plugins = variant match {
-      case "pcie" => base ++ Seq(new PcieBridgeInterfacePlugin) ++
-        Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
-        Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
-      case "eci" => base ++ Seq(new EciInterfacePlugin) ++
-        // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
-        Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
-        Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
-    }
-    val e = NicEngine(plugins)
+    val e = new NicEngine
     e.database on {
+      // set enough parameters to get us rolling
       NUM_CORES.set(nc)
       NUM_WORKER_CORES.set(nw)
       REG_WIDTH.set(64)
@@ -59,6 +52,18 @@ object GenEngineVerilog {
       RX_PKTS_PER_PROC.set(32)
 
       ALLOC.set(new RegAllocatorFactory)
+
+      val plugins = base ++ (variant match {
+        case "pcie" => Seq(new PcieBridgeInterfacePlugin) ++
+          Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
+          Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
+        case "eci" => Seq(new EciInterfacePlugin) ++
+          // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
+          Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
+          Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
+      })
+
+      e.host.asHostOf(plugins)
     }
     e
   }
