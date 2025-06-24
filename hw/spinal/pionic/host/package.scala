@@ -12,8 +12,8 @@ package object host {
   object HostReqType extends SpinalEnum {
     val error, bypass, oncRpcCall, oncRpcReply = newElement()
 
-    def addMackerel(f: RegAllocatorFactory) = {
-      f.addMackerelEpilogue(getClass,
+    def addMackerel() = {
+      ALLOC.addMackerelEpilogue(getClass,
         s"""
            |constants host_req_type width($HOST_REQ_TY_WIDTH) "Host Request Type" {
            |  error         = 0b00 "Error";
@@ -52,13 +52,6 @@ package object host {
     val ty = HostReqType()
     val data = HostReqData()
 
-    // FIXME: think of a way to automate this -- with reflection?
-    // TODO: generic framework to dump Bundle/Union structure
     HOST_REQ_TY_WIDTH.set(ty.getBitsWidth)
-    // following used only for header generation
-    // c.post("host req type error", 0, OneShot)
-    // c.post("host req type bypass", 1, OneShot)
-    // c.post("host req type onc rpc call", 2, OneShot)
-    // c.post("host req type onc rpc reply", 3, OneShot)
   }
 }

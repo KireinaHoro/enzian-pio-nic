@@ -33,14 +33,14 @@ class ProfilerPlugin extends PioNicPlugin {
   val TxCmacExit = NamedType(Timestamp) // time exiting to CMAC
 
   val logic = during setup new Area {
-    val profiler = Profiler(RxCmacEntry, RxAfterCdcQueue, RxEnqueueToHost, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
-      TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit)(c[Boolean]("collect timestamps"))
+    val profiler = Profiler(
+      RxCmacEntry, RxAfterCdcQueue, RxEnqueueToHost, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
+      TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit
+    )(collectTimestamps = true)
 
     def reportTimestamps(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
-      if (c[Boolean]("collect timestamps")) {
-        profiler.timestamps.storage.foreach { case (namedType, data) =>
-          busCtrl.read(data, alloc("lastProfile", namedType.getName(), attr = RO))
-        }
+      profiler.timestamps.storage.foreach { case (namedType, data) =>
+        busCtrl.read(data, alloc("lastProfile", namedType.getName(), attr = RO))
       }
     }
   }

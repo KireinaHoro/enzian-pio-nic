@@ -14,7 +14,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
   lazy val csr = host[GlobalCSRPlugin]
 
   def driveDatapath(busCtrl: BusSlaveFactory, baseAddr: Int, dataWidth: Int): Unit = {
-    val alloc = host[ConfigDatabase].f("core", coreID)(baseAddr, 0x1000, REG_WIDTH / 8)(dataWidth)
+    val alloc = ALLOC.get("core", coreID)(baseAddr, 0x1000, REG_WIDTH / 8)(dataWidth)
 
     val hostDescSizeRound = roundUp(PcieHostCtrlInfo().getBitsWidth+1, 64) / 8
     HOST_REQ_WIDTH.set(hostDescSizeRound.toInt * 8)

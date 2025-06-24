@@ -1,10 +1,12 @@
 package pionic
 
+import jsteward.blocks.misc.RegAllocatorFactory
 import mainargs._
+import pionic.Global._
 import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
-import pionic.net.ethernet.{EthernetDecoder, EthernetEncoder}
+import pionic.net.ethernet.EthernetDecoder
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
@@ -46,7 +48,19 @@ object GenEngineVerilog {
         Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
         Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
     }
-    NicEngine(plugins)
+    val e = NicEngine(plugins)
+    e.database on {
+      NUM_CORES.set(nc)
+      NUM_WORKER_CORES.set(nw)
+      REG_WIDTH.set(64)
+      PID_WIDTH.set(16)
+      NUM_SERVICES.set(256)
+      NUM_PROCS.set(32)
+      RX_PKTS_PER_PROC.set(32)
+
+      ALLOC.set(new RegAllocatorFactory)
+    }
+    e
   }
 
   @main

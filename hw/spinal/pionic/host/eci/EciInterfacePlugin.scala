@@ -80,7 +80,7 @@ class EciInterfacePlugin extends PioNicPlugin {
 
     // connect CSR for global modules
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
-    private val alloc = c.f("global")(0, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
+    private val alloc = ALLOC.get("global")(0, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc)
     host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
     host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)

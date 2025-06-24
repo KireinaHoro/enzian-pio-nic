@@ -17,6 +17,7 @@ import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
 import Global._
+import spinal.lib.misc.database.Element.toValue
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   withPrefix(s"core_$coreID")

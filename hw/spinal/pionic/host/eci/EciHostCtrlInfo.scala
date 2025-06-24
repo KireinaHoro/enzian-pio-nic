@@ -66,14 +66,13 @@ case class EciHostCtrlInfo() extends Bundle {
 
   def addMackerel = {
     // post header type enum to mackerel
-    // HostReqType.addMackerel(c.f)
-    PacketDescType.addMackerel(c.f)
+    HostReqType.addMackerel()
+    PacketDescType.addMackerel()
 
     // post descriptor header to mackerel (first 128 bits)
-    import Widths._
     // FIXME: should we include valid here? valid is present for rx but not for tx
     //        currently included as rsvd bit
-    c.f.addMackerelEpilogue(this.getClass,
+    ALLOC.addMackerelEpilogue(this.getClass,
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
          |  valid 1 "RX descriptor valid (rsvd for TX)";

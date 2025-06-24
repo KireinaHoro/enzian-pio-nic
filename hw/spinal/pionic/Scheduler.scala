@@ -6,6 +6,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import pionic.Global._
+import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
@@ -110,7 +111,7 @@ class Scheduler extends PioNicPlugin {
     val procDefs = Vec.fill(NUM_PROCS+1) {
       val ret = Reg(ProcessDef())
       ret.enabled init False
-      ret.maxThreads init NUM_WORKER_CORES
+      ret.maxThreads init U(NUM_WORKER_CORES)
       ret
     }
 

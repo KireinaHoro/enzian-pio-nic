@@ -2,6 +2,7 @@ import spinal.core._
 import spinal.lib.misc.plugin.FiberPlugin
 
 import pionic.Global._
+import spinal.lib.misc.database.Element.toValue
 
 import scala.language.postfixOps
 
