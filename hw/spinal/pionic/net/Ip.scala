@@ -28,7 +28,7 @@ case class IpHeader() extends Bundle {
   val daddr = Bits(32 bits)
 }
 
-case class IpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+case class IpMetadata() extends Bundle with ProtoMetadata {
   override def clone = IpMetadata()
 
   val hdr = IpHeader()

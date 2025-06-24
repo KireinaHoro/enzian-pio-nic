@@ -9,11 +9,11 @@ abstract class DatapathPlugin(val coreID: Int) extends PioNicPlugin with Datapat
   lazy val p = host[ProfilerPlugin]
 
   /** datapath interfaces */
-  val hostTx = during setup Stream(PacketBufDesc())
-  val hostTxAck = during setup Stream(HostReq())
-  val hostRx = during setup Stream(HostReq())
-  val hostRxAck = during setup Stream(PacketBufDesc())
-  val hostRxReq = during setup Bool()
+  val hostTx = Stream(PacketBufDesc())
+  val hostTxAck = Stream(HostReq())
+  val hostRx = Stream(HostReq())
+  val hostRxAck = Stream(PacketBufDesc())
+  val hostRxReq = Bool()
 
   during setup new Area {
     import p._

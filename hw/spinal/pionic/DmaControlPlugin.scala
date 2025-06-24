@@ -9,15 +9,17 @@ import spinal.lib.bus.misc._
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 
+import Global._
+
 import scala.language.postfixOps
 
-case class RxPacketDescWithSource()(implicit c: ConfigDatabase) extends Bundle {
+case class RxPacketDescWithSource() extends Bundle {
   val desc = PacketDesc()
   val isBypass = Bool()
 }
 
 object RxPacketDescWithSource {
-  def fromPacketDesc(desc: PacketDesc, isBypass: Boolean)(implicit c: ConfigDatabase) = {
+  def fromPacketDesc(desc: PacketDesc, isBypass: Boolean) = {
     val ret = RxPacketDescWithSource()
     ret.desc := desc
     ret.isBypass := Bool(isBypass)
@@ -61,8 +63,6 @@ class DmaControlPlugin extends PioNicPlugin {
   lazy val bypassDp = dps.head
   lazy val sched = host[Scheduler]
 
-  lazy val pktBufSizePerCore = c[Int]("pkt buf size per core")
-
   val logic = during setup new Area {
     awaitBuild()
 
@@ -94,10 +94,10 @@ class DmaControlPlugin extends PioNicPlugin {
     val writeDescStatus = dmaConfig.writeDescStatusBus
 
     val statistics = new Bundle {
-      val rxPacketCount = Reg(UInt(regWidth bits)) init 0
-      val txPacketCount = Reg(UInt(regWidth bits)) init 0
-      val rxDmaErrorCount = Reg(UInt(regWidth bits)) init 0
-      val txDmaErrorCount = Reg(UInt(regWidth bits)) init 0
+      val rxPacketCount = Reg(UInt(REG_WIDTH bits)) init 0
+      val txPacketCount = Reg(UInt(REG_WIDTH bits)) init 0
+      val rxDmaErrorCount = Reg(UInt(REG_WIDTH bits)) init 0
+      val txDmaErrorCount = Reg(UInt(REG_WIDTH bits)) init 0
       val rxAllocOccupancy = rxAlloc.io.slotOccupancy.clone
     }
     statistics.rxAllocOccupancy := rxAlloc.io.slotOccupancy
@@ -232,8 +232,8 @@ class DmaControlPlugin extends PioNicPlugin {
     // drive TX buffer information for host modules
     // one MTU is reserved for each core for TX
     dps.foreach { dp =>
-      dp.hostTx.addr.bits := c[Int]("tx pkt buf offset") + dp.coreID * roundMtu
-      dp.hostTx.size.bits := roundMtu
+      dp.hostTx.addr.bits := PKT_BUF_TX_OFFSET + dp.coreID * ROUNDED_MTU
+      dp.hostTx.size.bits := ROUNDED_MTU
       dp.hostTx.valid := True
     }
 
@@ -245,7 +245,7 @@ class DmaControlPlugin extends PioNicPlugin {
           txReqMuxed.freeRun()
           when(txReqMuxed.valid) {
             // check that the actual buffer is used
-            assert(txReqMuxed.buffer.addr.bits >= c[Int]("tx pkt buf offset"),
+            assert(txReqMuxed.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
               "packet buffer slot out of TX buffer range used")
 
             readDesc.payload.payload.addr := txReqMuxed.buffer.addr.bits.resized
@@ -308,7 +308,7 @@ class DmaControlPlugin extends PioNicPlugin {
       statistics.elements.foreach { case (name, data) =>
         data match {
           case d: UInt => busCtrl.read(d, alloc(name, "", attr = RO))
-          case v: Vec[_] => v zip c[Seq[(Int, Double)]]("rx pkt buf alloc size map").map(_._1) foreach { case (elem, slotSize) =>
+          case v: Vec[_] => v zip PKT_BUF_ALLOC_SIZES.map(_._1) foreach { case (elem, slotSize) =>
             busCtrl.read(elem, alloc(name, s"upTo$slotSize", attr = RO))
           }
         }

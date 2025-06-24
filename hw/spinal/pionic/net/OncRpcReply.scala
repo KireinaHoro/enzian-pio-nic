@@ -5,7 +5,7 @@ import pionic.ConfigDatabase
 import spinal.core._
 import spinal.lib.bus.misc.BusSlaveFactory
 
-case class OncRpcReplyMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+case class OncRpcReplyMetadata() extends Bundle with ProtoMetadata {
   def getType = ???
 
   def getPayloadSize: UInt = ???

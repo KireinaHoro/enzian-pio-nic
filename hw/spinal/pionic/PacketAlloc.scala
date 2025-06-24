@@ -5,6 +5,8 @@ import spinal.lib._
 
 import scala.language.postfixOps
 
+import Global._
+
 /**
  * Descriptor used to describe a packet (payload of any protocol) in the packet buffer.
  *
@@ -12,7 +14,7 @@ import scala.language.postfixOps
  * exposes the packet buffer to the host CPU for reading and writing), or might not be (e.g. for
  * [[pionic.host.eci.EciInterfacePlugin]], which aliases packet buf buffer to the same address)
  */
-case class PacketBufDesc()(implicit c: ConfigDatabase) extends Bundle {
+case class PacketBufDesc() extends Bundle {
   override def clone = PacketBufDesc()
 
   val addr = PacketAddr()
@@ -21,29 +23,36 @@ case class PacketBufDesc()(implicit c: ConfigDatabase) extends Bundle {
   assert(getBitsWidth <= 64, "packet buf desc size too big!")
 
   def addMackerel = {
-    import Widths._
-    c.f.addMackerelEpilogue(this.getClass,
+    // c.f.addMackerelEpilogue(this.getClass,
       s"""
          |regtype host_pkt_buf_desc "PCIe Host Packet Buffer Descriptor" {
          |  valid 1   "TX descriptor valid (rsvd for RX)";
-         |  addr  $aw "Address in packet buffer";
-         |  size  $lw "Length of packet";
-         |  _     ${63-aw-lw} rsvd;
+         |  addr  $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
+         |  size  $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  _     ${63-PKT_BUF_ADDR_WIDTH-PKT_BUF_LEN_WIDTH} rsvd;
          |};
-         |""".stripMargin,
-      target = "core"
-    )
+         |""".stripMargin
+      // target = "core"
+    // )
   }
 }
 
-case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extends Component {
-  val bufSizeMap = c[Seq[(Int, Double)]]("pkt buf alloc size map")
+case class PacketAlloc(base: Long, len: Long) extends Component {
+  val bufSizeMap = Seq(
+    128  -> .1,
+    1518 -> .3, // max Ethernet frame with MTU 1500
+    9618 -> .6, // max jumbo frame
+  )
+  PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
+
+  MTU.set(bufSizeMap.map(_._1).max)
 
   val roundedMap = bufSizeMap.map { case (size, ratio) =>
-    val alignedSize = roundUp(size, c[Int]("axis data width")).toLong
+    val alignedSize = roundUp(size, DATAPATH_WIDTH.get).toInt
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)
+  ROUNDED_MTU.set(roundedMap.map(_._1).max)
   val numPorts = roundedMap.length
 
   val io = new Bundle {
@@ -57,7 +66,7 @@ case class PacketAlloc(base: Long, len: Long)(implicit c: ConfigDatabase) extend
 
   assert(bufSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
   assert(roundedMap.length == bufSizeMap.length, "some packet categories did not manage to get any slots")
-  assert(log2Up(base + len) <= c[Int]("pkt buf addr width"), "packet buffer address bits overflow")
+  assert(log2Up(base + len) <= PKT_BUF_ADDR_WIDTH, "packet buffer address bits overflow")
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
 

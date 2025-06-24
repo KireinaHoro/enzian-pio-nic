@@ -3,7 +3,6 @@ package pionic.host.eci
 import jsteward.blocks.eci._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
-import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import pionic._
 import pionic.net.ProtoDecoder
 import spinal.core._
@@ -12,6 +11,8 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
+
+import Global._
 
 import scala.language.postfixOps
 
@@ -35,7 +36,7 @@ class EciInterfacePlugin extends PioNicPlugin {
   // bypass core does not have preemption control; add null to allow one loop later
   lazy val preempts = null +: host.list[EciPreemptionControlPlugin]
 
-  postConfig("host desc size", 64*8, action = ConfigDatabase.Unique) // BYTES
+  HOST_REQ_WIDTH.set(64 * 8)
 
   // dcs_2_axi AXI config
   val axiConfig = Axi4Config(
@@ -63,7 +64,7 @@ class EciInterfacePlugin extends PioNicPlugin {
 
     // muxed interface to ECI interrupt controller
     val ipiToIntc = master(Stream(EciIntcInterface()))
-    val demuxedIpiIntfs = null +: Seq.fill(numWorkerCores)(Stream(EciIntcInterface()))
+    val demuxedIpiIntfs = null +: Seq.fill(NUM_WORKER_CORES)(Stream(EciIntcInterface()))
     // FIXME: do we need to merge core masks?
     ipiToIntc << StreamArbiterFactory().roundRobin.on(demuxedIpiIntfs.tail)
 
@@ -79,7 +80,7 @@ class EciInterfacePlugin extends PioNicPlugin {
 
     // connect CSR for global modules
     val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
-    private val alloc = c.f("global")(0, 0x1000, regWidth / 8)(s_axil_ctrl.config.dataWidth)
+    private val alloc = c.f("global")(0, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
     csr.readAndWrite(csrCtrl, alloc)
     host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
     host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
@@ -89,23 +90,22 @@ class EciInterfacePlugin extends PioNicPlugin {
 
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
-    val accessNodes = Seq.fill(numCores)(Axi4(axiConfig))
+    val accessNodes = Seq.fill(NUM_CORES)(Axi4(axiConfig))
     Axi4CrossbarFactory()
       .addSlave(memNode, SizeMapping(0, pktBufSize))
       .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
       .build()
 
     // mux both DCS AXI masters to all cores
+    // FIXME: post to host header generator
     val coreOffset = 0x20000
-    postConfig("eci core offset", coreOffset, action = ConfigDatabase.Unique)
-
     val coreIdMask  = 0x7e0000
     val preemptMask = 0x010000
     val unitIdMask  = coreIdMask | preemptMask
     val unitIdShift = Integer.numberOfTrailingZeros(unitIdMask)
 
     // list of data path nodes with optionally the preemption control node
-    val dcsNodes = Seq.tabulate(numCores) { idx =>
+    val dcsNodes = Seq.tabulate(NUM_CORES) { idx =>
       val config = axiConfig.copy(
         // 2 masters, ID width + 1
         idWidth = axiConfig.idWidth + 1,
@@ -170,9 +170,9 @@ class EciInterfacePlugin extends PioNicPlugin {
         new Area {
           val chan = chanLocator(dcs)
           val unaliasedAddr = EciCmdDefs.unaliasAddress(addrLocator(chan.data)).asBits
-          val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * numCores)).asUInt
+          val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
-          val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * numCores)
+          val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * NUM_CORES)
         }.setName("demuxLcl").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
@@ -190,7 +190,7 @@ class EciInterfacePlugin extends PioNicPlugin {
     }
 
     // mux LCL request (LCI)
-    val coresLci = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresLci = Seq.fill(NUM_CORES)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindCoreCmdsToLclChans(coresLci.flatten.zipWithIndex.map { case (addr, uidx) => new Area {
       val ret = Stream(EciWord())
 
@@ -210,7 +210,7 @@ class EciInterfacePlugin extends PioNicPlugin {
     }, _.lci.address, 16, 17, _.cleanMaybeInvReq)
 
     // demux LCL response (LCIA)
-    val coresLcia = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresLcia = Seq.fill(NUM_CORES)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindLclChansToCoreResps(coresLcia.flatten.zipWithIndex.map { case (lcia, uidx) =>
       new Area {
         val ret = Stream(EciWord())
@@ -225,7 +225,7 @@ class EciInterfacePlugin extends PioNicPlugin {
     }, _.lcia.address, _.cleanMaybeInvResp)
 
     // mux LCL unlock response
-    val coresUl = Seq.fill(numCores)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
+    val coresUl = Seq.fill(NUM_CORES)(Seq.fill(2)(Stream(EciCmdDefs.EciAddress)))
     bindCoreCmdsToLclChans(coresUl.flatten.map { addr =>
       new Area {
         val ret = Stream(EciWord())
@@ -240,7 +240,7 @@ class EciInterfacePlugin extends PioNicPlugin {
     }, _.ul.address, 18, 19, _.unlockResp)
 
     // drive core control interface -- datapath per core
-    0 until numCores foreach { cid => new Area {
+    0 until NUM_CORES foreach { cid => new Area {
       // get all nodes to bind
       val (dcsNode, preemptNodeOption) = dcsNodes(cid)
       val Seq(dataLci, preemptLci) = coresLci(cid)

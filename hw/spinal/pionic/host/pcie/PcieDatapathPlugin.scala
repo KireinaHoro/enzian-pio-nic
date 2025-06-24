@@ -1,21 +1,23 @@
 package pionic.host.pcie
 
 import jsteward.blocks.misc.RichStream
-import pionic.{ConfigDatabase, GlobalCSRPlugin}
+import pionic.GlobalCSRPlugin
 import pionic.host.DatapathPlugin
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
 import spinal.lib.bus.regif.AccessType.{RO, WO}
 
+import pionic.Global._
+
 class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
   lazy val csr = host[GlobalCSRPlugin]
 
   def driveDatapath(busCtrl: BusSlaveFactory, baseAddr: Int, dataWidth: Int): Unit = {
-    val alloc = host[ConfigDatabase].f("core", coreID)(baseAddr, 0x1000, regWidth / 8)(dataWidth)
+    val alloc = host[ConfigDatabase].f("core", coreID)(baseAddr, 0x1000, REG_WIDTH / 8)(dataWidth)
 
     val hostDescSizeRound = roundUp(PcieHostCtrlInfo().getBitsWidth+1, 64) / 8
-    postConfig("host desc size", hostDescSizeRound.toInt * 8, action = ConfigDatabase.OneShot)
+    HOST_REQ_WIDTH.set(hostDescSizeRound.toInt * 8)
 
     val rxAddr = alloc("hostRx",
       readSensitive = true,

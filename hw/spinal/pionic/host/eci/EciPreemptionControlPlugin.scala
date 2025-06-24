@@ -13,11 +13,15 @@ import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
 import pionic.host.PreemptionService
 
+import Global._
+
+import scala.language.postfixOps
+
 /**
   * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
   *  - READY & BUSY bits
   */
-case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
+case class PreemptionControlCl() extends Bundle {
   val busy = Bool()
   val ready = Bool()
 }
@@ -29,7 +33,7 @@ case class PreemptionControlCl()(implicit c: ConfigDatabase) extends Bundle {
   *  - whether the process was force-killed
   *  - next PID
   */
-case class IpiAckReg()(implicit c: ConfigDatabase) extends Bundle {
+case class IpiAckReg() extends Bundle {
   // TODO: Mackerel def
   val rxParity, txParity = Bool()
   val killed = Bool()
@@ -141,7 +145,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     
     // Timer for CPU to exit critical section (unset BUSY), before the FPGA kills the
     // process (sets killed === True) before sending IPI
-    val preemptTimer = Counter(regWidth bits)
+    val preemptTimer = Counter(REG_WIDTH bits)
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {

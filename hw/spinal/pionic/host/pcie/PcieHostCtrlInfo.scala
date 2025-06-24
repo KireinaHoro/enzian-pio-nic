@@ -5,6 +5,8 @@ import pionic.host.{HostReq, HostReqType}
 import pionic.net.PacketDescType
 import spinal.core._
 
+import Global._
+
 import scala.language.postfixOps
 
 /**
@@ -14,7 +16,7 @@ import scala.language.postfixOps
   * locations.
   */
 // TODO: reduce redundant code
-case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
+case class PcieHostCtrlInfo() extends Bundle {
   override def clone: PcieHostCtrlInfo = PcieHostCtrlInfo()
 
   // reserve one bit from valid in readStream
@@ -24,7 +26,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
     case class BypassBundle() extends Bundle {
       val ty = PacketDescType() // 2b
       val xb19 = Bits(19 bits) // make sure header is word aligned
-      val hdr = Bits(Widths.bphw bits)
+      val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
 
@@ -32,7 +34,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
       val xb21 = Bits(21 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
-      val args = Bits(Widths.oargw bits)
+      val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
     val oncRpcCall = newElement(OncRpcCallBundle())
   }
@@ -53,8 +55,8 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 
   def addMackerel = {
     // post header type enum to mackerel
-    HostReqType.addMackerel(c.f)
-    PacketDescType.addMackerel(c.f)
+    // HostReqType.addMackerel(c.f)
+    // PacketDescType.addMackerel(c.f)
 
     // post descriptor header to mackerel
     import Widths._
@@ -62,17 +64,17 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "PCIe Host Control Info (Error)" {
          |  valid 1   "RX descriptor valid (rsvd for TX)";
-         |  addr  $aw "Address in packet buffer";
-         |  size  $lw "Length of packet";
-         |  ty    $tw type(host_packet_desc_type) "Type of descriptor (should be error)";
+         |  addr  $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
+         |  size  $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  ty    $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be error)";
          |  _     21  rsvd;
          |};
          |datatype host_ctrl_info_bypass lsbfirst(64) "PCIe Host Control Info (Bypass)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
-         |  addr   $aw "Address in packet buffer";
-         |  size   $lw "Length of packet";
-         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be bypass)";
-         |  hdr_ty $bptw type(proto_packet_desc_type) "Type of bypass header";
+         |  addr   $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
+         |  size   $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  ty     $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be bypass)";
+         |  hdr_ty $PKT_DESC_TY_WIDTH type(packet_desc_type) "Type of bypass header";
          |  _      19 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
@@ -80,9 +82,9 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
          |};
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
-         |  addr   $aw "Address in packet buffer";
-         |  size   $lw "Length of packet";
-         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
+         |  addr   $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
+         |  size   $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  ty     $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
          |  _      21  rsvd;
          |  xid    32  "XID of incoming request";
          |  func_ptr 64 "Function pointer for RPC call handler";
@@ -97,7 +99,7 @@ case class PcieHostCtrlInfo()(implicit c: ConfigDatabase) extends Bundle {
 }
 
 object PcieHostCtrlInfo {
-  def packFrom(desc: HostReq)(implicit c: ConfigDatabase) = new Area {
+  def packFrom(desc: HostReq) = new Area {
     val ret = PcieHostCtrlInfo()
     ret.ty := desc.ty
     ret.data.assignDontCare()

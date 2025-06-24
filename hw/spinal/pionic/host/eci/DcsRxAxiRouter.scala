@@ -1,6 +1,7 @@
 package pionic.host.eci
 
-import pionic.{ConfigDatabase, PacketAddr}
+import pionic.PacketAddr
+import pionic.Global._
 import pionic.host.HostReq
 import spinal.core._
 import spinal.lib._
@@ -29,9 +30,9 @@ import scala.language.postfixOps
   *
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
-case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) extends Component {
+case class DcsRxAxiRouter(axiConfig: Axi4Config) extends Component {
   assert(axiConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
-  assert(c.rxPktBufSizePerCore % 64 == 0, "pkt buffer size (B) should be multiple of 64")
+  assert(PKT_BUF_RX_SIZE_PER_CORE % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
   /** Incoming RX descriptors from scheduler.
     *
@@ -42,7 +43,7 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
   val rxDesc = slave(Stream(HostReq()))
 
   /** Number of cycles to block for before returning NACK. */
-  val blockCycles = in UInt(c[Int]("reg width") bits)
+  val blockCycles = in UInt(REG_WIDTH bits)
 
   /** Pulse: the host just started a new request on a CL */
   val hostReq = out Vec(Bool(), 2)
@@ -83,7 +84,7 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config)(implicit c: ConfigDatabase) ext
 
   // offset and length to read from the pkt buffer
   val pktBufReadOff = Reg(dcsAxi.ar.addr.clone)
-  val pktBufReadLen = Reg(UInt(log2Up(c.rxPktBufSizePerCore) bits))
+  val pktBufReadLen = Reg(UInt(log2Up(PKT_BUF_RX_SIZE_PER_CORE) bits))
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
