@@ -4,11 +4,14 @@ import spinal.core._
 import jsteward.blocks.misc._
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
+import Global._
+
+import scala.language.postfixOps
 
 class ProfilerPlugin extends PioNicPlugin {
   setName("")
 
-  def Timestamp = UInt(c[Int]("timestamp width") bits)
+  def Timestamp = UInt(REG_WIDTH bits)
 
   /** Packet entered Lauberhorn from the CMAC. */
   val RxCmacEntry = NamedType(Timestamp)
