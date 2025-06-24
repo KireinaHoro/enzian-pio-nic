@@ -7,13 +7,6 @@ import spinal.lib.misc.database.Element.toValue
 import scala.language.postfixOps
 
 package object pionic {
-  abstract class PioNicPlugin extends FiberPlugin {
-    // alias commonly used config values
-    lazy val pktBufSize = NUM_CORES * (PKT_BUF_RX_SIZE_PER_CORE + PKT_BUF_TX_SIZE_PER_CORE)
-
-    during setup assert(log2Up(pktBufSize) <= PKT_BUF_ADDR_WIDTH, "not the entire packet buffer is addressable!")
-  }
-
   implicit class RichUInt(v: UInt) {
     def toPacketLength = {
       val len = PacketLength()

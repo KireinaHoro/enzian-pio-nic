@@ -8,9 +8,9 @@ import spinal.lib._
 import spinal.lib.bus.misc._
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
-
 import Global._
 import spinal.lib.misc.database.Element.toValue
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
 
@@ -45,7 +45,7 @@ object RxPacketDescWithSource {
   * results in all traffic being packed into [[HostReqType.bypass]]; for TX, any packet that does not carry the
   * bypass type in the host descriptor is an error.
   */
-class DmaControlPlugin extends PioNicPlugin {
+class DmaControlPlugin extends FiberPlugin {
   lazy val pktBuf = host[PacketBuffer]
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
@@ -64,15 +64,13 @@ class DmaControlPlugin extends PioNicPlugin {
   lazy val bypassDp = dps.head
   lazy val sched = host[Scheduler]
 
-  val logic = during setup new Area {
-    awaitBuild()
-
+  val logic = during build new Area {
     val dmaConfig = pktBuf.dmaConfig
 
     val allocReset = Bool()
     // one allocator for the entire RX buffer
     val rxAlloc = new ResetArea(allocReset, true) {
-      private val instance = PacketAlloc(0, pktBufSize)
+      private val instance = PacketAlloc(0, PKT_BUF_SIZE)
       val io = instance.io
     }
 

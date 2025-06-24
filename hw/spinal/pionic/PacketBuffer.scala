@@ -6,6 +6,7 @@ import pionic.host._
 import pionic.net.{RxDecoderSinkService, TxEncoderSourceService}
 import spinal.core._
 import spinal.lib.bus.amba4.axi._
+import spinal.lib.misc.plugin.FiberPlugin
 
 /** RX DMA tag used to construct [[HostReq]] after DMA.  Filled from [[pionic.net.PacketDesc]] */
 case class RxDmaTag() extends Bundle {
@@ -29,7 +30,7 @@ case class RxDmaTag() extends Bundle {
   *
   * TODO: add access points for memory-mode de/encoders
   */
-class PacketBuffer extends PioNicPlugin {
+class PacketBuffer extends FiberPlugin {
   lazy val dc = host[DmaControlPlugin].logic
   lazy val ms = host[MacInterfaceService]
 
@@ -62,7 +63,7 @@ class PacketBuffer extends PioNicPlugin {
     axiDma.io.write_enable := True
     axiDma.io.write_abort := False
 
-    val memAddrWidth = log2Up(pktBufSize)
+    val memAddrWidth = log2Up(PKT_BUF_SIZE)
     // TX packet buffers located after all RX buffers, one "rounded mtu" per core
     PKT_BUF_TX_OFFSET.set(NUM_CORES * PKT_BUF_RX_SIZE_PER_CORE)
 

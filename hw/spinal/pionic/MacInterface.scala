@@ -23,7 +23,7 @@ trait MacInterfaceService {
   def frameLen: Stream[PacketLength]
 }
 
-class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
+class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
 

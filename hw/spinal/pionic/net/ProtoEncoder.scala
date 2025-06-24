@@ -1,10 +1,10 @@
 package pionic.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import pionic.PioNicPlugin
 import spinal.core.Composite
 import spinal.lib.{Stream, StreamArbiterFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -16,7 +16,7 @@ import scala.reflect.ClassTag
   *
   * @tparam T input metadata type
   */
-trait ProtoEncoder[T <: ProtoMetadata] extends PioNicPlugin {
+trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
   /** Create one instance of the concrete [[ProtoMetadata]] for this encoder */
   def getMetadata: T
 

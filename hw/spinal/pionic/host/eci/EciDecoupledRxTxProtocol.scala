@@ -84,7 +84,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // mux packet buffer access nodes
     Axi4CrossbarFactory()
-      .addSlave(pktBufAxiNode, SizeMapping(0, pktBufSize))
+      .addSlave(pktBufAxiNode, SizeMapping(0, PKT_BUF_SIZE))
       .addConnections(
         rxRouter.pktBufAxi -> Seq(pktBufAxiNode),
         txRouter.pktBufAxi -> Seq(pktBufAxiNode),

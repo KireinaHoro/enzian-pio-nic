@@ -9,6 +9,7 @@ import pionic.Global._
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
 
@@ -53,7 +54,7 @@ object PreemptCmdType extends SpinalEnum {
   *
   * Note: to allow accurate decisions based on queue capacity, this is the only component in the system that queues packets.
   */
-class Scheduler extends PioNicPlugin {
+class Scheduler extends FiberPlugin {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val totalPkts = RX_PKTS_PER_PROC * NUM_PROCS
 
