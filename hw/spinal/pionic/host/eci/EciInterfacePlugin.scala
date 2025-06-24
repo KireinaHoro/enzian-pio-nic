@@ -94,7 +94,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
-    val accessNodes = Seq.fill(NUM_CORES)(Axi4(axiConfig.copy(idWidth = 9)))
+    val accessNodes = Seq.fill(NUM_CORES)(Axi4(memNode.config.copy(idWidth = 9)))
     Axi4CrossbarFactory()
       .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE))
       .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
@@ -254,8 +254,6 @@ class EciInterfacePlugin extends FiberPlugin {
       val preempt = preempts(cid)
       val ipiCtrl = demuxedIpiIntfs(cid)
       val memNode = accessNodes(cid)
-
-      val baseAddress = (1 + cid) * 0x1000
 
       // bind DCS channels to datapath
       dataLci  << proto.lci

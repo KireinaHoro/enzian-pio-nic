@@ -70,14 +70,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       .build()
 
     // RX router
-    val rxRouter = DcsRxAxiRouter(bus.config)
+    val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
     rxRouter.rxDesc << hostRx
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     bus >> rxRouter.dcsAxi
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
-    val txRouter = DcsTxAxiRouter(bus.config, PKT_BUF_TX_OFFSET + coreID * ROUNDED_MTU)
+    val txRouter = DcsTxAxiRouter(bus.config, pktBufAxiNode.config, PKT_BUF_TX_OFFSET + coreID * ROUNDED_MTU)
     txRouter.txDesc >> hostTxAck
     txRouter.currCl := logic.txCurrClIdx.asUInt
     logic.txReqs := txRouter.hostReq
