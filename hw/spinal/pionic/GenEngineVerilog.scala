@@ -7,7 +7,7 @@ import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
 import pionic.net.ethernet.EthernetDecoder
-import spinal.core.{FixedFrequency, IntToBuilder}
+import spinal.core.{FixedFrequency, IntToBuilder, roundUp}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda.xilinx.VivadoConstraintWriter
 
@@ -43,8 +43,21 @@ object GenEngineVerilog {
     val e = new NicEngine
     e.database on {
       // set enough parameters to get us rolling
+      val bufSizeMap = Seq(
+        128  -> .1,
+        1518 -> .3, // max Ethernet frame with MTU 1500
+        9618 -> .6, // max jumbo frame
+      )
+      PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
       PKT_BUF_ADDR_WIDTH.set(24)
       PKT_BUF_LEN_WIDTH.set(16)
+      PKT_BUF_RX_SIZE_PER_CORE.set(64 * 1024)
+      PKT_BUF_TX_SIZE_PER_CORE.set(1024)
+
+      DATAPATH_WIDTH.set(64)
+      MTU.set(bufSizeMap.map(_._1).max)
+      ROUNDED_MTU.set(roundUp(MTU.get, DATAPATH_WIDTH.get).toInt)
+
       NUM_CORES.set(nc)
       NUM_WORKER_CORES.set(nw)
       REG_WIDTH.set(64)

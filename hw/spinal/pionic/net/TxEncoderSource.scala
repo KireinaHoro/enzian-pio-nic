@@ -29,15 +29,14 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
   var inBuild = false
 
   val logic = during setup new Area {
-    /** Packet descriptors from [[pionic.DmaControlPlugin]] */
-    val packetDesc = host[DmaControlPlugin].logic.outgoingDesc
-
     val numTypes = PacketDescType.elements.length
     val descForDecoders = Seq.fill(numTypes)(Stream(PacketDescData()))
     val payloadForDecoders = Seq.fill(numTypes)(Axi4Stream(ms.axisConfig))
 
     awaitBuild()
 
+    /** Packet descriptors from [[pionic.DmaControlPlugin]] */
+    val packetDesc = host[DmaControlPlugin].logic.outgoingDesc
     inBuild = true
 
     // find index of packet type in demuxer outputs

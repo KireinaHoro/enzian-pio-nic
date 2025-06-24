@@ -38,21 +38,11 @@ case class PacketBufDesc() extends Bundle {
 }
 
 case class PacketAlloc(base: Long, len: Long) extends Component {
-  val bufSizeMap = Seq(
-    128  -> .1,
-    1518 -> .3, // max Ethernet frame with MTU 1500
-    9618 -> .6, // max jumbo frame
-  )
-  PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
-
-  MTU.set(bufSizeMap.map(_._1).max)
-
-  val roundedMap = bufSizeMap.map { case (size, ratio) =>
+  val roundedMap = PKT_BUF_ALLOC_SIZES.map { case (size, ratio) =>
     val alignedSize = roundUp(size, DATAPATH_WIDTH.get).toInt
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)
-  ROUNDED_MTU.set(roundedMap.map(_._1).max)
   val numPorts = roundedMap.length
 
   val io = new Bundle {
@@ -64,8 +54,8 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     val slotOccupancy = out(Vec.fill(numPorts)(UInt(32 bits)))
   }
 
-  assert(bufSizeMap.map(_._2).sum <= 1, "sum of packet categories exceed 1")
-  assert(roundedMap.length == bufSizeMap.length, "some packet categories did not manage to get any slots")
+  assert(PKT_BUF_ALLOC_SIZES.map(_._2).sum <= 1, "sum of packet categories exceed 1")
+  assert(roundedMap.length == PKT_BUF_ALLOC_SIZES.length, "some packet categories did not manage to get any slots")
   assert(log2Up(base + len) <= PKT_BUF_ADDR_WIDTH, "packet buffer address bits overflow")
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
