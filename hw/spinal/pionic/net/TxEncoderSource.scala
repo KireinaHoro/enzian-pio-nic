@@ -1,11 +1,12 @@
 package pionic.net
 
-import pionic.{DmaControlPlugin, MacInterfaceService, PacketBuffer, PioNicPlugin}
+import pionic.{DmaControlPlugin, MacInterfaceService, PacketBuffer}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis._
 import jsteward.blocks.axi.AxiStreamDemux
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 
@@ -20,7 +21,7 @@ trait TxEncoderSourceService {
 /** Packet source for egress (TX) packets into the encoder pipeline.  Packets come here through
   * [[DmaControlPlugin]] and gets streamed into downstream encoders that inherit [[ProtoEncoder]].
   */
-class TxEncoderSource extends PioNicPlugin with TxEncoderSourceService {
+class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
   lazy val ms = host[MacInterfaceService]
 
   // record encoders that called connect

@@ -7,10 +7,10 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
-
 import Global._
+import spinal.lib.misc.plugin.FiberPlugin
 
-class GlobalCSRPlugin extends PioNicPlugin {
+class GlobalCSRPlugin extends FiberPlugin {
   val logic = during build new Area {
     val ctrl = new Bundle {
       val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000

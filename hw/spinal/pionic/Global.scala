@@ -4,6 +4,7 @@ import jsteward.blocks.misc.RegAllocatorFactory
 import spinal.core._
 import spinal.lib.misc.database.Database.blocking
 import spinal.lib.misc.database.ElementBlocking
+import spinal.lib.misc.database.Element.toValue
 
 import scala.reflect.runtime.universe._
 import scala.collection.mutable
@@ -32,6 +33,12 @@ object Global extends AreaRoot {
   val PKT_BUF_TX_SIZE_PER_CORE = blocking[Int]
   val PKT_BUF_TX_OFFSET = blocking[Int]
   val PKT_BUF_ALLOC_SIZES = blocking[Seq[(Int, Double)]]
+
+  lazy val PKT_BUF_SIZE = {
+    val sz = NUM_CORES * (PKT_BUF_RX_SIZE_PER_CORE + PKT_BUF_TX_SIZE_PER_CORE)
+    assert(log2Up(sz) <= PKT_BUF_ADDR_WIDTH, "not the entire packet buffer is addressable!")
+    sz
+  }
 
   val MTU = blocking[Int]
   val ROUNDED_MTU = blocking[Int]

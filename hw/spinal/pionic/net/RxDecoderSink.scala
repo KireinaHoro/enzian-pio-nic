@@ -1,11 +1,12 @@
 package pionic.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import pionic.{DmaControlPlugin, GlobalCSRPlugin, MacInterfaceService, PacketBuffer, PioNicPlugin}
+import pionic.{DmaControlPlugin, GlobalCSRPlugin, MacInterfaceService, PacketBuffer}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 
@@ -31,7 +32,7 @@ trait RxDecoderSinkService {
   * further translation (into [[pionic.host.HostReq]]).  Payload data is arbitrated into a single AXI-Stream and fed
   * into the DMA engine in [[PacketBuffer]].
   */
-class RxDecoderSink extends PioNicPlugin with RxDecoderSinkService {
+class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val ms = host[MacInterfaceService]
   lazy val dc = host[DmaControlPlugin].logic

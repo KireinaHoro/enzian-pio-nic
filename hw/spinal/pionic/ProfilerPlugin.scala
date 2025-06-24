@@ -5,10 +5,11 @@ import jsteward.blocks.misc._
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 import Global._
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
 
-class ProfilerPlugin extends PioNicPlugin {
+class ProfilerPlugin extends FiberPlugin {
   setName("")
 
   def Timestamp = UInt(REG_WIDTH bits)

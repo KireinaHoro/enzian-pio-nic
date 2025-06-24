@@ -2,13 +2,11 @@ package pionic.net
 
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
-
-import pionic.PioNicPlugin
-
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -22,7 +20,7 @@ import scala.reflect.ClassTag
   *
   * @tparam T output metadata type
   */
-trait ProtoDecoder[T <: ProtoMetadata] extends PioNicPlugin {
+trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
   /**
     * Downstream decoders interfaces and their conditions to match.
     * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]

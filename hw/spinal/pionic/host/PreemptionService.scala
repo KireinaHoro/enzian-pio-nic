@@ -1,7 +1,8 @@
 package pionic.host
 
-import pionic.{PID, PioNicPlugin, Scheduler}
+import pionic.{PID, Scheduler}
 import spinal.lib._
+import spinal.lib.misc.plugin.FiberPlugin
 
 /**
   * Stub to allow different implementations of preemption control.  Takes request from [[Scheduler]] in [[preemptReq]].
@@ -11,7 +12,7 @@ import spinal.lib._
   *
   * The implementation defines what interfaces it needs to talk to the host.
   */
-trait PreemptionService extends PioNicPlugin {
+trait PreemptionService extends FiberPlugin {
   /** Driven by [[Scheduler]] to deliver a preemption request.
     *
     * When valid is high, the scheduler guarantees that it had already blocked new requests from entering into the

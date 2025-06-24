@@ -11,8 +11,8 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
-
 import Global._
+import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
 
@@ -28,7 +28,7 @@ import scala.language.postfixOps
   * Actual cache-line protocol logic is in classes that implement [[pionic.host.eci.EciPioProtocol]] (e.g.
   * [[EciDecoupledRxTxProtocol]]).
   */
-class EciInterfacePlugin extends PioNicPlugin {
+class EciInterfacePlugin extends FiberPlugin {
   lazy val macIf = host[MacInterfaceService]
   lazy val csr = host[GlobalCSRPlugin]
   lazy val protos = host.list[EciPioProtocol]
@@ -92,7 +92,7 @@ class EciInterfacePlugin extends PioNicPlugin {
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
     val accessNodes = Seq.fill(NUM_CORES)(Axi4(axiConfig))
     Axi4CrossbarFactory()
-      .addSlave(memNode, SizeMapping(0, pktBufSize))
+      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE))
       .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
       .build()
 

@@ -3,9 +3,10 @@ package pionic.host
 import pionic._
 import spinal.core._
 import spinal.lib.Stream
+import spinal.lib.misc.plugin.FiberPlugin
 
 /** Common functionalities of a per-core datapath plugin. */
-abstract class DatapathPlugin(val coreID: Int) extends PioNicPlugin with DatapathService {
+abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with DatapathService {
   lazy val p = host[ProfilerPlugin]
 
   /** datapath interfaces */

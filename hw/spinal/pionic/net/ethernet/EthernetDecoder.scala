@@ -3,12 +3,14 @@ package pionic.net.ethernet
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic._
-import pionic.net.{PacketDescData, PacketDescType, ProtoDecoder, ProtoMetadata}
+import pionic.net.ProtoDecoder
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
+
+import scala.language.postfixOps
 
 class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]
