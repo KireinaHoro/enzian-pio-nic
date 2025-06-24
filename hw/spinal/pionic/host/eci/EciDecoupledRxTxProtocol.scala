@@ -16,6 +16,8 @@ import spinal.lib.fsm._
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
+import Global._
+
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   withPrefix(s"core_$coreID")
 
@@ -33,7 +35,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   // CL#0: [ control | first data (aliased) ]
   // CL#1: [ control | first data (aliased) ]
   // CL#2...: [ rest data ]
-  lazy val sizePerMtuPerDirection = (512 / 8) * 3 + roundMtu
+  lazy val sizePerMtuPerDirection = (512 / 8) * 3 + ROUNDED_MTU
   lazy val numOverflowCls = (sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
   // map at aligned address to eliminate long comb paths
@@ -74,7 +76,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
-    val txRouter = DcsTxAxiRouter(bus.config, c[Int]("tx pkt buf offset") + coreID * roundMtu)
+    val txRouter = DcsTxAxiRouter(bus.config, PKT_BUF_TX_OFFSET + coreID * ROUNDED_MTU)
     txRouter.txDesc >> hostTxAck
     txRouter.currCl := logic.txCurrClIdx.asUInt
     logic.txReqs := txRouter.hostReq

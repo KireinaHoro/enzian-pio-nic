@@ -1,11 +1,11 @@
 package pionic.net
 
-import pionic.{ConfigDatabase, MacInterfaceService}
+import pionic.MacInterfaceService
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 
-case class NoMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+case class NoMetadata() extends Bundle with ProtoMetadata {
   def getType = PacketDescType.raw
   def getPayloadSize: UInt = U(0)
   def collectHeaders: Bits = B(0)

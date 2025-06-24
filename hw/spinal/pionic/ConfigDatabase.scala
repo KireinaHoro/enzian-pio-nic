@@ -7,7 +7,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 import scala.collection.mutable
 import scala.reflect.runtime.universe._
 
-object ConfigDatabase {
+object ConfigDatabaseDeprecated {
   sealed trait PostAction
   object Unique extends PostAction
   object OneShot extends PostAction
@@ -15,7 +15,7 @@ object ConfigDatabase {
 }
 
 // FIXME: use the more holistic Database approach
-class ConfigDatabase extends FiberPlugin {
+class ConfigDatabaseDeprecated extends FiberPlugin {
   private val configs = mutable.HashMap[String, (Any, TypeTag[_], Boolean)]()
 
   // add default values
@@ -23,11 +23,6 @@ class ConfigDatabase extends FiberPlugin {
   post("pkt buf len width", 16)
 
   val axisDataWidth = 64
-  val allocSizeMap = Seq(
-    (128, .1),
-    (1518, .3), // max Ethernet frame with MTU 1500
-    (9618, .6), // max jumbo frame
-  )
   val mtu = allocSizeMap.map(_._1).max
   val roundedMtu = roundUp(mtu, axisDataWidth).toInt
   post("mtu", mtu)

@@ -1,6 +1,6 @@
 package pionic.host.eci
 
-import pionic.ConfigDatabase
+import pionic.Global
 import pionic.host.HostReq
 import spinal.core._
 import spinal.lib._
@@ -20,7 +20,7 @@ import scala.language.postfixOps
   */
 case class DcsTxAxiRouter(axiConfig: Axi4Config,
                           txBufBase: Int,
-                         )(implicit c: ConfigDatabase) extends Component {
+                         ) extends Component {
   assert(axiConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
 
   /** Outgoing TX descriptors to the encoder pipeline. */
@@ -66,7 +66,7 @@ case class DcsTxAxiRouter(axiConfig: Axi4Config,
 
   // offset and size to read/write from packet buffer, to serve CL fetch
   val pktBufOff = Reg(dcsAxi.ar.addr.clone)
-  val pktBufLen = Reg(UInt(log2Up(c[Int]("rounded mtu")) bits))
+  val pktBufLen = Reg(UInt(log2Up(Global.ROUNDED_MTU) bits))
 
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {

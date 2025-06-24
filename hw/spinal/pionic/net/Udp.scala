@@ -18,7 +18,7 @@ case class UdpHeader() extends Bundle {
   val csum = Bits(16 bits)
 }
 
-case class UdpMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+case class UdpMetadata() extends Bundle with ProtoMetadata {
   override def clone = UdpMetadata()
 
   val hdr = UdpHeader()

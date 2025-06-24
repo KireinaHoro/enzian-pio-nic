@@ -9,8 +9,9 @@ import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
 
-import scala.collection.mutable.ArrayBuffer
 import scala.language.postfixOps
+
+import Global._
 
 case class OncRpcCallHeader() extends Bundle {
   val xid = Bits(32 bits)
@@ -23,19 +24,19 @@ case class OncRpcCallHeader() extends Bundle {
   val verifier = Bits(64 bits)
 }
 
-case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+case class OncRpcCallMetadata() extends Bundle with ProtoMetadata {
   override def clone = OncRpcCallMetadata()
 
   val funcPtr = Bits(64 bits)
   val pid = PID()
   // first fields in the XDR payload
-  val args = Bits(c[Int]("max onc rpc inline bytes") * 8 bits)
+  val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   val hdr = OncRpcCallHeader()
-  val udpPayloadSize = UInt(Widths.lw bits)
+  val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
 
   def getType = PacketDescType.oncRpcCall
   def getPayloadSize: UInt = {
-    val inlineLen = c[Int]("max onc rpc inline bytes")
+    val inlineLen = ONCRPC_INLINE_BYTES.get
     val payloadLen = udpPayloadSize - hdr.getBitsWidth / 8
     (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
   }
@@ -48,7 +49,7 @@ case class OncRpcCallMetadata()(implicit c: ConfigDatabase) extends Bundle with 
 }
 
 // XXX: this is in big endian
-case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
+case class OncRpcCallServiceDef() extends Bundle {
   val enabled = Bool()
 
   val progNum = Bits(32 bits)
@@ -69,10 +70,8 @@ case class OncRpcCallServiceDef()(implicit c: ConfigDatabase) extends Bundle {
 class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
   
-  lazy val numServiceSlots = c[Int]("num service slots")
-
   // FIXME: can we fit more?
-  postConfig("max onc rpc inline bytes", 4 * 12, action = ConfigDatabase.Unique)
+  ONCRPC_INLINE_BYTES.set(4 * 12)
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
@@ -86,7 +85,7 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
       busCtrl.drive(field, alloc("oncRpcCtrl", s"service_$name", attr = AccessType.WO))
     }
 
-    val serviceIdx = UInt(log2Up(numServiceSlots) bits)
+    val serviceIdx = UInt(log2Up(NUM_SERVICES) bits)
     serviceIdx := 0
     val serviceIdxAddr = alloc("oncRpcCtrl", "service_idx", attr = AccessType.WO)
     busCtrl.write(serviceIdx, serviceIdxAddr)
@@ -116,14 +115,14 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
     // otherwise it gets into the bypass interface (to host)
     // will also be read by [[Scheduler]]
     // XXX: contents are in BIG ENDIAN (network)
-    val listenPorts = Vec.fill(numServiceSlots)(Reg(Flow(Bits(16 bits))))
+    val listenPorts = Vec.fill(NUM_SERVICES)(Reg(Flow(Bits(16 bits))))
     listenPorts foreach { sl => sl.valid init False }
 
     // we then try to match against a registered service
     // if no (func, port) is found, packet is dropped
     // will also be read by [[Scheduler]]
     // XXX: contents are in BIG ENDIAN (network)
-    val serviceSlots = Vec.fill(numServiceSlots)(Reg(OncRpcCallServiceDef()))
+    val serviceSlots = Vec.fill(NUM_SERVICES)(Reg(OncRpcCallServiceDef()))
     serviceSlots foreach { sl => sl.enabled init False }
 
     from[UdpMetadata, UdpDecoder]( { meta =>
@@ -143,7 +142,7 @@ class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
 
     awaitBuild()
     val minLen = OncRpcCallHeader().getBitsWidth / 8
-    val maxLen = minLen + c[Int]("max onc rpc inline bytes")
+    val maxLen = minLen + ONCRPC_INLINE_BYTES
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, maxLen)(minLen)
     // TODO: variable length field memory allocation (arena-style?)
 

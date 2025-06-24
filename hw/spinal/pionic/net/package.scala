@@ -1,19 +1,13 @@
 package pionic
 
 import spinal.core._
-import spinal.lib._
-import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
-import spinal.lib.misc.plugin._
-import jsteward.blocks.axi._
-import jsteward.blocks.misc.{RegAllocatorFactory, RegBlockAlloc}
-import pionic.ConfigDatabase.OneShot
+import jsteward.blocks.misc.RegAllocatorFactory
 import pionic.host.{HostReq, HostReqBypassHeaders}
 import pionic.net.ethernet.EthernetMetadata
-import spinal.lib.bus.misc.BusSlaveFactory
 
-import scala.collection.mutable
 import scala.language.postfixOps
-import scala.reflect.ClassTag
+
+import Global._
 
 package object net {
   /**
@@ -22,7 +16,7 @@ package object net {
   object PacketDescType extends SpinalEnum {
     val raw, ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
 
-    def selectData[T <: ProtoMetadata](ty: PacketDescType.E, data: PacketDescData)(implicit c: ConfigDatabase): T = {
+    def selectData[T <: ProtoMetadata](ty: PacketDescType.E, data: PacketDescData): T = {
       ty match {
         case `raw` => NoMetadata().asInstanceOf[T]
         case `ethernet` => data.ethernet.asInstanceOf[T]
@@ -35,12 +29,14 @@ package object net {
 
     def addMackerel(f: RegAllocatorFactory) = {
       f.addMackerelEpilogue(getClass,
-        """
-          |constants packet_desc_type width(2) "Protocol Packet Descriptor Type" {
-          |  hdr_ethernet     = 0b00 "Ethernet";
-          |  hdr_ip           = 0b01 "IP";
-          |  hdr_udp          = 0b10 "UDP";
-          |  hdr_onc_rpc_call = 0b11 "ONC-RPC Call (bypass)";
+        s"""
+          |constants packet_desc_type width($PKT_DESC_TY_WIDTH) "Packet Descriptor Type" {
+          |  hdr_raw           = 0b000 "Raw";
+          |  hdr_ethernet      = 0b001 "Ethernet";
+          |  hdr_ip            = 0b010 "IP";
+          |  hdr_udp           = 0b011 "UDP";
+          |  hdr_onc_rpc_call  = 0b100 "ONC-RPC Call (bypass)";
+          |  hdr_onc_rpc_reply = 0b101 "ONC-RPC Reply (bypass)";
           |};""".stripMargin)
     }
   }
@@ -65,7 +61,7 @@ package object net {
     def asUnion: PacketDescData
   }
 
-  case class PacketDescData()(implicit c: ConfigDatabase) extends Union {
+  case class PacketDescData() extends Union {
     val ethernet = newElement(EthernetMetadata())
     val ip = newElement(IpMetadata())
     val udp = newElement(UdpMetadata())
@@ -75,7 +71,7 @@ package object net {
   /**
    * [[ProtoMetadata]] plus type information. Used between [[RxDecoderSink]] and [[DmaControlPlugin]].
    */
-  case class PacketDesc()(implicit c: ConfigDatabase) extends Bundle {
+  case class PacketDesc() extends Bundle {
     override def clone = PacketDesc()
 
     val ty = PacketDescType()
@@ -97,8 +93,8 @@ package object net {
       * Collect all headers to generate [[pionic.host.HostReqBypassHeaders]].  Called by [[DmaControlPlugin]] to pack
       * incoming request into a bypass [[HostReq]] to pass to host.
       */
-    def collectHeaders(implicit c: ConfigDatabase): Bits = {
-      val ret = CombInit(B(0, Widths.bphw bits))
+    def collectHeaders: Bits = {
+      val ret = CombInit(B(0, BYPASS_HDR_WIDTH bits))
       switch (ty) {
         import PacketDescType._
         is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
@@ -130,10 +126,10 @@ package object net {
       }
     }
 
-    c.post("packet desc type width", PacketDescType().getBitsWidth, OneShot)
-    c.post("packet desc type ethernet", 0, OneShot)
-    c.post("packet desc type ip", 1, OneShot)
-    c.post("packet desc type udp", 2, OneShot)
-    c.post("packet desc type onc rpc call", 3, OneShot)
+    PKT_DESC_TY_WIDTH.set(ty.getBitsWidth)
+    // c.post("packet desc type ethernet", 0, OneShot)
+    // c.post("packet desc type ip", 1, OneShot)
+    // c.post("packet desc type udp", 2, OneShot)
+    // c.post("packet desc type onc rpc call", 3, OneShot)
   }
 }

@@ -3,10 +3,12 @@ package pionic
 import jsteward.blocks.axi._
 import spinal.core._
 import spinal.core.fiber.Fiber.awaitPatch
+import spinal.lib.misc.database.Database
 import spinal.lib.misc.plugin._
 
 class NicEngine extends Component {
-  val host = new PluginHost
+  val database = new Database
+  val host = database on new PluginHost
 }
 
 object NicEngine {

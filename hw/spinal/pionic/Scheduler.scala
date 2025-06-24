@@ -5,25 +5,26 @@ import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
+import pionic.Global._
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
 import scala.language.postfixOps
 
 /** Type for PIDs. */
-case class PID()(implicit c: ConfigDatabase) extends Bundle {
+case class PID() extends Bundle {
   override def clone = PID()
 
-  val bits = UInt(Widths.pidw bits)
+  val bits = UInt(PID_WIDTH bits)
 }
 
 /** Command from host to create a process in the scheduler. */
-case class ProcessDef()(implicit c: ConfigDatabase) extends Bundle {
+case class ProcessDef() extends Bundle {
   val enabled = Bool()
   /** PID of process on the CPU -- not necessarily corresponding to actual process IDs on Linux */
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
-  val maxThreads = UInt(log2Up(c[Int]("num worker cores") + 1) bits)
+  val maxThreads = UInt(log2Up(NUM_WORKER_CORES + 1) bits)
 }
 
 /**
@@ -52,14 +53,13 @@ object PreemptCmdType extends SpinalEnum {
   * Note: to allow accurate decisions based on queue capacity, this is the only component in the system that queues packets.
   */
 class Scheduler extends PioNicPlugin {
-  lazy val numProcs = c[Int]("num processes")
   lazy val csr = host[GlobalCSRPlugin].logic.get
-  lazy val pktsPerProc = c[Int]("max rx pkts in flight per process")
+  lazy val totalPkts = RX_PKTS_PER_PROC * NUM_PROCS
 
-  def MemAddr = UInt(log2Up(pktsPerProc * numProcs) bits)
-  def ProcTblIdx = UInt(log2Up(numProcs+1) bits)
+  def MemAddr = UInt(log2Up(totalPkts) bits)
+  def ProcTblIdx = UInt(log2Up(NUM_PROCS+1) bits)
 
-  case class PreemptCmd()(implicit c: ConfigDatabase) extends Bundle {
+  case class PreemptCmd() extends Bundle {
     val ty = PreemptCmdType()
     val pid = PID()
     val idx = ProcTblIdx
@@ -91,7 +91,7 @@ class Scheduler extends PioNicPlugin {
       * Note that this is purely for the datapath and does not contain any scheduling information: switching processes
       * on a core is requested through the [[corePreempt]] interfaces.
       */
-    val coreMeta = Seq.fill(numWorkerCores)(Stream(HostReq()))
+    val coreMeta = Seq.fill(NUM_WORKER_CORES)(Stream(HostReq()))
 
     awaitBuild()
 
@@ -107,19 +107,19 @@ class Scheduler extends PioNicPlugin {
 
     // one per-process queue for every entry in procDefs
     // since all cores start with idx 0 in this table, table entry 0 should be a special "IDLE" process
-    val procDefs = Vec.fill(numProcs+1) {
+    val procDefs = Vec.fill(NUM_PROCS+1) {
       val ret = Reg(ProcessDef())
       ret.enabled init False
-      ret.maxThreads init numWorkerCores
+      ret.maxThreads init NUM_WORKER_CORES
       ret
     }
 
     // per-process queues are in memory
-    val queueMem = Mem(HostReq(), numProcs * pktsPerProc)
+    val queueMem = Mem(HostReq(), totalPkts)
 
-    case class QueueMetadata()(off: UInt, cap: UInt)(implicit c: ConfigDatabase) extends Bundle {
+    case class QueueMetadata()(off: UInt, cap: UInt) extends Bundle {
       val offset, head, tail = MemAddr
-      val capacity, fill = UInt(log2Up(pktsPerProc+1) bits)
+      val capacity, fill = UInt(log2Up(RX_PKTS_PER_PROC + 1) bits)
 
       // XXX: offset and capacity must be UInt, since we need to mux to select one
       offset := off
@@ -169,9 +169,9 @@ class Scheduler extends PioNicPlugin {
         fill := fill - 1
       }
     }
-    val queueMetas = Vec.tabulate(numProcs+1) { idx =>
-      val offset = if (idx == 0) 0 else (idx-1) * pktsPerProc
-      val capacity = if (idx == 0) 0 else pktsPerProc
+    val queueMetas = Vec.tabulate(NUM_PROCS+1) { idx =>
+      val offset = if (idx == 0) 0 else (idx-1) * RX_PKTS_PER_PROC
+      val capacity: Int = if (idx == 0) 0 else RX_PKTS_PER_PROC
       val ret = Reg(QueueMetadata()(offset, capacity))
       ret.initEmpty
       ret
@@ -197,10 +197,10 @@ class Scheduler extends PioNicPlugin {
 
     // report scheduler packet drop
     val rxSchedDrop = CombInit(False)
-    csr.status.rxSchedDroppedCount := Counter(regWidth bits, rxSchedDrop)
+    csr.status.rxSchedDroppedCount := Counter(REG_WIDTH bits, rxSchedDrop)
 
     // map of which process is running on which core
-    val corePidMap = Vec.fill(numWorkerCores) {
+    val corePidMap = Vec.fill(NUM_WORKER_CORES) {
       // all start in IDLE -- preempt request will move them away
       Reg(ProcTblIdx) init 0
     }
@@ -250,7 +250,7 @@ class Scheduler extends PioNicPlugin {
     }
 
     // each core can raise a pop request, to remove one packet from the queues
-    val popReqs = Seq.fill(numWorkerCores)(Stream(MemAddr))
+    val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
     val arbitratedPopReq = StreamArbiterFactory().roundRobin.on(popReqs)
     val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
     arbitratedPopReq.ready := True
@@ -268,7 +268,7 @@ class Scheduler extends PioNicPlugin {
     )
     val victimCoreMapSel = OHMasking.firstV2(victimCoreMap)
 
-    0 until numWorkerCores foreach { idx => new Area {
+    0 until NUM_WORKER_CORES foreach { idx => new Area {
       val toCore = coreMeta(idx)
       toCore.setIdle()
 

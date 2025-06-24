@@ -12,9 +12,8 @@ import spinal.lib.eda.xilinx.VivadoConstraintWriter
 import scala.language.postfixOps
 
 object GenEngineVerilog {
-  private def base(c: ConfigDatabase) = {
+  private def base = {
     Seq(
-      c,
       new DebugPlugin,
       new ProfilerPlugin,
       new GlobalCSRPlugin,
@@ -36,17 +35,16 @@ object GenEngineVerilog {
     )
   }
 
-  def engine(implicit c: ConfigDatabase) = {
-    val b = base(c)
-    val nc = c[Int]("num cores")
-    val plugins = c[String]("host interface") match {
-      case "pcie" => b ++ Seq(new PcieBridgeInterfacePlugin) ++
+  def engine(nw: Int, variant: String) = {
+    val nc = nw + 1
+    val plugins = variant match {
+      case "pcie" => base ++ Seq(new PcieBridgeInterfacePlugin) ++
         Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
-        Seq.tabulate(nc)(cid => new PciePreemptionControlPlugin(cid + 1))
-      case "eci" => b ++ Seq(new EciInterfacePlugin) ++
+        Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
+      case "eci" => base ++ Seq(new EciInterfacePlugin) ++
         // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
         Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
-        Seq.tabulate(nc)(cid => new EciPreemptionControlPlugin(cid + 1))
+        Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
     }
     NicEngine(plugins)
   }
@@ -74,22 +72,21 @@ object GenEngineVerilog {
     )
 
     val report = elabConfig.generateVerilog {
-      val c = new ConfigDatabase()
-      c.post("host interface", name, emitHeader = false)
-      c.post("git version", gitVersion, action = ConfigDatabase.Override, emitHeader = false)
+      val e = engine(4, name)
+      e.database on { Global.GIT_VERSION.set(gitVersion) }
 
-      engine(c)
+      e
     }
 
     val host = report.toplevel.host
     report.mergeRTLSource("NicEngine_ips")
     VivadoConstraintWriter(report)
-    if (printRegMap) host[ConfigDatabase].f.dumpAll()
+    // if (printRegMap) host[ConfigDatabase].f.dumpAll()
     if (genHeaders) {
       println("Generating headers and mackerel device files")
-      host[ConfigDatabase].f.writeMackerel(os.pwd / "sw" / "devices", s"pionic_$name")
-      host[ConfigDatabase].f.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
-      host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
+      // host[ConfigDatabase].f.writeMackerel(os.pwd / "sw" / "devices", s"pionic_$name")
+      // host[ConfigDatabase].f.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
+      // host[ConfigDatabase].writeConfigs(genDir / "config.h", elabConfig)
     }
   }
 

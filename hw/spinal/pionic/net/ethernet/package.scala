@@ -13,7 +13,7 @@ package object ethernet {
     val etherType = Bits(16 bits)
   }
 
-  case class EthernetMetadata()(implicit c: ConfigDatabase) extends Bundle with ProtoMetadata {
+  case class EthernetMetadata() extends Bundle with ProtoMetadata {
     override def clone = EthernetMetadata()
 
     val frameLen = PacketLength()

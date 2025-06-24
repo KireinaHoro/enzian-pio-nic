@@ -1,13 +1,14 @@
 package pionic
 
 import jsteward.blocks.axi._
+import pionic.Global._
 import pionic.host._
 import pionic.net.{RxDecoderSinkService, TxEncoderSourceService}
 import spinal.core._
 import spinal.lib.bus.amba4.axi._
 
 /** RX DMA tag used to construct [[HostReq]] after DMA.  Filled from [[pionic.net.PacketDesc]] */
-case class RxDmaTag()(implicit c: ConfigDatabase) extends Bundle {
+case class RxDmaTag() extends Bundle {
   /** packet buffer address from allocator.  used to fill buffer in [[HostReq]] */
   val addr = PacketAddr()
   val ty = HostReqType()
@@ -42,7 +43,8 @@ class PacketBuffer extends PioNicPlugin {
     useRegion = false,
   )
 
-  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = RxDmaTag().getBitsWidth, lenWidth = pktBufLenWidth)
+  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig,
+    tagWidth = RxDmaTag().getBitsWidth, lenWidth = PKT_BUF_LEN_WIDTH)
 
   val logic = during build new Area {
     val axiDma = new AxiDma(dmaConfig)
@@ -62,7 +64,7 @@ class PacketBuffer extends PioNicPlugin {
 
     val memAddrWidth = log2Up(pktBufSize)
     // TX packet buffers located after all RX buffers, one "rounded mtu" per core
-    c.post("tx pkt buf offset", numCores * c[Int]("rx pkt buf size per core"))
+    PKT_BUF_TX_OFFSET.set(NUM_CORES * PKT_BUF_RX_SIZE_PER_CORE)
 
     val axiMem = new AxiDpRam(axiConfig.copy(addressWidth = memAddrWidth))
     axiMem.io.s_axi_a <> axiDma.io.m_axi
