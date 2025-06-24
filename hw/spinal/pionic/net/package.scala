@@ -27,8 +27,8 @@ package object net {
       }
     }
 
-    def addMackerel(f: RegAllocatorFactory) = {
-      f.addMackerelEpilogue(getClass,
+    def addMackerel() = {
+      ALLOC.addMackerelEpilogue(getClass,
         s"""
           |constants packet_desc_type width($PKT_DESC_TY_WIDTH) "Packet Descriptor Type" {
           |  hdr_raw           = 0b000 "Raw";
@@ -127,9 +127,5 @@ package object net {
     }
 
     PKT_DESC_TY_WIDTH.set(ty.getBitsWidth)
-    // c.post("packet desc type ethernet", 0, OneShot)
-    // c.post("packet desc type ip", 1, OneShot)
-    // c.post("packet desc type udp", 2, OneShot)
-    // c.post("packet desc type onc rpc call", 3, OneShot)
   }
 }

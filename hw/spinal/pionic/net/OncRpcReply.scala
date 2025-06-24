@@ -1,7 +1,6 @@
 package pionic.net
 
 import jsteward.blocks.misc.RegBlockAlloc
-import pionic.ConfigDatabase
 import spinal.core._
 import spinal.lib.bus.misc.BusSlaveFactory
 

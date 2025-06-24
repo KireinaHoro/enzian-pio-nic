@@ -10,6 +10,7 @@ import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 
 import Global._
+import spinal.lib.misc.database.Element.toValue
 
 import scala.language.postfixOps
 
@@ -233,7 +234,7 @@ class DmaControlPlugin extends PioNicPlugin {
     // one MTU is reserved for each core for TX
     dps.foreach { dp =>
       dp.hostTx.addr.bits := PKT_BUF_TX_OFFSET + dp.coreID * ROUNDED_MTU
-      dp.hostTx.size.bits := ROUNDED_MTU
+      dp.hostTx.size.bits := U(ROUNDED_MTU)
       dp.hostTx.valid := True
     }
 
