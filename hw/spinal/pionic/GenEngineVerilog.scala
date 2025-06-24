@@ -43,6 +43,8 @@ object GenEngineVerilog {
     val e = new NicEngine
     e.database on {
       // set enough parameters to get us rolling
+      PKT_BUF_ADDR_WIDTH.set(24)
+      PKT_BUF_LEN_WIDTH.set(16)
       NUM_CORES.set(nc)
       NUM_WORKER_CORES.set(nw)
       REG_WIDTH.set(64)
@@ -50,6 +52,7 @@ object GenEngineVerilog {
       NUM_SERVICES.set(256)
       NUM_PROCS.set(32)
       RX_PKTS_PER_PROC.set(32)
+      BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
 
       ALLOC.set(new RegAllocatorFactory)
 
