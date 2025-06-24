@@ -60,7 +60,7 @@ case class DcsRxAxiRouter(axiConfig: Axi4Config) extends Component {
   val dcsAxi = slave(Axi4(axiConfig))
 
   /** Forwarded requests to global packet buffer (starts at 0) */
-  val pktBufAxi = master(Axi4(axiConfig.copy(useId = false)))
+  val pktBufAxi = master(Axi4(axiConfig))
 
   checkEciAxiCmd(dcsAxi)
 

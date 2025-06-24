@@ -38,7 +38,12 @@ class EciInterfacePlugin extends FiberPlugin {
 
   HOST_REQ_WIDTH.set(64 * 8)
 
-  // dcs_2_axi AXI config
+  // dcs_2_axi AXI config has ID width 7
+  // - we have two DCS slices -> 8
+  // - each core has RX and TX routers -> 9
+  // - we have NUM_CORES cores
+  PKT_BUF_ID_WIDTH.set(log2Up(NUM_CORES) + 9)
+
   val axiConfig = Axi4Config(
     // ECI address width
     addressWidth = EciDcsDefs.DS_ADDR_WIDTH,
@@ -47,7 +52,6 @@ class EciInterfacePlugin extends FiberPlugin {
     useRegion = false,
     useQos = false,
   )
-  val pktBufWordWidth = axiConfig.dataWidth
 
   val logic = during build new Area {
     val clockDomain = ClockDomain.current
@@ -90,7 +94,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
-    val accessNodes = Seq.fill(NUM_CORES)(Axi4(axiConfig))
+    val accessNodes = Seq.fill(NUM_CORES)(Axi4(axiConfig.copy(idWidth = 9)))
     Axi4CrossbarFactory()
       .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE))
       .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
@@ -108,7 +112,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val dcsNodes = Seq.tabulate(NUM_CORES) { idx =>
       val config = axiConfig.copy(
         // 2 masters, ID width + 1
-        idWidth = axiConfig.idWidth + 1,
+        idWidth = 8,
         addressWidth = log2Up(coreOffset - 1),
       )
 
@@ -249,7 +253,7 @@ class EciInterfacePlugin extends FiberPlugin {
       val proto = protos(cid)
       val preempt = preempts(cid)
       val ipiCtrl = demuxedIpiIntfs(cid)
-      val axiNode = accessNodes(cid)
+      val memNode = accessNodes(cid)
 
       val baseAddress = (1 + cid) * 0x1000
 
@@ -264,7 +268,7 @@ class EciInterfacePlugin extends FiberPlugin {
         host[Scheduler].logic.coreMeta(cid - 1) >> proto.hostRx
       }
 
-      proto.driveDcsBus(dcsNode, axiNode)
+      proto.driveDcsBus(dcsNode, memNode)
       proto.driveControl(csrCtrl, alloc)
 
       preemptNodeOption match {
