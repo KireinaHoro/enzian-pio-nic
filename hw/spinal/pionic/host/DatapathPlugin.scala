@@ -16,7 +16,7 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   val hostRxAck = Stream(PacketBufDesc())
   val hostRxReq = Bool()
 
-  during setup new Area {
+  during build new Area {
     import p._
 
     profile(

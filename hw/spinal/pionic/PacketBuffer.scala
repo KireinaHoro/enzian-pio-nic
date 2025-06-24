@@ -47,6 +47,9 @@ class PacketBuffer extends FiberPlugin {
   lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig,
     tagWidth = RxDmaTag().getBitsWidth, lenWidth = PKT_BUF_LEN_WIDTH)
 
+  // TX packet buffers located after all RX buffers, one "rounded mtu" per core
+  PKT_BUF_TX_OFFSET.set(NUM_CORES * PKT_BUF_RX_SIZE_PER_CORE)
+
   val logic = during build new Area {
     val axiDma = new AxiDma(dmaConfig)
 
@@ -63,11 +66,7 @@ class PacketBuffer extends FiberPlugin {
     axiDma.io.write_enable := True
     axiDma.io.write_abort := False
 
-    val memAddrWidth = log2Up(PKT_BUF_SIZE)
-    // TX packet buffers located after all RX buffers, one "rounded mtu" per core
-    PKT_BUF_TX_OFFSET.set(NUM_CORES * PKT_BUF_RX_SIZE_PER_CORE)
-
-    val axiMem = new AxiDpRam(axiConfig.copy(addressWidth = memAddrWidth))
+    val axiMem = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(PKT_BUF_SIZE)))
     axiMem.io.s_axi_a <> axiDma.io.m_axi
 
     // connect descriptors from [[DmaControlPlugin]]

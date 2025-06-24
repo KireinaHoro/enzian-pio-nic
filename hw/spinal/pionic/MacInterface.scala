@@ -27,8 +27,6 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
 
-  DATAPATH_WIDTH.set(64)
-
   // matches Xilinx CMAC configuration
   lazy val axisConfig = Axi4StreamConfig(
     dataWidth = DATAPATH_WIDTH,
