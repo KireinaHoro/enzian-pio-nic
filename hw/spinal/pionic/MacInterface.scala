@@ -9,6 +9,8 @@ import jsteward.blocks.misc._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 
+import Global._
+
 import scala.language.postfixOps
 
 // service for potential other mac interface
@@ -25,11 +27,11 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
   lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
 
-  val axisDataWidth = 64
+  DATAPATH_WIDTH.set(64)
 
   // matches Xilinx CMAC configuration
   lazy val axisConfig = Axi4StreamConfig(
-    dataWidth = c[Int]("axis data width"),
+    dataWidth = DATAPATH_WIDTH,
     useKeep = true,
     useLast = true,
   )
@@ -48,16 +50,16 @@ class XilinxCmacPlugin extends PioNicPlugin with MacInterfaceService {
     val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
     val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
-    val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(clockDomain, cmacTxClock)
+    val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(clockDomain, cmacTxClock)
     txFifo.m_axis >> m_axis_tx
 
-    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = roundMtu)()(cmacRxClock, clockDomain)
+    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(cmacRxClock, clockDomain)
     rxFifo.s_axis << s_axis_rx
 
     // report overflow
     val rxOverflow = Bool()
     val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-    csr.status.rxOverflowCount := Counter(regWidth bits, rxOverflowCdc)
+    csr.status.rxOverflowCount := Counter(REG_WIDTH bits, rxOverflowCdc)
 
     // extract frame length
     val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
