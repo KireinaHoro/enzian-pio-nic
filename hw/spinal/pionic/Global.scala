@@ -21,6 +21,8 @@ object Global extends AreaRoot {
   val PID_WIDTH = blocking[Int]
   val PKT_BUF_ADDR_WIDTH = blocking[Int]
   val PKT_BUF_LEN_WIDTH = blocking[Int]
+  val PKT_BUF_ID_WIDTH = blocking[Int]
+
   val HOST_REQ_TY_WIDTH = blocking[Int]
   val HOST_REQ_WIDTH = blocking[Int]
   val PKT_DESC_TY_WIDTH = blocking[Int]

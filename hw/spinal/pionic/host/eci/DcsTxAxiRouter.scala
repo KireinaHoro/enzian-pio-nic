@@ -75,10 +75,10 @@ case class DcsTxAxiRouter(axiConfig: Axi4Config,
         dcsAw.freeRun()
 
         when (dcsAr.valid) {
-          currCmd := dcsAr.payload
+          currCmd.assignAllByName(dcsAr.payload)
           currIsRead := True
         } elsewhen (dcsAw.valid) {
-          currCmd := dcsAw.payload
+          currCmd.assignAllByName(dcsAw.payload)
           currIsRead := False
         }
         goto(decodeCmd)

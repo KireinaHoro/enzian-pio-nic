@@ -36,10 +36,10 @@ class PacketBuffer extends FiberPlugin {
 
   // config for packetBufDmaMaster
   // we fix here and downstream should adapt
-  val axiConfig = Axi4Config(
+  lazy val axiConfig = Axi4Config(
     addressWidth = 64,
     dataWidth = 512,
-    idWidth = 4,
+    idWidth = PKT_BUF_ID_WIDTH,
     useQos = false,
     useRegion = false,
   )

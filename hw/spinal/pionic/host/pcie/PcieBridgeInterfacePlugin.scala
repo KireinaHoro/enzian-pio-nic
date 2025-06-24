@@ -24,6 +24,7 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
     dataWidth = 512,
     idWidth = 4,
   )
+  PKT_BUF_ID_WIDTH.set(axiConfig.idWidth)
 
   val logic = during setup new Area {
     val s_axi = slave(Axi4(axiConfig))
