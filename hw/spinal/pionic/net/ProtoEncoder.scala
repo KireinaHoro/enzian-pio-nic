@@ -63,7 +63,7 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
       host[TxEncoderSource].connect(ty, hostDesc, hostPayload)
 
       descUpstreams += hostDesc.map { pld =>
-        PacketDescType.selectData(ty, pld)
+        PacketDescType.selectData[T](ty, pld)
       }
 
       payloadUpstreams += hostPayload
