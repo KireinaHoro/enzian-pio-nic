@@ -23,7 +23,7 @@ case class PacketBufDesc() extends Bundle {
   assert(getBitsWidth <= 64, "packet buf desc size too big!")
 
   def addMackerel = {
-    // c.f.addMackerelEpilogue(this.getClass,
+    ALLOC.addMackerelEpilogue(this.getClass,
       s"""
          |regtype host_pkt_buf_desc "PCIe Host Packet Buffer Descriptor" {
          |  valid 1   "TX descriptor valid (rsvd for RX)";
@@ -31,9 +31,9 @@ case class PacketBufDesc() extends Bundle {
          |  size  $PKT_BUF_LEN_WIDTH "Length of packet";
          |  _     ${63-PKT_BUF_ADDR_WIDTH-PKT_BUF_LEN_WIDTH} rsvd;
          |};
-         |""".stripMargin
-      // target = "core"
-    // )
+         |""".stripMargin,
+      target = "core"
+    )
   }
 }
 
