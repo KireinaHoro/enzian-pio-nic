@@ -1,6 +1,6 @@
 package pionic.host.eci
 
-import pionic.Global
+import pionic.{Global, PacketAddr, PacketLength}
 import pionic.host.HostReq
 import spinal.core._
 import spinal.lib._
@@ -16,11 +16,9 @@ import scala.language.postfixOps
   * Same address layout on the DCS AXI interface as [[DcsRxAxiRouter]].
   *
   * @param axiConfig AXI parameters of upstream and downstream nodes
-  * @param txBufBase base address of the TX buffer slot for this core
   */
 case class DcsTxAxiRouter(dcsConfig: Axi4Config,
                           pktBufConfig: Axi4Config,
-                          txBufBase: Int,
                          ) extends Component {
   assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
 
@@ -42,6 +40,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * CL with the buffer captured so far.  */
   val currCl = in UInt(1 bit)
 
+  /** Address to put the outgoing packet payload in the packet buffer.  Captured
+    * from [[pionic.host.DatapathPlugin.hostTx]] */
+  val txAddr = in(PacketAddr())
+
+  /** Length of the packet to send, as captured in real time */
+  val currInvLen = out(PacketLength())
+
+  /** Pulse: all dirty CLs have been flushed */
+  val invDone = in Bool()
+
   /** Pulse: the host just started a new request on a CL */
   val hostReq = out Vec(Bool(), 2)
 
@@ -54,8 +62,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val dcsW = dcsAxi.w
   val dcsB = dcsAxi.b
 
-  val currCmd: Axi4Ax = Reg(dcsAxi.aw.payload.clone)
-  val currIsRead = Reg(Bool())
+  val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
+  val writeCmd: Axi4Aw = Reg(dcsAxi.aw.payload.clone)
 
   // initialization to avoid latches
   hostReq.foreach(_ := False)
@@ -64,95 +72,41 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
   // buffer to assemble an outgoing descriptor from host
   val savedControl = Reg(Bits(512 bits)) init 0
+  val aliasedHostCtrl = EciHostCtrlInfo()
+  aliasedHostCtrl.assignFromBits(savedControl >> 1)
+  currInvLen := aliasedHostCtrl.len
 
-  // offset and size to read/write from packet buffer, to serve CL fetch
-  val pktBufOff = Reg(pktBufAxi.ar.addr.clone)
+  // offset and size to read from packet buffer, to serve CL fetch
+  val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
   // we read max 2 beats each round, will fit inside one AXI burst
-  val pktBufLen = Reg(pktBufAxi.ar.len.clone)
+  val pktBufReadLen = Reg(pktBufAxi.ar.len.clone)
 
-  val fsm = new StateMachine {
+  // offset and size to write to packet buffer
+  val pktBufWriteOff = Reg(pktBufAxi.aw.addr.clone)
+  val pktBufWriteLen = Reg(pktBufAxi.aw.len.clone)
+
+  val writeFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsAr.freeRun()
         dcsAw.freeRun()
-
-        when (dcsAr.valid) {
-          currCmd.assignAllByName(dcsAr.payload)
-          currIsRead := True
-        } elsewhen (dcsAw.valid) {
-          currCmd.assignAllByName(dcsAw.payload)
-          currIsRead := False
+        when (dcsAw.valid) {
+          writeCmd := dcsAw.payload
+          goto(decodeCmd)
         }
-        goto(decodeCmd)
       }
     }
     val decodeCmd: State = new State {
       whenIsActive {
-        when (currCmd.addr === 0x0 || currCmd.addr === 0x80) {
-          pktBufOff := 0x0
-          pktBufLen := 0x40
-
-          when (currIsRead) {
-            when (currCmd.addr === (1 - currCl) * 0x80) {
-              // reading opposite CL, clear saved control half CL
-              hostReq(1 - currCl) := True
-              savedControl := 0
-            }
-            goto(sendPartialDesc)
-          } otherwise {
-            // write request can only happen on the current cache line
-            assert(currCmd.addr === currCl * 0x80, "write cannot happen on the inactive CL")
-            goto(recvPartialDesc)
-          }
+        when (writeCmd.addr === currCl * 0x80) {
+          pktBufWriteOff := 0x0
+          pktBufWriteLen := 0x40
+          goto(recvPartialDesc)
+        } elsewhen (writeCmd.addr === (1 - currCl) * 0x80) {
+          report("write cannot happen on the inactive CL")
         } otherwise {
-          // accessing packet buffer via overflow cachelines
-          pktBufOff := (currCmd.addr - 0xc0).resized
-          pktBufLen := 0x80
-
-          when (currIsRead) {
-            goto(readPktBufCmd)
-          } otherwise {
-            goto(writePktBufCmd)
-          }
-        }
-      }
-    }
-    val sendPartialDesc: State = new State {
-      whenIsActive {
-        dcsR.data := savedControl
-        dcsR.valid := True
-        dcsR.setOKAY()
-        dcsR.last := False
-        when (dcsR.ready) {
-          // send first half cache line length of packet buffer
-          goto(readPktBufCmd)
-        }
-      }
-    }
-    val readPktBufCmd: State = new State {
-      whenIsActive {
-        pktBufAxi.ar.valid := True
-        pktBufAxi.ar.len := pktBufLen - 1
-        pktBufAxi.ar.addr := pktBufOff + txBufBase
-        pktBufAxi.ar.setFullSize()
-        pktBufAxi.ar.setBurstINCR()
-        when (pktBufAxi.ar.ready) {
-          goto(readPktBufData)
-        }
-      }
-    }
-    val readPktBufData: State = new State {
-      whenIsActive {
-        pktBufAxi.r.ready := dcsR.ready
-        dcsR.payload := pktBufAxi.r.payload
-        dcsR.valid := pktBufAxi.r.valid
-
-        when (dcsR.fire) {
-          pktBufLen := pktBufLen - 64
-          when (pktBufLen === 0) {
-            assert(dcsR.last, "no more packet buffer to read but last not set")
-            goto(idle)
-          }
+          pktBufWriteOff := (writeCmd.addr - 0xc0).resized
+          pktBufWriteLen := 0x80
+          goto(writePktBufCmd)
         }
       }
     }
@@ -175,8 +129,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val writePktBufCmd: State = new State {
       whenIsActive {
         pktBufAxi.aw.valid := True
-        pktBufAxi.aw.len := pktBufLen - 1
-        pktBufAxi.aw.addr := pktBufOff + txBufBase
+        pktBufAxi.aw.len := pktBufWriteLen - 1
+        pktBufAxi.aw.addr := pktBufWriteOff + txAddr.bits.resized
         pktBufAxi.aw.setFullSize()
         pktBufAxi.aw.setBurstINCR()
         when (pktBufAxi.aw.ready) {
@@ -193,8 +147,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsW.ready := pktBufAxi.w.ready
 
         when (dcsW.fire) {
-          pktBufLen := pktBufLen - 64
-          when (pktBufLen === 0) {
+          pktBufWriteLen := pktBufWriteLen - 64
+          when (pktBufWriteLen === 0) {
             assert(dcsW.last, "no more packet buffer to write but last not set")
             goto(writePktBufResp)
           }
@@ -209,6 +163,103 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         when (dcsB.fire) {
           assert(pktBufAxi.b.isOKAY(), "error response from packet buffer")
           goto(idle)
+        }
+      }
+    }
+  }
+
+  val readFsm = new StateMachine {
+    val idle: State = new State with EntryPoint {
+      whenIsActive {
+        dcsAr.freeRun()
+        when (dcsAr.valid) {
+          readCmd := dcsAr.payload
+          goto(decodeCmd)
+        }
+      }
+    }
+    val decodeCmd: State = new State {
+      whenIsActive {
+        when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
+          pktBufReadOff := 0x0
+          pktBufReadLen := 0x40
+
+          val reqCl = (readCmd.addr === 0x80).asUInt
+          hostReq(reqCl) := True
+
+          when (reqCl === currCl) {
+            goto(sendPartialDesc)
+          } otherwise {
+            // host reading opposite cache line; protocol will invalidate all cache
+            // lines before we can send the descriptor to encoders
+            when (invDone) {
+              goto(transmitDesc)
+            }
+          }
+        } otherwise {
+          // accessing packet buffer via overflow cachelines
+          pktBufReadOff := (readCmd.addr - 0xc0).resized
+          pktBufReadLen := 0x80
+
+          goto(readPktBufCmd)
+        }
+      }
+    }
+    val sendPartialDesc: State = new State {
+      whenIsActive {
+        dcsR.data := savedControl
+        dcsR.valid := True
+        dcsR.setOKAY()
+        dcsR.last := False
+        when (dcsR.ready) {
+          // send first half cache line length of packet buffer
+          goto(readPktBufCmd)
+        }
+      }
+    }
+    val readPktBufCmd: State = new State {
+      whenIsActive {
+        pktBufAxi.ar.valid := True
+        pktBufAxi.ar.len := pktBufReadLen - 1
+        pktBufAxi.ar.addr := pktBufReadOff + txAddr.bits.resized
+        pktBufAxi.ar.setFullSize()
+        pktBufAxi.ar.setBurstINCR()
+        when (pktBufAxi.ar.ready) {
+          goto(readPktBufData)
+        }
+      }
+    }
+    val readPktBufData: State = new State {
+      whenIsActive {
+        pktBufAxi.r.ready := dcsR.ready
+        dcsR.payload := pktBufAxi.r.payload
+        dcsR.valid := pktBufAxi.r.valid
+
+        when (dcsR.fire) {
+          pktBufReadLen := pktBufReadLen - 64
+          when (pktBufReadLen === 0) {
+            assert(dcsR.last, "no more packet buffer to read but last not set")
+            goto(idle)
+          }
+        }
+      }
+    }
+    val transmitDesc: State = new State {
+      whenIsActive {
+        // send assembled descriptor to encoder pipeline
+        // the packet buffer has been fully written from invalidation
+        txDesc.valid := True
+
+        // one bit reserved for valid in host side Mackerel file to allow reusing RX HostReq
+        val ctrl = EciHostCtrlInfo()
+        ctrl.assignFromBits(savedControl >> 1)
+        ctrl.unpackTo(txDesc.payload, txAddr)
+
+        when (txDesc.ready) {
+          savedControl := 0
+
+          // we are in the middle of a read for next CL -- serve read
+          goto(sendPartialDesc)
         }
       }
     }

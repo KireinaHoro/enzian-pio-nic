@@ -47,7 +47,7 @@ case class EciHostCtrlInfo() extends Bundle {
     val oncRpcCall = newElement(OncRpcCallBundle())
   }
 
-  def unpackTo(desc: HostReq) = {
+  def unpackTo(desc: HostReq, addr: PacketAddr) = {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
@@ -58,6 +58,7 @@ case class EciHostCtrlInfo() extends Bundle {
         desc.data.oncRpcCall.assignSomeByName(data.oncRpcCall)
       }
     }
+    desc.buffer.addr := addr
     desc.buffer.size := len
   }
 
