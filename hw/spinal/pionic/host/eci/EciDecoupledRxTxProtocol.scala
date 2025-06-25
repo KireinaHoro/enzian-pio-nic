@@ -160,7 +160,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // register accepted host rx packet for:
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
-    val rxPktBufSaved = Reg(PacketBufDesc())
+    val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
 
     // read start is when request for the selected CL is active for the first time
     val hostFirstRead = Reg(Bool()) init False
@@ -366,7 +366,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         whenIsActive {
           // allow router to send tx descriptor
           txInvDone := True
-          goto(idle)
+
+          when (hostTxAck.fire) {
+            txCurrClIdx.toggleWhen(True)
+            goto(idle)
+          }
         }
       }
     }
