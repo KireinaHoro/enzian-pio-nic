@@ -37,7 +37,7 @@ class PacketBuffer extends FiberPlugin {
   // config for packetBufDmaMaster
   // we fix here and downstream should adapt
   lazy val axiConfig = Axi4Config(
-    addressWidth = 64,
+    addressWidth = log2Up(PKT_BUF_SIZE),
     dataWidth = 512,
     idWidth = PKT_BUF_ID_WIDTH,
     useQos = false,
@@ -66,7 +66,7 @@ class PacketBuffer extends FiberPlugin {
     axiDma.io.write_enable := True
     axiDma.io.write_abort := False
 
-    val axiMem = new AxiDpRam(axiConfig.copy(addressWidth = log2Up(PKT_BUF_SIZE)))
+    val axiMem = new AxiDpRam(axiConfig)
     axiMem.io.s_axi_a <> axiDma.io.m_axi
 
     // connect descriptors from [[DmaControlPlugin]]
