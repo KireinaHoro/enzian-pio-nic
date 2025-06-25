@@ -1,5 +1,6 @@
 package pionic.host.eci
 
+import jsteward.blocks.axi.RichAxi4
 import pionic.{Global, PacketAddr, PacketLength}
 import pionic.host.HostReq
 import spinal.core._
@@ -55,20 +56,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
   checkEciAxiCmd(dcsAxi)
 
-  val dcsAr = dcsAxi.ar.queue(8)
-  val dcsR = dcsAxi.r
-
-  val dcsAw = dcsAxi.aw.queue(8)
-  val dcsW = dcsAxi.w
-  val dcsB = dcsAxi.b
+  val dcsQ = dcsAxi.queue(8)
 
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
   val writeCmd: Axi4Aw = Reg(dcsAxi.aw.payload.clone)
 
   // initialization to avoid latches
   hostReq.foreach(_ := False)
-  dcsAxi.setBlocked()
+  dcsQ.setBlocked()
   pktBufAxi.setIdle()
+  txDesc.setIdle()
 
   // buffer to assemble an outgoing descriptor from host
   val savedControl = Reg(Bits(512 bits)) init 0
@@ -88,9 +85,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val writeFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsAw.freeRun()
-        when (dcsAw.valid) {
-          writeCmd := dcsAw.payload
+        dcsQ.aw.freeRun()
+        when (dcsQ.aw.valid) {
+          writeCmd := dcsQ.aw.payload
           goto(decodeCmd)
         }
       }
@@ -113,12 +110,12 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val recvPartialDesc: State = new State {
       whenIsActive {
         // the host is writing a control CL: capture write into control CL
-        dcsW.ready := True
-        when (dcsW.valid) {
-          assert(!dcsW.last, "not receiving the last beat yet but last is set")
+        dcsQ.w.ready := True
+        when (dcsQ.w.valid) {
+          assert(!dcsQ.w.last, "not receiving the last beat yet but last is set")
           savedControl.subdivideIn(8 bits) zip
-            dcsW.data.subdivideIn(8 bits) zip
-            dcsW.strb.asBools foreach { case ((buf, byte), en) =>
+            dcsQ.w.data.subdivideIn(8 bits) zip
+            dcsQ.w.strb.asBools foreach { case ((buf, byte), en) =>
             when (en) { buf := byte }
           }
 
@@ -140,16 +137,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val writePktBufData: State = new State {
       whenIsActive {
-        pktBufAxi.w.valid := dcsW.valid
-        pktBufAxi.w.data := dcsW.data
-        pktBufAxi.w.strb := dcsW.strb
-        pktBufAxi.w.last := dcsW.last
-        dcsW.ready := pktBufAxi.w.ready
+        pktBufAxi.w.valid := dcsQ.w.valid
+        pktBufAxi.w.data := dcsQ.w.data
+        pktBufAxi.w.strb := dcsQ.w.strb
+        pktBufAxi.w.last := dcsQ.w.last
+        dcsQ.w.ready := pktBufAxi.w.ready
 
-        when (dcsW.fire) {
+        when (dcsQ.w.fire) {
           pktBufWriteLen := pktBufWriteLen - 64
           when (pktBufWriteLen === 0) {
-            assert(dcsW.last, "no more packet buffer to write but last not set")
+            assert(dcsQ.w.last, "no more packet buffer to write but last not set")
             goto(writePktBufResp)
           }
         }
@@ -157,10 +154,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val writePktBufResp: State = new State {
       whenIsActive {
-        pktBufAxi.b.ready := dcsB.ready
-        dcsB.valid := pktBufAxi.b.valid
-        dcsB.setOKAY()
-        when (dcsB.fire) {
+        pktBufAxi.b.ready := dcsQ.b.ready
+        dcsQ.b.valid := pktBufAxi.b.valid
+        dcsQ.b.setOKAY()
+        when (dcsQ.b.fire) {
           assert(pktBufAxi.b.isOKAY(), "error response from packet buffer")
           goto(idle)
         }
@@ -171,9 +168,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val readFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsAr.freeRun()
-        when (dcsAr.valid) {
-          readCmd := dcsAr.payload
+        dcsQ.ar.freeRun()
+        when (dcsQ.ar.valid) {
+          readCmd := dcsQ.ar.payload
           goto(decodeCmd)
         }
       }
@@ -207,11 +204,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val sendPartialDesc: State = new State {
       whenIsActive {
-        dcsR.data := savedControl
-        dcsR.valid := True
-        dcsR.setOKAY()
-        dcsR.last := False
-        when (dcsR.ready) {
+        dcsQ.r.data := savedControl
+        dcsQ.r.valid := True
+        dcsQ.r.setOKAY()
+        dcsQ.r.last := False
+        when (dcsQ.r.ready) {
           // send first half cache line length of packet buffer
           goto(readPktBufCmd)
         }
@@ -231,14 +228,14 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val readPktBufData: State = new State {
       whenIsActive {
-        pktBufAxi.r.ready := dcsR.ready
-        dcsR.payload := pktBufAxi.r.payload
-        dcsR.valid := pktBufAxi.r.valid
+        pktBufAxi.r.ready := dcsQ.r.ready
+        dcsQ.r.payload := pktBufAxi.r.payload
+        dcsQ.r.valid := pktBufAxi.r.valid
 
-        when (dcsR.fire) {
+        when (dcsQ.r.fire) {
           pktBufReadLen := pktBufReadLen - 64
           when (pktBufReadLen === 0) {
-            assert(dcsR.last, "no more packet buffer to read but last not set")
+            assert(dcsQ.r.last, "no more packet buffer to read but last not set")
             goto(idle)
           }
         }
