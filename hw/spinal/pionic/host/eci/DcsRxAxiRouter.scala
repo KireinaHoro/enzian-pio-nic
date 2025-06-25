@@ -1,5 +1,6 @@
 package pionic.host.eci
 
+import jsteward.blocks.axi.RichAxi4
 import pionic.PacketAddr
 import pionic.Global._
 import pionic.host.HostReq
@@ -70,14 +71,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   checkEciAxiCmd(dcsAxi)
 
   // ad-hoc queue size to not block AR channel
-  val dcsAr = dcsAxi.ar.queue(8)
-  val dcsR = dcsAxi.r
+  val dcsQ = dcsAxi.queue(8)
 
   // initialization to avoid latches
   hostReq.foreach(_ := False)
   nackSent := False
   rxDesc.setBlocked()
-  dcsAxi.setBlocked()
+  dcsQ.setBlocked()
   pktBufAxi.setIdle()
 
   // command saved from DCS in AR
@@ -102,10 +102,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsAr.freeRun()
+        dcsQ.ar.freeRun()
         blockTimer.clear()
-        when (dcsAr.valid) {
-          readCmd := dcsAr.payload
+        when (dcsQ.ar.valid) {
+          readCmd := dcsQ.ar.payload
           goto(decodeAr)
         }
       }
@@ -178,11 +178,11 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val sendDesc: State = new State {
       whenIsActive {
         // send first beat, could be NACK
-        dcsR.data := savedControl
-        dcsR.valid := True
-        dcsR.setOKAY()
-        dcsR.last := False
-        when (dcsR.ready) {
+        dcsQ.r.data := savedControl
+        dcsQ.r.valid := True
+        dcsQ.r.setOKAY()
+        dcsQ.r.last := False
+        when (dcsQ.r.ready) {
           nackSent := !savedControl(0)
           goto(readPktBuf)
         }
@@ -210,20 +210,20 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
       whenIsActive {
         when (noReadPktBuf) {
           // return dummy result for packet buffer fetch
-          dcsR.valid := True
-          dcsR.data := B(0)
-          dcsR.setOKAY()
-          dcsR.last := pktBufReadLen === 64
+          dcsQ.r.valid := True
+          dcsQ.r.data := B(0)
+          dcsQ.r.setOKAY()
+          dcsQ.r.last := pktBufReadLen === 64
         } otherwise {
-          pktBufAxi.r.ready := dcsR.ready
-          dcsR.payload := pktBufAxi.r.payload
-          dcsR.valid := pktBufAxi.r.valid
+          pktBufAxi.r.ready := dcsQ.r.ready
+          dcsQ.r.payload := pktBufAxi.r.payload
+          dcsQ.r.valid := pktBufAxi.r.valid
         }
 
-        when (dcsR.fire) {
+        when (dcsQ.r.fire) {
           pktBufReadLen := pktBufReadLen - 64
           when (pktBufReadLen === 0) {
-            assert(dcsR.last, "no more packet buffer to read but last not set")
+            assert(dcsQ.r.last, "no more packet buffer to read but last not set")
             goto(idle)
           }
         }

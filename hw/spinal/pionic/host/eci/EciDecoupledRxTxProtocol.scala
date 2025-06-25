@@ -58,22 +58,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   }
 
   def driveDcsBus(bus: Axi4, pktBufAxiNode: Axi4): Unit = new Area {
-    // mux RX and TX routers to DCS master
-    val rxDcsNode, txDcsNode = Axi4(bus.config)
-    Axi4CrossbarFactory()
-      .addSlaves(
-        rxDcsNode -> SizeMapping(0, txOffset),
-        txDcsNode -> SizeMapping(txOffset, txOffset)
-      )
-      .addConnection(bus, Seq(rxDcsNode, txDcsNode))
-      .build()
-
     // RX router
     val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
     rxRouter.rxDesc << hostRx
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
-    bus >> rxRouter.dcsAxi
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
@@ -84,6 +73,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.invDone := logic.txInvDone
     logic.txInvLen := txRouter.currInvLen
     logic.txReqs := txRouter.hostReq
+
+    // mux RX and TX routers to DCS master
+    Axi4CrossbarFactory()
+      .addSlaves(
+        rxRouter.dcsAxi -> SizeMapping(0, txOffset),
+        txRouter.dcsAxi -> SizeMapping(txOffset, txOffset)
+      )
+      .addConnection(bus, Seq(rxRouter.dcsAxi, txRouter.dcsAxi))
+      .build()
 
     // mux packet buffer access nodes
     Axi4CrossbarFactory()
