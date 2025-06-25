@@ -83,8 +83,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val lastPktBufSlot = Reg(PacketAddr())
 
   // offset and length to read from the pkt buffer
-  val pktBufReadOff = Reg(dcsAxi.ar.addr.clone)
-  val pktBufReadLen = Reg(UInt(log2Up(PKT_BUF_RX_SIZE_PER_CORE) bits))
+  val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
+  // we read max 2 beats each round, will fit inside one AXI burst
+  val pktBufReadLen = Reg(pktBufAxi.ar.len.clone)
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
@@ -121,7 +122,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // host reading second half of some CL
           // XXX: we assume the first half-CL is always read first
           //      so we can ignore any state change and just serve packet buffer contents
-          pktBufReadOff := readCmd.addr - 0xc0
+          pktBufReadOff := (readCmd.addr - 0xc0).resized
           pktBufReadLen := 0x80
           goto(readPktBuf)
         }
@@ -172,7 +173,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // send read request to pkt buf axi
           pktBufAxi.ar.valid := True
           pktBufAxi.ar.len := pktBufReadLen - 1
-          pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits
+          pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits.resized
           pktBufAxi.ar.setFullSize()
           pktBufAxi.ar.setBurstINCR()
           when(pktBufAxi.ar.ready) {

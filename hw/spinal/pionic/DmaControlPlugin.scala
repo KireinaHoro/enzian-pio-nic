@@ -118,7 +118,7 @@ class DmaControlPlugin extends FiberPlugin {
         def assign(hostRx: Stream[HostReq]) = {
           hostRx.valid := True
           hostRx.buffer.addr := addr
-          hostRx.buffer.size.bits := size
+          hostRx.buffer.size.bits := size.resized
           hostRx.ty := ty
           hostRx.data := data
 

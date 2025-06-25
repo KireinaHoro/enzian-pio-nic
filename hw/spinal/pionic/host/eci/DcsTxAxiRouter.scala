@@ -66,8 +66,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val savedControl = Reg(Bits(512 bits)) init 0
 
   // offset and size to read/write from packet buffer, to serve CL fetch
-  val pktBufOff = Reg(dcsAxi.ar.addr.clone)
-  val pktBufLen = Reg(UInt(log2Up(Global.ROUNDED_MTU) bits))
+  val pktBufOff = Reg(pktBufAxi.ar.addr.clone)
+  // we read max 2 beats each round, will fit inside one AXI burst
+  val pktBufLen = Reg(pktBufAxi.ar.len.clone)
 
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
@@ -105,7 +106,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           }
         } otherwise {
           // accessing packet buffer via overflow cachelines
-          pktBufOff := currCmd.addr - 0xc0
+          pktBufOff := (currCmd.addr - 0xc0).resized
           pktBufLen := 0x80
 
           when (currIsRead) {
