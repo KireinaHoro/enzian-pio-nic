@@ -17,7 +17,6 @@ import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
 
 import Global._
-import spinal.lib.misc.database.Element.toValue
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   withPrefix(s"core_$coreID")
@@ -73,13 +72,17 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
     rxRouter.rxDesc << hostRx
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
+    rxRouter.invDone := logic.rxInvDone
     bus >> rxRouter.dcsAxi
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
-    val txRouter = DcsTxAxiRouter(bus.config, pktBufAxiNode.config, PKT_BUF_TX_OFFSET + coreID * ROUNDED_MTU)
+    val txRouter = DcsTxAxiRouter(bus.config, pktBufAxiNode.config)
     txRouter.txDesc >> hostTxAck
     txRouter.currCl := logic.txCurrClIdx.asUInt
+    txRouter.txAddr := logic.savedTxAddr.addr
+    txRouter.invDone := logic.txInvDone
+    logic.txInvLen := txRouter.currInvLen
     logic.txReqs := txRouter.hostReq
 
     // mux packet buffer access nodes
@@ -108,6 +111,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // invalidation done for routers
     val rxInvDone = Bool()
+    val txInvDone = Bool()
 
     awaitBuild()
 
@@ -133,6 +137,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     preemptReq.setBlocked()
 
     rxInvDone := False
+    txInvDone := False
 
     val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
     val ulOverflow = Bool()
@@ -277,22 +282,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
 
             rxInvDone := True
-
             goto(idle)
           }
         }
       }
     }
 
-    val txHostCtrlInfo = Vec(Stream(EciHostCtrlInfo()), 2)
-    when (txHostCtrlInfo.map(_.fire).reduceBalancedTree(_ || _)) {
+    when (txReqs.reduce(_ || _)) {
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
     val savedTxAddr = hostTx.toFlowFire.toReg()
-
-    val selectedTxHostCtrl = StreamMux(txCurrClIdx.asUInt, txHostCtrlInfo)
-    val savedTxHostCtrl = selectedTxHostCtrl.toReg()
+    val txInvLen = PacketLength()
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -329,7 +330,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             ulFlow.valid := True
 
             // we should've latched tx descriptor in savedTxDesc
-            val toInvalidate = packetSizeToNumOverflowCls(savedTxHostCtrl.len.bits)
+            val toInvalidate = packetSizeToNumOverflowCls(txInvLen.bits)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
               goto(invalidatePacketData)
@@ -366,14 +367,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val tx: State = new State {
         whenIsActive {
-          savedTxHostCtrl.unpackTo(hostTxAck.get)
-          hostTxAck.get.buffer.addr := savedTxAddr.addr
-          hostTxAck.valid := True
-
-          when (hostTxAck.fire) {
-            txCurrClIdx.toggleWhen(True)
-            goto(idle)
-          }
+          // allow router to send tx descriptor
+          txInvDone := True
+          goto(idle)
         }
       }
     }
