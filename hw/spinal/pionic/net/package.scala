@@ -77,17 +77,19 @@ package object net {
     val ty = PacketDescType()
     val metadata = PacketDescData()
 
-    def getPayloadSize: UInt = {
+    def getPayloadSize: UInt = new Composite(this, "getPayloadSize") {
       val ret = UInt(16 bits)
+      ret.assignDontCare()
       switch (ty) {
         import PacketDescType._
+        is (raw) { ret := 0 }
         is (ethernet) { ret := metadata.ethernet.getPayloadSize }
         is (ip) { ret := metadata.ip.getPayloadSize }
         is (udp) { ret := metadata.udp.getPayloadSize }
         is (oncRpcCall) { ret := metadata.oncRpcCall.getPayloadSize }
+        default { report("packet desc type not supported yet") }
       }
-      ret
-    }
+    }.ret
 
     /**
       * Collect all headers to generate [[pionic.host.HostReqBypassHeaders]].  Called by [[DmaControlPlugin]] to pack

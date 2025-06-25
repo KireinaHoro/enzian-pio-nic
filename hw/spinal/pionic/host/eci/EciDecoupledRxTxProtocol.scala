@@ -125,8 +125,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
     val rxNackTriggerInv = Reg(Bool()) init False
 
-    val rxReqs = Vec(False, 2)
-    val txReqs = Vec(False, 2)
+    val rxReqs = Vec(Bool(), 2)
+    val txReqs = Vec(Bool(), 2)
 
     lci.setIdle()
     lci.valid.setAsReg()
@@ -151,7 +151,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     hostRxAck.setIdle()
     hostTx.setBlocked()
-    hostTxAck.setIdle()
 
     val rxOverflowInvIssued, rxOverflowInvAcked = Counter(overflowCountWidth bits)
     val rxOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
