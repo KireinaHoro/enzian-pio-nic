@@ -119,6 +119,7 @@ package object net {
       ty := bypassMeta.ty
       switch (ty) {
         import PacketDescType._
+        is (raw) { metadata.assignDontCare() }
         is (ethernet) { metadata.ethernet.assignFromHdrBits(bypassMeta.hdr) }
         is (ip) { metadata.ip.assignFromHdrBits(bypassMeta.hdr) }
         is (udp) { metadata.udp.assignFromHdrBits(bypassMeta.hdr) }
