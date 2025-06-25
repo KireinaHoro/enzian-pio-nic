@@ -10,11 +10,11 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   lazy val p = host[ProfilerPlugin]
 
   /** datapath interfaces */
-  val hostTx = Stream(PacketBufDesc())
-  val hostTxAck = Stream(HostReq())
-  val hostRx = Stream(HostReq())
-  val hostRxAck = Stream(PacketBufDesc())
-  val hostRxReq = Bool()
+  lazy val hostTx = Stream(PacketBufDesc())
+  lazy val hostTxAck = Stream(HostReq())
+  lazy val hostRx = Stream(HostReq())
+  lazy val hostRxAck = Stream(PacketBufDesc())
+  lazy val hostRxReq = Bool()
 
   during build new Area {
     import p._
