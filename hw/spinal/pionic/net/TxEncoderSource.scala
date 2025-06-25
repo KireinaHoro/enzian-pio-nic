@@ -5,6 +5,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis._
 import jsteward.blocks.axi.AxiStreamDemux
+import spinal.core.fiber.Retainer
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -23,21 +24,18 @@ trait TxEncoderSourceService {
   */
 class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
   lazy val ms = host[MacInterfaceService]
+  val retainer = Retainer()
 
   // record encoders that called connect
   val registeredEncoders = mutable.ListBuffer[Int]()
-  var inBuild = false
 
-  val logic = during setup new Area {
-    val numTypes = PacketDescType.elements.length
-    val descForDecoders = Seq.fill(numTypes)(Stream(PacketDescData()))
-    val payloadForDecoders = Seq.fill(numTypes)(Axi4Stream(ms.axisConfig))
+  val numTypes = PacketDescType.elements.length
+  val descForDecoders = during setup Seq.fill(numTypes)(Stream(PacketDescData()))
+  val payloadForDecoders = during setup Seq.fill(numTypes)(Axi4Stream(ms.axisConfig))
 
-    awaitBuild()
-
+  val logic = during build new Area {
     /** Packet descriptors from [[pionic.DmaControlPlugin]] */
     val packetDesc = host[DmaControlPlugin].logic.outgoingDesc
-    inBuild = true
 
     // find index of packet type in demuxer outputs
     val descTyOh = PacketDescType.elements.map { ty =>
@@ -62,6 +60,7 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
     }
 
     // tie off unused ports
+    retainer.await()
     (descForDecoders zip payloadForDecoders).zipWithIndex.foreach { case ((d, p), idx) =>
       if (!registeredEncoders.contains(idx)) {
         d.setBlocked()
@@ -72,11 +71,9 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
 
   def packetSource = logic.axisDemux.s_axis
   def connect(ty: PacketDescType.E, desc: Stream[PacketDescData], payload: Axi4Stream) = new Area {
-    assert(!inBuild, "connect must be called in setup phase")
-
     val idx = ty.position
-    logic.descForDecoders(idx) >> desc
-    logic.payloadForDecoders(idx) >> payload
+    descForDecoders(idx) >> desc
+    payloadForDecoders(idx) >> payload
 
     registeredEncoders += ty.position
   }

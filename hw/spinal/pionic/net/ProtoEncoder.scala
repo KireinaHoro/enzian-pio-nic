@@ -27,6 +27,8 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
     */
   private val producers = mutable.ListBuffer[(String, Stream[T], Axi4Stream)]()
 
+  val txRg = during setup retains(host[TxEncoderSource].retainer)
+
   /**
     * Specify one possible downstream encoder, where this encoder pushes packets to.  Can be invoked multiple times
     * in the setup phase.
@@ -53,6 +55,8 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
   protected def collectInto(metadata: Stream[T], payload: Axi4Stream, acceptHostPackets: Boolean = false): Unit = new Composite(this, "consume") {
     val descUpstreams = mutable.ListBuffer.from(producers.map(_._2))
     val payloadUpstreams = mutable.ListBuffer.from(producers.map(_._3))
+
+    txRg.release()
 
     if (acceptHostPackets) {
       val hostDesc = Stream(PacketDescData())

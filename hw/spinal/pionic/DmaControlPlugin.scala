@@ -77,7 +77,7 @@ class DmaControlPlugin extends FiberPlugin {
     /** Decoded packet descriptors from [[RxDecoderSink]] */
     val requestDesc, bypassDesc = Stream(PacketDesc())
 
-    val incomingDesc = Stream(RxPacketDescWithSource()).setBlocked()
+    val incomingDesc = Stream(RxPacketDescWithSource())
     incomingDesc << StreamArbiterFactory().roundRobin.on(Seq(
       requestDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = false)),
       bypassDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = true))
@@ -110,6 +110,11 @@ class DmaControlPlugin extends FiberPlugin {
 
     rxAlloc.io.freeReq </< StreamArbiterFactory().roundRobin.on(dps.map(_.hostRxAck))
     rxAlloc.io.allocResp.setBlocked()
+
+    bypassDp.hostRx.setIdle()
+    sched.logic.rxMeta.setIdle()
+
+    outgoingDesc.setIdle()
 
     val rxPacketDescTagged = incomingDesc.toFlowFire.toReg()
 
