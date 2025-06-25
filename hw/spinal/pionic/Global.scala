@@ -2,11 +2,11 @@ package pionic
 
 import jsteward.blocks.misc.RegAllocatorFactory
 import spinal.core._
+import spinal.core.fiber.Handle
 import spinal.lib.misc.database.Database.blocking
-import spinal.lib.misc.database.ElementBlocking
+import spinal.lib.misc.database.{Database, Element}
 import spinal.lib.misc.database.Element.toValue
 
-import scala.reflect.runtime.universe._
 import scala.collection.mutable
 
 object Global extends AreaRoot {
@@ -49,23 +49,11 @@ object Global extends AreaRoot {
   def postConfig(key: String, value: Int): Unit = customConfigs.put(key, value)
 
   def writeConfigs(outPath: os.Path, spinalConfig: SpinalConfig): Unit = {
-    // get all database keys of type Int with reflection
-    val mirror = runtimeMirror(getClass.getClassLoader)
-    val instanceMirror = mirror.reflect(this)
-    val symbol = mirror.classSymbol(getClass)
-    val targetType = typeOf[ElementBlocking[Int]]
-
-    val keys = symbol.toType.members.collect {
-      case m: TermSymbol if m.isVal && m.isPublic && !m.isMethod =>
-        val ty = m.typeSignature
-        if (ty =:= targetType) {
-          val fieldMirror = instanceMirror.reflectField(m)
-
-          // variant-specific?
-          val kn = m.name.toString.trim
-          Some(kn -> fieldMirror.get.asInstanceOf[ElementBlocking[Int]])
-        } else None
-    }.flatten
+    val vals = Database.storage.collect {
+      // ElementBlocking would store a Handle
+      case (_, h: Handle[_]) if h.get.isInstanceOf[Int] =>
+        h.getName -> h.get
+    }
 
     os.remove(outPath)
     os.write(outPath,
@@ -80,14 +68,15 @@ object Global extends AreaRoot {
           |#define PIONIC_CLOCK_FREQ ${spinalConfig.defaultClockDomainFrequency.getValue.toLong}
           |
             ${
-        keys.map { case (k, v) =>
-          s"|#define PIONIC_$k (${v.get})"
+        vals.map { case (k, v) =>
+          s"|#define PIONIC_$k ($v)"
         }.mkString("\n")
       }
+          |
             ${
         customConfigs.map { case (k, v) =>
           s"|#define PIONIC_${k.toUpperCase.replace(' ', '_')} ($v)"
-        }
+        }.mkString("\n")
       }
           |
           |#endif // __PIONIC_CONFIG_H__
