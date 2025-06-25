@@ -106,6 +106,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val txCurrClIdx = Reg(Bool()) init False
     val preemptReq = Event
 
+    // invalidation done for routers
+    val rxInvDone = Bool()
+
     awaitBuild()
 
     assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
@@ -128,6 +131,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     lci.payload.setAsReg()
     lci.assertPersistence()
     preemptReq.setBlocked()
+
+    rxInvDone := False
 
     val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
     val ulOverflow = Bool()
@@ -180,9 +185,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val hostWaiting: State = new State {
         whenIsActive {
-          when (hostRx.valid) {
+          when (hostRx.fire) {
             // a packet arrived in time
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.get.buffer.size.bits)
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.buffer.size.bits)
             goto(repeatPacket)
           } elsewhen (rxNackTriggerInv) {
             // we returned NACK due to:
@@ -270,6 +275,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
               // always toggle, even if NACK was sent
               rxCurrClIdx.toggleWhen(True)
             }
+
+            rxInvDone := True
 
             goto(idle)
           }

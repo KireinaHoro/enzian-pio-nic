@@ -53,6 +53,11 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     */
   val currCl = in UInt(1 bit)
 
+  /** Pulse: host is reading the next CL and the protocol has just finished invalidating the current CL.
+    * We can now unblock the read on the next CL.
+    */
+  val invDone = in Bool()
+
   /** Pulse: just sent back a NACK.  Will be repeated if the host reloaded the same CL.  */
   val nackSent = out Bool()
 
@@ -92,6 +97,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
   // buffered first half CL for responding to host reloads on the same CL
   val savedControl = Reg(Bits(512 bits)) init 0
+  val loadedFirstControl = Reg(Bool()) init False
 
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
@@ -111,11 +117,15 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           pktBufReadOff := 0x0
           pktBufReadLen := 0x40
 
-          when (readCmd.addr === 0x80 || readCmd.addr === 0x0) {
-            when (readCmd.addr === (1 - currCl) * 0x80) {
-              // reading opposite CL, try popping a descriptor
-              hostReq(1 - currCl) := True
-            }
+          val reqCl = (readCmd.addr === 0x80).asUInt
+          hostReq(reqCl) := True
+
+          // the very first read request needs to pop a descriptor, even if it's reading the
+          // same CL as current
+          // afterwards, reading the opposite CL will have triggered popping a descriptor
+          when (reqCl === currCl && loadedFirstControl) {
+            goto(sendDesc)
+          } otherwise {
             goto(waitDesc)
           }
         } otherwise {
@@ -147,6 +157,20 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
           // can the following requests read from the packet buffer?
           noReadPktBuf := !rxDesc.valid
+
+          when (!loadedFirstControl) {
+            // no need to wait for invalidating opposite CL for first load
+            loadedFirstControl := True
+            goto(sendDesc)
+          } otherwise {
+            goto(waitInv)
+          }
+        }
+      }
+    }
+    val waitInv: State = new State {
+      whenIsActive {
+        when (invDone) {
           goto(sendDesc)
         }
       }
