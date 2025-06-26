@@ -101,8 +101,9 @@ class EciInterfacePlugin extends FiberPlugin {
       .build()
 
     // mux both DCS AXI masters to all cores
-    // FIXME: post to host header generator
     val coreOffset = 0x20000
+    ECI_CORE_OFFSET.set(coreOffset)
+
     val coreIdMask  = 0x7e0000
     val preemptMask = 0x010000
     val unitIdMask  = coreIdMask | preemptMask
