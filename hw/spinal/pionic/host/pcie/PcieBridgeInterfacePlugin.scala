@@ -37,12 +37,12 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
     private val alloc = ALLOC.get("global")(0, 0x1000, REG_WIDTH / 8)(axiConfig.dataWidth)
     csr.readAndWrite(busCtrl, alloc)
 
-    private val pktBufferAlloc = ALLOC.get("pkt")(0x100000, PKT_BUF_SIZE, PKT_BUF_SIZE)(axiConfig.dataWidth)
+    private val pktBufferAlloc = ALLOC.get("pkt")(0x100000, PKT_BUF_SIZE.get, PKT_BUF_SIZE.get)(axiConfig.dataWidth)
 
     Axi4CrossbarFactory()
       .addSlaves(
         axiWideConfigNode -> (0x0, NUM_CORES * 0x1000),
-        pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), PKT_BUF_SIZE),
+        pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), PKT_BUF_SIZE.get),
       )
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
       .build()

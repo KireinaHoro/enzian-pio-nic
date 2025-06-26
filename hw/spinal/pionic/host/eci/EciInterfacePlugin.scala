@@ -96,7 +96,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
     val accessNodes = Seq.fill(NUM_CORES)(Axi4(memNode.config.copy(idWidth = 9)))
     Axi4CrossbarFactory()
-      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE))
+      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE.get))
       .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
       .build()
 
