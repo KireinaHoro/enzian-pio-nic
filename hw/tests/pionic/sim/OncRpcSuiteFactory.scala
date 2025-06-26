@@ -4,7 +4,7 @@ import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
-import pionic.{AsSimBusMaster, ConfigDatabase, NicEngine}
+import pionic.{AsSimBusMaster, NicEngine}
 import spinal.lib._
 
 import scala.util.Random
@@ -45,7 +45,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Used for generating test benches where one service sits in one process.  Tests the following paths:
     *  - service scaling up from 0 to all cores
     */
-  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B], c: ConfigDatabase) = {
+  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
     // generate ONCRPC packet
     val sport, dport = Random.nextInt(65535)
     val prog, progVer, procNum = Random.nextInt()
@@ -57,7 +57,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
 
     // create one process with all cores and enable a service inside
     val pid = Random.nextInt(65535)
-    enableProcess(bus, globalBlock, pid, c[Int]("num cores"), idx = 1) // slot 0 is for IDLE
+    enableProcess(bus, globalBlock, pid, pionic.Global.NUM_CORES, idx = 1) // slot 0 is for IDLE
     enableService(bus, globalBlock, prog, progVer, procNum, funcPtr, sport, dport, idx = 0, pid)
 
     // wait for mask and service configs to take effect
@@ -82,12 +82,12 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   }
 
   /** Check oncRpcCall: funcPtr & payload  */
-  def checkOncRpcCall[D <: HostPacketDescSim](hostDesc: D, overflowLen: Int, funcPtr: Long, payload: List[Byte], overflowData: => List[Byte])(implicit c: ConfigDatabase): Unit = {
+  def checkOncRpcCall[D <: HostPacketDescSim](hostDesc: D, overflowLen: Int, funcPtr: Long, payload: List[Byte], overflowData: => List[Byte]): Unit = {
     assert(hostDesc.isInstanceOf[OncRpcCallPacketDescSim], s"unexpected descriptor type received")
     val desc = hostDesc.asInstanceOf[OncRpcCallPacketDescSim]
     assert(funcPtr == desc.funcPtr, s"funcPtr mismatch: got ${desc.funcPtr}, expected $funcPtr")
 
-    val inlineMaxLen = c[Int]("max onc rpc inline bytes")
+    val inlineMaxLen = pionic.Global.ONCRPC_INLINE_BYTES.get
 
     // check inline data
     // TODO: check if args is endian-swapped correctly

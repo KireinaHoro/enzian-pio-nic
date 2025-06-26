@@ -17,7 +17,6 @@ trait ErrorPacketDescSim { this: HostPacketDescSim =>
 trait BypassPacketDescSim { this: HostPacketDescSim =>
   def packetType: BigInt
   def packetHdr: BigInt
-  implicit def c: ConfigDatabase
 
   // decode hdr as actual ethernet packet
   // XXX: we won't actually have endianness problem on the CPU, since to bypass

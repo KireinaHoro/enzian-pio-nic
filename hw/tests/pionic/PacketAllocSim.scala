@@ -2,26 +2,28 @@ package pionic
 
 import spinal.core.sim._
 import spinal.lib.sim._
-
 import jsteward.blocks.DutSimFunSuite
+import spinal.lib.misc.database.Database
 
 import scala.collection.mutable
 
 // TODO: use scalatest to test more configurations
 class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
   // TODO: test on multiple configs
-  implicit val c = new ConfigDatabase
-  c.post("pkt buf addr width", 32, action = ConfigDatabase.Override)
-  c.post("pkt buf alloc size map", Seq(
-    (128, .6), // 60% 128B packets
-    (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
-    (9618, .1), // 10% 9618B packets (max jumbo frame)
-  ), action = ConfigDatabase.Override)
-  c.post("pkt buf size per core", 0x40000, action = ConfigDatabase.Override)
-  c.post("axis data width", 64)
+  val db = new Database
+  db on {
+    import Global._
+    PKT_BUF_ADDR_WIDTH.set(32)
+    PKT_BUF_ALLOC_SIZES.set(Seq(
+      (128, .6), // 60% 128B packets
+      (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
+      (9618, .1), // 10% 9618B packets (max jumbo frame)
+    ))
+    DATAPATH_WIDTH.set(64)
+  }
 
   val dut = Config.sim
-    .compile(PacketAlloc(0, c[Int]("pkt buf size per core")))
+    .compile(db on PacketAlloc(0xdead0000, 0x40000))
 
   // TODO: refactor overflow case out
   test("simple-allocate-free") { dut =>
@@ -30,7 +32,11 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
 
     // this will overflow the larger buffers, but since we free them the allocator should block
     // TODO: test the block-till-free case properly
-    val sizes = mutable.Queue(64 until 9618 by 64: _*)
+
+    val sizes = mutable.Queue(64 until 9618 by 64: _*) ++
+      // should correctly give out alloc resp without popping any buffer
+      // should correctly ignore freeing of zero buffers
+      Seq.fill(20)(0)
     val expect = mutable.Queue[Long]()
     val toFree = mutable.Queue[(Long, Long)]()
 
@@ -60,6 +66,12 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
         val expected = expect.dequeue
         val addr = p.addr.bits.toLong
         val size = p.size.bits.toLong
+
+        if (expected == 0) {
+          assert(size == 0, "shouldn't allocate an actual slot when a zero-sized packet is requested")
+          assert(addr == dut.base, "zero-sized response should have the base address")
+        }
+
         assert(expected <= size,
           f"allocated packet $size%d smaller than expected $expected%d")
         assert(dut.base <= addr && addr < dut.len,
@@ -74,11 +86,5 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
     }
 
     dut.clockDomain.waitActiveEdgeWhere(sizes.isEmpty && expect.isEmpty && toFree.isEmpty)
-  }
-
-  test("zero-alloc") { dut =>
-    // should correctly give out alloc resp without popping any buffer
-    // should correctly ignore freeing of zero buffers
-    // TODO
   }
 }
