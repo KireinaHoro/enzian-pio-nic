@@ -43,32 +43,7 @@ object GenEngineVerilog {
     val nc = nw + 1
     val e = new NicEngine
     e.database on {
-      // set enough parameters to get us rolling
-      val bufSizeMap = Seq(
-        128  -> .1,
-        1518 -> .3, // max Ethernet frame with MTU 1500
-        9618 -> .6, // max jumbo frame
-      )
-      PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
-      PKT_BUF_ADDR_WIDTH.set(24)
-      PKT_BUF_LEN_WIDTH.set(16)
-      PKT_BUF_RX_SIZE_PER_CORE.set(64 * 1024)
-      PKT_BUF_TX_SIZE_PER_CORE.set(1024)
-
-      DATAPATH_WIDTH.set(64)
-      MTU.set(bufSizeMap.map(_._1).max)
-      ROUNDED_MTU.set(roundUp(MTU.get, DATAPATH_WIDTH.get).toInt)
-
-      NUM_CORES.set(nc)
-      NUM_WORKER_CORES.set(nw)
-      REG_WIDTH.set(64)
-      PID_WIDTH.set(16)
-      NUM_SERVICES.set(256)
-      NUM_PROCS.set(32)
-      RX_PKTS_PER_PROC.set(32)
-      BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
-
-      ALLOC.set(new RegAllocatorFactory)
+      initDatabase(nc, nw)
 
       val plugins = base ++ (variant match {
         case "pcie" => Seq(new PcieBridgeInterfacePlugin) ++

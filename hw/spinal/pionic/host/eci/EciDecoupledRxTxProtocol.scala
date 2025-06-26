@@ -85,7 +85,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // mux packet buffer access nodes
     Axi4CrossbarFactory()
-      .addSlave(pktBufAxiNode, SizeMapping(0, PKT_BUF_SIZE))
+      .addSlave(pktBufAxiNode, SizeMapping(0, PKT_BUF_SIZE.get))
       .addConnections(
         rxRouter.pktBufAxi -> Seq(pktBufAxiNode),
         txRouter.pktBufAxi -> Seq(pktBufAxiNode),
@@ -115,10 +115,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
-    postConfig("eci rx base", 0)
-    postConfig("eci tx base", txOffset)
-    postConfig("eci overflow offset", 0x100)
-    postConfig("eci num overflow cl", numOverflowCls)
+    ECI_RX_BASE.set(0)
+    ECI_TX_BASE.set(txOffset)
+    ECI_OVERFLOW_OFFSET.set(0x100)
+    ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
     // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
     // finish issuing
