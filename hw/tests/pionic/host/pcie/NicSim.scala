@@ -4,6 +4,7 @@ import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.isSorted
 import pionic._
+import pionic.Global._
 import pionic.sim._
 import spinal.core._
 import spinal.core.sim.{SimBigIntPimper => _, _}
@@ -15,15 +16,7 @@ import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 
-import org.pcap4j.core.Pcaps
-import org.pcap4j.packet.namednumber.DataLinkType
-
-class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with TimestampSuiteFactory {
-  // TODO: test on multiple configs
-  implicit val c = new ConfigDatabase
-  c.post("num cores", 8, action = ConfigDatabase.Override) // to test for dispatching
-  c.post("host interface", "pcie", emitHeader = false)
-
+class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
@@ -31,12 +24,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("pcie")
-    .compile(pionic.GenEngineVerilog.engine(c))
+    .compile(pionic.GenEngineVerilog.engine(8, "pcie"))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core")
 
     SimTimeout(1e10.toLong)
 
@@ -83,14 +75,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   /** test sending a ethernet frame to trigger bypass */
   def rxTestBypass(master: Axi4Master, axisMaster: Axi4StreamMaster)(implicit dut: NicEngine) = {
-    implicit val c = dut.host[ConfigDatabase]
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core", blockIdx = 0)
-    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core", blockIdx = 0)
+    val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
     import PacketType._
-    val (packet, proto) = randomPacket(c[Int]("mtu"))(Ethernet, Ip, Udp)
+    val (packet, proto) = randomPacket(MTU)(Ethernet, Ip, Udp)
 
     fork {
       sleepCycles(20)
@@ -111,8 +101,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     val desc = tryReadRxPacketDesc(master, coreBlock).result.get
     println(s"Received status register: $desc")
 
-    assert(desc.addr % c[Int]("axis data width") == 0, "rx buffer not aligned!")
-    assert(desc.addr < c[Int]("pkt buf size per core"), f"packet address out of bounds: ${desc.addr}%#x")
+    assert(desc.addr % DATAPATH_WIDTH.get == 0, "rx buffer not aligned!")
+    assert(desc.addr < PKT_BUF_RX_SIZE_PER_CORE.get + PKT_BUF_TX_SIZE_PER_CORE, f"packet address out of bounds: ${desc.addr}%#x")
 
     // check received protocol headers
     assert(desc.isInstanceOf[BypassPacketDescSimPcie], "should only receive bypass packet!")
@@ -134,9 +124,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   // TODO: test for various failures
-  test("rx-regular") { implicit dut =>
-    val allocFactory = dut.host[ConfigDatabase].f
-    val coreBlock = allocFactory.readBack("core")
+  testWithDB("rx-regular") { implicit dut =>
+    val coreBlock = ALLOC.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
 
     assert(readRxPacketDesc(master, coreBlock).isEmpty, "should not have packet on standby yet")
@@ -152,17 +141,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  test("tx-regular") { implicit dut =>
-    val allocFactory = dut.host[ConfigDatabase].f
+  testWithDB("tx-regular") { implicit dut =>
     // test sending with bypass core
-    val coreBlock = allocFactory.readBack("core")
-    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
+    val coreBlock = ALLOC.readBack("core")
+    val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
     val (master, axisSlave) = txDutSetup()
 
     // get tx buffer address
     val desc = readTxBufDesc(master, coreBlock).get
-    assert(desc.addr % c[Int]("axis data width") == 0, "tx buffer not aligned!")
+    assert(desc.addr % DATAPATH_WIDTH.get == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
     val toSend = Random.nextBytes(256).toList
@@ -185,12 +173,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   /** test enabling a ONCRPC service */
-  test("rx-oncrpc-roundrobin") { implicit dut =>
+  testWithDB("rx-oncrpc-roundrobin") { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
+    val globalBlock = ALLOC.readBack("global")
+    val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
     val (master, axisMaster) = rxDutSetup(10000)
 
@@ -209,14 +196,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     master.write(globalBlock("workerCoreMask"), mask.toBytes) // mask
 
     // test round-robin
-    Seq.fill(50)(0 until c[Int]("num cores")).flatten
+    Seq.fill(50)(0 until NUM_CORES).flatten
       .filter(idx => ((1 << idx) & mask) != 0).foreach { idx =>
         val (packet, payload, xid) = getPacket()
         val toSend = packet.getRawData.toList
         axisMaster.sendCB(toSend)()
 
         // we skip the bypass core
-        val coreBlock = allocFactory.readBack("core", idx + 1)
+        val coreBlock = ALLOC.readBack("core", idx + 1)
         val desc = tryReadRxPacketDesc(master, coreBlock).result.get
         println(f"Received status register: $desc")
 
@@ -230,13 +217,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  test("rx-timestamped-queued") { implicit dut =>
+  testWithDB("rx-timestamped-queued") { implicit dut =>
     // test timestamp collection with oncrpc call
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
     val (packet, _, _) = getPacket()
@@ -262,12 +248,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(readStart - entry >= delayed - 2)
   }
 
-  test("rx-timestamped-stalled") { implicit dut =>
+  testWithDB("rx-timestamped-stalled") { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
     val (packet, _, _) = getPacket()
@@ -295,13 +280,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(entry - readStart >= delayed)
   }
 
-  test("tx-timestamped") { implicit dut =>
+  testWithDB("tx-timestamped") { implicit dut =>
     val (master, axisSlave) = txDutSetup()
 
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
-    val pktBufAddr = allocFactory.readBack("pkt")("buffer")
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core")
+    val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
     val toSend = Random.nextBytes(256).toList
     val desc = readTxBufDesc(master, coreBlock).get
