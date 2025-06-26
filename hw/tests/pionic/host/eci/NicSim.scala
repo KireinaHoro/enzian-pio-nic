@@ -24,13 +24,7 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
-class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with TimestampSuiteFactory {
-  def testWithDB(name: String, tags: org.scalatest.Tag*)(body: NicEngine => Unit) = {
-    test(name, tags: _*) { dut =>
-      dut.database on body(dut)
-    }
-  }
-
+class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
@@ -436,7 +430,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     }
   }
 
-  def txScanOnCore(cid: Int) = test(s"tx-scan-sizes-core$cid", Slow) { implicit dut =>
+  def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow) { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
     txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)

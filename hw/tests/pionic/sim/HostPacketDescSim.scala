@@ -2,7 +2,7 @@ package pionic.sim
 
 import jsteward.blocks.misc.sim.BigIntRicher
 import org.pcap4j.packet.EthernetPacket
-import pionic.ConfigDatabase
+import pionic.Global._
 import spinal.core.IntToBuilder
 
 trait HostPacketDescSim {
@@ -24,9 +24,8 @@ trait BypassPacketDescSim { this: HostPacketDescSim =>
   //      endian, we still need to reverse
   // XXX: we should always use the max possible length to avoid losing zero bytes
   //      at the end of packet header
-  private val hdrMaxLen = pionic.Widths.bphw / 8
-  private val hdrBytes = packetHdr.toByteArray.reverse.padTo(hdrMaxLen, 0.toByte)
-  val hdrP4jPacket = EthernetPacket.newPacket(hdrBytes, 0, hdrMaxLen)
+  private val hdrBytes = packetHdr.toByteArray.reverse.padTo(BYPASS_HDR_WIDTH, 0.toByte)
+  val hdrP4jPacket = EthernetPacket.newPacket(hdrBytes, 0, BYPASS_HDR_WIDTH)
 
   override final def ty = 1
 }
