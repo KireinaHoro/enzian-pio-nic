@@ -3,12 +3,13 @@ package pionic.host.eci
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import jsteward.blocks.misc.sim.{BigIntRicher, isSorted}
+import jsteward.blocks.misc.sim.{BigIntRicher, isSorted, BigIntParser}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.{EthernetPacket, Packet}
 import org.pcap4j.packet.namednumber.DataLinkType
 import org.scalatest.exceptions.TestFailedException
 import pionic._
+import pionic.Global._
 import pionic.sim._
 import pionic.sim.PacketType.PacketType
 import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
@@ -24,8 +25,11 @@ import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
 class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with TimestampSuiteFactory {
-  implicit val c = new ConfigDatabase
-  c.post("host interface", "eci")
+  def testWithDB(name: String, tags: org.scalatest.Tag*)(body: NicEngine => Unit) = {
+    test(name, tags: _*) { dut =>
+      dut.database on body(dut)
+    }
+  }
 
   val dut = Config.sim
     // verilog-axi flags
@@ -34,12 +38,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("eci")
-    .compile(pionic.GenEngineVerilog.engine(c))
+    .compile(pionic.GenEngineVerilog.engine(4, "eci"))
 
   def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit)(implicit dut: NicEngine) = {
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
-    val coreBlock = allocFactory.readBack("core")
+    val globalBlock = ALLOC.readBack("global")
+    val coreBlock = ALLOC.readBack("core")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
@@ -82,7 +85,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   def pollReady(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
     if (cid != 0) {
       println(s"Checking READY for core $cid before returning to user space...")
-      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
       var done = false
@@ -99,7 +102,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
     if (cid != 0) {
       println(s"[core $cid] Entering critical section...")
-      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
       // CAS READY/BUSY to enter critical region
@@ -130,7 +133,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   def exitCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
     if (cid != 0) {
       println(s"[core $cid] Exiting critical section...")
-      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
       val preemptCtrlAddr = coreBase + 0x10000
 
       // CAS unset BUSY to exit critical region
@@ -147,23 +150,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   def ackIrq(csrMaster: AxiLite4Master, coreBlock: RegBlockReadBack) = {
-    val ipiAck = BigIntRicher(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
+    val ipiAck = new BigIntParser(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
 
     // TODO: put into sim data struct to reuse
-    val pidToSched = ipiAck(c[Int]("process id width") + 8 downto 8)
-    val rxParity = ipiAck(0)
-    val txParity = ipiAck(1)
-    val killed = ipiAck(2)
+    val rxParity   = ipiAck.pop(1) != 0
+    val txParity   = ipiAck.pop(1) != 0
+    val killed     = ipiAck.pop(1) != 0
+    val pidToSched = ipiAck.pop(PID_WIDTH)
 
     (pidToSched, rxParity, txParity, killed)
   }
 
   // we have one more core as bypass
-  val rxNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
+  val rxNextCl = mutable.ArrayBuffer.fill(NUM_CORES)(0)
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
-      val coreBase = c[Int]("eci rx base") + c[Int]("eci core offset") * cid
+      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
 
       enterCriticalSection(dcsMaster, cid)
 
@@ -231,8 +234,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     var data = dcsMaster.read(addr, firstReadSize)
     if (info.len > 64) {
       data ++= dcsMaster.read(
-        c[Int]("eci rx base") +
-          c[Int]("eci overflow offset"),
+        ECI_RX_BASE.get + ECI_OVERFLOW_OFFSET,
         info.len - 64)
     }
 
@@ -262,8 +264,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
 
   /** test scanning a range of lengths of packets to send and check */
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, maxRetries: Int)(implicit dut: NicEngine) = {
-    val allocFactory = dut.host[ConfigDatabase].f
-    val coreBlock = allocFactory.readBack("core", blockIdx = 0)
+    val coreBlock = ALLOC.readBack("core", blockIdx = 0)
 
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
@@ -284,11 +285,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // TODO: check DCS master cacheline state
   }
 
-  test("rx-bypass-scan-sizes", Slow) { implicit dut =>
+  testWithDB("rx-bypass-scan-sizes", Slow) { implicit dut =>
     // set a large enough rx block cycles, such that there shouldn't be a need to retry
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(5000000) // 20 ms @ 250 MHz
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+    val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
     csrMaster.write(globalBlock("promisc"), 1.toBytes)
@@ -296,10 +296,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
 
-  test("rx-bypass-simple") { implicit dut =>
+  testWithDB("rx-bypass-simple") { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+    val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
     csrMaster.write(globalBlock("promisc"), 1.toBytes)
@@ -307,17 +306,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  test("rx-oncrpc-allcores") { implicit dut =>
+  testWithDB("rx-oncrpc-allcores") { implicit dut =>
     // test routine:
     // - enable one RPC process with one service, on all cores
     // - send 50 * numWorkerCores requests
     // - cores are preempted as requests come in, they start to read
     // - eventually all packets are received through all cores
 
-    val numWorkerCores = c[Int]("num worker cores")
-    val totalToSend = 50 * numWorkerCores
+    val totalToSend = 50 * NUM_WORKER_CORES
 
-    val irqReceived = mutable.ArrayBuffer.fill(numWorkerCores+1)(false)
+    val irqReceived = mutable.ArrayBuffer.fill(NUM_WORKER_CORES.get+1)(false)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
       assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
@@ -325,8 +323,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       irqReceived(coreId) = true
     })
 
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+    val globalBlock = ALLOC.readBack("global")
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
@@ -350,7 +347,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       }
     }
 
-    1 to numWorkerCores foreach { cid =>
+    1 to NUM_WORKER_CORES foreach { cid =>
       fork {
         def log(msg: String) = println(s"[core $cid] $msg")
 
@@ -358,7 +355,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
         waitUntil(irqReceived(cid))
         log("Received IRQ, ack-ing interrupt...")
 
-        val coreBlock = allocFactory.readBack("core", blockIdx = cid)
+        val coreBlock = ALLOC.readBack("core", blockIdx = cid)
         val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
         assert(pidToSched == pid, "requested PID does not match what we programmed")
         assert(!rxParity, "no read happened yet, should be on CL #0")
@@ -393,7 +390,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     waitUntil(packetsReceived == totalToSend)
   }
 
-  var txNextCl = mutable.ArrayBuffer.fill(c[Int]("num cores"))(0)
+  var txNextCl = mutable.ArrayBuffer.fill(NUM_CORES)(0)
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     var received = false
     fork {
@@ -403,9 +400,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       received = true
     }
 
-    def clAddr = txNextCl(cid) * 0x80 +
-      c[Int]("eci tx base") +
-      c[Int]("eci core offset") * cid
+    def clAddr = txNextCl(cid) * 0x80 + ECI_TX_BASE.get + ECI_CORE_OFFSET * cid
 
     val txDesc = ErrorCtrlInfoSim(toSend.length)
     println(f"Core $cid: sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
@@ -415,9 +410,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
       dcsMaster.write(
-        c[Int]("eci tx base") +
-          c[Int]("eci overflow offset") +
-          c[Int]("eci core offset") * cid,
+        ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + ECI_CORE_OFFSET * cid,
         toSend.drop(firstWriteSize))
     }
 
@@ -449,31 +442,30 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
   }
 
-  0 until c[Int]("num cores") foreach txScanOnCore
+  0 until NUM_CORES foreach txScanOnCore
 
-  test("tx-all-cores-serialized") { implicit dut =>
+  testWithDB("tx-all-cores-serialized") { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
-    0 until c[Int]("num cores") foreach { idx =>
+    0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 
-  test("tx-no-voluntary-inv") { implicit dut =>
+  testWithDB("tx-no-voluntary-inv") { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
 
-    0 until c[Int]("num cores") foreach { idx =>
+    0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 
-  test("rx-bypass-pipelined") { implicit dut =>
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+  testWithDB("rx-bypass-pipelined") { implicit dut =>
+    val globalBlock = ALLOC.readBack("global")
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
     val numPackets = 5
@@ -519,19 +511,18 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
       sleepCycles(20)
     }
   }
-  
-  test("rx-bypass-no-repeat") { implicit dut =>
+
+  testWithDB("rx-bypass-no-repeat") { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+    val globalBlock = ALLOC.readBack("global")
     val maxTries = 5
 
     // enable promisc mode
     csrMaster.write(globalBlock("promisc"), 1.toBytes)
-    
+
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "should not have packet on standby yet")
-    
+
     import PacketType._
     val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
     rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
@@ -539,7 +530,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  test("rx-oncrpc-timestamped") { implicit dut =>
+  testWithDB("rx-oncrpc-timestamped") { implicit dut =>
     // test routine:
     // - enable one RPC process with one service, on all cores
     // - send first packet before core is scheduled
@@ -549,10 +540,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
     // - send second packet, check timestamps
 
     // test timestamp collection with oncrpc call
-    val allocFactory = dut.host[ConfigDatabase].f
-    val globalBlock = allocFactory.readBack("global")
+    val globalBlock = ALLOC.readBack("global")
     // test on first non-bypass core
-    val coreBlock = allocFactory.readBack("core", blockIdx = 1)
+    val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
     var irqReceived = false
     var readingSecond = false
@@ -658,7 +648,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
   }
 
   /* Test that Lauberhorn can scale up to multiple services */
-  test("rx-sched-idle-scale-many") { implicit dut =>
+  testWithDB("rx-sched-idle-scale-many") { implicit dut =>
     // on 8 cores, install 4 processes, 2 services each
   }
 
@@ -666,15 +656,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with OncRpcSuiteFactory with Time
    * - is not processing a request, AND
    * - did not receive request for some time
    */
-  test("rx-sched-preempt") { implicit dut =>
-    val numWorkerCores = c[Int]("num worker cores")
-    val coreStates = Seq.fill(numWorkerCores)(new CoreIrqState)
+  testWithDB("rx-sched-preempt") { implicit dut =>
+    val coreStates = Seq.fill(NUM_WORKER_CORES)(new CoreIrqState)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, genericIrqHandler(coreStates))
   }
 
   /* Test killing a process that did not unset BUSY */
-  test("rx-sched-crit-timeout") { implicit dut =>
+  testWithDB("rx-sched-crit-timeout") { implicit dut =>
 
   }
 }

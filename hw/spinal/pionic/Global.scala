@@ -84,7 +84,7 @@ object Global extends AreaRoot {
     // set enough parameters to get us rolling
     NUM_CORES.set(nc)
     NUM_WORKER_CORES.set(nw)
-    
+
     val bufSizeMap = Seq(
       128  -> .1,
       1518 -> .3, // max Ethernet frame with MTU 1500
