@@ -9,7 +9,8 @@ import pionic.net._
 import pionic.net.ethernet.EthernetDecoder
 import spinal.core.{FixedFrequency, IntToBuilder, roundUp}
 import spinal.lib.BinaryBuilder2
-import spinal.lib.eda.xilinx.VivadoConstraintWriter
+import spinal.lib.eda._
+import spinal.lib.eda.xilinx.TimingExtractorXdc
 
 import scala.language.postfixOps
 
@@ -115,14 +116,21 @@ object GenEngineVerilog {
     report.toplevel.database on {
       ALLOC.dumpAll()
       if (genHeaders) {
-        println("Generating headers and mackerel device files")
+        println("Writing mackerel device files")
         ALLOC.writeMackerel(os.pwd / "sw" / "devices", s"pionic_$name")
+
+        println("Writing register address map")
         ALLOC.writeHeader(s"pionic_$name", genDir / "regblock_bases.h")
+
+        println("Writing configs in database")
         writeConfigs(genDir / "config.h", elabConfig)
       }
     }
+    println("Writing merged RTL sources for all IPs")
     report.mergeRTLSource("NicEngine_ips")
-    VivadoConstraintWriter(report)
+
+    println("Writing timing constraints for Vivado")
+    TimingExtractor(report, new TimingExtractorXdc)
   }
 
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
