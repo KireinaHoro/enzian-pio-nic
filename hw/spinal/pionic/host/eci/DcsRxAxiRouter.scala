@@ -184,6 +184,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
         dcsQ.r.last := False
+        dcsQ.r.id := readCmd.id
         when (dcsQ.r.ready) {
           nackSent := !savedControl(0)
           goto(readPktBuf)
@@ -200,6 +201,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           pktBufAxi.ar.valid := True
           pktBufAxi.ar.len := pktBufReadLen - 1
           pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits.resized
+          pktBufAxi.ar.id := readCmd.id
           pktBufAxi.ar.setFullSize()
           pktBufAxi.ar.setBurstINCR()
           when(pktBufAxi.ar.ready) {
@@ -214,6 +216,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // return dummy result for packet buffer fetch
           dcsQ.r.valid := True
           dcsQ.r.data := B(0)
+          dcsQ.r.id := readCmd.id
           dcsQ.r.setOKAY()
           dcsQ.r.last := pktBufReadLen === 1
         } otherwise {
