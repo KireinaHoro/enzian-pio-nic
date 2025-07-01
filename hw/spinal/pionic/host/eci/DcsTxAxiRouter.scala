@@ -131,6 +131,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         pktBufAxi.aw.valid := True
         pktBufAxi.aw.len := pktBufWriteLen - 1
         pktBufAxi.aw.addr := pktBufWriteOff + txAddr.bits.resized
+        pktBufAxi.aw.id := writeCmd.id
         pktBufAxi.aw.setFullSize()
         pktBufAxi.aw.setBurstINCR()
         when (pktBufAxi.aw.ready) {
@@ -160,6 +161,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         pktBufAxi.b.ready := dcsQ.b.ready
         dcsQ.b.valid := pktBufAxi.b.valid
         dcsQ.b.setOKAY()
+        dcsQ.b.id := writeCmd.id
         when (dcsQ.b.fire) {
           assert(pktBufAxi.b.isOKAY(), "error response from packet buffer")
           goto(idle)
@@ -210,6 +212,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsQ.r.data := savedControl
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
+        dcsQ.r.id := readCmd.id
         dcsQ.r.last := False
         when (dcsQ.r.ready) {
           // send first half cache line length of packet buffer
@@ -222,6 +225,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         pktBufAxi.ar.valid := True
         pktBufAxi.ar.len := pktBufReadLen - 1
         pktBufAxi.ar.addr := pktBufReadOff + txAddr.bits.resized
+        pktBufAxi.ar.id := readCmd.id
         pktBufAxi.ar.setFullSize()
         pktBufAxi.ar.setBurstINCR()
         when (pktBufAxi.ar.ready) {
