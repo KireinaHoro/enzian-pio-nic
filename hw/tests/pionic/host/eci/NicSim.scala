@@ -25,6 +25,9 @@ import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
 class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
+  // NUM_CORES in Database only available inside test context
+  val numCores = 4
+
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
@@ -32,11 +35,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("eci")
-    .compile(pionic.GenEngineVerilog.engine(4, "eci"))
+    .compile(pionic.GenEngineVerilog.engine(numCores, "eci"))
 
   def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit)(implicit dut: NicEngine) = {
     val globalBlock = ALLOC.readBack("global")
-    val coreBlock = ALLOC.readBack("core")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
@@ -51,7 +53,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
-    CSRSim.csrSanityChecks(globalBlock, coreBlock, csrMaster, rxBlockCycles)
+    CSRSim.csrSanityChecks(globalBlock, csrMaster, rxBlockCycles)
 
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
@@ -156,7 +158,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   // we have one more core as bypass
-  val rxNextCl = mutable.ArrayBuffer.fill(NUM_CORES)(0)
+  val rxNextCl = mutable.ArrayBuffer.fill(numCores)(0)
   def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
@@ -258,14 +260,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   /** test scanning a range of lengths of packets to send and check */
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, maxRetries: Int)(implicit dut: NicEngine) = {
-    val coreBlock = ALLOC.readBack("core", blockIdx = 0)
+    val globalBlock = ALLOC.readBack("global")
 
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    csrMaster.write(coreBlock("allocReset"), 1.toBytes)
+    csrMaster.write(globalBlock("allocReset"), 1.toBytes)
     sleepCycles(200)
-    csrMaster.write(coreBlock("allocReset"), 0.toBytes)
+    csrMaster.write(globalBlock("allocReset"), 0.toBytes)
 
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
@@ -384,7 +386,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     waitUntil(packetsReceived == totalToSend)
   }
 
-  var txNextCl = mutable.ArrayBuffer.fill(NUM_CORES)(0)
+  var txNextCl = mutable.ArrayBuffer.fill(numCores)(0)
   def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
     var received = false
     fork {
@@ -436,7 +438,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
   }
 
-  0 until NUM_CORES foreach txScanOnCore
+  0 until numCores foreach txScanOnCore
 
   testWithDB("tx-all-cores-serialized") { implicit dut =>
     val (csrMaster, axisSlave, dcsMaster) = txDutSetup()

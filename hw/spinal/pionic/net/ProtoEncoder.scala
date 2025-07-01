@@ -75,7 +75,7 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
 
     if (payloadUpstreams.length == 1) {
       assert(descUpstreams.length == 1)
-      
+
       metadata << descUpstreams.head
       payload << payloadUpstreams.head
     } else new Area {
