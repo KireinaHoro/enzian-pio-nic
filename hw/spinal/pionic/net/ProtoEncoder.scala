@@ -1,7 +1,7 @@
 package pionic.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import spinal.core.Composite
+import spinal.core._
 import spinal.lib.{Stream, StreamArbiterFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
@@ -73,10 +73,17 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
       payloadUpstreams += hostPayload
     }
 
-    metadata << StreamArbiterFactory().roundRobin.on(descUpstreams)
-    val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
+    if (payloadUpstreams.length == 1) {
+      assert(descUpstreams.length == 1)
+      
+      metadata << descUpstreams.head
+      payload << payloadUpstreams.head
+    } else new Area {
+      metadata << StreamArbiterFactory().roundRobin.on(descUpstreams)
+      val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
 
-    axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }
-    axisMux.m_axis >> payload
+      axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }
+      axisMux.m_axis >> payload
+    }
   }
 }
