@@ -113,5 +113,8 @@ object Global extends AreaRoot {
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
 
     ALLOC.set(new RegAllocatorFactory)
+
+    // dummy git version for simulation; will be overriden in GenEngineVerilog.run
+    GIT_VERSION.set(BigInt(0xffffffffL))
   }
 }
