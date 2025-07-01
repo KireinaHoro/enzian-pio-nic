@@ -12,16 +12,22 @@ import scala.util.Random
 package object sim {
   object PacketType extends Enumeration {
     type PacketType = Value
-    val Ethernet, Ip, Udp, OncRpcCall = Value
+    val Raw, Ethernet, Ip, Udp, OncRpcCall, OncRpcReply = Value
   }
   import PacketType._
 
+  // used in constructing a Pcap4j packet from a bypass RX
   def typeToPcap4jClass(packetType: PacketType): Class[_ <: Packet] = packetType match {
     case Ethernet => classOf[EthernetPacket]
     case Ip => classOf[IpV4Packet]
     case Udp => classOf[UdpPacket]
-    // TODO: write custom OncRpcCall packet class
-    // case OncRpcCall =>
+    case OncRpcCall =>
+      // TODO: write custom OncRpcCall packet class
+      println("parsing bypass OncRpcCall not implemented yet")
+      ???
+    case _ =>
+      assert(false, "unexpected packet type on bypass receive" + packetType)
+      ???
   }
 
   def checkHeader(packetType: PacketType, expected: Packet, got: Packet): Unit = {
