@@ -28,7 +28,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val globalBlock = ALLOC.readBack("global")
-    val coreBlock = ALLOC.readBack("core")
 
     SimTimeout(1e10.toLong)
 
@@ -37,7 +36,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
 
-    CSRSim.csrSanityChecks(globalBlock, coreBlock, master, rxBlockCycles)
+    CSRSim.csrSanityChecks(globalBlock, master, rxBlockCycles)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     (master, axisMaster, axisSlave)
@@ -125,15 +124,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   // TODO: test for various failures
   testWithDB("rx-regular") { implicit dut =>
+    val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
 
     assert(readRxPacketDesc(master, coreBlock).isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    master.write(coreBlock("allocReset"), 1.toBytes);
+    master.write(globalBlock("allocReset"), 1.toBytes);
     sleepCycles(200)
-    master.write(coreBlock("allocReset"), 0.toBytes);
+    master.write(globalBlock("allocReset"), 0.toBytes);
 
     // test for 200 runs
     0 until 200 foreach { _ => rxTestBypass(master, axisMaster) }
