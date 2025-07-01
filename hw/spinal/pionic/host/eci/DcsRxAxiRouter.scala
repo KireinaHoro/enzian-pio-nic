@@ -89,7 +89,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
   // offset and length to read from the pkt buffer
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
+
   // we read max 2 beats each round, will fit inside one AXI burst
+  // NOTE: this counts number of BEATS left, not BYTES
   val pktBufReadLen = Reg(pktBufAxi.ar.len.clone)
 
   // timer for blocking requests
@@ -115,7 +117,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
           // host reading the first half CL in either first or second CL
           pktBufReadOff := 0x0
-          pktBufReadLen := 0x40
+          pktBufReadLen := 1
 
           val reqCl = (readCmd.addr === 0x80).asUInt
           hostReq(reqCl) := True
@@ -133,7 +135,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // XXX: we assume the first half-CL is always read first
           //      so we can ignore any state change and just serve packet buffer contents
           pktBufReadOff := (readCmd.addr - 0xc0).resized
-          pktBufReadLen := 0x80
+          pktBufReadLen := 2
           goto(readPktBuf)
         }
       }
@@ -213,7 +215,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           dcsQ.r.valid := True
           dcsQ.r.data := B(0)
           dcsQ.r.setOKAY()
-          dcsQ.r.last := pktBufReadLen === 64
+          dcsQ.r.last := pktBufReadLen === 1
         } otherwise {
           pktBufAxi.r.ready := dcsQ.r.ready
           dcsQ.r.payload := pktBufAxi.r.payload
@@ -221,11 +223,11 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         }
 
         when (dcsQ.r.fire) {
-          pktBufReadLen := pktBufReadLen - 64
-          when (pktBufReadLen === 0) {
+          when (pktBufReadLen === 1) {
             assert(dcsQ.r.last, "no more packet buffer to read but last not set")
             goto(idle)
           }
+          pktBufReadLen := pktBufReadLen - 1
         }
       }
     }

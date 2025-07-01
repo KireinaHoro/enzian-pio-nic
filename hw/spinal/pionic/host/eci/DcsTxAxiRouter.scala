@@ -75,10 +75,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
   // offset and size to read from packet buffer, to serve CL fetch
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
+
   // we read max 2 beats each round, will fit inside one AXI burst
+  // NOTE: this counts number of BEATS left, not BYTES
   val pktBufReadLen = Reg(pktBufAxi.ar.len.clone)
 
   // offset and size to write to packet buffer
+  // NOTE: len has same meaning in read
   val pktBufWriteOff = Reg(pktBufAxi.aw.addr.clone)
   val pktBufWriteLen = Reg(pktBufAxi.aw.len.clone)
 
@@ -96,13 +99,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         when (writeCmd.addr === currCl * 0x80) {
           pktBufWriteOff := 0x0
-          pktBufWriteLen := 0x40
+          pktBufWriteLen := 1
           goto(recvPartialDesc)
         } elsewhen (writeCmd.addr === (1 - currCl) * 0x80) {
           report("write cannot happen on the inactive CL")
         } otherwise {
           pktBufWriteOff := (writeCmd.addr - 0xc0).resized
-          pktBufWriteLen := 0x80
+          pktBufWriteLen := 2
           goto(writePktBufCmd)
         }
       }
@@ -144,11 +147,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsQ.w.ready := pktBufAxi.w.ready
 
         when (dcsQ.w.fire) {
-          pktBufWriteLen := pktBufWriteLen - 64
-          when (pktBufWriteLen === 0) {
+          when (pktBufWriteLen === 1) {
             assert(dcsQ.w.last, "no more packet buffer to write but last not set")
             goto(writePktBufResp)
           }
+          pktBufWriteLen := pktBufWriteLen - 1
         }
       }
     }
@@ -179,7 +182,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
           pktBufReadOff := 0x0
-          pktBufReadLen := 0x40
+          pktBufReadLen := 1
 
           val reqCl = (readCmd.addr === 0x80).asUInt
           hostReq(reqCl) := True
@@ -196,7 +199,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         } otherwise {
           // accessing packet buffer via overflow cachelines
           pktBufReadOff := (readCmd.addr - 0xc0).resized
-          pktBufReadLen := 0x80
+          pktBufReadLen := 2
 
           goto(readPktBufCmd)
         }
@@ -233,11 +236,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsQ.r.valid := pktBufAxi.r.valid
 
         when (dcsQ.r.fire) {
-          pktBufReadLen := pktBufReadLen - 64
-          when (pktBufReadLen === 0) {
+          when (pktBufReadLen === 1) {
             assert(dcsQ.r.last, "no more packet buffer to read but last not set")
             goto(idle)
           }
+          pktBufReadLen := pktBufReadLen - 1
         }
       }
     }
