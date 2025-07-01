@@ -77,16 +77,16 @@ case class EciHostCtrlInfo() extends Bundle {
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
          |  valid 1 "RX descriptor valid (rsvd for TX)";
-         |  ty    $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be error)";
-         |  len   $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
+         |  len   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  _     13 rsvd;
          |};
          |
          |datatype host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
          |  valid    1 "RX descriptor valid (rsvd for TX)";
-         |  ty       $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be bypass)";
-         |  len      $PKT_BUF_LEN_WIDTH "Length of packet";
-         |  hdr_ty   $PKT_DESC_TY_WIDTH type(packet_desc_type) "Type of bypass header";
+         |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
+         |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
          |  _        11 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
@@ -95,8 +95,8 @@ case class EciHostCtrlInfo() extends Bundle {
          |
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
-         |  ty        $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
-         |  len       $PKT_BUF_LEN_WIDTH "Length of packet";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  _         13 rsvd;
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";

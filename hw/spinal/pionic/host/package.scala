@@ -15,7 +15,7 @@ package object host {
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(getClass,
         s"""
-           |constants host_req_type width($HOST_REQ_TY_WIDTH) "Host Request Type" {
+           |constants host_req_type width(${HOST_REQ_TY_WIDTH.get}) "Host Request Type" {
            |  error         = 0b00 "Error";
            |  bypass        = 0b01 "Bypass";
            |  onc_rpc_call  = 0b10 "ONC-RPC Call";
