@@ -38,8 +38,8 @@ object Global extends AreaRoot {
   val PKT_BUF_TX_OFFSET = blocking[Int]
   val PKT_BUF_ALLOC_SIZES = value[Seq[(Int, Double)]]
 
-  val MTU = blocking[Int]
-  val ROUNDED_MTU = blocking[Int]
+  val MTU = value[Int]
+  val ROUNDED_MTU = value[Int]
 
   val ECI_RX_BASE = value[Int]
   val ECI_TX_BASE = blocking[Int]
@@ -93,17 +93,18 @@ object Global extends AreaRoot {
     PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
     PKT_BUF_ADDR_WIDTH.set(24)
     PKT_BUF_LEN_WIDTH.set(16)
+
+    DATAPATH_WIDTH.set(64)
+    MTU.set(bufSizeMap.map(_._1).max)
+    ROUNDED_MTU.set(roundUp(MTU.get, DATAPATH_WIDTH.get).toInt)
+
     PKT_BUF_RX_SIZE_PER_CORE.set(64 * 1024)
-    PKT_BUF_TX_SIZE_PER_CORE.set(1024)
+    PKT_BUF_TX_SIZE_PER_CORE.set(ROUNDED_MTU)
     PKT_BUF_SIZE.set {
       val sz = NUM_CORES * (PKT_BUF_RX_SIZE_PER_CORE + PKT_BUF_TX_SIZE_PER_CORE)
       assert(log2Up(sz) <= PKT_BUF_ADDR_WIDTH, "not the entire packet buffer is addressable!")
       sz
     }
-
-    DATAPATH_WIDTH.set(64)
-    MTU.set(bufSizeMap.map(_._1).max)
-    ROUNDED_MTU.set(roundUp(MTU.get, DATAPATH_WIDTH.get).toInt)
 
     REG_WIDTH.set(64)
     PID_WIDTH.set(16)

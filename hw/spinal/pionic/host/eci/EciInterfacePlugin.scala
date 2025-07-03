@@ -114,6 +114,7 @@ class EciInterfacePlugin extends FiberPlugin {
       val config = axiConfig.copy(
         // 2 masters, ID width + 1
         idWidth = 8,
+        // truncate address here so that the core protocol modules wouldn't have to subtract the core offset
         addressWidth = log2Up(coreOffset - 1),
       )
 
