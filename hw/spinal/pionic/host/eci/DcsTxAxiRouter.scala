@@ -25,6 +25,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
   /** Outgoing TX descriptors to the encoder pipeline. */
   val txDesc = master(Stream(HostReq()))
+  txDesc.assertPersistence()
 
   /** Per-core AXI interface from DCS (demuxed; shared with [[DcsRxAxiRouter]]).
     *
