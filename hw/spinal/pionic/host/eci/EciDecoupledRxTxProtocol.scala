@@ -111,14 +111,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val rxInvDone = Bool()
     val txInvDone = Bool()
 
-    awaitBuild()
-
-    assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
-
     ECI_RX_BASE.set(0)
     ECI_TX_BASE.set(txOffset)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
+
+    awaitBuild()
+
+    assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
     val rxReqs = Vec(Bool(), 2)
     val rxTriggerNew = rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid
