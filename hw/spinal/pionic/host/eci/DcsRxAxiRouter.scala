@@ -47,7 +47,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val blockCycles = in UInt(REG_WIDTH bits)
 
   /** Pulse: the host just started a new request on a CL */
-  val hostReq = out Vec(Bool(), 2)
+  val hostReq = out(Vec(Bool(), 2)).setAsReg()
 
   /** Current control cache line index.  Used to determine if the host is reading
     * the same CL, for example due to a conflict miss
@@ -73,8 +73,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // ad-hoc queue size to not block AR channel
   val dcsQ = dcsAxi.queue(8)
 
+  hostReq.foreach(_ init False)
+
   // initialization to avoid latches
-  hostReq.foreach(_ := False)
   nackSent := False
   rxDesc.setBlocked()
   dcsQ.setBlocked()
@@ -108,6 +109,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
+        hostReq.foreach(_ := False)
         dcsQ.ar.freeRun()
         blockTimer.clear()
         invFinished.clear()
