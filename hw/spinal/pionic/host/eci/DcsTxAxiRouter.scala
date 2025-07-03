@@ -98,8 +98,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val idle: State = new State with EntryPoint {
       whenIsActive {
         dcsQ.aw.freeRun()
-        invFinished.clear()
-        hostReq.foreach(_ := False)
         when (dcsQ.aw.valid) {
           writeCmd := dcsQ.aw.payload
           goto(decodeCmd)
@@ -185,6 +183,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val idle: State = new State with EntryPoint {
       whenIsActive {
         dcsQ.ar.freeRun()
+        hostReq.foreach(_ := False)
+        invFinished.clear()
         when (dcsQ.ar.valid) {
           readCmd := dcsQ.ar.payload
           goto(decodeCmd)
@@ -205,9 +205,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           } otherwise {
             // host reading opposite cache line; protocol will invalidate all cache
             // lines before we can send the descriptor to encoders
-            when (invFinished) {
-              goto(transmitDesc)
-            }
+            goto(waitInv)
           }
         } otherwise {
           // accessing packet buffer via overflow cachelines
@@ -215,6 +213,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           pktBufReadLen := 2
 
           goto(readPktBufCmd)
+        }
+      }
+    }
+    val waitInv: State = new State {
+      whenIsActive {
+        when (invFinished) {
+          goto(transmitDesc)
         }
       }
     }
