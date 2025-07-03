@@ -433,7 +433,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // packet will be acknowledged by writing next packet
   }
 
-  def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int) = {
+  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int) = {
     // Sweep at given range and step.  Send packet as Raw bypass
     // TODO: test also Ethernet and other encoders
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
@@ -445,30 +445,30 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow) { implicit dut =>
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (_, axisSlave, dcsMaster) = txDutSetup()
 
-    txTestRange(csrMaster, axisSlave, dcsMaster, 64, 9618, 64, cid)
+    txTestRange(axisSlave, dcsMaster, 64, 9618, 64, cid)
   }
 
   0 until numCores foreach txScanOnCore
 
   testWithDB("tx-all-cores-serialized") { implicit dut =>
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (_, axisSlave, dcsMaster) = txDutSetup()
 
     0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
-      txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
+      txTestRange(axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 
   testWithDB("tx-no-voluntary-inv") { implicit dut =>
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (_, axisSlave, dcsMaster) = txDutSetup()
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
 
     0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
-      txTestRange(csrMaster, axisSlave, dcsMaster, 64, 256, 64, idx)
+      txTestRange(axisSlave, dcsMaster, 64, 256, 64, idx)
     }
   }
 
