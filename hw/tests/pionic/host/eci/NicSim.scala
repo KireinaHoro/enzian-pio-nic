@@ -415,10 +415,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     */
   def txTestSingle[T <: Packet](dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, ty: PacketType, hdr: T, pld: List[Byte], cid: Int): Unit = {
     var received = false
-    val hdrBytes = if (ty == PacketType.Raw) {
-      // allow conversion to BigInt
-      List(0.toByte)
-    } else hdr.getRawData.toList
+    val hdrBytes = if (ty == PacketType.Raw) List() else hdr.getRawData.toList
     fork {
       val data = axisSlave.recv()
       val expected = hdrBytes ++ pld
@@ -428,7 +425,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       received = true
     }
 
-    txSendSingle(dcsMaster, BypassCtrlInfoSim(pld.length, ty.id, hdrBytes.bytesToBigInt), pld, cid)
+    val hdrBigInt = if (ty == PacketType.Raw) BigInt(0) else hdrBytes.bytesToBigInt
+    txSendSingle(dcsMaster, BypassCtrlInfoSim(pld.length, ty.id, hdrBigInt), pld, cid)
 
     waitUntil(received)
 
