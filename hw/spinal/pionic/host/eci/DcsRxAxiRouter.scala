@@ -101,11 +101,16 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val savedControl = Reg(Bits(512 bits)) init 0
   val loadedFirstControl = Reg(Bool()) init False
 
+  // invalidation can finish before we enter waitInv, store it here
+  val invFinished = Reg(Bool()) init False
+  invFinished.setWhen(invDone)
+
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
         dcsQ.ar.freeRun()
         blockTimer.clear()
+        invFinished.clear()
         when (dcsQ.ar.valid) {
           readCmd := dcsQ.ar.payload
           goto(decodeAr)
@@ -172,7 +177,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
     val waitInv: State = new State {
       whenIsActive {
-        when (invDone) {
+        when (invFinished) {
           goto(sendDesc)
         }
       }
