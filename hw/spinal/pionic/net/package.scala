@@ -117,7 +117,7 @@ package object net {
       */
     def fromHeaders(bypassMeta: HostReqBypassHeaders): Unit = {
       ty := bypassMeta.ty
-      switch (ty) {
+      switch (bypassMeta.ty) {
         import PacketDescType._
         is (raw) { metadata.assignDontCare() }
         is (ethernet) { metadata.ethernet.assignFromHdrBits(bypassMeta.hdr) }
