@@ -70,7 +70,8 @@ class DmaControlPlugin extends FiberPlugin {
     val allocReset = Bool()
     // one allocator for the entire RX buffer
     val rxAlloc = new ResetArea(allocReset, true) {
-      private val instance = PacketAlloc(0, PKT_BUF_SIZE.get)
+      // do not allocate space reserved for TX
+      private val instance = PacketAlloc(0, PKT_BUF_TX_OFFSET.get)
       val io = instance.io
     }
 
