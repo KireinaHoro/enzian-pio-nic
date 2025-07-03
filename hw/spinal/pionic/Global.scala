@@ -42,7 +42,7 @@ object Global extends AreaRoot {
   val ROUNDED_MTU = blocking[Int]
 
   val ECI_RX_BASE = value[Int]
-  val ECI_TX_BASE = value[Int]
+  val ECI_TX_BASE = blocking[Int]
   val ECI_CORE_OFFSET = value[Int]
   val ECI_OVERFLOW_OFFSET = value[Int]
   val ECI_NUM_OVERFLOW_CL = value[Int]

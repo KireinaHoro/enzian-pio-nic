@@ -1,6 +1,7 @@
 package pionic.host.eci
 
 import jsteward.blocks.axi.RichAxi4
+import pionic.Global.ECI_TX_BASE
 import pionic.{Global, PacketAddr, PacketLength}
 import pionic.host.HostReq
 import spinal.core._
@@ -60,7 +61,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val dcsQ = dcsAxi.queue(8)
 
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
+  val readAddr = readCmd.addr - ECI_TX_BASE.get
   val writeCmd: Axi4Aw = Reg(dcsAxi.aw.payload.clone)
+  val writeAddr = writeCmd.addr - ECI_TX_BASE.get
 
   hostReq.foreach(_ init False)
 
@@ -105,14 +108,14 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val decodeCmd: State = new State {
       whenIsActive {
-        when (writeCmd.addr === currCl * 0x80) {
+        when (writeAddr === currCl * 0x80) {
           pktBufWriteOff := 0x0
           pktBufWriteLen := 1
           goto(recvPartialDesc)
-        } elsewhen (writeCmd.addr === (1 - currCl) * 0x80) {
+        } elsewhen (writeAddr === (1 - currCl) * 0x80) {
           report("write cannot happen on the inactive CL")
         } otherwise {
-          pktBufWriteOff := (writeCmd.addr - 0xc0).resized
+          pktBufWriteOff := (writeAddr - 0xc0).resized
           pktBufWriteLen := 2
           goto(writePktBufCmd)
         }
@@ -190,11 +193,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val decodeCmd: State = new State {
       whenIsActive {
-        when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
+        when (readAddr === 0x0 || readAddr === 0x80) {
           pktBufReadOff := 0x0
           pktBufReadLen := 1
 
-          val reqCl = (readCmd.addr === 0x80).asUInt
+          val reqCl = (readAddr === 0x80).asUInt
           hostReq(reqCl) := True
 
           when (reqCl === currCl) {
@@ -208,7 +211,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           }
         } otherwise {
           // accessing packet buffer via overflow cachelines
-          pktBufReadOff := (readCmd.addr - 0xc0).resized
+          pktBufReadOff := (readAddr - 0xc0).resized
           pktBufReadLen := 2
 
           goto(readPktBufCmd)
