@@ -120,12 +120,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
-    // corner case: when nack comes in after a long packet, this could be delivered before all LCIs for packets
-    // finish issuing
-    // ASSUMPTION: two control cachelines will never trigger NACK invalidate, thus shared
-    val rxNackTriggerInv = Reg(Bool()) init False
-
     val rxReqs = Vec(Bool(), 2)
+    val rxTriggerNew = rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid
+
     val txReqs = Vec(Bool(), 2)
 
     lci.setIdle()
@@ -168,9 +165,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
-        onEntry {
-          rxNackTriggerInv.clear()
-        }
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
@@ -191,17 +185,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.buffer.size.bits)
             goto(repeatPacket)
-          } elsewhen (rxNackTriggerInv) {
-            // we returned NACK due to:
-            // - packet did not come in time, or
-            // - timeout terminated due to preemption
-            goto(noPacket)
-          }
-        }
-      }
-      val noPacket: State = new State {
-        whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
+          } elsewhen (rxTriggerNew) {
             goto(invalidateCtrl)
           }
         }
@@ -209,7 +193,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       // we got at least one read, repeating until CPU ack'ed or preempted
       val repeatPacket: State = new State {
         whenIsActive {
-          when (rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid) {
+          when (rxTriggerNew) {
             hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
