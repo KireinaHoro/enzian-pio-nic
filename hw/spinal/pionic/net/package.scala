@@ -87,7 +87,7 @@ package object net {
         is (ip) { ret := metadata.ip.getPayloadSize }
         is (udp) { ret := metadata.udp.getPayloadSize }
         is (oncRpcCall) { ret := metadata.oncRpcCall.getPayloadSize }
-        default { report("packet desc type not supported yet") }
+        default { report("packet desc type not supported yet", FAILURE) }
       }
     }.ret
 
@@ -104,7 +104,7 @@ package object net {
         is (udp) { ret := metadata.udp.collectHeaders.resized }
         default {
           // only decoders with downstream decoders can be passed to host as bypass
-          report("RX packet on bypass interface has unsupported type")
+          report("RX packet on bypass interface has unsupported type", FAILURE)
         }
       }
       ret
@@ -124,7 +124,7 @@ package object net {
         is (ip) { metadata.ip.assignFromHdrBits(bypassMeta.hdr) }
         is (udp) { metadata.udp.assignFromHdrBits(bypassMeta.hdr) }
         default {
-          report("RPC requests should not be sent as bypass")
+          report("RPC requests should not be sent as bypass", FAILURE)
         }
       }
     }

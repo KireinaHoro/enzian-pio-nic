@@ -111,7 +111,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           pktBufWriteLen := 1
           goto(recvPartialDesc)
         } elsewhen (writeAddr === (1 - currCl) * 0x80) {
-          report("write cannot happen on the inactive CL")
+          report("write cannot happen on the inactive CL", FAILURE)
         } otherwise {
           pktBufWriteOff := (writeAddr - 0xc0).resized
           pktBufWriteLen := 2
