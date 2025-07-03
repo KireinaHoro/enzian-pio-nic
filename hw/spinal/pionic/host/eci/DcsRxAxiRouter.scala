@@ -42,6 +42,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     * should not wait for valid as a trigger.
     */
   val rxDesc = slave(Stream(HostReq()))
+  rxDesc.assertPersistence()
 
   /** Number of cycles to block for before returning NACK. */
   val blockCycles = in UInt(REG_WIDTH bits)

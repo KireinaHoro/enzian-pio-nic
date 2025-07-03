@@ -118,29 +118,11 @@ class DmaControlPlugin extends FiberPlugin {
 
     val rxPacketDescTagged = incomingDesc.toFlowFire.toReg()
 
+    // details of packet to enqueue
+    val pktTagToEnqueue = Reg(RxDmaTag())
+    val pktSizeToEnqueue = Reg(PacketLength())
+
     val rxFsm = new StateMachine {
-      def enqueuePkt(addr: PacketAddr, size: UInt, ty: HostReqType.C, data: HostReqData) = {
-        def assign(hostRx: Stream[HostReq]) = {
-          hostRx.valid := True
-          hostRx.buffer.addr := addr
-          hostRx.buffer.size.bits := size.resized
-          hostRx.ty := ty
-          hostRx.data := data
-
-          when (hostRx.ready) {
-            inc(_.rxPacketCount)
-            goto(idle)
-          }
-        }
-
-        p.profile(p.RxEnqueueToHost -> True)
-        when (ty === HostReqType.bypass) {
-          assign(bypassDp.hostRx)
-        } otherwise {
-          assign(sched.logic.rxMeta)
-        }
-      }
-
       val idle: State = new State with EntryPoint {
         whenIsActive {
           rxAlloc.io.allocResp.freeRun()
@@ -176,12 +158,11 @@ class DmaControlPlugin extends FiberPlugin {
 
             when (rxPacketDescTagged.desc.getPayloadSize === 0) {
               // no payload to DMA -- directly enqueue packet
-              enqueuePkt(
-                addr = rxAlloc.io.allocResp.addr,
-                size = 0,
-                ty = tag.ty,
-                data = tag.data,
-              )
+              pktTagToEnqueue.addr := rxAlloc.io.allocResp.addr
+              pktTagToEnqueue.ty   := tag.ty
+              pktTagToEnqueue.data := tag.data
+              pktSizeToEnqueue.bits := 0
+              goto(enqueuePkt)
             } otherwise {
               // issue DMA cmd
               writeDesc.payload.payload.tag := tag.asBits
@@ -208,16 +189,36 @@ class DmaControlPlugin extends FiberPlugin {
               val tag = RxDmaTag()
               tag.assignFromBits(writeDescStatus.tag)
 
-              enqueuePkt(
-                addr = tag.addr,
-                size = writeDescStatus.len,
-                ty = tag.ty,
-                data = tag.data,
-              )
+              pktTagToEnqueue := tag
+              pktSizeToEnqueue.bits := writeDescStatus.len
+              goto(enqueuePkt)
             } otherwise {
               inc(_.rxDmaErrorCount)
               goto(idle)
             }
+          }
+        }
+      }
+      val enqueuePkt: State = new State {
+        whenIsActive {
+          def assign(hostRx: Stream[HostReq]) = {
+            hostRx.valid := True
+            hostRx.buffer.addr := pktTagToEnqueue.addr
+            hostRx.buffer.size := pktSizeToEnqueue
+            hostRx.ty := pktTagToEnqueue.ty
+            hostRx.data := pktTagToEnqueue.data
+
+            when (hostRx.ready) {
+              inc(_.rxPacketCount)
+              goto(idle)
+            }
+          }
+
+          p.profile(p.RxEnqueueToHost -> True)
+          when (pktTagToEnqueue.ty === HostReqType.bypass) {
+            assign(bypassDp.hostRx)
+          } otherwise {
+            assign(sched.logic.rxMeta)
           }
         }
       }
