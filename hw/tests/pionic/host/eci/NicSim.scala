@@ -387,18 +387,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   var txNextCl = mutable.ArrayBuffer.fill(numCores)(0)
-  def txSimple(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, toSend: List[Byte], cid: Int = 0)(implicit dut: NicEngine): Unit = {
-    var received = false
-    fork {
-      val data = axisSlave.recv()
-      check(toSend, data)
-      println(s"Core $cid: packet received from TX interface and validated")
-      received = true
-    }
 
+  /** Send one descriptor, optionally with a tail payload. */
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], cid: Int): Unit = {
     def clAddr = txNextCl(cid) * 0x80 + ECI_TX_BASE.get + ECI_CORE_OFFSET * cid
 
-    val txDesc = ErrorCtrlInfoSim(toSend.length)
     println(f"Core $cid: sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, txDesc.toTxDesc)
 
@@ -411,23 +404,44 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
 
     // trigger a read on the next cacheline to actually send the packet
-    println(f"Core $cid: sent packet at $clAddr%#x, waiting validation...")
+    println(f"Core $cid: sent packet at $clAddr%#x")
 
     txNextCl(cid) = 1 - txNextCl(cid)
     dcsMaster.read(clAddr, 1)
+  }
+
+  /** Test sending one single packet as bypass on a specific core.  Also checks if the expected packet appears on the
+    * outgoing AXI-Stream interface.
+    */
+  def txTestSingle[T <: Packet](dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, ty: PacketType, hdr: T, pld: List[Byte], cid: Int): Unit = {
+    var received = false
+    val hdrBytes = if (ty == PacketType.Raw) {
+      // allow conversion to BigInt
+      List(0.toByte)
+    } else hdr.getRawData.toList
+    fork {
+      val data = axisSlave.recv()
+      val expected = hdrBytes ++ pld
+
+      check(expected, data)
+      println("Bypass: packet received from TX interface and validated")
+      received = true
+    }
+
+    txSendSingle(dcsMaster, BypassCtrlInfoSim(pld.length, ty.id, hdrBytes.bytesToBigInt), pld, cid)
 
     waitUntil(received)
 
     // packet will be acknowledged by writing next packet
   }
 
-  // TODO: convert this to a tx bypass test
-  def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)(implicit dut: NicEngine) = {
-    // sweep from 64B to 9600B
+  def txTestRange(csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int) = {
+    // Sweep at given range and step.  Send packet as Raw bypass
+    // TODO: test also Ethernet and other encoders
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until 25 + Random.nextInt(25) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
-        txSimple(dcsMaster, axisSlave, toSend, cid)
+        txTestSingle(dcsMaster, axisSlave, PacketType.Raw, null, toSend, cid)
       }
     }
   }

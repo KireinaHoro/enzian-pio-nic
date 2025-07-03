@@ -48,12 +48,6 @@ object EciHostCtrlInfoSim {
   }
 }
 
-/** only used when Tx pipeline is not implemented
-  * FIXME: tx pipeline is now implemented
-  */
-case class ErrorCtrlInfoSim(len: Int) extends EciHostCtrlInfoSim with ErrorPacketDescSim {
-  override def encode: BigInt = BigInt(0)
-}
 case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
