@@ -73,6 +73,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   aliasedHostCtrl.assignFromBits(savedControl >> 1)
   currInvLen := aliasedHostCtrl.len
 
+  // invalidation can finish before we enter waitInv, store it here
+  val invFinished = Reg(Bool()) init False
+  invFinished.setWhen(invDone)
+
   // offset and size to read from packet buffer, to serve CL fetch
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
 
@@ -89,6 +93,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val idle: State = new State with EntryPoint {
       whenIsActive {
         dcsQ.aw.freeRun()
+        invFinished.clear()
         when (dcsQ.aw.valid) {
           writeCmd := dcsQ.aw.payload
           goto(decodeCmd)
@@ -194,7 +199,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           } otherwise {
             // host reading opposite cache line; protocol will invalidate all cache
             // lines before we can send the descriptor to encoders
-            when (invDone) {
+            when (invFinished) {
               goto(transmitDesc)
             }
           }
