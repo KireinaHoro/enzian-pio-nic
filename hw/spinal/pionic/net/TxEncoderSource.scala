@@ -41,8 +41,6 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
     val descTyOh = PacketDescType.elements.map { ty =>
       packetDesc.ty === ty
     }
-    // save type of current packet for AXI Stream demuxer
-    val descTyIdx = RegNextWhen(OHToUInt(descTyOh), packetDesc.fire)
 
     // demux packet descriptors
     StreamDemuxOh(packetDesc, descTyOh) zip descForDecoders foreach { case (demuxed, port) =>
@@ -52,7 +50,7 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
     // demux AXI stream
     val axisDemux = new AxiStreamDemux(ms.axisConfig, numTypes)
     axisDemux.io.enable := True
-    axisDemux.io.select := descTyIdx
+    axisDemux.io.select := OHToUInt(descTyOh)
     axisDemux.io.drop := False
 
     axisDemux.m_axis zip payloadForDecoders foreach { case (demuxed, port) =>
