@@ -151,7 +151,7 @@ class DmaControlPlugin extends FiberPlugin {
                 }
                 default {
                   tag.ty := HostReqType.error
-                  report("unsupported protocol metadata type on non-bypass packet")
+                  report("unsupported protocol metadata type on non-bypass packet", FAILURE)
                 }
               }
             }
@@ -264,7 +264,7 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.fromHeaders(txReqMuxed.data.bypassMeta)
               }
               default {
-                report("unsupported host request type: only bypass supported for now")
+                report("unsupported host request type: only bypass supported for now", FAILURE)
               }
             }
 
