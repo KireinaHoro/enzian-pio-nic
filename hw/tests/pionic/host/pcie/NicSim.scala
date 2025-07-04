@@ -131,9 +131,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(readRxPacketDesc(master, coreBlock).isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    master.write(globalBlock("allocReset"), 1.toBytes);
+    master.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytes);
     sleepCycles(200)
-    master.write(globalBlock("allocReset"), 0.toBytes);
+    master.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytes);
 
     // test for 200 runs
     0 until 200 foreach { _ => rxTestBypass(master, axisMaster) }
@@ -186,7 +186,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(globalBlock("rxBlockCycles"), 100.toBytes) // rxBlockCycles
+    master.write(globalBlock("csr", "rxBlockCycles"), 100.toBytes) // rxBlockCycles
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-roundrobin")
@@ -234,7 +234,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     sleepCycles(delayed)
 
     val desc = readRxPacketDesc(master, coreBlock).get
-    val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
+    val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
 
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
@@ -266,7 +266,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
 
     val desc = readRxPacketDesc(master, coreBlock).get
-    val timestamp = master.read(globalBlock("cycles"), 8).bytesToBigInt
+    val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
 
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)

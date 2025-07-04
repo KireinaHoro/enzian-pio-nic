@@ -266,13 +266,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    csrMaster.write(globalBlock("allocReset"), 1.toBytes)
+    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytes)
     sleepCycles(200)
-    csrMaster.write(globalBlock("allocReset"), 0.toBytes)
+    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytes)
 
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
-      0 until 25 + Random.nextInt(25) foreach { _ =>
+      0 until Random.between(25, 50) foreach { _ =>
         import PacketType._
         val (packet, proto) = randomPacket(size, randomizeLen = false)(Ethernet, Ip, Udp)
         rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
@@ -288,7 +288,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
-    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
@@ -298,7 +298,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
-    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
@@ -442,7 +442,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // Sweep at given range and step.  Send packet as Raw bypass
     // TODO: test also Ethernet and other encoders
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
-      0 until 25 + Random.nextInt(25) foreach { _ =>
+      0 until Random.between(25, 50) foreach { _ =>
         val toSend = Random.nextBytes(size).toList
         txTestSingle(dcsMaster, axisSlave, PacketType.Raw, null, toSend, cid)
       }
@@ -484,7 +484,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val numPackets = 5
 
     // enable promisc mode
-    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
 
     val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
     val size = 128
@@ -532,7 +532,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val maxTries = 5
 
     // enable promisc mode
-    csrMaster.write(globalBlock("promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
 
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "should not have packet on standby yet")
 
@@ -617,7 +617,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
       exitCriticalSection(dcsMaster, 1)
 
-      val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+      val curr = csrMaster.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
 
       // we don't use the commit timestamp since commit is tied to read next
       val ts = getRxTimestamps(csrMaster, globalBlock)
@@ -643,7 +643,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, dcsMaster.read(overflowAddr, desc.len))
       exitCriticalSection(dcsMaster, 1)
 
-      val curr = csrMaster.read(globalBlock("cycles"), 8).bytesToBigInt
+      val curr = csrMaster.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
       val ts = getRxTimestamps(csrMaster, globalBlock)
       import ts._
       println(s"Current timestamp after packet 2 done: $curr")

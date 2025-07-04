@@ -14,11 +14,11 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Enable one process in the scheduler. */
   def enableProcess[B](bus: B, globalBlock: RegBlockReadBack, pid: Int, maxThreads: Int, idx: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     // activate process
-    asMaster.write(bus, globalBlock("sched", "proc_pid"), pid.toBytes)
-    asMaster.write(bus, globalBlock("sched", "proc_maxThreads"), maxThreads.toBytes)
-    asMaster.write(bus, globalBlock("sched", "proc_enabled"), 1.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_pid"), pid.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_maxThreads"), maxThreads.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_enabled"), 1.toBytes)
 
-    asMaster.write(bus, globalBlock("sched", "proc_idx"), idx.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_idx"), idx.toBytes)
 
     println(s"Enabled PID#$pid with $maxThreads threads @ table idx $idx")
   }
@@ -57,7 +57,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     val funcPtr = Random.nextLong(0x1000000000000L)
 
     // TODO: also test non promisc mode
-    asMaster.write(bus, globalBlock("promisc"), 1.toBytes)
+    asMaster.write(bus, globalBlock("csr", "promisc"), 1.toBytes)
 
     // create one process with all cores and enable a service inside
     val pid = Random.nextInt(65535)
