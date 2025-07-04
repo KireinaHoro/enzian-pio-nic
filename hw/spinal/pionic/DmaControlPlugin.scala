@@ -311,15 +311,15 @@ class DmaControlPlugin extends FiberPlugin {
     }
 
     def connectControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
-      busCtrl.driveAndRead(allocReset, alloc("allocReset")) init false
+      busCtrl.driveAndRead(allocReset, alloc("dmaCtrl", "allocReset")) init false
     }
 
     def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       statistics.elements.foreach { case (name, data) =>
         data match {
-          case d: UInt => busCtrl.read(d, alloc(name, "", attr = RO))
+          case d: UInt => busCtrl.read(d, alloc(name, attr = RO))
           case v: Vec[_] => v zip PKT_BUF_ALLOC_SIZES.map(_._1) foreach { case (elem, slotSize) =>
-            busCtrl.read(elem, alloc(name, s"upTo$slotSize", attr = RO))
+            busCtrl.read(elem, alloc("dmaStats", s"${name}_upTo$slotSize", attr = RO))
           }
         }
       }

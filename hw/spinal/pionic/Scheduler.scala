@@ -8,6 +8,7 @@ import pionic.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import pionic.Global._
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
+import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -71,12 +72,12 @@ class Scheduler extends FiberPlugin {
     // max number of threads per process (degree of parallelism)
     val procDefPort = ProcessDef()
     procDefPort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("sched", s"proc_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("schedCtrl", s"proc_$name", attr = AccessType.WO))
     }
     
     val procDefIdx = ProcTblIdx
     procDefIdx := 0
-    val procDefIdxAddr = alloc("sched", "proc_idx", attr = AccessType.WO)
+    val procDefIdxAddr = alloc("schedCtrl", "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
     busCtrl.onWrite(procDefIdxAddr) {
       // the IDLE process should not be changed
@@ -87,19 +88,31 @@ class Scheduler extends FiberPlugin {
         report("attempting to modify the IDLE process", FAILURE)
       }
     }
+  }
 
+  def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // read-back port for SW to inspect programmed procs
     val readbackPort = Reg(ProcessDef())
     readbackPort.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("sched", s"proc_readback_$name", attr = AccessType.RO))
+      busCtrl.read(field, alloc("schedStats", s"readback_$name", attr = AccessType.RO))
     }
 
     val readbackIdx = ProcTblIdx
     readbackIdx := 0
-    val readbackIdxAddr = alloc("sched", "proc_readback_idx", attr = AccessType.WO)
+    val readbackIdxAddr = alloc("schedStats", "readback_idx", attr = AccessType.WO)
     busCtrl.write(readbackIdx, readbackIdxAddr)
     busCtrl.onWrite(readbackIdxAddr) {
       readbackPort := logic.procDefs(readbackIdx)
+    }
+
+    logic.statistics.elements.foreach { case (name, data) =>
+      data match {
+        case d: UInt => busCtrl.read(d, alloc("schedStats", name, attr = RO))
+        case v: Vec[_] => v.zipWithIndex foreach { case (s, idx) =>
+          // FIXME: allocate this in the per-core space
+          busCtrl.read(s, alloc("schedStats", s"${name}_core$idx", attr = RO))
+        }
+      }
     }
   }
 
@@ -135,6 +148,12 @@ class Scheduler extends FiberPlugin {
       ret.maxThreads init U(NUM_WORKER_CORES)
       ret
     }
+
+    val statistics = new Bundle {
+      val pushed, dropped = Reg(UInt(REG_WIDTH bits)) init 0
+      val popped, preempted = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
+    }
+    def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
 
     // per-process queues are in memory
     val queueMem = Mem(HostReq(), totalPkts)
@@ -218,10 +237,6 @@ class Scheduler extends FiberPlugin {
     val rxProcTblIdx = OHToUInt(rxProcSelOh)
     val rxProcDef = procDefs(rxProcTblIdx)
 
-    // report scheduler packet drop
-    val rxSchedDrop = CombInit(False)
-    csr.status.rxSchedDroppedCount := Counter(REG_WIDTH bits, rxSchedDrop)
-
     // map of which process is running on which core
     val corePidMap = Vec.fill(NUM_WORKER_CORES) {
       // all start in IDLE -- preempt request will move them away
@@ -241,13 +256,15 @@ class Scheduler extends FiberPlugin {
       // received packet: push into memory
       when (queueMetas(rxProcTblIdx).full) {
         // must drop packet since destination is full
-        rxSchedDrop := True
+        inc(_.dropped)
       } otherwise {
         // store at where the tail was
         queueMem.write(queueMetas(rxProcTblIdx).tail, rxMeta.payload)
 
         // update pointers
         queueMetas(rxProcTblIdx).pushOne()
+
+        inc(_.pushed)
       }
 
       // new packet arrived, try to select a core to preempt
@@ -333,6 +350,9 @@ class Scheduler extends FiberPlugin {
             when (corePreempt(idx).ready) {
               rxPreemptReq.valid := False
               corePidMap(idx) := rxPreemptReq.idx
+
+              inc(_.preempted(idx))
+
               goto(idle)
             }
           }
@@ -343,13 +363,16 @@ class Scheduler extends FiberPlugin {
             toCore.payload := poppedReq
             toCore.valid := True
 
-            // update queue pointers
-            queueMetas(corePopQueueIdx).popOne()
-
             when (toCore.ready) {
               // no guarantee that worker must accept request: they might de-assert ready due to a read timeout
               // have to wait until they try again (and re-assert ready)
               // TODO: what happens if the core went amok and never retried? Kill proc?
+
+              // update queue pointers
+              queueMetas(corePopQueueIdx).popOne()
+
+              inc(_.popped(idx))
+
               goto(idle)
             }
           }
