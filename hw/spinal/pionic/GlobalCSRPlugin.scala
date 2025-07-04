@@ -22,8 +22,7 @@ class GlobalCSRPlugin extends FiberPlugin {
     val status = new Bundle {
       val version = Bits(REG_WIDTH bits)
       val cycles = CycleClock(REG_WIDTH bits)
-      val rxOverflowCount = UInt(REG_WIDTH bits)
-      val rxSchedDroppedCount = UInt(REG_WIDTH bits)
+      val rxMacOverflowCount = UInt(REG_WIDTH bits)
     }
 
     println(f"Git version: ${GIT_VERSION.get}%x")
@@ -35,7 +34,7 @@ class GlobalCSRPlugin extends FiberPlugin {
 
   def readAndWrite(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.ctrl.elements.foreach { case (name, data) =>
-      val addr = alloc(name)
+      val addr = alloc("csr", name)
       if (name == "workerCoreMask") {
         busCtrl.driveFlow(data.asInstanceOf[Flow[Bits]], addr)
       } else {
@@ -44,7 +43,7 @@ class GlobalCSRPlugin extends FiberPlugin {
       }
     }
     logic.status.elements.foreach { case (name, data) =>
-      busCtrl.read(data, alloc(name, attr = RO))
+      busCtrl.read(data, alloc("csr", name, attr = RO))
     }
   }
 }

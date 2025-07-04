@@ -89,6 +89,7 @@ class EciInterfacePlugin extends FiberPlugin {
     host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
     host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
     host[Scheduler].driveControl(csrCtrl, alloc)
+    host[Scheduler].reportStatistics(csrCtrl, alloc)
     host[DmaControlPlugin].logic.connectControl(csrCtrl, alloc)
     host[DmaControlPlugin].logic.reportStatistics(csrCtrl, alloc)
 

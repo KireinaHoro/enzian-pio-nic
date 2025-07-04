@@ -57,7 +57,7 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     // report overflow
     val rxOverflow = Bool()
     val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-    csr.status.rxOverflowCount := Counter(REG_WIDTH bits, rxOverflowCdc)
+    csr.status.rxMacOverflowCount := Counter(REG_WIDTH bits, rxOverflowCdc)
 
     // extract frame length
     val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
