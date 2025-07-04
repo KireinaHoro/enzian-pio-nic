@@ -255,7 +255,8 @@ class Scheduler extends FiberPlugin {
     when (rxOncRpcCall.valid) {
       // received packet: push into memory
       when (queueMetas(rxProcTblIdx).full) {
-        // must drop packet since destination is full
+        // the destination proc queue is full
+        // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
         inc(_.dropped)
       } otherwise {
         // store at where the tail was

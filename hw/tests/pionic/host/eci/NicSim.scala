@@ -313,9 +313,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val totalToSend = 50 * NUM_WORKER_CORES
 
-    val irqReceived = mutable.ArrayBuffer.fill(NUM_WORKER_CORES.get+1)(false)
+    val irqReceived = mutable.ArrayBuffer.fill(NUM_CORES)(false)
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
+      // every core will be preempted from IDLE to run PID exactly once
       assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
       assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
@@ -332,9 +333,17 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     fork {
       // send all packets
-      // TODO: flow control?
-      0 until totalToSend foreach { _ =>
+      0 until totalToSend foreach { idx =>
+        if (idx != 0 && idx % 32 == 0) {
+          // crude flow control: queue could've become full, wait a bit before continuing
+          // TODO: proper flow control?
+          val toWait = 3000
+          println(s"Waiting for $toWait cycles before continuing sending...")
+          sleepCycles(toWait)
+        }
+
         val (packet, payload, xid) = getPacket()
+        println(f"Sending packet with XID $xid%#x")
         val toSend = packet.getRawData.toList
         // blocking send
         axisMaster.send(toSend)
@@ -349,6 +358,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     1 to NUM_WORKER_CORES foreach { cid =>
       fork {
         def log(msg: String) = println(s"[core $cid] $msg")
+
+        log("Waiting for IRQ...")
 
         // wait for schedule request
         waitUntil(irqReceived(cid))
@@ -370,13 +381,20 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
           val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
           val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
           log(f"Received status register: $desc")
+
+          // do not process packets too fast, or other cores will never get invoked
+          sleepCycles(Random.between(50, 100))
+          log("Sleep finished, checking packet data...")
+
           // packet generator return little endian xid but sends in big endian
           // HW does not change (i.e. we get big endian back)
           val xid = Integer.reverseBytes(info.xid.toInt)
+          log(f"Received XID $xid%x")
 
           // find the payload that we sent
           val (pkt, pld) = sentPackets(xid)
-          log(f"XID $xid%x: Expecting packet: $pkt")
+          log(f"Expecting packet: $pkt")
+
           checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
           log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
