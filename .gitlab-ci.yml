@@ -1,3 +1,8 @@
+default:
+  hooks:
+    pre_get_sources_script:
+      - git config --global protocol.file.allow always
+
 stages:
   - test
   - build-sw
@@ -7,7 +12,6 @@ stages:
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-  GIT_SUBMODULE_UPDATE_FLAGS: -c protocol.file.allow=always
 
 .docker-image:
   tags:
