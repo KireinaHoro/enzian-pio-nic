@@ -82,6 +82,20 @@ class Scheduler extends FiberPlugin {
       // record process parallelism degree in table
       logic.procDefs(procDefIdx) := procDefPort
     }
+
+    // read-back port for SW to inspect programmed procs
+    val readbackPort = Reg(ProcessDef())
+    readbackPort.elements.foreach { case (name, field) =>
+      busCtrl.read(field, alloc("sched", s"proc_readback_$name", attr = AccessType.RO))
+    }
+
+    val readbackIdx = ProcTblIdx
+    readbackIdx := 0
+    val readbackIdxAddr = alloc("sched", "proc_readback_idx", attr = AccessType.WO)
+    busCtrl.write(readbackIdx, readbackIdxAddr)
+    busCtrl.onWrite(readbackIdxAddr) {
+      readbackPort := logic.procDefs(readbackIdx)
+    }
   }
 
   val logic = during setup new Area {
