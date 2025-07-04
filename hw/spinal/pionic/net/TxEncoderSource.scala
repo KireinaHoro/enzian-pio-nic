@@ -50,7 +50,7 @@ class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
     // demux AXI stream
     val axisDemux = new AxiStreamDemux(ms.axisConfig, numTypes)
     axisDemux.io.enable := True
-    axisDemux.io.select := OHToUInt(descTyOh)
+    axisDemux.io.select := RegNextWhen(OHToUInt(descTyOh), packetDesc.fire)
     axisDemux.io.drop := False
 
     axisDemux.m_axis zip payloadForDecoders foreach { case (demuxed, port) =>
