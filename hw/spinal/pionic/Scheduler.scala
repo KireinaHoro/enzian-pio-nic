@@ -209,6 +209,12 @@ class Scheduler extends FiberPlugin {
         advance(head)
         fill := fill - 1
       }
+
+      def passOne(): Unit = {
+        assert(!full && !empty, "can only pass one from non-empty, non-full queue")
+        advance(head)
+        advance(tail)
+      }
     }
     val queueMetas = Vec.tabulate(NUM_PROCS+1) { idx =>
       val offset = if (idx == 0) 0 else (idx-1) * RX_PKTS_PER_PROC
@@ -216,6 +222,16 @@ class Scheduler extends FiberPlugin {
       val ret = Reg(QueueMetadata()(offset, capacity))
       ret.initEmpty
       ret
+    }
+
+    // update pointers centrally
+    val pushQ, popQ = Seq.fill(NUM_PROCS+1)(False)
+    (pushQ zip popQ zipWithIndex) foreach { case ((push, pop), idx) =>
+      switch (push ## pop) {
+        is (B("01")) { queueMetas(idx).popOne()  }
+        is (B("10")) { queueMetas(idx).pushOne() }
+        is (B("11")) { queueMetas(idx).passOne() }
+      }
     }
 
     // such that the waveform shows the actual header, not a union
@@ -263,7 +279,7 @@ class Scheduler extends FiberPlugin {
         queueMem.write(queueMetas(rxProcTblIdx).tail, rxMeta.payload)
 
         // update pointers
-        queueMetas(rxProcTblIdx).pushOne()
+        pushQ(rxProcTblIdx) := True
 
         inc(_.pushed)
       }
@@ -380,7 +396,7 @@ class Scheduler extends FiberPlugin {
               // TODO: what happens if the core went amok and never retried? Kill proc?
 
               // update queue pointers
-              queueMetas(corePopQueueIdx).popOne()
+              popQ(corePopQueueIdx) := True
 
               inc(_.popped(idx))
 
