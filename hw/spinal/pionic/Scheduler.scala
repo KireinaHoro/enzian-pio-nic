@@ -127,7 +127,8 @@ class Scheduler extends FiberPlugin {
     val corePreempt = host.list[PreemptionService].map(_.preemptReq)
 
     // one per-process queue for every entry in procDefs
-    // since all cores start with idx 0 in this table, table entry 0 should be a special "IDLE" process
+    // all cores come out of reset with idx 0 in this table:
+    // table entry 0 is a special "IDLE" process
     val procDefs = Vec.fill(NUM_PROCS+1) {
       val ret = Reg(ProcessDef())
       ret.enabled init False
@@ -213,6 +214,7 @@ class Scheduler extends FiberPlugin {
       assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
     }
 
+    // FIXME: this will become too wide when we register more processes
     val rxProcTblIdx = OHToUInt(rxProcSelOh)
     val rxProcDef = procDefs(rxProcTblIdx)
 
