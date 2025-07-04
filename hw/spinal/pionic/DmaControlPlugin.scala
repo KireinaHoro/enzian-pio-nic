@@ -129,8 +129,8 @@ class DmaControlPlugin extends FiberPlugin {
           rxAlloc.io.allocResp.freeRun()
           when(rxAlloc.io.allocResp.valid) {
             // new request allocated
-            writeDesc.payload.payload.addr := rxAlloc.io.allocResp.addr.bits.resized
-            writeDesc.payload.payload.len := rxPacketDescTagged.desc.getPayloadSize // use the actual size instead of length of buffer
+            writeDesc.addr := rxAlloc.io.allocResp.addr.bits.resized
+            writeDesc.len := rxPacketDescTagged.desc.getPayloadSize // use the actual size instead of length of buffer
 
             // encode proto metadata into DMA tag
             val tag = RxDmaTag()
@@ -166,7 +166,7 @@ class DmaControlPlugin extends FiberPlugin {
               goto(enqueuePkt)
             } otherwise {
               // issue DMA cmd
-              writeDesc.payload.payload.tag := tag.asBits
+              writeDesc.tag := tag.asBits
               writeDesc.valid := True
               goto(sendDmaCmd)
             }

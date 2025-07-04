@@ -70,9 +70,9 @@ class PacketBuffer extends FiberPlugin {
     axiMem.io.s_axi_a <> axiDma.io.m_axi
 
     // connect descriptors from [[DmaControlPlugin]]
-    axiDma.io.s_axis_read_desc << dc.readDesc
-    axiDma.io.m_axis_read_desc_status >> dc.readDescStatus
-    axiDma.io.s_axis_write_desc << dc.writeDesc
-    axiDma.io.m_axis_write_desc_status >> dc.writeDescStatus
+    axiDma.s_axis_read_desc << dc.readDesc
+    axiDma.m_axis_read_desc_status >> dc.readDescStatus
+    axiDma.s_axis_write_desc << dc.writeDesc
+    axiDma.m_axis_write_desc_status >> dc.writeDescStatus
   }
 }
