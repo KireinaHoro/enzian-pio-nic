@@ -79,8 +79,13 @@ class Scheduler extends FiberPlugin {
     val procDefIdxAddr = alloc("sched", "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
     busCtrl.onWrite(procDefIdxAddr) {
-      // record process parallelism degree in table
-      logic.procDefs(procDefIdx) := procDefPort
+      // the IDLE process should not be changed
+      when (procDefIdx =/= 0) {
+        logic.procDefs(procDefIdx) := procDefPort
+        assert(procDefPort.maxThreads <= NUM_WORKER_CORES.get, "process has more threads than available worker cores")
+      } otherwise {
+        report("attempting to modify the IDLE process", FAILURE)
+      }
     }
 
     // read-back port for SW to inspect programmed procs
