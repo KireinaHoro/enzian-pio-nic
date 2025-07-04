@@ -26,7 +26,8 @@ import org.scalatest.tagobjects.Slow
 
 class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
   // NUM_CORES in Database only available inside test context
-  val numCores = 4
+  val numWorkerCores = 4
+  val numCores = numWorkerCores + 1
 
   val dut = Config.sim
     // verilog-axi flags
@@ -35,7 +36,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("eci")
-    .compile(pionic.GenEngineVerilog.engine(numCores, "eci"))
+    .compile(pionic.GenEngineVerilog.engine(numWorkerCores, "eci"))
 
   def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit)(implicit dut: NicEngine) = {
     val globalBlock = ALLOC.readBack("global")
