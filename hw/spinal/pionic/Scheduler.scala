@@ -296,8 +296,18 @@ class Scheduler extends FiberPlugin {
     arbitratedPopReq.ready := True
 
     // victim core selection, based on preemption type
-    val coreIdleMap = corePidMap.map(_ === 0).asBits()
-    val coreReadyMap = coreMeta.map(_.ready).asBits()
+    val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
+      // idle preemption: a core that is
+      // - running the IDLE process, and
+      // - a preemption is not underway
+      corePidMap(cid) === 0 && !corePreempt(cid).valid
+    }.asBits()
+    val coreReadyMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
+      // ready preemption: a core that is
+      // - running some proc but ready (i.e. no request ongoing), and
+      // - a preemption is not underway
+      coreMeta(cid).ready && !corePreempt(cid).valid
+    }.asBits()
 
     val victimCoreMap = rxPreemptReq.ty.mux(
       PreemptCmdType.idle -> coreIdleMap,
