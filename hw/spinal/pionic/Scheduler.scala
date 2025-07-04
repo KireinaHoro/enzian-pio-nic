@@ -151,7 +151,7 @@ class Scheduler extends FiberPlugin {
 
     val statistics = new Bundle {
       val pushed, dropped = Reg(UInt(REG_WIDTH bits)) init 0
-      val popped, preempted = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
+      val popped, preempted, dispatched = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
     }
     def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
 
@@ -365,6 +365,12 @@ class Scheduler extends FiberPlugin {
               popReq.valid := True
               when(popReq.ready) {
                 // queue mem read granted.  readSync has one cycle latency
+
+                // we could have a race condition between cores
+                // must update queue pointers immediately after granted
+                popQ(corePopQueueIdx) := True
+                inc(_.popped(idx))
+
                 goto(readPoppedReq)
               }
             }
@@ -379,7 +385,6 @@ class Scheduler extends FiberPlugin {
               corePidMap(idx) := rxPreemptReq.idx
 
               inc(_.preempted(idx))
-
               goto(idle)
             }
           }
@@ -395,11 +400,7 @@ class Scheduler extends FiberPlugin {
               // have to wait until they try again (and re-assert ready)
               // TODO: what happens if the core went amok and never retried? Kill proc?
 
-              // update queue pointers
-              popQ(corePopQueueIdx) := True
-
-              inc(_.popped(idx))
-
+              inc(_.dispatched(idx))
               goto(idle)
             }
           }
