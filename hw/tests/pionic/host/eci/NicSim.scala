@@ -421,12 +421,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       val expected = hdrBytes ++ pld
 
       check(expected, data)
-      println("Bypass: packet received from TX interface and validated")
+      println(s"Core $cid: packet received from TX interface and validated")
       received = true
     }
 
     val hdrBigInt = if (ty == PacketType.Raw) BigInt(0) else hdrBytes.bytesToBigInt
     txSendSingle(dcsMaster, BypassCtrlInfoSim(pld.length, ty.id, hdrBigInt), pld, cid)
+
+    println(s"Core $cid: waiting for packet")
 
     waitUntil(received)
 

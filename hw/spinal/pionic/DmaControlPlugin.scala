@@ -88,10 +88,16 @@ class DmaControlPlugin extends FiberPlugin {
     val outgoingDesc = Stream(PacketDesc())
 
     /** DMA descriptors interfaces */
-    val readDesc = master(dmaConfig.readDescBus).setOutputAsReg().setAsDirectionLess()
+    val readDesc = dmaConfig.readDescBus
     val readDescStatus = dmaConfig.readDescStatusBus
-    val writeDesc = master(dmaConfig.writeDescBus).setOutputAsReg().setAsDirectionLess()
+    val writeDesc = dmaConfig.writeDescBus
     val writeDescStatus = dmaConfig.writeDescStatusBus
+
+    // allow storing command but valid stays combinational
+    readDesc.payload.setAsReg()
+    writeDesc.payload.setAsReg()
+    writeDesc.valid := False
+    readDesc.valid := False
 
     val statistics = new Bundle {
       val rxPacketCount = Reg(UInt(REG_WIDTH bits)) init 0
@@ -105,9 +111,6 @@ class DmaControlPlugin extends FiberPlugin {
     def inc(f: statistics.type => UInt) = {
       f(statistics) := f(statistics) + 1
     }
-
-    writeDesc.valid init False
-    readDesc.valid init False
 
     rxAlloc.io.freeReq </< StreamArbiterFactory().roundRobin.on(dps.map(_.hostRxAck))
     rxAlloc.io.allocResp.setBlocked()
@@ -167,7 +170,6 @@ class DmaControlPlugin extends FiberPlugin {
             } otherwise {
               // issue DMA cmd
               writeDesc.tag := tag.asBits
-              writeDesc.valid := True
               goto(sendDmaCmd)
             }
           }
@@ -176,8 +178,9 @@ class DmaControlPlugin extends FiberPlugin {
       val sendDmaCmd: State = new State {
         whenIsActive {
           rxAlloc.io.allocResp.ready := False
+          // command already stored in register
+          writeDesc.valid := True
           when(writeDesc.ready) {
-            writeDesc.setIdle()
             goto(waitDma)
           }
         }
@@ -254,10 +257,10 @@ class DmaControlPlugin extends FiberPlugin {
             assert(txReqMuxed.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
               "packet buffer slot out of TX buffer range used")
 
+            // store DMA command
             readDesc.payload.payload.addr := txReqMuxed.buffer.addr.bits.resized
             readDesc.payload.payload.len := txReqMuxed.buffer.size.bits
             readDesc.payload.payload.tag := 0
-            readDesc.valid := True
 
             // parse and save outgoing PacketDesc
             switch (txReqMuxed.ty) {
@@ -269,14 +272,15 @@ class DmaControlPlugin extends FiberPlugin {
               }
             }
 
-            goto(sendDmaCmd)
+            // send descriptor first to set stream mux to correct direction
+            goto(sendDesc)
           }
         }
       }
       val sendDmaCmd: State = new State {
         whenIsActive {
+          readDesc.valid := True
           when(readDesc.ready) {
-            readDesc.setIdle()
             goto(waitDma)
           }
         }
@@ -291,7 +295,7 @@ class DmaControlPlugin extends FiberPlugin {
             } otherwise {
               inc(_.txDmaErrorCount)
             }
-            goto(sendDesc)
+            goto(idle)
           }
         }
       }
@@ -300,7 +304,7 @@ class DmaControlPlugin extends FiberPlugin {
           outgoingDesc.payload := txPacketDesc
           outgoingDesc.valid := True
           when (outgoingDesc.ready) {
-            goto(idle)
+            goto(sendDmaCmd)
           }
         }
       }
