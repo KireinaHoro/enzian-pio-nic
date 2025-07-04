@@ -3,7 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import jsteward.blocks.misc.sim.{BigIntRicher, isSorted, BigIntParser}
+import jsteward.blocks.misc.sim.{isSorted, BigIntParser}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.{EthernetPacket, Packet}
 import org.pcap4j.packet.namednumber.DataLinkType
@@ -153,7 +153,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val rxParity   = ipiAck.pop(1) != 0
     val txParity   = ipiAck.pop(1) != 0
     val killed     = ipiAck.pop(1) != 0
-    val pidToSched = ipiAck.pop(PID_WIDTH)
+    val pidToSched = ipiAck.pop(PID_WIDTH, skip = 5)
 
     (pidToSched, rxParity, txParity, killed)
   }
@@ -305,7 +305,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   testWithDB("rx-oncrpc-allcores") { implicit dut =>
     // test routine:
-    // - enable one RPC process with one service, on all cores
+    // - all cores start in PID 0 (IDLE)
+    // - enable one RPC process with one service that can run on all cores
     // - send 50 * numWorkerCores requests
     // - cores are preempted as requests come in, they start to read
     // - eventually all packets are received through all cores
@@ -316,6 +317,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
       assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
+      assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
       irqReceived(coreId) = true
     })
@@ -543,7 +545,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   testWithDB("rx-oncrpc-timestamped") { implicit dut =>
     // test routine:
-    // - enable one RPC process with one service, on all cores
+    // - all cores start in PID 0 (IDLE)
+    // - enable one RPC process with one service that can run on all cores
     // - send first packet before core is scheduled
     // - core is preempted to run proc
     // - read first packet, check timestamps (queued)
@@ -560,6 +563,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, { case (coreId, intId) =>
       assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
+      assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
       assert(!irqReceived, "should only receive one interrupt")
       irqReceived = true

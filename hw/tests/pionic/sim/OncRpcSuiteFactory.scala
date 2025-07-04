@@ -19,6 +19,8 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("sched", "proc_enabled"), 1.toBytes)
 
     asMaster.write(bus, globalBlock("sched", "proc_idx"), idx.toBytes)
+
+    println(s"Enabled PID#$pid with $maxThreads threads @ table idx $idx")
   }
 
   /** Enable one service in the given process. */
@@ -33,6 +35,8 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_pid"), pid.toBytes)
 
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytes)
+
+    println(f"Enabled service progNum $prog progVer $progVer port $dport -> $funcPtr%#x @ table idx $idx")
   }
 
   val dumpers = mutable.Map[String, PcapDumper]()
@@ -57,7 +61,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
 
     // create one process with all cores and enable a service inside
     val pid = Random.nextInt(65535)
-    enableProcess(bus, globalBlock, pid, pionic.Global.NUM_CORES, idx = 1) // slot 0 is for IDLE
+    enableProcess(bus, globalBlock, pid, pionic.Global.NUM_WORKER_CORES, idx = 1) // slot 0 is for IDLE
     enableService(bus, globalBlock, prog, progVer, procNum, funcPtr, sport, dport, idx = 0, pid)
 
     // wait for mask and service configs to take effect
