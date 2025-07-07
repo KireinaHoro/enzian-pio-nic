@@ -327,7 +327,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
-    )
+    ).head
     val sentPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
     var packetsReceived = 0
 
@@ -589,7 +589,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val delayed = 1000
 
-    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock)
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster, globalBlock).head
     val (packet, pld, xid) = getPacket()
     val (packet2, pld2, xid2) = getPacket()
 

@@ -190,7 +190,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-roundrobin")
-    )
+    ).head
 
     val mask = b"01101110"
     master.write(globalBlock("workerCoreMask"), mask.toBytes) // mask
@@ -224,7 +224,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
-    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
+    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock).head
     val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
 
@@ -254,7 +254,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
-    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock)
+    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock).head
     val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
     val delayed = 500
