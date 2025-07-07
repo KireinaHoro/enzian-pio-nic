@@ -36,7 +36,8 @@ case class ProcessDef() extends Bundle {
   * This command is used to convey intention between the two parts.
   *
   *  - [[idle]]: only preempt, when the core is in the IDLE process (i.e. no services)
-  *  - [[ready]]: preempt, when the core is stuck in a read (i.e. not currently processing a request)
+  *  - [[ready]]: preempt, when the core is stuck in a read (i.e. not currently processing a request); can also
+  *    preempt a core that is in idle.
   *  - [[force]]: kill a running process due to timeout
   */
 object PreemptCmdType extends SpinalEnum {
@@ -329,7 +330,7 @@ class Scheduler extends FiberPlugin {
 
     val victimCoreMap = rxPreemptReq.ty.mux(
       PreemptCmdType.idle -> coreIdleMap,
-      PreemptCmdType.ready -> coreReadyMap,
+      PreemptCmdType.ready -> (coreReadyMap | coreIdleMap),
       // TODO: when do we need the `force` command type?
       //       when we need to kill a running handler?
       default -> B(0),
