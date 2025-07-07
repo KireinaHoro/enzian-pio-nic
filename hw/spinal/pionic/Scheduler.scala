@@ -321,9 +321,10 @@ class Scheduler extends FiberPlugin {
     }.asBits()
     val coreReadyMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
       // ready preemption: a core that is
+      // - running another PID, and
       // - running some proc but ready (i.e. no request ongoing), and
       // - a preemption is not underway
-      coreMeta(cid).ready && !corePreempt(cid).valid
+      (corePidMap(cid) =/= rxPreemptReq.idx && coreMeta(cid).ready) && !corePreempt(cid).valid
     }.asBits()
 
     val victimCoreMap = rxPreemptReq.ty.mux(
