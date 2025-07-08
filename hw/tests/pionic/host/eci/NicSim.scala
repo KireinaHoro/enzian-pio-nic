@@ -3,7 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import jsteward.blocks.misc.sim.{isSorted, BigIntParser}
+import jsteward.blocks.misc.sim.{BigIntParser, isSorted}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.{EthernetPacket, Packet}
 import org.pcap4j.packet.namednumber.DataLinkType
@@ -23,6 +23,12 @@ import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
+import pionic.host.eci.NicSim._
+
+object NicSim {
+  type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
+  val NoopCb: IrqCb = (_, _, _, _) => ()
+}
 
 class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
   // NUM_CORES in Database only available inside test context
@@ -38,19 +44,19 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     .workspaceName("eci")
     .compile(pionic.GenEngineVerilog.engine(numWorkerCores, "eci"))
 
-  def commonDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit)(implicit dut: NicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
     val globalBlock = ALLOC.readBack("global")
 
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
+    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
 
     IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
       println(s"Received IRQ #$intId for core $coreId")
-      irqCb(coreId, intId)
+      irqCb(csrMaster, dcsAppMaster, coreId, intId)
     }
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
-    val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
@@ -59,7 +65,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
 
-  def rxDutSetup(rxBlockCycles: Int, irqCb: (Int, Int) => Unit = (_, _) => ())(implicit dut: NicEngine) = {
+  def rxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
     for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
 
@@ -73,7 +79,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   def txDutSetup()(implicit dut: NicEngine) = {
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000, (_, _) => ()) // arbitrary rxBlockCycles
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
     for (i <- txNextCl.indices) { txNextCl(i) = 0 }
 
     (csrMaster, axisSlave, dcsMaster)
@@ -315,7 +321,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val irqReceived = mutable.ArrayBuffer.fill(NUM_CORES)(false)
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (coreId, intId) =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (_, _, coreId, intId) =>
       // every core will be preempted from IDLE to run PID exactly once
       assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
       assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
@@ -579,7 +585,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     var irqReceived = false
     var readingSecond = false
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, { case (coreId, intId) =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, { case (_, _, coreId, intId) =>
       assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
       assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
@@ -671,28 +677,148 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   // checks if a core has an IRQ pending.  Checked before and after critical section
-  class CoreIrqState {
-    var irqReceived = false
-    def set() = { irqReceived = true }
-    def unset() = { irqReceived = false }
+  object CoreState {
+    val pidIdle = 0xffff
   }
-  def genericIrqHandler(coreStates: Seq[CoreIrqState])(coreId: Int, intId: Int) = {
-    coreStates(coreId).set()
+  class CoreState(cid: Int) {
+    var inISR = false
+    var currPid = CoreState.pidIdle // IDLE
+    def log(msg: String) = println(s"[core $cid] $msg")
+    def isIdle = currPid == CoreState.pidIdle
+    def enterISR() = {
+      assert(!inISR, "already in kernel!")
+      inISR = true
+      log("entering kernel")
+    }
+    def exitISR()  = {
+      assert(inISR, "not in kernel")
+      inISR = false
+      log("exiting kernel")
+    }
+    def setPid(pid: Int) = {
+      assert(currPid != pid, s"trying to ask CPU to switch to an already running process")
+      log(f"PID switch: $currPid%#x -> $pid%#x")
+      currPid = pid
+    }
+  }
+  def genericIrqHandler(coreStates: Seq[CoreState])(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, coreId: Int, intId: Int) = {
+    val cs = coreStates(coreId)
+    cs.enterISR()
+
+    // ACK interrupt and switch to process
+    val coreBlock = ALLOC.readBack("core", blockIdx = coreId)
+    val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
+    cs.setPid(pidToSched.toInt)
+
+    // reset parity
+    rxNextCl(coreId) = rxParity.toInt
+    txNextCl(coreId) = txParity.toInt
+
+    // TODO: how to handle killing a process?
+    assert(!killed, "kill preemption not implemented yet and should not happen")
+
+    pollReady(dcsMaster, coreId)
+
+    cs.exitISR()
   }
 
   /* Test that Lauberhorn can scale up to multiple services */
   testWithDB("rx-sched-idle-scale-many") { implicit dut =>
-    // on 8 cores, install 4 processes, 2 services each
-  }
+    // do not use every core for every service
+    // three procs: A (2 thr); B (3 thr); C (3 thr)
 
-  /* Test preempting a process that:
-   * - is not processing a request, AND
-   * - did not receive request for some time
-   */
-  testWithDB("rx-sched-preempt") { implicit dut =>
-    val coreStates = Seq.fill(NUM_WORKER_CORES)(new CoreIrqState)
+    val globalBlock = ALLOC.readBack("global")
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, genericIrqHandler(coreStates))
+    val coreStates = Seq.tabulate(numCores)(new CoreState(_))
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, genericIrqHandler(coreStates))
+
+    val srvDefs = Seq(
+      ProcDef.mkRandom(2) -> Seq(RpcSrvDef.mkRandom),
+      ProcDef.mkRandom(3) -> Seq(RpcSrvDef.mkRandom),
+      ProcDef.mkRandom(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
+    )
+    val srvs = oncRpcCallPacketFactory(csrMaster, globalBlock, srvDefs,
+      Some("rx-sched-idle-scale-many"))
+    val pktsToSend = srvs.map(_ => Random.between(50, 100)).to(mutable.ArrayBuffer)
+    val totalPktsToSend = pktsToSend.sum
+    var pktsReceived = 0
+    // (PID, XID) => (packet, payload)
+    val pktsToReceive = mutable.Map[(Int, Int), (EthernetPacket, List[Byte], Long)]()
+
+    fork {
+      while (pktsToSend.sum > 0) {
+        val srvToSend = Random.nextInt(srvs.length)
+        if (pktsToSend(srvToSend) > 0) {
+          val (funcPtr, getPacket, pid) = srvs(srvToSend)
+
+          // wait if queue is about to overflow
+          val pidIdx = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+          println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
+          csrMaster.write(globalBlock("schedStats", "readback_idx"), pidIdx.toBytes)
+          val queueFill = csrMaster.read(globalBlock("schedStats", "readback_queueFill"), 8).bytesToBigInt
+          println(f"PID $pid%#x has $queueFill elements queued in scheduler")
+
+          if (queueFill >= RX_PKTS_PER_PROC.get - 5) {
+            println(f"PID $pid%#x's queue is almost full, skipping sending and throttling")
+            sleepCycles(200)
+          } else {
+            val (pkt, pld, xid) = getPacket()
+            println(f"Sending packet for PID $pid%#x with XID $xid%#x")
+            val toSend = pkt.getRawData.toList
+            axisMaster.send(toSend)
+
+            assert(!pktsToReceive.contains((pid, xid)), "random packet generation collision")
+            pktsToReceive((pid, xid)) = (pkt, pld, funcPtr)
+            pktsToSend(srvToSend) -= 1
+          }
+        }
+      }
+    }
+
+    1 to NUM_WORKER_CORES foreach { cid =>
+      fork {
+        val cs = coreStates(cid)
+        def waitUserspace() = waitUntil(!cs.inISR)
+
+        waitUserspace()
+        cs.log("in userspace now")
+
+        while (totalPktsToSend != pktsReceived) {
+          def procLog(msg: String) = cs.log(f"<${cs.currPid}%#x> $msg")
+          procLog("try receive one")
+
+          waitUntil(!cs.isIdle)
+          waitUserspace()
+
+          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
+          val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+          procLog(s"received status $desc")
+          val tail = dcsMaster.read(overflowAddr, desc.len)
+          procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
+
+          exitCriticalSection(dcsMaster, cid)
+          procLog("finished receiving")
+          sleepCycles(Random.between(50, 100))
+
+          val xid = Integer.reverseBytes(info.xid.toInt)
+          if (!pktsToReceive.contains((cs.currPid, xid))) {
+            procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
+            pktsToReceive.view.filterKeys(_._1 == cs.currPid).foreach { case ((_, x), _) =>
+              println(f"XID $x%#x")
+            }
+            simFailure("XID not found")
+          }
+          val (pkt, pld, funcPtr) = pktsToReceive((cs.currPid, xid))
+          procLog(f"received xid $xid%x, expecting packet $pkt")
+          checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
+
+          procLog(s"finished (simulated) processing packet #$pktsReceived")
+          pktsReceived += 1
+        }
+      }
+    }
+
+    waitUntil(totalPktsToSend == pktsReceived)
   }
 
   /* Test killing a process that did not unset BUSY */

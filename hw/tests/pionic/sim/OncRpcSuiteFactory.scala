@@ -11,6 +11,9 @@ import scala.util.Random
 import scala.collection.mutable
 
 case class ProcDef(pid: Int, maxThreads: Int)
+object ProcDef {
+  def mkRandom(thr: Int): ProcDef = ProcDef(Random.nextInt(65535), thr)
+}
 case class RpcSrvDef(dport: Int, prog: Int, progVer: Int, procNum: Int, funcPtr: Long)
 object RpcSrvDef {
   def mkRandom: RpcSrvDef = {
@@ -68,7 +71,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, procSrvMap: Seq[(ProcDef, Seq[RpcSrvDef])] = Seq.empty, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
     // if no map defined: create one process with one randomly generated service
     val m = if (procSrvMap.isEmpty) Seq(
-      ProcDef(Random.nextInt(65535), pionic.Global.NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom),
+      ProcDef.mkRandom(pionic.Global.NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom),
     ) else procSrvMap
 
     // TODO: also test non promisc mode
