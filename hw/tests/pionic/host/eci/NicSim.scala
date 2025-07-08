@@ -751,7 +751,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         if (pktsToSend(srvToSend) > 0) {
           val (funcPtr, getPacket, pid) = srvs(srvToSend)
 
-          // wait if queue is about to overflow
+          // This test is designed to allow all cores to receive all packets sent; we need to wait if the queue for the
+          // corresponding PID is about to overflow.  If the scheduler failed to preempt some core to handle a non-empty
+          // queue, the core reads will eventually run out of retries.
           val pidIdx = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
           println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
           csrMaster.write(globalBlock("schedStats", "readback_idx"), pidIdx.toBytes)
