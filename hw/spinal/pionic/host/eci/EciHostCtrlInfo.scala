@@ -87,7 +87,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        11 rsvd;
+         |  _        10 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
