@@ -353,6 +353,8 @@ class Scheduler extends FiberPlugin {
       val corePopQueueIdx = corePidMap(idx)
 
       corePreempt(idx).valid := False
+      // save the requested preemption target until preemption is actually done
+      val savedPreemptIdx = Reg(ProcTblIdx)
 
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
@@ -361,6 +363,7 @@ class Scheduler extends FiberPlugin {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
               corePreempt(idx).payload := rxPreemptReq.pid
+              savedPreemptIdx := rxPreemptReq.idx
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -390,8 +393,7 @@ class Scheduler extends FiberPlugin {
           whenIsActive {
             corePreempt(idx).valid := True
             when (corePreempt(idx).ready) {
-              rxPreemptReq.valid := False
-              corePidMap(idx) := rxPreemptReq.idx
+              corePidMap(idx) := savedPreemptIdx
 
               inc(_.preempted(idx))
               goto(idle)
