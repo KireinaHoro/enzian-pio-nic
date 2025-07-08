@@ -21,4 +21,6 @@ trait PreemptionService extends FiberPlugin {
     * successful switch, or the process might be killed by the kernel.
     */
   def preemptReq: Stream[PID]
+
+  during build preemptReq.assertPersistence()
 }

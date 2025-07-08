@@ -138,7 +138,12 @@ class Scheduler extends FiberPlugin {
       *
       * Will be stalled (ready === False) when a preemption is in progress.
       */
-    val corePreempt = host.list[PreemptionService].map(_.preemptReq)
+    val corePreempt = host.list[PreemptionService].map { ps =>
+      val p = Stream(PID())
+      p.payload.setAsReg()
+      p >> ps.preemptReq
+      p
+    }
 
     // one per-process queue for every entry in procDefs
     // all cores come out of reset with idx 0 in this table:
@@ -147,6 +152,7 @@ class Scheduler extends FiberPlugin {
       val ret = Reg(ProcessDef())
       ret.enabled init False
       ret.maxThreads init U(NUM_WORKER_CORES)
+      ret.pid.bits init U(0xffff)
       ret
     }
 
@@ -346,13 +352,15 @@ class Scheduler extends FiberPlugin {
 
       val corePopQueueIdx = corePidMap(idx)
 
-      corePreempt(idx).setIdle()
+      corePreempt(idx).valid := False
 
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
             when (rxPreemptReq.valid && victimCoreMapSel(idx)) {
               // we are selected as the eviction target
+              // capture requested PID since it's a Flow and only valid for one cycle
+              corePreempt(idx).payload := rxPreemptReq.pid
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -380,7 +388,6 @@ class Scheduler extends FiberPlugin {
         }
         val preempt: State = new State {
           whenIsActive {
-            corePreempt(idx).payload := rxPreemptReq.pid
             corePreempt(idx).valid := True
             when (corePreempt(idx).ready) {
               rxPreemptReq.valid := False
