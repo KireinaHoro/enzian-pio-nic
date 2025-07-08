@@ -263,6 +263,13 @@ class Scheduler extends FiberPlugin {
     val rxProcTblIdx = OHToUInt(rxProcSelOh)
     val rxProcDef = procDefs(rxProcTblIdx)
 
+    // used to find a non-empty queue, when a core has drained its queue
+    val drainProcSelOh = procDefs.zipWithIndex.map { case (pd, idx) =>
+      pd.enabled && !queueMetas(idx).empty
+    }.asBits()
+    val drainProcTblIdx = OHToUInt(drainProcSelOh)
+    val drainProcDef = procDefs(drainProcTblIdx)
+
     // map of which process is running on which core
     val corePidMap = Vec.fill(NUM_WORKER_CORES) {
       // all start in IDLE -- preempt request will move them away
@@ -389,6 +396,20 @@ class Scheduler extends FiberPlugin {
 
                 goto(readPoppedReq)
               }
+            } elsewhen (toCore.ready && corePopQueueIdx =/= drainProcTblIdx) {
+              // When a core completely drained its queue, it needs to check if there are non-empty queues that
+              // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
+              // the following case:
+              // - process received a request when all cores are busy, couldn't preempt any core
+              // - system later became not busy, but no new requests arrive for process
+              // - if we don't scan inactive queues, the request will sit there indefinitely
+              // TODO: fairness?
+
+              // XXX: two cores can see the same queue at the same time
+              //      this will only result in them all preempted to that queue, should be ok
+              corePreempt(idx).payload := drainProcDef.pid
+              savedPreemptIdx := drainProcTblIdx
+              goto(preempt)
             }
           }
         }
