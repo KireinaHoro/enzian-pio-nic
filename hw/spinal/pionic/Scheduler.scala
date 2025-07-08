@@ -93,7 +93,9 @@ class Scheduler extends FiberPlugin {
 
   def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // read-back port for SW to inspect programmed procs
-    val readbackPort = Reg(ProcessDef())
+    val readbackPort = Reg(new ProcessDef {
+      val queueFill = UInt(REG_WIDTH bits)
+    })
     readbackPort.elements.foreach { case (name, field) =>
       busCtrl.read(field, alloc("schedStats", s"readback_$name", attr = AccessType.RO))
     }
@@ -103,7 +105,8 @@ class Scheduler extends FiberPlugin {
     val readbackIdxAddr = alloc("schedStats", "readback_idx", attr = AccessType.WO)
     busCtrl.write(readbackIdx, readbackIdxAddr)
     busCtrl.onWrite(readbackIdxAddr) {
-      readbackPort := logic.procDefs(readbackIdx)
+      readbackPort.assignSomeByName(logic.procDefs(readbackIdx))
+      readbackPort.queueFill := logic.queueMetas(readbackIdx).fill.resized
     }
 
     logic.statistics.elements.foreach { case (name, data) =>
