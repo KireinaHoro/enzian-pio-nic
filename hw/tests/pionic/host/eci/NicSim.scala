@@ -701,14 +701,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       currPid = pid
     }
   }
-  def genericIrqHandler(coreStates: Seq[CoreState])(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, coreId: Int, intId: Int) = {
+  def genericIrqHandler(coreStates: Seq[CoreState], pidMaxThrCountMap: Map[Int, Int])(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, coreId: Int, intId: Int) = {
     val cs = coreStates(coreId)
     cs.enterISR()
 
     // ACK interrupt and switch to process
     val coreBlock = ALLOC.readBack("core", blockIdx = coreId)
     val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
-    cs.setPid(pidToSched.toInt)
+    val pid = pidToSched.toInt
+    assert(pidMaxThrCountMap(pid) > coreStates.count(_.currPid == pid), "trying to schedule more cores than max threads")
+    cs.setPid(pid)
 
     // reset parity
     rxNextCl(coreId) = rxParity.toInt
@@ -730,38 +732,51 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
 
     val coreStates = Seq.tabulate(numCores)(new CoreState(_))
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, genericIrqHandler(coreStates))
-
     val srvDefs = Seq(
       ProcDef.mkRandom(2) -> Seq(RpcSrvDef.mkRandom),
       ProcDef.mkRandom(3) -> Seq(RpcSrvDef.mkRandom),
       ProcDef.mkRandom(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
     )
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, genericIrqHandler(coreStates,
+      srvDefs.map { case (pd, _) =>
+        pd.pid -> pd.maxThreads
+      }.toMap))
+
     val srvs = oncRpcCallPacketFactory(csrMaster, globalBlock, srvDefs,
       Some("rx-sched-idle-scale-many"))
-    val pktsToSend = srvs.map(_ => Random.between(50, 100)).to(mutable.ArrayBuffer)
-    val totalPktsToSend = pktsToSend.sum
-    var pktsReceived = 0
+    // sending packets is based on per service
+    val pktsToSendStructured = srvDefs.map { case (_, ss) =>
+      ss.map(_ => Random.between(50, 100))
+    }
+    val pktsToSend = pktsToSendStructured.flatten
+    val pktsSent = mutable.ArrayBuffer.fill(srvs.length)(0)
+
+    // receiving packets is based on per proc
+    val pktsExpecting = pktsToSendStructured.map(_.sum)
+    val pktsReceived = mutable.ArrayBuffer.fill(srvDefs.length)(0)
+
     // (PID, XID) => (packet, payload)
     val pktsToReceive = mutable.Map[(Int, Int), (EthernetPacket, List[Byte], Long)]()
 
+    def pidToIdx(pid: Int) = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+
     fork {
-      while (pktsToSend.sum > 0) {
+      while (pktsToSend.sum > pktsSent.sum) {
         val srvToSend = Random.nextInt(srvs.length)
-        if (pktsToSend(srvToSend) > 0) {
+        if (pktsToSend(srvToSend) > pktsSent(srvToSend)) {
           val (funcPtr, getPacket, pid) = srvs(srvToSend)
 
           // This test is designed to allow all cores to receive all packets sent; we need to wait if the queue for the
           // corresponding PID is about to overflow.  If the scheduler failed to preempt some core to handle a non-empty
           // queue, the core reads will eventually run out of retries.
-          val pidIdx = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+          val pidIdx = pidToIdx(pid)
           println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
           csrMaster.write(globalBlock("schedStats", "readback_idx"), pidIdx.toBytes)
           val queueFill = csrMaster.read(globalBlock("schedStats", "readback_queueFill"), 8).bytesToBigInt
           println(f"PID $pid%#x has $queueFill elements queued in scheduler")
 
           if (queueFill >= RX_PKTS_PER_PROC.get - 5) {
-            println(f"PID $pid%#x's queue is almost full, skipping sending and throttling")
+            println(f"Trying to send for srvId $srvToSend: PID $pid%#x's queue is almost full, skipping sending and throttling")
             sleepCycles(200)
           } else {
             val (pkt, pld, xid) = getPacket()
@@ -771,7 +786,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
             assert(!pktsToReceive.contains((pid, xid)), "random packet generation collision")
             pktsToReceive((pid, xid)) = (pkt, pld, funcPtr)
-            pktsToSend(srvToSend) -= 1
+            pktsSent(srvToSend) += 1
           }
         }
       }
@@ -784,43 +799,56 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
         waitUserspace()
         cs.log("in userspace now")
+        waitUntil(!cs.isIdle)
+        waitUserspace()
 
-        while (totalPktsToSend != pktsReceived) {
-          def procLog(msg: String) = cs.log(f"<${cs.currPid}%#x> $msg")
-          procLog("try receive one")
+        def procLog(msg: String) = cs.log(f"<${cs.currPid}%#x> $msg")
+        def currIdx = pidToIdx(cs.currPid) - 1
 
-          waitUntil(!cs.isIdle)
-          waitUserspace()
+        while (pktsExpecting.sum != pktsReceived.sum) {
+          if (pktsExpecting(currIdx) > pktsReceived(currIdx)) {
+            waitUserspace()
+            procLog("try receive one")
 
-          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
-          val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
-          procLog(s"received status $desc")
-          val tail = dcsMaster.read(overflowAddr, desc.len)
-          procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
+            // this read might be launched before the queue was empty
+            val descOption = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result
+            if (descOption.nonEmpty) {
+              val (desc, overflowAddr) = descOption.get
+              val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+              procLog(s"received status $desc")
+              val tail = dcsMaster.read(overflowAddr, desc.len)
+              procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
 
-          exitCriticalSection(dcsMaster, cid)
-          procLog("finished receiving")
-          sleepCycles(Random.between(50, 100))
+              exitCriticalSection(dcsMaster, cid)
+              procLog("finished receiving")
+              sleepCycles(Random.between(50, 100))
 
-          val xid = Integer.reverseBytes(info.xid.toInt)
-          if (!pktsToReceive.contains((cs.currPid, xid))) {
-            procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
-            pktsToReceive.view.filterKeys(_._1 == cs.currPid).foreach { case ((_, x), _) =>
-              println(f"XID $x%#x")
+              val xid = Integer.reverseBytes(info.xid.toInt)
+              if (!pktsToReceive.contains((cs.currPid, xid))) {
+                procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
+                pktsToReceive.view.filterKeys(_._1 == cs.currPid).foreach { case ((_, x), _) =>
+                  println(f"XID $x%#x")
+                }
+                simFailure("XID not found")
+              }
+              val (pkt, pld, funcPtr) = pktsToReceive((cs.currPid, xid))
+              procLog(f"received xid $xid%x, expecting packet $pkt")
+              checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
+
+              procLog(s"finished (simulated) processing packet #${pktsReceived.sum}")
+              pktsReceived(currIdx) += 1
+            } else {
+              procLog(s"try receive timed out, checking if process is finished...")
             }
-            simFailure("XID not found")
+          } else {
+            procLog("process finished receiving, waiting for preemption...")
+            waitUntil(cs.inISR)
           }
-          val (pkt, pld, funcPtr) = pktsToReceive((cs.currPid, xid))
-          procLog(f"received xid $xid%x, expecting packet $pkt")
-          checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
-
-          procLog(s"finished (simulated) processing packet #$pktsReceived")
-          pktsReceived += 1
         }
       }
     }
 
-    waitUntil(totalPktsToSend == pktsReceived)
+    waitUntil(pktsExpecting.sum == pktsReceived.sum)
   }
 
   /* Test killing a process that did not unset BUSY */
