@@ -294,20 +294,20 @@ class Scheduler extends FiberPlugin {
         inc(_.pushed)
       }
 
-      // new packet arrived, try to select a core to preempt
-      // but do not block the RX process
+      // A new packet arrived, try to select a core to preempt, but do not block the RX process.
       when (rxProcCurrThrCount < rxProcDef.maxThreads) {
         rxPreemptReq.pid := rxOncRpcCall.pid
         rxPreemptReq.idx := rxProcTblIdx
 
-        when (rxProcCoreMap === 0) {
-          // no process assigned to this queue -- idle preempt
-          rxPreemptReq.ty := PreemptCmdType.idle
-          rxPreemptReq.valid := True
-        } elsewhen (queueMetas(rxProcTblIdx).almostFull) {
+        // preempting as ready takes priority
+        when (queueMetas(rxProcTblIdx).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
           // preempt a non-idle, ready core
           rxPreemptReq.ty := PreemptCmdType.ready
+          rxPreemptReq.valid := True
+        } elsewhen (rxProcCoreMap === 0) {
+          // no process assigned to this queue -- idle preempt
+          rxPreemptReq.ty := PreemptCmdType.idle
           rxPreemptReq.valid := True
         }
       }
