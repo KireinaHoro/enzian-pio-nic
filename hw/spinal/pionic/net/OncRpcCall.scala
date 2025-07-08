@@ -67,7 +67,7 @@ case class OncRpcCallServiceDef() extends Bundle {
     listenPort.asBits === port
 }
 
-class OncRpcCallDecoder() extends ProtoDecoder[OncRpcCallMetadata] {
+class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
   
   // FIXME: can we fit more?
