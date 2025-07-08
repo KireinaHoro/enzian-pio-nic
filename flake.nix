@@ -29,6 +29,8 @@
         zlib.dev verilator clang
         gtkwave sby yices
         jdk millw
+        # cross compiler
+        pkgsCross.aarch64-multiplatform.buildPackages.gcc
       ];
     };
   });
