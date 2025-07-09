@@ -63,17 +63,17 @@ case class PcieHostCtrlInfo() extends Bundle {
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "PCIe Host Control Info (Error)" {
          |  valid 1   "RX descriptor valid (rsvd for TX)";
-         |  addr  $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
-         |  size  $PKT_BUF_LEN_WIDTH "Length of packet";
-         |  ty    $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be error)";
+         |  addr  ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
+         |  size  ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
          |  _     21  rsvd;
          |};
          |datatype host_ctrl_info_bypass lsbfirst(64) "PCIe Host Control Info (Bypass)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
-         |  addr   $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
-         |  size   $PKT_BUF_LEN_WIDTH "Length of packet";
-         |  ty     $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be bypass)";
-         |  hdr_ty $PKT_DESC_TY_WIDTH type(packet_desc_type) "Type of bypass header";
+         |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
+         |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
+         |  hdr_ty ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
          |  _      19 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
@@ -81,9 +81,9 @@ case class PcieHostCtrlInfo() extends Bundle {
          |};
          |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
-         |  addr   $PKT_BUF_ADDR_WIDTH "Address in packet buffer";
-         |  size   $PKT_BUF_LEN_WIDTH "Length of packet";
-         |  ty     $HOST_REQ_TY_WIDTH type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
+         |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
+         |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
          |  _      21  rsvd;
          |  xid    32  "XID of incoming request";
          |  func_ptr 64 "Function pointer for RPC call handler";
@@ -93,10 +93,11 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  // - as an array, so Mackerel would emit access functions
          |};
          |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
+         |  // TODO: this does not exist yet, use bypass with raw Ethernet frame for sending
          |  valid  1   "RX descriptor valid (rsvd for TX)";
-         |  addr   $aw "Address in packet buffer";
-         |  size   $lw "Length of packet";
-         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
+         |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
+         |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
          |  _      21  rsvd;
          |  // buffer follows
          |  // TODO: for now, reply software-serialized data...

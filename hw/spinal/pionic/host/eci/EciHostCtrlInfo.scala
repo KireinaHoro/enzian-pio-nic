@@ -99,8 +99,6 @@ case class EciHostCtrlInfo() extends Bundle {
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  _         13 rsvd;
          |  xid       32 "XID of incoming request";
-         |  // TODO: this is enough for recv in rx but to make nested calls in tx, we need more (progNum, ver...)?
-         |  // may be a good idea to seperate them
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:
@@ -108,10 +106,13 @@ case class EciHostCtrlInfo() extends Bundle {
          |  // - as an array, so Mackerel would emit access functions
          |};
          |
+         |// TODO: separate datatype for making a nested RPC call (progNum, ver...)?
+         |
          |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
+         |  // TODO: this datatype does not exist yet, use host_ctrl_info_bypass to send a raw Ethernet frame
          |  valid     1 "RX descriptor valid (rsvd for TX)";
-         |  ty        $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_reply)";
-         |  len       $lw "Length of packet";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply)";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  _         13 rsvd;
          |  // buffer follows
          |  // TODO: for now, reply software-serialized data...
