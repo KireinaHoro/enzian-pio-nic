@@ -92,6 +92,15 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |  // - as an array, so Mackerel would emit access functions
          |};
+         |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
+         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  addr   $aw "Address in packet buffer";
+         |  size   $lw "Length of packet";
+         |  ty     $tw type(host_packet_desc_type) "Type of descriptor (should be onc_rpc_call)";
+         |  _      21  rsvd;
+         |  // buffer follows
+         |  // TODO: for now, reply software-serialized data...
+         |};
          |""".stripMargin
     )
   }

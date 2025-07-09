@@ -5,46 +5,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hal.h"
+
+#define __PIONIC_RT__
+#include "pionic.h"  // get pionic_pkt_desc_t etc. and rename below
+
 struct pionic_ctx;
 typedef struct pionic_ctx *pionic_ctx_t;
-
-#define PIONIC_BYPASS_HEADER_SIZE (PIONIC_BYPASS_HEADER_MAX_WIDTH / 8)
-
-typedef enum {
-  TY_ERROR,
-  TY_BYPASS,
-  TY_ONCRPC_CALL,
-} pionic_pkt_desc_type_t;
-
-// descriptor for one packet / transaction
-// must be allocated / freed by the respective functions, since we
-// want to decouple implementation size choices from application
-typedef struct {
-  pionic_pkt_desc_type_t type;
-  // transaction metadata (packet header, RPC session data, etc.)
-  union {
-    struct {
-      enum {
-        HDR_ETHERNET,
-        HDR_IP,
-        HDR_UDP,
-        HDR_ONCRPC_CALL,
-      } header_type;
-      uint8_t header[PIONIC_BYPASS_HEADER_SIZE];
-    } bypass;
-    struct {
-      void *func_ptr;
-      int xid;
-      uint32_t *args;
-    } oncrpc_call;
-  };
-
-  // extra payload
-  uint8_t *payload_buf;
-  size_t payload_len;
-} pionic_pkt_desc_t;
-pionic_pkt_desc_t *pionic_alloc_pkt_desc();
-void pionic_free_pkt_desc(pionic_pkt_desc_t *desc);
 
 // implementation details
 int pionic_get_mtu();
@@ -54,7 +21,9 @@ int pionic_init(pionic_ctx_t *ctx, const char *dev, bool loopback);
 void pionic_fini(pionic_ctx_t *ctx);
 
 // global configurations
-void pionic_set_rx_block_cycles(pionic_ctx_t ctx, int cycles);
+void pionic_set_rx_block_cycles(pionic_ctx_t ctx, uint64_t cycles);
+uint64_t pionic_get_rx_block_cycles(pionic_ctx_t ctx);
+// void pionic_set_core_mask(pionic_ctx_t ctx, uint64_t mask);
 void pionic_set_promisc(pionic_ctx_t ctx, bool enable);
 
 // protocol decoder configurations
@@ -69,6 +38,9 @@ void pionic_oncrpc_service_enable(pionic_ctx_t ctx, int idx, int prog_num,
 void pionic_oncrpc_service_disable(pionic_ctx_t ctx, int idx);
 
 void pionic_oncrpc_set_core_mask(pionic_ctx_t ctx, int mask);
+
+// per core
+void pionic_sync_core_state(pionic_core_state_t *state, pionic_core_t *core);
 
 // receive packet
 bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc);

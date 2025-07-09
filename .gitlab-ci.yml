@@ -14,14 +14,19 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
 
-.docker-image:
+.docker-image-hw:
   tags:
     - enzian-docker
     - vivado
   image: "registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04"
 
+.docker-image-sw:
+  tags:
+    - enzian
+  image: "registry.ethz.ch/project-openenzian/ci-images/spinal-rust:ubuntu-22.04"
+
 fast-tests-eci:
-  extends: .docker-image
+  extends: .docker-image-hw
   stage: test
   script:
     - mill gen.test.testOnly pionic.host.eci.NicSim -- -l org.scalatest.tags.Slow
@@ -30,28 +35,24 @@ fast-tests-eci:
       - simWorkspace/**/sim_transcript.log.gz
       - simWorkspace/**/wave.fst
 
-.build-sw:
-  extends: .docker-image
+build-sw:
+  extends: .docker-image-sw
   stage: build-sw
   script:
-    - mill $PIONIC_DESIGN.generateVerilog
-    - make -C sw/$PIONIC_DESIGN
+#    - mill pcie.generateVerilog
+    - mill eci.generateVerilog
+    - cd sw
+    - mkdir build
+    - cmake -B build
+    - cmake --build build
   artifacts:
     paths:
-      - sw/$PIONIC_DESIGN/pionic-test
-
-build-sw-pcie:
-  extends: .build-sw
-  variables:
-    PIONIC_DESIGN: pcie
-
-build-sw-eci:
-  extends: .build-sw
-  variables:
-    PIONIC_DESIGN: eci
-
+      - hw/gen/*/*.h
+      - sw/devices/pionic_*.dev
+      - sw/rt-include/gen/**
+      - build/libpionic-rt-eci.a
 .build-hw:
-  extends: .docker-image
+  extends: .docker-image-hw
   stage: build-hw
   needs:
     - fast-tests-eci
@@ -87,9 +88,7 @@ publish:
   rules:
     - if: '$CI_COMMIT_TAG'
   needs:
-    - job: build-sw-pcie
-      artifacts: true
-    - job: build-sw-eci
+    - job: build-sw
       artifacts: true
     - job: build-hw-pcie
       artifacts: true
