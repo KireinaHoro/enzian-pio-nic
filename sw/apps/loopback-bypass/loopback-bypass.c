@@ -30,7 +30,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, pionic_pkt_desc_t *desc,
   // fill in Ethernet header
   desc->type = TY_BYPASS;
   desc->bypass.header_type = HDR_ETHERNET;
-  memcpy(desc->bypass.header_buf, ethernet_hdr, sizeof(ethernet_hdr));
+  memcpy(desc->bypass.header, ethernet_hdr, sizeof(ethernet_hdr));
 
   char rx_buf[length];
 
@@ -43,6 +43,7 @@ static measure_t loopback_timed(pionic_ctx_t ctx, pionic_pkt_desc_t *desc,
   ret.host_got_tx_buf = pionic_get_cycles(ctx);
 
   if (length > 0) {
+    // TODO: check desc->payload_len is enough?
     memcpy(desc->payload_buf, tx_buf, length);
     desc->payload_len = length;
     pionic_tx(ctx, cid, desc);

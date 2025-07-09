@@ -3,3 +3,9 @@
 **/*.o
 **/.deps/
 **/.*.swp
+cmake-build-*
+build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
