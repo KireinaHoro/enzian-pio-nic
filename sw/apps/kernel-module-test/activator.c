@@ -1,19 +1,19 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<sys/types.h>
-#include<sys/stat.h>
-#include<fcntl.h>
-#include<unistd.h>
-#include<sys/ioctl.h>
- 
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #define IOCTL_TEST_ACTIVATE_PID _IOW('t', 'a', pid_t)
- 
-int main(int argc, const char* argv[], const char* envp[]) {
+
+int main(int argc, const char *argv[], const char *envp[]) {
   int fd;
   // int32_t value, number;
-  
-//   printf("Opening device\n");
+
+  //   printf("Opening device\n");
   fd = open("/dev/pionic", O_RDWR);
   if (fd < 0) {
     printf("Cannot open device file...\n");
@@ -27,9 +27,9 @@ int main(int argc, const char* argv[], const char* envp[]) {
   }
 
   printf("activator: going to active %i...", pid);
-  ioctl(fd, IOCTL_TEST_ACTIVATE_PID, &pid); 
+  ioctl(fd, IOCTL_TEST_ACTIVATE_PID, &pid);
   printf("Done\n");
 
-//   printf("Closing device\n");
+  //   printf("Closing device\n");
   close(fd);
 }

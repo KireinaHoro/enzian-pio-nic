@@ -5,7 +5,7 @@
 #define __RT_COMMON_H__
 
 #include <assert.h>
-#define STATIC_ASSERT _Static_assert  // requires C11
+#define STATIC_ASSERT _Static_assert // requires C11
 
 #ifdef __KERNEL__
 
@@ -17,7 +17,7 @@
 #endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#else  // not __KERNEL__
+#else // not __KERNEL__
 
 // headers for user-space library
 #include <stdio.h>
@@ -29,10 +29,10 @@
 #define pr_debug printf
 #else
 #define pr_debug(...)
-#endif  // DEBUG
+#endif // DEBUG
 
 #define pr_flush() fflush(stdout);
 
-#endif  // __KERNEL__
+#endif // __KERNEL__
 
-#endif  // __RT_COMMON_H__
+#endif // __RT_COMMON_H__

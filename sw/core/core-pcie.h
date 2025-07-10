@@ -12,7 +12,7 @@
 #include "debug.h"
 
 #define __PIONIC_RT__
-#include "pionic.h"  // get pionic_pkt_desc_t etc. (but not other usr functions)
+#include "pionic.h" // get pionic_pkt_desc_t etc. (but not other usr functions)
 
 // mackerel
 // provide pionic_pcie_*, pionic_pcie_host_*, pionic_pcie_core_*,
@@ -27,8 +27,8 @@
 #define PIONIC_PKTBUF_OFF_TO_ADDR(off) ((off) + PIONIC_PCIE_PKT_BASE)
 #define PIONIC_ADDR_TO_PKTBUF_OFF(addr) ((addr) - PIONIC_PCIE_PKT_BASE)
 
-
-static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev,
+                         pionic_pkt_desc_t *desc) {
   // XXX: host rx (unlike host tx) has separate FIFO pop doorbell
   uint8_t *host_rx = (uint8_t *)core_dev->base + PIONIC_PCIE_CORE_HOST_RX_BASE;
 
@@ -67,8 +67,10 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
 
       // parsed bypass header is aligned after the descriptor header
       // XXX: we don't have the actual size of the header, copy maximum
-      memcpy(desc->bypass.header, host_rx + pionic_pcie_host_ctrl_info_bypass_size, sizeof(desc->bypass.header));
-      
+      memcpy(desc->bypass.header,
+             host_rx + pionic_pcie_host_ctrl_info_bypass_size,
+             sizeof(desc->bypass.header));
+
       break;
 
     case pionic_pcie_onc_rpc_call:
@@ -81,7 +83,9 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
-      memcpy(desc->oncrpc_call.args, host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size, sizeof(desc->oncrpc_call.args));
+      memcpy(desc->oncrpc_call.args,
+             host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size,
+             sizeof(desc->oncrpc_call.args));
 
       break;
 
@@ -98,7 +102,8 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
   }
 }
 
-static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev,
+                             pionic_pkt_desc_t *desc) {
   uint64_t read_addr = desc->payload_buf - (uint8_t *)bar;
 
   // valid for host-driven descriptor doesn't actually do anything so we don't
@@ -117,9 +122,10 @@ static void core_pcie_rx_ack(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt
   desc->payload_len = 0;
 }
 
-static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev,
+                                      pionic_pkt_desc_t *desc) {
   // PCIe backend: set payload_buf with the buffer requested from the NIC
-  
+
   // XXX: read tx reg in one go since this reg has FIFO semantics
   pionic_pcie_core_host_pkt_buf_desc_t reg =
       pionic_pcie_core_host_tx_rd(core_dev);
@@ -133,12 +139,13 @@ static void core_pcie_tx_prepare_desc(void *bar, pionic_pcie_core_t *core_dev, p
   desc->payload_len = len;
 }
 
-static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_desc_t *desc) {
+static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev,
+                         pionic_pkt_desc_t *desc) {
   // PCIe backend: will give the payload_buf back to NIC
-  
+
   // XXX: host tx ack (unlike host rx ack) has separate FIFO push doorbell
-  uint8_t *host_tx_ack = (uint8_t *)core_dev->base +
-                                     PIONIC_PCIE_CORE_HOST_TX_ACK_BASE;
+  uint8_t *host_tx_ack =
+      (uint8_t *)core_dev->base + PIONIC_PCIE_CORE_HOST_TX_ACK_BASE;
 
   uint64_t write_addr = desc->payload_buf - (uint8_t *)bar;
 
@@ -173,11 +180,12 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
           host_tx_ack, pionic_pcie_hdr_onc_rpc_call);
       break;
     }
-    
+
     // parsed bypass header is aligned after the descriptor header
     // XXX: we don't have the actual size of the header, copy maximum
-    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size, desc->bypass.header, sizeof(desc->bypass.header));
-    
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_bypass_size,
+           desc->bypass.header, sizeof(desc->bypass.header));
+
     break;
 
   case TY_ONCRPC_CALL:
@@ -189,23 +197,25 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev, pionic_pkt_des
                                                        desc->oncrpc_call.xid);
     // parsed oncrpc arguments are aligned after the descriptor header
     // XXX: we don't have the actual count of args, copy maximum
-    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_call_size, desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_call_size,
+           desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
 
     break;
 
   case TY_ONCRPC_REPLY:
-    pionic_pcie_host_ctrl_info_onc_rpc_reply_ty_insert(host_tx_ack, pionic_pcie_onc_rpc_reply);
-    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_reply_size, desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
+    pionic_pcie_host_ctrl_info_onc_rpc_reply_ty_insert(
+        host_tx_ack, pionic_pcie_onc_rpc_reply);
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_reply_size,
+           desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
     break;
   default:
-      pr_err("pcie_tx: unsupported desc->type %d\n", desc->type);
-      break;
+    pr_err("pcie_tx: unsupported desc->type %d\n", desc->type);
+    break;
   }
 
   // ring doorbell: tx packet ready
   // TODO: @PX, how?
-  ???
+  ? ? ?
 }
 
-
-#endif  // __PIONIC_CORE_PCIE_H__
+#endif // __PIONIC_CORE_PCIE_H__

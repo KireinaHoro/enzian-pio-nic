@@ -23,6 +23,7 @@ uint64_t pionic_get_cycles(pionic_global_t *dev);
 uint64_t pionic_us_to_cycles(double us);
 double pionic_cycles_to_us(uint64_t cycles);
 
-void pionic_read_timestamps_core_ctrl(pionic_global_t *dev, pionic_core_ctrl_timestamps_t *ts);
+void pionic_read_timestamps_core_ctrl(pionic_global_t *dev,
+                                      pionic_core_ctrl_timestamps_t *ts);
 
 #endif // __PIONIC_PROFILE_H__
