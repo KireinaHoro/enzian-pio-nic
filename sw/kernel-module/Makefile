@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
+# Copyright (c) 2025 Zikai Liu
+
 KDIR ?= /lib/modules/`uname -r`/build
 
 obj-m += pionic.o

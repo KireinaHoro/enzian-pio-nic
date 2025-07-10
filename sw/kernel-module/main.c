@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
+// Copyright (c) 2025 Zikai Liu
 #include "common.h"
 #include <linux/cdev.h>
 #include <linux/delay.h>
@@ -136,7 +138,7 @@ static void __exit mod_exit(void) {
 
 MODULE_AUTHOR("Zikai Liu");
 MODULE_DESCRIPTION("PIO NIC kernel driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual BSD/GPL");
 
 module_init(mod_init);
 module_exit(mod_exit);
