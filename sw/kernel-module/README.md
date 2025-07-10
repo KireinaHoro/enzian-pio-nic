@@ -32,3 +32,9 @@ Uninstall the kernel module:
 ```sh
 sudo rmmod pionic
 ```
+
+## License
+
+This module is dual-licensed under the 3-clause BSD license and and GPL 2.0.
+
+`SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only`
