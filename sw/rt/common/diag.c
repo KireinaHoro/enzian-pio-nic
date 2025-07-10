@@ -2,24 +2,26 @@
 #include "hal.h"
 #include "profile.h"
 
-#include "gen/pionic_eci_global.h"
 #include "gen/pionic_eci_core.h"
+#include "gen/pionic_eci_global.h"
 
+#include <assert.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <assert.h>
 
 void pionic_dump_glb_stats(pionic_global_t *glb) {
-#define READ_PRINT(name) printf("%s\t: %#lx\n", #name, pionic_global(name ## _rd)(glb))
+#define READ_PRINT(name)                                                       \
+  printf("%s\t: %#lx\n", #name, pionic_global(name##_rd)(glb))
   READ_PRINT(rx_overflow_count);
 #undef READ_PRINT
 }
 
 void pionic_dump_core_stats(pionic_core_t *core) {
-#define READ_PRINT(name) printf("core: %s\t: %#lx\n", #name, pionic_core(name ## _rd)(core))
+#define READ_PRINT(name)                                                       \
+  printf("core: %s\t: %#lx\n", #name, pionic_core(name##_rd)(core))
   READ_PRINT(rx_packet_count);
   READ_PRINT(tx_packet_count);
   READ_PRINT(rx_dma_error_count);
@@ -45,7 +47,8 @@ static jmp_buf *sigbus_jmp;
 
 static void signal_handler(int sig) {
   if (sig == SIGBUS) {
-    if (sigbus_jmp) siglongjmp(*sigbus_jmp, 1);
+    if (sigbus_jmp)
+      siglongjmp(*sigbus_jmp, 1);
     abort();
   }
 }
@@ -54,8 +57,8 @@ void pionic_probe_rx_block_cycles(pionic_ctx_t ctx) {
   printf("Testing for maximum blocking time...\n");
 
   struct sigaction new = {
-    .sa_handler = signal_handler,
-    .sa_flags = SA_RESETHAND, // only catch once
+      .sa_handler = signal_handler,
+      .sa_flags = SA_RESETHAND, // only catch once
   };
   sigemptyset(&new.sa_mask);
   if (sigaction(SIGBUS, &new, NULL)) {

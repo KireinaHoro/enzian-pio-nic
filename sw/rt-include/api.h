@@ -8,7 +8,7 @@
 #include "hal.h"
 
 #define __PIONIC_RT__
-#include "pionic.h"  // get pionic_pkt_desc_t etc. and rename below
+#include "pionic.h" // get pionic_pkt_desc_t etc. and rename below
 
 struct pionic_ctx;
 typedef struct pionic_ctx *pionic_ctx_t;

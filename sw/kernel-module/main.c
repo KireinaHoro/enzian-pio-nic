@@ -1,18 +1,17 @@
-#include<linux/module.h>
-#include<linux/init.h> 
-#include<linux/kthread.h>
-#include<linux/sched.h> 
-#include<linux/delay.h>
-#include<linux/slab.h>  // kmalloc
-#include<linux/uaccess.h>  // copy_to/from_user
-#include<linux/device.h>
-#include<linux/cdev.h>
-#include<linux/ioctl.h>
-#include<linux/fs.h>
-#include<linux/kdev_t.h>
-#include<linux/wait.h>
 #include "common.h"
-
+#include <linux/cdev.h>
+#include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/ioctl.h>
+#include <linux/kdev_t.h>
+#include <linux/kthread.h>
+#include <linux/module.h>
+#include <linux/sched.h>
+#include <linux/slab.h>    // kmalloc
+#include <linux/uaccess.h> // copy_to/from_user
+#include <linux/wait.h>
 
 /* static struct task_struct *ktask;
 
@@ -37,19 +36,16 @@ int thread_function(void *data) {
   return 0;
 } */
 
-
-
 // In ioctl.c
 long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
-static struct file_operations fops =
-{
-  .owner          = THIS_MODULE,
-  // .read           = etx_read,
-  // .write          = etx_write,
-  // .open           = etx_open,
-  .unlocked_ioctl = mod_ioctl,
-  // .release        = etx_release,
+static struct file_operations fops = {
+    .owner = THIS_MODULE,
+    // .read           = etx_read,
+    // .write          = etx_write,
+    // .open           = etx_open,
+    .unlocked_ioctl = mod_ioctl,
+    // .release        = etx_release,
 };
 
 static dev_t dev = 0;
@@ -76,7 +72,7 @@ static int __init mod_init(void) {
   // Register the device
 
   // Use char device for now...
-  if (alloc_chrdev_region(&dev, 0, 1, "pionic_device") < 0){
+  if (alloc_chrdev_region(&dev, 0, 1, "pionic_device") < 0) {
     pr_err("alloc_chrdev_region failed\n");
     ret = -1;
     goto err_alloc_chrdev_region;
@@ -103,7 +99,6 @@ static int __init mod_init(void) {
     goto err_device_create;
   }
   pr_info("Device created at /dev/pionic\n");
-
 
   pr_info("Loaded\n");
   goto done;
@@ -135,7 +130,7 @@ static void __exit mod_exit(void) {
 
   /* ret = kthread_stop(ktask);
   pr_info("kthread returns %d", ret); */
-  
+
   pr_info("Unloaded\n");
 }
 

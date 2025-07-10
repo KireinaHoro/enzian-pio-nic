@@ -1,8 +1,8 @@
 #ifndef __PIONIC_DEBUG_H__
 #define __PIONIC_DEBUG_H__
 
-#include "hal.h"
 #include "api.h"
+#include "hal.h"
 
 void pionic_dump_glb_stats(pionic_global_t *glb);
 void pionic_dump_core_stats(pionic_core_t *core);
@@ -11,8 +11,8 @@ void pionic_dump_core_stats(pionic_core_t *core);
 void pionic_reset_pkt_alloc(pionic_core_t *core);
 
 // probe bus max latency by catching SIGBUS
-// XXX: bus might be broken after SIGBUS happening once; use only for determining
-//      the max latency and not in production!
+// XXX: bus might be broken after SIGBUS happening once; use only for
+//      determining the max latency and not in production!
 void pionic_probe_rx_block_cycles(pionic_ctx_t ctx);
 
 #endif // __PIONIC_DEBUG_H__

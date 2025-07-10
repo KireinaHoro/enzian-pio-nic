@@ -17,8 +17,8 @@
 #include "regblock_bases.h"
 
 #include "gen/cmac.h"
-#include "gen/pionic_eci_global.h"
 #include "gen/pionic_eci_core.h"
+#include "gen/pionic_eci_global.h"
 
 #define CMAC_BASE 0x200000UL
 
@@ -56,7 +56,6 @@ struct pionic_ctx {
 static pionic_core_state_t core_states[PIONIC_NUM_CORES];
 
 #endif
-
 
 static void write64_shell(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
@@ -124,7 +123,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
 
   // read out shell version number
   pr_info("Enzian shell version: %08lx\n",
-         read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
+          read64_shell(ctx, SHELL_REGS_VERSION_ADDR));
 
   // TODO: implement resync
 
@@ -164,7 +163,8 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
 
   // initialize per-core states
   for (int i = 0; i < PIONIC_NUM_CORES; ++i) {
-    pionic_eci_core_initialize(&ctx->core[i], nic_regs_region + PIONIC_ECI_CORE_BASE(i));
+    pionic_eci_core_initialize(&ctx->core[i],
+                               nic_regs_region + PIONIC_ECI_CORE_BASE(i));
 
     // clean all cachelines
     // we need to do this first, since inv might change tx cl idx
@@ -214,7 +214,7 @@ fail:
 
 void pionic_set_rx_block_cycles(pionic_ctx_t ctx, uint64_t cycles) {
   pionic_eci_global_rx_block_cycles_wr(&ctx->global, cycles)
-  pr_debug("Rx block cycles: %d\n", cycles);
+      pr_debug("Rx block cycles: %d\n", cycles);
 }
 
 uint64_t pionic_get_rx_block_cycles(pionic_ctx_t ctx) {
@@ -256,24 +256,23 @@ void pionic_sync_core_state(pionic_core_state_t *state, pionic_core_t *core) {
 
 bool pionic_rx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   return core_eci_rx((uint8_t *)ctx->mem_region + cid * PIONIC_ECI_CORE_OFFSET,
-    (volatile bool *) &core_states[cid].rx_next_cl,
-    desc);
+                     (volatile bool *)&core_states[cid].rx_next_cl, desc);
 }
 
 void pionic_rx_ack(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  (void) ctx;
-  (void) cid;
+  (void)ctx;
+  (void)cid;
   core_eci_rx_ack(desc);
 }
 
-void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
-  (void) ctx;
-  (void) cid;
+void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid,
+                            pionic_pkt_desc_t *desc) {
+  (void)ctx;
+  (void)cid;
   core_eci_tx_prepare_desc(desc);
 }
 
 void pionic_tx(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   core_eci_tx((uint8_t *)ctx->mem_region + cid * PIONIC_ECI_CORE_OFFSET,
-    (volatile bool *) &core_states[cid].tx_next_cl,
-    desc);
+              (volatile bool *)&core_states[cid].tx_next_cl, desc);
 }

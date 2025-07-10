@@ -1,16 +1,16 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-#include <assert.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "hexdump.h"
 #include "api.h"
 #include "diag.h"
+#include "hexdump.h"
 #include "profile.h"
 
-#define BARRIER asm volatile ("dmb sy\nisb");
+#define BARRIER asm volatile("dmb sy\nisb");
 
 typedef struct {
   bool valid;
@@ -38,12 +38,14 @@ static void rand_fill(uint8_t *buf, size_t len) {
 
 static uint8_t *rx_buf, *tx_buf;
 
-static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offset) {
+static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length,
+                                uint32_t offset) {
   int cid = 0;
 
   pionic_pkt_desc_t desc;
   pionic_tx_prepare_desc(ctx, cid, &desc);
-  // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len, length);
+  // printf("Tx buffer at %p, len %ld; sending %d B\n", desc.buf, desc.len,
+  // length);
 
   // make sure we don't read past the end of the tx buffer
   assert(length <= pionic_get_mtu());
@@ -51,12 +53,12 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   // randomize packet contents
   rand_fill(tx_buf, length);
 
-  measure_t ret = { 0 };
+  measure_t ret = {0};
 
   // Tx path is instrumented with hardware timestamps.
-  // However, Acquire is not reliable: it fires on read, but sits in the same 512B
-  // as other registers, so a read on those would also trigger Acquire.
-  // Use a host-side timestamp as substitute.
+  // However, Acquire is not reliable: it fires on read, but sits in the same
+  // 512B as other registers, so a read on those would also trigger Acquire. Use
+  // a host-side timestamp as substitute.
   ret.host_got_tx_buf = pionic_get_cycles(ctx);
 
   if (length > 0) {
@@ -78,20 +80,24 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   // AfterRead:     the read is finished (on hostRxNext)
   // AfterCommit:   the host freed the packet (on hostRxNextAck)
   //
-  // In addition, we take one timestamp HostReadCompleted (over PCIe) when we received the
-  // packet on the CPU (into the registers).  This includes the memcpy from PCIe into the
-  // CPU registers.
+  // In addition, we take one timestamp HostReadCompleted (over PCIe) when we
+  // received the packet on the CPU (into the registers).  This includes the
+  // memcpy from PCIe into the CPU registers.
   //
-  // XXX: we hope that we get to issue the read before the packet actually come back
+  // XXX: we hope that we get to issue the read before the packet actually come
+  // back
   //      from loopback.  In this case we have the following timestamp sequence:
   //
-  //      ReadStart, Entry, AfterRxQueue, AfterDmaWrite, AfterRead, HostReadCompleted, AfterCommit
+  //      ReadStart, Entry, AfterRxQueue, AfterDmaWrite, AfterRead,
+  //      HostReadCompleted, AfterCommit
   //
-  //      In this setup we would not bloat the latency artificially (due to arbitrary latency
-  //      between AfterDmaWrite and ReadStart, as the host is not yet ready).
+  //      In this setup we would not bloat the latency artificially (due to
+  //      arbitrary latency between AfterDmaWrite and ReadStart, as the host is
+  //      not yet ready).
   //
-  // Taking HostReadCompleted on the CPU requires one PCIe round-trip, resulting in a measurement too late
-  // by half the RTT.  This is measured beforehand and subtracted during actual interval calculation.
+  // Taking HostReadCompleted on the CPU requires one PCIe round-trip, resulting
+  // in a measurement too late by half the RTT.  This is measured beforehand and
+  // subtracted during actual interval calculation.
 
   int tries = 10;
   bool got_pkt;
@@ -122,7 +128,6 @@ static measure_t loopback_timed(pionic_ctx_t ctx, uint32_t length, uint32_t offs
   } else {
     assert(!got_pkt && "got packet when not expecting one");
   }
-
 
   if (length > 0 && memcmp(rx_buf, tx_buf, length)) {
     printf("FAIL: data mismatch for length %d!  Expected (tx):\n", length);
@@ -178,9 +183,11 @@ int main(int argc, char *argv[]) {
 
   out = fopen("loopback.csv", "w");
   fprintf(out, "size,"
-      "acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,host_got_tx_buf_cyc,"
-      "entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_cyc,after_read_cyc,"
-      "after_rx_commit_cyc,host_read_complete_cyc\n");
+               "acquire_cyc,after_tx_commit_cyc,after_dma_read_cyc,exit_cyc,"
+               "host_got_tx_buf_cyc,"
+               "entry_cyc,after_rx_queue_cyc,after_dma_write_cyc,read_start_"
+               "cyc,after_read_cyc,"
+               "after_rx_commit_cyc,host_read_complete_cyc\n");
 
   // send packet and check rx data
   int min_pkt = 64, max_pkt = 9600, step = 64;
@@ -191,9 +198,10 @@ int main(int argc, char *argv[]) {
       measure_t m = loopback_timed(ctx, to_send, i * 64);
       if (m.valid) {
         fprintf(out, "%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n", to_send,
-            m.ts.acquire, m.ts.after_tx_commit, m.ts.after_dma_read, m.ts.exit,
-            m.host_got_tx_buf, m.ts.entry, m.ts.after_rx_queue, m.ts.after_dma_write,
-            m.ts.read_start, m.ts.after_read, m.ts.after_rx_commit, m.host_read_complete);
+                m.ts.acquire, m.ts.after_tx_commit, m.ts.after_dma_read,
+                m.ts.exit, m.host_got_tx_buf, m.ts.entry, m.ts.after_rx_queue,
+                m.ts.after_dma_write, m.ts.read_start, m.ts.after_read,
+                m.ts.after_rx_commit, m.host_read_complete);
         printf(".");
       } else {
         // XXX: try to recover

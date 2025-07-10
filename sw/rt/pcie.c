@@ -27,7 +27,8 @@ struct pionic_ctx {
 #define PIONIC_CMAC_BASE 0x200000UL
 #define PIONIC_MMAP_END 0x300000UL
 
-// TODO: these MMIO functions are to be removed after migrating everthing (e.g. cmac) to Mackerel
+// TODO: these MMIO functions are to be removed after migrating everthing (e.g.
+// cmac) to Mackerel
 
 void write64(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
@@ -129,7 +130,7 @@ int pionic_init(pionic_ctx_t *usr_ctx, const char *dev, bool loopback) {
   ret = 0;
   return ret;
 
-// error handling
+  // error handling
   stop_cmac(ctx, PIONIC_CMAC_BASE);
 fail_start_cmac:
 fail_enable:
@@ -163,7 +164,8 @@ void pionic_rx_ack(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
   core_pcie_rx_ack(ctx->bar, &ctx->core_dev[cid], desc);
 }
 
-void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid, pionic_pkt_desc_t *desc) {
+void pionic_tx_prepare_desc(pionic_ctx_t ctx, int cid,
+                            pionic_pkt_desc_t *desc) {
   core_pcie_tx_prepare_desc(ctx->bar, &ctx->core_dev[cid], desc);
 }
 

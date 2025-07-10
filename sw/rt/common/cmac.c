@@ -7,8 +7,8 @@
 #include "gen/cmac.h"
 
 #include "cmac.h"
-#include "hal.h"
 #include "debug.h"
+#include "hal.h"
 
 #define LINE_UP_MAX_ATTEMPTS 100
 
@@ -25,15 +25,18 @@ int start_cmac(cmac_t *cmac, bool loopback) {
   }
   pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
 
-  cmac_conf_rx_1_rawwr(cmac, cmac_conf_rx_1_ctl_rx_enable_insert(0, 1)); // ctl_rx_enable
-  cmac_conf_tx_1_rawwr(cmac, cmac_conf_tx_1_ctl_tx_send_rfi_insert(0, 1)); // ctl_tx_send_rfi
+  cmac_conf_rx_1_rawwr(
+      cmac, cmac_conf_rx_1_ctl_rx_enable_insert(0, 1)); // ctl_rx_enable
+  cmac_conf_tx_1_rawwr(
+      cmac, cmac_conf_tx_1_ctl_tx_send_rfi_insert(0, 1)); // ctl_tx_send_rfi
 
   int attempts = 0;
 
   while (++attempts < LINE_UP_MAX_ATTEMPTS) {
     cmac_tick_rawwr(cmac, cmac_tick_tick_reg_insert(0, 1));
     status = cmac_stat_rx_status_rd(cmac);
-    if (cmac_stat_rx_status_stat_rx_aligned_extract(status)) break; // RX_aligned
+    if (cmac_stat_rx_status_stat_rx_aligned_extract(status))
+      break; // RX_aligned
     usleep(1000);
   }
 
@@ -43,13 +46,16 @@ int start_cmac(cmac_t *cmac, bool loopback) {
   }
   attempts = 0;
 
-  cmac_conf_tx_1_rawwr(cmac, cmac_conf_tx_1_ctl_tx_enable_insert(0, 1)); // ctl_tx_enable, !ctl_tx_send_rfi
+  cmac_conf_tx_1_rawwr(cmac, cmac_conf_tx_1_ctl_tx_enable_insert(
+                                 0, 1)); // ctl_tx_enable, !ctl_tx_send_rfi
 
   // FIXME: why do we need this?
   while (++attempts < LINE_UP_MAX_ATTEMPTS) {
     cmac_tick_rawwr(cmac, cmac_tick_tick_reg_insert(0, 1));
     status = cmac_stat_rx_status_rd(cmac);
-    if (cmac_stat_rx_status_stat_rx_aligned_extract(status) && cmac_stat_rx_status_stat_rx_status_extract(status)) break; // RX_aligned && RX_status
+    if (cmac_stat_rx_status_stat_rx_aligned_extract(status) &&
+        cmac_stat_rx_status_stat_rx_status_extract(status))
+      break; // RX_aligned && RX_status
     usleep(1000);
   }
 
@@ -58,7 +64,8 @@ int start_cmac(cmac_t *cmac, bool loopback) {
     return -1;
   }
 
-  cmac_gt_loopback_rawwr(cmac, cmac_gt_loopback_ctl_gt_loopback_insert(0, loopback));
+  cmac_gt_loopback_rawwr(cmac,
+                         cmac_gt_loopback_ctl_gt_loopback_insert(0, loopback));
 
   pr_info("Loopback enabled: %s\n", loopback ? "true" : "false");
 
@@ -68,6 +75,6 @@ int start_cmac(cmac_t *cmac, bool loopback) {
 
 void stop_cmac(cmac_t *cmac) {
   cmac_conf_rx_fc_ctl_1_rawwr(cmac, 0); // !ctl_rx_enable
-  cmac_conf_tx_1_rawwr(cmac, 0); // !ctl_tx_enable
+  cmac_conf_tx_1_rawwr(cmac, 0);        // !ctl_tx_enable
 }
 
