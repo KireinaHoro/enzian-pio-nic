@@ -527,8 +527,13 @@ signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
 signal cmac_reg_axil, nic_engine_axil, io_reg_axil_cdc : REGS_AXIL;
 signal cmac_reg_axil_narrow : REGS_AXIL_NARROW;
 
+-- Interrupt Controller Command from NicEngine (in app_clk)
 signal intc_cmd : std_logic_vector(31 downto 0);
 signal intc_cmd_ready, intc_cmd_valid : std_logic;
+
+-- CDC-ed into clk_sys
+signal intc_cmd_cdc : std_logic_vector(31 downto 0);
+signal intc_cmd_cdc_ready, intc_cmd_cdc_valid : std_logic;
 
 signal m0_bscan : BSCAN;
 
@@ -719,15 +724,38 @@ port map (
     eci_rsp                    => link_eci_packet_tx.ipi_c12,
     eci_rsp_ready              => link_eci_packet_tx.ipi_c12_ready,
 
-    input_tdata                => intc_cmd,
+    input_tdata                => intc_cmd_cdc,
     input_tlast                => '1',
-    input_tvalid               => intc_cmd_valid,
-    input_tready               => intc_cmd_ready,
+    input_tvalid               => intc_cmd_cdc_valid,
+    input_tready               => intc_cmd_cdc_ready,
     -- ignore interrupts from the CPU
     output_tdata               => open,
     output_tlast               => open,
     output_tvalid              => open,
     output_tready              => '1'
+);
+
+-- CDC FIFO for IPI commands
+ipi_cmd_cdc : entity work.axis_async_fifo
+generic map (
+    DEPTH       => 2,
+    DATA_WIDTH  => 32,
+    KEEP_ENABLE => 0,
+    USER_ENABLE => 0,
+    LAST_ENABLE => 0
+)
+port map (
+    s_clk           => app_clk,
+    s_rst           => app_clk_reset,
+    s_axis_tdata    => intc_cmd,
+    s_axis_tvalid   => intc_cmd_valid,
+    s_axis_tready   => intc_cmd_ready,
+
+    m_clk           => clk,
+    m_rst           => reset,
+    m_axis_tdata    => intc_cmd_cdc,
+    m_axis_tvalid   => intc_cmd_cdc_valid,
+    m_axis_tready   => intc_cmd_cdc_ready
 );
 
 -- GSYNC response handler, sends GSDN.
@@ -1514,7 +1542,7 @@ NicEngine_inst : entity work.NicEngine
     m_axis_tx_tdata => cmac_tx_axis.tdata,
     m_axis_tx_tlast => cmac_tx_axis.tlast,
     m_axis_tx_tkeep => cmac_tx_axis.tkeep,
-    
+
     -- ECI interrupt controller
     ipiToIntc_valid => intc_cmd_valid,
     ipiToIntc_ready => intc_cmd_ready,
