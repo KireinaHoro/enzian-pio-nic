@@ -176,4 +176,5 @@ close_project
 set conffile [open "enzian.conf.tcl" "a"]
 puts $conffile "set enzian_app \"${project}\""
 puts $conffile "set project_dir \"[file normalize ${project}]\""
+puts $conffile "set project_src_dir \"[file normalize ${project}]\""
 close $conffile
