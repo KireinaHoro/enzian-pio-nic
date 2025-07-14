@@ -46,7 +46,7 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
     payloadSources.append(payloadSink)
 
     // handle metadata
-    val tagged = metadataSink.pipelined(StreamPipe.FULL).map { md =>
+    val tagged = metadataSink.map { md =>
       val ret = PacketDesc()
       ret.ty := md.getType
       ret.metadata := md.asUnion
@@ -58,7 +58,7 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
       // dispatching to the bypass-core (#0) only
       bypassUpstreams.append(tagged)
     } else {
-      requestUpstreams.append(tagged)
+      requestUpstreams.append(tagged.s2mPipe())
     }
   }
   override def packetSink = logic.axisMux.m_axis
@@ -72,13 +72,7 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
       sl << ms
     }
 
-    def mux(ss: IterableOnce[Stream[PacketDesc]]): Stream[PacketDesc] = {
-      val sq = ss.iterator.to(Seq)
-      if (sq.length == 1) sq.head
-      else StreamArbiterFactory().roundRobin.on(sq)
-    }
-
-    dc.requestDesc << mux(requestUpstreams)
-    dc.bypassDesc << mux(bypassUpstreams)
+    dc.requestDesc << StreamArbiterFactory().roundRobin.on(requestUpstreams)
+    dc.bypassDesc << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
   }
 }
