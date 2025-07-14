@@ -66,13 +66,22 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   val logic = during build new Area {
     retainer.await()
 
-    // mux payload data axis to DMA
+    // mux payload data axis to DMA -- lower first
     val axisMux = new AxiStreamArbMux(ms.axisConfig, numSlavePorts = payloadSources.length)
     axisMux.s_axis zip payloadSources foreach { case (sl, ms) =>
       sl << ms
     }
 
-    dc.requestDesc << StreamArbiterFactory().roundRobin.on(requestUpstreams)
-    dc.bypassDesc << StreamArbiterFactory().roundRobin.on(bypassUpstreams)
+    def mux(ss: IterableOnce[Stream[PacketDesc]]): Stream[PacketDesc] = {
+      val sq = ss.iterator.to(Seq)
+      if (sq.length == 1) sq.head
+      else {
+        // use the same arbitration policy as axisMux
+        StreamArbiterFactory().lowerFirst.on(sq)
+      }
+    }
+
+    dc.requestDesc << mux(requestUpstreams)
+    dc.bypassDesc << mux(bypassUpstreams)
   }
 }

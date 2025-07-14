@@ -155,7 +155,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     val dropFlow = decoder.io.header.asFlow ~ drop
     udpPayload >> decoder.io.input
     payload << decoder.io.output.throwFrameWhen(dropFlow)
-    metadata << decoder.io.header.throwWhen(drop).map { hdr =>
+    metadata <-/< decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = OncRpcCallMetadata()
       meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
       // TODO: endianness swap: these are in BIG ENDIAN
