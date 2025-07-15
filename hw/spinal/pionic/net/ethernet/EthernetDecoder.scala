@@ -45,7 +45,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
 
         // allow unicast and broadcast
         // TODO: multicast?
-        val isBroadcast = meta.hdr.dst.asBools.reduceBalancedTree(_ && _)
+        val isBroadcast = meta.hdr.dst.andR
         drop := (EndiannessSwap(macAddress) =/= meta.hdr.dst || !isBroadcast) && !csr.ctrl.promisc
       }.meta
     }

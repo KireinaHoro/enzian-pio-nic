@@ -128,7 +128,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     from[UdpMetadata, UdpDecoder]( { meta =>
         listenPorts.map { portSlot =>
           portSlot.valid && portSlot.payload === meta.hdr.dport
-        }.reduceBalancedTree(_ || _)
+        }.orR
       },
       udpHeader, udpPayload
     )
