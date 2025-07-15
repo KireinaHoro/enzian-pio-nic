@@ -98,7 +98,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val accessNodes = Seq.fill(NUM_CORES)(Axi4(memNode.config.copy(idWidth = 9)))
     Axi4CrossbarFactory()
       .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE.get))
-      .addConnections(accessNodes.map(_ -> Seq(memNode)): _*)
+      .addConnections(accessNodes.map(_.fullPipe() -> Seq(memNode)): _*)
       .build()
 
     // mux both DCS AXI masters to all cores
