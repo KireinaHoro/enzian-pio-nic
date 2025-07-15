@@ -42,6 +42,9 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   lazy val bypassUpstreams, requestUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
   def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
+    payloadSink.assertPersistence()
+    metadataSink.assertPersistence()
+
     // handle payload data
     payloadSources.append(payloadSink)
 

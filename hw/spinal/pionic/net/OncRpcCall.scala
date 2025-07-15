@@ -152,26 +152,43 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       .setWhen(decoder.io.header.fire)
 
     val drop = Bool()
-    val dropFlow = decoder.io.header.asFlow ~ drop
+    val dropFlow = decoder.io.header.asFlow.delay(1) ~ drop
     udpPayload >> decoder.io.input
-    payload << decoder.io.output.throwFrameWhen(dropFlow)
-    metadata <-/< decoder.io.header.throwWhen(drop).map { hdr =>
-      val meta = OncRpcCallMetadata()
-      meta.hdr.assignFromBits(hdr(minLen*8-1 downto 0))
+    payload << decoder.io.output.delay(1).throwFrameWhen(dropFlow)
+
+    val hdr = decoder.io.header.payload
+    val hdrParsed = OncRpcCallHeader()
+    hdrParsed.assignFromBits(hdr(minLen * 8 - 1 downto 0))
+
+    metadata.hdr.setAsReg()
+    metadata.args.setAsReg()
+    metadata.udpPayloadSize.setAsReg()
+    when (decoder.io.header.fire) {
+      metadata.hdr := hdrParsed
       // TODO: endianness swap: these are in BIG ENDIAN
-      meta.args.assignFromBits(hdr(maxLen*8-1 downto minLen*8))
-      meta.udpPayloadSize := currentUdpHeader.getPayloadSize
-
-      // FIXME: this will create deep comb paths
-      val matches = serviceSlots.map(_.matchHeader(meta.hdr, currentUdpHeader.hdr.dport))
-      drop := !matches.reduceBalancedTree(_ || _)
-      // TODO: also drop malformed packets (e.g. payload too short)
-
-      meta.funcPtr := PriorityMux(matches, serviceSlots.map(_.funcPtr))
-      meta.pid := PriorityMux(matches, serviceSlots.map(_.pid))
-
-      meta
+      metadata.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
+      metadata.udpPayloadSize := currentUdpHeader.getPayloadSize
     }
+
+    // 1 cycle latency to select service:
+    // cycle 0: match all services in parallel
+    // cycle 1:
+    // - drop packets that didn't match with any service
+    // - read out funcPtr and PID of the selected service
+    val matches = serviceSlots.map { svc =>
+      // break timing path
+      RegNextWhen(
+        svc.matchHeader(hdrParsed, currentUdpHeader.hdr.dport),
+        decoder.io.header.fire)
+    }.asBits()
+    drop := !matches.orR
+    // TODO: also drop malformed packets (e.g. payload too short)
+
+    val selectedSvc = PriorityMux(matches, serviceSlots)
+    metadata.funcPtr := selectedSvc.funcPtr
+    metadata.pid := selectedSvc.pid
+
+    metadata.arbitrationFrom(decoder.io.header.delay(1))
 
     // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
     //       this is used by the host for now and the reply encoder module in the future
