@@ -78,7 +78,7 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     // did at least one downstream decoder attempt to decode this packet?
     // XXX: we assume decoder outputs the captured header first, before giving output
     //      otherwise all beats before header would not be thrown properly
-    val attempted = attempts.reduceBalancedTree(_ || _)
+    val attempted = attempts.orR
     val bypassThrow = Flow(Bool())
     bypassThrow.payload := attempted
     bypassThrow.valid := attempted
