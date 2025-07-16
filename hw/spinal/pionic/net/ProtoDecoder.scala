@@ -3,6 +3,7 @@ package pionic.net
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
 import spinal.core._
+import spinal.lib.StreamPipe.FULL
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
@@ -84,8 +85,8 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     bypassThrow.valid := attempted
 
     // do not give to bypass (throw), when any downstream decoders would attempt to decode
-    val bypassHeader = forkedHeaders.last.throwWhen(attempted)
-    val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow) setName "bypassPayload"
+    val bypassHeader = forkedHeaders.last.throwWhen(attempted).pipelined(FULL)
+    val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow).pipelined(FULL)
 
     host[RxDecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
   }
