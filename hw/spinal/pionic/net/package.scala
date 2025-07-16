@@ -6,8 +6,8 @@ import pionic.host.{HostReq, HostReqBypassHeaders}
 import pionic.net.ethernet.EthernetMetadata
 
 import scala.language.postfixOps
-
 import Global._
+import pionic.net.oncrpc.OncRpcCallMetadata
 
 package object net {
   /**
