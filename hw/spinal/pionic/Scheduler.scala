@@ -6,6 +6,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.RegBlockAlloc
 import pionic.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import pionic.Global._
+import pionic.net.oncrpc.OncRpcCallMetadata
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
@@ -126,7 +127,7 @@ class Scheduler extends FiberPlugin {
   }
 
   val logic = during setup new Area {
-    /** Packet metadata to accept from the decoding pipeline.  Must be a [[pionic.net.OncRpcCallMetadata]] */
+    /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallMetadata]] */
     val rxMeta = Stream(HostReq())
 
     /** Packet metadata issued to the downstream [[pionic.host.DatapathPlugin]].

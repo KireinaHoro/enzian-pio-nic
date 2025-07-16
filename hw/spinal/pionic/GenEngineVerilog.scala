@@ -7,6 +7,7 @@ import pionic.host.eci._
 import pionic.host.pcie._
 import pionic.net._
 import pionic.net.ethernet.EthernetDecoder
+import pionic.net.oncrpc.OncRpcCallDecoder
 import spinal.core.{FixedFrequency, IntToBuilder, roundUp}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda._
