@@ -272,6 +272,9 @@ class EciInterfacePlugin extends FiberPlugin {
         host[Scheduler].logic.coreMeta(cid - 1) >> proto.hostRx
       }
 
+      // must be invoked here: per-core address must be present for all cores (including bypass)
+      host[Scheduler].reportPerCoreStats(csrCtrl, alloc, cid)
+
       proto.driveDcsBus(dcsNode, memNode)
       proto.driveControl(csrCtrl, alloc)
 

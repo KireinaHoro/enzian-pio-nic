@@ -109,14 +109,19 @@ class Scheduler extends FiberPlugin {
       readbackPort.queueFill := logic.queueMetas(readbackIdx).fill.resized
     }
 
-    logic.statistics.elements.foreach { case (name, data) =>
-      data match {
-        case d: UInt => busCtrl.read(d, alloc("schedStats", name, attr = RO))
-        case v: Vec[_] => v.zipWithIndex foreach { case (s, idx) =>
-          // FIXME: allocate this in the per-core space
-          busCtrl.read(s, alloc("schedStats", s"${name}_core$idx", attr = RO))
-        }
-      }
+    logic.statistics.elements.foreach {
+      case (name, d: UInt) => busCtrl.read(d, alloc("schedStats", name, attr = RO))
+      case _ =>
+    }
+  }
+
+  def reportPerCoreStats(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc, cid: Int): Unit = {
+    logic.statistics.elements.foreach {
+      case (name, v: Vec[_]) =>
+        val addr = alloc("schedStats", name, attr = RO)
+        val toRead = if (cid != 0) v(cid - 1) else U(0)
+        busCtrl.read(toRead, addr)
+      case _ =>
     }
   }
 
