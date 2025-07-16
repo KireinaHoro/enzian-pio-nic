@@ -7,6 +7,7 @@ import spinal.core._
 import scala.language.postfixOps
 
 package object oncrpc {
+  /** Header of an ONC-RPC call.  Corresponds to the `struct rpc_msg` when `mtype == 0`. */
   case class OncRpcCallHeader() extends Bundle {
     val xid = Bits(32 bits)
     val msgType = Bits(32 bits)

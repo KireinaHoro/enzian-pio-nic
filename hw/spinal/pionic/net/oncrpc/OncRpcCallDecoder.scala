@@ -94,6 +94,11 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     metadata.udpPayloadSize.setAsReg()
     when (decoder.io.header.fire) {
       metadata.hdr := hdrParsed
+
+      // FIXME: should we just drop the packets?
+      assert(hdrParsed.msgType === 0, "msg_type must be 0 for CALL (see RFC 5331)")
+      assert(EndiannessSwap(hdrParsed.rpcVer) === 2, "rpcvers must be 2 (see RFC 5331)")
+
       // TODO: endianness swap: these are in BIG ENDIAN
       metadata.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
       metadata.udpPayloadSize := currentUdpHeader.getPayloadSize
