@@ -4,7 +4,7 @@ import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
-import pionic.{AsSimBusMaster, NicEngine}
+import pionic.{AsSimBusMaster, Global, NicEngine}
 import spinal.lib._
 
 import scala.util.Random
@@ -43,6 +43,13 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Enable one service in the given process. */
   def enableService[B](bus: B, globalBlock: RegBlockReadBack, srvDef: RpcSrvDef, idx: Int, pid: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     import srvDef._
+
+    // activate listen port
+    // XXX: assumes each service will have its own port number
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_port"), dport.toBytes)
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_nextProto"), 1.toBytes) // FIXME: do not hard-code enum value
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_idx"), idx.toBytes)
+    assert(idx <= Global.NUM_LISTEN_PORTS, "exhausted number of listen ports")
 
     // activate service
     asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)

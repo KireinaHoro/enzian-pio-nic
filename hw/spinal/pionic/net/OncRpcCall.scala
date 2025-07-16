@@ -79,7 +79,6 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     }
 
     // one port for each field + index register to latch into table
-    // XXX: interface is write-only.  SW needs to replicate this
     val servicePort = OncRpcCallServiceDef()
     servicePort.elements.foreach { case (name, field) =>
       busCtrl.drive(field, alloc("oncRpcCtrl", s"service_$name", attr = AccessType.WO))
@@ -90,12 +89,6 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     val serviceIdxAddr = alloc("oncRpcCtrl", "service_idx", attr = AccessType.WO)
     busCtrl.write(serviceIdx, serviceIdxAddr)
     busCtrl.onWrite(serviceIdxAddr) {
-      // record listen port in table
-      // XXX: assumes host is LITTLE ENDIAN
-      //      we swap endianness now already to shorten critical path
-      logic.listenPorts(serviceIdx).payload := EndiannessSwap(servicePort.listenPort).asBits
-      logic.listenPorts(serviceIdx).valid := servicePort.enabled
-
       // record service entry in table
       // XXX: assumes host is LITTLE ENDIAN
       //      we swap endianness now already to shorten critical path
@@ -105,18 +98,13 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
         case (_, Seq((_, te), (_, po)))                                      => te := po
       }
     }
+
+    // TODO: interface is write-only.  Provide readback port as well (like scheduler)
   }
 
   val logic = during setup new Area {
     val udpHeader = Stream(UdpMetadata())
     val udpPayload = Axi4Stream(macIf.axisConfig)
-
-    // we first check if the packet is from an UDP port that is listened on
-    // otherwise it gets into the bypass interface (to host)
-    // will also be read by [[Scheduler]]
-    // XXX: contents are in BIG ENDIAN (network)
-    val listenPorts = Vec.fill(NUM_SERVICES)(Reg(Flow(Bits(16 bits))))
-    listenPorts foreach { sl => sl.valid init False }
 
     // we then try to match against a registered service
     // if no (func, port) is found, packet is dropped
@@ -125,13 +113,8 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     val serviceSlots = Vec.fill(NUM_SERVICES)(Reg(OncRpcCallServiceDef()))
     serviceSlots foreach { sl => sl.enabled init False }
 
-    from[UdpMetadata, UdpDecoder]( { meta =>
-        listenPorts.map { portSlot =>
-          portSlot.valid && portSlot.payload === meta.hdr.dport
-        }.orR
-      },
-      udpHeader, udpPayload
-    )
+    // matcher for decode attempts: is the incoming packet on a port we are listening to?
+    from[UdpMetadata, UdpDecoder](_.nextProto === UdpNextProto.oncRpcCall, udpHeader, udpPayload)
 
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(OncRpcCallMetadata())
@@ -174,7 +157,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     // cycle 0: match all services in parallel
     // cycle 1:
     // - drop packets that didn't match with any service
-    // - read out funcPtr and PID of the selected service
+    // - read out funcPtr and PID of the selected service to assemble metadata
     val matches = serviceSlots.map { svc =>
       // break timing path
       RegNextWhen(

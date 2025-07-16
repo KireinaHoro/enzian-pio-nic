@@ -1,12 +1,14 @@
 package pionic.net
 
-import jsteward.blocks.axi.AxiStreamExtractHeader
+import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
+import pionic.Global._
 import pionic._
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
@@ -18,9 +20,30 @@ case class UdpHeader() extends Bundle {
   val csum = Bits(16 bits)
 }
 
+/** What service is on this port? */
+object UdpNextProto extends SpinalEnum {
+  val disabled, oncRpcCall, oncRpcReply = newElement()
+
+  def addMackerel() = {
+    ALLOC.addMackerelEpilogue(getClass,
+      s"""
+         |constants udp_next_proto width(${UdpListenDef().nextProto.getBitsWidth}) "UDP Listener Protocol" {
+         |  listen_disabled      = 0b00 "Disabled";
+         |  listen_onc_rpc_call  = 0b01 "ONC-RPC Call";
+         |  listen_onc_rpc_reply = 0b10 "ONC-RPC Reply";
+         |};""".stripMargin)
+  }
+}
+
+case class UdpListenDef() extends Bundle {
+  val port = Bits(16 bits)
+  val nextProto = UdpNextProto()
+}
+
 case class UdpMetadata() extends Bundle with ProtoMetadata {
   override def clone = UdpMetadata()
 
+  val nextProto = UdpNextProto()
   val hdr = UdpHeader()
   val ipMeta = IpMetadata()
 
@@ -41,14 +64,42 @@ case class UdpMetadata() extends Bundle with ProtoMetadata {
 
 class UdpDecoder extends ProtoDecoder[UdpMetadata] {
   lazy val macIf = host[MacInterfaceService]
+  lazy val csr = host[GlobalCSRPlugin].logic
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("udpStats", name, attr = RO))
     }
+
+    val writePort = UdpListenDef()
+    writePort.elements.foreach { case (name, field) =>
+      busCtrl.drive(field, alloc("udpCtrl", s"listen_$name", attr = AccessType.WO))
+    }
+
+    val idx = UInt(log2Up(NUM_LISTEN_PORTS) bits)
+    idx := 0
+    val idxAddr = alloc("udpCtrl", "listen_idx", attr = AccessType.WO)
+    busCtrl.write(idx, idxAddr)
+    busCtrl.onWrite(idxAddr) {
+      // record listen port in table
+      // XXX: assumes host is LITTLE ENDIAN
+      //      we swap endianness now already to shorten critical path
+      logic.listenPorts(idx).port := EndiannessSwap(writePort.port)
+      logic.listenPorts(idx).nextProto := writePort.nextProto
+    }
+
+    // TODO: interface is write-only.  Provide readback port as well (like scheduler)
+
+    UdpNextProto.addMackerel()
   }
 
   val logic = during setup new Area {
+    // check if the packet is from a UDP port that has a listener;
+    // otherwise it gets into the bypass interface (to host)
+    // XXX: contents are in BIG ENDIAN (network)
+    val listenPorts = Vec.fill(NUM_LISTEN_PORTS)(Reg(UdpListenDef()))
+    listenPorts foreach { sl => sl.nextProto init UdpNextProto.disabled }
+
     val ipHeader = Stream(IpMetadata())
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
@@ -71,15 +122,28 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       .clearWhen(ipHeader.fire)
       .setWhen(decoder.io.header.fire)
 
+    // XXX: NUM_LISTEN_PORTS is 16, no need to pipeline matching
+    // TODO: automatically determine if (and how many stages) we need to pipeline
+    val drop = Bool()
+    val dropFlow = decoder.io.header.asFlow ~ drop
+
     ipPayload >> decoder.io.input
-    payload << decoder.io.output
-    metadata << decoder.io.header.map { hdr =>
+    payload << decoder.io.output.throwFrameWhen(dropFlow)
+    metadata << decoder.io.header.throwWhen(drop).map { hdr => new Composite(hdr, "findListener") {
       val meta = UdpMetadata()
       meta.hdr.assignFromBits(hdr)
       meta.ipMeta := currentIpHeader
-      // TODO: drop packet based on checksum?
 
-      meta
-    }
+      val matches = listenPorts.map { lp =>
+        lp.nextProto =/= UdpNextProto.disabled && lp.port === meta.hdr.dport
+      }.asBits()
+
+      drop := !matches.orR && !csr.ctrl.promisc
+
+      val selectedListener = PriorityMux(matches, listenPorts)
+      meta.nextProto := selectedListener.nextProto
+
+      // TODO: drop packet based on checksum?
+    }.meta }
   }
 }

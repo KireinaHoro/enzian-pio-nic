@@ -12,6 +12,7 @@ import scala.collection.mutable
 object Global extends AreaRoot {
   val NUM_CORES = value[Int]
   val NUM_WORKER_CORES = value[Int]
+  val NUM_LISTEN_PORTS = value[Int]
   val NUM_SERVICES = value[Int]
   val NUM_PROCS = value[Int]
   val RX_PKTS_PER_PROC = value[Int]
@@ -108,6 +109,7 @@ object Global extends AreaRoot {
 
     REG_WIDTH.set(64)
     PID_WIDTH.set(16)
+    NUM_LISTEN_PORTS.set(16)
     NUM_SERVICES.set(256)
     NUM_PROCS.set(32)
     RX_PKTS_PER_PROC.set(32)
