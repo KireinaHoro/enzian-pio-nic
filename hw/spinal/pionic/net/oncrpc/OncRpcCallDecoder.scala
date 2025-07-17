@@ -81,9 +81,9 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       .setWhen(decoder.io.header.fire)
 
     val drop = Bool()
-    val dropFlow = decoder.io.header.asFlow.delay(1) ~ drop
+    val dropFlow = decoder.io.header.asFlow.m2sPipe() ~ drop
     udpPayload >> decoder.io.input
-    payload << decoder.io.output.delay(1).throwFrameWhen(dropFlow)
+    payload << decoder.io.output.m2sPipe().throwFrameWhen(dropFlow)
 
     val hdr = decoder.io.header.payload
     val hdrParsed = OncRpcCallHeader()
@@ -122,7 +122,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     metadata.funcPtr := selectedSvc.funcPtr
     metadata.pid := selectedSvc.pid
 
-    metadata.arbitrationFrom(decoder.io.header.delay(1).throwWhen(drop))
+    metadata.arbitrationFrom(decoder.io.header.m2sPipe().throwWhen(drop))
 
     // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
     //       this is used by the host for now and the reply encoder module in the future
