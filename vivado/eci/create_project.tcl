@@ -140,6 +140,7 @@ set_property used_in_implementation false [get_files -of_objects [get_filesets c
 set impl_constrs_dir "$project/xdc/impl"
 file mkdir $impl_constrs_dir
 file copy -force "$spinal_gen_dir/NicEngine.xdc" "$impl_constrs_dir"
+file copy -force "$src_dir/xdc/floorplan.xdc" "$impl_constrs_dir"
 foreach tclf $synth_constrs {
     set xdcf "[file tail [file rootname $tclf]].xdc"
     file copy -force "$tclf" "$impl_constrs_dir/$xdcf"
