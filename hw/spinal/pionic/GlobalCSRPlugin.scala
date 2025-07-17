@@ -28,8 +28,6 @@ class GlobalCSRPlugin extends FiberPlugin {
     println(f"Git version: ${GIT_VERSION.get}%x")
     status.version := B(GIT_VERSION)
     status.cycles.bits := CounterFreeRun(REG_WIDTH bits)
-
-    host[DebugPlugin].postDebug("cycles", status.cycles)
   }
 
   def readAndWrite(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {

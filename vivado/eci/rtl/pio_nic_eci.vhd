@@ -561,19 +561,6 @@ signal dcs_c19_o               : LCL_CHANNEL; -- LCL RSP WOD
 signal dcs_c18_i               : LCL_CHANNEL; -- LCL RSP WOD
 signal dcs_c19_i               : LCL_CHANNEL; -- LCL RSP WOD
 
--- debug signals to system ILA
-signal rxFsm_0_stateReg, txFsm_0_stateReg : std_logic_vector(2 downto 0);
-signal rxFsm_1_stateReg, txFsm_1_stateReg : std_logic_vector(2 downto 0);
-signal rxFsm_2_stateReg, txFsm_2_stateReg : std_logic_vector(2 downto 0);
-signal rxFsm_3_stateReg, txFsm_3_stateReg : std_logic_vector(2 downto 0);
-
-signal rxCurrClIdx_0, txCurrClIdx_0 : std_logic;
-signal rxCurrClIdx_1, txCurrClIdx_1 : std_logic;
-signal rxCurrClIdx_2, txCurrClIdx_2 : std_logic;
-signal rxCurrClIdx_3, txCurrClIdx_3 : std_logic;
-
-signal cycles_bits : std_logic_vector(63 downto 0);
-
 begin
 
 clk <= clk_sys;
@@ -1347,176 +1334,7 @@ axil_adapter_inst : entity work.axil_adapter
     cmac_regs_axil_wdata => cmac_reg_axil_narrow.wdata,
     cmac_regs_axil_wready => cmac_reg_axil_narrow.wready,
     cmac_regs_axil_wstrb => cmac_reg_axil_narrow.wstrb,
-    cmac_regs_axil_wvalid => cmac_reg_axil_narrow.wvalid,
-
-    -- System ILA connections -- in clock domain "app_clk"
-    shell_io_axil_awaddr => io_reg_axil_cdc.awaddr,
-    shell_io_axil_awprot => io_reg_axil_cdc.awprot,
-    shell_io_axil_awvalid => io_reg_axil_cdc.awvalid,
-    shell_io_axil_awready => io_reg_axil_cdc.awready,
-    shell_io_axil_awburst => (others => '0'),
-    shell_io_axil_awcache => (others => '0'),
-    shell_io_axil_awlen => (others => '0'),
-    shell_io_axil_awlock => (others => '0'),
-    shell_io_axil_awregion => (others => '0'),
-    shell_io_axil_awqos => (others => '0'),
-    shell_io_axil_awsize => "010",
-    shell_io_axil_wdata => io_reg_axil_cdc.wdata,
-    shell_io_axil_wstrb => io_reg_axil_cdc.wstrb,
-    shell_io_axil_wlast => '1',
-    shell_io_axil_wvalid => io_reg_axil_cdc.wvalid,
-    shell_io_axil_wready => io_reg_axil_cdc.wready,
-    shell_io_axil_bresp => io_reg_axil_cdc.bresp,
-    shell_io_axil_bvalid => io_reg_axil_cdc.bvalid,
-    shell_io_axil_bready => io_reg_axil_cdc.bready,
-    shell_io_axil_araddr => io_reg_axil_cdc.araddr,
-    shell_io_axil_arprot => io_reg_axil_cdc.arprot,
-    shell_io_axil_arvalid => io_reg_axil_cdc.arvalid,
-    shell_io_axil_arready => io_reg_axil_cdc.arready,
-    shell_io_axil_arburst => (others => '0'),
-    shell_io_axil_arcache => (others => '0'),
-    shell_io_axil_arlen => (others => '0'),
-    shell_io_axil_arlock => (others => '0'),
-    shell_io_axil_arregion => (others => '0'),
-    shell_io_axil_arqos => (others => '0'),
-    shell_io_axil_arsize => "010",
-    shell_io_axil_rdata => io_reg_axil_cdc.rdata,
-    shell_io_axil_rresp => io_reg_axil_cdc.rresp,
-    shell_io_axil_rvalid => io_reg_axil_cdc.rvalid,
-    shell_io_axil_rready => io_reg_axil_cdc.rready,
-    shell_io_axil_rlast => '1',
-
-    dcs_odd_axi_awvalid => dcs_odd_axi.awvalid,
-    dcs_odd_axi_awready => dcs_odd_axi.awready,
-    dcs_odd_axi_awaddr => dcs_odd_axi.awaddr,
-    dcs_odd_axi_awid => dcs_odd_axi.awid,
-    dcs_odd_axi_awlen => dcs_odd_axi.awlen,
-    dcs_odd_axi_awsize => dcs_odd_axi.awsize,
-    dcs_odd_axi_awburst => dcs_odd_axi.awburst,
-    dcs_odd_axi_awlock(0) => dcs_odd_axi.awlock,
-    dcs_odd_axi_awcache => dcs_odd_axi.awcache,
-    dcs_odd_axi_awprot => dcs_odd_axi.awprot,
-    dcs_odd_axi_awqos => (others => '0'),
-    dcs_odd_axi_awregion => (others => '0'),
-    dcs_odd_axi_wvalid => dcs_odd_axi.wvalid,
-    dcs_odd_axi_wready => dcs_odd_axi.wready,
-    dcs_odd_axi_wdata => dcs_odd_axi.wdata,
-    dcs_odd_axi_wstrb => dcs_odd_axi.wstrb,
-    dcs_odd_axi_wlast => dcs_odd_axi.wlast,
-    dcs_odd_axi_bvalid => dcs_odd_axi.bvalid,
-    dcs_odd_axi_bready => dcs_odd_axi.bready,
-    dcs_odd_axi_bid => dcs_odd_axi.bid,
-    dcs_odd_axi_bresp => dcs_odd_axi.bresp,
-    dcs_odd_axi_arvalid => dcs_odd_axi.arvalid,
-    dcs_odd_axi_arready => dcs_odd_axi.arready,
-    dcs_odd_axi_araddr => dcs_odd_axi.araddr,
-    dcs_odd_axi_arid => dcs_odd_axi.arid,
-    dcs_odd_axi_arlen => dcs_odd_axi.arlen,
-    dcs_odd_axi_arsize => dcs_odd_axi.arsize,
-    dcs_odd_axi_arburst => dcs_odd_axi.arburst,
-    dcs_odd_axi_arlock(0) => dcs_odd_axi.arlock,
-    dcs_odd_axi_arcache => dcs_odd_axi.arcache,
-    dcs_odd_axi_arprot => dcs_odd_axi.arprot,
-    dcs_odd_axi_arqos => (others => '0'),
-    dcs_odd_axi_arregion => (others => '0'),
-    dcs_odd_axi_rvalid => dcs_odd_axi.rvalid,
-    dcs_odd_axi_rready => dcs_odd_axi.rready,
-    dcs_odd_axi_rdata => dcs_odd_axi.rdata,
-    dcs_odd_axi_rid => dcs_odd_axi.rid,
-    dcs_odd_axi_rresp => dcs_odd_axi.rresp,
-    dcs_odd_axi_rlast => dcs_odd_axi.rlast,
-
-    dcsOdd_cleanMaybeInvReq_valid => dcs_c17_i.valid,
-    dcsOdd_cleanMaybeInvReq_ready => dcs_c17_i.ready,
-    dcsOdd_cleanMaybeInvReq_payload_data => dcs_c17_i.data,
-    dcsOdd_cleanMaybeInvReq_payload_size => dcs_c17_i.size,
-    dcsOdd_cleanMaybeInvReq_payload_vc => dcs_c17_i.vc_no,
-    dcsOdd_cleanMaybeInvResp_valid => dcs_c19_o.valid,
-    dcsOdd_cleanMaybeInvResp_ready => dcs_c19_o.ready,
-    dcsOdd_cleanMaybeInvResp_payload_data => dcs_c19_o.data,
-    dcsOdd_cleanMaybeInvResp_payload_size => dcs_c19_o.size,
-    dcsOdd_cleanMaybeInvResp_payload_vc => dcs_c19_o.vc_no,
-    dcsOdd_unlockResp_valid => dcs_c19_i.valid,
-    dcsOdd_unlockResp_ready => dcs_c19_i.ready,
-    dcsOdd_unlockResp_payload_data => dcs_c19_i.data,
-    dcsOdd_unlockResp_payload_size => dcs_c19_i.size,
-    dcsOdd_unlockResp_payload_vc => dcs_c19_i.vc_no,
-
-    dcs_even_axi_awvalid => dcs_even_axi.awvalid,
-    dcs_even_axi_awready => dcs_even_axi.awready,
-    dcs_even_axi_awaddr => dcs_even_axi.awaddr,
-    dcs_even_axi_awid => dcs_even_axi.awid,
-    dcs_even_axi_awlen => dcs_even_axi.awlen,
-    dcs_even_axi_awsize => dcs_even_axi.awsize,
-    dcs_even_axi_awburst => dcs_even_axi.awburst,
-    dcs_even_axi_awlock(0) => dcs_even_axi.awlock,
-    dcs_even_axi_awcache => dcs_even_axi.awcache,
-    dcs_even_axi_awprot => dcs_even_axi.awprot,
-    dcs_even_axi_awqos => (others => '0'),
-    dcs_even_axi_awregion => (others => '0'),
-    dcs_even_axi_wvalid => dcs_even_axi.wvalid,
-    dcs_even_axi_wready => dcs_even_axi.wready,
-    dcs_even_axi_wdata => dcs_even_axi.wdata,
-    dcs_even_axi_wstrb => dcs_even_axi.wstrb,
-    dcs_even_axi_wlast => dcs_even_axi.wlast,
-    dcs_even_axi_bvalid => dcs_even_axi.bvalid,
-    dcs_even_axi_bready => dcs_even_axi.bready,
-    dcs_even_axi_bid => dcs_even_axi.bid,
-    dcs_even_axi_bresp => dcs_even_axi.bresp,
-    dcs_even_axi_arvalid => dcs_even_axi.arvalid,
-    dcs_even_axi_arready => dcs_even_axi.arready,
-    dcs_even_axi_araddr => dcs_even_axi.araddr,
-    dcs_even_axi_arid => dcs_even_axi.arid,
-    dcs_even_axi_arlen => dcs_even_axi.arlen,
-    dcs_even_axi_arsize => dcs_even_axi.arsize,
-    dcs_even_axi_arburst => dcs_even_axi.arburst,
-    dcs_even_axi_arlock(0) => dcs_even_axi.arlock,
-    dcs_even_axi_arcache => dcs_even_axi.arcache,
-    dcs_even_axi_arprot => dcs_even_axi.arprot,
-    dcs_even_axi_arqos => (others => '0'),
-    dcs_even_axi_arregion => (others => '0'),
-    dcs_even_axi_rvalid => dcs_even_axi.rvalid,
-    dcs_even_axi_rready => dcs_even_axi.rready,
-    dcs_even_axi_rdata => dcs_even_axi.rdata,
-    dcs_even_axi_rid => dcs_even_axi.rid,
-    dcs_even_axi_rresp => dcs_even_axi.rresp,
-    dcs_even_axi_rlast => dcs_even_axi.rlast,
-
-    dcsEven_cleanMaybeInvReq_valid => dcs_c16_i.valid,
-    dcsEven_cleanMaybeInvReq_ready => dcs_c16_i.ready,
-    dcsEven_cleanMaybeInvReq_payload_data => dcs_c16_i.data,
-    dcsEven_cleanMaybeInvReq_payload_size => dcs_c16_i.size,
-    dcsEven_cleanMaybeInvReq_payload_vc => dcs_c16_i.vc_no,
-    dcsEven_cleanMaybeInvResp_valid => dcs_c18_o.valid,
-    dcsEven_cleanMaybeInvResp_ready => dcs_c18_o.ready,
-    dcsEven_cleanMaybeInvResp_payload_data => dcs_c18_o.data,
-    dcsEven_cleanMaybeInvResp_payload_size => dcs_c18_o.size,
-    dcsEven_cleanMaybeInvResp_payload_vc => dcs_c18_o.vc_no,
-    dcsEven_unlockResp_valid => dcs_c18_i.valid,
-    dcsEven_unlockResp_ready => dcs_c18_i.ready,
-    dcsEven_unlockResp_payload_data => dcs_c18_i.data,
-    dcsEven_unlockResp_payload_size => dcs_c18_i.size,
-    dcsEven_unlockResp_payload_vc => dcs_c18_i.vc_no,
-
-    rxFsm_0_stateReg => rxFsm_0_stateReg,
-    rxFsm_1_stateReg => rxFsm_1_stateReg,
-    rxFsm_2_stateReg => rxFsm_2_stateReg,
-    rxFsm_3_stateReg => rxFsm_3_stateReg,
-    txFsm_0_stateReg => txFsm_0_stateReg,
-    txFsm_1_stateReg => txFsm_1_stateReg,
-    txFsm_2_stateReg => txFsm_2_stateReg,
-    txFsm_3_stateReg => txFsm_3_stateReg,
-
-    rxCurrClIdx_0 => rxCurrClIdx_0,
-    rxCurrClIdx_1 => rxCurrClIdx_1,
-    rxCurrClIdx_2 => rxCurrClIdx_2,
-    rxCurrClIdx_3 => rxCurrClIdx_3,
-    txCurrClIdx_0 => txCurrClIdx_0,
-    txCurrClIdx_1 => txCurrClIdx_1,
-    txCurrClIdx_2 => txCurrClIdx_2,
-    txCurrClIdx_3 => txCurrClIdx_3,
-
-    cycles_bits => cycles_bits
+    cmac_regs_axil_wvalid => cmac_reg_axil_narrow.wvalid
   );
 
 NicEngine_inst : entity work.NicEngine
@@ -1676,28 +1494,7 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rvalid => nic_engine_axil.rvalid,
     s_axil_ctrl_rready => nic_engine_axil.rready,
     s_axil_ctrl_rdata => nic_engine_axil.rdata,
-    s_axil_ctrl_rresp => nic_engine_axil.rresp,
-
-    -- ILA debug signals
-    rxFsm_0_stateReg => rxFsm_0_stateReg,
-    rxFsm_1_stateReg => rxFsm_1_stateReg,
-    rxFsm_2_stateReg => rxFsm_2_stateReg,
-    rxFsm_3_stateReg => rxFsm_3_stateReg,
-    txFsm_0_stateReg => txFsm_0_stateReg,
-    txFsm_1_stateReg => txFsm_1_stateReg,
-    txFsm_2_stateReg => txFsm_2_stateReg,
-    txFsm_3_stateReg => txFsm_3_stateReg,
-
-    rxFsm_0_currClIdx => rxCurrClIdx_0,
-    rxFsm_1_currClIdx => rxCurrClIdx_1,
-    rxFsm_2_currClIdx => rxCurrClIdx_2,
-    rxFsm_3_currClIdx => rxCurrClIdx_3,
-    txFsm_0_currClIdx => txCurrClIdx_0,
-    txFsm_1_currClIdx => txCurrClIdx_1,
-    txFsm_2_currClIdx => txCurrClIdx_2,
-    txFsm_3_currClIdx => txCurrClIdx_3,
-
-    cycles_bits => cycles_bits
+    s_axil_ctrl_rresp => nic_engine_axil.rresp
   );
 
 i_ila_eci_chans_arb : entity work.ila_eci_chans_arb
