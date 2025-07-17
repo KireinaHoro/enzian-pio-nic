@@ -122,7 +122,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     metadata.funcPtr := selectedSvc.funcPtr
     metadata.pid := selectedSvc.pid
 
-    metadata.arbitrationFrom(decoder.io.header.delay(1))
+    metadata.arbitrationFrom(decoder.io.header.delay(1).throwWhen(drop))
 
     // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
     //       this is used by the host for now and the reply encoder module in the future

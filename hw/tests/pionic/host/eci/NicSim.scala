@@ -759,6 +759,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val pktsToReceive = mutable.Map[(Int, Int), (EthernetPacket, List[Byte], Long)]()
 
     def pidToIdx(pid: Int) = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+    val pidRetryMap = mutable.HashMap[Int, Int]()
 
     fork {
       while (pktsToSend.sum > pktsSent.sum) {
@@ -813,6 +814,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
             // this read might be launched before the queue was empty
             val descOption = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result
             if (descOption.nonEmpty) {
+              // reset retry count for this process
+              pidRetryMap(cs.currPid) = 0
+
               val (desc, overflowAddr) = descOption.get
               val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
               procLog(s"received status $desc")
@@ -839,6 +843,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
               pktsReceived(currIdx) += 1
             } else {
               procLog(s"try receive timed out, checking if process is finished...")
+
+              val retries = pidRetryMap.getOrElseUpdate(cs.currPid, 0)
+              assert(retries <= 5, "ran out of retries for process")
+              pidRetryMap(cs.currPid) += 1
             }
           } else {
             procLog("process finished receiving, waiting for preemption...")
