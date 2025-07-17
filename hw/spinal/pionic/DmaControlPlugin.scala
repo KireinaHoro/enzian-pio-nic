@@ -9,6 +9,7 @@ import spinal.lib.bus.misc._
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 import Global._
+import spinal.lib.StreamPipe.FULL
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -80,8 +81,8 @@ class DmaControlPlugin extends FiberPlugin {
 
     val incomingDesc = Stream(RxPacketDescWithSource())
     incomingDesc << StreamArbiterFactory().roundRobin.on(Seq(
-      requestDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = false)),
-      bypassDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = true))
+      requestDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = false)).pipelined(FULL),
+      bypassDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = true)).pipelined(FULL),
     ))
 
     /** Outgoing packet descriptors to encoder pipeline */
@@ -112,7 +113,7 @@ class DmaControlPlugin extends FiberPlugin {
       f(statistics) := f(statistics) + 1
     }
 
-    rxAlloc.io.freeReq </< StreamArbiterFactory().roundRobin.on(dps.map(_.hostRxAck))
+    rxAlloc.io.freeReq <-/< StreamArbiterFactory().roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
     rxAlloc.io.allocResp.setBlocked()
 
     bypassDp.hostRx.setIdle()
