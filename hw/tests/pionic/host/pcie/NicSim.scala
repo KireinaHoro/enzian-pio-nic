@@ -2,7 +2,7 @@ package pionic.host.pcie
 
 import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.sim.isSorted
+import jsteward.blocks.misc.sim.{isSorted, IntRicherEndianAware}
 import pionic._
 import pionic.Global._
 import pionic.sim._
@@ -93,7 +93,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     // set promisc mode
     // TODO: also test non promisc mode
-    master.write(globalBlock("promisc"), 1.toBytes)
+    master.write(globalBlock("promisc"), 1.toBytesLE)
 
     // test for actually receiving a packet
     // since we didn't arm any ONCRPC services, it should always be bypass
@@ -116,7 +116,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     check(payload, data)
 
     // free packet buffer
-    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
     val counter = master.read(coreBlock("rxPacketCount"), 8).bytesToBigInt
     assert(counter == 1 + counterBefore, s"retired packet count mismatch: expected ${counterBefore + 1}, got $counter")
@@ -131,9 +131,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(readRxPacketDesc(master, coreBlock).isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    master.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytes);
+    master.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytesLE);
     sleepCycles(200)
-    master.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytes);
+    master.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytesLE);
 
     // test for 200 runs
     0 until 200 foreach { _ => rxTestBypass(master, axisMaster) }
@@ -186,14 +186,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    master.write(globalBlock("csr", "rxBlockCycles"), 100.toBytes) // rxBlockCycles
+    master.write(globalBlock("csr", "rxBlockCycles"), 100.toBytesLE) // rxBlockCycles
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock,
       packetDumpWorkspace = Some("rx-oncrpc-roundrobin")
     ).head
 
     val mask = b"01101110"
-    master.write(globalBlock("workerCoreMask"), mask.toBytes) // mask
+    master.write(globalBlock("workerCoreMask"), mask.toBytesLE) // mask
 
     // test round-robin
     Seq.fill(50)(0 until NUM_CORES).flatten
@@ -211,7 +211,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         checkOncRpcCall(desc, desc.size.toInt, funcPtr, payload, master.read(pktBufAddr + desc.addr, desc.size))
 
         // free packet
-        master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
+        master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
       }
 
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
@@ -237,7 +237,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
 
     // commit
-    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
     val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._
@@ -269,7 +269,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
 
     // commit
-    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytes)
+    master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
     val timestamps = getRxTimestamps(master, globalBlock)
     import timestamps._

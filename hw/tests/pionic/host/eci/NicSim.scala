@@ -3,7 +3,7 @@ package pionic.host.eci
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import jsteward.blocks.misc.sim.{BigIntParser, isSorted}
+import jsteward.blocks.misc.sim.{BigIntParser, isSorted, IntRicherEndianAware}
 import org.pcap4j.core.Pcaps
 import org.pcap4j.packet.{EthernetPacket, Packet}
 import org.pcap4j.packet.namednumber.DataLinkType
@@ -272,9 +272,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
 
     // reset packet allocator
-    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytes)
+    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 1.toBytesLE)
     sleepCycles(200)
-    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytes)
+    csrMaster.write(globalBlock("dmaCtrl", "allocReset"), 0.toBytesLE)
 
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
@@ -294,7 +294,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
-    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytesLE)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
@@ -304,7 +304,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
 
     // enable promisc mode
-    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytesLE)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
@@ -508,7 +508,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val numPackets = 5
 
     // enable promisc mode
-    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytesLE)
 
     val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
     val size = 128
@@ -556,7 +556,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val maxTries = 5
 
     // enable promisc mode
-    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytes)
+    csrMaster.write(globalBlock("csr", "promisc"), 1.toBytesLE)
 
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "should not have packet on standby yet")
 
@@ -771,7 +771,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
           // queue, the core reads will eventually run out of retries.
           val pidIdx = pidToIdx(pid)
           println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
-          csrMaster.write(globalBlock("schedStats", "readback_idx"), pidIdx.toBytes)
+          csrMaster.write(globalBlock("schedStats", "readback_idx"), pidIdx.toBytesLE)
           val queueFill = csrMaster.read(globalBlock("schedStats", "readback_queueFill"), 8).bytesToBigInt
           println(f"PID $pid%#x has $queueFill elements queued in scheduler")
 

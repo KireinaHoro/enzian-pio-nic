@@ -103,7 +103,7 @@ package object sim {
 
   def oncRpcCallPacket(sport: Int, dport: Int, prog: Int, progVer: Int, procNum: Int, payload: List[Byte], xid: Int) = {
     // construct header
-    println(f"XID $xid%#x bytes ${intToBytesBE(xid)}")
+    println(f"XID $xid%#x prog $prog%#x progVer $progVer%#x procNum $procNum%#x")
 
     udpPacket(sport, dport,
       rawPayloadBuilder(
