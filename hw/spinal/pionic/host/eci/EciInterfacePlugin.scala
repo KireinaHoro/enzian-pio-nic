@@ -12,6 +12,7 @@ import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
 import Global._
+import spinal.lib.StreamPipe.{FULL, NONE}
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
@@ -144,7 +145,7 @@ class EciInterfacePlugin extends FiberPlugin {
       .build()
 
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
-    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
+    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
       cmds.zipWithIndex.map { case (cmd, uidx) =>
         new Area {
           val offset = cmd.mapPayloadElement(addrLocator) { a =>
@@ -156,8 +157,10 @@ class EciInterfacePlugin extends FiberPlugin {
           val ret = StreamDemux(offset, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(dcsIntfs) foreach { case (chan, dcs) => new Area {
-        val muxed = StreamArbiterFactory().roundRobin.on(chan)
-
+        val muxed = StreamArbiterFactory().roundRobin.on(chan).pipelined(
+          // FIXME: why can't we pipeline UL?  Locking/unlocking errors in sim
+          if (isUl) NONE else FULL
+        )
         // assemble ECI channel
         val chanStream = Stream(LclChannel())
         chanStream.translateFrom(muxed) { case (chan, data) =>
@@ -181,7 +184,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
 
           // convert to EciWord (dropping extra stuff)
-          val unaliasedEciWord = unaliased.translateWith(unaliased.data)
+          val unaliasedEciWord = unaliased.translateWith(unaliased.data).pipelined(FULL) // leave unaliasing with the DCS (before pipelining)
           val unaliasedAddr = addrLocator(unaliasedEciWord.payload)
           val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
@@ -248,7 +251,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
         ret.arbitrationFrom(addr)
       }.setName("bindUl").ret
-    }, _.ul.address, 18, 19, _.unlockResp)
+    }, _.ul.address, 18, 19, _.unlockResp, isUl = true)
 
     // drive core control interface -- datapath per core
     0 until NUM_CORES foreach { cid => new Area {
