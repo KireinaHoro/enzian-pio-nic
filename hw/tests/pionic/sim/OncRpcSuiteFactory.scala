@@ -2,10 +2,10 @@ package pionic.sim
 
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
+import jsteward.blocks.misc.sim.IntRicherEndianAware
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
 import pionic.{AsSimBusMaster, Global, NicEngine}
-import spinal.lib._
 
 import scala.util.Random
 import scala.collection.mutable
@@ -31,13 +31,13 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     import procDef._
 
     // activate process
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_pid"), pid.toBytes)
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_maxThreads"), maxThreads.toBytes)
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_enabled"), 1.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_pid"), pid.toBytesLE)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_maxThreads"), maxThreads.toBytesLE)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_enabled"), 1.toBytesLE)
 
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_idx"), idx.toBytes)
+    asMaster.write(bus, globalBlock("schedCtrl", "proc_idx"), idx.toBytesLE)
 
-    println(s"Enabled PID#$pid with $maxThreads threads @ table idx $idx")
+    println(f"Enabled PID#$pid%#x with $maxThreads threads @ table idx $idx")
   }
 
   /** Enable one service in the given process. */
@@ -46,23 +46,23 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
 
     // activate listen port
     // XXX: assumes each service will have its own port number
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_port"), dport.toBytes)
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_nextProto"), 1.toBytes) // FIXME: do not hard-code enum value
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_idx"), idx.toBytes)
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_port"), dport.toBytesLE)
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_nextProto"), 1.toBytesLE) // FIXME: do not hard-code enum value
+    asMaster.write(bus, globalBlock("udpCtrl", "listen_idx"), idx.toBytesLE)
     assert(idx <= Global.NUM_LISTEN_PORTS, "exhausted number of listen ports")
 
     // activate service
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytes)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_pid"), pid.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytesLE)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_pid"), pid.toBytesLE)
 
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytes)
+    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytesLE)
 
-    println(f"Enabled service progNum $prog progVer $progVer port $dport -> $funcPtr%#x @ table idx $idx")
+    println(f"Enabled service prog $prog%#x progVer $progVer%#x procNum $procNum%#x port $dport -> $funcPtr%#x @ table idx $idx")
   }
 
   val dumpers = mutable.Map[String, PcapDumper]()
@@ -82,7 +82,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     ) else procSrvMap
 
     // TODO: also test non promisc mode
-    asMaster.write(bus, globalBlock("csr", "promisc"), 1.toBytes)
+    asMaster.write(bus, globalBlock("csr", "promisc"), 1.toBytesLE)
 
     // create one process with all cores and enable a service inside
     val allSrvs = mutable.ListBuffer[(RpcSrvDef, ProcDef)]()
