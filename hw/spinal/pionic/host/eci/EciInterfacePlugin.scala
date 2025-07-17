@@ -138,7 +138,7 @@ class EciInterfacePlugin extends FiberPlugin {
         dcs.axi.fullPipe().remapAddr { a =>
           val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
-          (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)) | byteOffset.resized).resized
+          (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).asUInt | byteOffset.resized).resized
         } -> dcsNodes.flatMap { case (d, p) => Seq(d) ++ p.toSeq }
       }: _*)
       .build()
@@ -147,26 +147,27 @@ class EciInterfacePlugin extends FiberPlugin {
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
       cmds.zipWithIndex.map { case (cmd, uidx) =>
         new Area {
-          // core interfaces use UNALIASED addresses
-          val acmd = cmd.mapPayloadElement(addrLocator) { a =>
-            EciCmdDefs.aliasAddress(a.asUInt + coreOffset * (uidx / 2))
+          val offset = cmd.mapPayloadElement(addrLocator) { a =>
+            (a.asUInt + coreOffset * (uidx / 2)).asBits
           }
           // lowest 7 bits are byte offset
           // even addr -> odd VC, vice versa
-          val dcsIdx = (~addrLocator(acmd.payload)(7)).asUInt
-
-          // assemble ECI channel
-          val chanStream = Stream(LclChannel())
-          chanStream.translateFrom(acmd) { case (chan, data) =>
-            chan.data := data
-            chan.vc := dcsIdx.asBool ? B(oddVc) | B(evenVc)
-            chan.size := 1
-          }
-
-          val ret = StreamDemux(chanStream, dcsIdx, 2).toSeq
+          val dcsIdx = (~addrLocator(offset.payload)(7)).asUInt
+          val ret = StreamDemux(offset, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(dcsIntfs) foreach { case (chan, dcs) => new Area {
-        chanLocator(dcs) << StreamArbiterFactory().roundRobin.on(chan)
+        val muxed = StreamArbiterFactory().roundRobin.on(chan)
+
+        // assemble ECI channel
+        val chanStream = Stream(LclChannel())
+        chanStream.translateFrom(muxed) { case (chan, data) =>
+          // core interfaces use UNALIASED addresses
+          chan.data := data.mapElement(addrLocator)(EciCmdDefs.aliasAddress)
+          chan.vc := ~addrLocator(data)(7) ? B(oddVc) | B(evenVc)
+          chan.size := 1
+        }
+
+        chanLocator(dcs) << chanStream
       }.setName("arbitrateIntoLcl")
       }
     }
@@ -176,22 +177,25 @@ class EciInterfacePlugin extends FiberPlugin {
       dcsIntfs.map { dcs =>
         new Area {
           val chan = chanLocator(dcs)
-          val unaliasedAddr = EciCmdDefs.unaliasAddress(addrLocator(chan.data)).asBits
+          // dcs use ALIASED addresses
+          val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
+
+          // convert to EciWord (dropping extra stuff)
+          val unaliasedEciWord = unaliased.translateWith(unaliased.data)
+          val unaliasedAddr = addrLocator(unaliasedEciWord.payload)
           val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
-          val ret = StreamDemux(chanLocator(dcs), unitIdx, 2 * NUM_CORES)
+          val ret = StreamDemux(unaliasedEciWord, unitIdx, 2 * NUM_CORES)
         }.setName("demuxLcl").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
           new Composite(c) {
-            // dcs use ALIASED addresses
-            val unaliased = c.mapPayloadElement(cc => addrLocator(cc.data)) { a =>
-              (EciCmdDefs.unaliasAddress(a) - coreOffset * (uidx / 2)).asBits
+            val offset = c.mapPayloadElement(addrLocator) { a =>
+              (a.asUInt - coreOffset * (uidx / 2)).asBits
             }
-            val ret = unaliased.translateWith(unaliased.data)
           }
         }
-        resp << StreamArbiterFactory().roundRobin.on(resps.map(_.ret))
+        resp << StreamArbiterFactory().roundRobin.on(resps.map(_.offset))
       }.setName("arbitrateIntoCoreCmds")
       }
     }
