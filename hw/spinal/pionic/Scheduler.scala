@@ -11,6 +11,7 @@ import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
+import spinal.lib.misc.pipeline.StagePipeline
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
@@ -250,25 +251,6 @@ class Scheduler extends FiberPlugin {
       }
     }
 
-    // such that the waveform shows the actual header, not a union
-    val rxOncRpcCall: Stream[HostReqOncRpcCall] = rxMeta.map { meta =>
-      meta.data.oncRpcCall
-    }
-    // process ID to select which queue the incoming packet goes into
-    val rxProcSelOh = procDefs.map { pd =>
-      pd.enabled && pd.pid === rxOncRpcCall.pid
-    }.asBits()
-
-    when (rxMeta.valid) {
-      // decoder pipeline should have filtered out packets that do not belong to an enabled process
-      assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
-      assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
-    }
-
-    // FIXME: this will become too wide when we register more processes
-    val rxProcTblIdx = OHToUInt(rxProcSelOh)
-    val rxProcDef = procDefs(rxProcTblIdx)
-
     // map of which process is running on which core
     val corePidMap = Vec.fill(NUM_WORKER_CORES) {
       // all start in IDLE -- preempt request will move them away
@@ -289,43 +271,74 @@ class Scheduler extends FiberPlugin {
     drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
     val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
 
-    // core map for the rx process
-    val rxProcCoreMap = corePidMap.map(_ === rxProcTblIdx).asBits()
-    val rxProcCurrThrCount = CountOne(rxProcCoreMap)
+    // consume incoming RPC request in a pipeline
+    val pip = new StagePipeline
+    pip.node(0).arbitrateFrom(rxMeta)
+
+    val calculateRxProcIdx = new pip.Area(0) {
+      val RX_PID = insert(rxMeta.data.oncRpcCall.pid)
+      val REQ = insert(rxMeta.payload)
+
+      // process ID to select which queue the incoming packet goes into
+      val rxProcSelOh = insert(procDefs.map { pd =>
+        pd.enabled && pd.pid === RX_PID
+      }.asBits())
+
+      when (isValid) {
+        // decoder pipeline should have filtered out packets that do not belong to an enabled process
+        assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
+        assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
+      }
+
+      // FIXME: this will become too wide when we register more processes
+      val PROC_TBL_IDX = insert(OHToUInt(rxProcSelOh))
+      val PROC_DEF = insert(procDefs(PROC_TBL_IDX))
+    }
+    import calculateRxProcIdx._
+
+    val selectRxProc = new pip.Area(1) {
+      // XXX: not capturing corePidMap at beginnnig of the pipeline;
+      //      otherwise we might see stale idle info
+      val PROC_CORE_MAP = insert(corePidMap.map(_ === PROC_TBL_IDX).asBits())
+      val PROC_THR_COUNT = insert(CountOne(PROC_CORE_MAP))
+    }
+    import selectRxProc._
+
+    val po = pip.nodes.values.last
 
     // preempt request to popping side
     val rxPreemptReq = Reg(Flow(PreemptCmd()))
     rxPreemptReq.valid := False
 
-    rxOncRpcCall.setBlocked()
-    when (rxOncRpcCall.valid) {
+    po.ready := False
+    when (po.valid) {
       // received packet: push into memory
-      when (queueMetas(rxProcTblIdx).full) {
+      when (queueMetas(po(PROC_TBL_IDX)).full) {
         // the destination proc queue is full
         // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
         inc(_.dropped)
       } otherwise {
         // store at where the tail was
-        queueMem.write(queueMetas(rxProcTblIdx).tail, rxMeta.payload)
+        queueMem.write(queueMetas(po(PROC_TBL_IDX)).tail, po(REQ))
 
         // update pointers
-        pushQ(rxProcTblIdx) := True
+        pushQ(po(PROC_TBL_IDX)) := True
 
         inc(_.pushed)
       }
 
       // A new packet arrived, try to select a core to preempt, but do not block the RX process.
-      when (rxProcCurrThrCount < rxProcDef.maxThreads) {
-        rxPreemptReq.pid := rxOncRpcCall.pid
-        rxPreemptReq.idx := rxProcTblIdx
+      when (po(PROC_THR_COUNT) < po(PROC_DEF).maxThreads) {
+        rxPreemptReq.pid := po(RX_PID)
+        rxPreemptReq.idx := po(PROC_TBL_IDX)
 
         // preempting as ready takes priority
-        when (queueMetas(rxProcTblIdx).almostFull) {
+        when (queueMetas(po(PROC_TBL_IDX)).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
           // preempt a non-idle, ready core
           rxPreemptReq.ty := PreemptCmdType.ready
           rxPreemptReq.valid := True
-        } elsewhen (rxProcCoreMap === 0) {
+        } elsewhen (po(PROC_CORE_MAP) === 0) {
           // no process assigned to this queue -- idle preempt
           rxPreemptReq.ty := PreemptCmdType.idle
           rxPreemptReq.valid := True
@@ -333,8 +346,9 @@ class Scheduler extends FiberPlugin {
       }
 
       // we either pushed the packet or dropped it, ack
-      rxOncRpcCall.ready := True
+      po.ready := True
     }
+    pip.build()
 
     // each core can raise a pop request, to remove one packet from the queues
     val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
