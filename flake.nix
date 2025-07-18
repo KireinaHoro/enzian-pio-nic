@@ -3,9 +3,14 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    nixGL = {
+      url = "github:nix-community/nixGL";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
-  outputs = inputs@{ nixpkgs, flake-utils, ... }:
+  outputs = inputs@{ nixpkgs, flake-utils, nixGL, ... }:
   with builtins;
   with nixpkgs.lib;
   flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
@@ -23,11 +28,25 @@
         chmod +x $out/bin/mill
       '';
     };
+    wrapNixGL = name: let
+      glWrapper = "${nixGL.packages.${system}.nixGLIntel}/bin/nixGLIntel";
+      progPath = "${pkgs.${name}}/bin/${name}";
+    in pkgs.writeShellApplication {
+      inherit name;
+      text = ''
+        if [[ -f /etc/NIXOS ]]; then
+          exec ${progPath} "$@"
+        else
+          exec ${glWrapper} ${progPath} "$@"
+        fi
+      '';
+    };
   in {
     devShells.default  = with pkgs; mkShell {
       buildInputs = [
         zlib.dev verilator clang
-        gtkwave sby yices
+        (wrapNixGL "surfer")
+        sby yices
         jdk millw
         # cross compiler
         pkgsCross.aarch64-multiplatform.buildPackages.gcc
