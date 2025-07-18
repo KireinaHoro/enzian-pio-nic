@@ -262,8 +262,9 @@ class Scheduler extends FiberPlugin {
       val coreMap = corePidMap.map(_ === idx).asBits()
       pd.enabled && !queueMetas(idx).empty && coreMap === 0
     }.asBits()
-    val drainProcTblIdx = OHToUInt(drainProcSelOh)
-    val drainProcDef = procDefs(drainProcTblIdx)
+    // pipeline -- always valid to select a process to drain
+    val drainProcTblIdx = OHToUInt(RegNext(drainProcSelOh))
+    val drainProcPid = procDefs(drainProcTblIdx).pid
 
     // make sure no two cores will pick up the same queue to drain
     val drainProcCoreReq, drainProcCoreGrant = Bits(NUM_WORKER_CORES bits)
@@ -431,7 +432,7 @@ class Scheduler extends FiberPlugin {
               // - system later became not busy, but no new requests arrive for process
               // - if we don't scan inactive queues, the request will sit there indefinitely
               // TODO: fairness?
-              corePreempt(idx).payload := drainProcDef.pid
+              corePreempt(idx).payload := drainProcPid
               savedPreemptIdx := drainProcTblIdx
               drainProcCoreReq(idx) := True
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainProcTblIdx)) {
