@@ -9,9 +9,10 @@ resize_pblock pblock_slr0 -add SLR0:SLR0
 add_cells_to_pblock pblock_slr2 [get_cells i_app/dcs_even/i_dcs]
 add_cells_to_pblock pblock_slr0 [get_cells i_app/dcs_odd/i_dcs]
 
-# assign ONC-RPC decoder, aligner and AXI DMA to SLR0 (closer to CMAC)
+# assign ONC-RPC decoder, aligner, AXI DMA and mem to SLR0 (closer to CMAC)
 add_cells_to_pblock pblock_slr0 [get_cells [list \
   i_app/NicEngine_inst/OncRpcCallDecoder_logic_decoder \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
   i_app/NicEngine_inst/PacketBuffer_logic_aligner \
+  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
+  i_app/NicEngine_inst/PacketBuffer_logic_axiMem \
 ]]
