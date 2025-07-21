@@ -77,9 +77,9 @@ build-hw-eci:
     PIONIC_DESIGN: eci
   artifacts:
     paths:
-      - out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
-      - out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
-      - out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
+      - out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
+      - out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
+      - out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
 
 publish:
   stage: release
@@ -105,6 +105,6 @@ publish:
       out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
       out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
       out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
-      out/eci/vivadoProject.dest/shell_pio-nic-eci_routed.dcp
-      out/eci/vivadoProject.dest/shell_pio-nic-eci.bit
-      out/eci/vivadoProject.dest/shell_pio-nic-eci.ltx
+      out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
+      out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
+      out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
