@@ -7,7 +7,7 @@ PIO paper NIC artifact, now in the `pio-paper` branch.
 
 The recommended way to set up the environment is to use the [Docker
 container](./Dockerfile), available at the ETH registry
-`registry.ethz.ch/project-openenzian/ci-images/pionic-tools:latest`.  This
+`registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04`.  This
 image is also used by the department GitLab CI for running unit tests and
 building bitstreams.  For a local setup, refer to the Dockerfile for
 instructions.
@@ -37,7 +37,7 @@ NicSim:
 [info] simulation transcript at /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/pcie/rx-regular/sim_transcript.log.gz
 - rx-regular
 ...
-$ mill gen.test.testOnly pionic.host.eci.NicSim # run only the test suite for ECI integration test
+$ mill gen.test.testOnly lauberhorn.host.eci.NicSim # run only the test suite for ECI integration test
 $ mill gen.test -l org.scalatest.tags.Slow # exclude slow-running integration tests
 ...
 ```
@@ -70,8 +70,8 @@ transcript:
 
 ```console
 $ zcat /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/PacketAlloc/simple-allocate-free/sim_transcript.log.gz
->>>>> Simulation transcript pionic.PacketAllocSim for test simple-allocate-free
->>>>> To reproduce: mill gen.test.testOnly pionic.PacketAllocSim -- -t simple-allocate-free -DsetupSeed=1024949829 -DsimSeed=-1610542669 -DprintSimLog=true
+>>>>> Simulation transcript lauberhorn.PacketAllocSim for test simple-allocate-free
+>>>>> To reproduce: mill gen.test.testOnly lauberhorn.PacketAllocSim -- -t simple-allocate-free -DsetupSeed=1024949829 -DsimSeed=-1610542669 -DprintSimLog=true
 
 [0] [Progress] Start PacketAlloc simple-allocate-free simulation with seed 565014101
 ...
@@ -100,8 +100,8 @@ Build userspace software (drivers):
 $ mill pcie.generateVerilog # generate header files
 $ cd sw/pcie && make
 ...
-$ file pionic-test
-pionic-test: ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=898cb76f926551cdf354110ac0a269dbe271c93e, for GNU/Linux 3.7.0, not stripped
+$ file lauberhorn-test
+lauberhorn-test: ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=898cb76f926551cdf354110ac0a269dbe271c93e, for GNU/Linux 3.7.0, not stripped
 $ mill eci.generateVerilog # generate header files
 $ cd sw/eci && make
 ```
@@ -138,9 +138,9 @@ the core specified in `isolcpus`/`nohz_full` options above):
 
 ```bash
 # for ECI
-sudo taskset -c 47 ./pionic-test
+sudo taskset -c 47 ./lauberhorn-test
 # for PCIe
-sudo taskset -c 47 ./pionic-test 0004:90:00.0
+sudo taskset -c 47 ./lauberhorn-test 0004:90:00.0
 ```
 
 Retrieve the `pcie_lat.csv`/`eci_lat.csv` and `loopback.csv` and run `data/*/plot.py` to generate plots.

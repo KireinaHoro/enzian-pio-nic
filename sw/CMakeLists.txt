@@ -41,54 +41,54 @@ foreach (basename ${DEV_BASENAMES})
 endforeach ()
 add_custom_target(gen_headers DEPENDS ${DEV_HEADERS})
 
-# pionic-rt
+# lauberhorn-rt
 set(RT_COMMON_SRC
         rt/common/cmac.c
         rt/common/config.c
         rt/common/diag.c
         rt/common/profile.c)
 
-add_library(pionic-rt-eci
+add_library(lauberhorn-rt-eci
         ${RT_COMMON_SRC}
         rt/eci.c
         ${DEV_HEADERS})
-target_include_directories(pionic-rt-eci PRIVATE
+target_include_directories(lauberhorn-rt-eci PRIVATE
         rt-include
         core
         usr-include  # rt implements usr as a part of it
         ${CMAKE_SOURCE_DIR}/../hw/gen/eci
         ${MACKEREL_ROOT})
-target_compile_definitions(pionic-rt-eci PRIVATE
+target_compile_definitions(lauberhorn-rt-eci PRIVATE
         NIC_IMPL=eci)
 
-# pionic-user
+# lauberhorn-user
 set(USR_COMMON_SRC)
 
-add_library(pionic-usr-eci
+add_library(lauberhorn-usr-eci
         ${USR_COMMON_SRC}
 		usr/usr.c
         ${DEV_HEADERS})
-target_include_directories(pionic-usr-eci PRIVATE
+target_include_directories(lauberhorn-usr-eci PRIVATE
         usr-include
         rt-include
         core
         usr-include  # usr implements usr as a pausr of it
         ${CMAKE_SOURCE_DIR}/../hw/gen/eci
         ${MACKEREL_ROOT})
-target_compile_definitions(pionic-usr-eci PRIVATE
+target_compile_definitions(lauberhorn-usr-eci PRIVATE
         NIC_IMPL=eci)
 
-# TODO: pionic-rt-pcie
+# TODO: lauberhorn-rt-pcie
 
 # apps
 
-#add_executable(pionic-rt-eci-test
+#add_executable(lauberhorn-rt-eci-test
 #        apps/rt-eci-test/rt-eci-test.c)
-#target_include_directories(pionic-rt-eci-test PRIVATE
+#target_include_directories(lauberhorn-rt-eci-test PRIVATE
 #        rt-include
 #        usr-include
 #        ${CMAKE_SOURCE_DIR}/../hw/gen/eci)
-#target_link_libraries(pionic-rt-eci-test
-#        pionic-rt-eci)
-#target_compile_definitions(pionic-rt-eci-test PRIVATE
+#target_link_libraries(lauberhorn-rt-eci-test
+#        lauberhorn-rt-eci)
+#target_compile_definitions(lauberhorn-rt-eci-test PRIVATE
 #        NIC_IMPL=eci)
