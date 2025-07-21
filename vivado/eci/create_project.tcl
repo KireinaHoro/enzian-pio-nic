@@ -28,9 +28,9 @@ if { $::argc > 0 } {
     }
 }
 
-set project "pio-nic-eci"
+set project "lauberhorn-eci"
 set part "xcvu9p-flgb2104-3-e"
-set top_module "pio_nic_eci"
+set top_module "lauberhorn_eci"
 
 # repo for custom IPs, if any
 # set ip_dir {...}

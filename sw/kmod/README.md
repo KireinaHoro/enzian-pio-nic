@@ -1,4 +1,4 @@
-# PIO NIC kernel module
+# Lauberhorn kernel module
 
 ## Compiling
 If you are building the module for the host you can just run `make` in this directory to compile the kernel module.
@@ -20,7 +20,7 @@ To cross-compile do the following
 ## Usage
 Install the kernel module:
 ```sh
-sudo insmod pionic.ko
+sudo insmod lauberhorn.ko
 ```
 
 See the dmesg (-w following + -H human-readable):
@@ -30,7 +30,7 @@ dmesg -wH
 
 Uninstall the kernel module:
 ```sh
-sudo rmmod pionic
+sudo rmmod lauberhorn
 ```
 
 ## License

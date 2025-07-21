@@ -64,7 +64,7 @@ trait HwProjModule extends Module {
 
   def generateVerilog = T {
     gen.runForkedTask(
-      mainClass = T.task { "pionic.GenEngineVerilog" },
+      mainClass = T.task { "lauberhorn.GenEngineVerilog" },
       args = T.task {
         Args("--name", variant, "--version", gitVersion())
       }
