@@ -12,6 +12,8 @@ import scala.collection.mutable
 object Global extends AreaRoot {
   val NUM_CORES = value[Int]
   val NUM_WORKER_CORES = value[Int]
+  val MAX_CORE_ID = value[Int]
+
   val NUM_LISTEN_PORTS = value[Int]
   val NUM_SERVICES = value[Int]
   val NUM_PROCS = value[Int]
@@ -85,6 +87,9 @@ object Global extends AreaRoot {
     // set enough parameters to get us rolling
     NUM_CORES.set(nc)
     NUM_WORKER_CORES.set(nw)
+
+    // ThunderX-1 in Enzian has 48 cores
+    MAX_CORE_ID.set(47)
 
     val bufSizeMap = Seq(
       128  -> .1,

@@ -134,8 +134,11 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiToIntc.intId := 8
 
     // affLvl0 is a bit mask, but we only send to one at a time
-    ipiToIntc.affLvl0 := UIntToOh(coreID % 16 + csr.ctrl.preemptCoreIDOffset, 16)
-    ipiToIntc.affLvl1 := coreID / 16
+    // FIXME: can we eliminate this calculation? i.e. use a fixed core offset
+    val coreIDWidth = log2Up(MAX_CORE_ID)
+    val realCoreID = (coreID + csr.ctrl.preemptCoreIDOffset).resize(coreIDWidth)
+    ipiToIntc.affLvl0 := UIntToOh(realCoreID(3 downto 0))
+    ipiToIntc.affLvl1 := realCoreID(coreIDWidth - 1 downto 4).asBits.resized
     ipiToIntc.valid := False
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
