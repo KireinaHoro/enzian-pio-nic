@@ -708,6 +708,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // ACK interrupt and switch to process
     val coreBlock = ALLOC.readBack("core", blockIdx = coreId)
     val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
+
+    // TODO: how to handle killing a process?
+    assert(!killed, "kill preemption not implemented yet and should not happen")
+
     val pid = pidToSched.toInt
     assert(pidMaxThrCountMap(pid) > coreStates.count(_.currPid == pid), "trying to schedule more cores than max threads")
     cs.setPid(pid)
@@ -715,9 +719,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // reset parity
     rxNextCl(coreId) = rxParity.toInt
     txNextCl(coreId) = txParity.toInt
-
-    // TODO: how to handle killing a process?
-    assert(!killed, "kill preemption not implemented yet and should not happen")
 
     pollReady(dcsMaster, coreId)
 
