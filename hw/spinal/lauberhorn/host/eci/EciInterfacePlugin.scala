@@ -136,7 +136,7 @@ class EciInterfacePlugin extends FiberPlugin {
           preemptNodeOption.map(_ -> SizeMapping(coreOffset * idx + dataPathSize, preemptSize)).toSeq
       }: _*)
       .addConnections(dcsIntfs map { dcs =>
-        dcs.axi.fullPipe().remapAddr { a =>
+        dcs.axi.fullPipe(levels = 3).remapAddr { a =>
           val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
           (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).asUInt | byteOffset.resized).resized
@@ -147,9 +147,12 @@ class EciInterfacePlugin extends FiberPlugin {
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
       implicit class StreamPipeliner[T <: Data](s: Stream[T]) {
-        def pp(): Stream[T] =
+        def pp(levels: Int = 3): Stream[T] = {
           // FIXME: why can't we pipeline UL?  Locking/unlocking errors in sim
-          s.pipelined(if (isUl) NONE else FULL)
+          assert(levels >= 1)
+          val p = s.pipelined(if (isUl) NONE else FULL)
+          if (levels == 1) p else p.pp(levels - 1)
+        }
       }
 
       cmds.zipWithIndex.map { case (cmd, uidx) =>
@@ -183,7 +186,11 @@ class EciInterfacePlugin extends FiberPlugin {
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
       implicit class StreamPipeliner[T <: Data](s: Stream[T]) {
-        def pp(): Stream[T] = s.pipelined(FULL)
+        def pp(levels: Int = 3): Stream[T] = {
+          assert(levels >= 1)
+          val p = s.pipelined(FULL)
+          if (levels == 1) p else p.pp(levels - 1)
+        }
       }
 
       dcsIntfs.map { dcs =>
