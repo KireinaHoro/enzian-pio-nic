@@ -42,10 +42,10 @@ object GenEngineVerilog {
   def engine(nw: Int, variant: String) = {
     val nc = nw + 1
     val e = new NicEngine
-    e.database on {
+    val plugins = e.database on {
       initDatabase(nc, nw)
 
-      val plugins = base ++ (variant match {
+      base ++ (variant match {
         case "pcie" => Seq(new PcieBridgeInterfacePlugin) ++
           Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
           Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
@@ -54,9 +54,9 @@ object GenEngineVerilog {
           Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
           Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
       })
-
-      e.host.asHostOf(plugins)
     }
+
+    e.host.asHostOf(plugins)
     e
   }
 
