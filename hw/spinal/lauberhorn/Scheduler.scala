@@ -386,7 +386,8 @@ class Scheduler extends FiberPlugin {
       toCore.setIdle()
 
       val popReq = popReqs(idx)
-      popReq.setIdle()
+      popReq.valid.setAsReg().init(False)
+      popReq.payload.setAsReg()
 
       val corePopQueueIdx = corePidMap(idx)
 
@@ -414,16 +415,7 @@ class Scheduler extends FiberPlugin {
               //      - not allow preempt?  no chance in practice to preempt then
               popReq.payload := queueMetas(corePopQueueIdx).head
               popReq.valid := True
-              when(popReq.ready) {
-                // queue mem read granted.  readSync has one cycle latency
-
-                // we could have a race condition between cores
-                // must update queue pointers immediately after granted
-                popQ(corePopQueueIdx) := True
-                inc(_.popped(idx))
-
-                goto(readPoppedReq)
-              }
+              goto(popReqCheckGrant)
             } elsewhen (toCore.ready && drainProcTblIdx =/= 0) {
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
               // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
@@ -452,6 +444,25 @@ class Scheduler extends FiberPlugin {
             when (corePreempt(idx).ready) {
               drainProcInProgress(savedPreemptIdx) := False
               inc(_.preempted(idx))
+              goto(idle)
+            }
+          }
+        }
+        val popReqCheckGrant: State = new State {
+          whenIsActive {
+            when(popReq.ready) {
+              // queue mem read granted
+              popReq.valid := False
+
+              // we could have a race condition between cores
+              // must update queue pointers immediately after granted
+              popQ(corePopQueueIdx) := True
+              inc(_.popped(idx))
+
+              // readSync has one cycle latency -- go to next state
+              goto(readPoppedReq)
+            } otherwise {
+              // queue mem read NOT granted -- go back to idle
               goto(idle)
             }
           }
