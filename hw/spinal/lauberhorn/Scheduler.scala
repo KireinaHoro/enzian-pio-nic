@@ -362,14 +362,14 @@ class Scheduler extends FiberPlugin {
       // idle preemption: a core that is
       // - running the IDLE process, and
       // - a preemption is not underway
-      corePidMap(cid) === 0 && !corePreempt(cid).valid
+      corePidMap(cid) === 0
     }.asBits()
     val coreReadyMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
       // ready preemption: a core that is
       // - running another PID, and
       // - running some proc but ready (i.e. no request ongoing), and
       // - a preemption is not underway
-      (corePidMap(cid) =/= rxPreemptReq.idx && coreMeta(cid).ready) && !corePreempt(cid).valid
+      corePidMap(cid) =/= rxPreemptReq.idx && coreMeta(cid).ready
     }.asBits()
 
     val victimCoreMap = rxPreemptReq.ty.mux(
@@ -445,9 +445,11 @@ class Scheduler extends FiberPlugin {
         val preempt: State = new State {
           whenIsActive {
             corePreempt(idx).valid := True
-            when (corePreempt(idx).ready) {
-              corePidMap(idx) := savedPreemptIdx
+            // mark core as in the destination process already;
+            // if we wait until ACK, we might dispatch too many cores to the process
+            corePidMap(idx) := savedPreemptIdx
 
+            when (corePreempt(idx).ready) {
               drainProcInProgress(savedPreemptIdx) := False
               inc(_.preempted(idx))
               goto(idle)
