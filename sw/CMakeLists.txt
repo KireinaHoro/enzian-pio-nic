@@ -1,38 +1,35 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(CMAKE_SYSTEM_NAME Linux)
-# set(CMAKE_SYSTEM_PROCESSOR aarch64)
-set(CMAKE_SYSTEM_PROCESSOR x86_64)
-
-# set(TOOLCHAIN_PREFIX aarch64-linux-gnu-)
-set(TOOLCHAIN_PREFIX x86_64-linux-gnu-)
-set(CMAKE_C_COMPILER   ${TOOLCHAIN_PREFIX}gcc    )
-set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PREFIX}gcc    )
-set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++    )
-
-project(enzian-pio-nic-sw C)
+project(lauberhorn-sw C)
 
 # Mackerel
 set(MACKEREL_ROOT ${CMAKE_SOURCE_DIR}/../deps/mackerel2)
 set(MACKEREL ${MACKEREL_ROOT}/target/release/mackerel2)
 add_custom_command(OUTPUT ${MACKEREL}
+        COMMAND echo cargo build --release --manifest-path=${MACKEREL_ROOT}/Cargo.toml
         COMMAND cargo build --release --manifest-path=${MACKEREL_ROOT}/Cargo.toml)
 add_custom_target(mackerel2 DEPENDS ${MACKEREL})
+
+# Generated headers will be put into this directory
+set(GENERATED_INCLUDE_DIR ${CMAKE_BINARY_DIR}/gen)
+file(MAKE_DIRECTORY ${GENERATED_INCLUDE_DIR})
+
+include_directories(${GENERATED_INCLUDE_DIR})
 
 # Mackerel headers - let's specify each file we expect manually - there are not that many
 set(DEV_BASENAMES
         cmac
-        pionic_eci
-        pionic_eci_core
-        pionic_eci_global
-		#pionic_pcie
-        #pionic_pcie_core
-        #pionic_pcie_global
+        lauberhorn_eci
+        lauberhorn_eci_core
+        lauberhorn_eci_global
+        #lauberhorn_pcie
+        #lauberhorn_pcie_core
+        #lauberhorn_pcie_global
 )
 SET(DEV_HEADERS)
 foreach (basename ${DEV_BASENAMES})
     set(dev_file ${CMAKE_SOURCE_DIR}/devices/${basename}.dev)
-    set(output_file ${CMAKE_SOURCE_DIR}/rt-include/gen/${basename}.h)
+    set(output_file ${GENERATED_INCLUDE_DIR}/${basename}.h)
     add_custom_command(OUTPUT ${output_file}
             COMMAND ${MACKEREL} -c ${dev_file} -I${CMAKE_SOURCE_DIR}/devices/ -o ${output_file}
             MAIN_DEPENDENCY ${dev_file}
