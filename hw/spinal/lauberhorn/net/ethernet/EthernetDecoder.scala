@@ -14,7 +14,6 @@ import scala.language.postfixOps
 
 class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]
-  lazy val csr = host[GlobalCSRPlugin].logic
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
@@ -46,7 +45,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
         // allow unicast and broadcast
         // TODO: multicast?
         val isBroadcast = meta.hdr.dst.andR
-        drop := (EndiannessSwap(macAddress) =/= meta.hdr.dst || !isBroadcast) && !csr.ctrl.promisc
+        drop := (EndiannessSwap(macAddress) =/= meta.hdr.dst || !isBroadcast) && !isPromisc
       }.meta
     }
 

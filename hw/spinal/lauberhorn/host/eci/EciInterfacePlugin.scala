@@ -4,7 +4,7 @@ import jsteward.blocks.eci._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import lauberhorn._
-import lauberhorn.net.ProtoDecoder
+import lauberhorn.net.{ProtoDecoder, RxDecoderSink}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._

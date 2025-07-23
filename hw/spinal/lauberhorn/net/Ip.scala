@@ -51,7 +51,6 @@ case class IpMetadata() extends Bundle with ProtoMetadata {
 
 class IpDecoder extends ProtoDecoder[IpMetadata] {
   lazy val macIf = host[MacInterfaceService]
-  lazy val csr = host[GlobalCSRPlugin].logic
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
@@ -96,7 +95,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
       meta.ethMeta := lastEthMeta
 
       // TODO: verify header checksum, version, etc.
-      drop := meta.hdr.daddr =/= EndiannessSwap(ipAddress) && !csr.ctrl.promisc
+      drop := meta.hdr.daddr =/= EndiannessSwap(ipAddress) && !isPromisc
 
       meta
     }

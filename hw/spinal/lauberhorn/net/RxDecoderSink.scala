@@ -1,10 +1,12 @@
 package lauberhorn.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
-import lauberhorn.{DmaControlPlugin, GlobalCSRPlugin, MacInterfaceService, PacketBuffer}
+import jsteward.blocks.misc.RegBlockAlloc
+import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -21,6 +23,7 @@ trait RxDecoderSinkService {
   def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
+  def isPromisc: Bool
 
   def retainer: Retainer
 }
@@ -33,7 +36,6 @@ trait RxDecoderSinkService {
   * into the DMA engine in [[PacketBuffer]].
   */
 class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
-  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val ms = host[MacInterfaceService]
   lazy val dc = host[DmaControlPlugin].logic
   val retainer = Retainer()
@@ -67,6 +69,8 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   override def packetSink = logic.axisMux.m_axis
 
   val logic = during build new Area {
+    val promisc = Bool()
+
     retainer.await()
 
     // mux payload data axis to DMA -- lower first
@@ -86,5 +90,11 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
 
     dc.requestDesc << mux(requestUpstreams)
     dc.bypassDesc << mux(bypassUpstreams)
+  }
+
+  def isPromisc: Bool = logic.promisc
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+    busCtrl.driveAndRead(logic.promisc, alloc("ctrl", "promisc"))
   }
 }
