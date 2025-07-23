@@ -114,4 +114,6 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     * @param alloc reg allocator
     */
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
+
+  def isPromisc: Bool = host[RxDecoderSinkService].isPromisc
 }

@@ -10,11 +10,11 @@ import scala.language.postfixOps
 import Global._
 import spinal.lib.misc.plugin.FiberPlugin
 
+/** @deprecated Do not use central CSRs any more, this is bad for PNR */
 class GlobalCSRPlugin extends FiberPlugin {
   val logic = during build new Area {
     val ctrl = new Bundle {
       val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
-      val promisc = Reg(Bool()) init False
 
       val preemptCritSecTimeout = Reg(UInt(REG_WIDTH bits)) init 100000 // 400 us @ 250 MHz
       val preemptCoreIDOffset = Reg(UInt(REG_WIDTH bits)) init 0

@@ -64,7 +64,6 @@ case class UdpMetadata() extends Bundle with ProtoMetadata {
 
 class UdpDecoder extends ProtoDecoder[UdpMetadata] {
   lazy val macIf = host[MacInterfaceService]
-  lazy val csr = host[GlobalCSRPlugin].logic
 
   def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
@@ -138,7 +137,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
         lp.nextProto =/= UdpNextProto.disabled && lp.port === meta.hdr.dport
       }.asBits()
 
-      drop := !matches.orR && !csr.ctrl.promisc
+      drop := !matches.orR && !isPromisc
 
       val selectedListener = PriorityMux(matches, listenPorts)
       meta.nextProto := selectedListener.nextProto
