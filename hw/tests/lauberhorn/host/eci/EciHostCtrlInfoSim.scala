@@ -55,6 +55,10 @@ case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) ex
       .push(BYPASS_HDR_WIDTH, packetHdr, skip = 11)
       .toBigInt
   }
+
+  override def toString: String = {
+    s"Bypass (packetType $packetType), $len bytes"
+  }
 }
 case class OncRpcCallCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallPacketDescSim {
   override def encode: BigInt = {
