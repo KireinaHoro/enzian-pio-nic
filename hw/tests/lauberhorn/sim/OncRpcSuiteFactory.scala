@@ -6,6 +6,7 @@ import jsteward.blocks.misc.sim.IntRicherEndianAware
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
 import lauberhorn.{AsSimBusMaster, Global, NicEngine}
+import Global.ALLOC
 
 import scala.util.Random
 import scala.collection.mutable
@@ -27,40 +28,40 @@ object RpcSrvDef {
 
 trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Enable one process in the scheduler. */
-  def enableProcess[B](bus: B, globalBlock: RegBlockReadBack, procDef: ProcDef, idx: Int)(implicit asMaster: AsSimBusMaster[B]) = {
+  def enableProcess[B](bus: B, procDef: ProcDef, idx: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     import procDef._
 
     // activate process
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_pid"), pid.toBytesLE)
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_maxThreads"), maxThreads.toBytesLE)
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_enabled"), 1.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_pid"), pid.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_maxThreads"), maxThreads.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_enabled"), 1.toBytesLE)
 
-    asMaster.write(bus, globalBlock("schedCtrl", "proc_idx"), idx.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_idx"), idx.toBytesLE)
 
     println(f"Enabled PID#$pid%#x with $maxThreads threads @ table idx $idx")
   }
 
   /** Enable one service in the given process. */
-  def enableService[B](bus: B, globalBlock: RegBlockReadBack, srvDef: RpcSrvDef, idx: Int, pid: Int)(implicit asMaster: AsSimBusMaster[B]) = {
+  def enableService[B](bus: B, srvDef: RpcSrvDef, idx: Int, pid: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     import srvDef._
 
     // activate listen port
     // XXX: assumes each service will have its own port number
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_port"), dport.toBytesLE)
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_nextProto"), 1.toBytesLE) // FIXME: do not hard-code enum value
-    asMaster.write(bus, globalBlock("udpCtrl", "listen_idx"), idx.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("UdpDecoder")("ctrl", "listen_port"), dport.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("UdpDecoder")("ctrl", "listen_nextProto"), 1.toBytesLE) // FIXME: do not hard-code enum value
+    asMaster.write(bus, ALLOC.readBack("UdpDecoder")("ctrl", "listen_idx"), idx.toBytesLE)
     assert(idx <= Global.NUM_LISTEN_PORTS, "exhausted number of listen ports")
 
     // activate service
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progNum"), prog.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_progVer"), progVer.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_proc"), procNum.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_funcPtr"), funcPtr.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_listenPort"), dport.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_enabled"), 1.toBytesLE)
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_pid"), pid.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_progNum"), prog.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_progVer"), progVer.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_proc"), procNum.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_funcPtr"), funcPtr.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_listenPort"), dport.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_enabled"), 1.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_pid"), pid.toBytesLE)
 
-    asMaster.write(bus, globalBlock("oncRpcCtrl", "service_idx"), idx.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("OncRpcCallDecoder")("ctrl", "service_idx"), idx.toBytesLE)
 
     println(f"Enabled service prog $prog%#x progVer $progVer%#x procNum $procNum%#x port $dport -> $funcPtr%#x @ table idx $idx")
   }
@@ -75,21 +76,21 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Used for generating test benches where one service sits in one process.  Tests the following paths:
     *  - service scaling up from 0 to all cores
     */
-  def oncRpcCallPacketFactory[B](bus: B, globalBlock: RegBlockReadBack, procSrvMap: Seq[(ProcDef, Seq[RpcSrvDef])] = Seq.empty, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
+  def oncRpcCallPacketFactory[B](bus: B, procSrvMap: Seq[(ProcDef, Seq[RpcSrvDef])] = Seq.empty, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
     // if no map defined: create one process with one randomly generated service
     val m = if (procSrvMap.isEmpty) Seq(
       ProcDef.mkRandom(lauberhorn.Global.NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom),
     ) else procSrvMap
 
     // TODO: also test non promisc mode
-    asMaster.write(bus, globalBlock("csr", "promisc"), 1.toBytesLE)
+    asMaster.write(bus, ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     // create one process with all cores and enable a service inside
     val allSrvs = mutable.ListBuffer[(RpcSrvDef, ProcDef)]()
     m.zipWithIndex foreach { case ((p, srvs), i) =>
-      enableProcess(bus, globalBlock, p, idx = i + 1) // slot 0 is for IDLE
+      enableProcess(bus, p, idx = i + 1) // slot 0 is for IDLE
       srvs foreach { srv =>
-        enableService(bus, globalBlock, srv, allSrvs.length, p.pid)
+        enableService(bus, srv, allSrvs.length, p.pid)
         allSrvs += srv -> p
       }
     }
