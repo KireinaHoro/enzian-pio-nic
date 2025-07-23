@@ -155,9 +155,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
     // register accepted host rx packet for:
+    // - get out of hostWaiting (when hostRx.fire happened during invalidation)
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
     val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
+    val rxPktBufSavedValid = Reg(Bool()).setWhen(hostRx.fire) init False
 
     // read start is when request for the selected CL is active for the first time
     val hostFirstRead = Reg(Bool()) init False
@@ -181,11 +183,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val hostWaiting: State = new State {
         whenIsActive {
-          when (hostRx.fire) {
+          when (rxPktBufSavedValid) {
             // a packet arrived in time
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(hostRx.buffer.size.bits)
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPktBufSaved.size.bits)
             goto(repeatPacket)
           } elsewhen (rxTriggerNew) {
+            // no packet arrived in time, and we delivered a NACK; invalidate the NACK
             goto(invalidateCtrl)
           }
         }
@@ -197,11 +200,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
-              when (rxOverflowToInvalidate > 0) {
-                goto(invalidatePacketData)
-              } otherwise {
-                goto(invalidateCtrl)
-              }
+              rxPktBufSavedValid.clear()
+              goto(invalidatePacketData)
             }
           }
         }

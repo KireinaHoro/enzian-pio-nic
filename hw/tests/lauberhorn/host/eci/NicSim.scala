@@ -234,11 +234,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     // read payload back and check data
     val firstReadSize = Math.min(info.len, 64)
+    println(s"Reading payload in control CL: $firstReadSize bytes")
     var data = dcsMaster.read(addr, firstReadSize)
     if (info.len > 64) {
-      data ++= dcsMaster.read(
-        ECI_RX_BASE.get + ECI_OVERFLOW_OFFSET,
-        info.len - 64)
+      val overflowLen = info.len - 64
+      println(s"Reading payload in overflow CL: $overflowLen bytes")
+      data ++= dcsMaster.read(ECI_RX_BASE.get + ECI_OVERFLOW_OFFSET, overflowLen)
     }
 
     (bypassDesc, data)

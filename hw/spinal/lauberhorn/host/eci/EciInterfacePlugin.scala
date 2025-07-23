@@ -12,7 +12,6 @@ import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
 import Global._
-import spinal.lib.StreamPipe.{FULL, NONE}
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
@@ -146,15 +145,6 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
-      implicit class StreamPipeliner[T <: Data](s: Stream[T]) {
-        def pp(levels: Int = 3): Stream[T] = {
-          // FIXME: why can't we pipeline UL?  Locking/unlocking errors in sim
-          assert(levels >= 1)
-          val p = s.pipelined(if (isUl) NONE else FULL)
-          if (levels == 1) p else p.pp(levels - 1)
-        }
-      }
-
       cmds.zipWithIndex.map { case (cmd, uidx) =>
         new Area {
           val offset = cmd.mapPayloadElement(addrLocator) { a =>
@@ -167,8 +157,8 @@ class EciInterfacePlugin extends FiberPlugin {
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(dcsIntfs) foreach { case (demuxedCoreCmds, dcs) => new Area {
         // pipeline between the demux and arbiter
-        val chan = demuxedCoreCmds.map(_.pp())
-        val muxed = StreamArbiterFactory().roundRobin.on(chan).pp()
+        val chan = demuxedCoreCmds.map(_.farPipe())
+        val muxed = StreamArbiterFactory().roundRobin.on(chan).farPipe()
         // assemble ECI channel
         val chanStream = Stream(LclChannel())
         chanStream.translateFrom(muxed) { case (chan, data) =>
@@ -185,14 +175,6 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      implicit class StreamPipeliner[T <: Data](s: Stream[T]) {
-        def pp(levels: Int = 3): Stream[T] = {
-          assert(levels >= 1)
-          val p = s.pipelined(FULL)
-          if (levels == 1) p else p.pp(levels - 1)
-        }
-      }
-
       dcsIntfs.map { dcs =>
         new Area {
           val chan = chanLocator(dcs)
@@ -200,7 +182,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
 
           // convert to EciWord (dropping extra stuff)
-          val unaliasedEciWord = unaliased.translateWith(unaliased.data).pp()
+          val unaliasedEciWord = unaliased.translateWith(unaliased.data).farPipe()
           val unaliasedAddr = addrLocator(unaliasedEciWord.payload)
           val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
@@ -209,7 +191,7 @@ class EciInterfacePlugin extends FiberPlugin {
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
           new Composite(c) {
-            val offset = c.pp().mapPayloadElement(addrLocator) { a =>
+            val offset = c.farPipe().mapPayloadElement(addrLocator) { a =>
               (a.asUInt - coreOffset * (uidx / 2)).asBits
             }
           }
