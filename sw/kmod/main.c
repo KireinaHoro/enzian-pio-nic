@@ -111,7 +111,6 @@ static int init_fpi(void) {
     err = request_percpu_irq(fpi_irq_no, fpi_handler, "Lauberhorn FPI", &fpi_cpu_number);
     if (err < 0) {
         pr_warn("request_percpu_irq returns %d\n", err);
-        // FIXME: on Ubuntu 20.04, err == -22
     }
     for_each_online_cpu(cpu_no) { // active the interrupt on all cores
         err = smp_call_on_cpu(cpu_no, do_fpi_irq_activate, NULL, true);
@@ -150,7 +149,8 @@ static int create_device(void) {
     pr_err("cdev_add failed\n");
     return -1;
   }
-  if (IS_ERR(dev_class = class_create(THIS_MODULE, "lauberhorn_class"))) {
+  cdev.owner = THIS_MODULE;
+  if (IS_ERR(dev_class = class_create("lauberhorn_class"))) {
     pr_err("class_create failed\n");
     return -1;
   }

@@ -22,4 +22,4 @@ echo "Installing kmod..."
 sudo insmod lauberhorn.ko
 
 echo "Entering follow mode of dmesg... Ctrl+C to exit"
-dmesg -wH || true
+sudo dmesg -wH || true
