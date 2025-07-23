@@ -1,11 +1,14 @@
 package lauberhorn
 
 import spinal.core._
-import jsteward.blocks.misc._
+import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 import Global._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.plugin.FiberPlugin
+
+import jsteward.blocks.misc._
 
 import scala.language.postfixOps
 
@@ -34,12 +37,18 @@ class ProfilerPlugin extends FiberPlugin {
   val TxCmacExit = NamedType(Timestamp) // time exiting to CMAC
 
   val logic = during setup new Area {
+    val cycles = CycleClock(REG_WIDTH bits)
+    cycles.bits := CounterFreeRun(REG_WIDTH bits)
+
     val profiler = Profiler(
       RxCmacEntry, RxAfterCdcQueue, RxEnqueueToHost, RxCoreReadStart, RxCoreReadFinish, RxCoreCommit,
       TxCoreAcquire, TxCoreCommit, TxAfterDmaRead, TxBeforeCdcQueue, TxCmacExit
     )(collectTimestamps = true)
 
-    def reportTimestamps(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+      val busCtrl = AxiLite4SlaveFactory(bus)
+      busCtrl.read(cycles, alloc("cycles", attr = RO))
+
       profiler.timestamps.storage.foreach { case (namedType, data) =>
         busCtrl.read(data, alloc("lastProfile", namedType.getName(), attr = RO))
       }
@@ -47,7 +56,7 @@ class ProfilerPlugin extends FiberPlugin {
   }
 
   def profile(keycond: (NamedType[UInt], Bool)*) = {
-    implicit val clock = host[GlobalCSRPlugin].logic.get.status.cycles
+    implicit val clock = logic.cycles
 
     logic.profiler.fillSlots(keycond: _*)
   }

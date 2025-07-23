@@ -10,6 +10,7 @@ import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
 import Global._
 import spinal.lib.StreamPipe.FULL
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -311,16 +312,22 @@ class DmaControlPlugin extends FiberPlugin {
       }
     }
 
-    def connectControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
-      busCtrl.driveAndRead(allocReset, alloc("dmaCtrl", "allocReset")) init false
+    def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+      val busCtrl = AxiLite4SlaveFactory(bus)
+      ctrl(busCtrl, alloc)
+      stat(busCtrl, alloc)
     }
 
-    def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+      busCtrl.driveAndRead(allocReset, alloc("ctrl", "allocReset")) init false
+    }
+
+    def stat(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       statistics.elements.foreach { case (name, data) =>
         data match {
           case d: UInt => busCtrl.read(d, alloc(name, attr = RO))
           case v: Vec[_] => v zip PKT_BUF_ALLOC_SIZES.map(_._1) foreach { case (elem, slotSize) =>
-            busCtrl.read(elem, alloc("dmaStats", s"${name}_upTo$slotSize", attr = RO))
+            busCtrl.read(elem, alloc("stat", s"${name}_upTo$slotSize", attr = RO))
           }
         }
       }

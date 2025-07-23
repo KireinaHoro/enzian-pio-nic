@@ -27,7 +27,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
 
     val rxHostDesc = hostRx.map(PcieHostCtrlInfo.packFrom)
-    busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
+    // busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
 
     // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
     hostRxReq := False

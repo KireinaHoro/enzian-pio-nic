@@ -5,6 +5,7 @@ import jsteward.blocks.axi._
 import spinal.core._
 import spinal.lib.StreamPipe.FULL
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.AxiLite4
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.misc.plugin.FiberPlugin
@@ -110,10 +111,11 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     *
     * TODO: move to [[ProtoState]]
     *
-    * @param busCtrl bus slave factory to host register access
+    * @param bus AXILite4 for register access
     * @param alloc reg allocator
     */
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit
+  def decoderName: String = getClass.getSimpleName
 
   def isPromisc: Bool = host[RxDecoderSinkService].isPromisc
 }

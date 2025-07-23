@@ -4,16 +4,16 @@ import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn._
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.Axi4
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4ReadOnlyErrorSlave, Axi4SlaveFactory, Axi4WriteOnlyErrorSlave}
 import spinal.lib.fsm._
-import spinal.lib.bus.amba4.axi.Axi4SlaveFactory
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.host.PreemptionService
-
 import Global._
+import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 import scala.language.postfixOps
 
@@ -41,6 +41,20 @@ case class IpiAckReg() extends Bundle {
   val pid = PID()
 }
 
+object EciPreemptionControlPlugin {
+  // called for driving the non-existent preemption control for core#0
+  def dummyDriveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val errorNode = bus.toAxi()
+    val ro = Axi4ReadOnlyErrorSlave(errorNode.config)
+    val rw = Axi4WriteOnlyErrorSlave(errorNode.config)
+    errorNode.toReadOnly() >> ro.io.axi
+    errorNode.toWriteOnly() >> rw.io.axi
+
+    alloc("realCoreID")
+    alloc("ipiAck", attr = RO, readSensitive = true)
+  }
+}
+
 /**
   * Preemption control plugin for ECI.  Interfaces with [[EciInterfacePlugin]] to issue interrupts to CPU as IPI.
   *
@@ -50,15 +64,18 @@ case class IpiAckReg() extends Bundle {
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"core_$coreID")
 
-  lazy val csr = host[GlobalCSRPlugin].logic.get
-  
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
+  lazy val preemptCritSecTimeout = host[EciInterfacePlugin].preemptCritSecTimeout
+
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
     val ipiAckAddr = alloc("ipiAck", attr = RO, readSensitive = true)
     busCtrl.read(logic.ipiAck, ipiAckAddr)
-     
+
     busCtrl.onRead(ipiAckAddr) {
       logic.ipiAckReadReq := True
     }
+
+    busCtrl.readAndWrite(logic.realCoreID, alloc("realCoreID"))
   }
 
   val requiredAddrSpace = 0x80
@@ -75,10 +92,10 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val lci = Stream(EciCmdDefs.EciAddress)
     val lcia = Stream(EciCmdDefs.EciAddress)
     val ul = Stream(EciCmdDefs.EciAddress)
-    
+
     lci.assertPersistence()
     ul.assertPersistence()
-  
+
     // muxed interface to ECI interrupt controller
     val ipiToIntc = Stream(EciIntcInterface())
 
@@ -127,7 +144,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiAck.killed := False
     ipiAck.xb5 := 0
     ipiAck.pid := preemptReq.payload
-    
+
     ipiToIntc.cmd := 0
     // 8 to 15 are allowed
     // FIXME: should we use a different interrupt ID for killing a proc?
@@ -136,7 +153,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // affLvl0 is a bit mask, but we only send to one at a time
     // FIXME: can we eliminate this calculation? i.e. use a fixed core offset
     val coreIDWidth = log2Up(MAX_CORE_ID)
-    val realCoreID = (coreID + csr.ctrl.preemptCoreIDOffset).resize(coreIDWidth)
+    val realCoreID = Reg(UInt(coreIDWidth bits)) init coreID
     ipiToIntc.affLvl0 := UIntToOh(realCoreID(3 downto 0))
     ipiToIntc.affLvl1 := realCoreID(coreIDWidth - 1 downto 4).asBits.resized
     ipiToIntc.valid := False
@@ -145,7 +162,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
     val rxProtoPreemptReq = proto.preemptReq
     rxProtoPreemptReq.setIdle()
-    
+
     // Timer for CPU to exit critical section (unset BUSY), before the FPGA kills the
     // process (sets killed === True) before sending IPI
     val preemptTimer = Counter(REG_WIDTH bits)
@@ -178,7 +195,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           when (ul.ready) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready
-              when (preemptTimer >= csr.ctrl.preemptCritSecTimeout) {
+              when (preemptTimer >= preemptCritSecTimeout) {
                 // timer has expired -- kill
                 ipiAck.killed := True
                 goto(issueIpi)
@@ -268,7 +285,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   }
 
   override def preemptReq: Stream[PID] = logic.preemptReq
-  def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]) = new Area {
+  def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]): Unit = new Area {
     val busCtrl = Axi4SlaveFactory(bus)
     busCtrl.readAndWrite(logic.preemptCtrlCl, controlClAddr)
 

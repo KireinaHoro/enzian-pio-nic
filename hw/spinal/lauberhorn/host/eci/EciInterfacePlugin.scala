@@ -12,9 +12,11 @@ import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import spinal.lib.bus.regif.AccessType.RO
 import Global._
+import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
+import scala.collection.mutable
 
 /**
   * Plumbing logic for DCS interfaces.  Performs the following connections:
@@ -29,8 +31,6 @@ import scala.language.postfixOps
   * [[EciDecoupledRxTxProtocol]]).
   */
 class EciInterfacePlugin extends FiberPlugin {
-  lazy val macIf = host[MacInterfaceService]
-  lazy val csr = host[GlobalCSRPlugin]
   lazy val protos = host.list[EciPioProtocol]
 
   // bypass core does not have preemption control; add null to allow one loop later
@@ -52,6 +52,9 @@ class EciInterfacePlugin extends FiberPlugin {
     useRegion = false,
     useQos = false,
   )
+
+  lazy val preemptCritSecTimeout = Reg(UInt(REG_WIDTH bits)) init 100000 // 400 us @ 250 MHz
+  lazy val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
 
   val logic = during build new Area {
     val clockDomain = ClockDomain.current
@@ -79,19 +82,34 @@ class EciInterfacePlugin extends FiberPlugin {
     }
 
     val s_axil_ctrl = slave(AxiLite4(
-      addressWidth = 44, dataWidth = 64,
+      addressWidth = 44, dataWidth = REG_WIDTH,
     )) addTag ClockDomainTag(clockDomain)
 
-    // connect CSR for global modules
-    val csrCtrl = AxiLite4SlaveFactory(s_axil_ctrl)
-    private val alloc = ALLOC.get("global")(0, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
-    csr.readAndWrite(csrCtrl, alloc)
-    host.list[ProtoDecoder[_]].foreach(_.driveControl(csrCtrl, alloc))
-    host[ProfilerPlugin].logic.reportTimestamps(csrCtrl, alloc)
-    host[Scheduler].driveControl(csrCtrl, alloc)
-    host[Scheduler].reportStatistics(csrCtrl, alloc)
-    host[DmaControlPlugin].logic.connectControl(csrCtrl, alloc)
-    host[DmaControlPlugin].logic.reportStatistics(csrCtrl, alloc)
+    var ctrlBlockStart = 0
+    val ctrlBlockSize = 0x100
+    val ctrlAxiLiteNodes = mutable.ListBuffer[(AxiLite4, SizeMapping)]()
+    def drive(func: (AxiLite4, RegBlockAlloc) => Unit, blockName: String, idx: Int = 0) = {
+      val alloc = ALLOC.get(blockName, idx)(ctrlBlockStart, ctrlBlockSize, REG_WIDTH / 8)()
+
+      val node = AxiLite4(s_axil_ctrl.config)
+      ctrlAxiLiteNodes += node -> SizeMapping(ctrlBlockStart, ctrlBlockSize)
+      ctrlBlockStart += ctrlBlockSize
+
+      func(node, alloc)
+    }
+
+    drive(host[MacInterfaceService].driveControl, "macIf")
+    drive(host[RxDecoderSink].driveControl, "decoderSink")
+    host.list[ProtoDecoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
+    drive(host[ProfilerPlugin].logic.driveControl, "profiler")
+    drive(host[Scheduler].driveControl, "sched")
+    drive(host[DmaControlPlugin].logic.driveControl, "dmaCtrl")
+
+    drive({ (bus, alloc) =>
+      val busCtrl = AxiLite4SlaveFactory(bus)
+      busCtrl.readAndWrite(preemptCritSecTimeout, alloc("preemptCritSecTimeout"))
+      busCtrl.readAndWrite(rxBlockCycles, alloc("rxBlockCycles"))
+    }, "hostIf")
 
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
@@ -264,7 +282,6 @@ class EciInterfacePlugin extends FiberPlugin {
       val memNode = accessNodes(cid)
 
       val baseAddress = (1 + cid) * 0x1000
-      val alloc = ALLOC.get("core", cid)(baseAddress, 0x1000, REG_WIDTH / 8)(s_axil_ctrl.config.dataWidth)
 
       // bind DCS channels to datapath
       dataLci  << proto.lci
@@ -277,11 +294,9 @@ class EciInterfacePlugin extends FiberPlugin {
         host[Scheduler].logic.coreMeta(cid - 1) >> proto.hostRx
       }
 
-      // must be invoked here: per-core address must be present for all cores (including bypass)
-      host[Scheduler].reportPerCoreStats(csrCtrl, alloc, cid)
-
       proto.driveDcsBus(dcsNode, memNode)
-      proto.driveControl(csrCtrl, alloc)
+
+      drive(proto.driveControl, "core", cid)
 
       preemptNodeOption match {
         case None =>
@@ -293,13 +308,25 @@ class EciInterfacePlugin extends FiberPlugin {
           proto.preemptReq.setIdle()
 
           // XXX: still allocate ipiAck for bypass core due to allocator limitation
-          alloc("ipiAck", attr = RO, readSensitive = true)
+          drive(EciPreemptionControlPlugin.dummyDriveControl, "preempt", cid)
         case Some(pn) =>
           preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
-          preempt.driveControl(csrCtrl, alloc)
+          drive(preempt.driveControl, "preempt", cid)
           preempt.logic.ipiToIntc >> ipiCtrl
       }
     }.setName("bindProtoToCoreCtrl")
     }
+
+    // connect all AXI-Lite nodes
+    val fullNodes = ctrlAxiLiteNodes.map { case (n, sm) =>
+      val nr = n.fromAxi()
+      val ret = Axi4(nr.config)
+      ret.fullPipe() >> nr
+      ret -> sm
+    }.toSeq
+    Axi4CrossbarFactory()
+      .addSlaves(fullNodes: _*)
+      .addConnections(s_axil_ctrl.toAxi().fullPipe() -> fullNodes.map(_._1))
+      .build()
   }
 }
