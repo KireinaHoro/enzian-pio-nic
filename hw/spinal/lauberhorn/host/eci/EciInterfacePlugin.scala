@@ -103,7 +103,7 @@ class EciInterfacePlugin extends FiberPlugin {
     host.list[ProtoDecoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
     drive(host[ProfilerPlugin].logic.driveControl, "profiler")
     drive(host[Scheduler].driveControl, "sched")
-    drive(host[DmaControlPlugin].logic.driveControl, "dmaCtrl")
+    drive(host[DmaControlPlugin].logic.driveControl, "dma")
 
     drive({ (bus, alloc) =>
       val busCtrl = AxiLite4SlaveFactory(bus)
@@ -296,7 +296,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
       proto.driveDcsBus(dcsNode, memNode)
 
-      drive(proto.driveControl, "core", cid)
+      drive(proto.driveControl, "worker", cid)
 
       preemptNodeOption match {
         case None =>

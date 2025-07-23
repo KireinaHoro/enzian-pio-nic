@@ -36,7 +36,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val pcieIf = dut.host[PcieBridgeInterfacePlugin].logic.get
     val master = Axi4Master(pcieIf.s_axi, dut.clockDomain)
 
-    CSRSim.csrSanityChecks(globalBlock, master, rxBlockCycles)
+    CSRSim.csrSanityChecks(master, rxBlockCycles)
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
     (master, axisMaster, axisSlave)
@@ -188,7 +188,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     master.write(globalBlock("csr", "rxBlockCycles"), 100.toBytesLE) // rxBlockCycles
 
-    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock,
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(master,
       packetDumpWorkspace = Some("rx-oncrpc-roundrobin")
     ).head
 
@@ -224,7 +224,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
-    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock).head
+    val (_, getPacket, pid) = oncRpcCallPacketFactory(master).head
     val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
 
@@ -239,7 +239,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
-    val timestamps = getRxTimestamps(master, globalBlock)
+    val timestamps = getRxTimestamps(master)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -254,7 +254,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
-    val (_, getPacket, pid) = oncRpcCallPacketFactory(master, globalBlock).head
+    val (_, getPacket, pid) = oncRpcCallPacketFactory(master).head
     val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
     val delayed = 500
@@ -271,7 +271,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
-    val timestamps = getRxTimestamps(master, globalBlock)
+    val timestamps = getRxTimestamps(master)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -302,7 +302,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // receive packet, check timestamps
     axisSlave.recv()
 
-    val timestamps = getTxTimestamps(master, globalBlock)
+    val timestamps = getTxTimestamps(master)
     import timestamps._
 
     assert(isSorted(acquire, afterTxCommit, afterDmaRead, exit))
