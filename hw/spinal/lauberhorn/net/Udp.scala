@@ -6,6 +6,7 @@ import lauberhorn.Global._
 import lauberhorn._
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
@@ -65,19 +66,21 @@ case class UdpMetadata() extends Bundle with ProtoMetadata {
 class UdpDecoder extends ProtoDecoder[UdpMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("udpStats", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", name, attr = RO))
     }
 
     val writePort = UdpListenDef()
     writePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("udpCtrl", s"listen_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"listen_$name", attr = AccessType.WO))
     }
 
     val idx = UInt(log2Up(NUM_LISTEN_PORTS) bits)
     idx := 0
-    val idxAddr = alloc("udpCtrl", "listen_idx", attr = AccessType.WO)
+    val idxAddr = alloc("ctrl", "listen_idx", attr = AccessType.WO)
     busCtrl.write(idx, idxAddr)
     busCtrl.onWrite(idxAddr) {
       // record listen port in table

@@ -8,8 +8,9 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
-
 import Global._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
@@ -21,10 +22,11 @@ trait MacInterfaceService {
   def rxStream: Axi4Stream
 
   def frameLen: Stream[PacketLength]
+
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit
 }
 
 class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
-  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
 
   // matches Xilinx CMAC configuration
@@ -57,7 +59,7 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     // report overflow
     val rxOverflow = Bool()
     val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-    csr.status.rxMacOverflowCount := Counter(REG_WIDTH bits, rxOverflowCdc)
+    val rxMacOverflowCount = Counter(REG_WIDTH bits, rxOverflowCdc)
 
     // extract frame length
     val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
@@ -74,5 +76,10 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
       p.TxBeforeCdcQueue -> txFifo.s_axis.fire,
       p.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
     )
+  }
+
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+    busCtrl.read(logic.rxMacOverflowCount.value, alloc("rxMacOverflowCount", attr = RO))
   }
 }

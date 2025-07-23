@@ -20,7 +20,6 @@ object GenEngineVerilog {
       new PatchSignalNames,
       new DebugPlugin,
       new ProfilerPlugin,
-      new GlobalCSRPlugin,
       // packet decoder pipeline
       new XilinxCmacPlugin,
       new EthernetDecoder,

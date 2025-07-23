@@ -7,6 +7,7 @@ import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.oncrpc.OncRpcCallMetadata
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
@@ -71,16 +72,22 @@ class Scheduler extends FiberPlugin {
     val idx = ProcTblIdx
   }
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+    ctrl(busCtrl, alloc)
+    stat(busCtrl, alloc)
+  }
+
+  def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // max number of threads per process (degree of parallelism)
     val procDefPort = ProcessDef()
     procDefPort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("schedCtrl", s"proc_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"proc_$name", attr = AccessType.WO))
     }
     
     val procDefIdx = ProcTblIdx
     procDefIdx := 0
-    val procDefIdxAddr = alloc("schedCtrl", "proc_idx", attr = AccessType.WO)
+    val procDefIdxAddr = alloc("ctrl", "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
     busCtrl.onWrite(procDefIdxAddr) {
       // the IDLE process should not be changed
@@ -93,18 +100,18 @@ class Scheduler extends FiberPlugin {
     }
   }
 
-  def reportStatistics(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def stat(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     // read-back port for SW to inspect programmed procs
     val readbackPort = Reg(new ProcessDef {
       val queueFill = UInt(REG_WIDTH bits)
     })
     readbackPort.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("schedStats", s"readback_$name", attr = AccessType.RO))
+      busCtrl.read(field, alloc("stat", s"readback_$name", attr = AccessType.RO))
     }
 
     val readbackIdx = ProcTblIdx
     readbackIdx := 0
-    val readbackIdxAddr = alloc("schedStats", "readback_idx", attr = AccessType.WO)
+    val readbackIdxAddr = alloc("stat", "readback_idx", attr = AccessType.WO)
     busCtrl.write(readbackIdx, readbackIdxAddr)
     busCtrl.onWrite(readbackIdxAddr) {
       readbackPort.assignSomeByName(logic.procDefs(readbackIdx))
@@ -112,17 +119,11 @@ class Scheduler extends FiberPlugin {
     }
 
     logic.statistics.elements.foreach {
-      case (name, d: UInt) => busCtrl.read(d, alloc("schedStats", name, attr = RO))
-      case _ =>
-    }
-  }
-
-  def reportPerCoreStats(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc, cid: Int): Unit = {
-    logic.statistics.elements.foreach {
-      case (name, v: Vec[_]) =>
-        val addr = alloc("schedStats", name, attr = RO)
-        val toRead = if (cid != 0) v(cid - 1) else U(0)
-        busCtrl.read(toRead, addr)
+      case (name, d: UInt) => busCtrl.read(d, alloc("stat", name, attr = RO))
+      case (name, v: Vec[_]) => v.zipWithIndex.foreach { case (e, idx) =>
+        val addr = alloc("coreStat", s"${name}_core${idx+1}", attr = RO)
+        busCtrl.read(e, addr)
+      }
       case _ =>
     }
   }

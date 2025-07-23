@@ -7,6 +7,7 @@ import lauberhorn.host.{DatapathPlugin, HostReq}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.Axi4
+import spinal.lib.bus.amba4.axilite.AxiLite4
 import spinal.lib.bus.misc.BusSlaveFactory
 
 /** PIO cacheline protocol state machine interface.
@@ -30,7 +31,7 @@ trait EciPioProtocol extends DatapathPlugin {
   def driveDcsBus(bus: Axi4, pktBufAxi: Axi4): Unit
 
   /** Drive control registers. */
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit
 
   /** Size of the DCS-facing address map for this protocol. */
   def sizePerCore: BigInt

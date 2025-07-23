@@ -6,8 +6,8 @@ import lauberhorn._
 import lauberhorn.net.ProtoDecoder
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
-import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
@@ -15,11 +15,12 @@ import scala.language.postfixOps
 class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("ethernetStats", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", name, attr = RO))
     }
-    busCtrl.readAndWrite(logic.macAddress, alloc("ethernetCtrl", "macAddress"))
+    busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "macAddress"))
   }
 
   val logic = during setup new Area {

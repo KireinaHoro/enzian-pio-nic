@@ -15,20 +15,21 @@ import spinal.lib.fsm._
 
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
-
 import Global._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   withPrefix(s"core_$coreID")
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc) = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+
     busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO))
     busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO))
 
     busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO))
     busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO))
   }
-  lazy val csr = host[GlobalCSRPlugin].logic
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
   // two control half CLs, one extra first word half CL, one MTU
@@ -92,7 +93,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       )
       .build()
 
-    val blockCycles = CombInit(csr.ctrl.rxBlockCycles)
+    val blockCycles = CombInit(host[EciInterfacePlugin].rxBlockCycles)
     // disable block cycles, when a preemption request is under way
     // this way we immediately return a NACK, instead of waiting until timeout
     when (preemptReq.valid) { blockCycles.clearAll() }

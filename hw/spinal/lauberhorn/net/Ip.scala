@@ -6,6 +6,7 @@ import lauberhorn._
 import lauberhorn.net.ethernet.{EthernetDecoder, EthernetMetadata}
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType.RO
@@ -52,11 +53,13 @@ case class IpMetadata() extends Bundle with ProtoMetadata {
 class IpDecoder extends ProtoDecoder[IpMetadata] {
   lazy val macIf = host[MacInterfaceService]
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("ipStats", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", name, attr = RO))
     }
-    busCtrl.readAndWrite(logic.ipAddress, alloc("ipCtrl", "ipAddress"))
+    busCtrl.readAndWrite(logic.ipAddress, alloc("ctrl", "ipAddress"))
   }
 
   val logic = during setup new Area {

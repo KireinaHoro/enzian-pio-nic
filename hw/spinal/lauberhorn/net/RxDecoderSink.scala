@@ -68,9 +68,8 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   }
   override def packetSink = logic.axisMux.m_axis
 
+  lazy val promisc = Bool()
   val logic = during build new Area {
-    val promisc = Bool()
-
     retainer.await()
 
     // mux payload data axis to DMA -- lower first
@@ -92,9 +91,9 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
     dc.bypassDesc << mux(bypassUpstreams)
   }
 
-  def isPromisc: Bool = logic.promisc
+  def isPromisc: Bool = promisc
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    busCtrl.driveAndRead(logic.promisc, alloc("ctrl", "promisc"))
+    busCtrl.driveAndRead(promisc, alloc("ctrl", "promisc"))
   }
 }

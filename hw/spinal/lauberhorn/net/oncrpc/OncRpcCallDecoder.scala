@@ -7,6 +7,7 @@ import lauberhorn._
 import lauberhorn.net._
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
@@ -15,24 +16,25 @@ import scala.language.postfixOps
 
 class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
-  
+
   // FIXME: can we fit more?
   ONCRPC_INLINE_BYTES.set(4 * 12)
 
-  def driveControl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("oncRpcStats", name, attr = AccessType.RO))
+      busCtrl.read(stat, alloc("stat", name, attr = AccessType.RO))
     }
 
     // one port for each field + index register to latch into table
     val servicePort = OncRpcCallServiceDef()
     servicePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("oncRpcCtrl", s"service_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"service_$name", attr = AccessType.WO))
     }
 
     val serviceIdx = UInt(log2Up(NUM_SERVICES) bits)
     serviceIdx := 0
-    val serviceIdxAddr = alloc("oncRpcCtrl", "service_idx", attr = AccessType.WO)
+    val serviceIdxAddr = alloc("ctrl", "service_idx", attr = AccessType.WO)
     busCtrl.write(serviceIdx, serviceIdxAddr)
     busCtrl.onWrite(serviceIdxAddr) {
       // record service entry in table
