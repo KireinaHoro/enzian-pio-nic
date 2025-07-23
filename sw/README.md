@@ -49,6 +49,10 @@ enumeration, etc. quickly get very complicated
 
 # Build instructions
 
+SW requires some generated files from the HW:
+* `devices/lauberhorn_eci_*.dev`
+* `../hw/gen/eci/*`
+
 TODO: build instructions -- build everything with CMake (including [kernel
 modules](https://gitlab.com/christophacham/cmake-kernel-module))
 

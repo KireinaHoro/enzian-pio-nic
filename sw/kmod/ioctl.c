@@ -7,7 +7,7 @@
 #include <linux/uaccess.h> // copy_to/from_user
 #include <linux/wait.h>
 
-#include "debug.h"
+#include "common.h"
 #include "ioctl.h"
 
 DECLARE_WAIT_QUEUE_HEAD(wq);
