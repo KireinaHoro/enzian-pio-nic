@@ -1,20 +1,22 @@
 `ifndef DCS_CDC_SV
 `define DCS_CDC_SV
 
+`define DECL_CHAN_SLAVE(prefix, bus_name, data_name, data_width) \
+logic [(data_width)-1:0]          prefix``_``bus_name``_``data_name``_i; \
+logic [ECI_PACKET_SIZE_WIDTH-1:0] prefix``_``bus_name``_pkt_size_i; \
+logic [3:0]                       prefix``_``bus_name``_pkt_vc_i; \
+logic                             prefix``_``bus_name``_pkt_valid_i; \
+logic                             prefix``_``bus_name``_pkt_ready_o;
+
 `define CROSS_CHAN_SLAVE(bus_name, data_name, data_width) \
-logic [(data_width)-1:0] cdc_``bus_name``_``data_name``_i; \
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_``bus_name``_pkt_size_i; \
-logic [3:0] cdc_``bus_name``_pkt_vc_i; \
-logic cdc_``bus_name``_pkt_valid_i; \
-logic cdc_``bus_name``_pkt_ready_o; \
+`DECL_CHAN_SLAVE(cdc, bus_name, data_name, data_width) \
+`DECL_CHAN_SLAVE(pipe, bus_name, data_name, data_width) \
 axis_async_fifo #( \
   .DEPTH(2), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
   .LAST_ENABLE(0), \
-  .USER_ENABLE(0), \
-  .RAM_PIPELINE(3), \
-  .OUTPUT_FIFO_ENABLE(1) \
+  .USER_ENABLE(0) \
 ) i_chan_cdc_``bus_name``_slave ( \
   .s_clk(eci_clk), \
   .s_rst(eci_reset), \
@@ -26,22 +28,40 @@ axis_async_fifo #( \
   .m_axis_tdata({cdc_``bus_name``_``data_name``_i, cdc_``bus_name``_pkt_size_i, cdc_``bus_name``_pkt_vc_i}), \
   .m_axis_tvalid(cdc_``bus_name``_pkt_valid_i), \
   .m_axis_tready(cdc_``bus_name``_pkt_ready_o) \
+); \
+axis_pipeline_register #( \
+  .LENGTH(3) \
+  .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
+  .KEEP_ENABLE(0), \
+  .LAST_ENABLE(0), \
+  .USER_ENABLE(0), \
+) i_chan_pipe_``bus_name``_slave ( \
+  clk(app_clk), \
+  rst(app_reset), \
+  .s_axis_tdata({cdc_``bus_name``_``data_name``_i, cdc_``bus_name``_pkt_size_i, cdc_``bus_name``_pkt_vc_i}), \
+  .s_axis_tvalid(cdc_``bus_name``_pkt_valid_i), \
+  .s_axis_tready(cdc_``bus_name``_pkt_ready_o), \
+  .m_axis_tdata({pipe_``bus_name``_``data_name``_i, pipe_``bus_name``_pkt_size_i, pipe_``bus_name``_pkt_vc_i}), \
+  .m_axis_tvalid(pipe_``bus_name``_pkt_valid_i), \
+  .m_axis_tready(pipe_``bus_name``_pkt_ready_o) \
 );
 
+`define DECL_CHAN_MASTER(prefix, bus_name, data_name, data_width) \
+logic [(data_width)-1:0]          prefix``_``bus_name``_``data_name``_o; \
+logic [ECI_PACKET_SIZE_WIDTH-1:0] prefix``_``bus_name``_pkt_size_o; \
+logic [3:0]                       prefix``_``bus_name``_pkt_vc_o; \
+logic                             prefix``_``bus_name``_pkt_valid_o; \
+logic                             prefix``_``bus_name``_pkt_ready_i;
+
 `define CROSS_CHAN_MASTER(bus_name, data_name, data_width) \
-logic [(data_width)-1:0] cdc_``bus_name``_``data_name``_o; \
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_``bus_name``_pkt_size_o; \
-logic [3:0] cdc_``bus_name``_pkt_vc_o; \
-logic cdc_``bus_name``_pkt_valid_o; \
-logic cdc_``bus_name``_pkt_ready_i; \
+DECL_CHAN_MASTER(cdc, bus_name, data_name, data_width) \
+DECL_CHAN_MASTER(pipe, bus_name, data_name, data_width) \
 axis_async_fifo #( \
   .DEPTH(2), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
   .LAST_ENABLE(0), \
-  .USER_ENABLE(0), \
-  .RAM_PIPELINE(3), \
-  .OUTPUT_FIFO_ENABLE(1) \
+  .USER_ENABLE(0) \
 ) i_chan_cdc_``bus_name``_master ( \
   .s_clk(app_clk), \
   .s_rst(app_reset), \
@@ -53,21 +73,37 @@ axis_async_fifo #( \
   .m_axis_tdata({bus_name``_``data_name``_o, bus_name``_pkt_size_o, bus_name``_pkt_vc_o}), \
   .m_axis_tvalid(bus_name``_pkt_valid_o), \
   .m_axis_tready(bus_name``_pkt_ready_i) \
+); \
+axis_pipeline_register #( \
+  .LENGTH(3) \
+  .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
+  .KEEP_ENABLE(0), \
+  .LAST_ENABLE(0), \
+  .USER_ENABLE(0), \
+) i_chan_pipe_``bus_name``_slave ( \
+  clk(app_clk), \
+  rst(app_reset), \
+  .s_axis_tdata({pipe_``bus_name``_``data_name``_o, pipe_``bus_name``_pkt_size_o, pipe_``bus_name``_pkt_vc_o}), \
+  .s_axis_tvalid(pipe_``bus_name``_pkt_valid_o), \
+  .s_axis_tready(pipe_``bus_name``_pkt_ready_i), \
+  .m_axis_tdata({cdc_``bus_name``_``data_name``_o, cdc_``bus_name``_pkt_size_o, cdc_``bus_name``_pkt_vc_o}), \
+  .m_axis_tvalid(cdc_``bus_name``_pkt_valid_o), \
+  .m_axis_tready(cdc_``bus_name``_pkt_ready_i) \
 );
 
 `define CONNECT_CHAN_SLAVE(bus_name, data_name) \
-  .bus_name``_``data_name``_i(cdc_``bus_name``_``data_name``_i), \
-  .bus_name``_pkt_size_i(cdc_``bus_name``_pkt_size_i), \
-  .bus_name``_pkt_vc_i(cdc_``bus_name``_pkt_vc_i), \
-  .bus_name``_pkt_valid_i(cdc_``bus_name``_pkt_valid_i), \
-  .bus_name``_pkt_ready_o(cdc_``bus_name``_pkt_ready_o),
+  .bus_name``_``data_name``_i(pipe_``bus_name``_``data_name``_i), \
+  .bus_name``_pkt_size_i(pipe_``bus_name``_pkt_size_i), \
+  .bus_name``_pkt_vc_i(pipe_``bus_name``_pkt_vc_i), \
+  .bus_name``_pkt_valid_i(pipe_``bus_name``_pkt_valid_i), \
+  .bus_name``_pkt_ready_o(pipe_``bus_name``_pkt_ready_o),
 
 `define CONNECT_CHAN_MASTER(bus_name, data_name) \
-  .bus_name``_``data_name``_o(cdc_``bus_name``_``data_name``_o), \
-  .bus_name``_pkt_size_o(cdc_``bus_name``_pkt_size_o), \
-  .bus_name``_pkt_vc_o(cdc_``bus_name``_pkt_vc_o), \
-  .bus_name``_pkt_valid_o(cdc_``bus_name``_pkt_valid_o), \
-  .bus_name``_pkt_ready_i(cdc_``bus_name``_pkt_ready_i),
+  .bus_name``_``data_name``_o(pipe_``bus_name``_``data_name``_o), \
+  .bus_name``_pkt_size_o(pipe_``bus_name``_pkt_size_o), \
+  .bus_name``_pkt_vc_o(pipe_``bus_name``_pkt_vc_o), \
+  .bus_name``_pkt_valid_o(pipe_``bus_name``_pkt_valid_o), \
+  .bus_name``_pkt_ready_i(pipe_``bus_name``_pkt_ready_i),
 
 import eci_cmd_defs::*;
 import eci_dcs_defs::*;
