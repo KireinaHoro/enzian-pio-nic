@@ -29,7 +29,7 @@ axis_async_fifo #( \
   .m_axis_tvalid(cdc_``bus_name``_pkt_valid_i), \
   .m_axis_tready(cdc_``bus_name``_pkt_ready_o) \
 ); \
-axis_pipeline_fifo #( \
+axis_pipeline_register #( \
   .LENGTH(3), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
@@ -74,7 +74,7 @@ axis_async_fifo #( \
   .m_axis_tvalid(bus_name``_pkt_valid_o), \
   .m_axis_tready(bus_name``_pkt_ready_i) \
 ); \
-axis_pipeline_fifo #( \
+axis_pipeline_register #( \
   .LENGTH(3), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
