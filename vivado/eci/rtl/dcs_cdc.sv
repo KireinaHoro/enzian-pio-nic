@@ -29,15 +29,15 @@ axis_async_fifo #( \
   .m_axis_tvalid(cdc_``bus_name``_pkt_valid_i), \
   .m_axis_tready(cdc_``bus_name``_pkt_ready_o) \
 ); \
-axis_pipeline_register #( \
-  .LENGTH(3) \
+axis_pipeline_fifo #( \
+  .LENGTH(3), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
   .LAST_ENABLE(0), \
-  .USER_ENABLE(0), \
+  .USER_ENABLE(0) \
 ) i_chan_pipe_``bus_name``_slave ( \
-  clk(app_clk), \
-  rst(app_reset), \
+  .clk(app_clk), \
+  .rst(app_reset), \
   .s_axis_tdata({cdc_``bus_name``_``data_name``_i, cdc_``bus_name``_pkt_size_i, cdc_``bus_name``_pkt_vc_i}), \
   .s_axis_tvalid(cdc_``bus_name``_pkt_valid_i), \
   .s_axis_tready(cdc_``bus_name``_pkt_ready_o), \
@@ -74,15 +74,15 @@ axis_async_fifo #( \
   .m_axis_tvalid(bus_name``_pkt_valid_o), \
   .m_axis_tready(bus_name``_pkt_ready_i) \
 ); \
-axis_pipeline_register #( \
-  .LENGTH(3) \
+axis_pipeline_fifo #( \
+  .LENGTH(3), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
   .KEEP_ENABLE(0), \
   .LAST_ENABLE(0), \
-  .USER_ENABLE(0), \
-) i_chan_pipe_``bus_name``_slave ( \
-  clk(app_clk), \
-  rst(app_reset), \
+  .USER_ENABLE(0) \
+) i_chan_pipe_``bus_name``_master ( \
+  .clk(app_clk), \
+  .rst(app_reset), \
   .s_axis_tdata({pipe_``bus_name``_``data_name``_o, pipe_``bus_name``_pkt_size_o, pipe_``bus_name``_pkt_vc_o}), \
   .s_axis_tvalid(pipe_``bus_name``_pkt_valid_o), \
   .s_axis_tready(pipe_``bus_name``_pkt_ready_i), \
