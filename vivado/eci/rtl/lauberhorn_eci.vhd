@@ -548,6 +548,7 @@ signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
+signal dcs_even_app_reset, dcs_odd_app_reset, nic_engine_app_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -867,7 +868,7 @@ port map (
   eci_reset => reset,
 
   app_clk   => app_clk,
-  app_reset => app_clk_reset,
+  app_reset => dcs_even_app_reset,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -981,7 +982,7 @@ port map (
   eci_reset => reset,
 
   app_clk   => app_clk,
-  app_reset => app_clk_reset,
+  app_reset => dcs_odd_app_reset,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -1102,6 +1103,26 @@ port map (
     clk => txclk,
     rst => reset,
     \out\ => txclk_reset
+);
+
+-- reset synchronozers for app_clk_reset for DCS slices and NicEngine
+dcs_even_rst_sync : sync_reset
+port map (
+    clk => app_clk,
+    rst => app_clk_reset,
+    \out\ => dcs_even_app_reset
+);
+dcs_odd_rst_sync : sync_reset
+port map (
+    clk => app_clk,
+    rst => app_clk_reset,
+    \out\ => dcs_odd_app_reset
+);
+nic_engine_rst_sync : sync_reset
+port map (
+    clk => app_clk,
+    rst => app_clk_reset,
+    \out\ => nic_engine_app_reset
 );
 
 axil_cdc_inst : entity work.axil_cdc
@@ -1341,7 +1362,7 @@ NicEngine_inst : entity work.NicEngine
   port map (
     -- 322 MHz clock from ECI
     clk => app_clk,
-    reset => app_clk_reset,
+    reset => nic_engine_app_reset,
     -- CMAC clocks
     cmacRxClock_clk => rxclk,
     cmacRxClock_reset => rxclk_reset,
