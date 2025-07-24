@@ -54,8 +54,8 @@ logic                             prefix``_``bus_name``_pkt_valid_o; \
 logic                             prefix``_``bus_name``_pkt_ready_i;
 
 `define CROSS_CHAN_MASTER(bus_name, data_name, data_width) \
-DECL_CHAN_MASTER(cdc, bus_name, data_name, data_width) \
-DECL_CHAN_MASTER(pipe, bus_name, data_name, data_width) \
+`DECL_CHAN_MASTER(cdc, bus_name, data_name, data_width) \
+`DECL_CHAN_MASTER(pipe, bus_name, data_name, data_width) \
 axis_async_fifo #( \
   .DEPTH(2), \
   .DATA_WIDTH((data_width) + 4 + ECI_PACKET_SIZE_WIDTH), \
