@@ -118,7 +118,8 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$spinal_gen_dir/NicEngine_ips.sv" \
     "$spinal_gen_dir/NicEngine.v" \
     "$hw_deps_dir/verilog-axis/rtl/sync_reset.v" \
-    "$hw_deps_dir/verilog-axis/rtl/axis_pipeline_fifo.v" \
+    "$hw_deps_dir/verilog-axis/rtl/axis_pipeline_register.v" \
+    "$hw_deps_dir/verilog-axis/rtl/axis_register.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_interconnect.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_rd.v" \
