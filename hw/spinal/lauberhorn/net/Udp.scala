@@ -127,25 +127,33 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     // XXX: NUM_LISTEN_PORTS is 16, no need to pipeline matching
     // TODO: automatically determine if (and how many stages) we need to pipeline
     val drop = Bool()
-    val dropFlow = decoder.io.header.asFlow ~ drop
-
+    val dropFlow = decoder.io.header.asFlow.m2sPipe() ~ drop
     ipPayload >> decoder.io.input
-    payload << decoder.io.output.throwFrameWhen(dropFlow)
-    metadata << decoder.io.header.throwWhen(drop).map { hdr => new Composite(hdr, "findListener") {
-      val meta = UdpMetadata()
-      meta.hdr.assignFromBits(hdr)
-      meta.ipMeta := currentIpHeader
+    payload << decoder.io.output.m2sPipe().throwFrameWhen(dropFlow)
 
-      val matches = listenPorts.map { lp =>
-        lp.nextProto =/= UdpNextProto.disabled && lp.port === meta.hdr.dport
-      }.asBits()
+    val hdr = decoder.io.header.payload
+    val hdrParsed = UdpHeader()
+    hdrParsed.assignFromBits(hdr)
 
-      drop := !matches.orR && !isPromisc
+    metadata.hdr.setAsReg()
+    metadata.ipMeta.setAsReg()
+    when (decoder.io.header.fire) {
+      metadata.hdr := hdrParsed
+      metadata.ipMeta := currentIpHeader
+    }
 
-      val selectedListener = PriorityMux(matches, listenPorts)
-      meta.nextProto := selectedListener.nextProto
+    val matches = listenPorts.map { lp =>
+      RegNextWhen(
+        lp.nextProto =/= UdpNextProto.disabled && lp.port === hdrParsed.dport,
+        decoder.io.header.fire
+      )
+    }.asBits()
+    // TODO: drop packet based on checksum?
+    drop := !matches.orR && !isPromisc
 
-      // TODO: drop packet based on checksum?
-    }.meta }
+    val selectedListener = PriorityMux(matches, listenPorts)
+    metadata.nextProto := selectedListener.nextProto
+
+    metadata.arbitrationFrom(decoder.io.header.m2sPipe().throwWhen(drop))
   }
 }
