@@ -4,10 +4,10 @@ resize_pblock pblock_slr2 -add SLR2:SLR2
 create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
 
-# assign two DCS to top and middle SLR slices
+# assign two DCS to top and bottom SLR slices
 # do not fix the CDC FIFOs
 add_cells_to_pblock pblock_slr2 [get_cells i_app/dcs_even/i_dcs]
-add_cells_to_pblock pblock_slr1 [get_cells i_app/dcs_odd/i_dcs]
+add_cells_to_pblock pblock_slr0 [get_cells i_app/dcs_odd/i_dcs]
 
 # assign DMA, aligner, mem to SLR0 (closer to CMAC)
 add_cells_to_pblock pblock_slr0 [get_cells [list \
