@@ -2,6 +2,7 @@
 `timescale 1ns / 1ps
 `default_nettype none
 
+(* dont_touch = "yes" *) // don't try to use partial outputs of the reset
 module sync_reset_bufg #
 (
     // depth of synchronizer
