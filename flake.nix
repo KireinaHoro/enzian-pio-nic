@@ -12,6 +12,7 @@
     pkgs = import nixpkgs { inherit system; };
     millw = pkgs.stdenv.mkDerivation {
       name = "millw";
+      nativeBuildInputs = [ pkgs.makeWrapper ];
       src = pkgs.fetchurl {
           url = "https://raw.githubusercontent.com/com-lihaoyi/mill/f5d0c9f87ac58795323904c2cce44c105e652b50/mill";
           hash = "sha256-yXCQ5YR0dOxjvC3beZDF0O3pVUXbZIyeKiEwU1nxWEw=";
@@ -21,6 +22,8 @@
         mkdir -p $out/bin
         cp $src $out/bin/mill
         chmod +x $out/bin/mill
+        wrapProgram $out/bin/mill \
+          --add-flags "--no-server"
       '';
     };
   in {
