@@ -153,7 +153,7 @@ class EciInterfacePlugin extends FiberPlugin {
           preemptNodeOption.map(_ -> SizeMapping(coreOffset * idx + dataPathSize, preemptSize)).toSeq
       }: _*)
       .addConnections(dcsIntfs map { dcs =>
-        dcs.axi.fullPipe(levels = 5).remapAddr { a =>
+        dcs.axi.fullPipe(levels = 3).remapAddr { a =>
           val byteOffset = a(6 downto 0)
           // optimization of DCS: only 256 GiB (38 bits) of the address space is used
           (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).asUInt | byteOffset.resized).resized
