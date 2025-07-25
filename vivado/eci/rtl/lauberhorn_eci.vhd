@@ -334,6 +334,16 @@ port (
 );
 end component;
 
+component sync_reset_bufg is
+generic (
+    N : integer := 2
+);
+port (
+    clk, rst : in std_logic;
+    \out\ : out std_logic
+);
+end component;
+
 type ECI_PACKET_RX is record
     c6_gsync            : ECI_CHANNEL;
     c6_gsync_ready      : std_logic;
@@ -1106,19 +1116,19 @@ port map (
 );
 
 -- reset synchronozers for app_clk_reset for DCS slices and NicEngine
-dcs_even_rst_sync : sync_reset
+dcs_even_rst_sync : sync_reset_bufg
 port map (
     clk => app_clk,
     rst => app_clk_reset,
     \out\ => dcs_even_app_reset
 );
-dcs_odd_rst_sync : sync_reset
+dcs_odd_rst_sync : sync_reset_bufg
 port map (
     clk => app_clk,
     rst => app_clk_reset,
     \out\ => dcs_odd_app_reset
 );
-nic_engine_rst_sync : sync_reset
+nic_engine_rst_sync : sync_reset_bufg
 port map (
     clk => app_clk,
     rst => app_clk_reset,
@@ -1360,9 +1370,9 @@ axil_adapter_inst : entity work.axil_adapter
 
 NicEngine_inst : entity work.NicEngine
   port map (
-    -- 322 MHz clock from ECI
     clk => app_clk,
     reset => nic_engine_app_reset,
+
     -- CMAC clocks
     cmacRxClock_clk => rxclk,
     cmacRxClock_reset => rxclk_reset,
