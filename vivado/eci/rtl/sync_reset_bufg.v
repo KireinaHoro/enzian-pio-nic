@@ -16,10 +16,10 @@ module sync_reset_bufg #
 wire rst_unbuf;
 
 sync_reset #(
-    .N
+    .N(N)
 ) sync (
-    .clk,
-    .rst,
+    .clk(clk),
+    .rst(rst),
     .out(rst_unbuf)
 );
 
