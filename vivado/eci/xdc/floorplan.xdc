@@ -16,9 +16,9 @@ add_cells_to_pblock pblock_slr0 [get_cells [list \
 ]]
 
 # assign DMA, aligner, mem to SLR0 (closer to CMAC)
-add_cells_to_pblock pblock_slr0 [get_cells [list \
-  i_app/NicEngine_inst/PacketBuffer_logic_aligner \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiMem \
-  i_app/nic_engine_rst_sync \
-]]
+#add_cells_to_pblock pblock_slr0 [get_cells [list \
+#  i_app/NicEngine_inst/PacketBuffer_logic_aligner \
+#  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
+#  i_app/NicEngine_inst/PacketBuffer_logic_axiMem \
+#  i_app/nic_engine_rst_sync \
+#]]
