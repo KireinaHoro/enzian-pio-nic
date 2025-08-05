@@ -10,7 +10,6 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
-import spinal.lib.bus.regif.AccessType.RO
 import Global._
 import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
 import spinal.lib.misc.plugin.FiberPlugin
@@ -174,9 +173,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val ret = StreamDemux(offset, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(dcsIntfs) foreach { case (demuxedCoreCmds, dcs) => new Area {
-        // pipeline between the demux and arbiter
-        val chan = demuxedCoreCmds.map(_.farPipe())
-        val muxed = StreamArbiterFactory().roundRobin.on(chan).farPipe()
+        val muxed = StreamArbiterFactory().roundRobin.on(demuxedCoreCmds)
         // assemble ECI channel
         val chanStream = Stream(LclChannel())
         chanStream.translateFrom(muxed) { case (chan, data) =>
@@ -200,7 +197,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
 
           // convert to EciWord (dropping extra stuff)
-          val unaliasedEciWord = unaliased.translateWith(unaliased.data).farPipe()
+          val unaliasedEciWord = unaliased.translateWith(unaliased.data)
           val unaliasedAddr = addrLocator(unaliasedEciWord.payload)
           val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
@@ -209,7 +206,7 @@ class EciInterfacePlugin extends FiberPlugin {
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
           new Composite(c) {
-            val offset = c.farPipe().mapPayloadElement(addrLocator) { a =>
+            val offset = c.mapPayloadElement(addrLocator) { a =>
               (a.asUInt - coreOffset * (uidx / 2)).asBits
             }
           }
