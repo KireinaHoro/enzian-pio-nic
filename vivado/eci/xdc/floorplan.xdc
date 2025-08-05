@@ -5,15 +5,58 @@ create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
 
 # assign two DCS to top and bottom SLR slices
-# do not fix the CDC FIFOs
 add_cells_to_pblock pblock_slr2 [get_cells [list \
   i_app/dcs_even/i_dcs \
+  i_app/dcs_even/i_chan_cdc_req_wod_slave \
+  i_app/dcs_even/i_chan_cdc_rsp_wod_slave \
+  i_app/dcs_even/i_chan_cdc_rsp_wd_slave \
+  i_app/dcs_even/i_chan_cdc_rsp_wod_master \
+  i_app/dcs_even/i_chan_cdc_rsp_wd_master \
+  i_app/dcs_even/i_chan_cdc_fwd_wod_master \
   i_app/dcs_even_app_reset \
 ]]
+
 add_cells_to_pblock pblock_slr0 [get_cells [list \
   i_app/dcs_odd/i_dcs \
+  i_app/dcs_odd/i_chan_cdc_req_wod_slave \
+  i_app/dcs_odd/i_chan_cdc_rsp_wod_slave \
+  i_app/dcs_odd/i_chan_cdc_rsp_wd_slave \
+  i_app/dcs_odd/i_chan_cdc_rsp_wod_master \
+  i_app/dcs_odd/i_chan_cdc_rsp_wd_master \
+  i_app/dcs_odd/i_chan_cdc_fwd_wod_master \
   i_app/dcs_odd_app_reset \
 ]]
+
+# SI/MI constraints for pipelining reg slices between DCS and ECI gateway
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_slave/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_slave/*slr_auto_src*}]
+add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_master/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_master/*slr_auto_src*}]
+
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_eci_*_slave/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_eci_*_slave/*slr_auto_src*}]
+add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_eci_*_master/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_eci_*_master/*slr_auto_src*}]
+
+# SI/MI constraints for pipelining reg slices between DCS and NicEngine
+# We do not constraint where the NicEngine is, so leave out some dest/src
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
+
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
+
+# SI/MI constraints for pipelining AXI between DCS and NicEngine
+# We do not constraint where the NicEngine is, so leave out some dest/src
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_axi_pipe/*slr_auto_src*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_axi_pipe/*slr_auto_dest*}]
+#
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_axi_pipe/*slr_auto_src*}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_axi_pipe/*slr_auto_dest*}]
 
 # assign DMA, aligner, mem to SLR0 (closer to CMAC)
 #add_cells_to_pblock pblock_slr0 [get_cells [list \
