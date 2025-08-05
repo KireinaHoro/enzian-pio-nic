@@ -164,15 +164,48 @@ generate_target all $bd_file
 
 # create ILA for ECI channels ready/valid
 create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_eci_chans_arb
-set ila_ip [get_ips ila_eci_chans_arb]
+set my_ip [get_ips ila_eci_chans_arb]
 set_property -dict [list \
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_EN_STRG_QUAL {1} \
     CONFIG.C_NUM_OF_PROBES {34} \
     CONFIG.C_TRIGIN_EN {false} \
     CONFIG.C_TRIGOUT_EN {false} \
-    ] $ila_ip
-generate_target all $ila_ip
+    ] $my_ip
+generate_target all $my_ip
+
+# Xilinx AXIS CDC and register IPs for DCS
+create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_reg_eci_wod
+set my_ip [get_ips axis_reg_eci_wod]
+set_property -dict [list \
+    CONFIG.REG_CONFIG {16} \
+    CONFIG.TDATA_NUM_BYTES {10} \
+] $my_ip
+generate_target all $my_ip
+
+create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_reg_eci_wd
+set my_ip [get_ips axis_reg_eci_wd]
+set_property -dict [list \
+    CONFIG.REG_CONFIG {16} \
+    CONFIG.TDATA_NUM_BYTES {138} \
+] $my_ip
+generate_target all $my_ip
+
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_cdc_eci_wod
+set my_ip [get_ips axis_cdc_eci_wod]
+set_property -dict [list \
+    CONFIG.ACLKEN_CONV_MODE {0} \
+    CONFIG.TDATA_NUM_BYTES {10} \
+] $my_ip
+generate_target all $my_ip
+
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_cdc_eci_wd
+set my_ip [get_ips axis_cdc_eci_wd]
+set_property -dict [list \
+    CONFIG.ACLKEN_CONV_MODE {0} \
+    CONFIG.TDATA_NUM_BYTES {138} \
+] $my_ip
+generate_target all $my_ip
 
 close_project
 
