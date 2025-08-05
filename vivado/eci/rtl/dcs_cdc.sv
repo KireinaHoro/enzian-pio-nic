@@ -137,7 +137,7 @@ axis_cdc_eci_wod i_chan_cdc_req_wod_slave (
   .m_axis_tvalid(cdc_req_wod_pkt_valid_i),
   .m_axis_tready(cdc_req_wod_pkt_ready_o)
 );
-axis_reg_eci_wod i_chan_pipe_req_wod_slave (
+axis_reg_eci_wod i_chan_pipe_eci_req_wod_slave (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({cdc_req_wod_hdr_i, cdc_req_wod_pkt_size_i, cdc_req_wod_pkt_vc_i}),
@@ -172,7 +172,7 @@ axis_cdc_eci_wod i_chan_cdc_rsp_wod_slave (
   .m_axis_tvalid(cdc_rsp_wod_pkt_valid_i),
   .m_axis_tready(cdc_rsp_wod_pkt_ready_o)
 );
-axis_reg_eci_wod i_chan_pipe_rsp_wod_slave (
+axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_slave (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({cdc_rsp_wod_hdr_i, cdc_rsp_wod_pkt_size_i, cdc_rsp_wod_pkt_vc_i}),
@@ -207,7 +207,7 @@ axis_cdc_eci_wd i_chan_cdc_rsp_wd_slave (
   .m_axis_tvalid(cdc_rsp_wd_pkt_valid_i),
   .m_axis_tready(cdc_rsp_wd_pkt_ready_o)
 );
-axis_reg_eci_wd i_chan_pipe_rsp_wd_slave (
+axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_slave (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({cdc_rsp_wd_pkt_i, cdc_rsp_wd_pkt_size_i, cdc_rsp_wd_pkt_vc_i}),
@@ -242,7 +242,7 @@ axis_cdc_eci_wod i_chan_cdc_rsp_wod_master (
   .m_axis_tvalid(rsp_wod_pkt_valid_o),
   .m_axis_tready(rsp_wod_pkt_ready_i)
 );
-axis_reg_eci_wod i_chan_pipe_rsp_wod_master (
+axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_master (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({pipe_rsp_wod_hdr_o, pipe_rsp_wod_pkt_size_o, pipe_rsp_wod_pkt_vc_o}),
@@ -277,7 +277,7 @@ axis_cdc_eci_wd i_chan_cdc_rsp_wd_master (
   .m_axis_tvalid(rsp_wd_pkt_valid_o),
   .m_axis_tready(rsp_wd_pkt_ready_i)
 );
-axis_reg_eci_wd i_chan_pipe_rsp_wd_master (
+axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_master (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({pipe_rsp_wd_pkt_o, pipe_rsp_wd_pkt_size_o, pipe_rsp_wd_pkt_vc_o}),
@@ -312,7 +312,7 @@ axis_cdc_eci_wod i_chan_cdc_fwd_wod_master (
   .m_axis_tvalid(fwd_wod_pkt_valid_o),
   .m_axis_tready(fwd_wod_pkt_ready_i)
 );
-axis_reg_eci_wd i_chan_pipe_fwd_wod_master (
+axis_reg_eci_wd i_chan_pipe_eci_fwd_wod_master (
   .aclk(app_clk),
   .aresetn(!app_reset),
   .s_axis_tdata({pipe_fwd_wod_hdr_o, pipe_fwd_wod_pkt_size_o, pipe_fwd_wod_pkt_vc_o}),
