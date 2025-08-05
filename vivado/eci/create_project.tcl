@@ -207,6 +207,27 @@ set_property -dict [list \
 ] $my_ip
 generate_target all $my_ip
 
+# Xilinx AXI register
+create_ip -name axi_register_slice -vendor xilinx.com -library ip -version 2.1 -module_name axi_reg_dcs
+set my_ip [get_ips axi_reg_dcs]
+set_property -dict [list \
+    CONFIG.ADDR_WIDTH {38} \
+    CONFIG.DATA_WIDTH {512} \
+    CONFIG.HAS_QOS {0} \
+    CONFIG.HAS_REGION {0} \
+    CONFIG.ID_WIDTH {7} \
+    CONFIG.MAX_BURST_LENGTH {2} \
+    CONFIG.NUM_READ_OUTSTANDING {4} \
+    CONFIG.NUM_WRITE_OUTSTANDING {4} \
+    CONFIG.REG_AR {15} \
+    CONFIG.REG_AW {15} \
+    CONFIG.REG_B {15} \
+    CONFIG.REG_R {15} \
+    CONFIG.REG_W {15} \
+    CONFIG.USE_AUTOPIPELINING {1} \
+] $my_ip
+generate_target all $my_ip
+
 close_project
 
 # local config file for static-shell flows
