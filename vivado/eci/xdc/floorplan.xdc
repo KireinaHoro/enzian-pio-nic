@@ -52,11 +52,18 @@ add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/
 
 # SI/MI constraints for pipelining AXI between DCS and NicEngine
 # We do not constraint where the NicEngine is, so leave out some dest/src
-add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_axi_pipe/*slr_auto_src*}]
-#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_axi_pipe/*slr_auto_dest*}]
-#
-add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_axi_pipe/*slr_auto_src*}]
-#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_axi_pipe/*slr_auto_dest*}]
+# !!! need to differentiate between channel directions
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_src* && (NAME~=*ar16.ar_auto* || NAME~=*aw16.aw_auto* || NAME~=*w16.w_auto*)}]
+add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_dest* && (NAME~=*r16.r_auto* || NAME~=*b16.b_auto*)}]
+
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_dest* && (NAME~=*ar16.ar_auto* || NAME~=*aw16.aw_auto* || NAME~=*w16.w_auto*)}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_src* && (NAME~=*r16.r_auto* || NAME~=*b16.b_auto*)}]
+
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_src* && (NAME~=*ar16.ar_auto* || NAME~=*aw16.aw_auto* || NAME~=*w16.w_auto*)}]
+add_cells_to_pblock pblock_slr0 [get_cells -hierarchical -filter {NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_dest* && (NAME~=*r16.r_auto* || NAME~=*b16.b_auto*)}]
+
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_dest* && (NAME~=*ar16.ar_auto* || NAME~=*aw16.aw_auto* || NAME~=*w16.w_auto*)}]
+#add_cells_to_pblock pblock_slr1 [get_cells -hierarchical -filter {NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_src* && (NAME~=*r16.r_auto* || NAME~=*b16.b_auto*)}]
 
 # assign DMA, aligner, mem to SLR0 (closer to CMAC)
 #add_cells_to_pblock pblock_slr0 [get_cells [list \
