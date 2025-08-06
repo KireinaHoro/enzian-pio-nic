@@ -115,7 +115,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/dcs_cdc.sv" \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/axil_regs_interconnect.v" \
-    "$src_dir/rtl/sync_reset_bufg.v" \
     "$spinal_gen_dir/NicEngine_ips.sv" \
     "$spinal_gen_dir/NicEngine.v" \
     "$hw_deps_dir/verilog-axis/rtl/sync_reset.v" \
@@ -144,6 +143,7 @@ set impl_constrs_dir "$project/xdc/impl"
 file mkdir $impl_constrs_dir
 file copy -force "$spinal_gen_dir/NicEngine.xdc" "$impl_constrs_dir"
 file copy -force "$src_dir/xdc/floorplan.xdc" "$impl_constrs_dir"
+file copy -force "$src_dir/xdc/timing.xdc" "$impl_constrs_dir"
 foreach tclf $synth_constrs {
     set xdcf "[file tail [file rootname $tclf]].xdc"
     file copy -force "$tclf" "$impl_constrs_dir/$xdcf"

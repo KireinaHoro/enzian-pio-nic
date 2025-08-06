@@ -13,7 +13,8 @@ add_cells_to_pblock pblock_slr2 [get_cells [list \
   i_app/dcs_even/i_chan_cdc_rsp_wod_master \
   i_app/dcs_even/i_chan_cdc_rsp_wd_master \
   i_app/dcs_even/i_chan_cdc_fwd_wod_master \
-  i_app/dcs_even_app_reset \
+  i_app/dcs_even/i_app_rst_sync \
+  i_app/dcs_even/i_eci_rst_sync \
 ]]
 
 add_cells_to_pblock pblock_slr0 [get_cells [list \
@@ -24,7 +25,8 @@ add_cells_to_pblock pblock_slr0 [get_cells [list \
   i_app/dcs_odd/i_chan_cdc_rsp_wod_master \
   i_app/dcs_odd/i_chan_cdc_rsp_wd_master \
   i_app/dcs_odd/i_chan_cdc_fwd_wod_master \
-  i_app/dcs_odd_app_reset \
+  i_app/dcs_odd/i_app_rst_sync \
+  i_app/dcs_odd/i_eci_rst_sync \
 ]]
 
 # SI/MI constraints for pipelining reg slices between DCS and ECI gateway
