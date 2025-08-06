@@ -356,6 +356,7 @@ class Scheduler extends FiberPlugin {
     val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
     val arbitratedPopReq = StreamArbiterFactory().roundRobin.on(popReqs)
     val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
+    val savedPoppedReq = Reg(HostReq())
     arbitratedPopReq.ready := True
 
     // victim core selection, based on preemption type
