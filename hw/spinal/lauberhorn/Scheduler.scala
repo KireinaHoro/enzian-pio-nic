@@ -389,6 +389,7 @@ class Scheduler extends FiberPlugin {
       val popReq = popReqs(idx)
       popReq.valid.setAsReg().init(False)
       popReq.payload.setAsReg()
+      val savedPoppedReq = Reg(HostReq())
 
       val corePopQueueIdx = corePidMap(idx)
 
@@ -470,8 +471,17 @@ class Scheduler extends FiberPlugin {
         }
         val readPoppedReq: State = new State {
           whenIsActive {
+            // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
+            // the core not ready any more; we need to hold the same request instead of switching
+            // to another request
+            savedPoppedReq := poppedReq
+            goto(sendPoppedReq)
+          }
+        }
+        val sendPoppedReq: State = new State {
+          whenIsActive {
             // issue the popped request to core
-            toCore.payload := poppedReq
+            toCore.payload := savedPoppedReq
             toCore.valid := True
 
             when (toCore.ready) {
