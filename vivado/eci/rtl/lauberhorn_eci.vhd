@@ -1,4 +1,4 @@
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- Copyright (c) 2024 ETH Zurich.
 -- All rights reserved.
 --
@@ -558,7 +558,7 @@ signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
-signal dcs_even_app_reset, dcs_odd_app_reset, nic_engine_app_reset : std_logic;
+signal nic_engine_app_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -716,7 +716,7 @@ port map (
 vc12_ipi_ctrl : entity work.eci_interrupt_controller
 port map (
     clk                        => clk,
-    resetn                     => not reset,
+    resetn                     => reset_n,
     eci_req                    => link_eci_packet_rx.ipi_c12,
     eci_req_ready              => link_eci_packet_rx.ipi_c12_ready,
     eci_rsp                    => link_eci_packet_tx.ipi_c12,
@@ -874,11 +874,9 @@ port map (
 -- DCS for even VCs ie odd CL indices.
 dcs_even : entity work.dcs_cdc
 port map (
-  eci_clk   => clk,
-  eci_reset => reset,
-
-  app_clk   => app_clk,
-  app_reset => dcs_even_app_reset,
+  reset_async => reset,
+  eci_clk     => clk,
+  app_clk     => app_clk,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -983,16 +981,14 @@ port map (
   m_axi_bresp   => dcs_even_axi.bresp,
   m_axi_bvalid  => dcs_even_axi.bvalid,
   m_axi_bready  => dcs_even_axi.bready
-  );
+);
 
 -- DCS for odd VCs ie even CL indices.
 dcs_odd : entity work.dcs_cdc
 port map (
-  eci_clk   => clk,
-  eci_reset => reset,
-
-  app_clk   => app_clk,
-  app_reset => dcs_odd_app_reset,
+  reset_async => reset,
+  eci_clk     => clk,
+  app_clk     => app_clk,
 
   -- Input ECI events.
   -- ECI packet for request without data. (VC 6 or 7) (only header).
@@ -1097,7 +1093,6 @@ port map (
   m_axi_bresp   => dcs_odd_axi.bresp,
   m_axi_bvalid  => dcs_odd_axi.bvalid,
   m_axi_bready  => dcs_odd_axi.bready
-
 );
 
 -- reset synchronizers for RX and TX clocks
@@ -1115,24 +1110,11 @@ port map (
     \out\ => txclk_reset
 );
 
--- reset synchronozers for app_clk_reset for DCS slices and NicEngine
-dcs_even_rst_sync : sync_reset_bufg
+nic_engine_rst_sync : xpm_cdc_sync_rst
 port map (
-    clk => app_clk,
-    rst => app_clk_reset,
-    \out\ => dcs_even_app_reset
-);
-dcs_odd_rst_sync : sync_reset_bufg
-port map (
-    clk => app_clk,
-    rst => app_clk_reset,
-    \out\ => dcs_odd_app_reset
-);
-nic_engine_rst_sync : sync_reset_bufg
-port map (
-    clk => app_clk,
-    rst => app_clk_reset,
-    \out\ => nic_engine_app_reset
+    src_rst => reset,
+    dest_clk => app_clk,
+    dest_rst => nic_engine_app_reset
 );
 
 axil_cdc_inst : entity work.axil_cdc
