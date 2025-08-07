@@ -117,7 +117,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/axil_regs_interconnect.v" \
     "$spinal_gen_dir/NicEngine_ips.sv" \
     "$spinal_gen_dir/NicEngine.v" \
-    "$hw_deps_dir/verilog-axis/rtl/sync_reset.v" \
     "$hw_deps_dir/verilog-axis/rtl/axis_pipeline_register.v" \
     "$hw_deps_dir/verilog-axis/rtl/axis_register.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_interconnect.v" \
@@ -131,7 +130,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 # Add constraints from us necessary for synthesis
 set synth_constrs [list \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
-    "$hw_deps_dir/verilog-axis/syn/vivado/sync_reset.tcl" \
     "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"]
 add_files -fileset [get_filesets constrs_1] -norecurse $synth_constrs
 
