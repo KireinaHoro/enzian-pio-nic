@@ -5,6 +5,7 @@ create_pblock pblock_slr1
 resize_pblock pblock_slr1 -add SLR1:SLR1
 create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
+set_property PARENT [get_pblocks pblock_dynamic] [get_pblocks [list pblock_slr2 pblock_slr1 pblock_slr0]]
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
