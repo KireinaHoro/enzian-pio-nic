@@ -29,7 +29,7 @@ add_cells_to_pblock pblock_slr0 [get_cells [list \
   i_app/dcs_odd/i_eci_rst_sync \
 ]]
 
-set nicengine_plock [get_pblocks pblock_slr1]
+set nicengine_plock [get_pblocks pblock_slr0]
 
 # SI/MI constraints for pipelining reg slices between DCS and ECI gateway
 add_cells_to_pblock pblock_slr2 [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_slave/*slr_auto_dest*}]
