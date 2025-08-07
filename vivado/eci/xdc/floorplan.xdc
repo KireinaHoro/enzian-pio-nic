@@ -1,6 +1,8 @@
 # create pblocks for top and bottom SLRs
 create_pblock pblock_slr2
 resize_pblock pblock_slr2 -add SLR2:SLR2
+create_pblock pblock_slr1
+resize_pblock pblock_slr1 -add SLR1:SLR1
 create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
 
