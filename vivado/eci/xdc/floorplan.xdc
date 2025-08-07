@@ -5,7 +5,7 @@ create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
-set dcs_even_pblock    [get_pblocks pblock_slr2]
+set dcs_even_pblock    [get_pblocks pblock_slr1]
 set dcs_odd_pblock     [get_pblocks pblock_slr0]
 set eci_gateway_pblock [get_pblocks pblock_slr1]
 
@@ -46,11 +46,10 @@ add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_eci_*_master/*slr_auto_src*}]
 
 # SI/MI constraints for pipelining reg slices between DCS and NicEngine
-# disabled due to need to cross SLR0->2
-#add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
-#add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
-#add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
-#add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
+add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
+add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
+add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
+add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
 
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
 add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
@@ -72,8 +71,6 @@ add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter "NAME=~
 add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_src*     && $is_resp"]
 
 # NicEngine in a specific SLR
-# The entire engine is in SLR0, so we can't fix SLR0->2 FIFOs for dcs_even
-# to allow effective auto-pipelining
 add_cells_to_pblock $nic_engine_plock [get_cells [list \
   i_app/NicEngine_inst \
   i_app/nic_engine_rst_sync \
