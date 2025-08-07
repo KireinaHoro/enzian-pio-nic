@@ -7,6 +7,7 @@ import lauberhorn._
 import lauberhorn.net.{ProtoDecoder, RxDecoderSink}
 import spinal.core._
 import spinal.lib._
+import spinal.lib.StreamPipe.FULL
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
@@ -192,7 +193,8 @@ class EciInterfacePlugin extends FiberPlugin {
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
       dcsIntfs.map { dcs =>
         new Area {
-          val chan = chanLocator(dcs)
+          // cut LCIA ready dependency on valid
+          val chan = chanLocator(dcs).pipelined(FULL)
           // dcs use ALIASED addresses
           val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
 
