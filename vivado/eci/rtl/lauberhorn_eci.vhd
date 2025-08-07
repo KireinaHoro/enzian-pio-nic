@@ -324,26 +324,6 @@ end lauberhorn_eci;
 
 architecture Behavioral of lauberhorn_eci is
 
-component sync_reset is
-generic (
-    N : integer := 2
-);
-port (
-    clk, rst : in std_logic;
-    \out\ : out std_logic
-);
-end component;
-
-component sync_reset_bufg is
-generic (
-    N : integer := 2
-);
-port (
-    clk, rst : in std_logic;
-    \out\ : out std_logic
-);
-end component;
-
 type ECI_PACKET_RX is record
     c6_gsync            : ECI_CHANNEL;
     c6_gsync_ready      : std_logic;
@@ -1096,18 +1076,18 @@ port map (
 );
 
 -- reset synchronizers for RX and TX clocks
-rx_rst_sync : sync_reset
+rx_rst_sync : xpm_cdc_sync_rst
 port map (
-    clk => rxclk,
-    rst => reset,
-    \out\ => rxclk_reset
+    dest_clk => rxclk,
+    src_rst => reset,
+    dest_rst => rxclk_reset
 );
 
-tx_rst_sync : sync_reset
+tx_rst_sync : xpm_cdc_sync_rst
 port map (
-    clk => txclk,
-    rst => reset,
-    \out\ => txclk_reset
+    dest_clk => txclk,
+    src_rst => reset,
+    dest_rst => txclk_reset
 );
 
 nic_engine_rst_sync : xpm_cdc_sync_rst
