@@ -25,6 +25,7 @@ fast-tests-eci:
   script:
     - mill gen.test.testOnly lauberhorn.host.eci.NicSim -- -l org.scalatest.tags.Slow
   artifacts:
+    when: on_failure
     paths:
       - simWorkspace/**/sim_transcript.log.gz
       - simWorkspace/**/wave.fst
