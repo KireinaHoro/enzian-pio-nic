@@ -5,7 +5,6 @@ create_pblock pblock_slr1
 resize_pblock pblock_slr1 -add SLR1:SLR1
 create_pblock pblock_slr0
 resize_pblock pblock_slr0 -add SLR0:SLR0
-set_property PARENT [get_pblocks pblock_dynamic] [get_pblocks [list pblock_slr2 pblock_slr1 pblock_slr0]]
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
@@ -61,8 +60,8 @@ add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =
 
 # SI/MI constraints for pipelining AXI between DCS and NicEngine
 # !!! need to differentiate between channel directions
-set is_fwd  "(NAME~=*ar16.ar_auto* || NAME~=*aw16.aw_auto* || NAME~=*w16.w_auto*)"
-set is_resp "(NAME~=*r16.r_auto*   || NAME~=*b16.b_auto*)"
+set is_fwd  "(NAME=~*ar16.ar_auto* || NAME=~*aw16.aw_auto* || NAME=~*w16.w_auto*)"
+set is_resp "(NAME=~*r16.r_auto*   || NAME=~*b16.b_auto*)"
 
 add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter "NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_src*  && $is_fwd"]
 add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter "NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_dest* && $is_resp"]
