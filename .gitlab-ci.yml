@@ -23,7 +23,7 @@ fast-tests-eci:
   extends: .docker-image-hw
   stage: test
   script:
-    - mill gen.test.testOnly lauberhorn.host.eci.NicSim -- -l org.scalatest.tags.Slow
+    - mill gen.test.testOnly lauberhorn.host.eci.NicSim -- -l org.scalatest.tags.Slow -l lauberhorn.sim.tags.Tx
   artifacts:
     when: on_failure
     paths:
