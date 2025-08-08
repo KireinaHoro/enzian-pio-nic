@@ -24,7 +24,7 @@ resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
-set dcs_odd_pblock     [get_pblocks pblock_slr0]
+set dcs_odd_pblock     [get_pblocks pblock_slr1]
 set eci_gateway_pblock [get_pblocks pblock_slr1]
 
 # assign two DCS to top and bottom SLR slices
