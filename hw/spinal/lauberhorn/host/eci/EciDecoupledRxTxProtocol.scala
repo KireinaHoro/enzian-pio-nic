@@ -156,7 +156,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
     // register accepted host rx packet for:
-    // - get out of hostWaiting (when hostRx.fire happened during invalidation)
+    // - get out of hostWaiting.  two cases:
+    //   - hostRx.fire happened during invalidation
+    //   - a packet is already waiting, so host left repeatPacket with a new packet buffered
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
     val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
