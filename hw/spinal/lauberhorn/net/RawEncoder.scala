@@ -24,7 +24,7 @@ class RawEncoder extends ProtoEncoder[NoMetadata] {
 
     awaitBuild()
 
-    collectInto(md, pld, acceptHostPackets = true)
+    collectInto(md, pld)
 
     // we discard the dummy metadata
     md.ready := True

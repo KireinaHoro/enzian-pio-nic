@@ -1,5 +1,6 @@
 package lauberhorn.net.ethernet
 
+import jsteward.blocks.axi.AxiStreamInjectHeader
 import lauberhorn.MacInterfaceService
 import lauberhorn.net._
 import spinal.core._
@@ -17,14 +18,12 @@ class EthernetEncoder extends ProtoEncoder[EthernetMetadata] {
 
     awaitBuild()
 
-    collectInto(md, pld)
+    // allow host to send raw Ethernet frames (e.g. for ARP)
+    collectInto(md, pld, acceptHostPackets = true)
 
-    // TODO: use AxiStreamAddHeader to add header onto stream
-
-    val rawMd = Stream(NoMetadata())
-    val rawPld = Axi4Stream(ms.axisConfig)
-
-    // send to raw
-    to[NoMetadata, RawEncoder](rawMd, rawPld)
+    val encoder = AxiStreamInjectHeader(ms.axisConfig, EthernetHeader().getBitsWidth / 8)
+    encoder.io.header << md.map(_.collectHeaders)
+    encoder.io.input << pld
+    ms.txStream << encoder.io.output
   }
 }

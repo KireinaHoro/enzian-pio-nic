@@ -4,6 +4,7 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.Global._
 import lauberhorn._
+import lauberhorn.net.ip.{IpDecoder, IpMetadata}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
