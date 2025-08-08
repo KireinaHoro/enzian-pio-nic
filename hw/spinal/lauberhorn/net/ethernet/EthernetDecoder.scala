@@ -20,14 +20,18 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("stat", name, attr = RO))
     }
-    busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "macAddress"))
+    val littleEndianMac = B("48'x0")
+    busCtrl.readAndWrite(littleEndianMac, alloc("ctrl", "macAddress"))
+
+    logic.macAddress := EndiannessSwap(littleEndianMac)
   }
 
   val logic = during setup new Area {
     private val payload = Axi4Stream(macIf.axisConfig)
     private val metadata = Stream(EthernetMetadata())
 
-    val macAddress = Reg(Bits(48 bits)) init B("48'x0C_53_31_03_00_28") // zuestoll01 FPGA; changed at runtime
+    // zuestoll01 FPGA MAC address: 0C:53:31:03:00:28
+    val macAddress = Reg(Bits(48 bits)) init EndiannessSwap(B("48'x0C_53_31_03_00_28"))
 
     awaitBuild()
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)()
@@ -46,7 +50,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
         // allow unicast and broadcast
         // TODO: multicast?
         val isBroadcast = meta.hdr.dst.andR
-        drop := (EndiannessSwap(macAddress) =/= meta.hdr.dst || !isBroadcast) && !isPromisc
+        drop := (macAddress =/= meta.hdr.dst || !isBroadcast) && !isPromisc
       }.meta
     }
 
