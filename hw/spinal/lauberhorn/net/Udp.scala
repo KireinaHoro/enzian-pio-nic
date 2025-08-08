@@ -95,8 +95,8 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       //      we swap endianness now already to shorten critical path
       logic.listenDb.io.update.valid := True
       logic.listenDb.io.update.idx := idx
-      logic.listenDb.io.update.key := EndiannessSwap(writePort.port)
-      logic.listenDb.io.update.value := writePort.nextProto
+      logic.listenDb.io.update.value.port := EndiannessSwap(writePort.port)
+      logic.listenDb.io.update.value.nextProto := writePort.nextProto
     }
 
     // TODO: interface is write-only.  Provide readback port as well (like scheduler)
@@ -109,11 +109,11 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     // otherwise it gets into the bypass interface (to host)
     // XXX: contents are in BIG ENDIAN (network)
     val listenDb = LookupTable[
-      Bits, UdpNextProto.C, UdpListenLookupUserData,
-    ](Bits(16 bits), UdpNextProto(), UdpListenLookupUserData(),
+      UdpListenDef, Bits, UdpListenLookupUserData,
+    ](UdpListenDef(), Bits(16 bits), UdpListenLookupUserData(),
       numElems = NUM_LISTEN_PORTS,
-      valueInit = () => UdpNextProto.disabled,
-      matchFunc = (sk: Bits, sv: UdpNextProto.C, lk: Bits) => sv =/= UdpNextProto.disabled && sk === lk,
+      valueInit = (v: UdpListenDef) => v.nextProto init UdpNextProto.disabled,
+      matchFunc = (v: UdpListenDef, q: Bits) => v.nextProto =/= UdpNextProto.disabled && v.port === q,
     )
 
     val ipHeader = Stream(IpMetadata())
@@ -152,7 +152,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     listenDb.io.lookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
       hdrParsed.assignFromBits(hdr)
 
-      lk.key := hdrParsed.dport
+      lk.query := hdrParsed.dport
       lk.userData.hdr := hdrParsed
       lk.userData.ipMeta := currentIpHeader
     }
