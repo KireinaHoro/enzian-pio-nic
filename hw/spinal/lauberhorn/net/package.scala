@@ -7,7 +7,8 @@ import lauberhorn.net.ethernet.EthernetMetadata
 
 import scala.language.postfixOps
 import Global._
-import lauberhorn.net.oncrpc.OncRpcCallMetadata
+import lauberhorn.net.ip.IpMetadata
+import lauberhorn.net.oncrpc.{OncRpcCallMetadata, OncRpcReplyMetadata}
 
 package object net {
   /**
@@ -19,11 +20,11 @@ package object net {
     def selectData[T <: ProtoMetadata](ty: PacketDescType.E, data: PacketDescData): T = {
       ty match {
         case `raw` => NoMetadata().asInstanceOf[T]
-        case `ethernet` => data.ethernet.asInstanceOf[T]
-        case `ip` => data.ip.asInstanceOf[T]
-        case `udp` => data.udp.asInstanceOf[T]
-        case `oncRpcCall` => data.oncRpcCall.asInstanceOf[T]
-        case `oncRpcReply` => data.oncRpcCall.asInstanceOf[T]
+        case `ethernet` => data.ethernet.get().asInstanceOf[T]
+        case `ip` => data.ip.get().asInstanceOf[T]
+        case `udp` => data.udp.get().asInstanceOf[T]
+        case `oncRpcCall` => data.oncRpcCall.get().asInstanceOf[T]
+        case `oncRpcReply` => data.oncRpcCall.get().asInstanceOf[T]
       }
     }
 
@@ -66,6 +67,7 @@ package object net {
     val ip = newElement(IpMetadata())
     val udp = newElement(UdpMetadata())
     val oncRpcCall = newElement(OncRpcCallMetadata())
+    val oncRpcReply = newElement(OncRpcReplyMetadata())
   }
 
   /**

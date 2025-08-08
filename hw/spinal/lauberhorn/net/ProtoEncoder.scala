@@ -59,6 +59,9 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
     txRg.release()
 
     if (acceptHostPackets) {
+      // This protocol encoder accepts host inputs through the bypass channel, in addition to any upstream encoders.
+      // Note that neither the host nor upstream encoder will supply us with the entire metadata: e.g. IP encoder
+      // will not see Ethernet header information.  This is to be solved via ARP plus a neighbour cache.
       val hostDesc = Stream(PacketDescData())
       val hostPayload = payload.clone
       val md = getMetadata
