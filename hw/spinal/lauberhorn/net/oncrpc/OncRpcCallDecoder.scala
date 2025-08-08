@@ -103,6 +103,8 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
 
       // TODO: endianness swap: these are in BIG ENDIAN
       metadata.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
+
+      assert(currentUdpHeader.nextProto === UdpNextProto.oncRpcCall, "no valid UDP header stored, did a payload leak through?")
       metadata.udpPayloadSize := currentUdpHeader.getPayloadSize
     }
 
