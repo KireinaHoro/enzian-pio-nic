@@ -285,7 +285,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // TODO: check DCS master cacheline state
   }
 
-  testWithDB("rx-bypass-scan-sizes", Slow) { implicit dut =>
+  testWithDB("rx-bypass-scan-sizes", Slow, Rx) { implicit dut =>
     // set a large enough rx block cycles, such that there shouldn't be a need to retry
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(5000000) // 20 ms @ 250 MHz
     // enable promisc mode
@@ -294,7 +294,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
 
-  testWithDB("rx-bypass-simple") { implicit dut =>
+  testWithDB("rx-bypass-simple", Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
@@ -302,7 +302,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  testWithDB("rx-oncrpc-allcores") { implicit dut =>
+  testWithDB("rx-oncrpc-allcores", Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores
@@ -464,7 +464,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
   }
 
-  def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow) { implicit dut =>
+  def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow, Tx) { implicit dut =>
     val (_, axisSlave, dcsMaster) = txDutSetup()
 
     txTestRange(axisSlave, dcsMaster, 64, 9618, 64, cid)
@@ -472,7 +472,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   0 until numCores foreach txScanOnCore
 
-  testWithDB("tx-all-cores-serialized") { implicit dut =>
+  testWithDB("tx-all-cores-serialized", Tx) { implicit dut =>
     val (_, axisSlave, dcsMaster) = txDutSetup()
 
     0 until NUM_CORES foreach { idx =>
@@ -481,7 +481,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
   }
 
-  testWithDB("tx-no-voluntary-inv") { implicit dut =>
+  testWithDB("tx-no-voluntary-inv", Tx) { implicit dut =>
     val (_, axisSlave, dcsMaster) = txDutSetup()
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
@@ -492,7 +492,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
   }
 
-  testWithDB("rx-bypass-pipelined") { implicit dut =>
+  testWithDB("rx-bypass-pipelined", Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
     val numPackets = 5
@@ -539,7 +539,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
   }
 
-  testWithDB("rx-bypass-no-repeat") { implicit dut =>
+  testWithDB("rx-bypass-no-repeat", Rx) { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
     val maxTries = 5
@@ -556,7 +556,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  testWithDB("rx-oncrpc-timestamped") { implicit dut =>
+  testWithDB("rx-oncrpc-timestamped", Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores
@@ -714,7 +714,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   /* Test that Lauberhorn can scale up to multiple services */
-  testWithDB("rx-sched-idle-scale-many") { implicit dut =>
+  testWithDB("rx-sched-idle-scale-many", Rx) { implicit dut =>
     // do not use every core for every service
     // three procs: A (2 thr); B (3 thr); C (3 thr)
 
@@ -847,7 +847,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   /* Test killing a process that did not unset BUSY */
-  testWithDB("rx-sched-crit-timeout") { implicit dut =>
+  testWithDB("rx-sched-crit-timeout", Rx) { implicit dut =>
 
   }
 }
