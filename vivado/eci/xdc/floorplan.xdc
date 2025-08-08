@@ -1,10 +1,26 @@
-# create pblocks for top and bottom SLRs
+# create pblocks for SLRs in the dynamic region
+# region defs adapted from static shell definition
 create_pblock pblock_slr2
-resize_pblock pblock_slr2 -add SLR2:SLR2
+resize_pblock [get_pblocks pblock_slr2] -add {CLOCKREGION_X0Y14:CLOCKREGION_X5Y14 CLOCKREGION_X0Y11:CLOCKREGION_X4Y13 CLOCKREGION_X0Y10:CLOCKREGION_X3Y10}
+resize_pblock [get_pblocks pblock_slr2] -add {SLICE_X142Y720:SLICE_X168Y839 SLICE_X112Y630:SLICE_X168Y659 SLICE_X155Y600:SLICE_X168Y629}
+resize_pblock [get_pblocks pblock_slr2] -add {CFGIO_SITE_X0Y2:CFGIO_SITE_X0Y2}
+resize_pblock [get_pblocks pblock_slr2] -add {DSP48E2_X17Y288:DSP48E2_X18Y335 DSP48E2_X18Y240:DSP48E2_X18Y263 DSP48E2_X14Y252:DSP48E2_X17Y263}
+resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_CHANNEL_X1Y40:GTYE4_CHANNEL_X1Y43}
+resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_COMMON_X1Y10:GTYE4_COMMON_X1Y10}
+resize_pblock [get_pblocks pblock_slr2] -add {ILKNE4_X1Y7:ILKNE4_X1Y7}
+resize_pblock [get_pblocks pblock_slr2] -add {IOB_X1Y546:IOB_X1Y571}
+resize_pblock [get_pblocks pblock_slr2] -add {LAGUNA_X22Y480:LAGUNA_X23Y599 LAGUNA_X16Y540:LAGUNA_X21Y599}
+resize_pblock [get_pblocks pblock_slr2] -add {PCIE40E4_X1Y4:PCIE40E4_X1Y4}
+resize_pblock [get_pblocks pblock_slr2] -add {RAMB18_X10Y288:RAMB18_X11Y335 RAMB18_X11Y240:RAMB18_X11Y263 RAMB18_X8Y252:RAMB18_X10Y263}
+resize_pblock [get_pblocks pblock_slr2] -add {RAMB36_X10Y144:RAMB36_X11Y167 RAMB36_X11Y120:RAMB36_X11Y131 RAMB36_X8Y126:RAMB36_X10Y131}
+resize_pblock [get_pblocks pblock_slr2] -add {SYSMONE4_X0Y2:SYSMONE4_X0Y2}
+resize_pblock [get_pblocks pblock_slr2] -add {URAM288_X3Y168:URAM288_X3Y175}
+
 create_pblock pblock_slr1
-resize_pblock pblock_slr1 -add SLR1:SLR1
+resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y9:CLOCKREGION_X5Y9 CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 CLOCKREGION_X0Y5:CLOCKREGION_X5Y5}
+
 create_pblock pblock_slr0
-resize_pblock pblock_slr0 -add SLR0:SLR0
+resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
