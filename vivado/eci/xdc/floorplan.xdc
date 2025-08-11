@@ -18,14 +18,18 @@ resize_pblock [get_pblocks pblock_slr2] -add {URAM288_X3Y168:URAM288_X3Y175}
 
 create_pblock pblock_slr1
 resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y9:CLOCKREGION_X5Y9 CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 CLOCKREGION_X0Y5:CLOCKREGION_X5Y5}
+create_pblock pblock_dcs_odd
+resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X0Y5:CLOCKREGION_X3Y9}
+create_pblock pblock_eci_gateway
+resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X2Y5:CLOCKREGION_X5Y5 CLOCKREGION_X2Y6:CLOCKREGION_X4Y8 CLOCKREGION_X2Y9:CLOCKREGION_X5Y9}
 
 create_pblock pblock_slr0
 resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
-set dcs_odd_pblock     [get_pblocks pblock_slr0]
-set eci_gateway_pblock [get_pblocks pblock_slr1]
+set dcs_odd_pblock     [get_pblocks pblock_dcs_odd]
+set eci_gateway_pblock [get_pblocks pblock_eci_gateway]
 
 # assign two DCS to top and bottom SLR slices
 add_cells_to_pblock $dcs_even_pblock [get_cells [list \
