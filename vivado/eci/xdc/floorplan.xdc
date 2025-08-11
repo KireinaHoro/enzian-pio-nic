@@ -17,11 +17,41 @@ resize_pblock [get_pblocks pblock_slr2] -add {SYSMONE4_X0Y2:SYSMONE4_X0Y2}
 resize_pblock [get_pblocks pblock_slr2] -add {URAM288_X3Y168:URAM288_X3Y175}
 
 create_pblock pblock_slr1
-resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y9:CLOCKREGION_X5Y9 CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 CLOCKREGION_X0Y5:CLOCKREGION_X5Y5}
+resize_pblock [get_pblocks pblock_slr1] -add {SLICE_X152Y540:SLICE_X168Y599 SLICE_X137Y540:SLICE_X149Y599 SLICE_X121Y540:SLICE_X134Y599 SLICE_X0Y540:SLICE_X118Y599}
+resize_pblock [get_pblocks pblock_slr1] -add {BIAS_X0Y18:BIAS_X1Y19}
+resize_pblock [get_pblocks pblock_slr1] -add {BITSLICE_CONTROL_X0Y72:BITSLICE_CONTROL_X1Y79}
+resize_pblock [get_pblocks pblock_slr1] -add {BITSLICE_RX_TX_X0Y468:BITSLICE_RX_TX_X1Y519}
+resize_pblock [get_pblocks pblock_slr1] -add {BITSLICE_TX_X0Y72:BITSLICE_TX_X1Y79}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFCE_LEAF_X768Y36:BUFCE_LEAF_X863Y39 BUFCE_LEAF_X696Y36:BUFCE_LEAF_X759Y39 BUFCE_LEAF_X624Y36:BUFCE_LEAF_X687Y39 BUFCE_LEAF_X0Y36:BUFCE_LEAF_X599Y39}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFCE_ROW_X0Y216:BUFCE_ROW_X1Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFCE_ROW_FSR_X167Y9:BUFCE_ROW_FSR_X188Y9 BUFCE_ROW_FSR_X152Y9:BUFCE_ROW_FSR_X164Y9 BUFCE_ROW_FSR_X140Y9:BUFCE_ROW_FSR_X149Y9 BUFCE_ROW_FSR_X0Y9:BUFCE_ROW_FSR_X134Y9}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFGCE_X0Y216:BUFGCE_X1Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFGCE_DIV_X0Y36:BUFGCE_DIV_X1Y39}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFGCTRL_X0Y72:BUFGCTRL_X1Y79}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFG_GT_X0Y216:BUFG_GT_X1Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {BUFG_GT_SYNC_X0Y135:BUFG_GT_SYNC_X1Y149}
+resize_pblock [get_pblocks pblock_slr1] -add {CMACE4_X0Y5:CMACE4_X0Y5}
+resize_pblock [get_pblocks pblock_slr1] -add {DSP48E2_X0Y216:DSP48E2_X18Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {GTYE4_CHANNEL_X0Y36:GTYE4_CHANNEL_X1Y39}
+resize_pblock [get_pblocks pblock_slr1] -add {GTYE4_COMMON_X0Y9:GTYE4_COMMON_X1Y9}
+resize_pblock [get_pblocks pblock_slr1] -add {HARD_SYNC_X0Y18:HARD_SYNC_X23Y19}
+resize_pblock [get_pblocks pblock_slr1] -add {HPIOBDIFFINBUF_X0Y216:HPIOBDIFFINBUF_X1Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {HPIOBDIFFOUTBUF_X0Y216:HPIOBDIFFOUTBUF_X1Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {HPIO_VREF_SITE_X0Y18:HPIO_VREF_SITE_X1Y19}
+resize_pblock [get_pblocks pblock_slr1] -add {HPIO_ZMATCH_BLK_HCLK_X0Y9:HPIO_ZMATCH_BLK_HCLK_X1Y9}
+resize_pblock [get_pblocks pblock_slr1] -add {ILKNE4_X1Y5:ILKNE4_X1Y5}
+resize_pblock [get_pblocks pblock_slr1] -add {IOB_X0Y468:IOB_X1Y519}
+resize_pblock [get_pblocks pblock_slr1] -add {LAGUNA_X22Y360:LAGUNA_X23Y479 LAGUNA_X0Y360:LAGUNA_X15Y479}
+resize_pblock [get_pblocks pblock_slr1] -add {MMCM_X0Y9:MMCM_X1Y9}
+resize_pblock [get_pblocks pblock_slr1] -add {PLL_X0Y18:PLL_X1Y19}
+resize_pblock [get_pblocks pblock_slr1] -add {RAMB18_X0Y216:RAMB18_X11Y239}
+resize_pblock [get_pblocks pblock_slr1] -add {RAMB36_X0Y108:RAMB36_X11Y119}
+resize_pblock [get_pblocks pblock_slr1] -add {RIU_OR_X0Y36:RIU_OR_X1Y39}
+resize_pblock [get_pblocks pblock_slr1] -add {URAM288_X0Y144:URAM288_X3Y159}
+resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 CLOCKREGION_X0Y5:CLOCKREGION_X5Y5}
+
 create_pblock pblock_dcs_odd
 resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X0Y5:CLOCKREGION_X3Y9}
-create_pblock pblock_eci_gateway
-resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X2Y5:CLOCKREGION_X5Y5 CLOCKREGION_X2Y6:CLOCKREGION_X4Y8 CLOCKREGION_X2Y9:CLOCKREGION_X5Y9}
 
 create_pblock pblock_slr0
 resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
@@ -29,7 +59,7 @@ resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 set nic_engine_plock   [get_pblocks pblock_slr0]
 set dcs_even_pblock    [get_pblocks pblock_slr2]
 set dcs_odd_pblock     [get_pblocks pblock_dcs_odd]
-set eci_gateway_pblock [get_pblocks pblock_eci_gateway]
+set eci_gateway_pblock [get_pblocks pblock_slr1]
 
 # assign two DCS to top and bottom SLR slices
 add_cells_to_pblock $dcs_even_pblock [get_cells [list \
