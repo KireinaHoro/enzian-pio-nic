@@ -51,7 +51,7 @@ resize_pblock [get_pblocks pblock_slr1] -add {URAM288_X0Y144:URAM288_X3Y159}
 resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 CLOCKREGION_X0Y5:CLOCKREGION_X5Y5}
 
 create_pblock pblock_dcs_odd
-resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X0Y5:CLOCKREGION_X3Y9}
+resize_pblock [get_pblocks pblock_dcs_odd] -add {CLOCKREGION_X0Y5:CLOCKREGION_X3Y9 CLOCKREGION_X4Y5:CLOCKREGION_X4Y7}
 
 create_pblock pblock_slr0
 resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
