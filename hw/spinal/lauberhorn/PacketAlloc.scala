@@ -115,7 +115,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     curBase += alignedSize * slots
 
     // FIXME: we could use a Mux and the initDone signal for less area (but slower startup)
-    slotFifo.io.push << StreamArbiterFactory().lowerFirst.onArgs(freeDemux(idx).map(_.addr), initEnq)
+    slotFifo.io.push << StreamArbiterFactory(s"allocFifo_push_$alignedSize").lowerFirst.onArgs(freeDemux(idx).map(_.addr), initEnq)
     // pop only when we have a pending request
     slotFifo.io.pop.translateInto(allocRespMux.io.inputs(idx)) { (dst, src) =>
       dst.addr := src

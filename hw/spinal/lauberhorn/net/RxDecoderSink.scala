@@ -78,17 +78,17 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
       sl << ms
     }
 
-    def mux(ss: IterableOnce[Stream[PacketDesc]]): Stream[PacketDesc] = {
+    def mux(ss: IterableOnce[Stream[PacketDesc]], name: String): Stream[PacketDesc] = {
       val sq = ss.iterator.to(Seq)
       if (sq.length == 1) sq.head
       else {
         // use the same arbitration policy as axisMux
-        StreamArbiterFactory().lowerFirst.on(sq)
+        StreamArbiterFactory(s"${getName()}_$name").lowerFirst.on(sq)
       }
     }
 
-    dc.requestDesc << mux(requestUpstreams)
-    dc.bypassDesc << mux(bypassUpstreams)
+    dc.requestDesc << mux(requestUpstreams, "requestDescMux")
+    dc.bypassDesc << mux(bypassUpstreams, "bypassDescMux")
   }
 
   def isPromisc: Bool = promisc

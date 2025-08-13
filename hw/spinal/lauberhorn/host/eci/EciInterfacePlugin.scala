@@ -73,7 +73,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val ipiToIntc = master(Stream(EciIntcInterface()))
     val demuxedIpiIntfs = null +: Seq.fill(NUM_WORKER_CORES)(Stream(EciIntcInterface()))
     // FIXME: do we need to merge core masks?
-    ipiToIntc << StreamArbiterFactory().roundRobin.on(demuxedIpiIntfs.tail)
+    ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs.tail)
 
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
@@ -174,7 +174,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val ret = StreamDemux(offset, dcsIdx, 2).toSeq
         }.setName("demuxCoreCmds").ret
       }.transpose.zip(dcsIntfs) foreach { case (demuxedCoreCmds, dcs) => new Area {
-        val muxed = StreamArbiterFactory().roundRobin.on(demuxedCoreCmds)
+        val muxed = StreamArbiterFactory(s"arbitrateIntoLcl_cmdMux").roundRobin.on(demuxedCoreCmds)
         // assemble ECI channel
         val chanStream = Stream(LclChannel())
         chanStream.translateFrom(muxed) { case (chan, data) =>
@@ -213,7 +213,7 @@ class EciInterfacePlugin extends FiberPlugin {
             }
           }
         }
-        resp << StreamArbiterFactory().roundRobin.on(resps.map(_.offset))
+        resp << StreamArbiterFactory(s"arbitrateIntoCoreCmds_cmdMux").roundRobin.on(resps.map(_.offset))
       }.setName("arbitrateIntoCoreCmds")
       }
     }
