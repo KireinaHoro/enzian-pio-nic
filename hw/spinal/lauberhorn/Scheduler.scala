@@ -354,7 +354,7 @@ class Scheduler extends FiberPlugin {
 
     // each core can raise a pop request, to remove one packet from the queues
     val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
-    val arbitratedPopReq = StreamArbiterFactory().roundRobin.on(popReqs)
+    val arbitratedPopReq = StreamArbiterFactory(s"${getName()}_popReqMux").roundRobin.on(popReqs)
     val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
     val savedPoppedReq = Reg(HostReq())
     arbitratedPopReq.ready := True

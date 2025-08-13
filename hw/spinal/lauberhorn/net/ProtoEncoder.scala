@@ -79,7 +79,7 @@ trait ProtoEncoder[T <: ProtoMetadata] extends FiberPlugin {
       metadata << descUpstreams.head
       payload << payloadUpstreams.head
     } else new Area {
-      metadata << StreamArbiterFactory().roundRobin.on(descUpstreams)
+      metadata << StreamArbiterFactory(s"${getName()}_descMux").roundRobin.on(descUpstreams)
       val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
 
       axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }

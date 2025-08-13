@@ -81,7 +81,7 @@ class DmaControlPlugin extends FiberPlugin {
     val requestDesc, bypassDesc = Stream(PacketDesc())
 
     val incomingDesc = Stream(RxPacketDescWithSource())
-    incomingDesc << StreamArbiterFactory().roundRobin.on(Seq(
+    incomingDesc << StreamArbiterFactory(s"${getName()}_descMux").roundRobin.on(Seq(
       requestDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = false)).pipelined(FULL),
       bypassDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = true)).pipelined(FULL),
     ))
@@ -114,7 +114,7 @@ class DmaControlPlugin extends FiberPlugin {
       f(statistics) := f(statistics) + 1
     }
 
-    rxAlloc.io.freeReq <-/< StreamArbiterFactory().roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
+    rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
     rxAlloc.io.allocResp.setBlocked()
 
     bypassDp.hostRx.setIdle()
@@ -248,7 +248,7 @@ class DmaControlPlugin extends FiberPlugin {
       dp.hostTx.valid := True
     }
 
-    val txReqMuxed = StreamArbiterFactory().roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
+    val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
     val txPacketDesc = Reg(PacketDesc())
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
