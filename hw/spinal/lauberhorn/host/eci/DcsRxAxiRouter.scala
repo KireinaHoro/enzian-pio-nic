@@ -165,8 +165,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
             lastPktBufSlot := rxDesc.buffer.addr
           }
 
-          // can the following requests read from the packet buffer?
-          noReadPktBuf := !rxDesc.valid
+          // do not read from packet buffer when:
+          // - we are sending a NACK
+          // - no payload actually in packet buffer (all embedded in header)
+          noReadPktBuf := !rxDesc.valid || rxDesc.buffer.size.bits === 0
 
           when (!loadedFirstControl) {
             // no need to wait for invalidating opposite CL for first load
@@ -195,26 +197,26 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         dcsQ.r.id := readCmd.id
         when (dcsQ.r.ready) {
           nackSent := !savedControl(0)
-          goto(readPktBuf)
+          when (noReadPktBuf) {
+            // do not send AXI request
+            goto(sendData)
+          } otherwise {
+            goto(readPktBuf)
+          }
         }
       }
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        when (noReadPktBuf) {
-          // do not send AXI request
+        // send read request to pkt buf axi
+        pktBufAxi.ar.valid := True
+        pktBufAxi.ar.len := pktBufReadLen - 1
+        pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits.resized
+        pktBufAxi.ar.id := readCmd.id
+        pktBufAxi.ar.setFullSize()
+        pktBufAxi.ar.setBurstINCR()
+        when(pktBufAxi.ar.ready) {
           goto(sendData)
-        } otherwise {
-          // send read request to pkt buf axi
-          pktBufAxi.ar.valid := True
-          pktBufAxi.ar.len := pktBufReadLen - 1
-          pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits.resized
-          pktBufAxi.ar.id := readCmd.id
-          pktBufAxi.ar.setFullSize()
-          pktBufAxi.ar.setBurstINCR()
-          when(pktBufAxi.ar.ready) {
-            goto(sendData)
-          }
         }
       }
     }
