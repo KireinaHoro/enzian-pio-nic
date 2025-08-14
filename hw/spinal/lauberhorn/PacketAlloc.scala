@@ -112,6 +112,8 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     val initEnq = Stream(PacketAddr())
     initEnq.payload.bits := (curBase + alignedSize * remainingInit.value).resized
     initEnq.valid := !initDone
+
+    val myBase = curBase
     curBase += alignedSize * slots
 
     // FIXME: we could use a Mux and the initDone signal for less area (but slower startup)
@@ -123,6 +125,37 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     }
 
     io.slotOccupancy(idx) := slotFifo.io.occupancy.resized
+
+    // simulation-only checks
+    GenerationFlags simulation new Area {
+      val slotOccupied = Vec(Reg(Bool()), slots)
+      slotOccupied foreach {
+        _.init(True)
+      }
+
+      val pushAddr = slotFifo.io.push.payload.bits
+      val pushIdx = ((pushAddr - myBase) / alignedSize).resize(log2Up(slots))
+      when(slotFifo.io.push.fire) {
+        assert(slotOccupied(pushIdx),
+          s"size $alignedSize: slot not occupied but tried to free")
+        slotOccupied(pushIdx) := False
+
+        assert(pushAddr >= myBase,
+          s"size $alignedSize: pushing addr smaller than base")
+        assert(pushAddr < curBase,
+          s"size $alignedSize: pushing addr bigger than limit")
+        assert((pushAddr - myBase) % alignedSize === 0,
+          s"size $alignedSize: pushing addr not aligned")
+      }
+
+      val popAddr = slotFifo.io.pop.payload.bits
+      val popIdx = ((popAddr - myBase) / alignedSize).resize(log2Up(slots))
+      when(slotFifo.io.pop.fire) {
+        assert(!slotOccupied(popIdx),
+          s"size $alignedSize: slot already occupied")
+        slotOccupied(popIdx) := True
+      }
+    }
   }
 
   println("==============")
