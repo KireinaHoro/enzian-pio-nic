@@ -158,11 +158,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // register accepted host rx packet for:
     // - get out of hostWaiting (when hostRx.fire happened during invalidation)
     // - generating hostRxAck
+    // - driving mem offset for packet buffer load
     val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
     val rxPktBufSavedValid = Reg(Bool()).setWhen(hostRx.fire) init False
-
-    // was a packet already present, when we left repeatPacket?
-    val readOppositeCapturedNew = Reg(Bool()) init False
 
     // read start is when request for the selected CL is active for the first time
     val hostFirstRead = Reg(Bool()) init False
@@ -186,18 +184,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val hostWaiting: State = new State {
         whenIsActive {
-          when (rxPktBufSavedValid || readOppositeCapturedNew) {
-            // a packet arrived after we started waiting but before timeout:
-            // - read on opposite CL blocked (hostRx.ready)
-            // - we finished transitioning into hostWaiting (finished invalidation)
-            // - hostRx.valid
-            // OR
-            // a packet arrived already before we started waiting:
-            // - hostRx.valid
-            // - read on opposite CL (hostRx.ready) BEFORE we are in hostWaiting
-            // clear the flag either way
-            readOppositeCapturedNew := False
-
+          when (rxPktBufSavedValid) {
+            // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPktBufSaved.size.bits)
             goto(repeatPacket)
           } elsewhen (rxTriggerNew) {
@@ -214,7 +202,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             hostRxAck.valid := True
             when (hostRxAck.fire) {
               rxPktBufSavedValid.clear()
-              readOppositeCapturedNew := True
               goto(invalidatePacketData)
             }
           }
