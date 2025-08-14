@@ -203,8 +203,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
-              // The current packet just finished processing.  Do we have another one pending already?
-              rxPktBufSavedValid := hostRx.valid
+              when (!hostRx.valid) {
+                // only clear saved valid flag, when no new request was captured during switch
+                rxPktBufSavedValid.clear()
+              }
               goto(invalidatePacketData)
             }
           }

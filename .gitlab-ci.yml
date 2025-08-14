@@ -57,6 +57,7 @@ build-hw-eci:
   variables:
     PIONIC_DESIGN: eci
   artifacts:
+    when: always
     paths:
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
