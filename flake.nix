@@ -27,13 +27,26 @@
       '';
     };
   in {
-    devShells.default  = with pkgs; mkShell {
+    devShells.default = with pkgs; let
+      repeatTest = writeShellApplication {
+        name = "repeat-test";
+        runtimeInputs = [ millw ];
+        text = ''
+          test_name="$1"
+          while mill gen.test.testOnly lauberhorn.host.eci.NicSim -- -t "$test_name"; do
+            echo "Test succeeded, retrying..."
+          done
+        '';
+      };
+    in mkShell {
       buildInputs = [
         zlib.dev verilator clang
         gtkwave sby yices
         jdk millw
         # cross compiler
         pkgsCross.aarch64-multiplatform.buildPackages.gcc
+        # quick script to repeat known failing test to find a good reproducer
+        repeatTest
       ];
     };
   });
