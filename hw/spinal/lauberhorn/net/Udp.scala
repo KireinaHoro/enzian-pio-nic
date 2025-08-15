@@ -112,7 +112,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       v.nextProto init UdpNextProto.disabled
     }
 
-    val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData()) { (v, q) =>
+    val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData()) { (v, q, _) =>
       v.nextProto =/= UdpNextProto.disabled && v.port === q
     }
     val ipHeader = Stream(IpMetadata())
