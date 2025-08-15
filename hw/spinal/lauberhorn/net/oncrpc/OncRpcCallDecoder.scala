@@ -1,7 +1,7 @@
 package lauberhorn.net.oncrpc
 
 import jsteward.blocks.axi._
-import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.net._
@@ -13,6 +13,12 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
 
 import scala.language.postfixOps
+
+case class OncRpcCallLookupUserData() extends Bundle {
+  val hdr = OncRpcCallHeader()
+  val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
+  val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
+}
 
 class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
   lazy val macIf = host[MacInterfaceService]
@@ -32,6 +38,8 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       busCtrl.drive(field, alloc("ctrl", s"service_$name", attr = AccessType.WO))
     }
 
+    logic.listenDb.io.update.setIdle()
+
     val serviceIdx = UInt(log2Up(NUM_SERVICES) bits)
     serviceIdx := 0
     val serviceIdxAddr = alloc("ctrl", "service_idx", attr = AccessType.WO)
@@ -40,7 +48,9 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       // record service entry in table
       // XXX: assumes host is LITTLE ENDIAN
       //      we swap endianness now already to shorten critical path
-      (logic.serviceSlots(serviceIdx).elements.toSeq ++ servicePort.elements.toSeq).groupBy(_._1).foreach {
+      logic.listenDb.io.update.valid := True
+      logic.listenDb.io.update.idx := serviceIdx
+      (logic.listenDb.io.update.value.elements.toSeq ++ servicePort.elements.toSeq).groupBy(_._1).foreach {
         case (n, Seq((_, te), (_, po))) if Seq("funcPtr", "pid").contains(n) => te := po
         case (_, Seq((_, te), (_, po: BitVector)))                           => te := EndiannessSwap(po)
         case (_, Seq((_, te), (_, po)))                                      => te := po
@@ -58,8 +68,13 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     // if no (func, port) is found, packet is dropped
     // will also be read by [[Scheduler]]
     // XXX: contents are in BIG ENDIAN (network)
-    val serviceSlots = Vec.fill(NUM_SERVICES)(Reg(OncRpcCallServiceDef()))
-    serviceSlots foreach { sl => sl.enabled init False }
+    val listenDb = LookupTable[
+      OncRpcCallServiceDef, OncRpcCallServiceQuery, OncRpcCallLookupUserData,
+    ](OncRpcCallServiceDef(), OncRpcCallServiceQuery(), OncRpcCallLookupUserData(),
+      numElems = NUM_SERVICES,
+      valueInit = (v: OncRpcCallServiceDef) => v.enabled init False,
+      matchFunc = (v: OncRpcCallServiceDef, q: OncRpcCallServiceQuery) => v.matchQuery(q),
+    )
 
     // matcher for decode attempts: is the incoming packet on a port we are listening to?
     from[UdpMetadata, UdpDecoder](_.nextProto === UdpNextProto.oncRpcCall, udpHeader, udpPayload)
@@ -82,51 +97,44 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       .clearWhen(udpHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    val drop = Bool()
-    val dropFlow = decoder.io.header.asFlow.m2sPipe() ~ drop
     udpPayload >> decoder.io.input
-    payload << decoder.io.output.m2sPipe().throwFrameWhen(dropFlow)
 
-    val hdr = decoder.io.header.payload
+    // TODO: also drop malformed packets (e.g. payload too short)
+    val drop = !listenDb.io.result.matched
+
+    // we don't know if we need to drop the payload until we know the lookup result;
+    // so delay the payload flow by the latency of a table lookup
+    val pldDelayCycles = listenDb.lookupLatency
+    val dropFlow = decoder.io.header.asFlow.delay(pldDelayCycles) ~ drop
+    payload << decoder.io.output.delay(pldDelayCycles).throwFrameWhen(dropFlow)
+
     val hdrParsed = OncRpcCallHeader()
-    hdrParsed.assignFromBits(hdr(minLen * 8 - 1 downto 0))
+    listenDb.io.lookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
+      hdrParsed.assignFromBits(hdr(minLen * 8 - 1 downto 0))
+      lk.query.hdr := hdrParsed
+      lk.query.port := currentUdpHeader.hdr.dport
 
-    metadata.hdr.setAsReg()
-    metadata.args.setAsReg()
-    metadata.udpPayloadSize.setAsReg()
+      lk.userData.hdr := hdrParsed
+      // TODO: endianness swap for host: these are in BIG ENDIAN
+      lk.userData.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
+      lk.userData.udpPayloadSize := currentUdpHeader.getPayloadSize
+    }
+
     when (decoder.io.header.fire) {
-      metadata.hdr := hdrParsed
-
       // FIXME: should we just drop the packets?
       assert(hdrParsed.msgType === 0, "msg_type must be 0 for CALL (see RFC 5331)")
       assert(EndiannessSwap(hdrParsed.rpcVer) === 2, "rpcvers must be 2 (see RFC 5331)")
 
-      // TODO: endianness swap: these are in BIG ENDIAN
-      metadata.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
-
       assert(currentUdpHeader.nextProto === UdpNextProto.oncRpcCall, "no valid UDP header stored, did a payload leak through?")
-      metadata.udpPayloadSize := currentUdpHeader.getPayloadSize
     }
 
-    // 1 cycle latency to select service:
-    // cycle 0: match all services in parallel
-    // cycle 1:
-    // - drop packets that didn't match with any service
-    // - read out funcPtr and PID of the selected service to assemble metadata
-    val matches = serviceSlots.map { svc =>
-      // break timing path
-      RegNextWhen(
-        svc.matchHeader(hdrParsed, currentUdpHeader.hdr.dport),
-        decoder.io.header.fire)
-    }.asBits()
-    drop := !matches.orR
-    // TODO: also drop malformed packets (e.g. payload too short)
-
-    val selectedSvc = PriorityMux(matches, serviceSlots)
-    metadata.funcPtr := selectedSvc.funcPtr
-    metadata.pid := selectedSvc.pid
-
-    metadata.arbitrationFrom(decoder.io.header.m2sPipe().throwWhen(drop))
+    metadata.translateFrom(listenDb.io.result.throwWhen(drop)) { case (md, lr) =>
+      md.hdr := lr.userData.hdr
+      md.args := lr.userData.args
+      md.udpPayloadSize := lr.userData.udpPayloadSize
+      md.funcPtr := lr.value.funcPtr
+      md.pid := lr.value.pid
+    }
 
     // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
     //       this is used by the host for now and the reply encoder module in the future
