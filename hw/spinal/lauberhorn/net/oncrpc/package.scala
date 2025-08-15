@@ -33,6 +33,11 @@ package object oncrpc {
     val acceptStat = Bits(32 bits)
   }
 
+  case class OncRpcCallServiceQuery() extends Bundle {
+    val port = Bits(16 bits)
+    val hdr = OncRpcCallHeader()
+  }
+
   // XXX: this is in big endian
   case class OncRpcCallServiceDef() extends Bundle {
     val enabled = Bool()
@@ -45,11 +50,11 @@ package object oncrpc {
     val funcPtr = Bits(64 bits)
     val pid = PID()
 
-    def matchHeader(h: OncRpcCallHeader, port: Bits) = enabled &&
-      progNum === h.progNum &&
-      progVer === h.progVer &&
-      proc === h.proc &&
-      listenPort.asBits === port
+    def matchQuery(q: OncRpcCallServiceQuery) = enabled &&
+      progNum === q.hdr.progNum &&
+      progVer === q.hdr.progVer &&
+      proc    === q.hdr.proc &&
+      listenPort.asBits === q.port
   }
 
   case class OncRpcCallMetadata() extends Bundle with ProtoMetadata {
