@@ -115,7 +115,7 @@ object Global extends AreaRoot {
     REG_WIDTH.set(64)
     PID_WIDTH.set(16)
     NUM_LISTEN_PORTS.set(16)
-    NUM_SERVICES.set(256)
+    NUM_SERVICES.set(128)
     NUM_PROCS.set(32)
     RX_PKTS_PER_PROC.set(32)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
