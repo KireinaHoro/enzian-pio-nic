@@ -4,12 +4,16 @@ import jsteward.blocks.misc.sim._
 import org.pcap4j.packet._
 import org.pcap4j.packet.namednumber._
 import org.pcap4j.util.MacAddress
+import org.scalatest.Tag
 import spinal.core.IntToBuilder
 
 import java.net.{Inet4Address, InetAddress}
 import scala.util.Random
 
 package object sim {
+  object Rx extends Tag("lauberhorn.sim.tags.Rx")
+  object Tx extends Tag("lauberhorn.sim.tags.Tx")
+
   object PacketType extends Enumeration {
     type PacketType = Value
     val Raw, Ethernet, Ip, Udp, OncRpcCall, OncRpcReply = Value
