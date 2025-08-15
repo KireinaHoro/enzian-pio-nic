@@ -82,7 +82,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       busCtrl.drive(field, alloc("ctrl", s"listen_$name", attr = AccessType.WO))
     }
 
-    logic.listenDb.io.update.setIdle()
+    logic.listenDb.update.setIdle()
 
     val idx = UInt(log2Up(NUM_LISTEN_PORTS) bits)
     idx := 0
@@ -92,10 +92,10 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       // record listen port in table
       // XXX: assumes host is LITTLE ENDIAN
       //      we swap endianness now already to shorten critical path
-      logic.listenDb.io.update.valid := True
-      logic.listenDb.io.update.idx := idx
-      logic.listenDb.io.update.value.port := EndiannessSwap(writePort.port)
-      logic.listenDb.io.update.value.nextProto := writePort.nextProto
+      logic.listenDb.update.valid := True
+      logic.listenDb.update.idx := idx
+      logic.listenDb.update.value.port := EndiannessSwap(writePort.port)
+      logic.listenDb.update.value.nextProto := writePort.nextProto
     }
 
     // TODO: interface is write-only.  Provide readback port as well (like scheduler)
@@ -107,14 +107,13 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     // check if the packet is from a UDP port that has a listener;
     // otherwise it gets into the bypass interface (to host)
     // XXX: contents are in BIG ENDIAN (network)
-    val listenDb = LookupTable[
-      UdpListenDef, Bits, UdpListenLookupUserData,
-    ](UdpListenDef(), Bits(16 bits), UdpListenLookupUserData(),
-      numElems = NUM_LISTEN_PORTS,
-      valueInit = (v: UdpListenDef) => v.nextProto init UdpNextProto.disabled,
-      matchFunc = (v: UdpListenDef, q: Bits) => v.nextProto =/= UdpNextProto.disabled && v.port === q,
-    )
+    val listenDb = LookupTable(UdpListenDef(), NUM_LISTEN_PORTS) { v =>
+      v.nextProto init UdpNextProto.disabled
+    }
 
+    val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData()) { (v, q) =>
+      v.nextProto =/= UdpNextProto.disabled && v.port === q
+    }
     val ipHeader = Stream(IpMetadata())
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
@@ -139,16 +138,15 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       .setWhen(decoder.io.header.fire)
 
     // TODO: drop packet based on checksum?
-    val drop = !listenDb.io.result.matched && !isPromisc
+    val drop = !dbResult.matched && !isPromisc
 
     // we don't know if we need to drop the payload until we know the lookup result;
     // so delay the payload flow by the latency of a table lookup
-    val pldDelayCycles = listenDb.lookupLatency
-    val dropFlow = decoder.io.header.asFlow.delay(pldDelayCycles) ~ drop
-    payload << decoder.io.output.delay(pldDelayCycles).throwFrameWhen(dropFlow)
+    val dropFlow = decoder.io.header.asFlow.delay(dbLat) ~ drop
+    payload << decoder.io.output.delay(dbLat).throwFrameWhen(dropFlow)
 
     val hdrParsed = UdpHeader()
-    listenDb.io.lookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
+    dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
       hdrParsed.assignFromBits(hdr)
 
       lk.query := hdrParsed.dport
@@ -156,7 +154,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
       lk.userData.ipMeta := currentIpHeader
     }
 
-    metadata.translateFrom(listenDb.io.result.throwWhen(drop)) { case (md, lr) =>
+    metadata.translateFrom(dbResult.throwWhen(drop)) { case (md, lr) =>
       md.hdr := lr.userData.hdr
       md.ipMeta := lr.userData.ipMeta
       md.nextProto := lr.value.nextProto
