@@ -3,7 +3,7 @@ package lauberhorn
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
-import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.oncrpc.OncRpcCallMetadata
@@ -12,7 +12,6 @@ import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
 import spinal.lib.fsm._
-import spinal.lib.misc.pipeline.StagePipeline
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.language.postfixOps
@@ -79,24 +78,25 @@ class Scheduler extends FiberPlugin {
   }
 
   def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
+    logic.procDb.update.setIdle()
+
     // max number of threads per process (degree of parallelism)
-    val procDefPort = ProcessDef()
-    procDefPort.elements.foreach { case (name, field) =>
+    logic.procDb.update.value.elements.foreach { case (name, field) =>
       busCtrl.drive(field, alloc("ctrl", s"proc_$name", attr = AccessType.WO))
     }
-    
+
     val procDefIdx = ProcTblIdx
     procDefIdx := 0
     val procDefIdxAddr = alloc("ctrl", "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
     busCtrl.onWrite(procDefIdxAddr) {
+      logic.procDb.update.valid := True
+      logic.procDb.update.idx := procDefIdx
+
+      assert(logic.procDb.update.value.maxThreads <= NUM_WORKER_CORES.get,
+        "process has more threads than available worker cores")
       // the IDLE process should not be changed
-      when (procDefIdx =/= 0) {
-        logic.procDefs(procDefIdx) := procDefPort
-        assert(procDefPort.maxThreads <= NUM_WORKER_CORES.get, "process has more threads than available worker cores")
-      } otherwise {
-        report("attempting to modify the IDLE process", FAILURE)
-      }
+      assert(procDefIdx =/= 0, "attempting to modify the IDLE process")
     }
   }
 
@@ -109,13 +109,12 @@ class Scheduler extends FiberPlugin {
       busCtrl.read(field, alloc("stat", s"readback_$name", attr = AccessType.RO))
     }
 
-    val readbackIdx = ProcTblIdx
-    readbackIdx := 0
     val readbackIdxAddr = alloc("stat", "readback_idx", attr = AccessType.WO)
-    busCtrl.write(readbackIdx, readbackIdxAddr)
+    logic.procDb.readbackIdx := 0
+    busCtrl.write(logic.procDb.readbackIdx, readbackIdxAddr)
     busCtrl.onWrite(readbackIdxAddr) {
-      readbackPort.assignSomeByName(logic.procDefs(readbackIdx))
-      readbackPort.queueFill := logic.queueMetas(readbackIdx).fill.resized
+      readbackPort.assignSomeByName(logic.procDb.readback)
+      readbackPort.queueFill := logic.queueMetas(logic.procDb.readbackIdx).fill.resized
     }
 
     logic.statistics.elements.foreach {
@@ -159,12 +158,10 @@ class Scheduler extends FiberPlugin {
     // one per-process queue for every entry in procDefs
     // all cores come out of reset with idx 0 in this table:
     // table entry 0 is a special "IDLE" process
-    val procDefs = Vec.fill(NUM_PROCS+1) {
-      val ret = Reg(ProcessDef())
-      ret.enabled init False
-      ret.maxThreads init U(NUM_WORKER_CORES)
-      ret.pid.bits init U(0xffff)
-      ret
+    val procDb = LookupTable(ProcessDef(), NUM_PROCS+1) { v =>
+      v.enabled init False
+      v.maxThreads init U(NUM_WORKER_CORES)
+      v.pid.bits init U(0xffff)
     }
 
     val statistics = new Bundle {
@@ -259,13 +256,21 @@ class Scheduler extends FiberPlugin {
     }
 
     // used to find a non-empty queue that has no cores, when a core has drained its queue
-    val drainProcSelOh = procDefs.zipWithIndex.map { case (pd, idx) =>
-      val coreMap = corePidMap.map(_ === idx).asBits()
-      pd.enabled && !queueMetas(idx).empty && coreMap === 0
-    }.asBits()
-    // pipeline -- always valid to select a process to drain
-    val drainProcTblIdx = OHToUInt(RegNext(drainProcSelOh))
-    val drainProcPid = procDefs(drainProcTblIdx).pid
+    case class DrainQuery() extends Bundle {
+      val procEmptyMap = Bits(NUM_PROCS+1 bits)
+      val corePidMap = Vec.fill(NUM_WORKER_CORES)(ProcTblIdx)
+    }
+
+    val (drainLookup, drainResult, _) = procDb.makePort(DrainQuery(), NoData(), "drain") { (v, q, idx) =>
+      val coreMap = q.corePidMap.map(_ === idx).asBits()
+      v.enabled && !q.procEmptyMap(idx) && coreMap === 0
+    }
+
+    // always valid to select a process to drain
+    drainLookup.query.procEmptyMap := queueMetas.map(_.empty).asBits()
+    drainLookup.query.corePidMap := corePidMap
+    drainLookup.valid := True
+    drainResult.ready := True
 
     // make sure no two cores will pick up the same queue to drain
     val drainProcCoreReq, drainProcCoreGrant = Bits(NUM_WORKER_CORES bits)
@@ -273,74 +278,55 @@ class Scheduler extends FiberPlugin {
     drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
     val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
 
-    // consume incoming RPC request in a pipeline
-    val pip = new StagePipeline
-    pip.node(0).arbitrateFrom(rxMeta)
-
-    val calculateRxProcIdx = new pip.Area(0) {
-      val RX_PID = insert(rxMeta.data.oncRpcCall.pid)
-      val REQ = insert(rxMeta.payload)
-
-      // process ID to select which queue the incoming packet goes into
-      val rxProcSelOh = insert(procDefs.map { pd =>
-        pd.enabled && pd.pid === RX_PID
-      }.asBits())
-
-      when (isValid) {
-        // decoder pipeline should have filtered out packets that do not belong to an enabled process
-        assert(CountOne(rxProcSelOh) === 1, "not exactly one proc can handle a packet")
-        assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
-      }
-
-      // FIXME: this will become too wide when we register more processes
-      val PROC_TBL_IDX = insert(OHToUInt(rxProcSelOh))
-      val PROC_DEF = insert(procDefs(PROC_TBL_IDX))
+    val (pushLookup, pushResult, _) = procDb.makePort(PID(), HostReq(),
+      "rxPush", singleMatch = true) { (v, q, _) =>
+      v.enabled && v.pid === q
     }
-    import calculateRxProcIdx._
 
-    val selectRxProc = new pip.Area(1) {
-      // XXX: not capturing corePidMap at beginnnig of the pipeline;
-      //      otherwise we might see stale idle info
-      val PROC_CORE_MAP = insert(corePidMap.map(_ === PROC_TBL_IDX).asBits())
-      val PROC_THR_COUNT = insert(CountOne(PROC_CORE_MAP))
+    pushLookup.translateFrom(rxMeta) { case (lk, meta) =>
+      lk.query := meta.data.oncRpcCall.pid
+      lk.userData := meta
     }
-    import selectRxProc._
+    when (rxMeta.valid) {
+      assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
+    }
 
-    val po = pip.nodes.values.last
+    val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
+    val pushResultThrCount = CountOne(pushResultCoreMap)
 
     // preempt request to popping side
     val rxPreemptReq = Reg(Flow(PreemptCmd()))
     rxPreemptReq.valid := False
 
-    po.ready := False
-    when (po.valid) {
+    pushResult.ready := False
+    when (pushResult.valid) {
       // received packet: push into memory
-      when (queueMetas(po(PROC_TBL_IDX)).full) {
+      when (queueMetas(pushResult.idx).full) {
         // the destination proc queue is full
         // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
         inc(_.dropped)
       } otherwise {
         // store at where the tail was
-        queueMem.write(queueMetas(po(PROC_TBL_IDX)).tail, po(REQ))
+        queueMem.write(queueMetas(pushResult.idx).tail, pushResult.userData)
 
         // update pointers
-        pushQ(po(PROC_TBL_IDX)) := True
+        pushQ(pushResult.idx) := True
 
         inc(_.pushed)
       }
 
       // A new packet arrived, try to select a core to preempt, but do not block the RX process.
-      when (po(PROC_THR_COUNT) < po(PROC_DEF).maxThreads) {
-        rxPreemptReq.pid := po(RX_PID)
-        rxPreemptReq.idx := po(PROC_TBL_IDX)
+      when (pushResultThrCount < pushResult.value.maxThreads) {
+        rxPreemptReq.pid := pushResult.value.pid
+        rxPreemptReq.idx := pushResult.idx
 
         // preempting as ready takes priority
-        when (queueMetas(po(PROC_TBL_IDX)).almostFull) {
+        when (queueMetas(pushResult.idx).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
           // preempt a non-idle, ready core
           rxPreemptReq.ty := PreemptCmdType.ready
           rxPreemptReq.valid := True
-        } elsewhen (po(PROC_CORE_MAP) === 0) {
+        } elsewhen (pushResultCoreMap === 0) {
           // no process assigned to this queue -- idle preempt
           rxPreemptReq.ty := PreemptCmdType.idle
           rxPreemptReq.valid := True
@@ -348,9 +334,8 @@ class Scheduler extends FiberPlugin {
       }
 
       // we either pushed the packet or dropped it, ack
-      po.ready := True
+      pushResult.ready := True
     }
-    pip.build()
 
     // each core can raise a pop request, to remove one packet from the queues
     val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
@@ -419,7 +404,7 @@ class Scheduler extends FiberPlugin {
               when (popReq.ready) {
                 goto(popReqGranted)
               }
-            } elsewhen (toCore.ready && drainProcTblIdx =/= 0) {
+            } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid) {
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
               // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
               // the following case:
@@ -427,11 +412,14 @@ class Scheduler extends FiberPlugin {
               // - system later became not busy, but no new requests arrive for process
               // - if we don't scan inactive queues, the request will sit there indefinitely
               // TODO: fairness?
-              corePreempt(idx).payload := drainProcPid
-              savedPreemptIdx := drainProcTblIdx
+
+              // we are not popping from the queue here, only preempting;
+              // so no need to check again if queue is empty
+              corePreempt(idx).payload := drainResult.value.pid
+              savedPreemptIdx := drainResult.idx
               drainProcCoreReq(idx) := True
-              when (drainProcCoreGrant(idx) && !drainProcInProgress(drainProcTblIdx)) {
-                drainProcInProgress(drainProcTblIdx) := True
+              when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
+                drainProcInProgress(drainResult.idx) := True
                 goto(preempt)
               }
             }
