@@ -176,7 +176,7 @@ class Scheduler extends FiberPlugin {
     // per-process queues are in memory
     val queueMem = Mem(HostReq(), totalPkts)
 
-    case class QueueMetadata()(off: UInt, cap: UInt) extends Bundle {
+    case class QueueMetadata(off: UInt, cap: UInt)(idx: Int) extends Bundle {
       val offset, head, tail = MemAddr
       val capacity, fill = UInt(log2Up(RX_PKTS_PER_PROC + 1) bits)
 
@@ -217,19 +217,19 @@ class Scheduler extends FiberPlugin {
       }
 
       def pushOne(): Unit = {
-        assert(!full, "trying to push one into a full queue")
+        assert(!full, s"queue #$idx: trying to push one into a full queue")
         advance(tail)
         fill := fill + 1
       }
 
       def popOne(): Unit = {
-        assert(!empty, "trying to pop one from an empty queue")
+        assert(!empty, s"queue #$idx: trying to pop one from an empty queue")
         advance(head)
         fill := fill - 1
       }
 
       def passOne(): Unit = {
-        assert(!full && !empty, "can only pass one from non-empty, non-full queue")
+        assert(!full && !empty, s"queue #$idx: can only pass one from non-empty, non-full queue")
         advance(head)
         advance(tail)
       }
@@ -237,7 +237,7 @@ class Scheduler extends FiberPlugin {
     val queueMetas = Vec.tabulate(NUM_PROCS+1) { idx =>
       val offset = if (idx == 0) 0 else (idx-1) * RX_PKTS_PER_PROC
       val capacity: Int = if (idx == 0) 0 else RX_PKTS_PER_PROC
-      val ret = Reg(QueueMetadata()(offset, capacity))
+      val ret = Reg(QueueMetadata(offset, capacity)(idx))
       ret.initEmpty
       ret
     }
@@ -356,7 +356,6 @@ class Scheduler extends FiberPlugin {
     val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
     val arbitratedPopReq = StreamArbiterFactory(s"${getName()}_popReqMux").roundRobin.on(popReqs)
     val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
-    val savedPoppedReq = Reg(HostReq())
     arbitratedPopReq.ready := True
 
     // victim core selection, based on preemption type
@@ -388,8 +387,7 @@ class Scheduler extends FiberPlugin {
       toCore.setIdle()
 
       val popReq = popReqs(idx)
-      popReq.valid.setAsReg().init(False)
-      popReq.payload.setAsReg()
+      popReq.setIdle()
       val savedPoppedReq = Reg(HostReq())
 
       val corePopQueueIdx = corePidMap(idx)
@@ -418,7 +416,9 @@ class Scheduler extends FiberPlugin {
               //      - not allow preempt?  no chance in practice to preempt then
               popReq.payload := queueMetas(corePopQueueIdx).head
               popReq.valid := True
-              goto(popReqCheckGrant)
+              when (popReq.ready) {
+                goto(popReqGranted)
+              }
             } elsewhen (toCore.ready && drainProcTblIdx =/= 0) {
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
               // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
@@ -451,32 +451,27 @@ class Scheduler extends FiberPlugin {
             }
           }
         }
-        val popReqCheckGrant: State = new State {
+        val popReqGranted: State = new State {
           whenIsActive {
-            when(popReq.ready) {
-              // queue mem read granted
-              popReq.valid := False
-
-              // we could have a race condition between cores
+            // pop request granted, but is the queue now empty (due to a competitor)?
+            when (!queueMetas(corePopQueueIdx).empty) {
+              // to prevent a race condition between cores:
               // must update queue pointers immediately after granted
               popQ(corePopQueueIdx) := True
               inc(_.popped(idx))
 
-              // readSync has one cycle latency -- go to next state
-              goto(readPoppedReq)
+              // if our pop request is granted, read happened on that cycle;
+              // now we have the popped request ready
+
+              // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
+              // the core not ready any more; we need to hold the same request instead of switching
+              // to another request
+              savedPoppedReq := poppedReq
+              goto(sendPoppedReq)
             } otherwise {
-              // queue mem read NOT granted -- go back to idle
+              // queue now empty, go back to idle
               goto(idle)
             }
-          }
-        }
-        val readPoppedReq: State = new State {
-          whenIsActive {
-            // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
-            // the core not ready any more; we need to hold the same request instead of switching
-            // to another request
-            savedPoppedReq := poppedReq
-            goto(sendPoppedReq)
           }
         }
         val sendPoppedReq: State = new State {
