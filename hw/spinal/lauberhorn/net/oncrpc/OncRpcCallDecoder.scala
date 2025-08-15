@@ -72,7 +72,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       v.enabled init False
     }
 
-    val (dbLookup, dbResult, dbLat) = serviceDb.makePort(OncRpcCallServiceQuery(), OncRpcCallLookupUserData()) { (v, q) =>
+    val (dbLookup, dbResult, dbLat) = serviceDb.makePort(OncRpcCallServiceQuery(), OncRpcCallLookupUserData()) { (v, q, _) =>
       v.matchQuery(q)
     }
 
