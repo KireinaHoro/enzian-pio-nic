@@ -12,10 +12,8 @@ module dcs_cdc #(
    parameter PERF_REGS_WIDTH = 32,
    parameter SYNTH_PERF_REGS = 1 //0,1
 ) (
-    // asynchronous reset -- synchronized locally
-    input logic                                   reset_async,
-
     // ===== interfaces toward ECI gateway are clocked with eci_clk =====
+    input logic                                   eci_reset,
     input logic                                   eci_clk,
 
     // ECI channels
@@ -116,16 +114,11 @@ module dcs_cdc #(
     output logic                                  m_axi_bready
 );
 
-logic eci_reset, app_reset;
+logic app_reset;
 xpm_cdc_sync_rst i_app_rst_sync (
     .dest_clk(app_clk),
     .dest_rst(app_reset),
-    .src_rst(reset_async)
-);
-xpm_cdc_sync_rst i_eci_rst_sync (
-    .dest_clk(eci_clk),
-    .dest_rst(eci_reset),
-    .src_rst(reset_async)
+    .src_rst(eci_reset)
 );
 
 logic [ECI_WORD_WIDTH-1:0]        cdc_req_wod_hdr_i;

@@ -854,7 +854,7 @@ port map (
 -- DCS for even VCs ie odd CL indices.
 dcs_even : entity work.dcs_cdc
 port map (
-  reset_async => reset,
+  eci_reset   => reset,
   eci_clk     => clk,
   app_clk     => app_clk,
 
@@ -966,7 +966,7 @@ port map (
 -- DCS for odd VCs ie even CL indices.
 dcs_odd : entity work.dcs_cdc
 port map (
-  reset_async => reset,
+  eci_reset   => reset,
   eci_clk     => clk,
   app_clk     => app_clk,
 

@@ -61,27 +61,16 @@ set eci_gateway_pblock [get_pblocks pblock_slr1]
 # assign two DCS to top and bottom SLR slices
 add_cells_to_pblock $dcs_even_pblock [get_cells [list \
   i_app/dcs_even/i_dcs \
-  i_app/dcs_even/i_chan_cdc_req_wod_slave \
-  i_app/dcs_even/i_chan_cdc_rsp_wod_slave \
-  i_app/dcs_even/i_chan_cdc_rsp_wd_slave \
-  i_app/dcs_even/i_chan_cdc_rsp_wod_master \
-  i_app/dcs_even/i_chan_cdc_rsp_wd_master \
-  i_app/dcs_even/i_chan_cdc_fwd_wod_master \
   i_app/dcs_even/i_app_rst_sync \
-  i_app/dcs_even/i_eci_rst_sync \
 ]]
 
 add_cells_to_pblock $dcs_odd_pblock [get_cells [list \
   i_app/dcs_odd/i_dcs \
-  i_app/dcs_odd/i_chan_cdc_req_wod_slave \
-  i_app/dcs_odd/i_chan_cdc_rsp_wod_slave \
-  i_app/dcs_odd/i_chan_cdc_rsp_wd_slave \
-  i_app/dcs_odd/i_chan_cdc_rsp_wod_master \
-  i_app/dcs_odd/i_chan_cdc_rsp_wd_master \
-  i_app/dcs_odd/i_chan_cdc_fwd_wod_master \
   i_app/dcs_odd/i_app_rst_sync \
-  i_app/dcs_odd/i_eci_rst_sync \
 ]]
+
+# CDC logic belong with the gateway
+add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_*/i_chan_cdc_*}]
 
 # SI/MI constraints for pipelining reg slices between DCS and ECI gateway
 add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_eci_*_slave/*slr_auto_dest*}]
