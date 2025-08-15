@@ -145,7 +145,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     // we don't know if we need to drop the payload until we know the lookup result;
     // so delay the payload flow by the latency of a table lookup
     val pldDelayCycles = listenDb.lookupLatency
-    val dropFlow = decoder.io.header.asFlow.translateWith(drop).delay(pldDelayCycles)
+    val dropFlow = decoder.io.header.asFlow.delay(pldDelayCycles) ~ drop
     payload << decoder.io.output.delay(pldDelayCycles).throwFrameWhen(dropFlow)
 
     val hdrParsed = UdpHeader()
