@@ -38,7 +38,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       busCtrl.drive(field, alloc("ctrl", s"service_$name", attr = AccessType.WO))
     }
 
-    logic.listenDb.io.update.setIdle()
+    logic.serviceDb.update.setIdle()
 
     val serviceIdx = UInt(log2Up(NUM_SERVICES) bits)
     serviceIdx := 0
@@ -48,9 +48,9 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       // record service entry in table
       // XXX: assumes host is LITTLE ENDIAN
       //      we swap endianness now already to shorten critical path
-      logic.listenDb.io.update.valid := True
-      logic.listenDb.io.update.idx := serviceIdx
-      (logic.listenDb.io.update.value.elements.toSeq ++ servicePort.elements.toSeq).groupBy(_._1).foreach {
+      logic.serviceDb.update.valid := True
+      logic.serviceDb.update.idx := serviceIdx
+      (logic.serviceDb.update.value.elements.toSeq ++ servicePort.elements.toSeq).groupBy(_._1).foreach {
         case (n, Seq((_, te), (_, po))) if Seq("funcPtr", "pid").contains(n) => te := po
         case (_, Seq((_, te), (_, po: BitVector)))                           => te := EndiannessSwap(po)
         case (_, Seq((_, te), (_, po)))                                      => te := po
@@ -68,13 +68,13 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     // if no (func, port) is found, packet is dropped
     // will also be read by [[Scheduler]]
     // XXX: contents are in BIG ENDIAN (network)
-    val listenDb = LookupTable[
-      OncRpcCallServiceDef, OncRpcCallServiceQuery, OncRpcCallLookupUserData,
-    ](OncRpcCallServiceDef(), OncRpcCallServiceQuery(), OncRpcCallLookupUserData(),
-      numElems = NUM_SERVICES,
-      valueInit = (v: OncRpcCallServiceDef) => v.enabled init False,
-      matchFunc = (v: OncRpcCallServiceDef, q: OncRpcCallServiceQuery) => v.matchQuery(q),
-    )
+    val serviceDb = LookupTable(OncRpcCallServiceDef(), NUM_SERVICES) { v =>
+      v.enabled init False
+    }
+
+    val (dbLookup, dbResult, dbLat) = serviceDb.makePort(OncRpcCallServiceQuery(), OncRpcCallLookupUserData()) { (v, q) =>
+      v.matchQuery(q)
+    }
 
     // matcher for decode attempts: is the incoming packet on a port we are listening to?
     from[UdpMetadata, UdpDecoder](_.nextProto === UdpNextProto.oncRpcCall, udpHeader, udpPayload)
@@ -100,16 +100,15 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     udpPayload >> decoder.io.input
 
     // TODO: also drop malformed packets (e.g. payload too short)
-    val drop = !listenDb.io.result.matched
+    val drop = !dbResult.matched
 
     // we don't know if we need to drop the payload until we know the lookup result;
     // so delay the payload flow by the latency of a table lookup
-    val pldDelayCycles = listenDb.lookupLatency
-    val dropFlow = decoder.io.header.asFlow.delay(pldDelayCycles) ~ drop
-    payload << decoder.io.output.delay(pldDelayCycles).throwFrameWhen(dropFlow)
+    val dropFlow = decoder.io.header.asFlow.delay(dbLat) ~ drop
+    payload << decoder.io.output.delay(dbLat).throwFrameWhen(dropFlow)
 
     val hdrParsed = OncRpcCallHeader()
-    listenDb.io.lookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
+    dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
       hdrParsed.assignFromBits(hdr(minLen * 8 - 1 downto 0))
       lk.query.hdr := hdrParsed
       lk.query.port := currentUdpHeader.hdr.dport
@@ -128,7 +127,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
       assert(currentUdpHeader.nextProto === UdpNextProto.oncRpcCall, "no valid UDP header stored, did a payload leak through?")
     }
 
-    metadata.translateFrom(listenDb.io.result.throwWhen(drop)) { case (md, lr) =>
+    metadata.translateFrom(dbResult.throwWhen(drop)) { case (md, lr) =>
       md.hdr := lr.userData.hdr
       md.args := lr.userData.args
       md.udpPayloadSize := lr.userData.udpPayloadSize
