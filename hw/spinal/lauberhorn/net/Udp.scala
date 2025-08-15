@@ -159,7 +159,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     metadata.translateFrom(listenDb.io.result.throwWhen(drop)) { case (md, lr) =>
       md.hdr := lr.userData.hdr
       md.ipMeta := lr.userData.ipMeta
-      md.nextProto := lr.value
+      md.nextProto := lr.value.nextProto
     }
   }
 }
