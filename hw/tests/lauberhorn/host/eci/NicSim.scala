@@ -3,10 +3,10 @@ package lauberhorn.host.eci
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
-import jsteward.blocks.misc.sim.{BigIntParser, isSorted, IntRicherEndianAware}
+import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, isSorted}
 import org.pcap4j.core.Pcaps
-import org.pcap4j.packet.{EthernetPacket, Packet}
-import org.pcap4j.packet.namednumber.DataLinkType
+import org.pcap4j.packet.{EthernetPacket, IpV4Packet, IpV4Rfc1349Tos, Packet}
+import org.pcap4j.packet.namednumber.{DataLinkType, EtherType, IpNumber, IpVersion}
 import org.scalatest.exceptions.TestFailedException
 import lauberhorn._
 import lauberhorn.Global._
@@ -24,6 +24,9 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 import lauberhorn.host.eci.NicSim._
+import org.pcap4j.util.MacAddress
+
+import java.net.{Inet4Address, InetAddress}
 
 object NicSim {
   type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
@@ -554,6 +557,58 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
 
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
+  }
+
+  testWithDB("rx-no-promisc", Rx) { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+
+    val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-no-promisc") / "packets.pcap").toString)
+
+
+    // construct packet for zuestollXX.  E.g. zuestoll02:
+    // 0c:53:31:03:00:48 -> 192.168.128.72
+    def getIpPacket(hostNum: Int, pldLen: Int) = {
+      val hostId = hostNum * 32 + 8
+      val srcIpAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
+      val dstIpAddr = InetAddress.getByName(s"192.168.128.$hostId").asInstanceOf[Inet4Address]
+      val srcMacAddr = MacAddress.getByAddress(Random.nextBytes(6))
+      val dstMacAddr = MacAddress.getByName(f"0c:53:31:03:00:$hostId%x")
+
+      val ipBuilder = (new IpV4Packet.Builder)
+        .version(IpVersion.IPV4)
+        .protocol(IpNumber.getInstance(randomExclude(0, 255)(6, 17).toByte))
+        .tos(IpV4Rfc1349Tos.newInstance(0))
+        .ttl(Random.nextInt().toByte)
+        .srcAddr(srcIpAddr)
+        .dstAddr(dstIpAddr)
+        .correctLengthAtBuild(true)
+        .correctChecksumAtBuild(true)
+        .payloadBuilder(rawPayloadBuilder(Random.nextBytes(pldLen)))
+
+      val ret = (new EthernetPacket.Builder)
+        .srcAddr(srcMacAddr)
+        .dstAddr(dstMacAddr)
+        .`type`(EtherType.IPV4)
+        .paddingAtBuild(true)
+        .payloadBuilder(ipBuilder)
+        .build()
+
+      dumper.dump(ret)
+      dumper.flush()
+
+      ret
+    }
+
+    // NOT enabling promisc
+
+    // default values is for zuestoll01
+    rxTestSimple(dcsMaster, axisMaster, getIpPacket(1, 512), PacketType.Ip, maxRetries = 1)
+
+    // change host ID: address regs are in big endian
+    csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), 0xc0_a8_80_48.toBytesBE)
+    csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), 0x0c_53_31_03_00_48L.toBytesBE.drop(2))
+
+    rxTestSimple(dcsMaster, axisMaster, getIpPacket(2, 512), PacketType.Ip, maxRetries = 1)
   }
 
   testWithDB("rx-oncrpc-timestamped", Rx) { implicit dut =>

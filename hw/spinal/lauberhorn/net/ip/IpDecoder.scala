@@ -22,17 +22,16 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("stat", name, attr = RO))
     }
-
-    val littleEndianIp = B("32'x0")
-    busCtrl.readAndWrite(littleEndianIp, alloc("ctrl", "ipAddress"))
-    logic.ipAddress := EndiannessSwap(littleEndianIp)
+    busCtrl.readAndWrite(logic.ipAddress, alloc("ctrl", "ipAddress"))
   }
 
   val logic = during setup new Area {
     val ethernetHeader = Stream(EthernetMetadata())
     val ethernetPayload = Axi4Stream(macIf.axisConfig)
 
-    val ipAddress = Reg(Bits(32 bits)) init EndiannessSwap(B("32'xc0_a8_80_28")) // 192.168.128.40; changed at runtime
+    // 192.168.128.40; changed at runtime
+    // stored as Big Endian
+    val ipAddress = Reg(Bits(32 bits)) init EndiannessSwap(B("32'xc0_a8_80_28"))
 
     from[EthernetMetadata, EthernetDecoder](
       _.hdr.etherType === EndiannessSwap(B("16'x0800")),
