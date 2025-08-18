@@ -113,21 +113,10 @@ add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~
 add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_src*     && $is_resp"]
 
 # NicEngine
-add_cells_to_pblock $nic_decoders_pblock [get_cells [list \
-  i_app/NicEngine_inst/EthernetDecoder_logic_decoder \
-  i_app/NicEngine_inst/IpDecoder_logic_decoder \
-  i_app/NicEngine_inst/UdpDecoder_logic_decoder \
-  i_app/NicEngine_inst/UdpDecoder_logic_listenDb \
-  i_app/NicEngine_inst/OncRpcCallDecoder_logic_decoder \
-  i_app/NicEngine_inst/OncRpcCallDecoder_logic_serviceDb \
-  i_app/NicEngine_inst/RxDecoderSink_logic_axisMux \
-  i_app/NicEngine_inst/Scheduler_logic_procDb \
-]]
-
-add_cells_to_pblock $nic_hostif_pblock [get_cells [list \
-  i_app/NicEngine_inst/PacketBuffer_logic_aligner \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiMem \
-]]
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*Decoder_logic_*"]
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/RxDecoderSink_logic_*"]
 
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/driveDcsBus_core*_*Router"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/Scheduler_logic_*"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciInterfacePlugin_logic_*"]
