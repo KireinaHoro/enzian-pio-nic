@@ -135,9 +135,9 @@ logic                             pipe_req_wod_pkt_ready_o;
 axis_cdc_eci_wod i_chan_cdc_req_wod_slave (
   .s_axis_aclk(eci_clk),
   .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, req_wod_hdr_i, req_wod_pkt_size_i, req_wod_pkt_vc_i}),
-  .s_axis_tvalid(req_wod_pkt_valid_i),
-  .s_axis_tready(req_wod_pkt_ready_o),
+  .s_axis_tdata({7'b0, pipe_req_wod_hdr_i, pipe_req_wod_pkt_size_i, pipe_req_wod_pkt_vc_i}),
+  .s_axis_tvalid(pipe_req_wod_pkt_valid_i),
+  .s_axis_tready(pipe_req_wod_pkt_ready_o),
   .m_axis_aclk(app_clk),
   .m_axis_aresetn(!app_reset),
   .m_axis_tdata({7'b0, cdc_req_wod_hdr_i, cdc_req_wod_pkt_size_i, cdc_req_wod_pkt_vc_i}),
@@ -145,11 +145,11 @@ axis_cdc_eci_wod i_chan_cdc_req_wod_slave (
   .m_axis_tready(cdc_req_wod_pkt_ready_o)
 );
 axis_reg_eci_wod i_chan_pipe_eci_req_wod_slave (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_req_wod_hdr_i, cdc_req_wod_pkt_size_i, cdc_req_wod_pkt_vc_i}),
-  .s_axis_tvalid(cdc_req_wod_pkt_valid_i),
-  .s_axis_tready(cdc_req_wod_pkt_ready_o),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
+  .s_axis_tdata({7'b0, req_wod_hdr_i, req_wod_pkt_size_i, req_wod_pkt_vc_i}),
+  .s_axis_tvalid(req_wod_pkt_valid_i),
+  .s_axis_tready(req_wod_pkt_ready_o),
   .m_axis_tdata({7'b0, pipe_req_wod_hdr_i, pipe_req_wod_pkt_size_i, pipe_req_wod_pkt_vc_i}),
   .m_axis_tvalid(pipe_req_wod_pkt_valid_i),
   .m_axis_tready(pipe_req_wod_pkt_ready_o)
@@ -170,9 +170,9 @@ logic                             pipe_rsp_wod_pkt_ready_o;
 axis_cdc_eci_wod i_chan_cdc_rsp_wod_slave (
   .s_axis_aclk(eci_clk),
   .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, rsp_wod_hdr_i, rsp_wod_pkt_size_i, rsp_wod_pkt_vc_i}),
-  .s_axis_tvalid(rsp_wod_pkt_valid_i),
-  .s_axis_tready(rsp_wod_pkt_ready_o),
+  .s_axis_tdata({7'b0, pipe_rsp_wod_hdr_i, pipe_rsp_wod_pkt_size_i, pipe_rsp_wod_pkt_vc_i}),
+  .s_axis_tvalid(pipe_rsp_wod_pkt_valid_i),
+  .s_axis_tready(pipe_rsp_wod_pkt_ready_o),
   .m_axis_aclk(app_clk),
   .m_axis_aresetn(!app_reset),
   .m_axis_tdata({7'b0, cdc_rsp_wod_hdr_i, cdc_rsp_wod_pkt_size_i, cdc_rsp_wod_pkt_vc_i}),
@@ -180,11 +180,11 @@ axis_cdc_eci_wod i_chan_cdc_rsp_wod_slave (
   .m_axis_tready(cdc_rsp_wod_pkt_ready_o)
 );
 axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_slave (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_rsp_wod_hdr_i, cdc_rsp_wod_pkt_size_i, cdc_rsp_wod_pkt_vc_i}),
-  .s_axis_tvalid(cdc_rsp_wod_pkt_valid_i),
-  .s_axis_tready(cdc_rsp_wod_pkt_ready_o),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
+  .s_axis_tdata({7'b0, rsp_wod_hdr_i, rsp_wod_pkt_size_i, rsp_wod_pkt_vc_i}),
+  .s_axis_tvalid(rsp_wod_pkt_valid_i),
+  .s_axis_tready(rsp_wod_pkt_ready_o),
   .m_axis_tdata({7'b0, pipe_rsp_wod_hdr_i, pipe_rsp_wod_pkt_size_i, pipe_rsp_wod_pkt_vc_i}),
   .m_axis_tvalid(pipe_rsp_wod_pkt_valid_i),
   .m_axis_tready(pipe_rsp_wod_pkt_ready_o)
@@ -205,9 +205,9 @@ logic                             pipe_rsp_wd_pkt_ready_o;
 axis_cdc_eci_wd i_chan_cdc_rsp_wd_slave (
   .s_axis_aclk(eci_clk),
   .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, rsp_wd_pkt_i, rsp_wd_pkt_size_i, rsp_wd_pkt_vc_i}),
-  .s_axis_tvalid(rsp_wd_pkt_valid_i),
-  .s_axis_tready(rsp_wd_pkt_ready_o),
+  .s_axis_tdata({7'b0, pipe_rsp_wd_pkt_i, pipe_rsp_wd_pkt_size_i, pipe_rsp_wd_pkt_vc_i}),
+  .s_axis_tvalid(pipe_rsp_wd_pkt_valid_i),
+  .s_axis_tready(pipe_rsp_wd_pkt_ready_o),
   .m_axis_aclk(app_clk),
   .m_axis_aresetn(!app_reset),
   .m_axis_tdata({7'b0, cdc_rsp_wd_pkt_i, cdc_rsp_wd_pkt_size_i, cdc_rsp_wd_pkt_vc_i}),
@@ -215,11 +215,11 @@ axis_cdc_eci_wd i_chan_cdc_rsp_wd_slave (
   .m_axis_tready(cdc_rsp_wd_pkt_ready_o)
 );
 axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_slave (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_rsp_wd_pkt_i, cdc_rsp_wd_pkt_size_i, cdc_rsp_wd_pkt_vc_i}),
-  .s_axis_tvalid(cdc_rsp_wd_pkt_valid_i),
-  .s_axis_tready(cdc_rsp_wd_pkt_ready_o),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
+  .s_axis_tdata({7'b0, rsp_wd_pkt_i, rsp_wd_pkt_size_i, rsp_wd_pkt_vc_i}),
+  .s_axis_tvalid(rsp_wd_pkt_valid_i),
+  .s_axis_tready(rsp_wd_pkt_ready_o),
   .m_axis_tdata({7'b0, pipe_rsp_wd_pkt_i, pipe_rsp_wd_pkt_size_i, pipe_rsp_wd_pkt_vc_i}),
   .m_axis_tvalid(pipe_rsp_wd_pkt_valid_i),
   .m_axis_tready(pipe_rsp_wd_pkt_ready_o)
@@ -245,19 +245,19 @@ axis_cdc_eci_wod i_chan_cdc_rsp_wod_master (
   .s_axis_tready(cdc_rsp_wod_pkt_ready_i),
   .m_axis_aclk(eci_clk),
   .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, rsp_wod_hdr_o, rsp_wod_pkt_size_o, rsp_wod_pkt_vc_o}),
-  .m_axis_tvalid(rsp_wod_pkt_valid_o),
-  .m_axis_tready(rsp_wod_pkt_ready_i)
+  .m_axis_tdata({7'b0, pipe_rsp_wod_hdr_o, pipe_rsp_wod_pkt_size_o, pipe_rsp_wod_pkt_vc_o}),
+  .m_axis_tvalid(pipe_rsp_wod_pkt_valid_o),
+  .m_axis_tready(pipe_rsp_wod_pkt_ready_i)
 );
 axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_master (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
   .s_axis_tdata({7'b0, pipe_rsp_wod_hdr_o, pipe_rsp_wod_pkt_size_o, pipe_rsp_wod_pkt_vc_o}),
   .s_axis_tvalid(pipe_rsp_wod_pkt_valid_o),
   .s_axis_tready(pipe_rsp_wod_pkt_ready_i),
-  .m_axis_tdata({7'b0, cdc_rsp_wod_hdr_o, cdc_rsp_wod_pkt_size_o, cdc_rsp_wod_pkt_vc_o}),
-  .m_axis_tvalid(cdc_rsp_wod_pkt_valid_o),
-  .m_axis_tready(cdc_rsp_wod_pkt_ready_i)
+  .m_axis_tdata({7'b0, rsp_wod_hdr_o, rsp_wod_pkt_size_o, rsp_wod_pkt_vc_o}),
+  .m_axis_tvalid(rsp_wod_pkt_valid_o),
+  .m_axis_tready(rsp_wod_pkt_ready_i)
 );
 
 
@@ -280,19 +280,19 @@ axis_cdc_eci_wd i_chan_cdc_rsp_wd_master (
   .s_axis_tready(cdc_rsp_wd_pkt_ready_i),
   .m_axis_aclk(eci_clk),
   .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, rsp_wd_pkt_o, rsp_wd_pkt_size_o, rsp_wd_pkt_vc_o}),
-  .m_axis_tvalid(rsp_wd_pkt_valid_o),
-  .m_axis_tready(rsp_wd_pkt_ready_i)
+  .m_axis_tdata({7'b0, pipe_rsp_wd_pkt_o, pipe_rsp_wd_pkt_size_o, pipe_rsp_wd_pkt_vc_o}),
+  .m_axis_tvalid(pipe_rsp_wd_pkt_valid_o),
+  .m_axis_tready(pipe_rsp_wd_pkt_ready_i)
 );
 axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_master (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
   .s_axis_tdata({7'b0, pipe_rsp_wd_pkt_o, pipe_rsp_wd_pkt_size_o, pipe_rsp_wd_pkt_vc_o}),
   .s_axis_tvalid(pipe_rsp_wd_pkt_valid_o),
   .s_axis_tready(pipe_rsp_wd_pkt_ready_i),
-  .m_axis_tdata({7'b0, cdc_rsp_wd_pkt_o, cdc_rsp_wd_pkt_size_o, cdc_rsp_wd_pkt_vc_o}),
-  .m_axis_tvalid(cdc_rsp_wd_pkt_valid_o),
-  .m_axis_tready(cdc_rsp_wd_pkt_ready_i)
+  .m_axis_tdata({7'b0, rsp_wd_pkt_o, rsp_wd_pkt_size_o, rsp_wd_pkt_vc_o}),
+  .m_axis_tvalid(rsp_wd_pkt_valid_o),
+  .m_axis_tready(rsp_wd_pkt_ready_i)
 );
 
 
@@ -315,19 +315,19 @@ axis_cdc_eci_wod i_chan_cdc_fwd_wod_master (
   .s_axis_tready(cdc_fwd_wod_pkt_ready_i),
   .m_axis_aclk(eci_clk),
   .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, fwd_wod_hdr_o, fwd_wod_pkt_size_o, fwd_wod_pkt_vc_o}),
-  .m_axis_tvalid(fwd_wod_pkt_valid_o),
-  .m_axis_tready(fwd_wod_pkt_ready_i)
+  .m_axis_tdata({7'b0, pipe_fwd_wod_hdr_o, pipe_fwd_wod_pkt_size_o, pipe_fwd_wod_pkt_vc_o}),
+  .m_axis_tvalid(pipe_fwd_wod_pkt_valid_o),
+  .m_axis_tready(pipe_fwd_wod_pkt_ready_i)
 );
 axis_reg_eci_wod i_chan_pipe_eci_fwd_wod_master (
-  .aclk(app_clk),
-  .aresetn(!app_reset),
+  .aclk(eci_clk),
+  .aresetn(!eci_reset),
   .s_axis_tdata({7'b0, pipe_fwd_wod_hdr_o, pipe_fwd_wod_pkt_size_o, pipe_fwd_wod_pkt_vc_o}),
   .s_axis_tvalid(pipe_fwd_wod_pkt_valid_o),
   .s_axis_tready(pipe_fwd_wod_pkt_ready_i),
-  .m_axis_tdata({7'b0, cdc_fwd_wod_hdr_o, cdc_fwd_wod_pkt_size_o, cdc_fwd_wod_pkt_vc_o}),
-  .m_axis_tvalid(cdc_fwd_wod_pkt_valid_o),
-  .m_axis_tready(cdc_fwd_wod_pkt_ready_i)
+  .m_axis_tdata({7'b0, fwd_wod_hdr_o, fwd_wod_pkt_size_o, fwd_wod_pkt_vc_o}),
+  .m_axis_tvalid(fwd_wod_pkt_valid_o),
+  .m_axis_tready(fwd_wod_pkt_ready_i)
 );
 
 logic [ECI_WORD_WIDTH-1:0]        pipe_lcl_fwd_wod_hdr_i;
@@ -503,41 +503,41 @@ dcs_2_axi #(
   .reset(app_reset),
 
 
-  .req_wod_hdr_i(pipe_req_wod_hdr_i),
-  .req_wod_pkt_size_i(pipe_req_wod_pkt_size_i),
-  .req_wod_pkt_vc_i(pipe_req_wod_pkt_vc_i),
-  .req_wod_pkt_valid_i(pipe_req_wod_pkt_valid_i),
-  .req_wod_pkt_ready_o(pipe_req_wod_pkt_ready_o),
+  .req_wod_hdr_i(cdc_req_wod_hdr_i),
+  .req_wod_pkt_size_i(cdc_req_wod_pkt_size_i),
+  .req_wod_pkt_vc_i(cdc_req_wod_pkt_vc_i),
+  .req_wod_pkt_valid_i(cdc_req_wod_pkt_valid_i),
+  .req_wod_pkt_ready_o(cdc_req_wod_pkt_ready_o),
 
-  .rsp_wod_hdr_i(pipe_rsp_wod_hdr_i),
-  .rsp_wod_pkt_size_i(pipe_rsp_wod_pkt_size_i),
-  .rsp_wod_pkt_vc_i(pipe_rsp_wod_pkt_vc_i),
-  .rsp_wod_pkt_valid_i(pipe_rsp_wod_pkt_valid_i),
-  .rsp_wod_pkt_ready_o(pipe_rsp_wod_pkt_ready_o),
+  .rsp_wod_hdr_i(cdc_rsp_wod_hdr_i),
+  .rsp_wod_pkt_size_i(cdc_rsp_wod_pkt_size_i),
+  .rsp_wod_pkt_vc_i(cdc_rsp_wod_pkt_vc_i),
+  .rsp_wod_pkt_valid_i(cdc_rsp_wod_pkt_valid_i),
+  .rsp_wod_pkt_ready_o(cdc_rsp_wod_pkt_ready_o),
 
-  .rsp_wd_pkt_i(pipe_rsp_wd_pkt_i),
-  .rsp_wd_pkt_size_i(pipe_rsp_wd_pkt_size_i),
-  .rsp_wd_pkt_vc_i(pipe_rsp_wd_pkt_vc_i),
-  .rsp_wd_pkt_valid_i(pipe_rsp_wd_pkt_valid_i),
-  .rsp_wd_pkt_ready_o(pipe_rsp_wd_pkt_ready_o),
+  .rsp_wd_pkt_i(cdc_rsp_wd_pkt_i),
+  .rsp_wd_pkt_size_i(cdc_rsp_wd_pkt_size_i),
+  .rsp_wd_pkt_vc_i(cdc_rsp_wd_pkt_vc_i),
+  .rsp_wd_pkt_valid_i(cdc_rsp_wd_pkt_valid_i),
+  .rsp_wd_pkt_ready_o(cdc_rsp_wd_pkt_ready_o),
 
-  .rsp_wod_hdr_o(pipe_rsp_wod_hdr_o),
-  .rsp_wod_pkt_size_o(pipe_rsp_wod_pkt_size_o),
-  .rsp_wod_pkt_vc_o(pipe_rsp_wod_pkt_vc_o),
-  .rsp_wod_pkt_valid_o(pipe_rsp_wod_pkt_valid_o),
-  .rsp_wod_pkt_ready_i(pipe_rsp_wod_pkt_ready_i),
+  .rsp_wod_hdr_o(cdc_rsp_wod_hdr_o),
+  .rsp_wod_pkt_size_o(cdc_rsp_wod_pkt_size_o),
+  .rsp_wod_pkt_vc_o(cdc_rsp_wod_pkt_vc_o),
+  .rsp_wod_pkt_valid_o(cdc_rsp_wod_pkt_valid_o),
+  .rsp_wod_pkt_ready_i(cdc_rsp_wod_pkt_ready_i),
 
-  .rsp_wd_pkt_o(pipe_rsp_wd_pkt_o),
-  .rsp_wd_pkt_size_o(pipe_rsp_wd_pkt_size_o),
-  .rsp_wd_pkt_vc_o(pipe_rsp_wd_pkt_vc_o),
-  .rsp_wd_pkt_valid_o(pipe_rsp_wd_pkt_valid_o),
-  .rsp_wd_pkt_ready_i(pipe_rsp_wd_pkt_ready_i),
+  .rsp_wd_pkt_o(cdc_rsp_wd_pkt_o),
+  .rsp_wd_pkt_size_o(cdc_rsp_wd_pkt_size_o),
+  .rsp_wd_pkt_vc_o(cdc_rsp_wd_pkt_vc_o),
+  .rsp_wd_pkt_valid_o(cdc_rsp_wd_pkt_valid_o),
+  .rsp_wd_pkt_ready_i(cdc_rsp_wd_pkt_ready_i),
 
-  .fwd_wod_hdr_o(pipe_fwd_wod_hdr_o),
-  .fwd_wod_pkt_size_o(pipe_fwd_wod_pkt_size_o),
-  .fwd_wod_pkt_vc_o(pipe_fwd_wod_pkt_vc_o),
-  .fwd_wod_pkt_valid_o(pipe_fwd_wod_pkt_valid_o),
-  .fwd_wod_pkt_ready_i(pipe_fwd_wod_pkt_ready_i),
+  .fwd_wod_hdr_o(cdc_fwd_wod_hdr_o),
+  .fwd_wod_pkt_size_o(cdc_fwd_wod_pkt_size_o),
+  .fwd_wod_pkt_vc_o(cdc_fwd_wod_pkt_vc_o),
+  .fwd_wod_pkt_valid_o(cdc_fwd_wod_pkt_valid_o),
+  .fwd_wod_pkt_ready_i(cdc_fwd_wod_pkt_ready_i),
 
   .lcl_fwd_wod_hdr_i(pipe_lcl_fwd_wod_hdr_i),
   .lcl_fwd_wod_pkt_size_i(pipe_lcl_fwd_wod_pkt_size_i),
