@@ -54,7 +54,10 @@ create_pblock pblock_slr0
 resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 
 set nic_decoders_pblock [get_pblocks pblock_slr0]
-set nic_hostif_pblock   [get_pblocks pblock_slr1]
+
+create_pblock pblock_nic_hostif
+set nic_hostif_pblock  [get_pblocks pblock_nic_hostif]
+resize_pblock $nic_hostif_pblock -add {CLOCKREGION_X0Y5:CLOCKREGION_X2Y9}
 
 set dcs_even_pblock    [get_pblocks pblock_slr2]
 set dcs_odd_pblock     [get_pblocks pblock_slr0]
