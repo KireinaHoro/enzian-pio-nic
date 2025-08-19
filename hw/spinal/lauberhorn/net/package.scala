@@ -17,7 +17,8 @@ package object net {
   object PacketDescType extends SpinalEnum {
     val ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
 
-    /** Convert a [[PacketDescData]] to [[EncoderMetadata]] to direct to a specific encoder. */
+    /** Convert a [[PacketDescData]] (generated from a [[HostReqBypassHeaders]] by [[PacketDesc.fromHeaders]]) to
+      * [[EncoderMetadata]], for sending to a specific encoder. */
     def selectData[T <: EncoderMetadata](ty: PacketDescType.E, data: PacketDescData): T = {
       ty match {
         case `ethernet` => data.ethernetTx.get().asInstanceOf[T]
@@ -130,6 +131,7 @@ package object net {
       */
     def fromHeaders(bypassMeta: HostReqBypassHeaders): Unit = {
       ty := bypassMeta.ty
+      metadata.assignDontCare()
       switch (bypassMeta.ty) {
         import PacketDescType._
         is (ethernet) { metadata.ethernetTx.assignFromBits(bypassMeta.hdr) }

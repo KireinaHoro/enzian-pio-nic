@@ -2,6 +2,7 @@ package lauberhorn.net
 
 import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
+import spinal.lib._
 
 import scala.language.postfixOps
 
@@ -20,6 +21,22 @@ package object ip {
     val csum = Bits(16 bits)
     val saddr = Bits(32 bits)
     val daddr = Bits(32 bits)
+
+    def setCsum(): Unit = {
+      val hdrCsumCleared = IpHeader()
+      hdrCsumCleared := this
+      hdrCsumCleared.csum.allowOverride()
+      hdrCsumCleared.csum := 0
+
+      val words = hdrCsumCleared.asBits.subdivideIn(16 bits).map(_.asUInt)
+      val sum = words.reduceBalancedTree { (a, b) =>
+        val noOverflow = a +^ b
+        val overflow = a +^ b + 1
+        noOverflow.msb.mux(overflow, noOverflow).dropHigh(1).asUInt
+      }
+
+      csum := ~sum.asBits
+    }
   }
 
   case class IpRxMeta() extends Bundle with DecoderMetadata {
@@ -36,5 +53,19 @@ package object ip {
       ret.ipRx.get := this
       ret
     }
+  }
+
+  case class IpTxMeta() extends Bundle with EncoderMetadata {
+    val daddr = Bits(32 bits)
+    val pldLen = UInt(16 bits) // without IP header!
+    val proto = Bits(8 bits)
+
+    def getType = PacketDescType.ip
+  }
+
+  case class IpNeighborDef() extends Bundle {
+    val ipAddr = Bits(32 bits)
+    val macAddr = Bits(48 bits)
+    val valid = Bool()
   }
 }
