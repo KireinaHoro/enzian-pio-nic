@@ -57,39 +57,7 @@ package object oncrpc {
       listenPort.asBits === q.port
   }
 
-  case class OncRpcCallMetadata() extends Bundle with ProtoMetadata {
-    override def clone = OncRpcCallMetadata()
-
-    val funcPtr = Bits(64 bits)
-    val pid = PID()
-    // first fields in the XDR payload
-    val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
-    val hdr = OncRpcCallHeader()
-    val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
-
-    def getType = PacketDescType.oncRpcCall
-
-    def getPayloadSize: UInt = {
-      val inlineLen = ONCRPC_INLINE_BYTES.get
-      val payloadLen = udpPayloadSize - hdr.getBitsWidth / 8
-      (payloadLen > inlineLen) ? (payloadLen - inlineLen) | U(0)
-    }
-
-    def collectHeaders: Bits = ??? // never collected
-
-    def asUnion: PacketDescData = {
-      val ret = PacketDescData() setCompositeName(this, "union")
-      ret.oncRpcCall.get := this
-      ret
-    }
-  }
-
-  case class OncRpcReplyMetadata() extends Bundle with ProtoMetadata {
+  case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
     def getType = PacketDescType.oncRpcReply
-    def getPayloadSize: UInt = ???
-
-    def collectHeaders: Bits = ???
-
-    def asUnion: PacketDescData = ???
   }
 }

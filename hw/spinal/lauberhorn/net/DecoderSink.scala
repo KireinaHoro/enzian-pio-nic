@@ -15,12 +15,12 @@ import scala.collection.mutable
 /**
  * Service for RX decoder pipeline plugins as well as the AXI DMA engine to invoke.
  *
- * Most decoder plugins inheriting [[lauberhorn.net.ProtoDecoder]] should not need to interact with this service directly,
+ * Most decoder plugins inheriting [[lauberhorn.net.Decoder]] should not need to interact with this service directly,
  * as the API is used in the base class already.
  */
-trait RxDecoderSinkService {
+trait DecoderSinkService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
+  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
   def isPromisc: Bool
@@ -35,7 +35,7 @@ trait RxDecoderSinkService {
   * further translation (into [[lauberhorn.host.HostReq]]).  Payload data is arbitrated into a single AXI-Stream and fed
   * into the DMA engine in [[PacketBuffer]].
   */
-class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
+class DecoderSink extends FiberPlugin with DecoderSinkService {
   lazy val ms = host[MacInterfaceService]
   lazy val dc = host[DmaControlPlugin].logic
   val retainer = Retainer()
@@ -43,7 +43,7 @@ class RxDecoderSink extends FiberPlugin with RxDecoderSinkService {
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val bypassUpstreams, requestUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: ProtoMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
+  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     payloadSink.assertPersistence()
     metadataSink.assertPersistence()
 

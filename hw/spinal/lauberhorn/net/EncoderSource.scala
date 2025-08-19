@@ -11,18 +11,18 @@ import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
 
-trait TxEncoderSourceService {
+trait EncoderSourceService {
   /** Connects to DMA engine in [[PacketBuffer]] */
   def packetSource: Axi4Stream
   /** Connect the host-facing packet descriptor and payload ports for an encoder.  Should be called in the setup
-    * phase by subclasses of [[ProtoEncoder]]. */
+    * phase by subclasses of [[Encoder]]. */
   def connect(ty: PacketDescType.E, desc: Stream[PacketDescData], payload: Axi4Stream): Unit
 }
 
 /** Packet source for egress (TX) packets into the encoder pipeline.  Packets come here through
-  * [[DmaControlPlugin]] and gets streamed into downstream encoders that inherit [[ProtoEncoder]].
+  * [[DmaControlPlugin]] and gets streamed into downstream encoders that inherit [[Encoder]].
   */
-class TxEncoderSource extends FiberPlugin with TxEncoderSourceService {
+class EncoderSource extends FiberPlugin with EncoderSourceService {
   lazy val ms = host[MacInterfaceService]
   val retainer = Retainer()
 

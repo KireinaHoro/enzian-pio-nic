@@ -3,28 +3,28 @@ package lauberhorn
 import spinal.core._
 import jsteward.blocks.misc.RegAllocatorFactory
 import lauberhorn.host.{HostReq, HostReqBypassHeaders}
-import lauberhorn.net.ethernet.EthernetMetadata
+import lauberhorn.net.ethernet.{EthernetRxMeta, EthernetTxMeta}
 
 import scala.language.postfixOps
 import Global._
-import lauberhorn.net.ip.IpMetadata
-import lauberhorn.net.oncrpc.{OncRpcCallMetadata, OncRpcReplyMetadata}
+import lauberhorn.net.ip.{IpRxMeta, IpTxMeta}
+import lauberhorn.net.oncrpc.{OncRpcCallRxMeta, OncRpcReplyTxMeta}
 
 package object net {
   /**
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[lauberhorn.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val raw, ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
+    val ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
 
-    def selectData[T <: ProtoMetadata](ty: PacketDescType.E, data: PacketDescData): T = {
+    /** Convert a [[PacketDescData]] to [[EncoderMetadata]] to direct to a specific encoder. */
+    def selectData[T <: EncoderMetadata](ty: PacketDescType.E, data: PacketDescData): T = {
       ty match {
-        case `raw` => NoMetadata().asInstanceOf[T]
-        case `ethernet` => data.ethernet.get().asInstanceOf[T]
-        case `ip` => data.ip.get().asInstanceOf[T]
-        case `udp` => data.udp.get().asInstanceOf[T]
-        case `oncRpcCall` => data.oncRpcCall.get().asInstanceOf[T]
-        case `oncRpcReply` => data.oncRpcCall.get().asInstanceOf[T]
+        case `ethernet` => data.ethernetTx.get().asInstanceOf[T]
+        case `ip` => data.ipTx.get().asInstanceOf[T]
+        // case `udp` => data.udpTx.get().asInstanceOf[T]
+        // case `oncRpcCall` => data.oncRpcCall.get().asInstanceOf[T]
+        case `oncRpcReply` => data.oncRpcReply.get().asInstanceOf[T]
       }
     }
 
@@ -46,12 +46,8 @@ package object net {
    * Protocol metadata passed along in the decoder pipeline.  Should provide all information needed to reconstruct the
    * entire packet for exceptional delivery to the bypass interface.  [[DmaControlPlugin]] will translate this to a
    * [[lauberhorn.host.HostReq]] to enqueue into the [[Scheduler]].
-   *
-   * Also used in the encoder pipeline.  Each stage is only responsible for filling in the information that it can get.
-   * E.g. ONC-RPC encoder does not need to fill in Ethernet addresses; this is the responsibility of the IP
-   * encoder.
    */
-  trait ProtoMetadata extends Data {
+  trait DecoderMetadata extends Data {
     /** tag metadata sent to cores */
     def getType: PacketDescType.E
     /** size of payload for the payload of this stage */
@@ -62,16 +58,32 @@ package object net {
     def asUnion: PacketDescData
   }
 
+  /**
+    * Metadata for the encoder pipeline.  Every encoder takes a [[EncoderMetadata]] for itself (either another
+    * encoder or the host) and generates the metadata for the next stage encoder.  For example, the IP encoder
+    * [[lauberhorn.net.ip.IpEncoder]] takes a [[IpTxMetadata]]
+    * it can get; e.g. the IP encoder need
+    */
+  trait EncoderMetadata extends Data {
+    /** tag metadata sent from cores */
+    def getType: PacketDescType.E
+  }
+
   case class PacketDescData() extends Union {
-    val ethernet = newElement(EthernetMetadata())
-    val ip = newElement(IpMetadata())
-    val udp = newElement(UdpMetadata())
-    val oncRpcCall = newElement(OncRpcCallMetadata())
-    val oncRpcReply = newElement(OncRpcReplyMetadata())
+    // Used by decoder pipeline
+    val ethernetRx = newElement(EthernetRxMeta())
+    val ipRx = newElement(IpRxMeta())
+    val udpRx = newElement(UdpRxMeta())
+    val oncRpcCall = newElement(OncRpcCallRxMeta())
+
+    // Used by encoder pipeline
+    val ethernetTx = newElement(EthernetTxMeta())
+    val ipTx = newElement(IpTxMeta())
+    val oncRpcReply = newElement(OncRpcReplyTxMeta())
   }
 
   /**
-   * [[ProtoMetadata]] plus type information. Used between [[RxDecoderSink]] and [[DmaControlPlugin]].
+   * [[DecoderMetadata]] plus type information. Used between [[DecoderSink]] and [[DmaControlPlugin]].
    */
   case class PacketDesc() extends Bundle {
     override def clone = PacketDesc()
@@ -84,10 +96,9 @@ package object net {
       ret.assignDontCare()
       switch (ty) {
         import PacketDescType._
-        is (raw) { ret := 0 }
-        is (ethernet) { ret := metadata.ethernet.getPayloadSize }
-        is (ip) { ret := metadata.ip.getPayloadSize }
-        is (udp) { ret := metadata.udp.getPayloadSize }
+        is (ethernet) { ret := metadata.ethernetRx.getPayloadSize }
+        is (ip) { ret := metadata.ipRx.getPayloadSize }
+        is (udp) { ret := metadata.udpRx.getPayloadSize }
         is (oncRpcCall) { ret := metadata.oncRpcCall.getPayloadSize }
         default { report("packet desc type not supported yet", FAILURE) }
       }
@@ -101,9 +112,9 @@ package object net {
       val ret = CombInit(B(0, BYPASS_HDR_WIDTH bits))
       switch (ty) {
         import PacketDescType._
-        is (ethernet) { ret := metadata.ethernet.collectHeaders.resized }
-        is (ip) { ret := metadata.ip.collectHeaders.resized }
-        is (udp) { ret := metadata.udp.collectHeaders.resized }
+        is (ethernet) { ret := metadata.ethernetRx.collectHeaders.resized }
+        is (ip) { ret := metadata.ipRx.collectHeaders.resized }
+        is (udp) { ret := metadata.udpRx.collectHeaders.resized }
         default {
           // only decoders with downstream decoders can be passed to host as bypass
           report("RX packet on bypass interface has unsupported type", FAILURE)
@@ -115,18 +126,17 @@ package object net {
     /**
       * Take header bits in [[HostReqBypassHeaders]] passed by host and fill out relevant fields in this
       * [[PacketDesc]].  Called by [[DmaControlPlugin]] to pass an outgoing packet on the bypass interface to the
-      * encoder pipeline [[TxEncoderSource]].
+      * encoder pipeline [[EncoderSource]].
       */
     def fromHeaders(bypassMeta: HostReqBypassHeaders): Unit = {
       ty := bypassMeta.ty
       switch (bypassMeta.ty) {
         import PacketDescType._
-        is (raw) { metadata.assignDontCare() }
-        is (ethernet) { metadata.ethernet.assignFromHdrBits(bypassMeta.hdr) }
-        is (ip) { metadata.ip.assignFromHdrBits(bypassMeta.hdr) }
-        is (udp) { metadata.udp.assignFromHdrBits(bypassMeta.hdr) }
+        is (ethernet) { metadata.ethernetTx.assignFromBits(bypassMeta.hdr) }
+        is (ip) { metadata.ipTx.assignFromBits(bypassMeta.hdr) }
+        // is (udp) { metadata.udpTx.assignFromHdrBits(bypassMeta.hdr) }
         default {
-          report("RPC requests should not be sent as bypass", FAILURE)
+          report("Attempting to send unsupported protocol in bypass", FAILURE)
         }
       }
     }

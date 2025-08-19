@@ -2,7 +2,7 @@ package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.host.{DatapathService, HostReq, HostReqData, HostReqType}
-import lauberhorn.net.{PacketDesc, PacketDescType, RxDecoderSink}
+import lauberhorn.net.{PacketDesc, PacketDescType, DecoderSink}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -77,7 +77,7 @@ class DmaControlPlugin extends FiberPlugin {
       val io = instance.io
     }
 
-    /** Decoded packet descriptors from [[RxDecoderSink]] */
+    /** Decoded packet descriptors from [[DecoderSink]] */
     val requestDesc, bypassDesc = Stream(PacketDesc())
 
     val incomingDesc = Stream(RxPacketDescWithSource())

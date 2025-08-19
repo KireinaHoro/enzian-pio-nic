@@ -4,7 +4,7 @@ import jsteward.blocks.eci._
 import jsteward.blocks.axi._
 import jsteward.blocks.misc._
 import lauberhorn._
-import lauberhorn.net.{ProtoDecoder, RxDecoderSink}
+import lauberhorn.net.{Decoder, DecoderSink}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.StreamPipe.FULL
@@ -12,6 +12,7 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import Global._
+import lauberhorn.net.ip.IpEncoder
 import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -99,8 +100,11 @@ class EciInterfacePlugin extends FiberPlugin {
     }
 
     drive(host[MacInterfaceService].driveControl, "macIf")
-    drive(host[RxDecoderSink].driveControl, "decoderSink")
-    host.list[ProtoDecoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
+    drive(host[DecoderSink].driveControl, "decoderSink")
+    host.list[Decoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
+
+    drive(host[IpEncoder].driveControl, "IpEncoder")
+
     drive(host[ProfilerPlugin].logic.driveControl, "profiler")
     drive(host[Scheduler].driveControl, "sched")
     drive(host[DmaControlPlugin].logic.driveControl, "dma")

@@ -6,7 +6,7 @@ import lauberhorn.host.eci._
 import lauberhorn.host.pcie._
 import lauberhorn.net._
 import lauberhorn.net.ethernet.{EthernetDecoder, EthernetEncoder}
-import lauberhorn.net.ip.IpDecoder
+import lauberhorn.net.ip.{IpDecoder, IpEncoder}
 import lauberhorn.net.oncrpc.OncRpcCallDecoder
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
@@ -21,16 +21,20 @@ object GenEngineVerilog {
       new PatchSignalNames,
       new DebugPlugin,
       new ProfilerPlugin,
+
       // packet decoder pipeline
       new XilinxCmacPlugin,
       new EthernetDecoder,
       new IpDecoder,
       new UdpDecoder,
       new OncRpcCallDecoder,
-      new RxDecoderSink,
+      new DecoderSink,
+
       // packet encoder pipeline
       new EthernetEncoder,
-      new TxEncoderSource,
+      new IpEncoder,
+      new EncoderSource,
+
       // scheduler
       new Scheduler,
       // packet buffer & dma control

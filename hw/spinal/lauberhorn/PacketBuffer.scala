@@ -3,7 +3,7 @@ package lauberhorn
 import jsteward.blocks.axi._
 import lauberhorn.Global._
 import lauberhorn.host._
-import lauberhorn.net.{RxDecoderSinkService, TxEncoderSourceService}
+import lauberhorn.net.{DecoderSinkService, EncoderSourceService}
 import spinal.core._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.misc.plugin.FiberPlugin
@@ -54,12 +54,12 @@ class PacketBuffer extends FiberPlugin {
     val axiDma = new AxiDma(dmaConfig)
 
     // TX data goes to encoder pipeline
-    axiDma.m_axis_read_data >> host[TxEncoderSourceService].packetSource
+    axiDma.m_axis_read_data >> host[EncoderSourceService].packetSource
 
     // RX data from the streaming-mode decoder pipeline
     // may contain gaps at the beginning, align first
     val aligner = AxiStreamAligner(dmaConfig.axisConfig)
-    host[RxDecoderSinkService].packetSink >> aligner.io.input
+    host[DecoderSinkService].packetSink >> aligner.io.input
     axiDma.s_axis_write_data <-/< aligner.io.output
 
     axiDma.io.read_enable := True

@@ -20,7 +20,7 @@ case class OncRpcCallLookupUserData() extends Bundle {
   val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
 }
 
-class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
+class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
   lazy val macIf = host[MacInterfaceService]
 
   // FIXME: can we fit more?
@@ -61,7 +61,7 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
   }
 
   val logic = during setup new Area {
-    val udpHeader = Stream(UdpMetadata())
+    val udpHeader = Stream(UdpRxMeta())
     val udpPayload = Axi4Stream(macIf.axisConfig)
 
     // we then try to match against a registered service
@@ -77,10 +77,10 @@ class OncRpcCallDecoder extends ProtoDecoder[OncRpcCallMetadata] {
     }
 
     // matcher for decode attempts: is the incoming packet on a port we are listening to?
-    from[UdpMetadata, UdpDecoder](_.nextProto === UdpNextProto.oncRpcCall, udpHeader, udpPayload)
+    from[UdpRxMeta, UdpDecoder](_.nextProto === UdpNextProto.oncRpcCall, udpHeader, udpPayload)
 
     val payload = Axi4Stream(macIf.axisConfig)
-    val metadata = Stream(OncRpcCallMetadata())
+    val metadata = Stream(OncRpcCallRxMeta())
 
     // we do not invoke produce: there should be no downstream decoders
     produceFinal(metadata, payload)

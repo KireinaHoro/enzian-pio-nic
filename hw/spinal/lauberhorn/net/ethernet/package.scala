@@ -13,8 +13,8 @@ package object ethernet {
     val etherType = Bits(16 bits)
   }
 
-  case class EthernetMetadata() extends Bundle with ProtoMetadata {
-    override def clone = EthernetMetadata()
+  case class EthernetRxMeta() extends Bundle with DecoderMetadata {
+    override def clone = EthernetRxMeta()
 
     val frameLen = PacketLength()
     val hdr = EthernetHeader()
@@ -22,13 +22,17 @@ package object ethernet {
     def getType = PacketDescType.ethernet
     def getPayloadSize: UInt = frameLen.bits - hdr.getBitsWidth / 8
     def collectHeaders: Bits = hdr.asBits
-    def assignFromHdrBits(b: Bits): Unit = {
-      hdr.assignFromBits(b(hdr.getBitsWidth-1 downto 0))
-    }
     def asUnion: PacketDescData = {
       val ret = PacketDescData().assignDontCare()
-      ret.ethernet.get := this
+      ret.ethernetRx.get := this
       ret
     }
+  }
+
+  case class EthernetTxMeta() extends Bundle with EncoderMetadata {
+    val dst = Bits(48 bits)
+    val etherType = Bits(16 bits)
+
+    def getType = PacketDescType.ethernet
   }
 }
