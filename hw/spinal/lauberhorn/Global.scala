@@ -14,6 +14,7 @@ object Global extends AreaRoot {
   val NUM_WORKER_CORES = value[Int]
   val MAX_CORE_ID = value[Int]
 
+  val NUM_NEIGHBOR_ENTRIES = value[Int]
   val NUM_LISTEN_PORTS = value[Int]
   val NUM_SERVICES = value[Int]
   val NUM_PROCS = value[Int]
@@ -114,6 +115,7 @@ object Global extends AreaRoot {
 
     REG_WIDTH.set(64)
     PID_WIDTH.set(16)
+    NUM_NEIGHBOR_ENTRIES.set(32)
     NUM_LISTEN_PORTS.set(16)
     NUM_SERVICES.set(256)
     NUM_PROCS.set(32)

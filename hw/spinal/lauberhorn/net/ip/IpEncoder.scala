@@ -1,6 +1,8 @@
 package lauberhorn.net.ip
 
 import jsteward.blocks.axi.AxiStreamInjectHeader
+import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
+import lauberhorn.Global.{NUM_NEIGHBOR_ENTRIES, REG_WIDTH}
 import lauberhorn.MacInterfaceService
 import spinal.core._
 import spinal.lib._
@@ -8,6 +10,7 @@ import lauberhorn.net.Encoder
 import lauberhorn.net.ethernet.{EthernetEncoder, EthernetRxMeta, EthernetTxMeta}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
+import spinal.lib.bus.regif.AccessType
 import spinal.lib.fsm._
 
 import scala.language.postfixOps
@@ -15,45 +18,106 @@ import scala.language.postfixOps
 class IpEncoder extends Encoder[IpTxMeta] {
   def getMetadata: IpTxMeta = IpTxMeta()
 
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+
+    logic.neighborDb.update.setIdle()
+    logic.neighborDb.update.value.elements.foreach { case (name, field) =>
+      busCtrl.drive(field, alloc("ctrl", s"neigh_$name", attr = AccessType.WO))
+    }
+
+    val idxAddr = alloc("ctrl", "neigh_idx", attr = AccessType.WO)
+    busCtrl.write(logic.neighborDb.update.idx, idxAddr)
+    busCtrl.onWrite(idxAddr) {
+      logic.neighborDb.update.valid := True
+    }
+
+    busCtrl.read(logic.dropped.value, alloc("stat", "dropped", attr = AccessType.RO))
+  }
+
   lazy val axisConfig = host[MacInterfaceService].axisConfig
 
   val logic = during setup new Area {
     val md = Stream(IpTxMeta())
     val pld = Axi4Stream(axisConfig)
 
+    val outMd = Stream(EthernetTxMeta())
+    val outPld = Axi4Stream(axisConfig)
+    to[EthernetTxMeta, EthernetEncoder](outMd, outPld)
+    outMd.setIdle()
+
     awaitBuild()
 
     collectInto(md, pld, acceptHostPackets = true)
-    md.setBlocked()
     pld.setBlocked()
 
     // FIXME: does not support IP options yet
     val encoder = AxiStreamInjectHeader(axisConfig, IpHeader().getBitsWidth / 8)
     encoder.io.input.setIdle()
     encoder.io.header.setIdle()
+    encoder.io.output >> outPld
 
-    // The previous stage can be:
-    //  - from the CPU over bypass
-    //  - from another encoder stage (e.g. UDP)
-    // Neither will supply us with information on Ethernet (i.e. ethMeta is empty).
     // We look up the destination MAC address from our neighbor table.
-    val outMd = Stream(EthernetTxMeta())
-    to[EthernetTxMeta, EthernetEncoder](outMd, encoder.io.output)
-    outMd.setIdle()
+    // Neighbor table entries are in Big Endian
+    val neighborDb = LookupTable(IpNeighborDef(), NUM_NEIGHBOR_ENTRIES) { v =>
+      v.valid init False
+    }
 
-    // XXX: We don't implement ARP in hardware; the host is expected to populate
-    //      the neighbor table in software.
-    //      Packet will be dropped if an entry is not found in the neighbor table
+    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), NoData()) { (v, q, _) =>
+      v.valid && v.ipAddr === q
+    }
+    neighResult.setBlocked()
+    val destMac = Reg(Bits(48 bits))
+
+    md.translateInto(neighLookup) { case (lk, md) =>
+      lk.query := md.daddr
+    }
+
+    // upstream expected to fill out:
+    // - destination address
+    // - protocol of payload
+    val savedIpHdr = Reg(IpHeader())
+    when (md.fire) {
+      savedIpHdr.daddr := md.daddr
+      savedIpHdr.saddr := host[IpDecoder].logic.ipAddress
+
+      savedIpHdr.proto := md.proto
+
+      // we only send 20-byte headers
+      savedIpHdr.len := EndiannessSwap(md.pldLen + 20).asBits
+      savedIpHdr.ihl := 5
+
+      savedIpHdr.version := 4
+      savedIpHdr.tos := 0
+
+      // we do not implement fragmentation
+      savedIpHdr.id := 0
+      savedIpHdr.offset := 0
+      savedIpHdr.flags := B("010") // DF
+
+      savedIpHdr.ttl := 64
+      savedIpHdr.setCsum()
+    }
+
+    // TODO: support default gateway i.e. lookup failed then send to gateway MAC address
+    // TODO: some kind of differentiation between link-local and via default gateway (via subnet mask?)
+    // val gatewayMacAddress = Reg(Bits(48 bits))
+
+    // XXX: We don't implement ARP in hardware; the bypass core is expected to populate
+    //      the neighbor table in software.  Packet will be dropped if an entry is not
+    //      found in the neighbor table
+    val dropped = Counter(REG_WIDTH bits)
+
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          md.ready := True
-          when (md.valid) {
-            when (False) {
+          neighResult.ready := True
+          when (neighResult.valid) {
+            when (neighResult.matched) {
               // IP address in neighbor table:
               // - send IP header to encoder
               // - save neighbor-lookup result
-
+              destMac := neighResult.value.macAddr
               goto(sendDownstreamMd)
             } otherwise {
               // IP address not in neighbor table:
@@ -68,6 +132,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
         whenIsActive {
           pld.ready := True
           when (pld.lastFire) {
+            dropped.increment()
             goto(idle)
           }
         }
@@ -75,7 +140,8 @@ class IpEncoder extends Encoder[IpTxMeta] {
       val sendDownstreamMd: State = new State {
         whenIsActive {
           outMd.valid := True
-          outMd.payload
+          outMd.etherType := EndiannessSwap(B("16'x0800"))
+          outMd.dst := destMac
           when (outMd.ready) {
             goto(sendEncoderHdr)
           }
@@ -83,12 +149,19 @@ class IpEncoder extends Encoder[IpTxMeta] {
       }
       val sendEncoderHdr: State = new State {
         whenIsActive {
-
+          encoder.io.header.valid := True
+          encoder.io.header.payload := savedIpHdr.asBits
+          when (encoder.io.header.ready) {
+            goto(sendEncoderPld)
+          }
         }
       }
       val sendEncoderPld: State = new State {
         whenIsActive {
-
+          pld >> encoder.io.input
+          when (pld.lastFire) {
+            goto(idle)
+          }
         }
       }
     }

@@ -82,7 +82,7 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
       metadata << descUpstreams.head
       payload << payloadUpstreams.head
     } else new Area {
-      metadata << StreamArbiterFactory(s"${getName()}_descMux").roundRobin.on(descUpstreams)
+      metadata << StreamArbiterFactory(s"${Encoder.this.getName()}_descMux").roundRobin.on(descUpstreams)
       val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
 
       axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }
