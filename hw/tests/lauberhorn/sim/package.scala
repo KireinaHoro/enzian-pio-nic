@@ -1,6 +1,7 @@
 package lauberhorn
 
 import jsteward.blocks.misc.sim._
+import org.pcap4j.core.PcapDumper
 import org.pcap4j.packet._
 import org.pcap4j.packet.namednumber._
 import org.pcap4j.util.MacAddress
@@ -182,5 +183,56 @@ package object sim {
     val expectedLen = if (payload.length < minDescLen) minDescLen else payload.length
     assert(descLen == expectedLen, s"packet length mismatch: expected $expectedLen, got $descLen")
     payload
+  }
+
+  def getIpPacket(srcIpAddr: Inet4Address, dstIpAddr: Inet4Address, srcMacAddr: MacAddress, dstMacAddr: MacAddress, pldLen: Int)
+                 (implicit dumper: PcapDumper) = {
+    val ipBuilder = (new IpV4Packet.Builder)
+      .version(IpVersion.IPV4)
+      .protocol(IpNumber.getInstance(randomExclude(0, 255)(6, 17).toByte))
+      .tos(IpV4Rfc1349Tos.newInstance(0))
+      .ttl(Random.nextInt().toByte)
+      .srcAddr(srcIpAddr)
+      .dstAddr(dstIpAddr)
+      .correctLengthAtBuild(true)
+      .correctChecksumAtBuild(true)
+      .payloadBuilder(rawPayloadBuilder(Random.nextBytes(pldLen)))
+
+    val ret = (new EthernetPacket.Builder)
+      .srcAddr(srcMacAddr)
+      .dstAddr(dstMacAddr)
+      .`type`(EtherType.IPV4)
+      .paddingAtBuild(true)
+      .payloadBuilder(ipBuilder)
+      .build()
+
+    dumper.dump(ret)
+    dumper.flush()
+
+    ret
+  }
+
+  def enzianIpMacAddrs(hostNum: Int) = {
+    val hostId = hostNum * 32 + 8
+    val ipAddr = InetAddress.getByName(s"192.168.128.$hostId").asInstanceOf[Inet4Address]
+    val macAddr = MacAddress.getByName(f"0c:53:31:03:00:$hostId%x")
+
+    (ipAddr, macAddr)
+  }
+
+  def getIpPacketToEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
+    val srcIpAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
+    val srcMacAddr = MacAddress.getByAddress(Random.nextBytes(6))
+    val (dstIpAddr, dstMacAddr) = enzianIpMacAddrs(hostNum)
+
+    getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
+  }
+
+  def getIpPacketFromEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
+    val dstIpAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
+    val dstMacAddr = MacAddress.getByAddress(Random.nextBytes(6))
+    val (srcIpAddr, srcMacAddr) = enzianIpMacAddrs(hostNum)
+
+    getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
   }
 }
