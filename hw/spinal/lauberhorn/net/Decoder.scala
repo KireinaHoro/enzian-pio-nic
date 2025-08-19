@@ -21,7 +21,7 @@ import scala.reflect.ClassTag
   *
   * @tparam T output metadata type
   */
-trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
+trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
   /**
     * Downstream decoders interfaces and their conditions to match.
     * e.g. Ip.downs = [ (Tcp, proto === 6), (Udp, proto === 17) ]
@@ -30,7 +30,7 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     */
   private val consumers = mutable.ListBuffer[(String, T => Bool, Stream[T], Axi4Stream)]()
 
-  val rxRg = during setup retains(host[RxDecoderSinkService].retainer)
+  val rxRg = during setup retains(host[DecoderSinkService].retainer)
 
   /**
     * Specify one possible upstream decoder, where this decoder takes packets from.  Can be invoked multiple times
@@ -42,13 +42,13 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     * @tparam M type of upstream packet descriptor
     * @tparam D type of upstream packet decoder
     */
-  protected def from[M <: ProtoMetadata, D <: ProtoDecoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
+  protected def from[M <: DecoderMetadata, D <: Decoder[M]: ClassTag](matcher: M => Bool, metadata: Stream[M], payload: Axi4Stream): Unit = {
     host[D].consumers.append((this.getDisplayName(), matcher, metadata, payload))
   }
 
   /**
     * Specify output of this decoder, for downstream decoders to consume.  Forks the streams for all consumers and
-    * produce a copy for bypass to the [[RxDecoderSink]].  Should only be invoked **once** in the build phase.
+    * produce a copy for bypass to the [[DecoderSink]].  Should only be invoked **once** in the build phase.
     *
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
@@ -90,18 +90,18 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
     val bypassHeader = forkedHeaders.last.throwWhen(attempted)
     val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow).pipelined(FULL)
 
-    host[RxDecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
+    host[DecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
   }
 
   /**
-    * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[RxDecoderSink]] directly.  May be
+    * Specify output of this decoder, for the host CPU to consume.  This gets fed to [[DecoderSink]] directly.  May be
     * invoked multiple times during setup phase; useful when decoder takes multiple upstreams (using [[from]]).
     *
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
     */
   protected def produceFinal(metadata: Stream[T], payload: Axi4Stream): Unit = {
-    host[RxDecoderSinkService].consume(payload, metadata) setCompositeName(this, "dispatch")
+    host[DecoderSinkService].consume(payload, metadata) setCompositeName(this, "dispatch")
   }
 
   /** Release retainer from packet dispatcher to allow it to continue elaborating */
@@ -118,5 +118,5 @@ trait ProtoDecoder[T <: ProtoMetadata] extends FiberPlugin {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit
   def decoderName: String = getClass.getSimpleName
 
-  def isPromisc: Bool = host[RxDecoderSinkService].isPromisc
+  def isPromisc: Bool = host[DecoderSinkService].isPromisc
 }

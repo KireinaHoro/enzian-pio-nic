@@ -3,7 +3,7 @@ package lauberhorn.net.ethernet
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn._
-import lauberhorn.net.ProtoDecoder
+import lauberhorn.net.Decoder
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -12,7 +12,7 @@ import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
-class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
+class EthernetDecoder extends Decoder[EthernetRxMeta] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -25,7 +25,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
 
   val logic = during setup new Area {
     private val payload = Axi4Stream(macIf.axisConfig)
-    private val metadata = Stream(EthernetMetadata())
+    private val metadata = Stream(EthernetRxMeta())
 
     // zuestoll01 FPGA MAC address: 0C:53:31:03:00:28
     // stored as Big Endian
@@ -41,7 +41,7 @@ class EthernetDecoder extends ProtoDecoder[EthernetMetadata] {
     payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       new Composite(this, "remap") {
-        val meta = EthernetMetadata()
+        val meta = EthernetRxMeta()
         meta.hdr.assignFromBits(hdr)
         meta.frameLen := macIf.frameLen
 

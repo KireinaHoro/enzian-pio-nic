@@ -1,6 +1,6 @@
 package lauberhorn.net
 
-import lauberhorn.net.ethernet.EthernetMetadata
+import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
 
 import scala.language.postfixOps
@@ -22,23 +22,18 @@ package object ip {
     val daddr = Bits(32 bits)
   }
 
-  case class IpMetadata() extends Bundle with ProtoMetadata {
-    override def clone = IpMetadata()
+  case class IpRxMeta() extends Bundle with DecoderMetadata {
+    override def clone = IpRxMeta()
 
     val hdr = IpHeader()
-    val ethMeta = EthernetMetadata()
+    val ethMeta = EthernetRxMeta()
 
     def getType = PacketDescType.ip
     def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
     def collectHeaders: Bits = hdr.asBits ## ethMeta.collectHeaders
-    def assignFromHdrBits(b: Bits): Unit = {
-      ethMeta.assignFromHdrBits(b)
-      hdr.assignFromBits(
-        b(hdr.getBitsWidth-1 + ethMeta.hdr.getBitsWidth downto ethMeta.hdr.getBitsWidth))
-    }
     def asUnion: PacketDescData = {
       val ret = PacketDescData().assignDontCare()
-      ret.ip.get := this
+      ret.ipRx.get := this
       ret
     }
   }

@@ -4,18 +4,21 @@ import jsteward.blocks.axi.AxiStreamInjectHeader
 import lauberhorn.MacInterfaceService
 import spinal.core._
 import spinal.lib._
-import lauberhorn.net.ProtoEncoder
-import lauberhorn.net.ethernet.{EthernetEncoder, EthernetMetadata}
+import lauberhorn.net.Encoder
+import lauberhorn.net.ethernet.{EthernetEncoder, EthernetRxMeta, EthernetTxMeta}
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.fsm._
 
-class IpEncoder extends ProtoEncoder[IpMetadata] {
-  def getMetadata: IpMetadata = IpMetadata()
+import scala.language.postfixOps
+
+class IpEncoder extends Encoder[IpTxMeta] {
+  def getMetadata: IpTxMeta = IpTxMeta()
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig
 
   val logic = during setup new Area {
-    val md = Stream(IpMetadata())
+    val md = Stream(IpTxMeta())
     val pld = Axi4Stream(axisConfig)
 
     awaitBuild()
@@ -34,8 +37,8 @@ class IpEncoder extends ProtoEncoder[IpMetadata] {
     //  - from another encoder stage (e.g. UDP)
     // Neither will supply us with information on Ethernet (i.e. ethMeta is empty).
     // We look up the destination MAC address from our neighbor table.
-    val outMd = Stream(EthernetMetadata())
-    to[EthernetMetadata, EthernetEncoder](outMd, encoder.io.output)
+    val outMd = Stream(EthernetTxMeta())
+    to[EthernetTxMeta, EthernetEncoder](outMd, encoder.io.output)
     outMd.setIdle()
 
     // XXX: We don't implement ARP in hardware; the host is expected to populate

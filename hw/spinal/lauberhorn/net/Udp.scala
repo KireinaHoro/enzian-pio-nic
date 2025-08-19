@@ -4,7 +4,7 @@ import jsteward.blocks.axi._
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global._
 import lauberhorn._
-import lauberhorn.net.ip.{IpDecoder, IpMetadata}
+import lauberhorn.net.ip.{IpDecoder, IpRxMeta}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -43,32 +43,27 @@ case class UdpListenDef() extends Bundle {
 
 case class UdpListenLookupUserData() extends Bundle {
   val hdr = UdpHeader()
-  val ipMeta = IpMetadata()
+  val ipMeta = IpRxMeta()
 }
 
-case class UdpMetadata() extends Bundle with ProtoMetadata {
-  override def clone = UdpMetadata()
+case class UdpRxMeta() extends Bundle with DecoderMetadata {
+  override def clone = UdpRxMeta()
 
   val nextProto = UdpNextProto()
   val hdr = UdpHeader()
-  val ipMeta = IpMetadata()
+  val ipMeta = IpRxMeta()
 
   def getType = PacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders
-  def assignFromHdrBits(b: Bits): Unit = {
-    ipMeta.assignFromHdrBits(b)
-    hdr.assignFromBits(
-      b(hdr.getBitsWidth-1 + ipMeta.hdr.getBitsWidth downto ipMeta.hdr.getBitsWidth))
-  }
   def asUnion: PacketDescData = {
     val ret = PacketDescData().assignDontCare()
-    ret.udp.get := this
+    ret.udpRx.get := this
     ret
   }
 }
 
-class UdpDecoder extends ProtoDecoder[UdpMetadata] {
+class UdpDecoder extends Decoder[UdpRxMeta] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -115,10 +110,10 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData()) { (v, q, _) =>
       v.nextProto =/= UdpNextProto.disabled && v.port === q
     }
-    val ipHeader = Stream(IpMetadata())
+    val ipHeader = Stream(IpRxMeta())
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
-    from[IpMetadata, IpDecoder](
+    from[IpRxMeta, IpDecoder](
       _.hdr.proto === B("8'x11"), // 17 for UDP
       ipHeader, ipPayload
     )
@@ -126,7 +121,7 @@ class UdpDecoder extends ProtoDecoder[UdpMetadata] {
     awaitBuild()
 
     val payload = Axi4Stream(macIf.axisConfig)
-    val metadata = Stream(UdpMetadata())
+    val metadata = Stream(UdpRxMeta())
     produce(metadata, payload)
     produceDone()
 

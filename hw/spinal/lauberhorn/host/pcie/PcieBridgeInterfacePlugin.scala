@@ -3,7 +3,7 @@ package lauberhorn.host.pcie
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegAllocatorFactory.allocToGeneric
 import lauberhorn._
-import lauberhorn.net.ProtoDecoder
+import lauberhorn.net.Decoder
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -55,7 +55,7 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
     }
 
     // control for the decoders
-    // host.list[ProtoDecoder[_]].foreach(_.driveControl(busCtrl, alloc))
+    // host.list[Decoder[_]].foreach(_.driveControl(busCtrl, alloc))
     // host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc)
     // host[Scheduler].driveControl(busCtrl, alloc)
     // host[Scheduler].reportStatistics(busCtrl, alloc)

@@ -5,7 +5,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.misc.plugin.FiberPlugin
 
 /**
-  * Base class of modules that hold state for one protocol.  The respective [[ProtoDecoder]] and [[ProtoEncoder]]
+  * Base class of modules that hold state for one protocol.  The respective [[Decoder]] and [[Encoder]]
   * will consult this module for states.  Examples:
   *
   * - Statistics (packet count, etc.)

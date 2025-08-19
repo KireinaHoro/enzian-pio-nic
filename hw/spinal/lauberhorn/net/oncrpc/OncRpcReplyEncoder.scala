@@ -1,7 +1,7 @@
 package lauberhorn.net.oncrpc
 
-import lauberhorn.net.ProtoEncoder
+import lauberhorn.net.Encoder
 
-class OncRpcReplyEncoder extends ProtoEncoder[OncRpcReplyMetadata] {
+class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
   def getMetadata = ???
 }

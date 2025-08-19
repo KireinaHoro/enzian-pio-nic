@@ -3,8 +3,8 @@ package lauberhorn.net.ip
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn._
-import lauberhorn.net.ethernet.{EthernetDecoder, EthernetMetadata}
-import lauberhorn.net.ProtoDecoder
+import lauberhorn.net.ethernet.{EthernetDecoder, EthernetRxMeta}
+import lauberhorn.net.Decoder
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -13,7 +13,7 @@ import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
 
-class IpDecoder extends ProtoDecoder[IpMetadata] {
+class IpDecoder extends Decoder[IpRxMeta] {
   lazy val macIf = host[MacInterfaceService]
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -26,14 +26,14 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
   }
 
   val logic = during setup new Area {
-    val ethernetHeader = Stream(EthernetMetadata())
+    val ethernetHeader = Stream(EthernetRxMeta())
     val ethernetPayload = Axi4Stream(macIf.axisConfig)
 
     // 192.168.128.40; changed at runtime
     // stored as Big Endian
     val ipAddress = Reg(Bits(32 bits)) init EndiannessSwap(B("32'xc0_a8_80_28"))
 
-    from[EthernetMetadata, EthernetDecoder](
+    from[EthernetRxMeta, EthernetDecoder](
       _.hdr.etherType === EndiannessSwap(B("16'x0800")),
       ethernetHeader, ethernetPayload
     )
@@ -41,7 +41,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     awaitBuild()
 
     val payload = Axi4Stream(macIf.axisConfig)
-    val metadata = Stream(IpMetadata())
+    val metadata = Stream(IpRxMeta())
     produce(metadata, payload)
     produceDone()
 
@@ -58,7 +58,7 @@ class IpDecoder extends ProtoDecoder[IpMetadata] {
     ethernetPayload >> decoder.io.input
     payload << decoder.io.output.throwFrameWhen(dropFlow)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
-      val meta = IpMetadata()
+      val meta = IpRxMeta()
       meta.hdr.assignFromBits(hdr)
       meta.ethMeta := lastEthMeta
 

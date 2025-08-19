@@ -6,7 +6,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
 import lauberhorn.Global._
-import lauberhorn.net.oncrpc.OncRpcCallMetadata
+import lauberhorn.net.oncrpc.OncRpcCallRxMeta
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
@@ -50,7 +50,7 @@ object PreemptCmdType extends SpinalEnum {
   * Top class of Lauberhorn's scheduler, as a plugin.
   *
   * Takes a [[lauberhorn.host.HostReq]] from the decoding pipeline and extracts the (PID, funcPtr) pair.  Determines to
-  * which core the packet should go to based on queue occupancy.  Only supports [[OncRpcCallMetadata]] for now.  See the
+  * which core the packet should go to based on queue occupancy.  Only supports [[OncRpcCallRxMeta]] for now.  See the
   * [[https://unlimited.ethz.ch/spaces/sgnetoswiki/pages/216442761/Lauberhorn+Fast+RPC+on+Enzian#Lauberhorn(FastRPConEnzian)-(FPGA-side)schedulerarchitecture wiki page]]
   * for the detailed architecture.
   *
@@ -128,7 +128,7 @@ class Scheduler extends FiberPlugin {
   }
 
   val logic = during setup new Area {
-    /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallMetadata]] */
+    /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallRxMeta]] */
     val rxMeta = Stream(HostReq())
 
     /** Packet metadata issued to the downstream [[lauberhorn.host.DatapathPlugin]].
