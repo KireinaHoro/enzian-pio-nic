@@ -13,6 +13,7 @@ object XilinxCmacSim {
     cmacIf.cmacRxClock.forkStimulus(frequency = 250 MHz)
     cmacIf.cmacTxClock.forkStimulus(frequency = 250 MHz)
 
-    (Axi4StreamMaster(cmacIf.s_axis_rx, cmacIf.cmacRxClock), Axi4StreamSlave(cmacIf.m_axis_tx, cmacIf.cmacTxClock))
+    (Axi4StreamMaster(cmacIf.s_axis_rx, cmacIf.cmacRxClock),
+      Axi4StreamSlave(cmacIf.m_axis_tx, cmacIf.cmacTxClock, disallowGaps = true))
   }
 }

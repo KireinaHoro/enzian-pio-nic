@@ -37,7 +37,7 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
   )
 
   def rxStream = logic.rxFifo.m_axis
-  def txStream = logic.txFifo.s_axis
+  def txStream = logic.txAligner.io.input
 
   def frameLen = logic.frameLenCdc
 
@@ -50,7 +50,10 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     val m_axis_tx = master(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacTxClock)
     val s_axis_rx = slave(Axi4Stream(axisConfig)) addTag ClockDomainTag(cmacRxClock)
 
+    // Xilinx CMAC does not allow (TKEEP != 0 && !TLAST), use aligner here
+    val txAligner = AxiStreamAligner(axisConfig)
     val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(clockDomain, cmacTxClock)
+    txFifo.s_axis <-/< txAligner.io.output
     txFifo.m_axis >> m_axis_tx
 
     val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(cmacRxClock, clockDomain)
