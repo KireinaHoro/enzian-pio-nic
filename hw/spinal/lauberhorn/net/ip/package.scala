@@ -1,5 +1,6 @@
 package lauberhorn.net
 
+import jsteward.blocks.misc.RichMultiData
 import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
 import spinal.lib._
@@ -14,28 +15,25 @@ package object ip {
     val tos = Bits(8 bits)
     val len = Bits(16 bits)
     val id = Bits(16 bits)
-    val flags = Bits(3 bits)
-    val offset = Bits(13 bits)
+    val flags = Bits(16 bits)
     val ttl = Bits(8 bits)
     val proto = Bits(8 bits)
     val csum = Bits(16 bits)
     val saddr = Bits(32 bits)
     val daddr = Bits(32 bits)
 
-    def setCsum(): Unit = {
-      val hdrCsumCleared = IpHeader()
-      hdrCsumCleared := this
-      hdrCsumCleared.csum.allowOverride()
-      hdrCsumCleared.csum := 0
-
-      val words = hdrCsumCleared.asBits.subdivideIn(16 bits).map(_.asUInt)
-      val sum = words.reduceBalancedTree { (a, b) =>
+    def calcCsum(): Bits = {
+      val words = this.asBits.subdivideIn(16 bits)
+        .map { be =>
+          // SpinalHDL does all calculations in little endian
+          EndiannessSwap(be).asUInt
+        }
+      val sum = words.reduceLeft { (a, b) =>
         val noOverflow = a +^ b
         val overflow = a +^ b + 1
-        noOverflow.msb.mux(overflow, noOverflow).dropHigh(1).asUInt
+        noOverflow.msb.mux(overflow, noOverflow)(15 downto 0)
       }
-
-      csum := ~sum.asBits
+      EndiannessSwap(~sum.asBits)
     }
   }
 
