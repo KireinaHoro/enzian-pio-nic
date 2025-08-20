@@ -195,10 +195,12 @@ package object sim {
   def getIpPacket(srcIpAddr: Inet4Address, dstIpAddr: Inet4Address, srcMacAddr: MacAddress, dstMacAddr: MacAddress, pldLen: Int)
                  (implicit dumper: PcapDumper) = {
     val ipBuilder = (new IpV4Packet.Builder)
+      // fixed fields as the hardware would send
       .version(IpVersion.IPV4)
+      .ttl(64)
+      .dontFragmentFlag(true)
       .protocol(IpNumber.getInstance(randomExclude(0, 255)(6, 17).toByte))
       .tos(IpV4Rfc1349Tos.newInstance(0))
-      .ttl(Random.nextInt().toByte)
       .srcAddr(srcIpAddr)
       .dstAddr(dstIpAddr)
       .correctLengthAtBuild(true)

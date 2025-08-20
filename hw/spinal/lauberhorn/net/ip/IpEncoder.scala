@@ -76,27 +76,29 @@ class IpEncoder extends Encoder[IpTxMeta] {
     // upstream expected to fill out:
     // - destination address
     // - protocol of payload
+    val nextIpHdr = IpHeader()
+    nextIpHdr.daddr := md.daddr
+    nextIpHdr.saddr := host[IpDecoder].logic.ipAddress
+    nextIpHdr.proto := md.proto
+
+    // we only send 20-byte headers
+    nextIpHdr.len := EndiannessSwap(md.pldLen + 20).asBits
+    nextIpHdr.ihl := 5
+
+    nextIpHdr.version := 4
+    nextIpHdr.tos := 0
+
+    // we do not implement fragmentation
+    nextIpHdr.id := 0
+    nextIpHdr.flags := EndiannessSwap(B("16'x4000")) // DF, offset = 0
+
+    nextIpHdr.ttl := 64
+    nextIpHdr.csum := 0
+
     val savedIpHdr = Reg(IpHeader())
     when (md.fire) {
-      savedIpHdr.daddr := md.daddr
-      savedIpHdr.saddr := host[IpDecoder].logic.ipAddress
-
-      savedIpHdr.proto := md.proto
-
-      // we only send 20-byte headers
-      savedIpHdr.len := EndiannessSwap(md.pldLen + 20).asBits
-      savedIpHdr.ihl := 5
-
-      savedIpHdr.version := 4
-      savedIpHdr.tos := 0
-
-      // we do not implement fragmentation
-      savedIpHdr.id := 0
-      savedIpHdr.offset := 0
-      savedIpHdr.flags := B("010") // DF
-
-      savedIpHdr.ttl := 64
-      savedIpHdr.setCsum()
+      savedIpHdr.csum := nextIpHdr.calcCsum()
+      savedIpHdr.assignUnassignedByName(nextIpHdr)
     }
 
     // TODO: support default gateway i.e. lookup failed then send to gateway MAC address
