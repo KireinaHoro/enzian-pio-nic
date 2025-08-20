@@ -447,7 +447,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
       case Ip =>
         val ipPkt = packet.get(classOf[IpV4Packet])
-        val pld = ipPkt.getRawData.toList
+        val pld = ipPkt.getPayload.getRawData.toList
         val hdr = ipPkt.getHeader
         val ipDst = hdr.getDstAddr
         val desc = TxIpCmdSim(pld.length, ipDst, hdr.getProtocol.value.toInt)
