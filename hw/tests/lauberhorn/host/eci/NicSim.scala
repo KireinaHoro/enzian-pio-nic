@@ -434,7 +434,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     * Sends packet through the bypass interface, which only takes destination addresses.  Checks the output against
     * the full packet.
     */
-  def txTestSingle(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, packet: EthernetPacket, cid: Int)
+  def txTestSingle(dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, packet: EthernetPacket, cid: Int)
                   (implicit dut: NicEngine): Unit = {
     var received = false
     val ty = pcap4jPacketToType(packet)
@@ -449,7 +449,17 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         val ipPkt = packet.get(classOf[IpV4Packet])
         val pld = ipPkt.getRawData.toList
         val hdr = ipPkt.getHeader
-        val desc = TxIpCmdSim(pld.length, hdr.getDstAddr, hdr.getProtocol.value.toInt)
+        val ipDst = hdr.getDstAddr
+        val desc = TxIpCmdSim(pld.length, ipDst, hdr.getProtocol.value.toInt)
+
+        // program the correct neighbor entry
+        // XXX: this always use the first neighbor entry
+        val ethDst = packet.getHeader.getDstAddr
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), ipDst.getAddress.toList)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), ethDst.getAddress.toList)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_valid"), 1.toBytesLE)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+
         (pld, desc)
     }
 
@@ -474,48 +484,48 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // packet will be acknowledged by writing next packet
   }
 
-  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)
+  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, startSize: Int, endSize: Int, step: Int, cid: Int)
                  (implicit d: PcapDumper, dut: NicEngine) = {
     // Sweep at given range and step, send IP packets over bypass
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until Random.between(25, 50) foreach { _ =>
-        txTestSingle(dcsMaster, axisSlave, getIpPacketFromEnzian(1, size), cid)
+        txTestSingle(dcsMaster, csrMaster, axisSlave, getIpPacketFromEnzian(1, size), cid)
       }
     }
   }
 
   def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow, Tx) { implicit dut =>
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-scan-sizes-core$cid") / "packets.pcap").toString)
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-scan-sizes-core$cid") / "packets-expecting.pcap").toString)
 
-    val (_, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
-    txTestRange(axisSlave, dcsMaster, 64, 9618, 64, cid)
+    txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, cid)
   }
 
   0 until numCores foreach txScanOnCore
 
   testWithDB("tx-all-cores-serialized", Tx) { implicit dut =>
-    val (_, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-all-cores-serialized") / "packets.pcap").toString)
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-all-cores-serialized") / "packets-expecting.pcap").toString)
 
     0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
-      txTestRange(axisSlave, dcsMaster, 64, 256, 64, idx)
+      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, idx)
     }
   }
 
   testWithDB("tx-no-voluntary-inv", Tx) { implicit dut =>
-    val (_, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
 
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-no-voluntary-inv") / "packets.pcap").toString)
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-no-voluntary-inv") / "packets-expecting.pcap").toString)
 
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
 
     0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
-      txTestRange(axisSlave, dcsMaster, 64, 256, 64, idx)
+      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, idx)
     }
   }
 
