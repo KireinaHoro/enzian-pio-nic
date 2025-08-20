@@ -4,14 +4,14 @@ import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, isSorted}
-import org.pcap4j.core.Pcaps
-import org.pcap4j.packet.{EthernetPacket, IpV4Packet, IpV4Rfc1349Tos, Packet}
-import org.pcap4j.packet.namednumber.{DataLinkType, EtherType, IpNumber, IpVersion}
+import org.pcap4j.core.{PcapDumper, Pcaps}
+import org.pcap4j.packet.{EthernetPacket, IpV4Packet, Packet}
+import org.pcap4j.packet.namednumber.DataLinkType
 import org.scalatest.exceptions.TestFailedException
 import lauberhorn._
 import lauberhorn.Global._
 import lauberhorn.sim._
-import lauberhorn.sim.PacketType.PacketType
+import lauberhorn.sim.PacketType._
 import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.core.sim._
 import spinal.lib._
@@ -24,9 +24,6 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 import lauberhorn.host.eci.NicSim._
-import org.pcap4j.util.MacAddress
-
-import java.net.{Inet4Address, InetAddress}
 
 object NicSim {
   type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
@@ -433,41 +430,63 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   /** Test sending one single packet as bypass on a specific core.  Also checks if the expected packet appears on the
     * outgoing AXI-Stream interface.
+    *
+    * Sends packet through the bypass interface, which only takes destination addresses.  Checks the output against
+    * the full packet.
     */
-  def txTestSingle[T <: Packet](dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, ty: PacketType, hdr: T, pld: List[Byte], cid: Int): Unit = {
+  def txTestSingle(dcsMaster: DcsAppMaster, axisSlave: Axi4StreamSlave, packet: EthernetPacket, cid: Int)
+                  (implicit dut: NicEngine): Unit = {
     var received = false
-    val hdrBytes = if (ty == PacketType.Raw) List() else hdr.getRawData.toList
+    val ty = pcap4jPacketToType(packet)
+    val (pld, desc) = ty match {
+      case Ethernet =>
+        val pld = packet.getPayload.getRawData.toList
+        val hdr = packet.getHeader
+        val desc = TxEthernetCmdSim(pld.length, hdr.getDstAddr, hdr.getType.value.toInt)
+        (pld, desc)
+
+      case Ip =>
+        val ipPkt = packet.get(classOf[IpV4Packet])
+        val pld = ipPkt.getRawData.toList
+        val hdr = ipPkt.getHeader
+        val desc = TxIpCmdSim(pld.length, hdr.getDstAddr, hdr.getProtocol.value.toInt)
+        (pld, desc)
+    }
+
     fork {
       val data = axisSlave.recv()
-      val expected = hdrBytes ++ pld
+      val expected = packet.getRawData.toList
 
       check(expected, data)
       println(s"Core $cid: packet received from TX interface and validated")
       received = true
     }
 
-    val hdrBigInt = if (ty == PacketType.Raw) BigInt(0) else hdrBytes.bytesToBigInt
-    txSendSingle(dcsMaster, BypassCtrlInfoSim(pld.length, ty.id, hdrBigInt), pld, cid)
+    txSendSingle(dcsMaster, desc, pld, cid)
 
     println(s"Core $cid: waiting for packet")
-
+    fork {
+      sleepCycles(5000)
+      assert(received, s"Core $cid: packet receive timeout!")
+    }
     waitUntil(received)
 
     // packet will be acknowledged by writing next packet
   }
 
-  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int) = {
-    // Sweep at given range and step.  Send packet as Raw bypass
-    // TODO: test also Ethernet and other encoders
+  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, cid: Int)
+                 (implicit d: PcapDumper, dut: NicEngine) = {
+    // Sweep at given range and step, send IP packets over bypass
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until Random.between(25, 50) foreach { _ =>
-        val toSend = Random.nextBytes(size).toList
-        txTestSingle(dcsMaster, axisSlave, PacketType.Raw, null, toSend, cid)
+        txTestSingle(dcsMaster, axisSlave, getIpPacketFromEnzian(1, size), cid)
       }
     }
   }
 
   def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow, Tx) { implicit dut =>
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-scan-sizes-core$cid") / "packets.pcap").toString)
+
     val (_, axisSlave, dcsMaster) = txDutSetup()
 
     txTestRange(axisSlave, dcsMaster, 64, 9618, 64, cid)
@@ -478,6 +497,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   testWithDB("tx-all-cores-serialized", Tx) { implicit dut =>
     val (_, axisSlave, dcsMaster) = txDutSetup()
 
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-all-cores-serialized") / "packets.pcap").toString)
+
     0 until NUM_CORES foreach { idx =>
       println(s"====> Testing core $idx")
       txTestRange(axisSlave, dcsMaster, 64, 256, 64, idx)
@@ -486,6 +507,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   testWithDB("tx-no-voluntary-inv", Tx) { implicit dut =>
     val (_, axisSlave, dcsMaster) = txDutSetup()
+
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-no-voluntary-inv") / "packets.pcap").toString)
+
     dcsMaster.voluntaryInvProb = 0
     dcsMaster.doPartialWrite = false
 

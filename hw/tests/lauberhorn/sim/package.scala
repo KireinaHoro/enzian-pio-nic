@@ -17,11 +17,11 @@ package object sim {
 
   object PacketType extends Enumeration {
     type PacketType = Value
-    val Raw, Ethernet, Ip, Udp, OncRpcCall, OncRpcReply = Value
+    val Ethernet, Ip, Udp, OncRpcCall, OncRpcReply = Value
   }
   import PacketType._
 
-  // used in constructing a Pcap4j packet from a bypass RX
+  /** construct a Pcap4j packet from a bypass RX descriptor */
   def typeToPcap4jClass(packetType: PacketType): Class[_ <: Packet] = packetType match {
     case Ethernet => classOf[EthernetPacket]
     case Ip => classOf[IpV4Packet]
@@ -33,6 +33,13 @@ package object sim {
     case _ =>
       assert(false, "unexpected packet type on bypass receive" + packetType)
       ???
+  }
+
+
+  def pcap4jPacketToType(packet: EthernetPacket): PacketType = {
+    if (!packet.contains(classOf[IpV4Packet])) Ethernet
+    else if (!packet.contains(classOf[UdpPacket])) Ip
+    else Udp
   }
 
   def checkHeader(packetType: PacketType, expected: Packet, got: Packet): Unit = {

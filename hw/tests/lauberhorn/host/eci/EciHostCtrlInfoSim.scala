@@ -4,7 +4,12 @@ import lauberhorn.sim._
 import spinal.core.IntToBuilder
 import jsteward.blocks.misc.sim.{BigIntBuilder, BigIntParser, BigIntRicher}
 import lauberhorn.Global._
+import lauberhorn.sim.PacketType._
+import org.pcap4j.util.MacAddress
+import spinal.lib.BytesRicher
 import spinal.lib.misc.database.Element.toValue
+
+import java.net.Inet4Address
 
 sealed abstract class EciHostCtrlInfoSim extends HostPacketDescSim {
   def len: Int
@@ -32,7 +37,7 @@ object EciHostCtrlInfoSim {
     ty match {
       case 0 => throw new RuntimeException("error host packet desc received")
       case 1 =>
-        BypassCtrlInfoSim(
+        RxBypassCtrlInfoSim(
           len.toInt,
           dp.pop(PKT_DESC_TY_WIDTH),
           dp.pop(BYPASS_HDR_WIDTH, skip = 11))
@@ -48,7 +53,11 @@ object EciHostCtrlInfoSim {
   }
 }
 
-case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends EciHostCtrlInfoSim with BypassPacketDescSim {
+trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
+  def len: Int
+  def packetType: BigInt
+  def packetHdr: BigInt
+
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PKT_DESC_TY_WIDTH, packetType)
@@ -60,6 +69,27 @@ case class BypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) ex
     s"Bypass (packetType $packetType), $len bytes"
   }
 }
+
+case class RxBypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends BypassCtrlInfoSim
+
+case class TxEthernetCmdSim(len: Int, dst: MacAddress, proto: Int) extends BypassCtrlInfoSim {
+  def packetType = Ethernet.id
+  def packetHdr =
+    (new BigIntBuilder)
+      .push(48, dst.getAddress.toList.bytesToBigInt)
+      .push(16, proto)
+      .toBigInt
+}
+case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtrlInfoSim {
+  def packetType = Ip.id
+  def packetHdr =
+    (new BigIntBuilder)
+      .push(32, dst.getAddress.toList.bytesToBigInt)
+      .push(16, len)
+      .push(8, proto)
+      .toBigInt
+}
+
 case class OncRpcCallCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
