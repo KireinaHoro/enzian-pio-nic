@@ -53,7 +53,12 @@ resize_pblock [get_pblocks pblock_slr1] -add {CLOCKREGION_X0Y6:CLOCKREGION_X4Y8 
 create_pblock pblock_slr0
 resize_pblock [get_pblocks pblock_slr0] -add {CLOCKREGION_X0Y0:CLOCKREGION_X5Y4}
 
-set nic_engine_plock   [get_pblocks pblock_slr1]
+set nic_decoders_pblock [get_pblocks pblock_slr0]
+
+create_pblock pblock_nic_hostif
+set nic_hostif_pblock  [get_pblocks pblock_nic_hostif]
+resize_pblock $nic_hostif_pblock -add {CLOCKREGION_X0Y5:CLOCKREGION_X2Y9}
+
 set dcs_even_pblock    [get_pblocks pblock_slr2]
 set dcs_odd_pblock     [get_pblocks pblock_slr0]
 set eci_gateway_pblock [get_pblocks pblock_slr1]
@@ -63,11 +68,13 @@ add_cells_to_pblock $dcs_even_pblock [get_cells [list \
   i_app/dcs_even/i_dcs \
   i_app/dcs_even/i_app_rst_sync \
 ]]
+add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_cdc_*}]
 
 add_cells_to_pblock $dcs_odd_pblock [get_cells [list \
   i_app/dcs_odd/i_dcs \
   i_app/dcs_odd/i_app_rst_sync \
 ]]
+add_cells_to_pblock $dcs_odd_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_cdc_*}]
 
 # CDC logic belong with the gateway
 add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_*/i_chan_cdc_*}]
@@ -85,13 +92,13 @@ add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =
 
 # SI/MI constraints for pipelining reg slices between DCS and NicEngine
 add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
 add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
 
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
 
 # SI/MI constraints for pipelining AXI between DCS and NicEngine
@@ -105,16 +112,14 @@ add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter "NAME=~
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter "NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_src*   && $is_fwd"]
 add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter "NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_dest*  && $is_resp"]
 
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_dest*    && $is_fwd"]
-add_cells_to_pblock $nic_engine_plock   [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_src*     && $is_resp"]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_dest*    && $is_fwd"]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_src*     && $is_resp"]
 
-# NicEngine in a specific SLR
-# do not place the entire NicEngine, only limit important big components
-# as pipelining logic should be allowed to stretch to other SLRs
-add_cells_to_pblock $nic_engine_plock [get_cells [list \
-  i_app/NicEngine_inst/PacketBuffer_logic_aligner \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiDma \
-  i_app/NicEngine_inst/PacketBuffer_logic_axiMem \
-  i_app/nic_engine_rst_sync \
-]]
+# NicEngine
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*Decoder_logic_*"]
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/RxDecoderSink_logic_*"]
 
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/driveDcsBus_core*_*Router"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/Scheduler_logic_*"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciInterfacePlugin_logic_*"]
