@@ -854,7 +854,7 @@ port map (
 -- DCS for even VCs ie odd CL indices.
 dcs_even : entity work.dcs_cdc
 port map (
-  reset_async => reset,
+  eci_reset   => reset,
   eci_clk     => clk,
   app_clk     => app_clk,
 
@@ -966,7 +966,7 @@ port map (
 -- DCS for odd VCs ie even CL indices.
 dcs_odd : entity work.dcs_cdc
 port map (
-  reset_async => reset,
+  eci_reset   => reset,
   eci_clk     => clk,
   app_clk     => app_clk,
 
@@ -1280,12 +1280,12 @@ axil_adapter_inst : entity work.axil_adapter
   design_1_i: entity work.design_1
   PORT MAP (
     -- GT connections
-    gt_grx_n => F_MAC1_RX_N,
-    gt_grx_p => F_MAC1_RX_P,
-    gt_gtx_n => F_MAC1_TX_N,
-    gt_gtx_p => F_MAC1_TX_P,
-    gt_ref_clk_clk_n => F_MAC1C_CLK_N,
-    gt_ref_clk_clk_p => F_MAC1C_CLK_P,
+    gt_grx_n => F_MAC0_RX_N,
+    gt_grx_p => F_MAC0_RX_P,
+    gt_gtx_n => F_MAC0_TX_N,
+    gt_gtx_p => F_MAC0_TX_P,
+    gt_ref_clk_clk_n => F_MAC0C_CLK_N,
+    gt_ref_clk_clk_p => F_MAC0C_CLK_P,
 
     -- clocking & reset
     clk_io => clk_io,
@@ -1489,48 +1489,5 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rdata => nic_engine_axil.rdata,
     s_axil_ctrl_rresp => nic_engine_axil.rresp
   );
-
-i_ila_eci_chans_arb : entity work.ila_eci_chans_arb
-port map (
-    clk            => clk,
-
-    probe0(0)      => link_eci_packet_rx.c7_gsync.valid,
-    probe1(0)      => link_eci_packet_rx.c6_gsync.valid,
-    probe2(0)      => link_eci_packet_rx.ginv.valid,
-    probe3(0)      => link_eci_packet_rx.dcs_c7.valid,
-    probe4(0)      => link_eci_packet_rx.dcs_c6.valid,
-    probe5(0)      => link_eci_packet_rx.dcs_c11.valid,
-    probe6(0)      => link_eci_packet_rx.dcs_c10.valid,
-    probe7(0)      => link_eci_packet_rx.dcs_c5.valid,
-    probe8(0)      => link_eci_packet_rx.dcs_c4.valid,
-
-    probe9(0)      => link_eci_packet_rx.c7_gsync_ready,
-    probe10(0)     => link_eci_packet_rx.c6_gsync_ready,
-    probe11(0)     => '1',
-    probe12(0)     => link_eci_packet_rx.dcs_c7_ready,
-    probe13(0)     => link_eci_packet_rx.dcs_c6_ready,
-    probe14(0)     => link_eci_packet_rx.dcs_c11_ready,
-    probe15(0)     => link_eci_packet_rx.dcs_c10_ready,
-    probe16(0)     => link_eci_packet_rx.dcs_c5_ready,
-    probe17(0)     => link_eci_packet_rx.dcs_c4_ready,
-
-    probe18(0)     => link_eci_packet_tx.c11_gsync.valid,
-    probe19(0)     => link_eci_packet_tx.c10_gsync.valid,
-    probe20(0)     => link_eci_packet_tx.dcs_c11.valid,
-    probe21(0)     => link_eci_packet_tx.dcs_c5.valid,
-    probe22(0)     => link_eci_packet_tx.dcs_c10.valid,
-    probe23(0)     => link_eci_packet_tx.dcs_c4.valid,
-    probe24(0)     => link_eci_packet_tx.dcs_c8.valid,
-    probe25(0)     => link_eci_packet_tx.dcs_c9.valid,
-
-    probe26(0)     => link_eci_packet_tx.c11_gsync_ready,
-    probe27(0)     => link_eci_packet_tx.c10_gsync_ready,
-    probe28(0)     => link_eci_packet_tx.dcs_c11_ready,
-    probe29(0)     => link_eci_packet_tx.dcs_c5_ready,
-    probe30(0)     => link_eci_packet_tx.dcs_c10_ready,
-    probe31(0)     => link_eci_packet_tx.dcs_c4_ready,
-    probe32(0)     => link_eci_packet_tx.dcs_c8_ready,
-    probe33(0)     => link_eci_packet_tx.dcs_c9_ready
-);
 
 end Behavioral;
