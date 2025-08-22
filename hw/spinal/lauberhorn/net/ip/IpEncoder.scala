@@ -63,7 +63,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
       v.valid init False
     }
 
-    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), NoData()) { (v, q, _) =>
+    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), NoData(), singleMatch = true) { (v, q, _) =>
       v.valid && v.ipAddr === q
     }
     neighResult.setBlocked()
