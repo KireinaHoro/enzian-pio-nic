@@ -9,21 +9,22 @@ import spinal.core._
 import scala.language.postfixOps
 
 /**
- * Control info struct sent to the CPU in cache-line reloads for RX packets,
- * as well as struct received from the CPU for TX packets.
- *
- * This is separate from the rest of the data inside packet buffer because:
- * - it is expensive to enable unaligned access for the AXI DMA engine
- * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
- *
- * We repack [[lauberhorn.HostPacketDesc]] to save space and also align things nicer for CPU.
- *
- * We need the length field here:
- * - for TX, to know how many cache-lines we should invalidate for TX
- * - for TX, to fetch exactly what's needed from the packet buffer with the AXI DMA
- * - for RX, to know how many bytes we should read for bypass packets
- * - for RX, to check if we got a too-short RPC call request
- */
+  * Control info struct sent to the CPU in cache-line reloads for RX packets,
+  * as well as struct received from the CPU for TX packets.
+  *
+  * This is separate from the rest of the data inside the packet buffer because:
+  * - it is expensive to enable unaligned access for the AXI DMA engine
+  * - we don't want to pack metadata into the packet buffer SRAM, due to lack of write port
+  *
+  * We repack [[HostReq]] to save space by dropping fields the host won't need.  We
+  * also add padding to align things nicer for CPU.
+  *
+  * We need the length field here:
+  * - for TX, to know how many cache-lines we should invalidate for TX
+  * - for TX, to fetch exactly what's needed from the packet buffer with the AXI DMA
+  * - for RX, to know how many bytes we should read for bypass packets
+  * - for RX, to check if we got a too-short RPC call request
+  */
 case class EciHostCtrlInfo() extends Bundle {
   override def clone: EciHostCtrlInfo = EciHostCtrlInfo()
 
@@ -38,14 +39,23 @@ case class EciHostCtrlInfo() extends Bundle {
     }
     val bypass = newElement(BypassBundle())
 
-    case class OncRpcCallBundle() extends Bundle {
+    /** Shared by two types of ONC-RPC flows:
+      *  - receiving an RPC call
+      *  - sending an RPC reply
+      *
+      * This is the ECI-specific version of [[lauberhorn.host.HostReqOncRpcServer]].
+      */
+    case class OncRpcServerBundle() extends Bundle {
       val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
-      val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
+      val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
-    val oncRpcCall = newElement(OncRpcCallBundle())
+    val oncRpcServer = newElement(OncRpcServerBundle())
 
+    // TODO: client bundles for sending a nested call and receiving a reply
+
+    /** ECI-specific version of [[lauberhorn.host.HostReqArpRequest]]. */
     case class ArpReqBundle() extends Bundle {
       val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 25) = 5b
       val xb7 = Bits(7 bits) /* make sure IP addr is aligned */       // [25: 32) = 7b
@@ -54,6 +64,7 @@ case class EciHostCtrlInfo() extends Bundle {
     val arpReq = newElement(ArpReqBundle())
   }
 
+  /** Convert a [[EciHostCtrlInfo]] to a [[HostReq]], to send out to the encoder pipeline */
   def unpackTo(desc: HostReq, addr: PacketAddr) = {
     desc.ty := ty
     desc.data.assignDontCare()
@@ -61,8 +72,8 @@ case class EciHostCtrlInfo() extends Bundle {
       is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
       }
-      is (HostReqType.oncRpcCall) {
-        desc.data.oncRpcCall.assignSomeByName(data.oncRpcCall)
+      is (HostReqType.oncRpcReply) {
+        desc.data.oncRpcServer.assignSomeByName(data.oncRpcServer)
       }
     }
     desc.buffer.addr := addr
@@ -100,7 +111,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |};
          |
-         |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "ECI Host Control Info (ONC-RPC Call)" {
+         |datatype host_ctrl_info_onc_rpc_server lsbfirst(64) "ECI Host Control Info (ONC-RPC Direct Call / Reply)" {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
@@ -144,6 +155,7 @@ case class EciHostCtrlInfo() extends Bundle {
 }
 
 object EciHostCtrlInfo {
+  /** Convert a [[HostReq]] from the decoder pipeline into a [[EciHostCtrlInfo]] to send to a CPU core */
   def packFrom(desc: HostReq) = new Area {
     val ret = EciHostCtrlInfo()
     ret.ty := desc.ty
@@ -154,8 +166,8 @@ object EciHostCtrlInfo {
         ret.data.bypass.xb9 := 0
       }
       is (HostReqType.oncRpcCall) {
-        ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
-        ret.data.oncRpcCall.xb12 := 0
+        ret.data.oncRpcServer.assignSomeByName(desc.data.oncRpcServer)
+        ret.data.oncRpcServer.xb12 := 0
       }
       is (HostReqType.arpReq) {
         ret.data.arpReq.assignSomeByName(desc.data.arpReq)

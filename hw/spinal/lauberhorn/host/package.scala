@@ -25,18 +25,26 @@ package object host {
     }
   }
 
-  case class HostReqOncRpcCall() extends Bundle {
+  /** Passed to host on an incoming ONC-RPC call.   Also used to encode the reply. */
+  case class HostReqOncRpcServer() extends Bundle {
     val funcPtr = Bits(64 bits)
     val pid = PID()
     val xid = Bits(32 bits)
-    val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
+    val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   }
 
+  // TODO: client bundles for sending a nested call and receiving a reply
+
+  /** Received by host for bypass packets.  Also used for sending bypass packets; when used
+    * for sending, [[hdr]] encodes a command to the selected decoder that will get translated
+    * into the respective [[lauberhorn.net.EncoderMetadata]] (by [[lauberhorn.net.PacketDesc.fromHeaders]]).
+    */
   case class HostReqBypassHeaders() extends Bundle {
     val ty = PacketDescType()
     val hdr = Bits(BYPASS_HDR_WIDTH bits)
   }
 
+  /** Passed to host when the encoder pipeline had a miss in neighbor cache lookup. */
   case class HostReqArpRequest() extends Bundle {
     val ipAddr = Bits(32 bits)
     val neighTblIdx = UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits)
@@ -44,7 +52,7 @@ package object host {
 
   case class HostReqData() extends Union {
     val bypassMeta = newElement(HostReqBypassHeaders())
-    val oncRpcCall = newElement(HostReqOncRpcCall())
+    val oncRpcServer = newElement(HostReqOncRpcServer())
     val arpReq = newElement(HostReqArpRequest())
   }
 
