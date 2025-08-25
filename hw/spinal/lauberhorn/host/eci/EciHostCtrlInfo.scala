@@ -27,24 +27,31 @@ import scala.language.postfixOps
 case class EciHostCtrlInfo() extends Bundle {
   override def clone: EciHostCtrlInfo = EciHostCtrlInfo()
 
-  // reserve one bit for valid in readStream
-  val ty = HostReqType() // 2b
-  val len = PacketLength() // 16b
+  /* reserve one bit for valid in readStream */                       // [0 : 1)  = 1b
+  val ty = HostReqType()           // [1 : 4)  = 3b
+  val len = PacketLength()                                            // [4 : 20) = 16b
   val data = new Union {
     case class BypassBundle() extends Bundle {
-      val ty = PacketDescType() // 2b
-      val xb11 = Bits(11 bits) // make sure header is word aligned
+      val ty = PacketDescType() // [20: 23) = 3b
+      val xb9 = Bits(9 bits) /* make sure header is word aligned */   // [23: 32) = 9b
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
 
     case class OncRpcCallBundle() extends Bundle {
-      val xb13 = Bits(13 bits)
+      val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
     val oncRpcCall = newElement(OncRpcCallBundle())
+
+    case class ArpReqBundle() extends Bundle {
+      val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 25) = 5b
+      val xb7 = Bits(7 bits) /* make sure IP addr is aligned */       // [25: 32) = 7b
+      val ipAddr = Bits(32 bits)
+    }
+    val arpReq = newElement(ArpReqBundle())
   }
 
   def unpackTo(desc: HostReq, addr: PacketAddr) = {
@@ -79,7 +86,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  valid 1 "RX descriptor valid (rsvd for TX)";
          |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
          |  len   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  _     13 rsvd;
+         |  _     12 rsvd;
          |};
          |
          |datatype host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
@@ -87,7 +94,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        10 rsvd;
+         |  _        9 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
@@ -97,7 +104,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  _         13 rsvd;
+         |  _         12 rsvd;
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
@@ -106,6 +113,15 @@ case class EciHostCtrlInfo() extends Bundle {
          |  // - as an array, so Mackerel would emit access functions
          |};
          |
+         |datatype host_ctrl_info_arp_req lsbfirst(64) "ECI Host Control Info (ARP Request for bypass core)" {
+         |  valid     1 "RX descriptor valid (rsvd for TX)";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be arp_req)";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  tbl_idx   ${log2Up(NUM_NEIGHBOR_ENTRIES)} "Index of INCOMPLETE entry in neighbor table";
+         |  _         7 rsvd;
+         |  ip_addr   32 "IP address of the target host";
+         |}
+         |
          |// TODO: separate datatype for making a nested RPC call (progNum, ver...)?
          |
          |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
@@ -113,7 +129,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  _         13 rsvd;
+         |  _         12 rsvd;
          |  // buffer follows
          |  // TODO: for now, reply software-serialized data...
          |};
@@ -135,11 +151,15 @@ object EciHostCtrlInfo {
     switch (desc.ty) {
       is (HostReqType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
-        ret.data.bypass.xb11 := 0
+        ret.data.bypass.xb9 := 0
       }
       is (HostReqType.oncRpcCall) {
         ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCall)
-        ret.data.oncRpcCall.xb13 := 0
+        ret.data.oncRpcCall.xb12 := 0
+      }
+      is (HostReqType.arpReq) {
+        ret.data.arpReq.assignSomeByName(desc.data.arpReq)
+        ret.data.arpReq.xb7 := 0
       }
     }
     ret.len := desc.buffer.size
