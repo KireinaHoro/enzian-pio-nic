@@ -61,9 +61,15 @@ package object ip {
     def getType = PacketDescType.ip
   }
 
+  object IpNeighborEntryState extends SpinalEnum {
+    // mirrors the Linux NUD (Neighbor Unreachability Detection) states
+    // timer-based states (e.g. stale, delay, probe) are kept on the host by the bypass core
+    val none, incomplete, reachable = newElement()
+  }
+
   case class IpNeighborDef() extends Bundle {
     val ipAddr = Bits(32 bits)
     val macAddr = Bits(48 bits)
-    val valid = Bool()
+    val state = IpNeighborEntryState()
   }
 }

@@ -1,8 +1,8 @@
 package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.host.{DatapathService, HostReq, HostReqData, HostReqType}
-import lauberhorn.net.{PacketDesc, PacketDescType, DecoderSink}
+import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType}
+import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -55,7 +55,7 @@ class DmaControlPlugin extends FiberPlugin {
   /** Access points for downstream/upstream [[HostReq]] instances.
     *
     * For RX, translated [[HostReq]] goes to:
-    *  - for bypass descriptors: [[bypassDp]]
+    *  - for bypass descriptors: [[BypassCmdSink]]
     *  - for request descriptors: [[Scheduler]]
     *
     * Freed packet buffers are directly collected from all [[DatapathService]].
@@ -63,9 +63,9 @@ class DmaControlPlugin extends FiberPlugin {
     * For TX, [[HostReq]] comes from all [[DatapathService]] i.e. [[dps]].
     */
   lazy val dps = host.list[DatapathService]
-  lazy val bypassDp = dps.head
   lazy val sched = host[Scheduler]
 
+  val bypassSink = during setup host[BypassCmdSink].getSink()
   val logic = during build new Area {
     val dmaConfig = pktBuf.dmaConfig
 
@@ -117,7 +117,7 @@ class DmaControlPlugin extends FiberPlugin {
     rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
     rxAlloc.io.allocResp.setBlocked()
 
-    bypassDp.hostRx.setIdle()
+    bypassSink.setIdle()
     sched.logic.rxMeta.setIdle()
 
     outgoingDesc.setIdle()
@@ -222,7 +222,7 @@ class DmaControlPlugin extends FiberPlugin {
 
           p.profile(p.RxEnqueueToHost -> True)
           when (pktTagToEnqueue.ty === HostReqType.bypass) {
-            assign(bypassDp.hostRx)
+            assign(bypassSink.get)
           } otherwise {
             assign(sched.logic.rxMeta)
           }

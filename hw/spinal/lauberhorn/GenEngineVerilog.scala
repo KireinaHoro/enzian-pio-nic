@@ -2,6 +2,7 @@ package lauberhorn
 
 import mainargs._
 import lauberhorn.Global._
+import lauberhorn.host.BypassCmdSink
 import lauberhorn.host.eci._
 import lauberhorn.host.pcie._
 import lauberhorn.net._
@@ -37,6 +38,8 @@ object GenEngineVerilog {
 
       // scheduler
       new Scheduler,
+      new BypassCmdSink,
+
       // packet buffer & dma control
       new DmaControlPlugin,
       new PacketBuffer,

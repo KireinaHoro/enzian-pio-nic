@@ -4,13 +4,14 @@ import jsteward.blocks.misc.RegAllocatorFactory
 import lauberhorn.Global._
 import lauberhorn.net.PacketDescType
 import spinal.core._
+import spinal.lib.NoData
 
 import scala.language.postfixOps
 
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, oncRpcCall, oncRpcReply = newElement()
+    val error, bypass, arpReq, oncRpcCall, oncRpcReply = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(getClass,
@@ -36,9 +37,15 @@ package object host {
     val hdr = Bits(BYPASS_HDR_WIDTH bits)
   }
 
+  case class HostReqArpRequest() extends Bundle {
+    val ipAddr = Bits(32 bits)
+    val neighTblIdx = UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits)
+  }
+
   case class HostReqData() extends Union {
     val bypassMeta = newElement(HostReqBypassHeaders())
     val oncRpcCall = newElement(HostReqOncRpcCall())
+    val arpReq = newElement(HostReqArpRequest())
   }
 
   /**

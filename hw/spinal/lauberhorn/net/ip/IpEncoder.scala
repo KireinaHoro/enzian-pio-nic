@@ -4,6 +4,7 @@ import jsteward.blocks.axi.AxiStreamInjectHeader
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global.{NUM_NEIGHBOR_ENTRIES, REG_WIDTH}
 import lauberhorn.MacInterfaceService
+import lauberhorn.host.{BypassCmdSink, HostReqType}
 import spinal.core._
 import spinal.lib._
 import lauberhorn.net.Encoder
@@ -37,6 +38,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig
 
+  val bypassSink = during setup host[BypassCmdSink].getSink()
   val logic = during setup new Area {
     val md = Stream(IpTxMeta())
     val pld = Axi4Stream(axisConfig)
@@ -45,6 +47,9 @@ class IpEncoder extends Encoder[IpTxMeta] {
     val outPld = Axi4Stream(axisConfig)
     to[EthernetTxMeta, EthernetEncoder](outMd, outPld)
     outMd.setIdle()
+
+    // TODO: take ingress IP packet events from decoder and update counter/timer
+    //       to allow bypass core to refresh its timer
 
     awaitBuild()
 
@@ -60,17 +65,28 @@ class IpEncoder extends Encoder[IpTxMeta] {
     // We look up the destination MAC address from our neighbor table.
     // Neighbor table entries are in Big Endian
     val neighborDb = LookupTable(IpNeighborDef(), NUM_NEIGHBOR_ENTRIES) { v =>
-      v.valid init False
+      v.state init IpNeighborEntryState.none
     }
 
-    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), NoData(), singleMatch = true) { (v, q, _) =>
-      v.valid && v.ipAddr === q
+    val (allocLookup, allocResult, _) = neighborDb.makePort(NoData(), NoData(), "allocNew") { (v, _, _) =>
+      v.state === IpNeighborEntryState.none
+    }
+    allocLookup.valid := True
+    allocResult.ready := True
+    val neighFreeIdx = allocResult.idx
+    bypassSink.payload.setAsReg().initZero()
+    bypassSink.valid := False
+
+    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), Bits(32 bits),
+      "txLookup", singleMatch = true) { (v, q, _) =>
+      v.state =/= IpNeighborEntryState.none && v.ipAddr === q
     }
     neighResult.setBlocked()
     val destMac = Reg(Bits(48 bits))
 
     md.translateInto(neighLookup) { case (lk, md) =>
       lk.query := md.daddr
+      lk.userData := md.daddr
     }
 
     // upstream expected to fill out:
@@ -115,18 +131,40 @@ class IpEncoder extends Encoder[IpTxMeta] {
         whenIsActive {
           neighResult.ready := True
           when (neighResult.valid) {
-            when (neighResult.matched) {
-              // IP address in neighbor table:
+            when (!neighResult.matched) {
+              // matching entry not found:
+              // - create incomplete entry
+              // - notify bypass core
+              neighborDb.update.valid := True
+              neighborDb.update.idx := neighFreeIdx
+              neighborDb.update.value.state := IpNeighborEntryState.incomplete
+              neighborDb.update.value.ipAddr := neighResult.userData
+
+              bypassSink.get.buffer.size.bits := 0
+              bypassSink.get.buffer.addr.bits := 0
+              bypassSink.get.ty := HostReqType.arpReq
+              bypassSink.get.data.arpReq.ipAddr := neighResult.userData
+              bypassSink.get.data.arpReq.neighTblIdx := neighFreeIdx
+              goto(sendArpReq)
+            } elsewhen (neighResult.value.state === IpNeighborEntryState.reachable) {
+              // IP address REACHABLE in neighbor table:
               // - send IP header to encoder
               // - save neighbor-lookup result
               destMac := neighResult.value.macAddr
               goto(sendDownstreamMd)
             } otherwise {
-              // IP address not in neighbor table:
-              // - drop packet payload
-              // - increment counter
+              // IP address INCOMPLETE in neighbor table: drop packet payload
               goto(dropPld)
             }
+          }
+        }
+      }
+      val sendArpReq: State = new State {
+        whenIsActive {
+          // enqueue ARP request to bypass core, then drop packet payload
+          bypassSink.valid := True
+          when (bypassSink.ready) {
+            goto(dropPld)
           }
         }
       }
