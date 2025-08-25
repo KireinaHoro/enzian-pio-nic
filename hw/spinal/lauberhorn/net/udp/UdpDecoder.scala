@@ -1,10 +1,11 @@
-package lauberhorn.net
+package lauberhorn.net.udp
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.net.ip.{IpDecoder, IpRxMeta}
+import lauberhorn.net.{Decoder, DecoderMetadata, PacketDescData, PacketDescType}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -13,13 +14,6 @@ import spinal.lib.bus.regif.AccessType
 import spinal.lib.bus.regif.AccessType.RO
 
 import scala.language.postfixOps
-
-case class UdpHeader() extends Bundle {
-  val sport = Bits(16 bits)
-  val dport = Bits(16 bits)
-  val len = Bits(16 bits)
-  val csum = Bits(16 bits)
-}
 
 /** What service is on this port? */
 object UdpNextProto extends SpinalEnum {
@@ -107,7 +101,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       v.nextProto init UdpNextProto.disabled
     }
 
-    val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData()) { (v, q, _) =>
+    val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData(),
+      singleMatch = true) { (v, q, _) =>
       v.nextProto =/= UdpNextProto.disabled && v.port === q
     }
     val ipHeader = Stream(IpRxMeta())

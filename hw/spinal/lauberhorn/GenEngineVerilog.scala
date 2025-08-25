@@ -9,6 +9,7 @@ import lauberhorn.net._
 import lauberhorn.net.ethernet.{EthernetDecoder, EthernetEncoder}
 import lauberhorn.net.ip.{IpDecoder, IpEncoder}
 import lauberhorn.net.oncrpc.OncRpcCallDecoder
+import lauberhorn.net.udp.{UdpDecoder, UdpEncoder}
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda._
@@ -34,6 +35,7 @@ object GenEngineVerilog {
       // packet encoder pipeline
       new EthernetEncoder,
       new IpEncoder,
+      new UdpEncoder,
       new EncoderSource,
 
       // scheduler

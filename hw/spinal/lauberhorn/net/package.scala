@@ -9,6 +9,7 @@ import scala.language.postfixOps
 import Global._
 import lauberhorn.net.ip.{IpRxMeta, IpTxMeta}
 import lauberhorn.net.oncrpc.{OncRpcCallRxMeta, OncRpcReplyTxMeta}
+import lauberhorn.net.udp.{UdpRxMeta, UdpTxMeta}
 
 package object net {
   /**
@@ -23,7 +24,7 @@ package object net {
       ty match {
         case `ethernet` => data.ethernetTx.get().asInstanceOf[T]
         case `ip` => data.ipTx.get().asInstanceOf[T]
-        // case `udp` => data.udpTx.get().asInstanceOf[T]
+        case `udp` => data.udpTx.get().asInstanceOf[T]
         // case `oncRpcCall` => data.oncRpcCall.get().asInstanceOf[T]
         case `oncRpcReply` => data.oncRpcReply.get().asInstanceOf[T]
       }
@@ -80,6 +81,7 @@ package object net {
     // Used by encoder pipeline
     val ethernetTx = newElement(EthernetTxMeta())
     val ipTx = newElement(IpTxMeta())
+    val udpTx = newElement(UdpTxMeta())
     val oncRpcReply = newElement(OncRpcReplyTxMeta())
   }
 
