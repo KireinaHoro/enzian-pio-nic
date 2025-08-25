@@ -76,9 +76,10 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
       payloadUpstreams += hostPayload
     }
 
-    if (payloadUpstreams.length == 1) {
-      assert(descUpstreams.length == 1)
+    assert(payloadUpstreams.length == descUpstreams.length)
+    assert(payloadUpstreams.nonEmpty, "encoder does not have upstream (forgot to set acceptHostPackets = true?)")
 
+    if (payloadUpstreams.length == 1) {
       metadata << descUpstreams.head
       payload << payloadUpstreams.head
     } else new Area {

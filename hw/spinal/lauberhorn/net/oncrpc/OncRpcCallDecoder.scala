@@ -5,6 +5,7 @@ import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.net._
+import lauberhorn.net.udp.{UdpDecoder, UdpNextProto, UdpRxMeta}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
