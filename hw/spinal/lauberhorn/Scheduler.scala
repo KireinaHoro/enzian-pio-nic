@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
-import lauberhorn.host.{HostReq, HostReqOncRpcCall, HostReqType, PreemptionService}
+import lauberhorn.host.{HostReq, HostReqOncRpcServer, HostReqType, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.oncrpc.OncRpcCallRxMeta
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -284,7 +284,7 @@ class Scheduler extends FiberPlugin {
     }
 
     pushLookup.translateFrom(rxMeta) { case (lk, meta) =>
-      lk.query := meta.data.oncRpcCall.pid
+      lk.query := meta.data.oncRpcServer.pid
       lk.userData := meta
     }
     when (rxMeta.valid) {

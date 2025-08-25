@@ -56,8 +56,4 @@ package object oncrpc {
       proc    === q.hdr.proc &&
       listenPort.asBits === q.port
   }
-
-  case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
-    def getType = PacketDescType.oncRpcReply
-  }
 }
