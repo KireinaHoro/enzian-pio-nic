@@ -34,6 +34,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     }
 
     busCtrl.read(logic.dropped.value, alloc("stat", "dropped", attr = AccessType.RO))
+    busCtrl.read(logic.neighTblFull.value, alloc("stat", "neighTblFull", attr = AccessType.RO))
   }
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig
@@ -68,12 +69,12 @@ class IpEncoder extends Encoder[IpTxMeta] {
       v.state init IpNeighborEntryState.none
     }
 
+    // find a free entry in the neighbor table to track a new neighbor
     val (allocLookup, allocResult, _) = neighborDb.makePort(NoData(), NoData(), "allocNew") { (v, _, _) =>
       v.state === IpNeighborEntryState.none
     }
     allocLookup.valid := True
     allocResult.ready := True
-    val neighFreeIdx = allocResult.idx
     bypassSink.payload.setAsReg().initZero()
     bypassSink.valid := False
 
@@ -125,6 +126,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     //      the neighbor table in software.  Packet will be dropped if an entry is not
     //      found in the neighbor table
     val dropped = Counter(REG_WIDTH bits)
+    val neighTblFull = Counter(REG_WIDTH bits)
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -136,15 +138,21 @@ class IpEncoder extends Encoder[IpTxMeta] {
               // - create incomplete entry
               // - notify bypass core
               neighborDb.update.valid := True
-              neighborDb.update.idx := neighFreeIdx
+              neighborDb.update.idx := allocResult.idx
               neighborDb.update.value.state := IpNeighborEntryState.incomplete
               neighborDb.update.value.ipAddr := neighResult.userData
+
+              // if the alloc lookup failed, all neighbor table slots are occupied;
+              // allocResult.idx will be 0.  keep a counter for this case
+              when (!allocResult.matched) {
+                neighTblFull.increment()
+              }
 
               bypassSink.get.buffer.size.bits := 0
               bypassSink.get.buffer.addr.bits := 0
               bypassSink.get.ty := HostReqType.arpReq
               bypassSink.get.data.arpReq.ipAddr := neighResult.userData
-              bypassSink.get.data.arpReq.neighTblIdx := neighFreeIdx
+              bypassSink.get.data.arpReq.neighTblIdx := allocResult.idx
               goto(sendArpReq)
             } elsewhen (neighResult.value.state === IpNeighborEntryState.reachable) {
               // IP address REACHABLE in neighbor table:
