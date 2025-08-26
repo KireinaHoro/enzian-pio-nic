@@ -150,10 +150,10 @@ class DmaControlPlugin extends FiberPlugin {
                 is (PacketDescType.oncRpcCall) {
                   tag.ty := HostReqType.oncRpcCall
 
-                  tag.data.oncRpcServer.funcPtr := rxPacketDescTagged.desc.metadata.oncRpcCall.funcPtr
-                  tag.data.oncRpcServer.pid := rxPacketDescTagged.desc.metadata.oncRpcCall.pid
-                  tag.data.oncRpcServer.xid := rxPacketDescTagged.desc.metadata.oncRpcCall.hdr.xid
-                  tag.data.oncRpcServer.data := rxPacketDescTagged.desc.metadata.oncRpcCall.args
+                  tag.data.oncRpcCallRx.funcPtr := rxPacketDescTagged.desc.metadata.oncRpcCall.funcPtr
+                  tag.data.oncRpcCallRx.pid := rxPacketDescTagged.desc.metadata.oncRpcCall.pid
+                  tag.data.oncRpcCallRx.xid := rxPacketDescTagged.desc.metadata.oncRpcCall.hdr.xid
+                  tag.data.oncRpcCallRx.data := rxPacketDescTagged.desc.metadata.oncRpcCall.args
                 }
                 default {
                   tag.ty := HostReqType.error

@@ -36,7 +36,7 @@ object GenEngineVerilog {
       new EthernetEncoder,
       new IpEncoder,
       new UdpEncoder,
-      // new OncRpcReplyEncoder,
+      new OncRpcReplyEncoder,
       new EncoderSource,
 
       // scheduler

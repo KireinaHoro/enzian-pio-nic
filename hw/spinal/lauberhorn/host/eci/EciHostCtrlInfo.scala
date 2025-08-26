@@ -43,7 +43,11 @@ case class EciHostCtrlInfo() extends Bundle {
       *  - receiving an RPC call
       *  - sending an RPC reply
       *
-      * This is the ECI-specific version of [[lauberhorn.host.HostReqOncRpcServer]].
+      * This is the ECI-specific version of [[lauberhorn.host.HostReqOncRpcCallRx]].
+      *
+      * Note that while the reply encoder [[lauberhorn.net.oncrpc.OncRpcReplyEncoder]] requires the length of inlined
+      * data in its metadata [[lauberhorn.net.oncrpc.OncRpcReplyTxMeta]], this is passed with the generic
+      * [[EciHostCtrlInfo.len]] field and thus not separately encoded.
       */
     case class OncRpcServerBundle() extends Bundle {
       val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
@@ -71,13 +75,21 @@ case class EciHostCtrlInfo() extends Bundle {
     switch (ty) {
       is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
+        desc.buffer.size := len
       }
       is (HostReqType.oncRpcReply) {
-        desc.data.oncRpcServer.assignSomeByName(data.oncRpcServer)
+        desc.data.oncRpcReplyTx.assignSomeByName(data.oncRpcServer)
+        desc.data.oncRpcReplyTx.replyLen := len
+        when (len.bits > ONCRPC_INLINE_BYTES.get) {
+          // more reply spilled over to overflow CLs
+          desc.buffer.size.bits            := len.bits - ONCRPC_INLINE_BYTES.get
+        } otherwise {
+          // everything fits inside the inline half-CL
+          desc.buffer.size.bits            := 0
+        }
       }
     }
     desc.buffer.addr := addr
-    desc.buffer.size := len
   }
 
   // plus one for readStreamBlockCycles
@@ -113,8 +125,8 @@ case class EciHostCtrlInfo() extends Bundle {
          |
          |datatype host_ctrl_info_onc_rpc_server lsbfirst(64) "ECI Host Control Info (ONC-RPC Direct Call / Reply)" {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
-         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call / onc_rpc_reply)";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet (includes inlined bytes for TX, does not include inlined bytes for RX)";
          |  _         12 rsvd;
          |  xid       32 "XID of incoming request";
          |  func_ptr  64 "Function pointer for RPC call handler";
@@ -166,7 +178,7 @@ object EciHostCtrlInfo {
         ret.data.bypass.xb9 := 0
       }
       is (HostReqType.oncRpcCall) {
-        ret.data.oncRpcServer.assignSomeByName(desc.data.oncRpcServer)
+        ret.data.oncRpcServer.assignSomeByName(desc.data.oncRpcCallRx)
         ret.data.oncRpcServer.xb12 := 0
       }
       is (HostReqType.arpReq) {

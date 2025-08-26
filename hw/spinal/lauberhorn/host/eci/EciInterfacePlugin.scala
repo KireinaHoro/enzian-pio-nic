@@ -13,6 +13,7 @@ import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import Global._
 import lauberhorn.net.ip.IpEncoder
+import lauberhorn.net.oncrpc.OncRpcReplyEncoder
 import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -104,6 +105,7 @@ class EciInterfacePlugin extends FiberPlugin {
     host.list[Decoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
 
     drive(host[IpEncoder].driveControl, "IpEncoder")
+    drive(host[OncRpcReplyEncoder].driveControl, "OncRpcReplyEncoder")
 
     drive(host[ProfilerPlugin].logic.driveControl, "profiler")
     drive(host[Scheduler].driveControl, "sched")

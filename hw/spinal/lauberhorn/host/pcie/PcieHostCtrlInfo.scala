@@ -47,7 +47,7 @@ case class PcieHostCtrlInfo() extends Bundle {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
       }
       is (HostReqType.oncRpcCall) {
-        desc.data.oncRpcServer.assignSomeByName(data.oncRpcCall)
+        desc.data.oncRpcCallRx.assignSomeByName(data.oncRpcCall)
       }
     }
     desc.buffer := buffer
@@ -118,7 +118,7 @@ object PcieHostCtrlInfo {
         ret.data.bypass.xb19 := 0
       }
       is (HostReqType.oncRpcCall) {
-        ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcServer)
+        ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCallRx)
         ret.data.oncRpcCall.xb21 := 0
       }
     }

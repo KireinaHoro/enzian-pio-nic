@@ -34,8 +34,7 @@ class UdpEncoder extends Encoder[UdpTxMeta] {
 
     awaitBuild()
 
-    // TODO: disable host input once OncRpcReplyEncoder is done
-    collectInto(md, pld, acceptHostPackets = true)
+    collectInto(md, pld)
 
     val encoder = AxiStreamInjectHeader(axisConfig, UdpHeader().getBitsWidth / 8)
     encoder.io.input << pld
