@@ -17,6 +17,7 @@ object Global extends AreaRoot {
   val NUM_NEIGHBOR_ENTRIES = value[Int]
   val NUM_LISTEN_PORTS = value[Int]
   val NUM_SERVICES = value[Int]
+  val NUM_SESSIONS = value[Int]
   val NUM_PROCS = value[Int]
   val RX_PKTS_PER_PROC = value[Int]
 
@@ -117,7 +118,8 @@ object Global extends AreaRoot {
     PID_WIDTH.set(16)
     NUM_NEIGHBOR_ENTRIES.set(32)
     NUM_LISTEN_PORTS.set(16)
-    NUM_SERVICES.set(128)
+    NUM_SERVICES.set(64)
+    NUM_SESSIONS.set(128)
     NUM_PROCS.set(32)
     RX_PKTS_PER_PROC.set(32)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP

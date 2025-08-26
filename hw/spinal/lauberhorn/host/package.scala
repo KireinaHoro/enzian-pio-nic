@@ -3,6 +3,7 @@ package lauberhorn
 import jsteward.blocks.misc.RegAllocatorFactory
 import lauberhorn.Global._
 import lauberhorn.net.PacketDescType
+import lauberhorn.net.oncrpc.OncRpcReplyTxMeta
 import spinal.core._
 import spinal.lib.NoData
 
@@ -25,8 +26,10 @@ package object host {
     }
   }
 
-  /** Passed to host on an incoming ONC-RPC call.   Also used to encode the reply. */
-  case class HostReqOncRpcServer() extends Bundle {
+  /** Passed to host on an incoming ONC-RPC call.  Separate from [[lauberhorn.net.oncrpc.OncRpcReplyTxMeta]] since that
+    * needs the number of words filled in the data array.
+    */
+  case class HostReqOncRpcCallRx() extends Bundle {
     val funcPtr = Bits(64 bits)
     val pid = PID()
     val xid = Bits(32 bits)
@@ -52,7 +55,8 @@ package object host {
 
   case class HostReqData() extends Union {
     val bypassMeta = newElement(HostReqBypassHeaders())
-    val oncRpcServer = newElement(HostReqOncRpcServer())
+    val oncRpcCallRx = newElement(HostReqOncRpcCallRx())
+    val oncRpcReplyTx = newElement(OncRpcReplyTxMeta())
     val arpReq = newElement(HostReqArpRequest())
   }
 

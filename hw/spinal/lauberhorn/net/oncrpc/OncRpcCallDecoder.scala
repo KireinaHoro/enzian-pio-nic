@@ -19,6 +19,10 @@ case class OncRpcCallLookupUserData() extends Bundle {
   val hdr = OncRpcCallHeader()
   val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
+
+  // for sending event to encoder
+  val addr = Bits(32 bits)
+  val port = Bits(16 bits)
 }
 
 class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
@@ -119,6 +123,9 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       // TODO: endianness swap for host: these are in BIG ENDIAN
       lk.userData.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
       lk.userData.udpPayloadSize := currentUdpHeader.getPayloadSize
+
+      lk.userData.addr := currentUdpHeader.ipMeta.hdr.saddr
+      lk.userData.port := currentUdpHeader.hdr.sport
     }
 
     when (decoder.io.header.fire) {
@@ -137,7 +144,15 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       md.pid := lr.value.pid
     }
 
-    // TODO: record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
-    //       this is used by the host for now and the reply encoder module in the future
+    // record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
+    val encoderPort = host[OncRpcReplyEncoder].logic.newSessionEvent
+    encoderPort.translateFrom(dbResult.asFlow.throwWhen(drop)) { case (ep, lr) =>
+      ep.clientPort := lr.userData.port
+      ep.clientAddr := lr.userData.addr
+      ep.serverPort := lr.value.listenPort.asBits
+      ep.funcPtr    := lr.value.funcPtr
+      ep.xid        := lr.userData.hdr.xid
+      ep.active     := True
+    }
   }
 }
