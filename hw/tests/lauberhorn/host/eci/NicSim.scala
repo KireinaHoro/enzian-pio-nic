@@ -433,6 +433,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     *
     * Sends packet through the bypass interface, which only takes destination addresses.  Checks the output against
     * the full packet.
+    *
+    * This function pre-programs the neighbor table entry!  Test "tx-neighbor-resolve-request" checks if a bypass
+    * request for neighbor resolving is correctly sent to the host, when a neighbor entry is missing.
     */
   def txTestSingle(dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, packet: EthernetPacket, cid: Int)
                   (implicit dut: NicEngine): Unit = {
@@ -457,7 +460,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         val ethDst = packet.getHeader.getDstAddr
         csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), ipDst.getAddress.toList)
         csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), ethDst.getAddress.toList)
-        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_valid"), 1.toBytesLE)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
         csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
 
         (pld, desc)
@@ -528,6 +531,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, idx)
     }
   }
+
+  testWithDB("tx-neighbor-resolve-request", Tx) { implicit dut =>
+    // TODO: test ARP resolve logic through bypass core
+  }
+
+  // TODO: test send one RPC reply
 
   testWithDB("rx-bypass-pipelined", Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
