@@ -40,15 +40,18 @@ object EciHostCtrlInfoSim {
         RxBypassCtrlInfoSim(
           len.toInt,
           dp.pop(PKT_DESC_TY_WIDTH),
-          dp.pop(BYPASS_HDR_WIDTH, skip = 11))
+          dp.pop(BYPASS_HDR_WIDTH, skip = 9))
       case 2 =>
-        val xid = dp.pop(32, skip = 13)
+        // TODO: ARP request
+        throw new RuntimeException("arp_req not implemented yet")
+      case 3 =>
+        val xid = dp.pop(32, skip = 12)
         OncRpcCallCtrlInfoSim(
           len.toInt,
           dp.pop(64),
           xid,
           dp.pop(ONCRPC_INLINE_BYTES*8))
-      case 3 => throw new RuntimeException("not expecting a onc_rpc_reply")
+      case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
     }
   }
 }
@@ -61,7 +64,7 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PKT_DESC_TY_WIDTH, packetType)
-      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 11)
+      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 9)
       .toBigInt
   }
 
@@ -93,7 +96,7 @@ case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtr
 case class OncRpcCallCtrlInfoSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(32, xid, skip = 13)
+      .push(32, xid, skip = 12)
       .push(64, funcPtr)
       .push(BYPASS_HDR_WIDTH, args)
       .toBigInt
