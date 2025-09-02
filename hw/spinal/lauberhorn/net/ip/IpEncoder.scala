@@ -35,6 +35,12 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     busCtrl.read(logic.dropped.value, alloc("stat", "dropped", attr = AccessType.RO))
     busCtrl.read(logic.neighTblFull.value, alloc("stat", "neighTblFull", attr = AccessType.RO))
+
+    val readbackIdxAddr = alloc("stat", "neigh_readback_idx", attr = AccessType.WO)
+    busCtrl.drive(logic.neighborDb.readbackIdx, readbackIdxAddr)
+    logic.neighborDb.readback.elements.foreach { case (name, field) =>
+      busCtrl.read(field, alloc("stat", s"neigh_readback_$name", attr = AccessType.RO))
+    }
   }
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig

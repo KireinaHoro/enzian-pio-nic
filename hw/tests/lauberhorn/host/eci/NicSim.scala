@@ -25,6 +25,8 @@ import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 import lauberhorn.host.eci.NicSim._
 
+import java.net.InetAddress
+
 object NicSim {
   type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
   val NoopCb: IrqCb = (_, _, _, _) => ()
@@ -533,7 +535,57 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   testWithDB("tx-neighbor-resolve-request", Tx) { implicit dut =>
-    // TODO: test ARP resolve logic through bypass core
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-neighbor-resolve-request") / "packets-expecting.pcap").toString)
+
+    val pkt = getIpPacketFromEnzian(1, 512)
+    val ipPkt = pkt.get(classOf[IpV4Packet])
+    val ipDst = ipPkt.getHeader.getDstAddr
+    val macDst = pkt.getHeader.getDstAddr
+
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000, NoopCb)
+
+    // send one IP packet without programming the neighbor table first
+    val pld = ipPkt.getPayload.getRawData.toList
+    val desc = TxIpCmdSim(pld.length, ipDst, ipPkt.getHeader.getProtocol.value.toInt)
+    txSendSingle(dcsMaster, desc, pld, 1)
+
+    // get ARP resolve request
+    var reqServed = false
+    fork {
+      val (info, _) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = 1).result.get
+      val arpReq = info.asInstanceOf[TxArpReqSim]
+      val addr = InetAddress.getByAddress(arpReq.ipAddr.toBytesLE.toArray)
+      println(s"Received ARP request to $addr on table entry #${arpReq.neighTblIdx}")
+      assert(addr == ipDst, "received ARP request for wrong IP address")
+
+      // check if neighbor entry is in `incomplete`
+      csrMaster.write(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_idx"), arpReq.neighTblIdx.toBytesLE)
+      val addrInTbl = csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_ipAddr"), 4)
+      assert(addrInTbl.toArray sameElements addr.getAddress, "entry waiting for ARP does not have the same address")
+      assert(csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_state"), 1).bytesToBigInt == 1, "entry waiting for ARP is not in `incomplete` state")
+
+      // update entry and resend packet
+      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), ipDst.getAddress.toList)
+      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), macDst.getAddress.toList)
+      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
+      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), arpReq.neighTblIdx.toBytesLE)
+      reqServed = true
+    }
+
+    waitUntil(reqServed)
+
+    var checked = false
+    fork {
+      val data = axisSlave.recv()
+      val expected = pkt.getRawData.toList
+      check(expected, data)
+      println(s"Packet received from TX interface and validated")
+      checked = true
+    }
+
+    // send packet again, receive on AXIS
+    txSendSingle(dcsMaster, desc, pld, 1)
+    waitUntil(checked)
   }
 
   // TODO: test send one RPC reply
