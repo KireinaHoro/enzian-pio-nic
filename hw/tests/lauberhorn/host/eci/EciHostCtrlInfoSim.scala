@@ -1,7 +1,7 @@
 package lauberhorn.host.eci
 
 import lauberhorn.sim._
-import spinal.core.IntToBuilder
+import spinal.core.{IntToBuilder, log2Up}
 import jsteward.blocks.misc.sim.{BigIntBuilder, BigIntParser, BigIntRicher}
 import lauberhorn.Global._
 import lauberhorn.sim.PacketType._
@@ -42,8 +42,11 @@ object EciHostCtrlInfoSim {
           dp.pop(PKT_DESC_TY_WIDTH),
           dp.pop(BYPASS_HDR_WIDTH, skip = 9))
       case 2 =>
-        // TODO: ARP request
-        throw new RuntimeException("arp_req not implemented yet")
+        assert(len == 0, "ARP request should not carry extra data")
+        TxArpReqSim(
+          dp.pop(log2Up(NUM_NEIGHBOR_ENTRIES)).toInt,
+          dp.pop(32, skip = 7).toInt
+        )
       case 3 =>
         val xid = dp.pop(32, skip = 12)
         OncRpcCallCtrlInfoSim(
@@ -74,6 +77,12 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
 }
 
 case class RxBypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends BypassCtrlInfoSim
+
+case class TxArpReqSim(neighTblIdx: Int, ipAddr: Int) extends EciHostCtrlInfoSim with ArpReqPacketDescSim {
+  /** not implemented due to ARP request descriptor never sent out */
+  def encode: BigInt = ???
+  def len = 0
+}
 
 case class TxEthernetCmdSim(len: Int, dst: MacAddress, proto: Int) extends BypassCtrlInfoSim {
   def packetType = Ethernet.id
