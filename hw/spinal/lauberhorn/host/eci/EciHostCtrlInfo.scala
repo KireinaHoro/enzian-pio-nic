@@ -128,7 +128,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call / onc_rpc_reply)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet (includes inlined bytes for TX, does not include inlined bytes for RX)";
          |  _         12 rsvd;
-         |  xid       32 "XID of incoming request";
+         |  xid       32 "XID of incoming request (big endian)";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:

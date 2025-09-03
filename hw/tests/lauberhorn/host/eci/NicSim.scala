@@ -687,6 +687,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // - write first response, receive response and check
     // - read second packet (stalled)
     // - send second packet, check timestamps
+    // - write second reponse, receive response and check
 
     // test timestamp collection with oncrpc call
     // test on first non-bypass core
@@ -713,19 +714,31 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     // first response data (longer than inline bytes)
     val respData = Random.nextBytes(512).toList
+    val clientIp = packet.get(classOf[IpV4Packet]).getHeader.getSrcAddr
+    val clientMac = packet.getHeader.getSrcAddr
 
     // second request packet
     val (packet2, pld2, xid2) = getPacket()
 
-    // set up neighbor table for reply
-    val clientIp = packet.get(classOf[IpV4Packet]).getHeader.getSrcAddr
-    val clientMac = packet.getHeader.getSrcAddr
+    // second response data (shorter than inline bytes)
+    val respData2 = Random.nextBytes(16).toList
+    val clientIp2 = packet2.get(classOf[IpV4Packet]).getHeader.getSrcAddr
+    val clientMac2 = packet2.getHeader.getSrcAddr
+
     val (serverIp, serverMac) = enzianIpMacAddrs(1)
+
+    // set up neighbor table for replies
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
 
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp2.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac2.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 1.toBytesLE)
+
+    var allDone = false
     // network-side thread
     fork {
       // send first packet -- host not ready yet, packet will be queued
@@ -759,6 +772,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       // send second packet -- host already reading and stalled
       axisMaster.send(packet2.getRawData.toList)
       println("Sent second request packet")
+
+      val data2 = axisSlave.recv()
+      val parsed2 = EthernetPacket.newPacket(data2.toArray, 0, data2.length)
+      assert(parsed2.getHeader.getDstAddr == clientMac2, "received packet has wrong destination MAC address")
+      assert(parsed2.getHeader.getSrcAddr == serverMac, "received packet has wrong source MAC address")
+      assert(parsed2.get(classOf[IpV4Packet]).getHeader.getDstAddr == clientIp2, "received packet has wrong destination IP address")
+      assert(parsed2.get(classOf[IpV4Packet]).getHeader.getSrcAddr == serverIp, "received packet has wrong source IP address")
+      assert(parsed2.get(classOf[UdpPacket]).getHeader.getSrcPort == packet2.get(classOf[UdpPacket]).getHeader.getDstPort, "received packet has wrong source port")
+      assert(parsed2.get(classOf[UdpPacket]).getHeader.getDstPort == packet2.get(classOf[UdpPacket]).getHeader.getSrcPort, "received packet has wrong destination port")
+
+      val udpPayload2 = parsed2.get(classOf[UdpPacket]).getPayload.getRawData.toList
+      val (rpcHdr2, rpcPayload2) = udpPayload2.splitAt(24)
+      assert(rpcHdr2.take(4) == xid2.toBytesBE, "XID mismatch")
+      check(respData2, rpcPayload2)
+      println("Received and checked second response")
+
+      allDone = true
     }
 
     // wait until we have received the IRQ
@@ -803,7 +833,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, curr))
       assert(readStart - entry >= delayed)
 
-      info.xid
+      info.xid // host will see XID in big endian; should be sent back as is
     }
 
     // send first response
@@ -819,7 +849,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // we can now read second packet
     readingSecond = true
 
-    {
+    val secondXid = {
       val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
@@ -834,7 +864,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       println(s"Current timestamp after packet 2 done: $curr")
       assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, curr))
       assert(entry - readStart >= delayed)
+
+      info.xid
     }
+
+    // send second response
+    {
+      val (respInlineData, respTail) = respData2.splitAt(ONCRPC_INLINE_BYTES)
+      assert(respTail.isEmpty, "should not have any tail data")
+
+      // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
+      val desc = TxOncRpcReplySim(respData2.length, funcPtr, secondXid, respInlineData.bytesToBigInt)
+
+      txSendSingle(dcsMaster, desc, respTail, 1)
+      println("Written response")
+    }
+
+    waitUntil(allDone)
   }
 
   // checks if a core has an IRQ pending.  Checked before and after critical section
