@@ -18,10 +18,11 @@ package object host {
       ALLOC.addMackerelEpilogue(getClass,
         s"""
            |constants host_req_type width(${HOST_REQ_TY_WIDTH.get}) "Host Request Type" {
-           |  error         = 0b00 "Error";
-           |  bypass        = 0b01 "Bypass";
-           |  onc_rpc_call  = 0b10 "ONC-RPC Call";
-           |  onc_rpc_reply = 0b11 "ONC-RPC Reply";
+           |  error         = 0b000 "Error";
+           |  bypass        = 0b001 "Bypass";
+           |  arp_req       = 0b010 "ARP Request";
+           |  onc_rpc_call  = 0b011 "ONC-RPC Call";
+           |  onc_rpc_reply = 0b100 "ONC-RPC Reply";
            |};""".stripMargin)
     }
   }
