@@ -143,7 +143,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  tbl_idx   ${log2Up(NUM_NEIGHBOR_ENTRIES)} "Index of INCOMPLETE entry in neighbor table";
          |  _         7 rsvd;
          |  ip_addr   32 "IP address of the target host";
-         |}
+         |};
          |
          |// TODO: separate datatype for making a nested RPC call (progNum, ver...)?
          |

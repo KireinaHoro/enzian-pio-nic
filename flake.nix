@@ -42,7 +42,7 @@
       buildInputs = [
         zlib.dev verilator clang
         gtkwave sby yices
-        jdk millw
+        jdk millw cmake
         # cross compiler
         pkgsCross.aarch64-multiplatform.buildPackages.gcc
         # quick script to repeat known failing test to find a good reproducer
