@@ -5,7 +5,7 @@ import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, isSorted}
 import org.pcap4j.core.{PcapDumper, Pcaps}
-import org.pcap4j.packet.{EthernetPacket, IpV4Packet, Packet}
+import org.pcap4j.packet.{EthernetPacket, IpV4Packet, Packet, UdpPacket}
 import org.pcap4j.packet.namednumber.DataLinkType
 import org.scalatest.exceptions.TestFailedException
 import lauberhorn._
@@ -83,6 +83,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     for (i <- txNextCl.indices) { txNextCl(i) = 0 }
 
     (csrMaster, axisSlave, dcsMaster)
+  }
+
+  def rxtxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
+    for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
+    for (i <- txNextCl.indices) { txNextCl(i) = 0 }
+
+    commonDutSetup(rxBlockCycles, irqCb)
   }
 
   def pollReady(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
@@ -378,7 +385,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         while (packetsReceived != totalToSend) {
           // read and check packet against sent
           val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
-          val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+          val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
           log(f"Received status register: $desc")
 
           // do not process packets too fast, or other cores will never get invoked
@@ -588,8 +595,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     waitUntil(checked)
   }
 
-  // TODO: test send one RPC reply
-
   testWithDB("rx-bypass-pipelined", Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
@@ -671,13 +676,15 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
   }
 
-  testWithDB("rx-oncrpc-timestamped", Rx) { implicit dut =>
+  testWithDB("roundtrip-oncrpc-timestamped", Rx, Tx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores
+    // - install neighbor table entry for reply
     // - send first packet before core is scheduled
     // - core is preempted to run proc
     // - read first packet, check timestamps (queued)
+    // - write first response, receive response and check
     // - read second packet (stalled)
     // - send second packet, check timestamps
 
@@ -688,7 +695,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     var irqReceived = false
     var readingSecond = false
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100, { case (_, _, coreId, intId) =>
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = rxtxDutSetup(100, { case (_, _, coreId, intId) =>
       assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
       assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
@@ -698,15 +705,52 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val delayed = 1000
 
-    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster).head
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      packetDumpWorkspace = Some("roundtrip-oncrpc-timestamped")).head
+
+    // first request packet
     val (packet, pld, xid) = getPacket()
+
+    // first response data (longer than inline bytes)
+    val respData = Random.nextBytes(512).toList
+
+    // second request packet
     val (packet2, pld2, xid2) = getPacket()
 
+    // set up neighbor table for reply
+    val clientIp = packet.get(classOf[IpV4Packet]).getHeader.getSrcAddr
+    val clientMac = packet.getHeader.getSrcAddr
+    val (serverIp, serverMac) = enzianIpMacAddrs(1)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+
+    // network-side thread
     fork {
       // send first packet -- host not ready yet, packet will be queued
       axisMaster.send(packet.getRawData.toList)
+      println("Sent first request packet")
 
-      // wait until host is ready and is actively reading
+      // receive first response: check headers and data body
+      val data = axisSlave.recv()
+      val parsed = EthernetPacket.newPacket(data.toArray, 0, data.length)
+      assert(parsed.getHeader.getDstAddr == clientMac, "received packet has wrong destination MAC address")
+      assert(parsed.getHeader.getSrcAddr == serverMac, "received packet has wrong source MAC address")
+      assert(parsed.get(classOf[IpV4Packet]).getHeader.getDstAddr == clientIp, "received packet has wrong destination IP address")
+      assert(parsed.get(classOf[IpV4Packet]).getHeader.getSrcAddr == serverIp, "received packet has wrong source IP address")
+      assert(parsed.get(classOf[UdpPacket]).getHeader.getSrcPort == packet.get(classOf[UdpPacket]).getHeader.getDstPort, "received packet has wrong source port")
+      assert(parsed.get(classOf[UdpPacket]).getHeader.getDstPort == packet.get(classOf[UdpPacket]).getHeader.getSrcPort, "received packet has wrong destination port")
+
+      val udpPayload = parsed.get(classOf[UdpPacket]).getPayload.getRawData.toList
+      val (rpcHdr, rpcPayload) = udpPayload.splitAt(24) // XID + msgType + replyStat + verifier + acceptStat
+      assert(rpcHdr.take(4) == xid.toBytesBE, "XID mismatch")
+
+      check(respData, rpcPayload)
+      println("Received and checked first response")
+
+      // wait until host is ready and is actively reading,
+      // to generate timestamps for a core that's waiting
       waitUntil(readingSecond)
 
       // ensure the host is actually reading
@@ -714,6 +758,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
       // send second packet -- host already reading and stalled
       axisMaster.send(packet2.getRawData.toList)
+      println("Sent second request packet")
     }
 
     // wait until we have received the IRQ
@@ -734,10 +779,11 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // ensure that packet has landed in the queue
     sleepCycles(delayed)
 
-    {
+    // read first request
+    val firstXid = {
       val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
       // check if decoded packet is what we sent
-      val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+      val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
@@ -756,6 +802,18 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
       assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, curr))
       assert(readStart - entry >= delayed)
+
+      info.xid
+    }
+
+    // send first response
+    {
+      val (respInlineData, respTail) = respData.splitAt(ONCRPC_INLINE_BYTES)
+      // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
+      val desc = TxOncRpcReplySim(respData.length, funcPtr, firstXid, respInlineData.bytesToBigInt)
+
+      txSendSingle(dcsMaster, desc, respTail, 1)
+      println("Written response")
     }
 
     // we can now read second packet
@@ -763,7 +821,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     {
       val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
-      val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+      val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
@@ -920,7 +978,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
               pidRetryMap(cs.currPid) = 0
 
               val (desc, overflowAddr) = descOption.get
-              val info = desc.asInstanceOf[OncRpcCallPacketDescSim]
+              val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
               procLog(s"received status $desc")
               val tail = dcsMaster.read(overflowAddr, desc.len)
               procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")

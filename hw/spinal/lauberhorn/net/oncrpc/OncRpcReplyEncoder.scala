@@ -32,7 +32,21 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    // TODO: allow readback/update of session table to implement session timeouts
+    // allow readback/update of session table to implement session timeouts
+    val updateIdxAddr = alloc("ctrl", "sess_idx", attr = AccessType.WO)
+    busCtrl.write(logic.sessionDb.update.idx, updateIdxAddr)
+    busCtrl.onWrite(updateIdxAddr) {
+      logic.sessionDb.update.valid := True
+    }
+    logic.sessionDb.update.value.elements.foreach { case (name, field) =>
+      busCtrl.write(field, alloc("ctrl", s"sess_$name", attr = AccessType.WO))
+    }
+
+    val readbackIdxAddr = alloc("stat", "sess_readback_idx", attr = AccessType.WO)
+    busCtrl.drive(logic.sessionDb.readbackIdx, readbackIdxAddr)
+    logic.sessionDb.readback.elements.foreach { case (name, field) =>
+      busCtrl.read(field, alloc("stat", s"sess_readback_$name", attr = AccessType.RO))
+    }
 
     busCtrl.read(logic.sessTblFull.value, alloc("stat", "sessTblFull", attr = AccessType.RO))
     busCtrl.read(logic.dropped.value, alloc("stat", "dropped", attr = AccessType.RO))
@@ -159,7 +173,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             }
 
             // store inlined bytes.  We shift it here already to shorten critical path
-            inlinedData := (txR.userData.data.asBits << inlinedShiftNext).resized
+            inlinedData := (txR.userData.data.asBits << (inlinedShiftNext * 8)).resized
 
             when (txR.matched) {
               // send header to encoder

@@ -269,8 +269,13 @@ class DmaControlPlugin extends FiberPlugin {
               is (HostReqType.bypass) {
                 txPacketDesc.fromHeaders(txReqMuxed.data.bypassMeta)
               }
+              is (HostReqType.oncRpcReply) {
+                txPacketDesc.ty := PacketDescType.oncRpcReply
+                txPacketDesc.metadata.assignDontCare()
+                txPacketDesc.metadata.oncRpcReply.get := txReqMuxed.data.oncRpcReplyTx
+              }
               default {
-                report("unsupported host request type: only bypass supported for now", FAILURE)
+                report("unsupported host request type", FAILURE)
               }
             }
 

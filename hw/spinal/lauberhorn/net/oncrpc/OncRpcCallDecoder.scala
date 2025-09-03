@@ -124,6 +124,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       lk.userData.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
       lk.userData.udpPayloadSize := currentUdpHeader.getPayloadSize
 
+      // XXX: these are passed to encoder as big endian
       lk.userData.addr := currentUdpHeader.ipMeta.hdr.saddr
       lk.userData.port := currentUdpHeader.hdr.sport
     }
