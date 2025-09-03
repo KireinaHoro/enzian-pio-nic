@@ -43,8 +43,9 @@ class UdpEncoder extends Encoder[UdpTxMeta] {
     val forkedCmds = StreamFork(md, 2)
     forkedCmds(0).translateInto(encoder.io.header) { case (h, md) =>
       val hdr = UdpHeader()
-      hdr.sport := EndiannessSwap(md.sport)
-      hdr.dport := EndiannessSwap(md.dport)
+      // assumes upstream always passes port in big endian
+      hdr.sport := md.sport
+      hdr.dport := md.dport
       hdr.len := EndiannessSwap(md.pldLen + 8).asBits
       hdr.csum := 0 // XXX: not calculating checksum as it's optional
 

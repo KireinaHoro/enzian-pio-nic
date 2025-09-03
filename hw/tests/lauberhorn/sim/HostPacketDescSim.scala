@@ -34,18 +34,13 @@ trait ArpReqPacketDescSim { this: HostPacketDescSim =>
   override final def ty = 2
 }
 
-trait OncRpcCallPacketDescSim { this: HostPacketDescSim =>
-  // XXX: TX call is only needed for nested RPC calls
+trait OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
   def funcPtr: BigInt
   def xid: BigInt
   def args: BigInt
-  override final def ty = 3
+  override def ty = 3
 }
 
-trait OncRpcReplyPacketDescSim { this: HostPacketDescSim =>
-  // XXX: RX reply is only needed for nested RPC calls
-  def funcPtr: BigInt
-  def xid: BigInt
-  def rets: BigInt
+trait OncRpcReplyTxPacketDescSim extends OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
   override final def ty = 4
 }

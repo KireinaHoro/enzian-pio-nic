@@ -207,7 +207,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         val desc = tryReadRxPacketDesc(master, coreBlock).result.get
         println(f"Received status register: $desc")
 
-        assert(desc.isInstanceOf[OncRpcCallPacketDescSimPcie], s"desc type unexpected")
+        assert(desc.isInstanceOf[OncRpcCallRxPacketDescSimPcie], s"desc type unexpected")
         checkOncRpcCall(desc, desc.size.toInt, funcPtr, payload, master.read(pktBufAddr + desc.addr, desc.size))
 
         // free packet

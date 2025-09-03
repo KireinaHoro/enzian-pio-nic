@@ -125,8 +125,8 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
 
   /** Check oncRpcCall: funcPtr & payload  */
   def checkOncRpcCall[D <: HostPacketDescSim](hostDesc: D, overflowLen: Int, funcPtr: Long, payload: List[Byte], overflowData: => List[Byte]): Unit = {
-    assert(hostDesc.isInstanceOf[OncRpcCallPacketDescSim], s"unexpected descriptor type received")
-    val desc = hostDesc.asInstanceOf[OncRpcCallPacketDescSim]
+    assert(hostDesc.isInstanceOf[OncRpcCallRxPacketDescSim], s"unexpected descriptor type received")
+    val desc = hostDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
     assert(funcPtr == desc.funcPtr, s"funcPtr mismatch: got ${desc.funcPtr}, expected $funcPtr")
 
     val inlineMaxLen = lauberhorn.Global.ONCRPC_INLINE_BYTES.get
