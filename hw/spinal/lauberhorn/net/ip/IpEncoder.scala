@@ -84,7 +84,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     bypassSink.payload.setAsReg().initZero()
     bypassSink.valid := False
 
-    val (neighLookup, neighResult, _) = neighborDb.makePort(Bits(32 bits), Bits(32 bits),
+    val (neighLookup, neighResult, neighLat) = neighborDb.makePort(Bits(32 bits), Bits(32 bits),
       "txLookup", singleMatch = true) { (v, q, _) =>
       v.state =/= IpNeighborEntryState.none && v.ipAddr === q
     }
@@ -119,9 +119,20 @@ class IpEncoder extends Encoder[IpTxMeta] {
     nextIpHdr.csum := 0
 
     val savedIpHdr = Reg(IpHeader())
+    val csumNext = nextIpHdr.calcCsum()
+    val csumLat = LatencyAnalysis(nextIpHdr.ihl, csumNext)
+
+    // cycle budget: lookup latency + idle -> sendDownstreamMd -> sendEncoderHdr
+    val csumUsedIn = neighLat + 2
+    // make sure header is fully saved before lookup result is back
+    assert(csumLat <= csumUsedIn,
+      s"IP checksum calculation will take $csumLat cycles, longer than required ($csumUsedIn cycles)")
+
     when (md.fire) {
-      savedIpHdr.csum := nextIpHdr.calcCsum()
-      savedIpHdr.assignUnassignedByName(nextIpHdr)
+      savedIpHdr := nextIpHdr
+    }
+    when (Delay(md.fire, csumLat)) {
+      savedIpHdr.csum := csumNext
     }
 
     // TODO: support default gateway i.e. lookup failed then send to gateway MAC address
