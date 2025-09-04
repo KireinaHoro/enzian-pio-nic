@@ -28,11 +28,11 @@ package object ip {
           // SpinalHDL does all calculations in little endian
           EndiannessSwap(be).asUInt
         }
-      val sum = words.reduceLeft { (a, b) =>
+      val sum = words.reduceBalancedTree((a, b) => {
         val noOverflow = a +^ b
         val overflow = a +^ b + 1
         noOverflow.msb.mux(overflow, noOverflow)(15 downto 0)
-      }
+      }, (stage, level) => RegNext(stage))
       EndiannessSwap(~sum.asBits)
     }
   }
