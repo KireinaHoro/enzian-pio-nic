@@ -45,7 +45,7 @@ object EciHostCtrlInfoSim {
         assert(len == 0, "ARP request should not carry extra data")
         TxArpReqSim(
           dp.pop(log2Up(NUM_NEIGHBOR_ENTRIES)).toInt,
-          dp.pop(32, skip = 7).toInt
+          dp.pop(32, skip = 9).toInt
         )
       case 3 =>
         val xid = dp.pop(32, skip = 12)
