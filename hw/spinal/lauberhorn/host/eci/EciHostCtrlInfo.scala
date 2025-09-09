@@ -61,8 +61,8 @@ case class EciHostCtrlInfo() extends Bundle {
 
     /** ECI-specific version of [[lauberhorn.host.HostReqArpRequest]]. */
     case class ArpReqBundle() extends Bundle {
-      val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 25) = 5b
-      val xb7 = Bits(7 bits) /* make sure IP addr is aligned */       // [25: 32) = 7b
+      val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 23) = 3b
+      val xb9 = Bits(9 bits) /* make sure IP addr is aligned */       // [23: 32) = 9b
       val ipAddr = Bits(32 bits)
     }
     val arpReq = newElement(ArpReqBundle())
