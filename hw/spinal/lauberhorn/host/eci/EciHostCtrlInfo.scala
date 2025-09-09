@@ -141,7 +141,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be arp_req)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  tbl_idx   ${log2Up(NUM_NEIGHBOR_ENTRIES)} "Index of INCOMPLETE entry in neighbor table";
-         |  _         7 rsvd;
+         |  _         9 rsvd;
          |  ip_addr   32 "IP address of the target host";
          |};
          |
@@ -183,7 +183,7 @@ object EciHostCtrlInfo {
       }
       is (HostReqType.arpReq) {
         ret.data.arpReq.assignSomeByName(desc.data.arpReq)
-        ret.data.arpReq.xb7 := 0
+        ret.data.arpReq.xb9 := 0
       }
     }
     ret.len := desc.buffer.size

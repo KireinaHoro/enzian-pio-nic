@@ -63,7 +63,7 @@ build-hw-eci:
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
       - hw/gen/*/*.h
-      - sw/devices/pionic_*.dev
+      - sw/devices/lauberhorn_*.dev
 
 publish:
   stage: release
