@@ -1,6 +1,6 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.EciCmdDefs
+import jsteward.blocks.eci.{EciCmdDefs, EciIntcInterface}
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn._
 import lauberhorn.host.DatapathPlugin
@@ -97,7 +97,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // disable block cycles, when a preemption request is under way
     // this way we immediately return a NACK, instead of waiting until timeout
     when (preemptReq.valid) { blockCycles.clearAll() }
-    rxRouter.blockCycles := blockCycles
+
+    if (coreID == 0) {
+      // bypass core will have non-blocking poll of cachelines
+      // this will allow NAPI-based Linux driver implementation
+      rxRouter.blockCycles := 0
+    } else {
+      // we use normal block cycles for all worker cores
+      rxRouter.blockCycles := blockCycles
+    }
   }.setName(s"driveDcsBus_core$coreID")
 
   def preemptReq = logic.preemptReq
@@ -116,6 +124,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ECI_TX_BASE.set(txOffset)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
+
+    val irqOut = coreID == 0 generate Stream(EciIntcInterface())
 
     awaitBuild()
 
@@ -368,6 +378,32 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // make rx and tx fsm states available to top for debug
     rxFsm.build()
     txFsm.build()
+
+    // if this is the bypass core, emit IRQ when the RX queue is not empty
+    coreID == 0 generate new Area {
+      irqOut.setIdle()
+      val irqFsm = new StateMachine {
+        val idle: State = new State with EntryPoint {
+          whenIsActive {
+            when (hostRx.isStall) {
+              goto(sendIrq)
+            }
+          }
+        }
+        val sendIrq: State = new State {
+          whenIsActive {
+            irqOut.valid   := True
+            irqOut.affLvl0 := 1   // always send to core 0
+            irqOut.affLvl1 := 0
+            irqOut.cmd     := 0
+            irqOut.intId   := 15  // use 15 for bypass interrupts
+            when (irqOut.ready) {
+              goto(idle)
+            }
+          }
+        }
+      }
+    }
   }
 
   during build {

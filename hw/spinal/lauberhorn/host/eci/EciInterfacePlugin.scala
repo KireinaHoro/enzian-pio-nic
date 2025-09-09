@@ -73,7 +73,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // muxed interface to ECI interrupt controller
     val ipiToIntc = master(Stream(EciIntcInterface()))
-    val demuxedIpiIntfs = null +: Seq.fill(NUM_WORKER_CORES)(Stream(EciIntcInterface()))
+    val demuxedIpiIntfs = Seq.fill(NUM_CORES)(Stream(EciIntcInterface()))
     // FIXME: do we need to merge core masks?
     ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs.tail)
 
@@ -314,6 +314,10 @@ class EciInterfacePlugin extends FiberPlugin {
 
           // XXX: still allocate ipiAck for bypass core due to allocator limitation
           drive(EciPreemptionControlPlugin.dummyDriveControl, "preempt", cid)
+
+          // bypass core generates interrupt to host that signifies non-empty queue
+          proto.asInstanceOf[EciDecoupledRxTxProtocol].logic.irqOut >> ipiCtrl
+
         case Some(pn) =>
           preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
           drive(preempt.driveControl, "preempt", cid)
