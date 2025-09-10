@@ -25,6 +25,7 @@ model/lauberhorn.toolbox/.*
 
 # Nix
 .direnv/
+result
 
 # git mergetool
 **/*.orig
