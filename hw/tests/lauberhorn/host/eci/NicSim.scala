@@ -29,7 +29,17 @@ import java.net.InetAddress
 
 object NicSim {
   type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
-  val NoopCb: IrqCb = (_, _, _, _) => ()
+  var bypassIrqPending = false
+  def BypassIrqCb(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, cid: Int, intId: Int): Unit = {
+    assert(cid == 0, "bypass IRQ handler only handles IRQ to core 0")
+    assert(intId == 15, "IRQ for bypass core should always be 15")
+    if (bypassIrqPending) {
+      println("Already in bypass IRQ handler, ignoring")
+    } else {
+      bypassIrqPending = true
+      println("Activating flag for bypass IRQ")
+    }
+  }
 }
 
 class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
@@ -46,10 +56,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     .workspaceName("eci")
     .compile(lauberhorn.GenEngineVerilog.engine(numWorkerCores, "eci"))
 
-  def commonDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
+  def commonDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
+
+    bypassIrqPending = false
 
     IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
       println(s"Received IRQ #$intId for core $coreId")
@@ -60,12 +72,16 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     dut.clockDomain.forkStimulus(frequency = 250 MHz)
 
+    // enable IRQ for all cores
+    0 until NUM_CORES foreach { cid =>
+      csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 1.toBytesLE)
+    }
     CSRSim.csrSanityChecks(csrMaster, rxBlockCycles)
 
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
 
-  def rxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
+  def rxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
     for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
 
@@ -85,7 +101,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     (csrMaster, axisSlave, dcsMaster)
   }
 
-  def rxtxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = NoopCb)(implicit dut: NicEngine) = {
+  def rxtxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
     for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
     for (i <- txNextCl.indices) { txNextCl(i) = 0 }
 
@@ -264,9 +280,14 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     // TODO: check performance counters
 
+    // wait until receiving the bypass IRQ
+    waitUntil(bypassIrqPending)
+
     // read memory and check data
     val (desc, data) = rxSingle(dcsMaster, maxRetries)
     assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
+
+    bypassIrqPending = false
 
     println(s"Successfully received packet")
 
@@ -549,7 +570,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val ipDst = ipPkt.getHeader.getDstAddr
     val macDst = pkt.getHeader.getDstAddr
 
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000, NoopCb)
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000)
 
     // send one IP packet without programming the neighbor table first
     val pld = ipPkt.getPayload.getRawData.toList
@@ -625,7 +646,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
+      waitUntil(bypassIrqPending)
+
       val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
+      bypassIrqPending = false
 
       // XXX: occasionally the packet received is out of order
       //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,

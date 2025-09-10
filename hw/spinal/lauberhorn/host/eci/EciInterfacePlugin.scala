@@ -75,7 +75,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val ipiToIntc = master(Stream(EciIntcInterface()))
     val demuxedIpiIntfs = Seq.fill(NUM_CORES)(Stream(EciIntcInterface()))
     // FIXME: do we need to merge core masks?
-    ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs.tail)
+    ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs)
 
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
@@ -312,11 +312,12 @@ class EciInterfacePlugin extends FiberPlugin {
           // tie down preemption request for bypass
           proto.preemptReq.setIdle()
 
-          // XXX: still allocate ipiAck for bypass core due to allocator limitation
-          drive(EciPreemptionControlPlugin.dummyDriveControl, "preempt", cid)
-
           // bypass core generates interrupt to host that signifies non-empty queue
-          proto.asInstanceOf[EciDecoupledRxTxProtocol].logic.irqOut >> ipiCtrl
+          val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol].logic
+          bypassProto.irqOut >> ipiCtrl
+
+          // XXX: still allocate registers for bypass core due to allocator limitation
+          drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn), "preempt", cid)
 
         case Some(pn) =>
           preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
