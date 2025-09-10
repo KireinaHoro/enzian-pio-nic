@@ -43,15 +43,15 @@ case class IpiAckReg() extends Bundle {
 
 object EciPreemptionControlPlugin {
   // called for driving the non-existent preemption control for core#0
-  def dummyDriveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
-    val errorNode = bus.toAxi()
-    val ro = Axi4ReadOnlyErrorSlave(errorNode.config)
-    val rw = Axi4WriteOnlyErrorSlave(errorNode.config)
-    errorNode.toReadOnly() >> ro.io.axi
-    errorNode.toWriteOnly() >> rw.io.axi
+  def bypassDriveControl(irqEn: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
 
     alloc("realCoreID")
     alloc("ipiAck", attr = RO, readSensitive = true)
+
+    // generate IRQ enable reg for bypass
+    val irqEnAddr = alloc("irqEn")
+    busCtrl.driveAndRead(irqEn, irqEnAddr) init False
   }
 }
 
@@ -76,6 +76,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     }
 
     busCtrl.readAndWrite(logic.realCoreID, alloc("realCoreID"))
+    busCtrl.driveAndRead(logic.irqEn, alloc("irqEn")) init False
   }
 
   val requiredAddrSpace = 0x80
@@ -158,6 +159,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiToIntc.affLvl1 := realCoreID(coreIDWidth - 1 downto 4).asBits.resized
     ipiToIntc.valid := False
 
+    val irqEn = Bool()
+
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
     val rxProtoPreemptReq = proto.preemptReq
@@ -171,7 +174,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       val idle: State = new State with EntryPoint {
         whenIsActive {
           preemptTimer.clear()
-          when (preemptReq.valid) {
+          // only start preemption when IRQ is enabled
+          when (preemptReq.valid && irqEn) {
             lci.valid := True
             when (lci.ready) {
               goto(unsetReady)

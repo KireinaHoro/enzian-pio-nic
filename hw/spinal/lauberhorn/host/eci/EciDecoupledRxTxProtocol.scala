@@ -126,6 +126,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
     val irqOut = coreID == 0 generate Stream(EciIntcInterface())
+    val irqEn = coreID == 0 generate Bool()
 
     awaitBuild()
 
@@ -385,7 +386,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (hostRx.isStall) {
+            when (hostRx.isStall && irqEn) {
               goto(sendIrq)
             }
           }
