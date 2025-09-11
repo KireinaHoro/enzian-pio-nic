@@ -1,7 +1,7 @@
 #ifndef __LAUBERHORN_CONFIG_H__
 #define __LAUBERHORN_CONFIG_H__
 
-// config generated for git hash 49f7ec02d697a61a
+// config generated for git hash 9b8523030f7eda42
 
 #define LAUBERHORN_PKT_BUF_ADDR_MASK ((1 << LAUBERHORN_PKT_BUF_ADDR_WIDTH) - 1)
 #define LAUBERHORN_PKT_BUF_LEN_MASK ((1 << LAUBERHORN_PKT_BUF_LEN_WIDTH) - 1)

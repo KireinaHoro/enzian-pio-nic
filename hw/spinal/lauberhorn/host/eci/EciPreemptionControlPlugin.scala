@@ -46,7 +46,7 @@ object EciPreemptionControlPlugin {
   def bypassDriveControl(irqEn: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    alloc("realCoreID")
+    alloc("realCoreId")
     alloc("ipiAck", attr = RO, readSensitive = true)
 
     // generate IRQ enable reg for bypass
@@ -75,7 +75,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       logic.ipiAckReadReq := True
     }
 
-    busCtrl.readAndWrite(logic.realCoreID, alloc("realCoreID"))
+    busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId"))
     busCtrl.driveAndRead(logic.irqEn, alloc("irqEn")) init False
   }
 
@@ -154,9 +154,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // affLvl0 is a bit mask, but we only send to one at a time
     // FIXME: can we eliminate this calculation? i.e. use a fixed core offset
     val coreIDWidth = log2Up(MAX_CORE_ID)
-    val realCoreID = Reg(UInt(coreIDWidth bits)) init coreID
-    ipiToIntc.affLvl0 := UIntToOh(realCoreID(3 downto 0))
-    ipiToIntc.affLvl1 := realCoreID(coreIDWidth - 1 downto 4).asBits.resized
+    val realCoreId = Reg(UInt(coreIDWidth bits)) init coreID
+    ipiToIntc.affLvl0 := UIntToOh(realCoreId(3 downto 0))
+    ipiToIntc.affLvl1 := realCoreId(coreIDWidth - 1 downto 4).asBits.resized
     ipiToIntc.valid := False
 
     val irqEn = Bool()

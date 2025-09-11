@@ -12,7 +12,7 @@
  */
 
 device lauberhorn_eci_preempt lsbfirst (addr base) "preempt block for lauberhorn_eci" {
-register real_core_i_d rw addr(base, 0x0) "realCoreID @ preempt" type(uint64);
+register real_core_id rw addr(base, 0x0) "realCoreId @ preempt" type(uint64);
 register ipi_ack ro addr(base, 0xf8) "ipiAck @ preempt" type(uint64);
 register irq_en rw addr(base, 0x8) "irqEn @ preempt" type(uint64);
 
