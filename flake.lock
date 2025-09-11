@@ -18,6 +18,29 @@
         "type": "github"
       }
     },
+    "mackerel": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1757522847,
+        "narHash": "sha256-qCe7VJEnEuEybToz9T4MFhm5gh2PrFEwUkym2SDfr1g=",
+        "ref": "refs/heads/main",
+        "rev": "8c744d3c0e202ae0b4dd70e60d1410217db0dfbb",
+        "revCount": 145,
+        "type": "git",
+        "url": "https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1743337669,
@@ -36,6 +59,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "mackerel": "mackerel",
         "nixpkgs": "nixpkgs"
       }
     },
