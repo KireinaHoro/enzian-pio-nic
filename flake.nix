@@ -39,7 +39,10 @@
     mackerel = inputs.mackerel.packages.${system}.mackerel2;
 
     # common build tools for building kernel (modules)
-    linuxTools = with pkgs; [ flex bison bc openssl libelf crossGcc ];
+    linuxTools = with pkgs; [
+      flex bison bc openssl elfutils.dev crossGcc
+      pahole python3 zlib.dev
+    ];
 
     # get kernel tree for building module
     # unpack Noble linux headers deb to get Modules.symvers and config
@@ -58,13 +61,21 @@
       };
       nativeBuildInputs = linuxTools ++ [ pkgs.dpkg ];
       buildPhase = ''
+        patchShebangs scripts/bpf_doc.py
+
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-unknown-linux-gnu-
+
         mkdir sysroot
         dpkg-deb -x ${genericDeb} sysroot/
         for a in .config Module.symvers; do
           cp sysroot/usr/src/linux-headers-6.8.0-64-generic/$a .
         done
         rm -rf sysroot
-        make ARCH=arm64 CROSS_COMPILE=aarch64-unknown-linux-gnu- modules_prepare
+
+        cp .config .config.bak
+        make olddefconfig
+        make modules_prepare
       '';
       installPhase = ''
         mkdir -p $out
