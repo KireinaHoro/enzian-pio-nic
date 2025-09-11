@@ -1,0 +1,20 @@
+
+/*
+ * lauberhorn_eci_worker.dev: register description of lauberhorn_eci_worker.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_worker lsbfirst (addr base) "worker block for lauberhorn_eci" {
+register rx_fsm_state ro addr(base, 0x0) "rxFsmState @ worker" type(uint64);
+register rx_curr_cl_idx ro addr(base, 0x8) "rxCurrClIdx @ worker" type(uint64);
+register tx_fsm_state ro addr(base, 0x10) "txFsmState @ worker" type(uint64);
+register tx_curr_cl_idx ro addr(base, 0x18) "txCurrClIdx @ worker" type(uint64);
+
+};

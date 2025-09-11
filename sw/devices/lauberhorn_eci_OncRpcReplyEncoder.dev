@@ -1,0 +1,32 @@
+
+/*
+ * lauberhorn_eci_OncRpcReplyEncoder.dev: register description of lauberhorn_eci_OncRpcReplyEncoder.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_OncRpcReplyEncoder lsbfirst (addr base) "OncRpcReplyEncoder block for lauberhorn_eci" {
+register ctrl_sess_idx wo addr(base, 0x0) "ctrl:sess_idx @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_func_ptr wo addr(base, 0x8) "ctrl:sess_funcPtr @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_xid wo addr(base, 0x10) "ctrl:sess_xid @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_client_addr wo addr(base, 0x18) "ctrl:sess_clientAddr @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_client_port wo addr(base, 0x20) "ctrl:sess_clientPort @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_server_port wo addr(base, 0x28) "ctrl:sess_serverPort @ OncRpcReplyEncoder" type(uint64);
+register ctrl_sess_active wo addr(base, 0x30) "ctrl:sess_active @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_idx wo addr(base, 0x38) "stat:sess_readback_idx @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_func_ptr ro addr(base, 0x40) "stat:sess_readback_funcPtr @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_xid ro addr(base, 0x48) "stat:sess_readback_xid @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_client_addr ro addr(base, 0x50) "stat:sess_readback_clientAddr @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_client_port ro addr(base, 0x58) "stat:sess_readback_clientPort @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_server_port ro addr(base, 0x60) "stat:sess_readback_serverPort @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_readback_active ro addr(base, 0x68) "stat:sess_readback_active @ OncRpcReplyEncoder" type(uint64);
+register stat_sess_tbl_full ro addr(base, 0x70) "stat:sessTblFull @ OncRpcReplyEncoder" type(uint64);
+register stat_dropped ro addr(base, 0x78) "stat:dropped @ OncRpcReplyEncoder" type(uint64);
+
+};

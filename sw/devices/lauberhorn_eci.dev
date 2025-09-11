@@ -1,0 +1,98 @@
+
+/*
+ * lauberhorn_eci.dev: register description of lauberhorn_eci.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci lsbfirst () "dtypes block for lauberhorn_eci" {
+
+constants host_req_type width(3) "Host Request Type" {
+  error         = 0b000 "Error";
+  bypass        = 0b001 "Bypass";
+  arp_req       = 0b010 "ARP Request";
+  onc_rpc_call  = 0b011 "ONC-RPC Call";
+  onc_rpc_reply = 0b100 "ONC-RPC Reply";
+};
+
+constants packet_desc_type width(3) "Packet Descriptor Type" {
+  hdr_raw           = 0b000 "Raw";
+  hdr_ethernet      = 0b001 "Ethernet";
+  hdr_ip            = 0b010 "IP";
+  hdr_udp           = 0b011 "UDP";
+  hdr_onc_rpc_call  = 0b100 "ONC-RPC Call (bypass)";
+  hdr_onc_rpc_reply = 0b101 "ONC-RPC Reply (bypass)";
+};
+
+datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
+  valid 1 "RX descriptor valid (rsvd for TX)";
+  ty    3 type(host_req_type) "Type of descriptor (should be error)";
+  len   16 "Length of packet";
+  _     12 rsvd;
+};
+
+datatype host_ctrl_info_bypass lsbfirst(64) "ECI Host Control Info (Bypass)" {
+  valid    1 "RX descriptor valid (rsvd for TX)";
+  ty       3 type(host_req_type) "Type of descriptor (should be bypass)";
+  len      16 "Length of packet";
+  hdr_ty   3 type(packet_desc_type) "Type of bypass header";
+  _        9 rsvd;
+  // hdr follows -- need to calculate address manually
+  // TODO: actually define args in the datatype.  Possible approach:
+  // - as an address-only field, so no hdr+size pointer calculation in user code
+};
+
+datatype host_ctrl_info_onc_rpc_server lsbfirst(64) "ECI Host Control Info (ONC-RPC Direct Call / Reply)" {
+  valid     1 "RX descriptor valid (rsvd for TX)";
+  ty        3 type(host_req_type) "Type of descriptor (should be onc_rpc_call / onc_rpc_reply)";
+  len       16 "Length of packet (includes inlined bytes for TX, does not include inlined bytes for RX)";
+  _         12 rsvd;
+  xid       32 "XID of incoming request (big endian)";
+  func_ptr  64 "Function pointer for RPC call handler";
+  // args follows -- need to calculate address manually
+  // TODO: actually define args in the datatype.  Two possible approaches:
+  // - as an address-only field, so no hdr+size pointer calculation in user code
+  // - as an array, so Mackerel would emit access functions
+};
+
+datatype host_ctrl_info_arp_req lsbfirst(64) "ECI Host Control Info (ARP Request for bypass core)" {
+  valid     1 "RX descriptor valid (rsvd for TX)";
+  ty        3 type(host_req_type) "Type of descriptor (should be arp_req)";
+  len       16 "Length of packet";
+  tbl_idx   3 "Index of INCOMPLETE entry in neighbor table";
+  _         9 rsvd;
+  ip_addr   32 "IP address of the target host";
+};
+
+// TODO: separate datatype for making a nested RPC call (progNum, ver...)?
+
+datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
+  // TODO: this datatype does not exist yet, use host_ctrl_info_bypass to send a raw Ethernet frame
+  valid     1 "RX descriptor valid (rsvd for TX)";
+  ty        3 type(host_req_type) "Type of descriptor (should be onc_rpc_reply)";
+  len       16 "Length of packet";
+  _         12 rsvd;
+  // buffer follows
+  // TODO: for now, reply software-serialized data...
+};
+
+datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
+  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
+  busy      1 "the thread is in the critical section";
+  _         6 rsvd;
+};
+         
+
+constants udp_next_proto width(2) "UDP Listener Protocol" {
+  listen_disabled      = 0b00 "Disabled";
+  listen_onc_rpc_call  = 0b01 "ONC-RPC Call";
+  listen_onc_rpc_reply = 0b10 "ONC-RPC Reply";
+};
+
+};
