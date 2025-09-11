@@ -1,5 +1,7 @@
 out/
-hw/gen/
+hw/gen/**/*.sv
+hw/gen/**/*.v
+hw/gen/**/*.xdc
 .idea/
 .bsp/
 .bloop/
