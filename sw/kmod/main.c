@@ -213,7 +213,8 @@ static void __exit mod_exit(void) {
 }
 
 MODULE_AUTHOR("Zikai Liu");
-MODULE_DESCRIPTION("PIO NIC kernel driver");
+MODULE_AUTHOR("Pengcheng Xu");
+MODULE_DESCRIPTION("Lauberhorn kernel driver");
 MODULE_LICENSE("Dual BSD/GPL");
 
 module_init(mod_init);
