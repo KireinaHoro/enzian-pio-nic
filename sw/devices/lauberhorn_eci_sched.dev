@@ -1,0 +1,39 @@
+
+/*
+ * lauberhorn_eci_sched.dev: register description of lauberhorn_eci_sched.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_sched lsbfirst (addr base) "sched block for lauberhorn_eci" {
+register ctrl_proc_enabled wo addr(base, 0x0) "ctrl:proc_enabled @ sched" type(uint64);
+register ctrl_proc_pid wo addr(base, 0x8) "ctrl:proc_pid @ sched" type(uint64);
+register ctrl_proc_max_threads wo addr(base, 0x10) "ctrl:proc_maxThreads @ sched" type(uint64);
+register ctrl_proc_idx wo addr(base, 0x18) "ctrl:proc_idx @ sched" type(uint64);
+register stat_readback_enabled ro addr(base, 0x20) "stat:readback_enabled @ sched" type(uint64);
+register stat_readback_pid ro addr(base, 0x28) "stat:readback_pid @ sched" type(uint64);
+register stat_readback_max_threads ro addr(base, 0x30) "stat:readback_maxThreads @ sched" type(uint64);
+register stat_readback_queue_fill ro addr(base, 0x38) "stat:readback_queueFill @ sched" type(uint64);
+register stat_readback_idx wo addr(base, 0x40) "stat:readback_idx @ sched" type(uint64);
+register stat_pushed ro addr(base, 0x48) "stat:pushed @ sched" type(uint64);
+register stat_dropped ro addr(base, 0x50) "stat:dropped @ sched" type(uint64);
+register core_stat_popped_core_1 ro addr(base, 0x58) "coreStat:popped_core1 @ sched" type(uint64);
+register core_stat_popped_core_2 ro addr(base, 0x60) "coreStat:popped_core2 @ sched" type(uint64);
+register core_stat_popped_core_3 ro addr(base, 0x68) "coreStat:popped_core3 @ sched" type(uint64);
+register core_stat_popped_core_4 ro addr(base, 0x70) "coreStat:popped_core4 @ sched" type(uint64);
+register core_stat_preempted_core_1 ro addr(base, 0x78) "coreStat:preempted_core1 @ sched" type(uint64);
+register core_stat_preempted_core_2 ro addr(base, 0x80) "coreStat:preempted_core2 @ sched" type(uint64);
+register core_stat_preempted_core_3 ro addr(base, 0x88) "coreStat:preempted_core3 @ sched" type(uint64);
+register core_stat_preempted_core_4 ro addr(base, 0x90) "coreStat:preempted_core4 @ sched" type(uint64);
+register core_stat_dispatched_core_1 ro addr(base, 0x98) "coreStat:dispatched_core1 @ sched" type(uint64);
+register core_stat_dispatched_core_2 ro addr(base, 0xa0) "coreStat:dispatched_core2 @ sched" type(uint64);
+register core_stat_dispatched_core_3 ro addr(base, 0xa8) "coreStat:dispatched_core3 @ sched" type(uint64);
+register core_stat_dispatched_core_4 ro addr(base, 0xb0) "coreStat:dispatched_core4 @ sched" type(uint64);
+
+};

@@ -1,0 +1,28 @@
+
+/*
+ * lauberhorn_eci_profiler.dev: register description of lauberhorn_eci_profiler.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_profiler lsbfirst (addr base) "profiler block for lauberhorn_eci" {
+register cycles ro addr(base, 0x0) "cycles @ profiler" type(uint64);
+register last_profile__rx_cmac_entry ro addr(base, 0x8) "lastProfile:RxCmacEntry @ profiler" type(uint64);
+register last_profile__rx_after_cdc_queue ro addr(base, 0x10) "lastProfile:RxAfterCdcQueue @ profiler" type(uint64);
+register last_profile__rx_enqueue_to_host ro addr(base, 0x18) "lastProfile:RxEnqueueToHost @ profiler" type(uint64);
+register last_profile__rx_core_read_start ro addr(base, 0x20) "lastProfile:RxCoreReadStart @ profiler" type(uint64);
+register last_profile__rx_core_read_finish ro addr(base, 0x28) "lastProfile:RxCoreReadFinish @ profiler" type(uint64);
+register last_profile__rx_core_commit ro addr(base, 0x30) "lastProfile:RxCoreCommit @ profiler" type(uint64);
+register last_profile__tx_core_acquire ro addr(base, 0x38) "lastProfile:TxCoreAcquire @ profiler" type(uint64);
+register last_profile__tx_core_commit ro addr(base, 0x40) "lastProfile:TxCoreCommit @ profiler" type(uint64);
+register last_profile__tx_after_dma_read ro addr(base, 0x48) "lastProfile:TxAfterDmaRead @ profiler" type(uint64);
+register last_profile__tx_before_cdc_queue ro addr(base, 0x50) "lastProfile:TxBeforeCdcQueue @ profiler" type(uint64);
+register last_profile__tx_cmac_exit ro addr(base, 0x58) "lastProfile:TxCmacExit @ profiler" type(uint64);
+
+};

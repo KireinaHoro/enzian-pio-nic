@@ -1,0 +1,24 @@
+
+/*
+ * lauberhorn_eci_dma.dev: register description of lauberhorn_eci_dma.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_dma lsbfirst (addr base) "dma block for lauberhorn_eci" {
+register ctrl_alloc_reset rw addr(base, 0x0) "ctrl:allocReset @ dma" type(uint64);
+register rx_packet_count ro addr(base, 0x8) "rxPacketCount @ dma" type(uint64);
+register tx_packet_count ro addr(base, 0x10) "txPacketCount @ dma" type(uint64);
+register rx_dma_error_count ro addr(base, 0x18) "rxDmaErrorCount @ dma" type(uint64);
+register tx_dma_error_count ro addr(base, 0x20) "txDmaErrorCount @ dma" type(uint64);
+register stat_rx_alloc_occupancy_up_to_128 ro addr(base, 0x28) "stat:rxAllocOccupancy_upTo128 @ dma" type(uint64);
+register stat_rx_alloc_occupancy_up_to_1518 ro addr(base, 0x30) "stat:rxAllocOccupancy_upTo1518 @ dma" type(uint64);
+register stat_rx_alloc_occupancy_up_to_9618 ro addr(base, 0x38) "stat:rxAllocOccupancy_upTo9618 @ dma" type(uint64);
+
+};

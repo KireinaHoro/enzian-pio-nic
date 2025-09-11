@@ -1,0 +1,20 @@
+
+/*
+ * lauberhorn_eci_IpDecoder.dev: register description of lauberhorn_eci_IpDecoder.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_IpDecoder lsbfirst (addr base) "IpDecoder block for lauberhorn_eci" {
+register stat_header_only ro addr(base, 0x0) "stat:headerOnly @ IpDecoder" type(uint64);
+register stat_partial_header ro addr(base, 0x8) "stat:partialHeader @ IpDecoder" type(uint64);
+register stat_incomplete_header ro addr(base, 0x10) "stat:incompleteHeader @ IpDecoder" type(uint64);
+register ctrl_ip_address rw addr(base, 0x18) "ctrl:ipAddress @ IpDecoder" type(uint64);
+
+};

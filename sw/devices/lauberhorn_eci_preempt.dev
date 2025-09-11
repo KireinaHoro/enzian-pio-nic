@@ -1,0 +1,19 @@
+
+/*
+ * lauberhorn_eci_preempt.dev: register description of lauberhorn_eci_preempt.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+
+device lauberhorn_eci_preempt lsbfirst (addr base) "preempt block for lauberhorn_eci" {
+register real_core_i_d rw addr(base, 0x0) "realCoreID @ preempt" type(uint64);
+register ipi_ack ro addr(base, 0xf8) "ipiAck @ preempt" type(uint64);
+register irq_en rw addr(base, 0x8) "irqEn @ preempt" type(uint64);
+
+};
