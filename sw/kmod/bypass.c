@@ -26,7 +26,7 @@
 #include <asm/arch_gicv3.h>
 
 static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
-static int irq_no;
+static u64 irq_no;
 
 static irqreturn_t bypass_fpi_handler(int irq, void *data) {
     pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__, smp_processor_id(), irq);
@@ -36,8 +36,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *data) {
     return IRQ_HANDLED;
 }
 
-int init_bypass(void) {
-    int err, irq_no;
+static int init_bypass_fpi(void) {
+    int err;
     struct irq_data *gic_irq_data;
     struct irq_domain *gic_domain;
     struct fwnode_handle *fwnode;
@@ -59,7 +59,7 @@ int init_bypass(void) {
         pr_warn("irq_create_fwspec_mapping returns %d\n", err);
     }
     irq_no = err;
-    pr_info("Allocated interrupt number = %d\n", irq_no);
+    pr_info("Allocated interrupt number = %llu\n", irq_no);
     smp_wmb();
     
     // Register handler for bypass IRQ
@@ -75,13 +75,39 @@ int init_bypass(void) {
         pr_warn("failed to invoke CPU 0 to activate bypass IRQ: err %d\n", err);
         return err;
     }
+
+    return 0;
 }
 
-static int deinit_bypass_fpi(void) {
+static void deinit_bypass_fpi(void) {
     int err;
 
     err = smp_call_on_cpu(0, do_fpi_irq_deactivate, (void *)irq_no, true);
     WARN_ON(err < 0);
     free_percpu_irq(irq_no, &bypass_fpi_cookie);
     irq_dispose_mapping(irq_no);
+}
+
+int init_bypass(void) {
+    int err;
+
+    // Create netdev
+    
+    // Register NAPI context
+
+    // Configure FIFO non-empty interrupt
+    err = init_bypass_fpi();
+    if (err < 0) return err;
+
+    return 0;
+}
+
+void deinit_bypass(void) {
+    // Disable interrupts
+    deinit_bypass_fpi();
+
+    // Deregister NAPI
+
+    // Destroy netdev
+    
 }

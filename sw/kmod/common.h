@@ -2,10 +2,31 @@
 /* Copyright (c) 2025 Zikai Liu */
 // This file should be included at last
 
-#ifndef __PIONIC_KERNEL_MODULE_COMMON_H__
-#define __PIONIC_KERNEL_MODULE_COMMON_H__
+#ifndef __LAUBERHORN_KERNEL_MODULE_COMMON_H__
+#define __LAUBERHORN_KERNEL_MODULE_COMMON_H__
 
 #include <linux/printk.h>
+#include <linux/cdev.h>
+#include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/ioctl.h>
+#include <linux/kdev_t.h>
+#include <linux/kthread.h>
+#include <linux/module.h>
+#include <linux/sched.h>
+#include <linux/slab.h>    // kmalloc
+#include <linux/uaccess.h> // copy_to/from_user
+#include <linux/wait.h>
+#include <linux/smp.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+#include <linux/irqreturn.h>
+#include <linux/irqdomain.h>
+
+#include <asm/io.h>
+#include <asm/arch_gicv3.h>
 
 // Always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
@@ -36,4 +57,7 @@ void deinit_datapath(void);
 int create_devices(void);
 void remove_devices(void);
 
-#endif
+// ioctl handlers for use in chrdev.c to fill out fops
+long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+
+#endif  // __LAUBERHORN_KERNEL_MODULE_COMMON_H__

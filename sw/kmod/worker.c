@@ -1,36 +1,26 @@
+#include "common.h"
 
+#include "eci/config.h"
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
 static int worker_lo, worker_hi;
 static DEFINE_PER_CPU_READ_MOSTLY(int, fpi_cpu_number);
-static int irq_no;
+static u64 irq_no;
 
 static irqreturn_t worker_fpi_handler(int irq, void *data) {
     pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(), irq);
-    // wq_flag = 1;
-    // smp_wmb();
-    // wake_up_interruptible(&wq);
-    // TODO: continue in the second half, to get a proper thread context
+
+    // Read out IRQ ACK register and decode next task
+    
+    // Mark current task as uninterruptible
+    // Or, if task needs to be killed per IRQ ACK, kill the task
+
+    // Mark new task as runnable *only on this core*
+
+    // Manipulate page tables to unmap old core CLs and map new one
+    // XXX: alternatively, implement an IOMMU and change mapping here
+
     return IRQ_HANDLED;
-}
-
-int init_workers() {
-    int err;
-
-    // Which cores are the worker cores?
-    worker_hi = num_online_cpus();
-    worker_lo = worker_hi - LAUBERHORN_NUM_WORKER_CORES;
-    pr_info("Using %d cores %d-%d for RPC processing\n",
-        LAUBERHORN_NUM_WORKER_CORES,
-        worker_lo, worker_hi - 1);
-
-    // enable interrupts for all worker cores
-    err = init_worker_fpi();
-    if (err != 0) return err;
-}
-
-void deinit_workers() {
-
 }
 
 /**
@@ -45,7 +35,7 @@ void deinit_workers() {
  * This function only handles the interrupt for the worker cores; the bypass core
  * interrupt is handled inside `init_bypass`.
  */
-static int init_worker_fpi() {
+static int init_worker_fpi(void) {
     int err, cid;
     struct irq_data *gic_irq_data;
     struct irq_domain *gic_domain;
@@ -69,7 +59,7 @@ static int init_worker_fpi() {
         return err;
     }
     irq_no = err;
-    pr_info("Allocated interrupt number = %d\n", fpi_irq_no);
+    pr_info("Allocated interrupt number = %llu\n", irq_no);
     smp_wmb();
     
     err = request_percpu_irq(irq_no, worker_fpi_handler, "Lauberhorn RPC Worker Preemption IRQ",
@@ -96,4 +86,40 @@ static void deinit_worker_fpi(void) {
     }
     free_percpu_irq(irq_no, &fpi_cpu_number);
     irq_dispose_mapping(irq_no);
+}
+
+int init_workers() {
+    int err;
+
+    // Which cores are the worker cores?
+    worker_hi = num_online_cpus();
+    worker_lo = worker_hi - LAUBERHORN_NUM_WORKER_CORES;
+    pr_info("Using %d cores %d-%d for RPC processing\n",
+        LAUBERHORN_NUM_WORKER_CORES,
+        worker_lo, worker_hi - 1);
+
+    // Enable interrupts for all worker cores
+    err = init_worker_fpi();
+    if (err != 0) return err;
+
+    // Promote ksoftirqd on this core to SCHED_FIFO with priority 80.
+    // The RPC tasks will run with a priority of 70
+
+    // We don't have any RPC handlers on these worker cores yet, so nothing
+    // to do here yet.  Once a user-level application thread starts, it will
+    // register itself with an ioctl to /dev/lauberhorn -- we then set their
+    // affinity, scheduling policy and priority.
+
+    return 0;
+}
+
+void deinit_workers() {
+    // Check if we still have applications running
+    // Refcount the module properly on application exit, this should not happen
+
+    // Disable FPI interrupt for the core
+    deinit_worker_fpi();
+
+    // Restore ksoftirqd to SCHED_OTHER
+
 }
