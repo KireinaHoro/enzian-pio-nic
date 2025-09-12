@@ -26,9 +26,10 @@
 #include <asm/arch_gicv3.h>
 
 static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
+static int irq_no;
 
 static irqreturn_t bypass_fpi_handler(int irq, void *data) {
-    printk("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__, smp_processor_id(), irq);
+    pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__, smp_processor_id(), irq);
 
     // TODO: check if bypass FIFO has data, call NAPI schedule
     // 
@@ -42,12 +43,6 @@ int init_bypass(void) {
     struct fwnode_handle *fwnode;
     static struct irq_fwspec fwspec_fpi;
     
-    // ====== configure 
-    
-    // ====== enable IRQ for core 0 ======
-    
-    // ====== set up IRQ ======
-
     // Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
     // 1, since we don't have a device tree node.  We assuming that fwnode is
     // the first element of structure gic_chip_data
@@ -75,9 +70,18 @@ int init_bypass(void) {
     }
     
     // Enable SGI #15 on core 0
-    err = smp_call_on_cpu(0, do_fpi_bypass_activate, (void *)fpi_irq_no, true);
+    err = smp_call_on_cpu(0, do_fpi_irq_activate, (void *)irq_no, true);
     if (err < 0) {
         pr_warn("failed to invoke CPU 0 to activate bypass IRQ: err %d\n", err);
         return err;
     }
+}
+
+static int deinit_bypass_fpi(void) {
+    int err;
+
+    err = smp_call_on_cpu(0, do_fpi_irq_deactivate, (void *)irq_no, true);
+    WARN_ON(err < 0);
+    free_percpu_irq(irq_no, &bypass_fpi_cookie);
+    irq_dispose_mapping(irq_no);
 }
