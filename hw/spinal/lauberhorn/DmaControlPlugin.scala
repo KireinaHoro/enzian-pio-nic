@@ -49,7 +49,6 @@ object RxPacketDescWithSource {
   */
 class DmaControlPlugin extends FiberPlugin {
   lazy val pktBuf = host[PacketBuffer]
-  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val p = host[ProfilerPlugin]
 
   /** Access points for downstream/upstream [[HostReq]] instances.

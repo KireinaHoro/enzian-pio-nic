@@ -59,7 +59,6 @@ object PreemptCmdType extends SpinalEnum {
   * Note: to allow accurate decisions based on queue capacity, this is the only component in the system that queues packets.
   */
 class Scheduler extends FiberPlugin {
-  lazy val csr = host[GlobalCSRPlugin].logic.get
   lazy val totalPkts = RX_PKTS_PER_PROC * NUM_PROCS
 
   def MemAddr = UInt(log2Up(totalPkts) bits)
