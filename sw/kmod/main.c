@@ -62,9 +62,8 @@ static struct file_operations fops = {
 // ================================ FPI ================================
 
 static DEFINE_PER_CPU_READ_MOSTLY(int, fpi_cpu_number);
-static unsigned fpi_irq_no;
 
-static irqreturn_t fpi_handler(int irq, void *data) {
+static irqreturn_t dummy_fpi_handler(int irq, void *data) {
     printk("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(), irq);
     // wq_flag = 1;
     // smp_wmb();
@@ -73,34 +72,45 @@ static irqreturn_t fpi_handler(int irq, void *data) {
     return IRQ_HANDLED;
 }
 
-static int do_fpi_irq_activate(void *unused) {
-    enable_percpu_irq(fpi_irq_no, 0);
+int do_fpi_irq_activate(void *data) {
+    unsigned irq_no = (unsigned)(data);
+    enable_percpu_irq(irq_no, 0);
     return 0;
 }
 
-static int do_fpi_irq_deactivate(void *unused) {
-    disable_percpu_irq(fpi_irq_no);
+int do_fpi_irq_deactivate(void *data) {
+    unsigned irq_no = (unsigned)(data);
+    disable_percpu_irq(irq_no);
     return 0;
 }
 
-static int init_fpi(void) {
+/**
+ * Install handlers for the software-generated interrupts (SGI) that comes from
+ * the FPGA.  Adam's Linux Memory Driver calls these FPIs, probably FPGA peripheral
+ * interrupts.
+ * 
+ * The Lauberhorn NIC sends two SGI interrupts:
+ * - #15  only to core 0: bypass core descriptor FIFO non-empty
+ * - #8   to all worker cores: preemption interrupt for switching tasks
+ */
+static int init_worker_fpi(void) {
     int err, cpu_no;
     struct irq_data *gic_irq_data;
     struct irq_domain *gic_domain;
     struct fwnode_handle *fwnode;
     static struct irq_fwspec fwspec_fpi;
 
-    // init_waitqueue_head(&wq);
-    // wq_flag = 0;
-
+    // Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
+    // 1, since we don't have a device tree node.  We assuming that fwnode is
+    // the first element of structure gic_chip_data
     gic_irq_data = irq_get_irq_data(1U);
     gic_domain = gic_irq_data->domain;
-    // Assuming that fwnode is the first element of structure gic_chip_data
     fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
 
+    // Allocate an IRQ number for SGI #8 for all worker cores
     fwspec_fpi.fwnode = fwnode;
     fwspec_fpi.param_count = 1;
-    fwspec_fpi.param[0] = 8; // first free SGI interrupt
+    fwspec_fpi.param[0] = 8;
     err = irq_create_fwspec_mapping(&fwspec_fpi);
     if (err < 0) {
         pr_warn("irq_create_fwspec_mapping returns %d\n", err);
@@ -108,21 +118,23 @@ static int init_fpi(void) {
     fpi_irq_no = err;
     pr_info("Allocated interrupt number = %d\n", fpi_irq_no);
     smp_wmb();
-    err = request_percpu_irq(fpi_irq_no, fpi_handler, "Lauberhorn FPI", &fpi_cpu_number);
-    if (err < 0) {
-        pr_warn("request_percpu_irq returns %d\n", err);
-    }
-    for_each_online_cpu(cpu_no) { // active the interrupt on all cores
-        err = smp_call_on_cpu(cpu_no, do_fpi_irq_activate, NULL, true);
-        if (err < 0) {
-            pr_warn("smp_call_on_cpu returns %d\n", err);
-        }
-    }
+    
+    // err = request_percpu_irq(fpi_irq_no, bypass_fpi_handler, "Lauberhorn Bypass IRQ", &fpi_cpu_number);
+    // if (err < 0) {
+    //     pr_warn("request_percpu_irq returns %d\n", err);
+    // }
+
+    // for_each_online_cpu(cpu_no) { // active the interrupt on all cores
+    //     err = smp_call_on_cpu(cpu_no, do_fpi_irq_activate, NULL, true);
+    //     if (err < 0) {
+    //         pr_warn("smp_call_on_cpu returns %d\n", err);
+    //     }
+    // }
 
     return 0;
 }
 
-static void deinit_fpi(void) {
+static void deinit_worker_fpi(void) {
     int err, cpu_no;
 
     for_each_online_cpu(cpu_no) { // deactive the interrupt on all cores
@@ -190,8 +202,20 @@ static int __init mod_init(void) {
     remove_device();
     return -1;
   }
-  if (init_fpi() != 0) {
-    deinit_fpi();
+  if (init_worker_fpi() != 0) {
+    deinit_worker_fpi();
+    return -1;
+  }
+  if (init_bypass() != 0) {
+    deinit_bypass();
+    return -1;
+  }
+  if (init_decoders() != 0) {
+    deinit_decoders();
+    return -1;
+  }
+  if (init_encoders() != 0) {
+    deinit_encoders();
     return -1;
   }
 
@@ -204,7 +228,7 @@ static void __exit mod_exit(void) {
   pr_info("Lauberhorn kmod exiting...\n");
 
   remove_device();
-  deinit_fpi();
+  deinit_worker_fpi();
 
   /* ret = kthread_stop(ktask);
   pr_info("kthread returns %d", ret); */

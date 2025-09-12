@@ -13,4 +13,12 @@
 #endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+// Init and deinit functions for bypass netdev handling
+int init_bypass(void);
+void deinit_bypass(void);
+
+// IRQ activate and deactivate functions, for use with smp_call_on_cpu
+int do_fpi_irq_activate(void *data);
+int do_fpi_irq_deactivate(void *data);
+
 #endif
