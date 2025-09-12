@@ -18,7 +18,12 @@ int do_fpi_irq_deactivate(void *data) {
 // Module initialization
 static int __init mod_init(void) {
   int err;
-  probe_versions();
+
+  err = probe_versions();
+  if (err != 0) {
+    pr_err("init_workers failed: err = %d\n", err);
+    return -1;
+  }
 
   err = init_workers();
   if (err != 0) {

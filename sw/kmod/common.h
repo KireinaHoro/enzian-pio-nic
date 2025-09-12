@@ -34,7 +34,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 // Print SW, shell and NIC versions
-void probe_versions(void);
+int probe_versions(void);
 
 // Init and deinit functions for bypass netdev handling
 int init_bypass(void);
