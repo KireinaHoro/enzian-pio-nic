@@ -3,7 +3,7 @@
 
 KDIR ?= /lib/modules/`uname -r`/build
 
-ccflags-y += -I$(MACKEREL_DEV_HDRS)
+ccflags-y += -I$(MACKEREL_DEV_HDRS) -I$(HW_CFG_HDRS)
 
 obj-m += lauberhorn.o
 lauberhorn-y := main.o ioctl.o bypass.o
