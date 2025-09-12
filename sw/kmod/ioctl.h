@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only */
 /* Copyright (c) 2025 Zikai Liu */
+
 // IOCTL commands definitions
 // Shared by the kernel module and the user-space library
 

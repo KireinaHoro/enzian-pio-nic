@@ -17,14 +17,6 @@
 
 #include "common.h"
 
-#include <linux/smp.h>
-#include <linux/irq.h>
-#include <linux/interrupt.h>
-#include <linux/irqreturn.h>
-#include <linux/irqdomain.h>
-
-#include <asm/arch_gicv3.h>
-
 static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
 static u64 irq_no;
 

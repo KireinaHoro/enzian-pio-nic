@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
-# Copyright (c) 2025 Zikai Liu
+# Copyright (c) 2025 Zikai Liu, Pengcheng Xu
 
 KDIR ?= /lib/modules/`uname -r`/build
 
