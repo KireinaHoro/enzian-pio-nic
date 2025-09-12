@@ -1,3 +1,5 @@
+#include "common.h"
+
 void init_datapath(void) {
 
 }

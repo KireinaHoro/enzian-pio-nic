@@ -1,6 +1,17 @@
+#include "common.h"
+
 static dev_t dev = 0;
 static struct cdev cdev;
 static struct class *dev_class;
+
+static struct file_operations fops = {
+    .owner = THIS_MODULE,
+    // .read           = etx_read,
+    // .write          = etx_write,
+    // .open           = etx_open,
+    .unlocked_ioctl = mod_ioctl,
+    // .release        = etx_release,
+};
 
 /**
  * Create character devices for control-path functions towards userspace.
