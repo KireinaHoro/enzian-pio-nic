@@ -103,7 +103,9 @@
     };
 
     # cross-compile lauberhorn kernel module
-    lauberhorn-kmod = pkgs.stdenv.mkDerivation {
+    lauberhorn-kmod = let
+      hwGenHdrs = cleanSource ./hw/gen;
+    in pkgs.stdenv.mkDerivation {
       name = "lauberhorn-kmod";
       version = "0.0.1";
       src = cleanSource ./sw;
@@ -113,7 +115,7 @@
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
         pushd kmod
-        make V=1 MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs}
+        make V=1 MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs} HW_CFG_HDRS=${hwGenHdrs}
         popd
       '';
       installPhase = ''
