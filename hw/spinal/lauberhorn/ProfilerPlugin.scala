@@ -51,6 +51,9 @@ class ProfilerPlugin extends FiberPlugin {
       println(f"Git version: ${GIT_VERSION.get}%x")
       busCtrl.read(B(GIT_VERSION), alloc("gitVersion", attr = RO))
 
+      // "LBERHORN" in hex
+      busCtrl.read(B("64'x4C424552484F524E"), alloc("magic", attr = RO))
+
       busCtrl.read(cycles, alloc("cycles", attr = RO))
 
       profiler.timestamps.storage.foreach { case (namedType, data) =>
