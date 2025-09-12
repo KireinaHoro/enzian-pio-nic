@@ -47,6 +47,10 @@ class ProfilerPlugin extends FiberPlugin {
 
     def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
       val busCtrl = AxiLite4SlaveFactory(bus)
+
+      println(f"Git version: ${GIT_VERSION.get}%x")
+      busCtrl.read(B(GIT_VERSION), alloc("gitVersion", attr = RO))
+
       busCtrl.read(cycles, alloc("cycles", attr = RO))
 
       profiler.timestamps.storage.foreach { case (namedType, data) =>
