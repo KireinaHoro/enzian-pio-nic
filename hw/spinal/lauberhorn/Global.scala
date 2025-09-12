@@ -66,7 +66,7 @@ object Global extends AreaRoot {
       f"""|#ifndef __LAUBERHORN_CONFIG_H__
           |#define __LAUBERHORN_CONFIG_H__
           |
-          |// config generated for git hash ${GIT_VERSION.get}%x
+          |#define LAUBERHORN_SW_GIT_HASH "${GIT_VERSION.get}%x"
           |
           |#define LAUBERHORN_PKT_BUF_ADDR_MASK ((1 << LAUBERHORN_PKT_BUF_ADDR_WIDTH) - 1)
           |#define LAUBERHORN_PKT_BUF_LEN_MASK ((1 << LAUBERHORN_PKT_BUF_LEN_WIDTH) - 1)
