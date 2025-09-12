@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only */
-/* Copyright (c) 2025 Zikai Liu */
-// This file should be included at last
+/* Copyright (c) 2025 Zikai Liu, Pencheng Xu */
 
 #ifndef __LAUBERHORN_KERNEL_MODULE_COMMON_H__
 #define __LAUBERHORN_KERNEL_MODULE_COMMON_H__

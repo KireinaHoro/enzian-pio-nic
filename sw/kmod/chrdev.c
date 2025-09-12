@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
+// Copyright (c) 2025 Zikai Liu, Pengcheng Xu
+
 #include "common.h"
 
 static dev_t dev = 0;

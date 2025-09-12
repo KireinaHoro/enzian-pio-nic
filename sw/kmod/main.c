@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 // Copyright (c) 2025 Pengcheng Xu
-// Copyright (c) 2025 Zikai Liu
+
 #include "common.h"
 
 int do_fpi_irq_activate(void *data) {
