@@ -22,12 +22,11 @@ constants host_req_type width(3) "Host Request Type" {
 };
 
 constants packet_desc_type width(3) "Packet Descriptor Type" {
-  hdr_raw           = 0b000 "Raw";
-  hdr_ethernet      = 0b001 "Ethernet";
-  hdr_ip            = 0b010 "IP";
-  hdr_udp           = 0b011 "UDP";
-  hdr_onc_rpc_call  = 0b100 "ONC-RPC Call (bypass)";
-  hdr_onc_rpc_reply = 0b101 "ONC-RPC Reply (bypass)";
+  hdr_ethernet      = 0b000 "Ethernet";
+  hdr_ip            = 0b001 "IP";
+  hdr_udp           = 0b010 "UDP";
+  hdr_onc_rpc_call  = 0b011 "ONC-RPC Call (bypass)";
+  hdr_onc_rpc_reply = 0b100 "ONC-RPC Reply (bypass)";
 };
 
 datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
