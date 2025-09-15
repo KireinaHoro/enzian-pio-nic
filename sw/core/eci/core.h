@@ -235,7 +235,7 @@ static inline void core_eci_tx_prepare_desc(lauberhorn_pkt_desc_t *desc,
 }
 
 static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
-                          lauberhorn_pkt_desc_t *desc) {
+                               lauberhorn_pkt_desc_t *desc) {
   // ECI backend: do not release payload_buf
 
   // make sure previous RX/TX actually took effect before we attempt to RX
@@ -251,27 +251,26 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
   switch (desc->type) {
   case TY_BYPASS:
+    size_t bypass_hdr_len;
+
     lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_base,
                                                   lauberhorn_eci_bypass);
     switch (desc->bypass.header_type) {
     case HDR_ETHERNET:
+      bypass_hdr_len = 14;
       lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
           tx_base, lauberhorn_eci_hdr_ethernet);
       break;
-    case HDR_IP:
-      lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(tx_base,
-                                                         lauberhorn_eci_hdr_ip);
-      break;
     default:
       pr_err(
-          "bypass TX only accepts Ethernet and IP packets; trying to send %s\n",
+          "bypass TX only accepts Ethernet packets; trying to send %s\n",
           lauberhorn_eci_packet_desc_type_describe(desc->type));
       goto out;
     }
 
     // inlined bypass header
     memcpy(tx_base + lauberhorn_eci_host_ctrl_info_bypass_size,
-           desc->bypass.header, sizeof(desc->bypass.header));
+           desc->bypass.header, bypass_hdr_len);
     break;
 
   case TY_ONCRPC_REPLY:
