@@ -63,6 +63,9 @@ class EncoderSource extends FiberPlugin with EncoderSourceService {
       if (!registeredEncoders.contains(idx)) {
         d.setBlocked()
         p.setBlocked()
+
+        assert(!d.isStall, "host sent a bypass packet of unsupported protocol!")
+        assert(!p.isStall, "host sent a bypass packet of unsupported protocol!")
       }
     }
   }
