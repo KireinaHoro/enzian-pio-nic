@@ -129,7 +129,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     if (cid != 0) {
       println(s"[core $cid] Entering critical section...")
       val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
-      val preemptCtrlAddr = coreBase + 0x10000
+      val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
       // CAS READY/BUSY to enter critical region
       var done = false
@@ -160,7 +160,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     if (cid != 0) {
       println(s"[core $cid] Exiting critical section...")
       val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
-      val preemptCtrlAddr = coreBase + 0x10000
+      val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
       // CAS unset BUSY to exit critical region
       // need CAS, otherwise might overwrite READY that the FPGA might have just cleared
