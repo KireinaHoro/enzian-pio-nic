@@ -6,7 +6,7 @@ KDIR ?= /lib/modules/`uname -r`/build
 ccflags-y += -I$(MACKEREL_DEV_HDRS) -I$(HW_CFG_HDRS) -I$(M) -I$(M)/../core/
 
 obj-m += lauberhorn.o
-lauberhorn-y := main.o ioctl.o bypass.o misc.o worker.o datapath.o chrdev.o
+lauberhorn-y := main.o ioctl.o bypass.o misc.o worker.o datapath.o chrdev.o cmac.o
 
 kbuild:
 	make -C $(KDIR) M=`pwd`
