@@ -6,8 +6,8 @@
 //      addr can point to anywhere in bar - currently we assume the whole bar
 //      space is mapped for payload data access...
 
-#ifndef __PIONIC_CORE_PCIE_H__
-#define __PIONIC_CORE_PCIE_H__
+#ifndef LAUBERHORN_CORE_PCIE_CORE_H
+#define LAUBERHORN_CORE_PCIE_CORE_H
 
 #include "debug.h"
 
@@ -218,4 +218,4 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev,
   ? ? ?
 }
 
-#endif // __PIONIC_CORE_PCIE_H__
+#endif // LAUBERHORN_CORE_PCIE_CORE_H
