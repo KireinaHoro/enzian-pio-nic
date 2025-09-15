@@ -17,14 +17,35 @@
 
 #include "common.h"
 
-static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+
+#include "eci/config.h"
+#include "eci/regblock_bases.h"
+#include "eci/core.h"
+#include "lauberhorn_eci_preempt.h"
+
 static u64 irq_no;
 
-static irqreturn_t bypass_fpi_handler(int irq, void *data) {
-    pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__, smp_processor_id(), irq);
+struct netdev_priv {
+    struct napi_struct napi;
+       
+    // Mackerel devices
+    lauberhorn_eci_preempt_t reg_dev;
+};
 
-    // TODO: check if bypass FIFO has data, call NAPI schedule
-    // 
+static struct net_device *netdev;
+static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
+
+static irqreturn_t bypass_fpi_handler(int irq, void *unused) {
+    struct netdev_priv *priv = netdev_priv(netdev);
+
+    pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__, smp_processor_id(), irq);
+    
+    // Mask interrupt and call napi_schedule
+    lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+    napi_schedule(&priv->napi);
+
     return IRQ_HANDLED;
 }
 
@@ -34,6 +55,7 @@ static int init_bypass_fpi(void) {
     struct irq_domain *gic_domain;
     struct fwnode_handle *fwnode;
     static struct irq_fwspec fwspec_fpi;
+
     
     // Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
     // 1, since we don't have a device tree node.  We assuming that fwnode is
@@ -80,14 +102,77 @@ static void deinit_bypass_fpi(void) {
     irq_dispose_mapping(irq_no);
 }
 
+static int netdev_open(struct net_device *dev) {
+    struct netdev_priv *priv = netdev_priv(dev);
+    
+    napi_enable(&priv->napi);
+    netif_start_queue(dev);
+    
+    lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+    
+    return 0;
+}
+
+static int netdev_stop(struct net_device *dev) {
+    struct netdev_priv *priv = netdev_priv(dev);
+    
+    lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+    
+    napi_disable(&priv->napi);
+    netif_stop_queue(dev);
+    
+    return 0;
+}
+
+static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev) {
+
+}
+
+static int napi_poll(struct napi_struct *n, int budget) {
+
+}
+
+static const struct net_device_ops netdev_ops = {
+    .ndo_open = netdev_open,
+    .ndo_stop = netdev_stop,
+    .ndo_start_xmit = netdev_xmit,
+};
+
+static void init_netdev(struct net_device *dev) {
+    ether_setup(dev);
+    dev->netdev_ops = &netdev_ops;
+    dev->mtu = LAUBERHORN_MTU;
+}
+
 int init_bypass(void) {
     int err;
+    struct netdev_priv *priv;
 
     // Create netdev
+    netdev = alloc_netdev(sizeof(struct netdev_priv), "lauberhorn%d",
+        NET_NAME_UNKNOWN, init_netdev);
+    if (!netdev) {
+        pr_err("failed to allocate netdev\n");
+        return -ENOMEM;
+    }
     
-    // Register NAPI context
-
-    // Configure FIFO non-empty interrupt
+    priv = netdev_priv(netdev);
+    
+    // Create Mackerel devices
+    lauberhorn_eci_preempt_initialize(&priv->reg_dev, LAUBERHORN_ECI_PREEMPT_BASE(0));
+    
+    netif_napi_add(netdev, &priv->napi, napi_poll);
+    
+    // Register netdev
+    err = register_netdev(netdev);
+    if (err < 0) {
+        pr_err("failed to register netdev: err %d\n", err);
+        netif_napi_del(&priv->napi);
+        free_netdev(netdev);
+        return err;
+    }
+    
+    // Enable FIFO non-empty interrupt
     err = init_bypass_fpi();
     if (err < 0) return err;
 
@@ -95,11 +180,13 @@ int init_bypass(void) {
 }
 
 void deinit_bypass(void) {
+    struct netdev_priv *priv = netdev_priv(netdev);
+
     // Disable interrupts
     deinit_bypass_fpi();
 
-    // Deregister NAPI
-
     // Destroy netdev
-    
+    unregister_netdev(netdev);
+    netif_napi_del(&priv->napi);
+    free_netdev(netdev);
 }

@@ -1,10 +1,9 @@
 /* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only */
 /* Copyright (c) 2025 Zikai Liu, Pencheng Xu */
 
-#ifndef __LAUBERHORN_KERNEL_MODULE_COMMON_H__
-#define __LAUBERHORN_KERNEL_MODULE_COMMON_H__
+#ifndef LAUBERHORN_KMOD_COMMON_H
+#define LAUBERHORN_KMOD_COMMON_H
 
-#include <linux/printk.h>
 #include <linux/cdev.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -59,4 +58,4 @@ void remove_devices(void);
 // ioctl handlers for use in chrdev.c to fill out fops
 long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
-#endif  // __LAUBERHORN_KERNEL_MODULE_COMMON_H__
+#endif  // LAUBERHORN_KMOD_COMMON_H

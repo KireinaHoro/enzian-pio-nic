@@ -48,14 +48,33 @@ struct pionic_ctx {
   uint32_t page_size;
 };
 
-#ifndef __KERNEL__
+#include "core/eci.h"
 
-#include "core-eci.h"
+#define COMPARE_AND_SWAP __sync_val_compare_and_swap
+#define FETCH_AND_AND __sync_fetch_and_and
+
+// Define enter_cs and exit_cs for using core functions in userspace
+static inline void enter_cs() {
+  uint8_t *worker_ctrl_addr =
+      (uint8_t *)base + LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET;
+
+  pr_debug("waiting for READY and setting BUSY\n");
+  while (!COMPARE_AND_SWAP(worker_ctrl_addr, (uint8_t)0b01, (uint8_t)0b11))
+    BARRIER; // make sure BUSY actually took effect
+
+  pr_debug("entered critical section\n");
+}
+
+static inline void exit_cs() {
+  assert((FETCH_AND_AND((uint8_t *)worker_ctrl_addr, (uint8_t)0b11111101) &
+          0b10) != 0 &&
+         "was not in the critical section?");
+
+  pr_debug("eci_rx: exited critical section\n");
+}
 
 // Core state structs are not mmapped but declared statically
 static pionic_core_state_t core_states[PIONIC_NUM_CORES];
-
-#endif
 
 static void write64_shell(pionic_ctx_t ctx, uint64_t addr, uint64_t reg) {
 #ifdef DEBUG_REG
