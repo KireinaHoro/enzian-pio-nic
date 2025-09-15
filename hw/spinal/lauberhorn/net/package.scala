@@ -34,12 +34,11 @@ package object net {
       ALLOC.addMackerelEpilogue(getClass,
         s"""
           |constants packet_desc_type width(${PKT_DESC_TY_WIDTH.get}) "Packet Descriptor Type" {
-          |  hdr_raw           = 0b000 "Raw";
-          |  hdr_ethernet      = 0b001 "Ethernet";
-          |  hdr_ip            = 0b010 "IP";
-          |  hdr_udp           = 0b011 "UDP";
-          |  hdr_onc_rpc_call  = 0b100 "ONC-RPC Call (bypass)";
-          |  hdr_onc_rpc_reply = 0b101 "ONC-RPC Reply (bypass)";
+          |  hdr_ethernet      = 0b000 "Ethernet";
+          |  hdr_ip            = 0b001 "IP";
+          |  hdr_udp           = 0b010 "UDP";
+          |  hdr_onc_rpc_call  = 0b011 "ONC-RPC Call (bypass)";
+          |  hdr_onc_rpc_reply = 0b100 "ONC-RPC Reply (bypass)";
           |};""".stripMargin)
     }
   }
