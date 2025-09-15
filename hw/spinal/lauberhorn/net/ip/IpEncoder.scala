@@ -60,7 +60,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     awaitBuild()
 
-    collectInto(md, pld, acceptHostPackets = true)
+    collectInto(md, pld)
     pld.setBlocked()
 
     // FIXME: does not support IP options yet
