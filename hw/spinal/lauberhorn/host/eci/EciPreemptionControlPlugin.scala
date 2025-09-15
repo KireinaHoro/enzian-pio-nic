@@ -83,6 +83,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
   // we have same address space view as the core control (for LCI/LCIA/UL, and AXI)
   val controlClAddr = 0x10000
+  ECI_PREEMPT_CTRL_OFFSET.set(controlClAddr)
 
   assert(coreID != 0, "bypass core does not need preemption control!")
 

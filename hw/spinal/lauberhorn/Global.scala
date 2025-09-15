@@ -49,6 +49,7 @@ object Global extends AreaRoot {
   val ECI_RX_BASE = value[Int]
   val ECI_TX_BASE = blocking[Int]
   val ECI_CORE_OFFSET = value[Int]
+  val ECI_PREEMPT_CTRL_OFFSET = value[Int]
   val ECI_OVERFLOW_OFFSET = value[Int]
   val ECI_NUM_OVERFLOW_CL = value[Int]
 
