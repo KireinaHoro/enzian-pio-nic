@@ -24,7 +24,7 @@ int start_cmac(cmac_t *cmac, bool loopback)
 		status = cmac_stat_rx_status_rd(cmac);
 		if (cmac_stat_rx_status_stat_rx_aligned_extract(status))
 			break; // RX_aligned
-		usleep(1000);
+		udelay(1000);
 	}
 
 	if (attempts == LINE_UP_MAX_ATTEMPTS) {
@@ -44,7 +44,7 @@ int start_cmac(cmac_t *cmac, bool loopback)
 		if (cmac_stat_rx_status_stat_rx_aligned_extract(status) &&
 		    cmac_stat_rx_status_stat_rx_status_extract(status))
 			break; // RX_aligned && RX_status
-		usleep(1000);
+		udelay(1000);
 	}
 
 	if (attempts == LINE_UP_MAX_ATTEMPTS) {

@@ -61,6 +61,6 @@ long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 // CMAC functions
 typedef struct cmac_t cmac_t;
 int start_cmac(cmac_t *cmac, bool loopback);
-int stop_cmac(cmac_t *cmac);
+void stop_cmac(cmac_t *cmac);
 
 #endif  // LAUBERHORN_KMOD_COMMON_H
