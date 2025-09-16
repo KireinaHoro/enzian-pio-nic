@@ -26,6 +26,7 @@
 #include "eci/regblock_bases.h"
 #include "lauberhorn_eci_preempt.h"
 #include "lauberhorn_eci_dma.h"
+#include "lauberhorn_eci_EthernetDecoder.h"
 
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define CMAC_BASE 0x200000UL
@@ -38,6 +39,7 @@ struct netdev_priv {
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
+	lauberhorn_eci_EthernetDecoder_t eth_dec_dev;
 	cmac_t cmac_dev;
 
 	// Datapath state
@@ -131,9 +133,22 @@ static int netdev_open(struct net_device *dev)
 	return 0;
 }
 
+typedef union {
+	u8 arr[ETH_ALEN];
+	u64 data_le;
+} macaddr_cast_t;
+
 static int netdev_setaddr(struct net_device *dev, void *addr)
 {
-	// update MAC address for the interface
+	struct netdev_priv *priv = netdev_priv(dev);
+	macaddr_cast_t mac_addr;
+
+	memcpy(mac_addr.arr, addr, ETH_ALEN);
+
+	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
+							   mac_addr.data_le);
+	eth_hw_addr_set(dev, mac_addr.arr);
+	pr_info("Updated MAC address: %pM\n", netdev->dev_addr);
 
 	return 0;
 }
@@ -227,6 +242,8 @@ int init_bypass(void)
 	u64 rx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_RX_BASE;
 	u64 tx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_TX_BASE;
 
+	macaddr_cast_t mac_addr;
+
 	// Create netdev
 	netdev = alloc_netdev(sizeof(struct netdev_priv), "lauberhorn%d",
 			      NET_NAME_UNKNOWN, init_netdev);
@@ -235,15 +252,14 @@ int init_bypass(void)
 		return -ENOMEM;
 	}
 
-	// TODO: Read out default MAC address from HW
-	// dev->dev_addr = ;
-
 	priv = netdev_priv(netdev);
 
 	// Create Mackerel devices
 	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
 					  LAUBERHORN_ECI_PREEMPT_BASE(0));
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
+	lauberhorn_eci_EthernetDecoder_initialize(
+		&priv->eth_dec_dev, LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
 	// Verify CMAC version
@@ -256,6 +272,12 @@ int init_bypass(void)
 		return -1;
 	}
 	pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
+
+	// Read out default MAC address from HW
+	mac_addr.data_le = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
+		&priv->eth_dec_dev);
+	eth_hw_addr_set(netdev, mac_addr.arr);
+	pr_info("Our MAC address: %pM\n", netdev->dev_addr);
 
 	// Initialize datapath core state
 	priv->ctx.rx_next_cl = priv->ctx.tx_next_cl = 0;
