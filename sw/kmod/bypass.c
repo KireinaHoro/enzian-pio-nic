@@ -25,6 +25,7 @@
 #include "eci/core.h"
 #include "eci/regblock_bases.h"
 #include "lauberhorn_eci_preempt.h"
+#include "lauberhorn_eci_dma.h"
 
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define CMAC_BASE 0x200000UL
@@ -36,6 +37,7 @@ struct netdev_priv {
 
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
+	lauberhorn_eci_dma_t dma_dev;
 	cmac_t cmac_dev;
 
 	// Datapath state
@@ -241,6 +243,7 @@ int init_bypass(void)
 	// Create Mackerel devices
 	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
 					  LAUBERHORN_ECI_PREEMPT_BASE(0));
+	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
 	// Verify CMAC version
@@ -275,6 +278,11 @@ int init_bypass(void)
 		cl_hit_inv(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET +
 			   0x80 * cl_id);
 	}
+
+	// Reset packet buffer allocator
+	lauberhorn_eci_dma_ctrl_alloc_reset_wr(&priv->dma_dev, 1);
+	udelay(1);
+	lauberhorn_eci_dma_ctrl_alloc_reset_wr(&priv->dma_dev, 0);
 
 	// Register netdev
 	netif_napi_add(netdev, &priv->napi, napi_poll);
