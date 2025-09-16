@@ -24,9 +24,11 @@
 #include "eci/config.h"
 #include "eci/core.h"
 #include "eci/regblock_bases.h"
+
 #include "lauberhorn_eci_preempt.h"
 #include "lauberhorn_eci_dma.h"
 #include "lauberhorn_eci_EthernetDecoder.h"
+#include "lauberhorn_eci_decoderSink.h"
 
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define CMAC_BASE 0x200000UL
@@ -40,6 +42,7 @@ struct netdev_priv {
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
 	lauberhorn_eci_EthernetDecoder_t eth_dec_dev;
+	lauberhorn_eci_decoderSink_t dec_dev;
 	cmac_t cmac_dev;
 
 	// Datapath state
@@ -159,9 +162,10 @@ static void netdev_rx_mode(struct net_device *dev)
 
 	if (dev->flags & IFF_PROMISC) {
 		pr_info("enabling promisc mode\n");
-
+        lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 1);
 	} else {
 		pr_info("disabling promisc mode\n");
+        lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 0);
 	}
 }
 
@@ -260,6 +264,8 @@ int init_bypass(void)
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
 	lauberhorn_eci_EthernetDecoder_initialize(
 		&priv->eth_dec_dev, LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
+	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
+					      LAUBERHORN_ECI_DECODER_SINK_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
 	// Verify CMAC version
