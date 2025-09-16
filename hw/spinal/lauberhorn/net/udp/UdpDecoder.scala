@@ -95,7 +95,9 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
 
   val logic = during setup new Area {
     // check if the packet is from a UDP port that has a listener;
-    // otherwise it gets into the bypass interface (to host)
+    // otherwise it gets into the bypass interface (to host).  No
+    // packets get dropped here
+
     // XXX: contents are in BIG ENDIAN (network)
     val listenDb = LookupTable(UdpListenDef(), NUM_LISTEN_PORTS) { v =>
       v.nextProto init UdpNextProto.disabled
@@ -128,13 +130,7 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       .clearWhen(ipHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    // TODO: drop packet based on checksum?
-    val drop = !dbResult.matched && !isPromisc
-
-    // we don't know if we need to drop the payload until we know the lookup result;
-    // so delay the payload flow by the latency of a table lookup
-    val dropFlow = decoder.io.header.asFlow.delay(dbLat) ~ drop
-    payload << decoder.io.output.delay(dbLat).throwFrameWhen(dropFlow)
+    payload << decoder.io.output
 
     val hdrParsed = UdpHeader()
     dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
@@ -145,10 +141,16 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       lk.userData.ipMeta := currentIpHeader
     }
 
-    metadata.translateFrom(dbResult.throwWhen(drop)) { case (md, lr) =>
+    metadata.translateFrom(dbResult) { case (md, lr) =>
       md.hdr := lr.userData.hdr
       md.ipMeta := lr.userData.ipMeta
-      md.nextProto := lr.value.nextProto
+
+      when (lr.matched) {
+        md.nextProto := lr.value.nextProto
+      } otherwise {
+        // pass to bypass interface
+        md.nextProto := UdpNextProto.disabled
+      }
     }
   }
 }
