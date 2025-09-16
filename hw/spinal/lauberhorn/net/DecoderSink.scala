@@ -94,6 +94,6 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   def isPromisc: Bool = promisc
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    busCtrl.driveAndRead(promisc, alloc("ctrl", "promisc"))
+    busCtrl.driveAndRead(promisc, alloc("ctrl", "promisc")) init False
   }
 }
