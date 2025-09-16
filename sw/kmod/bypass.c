@@ -217,6 +217,67 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 static int napi_poll(struct napi_struct *n, int budget)
 {
+	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
+	struct net_device *dev = priv->dev;
+	int work_done = 0;
+	struct sk_buff *skb;
+
+	lauberhorn_pkt_desc_t desc;
+
+	while (work_done < budget) {
+		bool got_pkt = core_eci_rx(phys_to_virt(FPGA_MEM_BASE),
+					   &priv->ctx, &desc);
+		int hdr_len = 0;
+
+		if (!got_pkt)
+			break;
+
+		BUG_ON(desc.type != TY_BYPASS);
+		switch (desc.bypass.header_type) {
+		case HDR_ETHERNET:
+			hdr_len = 14;
+			break;
+		case HDR_IP:
+			hdr_len = 14 + 20;
+			break;
+		case HDR_UDP:
+			hdr_len = 14 + 20 + 8;
+			break;
+		default:
+			pr_err("unexpected bypass packet type %d\n",
+			       desc.bypass.header_type);
+		}
+
+		skb = netdev_alloc_skb(dev, hdr_len + desc.payload_len +
+						    NET_IP_ALIGN);
+		if (!skb) {
+			dev->stats.rx_dropped++;
+			break;
+		}
+		skb_reserve(skb, NET_IP_ALIGN);
+		memcpy(skb_put(skb, hdr_len), desc.bypass.header, hdr_len);
+		memcpy(skb_put(skb, desc.payload_len), desc.payload_buf,
+		       desc.payload_len);
+		skb->protocol = eth_type_trans(skb, dev);
+		skb->dev = dev;
+
+		// we don't do checksum verification in hardware
+
+		napi_gro_receive(n, skb);
+
+		dev->stats.rx_packets++;
+		dev->stats.rx_bytes += hdr_len + desc.payload_len;
+		work_done++;
+	}
+
+	if (work_done < budget) {
+		// drained all packets, finish NAPI and enable interrupts
+		if (napi_complete_done(n, work_done)) {
+			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+		}
+	}
+
+	return work_done;
 }
 
 static const struct net_device_ops netdev_ops = {
