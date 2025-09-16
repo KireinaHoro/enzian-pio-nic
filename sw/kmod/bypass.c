@@ -19,6 +19,7 @@
 
 #include <linux/etherdevice.h>
 #include <linux/netdevice.h>
+#include <linux/inetdevice.h>
 
 #include "cmac.h"
 #include "eci/config.h"
@@ -28,6 +29,7 @@
 #include "lauberhorn_eci_preempt.h"
 #include "lauberhorn_eci_dma.h"
 #include "lauberhorn_eci_EthernetDecoder.h"
+#include "lauberhorn_eci_IpDecoder.h"
 #include "lauberhorn_eci_decoderSink.h"
 
 #define FPGA_MEM_BASE (0x10000000000UL)
@@ -41,6 +43,7 @@ struct netdev_priv {
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
 	lauberhorn_eci_EthernetDecoder_t eth_dec_dev;
+	lauberhorn_eci_IpDecoder_t ip_dec_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
 	cmac_t cmac_dev;
 
@@ -142,7 +145,7 @@ static int netdev_open(struct net_device *dev)
 
 typedef union {
 	u8 arr[ETH_ALEN];
-	u64 data_le;
+	u64 data_be;
 } macaddr_cast_t;
 
 static int netdev_setaddr(struct net_device *dev, void *addr)
@@ -153,7 +156,7 @@ static int netdev_setaddr(struct net_device *dev, void *addr)
 	memcpy(mac_addr.arr, addr, ETH_ALEN);
 
 	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
-							   mac_addr.data_le);
+							   mac_addr.data_be);
 	eth_hw_addr_set(dev, mac_addr.arr);
 	pr_info("Updated MAC address: %pM\n", dev->dev_addr);
 
@@ -173,7 +176,34 @@ static void netdev_rx_mode(struct net_device *dev)
 	}
 }
 
-// TODO: register handler for IP address update, program into device
+static int inetaddr_event(struct notifier_block *nb, unsigned long event,
+			  void *ptr)
+{
+	struct in_ifaddr *ifa = ptr;
+	struct net_device *dev = ifa->ifa_dev->dev;
+	struct netdev_priv *priv = netdev_priv(dev);
+
+	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
+		if (event == NETDEV_UP) {
+			pr_info("Updating primary IP address in HW to %pI4\n",
+				&ifa->ifa_address);
+
+			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
+				&priv->ip_dec_dev, ifa->ifa_address);
+		} else if (event == NETDEV_DOWN) {
+			pr_info("Clearing primary IP address\n");
+
+			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
+				&priv->ip_dec_dev, 0);
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block inetaddr_notifier = {
+	.notifier_call = inetaddr_event,
+};
 
 static int netdev_stop(struct net_device *dev)
 {
@@ -330,6 +360,8 @@ int init_bypass(void)
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
 	lauberhorn_eci_EthernetDecoder_initialize(
 		&priv->eth_dec_dev, LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
+	lauberhorn_eci_IpDecoder_initialize(&priv->ip_dec_dev,
+					    LAUBERHORN_ECI__IP_DECODER_BASE);
 	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
@@ -346,7 +378,7 @@ int init_bypass(void)
 	pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
 
 	// Read out default MAC address from HW
-	mac_addr.data_le = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
+	mac_addr.data_be = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
 		&priv->eth_dec_dev);
 	eth_hw_addr_set(netdev, mac_addr.arr);
 	pr_info("Our MAC address: %pM\n", netdev->dev_addr);
@@ -389,6 +421,9 @@ int init_bypass(void)
 		return err;
 	}
 
+	// Register callback for IP address configuration
+	register_inetaddr_notifier(&inetaddr_notifier);
+
 	// Enable FIFO non-empty interrupt
 	err = init_bypass_fpi(netdev);
 	if (err < 0)
@@ -405,6 +440,9 @@ void deinit_bypass(void)
 
 	// Disable interrupts
 	deinit_bypass_fpi();
+
+	// Deregister IP addr callback
+	unregister_inetaddr_notifier(&inetaddr_notifier);
 
 	// Free overflow buffers
 	kfree(priv->ctx.rx_overflow_buf);
