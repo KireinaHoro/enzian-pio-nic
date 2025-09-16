@@ -33,10 +33,9 @@
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define CMAC_BASE 0x200000UL
 
-static u64 irq_no;
-
 struct netdev_priv {
 	struct napi_struct napi;
+	struct net_device *dev;
 
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
@@ -49,12 +48,13 @@ struct netdev_priv {
 	lauberhorn_core_state_t ctx;
 };
 
-static struct net_device *netdev;
-static DEFINE_PER_CPU_READ_MOSTLY(int, bypass_fpi_cookie);
+static u64 irq_no;
+static DEFINE_PER_CPU_READ_MOSTLY(struct net_device *, bypass_fpi_cookie);
 
-static irqreturn_t bypass_fpi_handler(int irq, void *unused)
+static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 {
-	struct netdev_priv *priv = netdev_priv(netdev);
+	struct net_device *dev = cookie;
+	struct netdev_priv *priv = netdev_priv(dev);
 
 	pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__,
 		smp_processor_id(), irq);
@@ -66,7 +66,7 @@ static irqreturn_t bypass_fpi_handler(int irq, void *unused)
 	return IRQ_HANDLED;
 }
 
-static int init_bypass_fpi(void)
+static int init_bypass_fpi(struct net_device *dev)
 {
 	int err;
 	struct irq_data *gic_irq_data;
@@ -80,6 +80,10 @@ static int init_bypass_fpi(void)
 	gic_irq_data = irq_get_irq_data(1U);
 	gic_domain = gic_irq_data->domain;
 	fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
+
+	// Write net_device pointer to CPU cookie
+	struct net_device **cookie_ptr = per_cpu_ptr(&bypass_fpi_cookie, 0);
+	*cookie_ptr = dev;
 
 	// Allocate an IRQ number for SGI #15 for bypass core
 	fwspec_fpi.fwnode = fwnode;
@@ -151,7 +155,7 @@ static int netdev_setaddr(struct net_device *dev, void *addr)
 	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
 							   mac_addr.data_le);
 	eth_hw_addr_set(dev, mac_addr.arr);
-	pr_info("Updated MAC address: %pM\n", netdev->dev_addr);
+	pr_info("Updated MAC address: %pM\n", dev->dev_addr);
 
 	return 0;
 }
@@ -162,10 +166,10 @@ static void netdev_rx_mode(struct net_device *dev)
 
 	if (dev->flags & IFF_PROMISC) {
 		pr_info("enabling promisc mode\n");
-        lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 1);
+		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 1);
 	} else {
 		pr_info("disabling promisc mode\n");
-        lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 0);
+		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 0);
 	}
 }
 
@@ -187,7 +191,7 @@ static int netdev_stop(struct net_device *dev)
 
 static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	struct netdev_priv *priv = netdev_priv(netdev);
+	struct netdev_priv *priv = netdev_priv(dev);
 	lauberhorn_pkt_desc_t desc;
 
 	core_eci_tx_prepare_desc(&desc, &priv->ctx);
@@ -239,6 +243,7 @@ static inline void cl_hit_inv(u64 phys_addr)
 int init_bypass(void)
 {
 	int err, cl_id;
+	struct net_device *netdev;
 	struct netdev_priv *priv;
 	cmac_core_version_t ver;
 	u8 ver_maj, ver_min;
@@ -255,8 +260,8 @@ int init_bypass(void)
 		pr_err("failed to allocate netdev\n");
 		return -ENOMEM;
 	}
-
 	priv = netdev_priv(netdev);
+	priv->dev = netdev;
 
 	// Create Mackerel devices
 	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
@@ -324,7 +329,7 @@ int init_bypass(void)
 	}
 
 	// Enable FIFO non-empty interrupt
-	err = init_bypass_fpi();
+	err = init_bypass_fpi(netdev);
 	if (err < 0)
 		return err;
 
@@ -333,6 +338,8 @@ int init_bypass(void)
 
 void deinit_bypass(void)
 {
+	struct net_device **cookie_ptr = per_cpu_ptr(&bypass_fpi_cookie, 0);
+	struct net_device *netdev = *cookie_ptr;
 	struct netdev_priv *priv = netdev_priv(netdev);
 
 	// Disable interrupts
