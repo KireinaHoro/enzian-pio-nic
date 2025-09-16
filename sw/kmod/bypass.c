@@ -209,12 +209,21 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
+static inline void cl_hit_inv(u64 phys_addr)
+{
+	u64 virt = (u64)phys_to_virt(phys_addr);
+	asm volatile("sys #0,c11,c1,#1,%0 \n" ::"r"(virt));
+}
+
 int init_bypass(void)
 {
-	int err;
+	int err, cl_id;
 	struct netdev_priv *priv;
 	cmac_core_version_t ver;
 	u8 ver_maj, ver_min;
+
+	u64 rx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_RX_BASE;
+	u64 tx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_TX_BASE;
 
 	// Create netdev
 	netdev = alloc_netdev(sizeof(struct netdev_priv), "lauberhorn%d",
@@ -223,8 +232,6 @@ int init_bypass(void)
 		pr_err("failed to allocate netdev\n");
 		return -ENOMEM;
 	}
-
-	// TODO: Map I/O and cached memory
 
 	// TODO: Read out default MAC address from HW
 	// dev->dev_addr = ;
@@ -255,6 +262,19 @@ int init_bypass(void)
 		kmalloc(priv->ctx.rx_overflow_buf_size, GFP_KERNEL);
 	priv->ctx.tx_overflow_buf =
 		kmalloc(priv->ctx.tx_overflow_buf_size, GFP_KERNEL);
+
+	// Invalidate control and bypass CLs
+	for (cl_id = 0; cl_id < 2; ++cl_id) {
+		cl_hit_inv(rx_base + 0x80 * cl_id);
+		cl_hit_inv(tx_base + 0x80 * cl_id);
+	}
+
+	for (cl_id = 0; cl_id < LAUBERHORN_ECI_NUM_OVERFLOW_CL; ++cl_id) {
+		cl_hit_inv(rx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET +
+			   0x80 * cl_id);
+		cl_hit_inv(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET +
+			   0x80 * cl_id);
+	}
 
 	// Register netdev
 	netif_napi_add(netdev, &priv->napi, napi_poll);
