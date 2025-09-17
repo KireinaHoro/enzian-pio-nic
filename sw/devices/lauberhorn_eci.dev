@@ -29,6 +29,12 @@ constants packet_desc_type width(3) "Packet Descriptor Type" {
   hdr_onc_rpc_reply = 0b100 "ONC-RPC Reply (bypass)";
 };
 
+constants ip_neigh_entry_state width(2) "Packet Descriptor Type" {
+  neigh_none        = 0b00 "None";
+  neigh_incomplete  = 0b01 "IP";
+  neigh_reachable   = 0b10 "UDP";
+};
+
 datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
   valid 1 "RX descriptor valid (rsvd for TX)";
   ty    3 type(host_req_type) "Type of descriptor (should be error)";

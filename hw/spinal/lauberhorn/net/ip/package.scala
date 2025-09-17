@@ -4,6 +4,7 @@ import jsteward.blocks.misc.RichMultiData
 import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
 import spinal.lib._
+import lauberhorn.Global._
 
 import scala.language.postfixOps
 
@@ -65,6 +66,16 @@ package object ip {
     // mirrors the Linux NUD (Neighbor Unreachability Detection) states
     // timer-based states (e.g. stale, delay, probe) are kept on the host by the bypass core
     val none, incomplete, reachable = newElement()
+
+    def addMackerel() = {
+      ALLOC.addMackerelEpilogue(getClass,
+        s"""
+          |constants ip_neigh_entry_state width(2) "Packet Descriptor Type" {
+          |  neigh_none        = 0b00 "None";
+          |  neigh_incomplete  = 0b01 "IP";
+          |  neigh_reachable   = 0b10 "UDP";
+          |};""".stripMargin)
+    }
   }
 
   case class IpNeighborDef() extends Bundle {
