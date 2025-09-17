@@ -99,6 +99,7 @@ case class EciHostCtrlInfo() extends Bundle {
     // post header type enum to mackerel
     HostReqType.addMackerel()
     PacketDescType.addMackerel()
+    net.ip.IpNeighborEntryState.addMackerel()
 
     // post descriptor header to mackerel (first 128 bits)
     // FIXME: should we include valid here? valid is present for rx but not for tx
