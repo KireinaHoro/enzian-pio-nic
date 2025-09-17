@@ -245,58 +245,95 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	return NETDEV_TX_OK;
 }
 
+static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
+			  struct net_device *dev)
+{
+	struct sk_buff *skb;
+	int hdr_len = 0;
+
+	BUG_ON(desc->type != TY_BYPASS);
+	switch (desc->bypass.header_type) {
+	case HDR_ETHERNET:
+		hdr_len = 14;
+		break;
+	case HDR_IP:
+		hdr_len = 14 + 20;
+		break;
+	case HDR_UDP:
+		hdr_len = 14 + 20 + 8;
+		break;
+	default:
+		pr_err("unexpected bypass packet type %d\n",
+		       desc->bypass.header_type);
+		return false;
+	}
+
+	skb = netdev_alloc_skb(dev, hdr_len + desc->payload_len + NET_IP_ALIGN);
+	if (!skb) {
+		pr_err("failed to allocate skb\n");
+		dev->stats.rx_dropped++;
+		return false;
+	}
+	skb_reserve(skb, NET_IP_ALIGN);
+	memcpy(skb_put(skb, hdr_len), desc->bypass.header, hdr_len);
+	memcpy(skb_put(skb, desc->payload_len), desc->payload_buf,
+	       desc->payload_len);
+	skb->protocol = eth_type_trans(skb, dev);
+	skb->dev = dev;
+
+	// we don't do checksum verification in hardware
+
+	napi_gro_receive(n, skb);
+
+	dev->stats.rx_packets++;
+	dev->stats.rx_bytes += hdr_len + desc->payload_len;
+
+	return true;
+}
+
+static void write_hw_neigh_tbl(struct netdev_priv *priv, __be32 dst,
+			       void *mac_addr, int idx,
+			       lauberhorn_eci_ip_neigh_entry_state_t state)
+{
+	macaddr_cast_t mc;
+
+	memcpy(mc.arr, mac_addr, ETH_ALEN);
+
+	lauberhorn_eci_IpEncoder_ctrl_neigh_ip_addr_wr(&priv->ip_enc_dev, dst);
+	if (mac_addr) {
+		lauberhorn_eci_IpEncoder_ctrl_neigh_mac_addr_wr(
+			&priv->ip_enc_dev, mc.data_be);
+	}
+	lauberhorn_eci_IpEncoder_ctrl_neigh_state_wr(&priv->ip_enc_dev, state);
+	lauberhorn_eci_IpEncoder_ctrl_neigh_idx_wr(&priv->ip_enc_dev, idx);
+}
+
 static int napi_poll(struct napi_struct *n, int budget)
 {
 	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
 	struct net_device *dev = priv->dev;
 	int work_done = 0;
-	struct sk_buff *skb;
 
 	lauberhorn_pkt_desc_t desc;
 
 	while (work_done < budget) {
 		bool got_pkt = core_eci_rx(phys_to_virt(FPGA_MEM_BASE),
 					   &priv->ctx, &desc);
-		int hdr_len = 0;
 
 		if (!got_pkt)
 			break;
 
-		BUG_ON(desc.type != TY_BYPASS);
-		switch (desc.bypass.header_type) {
-		case HDR_ETHERNET:
-			hdr_len = 14;
+		switch (desc.type) {
+		case TY_BYPASS:
+			if (!rx_bypass_pkt(&desc, n, dev))
+				continue;
 			break;
-		case HDR_IP:
-			hdr_len = 14 + 20;
-			break;
-		case HDR_UDP:
-			hdr_len = 14 + 20 + 8;
 			break;
 		default:
-			pr_err("unexpected bypass packet type %d\n",
-			       desc.bypass.header_type);
+			pr_err("unsupported host req type %d\n", desc.type);
+			continue;
 		}
 
-		skb = netdev_alloc_skb(dev, hdr_len + desc.payload_len +
-						    NET_IP_ALIGN);
-		if (!skb) {
-			dev->stats.rx_dropped++;
-			break;
-		}
-		skb_reserve(skb, NET_IP_ALIGN);
-		memcpy(skb_put(skb, hdr_len), desc.bypass.header, hdr_len);
-		memcpy(skb_put(skb, desc.payload_len), desc.payload_buf,
-		       desc.payload_len);
-		skb->protocol = eth_type_trans(skb, dev);
-		skb->dev = dev;
-
-		// we don't do checksum verification in hardware
-
-		napi_gro_receive(n, skb);
-
-		dev->stats.rx_packets++;
-		dev->stats.rx_bytes += hdr_len + desc.payload_len;
 		work_done++;
 	}
 
