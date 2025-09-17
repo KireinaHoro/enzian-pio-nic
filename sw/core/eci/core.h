@@ -22,6 +22,7 @@
 typedef enum {
   TY_ERROR,
   TY_BYPASS,
+  TY_ARP_REQ,
   TY_ONCRPC_CALL,
   TY_ONCRPC_REPLY,
 } lauberhorn_pkt_desc_type_t;
@@ -42,6 +43,10 @@ typedef struct {
       uint8_t header[LAUBERHORN_BYPASS_HDR_SIZE];
       // remaining payload goes to payload_buf
     } bypass;
+    struct {
+      int neigh_tbl_idx;
+      uint32_t ip_addr;
+    } arp_req;
     struct {
       void *func_ptr;
       int xid;
@@ -192,6 +197,13 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
       break;
 
+    case lauberhorn_eci_arp_req:
+      desc->type = TY_ARP_REQ;
+      desc->arp_req.neigh_tbl_idx =
+          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_base);
+      desc->arp_req.ip_addr =
+          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_base);
+      break;
     default:
       desc->type = TY_ERROR;
     }
@@ -262,9 +274,8 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
           tx_base, lauberhorn_eci_hdr_ethernet);
       break;
     default:
-      pr_err(
-          "bypass TX only accepts Ethernet packets; trying to send %s\n",
-          lauberhorn_eci_packet_desc_type_describe(desc->type));
+      pr_err("bypass TX only accepts Ethernet packets; trying to send %s\n",
+             lauberhorn_eci_packet_desc_type_describe(desc->type));
       goto out;
     }
 

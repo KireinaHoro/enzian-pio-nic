@@ -20,6 +20,9 @@
 #include <linux/etherdevice.h>
 #include <linux/netdevice.h>
 #include <linux/inetdevice.h>
+#include <net/neighbour.h>
+#include <net/netevent.h>
+#include <net/arp.h>
 
 #include "cmac.h"
 #include "eci/config.h"
@@ -30,6 +33,7 @@
 #include "lauberhorn_eci_dma.h"
 #include "lauberhorn_eci_EthernetDecoder.h"
 #include "lauberhorn_eci_IpDecoder.h"
+#include "lauberhorn_eci_IpEncoder.h"
 #include "lauberhorn_eci_decoderSink.h"
 
 #define FPGA_MEM_BASE (0x10000000000UL)
@@ -44,11 +48,15 @@ struct netdev_priv {
 	lauberhorn_eci_dma_t dma_dev;
 	lauberhorn_eci_EthernetDecoder_t eth_dec_dev;
 	lauberhorn_eci_IpDecoder_t ip_dec_dev;
+	lauberhorn_eci_IpEncoder_t ip_enc_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
 	cmac_t cmac_dev;
 
 	// Datapath state
 	lauberhorn_core_state_t ctx;
+
+	// Shadow table for ARP cache in HW
+	__be32 arp_cache[LAUBERHORN_NUM_NEIGHBOR_ENTRIES];
 };
 
 static u64 irq_no;
@@ -308,6 +316,35 @@ static void write_hw_neigh_tbl(struct netdev_priv *priv, __be32 dst,
 	lauberhorn_eci_IpEncoder_ctrl_neigh_idx_wr(&priv->ip_enc_dev, idx);
 }
 
+static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
+{
+	struct neighbour *nei;
+	__be32 dst = desc->arp_req.ip_addr;
+	int idx = desc->arp_req.neigh_tbl_idx;
+	BUG_ON(desc->type != TY_ARP_REQ);
+
+	// update shadow ARP cache table
+	priv->arp_cache[idx] = dst;
+
+	nei = neigh_lookup(&arp_tbl, &dst, priv->dev);
+	if (nei) {
+		if (nei->nud_state & NUD_VALID) {
+			// we have a valid MAC address, program into hardware
+			pr_info("ARP HW entry %d: programming existing entry %pI4 -> %pM\n",
+				idx, &dst, nei->ha);
+			write_hw_neigh_tbl(priv, dst, nei->ha, idx,
+					   lauberhorn_eci_neigh_reachable);
+		}
+		// if not connected, let trigger handle update
+	} else {
+		// trigger lookup
+		pr_info("Triggering ARP lookup for %pI4\n", &dst);
+		nei = neigh_event_ns(&arp_tbl, NULL, &dst, priv->dev);
+	}
+
+	neigh_release(nei);
+}
+
 static int napi_poll(struct napi_struct *n, int budget)
 {
 	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
@@ -317,10 +354,10 @@ static int napi_poll(struct napi_struct *n, int budget)
 	lauberhorn_pkt_desc_t desc;
 
 	while (work_done < budget) {
-		bool got_pkt = core_eci_rx(phys_to_virt(FPGA_MEM_BASE),
+		bool got_req = core_eci_rx(phys_to_virt(FPGA_MEM_BASE),
 					   &priv->ctx, &desc);
 
-		if (!got_pkt)
+		if (!got_req)
 			break;
 
 		switch (desc.type) {
@@ -328,6 +365,8 @@ static int napi_poll(struct napi_struct *n, int budget)
 			if (!rx_bypass_pkt(&desc, n, dev))
 				continue;
 			break;
+		case TY_ARP_REQ:
+			rx_handle_arp(&desc, priv);
 			break;
 		default:
 			pr_err("unsupported host req type %d\n", desc.type);
@@ -353,6 +392,54 @@ static const struct net_device_ops netdev_ops = {
 	.ndo_start_xmit = netdev_xmit,
 	.ndo_set_mac_address = netdev_setaddr,
 	.ndo_set_rx_mode = netdev_rx_mode,
+};
+
+static int arp_event(struct notifier_block *nb, unsigned long event, void *ptr)
+{
+	struct neighbour *n = ptr;
+	struct net_device *dev = n->dev;
+	struct netdev_priv *priv = netdev_priv(dev);
+	__be32 dst = *(__be32 *)n->primary_key;
+	int idx;
+
+	if (dev->netdev_ops != &netdev_ops) {
+		// not our device!  skip
+		return NOTIFY_OK;
+	}
+
+	// search for destination in shadow ARP cache
+	for (idx = 0; idx < LAUBERHORN_NUM_NEIGHBOR_ENTRIES; ++idx) {
+		if (priv->arp_cache[idx] == dst)
+			break;
+	}
+	if (idx == LAUBERHORN_NUM_NEIGHBOR_ENTRIES) {
+		// ARP entry was not requested by hardware, skip
+		return NOTIFY_OK;
+	}
+
+	switch (event) {
+	case NETEVENT_NEIGH_UPDATE:
+		if (n->nud_state & NUD_VALID) {
+			// now we have a valid MAC address, program into HW
+			pr_info("ARP HW entry %d: resolve succeeded %pI4 -> %pM\n",
+				idx, &dst, n->ha);
+			write_hw_neigh_tbl(priv, dst, n->ha, idx,
+					   lauberhorn_eci_neigh_reachable);
+		} else if (n->nud_state & NUD_FAILED) {
+			// clear the HW entry to trigger retry on next outgoing packet
+			pr_info("ARP HW entry %d: clearing failed neighbor %pI4\n",
+				idx, &dst);
+			write_hw_neigh_tbl(priv, 0, NULL, idx,
+					   lauberhorn_eci_neigh_none);
+			priv->arp_cache[idx] = 0;
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block arp_notifier = {
+	.notifier_call = arp_event,
 };
 
 static void init_netdev(struct net_device *dev)
@@ -399,6 +486,8 @@ int init_bypass(void)
 		&priv->eth_dec_dev, LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
 	lauberhorn_eci_IpDecoder_initialize(&priv->ip_dec_dev,
 					    LAUBERHORN_ECI__IP_DECODER_BASE);
+	lauberhorn_eci_IpEncoder_initialize(&priv->ip_enc_dev,
+					    LAUBERHORN_ECI__IP_ENCODER_BASE);
 	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
@@ -413,6 +502,9 @@ int init_bypass(void)
 		return -1;
 	}
 	pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
+
+	// Clear shadow ARP cache table
+	memset(priv->arp_cache, 0, sizeof(priv->arp_cache));
 
 	// Read out default MAC address from HW
 	mac_addr.data_be = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
@@ -460,6 +552,9 @@ int init_bypass(void)
 
 	// Register callback for IP address configuration
 	register_inetaddr_notifier(&inetaddr_notifier);
+
+	// Register callback for ARP resolution
+	register_netevent_notifier(&arp_notifier);
 
 	// Enable FIFO non-empty interrupt
 	err = init_bypass_fpi(netdev);
