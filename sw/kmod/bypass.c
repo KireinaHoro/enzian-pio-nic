@@ -425,9 +425,9 @@ static int arp_event(struct notifier_block *nb, unsigned long event, void *ptr)
 				idx, &dst, n->ha);
 			write_hw_neigh_tbl(priv, dst, n->ha, idx,
 					   lauberhorn_eci_neigh_reachable);
-		} else if (n->nud_state & NUD_FAILED) {
+		} else if (n->nud_state & (NUD_FAILED | NUD_STALE)) {
 			// clear the HW entry to trigger retry on next outgoing packet
-			pr_info("ARP HW entry %d: clearing failed neighbor %pI4\n",
+			pr_info("ARP HW entry %d: clearing failed/stale neighbor %pI4\n",
 				idx, &dst);
 			write_hw_neigh_tbl(priv, 0, NULL, idx,
 					   lauberhorn_eci_neigh_none);
