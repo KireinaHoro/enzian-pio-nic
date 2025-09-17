@@ -61,8 +61,8 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     val attempts = mutable.ListBuffer[Bool]()
     consumers.zipWithIndex foreach { case ((name, matchFunc, headerSink, payloadSink), idx) => new Composite(this, s"to_$name") {
       // is it possible to go to this consumer?
-      val hdr = forkedHeaders(idx)
-      val pld = forkedPayloads(idx)
+      val hdr = forkedHeaders(idx).setCompositeName(this, "hdr")
+      val pld = forkedPayloads(idx).setCompositeName(this, "pld")
 
       // mark attempt when header is valid
       // we don't mark on fire, since decoder should still attempt eventually, even if it's busy right now

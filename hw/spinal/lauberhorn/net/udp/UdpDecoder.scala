@@ -130,7 +130,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       .clearWhen(ipHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    payload << decoder.io.output
+    // metadata should always appear before payload
+    payload << decoder.io.output.delay(dbLat)
 
     val hdrParsed = UdpHeader()
     dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
