@@ -60,7 +60,9 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     awaitBuild()
 
-    collectInto(md, pld)
+    // Only enable IP packets from host during simulation
+    collectInto(md, pld, acceptHostPackets = GenerationFlags.simulation.isEnabled)
+
     pld.setBlocked()
 
     // FIXME: does not support IP options yet

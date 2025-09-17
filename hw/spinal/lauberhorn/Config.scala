@@ -24,7 +24,7 @@ object Config {
     bitVectorWidthMax = 16384,
   )
 
-  def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested))
+  def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested).includeSimulation)
     .withFstWave
     .withVerilator
     .allOptimisation
