@@ -21,15 +21,6 @@ case class RxPacketDescWithSource() extends Bundle {
   val isBypass = Bool()
 }
 
-object RxPacketDescWithSource {
-  def fromPacketDesc(desc: PacketDesc, isBypass: Boolean) = {
-    val ret = RxPacketDescWithSource()
-    ret.desc := desc
-    ret.isBypass := Bool(isBypass)
-    ret
-  }
-}
-
 /**
   * Global AXI DMA plugin.  Generates DMA commands for the AXI DMA engine in [[PacketBuffer]].
   *
@@ -76,14 +67,8 @@ class DmaControlPlugin extends FiberPlugin {
       val io = instance.io
     }
 
-    /** Decoded packet descriptors from [[DecoderSink]] */
-    val requestDesc, bypassDesc = Stream(PacketDesc())
-
+    /** Incoming packet descriptors from decoder pipeline */
     val incomingDesc = Stream(RxPacketDescWithSource())
-    incomingDesc << StreamArbiterFactory(s"${getName()}_descMux").roundRobin.on(Seq(
-      requestDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = false)).pipelined(FULL),
-      bypassDesc.map(RxPacketDescWithSource.fromPacketDesc(_, isBypass = true)).pipelined(FULL),
-    ))
 
     /** Outgoing packet descriptors to encoder pipeline */
     val outgoingDesc = Stream(PacketDesc())
