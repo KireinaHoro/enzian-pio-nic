@@ -338,15 +338,21 @@ class Scheduler extends FiberPlugin {
 
     // each core can raise a pop request, to remove one packet from the queues.
     // a pop request is idx of the queue from which a request should be popped
-    val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(ProcTblIdx))
-    val arbitratedPopReq = StreamArbiterFactory(s"${getName()}_popReqMux").roundRobin.on(popReqs)
-    val toPopQueueIdx = arbitratedPopReq.payload
-    val toPopReqAddr = queueMetas(toPopQueueIdx).head
-    val poppedReq = queueMem.readSync(toPopReqAddr)
-    arbitratedPopReq.ready := True
-    when (arbitratedPopReq.fire) {
-      popQ(toPopQueueIdx) := True
+    case class PopReq() extends Bundle {
+      val req, grant = Bool()
+      val queueIdx = ProcTblIdx
     }
+    val popReqs = Seq.fill(NUM_WORKER_CORES)(PopReq())
+    popReqs.foreach { _.grant := False }
+    val popReqPresent = popReqs.map(_.req).asBits()
+    val grantedIdx = OHToUInt(OHMasking.firstV2(popReqPresent))
+    val grantedPopReq = popReqs(grantedIdx).queueIdx
+    popReqs(grantedIdx).grant := True
+
+    val toPopReqAddr = queueMetas(grantedPopReq).head
+    val poppedReq = queueMem.readSync(toPopReqAddr)
+
+    popQ(grantedPopReq) := popReqPresent.orR
 
     // victim core selection, based on preemption type
     val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
@@ -377,7 +383,8 @@ class Scheduler extends FiberPlugin {
       toCore.setIdle()
 
       val popReq = popReqs(idx)
-      popReq.setIdle()
+      popReq.req := False
+      popReq.queueIdx.assignDontCare()
       val savedPoppedReq = Reg(HostReq())
 
       val corePopQueueIdx = corePidMap(idx)
@@ -404,9 +411,9 @@ class Scheduler extends FiberPlugin {
               //      needed since we don't want to pop a request when core is not ready, since after popping one:
               //      - allow preempt?  need to somehow put it back in the queue
               //      - not allow preempt?  no chance in practice to preempt then
-              popReq.payload := corePopQueueIdx
-              popReq.valid := True
-              when (popReq.ready) {
+              popReq.queueIdx := corePopQueueIdx
+              popReq.req := True
+              when (popReq.grant) {
                 goto(popReqGranted)
               }
             } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid) {
