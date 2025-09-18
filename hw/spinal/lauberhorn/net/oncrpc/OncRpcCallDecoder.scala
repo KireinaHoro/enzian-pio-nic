@@ -110,8 +110,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
 
     // we don't know if we need to drop the payload until we know the lookup result;
     // so delay the payload flow by the latency of a table lookup
-    val dropFlow = decoder.io.header.asFlow.delay(dbLat) ~ drop
-    payload << decoder.io.output.delay(dbLat).throwFrameWhen(dropFlow)
+    payload << decoder.io.output.delay(dbLat).throwFrameWhen(drop && dbResult.fire)
 
     val hdrParsed = OncRpcCallHeader()
     dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
