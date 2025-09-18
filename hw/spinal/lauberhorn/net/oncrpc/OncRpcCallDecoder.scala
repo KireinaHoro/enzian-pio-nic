@@ -107,10 +107,14 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
 
     // TODO: also drop malformed packets (e.g. payload too short)
     val drop = !dbResult.matched
+    val pldFilter = AxiStreamFilter(macIf.axisConfig)
 
     // we don't know if we need to drop the payload until we know the lookup result;
     // so delay the payload flow by the latency of a table lookup
-    payload << decoder.io.output.delay(dbLat).throwFrameWhen(drop && dbResult.fire)
+    pldFilter.io.input << decoder.io.output.delay(dbLat)
+    pldFilter.io.output >> payload
+    pldFilter.io.action.valid := dbResult.fire
+    pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
 
     val hdrParsed = OncRpcCallHeader()
     dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>

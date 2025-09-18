@@ -72,7 +72,11 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
       // XXX: this works even when downstream decoder is not immediately ready:
       //      hdr is supposed to be persistent
       headerSink << hdr.takeWhen(attempt)
-      payloadSink </< pld.takeFrameWhen(attempt && hdr.fire)
+      val pldFilter = AxiStreamFilter(pld.config)
+      pldFilter.io.input << pld
+      pldFilter.io.output >/> payloadSink
+      pldFilter.io.action.valid := hdr.fire
+      pldFilter.io.action.payload := attempt ? FilterAction.pass | FilterAction.drop
     }
     }
 
@@ -85,9 +89,13 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     // do not pipeline header for bypass: otherwise payload can get through before header;
     // this leads to different interleaving of header and payload between different protocols
     val bypassHeader = forkedHeaders.last.throwWhen(attempted)
-    val bypassPayload = forkedPayloads.last.throwFrameWhen(attempted && forkedHeaders.last.fire).pipelined(FULL)
+    val bypassPldFilter = AxiStreamFilter(forkedPayloads.last.config)
+    bypassPldFilter.io.input << forkedPayloads.last
+    bypassPldFilter.io.action.valid := forkedHeaders.last.fire
+    bypassPldFilter.io.action.payload := attempted ? FilterAction.drop | FilterAction.pass
 
-    host[DecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
+    host[DecoderSinkService].consume(bypassPldFilter.io.output,
+      bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
   }
 
   /**

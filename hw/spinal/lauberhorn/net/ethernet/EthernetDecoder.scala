@@ -37,7 +37,12 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
 
     // TODO: dropped packets counter
     val drop = Bool()
-    payload << decoder.io.output.throwFrameWhen(drop && decoder.io.header.fire)
+    val pldFilter = AxiStreamFilter(macIf.axisConfig)
+    pldFilter.io.input << decoder.io.output
+    pldFilter.io.output >> payload
+    pldFilter.io.action.valid := decoder.io.header.fire
+    pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
+
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       new Composite(this, "remap") {
         val meta = EthernetRxMeta()
