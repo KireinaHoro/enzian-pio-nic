@@ -1,16 +1,18 @@
 package lauberhorn.net
 
-import jsteward.blocks.axi.AxiStreamArbMux
+import jsteward.blocks.axi.AxiStreamMux
 import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer}
+import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer, RxPacketDescWithSource}
 import spinal.core._
 import spinal.core.fiber.Retainer
+import spinal.lib.StreamPipe.FULL
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
 
 import scala.collection.mutable
+import scala.language.postfixOps
 
 /**
  * Service for RX decoder pipeline plugins as well as the AXI DMA engine to invoke.
@@ -41,7 +43,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val retainer = Retainer()
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
-  lazy val bypassUpstreams, requestUpstreams = mutable.ListBuffer[Stream[PacketDesc]]()
+  lazy val descSources = mutable.ListBuffer[Stream[RxPacketDescWithSource]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
   def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     payloadSink.assertPersistence()
@@ -52,19 +54,16 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
 
     // handle metadata
     val tagged = metadataSink.map { md =>
-      val ret = PacketDesc()
-      ret.ty := md.getType
-      ret.metadata := md.asUnion
+      val ret = RxPacketDescWithSource()
+      ret.desc.ty := md.getType
+      ret.desc.metadata := md.asUnion
+      ret.isBypass := Bool(isBypass)
       ret
     }
 
-    // dispatch to cores
-    if (isBypass) {
-      // dispatching to the bypass-core (#0) only
-      bypassUpstreams.append(tagged)
-    } else {
-      requestUpstreams.append(tagged.s2mPipe())
-    }
+    // take care not to introduce latency in the forward path, due to the timing requirement between
+    // the descriptor and its payload
+    descSources.append(tagged.s2mPipe())
   }
   override def packetSink = logic.axisMux.m_axis
 
@@ -72,23 +71,52 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val logic = during build new Area {
     retainer.await()
 
-    // mux payload data axis to DMA -- lower first
-    val axisMux = new AxiStreamArbMux(ms.axisConfig, numSlavePorts = payloadSources.length)
+    assert(descSources.length == payloadSources.length)
+    assert(descSources.length > 1)
+
+    // mux payload data axis to DMA:
+    // select upstream port based on which desc port had a request.
+    // a arbiter mux might mix up desc and payload from different decoders
+    val axisMux = new AxiStreamMux(ms.axisConfig, numSlavePorts = payloadSources.length)
     axisMux.s_axis zip payloadSources foreach { case (sl, ms) =>
       sl << ms
     }
 
-    def mux(ss: IterableOnce[Stream[PacketDesc]], name: String): Stream[PacketDesc] = {
-      val sq = ss.iterator.to(Seq)
-      if (sq.length == 1) sq.head
-      else {
-        // use the same arbitration policy as axisMux
-        StreamArbiterFactory(s"${getName()}_$name").lowerFirst.on(sq)
-      }
+    // set payload mux to take from upstream that emitted a descriptor.
+    val pldSelNext = UInt(log2Up(payloadSources.length) bits)
+    val pldSel = RegNext(pldSelNext)
+    pldSelNext := pldSel
+
+    // we can't enforce that the payload must come IMMEDIATELY AFTER the descriptor,
+    // since interfaces might get pipelined and will get out of sync.  We only activate
+    // the mux after each descriptor and disable it after each payload, to avoid the
+    // following situation:
+    //
+    // ETH Hdr           h
+    // ETH Pld             pppp
+    // UDP Hdr      h         h
+    // UDP Pld  pppppppp  pppppppp
+    //
+    // In the above situation, if we don't disable the payload mux, the second UDP payload
+    // will be confused as the payload for the Ethernet packet.
+    val pldSelEnNext = Bool()
+    val pldSelEn = RegNext(pldSelEnNext) init False
+    pldSelEnNext := pldSelEn
+
+    axisMux.io.select := pldSelNext
+    axisMux.io.enable := pldSelEnNext
+
+    when (axisMux.m_axis.valid) {
+      pldSelEnNext := False
     }
 
-    dc.requestDesc << mux(requestUpstreams, "requestDescMux")
-    dc.bypassDesc << mux(bypassUpstreams, "bypassDescMux")
+    val descArbiter = StreamArbiterFactory().lowerFirst.buildOn(descSources)
+    when (descArbiter.io.output.fire) {
+      pldSelNext := descArbiter.io.chosen
+      pldSelEnNext := True
+    }
+
+    descArbiter.io.output >> dc.incomingDesc
   }
 
   def isPromisc: Bool = promisc
