@@ -101,7 +101,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     println(f"Rx Size $alignedSize: $slots slots @ $curBase%#x")
 
     // FIXME: what happens if try to allocate when empty?
-    val slotFifo = StreamFifo(PacketAddr(), slots)
+    val slotFifo = StreamFifo(PacketAddr(), slots).setName(s"slotFifo_$alignedSize")
 
     val initDone = RegInit(False).setWeakName("initDone")
     val remainingInit = Counter(0, slots - 1, slotFifo.io.push.fire && !initDone).setWeakName("remainingInit")
@@ -116,8 +116,9 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     val myBase = curBase
     curBase += alignedSize * slots
 
-    // FIXME: we could use a Mux and the initDone signal for less area (but slower startup)
-    slotFifo.io.push << StreamArbiterFactory(s"allocFifo_push_$alignedSize").lowerFirst.onArgs(freeDemux(idx).map(_.addr), initEnq)
+    slotFifo.io.push << StreamArbiterFactory(s"allocFifo_push_arb_$alignedSize")
+      .lowerFirst
+      .onArgs(freeDemux(idx).map(_.addr), initEnq)
     // pop only when we have a pending request
     slotFifo.io.pop.translateInto(allocRespMux.io.inputs(idx)) { (dst, src) =>
       dst.addr := src
