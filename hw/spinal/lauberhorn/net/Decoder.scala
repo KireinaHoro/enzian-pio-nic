@@ -72,7 +72,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
       // XXX: this works even when downstream decoder is not immediately ready:
       //      hdr is supposed to be persistent
       headerSink << hdr.takeWhen(attempt)
-      payloadSink </< pld.takeFrameWhen(hdr.asFlow ~ attempt)
+      payloadSink </< pld.takeFrameWhen(attempt && hdr.fire)
     }
     }
 
@@ -80,15 +80,12 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     // XXX: we assume decoder outputs the captured header first, before giving output
     //      otherwise all beats before header would not be thrown properly
     val attempted = attempts.orR
-    val bypassThrow = Flow(Bool())
-    bypassThrow.payload := attempted
-    bypassThrow.valid := attempted
 
     // do not give to bypass (throw), when any downstream decoders would attempt to decode
     // do not pipeline header for bypass: otherwise payload can get through before header;
     // this leads to different interleaving of header and payload between different protocols
     val bypassHeader = forkedHeaders.last.throwWhen(attempted)
-    val bypassPayload = forkedPayloads.last.throwFrameWhen(bypassThrow).pipelined(FULL)
+    val bypassPayload = forkedPayloads.last.throwFrameWhen(attempted && forkedHeaders.last.fire).pipelined(FULL)
 
     host[DecoderSinkService].consume(bypassPayload, bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
   }

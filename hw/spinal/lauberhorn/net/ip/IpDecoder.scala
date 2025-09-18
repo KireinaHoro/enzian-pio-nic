@@ -54,9 +54,8 @@ class IpDecoder extends Decoder[IpRxMeta] {
       .setWhen(decoder.io.header.fire)
 
     val drop = Bool()
-    val dropFlow = decoder.io.header.asFlow ~ drop
     ethernetPayload >> decoder.io.input
-    payload << decoder.io.output.throwFrameWhen(dropFlow)
+    payload << decoder.io.output.throwFrameWhen(drop && decoder.io.header.fire)
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
       val meta = IpRxMeta()
       meta.hdr.assignFromBits(hdr)

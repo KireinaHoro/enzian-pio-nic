@@ -63,7 +63,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
 
     // take care not to introduce latency in the forward path, due to the timing requirement between
     // the descriptor and its payload
-    descSources.append(tagged.s2mPipe())
+    descSources.append(tagged.pipelined(FULL))
   }
   override def packetSink = logic.axisMux.m_axis
 
