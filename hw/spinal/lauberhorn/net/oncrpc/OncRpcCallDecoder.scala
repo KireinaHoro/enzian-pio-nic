@@ -10,7 +10,6 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
-import spinal.lib.bus.misc.BusSlaveFactory
 import spinal.lib.bus.regif.AccessType
 
 import scala.language.postfixOps
@@ -109,11 +108,9 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     val drop = !dbResult.matched
     val pldFilter = AxiStreamFilter(macIf.axisConfig)
 
-    // we don't know if we need to drop the payload until we know the lookup result;
-    // so delay the payload flow by the latency of a table lookup
-    pldFilter.io.input << decoder.io.output.delay(dbLat)
+    pldFilter.io.input << decoder.io.output
     pldFilter.io.output >> payload
-    pldFilter.io.action.valid := dbResult.fire
+    pldFilter.io.action.valid := dbResult.fire && dbResult.userData.udpPayloadSize > maxLen
     pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
 
     val hdrParsed = OncRpcCallHeader()
