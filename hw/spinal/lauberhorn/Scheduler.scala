@@ -336,11 +336,17 @@ class Scheduler extends FiberPlugin {
       pushResult.ready := True
     }
 
-    // each core can raise a pop request, to remove one packet from the queues
-    val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(MemAddr))
+    // each core can raise a pop request, to remove one packet from the queues.
+    // a pop request is idx of the queue from which a request should be popped
+    val popReqs = Seq.fill(NUM_WORKER_CORES)(Stream(ProcTblIdx))
     val arbitratedPopReq = StreamArbiterFactory(s"${getName()}_popReqMux").roundRobin.on(popReqs)
-    val poppedReq = queueMem.readSync(arbitratedPopReq.payload)
+    val toPopQueueIdx = arbitratedPopReq.payload
+    val toPopReqAddr = queueMetas(toPopQueueIdx).head
+    val poppedReq = queueMem.readSync(toPopReqAddr)
     arbitratedPopReq.ready := True
+    when (arbitratedPopReq.fire) {
+      popQ(toPopQueueIdx) := True
+    }
 
     // victim core selection, based on preemption type
     val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
@@ -398,7 +404,7 @@ class Scheduler extends FiberPlugin {
               //      needed since we don't want to pop a request when core is not ready, since after popping one:
               //      - allow preempt?  need to somehow put it back in the queue
               //      - not allow preempt?  no chance in practice to preempt then
-              popReq.payload := queueMetas(corePopQueueIdx).head
+              popReq.payload := corePopQueueIdx
               popReq.valid := True
               when (popReq.ready) {
                 goto(popReqGranted)
@@ -440,25 +446,15 @@ class Scheduler extends FiberPlugin {
         }
         val popReqGranted: State = new State {
           whenIsActive {
-            // pop request granted, but is the queue now empty (due to a competitor)?
-            when (!queueMetas(corePopQueueIdx).empty) {
-              // to prevent a race condition between cores:
-              // must update queue pointers immediately after granted
-              popQ(corePopQueueIdx) := True
-              inc(_.popped(idx))
+            inc(_.popped(idx))
+            // if our pop request is granted, read happened on that cycle;
+            // now we have the popped request ready
 
-              // if our pop request is granted, read happened on that cycle;
-              // now we have the popped request ready
-
-              // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
-              // the core not ready any more; we need to hold the same request instead of switching
-              // to another request
-              savedPoppedReq := poppedReq
-              goto(sendPoppedReq)
-            } otherwise {
-              // queue now empty, go back to idle
-              goto(idle)
-            }
+            // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
+            // the core not ready any more; we need to hold the same request instead of switching
+            // to another request
+            savedPoppedReq := poppedReq
+            goto(sendPoppedReq)
           }
         }
         val sendPoppedReq: State = new State {
