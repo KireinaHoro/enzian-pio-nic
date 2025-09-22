@@ -119,8 +119,12 @@ object Global extends AreaRoot {
     PID_WIDTH.set(16)
     NUM_NEIGHBOR_ENTRIES.set(8)
     NUM_LISTEN_PORTS.set(16)
-    NUM_SERVICES.set(16)
-    NUM_SESSIONS.set(32)
+
+    // FIXME: these numbers are now ridiculously small!
+    //        this is due to the current fully-connected LookupTable being difficult to place and route.
+    // TODO:  implement a memory-based lookup table
+    NUM_SERVICES.set(8)
+    NUM_SESSIONS.set(16)
     NUM_PROCS.set(16)
     RX_PKTS_PER_PROC.set(32)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
