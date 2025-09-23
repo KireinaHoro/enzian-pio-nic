@@ -51,8 +51,6 @@ int do_fpi_irq_deactivate(void *data);
 int create_devices(void);
 void remove_devices(void);
 
-// ioctl handlers for use in chrdev.c to fill out fops
-long mod_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
 // CMAC functions
 typedef struct cmac_t cmac_t;
