@@ -46,8 +46,6 @@ static int __init mod_init(void) {
     return -1;
   }
 
-  init_datapath();
-
   pr_info("Lauberhorn initialized\n");
   return 0;
 }
@@ -59,7 +57,6 @@ static void __exit mod_exit(void) {
   remove_devices();
   deinit_workers();
   deinit_bypass();
-  deinit_datapath();
 
   pr_info("Lauberhorn unloaded\n");
 }

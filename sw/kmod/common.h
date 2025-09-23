@@ -47,10 +47,6 @@ void deinit_workers(void);
 int do_fpi_irq_activate(void *data);
 int do_fpi_irq_deactivate(void *data);
 
-// Init and deinit functions for CMAC, encoders and decoders
-void init_datapath(void);
-void deinit_datapath(void);
-
 // Create and destroy char devices for user APIs.
 int create_devices(void);
 void remove_devices(void);
