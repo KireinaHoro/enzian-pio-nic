@@ -51,6 +51,11 @@ int do_fpi_irq_deactivate(void *data);
 int create_devices(void);
 void remove_devices(void);
 
+// Scheduler integration: worker thread management
+int prepare_worker_thread();
+void clean_worker_thread(u32 proc_idx, u32 thr_idx);
+void enable_worker_thread();
+void disable_worker_thread();
 
 // CMAC functions
 typedef struct cmac_t cmac_t;
