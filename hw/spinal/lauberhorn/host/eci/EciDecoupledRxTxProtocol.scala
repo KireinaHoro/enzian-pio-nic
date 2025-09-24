@@ -67,7 +67,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   def driveDcsBus(bus: Axi4, pktBufAxiNode: Axi4): Unit = new Area {
     // RX router
     val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
-    rxRouter.rxDesc << hostRx
+    // Do not issue new request when preempt req is under way
+    rxRouter.rxDesc << hostRx.haltWhen(preemptReq.valid)
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
     logic.rxReqs := rxRouter.hostReq
@@ -100,8 +101,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       .build()
 
     val blockCycles = CombInit(host[EciInterfacePlugin].rxBlockCycles)
-    // disable block cycles, when a preemption request is under way
-    // this way we immediately return a NACK, instead of waiting until timeout
+    // Disable block cycles when a preemption request is under way.  We also halt hostRx
+    // when a preempt request is under way; this way, we immediately return a NACK,
+    // instead of waiting until timeout
     when (preemptReq.valid) { blockCycles.clearAll() }
 
     if (isBypass) {
