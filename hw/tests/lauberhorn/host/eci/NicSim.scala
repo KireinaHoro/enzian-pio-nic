@@ -1089,6 +1089,15 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     waitUntil(pktsExpecting.sum == pktsReceived.sum)
   }
 
+  /** After preemption, no CLs should be Shared -- otherwise we leak a descriptor from the previous
+    * application on this core */
+  testWithDB("rx-preempt-no-leaking", Rx) { implicit dut =>
+    // Spawn two services.  Send a few requests for the first one, drain all of them, then
+    // send a request to the second service.  After the core finishes preemption, check if
+    // no info is leaked (the new process only sees a NACK in the opposite CL)
+    // TODO
+  }
+
   /* Test killing a process that did not unset BUSY */
   testWithDB("rx-sched-crit-timeout", Rx) { implicit dut =>
 

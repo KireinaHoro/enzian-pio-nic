@@ -137,9 +137,10 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     awaitBuild()
 
-    // Parity bits to serve to the kernel in the preemption control cacheline.  These
+    // Parity bits are served to the kernel in the preemption control cacheline.  They
     // are also accessible directly as register reads (exposed originally for debugging)
-    // in [[EciDecoupledRxTxProtocol]] -- this optimization will save the extra I/O roundtrip
+    // in [[EciDecoupledRxTxProtocol]]; exposing them in the ACK reg will save one extra
+    // I/O roundtrip
     ipiAck.rxParity := proto.logic.rxCurrClIdx
     ipiAck.txParity := proto.logic.txCurrClIdx
     // TODO: drive killed with counter output
