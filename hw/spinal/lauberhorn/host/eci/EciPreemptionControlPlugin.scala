@@ -62,7 +62,7 @@ object EciPreemptionControlPlugin {
   * We take parity flags as input, to return them inside this cacheline as well.
   */
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
-  withPrefix(s"core_$coreID")
+  withPrefix(s"worker_${coreID - 1}")
 
   lazy val preemptCritSecTimeout = host[EciInterfacePlugin].preemptCritSecTimeout
 
@@ -297,5 +297,5 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     lci  << logic.lci
     ul   << logic.ul
     lcia >> logic.lcia
-  }.setName(s"driveDcsBus_preempt_core$coreID")
+  }.setCompositeName(this, "driveDcsBus")
 }

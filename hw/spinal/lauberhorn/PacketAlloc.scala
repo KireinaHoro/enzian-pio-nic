@@ -81,8 +81,8 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
   val freeDemux = StreamDemux(
     freeReqNoZeroes,
     sizeIdx(freeReqNoZeroes.payload.size),
-    numPorts).setName("freeDemux")
-  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts+1).setName("allocRespMux")
+    numPorts)
+  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts+1)
   allocRespMux.io.output.haltWhen(!inProgress) >> io.allocResp
 
   // for requests with length zero, always return a zero-length buffer at the beginning of buffer
@@ -96,15 +96,15 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
 
   var curBase = base
 
-  roundedMap.zipWithIndex foreach { case ((alignedSize, slots), idx) =>
+  roundedMap.zipWithIndex foreach { case ((alignedSize, slots), idx) => new Area {
     // round up slot size to streaming bus size to increase bus utilisation
     println(f"Rx Size $alignedSize: $slots slots @ $curBase%#x")
 
     // FIXME: what happens if try to allocate when empty?
-    val slotFifo = StreamFifo(PacketAddr(), slots).setName(s"slotFifo_$alignedSize")
+    val slotFifo = StreamFifo(PacketAddr(), slots)
 
-    val initDone = RegInit(False).setWeakName("initDone")
-    val remainingInit = Counter(0, slots - 1, slotFifo.io.push.fire && !initDone).setWeakName("remainingInit")
+    val initDone = RegInit(False)
+    val remainingInit = Counter(0, slots - 1, slotFifo.io.push.fire && !initDone)
     when(remainingInit.willOverflow) {
       initDone := True
     }
@@ -116,7 +116,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     val myBase = curBase
     curBase += alignedSize * slots
 
-    slotFifo.io.push << StreamArbiterFactory(s"allocFifo_push_arb_$alignedSize")
+    slotFifo.io.push << StreamArbiterFactory(s"size_${alignedSize}_allocFifo_push_arb")
       .lowerFirst
       .onArgs(freeDemux(idx).map(_.addr), initEnq)
     // pop only when we have a pending request
@@ -157,7 +157,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
         slotOccupied(popIdx) := True
       }
     }
-  }
+  }.setName(s"size_$alignedSize") }
 
   println("==============")
 }
