@@ -33,20 +33,20 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("stat", name, attr = AccessType.RO))
+      busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = AccessType.RO))
     }
 
     // one port for each field + index register to latch into table
     val servicePort = OncRpcCallServiceDef()
     servicePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"service_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"Service table update $name", s"service_$name", attr = AccessType.WO))
     }
 
     logic.serviceDb.update.setIdle()
 
     val serviceIdx = UInt(log2Up(NUM_SERVICES) bits)
     serviceIdx := 0
-    val serviceIdxAddr = alloc("ctrl", "service_idx", attr = AccessType.WO)
+    val serviceIdxAddr = alloc("ctrl", "Index of service to update", "service_idx", attr = AccessType.WO)
     busCtrl.write(serviceIdx, serviceIdxAddr)
     busCtrl.onWrite(serviceIdxAddr) {
       // record service entry in table

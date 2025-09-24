@@ -104,7 +104,7 @@ case class EciHostCtrlInfo() extends Bundle {
     // post descriptor header to mackerel (first 128 bits)
     // FIXME: should we include valid here? valid is present for rx but not for tx
     //        currently included as rsvd bit
-    ALLOC.addMackerelEpilogue(this.getClass,
+    ALLOC.addMackerelEpilogue(
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
          |  valid 1 "RX descriptor valid (rsvd for TX)";

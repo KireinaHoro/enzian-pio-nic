@@ -20,7 +20,7 @@ object UdpNextProto extends SpinalEnum {
   val disabled, oncRpcCall, oncRpcReply = newElement()
 
   def addMackerel() = {
-    ALLOC.addMackerelEpilogue(getClass,
+    ALLOC.addMackerelEpilogue(
       s"""
          |constants udp_next_proto width(${UdpNextProto().getBitsWidth}) "UDP Listener Protocol" {
          |  listen_disabled      = 0b00 "Disabled";
@@ -64,19 +64,19 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("stat", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
 
     val writePort = UdpListenDef()
     writePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"listen_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"Listen table update $name", s"listen_$name", attr = AccessType.WO))
     }
 
     logic.listenDb.update.setIdle()
 
     val idx = UInt(log2Up(NUM_LISTEN_PORTS) bits)
     idx := 0
-    val idxAddr = alloc("ctrl", "listen_idx", attr = AccessType.WO)
+    val idxAddr = alloc("ctrl", "Index of listen entry to update", "listen_idx", attr = AccessType.WO)
     busCtrl.write(idx, idxAddr)
     busCtrl.onWrite(idxAddr) {
       // record listen port in table

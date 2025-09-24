@@ -42,7 +42,7 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
     Axi4CrossbarFactory()
       .addSlaves(
         axiWideConfigNode -> (0x0, NUM_CORES * 0x1000),
-        pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer"), PKT_BUF_SIZE.get),
+        pktBuffer.io.s_axi_b -> (pktBufferAlloc("buffer", desc = "Address for packet buffer"), PKT_BUF_SIZE.get),
       )
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
       .build()

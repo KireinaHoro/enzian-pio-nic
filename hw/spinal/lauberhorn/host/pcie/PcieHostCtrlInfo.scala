@@ -59,7 +59,7 @@ case class PcieHostCtrlInfo() extends Bundle {
     PacketDescType.addMackerel()
 
     // post descriptor header to mackerel
-    ALLOC.addMackerelEpilogue(this.getClass,
+    ALLOC.addMackerelEpilogue(
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "PCIe Host Control Info (Error)" {
          |  valid 1   "RX descriptor valid (rsvd for TX)";

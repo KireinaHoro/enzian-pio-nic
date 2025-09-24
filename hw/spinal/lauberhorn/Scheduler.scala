@@ -81,12 +81,14 @@ class Scheduler extends FiberPlugin {
 
     // max number of threads per process (degree of parallelism)
     logic.procDb.update.value.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"proc_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"Process table update $name",
+        s"proc_$name", attr = AccessType.WO))
     }
 
     val procDefIdx = ProcTblIdx
     procDefIdx := 0
-    val procDefIdxAddr = alloc("ctrl", "proc_idx", attr = AccessType.WO)
+    val procDefIdxAddr = alloc("ctrl", s"Index of process to update",
+      "proc_idx", attr = AccessType.WO)
     busCtrl.write(procDefIdx, procDefIdxAddr)
     busCtrl.onWrite(procDefIdxAddr) {
       logic.procDb.update.valid := True
@@ -105,10 +107,12 @@ class Scheduler extends FiberPlugin {
       val queueFill = UInt(REG_WIDTH bits)
     })
     readbackPort.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("stat", s"readback_$name", attr = AccessType.RO))
+      busCtrl.read(field, alloc("stat", s"Process table readback $name",
+        s"readback_$name", attr = AccessType.RO))
     }
 
-    val readbackIdxAddr = alloc("stat", "readback_idx", attr = AccessType.WO)
+    val readbackIdxAddr = alloc("stat", "Index of process to read back",
+      "readback_idx", attr = AccessType.WO)
     logic.procDb.readbackIdx := 0
     busCtrl.write(logic.procDb.readbackIdx, readbackIdxAddr)
     busCtrl.onWrite(readbackIdxAddr) {
@@ -117,9 +121,10 @@ class Scheduler extends FiberPlugin {
     }
 
     logic.statistics.elements.foreach {
-      case (name, d: UInt) => busCtrl.read(d, alloc("stat", name, attr = RO))
+      case (name, d: UInt) => busCtrl.read(d, alloc("stat", s"Stat $name", name, attr = RO))
       case (name, v: Vec[_]) => v.zipWithIndex.foreach { case (e, idx) =>
-        val addr = alloc("coreStat", s"${name}_core${idx+1}", attr = RO)
+        val addr = alloc("coreStat", s"Per core stat $name",
+          s"${name}_core${idx+1}", attr = RO)
         busCtrl.read(e, addr)
       }
       case _ =>

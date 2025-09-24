@@ -49,15 +49,21 @@ class ProfilerPlugin extends FiberPlugin {
       val busCtrl = AxiLite4SlaveFactory(bus)
 
       println(f"Git version: ${GIT_VERSION.get}%x")
-      busCtrl.read(B(GIT_VERSION), alloc("gitVersion", attr = RO))
+      busCtrl.read(B(GIT_VERSION), alloc("gitVersion", attr = RO,
+        desc = "Git version of HW"))
 
       // "LBERHORN" in hex
-      busCtrl.read(B("64'x4C424552484F524E"), alloc("magic", attr = RO))
+      busCtrl.read(B("64'x4C424552484F524E"), alloc("magic", attr = RO,
+        desc = "Magic number to check (should be LBERHORN)"))
 
-      busCtrl.read(cycles, alloc("cycles", attr = RO))
+      busCtrl.read(cycles, alloc("cycles", attr = RO,
+        desc = s"Cycle counter @ ${component.clockDomain.frequency.getValue} MHz"))
 
       profiler.timestamps.storage.foreach { case (namedType, data) =>
-        busCtrl.read(data, alloc("lastProfile", namedType.getName(), attr = RO))
+        busCtrl.read(data, alloc("lastProfile",
+          desc = s"Profile timestamp ${namedType.getName()}",
+          namedType.getName(), attr = RO,
+        ))
       }
     }
   }

@@ -30,11 +30,16 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO))
-    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO))
+    // TODO: emit constants type for FSM state value
+    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO,
+      desc = "state of the RX state machine (raw value)"))
+    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO,
+      desc = "parity (next CL to read) of the RX state machine"))
 
-    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO))
-    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO))
+    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO,
+      desc = "state of the TX state machine (raw value)"))
+    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO,
+      desc = "parity (next CL to write) of the TX state machine"))
   }
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
