@@ -113,8 +113,10 @@ class EciInterfacePlugin extends FiberPlugin {
 
     drive({ (bus, alloc) =>
       val busCtrl = AxiLite4SlaveFactory(bus)
-      busCtrl.readAndWrite(preemptCritSecTimeout, alloc("preemptCritSecTimeout"))
-      busCtrl.readAndWrite(rxBlockCycles, alloc("rxBlockCycles"))
+      busCtrl.readAndWrite(preemptCritSecTimeout, alloc("preemptCritSecTimeout",
+        desc = "Timeout before preemption victim process is killed (in cycles)"))
+      busCtrl.readAndWrite(rxBlockCycles, alloc("rxBlockCycles",
+        desc = "Timeout before a NACK is returned for RX (in cycles)"))
     }, "hostIf")
 
     // master nodes for access to packet buffer

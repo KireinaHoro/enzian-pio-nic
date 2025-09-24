@@ -23,7 +23,7 @@ case class PacketBufDesc() extends Bundle {
   assert(getBitsWidth <= 64, "packet buf desc size too big!")
 
   def addMackerel = {
-    ALLOC.addMackerelEpilogue(this.getClass,
+    ALLOC.addMackerelEpilogue(
       s"""
          |regtype host_pkt_buf_desc "PCIe Host Packet Buffer Descriptor" {
          |  valid 1   "TX descriptor valid (rsvd for RX)";

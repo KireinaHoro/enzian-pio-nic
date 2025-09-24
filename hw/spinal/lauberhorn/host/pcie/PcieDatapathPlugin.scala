@@ -23,6 +23,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       readSensitive = true,
       attr = RO,
       size = hostDescSizeRound,
+      desc = "RX packet descriptor",
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
       ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
 
@@ -37,18 +38,21 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
 
     busCtrl.driveStream(hostRxAck.padSlave(1), alloc("hostRxAck",
       attr = WO,
-      ty = "host_pkt_buf_desc"))
+      ty = "host_pkt_buf_desc",
+      desc = "Acknowledge RX packet"))
 
     // should not block; only for profiling (to use ready signal)
     busCtrl.readStreamNonBlocking(hostTx, alloc("hostTx",
       readSensitive = true,
       attr = RO,
-      ty = "host_pkt_buf_desc"))
+      ty = "host_pkt_buf_desc",
+      desc = "TX packet descriptor with buffer address filled only"))
 
     val txHostDesc = Stream(PcieHostCtrlInfo())
     busCtrl.driveStream(txHostDesc.padSlave(1), alloc("hostTxAck",
       attr = WO,
       size = hostDescSizeRound,
+      desc = "Full TX packet descriptor",
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
       ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
     hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>

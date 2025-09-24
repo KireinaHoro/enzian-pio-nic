@@ -68,7 +68,7 @@ package object ip {
     val none, incomplete, reachable = newElement()
 
     def addMackerel() = {
-      ALLOC.addMackerelEpilogue(getClass,
+      ALLOC.addMackerelEpilogue(
         s"""
           |constants ip_neigh_entry_state width(2) "Packet Descriptor Type" {
           |  neigh_none        = 0b00 "None";

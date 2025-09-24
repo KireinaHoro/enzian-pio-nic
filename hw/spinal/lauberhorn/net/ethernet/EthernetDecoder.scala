@@ -18,9 +18,9 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("stat", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
-    busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "macAddress"))
+    busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "Our MAC address", "macAddress"))
   }
 
   val logic = during setup new Area {

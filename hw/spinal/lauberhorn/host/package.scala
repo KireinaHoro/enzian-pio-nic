@@ -15,7 +15,7 @@ package object host {
     val error, bypass, arpReq, oncRpcCall, oncRpcReply = newElement()
 
     def addMackerel() = {
-      ALLOC.addMackerelEpilogue(getClass,
+      ALLOC.addMackerelEpilogue(
         s"""
            |constants host_req_type width(${HOST_REQ_TY_WIDTH.get}) "Host Request Type" {
            |  error         = 0b000 "Error";

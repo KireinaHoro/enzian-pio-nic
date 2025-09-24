@@ -24,22 +24,28 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     logic.neighborDb.update.setIdle()
     logic.neighborDb.update.value.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"neigh_$name", attr = AccessType.WO))
+      busCtrl.drive(field, alloc("ctrl", s"Neighbor table update $name",
+        s"neigh_$name", attr = AccessType.WO))
     }
 
-    val idxAddr = alloc("ctrl", "neigh_idx", attr = AccessType.WO)
+    val idxAddr = alloc("ctrl", "Index of neighbor table entry to update",
+      "neigh_idx", attr = AccessType.WO)
     busCtrl.write(logic.neighborDb.update.idx, idxAddr)
     busCtrl.onWrite(idxAddr) {
       logic.neighborDb.update.valid := True
     }
 
-    busCtrl.read(logic.dropped.value, alloc("stat", "dropped", attr = AccessType.RO))
-    busCtrl.read(logic.neighTblFull.value, alloc("stat", "neighTblFull", attr = AccessType.RO))
+    busCtrl.read(logic.dropped.value, alloc("stat", "Number of packets dropped due to neighbor lookup failure",
+      "dropped", attr = AccessType.RO))
+    busCtrl.read(logic.neighTblFull.value, alloc("stat", "Number of times neighbor table became full (and entry 0 was overridden)",
+      "neighTblFull", attr = AccessType.RO))
 
-    val readbackIdxAddr = alloc("stat", "neigh_readback_idx", attr = AccessType.WO)
+    val readbackIdxAddr = alloc("stat", "Index of neighbor table entry to read back",
+      "neigh_readback_idx", attr = AccessType.WO)
     busCtrl.drive(logic.neighborDb.readbackIdx, readbackIdxAddr)
     logic.neighborDb.readback.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("stat", s"neigh_readback_$name", attr = AccessType.RO))
+      busCtrl.read(field, alloc("stat", s"Neighbor table readback $name",
+        s"neigh_readback_$name", attr = AccessType.RO))
     }
   }
 

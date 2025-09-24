@@ -31,7 +31,7 @@ package object net {
     }
 
     def addMackerel() = {
-      ALLOC.addMackerelEpilogue(getClass,
+      ALLOC.addMackerelEpilogue(
         s"""
           |constants packet_desc_type width(${PKT_DESC_TY_WIDTH.get}) "Packet Descriptor Type" {
           |  hdr_ethernet      = 0b000 "Ethernet";

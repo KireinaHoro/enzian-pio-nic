@@ -20,9 +20,9 @@ class IpDecoder extends Decoder[IpRxMeta] {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
-      busCtrl.read(stat, alloc("stat", name, attr = RO))
+      busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
-    busCtrl.readAndWrite(logic.ipAddress, alloc("ctrl", "ipAddress"))
+    busCtrl.readAndWrite(logic.ipAddress, alloc("ctrl", "Our IP address", "ipAddress"))
   }
 
   val logic = during setup new Area {
