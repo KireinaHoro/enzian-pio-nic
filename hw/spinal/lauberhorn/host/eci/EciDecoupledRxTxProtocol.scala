@@ -186,7 +186,24 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     hostRxReq := hostFirstRead
 
     val rxFsm = new StateMachine {
-      val idle: State = new State with EntryPoint {
+      val bootstrap: State = new State with EntryPoint {
+        whenIsActive {
+          if (isBypass) {
+            // no preemption involved for bypass
+            goto(waitHostRead)
+          } else {
+            // Preemption happens by injecting a new, synthesized read event via rxTriggerNew.
+            // Handle the bootstrapping case here i.e. when both CLs are in idle.  Use a
+            // separate bootstrap and waitHostRead state instead of one "idle" state, so that
+            // we don't accidentally acknowledge preemption requests
+            when (preemptReq.valid) {
+              preemptReq.ready := True
+              goto(waitHostRead)
+            }
+          }
+        }
+      }
+      val waitHostRead: State = new State {
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
@@ -195,20 +212,19 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (rxReqs(rxCurrClIdx.asUInt)) {
             hostFirstRead.set()
-            goto(hostWaiting)
-          } elsewhen (preemptReq.valid) {
-            preemptReq.ready := True
+            goto(hostIssuedRead)
           }
         }
       }
-      val hostWaiting: State = new State {
+      val hostIssuedRead: State = new State {
         whenIsActive {
           when (rxPktBufSavedValid) {
             // a packet arrived in time
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPktBufSaved.size.bits)
             goto(repeatPacket)
           } elsewhen (rxTriggerNew) {
-            // no packet arrived in time, and we delivered a NACK; invalidate the NACK
+            // no packet arrived in time and we delivered a NACK --
+            // now the host is reading a new CL; invalidate the NACK
             goto(invalidateCtrl)
           }
         }
@@ -276,9 +292,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             ulFlow.valid := True
 
             when (preemptReq.valid) {
-              // ack preempReq but DON'T toggle parity
-              // both control CLs are in invalid
-              // only need to make sure parity tracked by CPU and Protocol are the same
+              // We injected a synthetic new fetch through rxTriggerNew.  Ack preempReq but
+              // DON'T toggle parity, since both control CLs are in invalid; we only need
+              // to make sure parity tracked by CPU and Protocol are the same
               preemptReq.ready := True
             } otherwise {
               // always toggle, even if NACK was sent
@@ -286,7 +302,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
 
             rxInvDone := True
-            goto(idle)
+            goto(waitHostRead)
           }
         }
       }
