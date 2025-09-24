@@ -481,6 +481,6 @@ class Scheduler extends FiberPlugin {
           }
         }
       }
-    }.setName(s"sched_rx_pop_core$idx") }
+    }.setCompositeName(this, s"core_$idx") }
   }
 }

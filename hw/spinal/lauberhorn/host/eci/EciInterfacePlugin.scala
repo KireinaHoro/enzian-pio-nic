@@ -169,6 +169,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
+      val chanName = if (isUl) "ul" else "lci"
       cmds.zipWithIndex.map { case (cmd, uidx) =>
         new Area {
           val offset = cmd.mapPayloadElement(addrLocator) { a =>
@@ -178,9 +179,9 @@ class EciInterfacePlugin extends FiberPlugin {
           // even addr -> odd VC, vice versa
           val dcsIdx = (~addrLocator(offset.payload)(7)).asUInt
           val ret = StreamDemux(offset, dcsIdx, 2).toSeq
-        }.setName("demuxCoreCmds").ret
+        }.setCompositeName(this, s"${chanName}FromCore").ret
       }.transpose.zip(dcsIntfs) foreach { case (demuxedCoreCmds, dcs) => new Area {
-        val muxed = StreamArbiterFactory(s"arbitrateIntoLcl_cmdMux").roundRobin.on(demuxedCoreCmds)
+        val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_${chanName}ToDcs_mux").roundRobin.on(demuxedCoreCmds)
         // assemble ECI channel
         val chanStream = Stream(LclChannel())
         chanStream.translateFrom(muxed) { case (chan, data) =>
@@ -191,7 +192,7 @@ class EciInterfacePlugin extends FiberPlugin {
         }
 
         chanLocator(dcs) << chanStream
-      }.setName("arbitrateIntoLcl")
+      }.setCompositeName(this, s"${chanName}ToDcs")
       }
     }
 
@@ -210,7 +211,7 @@ class EciInterfacePlugin extends FiberPlugin {
           val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
           // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
           val ret = StreamDemux(unaliasedEciWord, unitIdx, 2 * NUM_CORES)
-        }.setName("demuxLcl").ret
+        }.setCompositeName(this, "lciaFromDcs").ret
       }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
         val resps = chans.map { c =>
           new Composite(c) {
@@ -219,8 +220,8 @@ class EciInterfacePlugin extends FiberPlugin {
             }
           }
         }
-        resp << StreamArbiterFactory(s"arbitrateIntoCoreCmds_cmdMux").roundRobin.on(resps.map(_.offset))
-      }.setName("arbitrateIntoCoreCmds")
+        resp << StreamArbiterFactory(s"EciInterfacePlugin_logic_lciaToCore_mux").roundRobin.on(resps.map(_.offset))
+      }.setCompositeName(this, "lciaToCore")
       }
     }
 
@@ -241,7 +242,7 @@ class EciInterfacePlugin extends FiberPlugin {
       ret.payload.lci.xb3     := B("3'x0")
 
       ret.arbitrationFrom(addr)
-    }.setName("bindLci").ret
+    }.setCompositeName(this, "bindLci").ret
     }, _.lci.address, 16, 17, _.cleanMaybeInvReq)
 
     // demux LCL response (LCIA)
@@ -256,7 +257,7 @@ class EciInterfacePlugin extends FiberPlugin {
         when (ret.fire) {
           assert(ret.payload.lcia.hreqId === B(uidx % 2), "source of LCIA does not match LCI")
         }
-      }.setName("bindLcia").ret
+      }.setCompositeName(this, "bindLcia").ret
     }, _.lcia.address, _.cleanMaybeInvResp)
 
     // mux LCL unlock response
@@ -271,7 +272,7 @@ class EciInterfacePlugin extends FiberPlugin {
         ret.payload.ul.xb19    := B("19'x0")
 
         ret.arbitrationFrom(addr)
-      }.setName("bindUl").ret
+      }.setCompositeName(this, "bindUl").ret
     }, _.ul.address, 18, 19, _.unlockResp, isUl = true)
 
     // drive core control interface -- datapath per core
@@ -324,7 +325,7 @@ class EciInterfacePlugin extends FiberPlugin {
           drive(preempt.driveControl, "preempt", cid)
           preempt.logic.ipiToIntc >> ipiCtrl
       }
-    }.setName("bindProtoToCoreCtrl")
+    }.setCompositeName(this, "bindProtoToCoreCtrl")
     }
 
     // connect all AXI-Lite nodes

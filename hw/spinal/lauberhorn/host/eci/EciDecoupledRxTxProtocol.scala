@@ -19,7 +19,13 @@ import Global._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
-  withPrefix(s"core_$coreID")
+  val isBypass = coreID == 0
+
+  if (isBypass) {
+    withPrefix("proto_bypass")
+  } else {
+    withPrefix(s"proto_worker_${coreID - 1}")
+  }
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
@@ -98,7 +104,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // this way we immediately return a NACK, instead of waiting until timeout
     when (preemptReq.valid) { blockCycles.clearAll() }
 
-    if (coreID == 0) {
+    if (isBypass) {
       // bypass core will have non-blocking poll of cachelines
       // this will allow NAPI-based Linux driver implementation
       rxRouter.blockCycles := 0
@@ -106,7 +112,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       // we use normal block cycles for all worker cores
       rxRouter.blockCycles := blockCycles
     }
-  }.setName(s"driveDcsBus_core$coreID")
+  }.setCompositeName(this, "driveDcsBus")
 
   def preemptReq = logic.preemptReq
 
@@ -125,8 +131,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
-    val irqOut = coreID == 0 generate Stream(EciIntcInterface())
-    val irqEn = coreID == 0 generate Bool()
+    val irqOut = isBypass generate Stream(EciIntcInterface())
+    val irqEn = isBypass generate Bool()
 
     awaitBuild()
 
@@ -381,7 +387,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txFsm.build()
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
-    coreID == 0 generate new Area {
+    isBypass generate new Area {
       irqOut.setIdle()
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
