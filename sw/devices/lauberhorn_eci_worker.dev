@@ -10,11 +10,12 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_worker lsbfirst (addr base) "worker block for lauberhorn_eci" {
-register rx_fsm_state ro addr(base, 0x0) "rxFsmState @ worker" type(uint64);
-register rx_curr_cl_idx ro addr(base, 0x8) "rxCurrClIdx @ worker" type(uint64);
-register tx_fsm_state ro addr(base, 0x10) "txFsmState @ worker" type(uint64);
-register tx_curr_cl_idx ro addr(base, 0x18) "txCurrClIdx @ worker" type(uint64);
+register rx_fsm_state ro addr(base, 0x0) "state of the RX state machine (raw value)" type(uint64);
+register tx_fsm_state ro addr(base, 0x8) "state of the TX state machine (raw value)" type(uint64);
+register tx_curr_cl_idx rw addr(base, 0x10) "parity (next CL to write) of the TX state machine" type(uint64);
+register rx_curr_cl_idx rw addr(base, 0x18) "parity (next CL to read) of the RX state machine" type(uint64);
 
 };

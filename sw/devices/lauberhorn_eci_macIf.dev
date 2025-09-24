@@ -10,8 +10,9 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_macIf lsbfirst (addr base) "macIf block for lauberhorn_eci" {
-register rx_mac_overflow_count ro addr(base, 0x0) "rxMacOverflowCount @ macIf" type(uint64);
+register rx_mac_overflow_count ro addr(base, 0x0) "Receive CDC FIFO overflow count" type(uint64);
 
 };

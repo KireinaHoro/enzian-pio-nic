@@ -10,11 +10,12 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_EthernetDecoder lsbfirst (addr base) "EthernetDecoder block for lauberhorn_eci" {
-register stat_header_only ro addr(base, 0x0) "stat:headerOnly @ EthernetDecoder" type(uint64);
-register stat_partial_header ro addr(base, 0x8) "stat:partialHeader @ EthernetDecoder" type(uint64);
-register stat_incomplete_header ro addr(base, 0x10) "stat:incompleteHeader @ EthernetDecoder" type(uint64);
-register ctrl_mac_address rw addr(base, 0x18) "ctrl:macAddress @ EthernetDecoder" type(uint64);
+register stat_header_only ro addr(base, 0x0) "Stat headerOnly" type(uint64);
+register stat_partial_header ro addr(base, 0x8) "Stat partialHeader" type(uint64);
+register stat_incomplete_header ro addr(base, 0x10) "Stat incompleteHeader" type(uint64);
+register ctrl_mac_address rw addr(base, 0x18) "Our MAC address" type(uint64);
 
 };

@@ -10,17 +10,18 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_IpEncoder lsbfirst (addr base) "IpEncoder block for lauberhorn_eci" {
-register ctrl_neigh_ip_addr wo addr(base, 0x0) "ctrl:neigh_ipAddr @ IpEncoder" type(uint64);
-register ctrl_neigh_mac_addr wo addr(base, 0x8) "ctrl:neigh_macAddr @ IpEncoder" type(uint64);
-register ctrl_neigh_state wo addr(base, 0x10) "ctrl:neigh_state @ IpEncoder" type(uint64);
-register ctrl_neigh_idx wo addr(base, 0x18) "ctrl:neigh_idx @ IpEncoder" type(uint64);
-register stat_dropped ro addr(base, 0x20) "stat:dropped @ IpEncoder" type(uint64);
-register stat_neigh_tbl_full ro addr(base, 0x28) "stat:neighTblFull @ IpEncoder" type(uint64);
-register stat_neigh_readback_idx wo addr(base, 0x30) "stat:neigh_readback_idx @ IpEncoder" type(uint64);
-register stat_neigh_readback_ip_addr ro addr(base, 0x38) "stat:neigh_readback_ipAddr @ IpEncoder" type(uint64);
-register stat_neigh_readback_mac_addr ro addr(base, 0x40) "stat:neigh_readback_macAddr @ IpEncoder" type(uint64);
-register stat_neigh_readback_state ro addr(base, 0x48) "stat:neigh_readback_state @ IpEncoder" type(uint64);
+register ctrl_neigh_ip_addr wo addr(base, 0x0) "Neighbor table update ipAddr" type(uint64);
+register ctrl_neigh_mac_addr wo addr(base, 0x8) "Neighbor table update macAddr" type(uint64);
+register ctrl_neigh_state wo addr(base, 0x10) "Neighbor table update state" type(uint64);
+register ctrl_neigh_idx wo addr(base, 0x18) "Index of neighbor table entry to update" type(uint64);
+register stat_dropped ro addr(base, 0x20) "Number of packets dropped due to neighbor lookup failure" type(uint64);
+register stat_neigh_tbl_full ro addr(base, 0x28) "Number of times neighbor table became full (and entry 0 was overridden)" type(uint64);
+register stat_neigh_readback_idx wo addr(base, 0x30) "Index of neighbor table entry to read back" type(uint64);
+register stat_neigh_readback_ip_addr ro addr(base, 0x38) "Neighbor table readback ipAddr" type(uint64);
+register stat_neigh_readback_mac_addr ro addr(base, 0x40) "Neighbor table readback macAddr" type(uint64);
+register stat_neigh_readback_state ro addr(base, 0x48) "Neighbor table readback state" type(uint64);
 
 };

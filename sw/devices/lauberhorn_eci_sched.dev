@@ -10,30 +10,31 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_sched lsbfirst (addr base) "sched block for lauberhorn_eci" {
-register ctrl_proc_enabled wo addr(base, 0x0) "ctrl:proc_enabled @ sched" type(uint64);
-register ctrl_proc_pid wo addr(base, 0x8) "ctrl:proc_pid @ sched" type(uint64);
-register ctrl_proc_max_threads wo addr(base, 0x10) "ctrl:proc_maxThreads @ sched" type(uint64);
-register ctrl_proc_idx wo addr(base, 0x18) "ctrl:proc_idx @ sched" type(uint64);
-register stat_readback_enabled ro addr(base, 0x20) "stat:readback_enabled @ sched" type(uint64);
-register stat_readback_pid ro addr(base, 0x28) "stat:readback_pid @ sched" type(uint64);
-register stat_readback_max_threads ro addr(base, 0x30) "stat:readback_maxThreads @ sched" type(uint64);
-register stat_readback_queue_fill ro addr(base, 0x38) "stat:readback_queueFill @ sched" type(uint64);
-register stat_readback_idx wo addr(base, 0x40) "stat:readback_idx @ sched" type(uint64);
-register stat_pushed ro addr(base, 0x48) "stat:pushed @ sched" type(uint64);
-register stat_dropped ro addr(base, 0x50) "stat:dropped @ sched" type(uint64);
-register core_stat_popped_core_1 ro addr(base, 0x58) "coreStat:popped_core1 @ sched" type(uint64);
-register core_stat_popped_core_2 ro addr(base, 0x60) "coreStat:popped_core2 @ sched" type(uint64);
-register core_stat_popped_core_3 ro addr(base, 0x68) "coreStat:popped_core3 @ sched" type(uint64);
-register core_stat_popped_core_4 ro addr(base, 0x70) "coreStat:popped_core4 @ sched" type(uint64);
-register core_stat_preempted_core_1 ro addr(base, 0x78) "coreStat:preempted_core1 @ sched" type(uint64);
-register core_stat_preempted_core_2 ro addr(base, 0x80) "coreStat:preempted_core2 @ sched" type(uint64);
-register core_stat_preempted_core_3 ro addr(base, 0x88) "coreStat:preempted_core3 @ sched" type(uint64);
-register core_stat_preempted_core_4 ro addr(base, 0x90) "coreStat:preempted_core4 @ sched" type(uint64);
-register core_stat_dispatched_core_1 ro addr(base, 0x98) "coreStat:dispatched_core1 @ sched" type(uint64);
-register core_stat_dispatched_core_2 ro addr(base, 0xa0) "coreStat:dispatched_core2 @ sched" type(uint64);
-register core_stat_dispatched_core_3 ro addr(base, 0xa8) "coreStat:dispatched_core3 @ sched" type(uint64);
-register core_stat_dispatched_core_4 ro addr(base, 0xb0) "coreStat:dispatched_core4 @ sched" type(uint64);
+register ctrl_proc_enabled wo addr(base, 0x0) "Process table update enabled" type(uint64);
+register ctrl_proc_pid wo addr(base, 0x8) "Process table update pid" type(uint64);
+register ctrl_proc_max_threads wo addr(base, 0x10) "Process table update maxThreads" type(uint64);
+register ctrl_proc_idx wo addr(base, 0x18) "Index of process to update" type(uint64);
+register stat_readback_enabled ro addr(base, 0x20) "Process table readback enabled" type(uint64);
+register stat_readback_pid ro addr(base, 0x28) "Process table readback pid" type(uint64);
+register stat_readback_max_threads ro addr(base, 0x30) "Process table readback maxThreads" type(uint64);
+register stat_readback_queue_fill ro addr(base, 0x38) "Process table readback queueFill" type(uint64);
+register stat_readback_idx wo addr(base, 0x40) "Index of process to read back" type(uint64);
+register stat_pushed ro addr(base, 0x48) "Stat pushed" type(uint64);
+register stat_dropped ro addr(base, 0x50) "Stat dropped" type(uint64);
+register core_stat_popped_core_1 ro addr(base, 0x58) "Per core stat popped" type(uint64);
+register core_stat_popped_core_2 ro addr(base, 0x60) "Per core stat popped" type(uint64);
+register core_stat_popped_core_3 ro addr(base, 0x68) "Per core stat popped" type(uint64);
+register core_stat_popped_core_4 ro addr(base, 0x70) "Per core stat popped" type(uint64);
+register core_stat_preempted_core_1 ro addr(base, 0x78) "Per core stat preempted" type(uint64);
+register core_stat_preempted_core_2 ro addr(base, 0x80) "Per core stat preempted" type(uint64);
+register core_stat_preempted_core_3 ro addr(base, 0x88) "Per core stat preempted" type(uint64);
+register core_stat_preempted_core_4 ro addr(base, 0x90) "Per core stat preempted" type(uint64);
+register core_stat_dispatched_core_1 ro addr(base, 0x98) "Per core stat dispatched" type(uint64);
+register core_stat_dispatched_core_2 ro addr(base, 0xa0) "Per core stat dispatched" type(uint64);
+register core_stat_dispatched_core_3 ro addr(base, 0xa8) "Per core stat dispatched" type(uint64);
+register core_stat_dispatched_core_4 ro addr(base, 0xb0) "Per core stat dispatched" type(uint64);
 
 };

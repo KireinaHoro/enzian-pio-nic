@@ -10,21 +10,22 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_profiler lsbfirst (addr base) "profiler block for lauberhorn_eci" {
-register git_version ro addr(base, 0x0) "gitVersion @ profiler" type(uint64);
-register magic ro addr(base, 0x8) "magic @ profiler" type(uint64);
-register cycles ro addr(base, 0x10) "cycles @ profiler" type(uint64);
-register last_profile__rx_cmac_entry ro addr(base, 0x18) "lastProfile:RxCmacEntry @ profiler" type(uint64);
-register last_profile__rx_after_cdc_queue ro addr(base, 0x20) "lastProfile:RxAfterCdcQueue @ profiler" type(uint64);
-register last_profile__rx_enqueue_to_host ro addr(base, 0x28) "lastProfile:RxEnqueueToHost @ profiler" type(uint64);
-register last_profile__rx_core_read_start ro addr(base, 0x30) "lastProfile:RxCoreReadStart @ profiler" type(uint64);
-register last_profile__rx_core_read_finish ro addr(base, 0x38) "lastProfile:RxCoreReadFinish @ profiler" type(uint64);
-register last_profile__rx_core_commit ro addr(base, 0x40) "lastProfile:RxCoreCommit @ profiler" type(uint64);
-register last_profile__tx_core_acquire ro addr(base, 0x48) "lastProfile:TxCoreAcquire @ profiler" type(uint64);
-register last_profile__tx_core_commit ro addr(base, 0x50) "lastProfile:TxCoreCommit @ profiler" type(uint64);
-register last_profile__tx_after_dma_read ro addr(base, 0x58) "lastProfile:TxAfterDmaRead @ profiler" type(uint64);
-register last_profile__tx_before_cdc_queue ro addr(base, 0x60) "lastProfile:TxBeforeCdcQueue @ profiler" type(uint64);
-register last_profile__tx_cmac_exit ro addr(base, 0x68) "lastProfile:TxCmacExit @ profiler" type(uint64);
+register git_version ro addr(base, 0x0) "Git version of HW" type(uint64);
+register magic ro addr(base, 0x8) "Magic number to check (should be LBERHORN)" type(uint64);
+register cycles ro addr(base, 0x10) "Cycle counter @ HertzNumber(250000000.0) MHz" type(uint64);
+register last_profile__rx_cmac_entry ro addr(base, 0x18) "Profile timestamp RxCmacEntry" type(uint64);
+register last_profile__rx_after_cdc_queue ro addr(base, 0x20) "Profile timestamp RxAfterCdcQueue" type(uint64);
+register last_profile__rx_enqueue_to_host ro addr(base, 0x28) "Profile timestamp RxEnqueueToHost" type(uint64);
+register last_profile__rx_core_read_start ro addr(base, 0x30) "Profile timestamp RxCoreReadStart" type(uint64);
+register last_profile__rx_core_read_finish ro addr(base, 0x38) "Profile timestamp RxCoreReadFinish" type(uint64);
+register last_profile__rx_core_commit ro addr(base, 0x40) "Profile timestamp RxCoreCommit" type(uint64);
+register last_profile__tx_core_acquire ro addr(base, 0x48) "Profile timestamp TxCoreAcquire" type(uint64);
+register last_profile__tx_core_commit ro addr(base, 0x50) "Profile timestamp TxCoreCommit" type(uint64);
+register last_profile__tx_after_dma_read ro addr(base, 0x58) "Profile timestamp TxAfterDmaRead" type(uint64);
+register last_profile__tx_before_cdc_queue ro addr(base, 0x60) "Profile timestamp TxBeforeCdcQueue" type(uint64);
+register last_profile__tx_cmac_exit ro addr(base, 0x68) "Profile timestamp TxCmacExit" type(uint64);
 
 };

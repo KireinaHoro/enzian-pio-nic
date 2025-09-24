@@ -10,9 +10,10 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_hostIf lsbfirst (addr base) "hostIf block for lauberhorn_eci" {
-register preempt_crit_sec_timeout rw addr(base, 0x0) "preemptCritSecTimeout @ hostIf" type(uint64);
-register rx_block_cycles rw addr(base, 0x8) "rxBlockCycles @ hostIf" type(uint64);
+register preempt_crit_sec_timeout rw addr(base, 0x0) "Timeout before preemption victim process is killed (in cycles)" type(uint64);
+register rx_block_cycles rw addr(base, 0x8) "Timeout before a NACK is returned for RX (in cycles)" type(uint64);
 
 };

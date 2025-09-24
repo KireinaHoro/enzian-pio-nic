@@ -10,18 +10,19 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_OncRpcCallDecoder lsbfirst (addr base) "OncRpcCallDecoder block for lauberhorn_eci" {
-register stat_header_only ro addr(base, 0x0) "stat:headerOnly @ OncRpcCallDecoder" type(uint64);
-register stat_partial_header ro addr(base, 0x8) "stat:partialHeader @ OncRpcCallDecoder" type(uint64);
-register stat_incomplete_header ro addr(base, 0x10) "stat:incompleteHeader @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_enabled wo addr(base, 0x18) "ctrl:service_enabled @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_prog_num wo addr(base, 0x20) "ctrl:service_progNum @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_prog_ver wo addr(base, 0x28) "ctrl:service_progVer @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_proc wo addr(base, 0x30) "ctrl:service_proc @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_listen_port wo addr(base, 0x38) "ctrl:service_listenPort @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_func_ptr wo addr(base, 0x40) "ctrl:service_funcPtr @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_pid wo addr(base, 0x48) "ctrl:service_pid @ OncRpcCallDecoder" type(uint64);
-register ctrl_service_idx wo addr(base, 0x50) "ctrl:service_idx @ OncRpcCallDecoder" type(uint64);
+register stat_header_only ro addr(base, 0x0) "Stat headerOnly" type(uint64);
+register stat_partial_header ro addr(base, 0x8) "Stat partialHeader" type(uint64);
+register stat_incomplete_header ro addr(base, 0x10) "Stat incompleteHeader" type(uint64);
+register ctrl_service_enabled wo addr(base, 0x18) "Service table update enabled" type(uint64);
+register ctrl_service_prog_num wo addr(base, 0x20) "Service table update progNum" type(uint64);
+register ctrl_service_prog_ver wo addr(base, 0x28) "Service table update progVer" type(uint64);
+register ctrl_service_proc wo addr(base, 0x30) "Service table update proc" type(uint64);
+register ctrl_service_listen_port wo addr(base, 0x38) "Service table update listenPort" type(uint64);
+register ctrl_service_func_ptr wo addr(base, 0x40) "Service table update funcPtr" type(uint64);
+register ctrl_service_pid wo addr(base, 0x48) "Service table update pid" type(uint64);
+register ctrl_service_idx wo addr(base, 0x50) "Index of service to update" type(uint64);
 
 };

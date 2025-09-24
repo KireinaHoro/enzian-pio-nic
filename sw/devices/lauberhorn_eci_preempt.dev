@@ -10,10 +10,17 @@
  *  - software to index repeating blocks;
  *  - better grouping of registers of the same purpose.
  */
+import lauberhorn_eci;
 
 device lauberhorn_eci_preempt lsbfirst (addr base) "preempt block for lauberhorn_eci" {
-register real_core_id rw addr(base, 0x0) "realCoreId @ preempt" type(uint64);
-register ipi_ack ro addr(base, 0xf8) "ipiAck @ preempt" type(uint64);
-register irq_en rw addr(base, 0x8) "irqEn @ preempt" type(uint64);
+register real_core_id rw addr(base, 0x0) "Actual core ID serving requests for this context" type(uint64);
+register ipi_ack ro addr(base, 0xf8) "Preemption command from hardware (read will ACK the interrupt)" 
+{
+  next_pid   32 "Next PID to schedule";
+  killed     1  "Previously running process is killed";
+  _          31 rsvd;
+}
+;
+register irq_en rw addr(base, 0x8) "Enable IRQ to this core" type(uint64);
 
 };

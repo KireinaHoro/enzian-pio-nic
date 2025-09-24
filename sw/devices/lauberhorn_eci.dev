@@ -11,6 +11,7 @@
  *  - better grouping of registers of the same purpose.
  */
 
+
 device lauberhorn_eci lsbfirst () "dtypes block for lauberhorn_eci" {
 
 constants host_req_type width(3) "Host Request Type" {
