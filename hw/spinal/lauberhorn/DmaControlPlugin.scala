@@ -308,7 +308,9 @@ class DmaControlPlugin extends FiberPlugin {
     }
 
     def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
-      busCtrl.driveAndRead(allocReset, alloc("ctrl", "allocReset")) init false
+      busCtrl.driveAndRead(allocReset, alloc("ctrl",
+        "Reset packet buffer allocator",
+        "allocReset")) init false
     }
 
     def stat(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
