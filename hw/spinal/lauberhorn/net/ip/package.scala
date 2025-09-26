@@ -1,6 +1,6 @@
 package lauberhorn.net
 
-import jsteward.blocks.misc.RichMultiData
+import jsteward.blocks.misc._
 import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
 import spinal.lib._

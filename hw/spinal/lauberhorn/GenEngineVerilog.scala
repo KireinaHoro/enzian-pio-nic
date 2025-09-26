@@ -59,7 +59,7 @@ object GenEngineVerilog {
         case "pcie" => Seq(new PcieBridgeInterfacePlugin) ++
           Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
           Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
-        case "eci" => Seq(new EciInterfacePlugin) ++
+        case "eci" => Seq(new EciInterfacePlugin, new EciThreadClRouter) ++
           // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
           Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
           Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))

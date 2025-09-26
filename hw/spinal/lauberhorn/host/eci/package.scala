@@ -2,6 +2,9 @@ package lauberhorn.host
 
 import spinal.core._
 import spinal.lib.bus.amba4.axi.Axi4
+import lauberhorn.Global._
+
+import scala.language.postfixOps
 
 package object eci {
   def checkEciAxiCmd(axi: Axi4): Unit = {

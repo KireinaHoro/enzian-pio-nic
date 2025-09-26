@@ -1,0 +1,20 @@
+
+/*
+ * lauberhorn_eci_threadRouter.dev: register description of lauberhorn_eci_threadRouter.
+ * !! AUTO-GENERATED FILE, DO NOT EDIT !!
+ *
+ * Describes registers exposed over the CSR interface as well as datatypes of
+ * various descriptors in memory.
+ *
+ * Register blocks are broken into multiple devices to allow:
+ *  - software to index repeating blocks;
+ *  - better grouping of registers of the same purpose.
+ */
+import lauberhorn_eci;
+
+device lauberhorn_eci_threadRouter lsbfirst (addr base) "threadRouter block for lauberhorn_eci" {
+register ctrl_thread_idx wo addr(base, 0x0) "Thread def threadIdx" type(uint64);
+register ctrl_enabled wo addr(base, 0x8) "Thread def enabled" type(uint64);
+register ctrl_tbl_idx wo addr(base, 0x10) "Index of thread routing entry to update" type(uint64);
+
+};
