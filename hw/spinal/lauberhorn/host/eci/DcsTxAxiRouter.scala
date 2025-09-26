@@ -43,6 +43,12 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * CL with the buffer captured so far.  */
   val currCl = in UInt(1 bit)
 
+  /** Whether a preemption happened.  We need to drop [[savedControl]] on preemption to
+    * prevent a leak, when the new thread attempts to read back the packet sent by the
+    * old thread.
+    */
+  val doPreempt = in Bool()
+
   /** Address to put the outgoing packet payload in the packet buffer.  Captured
     * from [[lauberhorn.host.DatapathPlugin.hostTx]] */
   val txAddr = in(PacketAddr())
@@ -77,6 +83,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val aliasedHostCtrl = EciHostCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl >> 1)
   currInvLen := aliasedHostCtrl.len
+  
+  when (doPreempt) {
+    savedControl.clearAll()
+  }
 
   // invalidation can finish before we enter waitInv, store it here
   val invFinished = Reg(Bool()) init False

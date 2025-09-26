@@ -13,7 +13,7 @@
 import lauberhorn_eci;
 
 device lauberhorn_eci_dma lsbfirst (addr base) "dma block for lauberhorn_eci" {
-register ctrl rw addr(base, 0x0) "allocReset" type(uint64);
+register ctrl_alloc_reset rw addr(base, 0x0) "Reset packet buffer allocator" type(uint64);
 register rx_packet_count ro addr(base, 0x8) "Stat rxPacketCount" type(uint64);
 register tx_packet_count ro addr(base, 0x10) "Stat txPacketCount" type(uint64);
 register rx_dma_error_count ro addr(base, 0x18) "Stat rxDmaErrorCount" type(uint64);

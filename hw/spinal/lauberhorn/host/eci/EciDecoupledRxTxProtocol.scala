@@ -73,10 +73,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   def driveDcsBus(bus: Axi4, pktBufAxiNode: Axi4): Unit = new Area {
     // RX router
     val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
-    // Do not issue new request when preempt req is under way
-    rxRouter.rxDesc << hostRx.haltWhen(preemptReq.valid)
+
+    // No need to halt the stream here during preemption: host can't be reading
+    // when preemption happens, since it is out of the critical region where a
+    // read can happen.
+    rxRouter.rxDesc << hostRx
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
+    rxRouter.doPreempt := preemptReq.valid
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
@@ -85,6 +89,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.currCl := logic.txCurrClIdx.asUInt
     txRouter.txAddr := logic.savedTxAddr.addr
     txRouter.invDone := logic.txInvDone
+    txRouter.doPreempt := preemptReq.valid
     logic.txInvLen := txRouter.currInvLen
     logic.txReqs := txRouter.hostReq
 
@@ -106,28 +111,27 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       )
       .build()
 
-    val blockCycles = CombInit(host[EciInterfacePlugin].rxBlockCycles)
-    // Disable block cycles when a preemption request is under way.  We also halt hostRx
-    // when a preempt request is under way; this way, we immediately return a NACK,
-    // instead of waiting until timeout
-    when (preemptReq.valid) { blockCycles.clearAll() }
-
     if (isBypass) {
       // bypass core will have non-blocking poll of cachelines
       // this will allow NAPI-based Linux driver implementation
       rxRouter.blockCycles := 0
     } else {
-      // we use normal block cycles for all worker cores
-      rxRouter.blockCycles := blockCycles
+      // We use normal block cycles for all worker cores.
+      // No need to disable this on preemption: no read request will be in progress
+      // when the preemption request comes from [[EciPreemptionControlPlugin]]
+      rxRouter.blockCycles := host[EciInterfacePlugin].rxBlockCycles
     }
   }.setCompositeName(this, "driveDcsBus")
 
   def preemptReq = logic.preemptReq
 
   val logic = during setup new Area {
-    // these will be hooked by [[EciPreemptionControlPlugin]]
+    // The kernel will update these on thread resume
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
+
+    // Preemption request from [[EciPreemptionControlPlugin]].  This will only come
+    // after the thread is out of the ready/busy critical section and spinning on !ready
     val preemptReq = Event
 
     // invalidation done for routers
@@ -147,7 +151,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
 
     val rxReqs = Vec(Bool(), 2)
-    val rxTriggerNew = rxReqs(1 - rxCurrClIdx.asUInt) || preemptReq.valid
+
+    // A read from the CPU to the opposite CL to fetch a new request.
+    val rxTriggerNew = rxReqs(1 - rxCurrClIdx.asUInt)
 
     val txReqs = Vec(Bool(), 2)
 
@@ -186,6 +192,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     //   - a packet is already waiting, so host left repeatPacket with a new packet buffered
     // - generating hostRxAck
     // - driving mem offset for packet buffer load
+    //
+    // This will only register a packet on hostRx.fire, meaning the host has at least read
+    // the packet ONCE -- this means that the host is at least inside the preemption critical
+    // region.  A preemption request wouldn't come unless the host finished the critical section.
+    // Also, this only captures the _buffer definition_ (base, size) and not the actual data,
+    // so no risk of leaking data even if we messed up the reasoning here.
+    // As a result, we don't need to drop anything here on preemption, since it won't buffer
+    // a packet that the host CPU hasn't seen yet.
     val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
     val rxPktBufSavedValid = Reg(Bool()).setWhen(hostRx.fire) init False
 
@@ -194,24 +208,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     hostRxReq := hostFirstRead
 
     val rxFsm = new StateMachine {
-      val bootstrap: State = new State with EntryPoint {
-        whenIsActive {
-          if (isBypass) {
-            // no preemption involved for bypass
-            goto(waitHostRead)
-          } else {
-            // Preemption happens by injecting a new, synthesized read event via rxTriggerNew.
-            // Handle the bootstrapping case here i.e. when both CLs are in idle.  Use a
-            // separate bootstrap and waitHostRead state instead of one "idle" state, so that
-            // we don't accidentally acknowledge preemption requests
-            when (preemptReq.valid) {
-              preemptReq.ready := True
-              goto(waitHostRead)
-            }
-          }
-        }
-      }
-      val waitHostRead: State = new State {
+      val waitHostRead: State = new State with EntryPoint {
         whenIsActive {
           rxOverflowToInvalidate.clearAll()
           rxOverflowInvAcked.clear()
@@ -219,37 +216,56 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           hostFirstRead.clear()
 
           when (rxReqs(rxCurrClIdx.asUInt)) {
+            assert(!preemptReq.valid, "critical section violation: no preemption is allowed during read")
             hostFirstRead.set()
             goto(hostIssuedRead)
+          }
+
+          when (preemptReq.valid) {
+            assert(!rxReqs.orR, "critical section violation: no read is allowed during preemption")
+            preemptReq.ready := True
           }
         }
       }
       val hostIssuedRead: State = new State {
         whenIsActive {
           when (rxPktBufSavedValid) {
-            // a packet arrived in time
+            // A packet arrived in time.  Save the buffer that we sent to host and wait until
+            // we need to invalidate the descriptor AND overflow data
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPktBufSaved.size.bits)
             goto(repeatPacket)
           } elsewhen (rxTriggerNew) {
-            // no packet arrived in time and we delivered a NACK --
-            // now the host is reading a new CL; invalidate the NACK
+            // No packet arrived in time, the router delivered a NACK -- no state transition
+            // here.  Now the host is reading a new CL, only need to invalidate that NACK
             goto(invalidateCtrl)
+          } elsewhen (preemptReq.valid) {
+            // No need to invalidate anything in L2 since all threads have separate physical
+            // addresses
+            preemptReq.ready := True
+            goto(waitHostRead)
           }
         }
       }
-      // we got at least one read, repeating until CPU ack'ed or preempted
       val repeatPacket: State = new State {
         whenIsActive {
+          // We got the first read of the packet descriptor.  The router repeats until the
+          // CPU acks the packet by reading the opposite CL
           when (rxTriggerNew) {
             hostRxAck.payload := rxPktBufSaved
             hostRxAck.valid := True
             when (hostRxAck.fire) {
               when (!hostRx.valid) {
-                // only clear saved valid flag, when no new request was captured during switch
+                // Only clear saved valid flag, when the read on the opposite CL (that
+                // triggered the switch) did not capture a new request.
                 rxPktBufSavedValid.clear()
               }
               goto(invalidatePacketData)
             }
+          } elsewhen (preemptReq.valid) {
+            // No need to invalidate anything in L2 since all threads have separate physical
+            // addresses (which will be mapped separately).
+            preemptReq.ready := True
+            goto(waitHostRead)
           }
         }
       }
@@ -299,15 +315,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             ulFlow.payload := lcia.payload
             ulFlow.valid := True
 
-            when (preemptReq.valid) {
-              // We injected a synthetic new fetch through rxTriggerNew.  Ack preempReq but
-              // DON'T toggle parity, since both control CLs are in invalid; we only need
-              // to make sure parity tracked by CPU and Protocol are the same
-              preemptReq.ready := True
-            } otherwise {
-              // always toggle, even if NACK was sent
-              rxCurrClIdx.toggleWhen(True)
-            }
+            // always toggle, even if NACK was sent
+            rxCurrClIdx.toggleWhen(True)
 
             rxInvDone := True
             goto(waitHostRead)
