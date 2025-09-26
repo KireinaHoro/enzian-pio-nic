@@ -10,7 +10,7 @@ import spinal.core.fiber.Handle._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4CrossbarFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
-import spinal.lib.bus.regif.AccessType.RO
+import spinal.lib.bus.regif.AccessType.{RO, RW}
 import spinal.lib.fsm._
 
 import scala.language.postfixOps
@@ -33,13 +33,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // TODO: emit constants type for FSM state value
     busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO,
       desc = "state of the RX state machine (raw value)"))
-    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RO,
-      desc = "parity (next CL to read) of the RX state machine"))
-
     busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO,
       desc = "state of the TX state machine (raw value)"))
-    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RO,
+
+    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RW,
       desc = "parity (next CL to write) of the TX state machine"))
+    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RW,
+      desc = "parity (next CL to read) of the RX state machine"))
+
   }
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
