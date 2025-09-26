@@ -4,15 +4,13 @@ import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn._
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4ReadOnlyErrorSlave, Axi4SlaveFactory, Axi4WriteOnlyErrorSlave}
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
 import spinal.lib.fsm._
-import spinal.lib.bus.misc.BusSlaveFactory
-import spinal.lib.bus.regif.AccessType.RO
+import spinal.lib.bus.regif.AccessType.{RO, RW}
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.host.PreemptionService
 import Global._
-import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 import scala.language.postfixOps
@@ -34,11 +32,8 @@ case class PreemptionControlCl() extends Bundle {
   *  - next PID
   */
 case class IpiAckReg() extends Bundle {
-  // TODO: Mackerel def
-  val rxParity, txParity = Bool()
-  val killed = Bool()
-  val xb5 = Bits(5 bits)
   val pid = PID()
+  val killed = Bool()
 }
 
 object EciPreemptionControlPlugin {
@@ -46,11 +41,21 @@ object EciPreemptionControlPlugin {
   def bypassDriveControl(irqEn: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    alloc("realCoreId")
-    alloc("ipiAck", attr = RO, readSensitive = true)
+    alloc("realCoreId", desc = "Actual core ID serving requests for this context")
+    alloc("ipiAck", attr = RO, readSensitive = true,
+      desc = "Preemption command from hardware (read will ACK the interrupt)",
+      ty =
+        """
+          |{
+          |  next_pid   32 "Next PID to schedule";
+          |  killed     1  "Previously running process is killed";
+          |  _          31 rsvd;
+          |}
+          |""".stripMargin)
 
     // generate IRQ enable reg for bypass
-    val irqEnAddr = alloc("irqEn")
+    val irqEnAddr = alloc("irqEn",
+      desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(irqEn, irqEnAddr) init False
   }
 }
@@ -68,15 +73,22 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    val ipiAckAddr = alloc("ipiAck", attr = RO, readSensitive = true)
+    val ipiAckAddr = alloc("ipiAck",
+      desc = "Preemption command from hardware (read will ACK the interrupt)",
+      attr = RO, readSensitive = true)
     busCtrl.read(logic.ipiAck, ipiAckAddr)
-
     busCtrl.onRead(ipiAckAddr) {
-      logic.ipiAckReadReq := True
+      logic.ipiDoAck := True
     }
 
-    busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId"))
-    busCtrl.driveAndRead(logic.irqEn, alloc("irqEn")) init False
+    busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId",
+      desc = "Actual core ID serving requests for this context"))
+
+    val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
+    busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
+    busCtrl.onWrite(irqEnAddr) {
+      logic.irqDoEn := True
+    }
   }
 
   val requiredAddrSpace = 0x80
@@ -133,19 +145,13 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     preemptReq.setBlocked()
 
     val ipiAck = Reg(IpiAckReg())
-    val ipiAckReadReq = CombInit(False)
+    // Are we in the kernel?
+    val ipiDoAck = CombInit(False)
 
     awaitBuild()
 
-    // Parity bits are served to the kernel in the preemption control cacheline.  They
-    // are also accessible directly as register reads (exposed originally for debugging)
-    // in [[EciDecoupledRxTxProtocol]]; exposing them in the ACK reg will save one extra
-    // I/O roundtrip
-    ipiAck.rxParity := proto.logic.rxCurrClIdx
-    ipiAck.txParity := proto.logic.txCurrClIdx
     // TODO: drive killed with counter output
     ipiAck.killed := False
-    ipiAck.xb5 := 0
     ipiAck.pid := preemptReq.payload
 
     ipiToIntc.cmd := 0
@@ -162,6 +168,10 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiToIntc.valid := False
 
     val irqEn = Bool()
+    // Did we finish changing parity and thread CL routing?
+    val irqDoEn = CombInit(False)
+    val kernelFinished = Reg(Bool()) init False
+    kernelFinished.setWhen(irqDoEn)
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
@@ -175,6 +185,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
+          kernelFinished := False
           preemptTimer.clear()
           // only start preemption when IRQ is enabled
           when (preemptReq.valid && irqEn) {
@@ -244,7 +255,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val ipiWaitAck: State = new State {
         whenIsActive {
-          when (ipiAckReadReq) {
+          when (ipiDoAck) {
             // we can only trigger data path preemption once we are sure we are
             // in the kernel, or the old user thread might have a chance to
             // corrupt the clean state (e.g. sneak covert data in)
@@ -254,18 +265,31 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val preemptDataPath: State = new State {
         whenIsActive {
+          // Since each thread has its own physical address, we don't need to
+          // invalidate any cache data on context switch.  This request sequences
+          // us with the data path state machine to make sure that the data path
+          // can still properly retire the current packet (that is being repeated).
           rxProtoPreemptReq.valid := True
           when (rxProtoPreemptReq.ready) {
-            // set ready, which the kernel will poll to be 1 before it returns
+            // Before re-enabling IRQ, the kernel will:
+            // - update mapping in [[EciThreadClRouter]] to route the new thread, and
+            // - update rx/tx parity to new thread in the data path.
             goto(setReadyReq)
           }
         }
       }
       val setReadyReq: State = new State {
         whenIsActive {
-          lci.valid := True
-          when (lci.ready) {
-            goto(setReady)
+          // No synchronization by setting ready: preempt control is not accessed in
+          // kernel.  We still update this in HW to keep the preempt lock conceptually
+          // clean (between hardware and userspace only).
+
+          // Did the kernel finish updating the thread CL routing?
+          when (kernelFinished) {
+            lci.valid := True
+            when (lci.ready) {
+              goto(setReady)
+            }
           }
         }
       }
