@@ -280,9 +280,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val setReadyReq: State = new State {
         whenIsActive {
-          // No synchronization by setting ready: preempt control is not accessed in
-          // kernel.  We still update this in HW to keep the preempt lock conceptually
-          // clean (between hardware and userspace only).
+          // No synchronization between HW and kernel by setting ready: preempt control
+          // is not accessed in kernel.  We still update this in HW to keep the preempt
+          // lock conceptually clean (synchronization between hardware and userspace only).
 
           // Did the kernel finish updating the thread CL routing?
           when (kernelFinished) {

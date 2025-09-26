@@ -55,6 +55,12 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     */
   val currCl = in UInt(1 bit)
 
+  /** Whether a preemption happened.  We need to drop [[savedControl]] and [[noReadPktBuf]]
+    * on preemption to prevent a leak, when the new thread attempts to pretend that it is replaying
+    * the old request.
+    */
+  val doPreempt = in Bool()
+
   /** Pulse: host is reading the next CL and the protocol has just finished invalidating the current CL.
     * We can now unblock the read on the next CL.
     */
@@ -86,8 +92,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
 
   // do not read from the packet buffer if current CL served with NACK
-  val noReadPktBuf = Reg(Bool()) init False
-  val lastPktBufSlot = Reg(PacketAddr())
+  val noReadPktBuf = Reg(Bool()) init False // needs cleaning on preempt!
+  val lastPktBufSlot = Reg(PacketAddr())   
 
   // offset and length to read from the pkt buffer
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
@@ -100,8 +106,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val blockTimer = Counter(blockCycles.getWidth bits)
 
   // buffered first half CL for responding to host reloads on the same CL
-  val savedControl = Reg(Bits(512 bits)) init 0
+  val savedControl = Reg(Bits(512 bits)) init 0   // needs cleaning on preempt!
   val loadedFirstControl = Reg(Bool()) init False
+  
+  when (doPreempt) {
+    noReadPktBuf := True
+    savedControl.clearAll()
+  }
 
   // invalidation can finish before we enter waitInv, store it here
   val invFinished = Reg(Bool()) init False
