@@ -68,6 +68,7 @@ class Scheduler extends FiberPlugin {
     val ty = PreemptCmdType()
     val pid = PID()
     val idx = ProcTblIdx
+    val outOfIdle = Bool()
   }
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -153,7 +154,7 @@ class Scheduler extends FiberPlugin {
       * Will be stalled (ready === False) when a preemption is in progress.
       */
     val corePreempt = host.list[PreemptionService].map { ps =>
-      val p = Stream(PID())
+      val p = Stream(ps.PreemptReq())
       p.payload.setAsReg()
       p >> ps.preemptReq
       p
@@ -323,6 +324,7 @@ class Scheduler extends FiberPlugin {
       when (pushResultThrCount < pushResult.value.maxThreads) {
         rxPreemptReq.pid := pushResult.value.pid
         rxPreemptReq.idx := pushResult.idx
+        rxPreemptReq.outOfIdle := False
 
         // preempting as ready takes priority
         when (queueMetas(pushResult.idx).almostFull) {
@@ -333,6 +335,7 @@ class Scheduler extends FiberPlugin {
         } elsewhen (pushResultCoreMap === 0) {
           // no process assigned to this queue -- idle preempt
           rxPreemptReq.ty := PreemptCmdType.idle
+          rxPreemptReq.outOfIdle := True
           rxPreemptReq.valid := True
         }
       }
@@ -404,7 +407,8 @@ class Scheduler extends FiberPlugin {
             when (rxPreemptReq.valid && victimCoreMapSel(idx)) {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
-              corePreempt(idx).payload := rxPreemptReq.pid
+              corePreempt(idx).pid := rxPreemptReq.pid
+              corePreempt(idx).outOfIdle := rxPreemptReq.outOfIdle
               savedPreemptIdx := rxPreemptReq.idx
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
@@ -422,6 +426,8 @@ class Scheduler extends FiberPlugin {
                 goto(popReqGranted)
               }
             } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid) {
+              // FIXME: can we simplify and merge this case with the RX preemption case?
+
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
               // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
               // the following case:
@@ -432,7 +438,9 @@ class Scheduler extends FiberPlugin {
 
               // we are not popping from the queue here, only preempting;
               // so no need to check again if queue is empty
-              corePreempt(idx).payload := drainResult.value.pid
+              corePreempt(idx).pid := drainResult.value.pid
+              // since the core is already ready, it can't be still in idle
+              corePreempt(idx).outOfIdle := False
               savedPreemptIdx := drainResult.idx
               drainProcCoreReq(idx) := True
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {

@@ -113,6 +113,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // muxed interface to ECI interrupt controller
     val ipiToIntc = Stream(EciIntcInterface())
 
+    // These addresses are mapped back by [[EciThreadClRouter]]
     lci.valid := False
     lci.payload := controlClAddr
 
@@ -141,7 +142,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // When [[preemptReq]] is acknowledged (valid && ready === True), the kernel would have
     // signalled that they finished all steps and will immediately return to user space.
     // The scheduler can then allow new requests into the granted buffer.
-    val preemptReq = Stream(PID())
+    val preemptReq = Stream(PreemptReq())
     preemptReq.setBlocked()
 
     val ipiAck = Reg(IpiAckReg())
@@ -152,7 +153,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     // TODO: drive killed with counter output
     ipiAck.killed := False
-    ipiAck.pid := preemptReq.payload
+    ipiAck.pid := preemptReq.pid
 
     ipiToIntc.cmd := 0
     // 8 to 15 are allowed
@@ -168,7 +169,11 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     ipiToIntc.valid := False
 
     val irqEn = Bool()
-    // Did we finish changing parity and thread CL routing?
+
+    // The kernel will re-enable IRQ after finishing:
+    // - update parity in HW to match the new thread
+    // - update thread CL routing
+    // - pin the preemption control of the new thread
     val irqDoEn = CombInit(False)
     val kernelFinished = Reg(Bool()) init False
     kernelFinished.setWhen(irqDoEn)
@@ -189,9 +194,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           preemptTimer.clear()
           // only start preemption when IRQ is enabled
           when (preemptReq.valid && irqEn) {
-            lci.valid := True
-            when (lci.ready) {
-              goto(unsetReady)
+            when (preemptReq.outOfIdle) {
+              // if we are kicking a core out of idle, no thread mapping
+              // will be present yet -- directly send interrupt
+              goto(issueIpi)
+            } otherwise {
+              lci.valid := True
+              when (lci.ready) {
+                goto(unsetReady)
+              }
             }
           }
         }
@@ -314,7 +325,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     }
   }
 
-  override def preemptReq: Stream[PID] = logic.preemptReq
+  override def preemptReq: Stream[PreemptReq] = logic.preemptReq
   def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]): Unit = new Area {
     val busCtrl = Axi4SlaveFactory(bus)
     busCtrl.readAndWrite(logic.preemptCtrlCl, controlClAddr)
