@@ -1,6 +1,7 @@
 package lauberhorn.host
 
 import lauberhorn.{PID, Scheduler}
+import spinal.core._
 import spinal.lib._
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -13,6 +14,11 @@ import spinal.lib.misc.plugin.FiberPlugin
   * The implementation defines what interfaces it needs to talk to the host.
   */
 trait PreemptionService extends FiberPlugin {
+  case class PreemptReq() extends Bundle {
+    val pid = PID()
+    val outOfIdle = Bool()
+  }
+
   /** Driven by [[Scheduler]] to deliver a preemption request.
     *
     * When valid is high, the scheduler guarantees that it had already blocked new requests from entering into the
@@ -20,7 +26,7 @@ trait PreemptionService extends FiberPlugin {
     * has signaled that the whole sequence is finished (right before returning to user space) -- this might be a
     * successful switch, or the process might be killed by the kernel.
     */
-  def preemptReq: Stream[PID]
+  def preemptReq: Stream[PreemptReq]
 
   during build preemptReq.assertPersistence()
 }
