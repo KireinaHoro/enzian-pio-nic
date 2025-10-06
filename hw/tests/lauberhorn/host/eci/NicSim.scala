@@ -33,12 +33,20 @@ object NicSim {
   def BypassIrqCb(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, cid: Int, intId: Int): Unit = {
     assert(cid == 0, "bypass IRQ handler only handles IRQ to core 0")
     assert(intId == 15, "IRQ for bypass core should always be 15")
-    if (bypassIrqPending) {
-      println("Already in bypass IRQ handler, ignoring")
-    } else {
-      bypassIrqPending = true
-      println("Activating flag for bypass IRQ")
-    }
+    assert(!bypassIrqPending, "Should have disabled IRQ while handling!")
+
+    bypassIrqPending = true
+    println("Handling bypass IRQ, disabling interrupt")
+
+    csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 0.toBytesLE)
+  }
+
+  def waitBypassIrq() = waitUntil(bypassIrqPending)
+
+  def finishBypassIrq(csrMaster: AxiLite4Master, cid: Int): Unit = {
+    println("Finished handling bypass IRQ, re-enabling interrupt")
+    bypassIrqPending = false
+    csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 1.toBytesLE)
   }
 }
 
@@ -268,8 +276,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     (bypassDesc, data)
   }
 
-  /** test reading one bypass packet; when called multiple times, this checks in a blockign fashion */
-  def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+  /** test reading one bypass packet; when called multiple times, this checks in a blocking fashion */
+  def rxTestSimple(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
     fork {
       sleepCycles(Random.nextInt(200))
 
@@ -281,13 +289,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // TODO: check performance counters
 
     // wait until receiving the bypass IRQ
-    waitUntil(bypassIrqPending)
+    waitBypassIrq()
 
     // read memory and check data
     val (desc, data) = rxSingle(dcsMaster, maxRetries)
     assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
 
-    bypassIrqPending = false
+    finishBypassIrq(csrMaster, 0)
 
     println(s"Successfully received packet")
 
@@ -308,7 +316,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       0 until Random.between(25, 50) foreach { _ =>
         import PacketType._
         val (packet, proto) = randomPacket(size, randomizeLen = false)(Ethernet, Ip, Udp)
-        rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
+        rxTestSimple(csrMaster, dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
       }
     }
 
@@ -646,10 +654,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     0 until numPackets foreach { pid =>
       waitUntil(toCheck.nonEmpty)
-      waitUntil(bypassIrqPending)
+
+      waitBypassIrq()
 
       val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
-      bypassIrqPending = false
 
       // XXX: occasionally the packet received is out of order
       //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
@@ -662,6 +670,9 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         case None => fail("failed to find received packet in expect queue")
       }
       println(s"Received packet #$pid")
+
+      finishBypassIrq(csrMaster, 0)
+
       sleepCycles(20)
     }
   }
@@ -678,7 +689,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     import PacketType._
     val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
-    rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
+    rxTestSimple(csrMaster, dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
 
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
@@ -691,13 +702,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // NOT enabling promisc
 
     // default values is for zuestoll01
-    rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
+    rxTestSimple(csrMaster, dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
 
     // change host ID: address regs are in big endian
     csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), 0xc0_a8_80_48.toBytesBE)
     csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), 0x0c_53_31_03_00_48L.toBytesBE.drop(2))
 
-    rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
+    rxTestSimple(csrMaster, dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
   }
 
   testWithDB("roundtrip-oncrpc-timestamped", Rx, Tx) { implicit dut =>
