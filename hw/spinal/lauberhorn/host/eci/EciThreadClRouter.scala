@@ -44,8 +44,8 @@ class EciThreadClRouter extends FiberPlugin {
 
     logic.threadDb.update.setIdle()
 
-    val idx = U(0, log2Up(NUM_WORKER_CORES) bits)
-    val idxAddr = alloc("ctrl", "Index of thread routing entry to update", "tblIdx", attr = WO)
+    val idx = U(0, log2Up(NUM_CORES) bits)
+    val idxAddr = alloc("ctrl", "Core ID to map this thread to (including bypass)", "coreIdx", attr = WO)
     busCtrl.write(idx, idxAddr)
     busCtrl.onWrite(idxAddr) {
       logic.threadDb.update.valid := True
@@ -60,7 +60,8 @@ class EciThreadClRouter extends FiberPlugin {
 
     awaitBuild()
 
-    val threadDb = LookupTable(ThreadDef(), NUM_WORKER_CORES) { v =>
+    // Includes the base that runs on the bypass core (logical "thread")
+    val threadDb = LookupTable(ThreadDef(), NUM_CORES) { v =>
       v.enabled init False
     }
 
@@ -88,7 +89,7 @@ class EciThreadClRouter extends FiberPlugin {
         }
 
         axResult.translateInto(locator(p.axiToProto)) { case (tp, r) =>
-          val outPrefix = (r.idx + 1).asBits.resize(16)
+          val outPrefix = r.idx.asBits.resize(16)
           when (!r.matched) {
             // mangle to an unmapped prefix to use AXI interconnect's error generation
             outPrefix := B("16'xFFFF")
@@ -118,7 +119,7 @@ class EciThreadClRouter extends FiberPlugin {
         }
 
         chanResult.translateInto(to) { case (t, r) =>
-          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, (r.idx + 1).asBits).asBits }
+          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.idx.asBits).asBits }
         }
 
         when (chanResult.valid) {
