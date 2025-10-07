@@ -4,19 +4,11 @@
 #include "common.h"
 #include "ioctl.h"
 
+#include "lauberhorn_eci_sched.h"
+
 static dev_t dev = 0;
 static struct cdev cdev;
 static struct class *dev_class;
-
-// Defines an application thread
-struct thr_def {
-	bool enabled;
-
-	pid_t pid;
-
-	// Used to update the per-thread CL address to core worker mapping
-	u32 translation_tbl_idx;
-};
 
 struct srv_def {
 	bool enabled;
@@ -40,6 +32,16 @@ struct proc_def {
 	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
 };
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
+
+static int find_proc_idx(pid_t tgid) {
+	int i;
+	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
+		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
+			return i;
+		}
+	}
+	return -1;
+}
 
 static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 			     void *func_ptr, pid_t tgid)
@@ -65,14 +67,9 @@ static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 		       i);
 		return -1;
 	}
-
-	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
-		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
-			proc_idx = i;
-			break;
-		}
-	}
-	if (i == LAUBERHORN_NUM_PROCS) {
+	
+	proc_idx = find_proc_idx(tgid);
+	if (proc_idx == -1) {
 		pr_err("Failed to find TGID %d for service, bug?\n", tgid);
 		return -1;
 	}
@@ -107,7 +104,7 @@ static void deregister_service(u32 idx)
 	pr_info("Deregistered service #%d (was with TGID %d)\n", idx, tgid);
 }
 
-static int register_app(pid_t tgid)
+static struct proc_def *register_app(pid_t tgid)
 {
 	int i, proc_idx;
 
@@ -117,14 +114,14 @@ static int register_app(pid_t tgid)
 			break;
 		} else if (proc_defs[i].tgid == tgid) {
 			pr_err("Process %d already registered, bug?\n", tgid);
-			return -1;
+			return ERR_PTR(-EINVAL);
 		}
 	}
 
 	if (i == LAUBERHORN_NUM_PROCS) {
 		pr_err("No more free process slots in HW: %d already registered\n",
 		       i);
-		return -1;
+		return ERR_PTR_(-ENOMEM);
 	}
 
 	proc_defs[proc_idx].tgid = tgid;
@@ -134,21 +131,14 @@ static int register_app(pid_t tgid)
 	//
 	proc_defs[proc_idx].enabled = true;
 	pr_info("Registered application #%d with TGID %d\n", num_procs, tgid);
-	return 0;
+
+	return &proc_defs[proc_idx];
 }
 
 static void deregister_app(pid_t tgid)
 {
-	int i, proc_idx;
-
-	for (i = 0; i < num_procs; ++i) {
-		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
-			proc_idx = i;
-			break;
-		}
-	}
-
-	if (i == LAUBERHORN_NUM_PROCS) {
+	int proc_idx = find_proc_idx(tgid);
+	if (proc_idx == -1) {
 		pr_err("Process %d not registered, bug?\n", tgid);
 		return;
 	}
@@ -206,28 +196,86 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 
 static int app_dev_open(struct inode *i, struct file *f)
 {
-  // Register service
+	pid_t tgid = current->pid;
+	struct proc_def *pd;
+	int err;
+
+	pr_info("Registering application TGID %d\n", tgid);
+	pd = register_app(tgid);
+
+	if (IS_ERR(pd)) {
+		err = PTR_ERR(pd);
+		pr_err("Failed to register app, err %d\n", err);
+		return err;
+	}
+
+	// release might not be called in the same process
+	f->private_data = pd;
+
+	return 0;
 }
 
 static int app_dev_release(struct inode *i, struct file *f)
 {
+	struct proc_def *pd = (struct proc_def *)f->private_data;
+	pid_t tgid = pd->tgid;
+	BUG_ON(!pd->enabled);
+	
+	pr_info("Deregistering application TGID %d\n", tgid);
+	deregister_app(tgid);
+
+	return 0;
 }
 
-static void close_vma(struct vm_area_struct *vma) {
-
+static void vma_close(struct vm_area_struct *vma)
+{
+	// TODO: Unroute worker CL address, if it is running
 }
 
-static const char *name_vma(struct vm_area_struct *vma) {
-
+static const char *vma_name(struct vm_area_struct *vma)
+{
 }
 
 static const struct vm_operations vm_ops = {
-  .close = close_vma,
-  .name = name_vma,
+	.close = vma_close,
+	.name  = vma_name,
 };
 
-static int app_dev_mmap(struct file *f, struct vm_area_struct *vma) {
+static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
+{
+	pid_t tid = current->pid;
+	pid_t tgid = current->tgid;
+	int i, proc_idx, thr_idx;
 
+	vma->vm_ops = &vm_ops;
+	vm_flags_set(vma, VM_DONTEXPAND);
+	vm_flags_set(vma, VM_DONTDUMP);
+	vm_flags_set(vma, VM_DONTCOPY);
+	vm_flags_set(vma, VM_PFNMAP);
+	
+	// Set up the current thread as worker
+	pr_info("Setting up thread PID %d (part of application TGID %d) as RPC worker\n", tid, tgid);
+	proc_idx = find_proc_idx(tgid);
+	if (proc_idx == -1) {
+		pr_err("Failed to find TGID %d for thread init, bug?\n", tgid);
+		return -EINVAL;
+	}
+	
+	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
+		if (!proc_defs[proc_idx].thr_defs[i].enabled) {
+			thr_idx = i;
+			break;
+		}
+	}
+	if (i == LAUBERHORN_NUM_WORKER_CORES) {
+		pr_err("Application TGID %d ran out of thread slots, %d already allocated\n", tgid, i);
+		return -EINVAL;
+	}
+	
+	// Thread will be blocked until HW wakes it up
+	prepare_worker_thread();
+
+	return 0;
 }
 
 static const struct file_operations fops = {
@@ -235,7 +283,7 @@ static const struct file_operations fops = {
 	.open = app_dev_open,
 	.release = app_dev_release,
 	.unlocked_ioctl = app_dev_ioctl,
-  .mmap = app_dev_mmap,
+	.mmap = app_dev_mmap,
 };
 
 /**

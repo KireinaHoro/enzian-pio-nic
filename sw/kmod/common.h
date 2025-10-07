@@ -52,10 +52,23 @@ int create_devices(void);
 void remove_devices(void);
 
 // Scheduler integration: worker thread management
-int prepare_worker_thread();
+// Defines an application thread
+struct thr_def {
+	bool enabled;
+
+	pid_t pid;
+
+	// Used to update the per-thread CL address to core worker mapping
+	u32 translation_tbl_idx;
+};
+int prepare_worker_thread(pid_t );
 void clean_worker_thread(u32 proc_idx, u32 thr_idx);
 void enable_worker_thread();
 void disable_worker_thread();
+
+// Manipulate IOMMU to route / unroute a thread to a core
+int route_thread_to_core(pid_t tid, u32 worker_core_idx);
+void unroute_thread(pid_t tid);
 
 // CMAC functions
 typedef struct cmac_t cmac_t;

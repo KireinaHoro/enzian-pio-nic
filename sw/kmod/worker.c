@@ -15,13 +15,11 @@ static irqreturn_t worker_fpi_handler(int irq, void *data) {
 
     // Read out IRQ ACK register and decode next task
     
-    // Mark current task as uninterruptible
-    // Or, if task needs to be killed per IRQ ACK, kill the task
+    // If task needs to be killed per IRQ ACK, kill the task
 
-    // Mark new task as runnable *only on this core*
-
-    // Manipulate page tables to unmap old core CLs and map new one
-    // XXX: alternatively, implement an IOMMU and change mapping here
+    // Disable old thread and enable new one
+    disable_worker_thread();
+    enable_worker_thread();
 
     return IRQ_HANDLED;
 }
@@ -73,8 +71,11 @@ static int init_worker_fpi(void) {
     }
 
     for (cid = worker_lo; cid < worker_hi; ++cid) {
+        // Activate FPI IRQ handler on this core
         err = smp_call_on_cpu(cid, do_fpi_irq_activate, (void *)irq_no, true);
         WARN_ON(err < 0);
+    
+        // Program the real core ID into preemption logic in HW
     }
 
     return 0;
