@@ -125,3 +125,4 @@ add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/Scheduler_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciInterfacePlugin_logic_*"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciThreadClRouter_logic_*"]
