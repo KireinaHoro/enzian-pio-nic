@@ -135,6 +135,7 @@
     # TODO: upgrade SpinalHDL to newer mill version and use mill-ivy-fetch
     #       to allow running the generator inside the stdenv sandbox
     devShells.default = with pkgs; let
+      # hammer a test that failed on CI but can't be easily reproduced locally
       repeatTest = writeShellApplication {
         name = "repeat-test";
         runtimeInputs = [ millw ];
@@ -154,6 +155,7 @@
         # quick script to repeat known failing test to find a good reproducer
         repeatTest
       ];
+      env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
     };
   });
 }
