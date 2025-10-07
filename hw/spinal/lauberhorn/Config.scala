@@ -22,6 +22,7 @@ object Config {
     onlyStdLogicVectorAtTopLevelIo = true,
     // FIXME: this is here due to DMA tag very big at the descriptor mux; is this problematic?
     bitVectorWidthMax = 16384,
+    defaultClockDomainFrequency = FixedFrequency(200 MHz),
   )
 
   def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested).includeSimulation)

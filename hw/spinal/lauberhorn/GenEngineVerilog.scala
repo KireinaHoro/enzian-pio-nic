@@ -85,13 +85,7 @@ object GenEngineVerilog {
     val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
     os.makeDir.all(genDir)
 
-    val elabConfig = Config.spinal(genDir.toString).copy(
-      defaultClockDomainFrequency = FixedFrequency(name match {
-        case "pcie" => 250 MHz
-        case "eci" => 250 MHz
-      })
-    )
-
+    val elabConfig = Config.spinal(genDir.toString)
     val report = elabConfig.generateVerilog {
       val e = engine(4, name)
       e.database on { Global.GIT_VERSION.set(gitVersion) }
