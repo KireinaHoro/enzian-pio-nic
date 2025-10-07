@@ -2,7 +2,6 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, isSorted}
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.{EthernetPacket, IpV4Packet, Packet, UdpPacket}
@@ -23,37 +22,26 @@ import scala.language.postfixOps
 import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
-import lauberhorn.host.eci.NicSim._
 
 import java.net.InetAddress
 
-object NicSim {
-  type IrqCb = (AxiLite4Master, DcsAppMaster, Int, Int) => Unit
-  var bypassIrqPending = false
-  def BypassIrqCb(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, cid: Int, intId: Int): Unit = {
-    assert(cid == 0, "bypass IRQ handler only handles IRQ to core 0")
-    assert(intId == 15, "IRQ for bypass core should always be 15")
-    assert(!bypassIrqPending, "Should have disabled IRQ while handling!")
+class EciThreadData(val td: ThreadDef) {
+  /** 2F2F protocol parity bits */
+  var rxNextCl, txNextCl = 0
 
-    bypassIrqPending = true
-    println("Handling bypass IRQ, disabling interrupt")
+  def flipRx() = rxNextCl = 1 - rxNextCl
+  def flipTx() = txNextCl = 1 - txNextCl
 
-    csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 0.toBytesLE)
-  }
-
-  def waitBypassIrq() = waitUntil(bypassIrqPending)
-
-  def finishBypassIrq(csrMaster: AxiLite4Master, cid: Int): Unit = {
-    println("Finished handling bypass IRQ, re-enabling interrupt")
-    bypassIrqPending = false
-    csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 1.toBytesLE)
-  }
+  def baseAddr = td.prefix * ECI_CORE_OFFSET
 }
 
-class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFactory with TimestampSuiteFactory {
+class NicSim extends DutSimFunSuite[NicEngine]
+  with DbFactory
+  with OncRpcSuiteFactory
+  with TimestampSuiteFactory
+  with GenericHostCPUModel {
   // NUM_CORES in Database only available inside test context
   val numWorkerCores = 4
-  val numCores = numWorkerCores + 1
 
   val dut = Config.sim
     // verilog-axi flags
@@ -64,16 +52,24 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     .workspaceName("eci")
     .compile(lauberhorn.GenEngineVerilog.engine(numWorkerCores, "eci"))
 
-  def commonDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
+  /** Extra data for each [[ThreadDef]] with ECI-related states, notably CL parity bits */
+  val eciThreadDataMap = mutable.HashMap[ThreadDef, EciThreadData]()
+  def getEciThreadData(tid: Int) = {
+    val td = threads(tid)
+    eciThreadDataMap.getOrElseUpdate(td, new EciThreadData(td))
+  }
+
+  /** Set up the DUT and create the DCS and AXI-Lite simulation bus masters and arm an IRQ handler.
+    * Calls into [[GenericHostCPUModel]] to simulate software state changes in the kernel.
+    */
+  def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain)
 
-    bypassIrqPending = false
-
     IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
       println(s"Received IRQ #$intId for core $coreId")
-      irqCb(csrMaster, dcsAppMaster, coreId, intId)
+      genericIrqCb(csrMaster, coreId, intId)
     }
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
@@ -86,57 +82,42 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
     CSRSim.csrSanityChecks(csrMaster, rxBlockCycles)
 
+    val bypassThread = ThreadDef(-1, 0xdead)
+    bypassCore.switchToThread(bypassThread, csrMaster)
+
+    0 until NUM_WORKER_CORES foreach { wcid =>
+      setWorkerCore(wcid, new EciWorkerCoreState(wcid, csrMaster))
+    }
+
+    eciThreadDataMap.clear()
+
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
   }
 
-  def rxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
+  /** In addition to [[commonDutSetup]], assert that the TX interface is inactive during RX-only tests.  */
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
-    for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
 
     // the tx interface should never be active!
     cmacIf.cmacTxClock.onSamplings {
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
 
-    val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles, irqCb)
+    val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles)
     (csrMaster, axisMaster, dcsMaster)
   }
 
-  def txDutSetup()(implicit dut: NicEngine) = {
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
-    for (i <- txNextCl.indices) { txNextCl(i) = 0 }
+  /** Enter the critical-section for preemption for a specific worker thread.
+    *
+    * This function is called directly inside RX/TX datapath functions ([[tryReadPacketDesc]]
+    * and [[txSendSingle]]), also for bypass.  [[tid]] will be -1 for bypass accesses.
+    */
+  def enterCriticalSection(dcsMaster: DcsAppMaster, tid: Int, maxAttempts: Int = 20): Unit = {
+    if (tid != -1) {
+      println(s"[thread $tid] Entering critical section...")
 
-    (csrMaster, axisSlave, dcsMaster)
-  }
-
-  def rxtxDutSetup(rxBlockCycles: Int, irqCb: IrqCb = BypassIrqCb)(implicit dut: NicEngine) = {
-    for (i <- rxNextCl.indices) { rxNextCl(i) = 0 }
-    for (i <- txNextCl.indices) { txNextCl(i) = 0 }
-
-    commonDutSetup(rxBlockCycles, irqCb)
-  }
-
-  def pollReady(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
-    if (cid != 0) {
-      println(s"Checking READY for core $cid before returning to user space...")
-      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
-      val preemptCtrlAddr = coreBase + 0x10000
-
-      var done = false
-      var attempts = 0
-      while (!done) {
-        assert(attempts < maxAttempts, s"failed to read READY as 1 before returning to userspace")
-        val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
-        done = (busyReady & 0x2) != 0
-        attempts += 1
-      }
-    }
-  }
-
-  def enterCriticalSection(dcsMaster: DcsAppMaster, cid: Int, maxAttempts: Int = 20): Unit = {
-    if (cid != 0) {
-      println(s"[core $cid] Entering critical section...")
-      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
+      val etd = getEciThreadData(tid)
+      val coreBase = etd.baseAddr
       val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
       // CAS READY/BUSY to enter critical region
@@ -160,14 +141,17 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         attempts += 1
       }
 
-      println(s"[core $cid] in critical section")
+      println(s"[thread $tid] in critical section")
+
+      etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState].inCriticalRegion = true
     }
   }
 
-  def exitCriticalSection(dcsMaster: DcsAppMaster, cid: Int): Unit = {
-    if (cid != 0) {
-      println(s"[core $cid] Exiting critical section...")
-      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
+  def exitCriticalSection(dcsMaster: DcsAppMaster, tid: Int): Unit = {
+    if (tid != -1) {
+      println(s"[thread $tid] Exiting critical section...")
+      val etd = getEciThreadData(tid)
+      val coreBase = etd.baseAddr
       val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
       // CAS unset BUSY to exit critical region
@@ -179,51 +163,54 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
         done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
       }
 
-      println(s"[core $cid] out of critical section")
+      println(s"[thread $tid] out of critical section")
+
+      etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState].inCriticalRegion = false
     }
   }
 
-  def ackIrq(csrMaster: AxiLite4Master, coreBlock: RegBlockReadBack) = {
-    val ipiAck = new BigIntParser(csrMaster.read(coreBlock("ipiAck"), 8).bytesToBigInt)
+  class EciWorkerCoreState(val cid: Int, csrMaster: AxiLite4Master) extends WorkerCoreState {
+    var inCriticalRegion = false
 
-    // TODO: put into sim data struct to reuse
-    val rxParity   = ipiAck.pop(1) != 0
-    val txParity   = ipiAck.pop(1) != 0
-    val killed     = ipiAck.pop(1) != 0
-    val pidToSched = ipiAck.pop(PID_WIDTH, skip = 5)
+    def switchToThreadImpl(threadDef: ThreadDef): Unit = {
+      assert(!inCriticalRegion, s"core $cid in critical region of thread ${currThread.get.tid}, cannot switch!")
 
-    (pidToSched, rxParity, txParity, killed)
+      val etd = getEciThreadData(threadDef.tid)
+
+      // write our CL parity bits into hardware
+      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("rxCurrClIdx"), etd.rxNextCl.toBytesLE)
+      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("txCurrClIdx"), etd.txNextCl.toBytesLE)
+    }
   }
 
-  // we have one more core as bypass
-  val rxNextCl = mutable.ArrayBuffer.fill(numCores)(0)
-  def tryReadPacketDesc(dcsMaster: DcsAppMaster, cid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
+  def tryReadPacketDesc(dcsMaster: DcsAppMaster, tid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
     if (maxTries == 0) done(None)
     else {
-      val coreBase = ECI_RX_BASE.get + ECI_CORE_OFFSET.get * cid
+      val etd = getEciThreadData(tid)
+      val coreBase = etd.baseAddr
 
-      enterCriticalSection(dcsMaster, cid)
+      enterCriticalSection(dcsMaster, tid)
 
-      val clAddr = rxNextCl(cid) * 0x80 + coreBase
+      val clAddr = etd.rxNextCl * 0x80 + coreBase
       val overflowAddr: BigInt = clAddr + 0x40
-      println(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
+      println(f"[thread $tid] Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
       val control = dcsMaster.read(clAddr, 64, doInvIdemptCheck = false).bytesToBigInt
       // always toggle cacheline
-      rxNextCl(cid) = 1 - rxNextCl(cid)
+      etd.flipRx()
       val ret = if ((control & 1) == 0) {
         sleepCycles(20)
         // we didn't get a packet, exit critical section here irrespective of exitCS
-        exitCriticalSection(dcsMaster, cid)
+        exitCriticalSection(dcsMaster, tid)
 
         // pass exitCS so the retry can skip exitCS if needed
-        tailcall(tryReadPacketDesc(dcsMaster, cid, maxTries - 1, exitCS))
+        tailcall(tryReadPacketDesc(dcsMaster, tid, maxTries - 1, exitCS))
       } else {
         // got packet!
         if (exitCS) {
           // should only be used, when there's no intention to check the packet data in overflow
-          exitCriticalSection(dcsMaster, cid)
+          exitCriticalSection(dcsMaster, tid)
         }
 
         done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
@@ -257,7 +244,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   /** read back and check one single bypass packet */
   def rxSingle(dcsMaster: DcsAppMaster, maxRetries: Int)(implicit dut: NicEngine): (BypassCtrlInfoSim, List[Byte]) = {
-    val (info, addr) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = maxRetries + 1).result.get
+    val (info, addr) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
     assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
 
@@ -277,7 +264,23 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   /** test reading one bypass packet; when called multiple times, this checks in a blocking fashion */
-  def rxTestSimple(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+  def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
+    // set bypass handler
+    var checked = false
+
+    setBypassCore(() => {
+      // read memory and check data
+      val (desc, data) = rxSingle(dcsMaster, maxRetries)
+      assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
+
+      // TODO: check performance counters
+
+      println(s"Successfully received packet")
+      checked = true
+
+      // packet will be acknowledged by reading next packet
+    })
+
     fork {
       sleepCycles(Random.nextInt(200))
 
@@ -286,20 +289,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       println(s"Sent packet of length ${toSend.length}")
     }
 
-    // TODO: check performance counters
-
-    // wait until receiving the bypass IRQ
-    waitBypassIrq()
-
-    // read memory and check data
-    val (desc, data) = rxSingle(dcsMaster, maxRetries)
-    assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
-
-    finishBypassIrq(csrMaster, 0)
-
-    println(s"Successfully received packet")
-
-    // packet will be acknowledged by reading next packet
+    waitUntil(checked)
   }
 
   /** test scanning a range of lengths of packets to send and check */
@@ -316,7 +306,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       0 until Random.between(25, 50) foreach { _ =>
         import PacketType._
         val (packet, proto) = randomPacket(size, randomizeLen = false)(Ethernet, Ip, Udp)
-        rxTestSimple(csrMaster, dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
+        rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
       }
     }
 
@@ -343,24 +333,20 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   testWithDB("rx-oncrpc-allcores", Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
-    // - enable one RPC process with one service that can run on all cores
+    // - enable one RPC process with one service that can run on all cores,
+    //   creating a thread for every worker core
     // - send 50 * numWorkerCores requests
     // - cores are preempted as requests come in, they start to read
     // - eventually all packets are received through all cores
 
     val totalToSend = 50 * NUM_WORKER_CORES
 
-    val irqReceived = mutable.ArrayBuffer.fill(NUM_CORES)(false)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, { case (_, _, coreId, intId) =>
-      // every core will be preempted from IDLE to run PID exactly once
-      assert(!irqReceived(coreId), s"core $coreId has already been preempted once!")
-      assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
-
-      irqReceived(coreId) = true
-    })
-
+    // test one service on one process on all cores
+    val proc = mkRandomProc(NUM_WORKER_CORES)
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(proc -> Seq(RpcSrvDef.mkRandom)),
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
     ).head
     val sentPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
@@ -390,25 +376,15 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       }
     }
 
-    1 to NUM_WORKER_CORES foreach { cid =>
+    0 until NUM_WORKER_CORES foreach { wcid =>
       fork {
-        def log(msg: String) = println(s"[core $cid] $msg")
+        val cs = workerCore(wcid)
+        def log = cs.log
 
-        log("Waiting for IRQ...")
+        log("Wait until the user thread is scheduled")
 
-        // wait for schedule request
-        waitUntil(irqReceived(cid))
-        log("Received IRQ, ack-ing interrupt...")
+        workerCore(cid - 1).waitUser()
 
-        val coreBlock = ALLOC.readBack("preempt", blockIdx = cid)
-        val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
-        assert(pidToSched == pid, "requested PID does not match what we programmed")
-        assert(!rxParity, "no read happened yet, should be on CL #0")
-        assert(!txParity, "no write happened yet, should be on CL #0")
-        assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
-
-        // kernel needs to poll READY to make sure that datapath preemption is done
-        pollReady(dcsMaster, cid)
         log("returned to userspace")
 
         while (packetsReceived != totalToSend) {
@@ -442,28 +418,31 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     waitUntil(packetsReceived == totalToSend)
   }
 
-  var txNextCl = mutable.ArrayBuffer.fill(numCores)(0)
-
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], cid: Int): Unit = {
-    def clAddr = txNextCl(cid) * 0x80 + ECI_TX_BASE.get + ECI_CORE_OFFSET * cid
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int): Unit = {
+    val etd = getEciThreadData(tid)
+    val coreBase = etd.baseAddr
+    def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
 
-    println(f"Core $cid: sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
+    enterCriticalSection(dcsMaster, tid)
+
+    println(f"[thread $tid] sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, txDesc.toTxDesc)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
     dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
     if (toSend.size > 64) {
-      dcsMaster.write(
-        ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + ECI_CORE_OFFSET * cid,
-        toSend.drop(firstWriteSize))
+      val overflowAddr = ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + coreBase
+      dcsMaster.write(overflowAddr, toSend.drop(firstWriteSize))
     }
 
     // trigger a read on the next cacheline to actually send the packet
-    println(f"Core $cid: sent packet at $clAddr%#x")
+    println(f"[thread $tid] sent packet at $clAddr%#x")
 
-    txNextCl(cid) = 1 - txNextCl(cid)
+    etd.flipTx()
     dcsMaster.read(clAddr, 1)
+
+    exitCriticalSection(dcsMaster, tid)
   }
 
   /** Test sending one single packet as bypass on a specific core.  Also checks if the expected packet appears on the
@@ -538,7 +517,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow, Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-scan-sizes-core$cid") / "packets-expecting.pcap").toString)
 
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
     txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, cid)
   }
@@ -546,7 +525,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   0 until numCores foreach txScanOnCore
 
   testWithDB("tx-all-cores-serialized", Tx) { implicit dut =>
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-all-cores-serialized") / "packets-expecting.pcap").toString)
 
@@ -557,7 +536,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   testWithDB("tx-no-voluntary-inv", Tx) { implicit dut =>
-    val (csrMaster, axisSlave, dcsMaster) = txDutSetup()
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-no-voluntary-inv") / "packets-expecting.pcap").toString)
 
@@ -580,15 +559,10 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000)
 
-    // send one IP packet without programming the neighbor table first
-    val pld = ipPkt.getPayload.getRawData.toList
-    val desc = TxIpCmdSim(pld.length, ipDst, ipPkt.getHeader.getProtocol.value.toInt)
-    txSendSingle(dcsMaster, desc, pld, 1)
-
-    // get ARP resolve request
+    // serve ARP resolve request in kernel
     var reqServed = false
-    fork {
-      val (info, _) = tryReadPacketDesc(dcsMaster, cid = 0, maxTries = 1).result.get
+    setBypassCore(() => {
+      val (info, _) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = 1).result.get
       val arpReq = info.asInstanceOf[TxArpReqSim]
       val addr = InetAddress.getByAddress(arpReq.ipAddr.toBytesLE.toArray)
       println(s"Received ARP request to $addr on table entry #${arpReq.neighTblIdx}")
@@ -606,7 +580,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
       csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
       csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), arpReq.neighTblIdx.toBytesLE)
       reqServed = true
-    }
+    })
+
+    // send one IP packet without programming the neighbor table first
+    val pld = ipPkt.getPayload.getRawData.toList
+    val desc = TxIpCmdSim(pld.length, ipDst, ipPkt.getHeader.getProtocol.value.toInt)
+    txSendSingle(dcsMaster, desc, pld, 1)
 
     waitUntil(reqServed)
 
@@ -689,7 +668,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
     import PacketType._
     val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
-    rxTestSimple(csrMaster, dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
+    rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
 
     assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
   }
@@ -702,13 +681,13 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // NOT enabling promisc
 
     // default values is for zuestoll01
-    rxTestSimple(csrMaster, dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
+    rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
 
     // change host ID: address regs are in big endian
     csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), 0xc0_a8_80_48.toBytesBE)
     csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), 0x0c_53_31_03_00_48L.toBytesBE.drop(2))
 
-    rxTestSimple(csrMaster, dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
+    rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
   }
 
   testWithDB("roundtrip-oncrpc-timestamped", Rx, Tx) { implicit dut =>
@@ -731,7 +710,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     var irqReceived = false
     var readingSecond = false
 
-    val (csrMaster, axisMaster, axisSlave, dcsMaster) = rxtxDutSetup(100, { case (_, _, coreId, intId) =>
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100, { case (_, _, coreId, intId) =>
       assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
       assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
 
@@ -916,55 +895,6 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
 
     waitUntil(allDone)
-  }
-
-  // checks if a core has an IRQ pending.  Checked before and after critical section
-  object CoreState {
-    val pidIdle = 0xffff
-  }
-  class CoreState(cid: Int) {
-    var inISR = false
-    var currPid = CoreState.pidIdle // IDLE
-    def log(msg: String) = println(s"[core $cid] $msg")
-    def isIdle = currPid == CoreState.pidIdle
-    def enterISR() = {
-      assert(!inISR, "already in kernel!")
-      inISR = true
-      log("entering kernel")
-    }
-    def exitISR()  = {
-      assert(inISR, "not in kernel")
-      inISR = false
-      log("exiting kernel")
-    }
-    def setPid(pid: Int) = {
-      assert(currPid != pid, s"trying to ask CPU to switch to an already running process")
-      log(f"PID switch: $currPid%#x -> $pid%#x")
-      currPid = pid
-    }
-  }
-  def genericIrqHandler(coreStates: Seq[CoreState], pidMaxThrCountMap: Map[Int, Int])(csrMaster: AxiLite4Master, dcsMaster: DcsAppMaster, coreId: Int, intId: Int) = {
-    val cs = coreStates(coreId)
-    cs.enterISR()
-
-    // ACK interrupt and switch to process
-    val coreBlock = ALLOC.readBack("preempt", blockIdx = coreId)
-    val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
-
-    // TODO: how to handle killing a process?
-    assert(!killed, "kill preemption not implemented yet and should not happen")
-
-    val pid = pidToSched.toInt
-    assert(pidMaxThrCountMap(pid) > coreStates.count(_.currPid == pid), "trying to schedule more cores than max threads")
-    cs.setPid(pid)
-
-    // reset parity
-    rxNextCl(coreId) = rxParity.toInt
-    txNextCl(coreId) = txParity.toInt
-
-    pollReady(dcsMaster, coreId)
-
-    cs.exitISR()
   }
 
   /* Test that Lauberhorn can scale up to multiple services */
