@@ -5,6 +5,7 @@ import org.pcap4j.core.PcapDumper
 import org.pcap4j.packet._
 import org.pcap4j.packet.namednumber._
 import org.pcap4j.util.MacAddress
+import org.scalatest.Assertions.fail
 import org.scalatest.Tag
 import spinal.core.IntToBuilder
 
@@ -31,7 +32,7 @@ package object sim {
       println("parsing bypass OncRpcCall not implemented yet")
       ???
     case _ =>
-      assert(false, "unexpected packet type on bypass receive" + packetType)
+      fail("unexpected packet type on bypass receive" + packetType)
       ???
   }
 

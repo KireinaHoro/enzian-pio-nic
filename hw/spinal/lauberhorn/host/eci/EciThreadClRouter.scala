@@ -29,8 +29,10 @@ case class ClRouterPort(config: Axi4Config) extends Bundle {
 }
 
 case class ThreadDef() extends Bundle {
-  val threadIdx = Bits(log2Up(NUM_THREADS) bits)
+  val addrPrefix = Bits(16 bits)
   val enabled = Bool()
+
+  assert(addrPrefix.getWidth >= log2Up(NUM_THREADS.get + 1), "must allow at least all threads to get a prefix")
 }
 
 class EciThreadClRouter extends FiberPlugin {
@@ -80,7 +82,7 @@ class EciThreadClRouter extends FiberPlugin {
         val (axLookup, axResult, _) = threadDb.makePort(axiConfig.addressType, locator(p.axiFromDcs).payload,
           name = portName,
           singleMatch = true) { (v, q, _) =>
-          v.enabled && testPrefix(q, v.threadIdx)
+          v.enabled && testPrefix(q, v.addrPrefix)
         }
 
         axLookup.translateFrom(locator(p.axiFromDcs)) { case (lk, fd) =>
@@ -110,7 +112,7 @@ class EciThreadClRouter extends FiberPlugin {
         val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
           name = portName,
           singleMatch = true) { (v, q, _) =>
-          v.enabled && testPrefix(q.asUInt, v.threadIdx)
+          v.enabled && testPrefix(q.asUInt, v.addrPrefix)
         }
 
         chanLookup.translateFrom(from) { case (lk, f) =>
@@ -140,7 +142,7 @@ class EciThreadClRouter extends FiberPlugin {
         }
 
         chanResult.translateInto(to) { case (t, r) =>
-          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.value.threadIdx).asBits }
+          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.value.addrPrefix).asBits }
         }
 
         when (chanResult.valid) {

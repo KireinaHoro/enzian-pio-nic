@@ -1,46 +1,27 @@
 package lauberhorn.sim
 
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.RegBlockReadBack
 import jsteward.blocks.misc.sim.IntRicherEndianAware
 import org.pcap4j.core.{PcapDumper, Pcaps}
 import org.pcap4j.packet.namednumber.DataLinkType
 import lauberhorn.{AsSimBusMaster, Global, NicEngine}
 import Global.ALLOC
+import spinal.core.sim.simRandom
 
-import scala.util.Random
 import scala.collection.mutable
 
-case class ProcDef(pid: Int, maxThreads: Int)
-object ProcDef {
-  def mkRandom(thr: Int): ProcDef = ProcDef(Random.nextInt(65535), thr)
-}
 case class RpcSrvDef(dport: Int, prog: Int, progVer: Int, procNum: Int, funcPtr: Long)
 object RpcSrvDef {
   def mkRandom: RpcSrvDef = {
-    val dport = Random.nextInt(65535)
-    val prog, progVer, procNum = Random.nextInt()
-    // 48-bit pointer; avoid generating negative number
-    val funcPtr = Random.nextLong(0x1000000000000L)
+    val dport = simRandom.nextInt(65536)
+    val prog, progVer, procNum = simRandom.nextInt()
+    // 48-bit pointer; avoid generating negative numbers
+    val funcPtr = simRandom.nextLong(0x1000000000000L)
     RpcSrvDef(dport, prog, progVer, procNum, funcPtr)
   }
 }
 
 trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
-  /** Enable one process in the scheduler. */
-  def enableProcess[B](bus: B, procDef: ProcDef, idx: Int)(implicit asMaster: AsSimBusMaster[B]) = {
-    import procDef._
-
-    // activate process
-    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_pid"), pid.toBytesLE)
-    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_maxThreads"), maxThreads.toBytesLE)
-    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_enabled"), 1.toBytesLE)
-
-    asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_idx"), idx.toBytesLE)
-
-    println(f"Enabled PID#$pid%#x with $maxThreads threads @ table idx $idx")
-  }
-
   /** Enable one service in the given process. */
   def enableService[B](bus: B, srvDef: RpcSrvDef, idx: Int, pid: Int)(implicit asMaster: AsSimBusMaster[B]) = {
     import srvDef._
@@ -76,19 +57,14 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
   /** Used for generating test benches where one service sits in one process.  Tests the following paths:
     *  - service scaling up from 0 to all cores
     */
-  def oncRpcCallPacketFactory[B](bus: B, procSrvMap: Seq[(ProcDef, Seq[RpcSrvDef])] = Seq.empty, packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
-    // if no map defined: create one process with one randomly generated service
-    val m = if (procSrvMap.isEmpty) Seq(
-      ProcDef.mkRandom(lauberhorn.Global.NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom),
-    ) else procSrvMap
-
+  def oncRpcCallPacketFactory[B](bus: B, procSrvMap: Seq[(ProcDef, Seq[RpcSrvDef])], packetDumpWorkspace: Option[String] = None)(implicit dut: NicEngine, asMaster: AsSimBusMaster[B]) = {
     // TODO: also test non promisc mode
     asMaster.write(bus, ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     // create one process with all cores and enable a service inside
     val allSrvs = mutable.ListBuffer[(RpcSrvDef, ProcDef)]()
-    m.zipWithIndex foreach { case ((p, srvs), i) =>
-      enableProcess(bus, p, idx = i + 1) // slot 0 is for IDLE
+    procSrvMap.zipWithIndex foreach { case ((p, srvs), i) =>
+      p.enableAt(idx = i + 1, bus) // slot 0 is for IDLE
       srvs foreach { srv =>
         enableService(bus, srv, allSrvs.length, p.pid)
         allSrvs += srv -> p
@@ -105,11 +81,11 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
 
       def getPacket = {
         // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
-        val payloadWords = Random.nextInt(24)
+        val payloadWords = simRandom.nextInt(24)
         val payloadLen = payloadWords * 4
-        val payload = Random.nextBytes(payloadLen).toList
-        val xid = Random.nextInt()
-        val sport = Random.nextInt(65535)
+        val payload = simRandom.nextBytes(payloadLen).toList
+        val xid = simRandom.nextInt()
+        val sport = simRandom.nextInt(65535)
         val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload, xid)
         if (packetDumpWorkspace.nonEmpty) {
           val dumper = getDumper(packetDumpWorkspace.get)
