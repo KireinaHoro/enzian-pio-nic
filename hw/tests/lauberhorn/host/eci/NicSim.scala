@@ -344,9 +344,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
 
     // test one service on one process on all cores
-    val proc = mkRandomProc(NUM_WORKER_CORES)
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
-      procSrvMap = Seq(proc -> Seq(RpcSrvDef.mkRandom)),
+      procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
     ).head
     val sentPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
@@ -379,38 +378,37 @@ class NicSim extends DutSimFunSuite[NicEngine]
     0 until NUM_WORKER_CORES foreach { wcid =>
       fork {
         val cs = workerCore(wcid)
-        def log = cs.log
 
-        log("Wait until the user thread is scheduled")
+        cs.log("Wait until a user thread is scheduled")
+        cs.waitUser()
 
-        workerCore(cid - 1).waitUser()
-
-        log("returned to userspace")
+        val tid = cs.currThread.get.tid
+        cs.log("returned to userspace")
 
         while (packetsReceived != totalToSend) {
           // read and check packet against sent
-          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result.get
+          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
           val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-          log(f"Received status register: $desc")
+          cs.log(f"Received status register: $desc")
 
           // do not process packets too fast, or other cores will never get invoked
           sleepCycles(Random.between(50, 100))
-          log("Sleep finished, checking packet data...")
+          cs.log("Sleep finished, checking packet data...")
 
           // packet generator return little endian xid but sends in big endian
           // HW does not change (i.e. we get big endian back)
           val xid = Integer.reverseBytes(info.xid.toInt)
-          log(f"Received XID $xid%x")
+          cs.log(f"Received XID $xid%x")
 
           // find the payload that we sent
           val (pkt, pld) = sentPackets(xid)
-          log(f"Expecting packet: $pkt")
+          cs.log(f"Expecting packet: $pkt")
 
           checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
-          log(f"Received packet #$packetsReceived (XID $xid%x)")
+          cs.log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
 
-          exitCriticalSection(dcsMaster, cid)
+          exitCriticalSection(dcsMaster, tid)
         }
       }
     }
@@ -616,6 +614,26 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-bypass-pipelined") / "packets.pcap").toString)
 
+    var received = 0
+    setBypassCore(() => {
+      // when bypass interrupt happens, there must be a descriptor to fetch
+      val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
+
+      // XXX: occasionally the packet received is out of order
+      //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+      //      resulting in Ethernet packet arriving first
+      toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
+        .zipWithIndex.dropWhile(!_._1).headOption match {
+        case Some((_, idx)) =>
+          println(s"Found expected packet as #$idx in queue")
+          toCheck.remove(idx)
+        case None => fail("failed to find received packet in expect queue")
+      }
+      println(s"Received packet #$received")
+
+      received += 1
+    })
+
     fork {
       0 until numPackets foreach { pid =>
         import PacketType._
@@ -631,29 +649,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       }
     }
 
-    0 until numPackets foreach { pid =>
-      waitUntil(toCheck.nonEmpty)
-
-      waitBypassIrq()
-
-      val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
-
-      // XXX: occasionally the packet received is out of order
-      //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
-      //      resulting in Ethernet packet arriving first
-      toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
-        .zipWithIndex.dropWhile(!_._1).headOption match {
-        case Some((_, idx)) =>
-          println(s"Found expected packet as #$idx in queue")
-          toCheck.remove(idx)
-        case None => fail("failed to find received packet in expect queue")
-      }
-      println(s"Received packet #$pid")
-
-      finishBypassIrq(csrMaster, 0)
-
-      sleepCycles(20)
-    }
+    waitUntil(received == numPackets)
   }
 
   testWithDB("rx-bypass-no-repeat", Rx) { implicit dut =>
@@ -702,25 +698,15 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // - read second packet (stalled)
     // - send second packet, check timestamps
     // - write second reponse, receive response and check
-
-    // test timestamp collection with oncrpc call
-    // test on first non-bypass core
-    val coreBlock = ALLOC.readBack("preempt", blockIdx = 1)
-
-    var irqReceived = false
     var readingSecond = false
 
-    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100, { case (_, _, coreId, intId) =>
-      assert(coreId == 1, "only one packet, should have asked for preemption on core 1")
-      assert(intId == 8, s"expecting interrupt ID 8 for a normal preemption")
-
-      assert(!irqReceived, "should only receive one interrupt")
-      irqReceived = true
-    })
-
+    // test timestamp collection with oncrpc call
     val delayed = 1000
 
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100)
+
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
       packetDumpWorkspace = Some("roundtrip-oncrpc-timestamped")).head
 
     // first request packet
@@ -805,27 +791,21 @@ class NicSim extends DutSimFunSuite[NicEngine]
       allDone = true
     }
 
-    // wait until we have received the IRQ
-    waitUntil(irqReceived)
-    println("Received IRQ, ack-ing interrupt")
+    // we should receive the request on worker core #0
+    val cs = workerCore(0)
 
-    // ACK interrupt -- we have now arrived in the kernel
-    val (pidToSched, rxParity, txParity, killed) = ackIrq(csrMaster, coreBlock)
-    assert(pidToSched == pid, "requested PID does not match what we programmed")
-    assert(!rxParity, "no read happened yet, should be on CL #0")
-    assert(!txParity, "no write happened yet, should be on CL #0")
-    assert(!killed, "we should be preempted on IDLE, so shouldn't be killed")
+    cs.log("Wait until a user thread is scheduled")
+    cs.waitUser()
 
-    // kernel needs to poll READY to make sure that datapath preemption is done
-    pollReady(dcsMaster, 1)
-    println(s"Core returned to userspace")
+    val tid = cs.currThread.get.tid
+    cs.log("Entered user thread")
 
-    // ensure that packet has landed in the queue
+    // for checking timestamps
     sleepCycles(delayed)
 
     // read first request
     val firstXid = {
-      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
+      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
@@ -902,16 +882,12 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // do not use every core for every service
     // three procs: A (2 thr); B (3 thr); C (3 thr)
 
-    val coreStates = Seq.tabulate(numCores)(new CoreState(_))
     val srvDefs = Seq(
-      ProcDef.mkRandom(2) -> Seq(RpcSrvDef.mkRandom),
-      ProcDef.mkRandom(3) -> Seq(RpcSrvDef.mkRandom),
-      ProcDef.mkRandom(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
+      mkRandomProc(2) -> Seq(RpcSrvDef.mkRandom),
+      mkRandomProc(3) -> Seq(RpcSrvDef.mkRandom),
+      mkRandomProc(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
     )
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000, genericIrqHandler(coreStates,
-      srvDefs.map { case (pd, _) =>
-        pd.pid -> pd.maxThreads
-      }.toMap))
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
 
     val srvs = oncRpcCallPacketFactory(csrMaster, srvDefs,
       Some("rx-sched-idle-scale-many"))
@@ -929,8 +905,10 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // (PID, XID) => (packet, payload)
     val pktsToReceive = mutable.Map[(Int, Int), (EthernetPacket, List[Byte], Long)]()
 
-    def pidToIdx(pid: Int) = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
-    val pidRetryMap = mutable.HashMap[Int, Int]()
+    def pidToTblIdx(pid: Int) = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+
+    // each thread has a max number of retries
+    val threadRetryMap = mutable.HashMap[Int, Int]()
 
     fork {
       while (pktsToSend.sum > pktsSent.sum) {
@@ -941,7 +919,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
           // This test is designed to allow all cores to receive all packets sent; we need to wait if the queue for the
           // corresponding PID is about to overflow.  If the scheduler failed to preempt some core to handle a non-empty
           // queue, the core reads will eventually run out of retries.
-          val pidIdx = pidToIdx(pid)
+          val pidIdx = pidToTblIdx(pid)
           println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
           csrMaster.write(ALLOC.readBack("sched")("stat", "readback_idx"), pidIdx.toBytesLE)
           val queueFill = csrMaster.read(ALLOC.readBack("sched")("stat", "readback_queueFill"), 8).bytesToBigInt
@@ -964,29 +942,29 @@ class NicSim extends DutSimFunSuite[NicEngine]
       }
     }
 
-    1 to NUM_WORKER_CORES foreach { cid =>
+    0 until NUM_WORKER_CORES foreach { wcid =>
       fork {
-        val cs = coreStates(cid)
-        def waitUserspace() = waitUntil(!cs.inISR)
+        val cs = workerCore(wcid)
 
-        waitUserspace()
-        cs.log("in userspace now")
-        waitUntil(!cs.isIdle)
-        waitUserspace()
+        cs.log("Wait until a user thread is scheduled")
+        cs.waitUser()
 
-        def procLog(msg: String) = cs.log(f"<${cs.currPid}%#x> $msg")
-        def currIdx = pidToIdx(cs.currPid) - 1
+        def tid = cs.currThread.get.tid
+        def pid = cs.currThread.get.proc.pid
+
+        def procLog(msg: String) = cs.log(f"<pid $pid%#x> $msg")
+        def currIdx = pidToTblIdx(pid) - 1
 
         while (pktsExpecting.sum != pktsReceived.sum) {
           if (pktsExpecting(currIdx) > pktsReceived(currIdx)) {
-            waitUserspace()
+            cs.waitUser()
             procLog("try receive one")
 
             // this read might be launched before the queue was empty
-            val descOption = tryReadPacketDesc(dcsMaster, cid, exitCS = false).result
+            val descOption = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result
             if (descOption.nonEmpty) {
-              // reset retry count for this process
-              pidRetryMap(cs.currPid) = 0
+              // reset retry count for this thread
+              threadRetryMap(tid) = 0
 
               val (desc, overflowAddr) = descOption.get
               val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
@@ -994,19 +972,19 @@ class NicSim extends DutSimFunSuite[NicEngine]
               val tail = dcsMaster.read(overflowAddr, desc.len)
               procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
 
-              exitCriticalSection(dcsMaster, cid)
+              exitCriticalSection(dcsMaster, tid)
               procLog("finished receiving")
               sleepCycles(Random.between(50, 100))
 
               val xid = Integer.reverseBytes(info.xid.toInt)
-              if (!pktsToReceive.contains((cs.currPid, xid))) {
+              if (!pktsToReceive.contains((pid, xid))) {
                 procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
-                pktsToReceive.view.filterKeys(_._1 == cs.currPid).foreach { case ((_, x), _) =>
+                pktsToReceive.view.filterKeys(_._1 == pid).foreach { case ((_, x), _) =>
                   println(f"XID $x%#x")
                 }
                 simFailure("XID not found")
               }
-              val (pkt, pld, funcPtr) = pktsToReceive((cs.currPid, xid))
+              val (pkt, pld, funcPtr) = pktsToReceive((pid, xid))
               procLog(f"received xid $xid%x, expecting packet $pkt")
               checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
 
@@ -1015,9 +993,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
             } else {
               procLog(s"try receive timed out, checking if process is finished...")
 
-              val retries = pidRetryMap.getOrElseUpdate(cs.currPid, 0)
-              assert(retries <= 5, "ran out of retries for process")
-              pidRetryMap(cs.currPid) += 1
+              val retries = threadRetryMap.getOrElseUpdate(tid, 0)
+              assert(retries <= 5, "ran out of retries for thread")
+              threadRetryMap(tid) += 1
             }
           } else {
             procLog("process finished receiving, waiting for preemption...")

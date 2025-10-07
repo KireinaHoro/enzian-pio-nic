@@ -13,7 +13,7 @@ trait CoreState {
   def cid: Int
 
   var inISR = false
-  def log(msg: String) = println(s"[core $cid] $msg")
+  def log(msg: String) = println(s"[core $cid]\t$msg")
   def enterISR() = {
     assert(!inISR, s"core $cid already in kernel!")
     inISR = true
@@ -37,6 +37,7 @@ trait CoreState {
 case class ThreadDef(tid: Int, prefix: Int) {
   /** Track which core we are running on */
   var runningOn: Option[WorkerCoreState] = None
+  var proc: ProcDef = null
 }
 case class ProcDef(pid: Int, threads: Seq[ThreadDef]) {
   def enableAt[B](idx: Int, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
@@ -58,6 +59,13 @@ trait WorkerCoreState extends CoreState {
   assert(cid <= NUM_CORES, s"worker core ID $cid exceeds maximum of $NUM_CORES")
 
   var currThread: Option[ThreadDef] = None
+  override def log(msg: String) = {
+    currThread match {
+      case Some(thr) => println(s"[core $cid tid ${thr.tid}]\t$msg")
+      case None => super.log(msg)
+    }
+  }
+
   override def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
     assert(thr.tid != -1, "can't enable the bypass thread on a worker core")
     thr.runningOn = Some(this)
@@ -69,7 +77,7 @@ trait WorkerCoreState extends CoreState {
       case None =>
     }
 
-    println(s"[core $cid] switching to thread ${thr.tid}")
+    log(s"switching to thread ${thr.tid}")
 
     currThread = Some(thr)
     super.switchToThread(thr, bus)
@@ -83,7 +91,7 @@ trait WorkerCoreState extends CoreState {
   protected def switchToThreadImpl(threadDef: ThreadDef): Unit
 
   /** Wait until the core is running a given thread ID. */
-  def waitUser(tid: Int) = waitUntil(!inISR && currThread.exists(_.tid == tid))
+  def waitUser() = waitUntil(!inISR)
 }
 
 /** Models the bypass core.  In SW this is not a dedicated core, but the interrupt
@@ -108,18 +116,25 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
   def setBypassCore(bc: BypassCoreState) = coreStates(0) = bc
   def setWorkerCore(wcid: Int, wc: WorkerCoreState) = coreStates(wcid + 1) = wc
 
+  // set dummy bypass core handler
+  setBypassCore(() => {
+    fail("Bypass handler not initialized!")
+  })
+
   val threads = mutable.HashMap[Int, ThreadDef]()
 
   val processes = mutable.HashMap[Int, ProcDef]()
   def mkRandomProc(maxThreads: Int) = {
-    val threads = Seq.fill(maxThreads) {
+    val ts = Seq.fill(maxThreads) {
       // FIXME: possible collision
       val thr = ThreadDef(simRandom.nextInt(65536), simRandom.nextInt(65536))
       threads(thr.tid) = thr
       thr
     }
-    val pd = ProcDef(simRandom.nextInt(65536), threads)
+    val pd = ProcDef(simRandom.nextInt(65536), ts)
     processes(pd.pid) = pd
+
+    pd.threads foreach { thr => thr.proc = pd }
 
     pd
   }
