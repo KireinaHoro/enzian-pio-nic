@@ -15,7 +15,7 @@ import lauberhorn_eci;
 device lauberhorn_eci_profiler lsbfirst (addr base) "profiler block for lauberhorn_eci" {
 register git_version ro addr(base, 0x0) "Git version of HW" type(uint64);
 register magic ro addr(base, 0x8) "Magic number to check (should be LBERHORN)" type(uint64);
-register cycles ro addr(base, 0x10) "Cycle counter @ HertzNumber(250000000.0) MHz" type(uint64);
+register cycles ro addr(base, 0x10) "Cycle counter @ HertzNumber(200000000.0) MHz" type(uint64);
 register last_profile__rx_cmac_entry ro addr(base, 0x18) "Profile timestamp RxCmacEntry" type(uint64);
 register last_profile__rx_after_cdc_queue ro addr(base, 0x20) "Profile timestamp RxAfterCdcQueue" type(uint64);
 register last_profile__rx_enqueue_to_host ro addr(base, 0x28) "Profile timestamp RxEnqueueToHost" type(uint64);

@@ -73,7 +73,6 @@ class EciInterfacePlugin extends FiberPlugin {
     dcsEven.axi.setName("s_axi_dcs_even")
 
     val dcsIntfs = Seq(dcsEven, dcsOdd)
-    val routerPorts = host[EciThreadClRouter].logic.ports
 
     // muxed interface to ECI interrupt controller
     val ipiToIntc = master(Stream(EciIntcInterface()))
@@ -157,7 +156,7 @@ class EciInterfacePlugin extends FiberPlugin {
         (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).asUInt | byteOffset.resized).resized
       }
     }
-    val translatedDcsAxi = unaliasedDcsAxi zip routerPorts map { case (ua, rp) =>
+    val translatedDcsAxi = unaliasedDcsAxi zip host[EciThreadClRouter].logic.axi map { case (ua, rp) =>
       ua >> rp.axiFromDcs
       rp.axiToProto
     }
@@ -177,71 +176,81 @@ class EciInterfacePlugin extends FiberPlugin {
       .addConnections(translatedDcsAxi.map { _ -> dcsNodes.flatMap { case (d, p) => Seq(d) ++ p.toSeq } }: _*)
       .build()
 
-    // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
+    /** Bind the LCI/UL commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
+      * list of LCI endpoints (incl. non-existent preemption control for bypass core).
+      *
+      * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
+      */
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
       val chanName = if (isUl) "ul" else "lci"
-      cmds.zipWithIndex.map { case (cmd, uidx) =>
-        new Area {
-          val offset = cmd.mapPayloadElement(addrLocator) { a =>
-            (a.asUInt + coreOffset * (uidx / 2)).asBits
+      val routerPort = host[EciThreadClRouter].logic.lcl
+      val (toRouter, fromRouter) = if (isUl) {
+        (routerPort.ulFromProto, routerPort.ulToDcs)
+      } else {
+        (routerPort.lciFromProto, routerPort.lciToDcs)
+      }
+
+      // first, mux all core commands together
+      val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_${chanName}FromCore_mux")
+        .roundRobin.on(cmds.zipWithIndex.map { case (cmd, unitIdx) =>
+          // core commands came in without the core offset
+          cmd.mapPayloadElement(addrLocator) { a =>
+            (a.asUInt + coreOffset * (unitIdx / 2)).asBits
           }
-          // lowest 7 bits are byte offset
-          // even addr -> odd VC, vice versa
-          val dcsIdx = (~addrLocator(offset.payload)(7)).asUInt
-          val ret = StreamDemux(offset, dcsIdx, 2).toSeq
-        }.setCompositeName(this, s"${chanName}FromCore").ret
-      }.transpose.zip(dcsIntfs).zip(routerPorts) foreach { case ((demuxedCoreCmds, dcs), rp) => new Area {
-        val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_${chanName}ToDcs_mux").roundRobin.on(demuxedCoreCmds)
+        })
 
-        // Translate LCI/UL requests from protocols to DCS
-        val toDcsChan = if (isUl) rp.ulToDcs else rp.lciToDcs
-        val fromCoreChan = if (isUl) rp.ulFromProto else rp.lciFromProto
-        fromCoreChan << muxed
+      // translate this muxed channel
+      muxed >> toRouter
 
-        // assemble ECI channel
-        val chanStream = Stream(LclChannel())
-        chanStream.translateFrom(toDcsChan) { case (chan, data) =>
-          // core interfaces use UNALIASED addresses
-          chan.data := data.mapElement(addrLocator)(EciCmdDefs.aliasAddress)
-          chan.vc := ~addrLocator(data)(7) ? B(oddVc) | B(evenVc)
-          chan.size := 1
-        }
+      // pack into ECI channel
+      val chan = Stream(LclChannel())
+      chan.translateFrom(fromRouter) { case (c, fr) =>
+        c.data := fr.mapElement(addrLocator)(EciCmdDefs.aliasAddress)
+        c.vc := ~addrLocator(chan.data)(7) ? B(oddVc) | B(evenVc)
+        c.size := 1
+      }
 
-        chanLocator(dcs) << chanStream
-      }.setCompositeName(this, s"${chanName}ToDcs")
+      // unmux the translated channel
+      val dcsIdx = (chan.vc === B(oddVc)).asUInt
+      dcsIntfs zip StreamDemux(chan, dcsIdx, 2) foreach { case (dcs, fr) =>
+        chanLocator(dcs) << fr
       }
     }
 
-    // takes flattened list of LCI endpoints (incl. non-existent preemption control for bypass core)
+    /** Bind the LCIA responses from the DCS channels to the 2F2F state machines.  Takes a flattened
+      * list of LCIA endpoints (incl. non-existent preemption control for bypass core).
+      *
+      * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
+      */
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
-      dcsIntfs.zip(routerPorts).map { case (dcs, rp) =>
-        new Area {
+      val routerPort = host[EciThreadClRouter].logic.lcl
+      val (toRouter, fromRouter) = (routerPort.lciaFromDcs, routerPort.lciaToProto)
+
+      // first, mux all dcs responses together
+      val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_lciaFromDcs_mux")
+        .roundRobin.on(dcsIntfs map { dcs =>
           // cut LCIA ready dependency on valid
           val chan = chanLocator(dcs).pipelined(FULL)
           // dcs use ALIASED addresses
           val unaliased = chan.mapPayloadElement(cc => addrLocator(cc.data))(EciCmdDefs.unaliasAddress)
 
           // convert to EciWord (dropping extra stuff)
-          val unaliasedEciWord = unaliased.translateWith(unaliased.data)
+          unaliased.translateWith(unaliased.data)
+        })
 
-          // Translate LCIA responses from DCS to protocols
-          unaliasedEciWord >> rp.lciaFromDcs
+      // translate this muxed response channel
+      muxed >> toRouter
 
-          val unaliasedAddr = addrLocator(rp.lciaToProto.payload)
-          val unitIdx = ((unaliasedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
-          // demuxed into 2*numCores (INCLUDING non existent bypass preemption control)
-          val ret = StreamDemux(rp.lciaToProto, unitIdx, 2 * NUM_CORES)
-        }.setCompositeName(this, "lciaFromDcs").ret
-      }.transpose.zip(resps).zipWithIndex foreach { case ((chans, resp), uidx) => new Area {
-        val resps = chans.map { c =>
-          new Composite(c) {
-            val offset = c.mapPayloadElement(addrLocator) { a =>
-              (a.asUInt - coreOffset * (uidx / 2)).asBits
-            }
-          }
+      // unmux the translated channel
+      val translatedAddr = addrLocator(fromRouter.payload)
+      val unitIdx = ((translatedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
+      val unmuxed = StreamDemux(fromRouter, unitIdx, 2 * NUM_CORES)
+
+      // subtract core offset and connect to cores
+      (unmuxed zip resps).zipWithIndex foreach { case ((fr, resp), unitIdx) =>
+        resp << fr.mapPayloadElement(addrLocator) { a =>
+          (a.asUInt - coreOffset * (unitIdx / 2)).asBits
         }
-        resp << StreamArbiterFactory(s"EciInterfacePlugin_logic_lciaToCore_mux").roundRobin.on(resps.map(_.offset))
-      }.setCompositeName(this, "lciaToCore")
       }
     }
 
