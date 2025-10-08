@@ -41,7 +41,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   with TimestampSuiteFactory
   with GenericHostCPUModel {
   // NUM_CORES in Database only available inside test context
-  val numWorkerCores = 4
+  def numWorkerCores = 4
 
   val dut = Config.sim
     // verilog-axi flags
@@ -69,7 +69,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
       println(s"Received IRQ #$intId for core $coreId")
-      genericIrqCb(csrMaster, coreId, intId)
+      genericIrqCb(csrMaster, cid = coreId, irq = intId)
     }
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
@@ -83,10 +83,11 @@ class NicSim extends DutSimFunSuite[NicEngine]
     CSRSim.csrSanityChecks(csrMaster, rxBlockCycles)
 
     val bypassThread = ThreadDef(-1, 0xdead)
+    threads(-1) = bypassThread
     bypassCore.switchToThread(bypassThread, csrMaster)
 
     0 until NUM_WORKER_CORES foreach { wcid =>
-      setWorkerCore(wcid, new EciWorkerCoreState(wcid, csrMaster))
+      setWorkerCore(wcid, new EciWorkerCoreState(wcid+1, csrMaster))
     }
 
     eciThreadDataMap.clear()
@@ -443,16 +444,19 @@ class NicSim extends DutSimFunSuite[NicEngine]
     exitCriticalSection(dcsMaster, tid)
   }
 
-  /** Test sending one single packet as bypass on a specific core.  Also checks if the expected packet appears on the
-    * outgoing AXI-Stream interface.
-    *
-    * Sends packet through the bypass interface, which only takes destination addresses.  Checks the output against
-    * the full packet.
-    *
-    * This function pre-programs the neighbor table entry!  Test "tx-neighbor-resolve-request" checks if a bypass
-    * request for neighbor resolving is correctly sent to the host, when a neighbor entry is missing.
-    */
-  def txTestSingle(dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, packet: EthernetPacket, cid: Int)
+  /** Test sending one single packet as bypass on a specific thread.  Also checks if the expected packet appears on the
+   * outgoing AXI-Stream interface.
+   *
+   * Sends packet through the bypass interface, which only takes destination addresses.  Checks the output against
+   * the full packet.
+   *
+   * This function pre-programs the neighbor table entry!  Test "tx-neighbor-resolve-request" checks if a bypass
+   * request for neighbor resolving is correctly sent to the host, when a neighbor entry is missing.
+   *
+   * This function assumes the thread routing has been set up correctly!  This is the case for the bypass thread (done
+   * in [[commonDutSetup]]) but not for worker cores.
+   */
+  def txTestSingle(dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, packet: EthernetPacket, tid: Int)
                   (implicit dut: NicEngine): Unit = {
     var received = false
     val ty = pcap4jPacketToType(packet)
@@ -486,66 +490,87 @@ class NicSim extends DutSimFunSuite[NicEngine]
       val expected = packet.getRawData.toList
 
       check(expected, data)
-      println(s"Core $cid: packet received from TX interface and validated")
+      println(s"Thread $tid: packet received from TX interface and validated")
       received = true
     }
 
-    txSendSingle(dcsMaster, desc, pld, cid)
+    txSendSingle(dcsMaster, desc, pld, tid)
 
-    println(s"Core $cid: waiting for packet")
+    println(s"Thread $tid: waiting for packet")
     fork {
       sleepCycles(5000)
-      assert(received, s"Core $cid: packet receive timeout!")
+      assert(received, s"Thread $tid: packet receive timeout!")
     }
     waitUntil(received)
 
     // packet will be acknowledged by writing next packet
   }
 
-  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, startSize: Int, endSize: Int, step: Int, cid: Int)
+  /** Tests sending a range of sizes of packets over the bypass channel of a specific thread. */
+  def txTestRange(axisSlave: Axi4StreamSlave, dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, startSize: Int, endSize: Int, step: Int, tid: Int)
                  (implicit d: PcapDumper, dut: NicEngine) = {
     // Sweep at given range and step, send IP packets over bypass
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until Random.between(25, 50) foreach { _ =>
-        txTestSingle(dcsMaster, csrMaster, axisSlave, getIpPacketFromEnzian(1, size), cid)
+        txTestSingle(dcsMaster, csrMaster, axisSlave, getIpPacketFromEnzian(1, size), tid)
       }
     }
   }
 
-  def txScanOnCore(cid: Int) = testWithDB(s"tx-scan-sizes-core$cid", Slow, Tx) { implicit dut =>
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-scan-sizes-core$cid") / "packets-expecting.pcap").toString)
+  def txScanOnCore(cid: Int) = {
+    val testName = s"tx-scan-sizes-core$cid"
+    testWithDB(testName, Slow, Tx) { implicit dut =>
+      implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
 
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+      val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
-    txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, cid)
+      val tid = if (cid == 0) -1 else {
+        // create one process with one thread, enable that thread on the core under test
+        val proc = mkRandomProc(1)
+        val thr = proc.threads.head
+        workerCore(cid - 1).switchToThread(thr, csrMaster)
+
+        thr.tid
+      }
+
+      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, tid)
+    }
   }
 
   0 until numCores foreach txScanOnCore
 
-  testWithDB("tx-all-cores-serialized", Tx) { implicit dut =>
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+  def txAllCores(doVoluntaryInv: Boolean) = {
+    val testName = s"tx-all-cores-${if (!doVoluntaryInv) "no-" else ""}inv"
+    testWithDB(testName, Tx) { implicit dut =>
+      val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-all-cores-serialized") / "packets-expecting.pcap").toString)
+      implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
 
-    0 until NUM_CORES foreach { idx =>
-      println(s"====> Testing core $idx")
-      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, idx)
+      // create one process with threads on all worker cores
+      val proc = mkRandomProc(NUM_WORKER_CORES)
+
+      if (!doVoluntaryInv) {
+        dcsMaster.voluntaryInvProb = 0
+        dcsMaster.doPartialWrite = false
+      }
+
+      0 until NUM_CORES foreach { idx =>
+        println(s"====> Testing core $idx")
+
+        val tid = if (idx == 0) -1 else {
+          val wcid = idx - 1
+          val thr = proc.threads(wcid)
+          workerCore(wcid).switchToThread(thr, csrMaster)
+
+          thr.tid
+        }
+
+        txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, tid)
+      }
     }
   }
 
-  testWithDB("tx-no-voluntary-inv", Tx) { implicit dut =>
-    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
-
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"tx-no-voluntary-inv") / "packets-expecting.pcap").toString)
-
-    dcsMaster.voluntaryInvProb = 0
-    dcsMaster.doPartialWrite = false
-
-    0 until NUM_CORES foreach { idx =>
-      println(s"====> Testing core $idx")
-      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, idx)
-    }
-  }
+  Seq(false, true) foreach txAllCores
 
   testWithDB("tx-neighbor-resolve-request", Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-neighbor-resolve-request") / "packets-expecting.pcap").toString)
@@ -580,10 +605,15 @@ class NicSim extends DutSimFunSuite[NicEngine]
       reqServed = true
     })
 
+    // enable one thread on worker 0
+    val thr = mkRandomProc(1).threads.head
+    workerCore(0).switchToThread(thr, csrMaster)
+    val tid = thr.tid
+
     // send one IP packet without programming the neighbor table first
     val pld = ipPkt.getPayload.getRawData.toList
     val desc = TxIpCmdSim(pld.length, ipDst, ipPkt.getHeader.getProtocol.value.toInt)
-    txSendSingle(dcsMaster, desc, pld, 1)
+    txSendSingle(dcsMaster, desc, pld, tid)
 
     waitUntil(reqServed)
 
@@ -597,7 +627,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
 
     // send packet again, receive on AXIS
-    txSendSingle(dcsMaster, desc, pld, 1)
+    txSendSingle(dcsMaster, desc, pld, tid)
     waitUntil(checked)
   }
 
@@ -660,13 +690,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
-    assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "should not have packet on standby yet")
+    assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "should not have packet on standby yet")
 
     import PacketType._
     val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
     rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
 
-    assert(tryReadPacketDesc(dcsMaster, 0, maxTries).result.isEmpty, "packet should not be duplicated")
+    assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
   testWithDB("rx-no-promisc", Rx) { implicit dut =>
@@ -812,7 +842,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
-      exitCriticalSection(dcsMaster, 1)
+      exitCriticalSection(dcsMaster, tid)
 
       val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
 
@@ -836,7 +866,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
       val desc = TxOncRpcReplySim(respData.length, funcPtr, firstXid, respInlineData.bytesToBigInt)
 
-      txSendSingle(dcsMaster, desc, respTail, 1)
+      txSendSingle(dcsMaster, desc, respTail, tid)
       println("Written response")
     }
 
@@ -844,13 +874,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
     readingSecond = true
 
     val secondXid = {
-      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, 1, exitCS = false).result.get
+      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, dcsMaster.read(overflowAddr, desc.len))
-      exitCriticalSection(dcsMaster, 1)
+      exitCriticalSection(dcsMaster, tid)
 
       val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
       val ts = getRxTimestamps(csrMaster)
@@ -870,7 +900,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
       val desc = TxOncRpcReplySim(respData2.length, funcPtr, secondXid, respInlineData.bytesToBigInt)
 
-      txSendSingle(dcsMaster, desc, respTail, 1)
+      txSendSingle(dcsMaster, desc, respTail, tid)
       println("Written response")
     }
 

@@ -90,8 +90,8 @@ trait WorkerCoreState extends CoreState {
     * backend needs to program CL parity bits into HW. */
   protected def switchToThreadImpl(threadDef: ThreadDef): Unit
 
-  /** Wait until the core is running a given thread ID. */
-  def waitUser() = waitUntil(!inISR)
+  /** Wait until the core is running any user thread. */
+  def waitUser() = waitUntil(!inISR && currThread.nonEmpty)
 }
 
 /** Models the bypass core.  In SW this is not a dedicated core, but the interrupt
@@ -149,13 +149,13 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     * changed.
     */
   def genericIrqCb[B](bus: B, irq: Int, cid: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
-    val cs = coreStates(cid)
-    cs.enterISR()
-
     val preemptRegBlock = ALLOC.readBack("preempt", blockIdx = cid)
 
     // disable interrupt
     asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
+
+    val cs = coreStates(cid)
+    cs.enterISR()
 
     if (irq == 15) {
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
