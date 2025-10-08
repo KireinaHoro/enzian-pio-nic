@@ -13,17 +13,25 @@ import spinal.lib.bus.regif.AccessType.WO
 
 import scala.language.postfixOps
 
-/** Global module to route requests from threads on CPUs to the correct
-  * 2F2F protocol state machine i.e. [[EciDecoupledRxTxProtocol]].
-  *
-  * The module maintains a lookup table from thread physical address starts
-  * to the actual physical addresses of the backing worker.  It translates
-  * AXI requests and DCS invalidation requests.
-  *
-  * This module works with UNALIASED ECI addresses.
+/** AXI port pair for datapath.  Two of these will be instantiated, one for each DCS.
+  * This way the AXI dispatch to each protocol state machine can stay a fully connected
+  * crossbar.
   */
-case class ClRouterPort(config: Axi4Config) extends Bundle {
+case class ClAxiPort(config: Axi4Config) extends Bundle {
   val axiFromDcs, axiToProto = Axi4(config)
+}
+
+/** Pair of ports for the LCI/UL channel to the DC and LCIA from the DC.  We only
+  * instantiate one of this, since the LCI/UL direction cannot be a full crossbar:
+  * simply translating the two outgoing ports won't work, as the translation
+  * potentially changes the address to be odd or even, therefore they would need
+  * to be sent to the opposite DCS.
+  *
+  * As a result, [[EciInterfacePlugin]] has to implement binding of these channels
+  * as one mux and then one demux, unlike the crossbar as with AXI.  This is fine
+  * since these are control-path and low throughput.
+  */
+case class ClLclPort() extends Bundle {
   val lciFromProto, lciaFromDcs, ulFromProto = Stream(EciWord())
   val lciToDcs, lciaToProto, ulToDcs = Stream(EciWord())
 }
@@ -35,6 +43,15 @@ case class ThreadDef() extends Bundle {
   assert(addrPrefix.getWidth >= log2Up(NUM_THREADS.get + 1), "must allow at least all threads to get a prefix")
 }
 
+/** Global module to route requests from threads on CPUs to the correct
+  * 2F2F protocol state machine i.e. [[EciDecoupledRxTxProtocol]].
+  *
+  * The module maintains a lookup table from thread physical address starts
+  * to the actual physical addresses of the backing worker.  It translates
+  * AXI requests and DCS invalidation requests.
+  *
+  * This module works with UNALIASED ECI addresses.
+  */
 class EciThreadClRouter extends FiberPlugin {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
@@ -58,7 +75,8 @@ class EciThreadClRouter extends FiberPlugin {
 
   val logic = during setup new Area {
     val axiConfig = host[EciInterfacePlugin].axiConfig
-    val ports = Seq.fill(2)(ClRouterPort(axiConfig))
+    val axi = Seq.fill(2)(ClAxiPort(axiConfig))
+    val lcl = ClLclPort()
 
     awaitBuild()
 
@@ -77,7 +95,7 @@ class EciThreadClRouter extends FiberPlugin {
       ((prefix << coreShift).resized | (addr.asBits & coreMask.resized)).asUInt
     }
 
-    ports.zipWithIndex.foreach { case (p, pidx) =>
+    axi.zipWithIndex.foreach { case (p, pidx) =>
       def mapAx(locator: Axi4 => Stream[Axi4Ax], portName: String) = {
         val (axLookup, axResult, _) = threadDb.makePort(axiConfig.addressType, locator(p.axiFromDcs).payload,
           name = portName,
@@ -92,7 +110,7 @@ class EciThreadClRouter extends FiberPlugin {
 
         axResult.translateInto(locator(p.axiToProto)) { case (tp, r) =>
           val outPrefix = r.idx.asBits.resize(16)
-          when (!r.matched) {
+          when(!r.matched) {
             // mangle to an unmapped prefix to use AXI interconnect's error generation
             outPrefix := B("16'xFFFF")
           }
@@ -107,52 +125,52 @@ class EciThreadClRouter extends FiberPlugin {
       mapAx(_.aw.asInstanceOf[Stream[Axi4Ax]], s"aw_$pidx")
       p.axiFromDcs.w >> p.axiToProto.w
       p.axiFromDcs.b << p.axiToProto.b
-
-      def mapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
-        val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
-          name = portName,
-          singleMatch = true) { (v, q, _) =>
-          v.enabled && testPrefix(q.asUInt, v.addrPrefix)
-        }
-
-        chanLookup.translateFrom(from) { case (lk, f) =>
-          lk.userData := f
-          lk.query := locator(f)
-        }
-
-        chanResult.translateInto(to) { case (t, r) =>
-          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.idx.asBits).asBits }
-        }
-
-        when (chanResult.valid) {
-          assert(chanResult.matched, "non-existent map for LCIA (thread => physical)")
-        }
-      }
-
-      def unmapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
-        val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
-          name = portName,
-          singleMatch = true) { (v, q, idx) =>
-          v.enabled && testPrefix(q.asUInt, idx)
-        }
-
-        chanLookup.translateFrom(from) { case (lk, f) =>
-          lk.userData := f
-          lk.query := locator(f)
-        }
-
-        chanResult.translateInto(to) { case (t, r) =>
-          t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.value.addrPrefix).asBits }
-        }
-
-        when (chanResult.valid) {
-          assert(chanResult.matched, "non-existent unmap for LCI/UL (physical => thread)")
-        }
-      }
-
-      unmapChan(p.lciFromProto, p.lciToDcs, _.lci.address, s"lci_$pidx")
-      mapChan(p.lciaFromDcs, p.lciaToProto, _.lcia.address, s"lcia_$pidx")
-      unmapChan(p.ulFromProto, p.ulToDcs, _.ul.address, s"ul_$pidx")
     }
+
+    def mapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
+      val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
+        name = portName,
+        singleMatch = true) { (v, q, _) =>
+        v.enabled && testPrefix(q.asUInt, v.addrPrefix)
+      }
+
+      chanLookup.translateFrom(from) { case (lk, f) =>
+        lk.userData := f
+        lk.query := locator(f)
+      }
+
+      chanResult.translateInto(to) { case (t, r) =>
+        t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.idx.asBits).asBits }
+      }
+
+      when (chanResult.valid) {
+        assert(chanResult.matched, "non-existent map for LCIA (thread => physical)")
+      }
+    }
+
+    def unmapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
+      val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
+        name = portName,
+        singleMatch = true) { (v, q, idx) =>
+        v.enabled && testPrefix(q.asUInt, idx)
+      }
+
+      chanLookup.translateFrom(from) { case (lk, f) =>
+        lk.userData := f
+        lk.query := locator(f)
+      }
+
+      chanResult.translateInto(to) { case (t, r) =>
+        t := r.userData.mapElement(locator) { a => setPrefix(a.asUInt, r.value.addrPrefix).asBits }
+      }
+
+      when (chanResult.valid) {
+        assert(chanResult.matched, "non-existent unmap for LCI/UL (physical => thread)")
+      }
+    }
+
+    unmapChan(lcl.lciFromProto, lcl.lciToDcs, _.lci.address, s"lci")
+    mapChan(lcl.lciaFromDcs, lcl.lciaToProto, _.lcia.address, s"lcia")
+    unmapChan(lcl.ulFromProto, lcl.ulToDcs, _.ul.address, s"ul")
   }
 }
