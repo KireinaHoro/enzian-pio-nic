@@ -4,6 +4,7 @@ import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware}
 import lauberhorn.Global.{ALLOC, NUM_CORES, NUM_WORKER_CORES, PID_WIDTH}
 import lauberhorn.{AsSimBusMaster, NicEngine}
+import org.scalatest.Assertions.fail
 import spinal.core.sim.{simRandom, waitUntil}
 import spinal.lib.BytesRicher
 
@@ -14,15 +15,27 @@ trait CoreState {
 
   var inISR = false
   def log(msg: String) = println(s"[core $cid]\t$msg")
-  def enterISR() = {
-    assert(!inISR, s"core $cid already in kernel!")
+
+  /** Enter the ISR.  If the kernel is already in ISR, return false */
+  def enterISR(allowDup: Boolean = false): Boolean = {
+    if (inISR) {
+      if (allowDup) {
+        log("already in kernel, ignoring")
+        return false
+      } else {
+        fail(s"core $cid already in kernel!")
+      }
+    }
     inISR = true
     log("entering kernel")
+    true
   }
+
+  /** Finish ISR. */
   def exitISR() = {
     assert(inISR, s"core $cid not in kernel!")
-    inISR = false
     log("exiting kernel")
+    inISR = false
   }
 
   /** Configure thread router. */
@@ -155,14 +168,16 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
 
     val cs = coreStates(cid)
-    cs.enterISR()
+    val irqPending = !cs.enterISR(allowDup = irq == 15)
 
     if (irq == 15) {
+      if (irqPending) return
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
 
       // call bypass handler
-      bypassCore.asInstanceOf[BypassCoreState].handler()
+      cs.asInstanceOf[BypassCoreState].handler()
     } else if (irq == 8) {
+      assert(!irqPending, "worker preempt IRQ shouldn't happen multiple times")
       assert(cid >= 1, "worker IRQ should only be sent to worker cores")
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
 
