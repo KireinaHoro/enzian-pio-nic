@@ -67,7 +67,7 @@ class EciThreadClRouter extends FiberPlugin {
       v.enabled init False
     }
 
-    val coreShift = log2Up(ECI_CORE_OFFSET)
+    val coreShift = log2Up(BigInt(ECI_CORE_OFFSET))
     val coreMask = ((U("1") << coreShift) - 1).asBits
 
     def testPrefix(addr: UInt, prefix: Bits): Bool = {
