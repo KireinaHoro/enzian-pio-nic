@@ -163,11 +163,12 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     */
   def genericIrqCb[B](bus: B, irq: Int, cid: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
     val preemptRegBlock = ALLOC.readBack("preempt", blockIdx = cid)
+    val cs = coreStates(cid)
 
     // disable interrupt
+    cs.log("disabling IRQ")
     asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
 
-    val cs = coreStates(cid)
     val irqPending = !cs.enterISR(allowDup = irq == 15)
 
     if (irq == 15) {
@@ -182,6 +183,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
 
       // ACK interrupt
+      cs.log("ack-ing IRQ")
       val ipiAckReg = asMaster.read(bus, preemptRegBlock("ipiAck"), 8).bytesToBigInt
       val ipiAck = new BigIntParser(ipiAckReg)
 
@@ -203,6 +205,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     }
 
     // re-enable interrupt
+    cs.log("re-enabling IRQ")
     asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
     cs.exitISR()
   }
