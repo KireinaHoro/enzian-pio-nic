@@ -165,12 +165,12 @@ class EciThreadClRouter extends FiberPlugin {
       }
 
       when (chanResult.valid) {
-        assert(chanResult.matched, "non-existent unmap for LCI/UL (physical => thread)")
+        assert(chanResult.matched, s"non-existent unmap for $portName (physical => thread)")
       }
     }
 
-    unmapChan(lcl.lciFromProto, lcl.lciToDcs, _.lci.address, s"lci")
-    mapChan(lcl.lciaFromDcs, lcl.lciaToProto, _.lcia.address, s"lcia")
-    unmapChan(lcl.ulFromProto, lcl.ulToDcs, _.ul.address, s"ul")
+    unmapChan(lcl.lciFromProto, lcl.lciToDcs, _.lci.address, "lci")
+    mapChan(lcl.lciaFromDcs, lcl.lciaToProto, _.lcia.address, "lcia")
+    unmapChan(lcl.ulFromProto, lcl.ulToDcs, _.ul.address, "ul")
   }
 }

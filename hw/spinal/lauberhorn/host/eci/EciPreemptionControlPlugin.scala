@@ -86,9 +86,6 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
-    busCtrl.onWrite(irqEnAddr) {
-      logic.irqDoEn := True
-    }
   }
 
   val requiredAddrSpace = 0x80
@@ -174,9 +171,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // - update parity in HW to match the new thread
     // - update thread CL routing
     // - pin the preemption control of the new thread
-    val irqDoEn = CombInit(False)
     val kernelFinished = Reg(Bool()) init False
-    kernelFinished.setWhen(irqDoEn)
+    kernelFinished.setWhen(irqEn.rise(initAt = False))
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
