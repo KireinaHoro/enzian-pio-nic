@@ -57,7 +57,7 @@ object Global extends AreaRoot {
   def writeConfigs(outPath: os.Path, spinalConfig: SpinalConfig): Unit = {
     val vals = Database.storage.collect {
       // ElementBlocking would store a Handle
-      case (_, h: Handle[_]) if h.get.isInstanceOf[Int] =>
+      case (_, h: Handle[_]) if h.get.isInstanceOf[Int] || h.get.isInstanceOf[Long] =>
         h.getName -> h.get
       case (e: ElementValue[_], v: Int) =>
         e.getName() -> v
