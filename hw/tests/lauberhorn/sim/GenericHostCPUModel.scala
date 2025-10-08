@@ -203,7 +203,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     }
 
     // re-enable interrupt
-    asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
+    asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
     cs.exitISR()
   }
 }
