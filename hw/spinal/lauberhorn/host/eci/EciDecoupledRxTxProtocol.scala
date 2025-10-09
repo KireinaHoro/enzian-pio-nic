@@ -36,9 +36,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO,
       desc = "state of the TX state machine (raw value)"))
 
-    busCtrl.read(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RW,
+    busCtrl.readAndWrite(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RW,
       desc = "parity (next CL to write) of the TX state machine"))
-    busCtrl.read(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RW,
+    busCtrl.readAndWrite(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RW,
       desc = "parity (next CL to read) of the RX state machine"))
 
   }

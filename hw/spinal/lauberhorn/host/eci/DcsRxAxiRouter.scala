@@ -112,6 +112,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   when (doPreempt) {
     noReadPktBuf := True
     savedControl.clearAll()
+    loadedFirstControl := False
   }
 
   // invalidation can finish before we enter waitInv, store it here
