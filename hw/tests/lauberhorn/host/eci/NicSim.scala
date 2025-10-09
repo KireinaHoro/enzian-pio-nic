@@ -186,7 +186,17 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  def tryReadPacketDesc(dcsMaster: DcsAppMaster, tid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, BigInt)]] = {
+  case class RxPayloadDesc(parity: Int, base: Long) {
+    val firstReadAddr = base + parity * 0x80 + 0x40
+    val overflowAddr = base + ECI_OVERFLOW_OFFSET
+  }
+
+  /** Attempt to read one packet descriptor.
+    *
+    * In the ECI implementation, the first half of the control cacheline is the packet descriptor, while
+    * the second half is the inlined payload (if any).  The second return value is to be passed to [[readPayload]].
+    */
+  def tryReadPacketDesc(dcsMaster: DcsAppMaster, tid: Int, maxTries: Int = 20, exitCS: Boolean = true)(implicit dut: NicEngine): TailRec[Option[(EciHostCtrlInfoSim, RxPayloadDesc)]] = {
     if (maxTries == 0) done(None)
     else {
       val etd = getEciThreadData(tid)
@@ -195,7 +205,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       enterCriticalSection(dcsMaster, tid)
 
       val clAddr = etd.rxNextCl * 0x80 + coreBase
-      val overflowAddr: BigInt = clAddr + 0x40
+      val pldDesc = RxPayloadDesc(etd.rxNextCl, coreBase)
       println(f"[thread $tid] Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
@@ -216,11 +226,24 @@ class NicSim extends DutSimFunSuite[NicEngine]
           exitCriticalSection(dcsMaster, tid)
         }
 
-        done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), overflowAddr)))
+        done(Some((EciHostCtrlInfoSim.fromBigInt(control >> 1), pldDesc)))
       }
 
       ret
     }
+  }
+
+  def readPayload(dcsMaster: DcsAppMaster, pldDesc: RxPayloadDesc, len: Int): List[Byte] = {
+    // calculate where are the overflow cachelines
+    val firstReadSize = Math.min(len, 64)
+    println(s"Reading payload in control CL: $firstReadSize bytes")
+    var data = dcsMaster.read(pldDesc.firstReadAddr, firstReadSize)
+    if (len > 64) {
+      val overflowLen = len - 64
+      println(s"Reading payload in overflow CL: $overflowLen bytes")
+      data ++= dcsMaster.read(pldDesc.overflowAddr, overflowLen)
+    }
+    data
   }
 
   def checkSingle(expectedPacket: Packet, expectedProto: PacketType, gotPacket: List[Byte], gotDesc: BypassCtrlInfoSim): Boolean = {
@@ -245,25 +268,15 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  /** read back and check one single bypass packet */
+  /** read back one single bypass packet */
   def rxSingle(dcsMaster: DcsAppMaster, maxRetries: Int)(implicit dut: NicEngine): (BypassCtrlInfoSim, List[Byte]) = {
-    val (info, addr) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = maxRetries + 1).result.get
+    val (info, pldDesc) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = maxRetries + 1).result.get
     println(s"Received status register: $info")
     assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
 
     val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
 
-    // read payload back and check data
-    val firstReadSize = Math.min(info.len, 64)
-    println(s"Reading payload in control CL: $firstReadSize bytes")
-    var data = dcsMaster.read(addr, firstReadSize)
-    if (info.len > 64) {
-      val overflowLen = info.len - 64
-      println(s"Reading payload in overflow CL: $overflowLen bytes")
-      data ++= dcsMaster.read(ECI_RX_BASE.get + ECI_OVERFLOW_OFFSET, overflowLen)
-    }
-
-    (bypassDesc, data)
+    (bypassDesc, readPayload(dcsMaster, pldDesc, bypassDesc.len))
   }
 
   /** test reading one bypass packet; when called multiple times, this checks in a blocking fashion */
@@ -297,8 +310,6 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   /** test scanning a range of lengths of packets to send and check */
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, maxRetries: Int)(implicit dut: NicEngine) = {
-    // assert(tryReadPacketDesc(dcsMaster, cid, maxTries = maxRetries + 1).result.isEmpty, "should not have packet on standby yet")
-
     // reset packet allocator
     csrMaster.write(ALLOC.readBack("dma")("ctrl", "allocReset"), 1.toBytesLE)
     sleepCycles(200)
@@ -390,7 +401,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
         while (packetsReceived != totalToSend) {
           // read and check packet against sent
-          val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+          val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
           val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
           cs.log(f"Received status register: $desc")
 
@@ -407,7 +418,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
           val (pkt, pld) = sentPackets(xid)
           cs.log(f"Expecting packet: $pkt")
 
-          checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
+          checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
           cs.log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
 
@@ -837,13 +848,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     // read first request
     val firstXid = {
-      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
-      checkOncRpcCall(desc, desc.len, funcPtr, pld, dcsMaster.read(overflowAddr, desc.len))
+      checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
       exitCriticalSection(dcsMaster, tid)
 
       val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
@@ -876,12 +887,12 @@ class NicSim extends DutSimFunSuite[NicEngine]
     readingSecond = true
 
     val secondXid = {
-      val (desc, overflowAddr) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = Integer.reverseBytes(info.xid.toInt)
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
-      checkOncRpcCall(desc, desc.len, funcPtr, pld2, dcsMaster.read(overflowAddr, desc.len))
+      checkOncRpcCall(desc, desc.len, funcPtr, pld2, readPayload(dcsMaster, pldDesc, desc.len))
       exitCriticalSection(dcsMaster, tid)
 
       val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
@@ -998,10 +1009,10 @@ class NicSim extends DutSimFunSuite[NicEngine]
               // reset retry count for this thread
               threadRetryMap(tid) = 0
 
-              val (desc, overflowAddr) = descOption.get
+              val (desc, pldDesc) = descOption.get
               val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
               procLog(s"received status $desc")
-              val tail = dcsMaster.read(overflowAddr, desc.len)
+              val tail = readPayload(dcsMaster, pldDesc, desc.len)
               procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
 
               exitCriticalSection(dcsMaster, tid)
