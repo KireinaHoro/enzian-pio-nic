@@ -34,7 +34,10 @@ class EciThreadData(val td: ThreadDef) {
 
   def baseAddr = td.prefix * ECI_CORE_OFFSET
 
-  def log(msg: String) = td.runningOn.get.log(msg)
+  def log(msg: String) = td.runningOn match {
+    case Some(cs) => cs.log(msg)
+    case None => println(s"[thread ${td.tid}]\t$msg")
+  }
 }
 
 class NicSim extends DutSimFunSuite[NicEngine]
@@ -133,7 +136,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       while (!done) {
         // if the CPU is no longer running our thread:
         if (etd.td.runningOn.isEmpty) {
-          println(s"[thread $tid] we got descheduled")
+          etd.log("we got descheduled")
           return false
         }
 
@@ -470,7 +473,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val descheduled = !enterCriticalSection(dcsMaster, tid)
     assert(!descheduled, "should never get descheduled during TX")
 
-    println(f"[thread $tid] sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
+    etd.log(f"sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, txDesc.toTxDesc)
 
     val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
@@ -481,7 +484,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
 
     // trigger a read on the next cacheline to actually send the packet
-    println(f"[thread $tid] sent packet at $clAddr%#x")
+    etd.log(f"sent packet at $clAddr%#x")
 
     etd.flipTx()
     dcsMaster.read(clAddr, 1)
@@ -504,6 +507,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   def txTestSingle(dcsMaster: DcsAppMaster, csrMaster: AxiLite4Master, axisSlave: Axi4StreamSlave, packet: EthernetPacket, tid: Int)
                   (implicit dut: NicEngine): Unit = {
     var received = false
+    val etd = getEciThreadData(tid)
     val ty = pcap4jPacketToType(packet)
     val (pld, desc) = ty match {
       case Ethernet =>
@@ -535,13 +539,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
       val expected = packet.getRawData.toList
 
       check(expected, data)
-      println(s"Thread $tid: packet received from TX interface and validated")
+      etd.log("packet received from TX interface and validated")
       received = true
     }
 
     txSendSingle(dcsMaster, desc, pld, tid)
 
-    println(s"Thread $tid: waiting for packet")
+    etd.log("waiting for packet")
     fork {
       sleepCycles(5000)
       assert(received, s"Thread $tid: packet receive timeout!")
