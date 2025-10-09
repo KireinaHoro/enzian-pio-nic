@@ -68,7 +68,6 @@ class Scheduler extends FiberPlugin {
     val ty = PreemptCmdType()
     val pid = PID()
     val idx = ProcTblIdx
-    val outOfIdle = Bool()
   }
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -324,18 +323,16 @@ class Scheduler extends FiberPlugin {
       when (pushResultThrCount < pushResult.value.maxThreads) {
         rxPreemptReq.pid := pushResult.value.pid
         rxPreemptReq.idx := pushResult.idx
-        rxPreemptReq.outOfIdle := False
 
         // preempting as ready takes priority
         when (queueMetas(pushResult.idx).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
-          // preempt a non-idle, ready core
+          // in addition to preempting idle cores, also allow preempting a ready one
           rxPreemptReq.ty := PreemptCmdType.ready
           rxPreemptReq.valid := True
         } elsewhen (pushResultCoreMap === 0) {
           // no process assigned to this queue -- idle preempt
           rxPreemptReq.ty := PreemptCmdType.idle
-          rxPreemptReq.outOfIdle := True
           rxPreemptReq.valid := True
         }
       }
@@ -408,7 +405,11 @@ class Scheduler extends FiberPlugin {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
               corePreempt(idx).pid := rxPreemptReq.pid
-              corePreempt(idx).outOfIdle := rxPreemptReq.outOfIdle
+
+              // are we previously in idle?  if yes, the preemption control cannot
+              // try to unset ready (thread router not set up yet)
+              corePreempt(idx).outOfIdle := coreIdleMap(idx)
+
               savedPreemptIdx := rxPreemptReq.idx
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
@@ -425,7 +426,7 @@ class Scheduler extends FiberPlugin {
               when (popReq.grant) {
                 goto(popReqGranted)
               }
-            } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid) {
+            } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid && drainResult.matched) {
               // FIXME: can we simplify and merge this case with the RX preemption case?
 
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
