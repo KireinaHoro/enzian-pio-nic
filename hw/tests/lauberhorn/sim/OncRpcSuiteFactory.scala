@@ -80,8 +80,11 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
       import srv._
 
       def getPacket = {
-        // payload under 48B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
-        val payloadWords = simRandom.nextInt(24)
+        // exercise all payload delivery mechanisms:
+        // payload under 48 B (12 words) will be inlined into control struct ("max onc rpc inline bytes")
+        // payload under 48 + 64 B (28 words) will fit into inline and second half of control CL
+        // payload above will have at least one overflow CL
+        val payloadWords = simRandom.nextInt(40)
         val payloadLen = payloadWords * 4
         val payload = simRandom.nextBytes(payloadLen).toList
         val xid = simRandom.nextInt()
@@ -108,7 +111,6 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     val inlineMaxLen = lauberhorn.Global.ONCRPC_INLINE_BYTES.get
 
     // check inline data
-    // TODO: check if args is endian-swapped correctly
     // XXX: spinal.lib.LiteralRicher.toBytes adds an extra byte for positive BigInts
     val inlinedWords = spinal.core.sim.SimBigIntPimper(desc.args).toBytes().toList
     check(payload.take(inlinedWords.length), inlinedWords)
