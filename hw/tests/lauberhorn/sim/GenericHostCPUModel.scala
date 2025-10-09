@@ -40,6 +40,8 @@ trait CoreState {
 
   /** Configure thread router. */
   def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
+    log(f"enabling thread prefix ${thr.prefix}%#x in router")
+
     asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "addrPrefix"), thr.prefix.toBytesLE)
     asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "enabled"), 1.toBytesLE)
 
