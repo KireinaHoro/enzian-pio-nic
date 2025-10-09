@@ -128,7 +128,8 @@ class EciThreadClRouter extends FiberPlugin {
         axResult.translateInto(locator(p.axiToProto)) { case (tp, r) =>
           val outPrefix = r.idx.asBits.resize(16)
           when(!r.matched) {
-            // mangle to an unmapped prefix to use AXI interconnect's error generation
+            // only prefix 0 - NUM_CORES exist;
+            // mangle to a non-existing downstream prefix to use AXI interconnect's error generation
             outPrefix := B("16'xFFFF")
           }
 

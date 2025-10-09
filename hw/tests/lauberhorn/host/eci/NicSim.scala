@@ -33,6 +33,8 @@ class EciThreadData(val td: ThreadDef) {
   def flipTx() = txNextCl = 1 - txNextCl
 
   def baseAddr = td.prefix * ECI_CORE_OFFSET
+
+  def log(msg: String) = td.runningOn.get.log(msg)
 }
 
 class NicSim extends DutSimFunSuite[NicEngine]
@@ -112,12 +114,16 @@ class NicSim extends DutSimFunSuite[NicEngine]
     *
     * This function is called directly inside RX/TX datapath functions ([[tryReadPacketDesc]]
     * and [[txSendSingle]]), also for bypass.  [[tid]] will be -1 for bypass accesses.
+    *
+    * Returns false when the TID is no longer running.  The outer core loop should then try again
+    * under the new thread.
     */
-  def enterCriticalSection(dcsMaster: DcsAppMaster, tid: Int, maxAttempts: Int = 20): Unit = {
+  def enterCriticalSection(dcsMaster: DcsAppMaster, tid: Int, maxAttempts: Int = 20)(implicit dut: NicEngine): Boolean = {
     if (tid != -1) {
-      println(s"[thread $tid] Entering critical section...")
-
       val etd = getEciThreadData(tid)
+      def wcs = etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState]
+
+      etd.log(s"entering critical section...")
       val coreBase = etd.baseAddr
       val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
@@ -125,33 +131,50 @@ class NicSim extends DutSimFunSuite[NicEngine]
       var done = false
       var attempts = 0
       while (!done) {
-        assert(attempts < maxAttempts, s"failed to enter critical section for $maxAttempts times!")
+        // if the CPU is no longer running our thread:
+        if (etd.td.runningOn.isEmpty) {
+          println(s"[thread $tid] we got descheduled")
+          return false
+        }
 
+        assert(attempts < maxAttempts, s"failed to enter critical section for $maxAttempts times!")
+        etd.log(s"reading BUSY/READY (attempt #$attempts)...")
+
+        wcs.canInterrupt = false
         val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
+        wcs.canInterrupt = true
+
         assert((busyReady & 0x1) == 0, "BUSY already high!")
         if ((busyReady & 0x2) != 0) {
           // READY is set, set BUSY
+
+          wcs.canInterrupt = false
           done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady | 0x1)
+          wcs.canInterrupt = true
+
           if (!done) {
-            println("CAS failed, retrying")
+            etd.log("CAS failed, retrying...")
           }
         } else {
           // otherwise READY is 0, try again
-          println("READY is 0, retrying...")
+          etd.log("READY is 0, retrying...")
+
+          // rescheduling might be under way
+          wcs.waitUser()
         }
         attempts += 1
       }
 
-      println(s"[thread $tid] in critical section")
-
-      etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState].inCriticalRegion = true
-    }
+      etd.log("in critical section")
+      wcs.inCriticalRegion = true
+      true
+    } else true
   }
 
   def exitCriticalSection(dcsMaster: DcsAppMaster, tid: Int): Unit = {
     if (tid != -1) {
-      println(s"[thread $tid] Exiting critical section...")
       val etd = getEciThreadData(tid)
+      etd.log("exiting critical section...")
       val coreBase = etd.baseAddr
       val preemptCtrlAddr = coreBase + ECI_PREEMPT_CTRL_OFFSET
 
@@ -162,16 +185,20 @@ class NicSim extends DutSimFunSuite[NicEngine]
         val busyReady = dcsMaster.read(preemptCtrlAddr, 1, doInvIdemptCheck = false).head
         assert((busyReady & 0x1) != 0, "BUSY not high!")
         done = dcsMaster.casByte(preemptCtrlAddr, busyReady, busyReady & ~0x1)
+        if (!done) {
+          etd.log("CAS failed, retrying...")
+        }
       }
 
-      println(s"[thread $tid] out of critical section")
-
+      etd.log("out of critical section")
       etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState].inCriticalRegion = false
     }
   }
 
   class EciWorkerCoreState(val cid: Int, csrMaster: AxiLite4Master) extends WorkerCoreState {
     var inCriticalRegion = false
+
+    var canInterrupt = true
 
     def switchToThreadImpl(threadDef: ThreadDef): Unit = {
       assert(!inCriticalRegion, s"core $cid in critical region of thread ${currThread.get.tid}, cannot switch!")
@@ -202,11 +229,14 @@ class NicSim extends DutSimFunSuite[NicEngine]
       val etd = getEciThreadData(tid)
       val coreBase = etd.baseAddr
 
-      enterCriticalSection(dcsMaster, tid)
+      val descheduled = !enterCriticalSection(dcsMaster, tid)
+      if (descheduled) {
+        return done(None)
+      }
 
       val clAddr = etd.rxNextCl * 0x80 + coreBase
       val pldDesc = RxPayloadDesc(etd.rxNextCl, coreBase)
-      println(f"[thread $tid] Reading packet desc at $clAddr%#x, $maxTries times left...")
+      etd.log(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
       // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
       val control = dcsMaster.read(clAddr, 64, doInvIdemptCheck = false).bytesToBigInt
@@ -431,12 +461,14 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int): Unit = {
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int)(implicit dut: NicEngine): Unit = {
     val etd = getEciThreadData(tid)
     val coreBase = etd.baseAddr
     def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
 
-    enterCriticalSection(dcsMaster, tid)
+    // since we didn't implement killing a process yet, we should never get descheduled during TX
+    val descheduled = !enterCriticalSection(dcsMaster, tid)
+    assert(!descheduled, "should never get descheduled during TX")
 
     println(f"[thread $tid] sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, txDesc.toTxDesc)
