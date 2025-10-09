@@ -83,6 +83,8 @@ trait WorkerCoreState extends CoreState {
   assert(cid >= 1, "worker core should have ID > 1")
   assert(cid <= NUM_CORES, s"worker core ID $cid exceeds maximum of $NUM_CORES")
 
+  def canInterrupt: Boolean
+
   var currThread: Option[ThreadDef] = None
   override def log(msg: String) = {
     currThread match {
@@ -190,6 +192,12 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       // call bypass handler
       cs.asInstanceOf[BypassCoreState].handler()
     } else if (irq == 8) {
+      val wcs = cs.asInstanceOf[WorkerCoreState]
+
+      // FIXME: possibly we never get a chance to interrupt
+      cs.log("waiting until we can interrupt")
+      waitUntil(wcs.canInterrupt)
+
       assert(!irqPending, "worker preempt IRQ shouldn't happen multiple times")
       assert(cid >= 1, "worker IRQ should only be sent to worker cores")
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
@@ -208,7 +216,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       // select thread in process
       processes(pidToSched.toInt).threads.find(_.runningOn.isEmpty) match {
         case Some(thr) =>
-          cs.asInstanceOf[WorkerCoreState].switchToThread(thr, bus)
+          wcs.switchToThread(thr, bus)
         case None =>
           fail(s"PID#$pidToSched has all threads running, can't schedule more")
       }
