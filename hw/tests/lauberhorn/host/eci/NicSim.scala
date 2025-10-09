@@ -178,7 +178,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
       val etd = getEciThreadData(threadDef.tid)
 
-      log("setting thread routing")
+      log(s"setting thread parity (RX:${etd.rxNextCl} TX:${etd.txNextCl}) in worker")
 
       // write our CL parity bits into hardware
       csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("rxCurrClIdx"), etd.rxNextCl.toBytesLE)
