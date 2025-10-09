@@ -3,12 +3,17 @@ package lauberhorn.sim
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware}
 import lauberhorn.Global.{ALLOC, NUM_CORES, NUM_WORKER_CORES, PID_WIDTH}
+import lauberhorn.sim.CoreState.threadDbMtx
 import lauberhorn.{AsSimBusMaster, NicEngine}
 import org.scalatest.Assertions.fail
-import spinal.core.sim.{simRandom, waitUntil}
+import spinal.core.sim.{SimMutex, simRandom, waitUntil}
 import spinal.lib.BytesRicher
 
 import scala.collection.mutable
+
+object CoreState {
+  val threadDbMtx = SimMutex(randomized = true)
+}
 
 trait CoreState {
   def cid: Int
@@ -38,14 +43,19 @@ trait CoreState {
     inISR = false
   }
 
-  /** Configure thread router. */
-  def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
-    log(f"enabling thread prefix ${thr.prefix}%#x in router")
+  /** Configure the thread router to enable one mapping.  This is called in the ISR so must
+    * be reentrant -- protect with lock */
+  def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]): Unit = {
+    threadDbMtx.lock()
+
+    log(f"enabling thread prefix ${thr.prefix}%#x in router entry $cid")
 
     asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "addrPrefix"), thr.prefix.toBytesLE)
     asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "enabled"), 1.toBytesLE)
 
     asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "coreIdx"), cid.toBytesLE)
+
+    threadDbMtx.unlock()
   }
 }
 

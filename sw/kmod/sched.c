@@ -18,6 +18,9 @@ void clean_worker_thread(u32 proc_idx, u32 thr_idx)
 }
 
 void enable_worker_thread() {
+  // XXX: must be reentrant safe!  Multiple register accesses can interleave,
+  //      lock updates to various tables where idx is a separate access
+
   // Update affinity to this core only
   
   // Set to TASK_RUNNABLE 

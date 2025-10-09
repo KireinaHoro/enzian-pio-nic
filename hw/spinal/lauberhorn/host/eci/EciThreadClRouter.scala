@@ -71,6 +71,23 @@ class EciThreadClRouter extends FiberPlugin {
       logic.threadDb.update.idx := idx
       logic.threadDb.update.value := writePort
     }
+
+    // check that no same thread prefix should be enabled twice
+    GenerationFlags simulation new Area {
+      val prefixOnCores = Vec(Reg(new Bundle {
+        val enabled = Bool()
+        val prefix = Bits(16 bits)
+      }), NUM_CORES.get)
+
+      busCtrl.onWrite(idxAddr) {
+        prefixOnCores(idx).enabled := writePort.enabled
+        prefixOnCores(idx).prefix := writePort.addrPrefix
+
+        assert(!prefixOnCores.sExist { rec =>
+          rec.enabled && rec.prefix === writePort.addrPrefix
+        }, "trying to enable thread prefix that is already active")
+      }
+    }
   }
 
   val logic = during setup new Area {
@@ -98,7 +115,7 @@ class EciThreadClRouter extends FiberPlugin {
     axi.zipWithIndex.foreach { case (p, pidx) =>
       def mapAx(locator: Axi4 => Stream[Axi4Ax], portName: String) = {
         val (axLookup, axResult, _) = threadDb.makePort(axiConfig.addressType, locator(p.axiFromDcs).payload,
-          name = portName,
+          portName = portName,
           singleMatch = true) { (v, q, _) =>
           v.enabled && testPrefix(q, v.addrPrefix)
         }
@@ -129,7 +146,7 @@ class EciThreadClRouter extends FiberPlugin {
 
     def mapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
       val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
-        name = portName,
+        portName = portName,
         singleMatch = true) { (v, q, _) =>
         v.enabled && testPrefix(q.asUInt, v.addrPrefix)
       }
@@ -150,7 +167,7 @@ class EciThreadClRouter extends FiberPlugin {
 
     def unmapChan(from: Stream[EciWord], to: Stream[EciWord], locator: EciWord => Bits, portName: String) = {
       val (chanLookup, chanResult, _) = threadDb.makePort(EciAddress, EciWord(),
-        name = portName,
+        portName = portName,
         singleMatch = true) { (v, q, idx) =>
         v.enabled && testPrefix(q.asUInt, idx)
       }
