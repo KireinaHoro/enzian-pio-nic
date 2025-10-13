@@ -7,7 +7,9 @@ import org.pcap4j.packet.namednumber.DataLinkType
 import lauberhorn.{AsSimBusMaster, Global, NicEngine}
 import Global.ALLOC
 import spinal.core.sim.simRandom
+import spinal.sim.SimManagerContext
 
+import java.sql.Timestamp
 import scala.collection.mutable
 
 case class RpcSrvDef(dport: Int, prog: Int, progVer: Int, procNum: Int, funcPtr: Long)
@@ -92,7 +94,7 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
         val packet = oncRpcCallPacket(sport, dport, prog, progVer, procNum, payload, xid)
         if (packetDumpWorkspace.nonEmpty) {
           val dumper = getDumper(packetDumpWorkspace.get)
-          dumper.dump(packet)
+          dumper.dump(packet, new Timestamp(SimManagerContext.current.manager.time))
           dumper.flush()
         }
         (packet, payload, xid)
