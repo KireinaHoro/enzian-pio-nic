@@ -213,51 +213,112 @@ static int app_dev_release(struct inode *i, struct file *f)
 
 static void vma_close(struct vm_area_struct *vma)
 {
-	// TODO: Unroute worker CL address, if it is running
+	struct vma_priv_data *priv = vma->vm_private_data;
+	if (!priv->is_parity_page) {
+		// A worker thread unmapped its datapath VMA, disable the thread
+		clean_worker_thread(priv->thr);
+	}
 }
 
 static const char *vma_name(struct vm_area_struct *vma)
 {
+	struct vma_priv_data *priv = vma->vm_private_data;
+	if (priv->is_parity_page) {
+		return "Lauberhorn parity page";
+	} else {
+		return priv->vma_name;
+	}
 }
 
 static const struct vm_operations vm_ops = {
 	.close = vma_close,
-	.name  = vma_name,
+	.name = vma_name,
 };
 
 static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 {
 	pid_t tid = current->pid;
 	pid_t tgid = current->tgid;
-	int i, proc_idx, thr_idx;
+	int thr_idx;
+	struct proc_def *proc;
+	struct thr_def *thr;
+
+	u64 worker_phys_base, pfn;
+	u32 err;
+
+	u64 size = vma->vm_end - vma->vm_start;
+	u64 pgoff = vma->vm_pgoff;
 
 	vma->vm_ops = &vm_ops;
 	vm_flags_set(vma, VM_DONTEXPAND);
 	vm_flags_set(vma, VM_DONTDUMP);
 	vm_flags_set(vma, VM_DONTCOPY);
 	vm_flags_set(vma, VM_PFNMAP);
-	
-	// Set up the current thread as worker
-	pr_info("Setting up thread PID %d (part of application TGID %d) as RPC worker\n", tid, tgid);
-	proc_idx = find_proc_idx(tgid);
-	if (proc_idx == -1) {
+
+	vma->vm_page_prot = pgprot_nx(vma->vm_page_prot);
+
+	proc = find_proc(tgid);
+	if (!proc) {
 		pr_err("Failed to find TGID %d for thread init, bug?\n", tgid);
 		return -EINVAL;
 	}
-	
-	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-		if (!proc_defs[proc_idx].thr_defs[i].enabled) {
-			thr_idx = i;
-			break;
+
+	if (pgoff == 0 && size == PAGE_SIZE) {
+		// Mapping for the parity page
+		pfn = virt_to_phys(proc->parity_page) >> PAGE_SHIFT;
+
+		pr_info("Mapping parity page into application TGID %d\n", tgid);
+
+		proc->vma_data_parity_page.is_parity_page = true;
+		proc->vma_data_parity_page.proc = proc;
+		vma->vm_private_data = &proc->vma_data_parity_page;
+
+		return remap_pfn_range(vma, vma->vm_start, pfn, PAGE_SIZE,
+				       vma->vm_page_prot);
+	} else if (pgoff == 0 && size != PAGE_SIZE) {
+		pr_err("Offset 0 is the parity page, attempted to map %d bytes\n",
+		       size);
+		return -EINVAL;
+	} else if (size != LAUBERHORN_ECI_CORE_OFFSET ||
+		   pgoff % LAUBERHORN_ECI_CORE_OFFSET != PAGE_SIZE) {
+		pr_err("Non-zero offsets are the pages for the per-thread datapaths\n");
+		return -EINVAL;
+	} else {
+		thr_idx = (pgoff - PAGE_SIZE) / LAUBERHORN_ECI_CORE_OFFSET;
+		if (thr_idx >= LAUBERHORN_NUM_WORKER_CORES) {
+			pr_err("Thread has datapath offset %d that is more than the %d supported worker cores\n",
+			       thr_idx, LAUBERHORN_NUM_WORKER_CORES);
+			return -EINVAL;
+		} else if (proc->thr_defs[thr_idx].enabled) {
+			pr_err("Thread datapath offset %d is already enabled\n",
+			       thr_idx);
+			return -EINVAL;
 		}
 	}
-	if (i == LAUBERHORN_NUM_WORKER_CORES) {
-		pr_err("Application TGID %d ran out of thread slots, %d already allocated\n", tgid, i);
-		return -EINVAL;
+	thr = &proc->thr_defs[thr_idx];
+
+	pr_info("Setting up thread PID %d (part of application TGID %d) as RPC worker\n",
+		tid, tgid);
+	thr->prefix = 1 + proc_idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx;
+	worker_phys_base =
+		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
+
+	// Map base into userspace
+	pfn = virt_to_phys(worker_phys_base) >> PAGE_SHIFT;
+	err = remap_pfn_range(vma, vma->vm_start, pfn,
+			      LAUBERHORN_ECI_CORE_OFFSET, vma->vm_page_prot);
+	if (err != 0) {
+		pr_info("Failed to map datapath address into thread\n");
+		return err;
 	}
-	
+	thr->vma_data_datapath.is_parity_page = false;
+	thr->vma_data_datapath.thr = thr;
+	snprintf(thr->vma_data_datapath.vma_name, THR_DATAPATH_VMA_NAME_SIZE,
+		 "Lauberhorn thread#%d datapath page", thr_idx);
+	vma->vm_private_data = &thr->vma_data_datapath;
+
 	// Thread will be blocked until HW wakes it up
-	prepare_worker_thread();
+	prepare_worker_thread(thr);
 
 	return 0;
 }
