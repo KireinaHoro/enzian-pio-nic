@@ -30,7 +30,7 @@
 typedef u16 lauberhorn_srv_id_t;
 typedef struct {
 	// to kernel
-	void *func_ptr;
+	void __user *func_ptr;
 	u32 prog_num;
 	u32 prog_ver;
 	u32 proc_num;
