@@ -3,25 +3,61 @@
 
 #include "common.h"
 
-#include "eci/config.h"
+#include "eci/regblock_bases.h"
+
+#include "lauberhorn_eci_preempt_dev.h"
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
-static int worker_lo, worker_hi;
-static DEFINE_PER_CPU_READ_MOSTLY(int, fpi_cpu_number);
+int worker_lo, worker_hi;
+struct worker_fpi_data {
+	lauberhorn_eci_preempt_t preempt_dev;
+	int cpu;
+	struct thr_def *thr;
+};
+static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
 static u64 irq_no;
 
-static irqreturn_t worker_fpi_handler(int irq, void *data) {
-    pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(), irq);
+static irqreturn_t worker_fpi_handler(int irq, void *data)
+{
+	u32 next_pid;
+	bool killed;
+	lauberhorn_eci_preempt_ipi_ack_t ack_reg;
+	struct worker_fpi_data *priv = data;
 
-    // Read out IRQ ACK register and decode next task
-    
-    // If task needs to be killed per IRQ ACK, kill the task
+	struct proc_def *next_proc;
+	struct thr_def *next_thr = NULL;
+	int i;
 
-    // Disable old thread and enable new one
-    disable_worker_thread();
-    enable_worker_thread();
+	pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(),
+		irq);
 
-    return IRQ_HANDLED;
+	// Read out IRQ ACK register
+	ack_reg = lauberhorn_eci_preempt_ipi_ack_rawrd(&priv->preempt_dev);
+
+	// Decode next task and killed
+	next_pid = lauberhorn_eci_preempt_ipi_ack_next_pid_extract(ack_reg);
+	killed = lauberhorn_eci_preempt_ipi_ack_killed_extract(ack_reg);
+
+	BUG_ON(killed);
+	next_proc = find_proc(next_pid);
+	BUG_ON(!next_proc);
+
+	// Disable old thread, if one is actually running
+	if (priv->thr) {
+		disable_worker_thread(priv->thr);
+	}
+
+	// Select and enable new thread
+	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
+		if (!next_proc->thr_defs[i].enabled) {
+			next_thr = &next_proc->thr_defs[i];
+			break;
+		}
+	}
+	BUG_ON(!next_thr);
+	enable_worker_thread(next_thr, priv->cpu);
+
+	return IRQ_HANDLED;
 }
 
 /**
@@ -36,94 +72,112 @@ static irqreturn_t worker_fpi_handler(int irq, void *data) {
  * This function only handles the interrupt for the worker cores; the bypass core
  * interrupt is handled inside `init_bypass`.
  */
-static int init_worker_fpi(void) {
-    int err, cid;
-    struct irq_data *gic_irq_data;
-    struct irq_domain *gic_domain;
-    struct fwnode_handle *fwnode;
-    static struct irq_fwspec fwspec_fpi;
+static int init_worker_fpi(void)
+{
+	int err, cid;
+	struct irq_data *gic_irq_data;
+	struct irq_domain *gic_domain;
+	struct fwnode_handle *fwnode;
+	static struct irq_fwspec fwspec_fpi;
 
-    // Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
-    // 1, since we don't have a device tree node.  We assuming that fwnode is
-    // the first element of structure gic_chip_data
-    gic_irq_data = irq_get_irq_data(1U);
-    gic_domain = gic_irq_data->domain;
-    fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
+	// Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
+	// 1, since we don't have a device tree node.  We assuming that fwnode is
+	// the first element of structure gic_chip_data
+	gic_irq_data = irq_get_irq_data(1U);
+	gic_domain = gic_irq_data->domain;
+	fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
 
-    // Allocate an IRQ number for SGI #8 for all worker cores
-    fwspec_fpi.fwnode = fwnode;
-    fwspec_fpi.param_count = 1;
-    fwspec_fpi.param[0] = 8;
-    err = irq_create_fwspec_mapping(&fwspec_fpi);
-    if (err < 0) {
-        pr_warn("irq_create_fwspec_mapping returns %d\n", err);
-        return err;
-    }
-    irq_no = err;
-    pr_info("Allocated interrupt number = %llu\n", irq_no);
-    smp_wmb();
-    
-    err = request_percpu_irq(irq_no, worker_fpi_handler, "Lauberhorn RPC Worker Preemption IRQ",
-        &fpi_cpu_number);
-    if (err < 0) {
-        pr_warn("request_percpu_irq returns %d\n", err);
-        return err;
-    }
+	// Allocate an IRQ number for SGI #8 for all worker cores
+	fwspec_fpi.fwnode = fwnode;
+	fwspec_fpi.param_count = 1;
+	fwspec_fpi.param[0] = 8;
+	err = irq_create_fwspec_mapping(&fwspec_fpi);
+	if (err < 0) {
+		pr_warn("irq_create_fwspec_mapping returns %d\n", err);
+		return err;
+	}
+	irq_no = err;
+	pr_info("Allocated interrupt number = %llu\n", irq_no);
+	smp_wmb();
 
-    for (cid = worker_lo; cid < worker_hi; ++cid) {
-        // Activate FPI IRQ handler on this core
-        err = smp_call_on_cpu(cid, do_fpi_irq_activate, (void *)irq_no, true);
-        WARN_ON(err < 0);
-    
-        // Program the real core ID into preemption logic in HW
-    }
+	err = request_percpu_irq(irq_no, worker_fpi_handler,
+				 "Lauberhorn RPC Worker Preemption IRQ",
+				 &fpi_percpu_data);
+	if (err < 0) {
+		pr_warn("request_percpu_irq returns %d\n", err);
+		return err;
+	}
 
-    return 0;
+	for (cid = worker_lo; cid < worker_hi; ++cid) {
+		// Activate FPI IRQ handler on this core
+		err = smp_call_on_cpu(cid, do_fpi_irq_activate, (void *)irq_no,
+				      true);
+		WARN_ON(err < 0);
+
+		// Program the real core ID into preemption logic in HW
+	}
+
+	return 0;
 }
 
-static void deinit_worker_fpi(void) {
-    int err, cid;
+static void deinit_worker_fpi(void)
+{
+	int err, cid;
 
-    for (cid = worker_lo; cid < worker_hi; ++cid) {
-        err = smp_call_on_cpu(cid, do_fpi_irq_deactivate, (void *)irq_no, true);
-        WARN_ON(err < 0);
-    }
-    free_percpu_irq(irq_no, &fpi_cpu_number);
-    irq_dispose_mapping(irq_no);
+	for (cid = worker_lo; cid < worker_hi; ++cid) {
+		err = smp_call_on_cpu(cid, do_fpi_irq_deactivate,
+				      (void *)irq_no, true);
+		WARN_ON(err < 0);
+	}
+	free_percpu_irq(irq_no, &fpi_percpu_data);
+	irq_dispose_mapping(irq_no);
 }
 
-int init_workers() {
-    int err;
+int init_workers()
+{
+	int err, cpu;
+	struct worker_fpi_data *fpi_data;
 
-    // Which cores are the worker cores?
-    worker_hi = num_online_cpus();
-    worker_lo = worker_hi - LAUBERHORN_NUM_WORKER_CORES;
-    pr_info("Using %d cores %d-%d for RPC processing\n",
-        LAUBERHORN_NUM_WORKER_CORES,
-        worker_lo, worker_hi - 1);
+	// Which cores are the worker cores?
+	worker_hi = num_online_cpus();
+	worker_lo = worker_hi - LAUBERHORN_NUM_WORKER_CORES;
+	pr_info("Using %d cores %d-%d for RPC processing\n",
+		LAUBERHORN_NUM_WORKER_CORES, worker_lo, worker_hi - 1);
 
-    // Enable interrupts for all worker cores
-    err = init_worker_fpi();
-    if (err != 0) return err;
+	// Enable interrupts for all worker cores
+	err = init_worker_fpi();
+	if (err != 0)
+		return err;
 
-    // Promote ksoftirqd on this core to SCHED_FIFO with priority 80.
-    // The RPC tasks will run with a priority of 70
+	// Fill out the per-CPU struct
+	for (cpu = worker_lo; cpu < worker_hi; ++cpu) {
+		fpi_data = per_cpu_ptr(&fpi_percpu_data, cpu);
 
-    // We don't have any RPC handlers on these worker cores yet, so nothing
-    // to do here yet.  Once a user-level application thread starts, it will
-    // register itself with an ioctl to /dev/lauberhorn -- we then set their
-    // affinity, scheduling policy and priority.
+		lauberhorn_eci_preempt_initialize(
+			&fpi_data->preempt_dev,
+			LAUBERHORN_ECI_PREEMPT_BASE(cpu - worker_lo + 1));
 
-    return 0;
+		fpi_data->cpu = cpu;
+	}
+
+	// Promote ksoftirqd on this core to SCHED_FIFO with priority 80.
+	// The RPC tasks will run with a priority of 70
+
+	// We don't have any RPC handlers on these worker cores yet, so nothing
+	// to do here yet.  Once a user-level application thread starts, it will
+	// register itself with an ioctl to /dev/lauberhorn -- we then set their
+	// affinity, scheduling policy and priority.
+
+	return 0;
 }
 
-void deinit_workers() {
-    // Check if we still have applications running
-    // Refcount the module properly on application exit, this should not happen
+void deinit_workers()
+{
+	// Check if we still have applications running
+	// Refcount the module properly on application exit, this should not happen
 
-    // Disable FPI interrupt for the core
-    deinit_worker_fpi();
+	// Disable FPI interrupt for the core
+	deinit_worker_fpi();
 
-    // Restore ksoftirqd to SCHED_OTHER
-
+	// Restore ksoftirqd to SCHED_OTHER
 }
