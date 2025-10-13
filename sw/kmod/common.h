@@ -84,6 +84,21 @@ struct srv_def {
 	u32 proc_idx;
 };
 
+// Defines a thread for an RPC application
+struct thr_def {
+	bool enabled;
+
+	struct proc_def *parent;
+
+	// Used to update the per-thread CL address to core worker mapping
+	u32 prefix;
+
+	// Which worker core ID is this thread currently running on?
+	int worker_idx;
+
+	struct vma_priv_data vma_data_datapath;
+};
+
 // Defines the process of an RPC application
 struct proc_def {
 	bool enabled;
@@ -99,20 +114,6 @@ struct proc_def {
 };
 struct proc_def *find_proc(pid_t tgid);
 
-// Defines a thread for an RPC application
-struct thr_def {
-	bool enabled;
-
-	struct proc_def *parent;
-
-	// Used to update the per-thread CL address to core worker mapping
-	u32 prefix;
-
-	// Which worker core ID is this thread currently running on?
-	int worker_idx;
-
-	struct vma_priv_data vma_data_datapath;
-};
 int prepare_worker_thread(struct thr_def *thr);
 void clean_worker_thread(struct thr_def *thr);
 void enable_worker_thread(struct thr_def *thr, u32 core_idx);
