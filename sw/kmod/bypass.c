@@ -24,17 +24,16 @@
 #include <net/netevent.h>
 #include <net/arp.h>
 
-#include "cmac.h"
-#include "eci/config.h"
+#include "cmac_dev.h"
 #include "eci/core.h"
 #include "eci/regblock_bases.h"
 
-#include "lauberhorn_eci_preempt.h"
-#include "lauberhorn_eci_dma.h"
-#include "lauberhorn_eci_EthernetDecoder.h"
-#include "lauberhorn_eci_IpDecoder.h"
-#include "lauberhorn_eci_IpEncoder.h"
-#include "lauberhorn_eci_decoderSink.h"
+#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_dma_dev.h"
+#include "lauberhorn_eci_EthernetDecoder_dev.h"
+#include "lauberhorn_eci_IpDecoder_dev.h"
+#include "lauberhorn_eci_IpEncoder_dev.h"
+#include "lauberhorn_eci_decoderSink_dev.h"
 
 #define CMAC_BASE 0x200000UL
 
