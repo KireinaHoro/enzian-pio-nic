@@ -10,47 +10,30 @@ static dev_t dev = 0;
 static struct cdev cdev;
 static struct class *dev_class;
 
-struct srv_def {
-	bool enabled;
-
-	// Used to check if service with same definition is already registered
-	u16 port;
-	u32 prog_num, prog_ver, proc_num;
-
-	// For debugging
-	void *func_ptr;
-
-	u32 proc_idx;
-};
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
-
-struct proc_def {
-	bool enabled;
-
-	// This is the PID actually programmed into the process table
-	pid_t tgid;
-	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
-};
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
 
-static int find_proc_idx(pid_t tgid) {
+struct proc_def *find_proc(pid_t tgid)
+{
 	int i;
 	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
 		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
-			return i;
+			return &proc_defs[i];
 		}
 	}
-	return -1;
+	return NULL;
 }
 
 static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 			     void *func_ptr, pid_t tgid)
 {
-	int i, srv_idx, proc_idx;
+	int i;
+	struct proc_def *proc;
+	struct srv_def *srv;
 
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (!srv_defs[i].enabled) {
-			srv_idx = i;
+			srv = &srv_defs[i];
 			break;
 		} else if (srv_defs[i].port == port &&
 			   srv_defs[i].prog_num == prog_num &&
@@ -67,23 +50,23 @@ static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 		       i);
 		return -1;
 	}
-	
-	proc_idx = find_proc_idx(tgid);
-	if (proc_idx == -1) {
+
+	proc = find_proc(tgid);
+	if (!proc) {
 		pr_err("Failed to find TGID %d for service, bug?\n", tgid);
 		return -1;
 	}
 
-	srv_defs[srv_idx].port = port;
-	srv_defs[srv_idx].prog_num = prog_num;
-	srv_defs[srv_idx].prog_ver = prog_ver;
-	srv_defs[srv_idx].proc_num = proc_num;
-	srv_defs[srv_idx].func_ptr = func_ptr;
-	srv_defs[srv_idx].proc_idx = proc_idx;
+	srv->port = port;
+	srv->prog_num = prog_num;
+	srv->prog_ver = prog_ver;
+	srv->proc_num = proc_num;
+	srv->func_ptr = func_ptr;
+	srv->proc_idx = proc_idx;
 
 	// TODO: program into HW
 
-	srv_defs[srv_idx].enabled = true;
+	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv_idx, tgid);
 	return 0;
 }
@@ -106,11 +89,12 @@ static void deregister_service(u32 idx)
 
 static struct proc_def *register_app(pid_t tgid)
 {
-	int i, proc_idx;
+	int i;
+	struct proc_def *proc;
 
 	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
 		if (!proc_defs[i].enabled) {
-			proc_idx = i;
+			proc = &proc_defs[i];
 			break;
 		} else if (proc_defs[i].tgid == tgid) {
 			pr_err("Process %d already registered, bug?\n", tgid);
@@ -124,29 +108,29 @@ static struct proc_def *register_app(pid_t tgid)
 		return ERR_PTR_(-ENOMEM);
 	}
 
-	proc_defs[proc_idx].tgid = tgid;
-	proc_defs[proc_idx].num_threads = 0;
+	proc->tgid = tgid;
+	proc->num_threads = 0;
 
 	// TODO: program into HW
 	//
-	proc_defs[proc_idx].enabled = true;
+	proc->enabled = true;
 	pr_info("Registered application #%d with TGID %d\n", num_procs, tgid);
 
-	return &proc_defs[proc_idx];
+	return proc;
 }
 
 static void deregister_app(pid_t tgid)
 {
-	int proc_idx = find_proc_idx(tgid);
-	if (proc_idx == -1) {
+	int proc = find_proc(tgid);
+	if (!proc) {
 		pr_err("Process %d not registered, bug?\n", tgid);
 		return;
 	}
 
 	// Stop all threads under this app
 	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-		if (proc_defs[proc_idx].thr_defs[i].enabled) {
-			clean_worker_thread(proc_idx, i);
+		if (proc->thr_defs[i].enabled) {
+			clean_worker_thread(&proc->thr_defs[i]);
 		}
 	}
 
@@ -220,7 +204,7 @@ static int app_dev_release(struct inode *i, struct file *f)
 	struct proc_def *pd = (struct proc_def *)f->private_data;
 	pid_t tgid = pd->tgid;
 	BUG_ON(!pd->enabled);
-	
+
 	pr_info("Deregistering application TGID %d\n", tgid);
 	deregister_app(tgid);
 

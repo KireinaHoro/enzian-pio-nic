@@ -51,20 +51,70 @@ int do_fpi_irq_deactivate(void *data);
 int create_devices(void);
 void remove_devices(void);
 
-// Scheduler integration: worker thread management
-// Defines an application thread
+struct proc_def;
+struct thr_def;
+
+// Private data for a VMA
+#define THR_DATAPATH_VMA_NAME_SIZE 64
+struct vma_priv_data {
+	bool is_parity_page;
+
+	union {
+		struct proc_def *proc;
+		struct {
+ 			struct thr_def *thr;
+			char vma_name[THR_DATAPATH_VMA_NAME_SIZE];
+		};
+	};
+};
+
+// Defines an RPC service
+struct srv_def {
+	bool enabled;
+
+	// Used to check if service with same definition is already registered
+	u16 port;
+	u32 prog_num, prog_ver, proc_num;
+
+	// For debugging
+	void *func_ptr;
+
+	u32 proc_idx;
+};
+
+// Defines the process of an RPC application
+struct proc_def {
+	bool enabled;
+
+	// This is the PID actually programmed into the process table
+	pid_t tgid;
+	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
+
+	// One page per process that contains the parity bits for all threads
+	// 1 byte per thread: bit 0 is RX parity, bit 1 is TX parity
+	u8 parity_page[PAGE_SIZE] __aligned(PAGE_SIZE);
+	struct vma_priv_data vma_data_parity_page;
+};
+struct proc_def *find_proc(pid_t tgid);
+
+// Defines a thread for an RPC application
 struct thr_def {
 	bool enabled;
 
-	pid_t pid;
+	struct proc_def *parent;
 
 	// Used to update the per-thread CL address to core worker mapping
-	u32 translation_tbl_idx;
+	u32 prefix;
+
+	// Which worker core ID is this thread currently running on?
+	int worker_idx;
+
+	struct vma_priv_data vma_data_datapath;
 };
-int prepare_worker_thread(pid_t );
-void clean_worker_thread(u32 proc_idx, u32 thr_idx);
-void enable_worker_thread();
-void disable_worker_thread();
+int prepare_worker_thread(struct thr_def *thr);
+void clean_worker_thread(struct thr_def *thr);
+void enable_worker_thread(struct thr_def *thr, u32 core_idx);
+void disable_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core
 int route_prefix_to_core(u32 prefix, u32 core_idx);
