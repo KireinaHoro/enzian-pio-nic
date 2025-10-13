@@ -116,7 +116,7 @@ struct proc_def *find_proc(pid_t tgid);
 
 int prepare_worker_thread(struct thr_def *thr);
 void clean_worker_thread(struct thr_def *thr);
-void enable_worker_thread(struct thr_def *thr, u32 core_idx);
+void enable_worker_thread(struct thr_def *thr, u32 cpu);
 void disable_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core

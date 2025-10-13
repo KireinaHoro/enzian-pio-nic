@@ -1,6 +1,9 @@
 #include "common.h"
 
-int prepare_worker_thread()
+// defined in worker.c
+extern int worker_lo, worker_hi;
+
+int prepare_worker_thread(u32 thr_idx)
 {
   // Change scheduler class to SCHED_FIFO and set priority to 70
 
@@ -17,7 +20,7 @@ void clean_worker_thread(u32 proc_idx, u32 thr_idx)
   // Set to TASK_RUNNABLE again for it to finish clean-up
 }
 
-void enable_worker_thread() {
+void enable_worker_thread(pid_t tid, u32 core_idx) {
   // XXX: must be reentrant safe!  Multiple register accesses can interleave,
   //      lock updates to various tables where idx is a separate access
 
@@ -31,8 +34,8 @@ void enable_worker_thread() {
   // Preemption 
 }
 
-void disable_worker_thread() {
+void disable_worker_thread(pid_t tid) {
   // Set to TASK_UNINTERRUPTIBLE and wait for ISR to wake us up
   
-  // Unroute CL
+  // Unroute CL: find entry and disable
 }
