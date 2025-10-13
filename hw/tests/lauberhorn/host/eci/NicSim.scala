@@ -395,18 +395,17 @@ class NicSim extends DutSimFunSuite[NicEngine]
       procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
       packetDumpWorkspace = Some("rx-oncrpc-allcores")
     ).head
-    val sentPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
+    val inflightPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
     var packetsReceived = 0
 
     fork {
       // send all packets
       0 until totalToSend foreach { idx =>
-        if (idx != 0 && idx % 32 == 0) {
-          // crude flow control: queue could've become full, wait a bit before continuing
-          // TODO: proper flow control?
-          val toWait = 3000
-          println(s"Waiting for $toWait cycles before continuing sending...")
-          sleepCycles(toWait)
+        // flow control: make sure we don't have more than RX_PKTS_PER_PROC packets in flight
+        while (inflightPackets.size >= RX_PKTS_PER_PROC) {
+          println(s"Already ${RX_PKTS_PER_PROC.get} packets in flight, waiting...")
+          // sleep a little bit longer to allow bursts
+          sleepCycles(1000)
         }
 
         val (packet, payload, xid) = getPacket()
@@ -417,8 +416,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
         // record packet in map: xid is key
         // FIXME: this might collide..
-        assert(!sentPackets.contains(xid), "random packet generation collision")
-        sentPackets(xid) = (packet, payload)
+        assert(!inflightPackets.contains(xid), "random packet generation collision")
+        inflightPackets(xid) = (packet, payload)
       }
     }
 
@@ -432,9 +431,20 @@ class NicSim extends DutSimFunSuite[NicEngine]
         val tid = cs.currThread.get.tid
         cs.log("returned to userspace")
 
-        while (packetsReceived != totalToSend) {
-          // read and check packet against sent
-          val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+        def tryReceiveAndCheckOne(): Unit = {
+          val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result match {
+            case Some(ret) => ret
+            case None =>
+              cs.log("ran out of tries, checking if we are still expecting packets")
+              if (packetsReceived != totalToSend) {
+                cs.log(s"packets still in flight: ${inflightPackets.mkString(", ")}")
+                fail(s"worker $wcid ran out of tries!  only received $packetsReceived packets, expected $totalToSend")
+              } else {
+                cs.log("no more packets expected, exiting...")
+                return
+              }
+          }
+
           val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
           cs.log(f"Received status register: $desc")
 
@@ -448,14 +458,21 @@ class NicSim extends DutSimFunSuite[NicEngine]
           cs.log(f"Received XID $xid%x")
 
           // find the payload that we sent
-          val (pkt, pld) = sentPackets(xid)
+          val (pkt, pld) = inflightPackets(xid)
           cs.log(f"Expecting packet: $pkt")
 
           checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
           cs.log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
 
+          inflightPackets.remove(xid)
+
           exitCriticalSection(dcsMaster, tid)
+        }
+
+        while (packetsReceived != totalToSend) {
+          // read and check packet against sent
+          tryReceiveAndCheckOne()
         }
       }
     }
