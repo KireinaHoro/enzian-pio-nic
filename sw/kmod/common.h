@@ -64,7 +64,7 @@ struct vma_priv_data {
 	union {
 		struct proc_def *proc;
 		struct {
- 			struct thr_def *thr;
+			struct thr_def *thr;
 			char vma_name[THR_DATAPATH_VMA_NAME_SIZE];
 		};
 	};
@@ -73,6 +73,7 @@ struct vma_priv_data {
 // Defines an RPC service
 struct srv_def {
 	bool enabled;
+	u32 idx;
 
 	// Used to check if service with same definition is already registered
 	u16 port;
@@ -81,7 +82,7 @@ struct srv_def {
 	// For debugging
 	void __user *func_ptr;
 
-	u32 proc_idx;
+	struct proc_def *proc;
 };
 
 // Defines a thread for an RPC application
@@ -102,10 +103,13 @@ struct thr_def {
 // Defines the process of an RPC application
 struct proc_def {
 	bool enabled;
+	u32 idx;
 
 	// This is the PID actually programmed into the process table
 	pid_t tgid;
 	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
+
+	// TODO: track services that this process owns
 
 	// One page per process that contains the parity bits for all threads
 	// 1 byte per thread: bit 0 is RX parity, bit 1 is TX parity

@@ -34,6 +34,7 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (!srv_defs[i].enabled) {
 			srv = &srv_defs[i];
+			srv->idx = i;
 			break;
 		} else if (srv_defs[i].port == port &&
 			   srv_defs[i].prog_num == prog_num &&
@@ -62,13 +63,13 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 	srv->prog_ver = prog_ver;
 	srv->proc_num = proc_num;
 	srv->func_ptr = func_ptr;
-	srv->proc_idx = proc_idx;
+	srv->proc = proc;
 
 	// TODO: program into HW
 
 	srv->enabled = true;
-	pr_info("Registered service #%d under TGID %d\n", srv_idx, tgid);
-	return srv_idx;
+	pr_info("Registered service #%d under TGID %d\n", srv->idx, tgid);
+	return srv->idx;
 }
 
 static void deregister_service(u32 idx)
@@ -79,7 +80,7 @@ static void deregister_service(u32 idx)
 		return;
 	}
 
-	tgid = proc_defs[srv_defs[idx].proc_idx].tgid;
+	tgid = srv_defs[idx].proc->tgid;
 
 	// TODO: program into HW
 
@@ -95,6 +96,7 @@ static struct proc_def *register_app(pid_t tgid)
 	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
 		if (!proc_defs[i].enabled) {
 			proc = &proc_defs[i];
+			proc->idx = i;
 			break;
 		} else if (proc_defs[i].tgid == tgid) {
 			pr_err("Process %d already registered, bug?\n", tgid);
@@ -105,23 +107,28 @@ static struct proc_def *register_app(pid_t tgid)
 	if (i == LAUBERHORN_NUM_PROCS) {
 		pr_err("No more free process slots in HW: %d already registered\n",
 		       i);
-		return ERR_PTR_(-ENOMEM);
+		return ERR_PTR(-ENOMEM);
 	}
 
 	proc->tgid = tgid;
-	proc->num_threads = 0;
+
+	// All threads start disabled
+	for (i = 0; i < LAUBERHORN_NUM_THREADS; ++i) {
+		proc->thr_defs[i].enabled = false;
+	}
 
 	// TODO: program into HW
-	//
+
 	proc->enabled = true;
-	pr_info("Registered application #%d with TGID %d\n", num_procs, tgid);
+	pr_info("Registered app #%d with TGID %d\n", proc->idx, tgid);
 
 	return proc;
 }
 
 static void deregister_app(pid_t tgid)
 {
-	int proc = find_proc(tgid);
+	int i;
+	struct proc_def *proc = find_proc(tgid);
 	if (!proc) {
 		pr_err("Process %d not registered, bug?\n", tgid);
 		return;
@@ -136,16 +143,15 @@ static void deregister_app(pid_t tgid)
 
 	// Deregister all services under this app
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
-		if (srv_defs[i].proc_idx == proc_idx) {
+		if (srv_defs[i].proc == proc) {
 			deregister_service(i);
 		}
 	}
 
 	// TODO: program into HW
 
-	proc_defs[proc_idx].enabled = false;
-	pr_info("Deregistered app #%d with TGID %d\n", proc_idx,
-		proc_defs[proc_idx].tgid);
+	proc->enabled = false;
+	pr_info("Deregistered app #%d with TGID %d\n", proc->idx, proc->tgid);
 }
 
 static long app_dev_ioctl(struct file *file, unsigned int cmd,
@@ -244,7 +250,7 @@ static const char *vma_name(struct vm_area_struct *vma)
 	}
 }
 
-static const struct vm_operations vm_ops = {
+static const struct vm_operations_struct vm_ops = {
 	.close = vma_close,
 	.name = vma_name,
 };
@@ -290,7 +296,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 		return remap_pfn_range(vma, vma->vm_start, pfn, PAGE_SIZE,
 				       vma->vm_page_prot);
 	} else if (pgoff == 0 && size != PAGE_SIZE) {
-		pr_err("Offset 0 is the parity page, attempted to map %d bytes\n",
+		pr_err("Offset 0 is the parity page, attempted to map %lld bytes\n",
 		       size);
 		return -EINVAL;
 	} else if (size != LAUBERHORN_ECI_CORE_OFFSET ||
@@ -313,12 +319,12 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 
 	pr_info("Setting up thread PID %d (part of application TGID %d) as RPC worker\n",
 		tid, tgid);
-	thr->prefix = 1 + proc_idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx;
+	thr->prefix = 1 + proc->idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx;
 	worker_phys_base =
 		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
 
 	// Map base into userspace
-	pfn = virt_to_phys(worker_phys_base) >> PAGE_SHIFT;
+	pfn = virt_to_phys((void *)worker_phys_base) >> PAGE_SHIFT;
 	err = remap_pfn_range(vma, vma->vm_start, pfn,
 			      LAUBERHORN_ECI_CORE_OFFSET, vma->vm_page_prot);
 	if (err != 0) {

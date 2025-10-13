@@ -21,7 +21,7 @@
 
 // Define ioctl numbers properly
 // https://www.kernel.org/doc/Documentation/ioctl/ioctl-number.txt
-#define LAUBERHORN_IOCTL_MAGIC "L"
+#define LAUBERHORN_IOCTL_MAGIC 'L'
 
 // Register / deregister an application
 // These are implemented as open and close on the device
