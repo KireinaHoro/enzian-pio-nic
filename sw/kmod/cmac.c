@@ -4,7 +4,7 @@
 // CMAC driver
 
 #include "common.h"
-#include "cmac.h"
+#include "cmac_dev.h"
 
 #define LINE_UP_MAX_ATTEMPTS 100
 
