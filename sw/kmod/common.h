@@ -26,6 +26,8 @@
 #include <asm/io.h>
 #include <asm/arch_gicv3.h>
 
+#include "eci/config.h"
+
 // Always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
 #undef pr_fmt

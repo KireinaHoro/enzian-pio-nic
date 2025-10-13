@@ -97,7 +97,7 @@
         mkdir -p $out
         for a in *.dev; do
           echo "Compiling $a..."
-          mackerel2 -c $a -I$PWD -o $out/''${a%.dev}.h
+          mackerel2 -c $a -I$PWD -o $out/''${a%.dev}_dev.h
         done
       '';
     };

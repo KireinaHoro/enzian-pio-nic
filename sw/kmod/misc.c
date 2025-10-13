@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-#include "lauberhorn_eci_profiler.h"
+#include "lauberhorn_eci_profiler_dev.h"
 #include "eci/config.h"
 #include "eci/regblock_bases.h"
 

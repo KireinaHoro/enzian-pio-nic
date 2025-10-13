@@ -11,7 +11,7 @@
 
 #include "core-common.h"
 #include "eci/config.h"
-#include "lauberhorn_eci.h"
+#include "lauberhorn_eci_dev.h"
 
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)

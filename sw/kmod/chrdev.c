@@ -4,7 +4,7 @@
 #include "common.h"
 #include "ioctl.h"
 
-#include "lauberhorn_eci_sched.h"
+#include "lauberhorn_eci_sched_dev.h"
 
 static dev_t dev = 0;
 static struct cdev cdev;
