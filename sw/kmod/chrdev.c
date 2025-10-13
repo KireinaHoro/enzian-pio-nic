@@ -24,8 +24,8 @@ struct proc_def *find_proc(pid_t tgid)
 	return NULL;
 }
 
-static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
-			     void *func_ptr, pid_t tgid)
+static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
+			    void __user *func_ptr, pid_t tgid)
 {
 	int i;
 	struct proc_def *proc;
@@ -68,7 +68,7 @@ static void register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv_idx, tgid);
-	return 0;
+	return srv_idx;
 }
 
 static void deregister_service(u32 idx)
@@ -151,29 +151,43 @@ static void deregister_app(pid_t tgid)
 static long app_dev_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
-	pid_t pid = -1;
+	lauberhorn_reg_srv_t reg_cmd;
+	lauberhorn_reg_srv_t __user *reg_cmd_usr = (void __user *)arg;
+	lauberhorn_srv_id_t reg_ret;
+	int srv_idx;
+
+	lauberhorn_srv_id_t dereg_cmd;
+
+	pid_t tgid = current->pid;
 	switch (cmd) {
-	case IOCTL_YIELD:
-		pr_info("(pid %i) going to wait\n", current->pid);
-		wait_event_interruptible(wq, active_pid == current->pid);
-		// TODO: active_pid atomic?
-		// TODO: wait_event ignores signals
-		pr_info("(pid %i) waked\n", current->pid);
+	case LAUBERHORN_IOCTL_REG_SRV:
+		if (copy_from_user(&reg_cmd, reg_cmd_usr, sizeof(reg_cmd))) {
+			return -EFAULT;
+		}
+		srv_idx = register_service(reg_cmd.port, reg_cmd.prog_num,
+					   reg_cmd.prog_ver, reg_cmd.proc_num,
+					   reg_cmd.func_ptr, tgid);
+		if (srv_idx < 0) {
+			return -EINVAL;
+		}
+		reg_ret = srv_idx;
+
+		if (copy_to_user(&reg_cmd_usr->id, &reg_ret, sizeof(reg_ret))) {
+			return -EFAULT;
+		}
 		break;
 
-	case IOCTL_TEST_ACTIVATE_PID:
-		if (copy_from_user(&pid, (pid_t *)arg, sizeof(pid))) {
-			pr_err("IOCTL_TEST_ACTIVATE_PID: copy_from_user failed\n");
-			break;
+	case LAUBERHORN_IOCTL_DEREG_SRV:
+		if (copy_from_user(&dereg_cmd, (void __user *)arg,
+				   sizeof(dereg_cmd))) {
+			return -EFAULT;
 		}
-		pr_info("Going to activate pid %i\n", active_pid);
-		active_pid = pid; // TODO: atomic?
-		wake_up(&wq);
+		deregister_service(dereg_cmd);
 		break;
 
 	default:
 		pr_err("Unknown ioctl command %u\n", cmd);
-		break;
+		return -EINVAL;
 	}
 	return 0;
 }

@@ -77,7 +77,7 @@ struct srv_def {
 	u32 prog_num, prog_ver, proc_num;
 
 	// For debugging
-	void *func_ptr;
+	void __user *func_ptr;
 
 	u32 proc_idx;
 };
