@@ -36,7 +36,6 @@
 #include "lauberhorn_eci_IpEncoder.h"
 #include "lauberhorn_eci_decoderSink.h"
 
-#define FPGA_MEM_BASE (0x10000000000UL)
 #define CMAC_BASE 0x200000UL
 
 struct netdev_priv {
@@ -520,6 +519,9 @@ int init_bypass(void)
 		kmalloc(priv->ctx.rx_overflow_buf_size, GFP_KERNEL);
 	priv->ctx.tx_overflow_buf =
 		kmalloc(priv->ctx.tx_overflow_buf_size, GFP_KERNEL);
+
+	// Route bypass access to fixed base
+	route_prefix_to_core(0, 0);
 
 	// Invalidate control and bypass CLs
 	for (cl_id = 0; cl_id < 2; ++cl_id) {

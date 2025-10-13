@@ -14,7 +14,7 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/sched.h>
-#include <linux/slab.h>    // kmalloc
+#include <linux/slab.h> // kmalloc
 #include <linux/uaccess.h> // copy_to/from_user
 #include <linux/wait.h>
 #include <linux/smp.h>
@@ -66,13 +66,15 @@ void clean_worker_thread(u32 proc_idx, u32 thr_idx);
 void enable_worker_thread();
 void disable_worker_thread();
 
-// Manipulate IOMMU to route / unroute a thread to a core
-int route_thread_to_core(pid_t tid, u32 worker_core_idx);
-void unroute_thread(pid_t tid);
+// Manipulate thread router to route / unroute a prefix to a core
+int route_prefix_to_core(u32 prefix, u32 core_idx);
+void unroute_prefix_on_core(u32 core_idx);
 
 // CMAC functions
 typedef struct cmac_t cmac_t;
 int start_cmac(cmac_t *cmac, bool loopback);
 void stop_cmac(cmac_t *cmac);
 
-#endif  // LAUBERHORN_KMOD_COMMON_H
+#define FPGA_MEM_BASE (0x10000000000UL)
+
+#endif // LAUBERHORN_KMOD_COMMON_H
