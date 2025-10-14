@@ -10,8 +10,10 @@
 // [lo, hi) bound of CPU cores used to handle RPC requests
 int worker_lo, worker_hi;
 struct worker_fpi_data {
+	// Preempt control dev for this CPU core
 	lauberhorn_eci_preempt_t preempt_dev;
-	int cpu;
+
+	// Thread running on this core (if any)
 	struct thr_def *thr;
 };
 static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
@@ -30,6 +32,9 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 
 	pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(),
 		irq);
+
+	// Mask interrupt
+	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 0);
 
 	// Read out IRQ ACK register
 	ack_reg = lauberhorn_eci_preempt_ipi_ack_rawrd(&priv->preempt_dev);
@@ -55,7 +60,10 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 		}
 	}
 	BUG_ON(!next_thr);
-	enable_worker_thread(next_thr, priv->cpu);
+	enable_worker_thread(next_thr, smp_processor_id());
+
+	// Unmask interrupt
+	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 1);
 
 	return IRQ_HANDLED;
 }
@@ -113,8 +121,6 @@ static int init_worker_fpi(void)
 		err = smp_call_on_cpu(cid, do_fpi_irq_activate, (void *)irq_no,
 				      true);
 		WARN_ON(err < 0);
-
-		// Program the real core ID into preemption logic in HW
 	}
 
 	return 0;
@@ -157,14 +163,16 @@ int init_workers()
 			&fpi_data->preempt_dev,
 			LAUBERHORN_ECI_PREEMPT_BASE(cpu - worker_lo + 1));
 
-		fpi_data->cpu = cpu;
+		// Program the real core ID for this worker (destination core for FPI)
+		lauberhorn_eci_preempt_real_core_id_wr(&fpi_data->preempt_dev,
+						       cpu);
 	}
 
 	// Promote ksoftirqd on this core to SCHED_FIFO with priority 80.
 	// The RPC tasks will run with a priority of 70
 
 	// We don't have any RPC handlers on these worker cores yet, so nothing
-	// to do here yet.  Once a user-level application thread starts, it will
+	// more to do here.  Once a user-level application thread starts, it will
 	// register itself with an ioctl to /dev/lauberhorn -- we then set their
 	// affinity, scheduling policy and priority.
 
@@ -173,9 +181,6 @@ int init_workers()
 
 void deinit_workers()
 {
-	// Check if we still have applications running
-	// Refcount the module properly on application exit, this should not happen
-
 	// Disable FPI interrupt for the core
 	deinit_worker_fpi();
 
