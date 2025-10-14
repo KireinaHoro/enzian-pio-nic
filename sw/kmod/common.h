@@ -126,7 +126,7 @@ void enable_worker_thread(struct thr_def *thr, u32 cpu);
 void disable_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core
-int route_prefix_to_core(u32 prefix, u32 core_idx);
+void route_prefix_to_core(u32 prefix, u32 core_idx);
 void unroute_prefix_on_core(u32 core_idx);
 
 // CMAC functions
