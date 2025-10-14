@@ -6,6 +6,7 @@
 
 #include "lauberhorn_eci_sched_dev.h"
 #include "lauberhorn_eci_OncRpcCallDecoder_dev.h"
+#include "lauberhorn_eci_sched_dev.h"
 #include "eci/regblock_bases.h"
 
 static dev_t dev = 0;
@@ -16,6 +17,7 @@ static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
 
 static lauberhorn_eci_OncRpcCallDecoder_t decoder_dev;
+static lauberhorn_eci_sched_t sched_dev;
 
 struct proc_def *find_proc(pid_t tgid)
 {
@@ -117,6 +119,15 @@ static void deregister_service(struct srv_def *srv)
 		tgid);
 }
 
+static void update_proc_hw(struct proc_def *proc)
+{
+	lauberhorn_eci_sched_ctrl_proc_enabled_wr(&sched_dev, proc->enabled);
+	lauberhorn_eci_sched_ctrl_proc_pid_wr(&sched_dev, proc->tgid);
+	lauberhorn_eci_sched_ctrl_proc_max_threads_wr(&sched_dev,
+						      proc->num_rdy_thrs);
+	lauberhorn_eci_sched_ctrl_proc_idx_wr(&sched_dev, proc->idx);
+}
+
 static struct proc_def *register_app(pid_t tgid)
 {
 	int i;
@@ -145,15 +156,16 @@ static struct proc_def *register_app(pid_t tgid)
 	for (i = 0; i < LAUBERHORN_NUM_THREADS; ++i) {
 		proc->thr_defs[i].enabled = false;
 	}
+	proc->num_rdy_thrs = 0;
 
 	// No services registered just yet
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		proc->srvs[i] = NULL;
 	}
 
-	// TODO: program into HW
-
 	proc->enabled = true;
+	update_proc_hw(proc);
+
 	pr_info("Registered app #%d with TGID %d\n", proc->idx, tgid);
 
 	return proc;
@@ -182,9 +194,10 @@ static void deregister_app(pid_t tgid)
 		}
 	}
 
-	// TODO: program into HW
-
+	// Program into HW
 	proc->enabled = false;
+	update_proc_hw(proc);
+
 	pr_info("Deregistered app #%d with TGID %d\n", proc->idx, proc->tgid);
 }
 
@@ -282,6 +295,10 @@ static void vma_close(struct vm_area_struct *vma)
 	if (!priv->is_parity_page) {
 		// A worker thread unmapped its datapath VMA, disable the thread
 		clean_worker_thread(priv->thr);
+
+		// Decrement the parallelism count
+		--priv->thr->parent->num_rdy_thrs;
+		update_proc_hw(priv->thr->parent);
 	}
 }
 
@@ -368,6 +385,8 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	worker_phys_base =
 		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
 
+	thr->parent = proc;
+
 	// Map base into userspace
 	pfn = virt_to_phys((void *)worker_phys_base) >> PAGE_SHIFT;
 	err = remap_pfn_range(vma, vma->vm_start, pfn,
@@ -381,6 +400,10 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	snprintf(thr->vma_data_datapath.vma_name, THR_DATAPATH_VMA_NAME_SIZE,
 		 "Lauberhorn thread#%d datapath page", thr_idx);
 	vma->vm_private_data = &thr->vma_data_datapath;
+
+	// Increment the parallelism count
+	++proc->num_rdy_thrs;
+	update_proc_hw(proc);
 
 	// Thread will be blocked until HW wakes it up
 	prepare_worker_thread(thr);
@@ -427,6 +450,7 @@ int create_devices(void)
 	// Initialize Mackerel devices
 	lauberhorn_eci_OncRpcCallDecoder_initialize(
 		&decoder_dev, LAUBERHORN_ECI__ONC_RPC_CALL_DECODER_BASE);
+	lauberhorn_eci_sched_initialize(&sched_dev, LAUBERHORN_ECI_SCHED_BASE);
 
 	pr_info("Device created at /dev/lauberhorn\n");
 	return 0;
