@@ -75,11 +75,11 @@ struct srv_def {
 	bool enabled;
 	u32 idx;
 
-	// Used to check if service with same definition is already registered
+	// Is a service with same definition already registered?
 	u16 port;
 	u32 prog_num, prog_ver, proc_num;
 
-	// For debugging
+	// For debugging -- the kernel does not touch this
 	void __user *func_ptr;
 
 	struct proc_def *proc;
@@ -109,7 +109,8 @@ struct proc_def {
 	pid_t tgid;
 	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
 
-	// TODO: track services that this process owns
+	// Track services that this process owns
+	struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
 
 	// One page per process that contains the parity bits for all threads
 	// 1 byte per thread: bit 0 is RX parity, bit 1 is TX parity

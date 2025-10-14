@@ -25,10 +25,9 @@ struct proc_def *find_proc(pid_t tgid)
 }
 
 static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
-			    void __user *func_ptr, pid_t tgid)
+			    void __user *func_ptr, struct proc_def *proc)
 {
-	int i;
-	struct proc_def *proc;
+	int i, proc_srv_idx;
 	struct srv_def *srv;
 
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
@@ -52,39 +51,42 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 		return -1;
 	}
 
-	proc = find_proc(tgid);
-	if (!proc) {
-		pr_err("Failed to find TGID %d for service, bug?\n", tgid);
-		return -1;
-	}
-
 	srv->port = port;
 	srv->prog_num = prog_num;
 	srv->prog_ver = prog_ver;
 	srv->proc_num = proc_num;
 	srv->func_ptr = func_ptr;
-	srv->proc = proc;
 
-	// TODO: program into HW
+	// Record owner of process
+	srv->proc = proc;
+	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
+		if (proc->srvs[i] == NULL) {
+			// found a free slot
+			proc_srv_idx = i;
+			proc->srvs[i] = srv;
+			break;
+		}
+	}
+	BUG_ON(i == LAUBERHORN_NUM_SERVICES);
 
 	srv->enabled = true;
-	pr_info("Registered service #%d under TGID %d\n", srv->idx, tgid);
-	return srv->idx;
+	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
+	return proc_srv_idx;
 }
 
-static void deregister_service(u32 idx)
+static void deregister_service(struct srv_def *srv)
 {
 	pid_t tgid;
-	if (!srv_defs[idx].enabled) {
+	if (!srv->enabled) {
 		pr_err("Service #%d not registered, bug?\n", idx);
 		return;
 	}
 
-	tgid = srv_defs[idx].proc->tgid;
+	tgid = srv->proc->tgid;
 
 	// TODO: program into HW
 
-	srv_defs[idx].enabled = false;
+	srv->enabled = false;
 	pr_info("Deregistered service #%d (was with TGID %d)\n", idx, tgid);
 }
 
@@ -117,6 +119,11 @@ static struct proc_def *register_app(pid_t tgid)
 		proc->thr_defs[i].enabled = false;
 	}
 
+	// No services registered just yet
+	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
+		proc->srvs[i] = NULL;
+	}
+
 	// TODO: program into HW
 
 	proc->enabled = true;
@@ -143,8 +150,8 @@ static void deregister_app(pid_t tgid)
 
 	// Deregister all services under this app
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
-		if (srv_defs[i].proc == proc) {
-			deregister_service(i);
+		if (proc->srvs[i] && proc->srvs[i]->enabled) {
+			deregister_service(proc->srvs[i]);
 		}
 	}
 
@@ -160,23 +167,27 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 	lauberhorn_reg_srv_t reg_cmd;
 	lauberhorn_reg_srv_t __user *reg_cmd_usr = (void __user *)arg;
 	lauberhorn_srv_id_t reg_ret;
-	int srv_idx;
+	int proc_srv_idx;
 
 	lauberhorn_srv_id_t dereg_cmd;
 
 	pid_t tgid = current->pid;
+	struct proc_def *proc = find_proc(tgid);
+	BUG_ON(!proc);
+
 	switch (cmd) {
 	case LAUBERHORN_IOCTL_REG_SRV:
 		if (copy_from_user(&reg_cmd, reg_cmd_usr, sizeof(reg_cmd))) {
 			return -EFAULT;
 		}
-		srv_idx = register_service(reg_cmd.port, reg_cmd.prog_num,
-					   reg_cmd.prog_ver, reg_cmd.proc_num,
-					   reg_cmd.func_ptr, tgid);
-		if (srv_idx < 0) {
+		proc_srv_idx = register_service(reg_cmd.port, reg_cmd.prog_num,
+						reg_cmd.prog_ver,
+						reg_cmd.proc_num,
+						reg_cmd.func_ptr, proc);
+		if (proc_srv_idx < 0) {
 			return -EINVAL;
 		}
-		reg_ret = srv_idx;
+		reg_ret = proc_srv_idx;
 
 		if (copy_to_user(&reg_cmd_usr->id, &reg_ret, sizeof(reg_ret))) {
 			return -EFAULT;
@@ -188,7 +199,14 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 				   sizeof(dereg_cmd))) {
 			return -EFAULT;
 		}
-		deregister_service(dereg_cmd);
+		if (dereg_cmd >= LAUBERHORN_NUM_SERVICES ||
+		    !proc->srvs[dereg_cmd] || !proc->srvs[dereg_cmd]->enabled) {
+			return -EINVAL;
+		}
+
+		deregister_service(proc->srvs[dereg_cmd]);
+		proc->srvs[dereg_cmd] = NULL;
+
 		break;
 
 	default:
