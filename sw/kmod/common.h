@@ -98,6 +98,8 @@ struct thr_def {
 	int worker_idx;
 
 	struct vma_priv_data vma_data_datapath;
+
+	struct task_struct *task;
 };
 
 // Defines the process of an RPC application
@@ -122,8 +124,8 @@ struct proc_def *find_proc(pid_t tgid);
 
 int prepare_worker_thread(struct thr_def *thr);
 void clean_worker_thread(struct thr_def *thr);
-void enable_worker_thread(struct thr_def *thr, u32 cpu);
-void disable_worker_thread(struct thr_def *thr);
+void sched_worker_thread(struct thr_def *thr, u32 cpu);
+void desched_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core
 void route_prefix_to_core(u32 prefix, u32 core_idx);
