@@ -6,6 +6,7 @@
 #include "eci/regblock_bases.h"
 
 #include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_threadRouter_dev.h"
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
 int worker_lo, worker_hi;
@@ -18,6 +19,8 @@ struct worker_fpi_data {
 };
 static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
 static u64 irq_no;
+
+static lauberhorn_eci_threadRouter_t thread_router_dev;
 
 static irqreturn_t worker_fpi_handler(int irq, void *data)
 {
@@ -144,6 +147,9 @@ int init_workers()
 	int err, cpu;
 	struct worker_fpi_data *fpi_data;
 
+	lauberhorn_eci_threadRouter_initialize(
+		&thread_router_dev, LAUBERHORN_ECI_THREAD_ROUTER_BASE);
+
 	// Which cores are the worker cores?
 	worker_hi = num_online_cpus();
 	worker_lo = worker_hi - LAUBERHORN_NUM_WORKER_CORES;
@@ -185,4 +191,20 @@ void deinit_workers()
 	deinit_worker_fpi();
 
 	// Restore ksoftirqd to SCHED_OTHER
+}
+
+void route_prefix_to_core(u32 prefix, u32 core_idx)
+{
+	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 1);
+	lauberhorn_eci_threadRouter_ctrl_addr_prefix_wr(&thread_router_dev,
+							prefix);
+	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
+						     core_idx);
+}
+
+void unroute_prefix_on_core(u32 core_idx)
+{
+	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 0);
+	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
+						     core_idx);
 }
