@@ -82,12 +82,14 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 								  prog_ver);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_proc_wr(&decoder_dev,
 							      proc_num);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_func_ptr_wr(&decoder_dev,
-								  func_ptr);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_func_ptr_wr(
+		&decoder_dev, (u64)func_ptr);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_listen_port_wr(
 		&decoder_dev, port);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_pid_wr(&decoder_dev,
 							     proc->tgid);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(&decoder_dev,
+							     srv->idx);
 
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
@@ -98,16 +100,21 @@ static void deregister_service(struct srv_def *srv)
 {
 	pid_t tgid;
 	if (!srv->enabled) {
-		pr_err("Service #%d not registered, bug?\n", idx);
+		pr_err("Service #%d not registered, bug?\n", srv->idx);
 		return;
 	}
 
 	tgid = srv->proc->tgid;
 
-	// TODO: program into HW
+	// Program into HW
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(&decoder_dev,
+								 0);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(&decoder_dev,
+							     srv->idx);
 
 	srv->enabled = false;
-	pr_info("Deregistered service #%d (was with TGID %d)\n", idx, tgid);
+	pr_info("Deregistered service #%d (was with TGID %d)\n", srv->idx,
+		tgid);
 }
 
 static struct proc_def *register_app(pid_t tgid)
