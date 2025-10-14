@@ -108,6 +108,7 @@ struct proc_def {
 	// This is the PID actually programmed into the process table
 	pid_t tgid;
 	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
+	u32 num_rdy_thrs;
 
 	// Track services that this process owns
 	struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
