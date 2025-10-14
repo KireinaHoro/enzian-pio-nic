@@ -299,6 +299,10 @@ static void vma_close(struct vm_area_struct *vma)
 		// Decrement the parallelism count
 		--priv->thr->parent->num_rdy_thrs;
 		update_proc_hw(priv->thr->parent);
+
+		// Decrement the thread task ref count
+		put_task_struct(priv->thr->task);
+		priv->thr->task = NULL;
 	}
 }
 
@@ -386,6 +390,11 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
 
 	thr->parent = proc;
+	thr->worker_idx = -1;
+
+	// Store a reference to the current thread task
+	get_task_struct(current);
+	thr->task = current;
 
 	// Map base into userspace
 	pfn = virt_to_phys((void *)worker_phys_base) >> PAGE_SHIFT;

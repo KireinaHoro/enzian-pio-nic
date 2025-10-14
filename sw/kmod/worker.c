@@ -52,7 +52,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 
 	// Disable old thread, if one is actually running
 	if (priv->thr) {
-		disable_worker_thread(priv->thr);
+		desched_worker_thread(priv->thr);
 	}
 
 	// Select and enable new thread
@@ -63,7 +63,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 		}
 	}
 	BUG_ON(!next_thr);
-	enable_worker_thread(next_thr, smp_processor_id());
+	sched_worker_thread(next_thr, smp_processor_id());
 
 	// Unmask interrupt
 	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 1);
@@ -226,18 +226,30 @@ void deinit_workers()
 	rcu_read_unlock();
 }
 
+static DEFINE_SPINLOCK(thread_router_spinlock);
+
 void route_prefix_to_core(u32 prefix, u32 core_idx)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&thread_router_spinlock, flags);
+
 	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 1);
 	lauberhorn_eci_threadRouter_ctrl_addr_prefix_wr(&thread_router_dev,
 							prefix);
 	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
 						     core_idx);
+
+	spin_unlock_irqrestore(&thread_router_spinlock, flags);
 }
 
 void unroute_prefix_on_core(u32 core_idx)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&thread_router_spinlock, flags);
+
 	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 0);
 	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
 						     core_idx);
+
+	spin_unlock_irqrestore(&thread_router_spinlock, flags);
 }
