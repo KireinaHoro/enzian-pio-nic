@@ -5,6 +5,8 @@
 #include "ioctl.h"
 
 #include "lauberhorn_eci_sched_dev.h"
+#include "lauberhorn_eci_OncRpcCallDecoder_dev.h"
+#include "eci/regblock_bases.h"
 
 static dev_t dev = 0;
 static struct cdev cdev;
@@ -12,6 +14,8 @@ static struct class *dev_class;
 
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
+
+static lauberhorn_eci_OncRpcCallDecoder_t decoder_dev;
 
 struct proc_def *find_proc(pid_t tgid)
 {
@@ -68,6 +72,22 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 		}
 	}
 	BUG_ON(i == LAUBERHORN_NUM_SERVICES);
+
+	// Program into HW
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(&decoder_dev,
+								 1);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_num_wr(&decoder_dev,
+								  prog_num);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_ver_wr(&decoder_dev,
+								  prog_ver);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_proc_wr(&decoder_dev,
+							      proc_num);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_func_ptr_wr(&decoder_dev,
+								  func_ptr);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_listen_port_wr(
+		&decoder_dev, port);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_pid_wr(&decoder_dev,
+							     proc->tgid);
 
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
@@ -396,6 +416,11 @@ int create_devices(void)
 		pr_err("device_create failed\n");
 		return -1;
 	}
+
+	// Initialize Mackerel devices
+	lauberhorn_eci_OncRpcCallDecoder_initialize(
+		&decoder_dev, LAUBERHORN_ECI__ONC_RPC_CALL_DECODER_BASE);
+
 	pr_info("Device created at /dev/lauberhorn\n");
 	return 0;
 }
