@@ -146,6 +146,7 @@ int init_workers()
 {
 	int err, cpu;
 	struct worker_fpi_data *fpi_data;
+	struct task_struct *task;
 
 	lauberhorn_eci_threadRouter_initialize(
 		&thread_router_dev, LAUBERHORN_ECI_THREAD_ROUTER_BASE);
@@ -174,8 +175,23 @@ int init_workers()
 						       cpu);
 	}
 
-	// Promote ksoftirqd on this core to SCHED_FIFO with priority 80.
-	// The RPC tasks will run with a priority of 70
+	// Promote ksoftirqd on this core to SCHED_FIFO with MAX_RT_PRIO / 2
+	// The RPC tasks will run with a priority of 1 (just above SCHED_NORMAL)
+	rcu_read_lock();
+	for_each_process(task) {
+		int core_id;
+		if (sscanf(task->comm, "ksoftirqd/%d", &core_id) != 1) {
+			continue;
+		}
+		if (core_id < worker_lo || core_id >= worker_hi) {
+			continue;
+		}
+
+		pr_info("Setting ksoftirqd on core %d (PID %d) to SCHED_FIFO, priority 80\n",
+			core_id, task_pid_nr(task));
+		sched_set_fifo(task);
+	}
+	rcu_read_unlock();
 
 	// We don't have any RPC handlers on these worker cores yet, so nothing
 	// more to do here.  Once a user-level application thread starts, it will
@@ -187,10 +203,27 @@ int init_workers()
 
 void deinit_workers()
 {
+	struct task_struct *task;
+
 	// Disable FPI interrupt for the core
 	deinit_worker_fpi();
 
-	// Restore ksoftirqd to SCHED_OTHER
+	// Restore ksoftirqd to SCHED_NORMAL
+	rcu_read_lock();
+	for_each_process(task) {
+		int core_id;
+		if (sscanf(task->comm, "ksoftirqd/%d", &core_id) != 1) {
+			continue;
+		}
+		if (core_id < worker_lo || core_id >= worker_hi) {
+			continue;
+		}
+
+		pr_info("Restoring ksoftirqd on core %d (PID %d) to SCHED_NORMAL\n",
+			core_id, task_pid_nr(task));
+		sched_set_normal(task, 19);
+	}
+	rcu_read_unlock();
 }
 
 void route_prefix_to_core(u32 prefix, u32 core_idx)
