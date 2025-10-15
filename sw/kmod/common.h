@@ -14,6 +14,7 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/sched.h>
+#include <linux/sched/isolation.h>
 #include <linux/slab.h> // kmalloc
 #include <linux/uaccess.h> // copy_to/from_user
 #include <linux/wait.h>

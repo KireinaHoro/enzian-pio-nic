@@ -144,9 +144,27 @@ static void deinit_worker_fpi(void)
 
 int init_workers()
 {
-	int err, cpu;
+	int err, cpu, i;
 	struct worker_fpi_data *fpi_data;
 	struct task_struct *task;
+
+	// From setting nohz_full=<range> and isolcpus=nohz,domain,managed_irq,<range>
+	enum hk_type required_isol_types[] = {
+		HK_TYPE_DOMAIN,	 HK_TYPE_TICK,	      HK_TYPE_WQ,
+		HK_TYPE_TIMER,	 HK_TYPE_RCU,	      HK_TYPE_MISC,
+		HK_TYPE_KTHREAD, HK_TYPE_MANAGED_IRQ,
+	};
+	for (i = 0; i < sizeof(required_isol_types) / sizeof(enum hk_type);
+	     ++i) {
+		if (!housekeeping_enabled(required_isol_types[i])) {
+			pr_err("Required housekeeping type %d not enabled\n",
+			       required_isol_types[i]);
+			return -1;
+		}
+	}
+
+	// In addition we should also set rcu_nocbs=<range> and irqaffinity=<complement of range>;
+	// The backing storage for these masks are not exported so we don't check
 
 	lauberhorn_eci_threadRouter_initialize(
 		&thread_router_dev, LAUBERHORN_ECI_THREAD_ROUTER_BASE);
@@ -157,13 +175,15 @@ int init_workers()
 	pr_info("Using %d cores %d-%d for RPC processing\n",
 		LAUBERHORN_NUM_WORKER_CORES, worker_lo, worker_hi - 1);
 
-	// Enable interrupts for all worker cores
-	err = init_worker_fpi();
-	if (err != 0)
-		return err;
-
 	// Fill out the per-CPU struct
 	for (cpu = worker_lo; cpu < worker_hi; ++cpu) {
+		// Verify that the worker cores are correctly isolated
+		if (housekeeping_test_cpu(cpu, required_isol_types[0])) {
+			pr_err("Worker core %d is not properly isolated!\n",
+			       cpu);
+			return -1;
+		}
+
 		fpi_data = per_cpu_ptr(&fpi_percpu_data, cpu);
 
 		lauberhorn_eci_preempt_initialize(
@@ -174,6 +194,11 @@ int init_workers()
 		lauberhorn_eci_preempt_real_core_id_wr(&fpi_data->preempt_dev,
 						       cpu);
 	}
+
+	// Enable interrupts for all worker cores
+	err = init_worker_fpi();
+	if (err != 0)
+		return err;
 
 	// Promote ksoftirqd on this core to SCHED_FIFO with MAX_RT_PRIO / 2
 	// The RPC tasks will run with a priority of 1 (just above SCHED_NORMAL)
