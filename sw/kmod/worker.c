@@ -10,13 +10,6 @@
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
 int worker_lo, worker_hi;
-struct worker_fpi_data {
-	// Preempt control dev for this CPU core
-	lauberhorn_eci_preempt_t preempt_dev;
-
-	// Thread running on this core (if any)
-	struct thr_def *thr;
-};
 static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
 static u64 irq_no;
 
@@ -63,10 +56,9 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 		}
 	}
 	BUG_ON(!next_thr);
-	sched_worker_thread(next_thr, smp_processor_id());
+	sched_worker_thread(next_thr, priv);
 
-	// Unmask interrupt
-	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 1);
+	// Interrupt will be unmasked when the new thread is scheduled
 
 	return IRQ_HANDLED;
 }
@@ -189,6 +181,9 @@ int init_workers()
 		lauberhorn_eci_preempt_initialize(
 			&fpi_data->preempt_dev,
 			LAUBERHORN_ECI_PREEMPT_BASE(cpu - worker_lo + 1));
+		lauberhorn_eci_worker_initialize(
+			&fpi_data->worker_dev,
+			LAUBERHORN_ECI_WORKER_BASE(cpu - worker_lo + 1));
 
 		// Program the real core ID for this worker (destination core for FPI)
 		lauberhorn_eci_preempt_real_core_id_wr(&fpi_data->preempt_dev,
