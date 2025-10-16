@@ -81,6 +81,7 @@ static int init_worker_fpi(void)
 	struct irq_data *gic_irq_data;
 	struct irq_domain *gic_domain;
 	struct fwnode_handle *fwnode;
+	struct worker_fpi_data *fpi_data;
 	static struct irq_fwspec fwspec_fpi;
 
 	// Get the fwnode for the GIC.  A hack here to find the fwnode through IRQ
@@ -116,6 +117,10 @@ static int init_worker_fpi(void)
 		err = smp_call_on_cpu(cid, do_fpi_irq_activate, (void *)irq_no,
 				      true);
 		WARN_ON(err < 0);
+
+		// Unmask FPI interrupt in HW
+		fpi_data = per_cpu_ptr(&fpi_percpu_data, cid);
+		lauberhorn_eci_preempt_irq_en_wr(&fpi_data->preempt_dev, 1);
 	}
 
 	return 0;
@@ -124,11 +129,16 @@ static int init_worker_fpi(void)
 static void deinit_worker_fpi(void)
 {
 	int err, cid;
+	struct worker_fpi_data *fpi_data;
 
 	for (cid = worker_lo; cid < worker_hi; ++cid) {
 		err = smp_call_on_cpu(cid, do_fpi_irq_deactivate,
 				      (void *)irq_no, true);
 		WARN_ON(err < 0);
+
+		// Mask FPI interrupt in HW
+		fpi_data = per_cpu_ptr(&fpi_percpu_data, cid);
+		lauberhorn_eci_preempt_irq_en_wr(&fpi_data->preempt_dev, 0);
 	}
 	free_percpu_irq(irq_no, &fpi_percpu_data);
 	irq_dispose_mapping(irq_no);
