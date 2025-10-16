@@ -329,7 +329,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	struct proc_def *proc;
 	struct thr_def *thr;
 
-	u64 worker_phys_base, pfn;
+	u64 pfn;
 	u32 err;
 
 	u64 size = vma->vm_end - vma->vm_start;
@@ -380,13 +380,15 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 			       thr_idx);
 			return -EINVAL;
 		}
+
+		thr = &proc->thr_defs[thr_idx];
+		thr->idx = thr_idx;
 	}
-	thr = &proc->thr_defs[thr_idx];
 
 	pr_info("Setting up thread PID %d (part of application TGID %d) as RPC worker\n",
 		tid, tgid);
 	thr->prefix = 1 + proc->idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx;
-	worker_phys_base =
+	thr->dp_phys_base =
 		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
 
 	thr->parent = proc;
@@ -397,7 +399,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	thr->task = current;
 
 	// Map base into userspace
-	pfn = virt_to_phys((void *)worker_phys_base) >> PAGE_SHIFT;
+	pfn = virt_to_phys((void *)thr->dp_phys_base) >> PAGE_SHIFT;
 	err = remap_pfn_range(vma, vma->vm_start, pfn,
 			      LAUBERHORN_ECI_CORE_OFFSET, vma->vm_page_prot);
 	if (err != 0) {

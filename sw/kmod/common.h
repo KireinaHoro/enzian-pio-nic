@@ -29,6 +29,9 @@
 
 #include "eci/config.h"
 
+#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_worker_dev.h"
+
 // Always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
 #undef pr_fmt
@@ -89,11 +92,13 @@ struct srv_def {
 // Defines a thread for an RPC application
 struct thr_def {
 	bool enabled;
+	u32 idx;
 
 	struct proc_def *parent;
 
 	// Used to update the per-thread CL address to core worker mapping
 	u32 prefix;
+	u64 dp_phys_base;
 
 	// Which worker core ID is this thread currently running on?
 	int worker_idx;
@@ -123,9 +128,18 @@ struct proc_def {
 };
 struct proc_def *find_proc(pid_t tgid);
 
+struct worker_fpi_data {
+	// Mackerel devices for this CPU core
+	lauberhorn_eci_preempt_t preempt_dev;
+	lauberhorn_eci_worker_t worker_dev;
+
+	// Thread running on this core (if any)
+	struct thr_def *thr;
+};
+
 int prepare_worker_thread(struct thr_def *thr);
 void clean_worker_thread(struct thr_def *thr);
-void sched_worker_thread(struct thr_def *thr, u32 cpu);
+void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv);
 void desched_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core
