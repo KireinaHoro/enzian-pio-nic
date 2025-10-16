@@ -40,3 +40,15 @@ int probe_versions(void) {
 
   return 0;
 }
+
+int do_fpi_irq_activate(void *data) {
+    unsigned irq_no = (u64)data;
+    enable_percpu_irq(irq_no, 0);
+    return 0;
+}
+
+int do_fpi_irq_deactivate(void *data) {
+    unsigned irq_no = (u64)data;
+    disable_percpu_irq(irq_no);
+    return 0;
+}
