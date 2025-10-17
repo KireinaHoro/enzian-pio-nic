@@ -217,7 +217,7 @@ int init_workers()
 			continue;
 		}
 
-		pr_info("Setting ksoftirqd on core %d (PID %d) to SCHED_FIFO, priority 80\n",
+		pr_info("Setting ksoftirqd on core %d (PID %d) to SCHED_FIFO\n",
 			core_id, task_pid_nr(task));
 		sched_set_fifo(task);
 	}
@@ -263,6 +263,8 @@ void route_prefix_to_core(u32 prefix, u32 core_idx)
 	unsigned long flags;
 	spin_lock_irqsave(&thread_router_spinlock, flags);
 
+	pr_info("Enabling prefix %#x on core slot %u\n", prefix, core_idx);
+
 	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 1);
 	lauberhorn_eci_threadRouter_ctrl_addr_prefix_wr(&thread_router_dev,
 							prefix);
@@ -276,6 +278,8 @@ void unroute_prefix_on_core(u32 core_idx)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&thread_router_spinlock, flags);
+
+	pr_info("Disabling core slot %u\n", core_idx);
 
 	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 0);
 	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
