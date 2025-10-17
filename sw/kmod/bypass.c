@@ -147,18 +147,16 @@ static int netdev_open(struct net_device *dev)
 	struct netdev_priv *priv = netdev_priv(dev);
 	int err;
 
+	err = start_cmac(&priv->cmac_dev, 0);
+	if (err) {
+		dev_err(&dev->dev, "Failed to start CMAC!\n");
+		return err;
+	}
+
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
 
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
-
-	err = start_cmac(&priv->cmac_dev, 0);
-	if (err) {
-		dev_err(&dev->dev, "Failed to start CMAC!\n");
-		napi_disable(&priv->napi);
-		netif_stop_queue(dev);
-		return err;
-	}
 
 	return 0;
 }
