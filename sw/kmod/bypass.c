@@ -152,6 +152,8 @@ static int netdev_open(struct net_device *dev)
 	err = start_cmac(&priv->cmac_dev, 0);
 	if (err) {
 		dev_err(&dev->dev, "Failed to start CMAC!\n");
+		napi_disable(&priv->napi);
+		netif_stop_queue(dev);
 		return err;
 	}
 
