@@ -389,7 +389,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 		tid, tgid);
 	thr->prefix = 1 + proc->idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx;
 	thr->dp_phys_base =
-		thr->prefix * LAUBERHORN_ECI_CORE_OFFSET + FPGA_MEM_BASE;
+		mem_node1_off_to_phys(thr->prefix * LAUBERHORN_ECI_CORE_OFFSET);
 
 	thr->parent = proc;
 	thr->worker_idx = -1;

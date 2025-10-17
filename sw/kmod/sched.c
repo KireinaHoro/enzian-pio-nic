@@ -47,12 +47,6 @@ struct sched_thread_work {
 };
 static DEFINE_PER_CPU(struct sched_thread_work, sched_work_percpu);
 
-static inline void l2_fetch_and_lock(u64 addr)
-{
-	// L2 Cache Fetch and Lock, SYS CVMCACHELCKL2, Xt
-	asm volatile("sys #0,c11,c1,#4,%0 \n" ::"r"(addr));
-}
-
 /**
  * The deferred function that does the actual job of scheduling the new
  * thread, but in process context.
@@ -81,7 +75,7 @@ static void _sched_worker_thread(struct work_struct *ws)
 
 	// Lock preemption control CL in L2 -- will be unlocked when the FPGA
 	// tries to preempt this thread
-	l2_fetch_and_lock(thr->dp_phys_base +
+	cl_fetch_and_lock(thr->dp_phys_base +
 			  LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET);
 
 	// Wake up the task

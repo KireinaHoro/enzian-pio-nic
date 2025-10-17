@@ -13,33 +13,34 @@
 #include <linux/types.h>
 #include <asm/io.h>
 
+#include "virt_node1.h"
+
 // We will pass the init functions register block bases as defined in regblock_bases.h.
 // These are uint64_t offsets.  We add the I/O base address before accessing.
 typedef uint64_t mackerel_addr_t;
-#define STATIC_SHELL_IO_BASE (0x900000000000UL)
 
 /*
  * Reading from memory
  */
 static inline uint8_t mackerel_read_addr_8( mackerel_addr_t base, int offset)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return ioread8(p);
 }
 
 static inline uint16_t mackerel_read_addr_16( mackerel_addr_t base, int offset)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return ioread16(p);
 }
 static inline uint32_t mackerel_read_addr_32( mackerel_addr_t base, int offset)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return ioread32(p);
 }
 static inline uint64_t mackerel_read_addr_64( mackerel_addr_t base, int offset)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return ioread64(p);
 }
 
@@ -49,26 +50,26 @@ static inline uint64_t mackerel_read_addr_64( mackerel_addr_t base, int offset)
 static inline void mackerel_write_addr_8( mackerel_addr_t base,
                                              int offset, uint8_t v)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return iowrite8(v, p);
 }
 
 static inline void mackerel_write_addr_16( mackerel_addr_t base,
                                                int offset, uint16_t v)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return iowrite16(v, p);
 }
 static inline void mackerel_write_addr_32( mackerel_addr_t base,
                                                int offset, uint32_t v)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return iowrite32(v, p);
 }
 static inline void mackerel_write_addr_64( mackerel_addr_t base,
                                                int offset, uint64_t v)
 {
-    void *p = phys_to_virt(STATIC_SHELL_IO_BASE + base + offset);
+    void *p = io_node1_off_to_virt(base + offset);
     return iowrite64(v, p);
 }
 

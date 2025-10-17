@@ -242,7 +242,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	desc.payload_len = skb->len - ETH_HLEN;
 	memcpy(desc.payload_buf, skb->data + ETH_HLEN, desc.payload_len);
 
-	core_eci_tx(phys_to_virt(FPGA_MEM_BASE), &priv->ctx, &desc);
+	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 
 	// free skb and return
 	dev_kfree_skb(skb);
@@ -352,8 +352,8 @@ static int napi_poll(struct napi_struct *n, int budget)
 	lauberhorn_pkt_desc_t desc;
 
 	while (work_done < budget) {
-		bool got_req = core_eci_rx(phys_to_virt(FPGA_MEM_BASE),
-					   &priv->ctx, &desc);
+		bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx,
+					   &desc);
 
 		if (!got_req)
 			break;
@@ -447,12 +447,6 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
-static inline void cl_hit_inv(u64 phys_addr)
-{
-	u64 virt = (u64)phys_to_virt(phys_addr);
-	asm volatile("sys #0,c11,c1,#1,%0 \n" ::"r"(virt));
-}
-
 int init_bypass(void)
 {
 	int err, cl_id;
@@ -461,8 +455,8 @@ int init_bypass(void)
 	cmac_core_version_t ver;
 	u8 ver_maj, ver_min;
 
-	u64 rx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_RX_BASE;
-	u64 tx_base = FPGA_MEM_BASE + LAUBERHORN_ECI_TX_BASE;
+	phys_addr_t rx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_RX_BASE);
+	phys_addr_t tx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
 
 	macaddr_cast_t mac_addr;
 
