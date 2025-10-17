@@ -41,6 +41,9 @@ struct netdev_priv {
 	struct napi_struct napi;
 	struct net_device *dev;
 
+	// Promisc mode
+	bool promisc;
+
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
@@ -183,13 +186,14 @@ static int netdev_setaddr(struct net_device *dev, void *addr)
 static void netdev_rx_mode(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
+	bool req_promisc = dev->flags & IFF_PROMISC;
 
-	if (dev->flags & IFF_PROMISC) {
-		dev_info(&dev->dev, "enabling promisc mode\n");
-		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 1);
-	} else {
-		dev_info(&dev->dev, "disabling promisc mode\n");
-		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 0);
+	if (req_promisc != priv->promisc) {
+		dev_info(&dev->dev, "%s promisc mode\n",
+			 req_promisc ? "enabling" : "disabling");
+		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev,
+							   req_promisc);
+		priv->promisc = req_promisc;
 	}
 }
 
@@ -534,6 +538,10 @@ int init_bypass(void)
 		&priv->eth_dec_dev);
 	eth_hw_addr_set(netdev, mac_addr.arr);
 	dev_info(&netdev->dev, "Our MAC address: %pM\n", netdev->dev_addr);
+
+	// Read out promisc state
+	priv->promisc =
+		lauberhorn_eci_decoderSink_ctrl_promisc_rd(&priv->dec_dev);
 
 	// Initialize datapath core state
 	priv->ctx.rx_next_cl = priv->ctx.tx_next_cl = 0;
