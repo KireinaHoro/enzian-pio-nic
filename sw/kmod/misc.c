@@ -88,3 +88,10 @@ int map_node1(void)
 
 	return 0;
 }
+
+void unmap_node1(void)
+{
+	pr_info("Unmapping I/O and memory for node 1\n");
+	iounmap(io_base_node1);
+	memunmap(mem_base_node1);
+}

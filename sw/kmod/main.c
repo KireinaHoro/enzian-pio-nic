@@ -13,38 +13,44 @@ static int __init mod_init(void)
 
 	err = map_node1();
 	if (err != 0) {
-		return -1;
+		goto out;
 	}
 
 	err = probe_versions();
 	if (err != 0) {
 		pr_err("init_workers failed: err = %d\n", err);
-		return -1;
+		goto unmap;
 	}
 
 	err = init_workers();
 	if (err != 0) {
 		pr_err("init_workers failed: err = %d\n", err);
-		deinit_workers();
-		return -1;
+		goto unmap;
 	}
 
 	err = init_bypass();
 	if (err != 0) {
 		pr_err("init_bypass failed: err = %d\n", err);
-		deinit_bypass();
-		return -1;
+		goto workers;
 	}
 
 	err = create_devices();
 	if (err != 0) {
 		pr_err("create_devices failed: err = %d\n", err);
-		remove_devices();
-		return -1;
+		goto bypass;
 	}
 
 	pr_info("Lauberhorn initialized\n");
 	return 0;
+
+bypass:
+	deinit_bypass();
+workers:
+	deinit_workers();
+unmap:
+	unmap_node1();
+out:
+	return -1;
 }
 
 // Module exit
@@ -55,6 +61,7 @@ static void __exit mod_exit(void)
 	remove_devices();
 	deinit_workers();
 	deinit_bypass();
+	unmap_node1();
 
 	pr_info("Lauberhorn unloaded\n");
 }
