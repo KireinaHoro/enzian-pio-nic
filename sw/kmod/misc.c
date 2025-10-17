@@ -40,7 +40,9 @@ int probe_versions(void)
 	lauberhorn_eci_profiler_initialize(&prof_dev,
 					   LAUBERHORN_ECI_PROFILER_BASE);
 
-	magic_str_cast.v = lauberhorn_eci_profiler_magic_rd(&prof_dev);
+	// string representation is big endian
+	magic_str_cast.v =
+		cpu_to_be64(lauberhorn_eci_profiler_magic_rd(&prof_dev));
 	if (strcmp(magic_str_cast.str, "LBERHORN") != 0) {
 		pr_err("Unexpected magic string: %s\n", magic_str_cast.str);
 		return -1;
