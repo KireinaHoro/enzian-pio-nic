@@ -4,49 +4,59 @@
 #include "common.h"
 
 // Module initialization
-static int __init mod_init(void) {
-  int err;
+static int __init mod_init(void)
+{
+	int err;
 
-  err = probe_versions();
-  if (err != 0) {
-    pr_err("init_workers failed: err = %d\n", err);
-    return -1;
-  }
+	pr_info("Lauberhorn kernel module init (compiled for %s)\n",
+		LAUBERHORN_SW_GIT_HASH);
 
-  err = init_workers();
-  if (err != 0) {
-    pr_err("init_workers failed: err = %d\n", err);
-    deinit_workers();
-    return -1;
-  }
+	err = map_node1();
+	if (err != 0) {
+		return -1;
+	}
 
-  err = init_bypass();
-  if (err != 0) {
-    pr_err("init_bypass failed: err = %d\n", err);
-    deinit_bypass();
-    return -1;
-  }
+	err = probe_versions();
+	if (err != 0) {
+		pr_err("init_workers failed: err = %d\n", err);
+		return -1;
+	}
 
-  err = create_devices();
-  if (err != 0) {
-    pr_err("create_devices failed: err = %d\n", err);
-    remove_devices();
-    return -1;
-  }
+	err = init_workers();
+	if (err != 0) {
+		pr_err("init_workers failed: err = %d\n", err);
+		deinit_workers();
+		return -1;
+	}
 
-  pr_info("Lauberhorn initialized\n");
-  return 0;
+	err = init_bypass();
+	if (err != 0) {
+		pr_err("init_bypass failed: err = %d\n", err);
+		deinit_bypass();
+		return -1;
+	}
+
+	err = create_devices();
+	if (err != 0) {
+		pr_err("create_devices failed: err = %d\n", err);
+		remove_devices();
+		return -1;
+	}
+
+	pr_info("Lauberhorn initialized\n");
+	return 0;
 }
 
 // Module exit
-static void __exit mod_exit(void) {
-  pr_info("Lauberhorn exiting...\n");
+static void __exit mod_exit(void)
+{
+	pr_info("Lauberhorn exiting...\n");
 
-  remove_devices();
-  deinit_workers();
-  deinit_bypass();
+	remove_devices();
+	deinit_workers();
+	deinit_bypass();
 
-  pr_info("Lauberhorn unloaded\n");
+	pr_info("Lauberhorn unloaded\n");
 }
 
 MODULE_AUTHOR("Pengcheng Xu");

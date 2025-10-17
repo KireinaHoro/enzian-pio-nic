@@ -57,6 +57,11 @@ int do_fpi_irq_deactivate(void *data);
 int create_devices(void);
 void remove_devices(void);
 
+#include "virt_node1.h"
+
+// Map node 1 io/memory
+int map_node1(void);
+
 struct proc_def;
 struct thr_def;
 
@@ -98,7 +103,7 @@ struct thr_def {
 
 	// Used to update the per-thread CL address to core worker mapping
 	u32 prefix;
-	u64 dp_phys_base;
+	phys_addr_t dp_phys_base;
 
 	// Which worker core ID is this thread currently running on?
 	int worker_idx;
@@ -151,6 +156,16 @@ typedef struct cmac_t cmac_t;
 int start_cmac(cmac_t *cmac, bool loopback);
 void stop_cmac(cmac_t *cmac);
 
-#define FPGA_MEM_BASE (0x10000000000UL)
+// L2 management instructions
+static inline void cl_hit_inv(phys_addr_t addr)
+{
+	// L2 Cache Hit Invalidate, SYS CVMCACHEINVL2, Xt
+	asm volatile("sys #0,c11,c1,#1,%0 \n" ::"r"(addr));
+}
+static inline void cl_fetch_and_lock(phys_addr_t addr)
+{
+	// L2 Cache Fetch and Lock, SYS CVMCACHELCKL2, Xt
+	asm volatile("sys #0,c11,c1,#4,%0 \n" ::"r"(addr));
+}
 
 #endif // LAUBERHORN_KMOD_COMMON_H
