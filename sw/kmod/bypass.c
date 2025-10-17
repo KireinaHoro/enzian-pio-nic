@@ -65,8 +65,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	struct net_device *dev = cookie;
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	pr_info("%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__, __LINE__,
-		smp_processor_id(), irq);
+	dev_info(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+		 __LINE__, smp_processor_id(), irq);
 
 	// Mask interrupt and call napi_schedule
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
@@ -100,24 +100,28 @@ static int init_bypass_fpi(struct net_device *dev)
 	fwspec_fpi.param[0] = 15;
 	err = irq_create_fwspec_mapping(&fwspec_fpi);
 	if (err < 0) {
-		pr_warn("irq_create_fwspec_mapping returns %d\n", err);
+		dev_err(&dev->dev, "irq_create_fwspec_mapping returns %d\n",
+			err);
+		return err;
 	}
 	irq_no = err;
-	pr_info("Allocated interrupt number = %llu\n", irq_no);
+	dev_info(&dev->dev, "Allocated interrupt number = %llu\n", irq_no);
 	smp_wmb();
 
 	// Register handler for bypass IRQ
 	err = request_percpu_irq(irq_no, bypass_fpi_handler,
 				 "Lauberhorn Bypass IRQ", &bypass_fpi_cookie);
 	if (err < 0) {
-		pr_warn("failed to allocate bypass IRQ: err %d\n", err);
+		dev_err(&dev->dev, "failed to allocate bypass IRQ: err %d\n",
+			err);
 		return err;
 	}
 
 	// Enable SGI #15 on core 0
 	err = smp_call_on_cpu(0, do_fpi_irq_activate, (void *)irq_no, true);
 	if (err < 0) {
-		pr_warn("failed to invoke CPU 0 to activate bypass IRQ: err %d\n",
+		dev_err(&dev->dev,
+			"failed to invoke CPU 0 to activate bypass IRQ: err %d\n",
 			err);
 		return err;
 	}
@@ -138,13 +142,18 @@ static void deinit_bypass_fpi(void)
 static int netdev_open(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
+	int err;
 
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
 
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
-	start_cmac(&priv->cmac_dev, 0);
+	err = start_cmac(&priv->cmac_dev, 0);
+	if (err) {
+		dev_err(&dev->dev, "Failed to start CMAC!\n");
+		return err;
+	}
 
 	return 0;
 }
@@ -164,7 +173,7 @@ static int netdev_setaddr(struct net_device *dev, void *addr)
 	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
 							   mac_addr.data_be);
 	eth_hw_addr_set(dev, mac_addr.arr);
-	pr_info("Updated MAC address: %pM\n", dev->dev_addr);
+	dev_info(&dev->dev, "Updated MAC address: %pM\n", &dev->dev_addr);
 
 	return 0;
 }
@@ -174,10 +183,10 @@ static void netdev_rx_mode(struct net_device *dev)
 	struct netdev_priv *priv = netdev_priv(dev);
 
 	if (dev->flags & IFF_PROMISC) {
-		pr_info("enabling promisc mode\n");
+		dev_info(&dev->dev, "enabling promisc mode\n");
 		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 1);
 	} else {
-		pr_info("disabling promisc mode\n");
+		dev_info(&dev->dev, "disabling promisc mode\n");
 		lauberhorn_eci_decoderSink_ctrl_promisc_wr(&priv->dec_dev, 0);
 	}
 }
@@ -191,13 +200,14 @@ static int inetaddr_event(struct notifier_block *nb, unsigned long event,
 
 	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
 		if (event == NETDEV_UP) {
-			pr_info("Updating primary IP address in HW to %pI4\n",
-				&ifa->ifa_address);
+			dev_info(&dev->dev,
+				 "Updating primary IP address in HW to %pI4\n",
+				 &ifa->ifa_address);
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
 				&priv->ip_dec_dev, ifa->ifa_address);
 		} else if (event == NETDEV_DOWN) {
-			pr_info("Clearing primary IP address\n");
+			dev_info(&dev->dev, "Clearing primary IP address\n");
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
 				&priv->ip_dec_dev, 0);
@@ -269,14 +279,14 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 		hdr_len = 14 + 20 + 8;
 		break;
 	default:
-		pr_err("unexpected bypass packet type %d\n",
-		       desc->bypass.header_type);
+		dev_warn(&dev->dev, "unexpected bypass packet type %d\n",
+			 desc->bypass.header_type);
 		return false;
 	}
 
 	skb = netdev_alloc_skb(dev, hdr_len + desc->payload_len + NET_IP_ALIGN);
 	if (!skb) {
-		pr_err("failed to allocate skb\n");
+		dev_warn(&dev->dev, "failed to allocate skb\n");
 		dev->stats.rx_dropped++;
 		return false;
 	}
@@ -328,7 +338,9 @@ static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
 	if (nei) {
 		if (nei->nud_state & NUD_VALID) {
 			// we have a valid MAC address, program into hardware
-			pr_info("ARP HW entry %d: programming existing entry %pI4 -> %pM\n",
+			dev_info(
+				&priv->dev->dev,
+				"ARP HW entry %d: programming existing entry %pI4 -> %pM\n",
 				idx, &dst, nei->ha);
 			write_hw_neigh_tbl(priv, dst, nei->ha, idx,
 					   lauberhorn_eci_neigh_reachable);
@@ -336,7 +348,8 @@ static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
 		// if not connected, let trigger handle update
 	} else {
 		// trigger lookup
-		pr_info("Triggering ARP lookup for %pI4\n", &dst);
+		dev_info(&priv->dev->dev, "Triggering ARP lookup for %pI4\n",
+			 &dst);
 		nei = neigh_event_ns(&arp_tbl, NULL, &dst, priv->dev);
 	}
 
@@ -367,7 +380,8 @@ static int napi_poll(struct napi_struct *n, int budget)
 			rx_handle_arp(&desc, priv);
 			break;
 		default:
-			pr_err("unsupported host req type %d\n", desc.type);
+			dev_warn(&dev->dev, "unsupported host req type %d\n",
+				 desc.type);
 			continue;
 		}
 
@@ -419,13 +433,17 @@ static int arp_event(struct notifier_block *nb, unsigned long event, void *ptr)
 	case NETEVENT_NEIGH_UPDATE:
 		if (n->nud_state & NUD_VALID) {
 			// now we have a valid MAC address, program into HW
-			pr_info("ARP HW entry %d: resolve succeeded %pI4 -> %pM\n",
+			dev_info(
+				&dev->dev,
+				"ARP HW entry %d: resolve succeeded %pI4 -> %pM\n",
 				idx, &dst, n->ha);
 			write_hw_neigh_tbl(priv, dst, n->ha, idx,
 					   lauberhorn_eci_neigh_reachable);
 		} else if (n->nud_state & (NUD_FAILED | NUD_STALE)) {
 			// clear the HW entry to trigger retry on next outgoing packet
-			pr_info("ARP HW entry %d: clearing failed/stale neighbor %pI4\n",
+			dev_info(
+				&dev->dev,
+				"ARP HW entry %d: clearing failed/stale neighbor %pI4\n",
 				idx, &dst);
 			write_hw_neigh_tbl(priv, 0, NULL, idx,
 					   lauberhorn_eci_neigh_none);
@@ -489,11 +507,12 @@ int init_bypass(void)
 	ver_maj = cmac_core_version_major_extract(ver);
 	ver_min = cmac_core_version_minor_extract(ver);
 	if (ver == 0) {
-		pr_err("CMAC version register all zero!\n");
+		dev_err(&netdev->dev, "CMAC version register all zero!\n");
 		free_netdev(netdev);
 		return -1;
 	}
-	pr_info("CMAC version: %d.%d (raw %#x)\n", ver_maj, ver_min, ver);
+	dev_info(&netdev->dev, "CMAC version: %d.%d (raw %#x)\n", ver_maj,
+		 ver_min, ver);
 
 	// Clear shadow ARP cache table
 	memset(priv->arp_cache, 0, sizeof(priv->arp_cache));
@@ -502,7 +521,7 @@ int init_bypass(void)
 	mac_addr.data_be = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
 		&priv->eth_dec_dev);
 	eth_hw_addr_set(netdev, mac_addr.arr);
-	pr_info("Our MAC address: %pM\n", netdev->dev_addr);
+	dev_info(&netdev->dev, "Our MAC address: %pM\n", netdev->dev_addr);
 
 	// Initialize datapath core state
 	priv->ctx.rx_next_cl = priv->ctx.tx_next_cl = 0;
@@ -539,7 +558,8 @@ int init_bypass(void)
 
 	err = register_netdev(netdev);
 	if (err < 0) {
-		pr_err("failed to register netdev: err %d\n", err);
+		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
+			err);
 		netif_napi_del(&priv->napi);
 		free_netdev(netdev);
 		return err;
