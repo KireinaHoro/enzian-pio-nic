@@ -75,13 +75,14 @@ int map_node1(void)
 {
 	pr_info("Mapping I/O memory from node 1\n");
 
-	// Map
+	// Map I/O registers
 	io_base_node1 = ioremap(STATIC_SHELL_IO_BASE, STATIC_SHELL_IO_SIZE);
 	if (!io_base_node1) {
 		pr_err("Failed to map Lauberhorn registers!\n");
 		return -1;
 	}
 
+	// Map coherent memory for datapath
 	mem_base_node1 = memremap(FPGA_MEM_BASE, FPGA_MEM_SIZE, MEMREMAP_WB);
 	if (!mem_base_node1) {
 		pr_err("Failed to map Lauberhorn memory area!\n");

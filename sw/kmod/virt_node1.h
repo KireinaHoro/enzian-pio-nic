@@ -3,7 +3,7 @@
 
 #define STATIC_SHELL_IO_BASE (0x900000000000UL)
 #define STATIC_SHELL_IO_SIZE \
-	(4 * PAGE_SIZE) // 4 pages of registers should be enough
+	(1024 * PAGE_SIZE) // CMAC mapped at 0x200000 (512 pages)
 
 #define FPGA_MEM_BASE (0x10000000000UL)
 #define FPGA_MEM_SIZE (0x10000000000UL) // 1 TiB
