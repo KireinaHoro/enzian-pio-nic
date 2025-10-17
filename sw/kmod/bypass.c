@@ -488,6 +488,16 @@ int init_bypass(void)
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
 
+	// Register netdev
+	err = register_netdev(netdev);
+	if (err < 0) {
+		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
+			err);
+		netif_napi_del(&priv->napi);
+		free_netdev(netdev);
+		return err;
+	}
+
 	// Create Mackerel devices
 	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
 					  LAUBERHORN_ECI_PREEMPT_BASE(0));
@@ -553,17 +563,8 @@ int init_bypass(void)
 	udelay(1);
 	lauberhorn_eci_dma_ctrl_alloc_reset_wr(&priv->dma_dev, 0);
 
-	// Register netdev
+	// Register NAPI poll
 	netif_napi_add(netdev, &priv->napi, napi_poll);
-
-	err = register_netdev(netdev);
-	if (err < 0) {
-		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
-			err);
-		netif_napi_del(&priv->napi);
-		free_netdev(netdev);
-		return err;
-	}
 
 	// Register callback for IP address configuration
 	register_inetaddr_notifier(&inetaddr_notifier);
@@ -588,8 +589,9 @@ void deinit_bypass(void)
 	// Disable interrupts
 	deinit_bypass_fpi();
 
-	// Deregister IP addr callback
+	// Deregister various callbacks
 	unregister_inetaddr_notifier(&inetaddr_notifier);
+	unregister_netevent_notifier(&arp_notifier);
 
 	// Free overflow buffers
 	kfree(priv->ctx.rx_overflow_buf);
