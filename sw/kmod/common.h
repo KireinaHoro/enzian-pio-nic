@@ -61,6 +61,7 @@ void remove_devices(void);
 
 // Map node 1 io/memory
 int map_node1(void);
+void unmap_node1(void);
 
 struct proc_def;
 struct thr_def;
