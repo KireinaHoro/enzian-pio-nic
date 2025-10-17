@@ -13,14 +13,17 @@ extern void __iomem *io_base_node1;
 extern void *mem_base_node1;
 static inline void *io_node1_off_to_virt(off_t x)
 {
+	BUG_ON(x >= STATIC_SHELL_IO_SIZE);
 	return (void __iomem *)((u64)io_base_node1 + x);
 }
 static inline phys_addr_t mem_node1_off_to_phys(off_t x)
 {
+	BUG_ON(x >= FPGA_MEM_SIZE);
 	return (phys_addr_t)(FPGA_MEM_BASE + x);
 }
 static inline void *mem_node1_off_to_virt(off_t x)
 {
+	BUG_ON(x >= FPGA_MEM_SIZE);
 	return (void *)((u64)mem_base_node1 + x);
 }
 
