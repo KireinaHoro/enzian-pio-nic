@@ -6,9 +6,9 @@
 #include "common.h"
 #include "cmac_dev.h"
 
-// Total wait time 1000 ms
+// Total wait time 10 seconds
 #define LINE_UP_MAX_ATTEMPTS 1000
-#define LINE_UP_WAIT_MS 1
+#define LINE_UP_WAIT_MS 10
 
 int start_cmac(cmac_t *cmac, bool loopback)
 {
