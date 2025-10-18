@@ -87,7 +87,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
     CSRSim.csrSanityChecks(csrMaster, rxBlockCycles)
 
-    val bypassThread = ThreadDef(-1, 0xdead)
+    val bypassThread = ThreadDef(-1, 0) // kmod actually uses 0 for bypass
     threads(-1) = bypassThread
     bypassCore.switchToThread(bypassThread, csrMaster)
 
@@ -604,6 +604,14 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   0 until numCores foreach txScanOnCore
+
+  testWithDB("tx-bypass-simple", Tx) { implicit dut =>
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-bypass-simple") / "packets-expecting.pcap").toString)
+
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+
+    txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, -1)
+  }
 
   def txAllCores(doVoluntaryInv: Boolean) = {
     val testName = s"tx-all-cores-${if (!doVoluntaryInv) "no-" else ""}inv"
