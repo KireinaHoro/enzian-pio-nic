@@ -195,36 +195,6 @@ static void netdev_rx_mode(struct net_device *dev)
 	}
 }
 
-static int inetaddr_event(struct notifier_block *nb, unsigned long event,
-			  void *ptr)
-{
-	struct in_ifaddr *ifa = ptr;
-	struct net_device *dev = ifa->ifa_dev->dev;
-	struct netdev_priv *priv = netdev_priv(dev);
-
-	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
-		if (event == NETDEV_UP) {
-			dev_info(&dev->dev,
-				 "Updating primary IP address in HW to %pI4\n",
-				 &ifa->ifa_address);
-
-			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
-				&priv->ip_dec_dev, ifa->ifa_address);
-		} else if (event == NETDEV_DOWN) {
-			dev_info(&dev->dev, "Clearing primary IP address\n");
-
-			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
-				&priv->ip_dec_dev, 0);
-		}
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block inetaddr_notifier = {
-	.notifier_call = inetaddr_event,
-};
-
 static int netdev_stop(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
@@ -460,6 +430,41 @@ static int arp_event(struct notifier_block *nb, unsigned long event, void *ptr)
 
 static struct notifier_block arp_notifier = {
 	.notifier_call = arp_event,
+};
+
+static int inetaddr_event(struct notifier_block *nb, unsigned long event,
+			  void *ptr)
+{
+	struct in_ifaddr *ifa = ptr;
+	struct net_device *dev = ifa->ifa_dev->dev;
+	struct netdev_priv *priv = netdev_priv(dev);
+
+	if (dev->netdev_ops != &netdev_ops) {
+		// not our device!  skip
+		return NOTIFY_OK;
+	}
+
+	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
+		if (event == NETDEV_UP) {
+			dev_info(&dev->dev,
+				 "Updating primary IP address in HW to %pI4\n",
+				 &ifa->ifa_address);
+
+			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
+				&priv->ip_dec_dev, ifa->ifa_address);
+		} else if (event == NETDEV_DOWN) {
+			dev_info(&dev->dev, "Clearing primary IP address\n");
+
+			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
+				&priv->ip_dec_dev, 0);
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block inetaddr_notifier = {
+	.notifier_call = inetaddr_event,
 };
 
 static void init_netdev(struct net_device *dev)
