@@ -30,7 +30,6 @@ class IpDecoder extends Decoder[IpRxMeta] {
     val ethernetPayload = Axi4Stream(macIf.axisConfig)
 
     // 192.168.128.40; changed at runtime
-    // stored as Big Endian
     val ipAddress = Reg(Bits(32 bits)) init EndiannessSwap(B("32'xc0_a8_80_28"))
 
     from[EthernetRxMeta, EthernetDecoder](
@@ -62,14 +61,18 @@ class IpDecoder extends Decoder[IpRxMeta] {
 
     ethernetPayload >> decoder.io.input
     metadata << decoder.io.header.throwWhen(drop).map { hdr =>
-      val meta = IpRxMeta()
-      meta.hdr.assignFromBits(hdr)
-      meta.ethMeta := lastEthMeta
+      new Composite(this, "remap") {
+        val meta = IpRxMeta()
+        meta.hdr.assignFromBits(hdr)
+        meta.ethMeta := lastEthMeta
 
-      // TODO: verify header checksum, version, etc.
-      drop := meta.hdr.daddr =/= ipAddress && !isPromisc
+        // allow unicast, multicast, broadcast
+        val isBroadcast = meta.hdr.daddr.andR
+        val isMulticast = meta.hdr.daddr(7 downto 4) === 0xe // 224.0.0.0/4
 
-      meta
+        // TODO: verify header checksum, version, etc.
+        drop := meta.hdr.daddr =/= ipAddress && !isBroadcast && !isMulticast && !isPromisc
+      }.meta
     }
   }
 }

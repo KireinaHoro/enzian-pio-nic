@@ -28,7 +28,6 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     private val metadata = Stream(EthernetRxMeta())
 
     // zuestoll01 FPGA MAC address: 0C:53:31:03:00:28
-    // stored as Big Endian
     val macAddress = Reg(Bits(48 bits)) init EndiannessSwap(B("48'x0C_53_31_03_00_28"))
 
     awaitBuild()
@@ -49,10 +48,10 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
         meta.hdr.assignFromBits(hdr)
         meta.frameLen := macIf.frameLen
 
-        // allow unicast and broadcast
-        // TODO: multicast?
+        // allow unicast, multicast, broadcast
         val isBroadcast = meta.hdr.dst.andR
-        drop := macAddress =/= meta.hdr.dst && !isBroadcast && !isPromisc
+        val isMulticast = meta.hdr.dst(0) // LSB of the first octet
+        drop := macAddress =/= meta.hdr.dst && !isBroadcast && !isMulticast && !isPromisc
       }.meta
     }
 
