@@ -21,6 +21,17 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	cmac_stat_rx_status_t status;
 	int attempts = 0;
 
+	// Pull resets so we start clean
+	cmac_gt_reset_gt_reset_all_wrf(cmac, 1); // clear on write
+	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0b1111111111);
+	cmac_reset_usr_rx_reset_wrf(cmac, 1);
+	cmac_reset_usr_tx_reset_wrf(cmac, 1);
+	mdelay(1);
+	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0);
+	cmac_reset_usr_rx_reset_wrf(cmac, 0);
+	cmac_reset_usr_tx_reset_wrf(cmac, 0);
+	mdelay(1);
+
 	// ctl_rx_enable
 	cmac_conf_rx_1_ctl_rx_enable_wrf(cmac, 1);
 	// !ctl_tx_enable, ctl_tx_send_rfi
