@@ -103,7 +103,8 @@ struct thr_def {
 	struct proc_def *parent;
 
 	// Used to update the per-thread CL address to core worker mapping
-	u32 prefix;
+	u16 prefix;
+	static_assert(sizeof(u16) * 8 == LAUBERHORN_THR_PREFIX_WIDTH);
 	phys_addr_t dp_phys_base;
 
 	// Which worker core ID is this thread currently running on?
@@ -151,7 +152,7 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv);
 void desched_worker_thread(struct thr_def *thr);
 
 // Manipulate thread router to route / unroute a prefix to a core
-void route_prefix_to_core(u32 prefix, u32 core_idx);
+void route_prefix_to_core(u16 prefix, u32 core_idx);
 void unroute_prefix_on_core(u32 core_idx);
 
 // CMAC functions
