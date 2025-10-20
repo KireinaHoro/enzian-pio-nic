@@ -133,6 +133,7 @@ xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xlconstant:1.1\
+xilinx.com:ip:system_ila:1.1\
 "
 
    set list_ips_missing ""
@@ -220,7 +221,6 @@ proc create_root_design { parentCell } {
    CONFIG.HAS_RRESP {1} \
    CONFIG.HAS_WSTRB {1} \
    CONFIG.ID_WIDTH {0} \
-   CONFIG.MAX_BURST_LENGTH {1} \
    CONFIG.NUM_READ_OUTSTANDING {1} \
    CONFIG.NUM_READ_THREADS {1} \
    CONFIG.NUM_WRITE_OUTSTANDING {1} \
@@ -229,7 +229,6 @@ proc create_root_design { parentCell } {
    CONFIG.READ_WRITE_MODE {READ_WRITE} \
    CONFIG.RUSER_BITS_PER_BYTE {0} \
    CONFIG.RUSER_WIDTH {0} \
-   CONFIG.SUPPORTS_NARROW_BURST {0} \
    CONFIG.WUSER_BITS_PER_BYTE {0} \
    CONFIG.WUSER_WIDTH {0} \
    ] $cmac_regs_axil
@@ -249,11 +248,35 @@ proc create_root_design { parentCell } {
    CONFIG.TUSER_WIDTH {1} \
    ] $tx_axis
 
+  set dcs_even_mon [ create_bd_intf_port -mode Monitor -mon_dir SlaveType -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_even_mon ]
+  set_property -dict [ list \
+   CONFIG.ADDR_WIDTH {38} \
+   CONFIG.DATA_WIDTH {512} \
+   CONFIG.HAS_QOS {0} \
+   CONFIG.HAS_REGION {0} \
+   CONFIG.ID_WIDTH {7} \
+   CONFIG.NUM_READ_OUTSTANDING {8} \
+   CONFIG.NUM_WRITE_OUTSTANDING {8} \
+   CONFIG.PROTOCOL {AXI4} \
+   ] $dcs_even_mon
+
+  set dcs_odd_mon [ create_bd_intf_port -mode Monitor -mon_dir SlaveType -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_odd_mon ]
+  set_property -dict [ list \
+   CONFIG.ADDR_WIDTH {38} \
+   CONFIG.DATA_WIDTH {512} \
+   CONFIG.HAS_QOS {0} \
+   CONFIG.HAS_REGION {0} \
+   CONFIG.ID_WIDTH {7} \
+   CONFIG.NUM_READ_OUTSTANDING {8} \
+   CONFIG.NUM_WRITE_OUTSTANDING {8} \
+   CONFIG.PROTOCOL {AXI4} \
+   ] $dcs_odd_mon
+
 
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
-   CONFIG.ASSOCIATED_BUSIF {cmac_regs_axil} \
+   CONFIG.ASSOCIATED_BUSIF {cmac_regs_axil:dcs_even_mon:dcs_odd_mon} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
@@ -331,8 +354,27 @@ proc create_root_design { parentCell } {
   ] $xlconstant_0
 
 
+  # Create instance: system_ila_0, and set properties
+  set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
+  set_property -dict [list \
+    CONFIG.C_ADV_TRIGGER {true} \
+    CONFIG.C_DATA_DEPTH {4096} \
+    CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_NUM_MONITOR_SLOTS {2} \
+    CONFIG.C_SLOT {1} \
+    CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_SLOT_0_MAX_RD_BURSTS {8} \
+    CONFIG.C_SLOT_0_MAX_WR_BURSTS {8} \
+    CONFIG.C_SLOT_1_APC_EN {1} \
+    CONFIG.C_SLOT_1_MAX_RD_BURSTS {8} \
+    CONFIG.C_SLOT_1_MAX_WR_BURSTS {8} \
+  ] $system_ila_0
+
+
   # Create interface connections
   connect_bd_intf_net -intf_net CMAC_REGS_AXIL [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
+connect_bd_intf_net -intf_net Conn [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
+connect_bd_intf_net -intf_net Conn1 [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
@@ -343,6 +385,8 @@ proc create_root_design { parentCell } {
   [get_bd_pins cmac_usplus_0/s_axi_sreset]
   connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins app_clk_reset/mb_reset] \
   [get_bd_ports app_clk_reset]
+  connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins app_clk_reset/peripheral_aresetn] \
+  [get_bd_pins system_ila_0/resetn]
   connect_bd_net -net clk_io_2  [get_bd_ports clk_io] \
   [get_bd_pins clk_wiz_0/clk_in1] \
   [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] \
@@ -352,7 +396,8 @@ proc create_root_design { parentCell } {
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_0/clk_out1] \
   [get_bd_ports app_clk] \
   [get_bd_pins app_clk_reset/slowest_sync_clk] \
-  [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  [get_bd_pins cmac_usplus_0/s_axi_aclk] \
+  [get_bd_pins system_ila_0/clk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins cmac_init_clk_reset/peripheral_reset] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
