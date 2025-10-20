@@ -168,17 +168,18 @@ typedef union {
 	u64 data_be;
 } macaddr_cast_t;
 
-static int netdev_setaddr(struct net_device *dev, void *addr)
+static int netdev_setaddr(struct net_device *dev, void *p)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
+	struct sockaddr *addr = p;
 	macaddr_cast_t mac_addr;
 
-	memcpy(mac_addr.arr, addr, ETH_ALEN);
+	memcpy(mac_addr.arr, addr->sa_data, ETH_ALEN);
 
 	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
 							   mac_addr.data_be);
 	eth_hw_addr_set(dev, mac_addr.arr);
-	dev_info(&dev->dev, "Updated MAC address: %pM\n", &dev->dev_addr);
+	dev_info(&dev->dev, "Updated MAC address: %pM\n", dev->dev_addr);
 
 	return 0;
 }
