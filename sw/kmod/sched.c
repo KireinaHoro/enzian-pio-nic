@@ -56,8 +56,11 @@ static void _sched_worker_thread(struct work_struct *ws)
 	struct sched_thread_work *w =
 		container_of(ws, struct sched_thread_work, work);
 	struct thr_def *thr = w->thr;
+
 	u8 *parity_page = w->thr->parent->parity_page;
-	u8 parity_word = parity_page[thr->idx];
+	u8 rx_parity = parity_page[thr->idx * 2];
+	u8 tx_parity = parity_page[thr->idx * 2 + 1];
+
 	int me = smp_processor_id();
 
 	// Update affinity to this core only
@@ -69,9 +72,9 @@ static void _sched_worker_thread(struct work_struct *ws)
 
 	// Program parity bits into HW
 	lauberhorn_eci_worker_rx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						!!(parity_word & 0x1));
+						rx_parity);
 	lauberhorn_eci_worker_tx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						!!(parity_word & 0x2));
+						tx_parity);
 
 	// Lock preemption control CL in L2 -- will be unlocked when the FPGA
 	// tries to preempt this thread

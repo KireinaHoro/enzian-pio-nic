@@ -128,8 +128,10 @@ struct proc_def {
 	struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
 
 	// One page per process that contains the parity bits for all threads
-	// 1 byte per thread: bit 0 is RX parity, bit 1 is TX parity
+	// 2 byte per thread: byte 0 is RX parity, byte 1 is TX parity
 	u8 parity_page[PAGE_SIZE] __aligned(PAGE_SIZE);
+	static_assert(PAGE_SIZE >= LAUBERHORN_NUM_WORKER_CORES * 2);
+
 	struct vma_priv_data vma_data_parity_page;
 };
 struct proc_def *find_proc(pid_t tgid);
