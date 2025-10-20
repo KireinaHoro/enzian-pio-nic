@@ -37,7 +37,7 @@ case class ClLclPort() extends Bundle {
 }
 
 case class ThreadDef() extends Bundle {
-  val addrPrefix = Bits(16 bits)
+  val addrPrefix = Bits(THR_PREFIX_WIDTH bits)
   val enabled = Bool()
 
   assert(addrPrefix.getWidth >= log2Up(NUM_THREADS.get + 1), "must allow at least all threads to get a prefix")
@@ -76,7 +76,7 @@ class EciThreadClRouter extends FiberPlugin {
     GenerationFlags simulation new Area {
       val prefixOnCores = Vec(Reg(new Bundle {
         val enabled = Bool()
-        val prefix = Bits(16 bits)
+        val prefix = Bits(THR_PREFIX_WIDTH bits)
       }), NUM_CORES.get)
 
       busCtrl.onWrite(idxAddr) {
@@ -106,10 +106,13 @@ class EciThreadClRouter extends FiberPlugin {
     val coreMask = ((U("1") << coreShift) - 1).asBits
 
     def testPrefix(addr: UInt, prefix: Bits): Bool = {
-      prefix.resized === (addr >> coreShift).asBits
+      // we truncate address downwards
+      val pw = prefix.getBitsWidth
+      prefix === (addr >> coreShift).asBits.resize(pw)
     }
     def setPrefix(addr: UInt, prefix: Bits): UInt = {
-      ((prefix << coreShift).resized | (addr.asBits & coreMask.resized)).asUInt
+      val aw = addr.getBitsWidth
+      ((prefix << coreShift).resize(aw) | (addr.asBits & coreMask.resize(aw))).asUInt
     }
 
     axi.zipWithIndex.foreach { case (p, pidx) =>
@@ -126,11 +129,11 @@ class EciThreadClRouter extends FiberPlugin {
         }
 
         axResult.translateInto(locator(p.axiToProto)) { case (tp, r) =>
-          val outPrefix = r.idx.asBits.resize(16)
+          val outPrefix = r.idx.asBits.resize(THR_PREFIX_WIDTH)
           when(!r.matched) {
             // only prefix 0 - NUM_CORES exist;
             // mangle to a non-existing downstream prefix to use AXI interconnect's error generation
-            outPrefix := B("16'xFFFF")
+            outPrefix.setAll()
           }
 
           tp := r.userData.mapElement(_.addr) { a => setPrefix(a, outPrefix) }

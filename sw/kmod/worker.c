@@ -258,7 +258,7 @@ void deinit_workers()
 
 static DEFINE_SPINLOCK(thread_router_spinlock);
 
-void route_prefix_to_core(u32 prefix, u32 core_idx)
+void route_prefix_to_core(u16 prefix, u32 core_idx)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&thread_router_spinlock, flags);
