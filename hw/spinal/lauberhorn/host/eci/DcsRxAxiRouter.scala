@@ -257,4 +257,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
       }
     }
   }
+  fsm.build()
+
+  val stateOut = out(fsm.stateReg.clone)
+  stateOut := fsm.stateReg
 }

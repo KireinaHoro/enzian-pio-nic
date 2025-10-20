@@ -188,6 +188,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       }
     }
   }
+  writeFsm.build()
 
   val readFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
@@ -294,4 +295,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       }
     }
   }
+  readFsm.build()
+
+  val readStateOut = out(readFsm.stateReg.clone)
+  readStateOut := readFsm.stateReg
+  val writeStateOut = out(writeFsm.stateReg.clone)
+  writeStateOut := writeFsm.stateReg
 }
