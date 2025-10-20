@@ -20,6 +20,7 @@ import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   val isBypass = coreID == 0
+  lazy val debug = host[DebugPlugin]
 
   if (isBypass) {
     withPrefix("proto_bypass")
@@ -41,6 +42,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     busCtrl.readAndWrite(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RW,
       desc = "parity (next CL to read) of the RX state machine"))
 
+    debug.postDebug(s"core${coreID}_rxFsm_state", logic.rxFsm.stateReg)
+    debug.postDebug(s"core${coreID}_txFsm_state", logic.txFsm.stateReg)
+    debug.postDebug(s"core${coreID}_rxClIdx", logic.rxCurrClIdx)
+    debug.postDebug(s"core${coreID}_txClIdx", logic.txCurrClIdx)
   }
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
@@ -121,6 +126,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       // when the preemption request comes from [[EciPreemptionControlPlugin]]
       rxRouter.blockCycles := host[EciInterfacePlugin].rxBlockCycles
     }
+
+    debug.postDebug(s"core${coreID}_rxRouter_state", rxRouter.stateOut)
+    debug.postDebug(s"core${coreID}_txRouter_read_state", txRouter.readStateOut)
+    debug.postDebug(s"core${coreID}_txRouter_write_state", txRouter.writeStateOut)
   }.setCompositeName(this, "driveDcsBus")
 
   def preemptReq = logic.preemptReq

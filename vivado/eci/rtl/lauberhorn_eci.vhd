@@ -542,7 +542,7 @@ signal nic_engine_app_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
-signal a, b, c, d : std_logic;
+signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(16 downto 0);
 
 -- LCL channel signals between DC and the NIC engine
 signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
@@ -1336,9 +1336,7 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_even_mon_arlen => dcs_even_axi.arlen,
     dcs_even_mon_arlock => dcs_even_axi.arlock,
     dcs_even_mon_arprot => dcs_even_axi.arprot,
-    dcs_even_mon_arqos => dcs_even_axi.arqos,
     dcs_even_mon_arready => dcs_even_axi.arready,
-    dcs_even_mon_arregion => dcs_even_axi.arregion,
     dcs_even_mon_arsize => dcs_even_axi.arsize,
     dcs_even_mon_arvalid => dcs_even_axi.arvalid,
     dcs_even_mon_awaddr => dcs_even_axi.awaddr,
@@ -1347,9 +1345,7 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_even_mon_awlen => dcs_even_axi.awlen,
     dcs_even_mon_awlock => dcs_even_axi.awlock,
     dcs_even_mon_awprot => dcs_even_axi.awprot,
-    dcs_even_mon_awqos => dcs_even_axi.awqos,
     dcs_even_mon_awready => dcs_even_axi.awready,
-    dcs_even_mon_awregion => dcs_even_axi.awregion,
     dcs_even_mon_awsize => dcs_even_axi.awsize,
     dcs_even_mon_awvalid => dcs_even_axi.awvalid,
     dcs_even_mon_bready => dcs_even_axi.bready,
@@ -1371,9 +1367,7 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_odd_mon_arlen => dcs_odd_axi.arlen,
     dcs_odd_mon_arlock => dcs_odd_axi.arlock,
     dcs_odd_mon_arprot => dcs_odd_axi.arprot,
-    dcs_odd_mon_arqos => dcs_odd_axi.arqos,
     dcs_odd_mon_arready => dcs_odd_axi.arready,
-    dcs_odd_mon_arregion => dcs_odd_axi.arregion,
     dcs_odd_mon_arsize => dcs_odd_axi.arsize,
     dcs_odd_mon_arvalid => dcs_odd_axi.arvalid,
     dcs_odd_mon_awaddr => dcs_odd_axi.awaddr,
@@ -1382,9 +1376,7 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_odd_mon_awlen => dcs_odd_axi.awlen,
     dcs_odd_mon_awlock => dcs_odd_axi.awlock,
     dcs_odd_mon_awprot => dcs_odd_axi.awprot,
-    dcs_odd_mon_awqos => dcs_odd_axi.awqos,
     dcs_odd_mon_awready => dcs_odd_axi.awready,
-    dcs_odd_mon_awregion => dcs_odd_axi.awregion,
     dcs_odd_mon_awsize => dcs_odd_axi.awsize,
     dcs_odd_mon_awvalid => dcs_odd_axi.awvalid,
     dcs_odd_mon_bready => dcs_odd_axi.bready,
@@ -1399,7 +1391,14 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_odd_mon_wlast => dcs_odd_axi.wlast,
     dcs_odd_mon_wready => dcs_odd_axi.wready,
     dcs_odd_mon_wstrb => dcs_odd_axi.wstrb,
-    dcs_odd_mon_wvalid => dcs_odd_axi.wvalid
+    dcs_odd_mon_wvalid => dcs_odd_axi.wvalid,
+
+    -- 2F2F protocol states
+    core0_states => core0_states,
+    core1_states => core1_states,
+    core2_states => core2_states,
+    core3_states => core3_states,
+    core4_states => core4_states
 );
 
 NicEngine_inst : entity work.NicEngine
@@ -1559,7 +1558,48 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rvalid => nic_engine_axil.rvalid,
     s_axil_ctrl_rready => nic_engine_axil.rready,
     s_axil_ctrl_rdata => nic_engine_axil.rdata,
-    s_axil_ctrl_rresp => nic_engine_axil.rresp
+    s_axil_ctrl_rresp => nic_engine_axil.rresp,
+
+    -- Debug interfaces
+    core0_rxRouter_state => core0_states(2 downto 0),
+    core0_txRouter_read_state => core0_states(5 downto 3),
+    core0_txRouter_write_state => core0_states(8 downto 6),
+    core0_rxFsm_state => core0_states(11 downto 9),
+    core0_txFsm_state => core0_states(14 downto 12),
+    core0_rxClIdx => core0_states(15),
+    core0_txClIdx => core0_states(16),
+
+    core1_rxRouter_state => core1_states(2 downto 0),
+    core1_txRouter_read_state => core1_states(5 downto 3),
+    core1_txRouter_write_state => core1_states(8 downto 6),
+    core1_rxFsm_state => core1_states(11 downto 9),
+    core1_txFsm_state => core1_states(14 downto 12),
+    core1_rxClIdx => core1_states(15),
+    core1_txClIdx => core1_states(16),
+
+    core2_rxRouter_state => core2_states(2 downto 0),
+    core2_txRouter_read_state => core2_states(5 downto 3),
+    core2_txRouter_write_state => core2_states(8 downto 6),
+    core2_rxFsm_state => core2_states(11 downto 9),
+    core2_txFsm_state => core2_states(14 downto 12),
+    core2_rxClIdx => core2_states(15),
+    core2_txClIdx => core2_states(16),
+
+    core3_rxRouter_state => core3_states(2 downto 0),
+    core3_txRouter_read_state => core3_states(5 downto 3),
+    core3_txRouter_write_state => core3_states(8 downto 6),
+    core3_rxFsm_state => core3_states(11 downto 9),
+    core3_txFsm_state => core3_states(14 downto 12),
+    core3_rxClIdx => core3_states(15),
+    core3_txClIdx => core3_states(16),
+
+    core4_rxRouter_state => core4_states(2 downto 0),
+    core4_txRouter_read_state => core4_states(5 downto 3),
+    core4_txRouter_write_state => core4_states(8 downto 6),
+    core4_rxFsm_state => core4_states(11 downto 9),
+    core4_txFsm_state => core4_states(14 downto 12),
+    core4_rxClIdx => core4_states(15),
+    core4_txClIdx => core4_states(16)
   );
 
 end Behavioral;
