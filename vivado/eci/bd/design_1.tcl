@@ -20,7 +20,7 @@ set script_folder [_tcl::get_script_folder]
 ################################################################
 # Check if script is running in correct Vivado version.
 ################################################################
-set scripts_vivado_version 2023.2
+set scripts_vivado_version 2025.1
 set current_vivado_version [version -short]
 
 if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
@@ -339,15 +339,33 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
 
   # Create port connections
-  connect_bd_net -net app_clk_reset_bus_struct_reset [get_bd_pins app_clk_reset/bus_struct_reset] [get_bd_pins cmac_usplus_0/s_axi_sreset]
-  connect_bd_net -net app_clk_reset_mb_reset [get_bd_pins app_clk_reset/mb_reset] [get_bd_ports app_clk_reset]
-  connect_bd_net -net clk_io_2 [get_bd_ports clk_io] [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/gt_drpclk] [get_bd_pins cmac_usplus_0/init_clk] [get_bd_pins cmac_usplus_0/drp_clk]
-  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_wiz_0/clk_out1] [get_bd_ports app_clk] [get_bd_pins app_clk_reset/slowest_sync_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk]
-  connect_bd_net -net cmac_init_clk_reset_peripheral_reset [get_bd_pins cmac_init_clk_reset/peripheral_reset] [get_bd_pins cmac_usplus_0/sys_reset]
-  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2 [get_bd_pins cmac_usplus_0/gt_rxusrclk2] [get_bd_ports rxclk] [get_bd_pins cmac_usplus_0/rx_clk]
-  connect_bd_net -net cmac_usplus_0_gt_txusrclk2 [get_bd_pins cmac_usplus_0/gt_txusrclk2] [get_bd_ports txclk]
-  connect_bd_net -net reset_sys_1 [get_bd_ports reset] [get_bd_pins app_clk_reset/ext_reset_in] [get_bd_pins cmac_init_clk_reset/ext_reset_in]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins xlconstant_0/dout] [get_bd_pins cmac_usplus_0/gt_rxpolarity] [get_bd_pins cmac_usplus_0/gt_txpolarity]
+  connect_bd_net -net app_clk_reset_bus_struct_reset  [get_bd_pins app_clk_reset/bus_struct_reset] \
+  [get_bd_pins cmac_usplus_0/s_axi_sreset]
+  connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins app_clk_reset/mb_reset] \
+  [get_bd_ports app_clk_reset]
+  connect_bd_net -net clk_io_2  [get_bd_ports clk_io] \
+  [get_bd_pins clk_wiz_0/clk_in1] \
+  [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] \
+  [get_bd_pins cmac_usplus_0/gt_drpclk] \
+  [get_bd_pins cmac_usplus_0/init_clk] \
+  [get_bd_pins cmac_usplus_0/drp_clk]
+  connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_0/clk_out1] \
+  [get_bd_ports app_clk] \
+  [get_bd_pins app_clk_reset/slowest_sync_clk] \
+  [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins cmac_init_clk_reset/peripheral_reset] \
+  [get_bd_pins cmac_usplus_0/sys_reset]
+  connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
+  [get_bd_ports rxclk] \
+  [get_bd_pins cmac_usplus_0/rx_clk]
+  connect_bd_net -net cmac_usplus_0_gt_txusrclk2  [get_bd_pins cmac_usplus_0/gt_txusrclk2] \
+  [get_bd_ports txclk]
+  connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
+  [get_bd_pins app_clk_reset/ext_reset_in] \
+  [get_bd_pins cmac_init_clk_reset/ext_reset_in]
+  connect_bd_net -net xlconstant_0_dout  [get_bd_pins xlconstant_0/dout] \
+  [get_bd_pins cmac_usplus_0/gt_rxpolarity] \
+  [get_bd_pins cmac_usplus_0/gt_txpolarity]
 
   # Create address segments
   assign_bd_address -offset 0x00000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces cmac_regs_axil] [get_bd_addr_segs cmac_usplus_0/s_axi/Reg] -force

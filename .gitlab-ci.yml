@@ -36,7 +36,7 @@ fast-tests-eci:
   needs:
     - fast-tests-eci
   before_script:
-    - source /opt/Xilinx/Vivado/2023.2/settings64.sh
+    - source /opt/Xilinx/2025.1/Vivado/settings64.sh
   script:
     - mill --no-server $PIONIC_DESIGN.generateBitstream
 
