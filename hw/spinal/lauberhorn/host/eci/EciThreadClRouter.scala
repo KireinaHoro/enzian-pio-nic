@@ -107,8 +107,7 @@ class EciThreadClRouter extends FiberPlugin {
 
     def testPrefix(addr: UInt, prefix: Bits): Bool = {
       // we truncate address downwards
-      val pw = prefix.getBitsWidth
-      prefix === (addr >> coreShift).asBits.resize(pw)
+      prefix === (addr >> coreShift).asBits.resize(THR_PREFIX_WIDTH)
     }
     def setPrefix(addr: UInt, prefix: Bits): UInt = {
       val aw = addr.getBitsWidth
@@ -165,7 +164,7 @@ class EciThreadClRouter extends FiberPlugin {
       }
 
       when (chanResult.valid) {
-        assert(chanResult.matched, "non-existent map for LCIA (thread => physical)")
+        assert(chanResult.matched, s"non-existent map for $portName (thread => physical)")
       }
     }
 
