@@ -2,15 +2,16 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, isSorted}
+import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, hexToBytesBE, isSorted}
 import org.pcap4j.core.{PcapDumper, Pcaps}
-import org.pcap4j.packet.{EthernetPacket, IpV4Packet, Packet, UdpPacket}
-import org.pcap4j.packet.namednumber.DataLinkType
+import org.pcap4j.packet.{EthernetPacket, IpV4Packet, IpV4Rfc1349Tos, Packet, UdpPacket}
+import org.pcap4j.packet.namednumber.{DataLinkType, EtherType, IpNumber, IpVersion}
 import org.scalatest.exceptions.TestFailedException
 import lauberhorn._
 import lauberhorn.Global._
 import lauberhorn.sim._
 import lauberhorn.sim.PacketType._
+import org.pcap4j.util.MacAddress
 import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.core.sim._
 import spinal.lib._
@@ -23,7 +24,7 @@ import scala.util._
 import scala.util.control.TailCalls._
 import org.scalatest.tagobjects.Slow
 
-import java.net.InetAddress
+import java.net.{Inet4Address, InetAddress}
 
 class EciThreadData(val td: ThreadDef) {
   /** 2F2F protocol parity bits */
@@ -375,6 +376,41 @@ class NicSim extends DutSimFunSuite[NicEngine]
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
+  }
+
+  testWithDB("rx-bypass-multicast", Rx) { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    var done = false
+    fork {
+      sleepCycles(10000)
+      assert(done, "test timed out")
+    }
+
+    // leave promisc mode off -- we have a IP and MAC address by default for zuestoll01
+    // send one IGMP membership qeury to test both IP and Ethernet filtering
+    val ipBuilder = (new IpV4Packet.Builder)
+      .version(IpVersion.IPV4)
+      .protocol(IpNumber.IGMP)
+      .tos(IpV4Rfc1349Tos.newInstance(0))
+      .ttl(Random.nextInt().toByte)
+      .srcAddr(InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address])
+      .dstAddr(InetAddress.getByName("224.0.0.1").asInstanceOf[Inet4Address])
+      .correctLengthAtBuild(true)
+      .correctChecksumAtBuild(true)
+      .payloadBuilder(rawPayloadBuilder(hexToBytesBE("1164ee9b00000000").toArray))
+
+    val ethernetBuilder = (new EthernetPacket.Builder)
+      .srcAddr(MacAddress.getByAddress(Random.nextBytes(6)))
+      .dstAddr(MacAddress.getByName("01:00:5e:00:00:01"))
+      .`type`(EtherType.IPV4)
+      .paddingAtBuild(true)
+      .payloadBuilder(ipBuilder)
+
+    val ethernetPacket = ethernetBuilder.build()
+    val proto = PacketType.Ip // we should receive this as a bypass IP packet
+
+    rxTestSimple(dcsMaster, axisMaster, ethernetPacket, proto, maxRetries = 5)
+    done = true
   }
 
   testWithDB("rx-oncrpc-allcores", Rx) { implicit dut =>
