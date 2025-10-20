@@ -63,11 +63,11 @@ typedef struct {
 } lauberhorn_pkt_desc_t;
 
 typedef struct {
-  uint8_t rx_next_cl;
+  uint8_t *rx_next_cl;
   uint8_t *rx_overflow_buf;
   int rx_overflow_buf_size;
 
-  uint8_t tx_next_cl;
+  uint8_t *tx_next_cl;
   uint8_t *tx_overflow_buf;
   int tx_overflow_buf_size;
 } lauberhorn_core_state_t;
@@ -120,7 +120,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   enter_cs();
 
-  bool rx_parity = ctx->rx_next_cl;
+  bool rx_parity = *ctx->rx_next_cl;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
 
   uint8_t *rx_base = (uint8_t *)base + (LAUBERHORN_ECI_RX_BASE +
@@ -130,7 +130,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
   BARRIER; // make sure the CL is actually read
 
   // always toggle CL
-  ctx->rx_next_cl = !rx_parity;
+  *ctx->rx_next_cl = !rx_parity;
 
   // decode the packet
   if (!valid) {
@@ -255,7 +255,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
   enter_cs();
 
-  bool tx_parity = ctx->tx_next_cl;
+  bool tx_parity = *ctx->tx_next_cl;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
 
   uint8_t *tx_base = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE +
@@ -321,7 +321,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   BARRIER; // make sure all data is written before we ring the doorbell
 
   // Flip the parity
-  ctx->tx_next_cl = !tx_parity;
+  *ctx->tx_next_cl = !tx_parity;
 
   // Ring the doorbell: read next CL to trigger send
   (void)*(uint8_t *)(base + LAUBERHORN_ECI_TX_BASE +

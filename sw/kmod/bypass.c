@@ -53,8 +53,10 @@ struct netdev_priv {
 	lauberhorn_eci_decoderSink_t dec_dev;
 	cmac_t cmac_dev;
 
-	// Datapath state
+	// Datapath state for bypass
 	lauberhorn_core_state_t ctx;
+	// Parity bits sit here (in userspace where it is inside the parity page)
+	uint8_t rx_parity, tx_parity;
 
 	// Shadow table for ARP cache in HW
 	__be32 arp_cache[LAUBERHORN_NUM_NEIGHBOR_ENTRIES];
@@ -547,7 +549,10 @@ int init_bypass(void)
 		lauberhorn_eci_decoderSink_ctrl_promisc_rd(&priv->dec_dev);
 
 	// Initialize datapath core state
-	priv->ctx.rx_next_cl = priv->ctx.tx_next_cl = 0;
+	priv->ctx.rx_next_cl = &priv->rx_parity;
+	priv->ctx.tx_next_cl = &priv->tx_parity;
+	priv->rx_parity = priv->tx_parity = 0;
+
 	priv->ctx.rx_overflow_buf_size = priv->ctx.tx_overflow_buf_size =
 		LAUBERHORN_MTU;
 	priv->ctx.rx_overflow_buf =
