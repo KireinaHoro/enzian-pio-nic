@@ -295,6 +295,11 @@ proc create_root_design { parentCell } {
  ] $txclk
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $txclk
 
+  set core0_states [ create_bd_port -dir I -from 16 -to 0 -type data core0_states ]
+  set core1_states [ create_bd_port -dir I -from 16 -to 0 -type data core1_states ]
+  set core2_states [ create_bd_port -dir I -from 16 -to 0 -type data core2_states ]
+  set core3_states [ create_bd_port -dir I -from 16 -to 0 -type data core3_states ]
+  set core4_states [ create_bd_port -dir I -from 16 -to 0 -type data core4_states ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -360,7 +365,9 @@ proc create_root_design { parentCell } {
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_DATA_DEPTH {4096} \
     CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
+    CONFIG.C_NUM_OF_PROBES {5} \
     CONFIG.C_SLOT {1} \
     CONFIG.C_SLOT_0_APC_EN {1} \
     CONFIG.C_SLOT_0_MAX_RD_BURSTS {8} \
@@ -405,6 +412,16 @@ connect_bd_intf_net -intf_net Conn1 [get_bd_intf_ports dcs_odd_mon] [get_bd_intf
   [get_bd_pins cmac_usplus_0/rx_clk]
   connect_bd_net -net cmac_usplus_0_gt_txusrclk2  [get_bd_pins cmac_usplus_0/gt_txusrclk2] \
   [get_bd_ports txclk]
+  connect_bd_net -net core0_states_1  [get_bd_ports core0_states] \
+  [get_bd_pins system_ila_0/probe0]
+  connect_bd_net -net core1_states_1  [get_bd_ports core1_states] \
+  [get_bd_pins system_ila_0/probe1]
+  connect_bd_net -net core2_states_1  [get_bd_ports core2_states] \
+  [get_bd_pins system_ila_0/probe2]
+  connect_bd_net -net core3_states_1  [get_bd_ports core3_states] \
+  [get_bd_pins system_ila_0/probe3]
+  connect_bd_net -net core4_states_1  [get_bd_ports core4_states] \
+  [get_bd_pins system_ila_0/probe4]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins app_clk_reset/ext_reset_in] \
   [get_bd_pins cmac_init_clk_reset/ext_reset_in]
