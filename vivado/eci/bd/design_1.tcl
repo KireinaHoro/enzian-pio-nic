@@ -252,6 +252,7 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.ADDR_WIDTH {38} \
    CONFIG.DATA_WIDTH {512} \
+   CONFIG.FREQ_HZ {200000000} \
    CONFIG.HAS_QOS {0} \
    CONFIG.HAS_REGION {0} \
    CONFIG.ID_WIDTH {7} \
@@ -264,6 +265,7 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.ADDR_WIDTH {38} \
    CONFIG.DATA_WIDTH {512} \
+   CONFIG.FREQ_HZ {200000000} \
    CONFIG.HAS_QOS {0} \
    CONFIG.HAS_REGION {0} \
    CONFIG.ID_WIDTH {7} \
@@ -276,7 +278,7 @@ proc create_root_design { parentCell } {
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
-   CONFIG.ASSOCIATED_BUSIF {cmac_regs_axil:dcs_even_mon:dcs_odd_mon} \
+   CONFIG.ASSOCIATED_BUSIF {cmac_regs_axil} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
@@ -368,11 +370,23 @@ proc create_root_design { parentCell } {
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
     CONFIG.C_NUM_OF_PROBES {5} \
-    CONFIG.C_SLOT {1} \
+    CONFIG.C_PROBE0_WIDTH {17} \
+    CONFIG.C_PROBE1_WIDTH {17} \
+    CONFIG.C_PROBE2_WIDTH {17} \
+    CONFIG.C_PROBE3_WIDTH {17} \
+    CONFIG.C_PROBE4_WIDTH {17} \
+    CONFIG.C_PROBE_WIDTH_PROPAGATION {MANUAL} \
+    CONFIG.C_SLOT {0} \
     CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {38} \
+    CONFIG.C_SLOT_0_AXI_DATA_WIDTH {512} \
+    CONFIG.C_SLOT_0_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_0_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_0_MAX_WR_BURSTS {8} \
     CONFIG.C_SLOT_1_APC_EN {1} \
+    CONFIG.C_SLOT_1_AXI_ADDR_WIDTH {38} \
+    CONFIG.C_SLOT_1_AXI_DATA_WIDTH {512} \
+    CONFIG.C_SLOT_1_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_1_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_1_MAX_WR_BURSTS {8} \
   ] $system_ila_0
