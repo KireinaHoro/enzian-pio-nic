@@ -6,6 +6,7 @@ import spinal.lib._
 import scala.language.postfixOps
 
 import Global._
+import jsteward.blocks.eci.EciCmdDefs.ECI_CL_SIZE_BYTES
 
 /**
  * Descriptor used to describe a packet (payload of any protocol) in the packet buffer.
@@ -39,7 +40,8 @@ case class PacketBufDesc() extends Bundle {
 
 case class PacketAlloc(base: Long, len: Long) extends Component {
   val roundedMap = PKT_BUF_ALLOC_SIZES.map { case (size, ratio) =>
-    val alignedSize = roundUp(size, DATAPATH_WIDTH.get).toInt
+    // Align to ECI: 64 + 128 * n
+    val alignedSize = roundUp(size - 64, ECI_CL_SIZE_BYTES).toInt + 64
     val slots = (len * ratio / alignedSize).toInt
     (alignedSize, slots)
   }.filter(_._2 != 0)

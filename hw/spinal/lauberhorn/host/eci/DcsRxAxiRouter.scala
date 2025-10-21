@@ -242,6 +242,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           dcsQ.r.setOKAY()
           dcsQ.r.last := pktBufReadLen === 1
         } otherwise {
+          // Does not check if this overruns the buffer for this
+          // request!  Relies on proper alignment (64 + n * 128)
           pktBufAxi.r.ready := dcsQ.r.ready
           dcsQ.r.payload := pktBufAxi.r.payload
           dcsQ.r.valid := pktBufAxi.r.valid
