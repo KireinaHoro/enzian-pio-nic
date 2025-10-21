@@ -1361,6 +1361,10 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_even_mon_wready => dcs_even_axi.wready,
     dcs_even_mon_wstrb => dcs_even_axi.wstrb,
     dcs_even_mon_wvalid => dcs_even_axi.wvalid,
+    dcs_even_mon_arqos => (others => '0'),
+    dcs_even_mon_arregion => (others => '0'),
+    dcs_even_mon_awqos => (others => '0'),
+    dcs_even_mon_awregion => (others => '0'),
     dcs_odd_mon_araddr => dcs_odd_axi.araddr,
     dcs_odd_mon_arburst => dcs_odd_axi.arburst,
     dcs_odd_mon_arcache => dcs_odd_axi.arcache,
@@ -1392,6 +1396,10 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_odd_mon_wready => dcs_odd_axi.wready,
     dcs_odd_mon_wstrb => dcs_odd_axi.wstrb,
     dcs_odd_mon_wvalid => dcs_odd_axi.wvalid,
+    dcs_odd_mon_arqos => (others => '0'),
+    dcs_odd_mon_arregion => (others => '0'),
+    dcs_odd_mon_awqos => (others => '0'),
+    dcs_odd_mon_awregion => (others => '0'),
 
     -- 2F2F protocol states
     core0_states => core0_states,
