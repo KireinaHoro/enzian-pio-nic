@@ -149,7 +149,7 @@ static int netdev_open(struct net_device *dev)
 	struct netdev_priv *priv = netdev_priv(dev);
 	int err;
 
-	err = start_cmac(&priv->cmac_dev, 1);
+	err = start_cmac(&priv->cmac_dev, 0);
 	if (err) {
 		dev_err(&dev->dev, "Failed to start CMAC!\n");
 		return err;
