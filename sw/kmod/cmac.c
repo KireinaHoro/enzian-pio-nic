@@ -10,6 +10,19 @@
 #define LINE_UP_MAX_ATTEMPTS 1000
 #define LINE_UP_WAIT_MS 10
 
+static void reset_cmac(cmac_t *cmac)
+{
+	cmac_gt_reset_gt_reset_all_wrf(cmac, 1); // clear on write
+	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0b1111111111);
+	cmac_reset_usr_rx_reset_wrf(cmac, 1);
+	cmac_reset_usr_tx_reset_wrf(cmac, 1);
+	mdelay(1);
+	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0);
+	cmac_reset_usr_rx_reset_wrf(cmac, 0);
+	cmac_reset_usr_tx_reset_wrf(cmac, 0);
+	mdelay(1);
+}
+
 int start_cmac(cmac_t *cmac, bool loopback)
 {
 	// CMAC lane alignment handshake:
@@ -22,15 +35,7 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	int attempts = 0;
 
 	// Pull resets so we start clean
-	cmac_gt_reset_gt_reset_all_wrf(cmac, 1); // clear on write
-	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0b1111111111);
-	cmac_reset_usr_rx_reset_wrf(cmac, 1);
-	cmac_reset_usr_tx_reset_wrf(cmac, 1);
-	mdelay(1);
-	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0);
-	cmac_reset_usr_rx_reset_wrf(cmac, 0);
-	cmac_reset_usr_tx_reset_wrf(cmac, 0);
-	mdelay(1);
+	// reset_cmac(cmac);
 
 	// ctl_rx_enable
 	cmac_conf_rx_1_ctl_rx_enable_wrf(cmac, 1);
