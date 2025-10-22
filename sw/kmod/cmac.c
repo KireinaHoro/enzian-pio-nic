@@ -35,7 +35,15 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	int attempts = 0;
 
 	// Pull resets so we start clean
-	// reset_cmac(cmac);
+	reset_cmac(cmac);
+
+	// enable RS-FEC
+	cmac_conf_rsfec_enable_ctl_rx_rsfec_enable_wrf(cmac, 1);
+	cmac_conf_rsfec_enable_ctl_tx_rsfec_enable_wrf(cmac, 1);
+	cmac_conf_rsfec_ind_corr_ctl_rx_rsfec_ieee_error_indication_mode_wrf(
+		cmac, 1);
+	cmac_conf_rsfec_ind_corr_ctl_rx_rsfec_enable_correction_wrf(cmac, 1);
+	cmac_conf_rsfec_ind_corr_ctl_rx_rsfec_enable_indication_wrf(cmac, 1);
 
 	// ctl_rx_enable
 	cmac_conf_rx_1_ctl_rx_enable_wrf(cmac, 1);
