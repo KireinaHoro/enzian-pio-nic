@@ -149,16 +149,19 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
   })
 
   val threads = mutable.HashMap[Int, ThreadDef]()
-
   val processes = mutable.HashMap[Int, ProcDef]()
+  def genNewId(existing: Seq[Int]): Int =
+    LazyList.continually(simRandom.nextInt(65536)).find(id => !existing.contains(id)).get
+
   def mkRandomProc(maxThreads: Int) = {
     val ts = Seq.fill(maxThreads) {
-      // FIXME: possible collision
-      val thr = ThreadDef(simRandom.nextInt(65536), simRandom.nextInt(65536))
+      val tid = genNewId(threads.keys.toSeq)
+      val prefix = genNewId(threads.values.map(_.prefix).toSeq)
+      val thr = ThreadDef(tid, prefix)
       threads(thr.tid) = thr
       thr
     }
-    val pd = ProcDef(simRandom.nextInt(65536), ts)
+    val pd = ProcDef(genNewId(processes.keys.toSeq), ts)
     processes(pd.pid) = pd
 
     pd.threads foreach { thr => thr.proc = pd }
