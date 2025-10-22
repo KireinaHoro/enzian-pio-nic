@@ -13,6 +13,8 @@
 #include <sys/ioctl.h>
 #include <stdint.h>
 
+#define __user
+
 #define u16 uint16_t
 #define u32 uint32_t
 #define u64 uint64_t
