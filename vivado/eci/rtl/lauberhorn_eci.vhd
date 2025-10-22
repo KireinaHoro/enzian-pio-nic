@@ -1409,6 +1409,15 @@ axil_adapter_inst : entity work.axil_adapter
     dcs_odd_mon_awqos => (others => '0'),
     dcs_odd_mon_awregion => (others => '0'),
 
+    -- DCS commands
+    lci_even  => dcs_c16_i.valid & dcs_c16_i.ready & dcs_c16_i.vc_no & dcs_c16_i.size & dcs_c16_i.data,
+    lcia_even => dcs_c18_o.valid & dcs_c18_o.ready & dcs_c18_o.vc_no & dcs_c18_o.size & dcs_c18_o.data,
+    ul_even   => dcs_c18_i.valid & dcs_c18_i.ready & dcs_c18_i.vc_no & dcs_c18_i.size & dcs_c18_i.data,
+
+    lci_odd   => dcs_c17_i.valid & dcs_c17_i.ready & dcs_c17_i.vc_no & dcs_c17_i.size & dcs_c17_i.data,
+    lcia_odd  => dcs_c19_o.valid & dcs_c19_o.ready & dcs_c19_o.vc_no & dcs_c19_o.size & dcs_c19_o.data,
+    ul_odd    => dcs_c19_i.valid & dcs_c19_i.ready & dcs_c19_i.vc_no & dcs_c19_i.size & dcs_c19_i.data,
+
     -- 2F2F protocol states
     core0_states => core0_states,
     core1_states => core1_states,
