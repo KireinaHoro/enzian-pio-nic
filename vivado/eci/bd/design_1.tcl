@@ -94,7 +94,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -128,12 +128,12 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
+   set list_check_ips "\ 
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:cmac_usplus:3.1\
-xilinx.com:ip:xlconstant:1.1\
 xilinx.com:ip:system_ila:1.1\
+xilinx.com:inline_hdl:ilconstant:1.0\
 "
 
    set list_ips_missing ""
@@ -302,6 +302,12 @@ proc create_root_design { parentCell } {
   set core2_states [ create_bd_port -dir I -from 16 -to 0 -type data core2_states ]
   set core3_states [ create_bd_port -dir I -from 16 -to 0 -type data core3_states ]
   set core4_states [ create_bd_port -dir I -from 16 -to 0 -type data core4_states ]
+  set lci_even [ create_bd_port -dir I -from 75 -to 0 -type data lci_even ]
+  set lci_odd [ create_bd_port -dir I -from 75 -to 0 -type data lci_odd ]
+  set lcia_even [ create_bd_port -dir I -from 75 -to 0 -type data lcia_even ]
+  set lcia_odd [ create_bd_port -dir I -from 75 -to 0 -type data lcia_odd ]
+  set ul_even [ create_bd_port -dir I -from 75 -to 0 -type data ul_even ]
+  set ul_odd [ create_bd_port -dir I -from 75 -to 0 -type data ul_odd ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -340,10 +346,12 @@ proc create_root_design { parentCell } {
     CONFIG.GT_DRP_CLK {100} \
     CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11} \
     CONFIG.GT_REF_CLK_FREQ {322.265625} \
+    CONFIG.INCLUDE_AUTO_NEG_LT_LOGIC {0} \
     CONFIG.INCLUDE_RS_FEC {1} \
-    CONFIG.INCLUDE_STATISTICS_COUNTERS {1} \
     CONFIG.INS_LOSS_NYQ {25} \
     CONFIG.NUM_LANES {4x25} \
+    CONFIG.RX_CHECK_PREAMBLE {1} \
+    CONFIG.RX_CHECK_SFD {1} \
     CONFIG.RX_EQ_MODE {DFE} \
     CONFIG.RX_FLOW_CONTROL {0} \
     CONFIG.RX_GT_BUFFER {1} \
@@ -353,28 +361,27 @@ proc create_root_design { parentCell } {
   ] $cmac_usplus_0
 
 
-  # Create instance: xlconstant_0, and set properties
-  set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
-  set_property -dict [list \
-    CONFIG.CONST_VAL {0b0011} \
-    CONFIG.CONST_WIDTH {4} \
-  ] $xlconstant_0
-
-
   # Create instance: system_ila_0, and set properties
   set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
   set_property -dict [list \
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_DATA_DEPTH {1024} \
     CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {5} \
+    CONFIG.C_NUM_OF_PROBES {11} \
     CONFIG.C_PROBE0_WIDTH {17} \
+    CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE1_WIDTH {17} \
     CONFIG.C_PROBE2_WIDTH {17} \
     CONFIG.C_PROBE3_WIDTH {17} \
     CONFIG.C_PROBE4_WIDTH {17} \
+    CONFIG.C_PROBE5_WIDTH {76} \
+    CONFIG.C_PROBE6_WIDTH {76} \
+    CONFIG.C_PROBE7_WIDTH {76} \
+    CONFIG.C_PROBE8_WIDTH {76} \
+    CONFIG.C_PROBE9_WIDTH {76} \
     CONFIG.C_PROBE_WIDTH_PROPAGATION {MANUAL} \
     CONFIG.C_SLOT {0} \
     CONFIG.C_SLOT_0_APC_EN {1} \
@@ -392,13 +399,21 @@ proc create_root_design { parentCell } {
   ] $system_ila_0
 
 
+  # Create instance: ilconstant_0, and set properties
+  set ilconstant_0 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilconstant:1.0 ilconstant_0 ]
+  set_property -dict [list \
+    CONFIG.CONST_VAL {0b0011} \
+    CONFIG.CONST_WIDTH {4} \
+  ] $ilconstant_0
+
+
   # Create interface connections
-  connect_bd_intf_net -intf_net CMAC_REGS_AXIL [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
-connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
-connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
+  connect_bd_intf_net -intf_net cmac_regs_axil_1 [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
+connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
+connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
 
   # Create port connections
@@ -417,8 +432,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_0/clk_out1] \
   [get_bd_ports app_clk] \
   [get_bd_pins app_clk_reset/slowest_sync_clk] \
-  [get_bd_pins cmac_usplus_0/s_axi_aclk] \
-  [get_bd_pins system_ila_0/clk]
+  [get_bd_pins system_ila_0/clk] \
+  [get_bd_pins cmac_usplus_0/s_axi_aclk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins cmac_init_clk_reset/peripheral_reset] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
@@ -436,10 +451,22 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins system_ila_0/probe3]
   connect_bd_net -net core4_states_1  [get_bd_ports core4_states] \
   [get_bd_pins system_ila_0/probe4]
+  connect_bd_net -net lci_even_1  [get_bd_ports lci_even] \
+  [get_bd_pins system_ila_0/probe5]
+  connect_bd_net -net lci_odd_1  [get_bd_ports lci_odd] \
+  [get_bd_pins system_ila_0/probe8]
+  connect_bd_net -net lcia_even_1  [get_bd_ports lcia_even] \
+  [get_bd_pins system_ila_0/probe6]
+  connect_bd_net -net lcia_odd_1  [get_bd_ports lcia_odd] \
+  [get_bd_pins system_ila_0/probe9]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins app_clk_reset/ext_reset_in] \
   [get_bd_pins cmac_init_clk_reset/ext_reset_in]
-  connect_bd_net -net xlconstant_0_dout  [get_bd_pins xlconstant_0/dout] \
+  connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
+  [get_bd_pins system_ila_0/probe7]
+  connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
+  [get_bd_pins system_ila_0/probe10]
+  connect_bd_net -net xlconstant_0_dout  [get_bd_pins ilconstant_0/dout] \
   [get_bd_pins cmac_usplus_0/gt_rxpolarity] \
   [get_bd_pins cmac_usplus_0/gt_txpolarity]
 
