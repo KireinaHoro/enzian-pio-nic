@@ -45,6 +45,9 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	cmac_conf_rsfec_ind_corr_ctl_rx_rsfec_enable_correction_wrf(cmac, 1);
 	cmac_conf_rsfec_ind_corr_ctl_rx_rsfec_enable_indication_wrf(cmac, 1);
 
+	cmac_gt_loopback_ctl_gt_loopback_wrf(cmac, loopback);
+	pr_info("Loopback enabled: %s\n", loopback ? "true" : "false");
+
 	// ctl_rx_enable
 	cmac_conf_rx_1_ctl_rx_enable_wrf(cmac, 1);
 	// !ctl_tx_enable, ctl_tx_send_rfi
@@ -78,9 +81,6 @@ int start_cmac(cmac_t *cmac, bool loopback)
 		pr_err("Wait for RX_aligned && RX_status timed out\n");
 		return -EBUSY;
 	}
-
-	cmac_gt_loopback_ctl_gt_loopback_wrf(cmac, loopback);
-	pr_info("Loopback enabled: %s\n", loopback ? "true" : "false");
 
 	// flow control disabled - skipping regs
 	return 0;
