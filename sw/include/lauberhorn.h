@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "eci/core.h"
+
 typedef struct {
   int fd; // to /dev/lauberhorn
 
