@@ -102,10 +102,10 @@
       '';
     };
 
+    hwGenHdrs = cleanSource ./hw/gen;
+
     # cross-compile lauberhorn kernel module
-    lauberhorn-kmod = let
-      hwGenHdrs = cleanSource ./hw/gen;
-    in pkgs.stdenv.mkDerivation {
+    lauberhorn-kmod = pkgs.stdenv.mkDerivation {
       name = "lauberhorn-kmod";
       version = "0.0.1";
       src = cleanSource ./sw;
@@ -124,11 +124,28 @@
       '';
       dontFixup = true;
     };
+
+    lauberhorn-rt = pkgs.stdenv.mkDerivation {
+      name = "lauberhorn-rt";
+      version = "0.0.1";
+      src = cleanSource ./sw;
+      nativeBuildInputs = linuxTools;
+      buildPhase = ''
+        pushd rt
+        make MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs} HW_CFG_HDRS=${hwGenHdrs}
+        popd
+      '';
+      installPhase = ''
+        mkdir -p $out
+        cp rt/liblauberhorn_eci.so $out/
+      '';
+    };
   in {
     packages = {
       inherit
         linux-noble-src
-        lauberhorn-dev-hdrs lauberhorn-kmod;
+        lauberhorn-dev-hdrs lauberhorn-kmod
+        lauberhorn-rt;
     };
 
     # for interactive development (mill needs to download Ivy deps for now)
