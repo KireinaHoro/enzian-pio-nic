@@ -30,6 +30,7 @@
 
 // Register / deregister a service
 typedef u16 lauberhorn_srv_id_t;
+
 typedef struct {
 	// to kernel
 	void __user *func_ptr;
@@ -42,8 +43,15 @@ typedef struct {
 } lauberhorn_reg_srv_t;
 #define LAUBERHORN_IOCTL_REG_SRV \
 	_IOWR(LAUBERHORN_IOCTL_MAGIC, 1, lauberhorn_reg_srv_t)
+
+typedef struct {
+	// to kernel
+	lauberhorn_srv_id_t id;
+	// from kernel
+	void __user *func_ptr;
+} lauberhorn_dereg_srv_t;
 #define LAUBERHORN_IOCTL_DEREG_SRV \
-	_IOW(LAUBERHORN_IOCTL_MAGIC, 2, lauberhorn_srv_id_t)
+	_IOW(LAUBERHORN_IOCTL_MAGIC, 2, lauberhorn_dereg_srv_t)
 
 // Start / stop handling requests on an application thread
 // These are implemented as mmap / destroy VMA
