@@ -209,7 +209,10 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 	lauberhorn_srv_id_t reg_ret;
 	int proc_srv_idx;
 
-	lauberhorn_srv_id_t dereg_cmd;
+	lauberhorn_dereg_srv_t dereg_cmd;
+	lauberhorn_dereg_srv_t __user *dereg_cmd_usr = (void __user *)arg;
+	struct srv_def *srv;
+	void *dereg_ret;
 
 	pid_t tgid = current->pid;
 	struct proc_def *proc = find_proc(tgid);
@@ -235,17 +238,25 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 		break;
 
 	case LAUBERHORN_IOCTL_DEREG_SRV:
-		if (copy_from_user(&dereg_cmd, (void __user *)arg,
+		if (copy_from_user(&dereg_cmd, dereg_cmd_usr,
 				   sizeof(dereg_cmd))) {
 			return -EFAULT;
 		}
-		if (dereg_cmd >= LAUBERHORN_NUM_SERVICES ||
-		    !proc->srvs[dereg_cmd] || !proc->srvs[dereg_cmd]->enabled) {
+		if (dereg_cmd.id >= LAUBERHORN_NUM_SERVICES ||
+		    !proc->srvs[dereg_cmd.id] ||
+		    !proc->srvs[dereg_cmd.id]->enabled) {
 			return -EINVAL;
 		}
+		srv = proc->srvs[dereg_cmd.id];
+		dereg_ret = srv->func_ptr;
 
-		deregister_service(proc->srvs[dereg_cmd]);
-		proc->srvs[dereg_cmd] = NULL;
+		if (copy_to_user(&dereg_cmd_usr->func_ptr, &dereg_ret,
+				 sizeof(dereg_ret))) {
+			return -EFAULT;
+		}
+
+		deregister_service(srv);
+		proc->srvs[dereg_cmd.id] = NULL;
 
 		break;
 
