@@ -55,6 +55,7 @@ typedef struct {
   };
 
   // extra payload
+  // FIXME: merge the header/args into this
   uint8_t *payload_buf;
   size_t payload_len;
 } lauberhorn_pkt_desc_t;
@@ -145,6 +146,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 #endif
 
     switch (ty) {
+#ifdef __KERNEL__
     case lauberhorn_eci_bypass:
       size_t bypass_hdr_len;
 
@@ -177,7 +179,14 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
              bypass_hdr_len);
 
       break;
-
+    case lauberhorn_eci_arp_req:
+      desc->type = TY_ARP_REQ;
+      desc->arp_req.neigh_tbl_idx =
+          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_base);
+      desc->arp_req.ip_addr =
+          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_base);
+      break;
+#else // ! __KERNEL__
     case lauberhorn_eci_onc_rpc_call:
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_server.func_ptr =
@@ -193,14 +202,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
              sizeof(desc->oncrpc_server.args));
 
       break;
-
-    case lauberhorn_eci_arp_req:
-      desc->type = TY_ARP_REQ;
-      desc->arp_req.neigh_tbl_idx =
-          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_base);
-      desc->arp_req.ip_addr =
-          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_base);
-      break;
+#endif
     default:
       desc->type = TY_ERROR;
     }
@@ -259,6 +261,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
                      tx_parity * LAUBERHORN_ECI_CL_SIZE;
 
   switch (desc->type) {
+#ifdef __KERNEL__
   case TY_BYPASS:
     size_t bypass_hdr_len;
 
@@ -281,6 +284,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
            desc->bypass.header, bypass_hdr_len);
     break;
 
+#else // ! __KERNEL__
   case TY_ONCRPC_REPLY:
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
         tx_base, lauberhorn_eci_onc_rpc_reply);
@@ -292,6 +296,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
            desc->oncrpc_server.args, desc->oncrpc_server.tx_inline_words * 4);
     break;
 
+#endif
   default:
     pr_err("eci_tx: unhandled host request type %d\n", desc->type);
     break;
