@@ -77,15 +77,12 @@ datatype host_ctrl_info_arp_req lsbfirst(64) "ECI Host Control Info (ARP Request
 };
 
 // TODO: separate datatype for making a nested RPC call (progNum, ver...)?
+         
 
-datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
-  // TODO: this datatype does not exist yet, use host_ctrl_info_bypass to send a raw Ethernet frame
-  valid     1 "RX descriptor valid (rsvd for TX)";
-  ty        3 type(host_req_type) "Type of descriptor (should be onc_rpc_reply)";
-  len       16 "Length of packet";
-  _         12 rsvd;
-  // buffer follows
-  // TODO: for now, reply software-serialized data...
+constants udp_next_proto width(2) "UDP Listener Protocol" {
+  listen_disabled      = 0b00 "Disabled";
+  listen_onc_rpc_call  = 0b01 "ONC-RPC Call";
+  listen_onc_rpc_reply = 0b10 "ONC-RPC Reply";
 };
 
 datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
@@ -94,11 +91,5 @@ datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
   _         6 rsvd;
 };
          
-
-constants udp_next_proto width(2) "UDP Listener Protocol" {
-  listen_disabled      = 0b00 "Disabled";
-  listen_onc_rpc_call  = 0b01 "ONC-RPC Call";
-  listen_onc_rpc_reply = 0b10 "ONC-RPC Reply";
-};
 
 };

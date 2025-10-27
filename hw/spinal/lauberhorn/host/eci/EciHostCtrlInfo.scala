@@ -95,7 +95,7 @@ case class EciHostCtrlInfo() extends Bundle {
   // plus one for readStreamBlockCycles
   assert(getBitsWidth + 1 <= HOST_REQ_WIDTH, "host control info larger than half a cacheline")
 
-  def addMackerel = {
+  def addMackerel() = {
     // post header type enum to mackerel
     HostReqType.addMackerel()
     PacketDescType.addMackerel()
@@ -147,22 +147,6 @@ case class EciHostCtrlInfo() extends Bundle {
          |};
          |
          |// TODO: separate datatype for making a nested RPC call (progNum, ver...)?
-         |
-         |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "ECI Host Control Info (ONC-RPC Reply)" {
-         |  // TODO: this datatype does not exist yet, use host_ctrl_info_bypass to send a raw Ethernet frame
-         |  valid     1 "RX descriptor valid (rsvd for TX)";
-         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  _         12 rsvd;
-         |  // buffer follows
-         |  // TODO: for now, reply software-serialized data...
-         |};
-         |
-         |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
-         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
-         |  busy      1 "the thread is in the critical section";
-         |  _         6 rsvd;
-         |};
          """.stripMargin)
   }
 }
