@@ -1,9 +1,9 @@
 CROSS_COMPILE ?= aarch64-unknown-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
-CFLAGS  := -O2 -pipe -Wall -fpic \
+CFLAGS  := -O2 -pipe -Wall -fpic -Wno-maybe-uninitialized \
 		   -Iinclude/ -I../include/ -I../core/ \
 		   -I$(HW_CFG_HDRS) -I$(MACKEREL_DEV_HDRS)
-LDFLAGS := -shared
+LDFLAGS := -shared -Wl,-z,defs
 
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d

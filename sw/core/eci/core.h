@@ -198,6 +198,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 #endif
     default:
       desc->type = TY_ERROR;
+      desc->payload_len = 0;
     }
 
     if (pkt_len > 0) {
@@ -285,6 +286,11 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
         tx_base, lauberhorn_eci_onc_rpc_reply);
 
+    lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_insert(
+        tx_base, desc->oncrpc_server.xid);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_insert(
+        tx_base, (uint64_t)desc->oncrpc_server.func_ptr);
+
     // tx RPC len field INCLUDES inlined words
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(tx_base,
                                                             payload_len);
@@ -334,7 +340,9 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   (void)*(uint8_t *)(base + LAUBERHORN_ECI_TX_BASE +
                      !tx_parity * LAUBERHORN_ECI_CL_SIZE);
 
+#ifdef __KERNEL__
 out:
+#endif
   BARRIER; // make sure !BUSY comes after
 
   exit_cs();
