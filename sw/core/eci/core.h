@@ -302,7 +302,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     }
 
     // inlined ONCRPC words
-    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_size,
+    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
            copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;

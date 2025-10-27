@@ -22,6 +22,17 @@ import scala.language.postfixOps
 case class PreemptionControlCl() extends Bundle {
   val busy = Bool()
   val ready = Bool()
+
+  def addMackerel() = {
+    ALLOC.addMackerelEpilogue(
+      s"""
+         |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
+         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
+         |  busy      1 "the thread is in the critical section";
+         |  _         6 rsvd;
+         |};
+         """.stripMargin)
+  }
 }
 
 /**
@@ -57,6 +68,8 @@ object EciPreemptionControlPlugin {
     val irqEnAddr = alloc("irqEn",
       desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(irqEn, irqEnAddr) init False
+
+    PreemptionControlCl().addMackerel()
   }
 }
 
