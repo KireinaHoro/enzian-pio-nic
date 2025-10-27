@@ -135,6 +135,7 @@
         make MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs} HW_CFG_HDRS=${hwGenHdrs}
         popd
       '';
+      dontStrip = true;
       installPhase = ''
         mkdir -p $out
         cp rt/liblauberhorn_eci.so $out/
