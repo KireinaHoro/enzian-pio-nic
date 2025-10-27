@@ -138,7 +138,7 @@
       dontStrip = true;
       installPhase = ''
         mkdir -p $out
-        cp rt/liblauberhorn_eci.so $out/
+        cp rt/liblauberhorn.so $out/
       '';
     };
   in {
