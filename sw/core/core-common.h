@@ -50,9 +50,7 @@
 
 #define BARRIER asm volatile("dmb sy\nisb")
 
-// prototypes for critical section handling -- defined in rt/eci.c
-void enter_cs();
-void exit_cs();
+#include "cs.h"
 
 // prototype for prefetch -- defined in rt/eci.c
 void prefetchw(const void *ptr);
