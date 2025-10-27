@@ -22,18 +22,20 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 // bypass core does not have preemption control; critical section operations are no-ops
-#define enter_cs(...)
-#define exit_cs(...)
+#define enter_cs(base)
+#define exit_cs(base)
 
 #define assert(cond) BUG_ON(!(cond))
 
-#else // not __KERNEL__
+#else // ! __KERNEL__
 
 #include <assert.h>
 #define static_assert _Static_assert // requires C11
 
 // headers for user-space library
 #include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
 #define pr_err printf
 #define pr_warn printf
 #define pr_info printf

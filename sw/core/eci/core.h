@@ -107,7 +107,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
 
-  enter_cs();
+  enter_cs(base);
 
   bool rx_parity = *ctx->rx_next_cl;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
@@ -224,7 +224,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   BARRIER; // make sure !BUSY comes after
 
-  exit_cs();
+  exit_cs(base);
 
   // Done
   return valid;
@@ -237,7 +237,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
 
-  enter_cs();
+  enter_cs(base);
 
   bool tx_parity = *ctx->tx_next_cl;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
@@ -345,7 +345,7 @@ out:
 #endif
   BARRIER; // make sure !BUSY comes after
 
-  exit_cs();
+  exit_cs(base);
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H
