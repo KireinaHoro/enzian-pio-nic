@@ -10,11 +10,11 @@ the two flipping control cachelines along with overflow cachelines; this is
 used both in userspace (to handle RPC requests) and kernel (to handle bypass
 core requests).
 
-**Read request from worker module (RX)** (data)
+**Read request from worker module (RX)** (data): `core_eci_rx`
 
-**Write response to worker module (TX)** (data)
+**Write response to worker module (TX)** (data): `core_eci_tx`
 
-## `uapi`: user-facing APIs (header-only)
+## `include/lauberhorn.h`: user-facing APIs (header-only)
 
 User applications, i.e. RPC programs, call into these functions.  Functions
 exported here should be backend-agnostic to allow applications to stay
@@ -33,31 +33,38 @@ then just use this template directly.  For more complicated applications
 where more state and scheduling might be involved, these functions can also
 be called directly.
 
-**Start one application** (control)
+**Start one application** (control): `lauberhorn_init`
 
-Update scheduler state to register PID and max number of threads (parallelism)
-with the scheduler.
+Register an application to record the process group ID with the scheduler.  Worker threads are not created at this point yet.
 
 _As in simulation_: `OncRpcSuiteFactory.enableProcess`
 
-**Register a service in an application** (control)
+**Register a service in an application** (control): `lauberhorn_reg_srv`
 
 Enable RPC as the next protocol for a given UDP listen port in the UDP decoder.
 Register the service's program number, version, process ID, as well as current
 PID and userspace handler function pointer with the RPC decoder.
 
+This also registers a _schema_ that describes the input and output
+messages of this service.  The `schema` argument should provide enough
+information to the marshaling/unmarshaling routines in the runtime.
+
 _As in simulation_: `OncRpcSuiteFactory.enableService`
 
-**Destroy application and deregister all services** (control)
+**Create one worker thread** (control): `lauberhorn_create_worker`
+
+Create a worker thread to run registered RPC handlers for incoming
+requests.  The worker thread will run a tight loop to:
+- read incoming request from the NIC
+- unmarshal the request message
+- call the handler
+- marshal the response message
+- write response to the NIC
+
+**Destroy application and deregister all services** (control): `lauberhorn_fini`
 
 Disable and remove all services, listen ports, and the process definition.  In
 addition, this should also clear the session table in the RPC encoder.
-
-**Read one request/write one response** (data)
-
-Call the respective function in `core` to acquire encoded RPC message, then
-decode message to generate a nested RPC message object to pass to the user
-handler function.
 
 ## `rt`: runtime library in user-space
 
@@ -67,56 +74,25 @@ potentially avoid having to recompile applications for different backends.
 
 This will import the functions defined in `core`.
 
-## `mgmt`: management APIs
-
-Administrative APIs that need to be invoked with `sudo` -- these are not
-intended to be called by most applications.  Includes changes to global
-configurations, access to raw registers, and debug information / statistics.
-Most of these should be wrappers to `ioctl`s to a privileged device file,
-provided by the kernel module.
-
-Implementation of these functions will sit inside separate libraries for each
-backend (e.g. `liblauberhorn_mgmt_eci.so`).  Separate management utilities may
-be built -- these might have to link against `mgmt` libraries for multiple
-backends, so functions in the `mgmt` APIs should be prefixed by the backend (
-e.g. `lauberhorn_pcie_set_block_cycles`).
-
 ## `kmod`: kernel module for control interfaces
 
-Each backend has a separate kernel module.  They should implement two device
-files to take `ioctl`s from the user space:
+Each backend has a separate kernel module.  They should implement one character device, `/dev/lauberhorn`, to implement the functions forwarded
+by `rt`.  The character device installs mappings of the datapath
+in user applications and enforces isolation.  It programs the raw hardware
+registers.
 
-- `/dev/lauberhorn_user`: unprivileged requests from `rt`.  The kernel module
-  translates requests such as "install one service" to actual register writes.
-- `/dev/lauberhorn_mgmt`: privileged requests from `mgmt`.  Including but not
-  limited to raw register accesses.
-
-In addition to implementing API calls from the userspace, the kernel module:
-
-- handles unexpected packets by forwarding them to a Linux network device
-- forwards packets sent by the host stack to the bypass Tx pipeline
-- resolves ARP requests and update the neighbor table
-- runs timers to retire entries in the neighbor table and RPC session table
-
-TODO: do we want to support loading multiple backends at once?  Device
-enumeration, etc. quickly get very complicated
+In addition to implementing API calls from the userspace, the kernel module also implements a NAPI-based network device `lauberhorn0` that
+handles bypass packets, including ARP.
 
 # Build instructions
 
-SW requires some generated files from the HW:
-* `devices/lauberhorn_eci_*.dev`
-* `../hw/gen/eci/*`
+We implement cross-compiling with Nix.
 
-TODO: build instructions -- build everything with CMake (including [kernel
-modules](https://gitlab.com/christophacham/cmake-kernel-module))
-
-# Building `rt` and `kmod` for a specific backend
-
-Three backends are planned for Lauberhorn:
-
-- ECI: 2F2F message-passing between NIC and CPU + interrupts
-- PCIe: MMIO registers polling + interrupts
-- Mock: shared memory polling + POSIX signals (simulator)
-
-# Building a user application
-
+```console
+$ nix build ".#lauberhorn-kmod" -L
+$ file result/lauberhorn.ko
+result/lauberhorn.ko: ELF 64-bit LSB relocatable, ARM aarch64, version 1 (SYSV), BuildID[sha1]=[...], with debug_info, not stripped
+$ nix build ".#lauberhorn-rt" -L
+$ file result/liblauberhorn_eci.so
+result/liblauberhorn.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, with debug_info, not stripped
+```

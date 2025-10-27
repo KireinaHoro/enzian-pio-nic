@@ -33,7 +33,7 @@ $(DEPDIR): ; @mkdir -p $@
 ALL_SRCS := $(wildcard *.c)
 ALL_OBJS := $(patsubst %.c,%.o,$(ALL_SRCS))
 
-liblauberhorn_eci.so: $(ALL_OBJS)
+liblauberhorn.so: $(ALL_OBJS)
 	$(LINK.c) $^ -o $@
 
 DEPFILES := $(foreach s,$(ALL_SRCS),$(patsubst %.c,$(DEPDIR)/%.d,$(notdir $(s))))
