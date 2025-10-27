@@ -36,9 +36,6 @@ typedef struct {
         HDR_IP,
         HDR_UDP,
       } header_type;
-
-      uint8_t header[LAUBERHORN_BYPASS_HDR_SIZE];
-      // remaining payload goes to payload_buf
     } bypass;
     struct {
       int neigh_tbl_idx;
@@ -47,27 +44,21 @@ typedef struct {
     struct {
       void *func_ptr;
       int xid;
-
-      int tx_inline_words;
-      uint32_t args[LAUBERHORN_ONCRPC_INLINE_ARGS];
-      // remaining args go to payload_buf
     } oncrpc_server;
   };
 
-  // extra payload
-  // FIXME: merge the header/args into this
-  uint8_t *payload_buf;
+  // payload buffer in lauberhorn_core_state_t
   size_t payload_len;
 } lauberhorn_pkt_desc_t;
 
 typedef struct {
   uint8_t *rx_next_cl;
-  uint8_t *rx_overflow_buf;
-  int rx_overflow_buf_size;
+  uint8_t *rx_buf;
+  int rx_buf_size;
 
   uint8_t *tx_next_cl;
-  uint8_t *tx_overflow_buf;
-  int tx_overflow_buf_size;
+  uint8_t *tx_buf;
+  int tx_buf_size;
 } lauberhorn_core_state_t;
 
 #define LAUBERHORN_ECI_CL_SIZE (0x80)
@@ -174,9 +165,9 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
       }
 
       // parsed bypass header is aligned after the descriptor header
-      memcpy(desc->bypass.header,
-             rx_base + lauberhorn_eci_host_ctrl_info_bypass_size,
+      memcpy(ctx->rx_buf, rx_base + lauberhorn_eci_host_ctrl_info_bypass_size,
              bypass_hdr_len);
+      desc->payload_len = bypass_hdr_len;
 
       break;
     case lauberhorn_eci_arp_req:
@@ -185,6 +176,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
           lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_base);
       desc->arp_req.ip_addr =
           lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_base);
+      desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
     case lauberhorn_eci_onc_rpc_call:
@@ -197,9 +189,10 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
-      memcpy(desc->oncrpc_server.args,
+      memcpy(ctx->rx_buf,
              rx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
-             sizeof(desc->oncrpc_server.args));
+             LAUBERHORN_ONCRPC_INLINE_BYTES);
+      desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
 
       break;
 #endif
@@ -207,28 +200,25 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
       desc->type = TY_ERROR;
     }
 
-    if (pkt_len == 0) {
-      desc->payload_buf = NULL;
-      desc->payload_len = 0;
-    } else {
-      desc->payload_buf = ctx->rx_overflow_buf;
-      desc->payload_len = pkt_len;
-
-      assert(pkt_len <= ctx->rx_overflow_buf_size);
+    if (pkt_len > 0) {
+      uint8_t *copy_dest = ctx->rx_buf + desc->payload_len;
+      desc->payload_len += pkt_len;
+      assert(desc->payload_len <= ctx->rx_buf_size);
 
       int first_read_size = pkt_len > LAUBERHORN_ECI_INLINE_DATA_SIZE
                                 ? LAUBERHORN_ECI_INLINE_DATA_SIZE
                                 : pkt_len;
-      memcpy(desc->payload_buf, rx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET,
+      memcpy(copy_dest, rx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET,
              first_read_size);
-      if (pkt_len > LAUBERHORN_ECI_INLINE_DATA_SIZE) {
-        memcpy(desc->payload_buf + LAUBERHORN_ECI_INLINE_DATA_SIZE,
-               rx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET,
-               pkt_len - LAUBERHORN_ECI_INLINE_DATA_SIZE);
+      copy_dest += first_read_size;
+      pkt_len -= first_read_size;
+
+      if (pkt_len > 0) {
+        memcpy(copy_dest, rx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, pkt_len);
       }
     }
 
-    // All data in software buf, good to exit the critical section
+    // All data in ctx->rx_buf, good to exit the critical section
   }
 
   BARRIER; // make sure !BUSY comes after
@@ -237,12 +227,6 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   // Done
   return valid;
-}
-
-static inline void core_eci_tx_prepare_desc(lauberhorn_pkt_desc_t *desc,
-                                            lauberhorn_core_state_t *ctx) {
-  desc->payload_buf = ctx->tx_overflow_buf;
-  desc->payload_len = ctx->tx_overflow_buf_size;
 }
 
 static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
@@ -259,6 +243,13 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
   uint8_t *tx_base = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE +
                      tx_parity * LAUBERHORN_ECI_CL_SIZE;
+
+  uint8_t *copy_from = ctx->tx_buf;
+  size_t payload_len = desc->payload_len;
+
+#ifndef __KERNEL__
+  size_t oncrpc_inlined_bytes = 0;
+#endif
 
   switch (desc->type) {
 #ifdef __KERNEL__
@@ -280,20 +271,35 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     }
 
     // inlined bypass header
-    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_bypass_size,
-           desc->bypass.header, bypass_hdr_len);
+    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_bypass_size, copy_from,
+           bypass_hdr_len);
+    copy_from += bypass_hdr_len;
+    payload_len -= bypass_hdr_len;
+
+    // tx bypass len field does not include header
+    lauberhorn_eci_host_ctrl_info_bypass_len_insert(tx_base, payload_len);
     break;
 
 #else // ! __KERNEL__
   case TY_ONCRPC_REPLY:
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
         tx_base, lauberhorn_eci_onc_rpc_reply);
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(
-        tx_base, desc->oncrpc_server.tx_inline_words * 4 + desc->payload_len);
+
+    // tx RPC len field INCLUDES inlined words
+    lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(tx_base,
+                                                            payload_len);
+
+    if (payload_len > LAUBERHORN_ONCRPC_INLINE_BYTES) {
+      oncrpc_inlined_bytes = LAUBERHORN_ONCRPC_INLINE_BYTES;
+    } else {
+      oncrpc_inlined_bytes = payload_len;
+    }
 
     // inlined ONCRPC words
     memcpy(tx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_size,
-           desc->oncrpc_server.args, desc->oncrpc_server.tx_inline_words * 4);
+           copy_from, oncrpc_inlined_bytes);
+    copy_from += oncrpc_inlined_bytes;
+    payload_len -= oncrpc_inlined_bytes;
     break;
 
 #endif
@@ -302,22 +308,21 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
   }
 
-  if (desc->payload_buf != NULL) {
-    assert(desc->payload_len <=
+  if (payload_len > 0) {
+    assert(payload_len <=
            LAUBERHORN_ECI_INLINE_DATA_SIZE +
                LAUBERHORN_ECI_NUM_OVERFLOW_CL * LAUBERHORN_ECI_CL_SIZE);
 
     // fill second half-CL in control CL first
-    int first_write_size =
-        min(LAUBERHORN_ECI_INLINE_DATA_SIZE, desc->payload_len);
-    memcpy((void *)(tx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET),
-           desc->payload_buf, first_write_size);
+    int first_write_size = min(LAUBERHORN_ECI_INLINE_DATA_SIZE, payload_len);
+    memcpy((void *)(tx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET), copy_from,
+           first_write_size);
+    copy_from += first_write_size;
+    payload_len -= first_write_size;
 
     // fill overflow CLs
-    if (desc->payload_len > LAUBERHORN_ECI_INLINE_DATA_SIZE) {
-      memcpy(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET,
-             desc->payload_buf + LAUBERHORN_ECI_INLINE_DATA_SIZE,
-             desc->payload_len - LAUBERHORN_ECI_INLINE_DATA_SIZE);
+    if (payload_len > 0) {
+      memcpy(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, copy_from, payload_len);
     }
   }
   BARRIER; // make sure all data is written before we ring the doorbell

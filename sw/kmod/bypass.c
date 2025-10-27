@@ -217,17 +217,13 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct netdev_priv *priv = netdev_priv(dev);
 	lauberhorn_pkt_desc_t desc;
 
-	core_eci_tx_prepare_desc(&desc, &priv->ctx);
-
 	// send the skb as a bypass Ethernet packet
 	desc.type = TY_BYPASS;
 	desc.bypass.header_type = HDR_ETHERNET;
 
 	BUG_ON(skb->len < ETH_HLEN);
-	memcpy(desc.bypass.header, eth_hdr(skb), ETH_HLEN);
-
-	desc.payload_len = skb->len - ETH_HLEN;
-	memcpy(desc.payload_buf, skb->data + ETH_HLEN, desc.payload_len);
+	desc.payload_len = skb->len;
+	memcpy(priv->ctx.tx_buf, skb->data, skb->len);
 
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 
@@ -241,35 +237,19 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 			  struct net_device *dev)
 {
+	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
 	struct sk_buff *skb;
-	int hdr_len = 0;
 
 	BUG_ON(desc->type != TY_BYPASS);
-	switch (desc->bypass.header_type) {
-	case HDR_ETHERNET:
-		hdr_len = 14;
-		break;
-	case HDR_IP:
-		hdr_len = 14 + 20;
-		break;
-	case HDR_UDP:
-		hdr_len = 14 + 20 + 8;
-		break;
-	default:
-		dev_warn(&dev->dev, "unexpected bypass packet type %d\n",
-			 desc->bypass.header_type);
-		return false;
-	}
-
-	skb = netdev_alloc_skb(dev, hdr_len + desc->payload_len + NET_IP_ALIGN);
+	skb = netdev_alloc_skb(dev, desc->payload_len + NET_IP_ALIGN);
 	if (!skb) {
 		dev_warn(&dev->dev, "failed to allocate skb\n");
 		dev->stats.rx_dropped++;
 		return false;
 	}
 	skb_reserve(skb, NET_IP_ALIGN);
-	memcpy(skb_put(skb, hdr_len), desc->bypass.header, hdr_len);
-	memcpy(skb_put(skb, desc->payload_len), desc->payload_buf,
+
+	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_buf,
 	       desc->payload_len);
 	skb->protocol = eth_type_trans(skb, dev);
 	skb->dev = dev;
@@ -279,7 +259,7 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 	napi_gro_receive(n, skb);
 
 	dev->stats.rx_packets++;
-	dev->stats.rx_bytes += hdr_len + desc->payload_len;
+	dev->stats.rx_bytes += desc->payload_len;
 
 	return true;
 }
@@ -554,12 +534,9 @@ int init_bypass(void)
 	priv->ctx.tx_next_cl = &priv->tx_parity;
 	priv->rx_parity = priv->tx_parity = 0;
 
-	priv->ctx.rx_overflow_buf_size = priv->ctx.tx_overflow_buf_size =
-		LAUBERHORN_MTU;
-	priv->ctx.rx_overflow_buf =
-		kmalloc(priv->ctx.rx_overflow_buf_size, GFP_KERNEL);
-	priv->ctx.tx_overflow_buf =
-		kmalloc(priv->ctx.tx_overflow_buf_size, GFP_KERNEL);
+	priv->ctx.rx_buf_size = priv->ctx.tx_buf_size = LAUBERHORN_MTU;
+	priv->ctx.rx_buf = kmalloc(priv->ctx.rx_buf_size, GFP_KERNEL);
+	priv->ctx.tx_buf = kmalloc(priv->ctx.tx_buf_size, GFP_KERNEL);
 
 	// Route bypass access to fixed base
 	route_prefix_to_core(0, 0);
@@ -613,8 +590,8 @@ void deinit_bypass(void)
 	unregister_netevent_notifier(&arp_notifier);
 
 	// Free overflow buffers
-	kfree(priv->ctx.rx_overflow_buf);
-	kfree(priv->ctx.tx_overflow_buf);
+	kfree(priv->ctx.rx_buf);
+	kfree(priv->ctx.tx_buf);
 
 	// Destroy netdev
 	unregister_netdev(netdev);
