@@ -140,15 +140,7 @@ module dcs_2_axi #
     input logic [AXI_ID_WIDTH-1:0] 			   p_axi_bid,
     input logic [1:0] 					   p_axi_bresp,
     input logic 					   p_axi_bvalid,
-    output logic 					   p_axi_bready,
-    
-    // Tracing output
-    output logic        tracing_valid[2],
-    output logic        tracing_error[2],
-    output logic [39:0] tracing_cli[2],
-    output logic [6:0]	tracing_state[2],
-    output logic [3:0]	tracing_action[2],
-    output logic [4:0]	tracing_request[2]    
+    output logic 					   p_axi_bready
     );
 
    // VC width is 5 bits here, upstream ECI is only 4 bits.
@@ -464,15 +456,7 @@ module dcs_2_axi #
       .wr_rsp_id_i	(dcs_wr_rsp_ctrl_i.id),
       .wr_rsp_bresp_i	(dcs_wr_rsp_ctrl_i.bresp),
       .wr_rsp_valid_i	(dcs_wr_rsp_ctrl_i.valid),
-      .wr_rsp_ready_o	(dcs_wr_rsp_ctrl_i.ready),
-
-      // tracing interfaces
-      .tracing_valid,
-      .tracing_error,
-      .tracing_cli,
-      .tracing_state,
-      .tracing_action,
-      .tracing_request    
+      .wr_rsp_ready_o	(dcs_wr_rsp_ctrl_i.ready)
       );
 
    // DCS to AXI RD signals.
