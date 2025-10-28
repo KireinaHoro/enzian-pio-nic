@@ -9,8 +9,6 @@ ifndef MACKEREL_DEV_HDRS
 $(error MACKEREL_DEV_HDRS is not set, build with Nix)
 endif
 
-CROSS_COMPILE ?= aarch64-unknown-linux-gnu-
-CC := $(CROSS_COMPILE)gcc
 CFLAGS  := -O2 -g -pipe -fpic \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
 		   -Wall -Wno-maybe-uninitialized \
@@ -18,30 +16,16 @@ CFLAGS  := -O2 -g -pipe -fpic \
 		   -I$(HW_CFG_HDRS) -I$(MACKEREL_DEV_HDRS)
 LDFLAGS := -g -shared -Wl,-z,defs
 
-DEPDIR := .deps
-DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
-
-COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
-LINK.c = $(CC) $(LDFLAGS)
-
-$(DEPDIR): ; @mkdir -p $@
-
-%.o: %.c
-%.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
-	$(COMPILE.c) $(OUTPUT_OPTION) $<
-
+all: liblauberhorn.so
 ALL_SRCS := $(wildcard *.c)
-ALL_OBJS := $(patsubst %.c,%.o,$(ALL_SRCS))
+
+include ../usr-common.mk
 
 liblauberhorn.so: $(ALL_OBJS)
 	$(LINK.c) $^ -o $@
 
-DEPFILES := $(foreach s,$(ALL_SRCS),$(patsubst %.c,$(DEPDIR)/%.d,$(notdir $(s))))
-$(DEPFILES):
-
 clean:
 	rm -f *.o *.so
 	rm -rf $(DEPDIR)
-.PHONY: clean
 
--include $(wildcard $(DEPFILES))
+.PHONY: clean all

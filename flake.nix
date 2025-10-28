@@ -31,9 +31,11 @@
           --add-flags "--no-server"
       '';
     };
+    
+    aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
 
     # aarch64 cross compiler
-    crossGcc = pkgs.pkgsCross.aarch64-multiplatform.buildPackages.gcc;
+    crossGcc = aarch64Pkgs.buildPackages.gcc;
 
     # mackerel compiler
     mackerel = inputs.mackerel.packages.${system}.mackerel2;
@@ -141,12 +143,43 @@
         cp rt/liblauberhorn.so $out/
       '';
     };
+    
+    rpcsvc-proto = with pkgs; stdenv.mkDerivation {
+      name = "rpcsvc-proto";
+      version = "1.4.4";
+      src = fetchFromGitHub {
+        owner = "thkukuk";
+        repo = "rpcsvc-proto";
+        rev = "v1.4.4";
+        hash = "sha256-DEXzSSmjMeMsr1PoU/ljaY+6b4COUU2Z8MJkGImsgzk=";
+      };
+      nativeBuildInputs = [ autoreconfHook ];
+    };
+
+    buildLauberhornApp = name: with pkgs; stdenv.mkDerivation {
+      name = "lauberhorn-app-${name}";
+      version = "0.0.1";
+      src = cleanSource ./sw;
+      buildInputs = [ aarch64Pkgs.libtirpc ];
+      nativeBuildInputs = linuxTools ++ [ rpcsvc-proto pkg-config ];
+      buildPhase = ''
+        pushd apps/${name}
+        make LAUBERHORN_RT=${lauberhorn-rt}/liblauberhorn.so
+        popd
+      '';
+      dontStrip = true;
+      installPhase = ''
+        mkdir -p $out
+        cp apps/${name}/${name} $out/
+      '';
+    };
   in {
     packages = {
       inherit
-        linux-noble-src
-        lauberhorn-dev-hdrs lauberhorn-kmod
-        lauberhorn-rt;
+        linux-noble-src rpcsvc-proto
+        lauberhorn-dev-hdrs lauberhorn-kmod lauberhorn-rt;
+
+      adder-demo = (buildLauberhornApp "adder-demo");
     };
 
     # for interactive development (mill needs to download Ivy deps for now)
