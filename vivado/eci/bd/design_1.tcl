@@ -308,6 +308,10 @@ proc create_root_design { parentCell } {
   set lcia_odd [ create_bd_port -dir I -from 75 -to 0 -type data lcia_odd ]
   set ul_even [ create_bd_port -dir I -from 75 -to 0 -type data ul_even ]
   set ul_odd [ create_bd_port -dir I -from 75 -to 0 -type data ul_odd ]
+  set dcs_even_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_even_trace_0 ]
+  set dcs_even_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_even_trace_1 ]
+  set dcs_odd_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_0 ]
+  set dcs_odd_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_1 ]
 
   # Create instance: app_clk_reset, and set properties
   set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
@@ -370,9 +374,13 @@ proc create_root_design { parentCell } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {11} \
+    CONFIG.C_NUM_OF_PROBES {15} \
     CONFIG.C_PROBE0_WIDTH {17} \
     CONFIG.C_PROBE10_WIDTH {76} \
+    CONFIG.C_PROBE11_WIDTH {58} \
+    CONFIG.C_PROBE12_WIDTH {58} \
+    CONFIG.C_PROBE13_WIDTH {58} \
+    CONFIG.C_PROBE14_WIDTH {58} \
     CONFIG.C_PROBE1_WIDTH {17} \
     CONFIG.C_PROBE2_WIDTH {17} \
     CONFIG.C_PROBE3_WIDTH {17} \
@@ -451,6 +459,14 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins system_ila_0/probe3]
   connect_bd_net -net core4_states_1  [get_bd_ports core4_states] \
   [get_bd_pins system_ila_0/probe4]
+  connect_bd_net -net dcs_even_trace_0_1  [get_bd_ports dcs_even_trace_0] \
+  [get_bd_pins system_ila_0/probe11]
+  connect_bd_net -net dcs_even_trace_1_1  [get_bd_ports dcs_even_trace_1] \
+  [get_bd_pins system_ila_0/probe12]
+  connect_bd_net -net dcs_odd_trace_0_1  [get_bd_ports dcs_odd_trace_0] \
+  [get_bd_pins system_ila_0/probe13]
+  connect_bd_net -net dcs_odd_trace_1_1  [get_bd_ports dcs_odd_trace_1] \
+  [get_bd_pins system_ila_0/probe14]
   connect_bd_net -net lci_even_1  [get_bd_ports lci_even] \
   [get_bd_pins system_ila_0/probe5]
   connect_bd_net -net lci_odd_1  [get_bd_ports lci_odd] \
