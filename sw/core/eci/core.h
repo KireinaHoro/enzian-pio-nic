@@ -224,6 +224,8 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   BARRIER; // make sure !BUSY comes after
 
+  pr_debug("eci_rx: finished rx\n");
+
   exit_cs(base);
 
   // Done
@@ -339,6 +341,8 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   // Ring the doorbell: read next CL to trigger send
   (void)*(uint8_t *)(base + LAUBERHORN_ECI_TX_BASE +
                      !tx_parity * LAUBERHORN_ECI_CL_SIZE);
+
+  pr_debug("eci_tx: finished tx\n");
 
 #ifdef __KERNEL__
 out:
