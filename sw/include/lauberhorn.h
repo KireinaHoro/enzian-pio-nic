@@ -16,14 +16,7 @@ typedef struct {
   uint8_t *parity_page;
 } lauberhorn_t;
 
-typedef struct {
-  enum {
-    SCHEMA_ONCRPC,
-  } ty;
-  union {
-    struct lauberhorn_oncrpc_schema oncrpc;
-  };
-} lauberhorn_schema_t;
+typedef struct lauberhorn_oncrpc_schema lauberhorn_schema_t;
 
 // Unmarshalled XDR data.  To be marshalled/unmarshalled according to
 // the lauberhorn_schema_t on initialization

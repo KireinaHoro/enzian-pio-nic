@@ -8,8 +8,8 @@ endif
 CFLAGS  := -O2 -g -pipe \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
 		   -Wall \
-		   -Iinclude/ -I../include/ $(shell pkg-config --cflags libtirpc)
-LDFLAGS := -g -L:$(LAUBERHORN_RT) $(shell pkg-config --libs libtirpc)
+		   -Iinclude/ -I../include/
+LDFLAGS := -g -L:$(LAUBERHORN_RT)
 
 APP := adder-demo
 
