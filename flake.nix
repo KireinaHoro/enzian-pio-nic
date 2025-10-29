@@ -15,7 +15,7 @@
   with nixpkgs.lib;
   flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
     pkgs = import nixpkgs { inherit system; };
-    millw = pkgs.stdenv.mkDerivation {
+    millw = pkgs.stdenvNoCC.mkDerivation {
       name = "millw";
       nativeBuildInputs = [ pkgs.makeWrapper ];
       src = pkgs.fetchurl {
@@ -92,7 +92,7 @@
     #        in all generated device files for now
 
     # generate C headers
-    lauberhorn-dev-hdrs = pkgs.stdenvNoCC.mkDerivation {
+    devHdrs = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-dev-hdrs";
       src = cleanSource ./sw/devices;
       nativeBuildInputs = [ mackerel ];
@@ -108,27 +108,28 @@
     hwGenHdrs = cleanSource ./hw/gen;
 
     # cross-compile lauberhorn kernel module
-    lauberhorn-kmod = pkgs.stdenv.mkDerivation {
+    kmod = pkgs.stdenv.mkDerivation {
       name = "lauberhorn-kmod";
       version = "0.0.1";
       src = cleanSource ./sw;
-      nativeBuildInputs = linuxTools;
+      nativeBuildInputs = linuxTools ++ [ pkgs.nukeReferences ];
       buildPhase = ''
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
         pushd kmod
-        make V=1 MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs} HW_CFG_HDRS=${hwGenHdrs}
+        make V=1 MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
         popd
       '';
       installPhase = ''
         mkdir -p $out
+        nuke-refs kmod/lauberhorn.ko
         cp kmod/lauberhorn.ko $out/
       '';
       dontFixup = true;
     };
 
-    lauberhorn-rt = pkgs.stdenv.mkDerivation {
+    runtime = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-rt";
       version = "0.0.1";
       src = cleanSource ./sw;
@@ -136,7 +137,7 @@
       nativeBuildInputs = linuxTools;
       buildPhase = ''
         pushd rt
-        make MACKEREL_DEV_HDRS=${lauberhorn-dev-hdrs} HW_CFG_HDRS=${hwGenHdrs}
+        make MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
         popd
       '';
       dontStrip = true;
@@ -158,6 +159,7 @@
       nativeBuildInputs = [ autoreconfHook ];
     };
 
+    # can't use NoCC since rpcgen needs cpp
     buildLauberhornApp = name: with pkgs; stdenv.mkDerivation {
       name = "lauberhorn-app-${name}";
       version = "0.0.1";
@@ -166,7 +168,7 @@
       nativeBuildInputs = linuxTools;
       buildPhase = ''
         pushd apps/${name}
-        make LAUBERHORN_RT=${lauberhorn-rt}
+        make LAUBERHORN_RT=${runtime}/
         popd
       '';
       dontStrip = true;
@@ -176,17 +178,14 @@
       '';
     };
 
-    lauberhorn-apps = pkgs.symlinkJoin {
-      name = "lauberhorn-apps";
-      paths = map buildLauberhornApp [ "adder-demo" ];
+    deployFs = let
+      allApps = [ "adder-demo" ];
+    in pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
+      storeContents = map buildLauberhornApp allApps ++ [ kmod ];
     };
   in {
     packages = {
-      inherit
-        linux-noble-src rpcsvc-proto
-        lauberhorn-dev-hdrs lauberhorn-kmod lauberhorn-rt
-        lauberhorn-apps;
-
+      inherit devHdrs kmod runtime deployFs;
     };
 
     # for interactive development (mill needs to download Ivy deps for now)
