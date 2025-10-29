@@ -148,11 +148,11 @@ static void *lauberhorn_worker_loop(void *arg) {
   }
   w->dp_base = dp_base;
 
-  // Allocate a message buffer for each schema
+  // Allocate a request buffer for each schema
   for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
     if (registered_schemas[i].enabled) {
-      schema = &registered_schemas[i].schema->oncrpc;
-      w->msg_bufs[i] = lauberhorn_oncrpc_alloc(schema);
+      schema = registered_schemas[i].schema;
+      w->msg_bufs[i] = lauberhorn_oncrpc_req_alloc(schema);
     }
   }
 
@@ -164,7 +164,7 @@ static void *lauberhorn_worker_loop(void *arg) {
       continue;
     assert(desc.type == TY_ONCRPC_CALL);
     hw_handler = desc.oncrpc_server.func_ptr;
-    schema = &registered_schemas[hw_handler->schema_idx].schema->oncrpc;
+    schema = registered_schemas[hw_handler->schema_idx].schema;
     msg = w->msg_bufs[hw_handler->schema_idx];
 
     // Unmarshal request
@@ -232,7 +232,7 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
   // Unmap datapath
 
   // Free all buffers
-  // lauberhorn_oncrpc_free
+  // lauberhorn_oncrpc_req_free
 
   free(w->dp.rx_buf);
   free(w->dp.tx_buf);

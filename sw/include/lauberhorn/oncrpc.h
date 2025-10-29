@@ -4,9 +4,15 @@
 #ifndef LAUBERHORN_ONCRPC_H
 #define LAUBERHORN_ONCRPC_H
 
-#include <alloca.h>
+#include <rpc/xdr.h>
 
-struct lauberhorn_oncrpc_schema {};
+struct lauberhorn_oncrpc_schema {
+  xdrproc_t call_func;
+  xdrproc_t resp_func;
+
+  // used to allocate the buffer for incoming messages
+  size_t call_size;
+};
 
 // User-facing functions to create and manipulate an ONC-RPC schema
 

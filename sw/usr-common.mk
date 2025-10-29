@@ -4,6 +4,9 @@
 CROSS_COMPILE ?= aarch64-unknown-linux-gnu-
 CC := $(CROSS_COMPILE)gcc
 
+CFLAGS += $(shell pkg-config --cflags libtirpc)
+LDFLAGS += $(shell pkg-config --libs libtirpc)
+
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 LINK.c = $(CC) $(LDFLAGS)
 

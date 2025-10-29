@@ -31,7 +31,7 @@
           --add-flags "--no-server"
       '';
     };
-    
+
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
 
     # aarch64 cross compiler
@@ -44,6 +44,7 @@
     linuxTools = with pkgs; [
       flex bison bc openssl elfutils.dev crossGcc
       pahole python3 zlib.dev
+      rpcsvc-proto pkg-config
     ];
 
     # get kernel tree for building module
@@ -131,6 +132,7 @@
       name = "lauberhorn-rt";
       version = "0.0.1";
       src = cleanSource ./sw;
+      buildInputs = [ aarch64Pkgs.libtirpc ];
       nativeBuildInputs = linuxTools;
       buildPhase = ''
         pushd rt
@@ -143,7 +145,7 @@
         cp rt/liblauberhorn.so $out/
       '';
     };
-    
+
     rpcsvc-proto = with pkgs; stdenv.mkDerivation {
       name = "rpcsvc-proto";
       version = "1.4.4";
@@ -161,7 +163,7 @@
       version = "0.0.1";
       src = cleanSource ./sw;
       buildInputs = [ aarch64Pkgs.libtirpc ];
-      nativeBuildInputs = linuxTools ++ [ rpcsvc-proto pkg-config ];
+      nativeBuildInputs = linuxTools;
       buildPhase = ''
         pushd apps/${name}
         make LAUBERHORN_RT=${lauberhorn-rt}/liblauberhorn.so
