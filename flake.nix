@@ -175,13 +175,18 @@
         cp apps/${name}/${name} $out/
       '';
     };
+
+    lauberhorn-apps = pkgs.symlinkJoin {
+      name = "lauberhorn-apps";
+      paths = map buildLauberhornApp [ "adder-demo" ];
+    };
   in {
     packages = {
       inherit
         linux-noble-src rpcsvc-proto
-        lauberhorn-dev-hdrs lauberhorn-kmod lauberhorn-rt;
+        lauberhorn-dev-hdrs lauberhorn-kmod lauberhorn-rt
+        lauberhorn-apps;
 
-      adder-demo = (buildLauberhornApp "adder-demo");
     };
 
     # for interactive development (mill needs to download Ivy deps for now)
