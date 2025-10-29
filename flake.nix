@@ -166,7 +166,7 @@
       nativeBuildInputs = linuxTools;
       buildPhase = ''
         pushd apps/${name}
-        make LAUBERHORN_RT=${lauberhorn-rt}/liblauberhorn.so
+        make LAUBERHORN_RT=${lauberhorn-rt}
         popd
       '';
       dontStrip = true;
