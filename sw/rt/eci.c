@@ -227,12 +227,30 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx) {
 }
 
 void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
-  // Kill thread
+  void *res;
+  int err, i;
 
-  // Unmap datapath
+  // Join thread
+  err = pthread_join(w->thread, &res);
+  if (err != 0) {
+    errno = err;
+    PERROR("join thread");
+    return;
+  }
+
+  // Unmap our copy of the datapath base
+  err = munmap(w->dp_base, LAUBERHORN_ECI_CORE_OFFSET);
+  if (err != 0) {
+    PERROR("unmap datapath");
+    return;
+  }
 
   // Free all buffers
-  // lauberhorn_oncrpc_req_free
+  for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
+    if (registered_schemas[i].enabled) {
+      lauberhorn_oncrpc_req_free(registered_schemas[i].schema, w->msg_bufs[i]);
+    }
+  }
 
   free(w->dp.rx_buf);
   free(w->dp.tx_buf);
