@@ -7,9 +7,9 @@ endif
 
 CFLAGS  := -O2 -g -pipe \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
-		   -Wall \
-		   -Iinclude/ -I../include/
-LDFLAGS := -g -L:$(LAUBERHORN_RT)
+		   -Wall -Wno-unused-variable -Wno-unused-label \
+		   -Iinclude/ -I../../include/
+LDFLAGS := -g -L$(LAUBERHORN_RT) -llauberhorn
 
 APP := adder-demo
 
@@ -21,6 +21,7 @@ add_xdr.c: add.x add.h
 	rpcgen -c $< -o $@
 add.h: add.x
 	rpcgen -h $< -o $@
+main.c: add.h
 
 include ../../usr-common.mk
 
