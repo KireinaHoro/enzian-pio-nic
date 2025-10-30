@@ -324,6 +324,133 @@ end lauberhorn_eci;
 
 architecture Behavioral of lauberhorn_eci is
 
+-- Must use component declarations since direct entity instantiation
+-- does not work with the unpacked arrays
+type dc_tracing_cli_array is array (integer range <>) of std_logic_vector(39 downto 0);
+type dc_tracing_state_array is array (integer range <>) of std_logic_vector(6 downto 0);
+type dc_tracing_action_array is array (integer range <>) of std_logic_vector(3 downto 0);
+type dc_tracing_request_array is array (integer range <>) of std_logic_vector(4 downto 0);
+
+component dcs_cdc is
+port (
+  eci_clk, eci_reset, app_clk : in std_logic;
+
+  -- Input ECI events.
+  -- ECI packet for request without data. (VC 6 or 7) (only header).
+  req_wod_hdr_i       : in std_logic_vector(63 downto 0);
+  req_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
+  req_wod_pkt_vc_i    : in std_logic_vector( 3 downto 0);
+  req_wod_pkt_valid_i : in std_logic;
+  req_wod_pkt_ready_o : out std_logic;
+
+  -- ECI packet for response without data.(VC 10 or 11). (only header).
+  rsp_wod_hdr_i       : in std_logic_vector(63 downto 0);
+  rsp_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
+  rsp_wod_pkt_vc_i    : in std_logic_vector( 3 downto 0);
+  rsp_wod_pkt_valid_i : in std_logic;
+  rsp_wod_pkt_ready_o : out std_logic;
+
+  -- ECI packet for response with data. (VC 4 or 5). (header + data).
+  rsp_wd_pkt_i        : in std_logic_vector(17*64-1 downto 0);
+  rsp_wd_pkt_size_i   : in std_logic_vector( 4 downto 0);
+  rsp_wd_pkt_vc_i     : in std_logic_vector( 3 downto 0);
+  rsp_wd_pkt_valid_i  : in std_logic;
+  rsp_wd_pkt_ready_o  : out std_logic;
+
+  -- ECI packet for local forward without data. (VC 16 or 17).
+  -- lcl clean, lcl clean inv requests.
+  lcl_fwd_wod_hdr_i       : in std_logic_vector(63 downto 0);
+  lcl_fwd_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
+  lcl_fwd_wod_pkt_vc_i    : in std_logic_vector( 4 downto 0); --5 bits not 4.
+  lcl_fwd_wod_pkt_valid_i : in std_logic;
+  lcl_fwd_wod_pkt_ready_o : out std_logic;
+
+  -- ECI packet for local rsp without data. (VC 18 or 19).
+  -- lcl unlock response message.
+  lcl_rsp_wod_hdr_i       : in std_logic_vector(63 downto 0);
+  lcl_rsp_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
+  lcl_rsp_wod_pkt_vc_i    : in std_logic_vector( 4 downto 0); --5 bits not 4.
+  lcl_rsp_wod_pkt_valid_i : in std_logic;
+  lcl_rsp_wod_pkt_ready_o : out std_logic;
+
+  -- Output ECI events. (rsp without data, rsp with data).
+  -- VC 10,11
+  rsp_wod_hdr_o       : out std_logic_vector(63 downto 0);
+  rsp_wod_pkt_size_o  : out std_logic_vector( 4 downto 0);
+  rsp_wod_pkt_vc_o    : out std_logic_vector( 3 downto 0);
+  rsp_wod_pkt_valid_o : out std_logic;
+  rsp_wod_pkt_ready_i : in std_logic;
+
+  -- Responses with data (VC 5 or 4)
+  -- header+payload
+  rsp_wd_pkt_o       : out std_logic_vector(17*64-1 downto 0);
+  rsp_wd_pkt_size_o  : out std_logic_vector( 4 downto 0);
+  rsp_wd_pkt_vc_o    : out std_logic_vector( 3 downto 0);
+  rsp_wd_pkt_valid_o : out std_logic;
+  rsp_wd_pkt_ready_i : in std_logic;
+
+  -- forwards without data (VC 8 or 9).
+  fwd_wod_hdr_o       : out std_logic_vector(63 downto 0);
+  fwd_wod_pkt_size_o  : out std_logic_vector( 4 downto 0);
+  fwd_wod_pkt_vc_o    : out std_logic_vector( 3 downto 0);
+  fwd_wod_pkt_valid_o : out std_logic;
+  fwd_wod_pkt_ready_i : in std_logic;
+
+  -- lcl responses without data (VC 18 or 19)
+  lcl_rsp_wod_hdr_o       : out std_logic_vector(63 downto 0);
+  lcl_rsp_wod_pkt_size_o  : out std_logic_vector( 4 downto 0);
+  lcl_rsp_wod_pkt_vc_o    : out std_logic_vector( 4 downto 0); --5 bits not 4.
+  lcl_rsp_wod_pkt_valid_o : out std_logic;
+  lcl_rsp_wod_pkt_ready_i : in std_logic;
+
+  -- Primary AXI rd/wr i/f.
+  m_axi_arid    : out std_logic_vector( 6 downto 0);
+  m_axi_araddr  : out std_logic_vector(37 downto 0);
+  m_axi_arlen   : out std_logic_vector( 7 downto 0);
+  m_axi_arsize  : out std_logic_vector( 2 downto 0);
+  m_axi_arburst : out std_logic_vector( 1 downto 0);
+  m_axi_arlock  : out std_logic;
+  m_axi_arcache : out std_logic_vector( 3 downto 0);
+  m_axi_arprot  : out std_logic_vector( 2 downto 0);
+  m_axi_arvalid : out std_logic;
+  m_axi_arready : in std_logic;
+  m_axi_rid     : in std_logic_vector( 6 downto 0);
+  m_axi_rdata   : in std_logic_vector(511 downto 0);
+  m_axi_rresp   : in std_logic_vector( 1 downto 0);
+  m_axi_rlast   : in std_logic;
+  m_axi_rvalid  : in std_logic;
+  m_axi_rready  : out std_logic;
+
+  m_axi_awid    : out std_logic_vector ( 6 downto 0);
+  m_axi_awaddr  : out std_logic_vector (37 downto 0);
+  m_axi_awlen   : out std_logic_vector ( 7 downto 0);
+  m_axi_awsize  : out std_logic_vector ( 2 downto 0);
+  m_axi_awburst : out std_logic_vector ( 1 downto 0);
+  m_axi_awlock  : out std_logic;
+  m_axi_awcache : out std_logic_vector ( 3 downto 0);
+  m_axi_awprot  : out std_logic_vector ( 2 downto 0);
+  m_axi_awvalid : out std_logic;
+  m_axi_awready : in std_logic ;
+  m_axi_wdata   : out std_logic_vector (511 downto 0);
+  m_axi_wstrb   : out std_logic_vector (63 downto 0);
+  m_axi_wlast   : out std_logic;
+  m_axi_wvalid  : out std_logic;
+  m_axi_wready  : in std_logic;
+  m_axi_bid     : in std_logic_vector( 6 downto 0);
+  m_axi_bresp   : in std_logic_vector( 1 downto 0);
+  m_axi_bvalid  : in std_logic;
+  m_axi_bready  : out std_logic;
+
+  -- Tracing
+  tracing_valid   : out std_logic_vector(1 downto 0);
+  tracing_error   : out std_logic_vector(1 downto 0);
+  tracing_cli     : out dc_tracing_cli_array(1 downto 0);
+  tracing_state   : out dc_tracing_state_array(1 downto 0);
+  tracing_action  : out dc_tracing_action_array(1 downto 0);
+  tracing_request : out dc_tracing_request_array(1 downto 0)
+);
+end component;
+
 type ECI_PACKET_RX is record
     c6_gsync            : ECI_CHANNEL;
     c6_gsync_ready      : std_logic;
@@ -853,7 +980,7 @@ port map (
 
 -- DC Slices: One DCS for odd and another for even VCs.
 -- DCS for even VCs ie odd CL indices.
-dcs_even : entity work.dcs_cdc
+dcs_even : dcs_cdc
 port map (
   eci_reset   => reset,
   eci_clk     => clk,
@@ -965,22 +1092,26 @@ port map (
 
   -- Tracing interface
   tracing_valid  (0) => dcs_even_trace_0(57),
-  tracing_error  (0) => dcs_even_trace_0(56),
-  tracing_state  (0) => dcs_even_trace_0(55 downto 49),
-  tracing_action (0) => dcs_even_trace_0(48 downto 45),
-  tracing_request(0) => dcs_even_trace_0(44 downto 40),
-  tracing_cli    (0) => dcs_even_trace_0(39 downto 0),
-
   tracing_valid  (1) => dcs_even_trace_1(57),
+
+  tracing_error  (0) => dcs_even_trace_0(56),
   tracing_error  (1) => dcs_even_trace_1(56),
+
+  tracing_state  (0) => dcs_even_trace_0(55 downto 49),
   tracing_state  (1) => dcs_even_trace_1(55 downto 49),
+
+  tracing_action (0) => dcs_even_trace_0(48 downto 45),
   tracing_action (1) => dcs_even_trace_1(48 downto 45),
+
+  tracing_request(0) => dcs_even_trace_0(44 downto 40),
   tracing_request(1) => dcs_even_trace_1(44 downto 40),
+
+  tracing_cli    (0) => dcs_even_trace_0(39 downto 0),
   tracing_cli    (1) => dcs_even_trace_1(39 downto 0)
 );
 
 -- DCS for odd VCs ie even CL indices.
-dcs_odd : entity work.dcs_cdc
+dcs_odd : dcs_cdc
 port map (
   eci_reset   => reset,
   eci_clk     => clk,
@@ -1092,17 +1223,21 @@ port map (
 
   -- Tracing interface
   tracing_valid  (0) => dcs_odd_trace_0(57),
-  tracing_error  (0) => dcs_odd_trace_0(56),
-  tracing_state  (0) => dcs_odd_trace_0(55 downto 49),
-  tracing_action (0) => dcs_odd_trace_0(48 downto 45),
-  tracing_request(0) => dcs_odd_trace_0(44 downto 40),
-  tracing_cli    (0) => dcs_odd_trace_0(39 downto 0),
-
   tracing_valid  (1) => dcs_odd_trace_1(57),
+
+  tracing_error  (0) => dcs_odd_trace_0(56),
   tracing_error  (1) => dcs_odd_trace_1(56),
+
+  tracing_state  (0) => dcs_odd_trace_0(55 downto 49),
   tracing_state  (1) => dcs_odd_trace_1(55 downto 49),
+
+  tracing_action (0) => dcs_odd_trace_0(48 downto 45),
   tracing_action (1) => dcs_odd_trace_1(48 downto 45),
+
+  tracing_request(0) => dcs_odd_trace_0(44 downto 40),
   tracing_request(1) => dcs_odd_trace_1(44 downto 40),
+
+  tracing_cli    (0) => dcs_odd_trace_0(39 downto 0),
   tracing_cli    (1) => dcs_odd_trace_1(39 downto 0)
 );
 
