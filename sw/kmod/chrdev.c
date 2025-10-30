@@ -57,14 +57,16 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 		return -1;
 	}
 
-	srv->port = port;
-	srv->prog_num = prog_num;
-	srv->prog_ver = prog_ver;
-	srv->proc_num = proc_num;
-	srv->func_ptr = func_ptr;
+	*srv = (struct srv_def){
+		.port = port,
+		.prog_num = prog_num,
+		.prog_ver = prog_ver,
+		.proc_num = proc_num,
+		.func_ptr = func_ptr,
+		// Record owner of process
+		.proc = proc,
+	};
 
-	// Record owner of process
-	srv->proc = proc;
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (proc->srvs[i] == NULL) {
 			// found a free slot

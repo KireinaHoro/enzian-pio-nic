@@ -92,9 +92,11 @@ static int init_worker_fpi(void)
 	fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
 
 	// Allocate an IRQ number for SGI #8 for all worker cores
-	fwspec_fpi.fwnode = fwnode;
-	fwspec_fpi.param_count = 1;
-	fwspec_fpi.param[0] = 8;
+	fwspec_fpi = (struct irq_fwspec){
+		.fwnode = fwnode,
+		.param_count = 1,
+		.param[0] = 8,
+	};
 	err = irq_create_fwspec_mapping(&fwspec_fpi);
 	if (err < 0) {
 		pr_warn("irq_create_fwspec_mapping returns %d\n", err);

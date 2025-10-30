@@ -100,9 +100,11 @@ static int init_bypass_fpi(struct net_device *dev)
 	*cookie_ptr = dev;
 
 	// Allocate an IRQ number for SGI #15 for bypass core
-	fwspec_fpi.fwnode = fwnode;
-	fwspec_fpi.param_count = 1;
-	fwspec_fpi.param[0] = 15;
+	fwspec_fpi = (struct irq_fwspec){
+		.fwnode = fwnode,
+		.param_count = 1,
+		.param[0] = 15,
+	};
 	err = irq_create_fwspec_mapping(&fwspec_fpi);
 	if (err < 0) {
 		dev_err(&dev->dev, "irq_create_fwspec_mapping returns %d\n",
