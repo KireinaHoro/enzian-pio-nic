@@ -62,6 +62,24 @@ struct netdev_priv {
 	__be32 arp_cache[LAUBERHORN_NUM_NEIGHBOR_ENTRIES];
 };
 
+static int do_loopback = 0;
+static int loopback_set(const char *val, const struct kernel_param *kp)
+{
+	int n = 0, err;
+
+	err = kstrtoint(val, 10, &n);
+	if (err || n < 0 || n > 1) {
+		return -EINVAL;
+	}
+	pr_info("loopback enabled: %d\n", n);
+
+	return param_set_int(val, kp);
+}
+static const struct kernel_param_ops loopback_ops = {
+	.set = loopback_set,
+};
+module_param_cb(loopback, &loopback_ops, &do_loopback, 0);
+
 static u64 irq_no;
 static DEFINE_PER_CPU_READ_MOSTLY(struct net_device *, bypass_fpi_cookie);
 
@@ -151,7 +169,7 @@ static int netdev_open(struct net_device *dev)
 	struct netdev_priv *priv = netdev_priv(dev);
 	int err;
 
-	err = start_cmac(&priv->cmac_dev, 1);
+	err = start_cmac(&priv->cmac_dev, do_loopback);
 	if (err) {
 		dev_err(&dev->dev, "Failed to start CMAC!\n");
 		return err;
