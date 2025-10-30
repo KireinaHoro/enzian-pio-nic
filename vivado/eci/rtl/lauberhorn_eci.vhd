@@ -543,7 +543,7 @@ signal nic_engine_app_reset : std_logic;
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
 signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(16 downto 0);
-signal dcs_even_trace_0, dcs_even_trace_1, dcs_odd_trace_0, dcs_odd_trace_1 : std_logic_vecotr(57 downto 0);
+signal dcs_even_trace_0, dcs_even_trace_1, dcs_odd_trace_0, dcs_odd_trace_1 : std_logic_vector(57 downto 0);
 
 -- LCL channel signals between DC and the NIC engine
 signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
