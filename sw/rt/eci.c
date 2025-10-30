@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <rpc/rpc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,17 +59,22 @@ void lauberhorn_fini(lauberhorn_t *ctx) {
   close(ctx->fd);
 }
 
+struct schema_reg {
+  lauberhorn_schema_t *schema;
+  bool enabled;
+  int srv_id; // as returned from the kernel
+
+  // used to deregister from the portmapper
+  int prog_num, prog_ver;
+};
+static struct schema_reg registered_schemas[LAUBERHORN_NUM_SERVICES];
+static int next_schema = 0;
+
 struct lauberhorn_hw_handler {
   lauberhorn_handler_t func;
   void *data;
-  int schema_idx;
+  struct schema_reg *sreg;
 };
-
-static struct {
-  lauberhorn_schema_t *schema;
-  bool enabled;
-} registered_schemas[LAUBERHORN_NUM_SERVICES];
-static int next_schema = 0;
 
 // Register service handler
 int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t func, void *data,
@@ -81,7 +87,7 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t func, void *data,
 
   hw_func_ptr->func = func;
   hw_func_ptr->data = data;
-  hw_func_ptr->schema_idx = next_schema++;
+  hw_func_ptr->sreg = &registered_schemas[next_schema++];
 
   cmd.prog_num = prog_num;
   cmd.prog_ver = prog_ver;
@@ -97,14 +103,46 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t func, void *data,
 
   // Record list of schemas, so that every worker thread can allocate
   // their own message buffers
-  registered_schemas[hw_func_ptr->schema_idx].schema = schema;
-  registered_schemas[hw_func_ptr->schema_idx].enabled = true;
+  *hw_func_ptr->sreg = (struct schema_reg){.schema = schema,
+                                           .srv_id = cmd.id,
+                                           .prog_num = prog_num,
+                                           .prog_ver = prog_ver,
+                                           .enabled = true};
+
+  // Register this service with the local port mapper, so that the remote
+  // client can find it automatically
+  err = pmap_set(prog_num, prog_ver, IPPROTO_UDP, listen_port);
+  if (err) {
+    LOG("failed to register with portmapper");
+  }
 
   return cmd.id;
 }
 
 int lauberhorn_dereg_srv(lauberhorn_t *ctx, int srv_id) {
-  int err;
+  int err, i;
+  struct schema_reg *sreg = NULL;
+
+  // Find the registered schema
+  for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
+    if (registered_schemas[i].enabled &&
+        registered_schemas[i].srv_id == srv_id) {
+      sreg = &registered_schemas[i];
+      break;
+    }
+  }
+  if (!sreg) {
+    LOG("failed to find registered schema");
+    return -1;
+  }
+
+  sreg->enabled = false;
+
+  // Deregister with the portmapper
+  err = pmap_unset(sreg->prog_num, sreg->prog_ver);
+  if (err) {
+    LOG("failed to deregister with portmapper");
+  }
 
   err = ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &srv_id);
   if (err) {
@@ -164,8 +202,8 @@ static void *lauberhorn_worker_loop(void *arg) {
       continue;
     assert(desc.type == TY_ONCRPC_CALL);
     hw_handler = desc.oncrpc_server.func_ptr;
-    schema = registered_schemas[hw_handler->schema_idx].schema;
-    msg = w->msg_bufs[hw_handler->schema_idx];
+    schema = hw_handler->sreg->schema;
+    msg = w->msg_bufs[hw_handler->sreg - registered_schemas];
 
     // Unmarshal request
     err = lauberhorn_oncrpc_unmarshal(schema, msg, w->dp.rx_buf,
