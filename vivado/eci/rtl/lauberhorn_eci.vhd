@@ -543,6 +543,7 @@ signal nic_engine_app_reset : std_logic;
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
 signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(16 downto 0);
+signal dcs_even_trace_0, dcs_even_trace_1, dcs_odd_trace_0, dcs_odd_trace_1 : std_logic_vecotr(57 downto 0);
 
 -- LCL channel signals between DC and the NIC engine
 signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
@@ -960,7 +961,22 @@ port map (
   m_axi_bid     => dcs_even_axi.bid,
   m_axi_bresp   => dcs_even_axi.bresp,
   m_axi_bvalid  => dcs_even_axi.bvalid,
-  m_axi_bready  => dcs_even_axi.bready
+  m_axi_bready  => dcs_even_axi.bready,
+
+  -- Tracing interface
+  tracing_valid  (0) => dcs_even_trace_0(57),
+  tracing_error  (0) => dcs_even_trace_0(56),
+  tracing_state  (0) => dcs_even_trace_0(55 downto 49),
+  tracing_action (0) => dcs_even_trace_0(48 downto 45),
+  tracing_request(0) => dcs_even_trace_0(44 downto 40),
+  tracing_cli    (0) => dcs_even_trace_0(39 downto 0),
+
+  tracing_valid  (1) => dcs_even_trace_1(57),
+  tracing_error  (1) => dcs_even_trace_1(56),
+  tracing_state  (1) => dcs_even_trace_1(55 downto 49),
+  tracing_action (1) => dcs_even_trace_1(48 downto 45),
+  tracing_request(1) => dcs_even_trace_1(44 downto 40),
+  tracing_cli    (1) => dcs_even_trace_1(39 downto 0)
 );
 
 -- DCS for odd VCs ie even CL indices.
@@ -1072,7 +1088,22 @@ port map (
   m_axi_bid     => dcs_odd_axi.bid,
   m_axi_bresp   => dcs_odd_axi.bresp,
   m_axi_bvalid  => dcs_odd_axi.bvalid,
-  m_axi_bready  => dcs_odd_axi.bready
+  m_axi_bready  => dcs_odd_axi.bready,
+
+  -- Tracing interface
+  tracing_valid  (0) => dcs_odd_trace_0(57),
+  tracing_error  (0) => dcs_odd_trace_0(56),
+  tracing_state  (0) => dcs_odd_trace_0(55 downto 49),
+  tracing_action (0) => dcs_odd_trace_0(48 downto 45),
+  tracing_request(0) => dcs_odd_trace_0(44 downto 40),
+  tracing_cli    (0) => dcs_odd_trace_0(39 downto 0),
+
+  tracing_valid  (1) => dcs_odd_trace_1(57),
+  tracing_error  (1) => dcs_odd_trace_1(56),
+  tracing_state  (1) => dcs_odd_trace_1(55 downto 49),
+  tracing_action (1) => dcs_odd_trace_1(48 downto 45),
+  tracing_request(1) => dcs_odd_trace_1(44 downto 40),
+  tracing_cli    (1) => dcs_odd_trace_1(39 downto 0)
 );
 
 -- reset synchronizers for RX and TX clocks
@@ -1423,7 +1454,13 @@ axil_adapter_inst : entity work.axil_adapter
     core1_states => core1_states,
     core2_states => core2_states,
     core3_states => core3_states,
-    core4_states => core4_states
+    core4_states => core4_states,
+
+    -- Trace interfaces
+    dcs_even_trace_0 => dcs_even_trace_0,
+    dcs_even_trace_1 => dcs_even_trace_1,
+    dcs_odd_trace_0 => dcs_odd_trace_0,
+    dcs_odd_trace_1 => dcs_odd_trace_1
 );
 
 NicEngine_inst : entity work.NicEngine
