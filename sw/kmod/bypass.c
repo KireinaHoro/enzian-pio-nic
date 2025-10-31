@@ -85,7 +85,7 @@ static DEFINE_PER_CPU_READ_MOSTLY(struct net_device *, bypass_fpi_cookie);
 
 static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 {
-	struct net_device *dev = cookie;
+	struct net_device *dev = *(struct net_device **)cookie;
 	struct netdev_priv *priv = netdev_priv(dev);
 
 	dev_info(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
