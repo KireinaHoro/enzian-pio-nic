@@ -32,3 +32,6 @@ dev-hdrs
 
 # git mergetool
 **/*.orig
+
+# packet dumps copied from enzian
+*.pcap
