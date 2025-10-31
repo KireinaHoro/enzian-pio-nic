@@ -316,7 +316,7 @@ class DmaControlPlugin extends FiberPlugin {
     def stat(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
       statistics.elements.foreach { case (name, data) =>
         data match {
-          case d: UInt => busCtrl.read(d, alloc(name, attr = RO, desc = s"Stat $name"))
+          case d: UInt => busCtrl.read(d, alloc("stat", s"Stat $name", name, attr = RO))
           case v: Vec[_] => v zip PKT_BUF_ALLOC_SIZES.map(_._1) foreach { case (elem, slotSize) =>
             busCtrl.read(elem, alloc("stat",
               s"Free slots left for packet size up to $slotSize",
