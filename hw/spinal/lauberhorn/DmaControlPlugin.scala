@@ -63,9 +63,8 @@ class DmaControlPlugin extends FiberPlugin {
     // one allocator for the entire RX buffer
     val rxAlloc = new ResetArea(allocReset, true) {
       // do not allocate space reserved for TX
-      private val instance = PacketAlloc(0, PKT_BUF_TX_OFFSET.get)
-      val io = instance.io
-    }
+      val inst = PacketAlloc(0, PKT_BUF_TX_OFFSET.get)
+    }.inst
 
     /** Incoming packet descriptors from decoder pipeline */
     val incomingDesc = Stream(RxPacketDescWithSource())
@@ -317,7 +316,7 @@ class DmaControlPlugin extends FiberPlugin {
       statistics.elements.foreach { case (name, data) =>
         data match {
           case d: UInt => busCtrl.read(d, alloc("stat", s"Stat $name", name, attr = RO))
-          case v: Vec[_] => v zip PKT_BUF_ALLOC_SIZES.map(_._1) foreach { case (elem, slotSize) =>
+          case v: Vec[_] => v zip rxAlloc.roundedMap.map(_._1) foreach { case (elem, slotSize) =>
             busCtrl.read(elem, alloc("stat",
               s"Free slots left for packet size up to $slotSize",
               s"${name}_upTo$slotSize", attr = RO))
