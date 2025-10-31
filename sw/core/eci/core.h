@@ -133,7 +133,11 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
         lauberhorn_eci_host_ctrl_info_error_ty_extract(rx_base);
 
 #ifdef __KERNEL__
-    BUG_ON(ty != lauberhorn_eci_bypass || ty != lauberhorn_eci_arp_req);
+    if (ty != lauberhorn_eci_bypass && ty != lauberhorn_eci_arp_req) {
+      pr_err("unexpected RX request type in kernel: %s!\n",
+             lauberhorn_eci_host_req_type_describe(ty));
+      BUG();
+    }
 #endif
 
     switch (ty) {
