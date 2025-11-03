@@ -36,8 +36,6 @@
 #include "lauberhorn_eci_macIf_dev.h"
 #include "lauberhorn_eci_decoderSink_dev.h"
 
-#include "stat_attrs.h"
-
 #define CMAC_BASE 0x200000UL
 
 struct netdev_priv {
@@ -518,16 +516,22 @@ int init_bypass(void)
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
-	netdev->dev.groups = bypass_attr_groups;
+
+	// Create sysfs attribute groups
+	err = sysfs_create_groups(&netdev->dev.kobj, bypass_attr_groups);
+	if (err < 0) {
+		dev_err(&netdev->dev,
+			"failed to create sysfs statistics entries: err %d\n",
+			err);
+		goto free_dev;
+	}
 
 	// Register netdev
 	err = register_netdev(netdev);
 	if (err < 0) {
 		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
 			err);
-		netif_napi_del(&priv->napi);
-		free_netdev(netdev);
-		return err;
+		goto remove_groups;
 	}
 
 	// Create Mackerel devices
@@ -553,8 +557,8 @@ int init_bypass(void)
 	ver_min = cmac_core_version_minor_extract(ver);
 	if (ver == 0) {
 		dev_err(&netdev->dev, "CMAC version register all zero!\n");
-		free_netdev(netdev);
-		return -1;
+		err = -1;
+		goto del_netif;
 	}
 	dev_info(&netdev->dev, "CMAC version: %d.%d (raw %#x)\n", ver_maj,
 		 ver_min, ver);
@@ -613,10 +617,22 @@ int init_bypass(void)
 
 	// Enable FIFO non-empty interrupt
 	err = init_bypass_fpi(netdev);
-	if (err < 0)
-		return err;
+	if (err < 0) {
+		dev_err(&netdev->dev, "failed to allocate interrupt: err %d\n",
+			err);
+		goto del_netif;
+	}
 
 	return 0;
+
+del_netif:
+	netif_napi_del(&priv->napi);
+remove_groups:
+	sysfs_remove_groups(&netdev->dev.kobj, bypass_attr_groups);
+free_dev:
+	free_netdev(netdev);
+out:
+	return err;
 }
 
 void deinit_bypass(void)
@@ -624,6 +640,9 @@ void deinit_bypass(void)
 	struct net_device **cookie_ptr = per_cpu_ptr(&bypass_fpi_cookie, 0);
 	struct net_device *netdev = *cookie_ptr;
 	struct netdev_priv *priv = netdev_priv(netdev);
+
+	// Remove sysfs entries
+	sysfs_remove_groups(&netdev->dev.kobj, bypass_attr_groups);
 
 	// Disable interrupts
 	deinit_bypass_fpi();
