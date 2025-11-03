@@ -83,7 +83,7 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    busCtrl.read(logic.rxMacOverflowCount.value, alloc("rxMacOverflowCount", attr = RO,
+    busCtrl.read(logic.rxMacOverflowCount.value, alloc(name = "stat", subName = "rxMacOverflowCount", attr = RO,
       desc = "Receive CDC FIFO overflow count"))
   }
 }
