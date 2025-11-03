@@ -1,3 +1,5 @@
+#include "stat_attrs.h"
+
 #define DMA_STATS_LIST(FUNC)                     \
 	FUNC(dma, rx_packet_count)               \
 	FUNC(dma, tx_packet_count)               \
