@@ -50,8 +50,12 @@ int start_cmac(cmac_t *cmac, bool loopback)
 
 	// ctl_rx_enable
 	cmac_conf_rx_1_ctl_rx_enable_wrf(cmac, 1);
+
 	// !ctl_tx_enable, ctl_tx_send_rfi
-	cmac_conf_tx_1_ctl_tx_send_rfi_wrf(cmac, 1);
+	cmac_conf_tx_1_t tx_1_val = 0;
+	tx_1_val = cmac_conf_tx_1_ctl_tx_enable_insert(0, 0);
+	tx_1_val = cmac_conf_tx_1_ctl_tx_send_rfi_insert(tx_1_val, 1);
+	cmac_conf_tx_1_rawwr(cmac, tx_1_val);
 
 	while (++attempts < LINE_UP_MAX_ATTEMPTS) {
 		status = cmac_stat_rx_status_rawrd(cmac);
@@ -66,7 +70,9 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	}
 
 	// ctl_tx_enable, !ctl_tx_send_rfi
-	cmac_conf_tx_1_rawwr(cmac, cmac_conf_tx_1_ctl_tx_enable_insert(0, 1));
+	tx_1_val = cmac_conf_tx_1_ctl_tx_enable_insert(0, 1);
+	tx_1_val = cmac_conf_tx_1_ctl_tx_send_rfi_insert(tx_1_val, 0);
+	cmac_conf_tx_1_rawwr(cmac, tx_1_val);
 
 	attempts = 0;
 	while (++attempts < LINE_UP_MAX_ATTEMPTS) {
