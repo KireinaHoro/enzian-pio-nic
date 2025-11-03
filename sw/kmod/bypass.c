@@ -517,6 +517,14 @@ int init_bypass(void)
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
 
+	// Register netdev
+	err = register_netdev(netdev);
+	if (err < 0) {
+		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
+			err);
+		goto remove_groups;
+	}
+
 	// Create sysfs attribute groups
 	err = sysfs_create_groups(&netdev->dev.kobj, bypass_attr_groups);
 	if (err < 0) {
@@ -524,14 +532,6 @@ int init_bypass(void)
 			"failed to create sysfs statistics entries: err %d\n",
 			err);
 		goto free_dev;
-	}
-
-	// Register netdev
-	err = register_netdev(netdev);
-	if (err < 0) {
-		dev_err(&netdev->dev, "failed to register netdev: err %d\n",
-			err);
-		goto remove_groups;
 	}
 
 	// Create Mackerel devices
@@ -625,10 +625,10 @@ int init_bypass(void)
 
 	return 0;
 
-del_netif:
-	netif_napi_del(&priv->napi);
 remove_groups:
 	sysfs_remove_groups(&netdev->dev.kobj, bypass_attr_groups);
+del_netif:
+	netif_napi_del(&priv->napi);
 free_dev:
 	free_netdev(netdev);
 out:
