@@ -249,6 +249,10 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	desc.payload_len = skb->len;
 	memcpy(priv->ctx.tx_buf, skb->data, skb->len);
 
+	// Dump Ethernet header
+	print_hex_dump(KERN_INFO, "tx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
+		       priv->ctx.tx_buf, ETH_HLEN, true);
+
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 
 	// free skb and return
@@ -275,6 +279,11 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 
 	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_buf,
 	       desc->payload_len);
+
+	// Dump Ethernet header
+	print_hex_dump(KERN_INFO, "rx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
+		       priv->ctx.rx_buf, ETH_HLEN, true);
+
 	skb->protocol = eth_type_trans(skb, dev);
 	skb->dev = dev;
 
@@ -370,6 +379,8 @@ static int napi_poll(struct napi_struct *n, int budget)
 
 		work_done++;
 	}
+
+	dev_info(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
 
 	if (work_done < budget) {
 		// drained all packets, finish NAPI and enable interrupts
