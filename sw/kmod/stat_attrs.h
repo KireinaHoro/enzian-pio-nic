@@ -6,8 +6,9 @@
 		struct device *dev, struct device_attribute *attr, char *buf) \
 	{                                                                     \
 		struct netdev_priv *priv = netdev_priv(to_net_dev(dev));      \
-		return lauberhorn_eci_##class##_stat_##_name##_rd(            \
+		u64 val = lauberhorn_eci_##class##_stat_##_name##_rd(         \
 			&priv->class##_dev);                                  \
+		return sysfs_emit(buf, "%lld\n", val);                        \
 	}                                                                     \
 	static struct device_attribute dev_attr_##class##_##_name = {         \
 		.attr = {                                                     \
