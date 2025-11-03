@@ -512,7 +512,8 @@ int init_bypass(void)
 			      NET_NAME_UNKNOWN, init_netdev);
 	if (!netdev) {
 		pr_err("failed to allocate netdev\n");
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto out;
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
