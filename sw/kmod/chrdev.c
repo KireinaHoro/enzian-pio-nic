@@ -95,6 +95,8 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(&decoder_dev,
 							     srv->idx);
 
+	// TODO: set UDP next proto for listen port to RPC
+
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
 	return proc_srv_idx;

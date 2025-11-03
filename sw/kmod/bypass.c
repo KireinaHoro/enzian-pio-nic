@@ -33,7 +33,10 @@
 #include "lauberhorn_eci_EthernetDecoder_dev.h"
 #include "lauberhorn_eci_IpDecoder_dev.h"
 #include "lauberhorn_eci_IpEncoder_dev.h"
+#include "lauberhorn_eci_macIf_dev.h"
 #include "lauberhorn_eci_decoderSink_dev.h"
+
+#include "stat_attrs.h"
 
 #define CMAC_BASE 0x200000UL
 
@@ -47,9 +50,10 @@ struct netdev_priv {
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
-	lauberhorn_eci_EthernetDecoder_t eth_dec_dev;
-	lauberhorn_eci_IpDecoder_t ip_dec_dev;
-	lauberhorn_eci_IpEncoder_t ip_enc_dev;
+	lauberhorn_eci_EthernetDecoder_t EthernetDecoder_dev;
+	lauberhorn_eci_IpDecoder_t IpDecoder_dev;
+	lauberhorn_eci_IpEncoder_t IpEncoder_dev;
+	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
 	cmac_t cmac_dev;
 
@@ -196,8 +200,8 @@ static int netdev_setaddr(struct net_device *dev, void *p)
 
 	memcpy(mac_addr.arr, addr->sa_data, ETH_ALEN);
 
-	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(&priv->eth_dec_dev,
-							   mac_addr.data_be);
+	lauberhorn_eci_EthernetDecoder_ctrl_mac_address_wr(
+		&priv->EthernetDecoder_dev, mac_addr.data_be);
 	eth_hw_addr_set(dev, mac_addr.arr);
 	dev_info(&dev->dev, "Updated MAC address: %pM\n", dev->dev_addr);
 
@@ -292,13 +296,15 @@ static void write_hw_neigh_tbl(struct netdev_priv *priv, __be32 dst,
 
 	memcpy(mc.arr, mac_addr, ETH_ALEN);
 
-	lauberhorn_eci_IpEncoder_ctrl_neigh_ip_addr_wr(&priv->ip_enc_dev, dst);
+	lauberhorn_eci_IpEncoder_ctrl_neigh_ip_addr_wr(&priv->IpEncoder_dev,
+						       dst);
 	if (mac_addr) {
 		lauberhorn_eci_IpEncoder_ctrl_neigh_mac_addr_wr(
-			&priv->ip_enc_dev, mc.data_be);
+			&priv->IpEncoder_dev, mc.data_be);
 	}
-	lauberhorn_eci_IpEncoder_ctrl_neigh_state_wr(&priv->ip_enc_dev, state);
-	lauberhorn_eci_IpEncoder_ctrl_neigh_idx_wr(&priv->ip_enc_dev, idx);
+	lauberhorn_eci_IpEncoder_ctrl_neigh_state_wr(&priv->IpEncoder_dev,
+						     state);
+	lauberhorn_eci_IpEncoder_ctrl_neigh_idx_wr(&priv->IpEncoder_dev, idx);
 }
 
 static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
@@ -454,12 +460,12 @@ static int inetaddr_event(struct notifier_block *nb, unsigned long event,
 				 &ifa->ifa_address);
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
-				&priv->ip_dec_dev, ifa->ifa_address);
+				&priv->IpDecoder_dev, ifa->ifa_address);
 		} else if (event == NETDEV_DOWN) {
 			dev_info(&dev->dev, "Clearing primary IP address\n");
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
-				&priv->ip_dec_dev, 0);
+				&priv->IpDecoder_dev, 0);
 		}
 	}
 
@@ -476,6 +482,8 @@ static void init_netdev(struct net_device *dev)
 	dev->netdev_ops = &netdev_ops;
 	dev->mtu = LAUBERHORN_MTU;
 }
+
+#include "bypass_stats.h"
 
 int init_bypass(void)
 {
@@ -499,6 +507,7 @@ int init_bypass(void)
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
+	netdev->dev.groups = bypass_attr_groups;
 
 	// Register netdev
 	err = register_netdev(netdev);
@@ -515,11 +524,14 @@ int init_bypass(void)
 					  LAUBERHORN_ECI_PREEMPT_BASE(0));
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
 	lauberhorn_eci_EthernetDecoder_initialize(
-		&priv->eth_dec_dev, LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
-	lauberhorn_eci_IpDecoder_initialize(&priv->ip_dec_dev,
+		&priv->EthernetDecoder_dev,
+		LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
+	lauberhorn_eci_IpDecoder_initialize(&priv->IpDecoder_dev,
 					    LAUBERHORN_ECI__IP_DECODER_BASE);
-	lauberhorn_eci_IpEncoder_initialize(&priv->ip_enc_dev,
+	lauberhorn_eci_IpEncoder_initialize(&priv->IpEncoder_dev,
 					    LAUBERHORN_ECI__IP_ENCODER_BASE);
+	lauberhorn_eci_macIf_initialize(&priv->macIf_dev,
+					LAUBERHORN_ECI_MAC_IF_BASE);
 	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
 	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
@@ -541,7 +553,7 @@ int init_bypass(void)
 
 	// Read out default MAC address from HW
 	mac_addr.data_be = lauberhorn_eci_EthernetDecoder_ctrl_mac_address_rd(
-		&priv->eth_dec_dev);
+		&priv->EthernetDecoder_dev);
 	eth_hw_addr_set(netdev, mac_addr.arr);
 	dev_info(&netdev->dev, "Our MAC address: %pM\n", netdev->dev_addr);
 
