@@ -1,15 +1,21 @@
 #ifndef LAUBERHORN_STAT_ATTRS_H
 #define LAUBERHORN_STAT_ATTRS_H
 
-#define STAT_ATTR_READ(class, name)                                           \
-	static ssize_t class##_##name##_show(                                 \
+#define STAT_ATTR_READ(class, _name)                                          \
+	static ssize_t class##_##_name##_show(                                \
 		struct device *dev, struct device_attribute *attr, char *buf) \
 	{                                                                     \
 		struct netdev_priv *priv = netdev_priv(to_net_dev(dev));      \
-		return lauberhorn_eci_##class##_stat_##name##_rd(             \
+		return lauberhorn_eci_##class##_stat_##_name##_rd(            \
 			&priv->class##_dev);                                  \
 	}                                                                     \
-	static DEVICE_ATTR_RO(class##_##name);
+	static struct device_attribute dev_attr_##class##_##_name = {         \
+		.attr = {                                                     \
+			.name = #_name,                                       \
+			.mode = 0444,                                         \
+		},                                                            \
+		.show = class##_##_name##_show,                               \
+	};
 
 #define STAT_ATTR_ITEM(class, name) &dev_attr_##class##_##name.attr,
 
