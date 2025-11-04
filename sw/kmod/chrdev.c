@@ -157,7 +157,7 @@ static struct proc_def *register_app(pid_t tgid)
 	proc->tgid = tgid;
 
 	// All threads start disabled
-	for (i = 0; i < LAUBERHORN_NUM_THREADS; ++i) {
+	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
 		proc->thr_defs[i].enabled = false;
 	}
 	proc->num_rdy_thrs = 0;
@@ -452,10 +452,8 @@ static int app_dev_uevent(const struct device *dev, struct kobj_uevent_env *env)
 }
 
 /**
- * Create character devices for control-path functions towards userspace.
- * Two devices will be created:
+ * Create character device for control-path functions towards userspace.
  *  - /dev/lauberhorn: accessible to normal user, app access
- *  - /dev/lauberhorn_mgmt: lower-level access, available to superuser
  */
 int create_devices(void)
 {
