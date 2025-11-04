@@ -111,10 +111,10 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
   bool rx_parity = *ctx->rx_next_cl;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
 
-  uint8_t *rx_base = (uint8_t *)base + (LAUBERHORN_ECI_RX_BASE +
-                                        rx_parity * LAUBERHORN_ECI_CL_SIZE);
+  uint8_t *rx_base = (uint8_t *)base + LAUBERHORN_ECI_RX_BASE;
+  uint8_t *rx_ctrl = rx_base + rx_parity * LAUBERHORN_ECI_CL_SIZE;
 
-  bool valid = lauberhorn_eci_host_ctrl_info_error_valid_extract(rx_base);
+  bool valid = lauberhorn_eci_host_ctrl_info_error_valid_extract(rx_ctrl);
   BARRIER; // make sure the CL is actually read
 
   // always toggle CL
@@ -125,11 +125,11 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
     pr_debug("eci_rx: did not get a packet\n");
   } else {
 
-    size_t pkt_len = lauberhorn_eci_host_ctrl_info_error_len_extract(rx_base);
+    size_t pkt_len = lauberhorn_eci_host_ctrl_info_error_len_extract(rx_ctrl);
     pr_debug("eci_rx: got a packet with len %#lx\n", pkt_len);
 
     lauberhorn_eci_packet_desc_type_t ty =
-        lauberhorn_eci_host_ctrl_info_error_ty_extract(rx_base);
+        lauberhorn_eci_host_ctrl_info_error_ty_extract(rx_ctrl);
 
 #ifdef __KERNEL__
     if (ty != lauberhorn_eci_bypass && ty != lauberhorn_eci_arp_req) {
@@ -147,7 +147,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
       desc->type = TY_BYPASS;
 
       // decode header type
-      switch (lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_extract(rx_base)) {
+      switch (lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_extract(rx_ctrl)) {
       case lauberhorn_eci_hdr_ethernet:
         desc->bypass.header_type = HDR_ETHERNET;
         bypass_hdr_len = 14;
@@ -167,8 +167,9 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
         bypass_hdr_len = LAUBERHORN_BYPASS_HDR_SIZE;
       }
 
-      // parsed bypass header is aligned after the descriptor header
-      memcpy(ctx->rx_buf, rx_base + lauberhorn_eci_host_ctrl_info_bypass_size,
+      // parsed bypass header is aligned after the descriptor header (still
+      // inside ctrl CL)
+      memcpy(ctx->rx_buf, rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_size,
              bypass_hdr_len);
       desc->payload_len = bypass_hdr_len;
 
@@ -176,9 +177,9 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
     case lauberhorn_eci_arp_req:
       desc->type = TY_ARP_REQ;
       desc->arp_req.neigh_tbl_idx =
-          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_base);
+          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_ctrl);
       desc->arp_req.ip_addr =
-          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_base);
+          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_ctrl);
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
@@ -186,14 +187,14 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_server.func_ptr =
           (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_extract(
-              rx_base);
+              rx_ctrl);
       desc->oncrpc_server.xid =
-          lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_extract(rx_base);
+          lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_extract(rx_ctrl);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
       memcpy(ctx->rx_buf,
-             rx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
+             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
              LAUBERHORN_ONCRPC_INLINE_BYTES);
       desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
 
@@ -212,7 +213,7 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
       int first_read_size = pkt_len > LAUBERHORN_ECI_INLINE_DATA_SIZE
                                 ? LAUBERHORN_ECI_INLINE_DATA_SIZE
                                 : pkt_len;
-      memcpy(copy_dest, rx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET,
+      memcpy(copy_dest, rx_ctrl + LAUBERHORN_ECI_INLINE_DATA_OFFSET,
              first_read_size);
       copy_dest += first_read_size;
       pkt_len -= first_read_size;
@@ -247,8 +248,8 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   bool tx_parity = *ctx->tx_next_cl;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
 
-  uint8_t *tx_base = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE +
-                     tx_parity * LAUBERHORN_ECI_CL_SIZE;
+  uint8_t *tx_base = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE;
+  uint8_t *tx_ctrl = tx_base + tx_parity * LAUBERHORN_ECI_CL_SIZE;
 
   uint8_t *copy_from = ctx->tx_buf;
   size_t payload_len = desc->payload_len;
@@ -260,9 +261,9 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   switch (desc->type) {
 #ifdef __KERNEL__
   case TY_BYPASS:
-    uint8_t *tx_cmd = tx_base + lauberhorn_eci_host_ctrl_info_bypass_size;
+    uint8_t *tx_cmd = tx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_size;
 
-    lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_base,
+    lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_ctrl,
                                                   lauberhorn_eci_bypass);
     if (desc->bypass.header_type != HDR_ETHERNET) {
       pr_err("bypass TX only accepts Ethernet packets; trying to send %s\n",
@@ -271,7 +272,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     }
 
     lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
-        tx_base, lauberhorn_eci_hdr_ethernet);
+        tx_ctrl, lauberhorn_eci_hdr_ethernet);
 
     // Ethernet bypass only takes destination mac and ethertype
     // TODO: use Mackerel datatypes here
@@ -289,21 +290,21 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     payload_len -= 14;
 
     // tx bypass len field does not include header
-    lauberhorn_eci_host_ctrl_info_bypass_len_insert(tx_base, payload_len);
+    lauberhorn_eci_host_ctrl_info_bypass_len_insert(tx_ctrl, payload_len);
     break;
 
 #else // ! __KERNEL__
   case TY_ONCRPC_REPLY:
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
-        tx_base, lauberhorn_eci_onc_rpc_reply);
+        tx_ctrl, lauberhorn_eci_onc_rpc_reply);
 
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_insert(
-        tx_base, desc->oncrpc_server.xid);
+        tx_ctrl, desc->oncrpc_server.xid);
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_insert(
-        tx_base, (uint64_t)desc->oncrpc_server.func_ptr);
+        tx_ctrl, (uint64_t)desc->oncrpc_server.func_ptr);
 
     // tx RPC len field INCLUDES inlined words
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(tx_base,
+    lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(tx_ctrl,
                                                             payload_len);
 
     if (payload_len > LAUBERHORN_ONCRPC_INLINE_BYTES) {
@@ -313,7 +314,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     }
 
     // inlined ONCRPC words
-    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
+    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
            copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;
@@ -332,7 +333,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
     // fill second half-CL in control CL first
     int first_write_size = min(LAUBERHORN_ECI_INLINE_DATA_SIZE, payload_len);
-    memcpy(tx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET, copy_from,
+    memcpy(tx_ctrl + LAUBERHORN_ECI_INLINE_DATA_OFFSET, copy_from,
            first_write_size);
     copy_from += first_write_size;
     payload_len -= first_write_size;
