@@ -244,6 +244,14 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	desc.bypass.header_type = HDR_ETHERNET;
 
 	BUG_ON(skb->len < ETH_HLEN);
+
+	// CMAC requires packets to be padded to 64B
+	// XXX: do this in hardware?
+	if (skb_put_padto(skb, ETH_ZLEN + ETH_FCS_LEN)) {
+		// failed to pad, skb is freed!
+		return NETDEV_TX_OK;
+	}
+
 	desc.payload_len = skb->len;
 	priv->ctx.tx_buf = skb->data;
 
