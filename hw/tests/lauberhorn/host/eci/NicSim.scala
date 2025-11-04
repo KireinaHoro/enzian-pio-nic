@@ -566,7 +566,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       case Ethernet =>
         val pld = packet.getPayload.getRawData.toList
         val hdr = packet.getHeader
-        val desc = TxEthernetCmdSim(pld.length, hdr.getDstAddr, hdr.getType.value.toInt)
+        val desc = TxEthernetCmdSim(pld.length, hdr.getDstAddr, hdr.getType.value)
         (pld, desc)
 
       case Ip =>
@@ -647,6 +647,31 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
     txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, -1)
+  }
+
+  // Test sending IPv6 packet
+  testWithDB("tx-icmp6-rs", Tx) { implicit dut =>
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-icmp6-rs") / "packets-expecting.pcap").toString)
+
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+
+    val (_, ourMac) = enzianIpMacAddrs(14)
+    csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), ourMac.getAddress.toList)
+
+    val ipv6Builder = rawPayloadBuilder(hexToBytesBE("6000000000103afffe800000000000000e5331fffe0301c8ff0200000000000000000000000000028500fcf10000000001010c53310301c8").toArray)
+
+    val ethernetBuilder = (new EthernetPacket.Builder)
+      .srcAddr(ourMac)
+      .dstAddr(MacAddress.getByName("33:33:00:00:00:02"))
+      .`type`(EtherType.IPV6)
+      .paddingAtBuild(true)
+      .payloadBuilder(ipv6Builder)
+
+    val ethernetPacket = ethernetBuilder.build()
+    dumper.dump(ethernetPacket)
+    dumper.flush()
+
+    txTestSingle(dcsMaster, csrMaster, axisSlave, ethernetPacket, -1)
   }
 
   def txAllCores(doVoluntaryInv: Boolean) = {
@@ -820,8 +845,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
 
     // change host ID: address regs are in big endian
-    csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), 0xc0_a8_80_48.toBytesBE)
-    csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), 0x0c_53_31_03_00_48L.toBytesBE.drop(2))
+    val (ip, mac) = enzianIpMacAddrs(2)
+    csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), ip.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), mac.getAddress.toList)
 
     rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
   }

@@ -2,7 +2,7 @@ package lauberhorn.host.eci
 
 import lauberhorn.sim._
 import spinal.core.{IntToBuilder, log2Up}
-import jsteward.blocks.misc.sim.{BigIntBuilder, BigIntParser, BigIntRicher}
+import jsteward.blocks.misc.sim.{BigIntBuilder, BigIntParser, BigIntRicher, IntRicherEndianAware}
 import lauberhorn.Global._
 import lauberhorn.sim.PacketType._
 import org.pcap4j.util.MacAddress
@@ -84,12 +84,12 @@ case class TxArpReqSim(neighTblIdx: Int, ipAddr: Int) extends EciHostCtrlInfoSim
   def len = 0
 }
 
-case class TxEthernetCmdSim(len: Int, dst: MacAddress, proto: Int) extends BypassCtrlInfoSim {
+case class TxEthernetCmdSim(len: Int, dst: MacAddress, proto: Short) extends BypassCtrlInfoSim {
   def packetType = Ethernet.id
   def packetHdr =
     (new BigIntBuilder)
       .push(48, dst.getAddress.toList.bytesToBigInt)
-      .push(16, proto)
+      .pushBytes(proto.toBytesBE)
       .toBigInt
 }
 case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtrlInfoSim {
