@@ -159,6 +159,8 @@ struct lauberhorn_worker {
 
   lauberhorn_core_state_t dp;
   void *dp_base;
+  uint8_t *tx_buf;
+  size_t tx_buf_size;
 
   pthread_t thread;
   lauberhorn_msg_t msg_bufs[LAUBERHORN_NUM_SERVICES];
@@ -219,8 +221,7 @@ static void *lauberhorn_worker_loop(void *arg) {
     msg = hw_handler->func(hw_handler->data, msg, desc.oncrpc_server.xid);
 
     // Marshal response
-    err =
-        lauberhorn_oncrpc_marshal(schema, w->dp.tx_buf, w->dp.tx_buf_size, msg);
+    err = lauberhorn_oncrpc_marshal(schema, w->tx_buf, w->tx_buf_size, msg);
     if (err < 0) {
       LOG("failed to marshal request, skipping");
       continue;
@@ -250,9 +251,9 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx) {
   w->dp.tx_next_cl = &ctx->parity_page[w->worker_id * 2 + 1];
   *w->dp.rx_next_cl = *w->dp.tx_next_cl = 0;
 
-  w->dp.rx_buf_size = w->dp.tx_buf_size = LAUBERHORN_MTU;
+  w->dp.rx_buf_size = w->tx_buf_size = LAUBERHORN_MTU;
   w->dp.rx_buf = malloc(LAUBERHORN_MTU);
-  w->dp.tx_buf = malloc(LAUBERHORN_MTU);
+  w->tx_buf = malloc(LAUBERHORN_MTU);
 
   // Create thread
   err = pthread_create(&w->thread, NULL, lauberhorn_worker_loop, w);
@@ -293,6 +294,6 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
   }
 
   free(w->dp.rx_buf);
-  free(w->dp.tx_buf);
+  free(w->tx_buf);
   free(w);
 }

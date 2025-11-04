@@ -58,7 +58,6 @@ typedef struct {
 
   uint8_t *tx_next_cl;
   uint8_t *tx_buf;
-  int tx_buf_size;
 } lauberhorn_core_state_t;
 
 #define LAUBERHORN_ECI_CL_SIZE (0x80)
@@ -261,32 +260,33 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   switch (desc->type) {
 #ifdef __KERNEL__
   case TY_BYPASS:
-    size_t bypass_hdr_len;
-    uint8_t *copy_to = tx_base + lauberhorn_eci_host_ctrl_info_bypass_size;
+    uint8_t *tx_cmd = tx_base + lauberhorn_eci_host_ctrl_info_bypass_size;
 
     lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_base,
                                                   lauberhorn_eci_bypass);
-    switch (desc->bypass.header_type) {
-    case HDR_ETHERNET:
-
-      bypass_hdr_len = 14;
-      lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
-          tx_base, lauberhorn_eci_hdr_ethernet);
-      break;
-    default:
+    if (desc->bypass.header_type != HDR_ETHERNET) {
       pr_err("bypass TX only accepts Ethernet packets; trying to send %s\n",
              lauberhorn_eci_packet_desc_type_describe(desc->type));
       goto out;
     }
 
+    lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
+        tx_base, lauberhorn_eci_hdr_ethernet);
+
     // Ethernet bypass only takes destination mac and ethertype
     // TODO: use Mackerel datatypes here
-    memcpy(copy_to, copy_from, 6);
-    copy_to += 6;
 
-    memcpy(copy_to, copy_from + 12, 2);
-    copy_from += bypass_hdr_len;
-    payload_len -= bypass_hdr_len;
+    // destination MAC
+    memcpy(tx_cmd, copy_from, 6);
+
+    // XXX: not writing source MAC, thus not supporting bridging, forwarding,
+    //      etc.
+
+    // EtherType
+    memcpy(tx_cmd + 6, copy_from + 12, 2);
+
+    copy_from += 14;
+    payload_len -= 14;
 
     // tx bypass len field does not include header
     lauberhorn_eci_host_ctrl_info_bypass_len_insert(tx_base, payload_len);
@@ -332,7 +332,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
     // fill second half-CL in control CL first
     int first_write_size = min(LAUBERHORN_ECI_INLINE_DATA_SIZE, payload_len);
-    memcpy((void *)(tx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET), copy_from,
+    memcpy(tx_base + LAUBERHORN_ECI_INLINE_DATA_OFFSET, copy_from,
            first_write_size);
     copy_from += first_write_size;
     payload_len -= first_write_size;
