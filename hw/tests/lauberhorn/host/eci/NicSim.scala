@@ -681,6 +681,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
         "33:33:ff:03:01:c8"
       )
 
+    // ICMPv6 Neighbor Advertisement
+    def na() = testIcmp6(
+        "6000000000203afffe800000000000000e5331fffe0301c8ff020000000000000000000000000001" +
+        "88009a4320000000fe800000000000000e5331fffe0301c802010c53310301c8",
+        "33:33:00:00:00:01"
+      )
+
     // ICMPv6 Router Solicitation
     def rs() = testIcmp6(
         "6000000000103afffe800000000000000e5331fffe0301c8ff020000000000000000000000000002" +
@@ -701,13 +708,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
         "33:33:00:00:00:16"
       )
 
-    ns()
-    mlrm1()
-    mlrm2()
-    rs()
-    mlrm2()
-    rs()
-    rs()
+    val tests: Seq[() => Unit] = Seq(ns, na, rs, mlrm1, mlrm2)
+    LazyList.continually(tests(simRandom.nextInt(tests.length)))
+      .take(400).foreach(_())
   }
 
   def txAllCores(doVoluntaryInv: Boolean) = {
