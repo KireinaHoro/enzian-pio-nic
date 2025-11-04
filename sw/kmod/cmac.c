@@ -7,20 +7,27 @@
 #include "cmac_dev.h"
 
 // Total wait time 10 seconds
-#define LINE_UP_MAX_ATTEMPTS 1000
-#define LINE_UP_WAIT_MS 10
+#define LINE_UP_MAX_ATTEMPTS 100
+#define LINE_UP_WAIT_MS 100
 
 static void reset_cmac(cmac_t *cmac)
 {
+	// reset GT and the MAC
 	cmac_gt_reset_gt_reset_all_wrf(cmac, 1); // clear on write
 	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0b1111111111);
 	cmac_reset_usr_rx_reset_wrf(cmac, 1);
 	cmac_reset_usr_tx_reset_wrf(cmac, 1);
-	mdelay(1);
+	mdelay(LINE_UP_WAIT_MS);
 	cmac_reset_usr_rx_serdes_reset_wrf(cmac, 0);
 	cmac_reset_usr_rx_reset_wrf(cmac, 0);
 	cmac_reset_usr_tx_reset_wrf(cmac, 0);
-	mdelay(1);
+	mdelay(LINE_UP_WAIT_MS);
+
+	// force RX resync
+	cmac_conf_rx_1_ctl_rx_force_resync_wrf(cmac, 1);
+	udelay(10);
+	cmac_conf_rx_1_ctl_rx_force_resync_wrf(cmac, 0);
+	mdelay(LINE_UP_WAIT_MS);
 }
 
 int start_cmac(cmac_t *cmac, bool loopback)
@@ -58,6 +65,9 @@ int start_cmac(cmac_t *cmac, bool loopback)
 	cmac_conf_tx_1_rawwr(cmac, tx_1_val);
 
 	while (++attempts < LINE_UP_MAX_ATTEMPTS) {
+		// pull tick to refresh counters
+		cmac_tick_tick_reg_wrf(cmac, 1);
+
 		status = cmac_stat_rx_status_rawrd(cmac);
 		if (cmac_stat_rx_status_stat_rx_aligned_extract(status))
 			break; // RX_aligned
@@ -76,6 +86,9 @@ int start_cmac(cmac_t *cmac, bool loopback)
 
 	attempts = 0;
 	while (++attempts < LINE_UP_MAX_ATTEMPTS) {
+		// pull tick to refresh counters
+		cmac_tick_tick_reg_wrf(cmac, 1);
+
 		status = cmac_stat_rx_status_rawrd(cmac);
 		if (cmac_stat_rx_status_stat_rx_aligned_extract(status) &&
 		    cmac_stat_rx_status_stat_rx_status_extract(status))
