@@ -245,7 +245,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	BUG_ON(skb->len < ETH_HLEN);
 	desc.payload_len = skb->len;
-	memcpy(priv->ctx.tx_buf, skb->data, skb->len);
+	priv->ctx.tx_buf = skb->data;
 
 	// Dump Ethernet header
 	print_hex_dump(KERN_DEBUG, "tx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
@@ -582,9 +582,10 @@ int init_bypass(void)
 	priv->ctx.tx_next_cl = &priv->tx_parity;
 	priv->rx_parity = priv->tx_parity = 0;
 
-	priv->ctx.rx_buf_size = priv->ctx.tx_buf_size = LAUBERHORN_MTU;
+	// Allocate buffer for receive
+	// We directly read out of the skb for TX, not allocating here
+	priv->ctx.rx_buf_size = LAUBERHORN_MTU;
 	priv->ctx.rx_buf = kmalloc(priv->ctx.rx_buf_size, GFP_KERNEL);
-	priv->ctx.tx_buf = kmalloc(priv->ctx.tx_buf_size, GFP_KERNEL);
 
 	// Route bypass access to fixed base
 	route_prefix_to_core(0, 0);
@@ -652,9 +653,8 @@ void deinit_bypass(void)
 	unregister_inetaddr_notifier(&inetaddr_notifier);
 	unregister_netevent_notifier(&arp_notifier);
 
-	// Free overflow buffers
+	// Free RX buffer
 	kfree(priv->ctx.rx_buf);
-	kfree(priv->ctx.tx_buf);
 
 	// Destroy netdev
 	unregister_netdev(netdev);
