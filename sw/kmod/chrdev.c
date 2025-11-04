@@ -343,6 +343,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	int thr_idx;
 	struct proc_def *proc;
 	struct thr_def *thr;
+	int dp_num_pages = LAUBERHORN_ECI_CORE_OFFSET / PAGE_SIZE;
 
 	u64 pfn;
 	u32 err;
@@ -381,11 +382,11 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 		       size);
 		return -EINVAL;
 	} else if (size != LAUBERHORN_ECI_CORE_OFFSET ||
-		   pgoff % LAUBERHORN_ECI_CORE_OFFSET != PAGE_SIZE) {
+		   pgoff % dp_num_pages != 1) {
 		pr_err("Non-zero offsets are the pages for the per-thread datapaths\n");
 		return -EINVAL;
 	} else {
-		thr_idx = (pgoff - PAGE_SIZE) / LAUBERHORN_ECI_CORE_OFFSET;
+		thr_idx = pgoff / dp_num_pages;
 		if (thr_idx >= LAUBERHORN_NUM_WORKER_CORES) {
 			pr_err("Thread has datapath offset %d that is more than the %d supported worker cores\n",
 			       thr_idx, LAUBERHORN_NUM_WORKER_CORES);

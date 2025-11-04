@@ -169,6 +169,8 @@ static void *lauberhorn_worker_loop(void *arg) {
   // Datapath base for this worker thread
   void *dp_base;
   int dp_size = LAUBERHORN_ECI_CORE_OFFSET, i, err, to_send;
+  int dp_offset = dp_size * w->worker_id + page_size;
+
   lauberhorn_msg_t msg;
   lauberhorn_pkt_desc_t desc;
 
@@ -179,7 +181,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   // Map datapath region
   dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, w->ctx->fd,
-                 dp_size * w->worker_id + page_size);
+                 dp_offset);
   if (dp_base == MAP_FAILED) {
     PERROR("map datapath page");
     return (void *)-1;
