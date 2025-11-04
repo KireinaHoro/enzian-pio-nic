@@ -107,11 +107,17 @@
 
     hwGenHdrs = cleanSource ./hw/gen;
 
+    isCSource = f: f.name == "Makefile" || lists.any f.hasExt [ "mk" "c" "h" "x" ];
+    allSourcesIn = paths: with fileset; toSource {
+      root = ./sw;
+      fileset = unions (map (p: fileFilter isCSource p) paths);
+    };
+
     # cross-compile lauberhorn kernel module
     kmod = pkgs.stdenv.mkDerivation {
       name = "lauberhorn-kmod";
       version = "0.0.1";
-      src = cleanSource ./sw;
+      src = allSourcesIn [ ./sw/kmod ./sw/core ];
       nativeBuildInputs = linuxTools ++ [ pkgs.nukeReferences ];
       buildPhase = ''
         export ARCH=arm64
@@ -132,7 +138,10 @@
     runtime = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-rt";
       version = "0.0.1";
-      src = cleanSource ./sw;
+      src = allSourcesIn [
+        ./sw/rt ./sw/include ./sw/core
+        ./sw/usr-common.mk ./sw/kmod/ioctl.h
+      ];
       buildInputs = [ aarch64Pkgs.libtirpc ];
       nativeBuildInputs = linuxTools;
       buildPhase = ''
@@ -163,7 +172,7 @@
     buildLauberhornApp = name: with pkgs; stdenv.mkDerivation {
       name = "lauberhorn-app-${name}";
       version = "0.0.1";
-      src = cleanSource ./sw;
+      src = allSourcesIn [ ./sw/apps/${name} ./sw/include ./sw/usr-common.mk ];
       buildInputs = [ aarch64Pkgs.libtirpc ];
       nativeBuildInputs = linuxTools;
       buildPhase = ''
