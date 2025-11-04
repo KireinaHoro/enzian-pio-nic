@@ -90,8 +90,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	struct net_device *dev = *(struct net_device **)cookie;
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	dev_info(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
-		 __LINE__, smp_processor_id(), irq);
+	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+		__LINE__, smp_processor_id(), irq);
 
 	// Mask interrupt and call napi_schedule
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
@@ -248,7 +248,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	memcpy(priv->ctx.tx_buf, skb->data, skb->len);
 
 	// Dump Ethernet header
-	print_hex_dump(KERN_INFO, "tx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
+	print_hex_dump(KERN_DEBUG, "tx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
 		       priv->ctx.tx_buf, ETH_HLEN, true);
 
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
@@ -279,7 +279,7 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 	       desc->payload_len);
 
 	// Dump Ethernet header
-	print_hex_dump(KERN_INFO, "rx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
+	print_hex_dump(KERN_DEBUG, "rx eth hdr: ", DUMP_PREFIX_OFFSET, 16, 1,
 		       priv->ctx.rx_buf, ETH_HLEN, true);
 
 	skb->protocol = eth_type_trans(skb, dev);
@@ -378,7 +378,7 @@ static int napi_poll(struct napi_struct *n, int budget)
 		work_done++;
 	}
 
-	dev_info(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
+	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
 
 	if (work_done < budget) {
 		// drained all packets, finish NAPI and enable interrupts

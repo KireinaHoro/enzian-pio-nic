@@ -262,11 +262,13 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 #ifdef __KERNEL__
   case TY_BYPASS:
     size_t bypass_hdr_len;
+    uint8_t *copy_to = tx_base + lauberhorn_eci_host_ctrl_info_bypass_size;
 
     lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_base,
                                                   lauberhorn_eci_bypass);
     switch (desc->bypass.header_type) {
     case HDR_ETHERNET:
+
       bypass_hdr_len = 14;
       lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
           tx_base, lauberhorn_eci_hdr_ethernet);
@@ -277,9 +279,12 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
       goto out;
     }
 
-    // inlined bypass header
-    memcpy(tx_base + lauberhorn_eci_host_ctrl_info_bypass_size, copy_from,
-           bypass_hdr_len);
+    // Ethernet bypass only takes destination mac and ethertype
+    // TODO: use Mackerel datatypes here
+    memcpy(copy_to, copy_from, 6);
+    copy_to += 6;
+
+    memcpy(copy_to, copy_from + 12, 2);
     copy_from += bypass_hdr_len;
     payload_len -= bypass_hdr_len;
 
