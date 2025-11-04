@@ -9,11 +9,11 @@ int prepare_worker_thread(struct thr_def *thr)
 
 	// Change scheduler class to SCHED_FIFO with priority 1
 	sched_set_fifo_low(thr->task);
+	thr->enabled = true;
 
 	// Wait for HW to wake us up
 	desched_worker_thread(thr);
 
-	thr->enabled = true;
 	return 0;
 }
 
@@ -145,6 +145,8 @@ void desched_worker_thread(struct thr_def *thr)
 	set_tsk_need_resched(current);
 
 	// Unroute CL: find entry and disable
-	unroute_prefix_on_core(thr->worker_idx + 1);
-	thr->worker_idx = -1;
+	if (thr->worker_idx > 0) {
+		unroute_prefix_on_core(thr->worker_idx + 1);
+		thr->worker_idx = -1;
+	}
 }

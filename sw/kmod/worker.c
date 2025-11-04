@@ -281,7 +281,7 @@ void unroute_prefix_on_core(u32 core_idx)
 	unsigned long flags;
 	spin_lock_irqsave(&thread_router_spinlock, flags);
 
-	pr_info("Disabling core slot %u\n", core_idx);
+	pr_info("Unrouting core %u\n", core_idx);
 
 	lauberhorn_eci_threadRouter_ctrl_enabled_wr(&thread_router_dev, 0);
 	lauberhorn_eci_threadRouter_ctrl_core_idx_wr(&thread_router_dev,
