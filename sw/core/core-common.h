@@ -8,12 +8,12 @@
 
 #ifdef __KERNEL__
 
-#include <linux/printk.h>
-#include <linux/prefetch.h>
 #include <asm/barrier.h>
+#include <linux/prefetch.h>
+#include <linux/printk.h>
 
 #define BARRIER dmb(sy)
-#define PREFETCH 
+#define PREFETCH
 
 // always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
@@ -21,7 +21,8 @@
 #endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-// bypass core does not have preemption control; critical section operations are no-ops
+// bypass core does not have preemption control; critical section operations are
+// no-ops
 #define enter_cs(base)
 #define exit_cs(base)
 
@@ -33,8 +34,8 @@
 #define static_assert _Static_assert // requires C11
 
 // headers for user-space library
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #define pr_err printf
 #define pr_warn printf
@@ -48,7 +49,7 @@
 
 #define pr_flush() fflush(stdout);
 
-#define BARRIER asm volatile("dmb sy\nisb")
+#define BARRIER asm volatile("dmb sy")
 
 #include "cs.h"
 
