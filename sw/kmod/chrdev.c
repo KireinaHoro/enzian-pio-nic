@@ -445,6 +445,12 @@ static const struct file_operations fops = {
 	.mmap = app_dev_mmap,
 };
 
+static int app_dev_uevent(const struct device *dev, struct kobj_uevent_env *env)
+{
+	add_uevent_var(env, "DEVMODE=%#o", 0666);
+	return 0;
+}
+
 /**
  * Create character devices for control-path functions towards userspace.
  * Two devices will be created:
@@ -468,6 +474,8 @@ int create_devices(void)
 		pr_err("class_create failed\n");
 		return -1;
 	}
+	dev_class->dev_uevent = app_dev_uevent;
+
 	if (IS_ERR(device_create(dev_class, NULL, dev, NULL, "lauberhorn"))) {
 		pr_err("device_create failed\n");
 		return -1;
