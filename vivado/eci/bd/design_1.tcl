@@ -313,11 +313,11 @@ proc create_root_design { parentCell } {
   set dcs_odd_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_0 ]
   set dcs_odd_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_1 ]
 
-  # Create instance: app_clk_reset, and set properties
-  set app_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 app_clk_reset ]
+  # Create instance: rst_app, and set properties
+  set rst_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_app ]
 
-  # Create instance: clk_wiz_0, and set properties
-  set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_0 ]
+  # Create instance: clk_wiz_app, and set properties
+  set clk_wiz_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_app ]
   set_property -dict [list \
     CONFIG.CLKOUT1_JITTER {102.086} \
     CONFIG.CLKOUT1_PHASE_ERROR {87.180} \
@@ -334,11 +334,11 @@ proc create_root_design { parentCell } {
     CONFIG.PRIM_SOURCE {No_buffer} \
     CONFIG.USE_LOCKED {false} \
     CONFIG.USE_RESET {false} \
-  ] $clk_wiz_0
+  ] $clk_wiz_app
 
 
-  # Create instance: cmac_init_clk_reset, and set properties
-  set cmac_init_clk_reset [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 cmac_init_clk_reset ]
+  # Create instance: rst_cmac_init, and set properties
+  set rst_cmac_init [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_cmac_init ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -365,8 +365,8 @@ proc create_root_design { parentCell } {
   ] $cmac_usplus_0
 
 
-  # Create instance: system_ila_0, and set properties
-  set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
+  # Create instance: ila_app, and set properties
+  set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
   set_property -dict [list \
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_DATA_DEPTH {1024} \
@@ -404,7 +404,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_SLOT_1_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_1_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_1_MAX_WR_BURSTS {8} \
-  ] $system_ila_0
+  ] $ila_app
 
 
   # Create instance: ilconstant_0, and set properties
@@ -415,73 +415,124 @@ proc create_root_design { parentCell } {
   ] $ilconstant_0
 
 
+  # Create instance: ila_cmac_rx, and set properties
+  set ila_cmac_rx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_cmac_rx ]
+  set_property -dict [list \
+    CONFIG.C_ADV_TRIGGER {true} \
+    CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_INPUT_PIPE_STAGES {2} \
+    CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+  ] $ila_cmac_rx
+
+
+  # Create instance: ila_cmac_tx, and set properties
+  set ila_cmac_tx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_cmac_tx ]
+  set_property -dict [list \
+    CONFIG.C_ADV_TRIGGER {true} \
+    CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_INPUT_PIPE_STAGES {2} \
+    CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+  ] $ila_cmac_tx
+
+
+  # Create instance: rst_cmac_rx, and set properties
+  set rst_cmac_rx [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_cmac_rx ]
+
+  # Create instance: rst_cmac_tx, and set properties
+  set rst_cmac_tx [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_cmac_tx ]
+
+  # Create instance: ilconstant_1, and set properties
+  set ilconstant_1 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilconstant:1.0 ilconstant_1 ]
+  set_property CONFIG.CONST_VAL {0} $ilconstant_1
+
+
   # Create interface connections
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
+connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_regs_axil_1 [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
+connect_bd_intf_net -intf_net [get_bd_intf_nets cmac_usplus_0_axis_rx] [get_bd_intf_ports rx_axis] [get_bd_intf_pins ila_cmac_rx/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
-connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
-connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins system_ila_0/SLOT_1_AXI]
+connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins ila_app/SLOT_0_AXI]
+connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins ila_app/SLOT_1_AXI]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
 
   # Create port connections
-  connect_bd_net -net app_clk_reset_bus_struct_reset  [get_bd_pins app_clk_reset/bus_struct_reset] \
+  connect_bd_net -net app_clk_reset_bus_struct_reset  [get_bd_pins rst_app/bus_struct_reset] \
   [get_bd_pins cmac_usplus_0/s_axi_sreset]
-  connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins app_clk_reset/mb_reset] \
+  connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins rst_app/mb_reset] \
   [get_bd_ports app_clk_reset]
-  connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins app_clk_reset/peripheral_aresetn] \
-  [get_bd_pins system_ila_0/resetn]
+  connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins rst_app/peripheral_aresetn] \
+  [get_bd_pins ila_app/resetn]
   connect_bd_net -net clk_io_2  [get_bd_ports clk_io] \
-  [get_bd_pins clk_wiz_0/clk_in1] \
-  [get_bd_pins cmac_init_clk_reset/slowest_sync_clk] \
+  [get_bd_pins clk_wiz_app/clk_in1] \
+  [get_bd_pins rst_cmac_init/slowest_sync_clk] \
   [get_bd_pins cmac_usplus_0/gt_drpclk] \
   [get_bd_pins cmac_usplus_0/init_clk] \
   [get_bd_pins cmac_usplus_0/drp_clk]
-  connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_0/clk_out1] \
+  connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_app/clk_out1] \
   [get_bd_ports app_clk] \
-  [get_bd_pins app_clk_reset/slowest_sync_clk] \
-  [get_bd_pins system_ila_0/clk] \
+  [get_bd_pins rst_app/slowest_sync_clk] \
+  [get_bd_pins ila_app/clk] \
   [get_bd_pins cmac_usplus_0/s_axi_aclk]
-  connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins cmac_init_clk_reset/peripheral_reset] \
+  connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins rst_cmac_init/peripheral_reset] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
   [get_bd_ports rxclk] \
-  [get_bd_pins cmac_usplus_0/rx_clk]
+  [get_bd_pins cmac_usplus_0/rx_clk] \
+  [get_bd_pins ila_cmac_rx/clk] \
+  [get_bd_pins rst_cmac_rx/slowest_sync_clk]
   connect_bd_net -net cmac_usplus_0_gt_txusrclk2  [get_bd_pins cmac_usplus_0/gt_txusrclk2] \
-  [get_bd_ports txclk]
+  [get_bd_ports txclk] \
+  [get_bd_pins ila_cmac_tx/clk] \
+  [get_bd_pins rst_cmac_tx/slowest_sync_clk]
   connect_bd_net -net core0_states_1  [get_bd_ports core0_states] \
-  [get_bd_pins system_ila_0/probe0]
+  [get_bd_pins ila_app/probe0]
   connect_bd_net -net core1_states_1  [get_bd_ports core1_states] \
-  [get_bd_pins system_ila_0/probe1]
+  [get_bd_pins ila_app/probe1]
   connect_bd_net -net core2_states_1  [get_bd_ports core2_states] \
-  [get_bd_pins system_ila_0/probe2]
+  [get_bd_pins ila_app/probe2]
   connect_bd_net -net core3_states_1  [get_bd_ports core3_states] \
-  [get_bd_pins system_ila_0/probe3]
+  [get_bd_pins ila_app/probe3]
   connect_bd_net -net core4_states_1  [get_bd_ports core4_states] \
-  [get_bd_pins system_ila_0/probe4]
+  [get_bd_pins ila_app/probe4]
   connect_bd_net -net dcs_even_trace_0_1  [get_bd_ports dcs_even_trace_0] \
-  [get_bd_pins system_ila_0/probe11]
+  [get_bd_pins ila_app/probe11]
   connect_bd_net -net dcs_even_trace_1_1  [get_bd_ports dcs_even_trace_1] \
-  [get_bd_pins system_ila_0/probe12]
+  [get_bd_pins ila_app/probe12]
   connect_bd_net -net dcs_odd_trace_0_1  [get_bd_ports dcs_odd_trace_0] \
-  [get_bd_pins system_ila_0/probe13]
+  [get_bd_pins ila_app/probe13]
   connect_bd_net -net dcs_odd_trace_1_1  [get_bd_ports dcs_odd_trace_1] \
-  [get_bd_pins system_ila_0/probe14]
+  [get_bd_pins ila_app/probe14]
+  connect_bd_net -net ilconstant_1_dout  [get_bd_pins ilconstant_1/dout] \
+  [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath] \
+  [get_bd_pins cmac_usplus_0/gtwiz_reset_rx_datapath] \
+  [get_bd_pins cmac_usplus_0/core_rx_reset] \
+  [get_bd_pins cmac_usplus_0/core_tx_reset] \
+  [get_bd_pins cmac_usplus_0/core_drp_reset]
   connect_bd_net -net lci_even_1  [get_bd_ports lci_even] \
-  [get_bd_pins system_ila_0/probe5]
+  [get_bd_pins ila_app/probe5]
   connect_bd_net -net lci_odd_1  [get_bd_ports lci_odd] \
-  [get_bd_pins system_ila_0/probe8]
+  [get_bd_pins ila_app/probe8]
   connect_bd_net -net lcia_even_1  [get_bd_ports lcia_even] \
-  [get_bd_pins system_ila_0/probe6]
+  [get_bd_pins ila_app/probe6]
   connect_bd_net -net lcia_odd_1  [get_bd_ports lcia_odd] \
-  [get_bd_pins system_ila_0/probe9]
+  [get_bd_pins ila_app/probe9]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
-  [get_bd_pins app_clk_reset/ext_reset_in] \
-  [get_bd_pins cmac_init_clk_reset/ext_reset_in]
+  [get_bd_pins rst_app/ext_reset_in] \
+  [get_bd_pins rst_cmac_init/ext_reset_in] \
+  [get_bd_pins rst_cmac_rx/ext_reset_in] \
+  [get_bd_pins rst_cmac_tx/ext_reset_in]
+  connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins rst_cmac_tx/peripheral_aresetn] \
+  [get_bd_pins ila_cmac_tx/resetn]
+  connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins rst_cmac_rx/peripheral_aresetn] \
+  [get_bd_pins ila_cmac_rx/resetn]
   connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
-  [get_bd_pins system_ila_0/probe7]
+  [get_bd_pins ila_app/probe7]
   connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
-  [get_bd_pins system_ila_0/probe10]
+  [get_bd_pins ila_app/probe10]
   connect_bd_net -net xlconstant_0_dout  [get_bd_pins ilconstant_0/dout] \
   [get_bd_pins cmac_usplus_0/gt_rxpolarity] \
   [get_bd_pins cmac_usplus_0/gt_txpolarity]
