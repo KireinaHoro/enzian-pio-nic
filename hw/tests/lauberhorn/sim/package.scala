@@ -224,8 +224,11 @@ package object sim {
 
   def enzianIpMacAddrs(hostNum: Int) = {
     val hostId = hostNum * 32 + 8
-    val ipAddr = InetAddress.getByName(s"192.168.128.$hostId").asInstanceOf[Inet4Address]
-    val macAddr = MacAddress.getByName(f"0c:53:31:03:00:$hostId%x")
+    val hostIdLo = hostId % 0x100
+    val hostIdHi = hostId / 0x100
+
+    val ipAddr = InetAddress.getByName(s"192.168.${128 + hostIdHi}.$hostIdLo").asInstanceOf[Inet4Address]
+    val macAddr = MacAddress.getByName(f"0c:53:31:03:$hostIdHi%02x:$hostIdLo%02x")
 
     (ipAddr, macAddr)
   }
