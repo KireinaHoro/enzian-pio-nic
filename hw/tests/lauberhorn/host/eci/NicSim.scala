@@ -649,29 +649,65 @@ class NicSim extends DutSimFunSuite[NicEngine]
     txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, -1)
   }
 
-  // Test sending IPv6 packet
-  testWithDB("tx-icmp6-rs", Tx) { implicit dut =>
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-icmp6-rs") / "packets-expecting.pcap").toString)
+  // Test sending IPv6 packets (produced by Linux kernel)
+  testWithDB("tx-icmp6", Tx) { implicit dut =>
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-icmp6") / "packets-expecting.pcap").toString)
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
     val (_, ourMac) = enzianIpMacAddrs(14)
     csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), ourMac.getAddress.toList)
 
-    val ipv6Builder = rawPayloadBuilder(hexToBytesBE("6000000000103afffe800000000000000e5331fffe0301c8ff0200000000000000000000000000028500fcf10000000001010c53310301c8").toArray)
+    def testIcmp6(ethPld: String, dstMac: String) = {
+      val ip6Builder = rawPayloadBuilder(hexToBytesBE(ethPld).toArray)
+      val ethBuilder = (new EthernetPacket.Builder)
+        .srcAddr(ourMac)
+        .dstAddr(MacAddress.getByName(dstMac))
+        .`type`(EtherType.IPV6)
+        .paddingAtBuild(true)
+        .payloadBuilder(ip6Builder)
 
-    val ethernetBuilder = (new EthernetPacket.Builder)
-      .srcAddr(ourMac)
-      .dstAddr(MacAddress.getByName("33:33:00:00:00:02"))
-      .`type`(EtherType.IPV6)
-      .paddingAtBuild(true)
-      .payloadBuilder(ipv6Builder)
+      val pkt = ethBuilder.build()
+      dumper.dump(pkt)
+      dumper.flush()
 
-    val ethernetPacket = ethernetBuilder.build()
-    dumper.dump(ethernetPacket)
-    dumper.flush()
+      txTestSingle(dcsMaster, csrMaster, axisSlave, pkt, -1)
+    }
 
-    txTestSingle(dcsMaster, csrMaster, axisSlave, ethernetPacket, -1)
+    // ICMPv6 Neighbor Solicitation
+    def ns() = testIcmp6(
+        "6000000000203aff00000000000000000000000000000000ff0200000000000000000001ff0301c8" +
+        "8700c21c00000000fe800000000000000e5331fffe0301c80e01c7a5cf7ad2f7",
+        "33:33:ff:03:01:c8"
+      )
+
+    // ICMPv6 Router Solicitation
+    def rs() = testIcmp6(
+        "6000000000103afffe800000000000000e5331fffe0301c8ff020000000000000000000000000002" +
+        "8500fcf10000000001010c53310301c8",
+        "33:33:00:00:00:02"
+      )
+
+    // ICMPv6 Multicast Listener Report Message v2
+    def mlrm1() = testIcmp6(
+        "600000000024000100000000000000000000000000000000ff0200000000000000000000000000163a00050200000100" +
+        "8f006dbf0000000104000000ff0200000000000000000001ff0301c8",
+        "33:33:00:00:00:16"
+      )
+
+    def mlrm2() = testIcmp6(
+        "6000000000240001fe800000000000000e5331fffe0301c8ff0200000000000000000000000000163a00050200000100" +
+        "8f002f200000000104000000ff0200000000000000000001ff0301c8",
+        "33:33:00:00:00:16"
+      )
+
+    ns()
+    mlrm1()
+    mlrm2()
+    rs()
+    mlrm2()
+    rs()
+    rs()
   }
 
   def txAllCores(doVoluntaryInv: Boolean) = {
