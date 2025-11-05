@@ -29,10 +29,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 	pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(),
 		irq);
 
-	// Mask interrupt
-	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 0);
-
-	// Read out IRQ ACK register
+	// Read out preempt command -- this tells the HW we are in the kernel
 	ack_reg = lauberhorn_eci_preempt_ipi_ack_rawrd(&priv->preempt_dev);
 
 	// Decode next task and killed
