@@ -6,8 +6,9 @@
 
 #include "lauberhorn_eci_sched_dev.h"
 #include "lauberhorn_eci_OncRpcCallDecoder_dev.h"
+#include "lauberhorn_eci_UdpDecoder_dev.h"
 #include "lauberhorn_eci_OncRpcReplyEncoder_dev.h"
-#include "lauberhorn_eci_sched_dev.h"
+#include "lauberhorn_eci_dev.h"
 #include "eci/regblock_bases.h"
 
 static dev_t devt = 0;
@@ -15,11 +16,13 @@ static struct class *dev_class;
 
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
+static bool listen_occupied[LAUBERHORN_NUM_LISTEN_PORTS];
 
 struct worker_dev {
 	struct cdev cdev;
 
 	lauberhorn_eci_OncRpcCallDecoder_t OncRpcCallDecoder_dev;
+	lauberhorn_eci_UdpDecoder_t UdpDecoder_dev;
 	lauberhorn_eci_OncRpcReplyEncoder_t OncRpcReplyEncoder_dev;
 	lauberhorn_eci_sched_t sched_dev;
 };
@@ -46,7 +49,7 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 			    u32 prog_ver, u32 proc_num, void __user *func_ptr,
 			    struct proc_def *proc)
 {
-	int i, proc_srv_idx;
+	int i, proc_srv_idx, listen_idx;
 	struct srv_def *srv;
 
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
@@ -70,12 +73,22 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 		return -1;
 	}
 
+	// find a free listen idx
+	for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i) {
+		if (!listen_occupied[i]) {
+			listen_occupied[i] = true;
+			listen_idx = i;
+			break;
+		}
+	}
+
 	*srv = (struct srv_def){
 		.port = port,
 		.prog_num = prog_num,
 		.prog_ver = prog_ver,
 		.proc_num = proc_num,
 		.func_ptr = func_ptr,
+		.listen_idx = listen_idx,
 		// Record owner of process
 		.proc = proc,
 	};
@@ -108,7 +121,13 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
 		&dev->OncRpcCallDecoder_dev, srv->idx);
 
-	// TODO: set UDP next proto for listen port to RPC
+	// Set UDP next proto for listen port to RPC
+	lauberhorn_eci_UdpDecoder_ctrl_listen_port_wr(&dev->UdpDecoder_dev,
+						      port);
+	lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(
+		&dev->UdpDecoder_dev, lauberhorn_eci_listen_onc_rpc_call);
+	lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&dev->UdpDecoder_dev,
+						     listen_idx);
 
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
@@ -131,6 +150,13 @@ static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
 		&dev->OncRpcCallDecoder_dev, srv->idx);
 
+	// Unlisten port
+	lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(
+		&dev->UdpDecoder_dev, lauberhorn_eci_listen_disabled);
+	lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&dev->UdpDecoder_dev,
+						     srv->listen_idx);
+
+	listen_occupied[srv->listen_idx] = false;
 	srv->enabled = false;
 	pr_info("Deregistered service #%d (was with TGID %d)\n", srv->idx,
 		tgid);
@@ -518,6 +544,8 @@ int create_devices(void)
 	lauberhorn_eci_OncRpcCallDecoder_initialize(
 		&dev->OncRpcCallDecoder_dev,
 		LAUBERHORN_ECI__ONC_RPC_CALL_DECODER_BASE);
+	lauberhorn_eci_UdpDecoder_initialize(&dev->UdpDecoder_dev,
+					     LAUBERHORN_ECI__UDP_DECODER_BASE);
 	lauberhorn_eci_OncRpcReplyEncoder_initialize(
 		&dev->OncRpcReplyEncoder_dev,
 		LAUBERHORN_ECI__ONC_RPC_REPLY_ENCODER_BASE);
