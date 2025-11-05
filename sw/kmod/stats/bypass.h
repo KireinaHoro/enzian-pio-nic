@@ -15,15 +15,17 @@
 	FUNC(dma, rx_alloc_occupancy_up_to_1600) \
 	FUNC(dma, rx_alloc_occupancy_up_to_9664)
 
-#define ETH_DEC_STATS_LIST(FUNC)              \
-	FUNC(EthernetDecoder, header_only)    \
-	FUNC(EthernetDecoder, partial_header) \
-	FUNC(EthernetDecoder, incomplete_header)
+#define ETH_DEC_STATS_LIST(FUNC)                 \
+	FUNC(EthernetDecoder, header_only)       \
+	FUNC(EthernetDecoder, partial_header)    \
+	FUNC(EthernetDecoder, incomplete_header) \
+	FUNC(EthernetDecoder, normal_packets)
 
-#define IP_DEC_STATS_LIST(FUNC)         \
-	FUNC(IpDecoder, header_only)    \
-	FUNC(IpDecoder, partial_header) \
-	FUNC(IpDecoder, incomplete_header)
+#define IP_DEC_STATS_LIST(FUNC)            \
+	FUNC(IpDecoder, header_only)       \
+	FUNC(IpDecoder, partial_header)    \
+	FUNC(IpDecoder, incomplete_header) \
+	FUNC(IpDecoder, normal_packets)
 
 #define IP_ENC_STATS_LIST(FUNC)  \
 	FUNC(IpEncoder, dropped) \
