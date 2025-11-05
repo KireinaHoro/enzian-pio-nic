@@ -40,7 +40,13 @@ int lauberhorn_dereg_srv(lauberhorn_t *ctx, int srv_id);
 struct lauberhorn_worker;
 typedef struct lauberhorn_worker *lauberhorn_worker_t;
 
-lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx);
+// Per-worker init and clean-up callback functions from the user
+typedef void (*lauberhorn_user_cb_t)(int);
+__attribute__((unused)) static void noop_cb(int) {}
+
+lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
+                                             lauberhorn_user_cb_t init,
+                                             lauberhorn_user_cb_t fini);
 void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t);
 
 #endif // LAUBERHORN_H

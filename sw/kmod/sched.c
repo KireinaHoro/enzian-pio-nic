@@ -26,6 +26,12 @@ int prepare_worker_thread(struct thr_def *thr)
  */
 void clean_worker_thread(struct thr_def *thr)
 {
+	if (!thr->enabled) {
+		// Thread woke up via ioctl and cleaned up already, skipping
+		pr_debug("Thread %d already deregistered\n", thr->task->pid);
+		return;
+	}
+
 	pr_info("Deregistering thread %d from Lauberhorn\n", thr->task->pid);
 
 	thr->enabled = false;
@@ -145,7 +151,7 @@ void desched_worker_thread(struct thr_def *thr)
 	set_tsk_need_resched(current);
 
 	// Unroute CL: find entry and disable
-	if (thr->worker_idx > 0) {
+	if (thr->worker_idx >= 0) {
 		unroute_prefix_on_core(thr->worker_idx + 1);
 		thr->worker_idx = -1;
 	}

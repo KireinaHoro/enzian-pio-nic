@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <rpc/rpc.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,13 +26,36 @@
 #define PERROR(msg) perror("[lauberhorn rt] " msg)
 
 static int page_size;
+static volatile sig_atomic_t is_running;
+static int fd;
+
+static void sigint_handler(int signo) {
+  int err;
+
+  assert(signo == SIGINT);
+
+  // tell all threads to stop soon
+  is_running = 0;
+
+  // ioctl to resume all workers for cleanup
+  err = ioctl(fd, LAUBERHORN_IOCTL_WAKE_ALL_WORKERS, NULL);
+  if (err) {
+    PERROR("wake all workers");
+  }
+}
 
 int lauberhorn_init(lauberhorn_t *ctx) {
+  struct sigaction sa = {
+      .sa_handler = sigint_handler,
+      .sa_flags = SA_RESTART, // resume join in main
+  };
+  int err;
+
   page_size = getpagesize();
 
   LOG("initializing");
 
-  ctx->fd = open(LAUBERHORN_DEV_PATH, O_RDWR);
+  fd = ctx->fd = open(LAUBERHORN_DEV_PATH, O_RDWR);
   if (ctx->fd < 0) {
     PERROR("open device file");
     goto out;
@@ -43,6 +67,13 @@ int lauberhorn_init(lauberhorn_t *ctx) {
   if (ctx->parity_page == MAP_FAILED) {
     PERROR("map parity page");
     goto close_fd;
+  }
+
+  // Register SIGINT handler
+  err = sigaction(SIGINT, &sa, NULL);
+  if (err) {
+    PERROR("handle SIGINT");
+    goto out;
   }
 
   LOG("app initialized");
@@ -157,6 +188,8 @@ struct lauberhorn_worker {
   lauberhorn_t *ctx;
   int worker_id;
 
+  lauberhorn_user_cb_t init, fini;
+
   lauberhorn_core_state_t dp;
   void *dp_base;
   uint8_t *tx_buf;
@@ -170,14 +203,17 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   // Datapath base for this worker thread
   void *dp_base;
-  int dp_size = LAUBERHORN_ECI_CORE_OFFSET, i, err, to_send;
+  int dp_size = LAUBERHORN_ECI_CORE_OFFSET, i, to_send;
   int dp_offset = dp_size * w->worker_id + page_size;
+  ssize_t err;
 
   lauberhorn_msg_t msg;
   lauberhorn_pkt_desc_t desc;
 
   struct lauberhorn_oncrpc_schema *schema;
   struct lauberhorn_hw_handler *hw_handler;
+
+  sigset_t sigint_mask;
 
   LOG("worker %d starting", w->worker_id);
 
@@ -186,7 +222,8 @@ static void *lauberhorn_worker_loop(void *arg) {
                  dp_offset);
   if (dp_base == MAP_FAILED) {
     PERROR("map datapath page");
-    return (void *)-1;
+    err = errno;
+    goto out;
   }
   w->dp_base = dp_base;
 
@@ -198,8 +235,19 @@ static void *lauberhorn_worker_loop(void *arg) {
     }
   }
 
+  // Call user init function
+  w->init(w->worker_id);
+
+  // Mask SIGINT, to be handled in the main thread
+  sigemptyset(&sigint_mask);
+  sigaddset(&sigint_mask, SIGINT);
+  err = pthread_sigmask(SIG_BLOCK, &sigint_mask, NULL);
+  if (err) {
+    goto out;
+  }
+
   // Main loop
-  while (true) {
+  while (is_running) {
     // Receive request from datapath
     bool got_req = core_eci_rx(dp_base, &w->dp, &desc);
     if (!got_req)
@@ -234,17 +282,34 @@ static void *lauberhorn_worker_loop(void *arg) {
     desc.payload_len = to_send;
     core_eci_tx(dp_base, &w->dp, &desc);
   }
+
+  LOG("worker requested to exit, cleaning up");
+  w->fini(w->worker_id);
+
+  // further cleanup happen in lauberhorn_join_worker on the
+  // main thread
+
+  return NULL;
+
+out:
+  return (void *)err;
 }
 
 static int next_worker = 0;
 
 // Create worker thread (spins and runs handler function)
-lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx) {
+lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
+                                             lauberhorn_user_cb_t init,
+                                             lauberhorn_user_cb_t fini) {
   lauberhorn_worker_t w = calloc(sizeof(struct lauberhorn_worker), 1);
   int err;
 
   w->worker_id = next_worker++;
   w->ctx = ctx;
+  w->init = init;
+  w->fini = fini;
+
+  is_running = 1;
 
   // Parity bits are shared with the kernel
   w->dp.rx_next_cl = &ctx->parity_page[w->worker_id * 2];
@@ -278,8 +343,11 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
     PERROR("join thread");
     return;
   }
+  if (res) {
+    LOG("worker thread returned %ld\n", (ssize_t)res);
+  }
 
-  // Unmap our copy of the datapath base
+  // Unmap the datapath base
   err = munmap(w->dp_base, LAUBERHORN_ECI_CORE_OFFSET);
   if (err != 0) {
     PERROR("unmap datapath");

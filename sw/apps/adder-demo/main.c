@@ -18,6 +18,9 @@ lauberhorn_msg_t add_handler(void *data, lauberhorn_msg_t req, int xid) {
   return &resp;
 }
 
+// TODO: ideally the user app shouldn't need to write this,
+//       but instead can just provide one .x file with all handlers
+//       and in addition some callbacks for init and cleanup.
 int main(int argc, char *argv[]) {
   int err, srv_id, i;
   lauberhorn_t ctx;
@@ -47,7 +50,7 @@ int main(int argc, char *argv[]) {
 
   // run 4 threads
   for (i = 0; i < 4; ++i) {
-    workers[i] = lauberhorn_create_worker(&ctx);
+    workers[i] = lauberhorn_create_worker(&ctx, noop_cb, noop_cb);
     if (!workers[i]) {
       fprintf(stderr, "Failed to launch worker #%d!\n", i);
     }
