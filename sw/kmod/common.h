@@ -89,6 +89,10 @@ struct srv_def {
 	bool enabled;
 	u32 idx;
 
+	// Which listen port slot is this service occupying in
+	// the UDP decoder?
+	u32 listen_idx;
+
 	// Is a service with same definition already registered?
 	u16 port;
 	u32 prog_num, prog_ver, proc_num;

@@ -11,6 +11,11 @@
 	FUNC(OncRpcCallDecoder, partial_header) \
 	FUNC(OncRpcCallDecoder, incomplete_header)
 
+#define UDP_DEC_STATS_LIST(FUNC)         \
+	FUNC(UdpDecoder, header_only)    \
+	FUNC(UdpDecoder, partial_header) \
+	FUNC(UdpDecoder, incomplete_header)
+
 #define RPC_ENC_STATS_LIST(FUNC) FUNC(OncRpcReplyEncoder, dropped)
 
 #define SCHED_STATS_LIST(FUNC)         \
@@ -31,6 +36,7 @@
 
 #define STAT_GROUPS(FUNC)                     \
 	FUNC(rpcdec_stat, RPC_DEC_STATS_LIST) \
+	FUNC(udpdec_stat, UDP_DEC_STATS_LIST) \
 	FUNC(rpcenc_stat, RPC_ENC_STATS_LIST) \
 	FUNC(sched_stat, SCHED_STATS_LIST)
 
