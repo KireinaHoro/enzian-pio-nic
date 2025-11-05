@@ -6,18 +6,30 @@
 
 #include "lauberhorn_eci_sched_dev.h"
 #include "lauberhorn_eci_OncRpcCallDecoder_dev.h"
+#include "lauberhorn_eci_OncRpcReplyEncoder_dev.h"
 #include "lauberhorn_eci_sched_dev.h"
 #include "eci/regblock_bases.h"
 
-static dev_t dev = 0;
-static struct cdev cdev;
+static dev_t devt = 0;
 static struct class *dev_class;
 
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
 
-static lauberhorn_eci_OncRpcCallDecoder_t decoder_dev;
-static lauberhorn_eci_sched_t sched_dev;
+struct worker_dev {
+	struct cdev cdev;
+
+	lauberhorn_eci_OncRpcCallDecoder_t OncRpcCallDecoder_dev;
+	lauberhorn_eci_OncRpcReplyEncoder_t OncRpcReplyEncoder_dev;
+	lauberhorn_eci_sched_t sched_dev;
+};
+
+struct file_priv {
+	struct proc_def *pd;
+	struct worker_dev *dev;
+};
+
+#include "stats/worker.h"
 
 struct proc_def *find_proc(pid_t tgid)
 {
@@ -30,8 +42,9 @@ struct proc_def *find_proc(pid_t tgid)
 	return NULL;
 }
 
-static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
-			    void __user *func_ptr, struct proc_def *proc)
+static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
+			    u32 prog_ver, u32 proc_num, void __user *func_ptr,
+			    struct proc_def *proc)
 {
 	int i, proc_srv_idx;
 	struct srv_def *srv;
@@ -78,22 +91,22 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 	BUG_ON(i == LAUBERHORN_NUM_SERVICES);
 
 	// Program into HW
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(&decoder_dev,
-								 1);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_num_wr(&decoder_dev,
-								  prog_num);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_ver_wr(&decoder_dev,
-								  prog_ver);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_proc_wr(&decoder_dev,
-							      proc_num);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(
+		&dev->OncRpcCallDecoder_dev, 1);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_num_wr(
+		&dev->OncRpcCallDecoder_dev, prog_num);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_prog_ver_wr(
+		&dev->OncRpcCallDecoder_dev, prog_ver);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_proc_wr(
+		&dev->OncRpcCallDecoder_dev, proc_num);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_func_ptr_wr(
-		&decoder_dev, (u64)func_ptr);
+		&dev->OncRpcCallDecoder_dev, (u64)func_ptr);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_listen_port_wr(
-		&decoder_dev, port);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_pid_wr(&decoder_dev,
-							     proc->tgid);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(&decoder_dev,
-							     srv->idx);
+		&dev->OncRpcCallDecoder_dev, port);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_pid_wr(
+		&dev->OncRpcCallDecoder_dev, proc->tgid);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
+		&dev->OncRpcCallDecoder_dev, srv->idx);
 
 	// TODO: set UDP next proto for listen port to RPC
 
@@ -102,7 +115,7 @@ static int register_service(u16 port, u32 prog_num, u32 prog_ver, u32 proc_num,
 	return proc_srv_idx;
 }
 
-static void deregister_service(struct srv_def *srv)
+static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 {
 	pid_t tgid;
 	if (!srv->enabled) {
@@ -113,26 +126,27 @@ static void deregister_service(struct srv_def *srv)
 	tgid = srv->proc->tgid;
 
 	// Program into HW
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(&decoder_dev,
-								 0);
-	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(&decoder_dev,
-							     srv->idx);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(
+		&dev->OncRpcCallDecoder_dev, 0);
+	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
+		&dev->OncRpcCallDecoder_dev, srv->idx);
 
 	srv->enabled = false;
 	pr_info("Deregistered service #%d (was with TGID %d)\n", srv->idx,
 		tgid);
 }
 
-static void update_proc_hw(struct proc_def *proc)
+static void update_proc_hw(struct worker_dev *dev, struct proc_def *proc)
 {
-	lauberhorn_eci_sched_ctrl_proc_enabled_wr(&sched_dev, proc->enabled);
-	lauberhorn_eci_sched_ctrl_proc_pid_wr(&sched_dev, proc->tgid);
-	lauberhorn_eci_sched_ctrl_proc_max_threads_wr(&sched_dev,
+	lauberhorn_eci_sched_ctrl_proc_enabled_wr(&dev->sched_dev,
+						  proc->enabled);
+	lauberhorn_eci_sched_ctrl_proc_pid_wr(&dev->sched_dev, proc->tgid);
+	lauberhorn_eci_sched_ctrl_proc_max_threads_wr(&dev->sched_dev,
 						      proc->num_rdy_thrs);
-	lauberhorn_eci_sched_ctrl_proc_idx_wr(&sched_dev, proc->idx);
+	lauberhorn_eci_sched_ctrl_proc_idx_wr(&dev->sched_dev, proc->idx);
 }
 
-static struct proc_def *register_app(pid_t tgid)
+static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 {
 	int i;
 	struct proc_def *proc;
@@ -168,14 +182,14 @@ static struct proc_def *register_app(pid_t tgid)
 	}
 
 	proc->enabled = true;
-	update_proc_hw(proc);
+	update_proc_hw(dev, proc);
 
 	pr_info("Registered app #%d with TGID %d\n", proc->idx, tgid);
 
 	return proc;
 }
 
-static void deregister_app(pid_t tgid)
+static void deregister_app(struct worker_dev *dev, pid_t tgid)
 {
 	int i;
 	struct proc_def *proc = find_proc(tgid);
@@ -194,20 +208,21 @@ static void deregister_app(pid_t tgid)
 	// Deregister all services under this app
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (proc->srvs[i] && proc->srvs[i]->enabled) {
-			deregister_service(proc->srvs[i]);
+			deregister_service(dev, proc->srvs[i]);
 		}
 	}
 
 	// Program into HW
 	proc->enabled = false;
-	update_proc_hw(proc);
+	update_proc_hw(dev, proc);
 
 	pr_info("Deregistered app #%d with TGID %d\n", proc->idx, proc->tgid);
 }
 
-static long app_dev_ioctl(struct file *file, unsigned int cmd,
-			  unsigned long arg)
+static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
+	struct file_priv *fp = f->private_data;
+
 	lauberhorn_reg_srv_t reg_cmd;
 	lauberhorn_reg_srv_t __user *reg_cmd_usr = (void __user *)arg;
 	lauberhorn_srv_id_t reg_ret;
@@ -227,7 +242,8 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 		if (copy_from_user(&reg_cmd, reg_cmd_usr, sizeof(reg_cmd))) {
 			return -EFAULT;
 		}
-		proc_srv_idx = register_service(reg_cmd.port, reg_cmd.prog_num,
+		proc_srv_idx = register_service(fp->dev, reg_cmd.port,
+						reg_cmd.prog_num,
 						reg_cmd.prog_ver,
 						reg_cmd.proc_num,
 						reg_cmd.func_ptr, proc);
@@ -259,7 +275,7 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		deregister_service(srv);
+		deregister_service(fp->dev, srv);
 		proc->srvs[dereg_cmd.id] = NULL;
 
 		break;
@@ -274,32 +290,38 @@ static long app_dev_ioctl(struct file *file, unsigned int cmd,
 static int app_dev_open(struct inode *i, struct file *f)
 {
 	pid_t tgid = current->pid;
-	struct proc_def *pd;
+	struct file_priv *fp;
 	int err;
 
-	pr_info("Registering application TGID %d\n", tgid);
-	pd = register_app(tgid);
+	fp = kmalloc(sizeof(struct file_priv), GFP_KERNEL);
+	fp->dev = container_of(i->i_cdev, struct worker_dev, cdev);
 
-	if (IS_ERR(pd)) {
-		err = PTR_ERR(pd);
+	pr_info("Registering application TGID %d\n", tgid);
+	fp->pd = register_app(fp->dev, tgid);
+	if (IS_ERR(fp->pd)) {
+		err = PTR_ERR(fp->pd);
 		pr_err("Failed to register app, err %d\n", err);
-		return err;
+		goto free_fp;
 	}
 
-	// release might not be called in the same process
-	f->private_data = pd;
-
+	f->private_data = fp;
 	return 0;
+
+free_fp:
+	kfree(fp);
+	return err;
 }
 
 static int app_dev_release(struct inode *i, struct file *f)
 {
-	struct proc_def *pd = (struct proc_def *)f->private_data;
-	pid_t tgid = pd->tgid;
-	BUG_ON(!pd->enabled);
+	struct file_priv *fp = f->private_data;
+	pid_t tgid = fp->pd->tgid;
+	BUG_ON(!fp->pd->enabled);
 
 	pr_info("Deregistering application TGID %d\n", tgid);
-	deregister_app(tgid);
+	deregister_app(fp->dev, tgid);
+
+	kfree(fp);
 
 	return 0;
 }
@@ -313,7 +335,7 @@ static void vma_close(struct vm_area_struct *vma)
 
 		// Decrement the parallelism count
 		--priv->thr->parent->num_rdy_thrs;
-		update_proc_hw(priv->thr->parent);
+		update_proc_hw(priv->dev, priv->thr->parent);
 
 		// Decrement the thread task ref count
 		put_task_struct(priv->thr->task);
@@ -344,6 +366,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	struct proc_def *proc;
 	struct thr_def *thr;
 	int dp_num_pages = LAUBERHORN_ECI_CORE_OFFSET / PAGE_SIZE;
+	struct file_priv *fp = f->private_data;
 
 	u64 pfn;
 	u32 err;
@@ -373,6 +396,7 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 
 		proc->vma_data_parity_page.is_parity_page = true;
 		proc->vma_data_parity_page.proc = proc;
+		proc->vma_data_parity_page.dev = fp->dev;
 		vma->vm_private_data = &proc->vma_data_parity_page;
 
 		return remap_pfn_range(vma, vma->vm_start, pfn, PAGE_SIZE,
@@ -424,13 +448,14 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	}
 	thr->vma_data_datapath.is_parity_page = false;
 	thr->vma_data_datapath.thr = thr;
+	thr->vma_data_datapath.dev = fp->dev;
 	snprintf(thr->vma_data_datapath.vma_name, THR_DATAPATH_VMA_NAME_SIZE,
 		 "Lauberhorn thread#%d datapath page", thr_idx);
 	vma->vm_private_data = &thr->vma_data_datapath;
 
 	// Increment the parallelism count
 	++proc->num_rdy_thrs;
-	update_proc_hw(proc);
+	update_proc_hw(fp->dev, proc);
 
 	// Thread will be blocked until HW wakes it up
 	prepare_worker_thread(thr);
@@ -458,32 +483,46 @@ static int app_dev_uevent(const struct device *dev, struct kobj_uevent_env *env)
  */
 int create_devices(void)
 {
-	if (alloc_chrdev_region(&dev, 0, 1, "lauberhorn") < 0) {
+	struct worker_dev *dev;
+
+	if (alloc_chrdev_region(&devt, 0, 1, "lauberhorn") < 0) {
 		pr_err("alloc_chrdev_region failed\n");
 		return -1;
 	}
-	pr_info("chrdev major = %d, minor = %d \n", MAJOR(dev), MINOR(dev));
-	cdev_init(&cdev, &fops);
-	if (cdev_add(&cdev, dev, 1) < 0) {
+	pr_info("chrdev major = %d, minor = %d \n", MAJOR(devt), MINOR(devt));
+
+	// allocate our device
+	dev = kmalloc(sizeof(struct worker_dev), GFP_KERNEL);
+	cdev_init(&dev->cdev, &fops);
+	if (cdev_add(&dev->cdev, devt, 1) < 0) {
 		pr_err("cdev_add failed\n");
 		return -1;
 	}
-	cdev.owner = THIS_MODULE;
+	dev->cdev.owner = THIS_MODULE;
+
 	if (IS_ERR(dev_class = class_create("lauberhorn_class"))) {
 		pr_err("class_create failed\n");
 		return -1;
 	}
 	dev_class->dev_uevent = app_dev_uevent;
 
-	if (IS_ERR(device_create(dev_class, NULL, dev, NULL, "lauberhorn"))) {
+	// allocate our private data
+	if (IS_ERR(device_create_with_groups(dev_class, NULL, devt, dev,
+					     worker_attr_groups,
+					     "lauberhorn"))) {
 		pr_err("device_create failed\n");
 		return -1;
 	}
 
 	// Initialize Mackerel devices
 	lauberhorn_eci_OncRpcCallDecoder_initialize(
-		&decoder_dev, LAUBERHORN_ECI__ONC_RPC_CALL_DECODER_BASE);
-	lauberhorn_eci_sched_initialize(&sched_dev, LAUBERHORN_ECI_SCHED_BASE);
+		&dev->OncRpcCallDecoder_dev,
+		LAUBERHORN_ECI__ONC_RPC_CALL_DECODER_BASE);
+	lauberhorn_eci_OncRpcReplyEncoder_initialize(
+		&dev->OncRpcReplyEncoder_dev,
+		LAUBERHORN_ECI__ONC_RPC_REPLY_ENCODER_BASE);
+	lauberhorn_eci_sched_initialize(&dev->sched_dev,
+					LAUBERHORN_ECI_SCHED_BASE);
 
 	pr_info("Device created at /dev/lauberhorn\n");
 	return 0;
@@ -491,9 +530,15 @@ int create_devices(void)
 
 void remove_devices(void)
 {
-	device_destroy(dev_class, dev);
+	// free our private data
+	struct worker_dev *dev =
+		dev_get_drvdata(class_find_device_by_devt(dev_class, devt));
+
+	device_destroy(dev_class, devt);
 	class_destroy(dev_class);
-	cdev_del(&cdev);
-	unregister_chrdev_region(dev, 1);
+	cdev_del(&dev->cdev);
+	kfree(dev);
+
+	unregister_chrdev_region(devt, 1);
 	pr_info("Device removed\n");
 }
