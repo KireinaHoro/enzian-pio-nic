@@ -488,6 +488,10 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_ports txclk] \
   [get_bd_pins ila_cmac_tx/clk] \
   [get_bd_pins rst_cmac_tx/slowest_sync_clk]
+  connect_bd_net -net cmac_usplus_0_stat_rx_local_fault  [get_bd_pins cmac_usplus_0/stat_rx_local_fault] \
+  [get_bd_pins cmac_usplus_0/ctl_tx_send_rfi]
+  connect_bd_net -net cmac_usplus_0_stat_rx_remote_fault  [get_bd_pins cmac_usplus_0/stat_rx_remote_fault] \
+  [get_bd_pins cmac_usplus_0/ctl_tx_send_idle]
   connect_bd_net -net core0_states_1  [get_bd_ports core0_states] \
   [get_bd_pins ila_app/probe0]
   connect_bd_net -net core1_states_1  [get_bd_ports core1_states] \
