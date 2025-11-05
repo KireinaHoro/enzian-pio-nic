@@ -93,8 +93,6 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
 
-	// Mask interrupt and call napi_schedule
-	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
 	napi_schedule(&priv->napi);
 
 	return IRQ_HANDLED;
@@ -381,9 +379,9 @@ static int napi_poll(struct napi_struct *n, int budget)
 	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
 
 	if (work_done < budget) {
-		// drained all packets, finish NAPI and enable interrupts
+		// drained all packets, finish NAPI and ACK interrupt
 		if (napi_complete_done(n, work_done)) {
-			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+			lauberhorn_eci_preempt_ipi_ack_rd(&priv->reg_dev);
 		}
 	}
 
