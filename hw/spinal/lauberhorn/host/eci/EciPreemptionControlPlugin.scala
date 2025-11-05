@@ -49,11 +49,11 @@ case class IpiAckReg() extends Bundle {
 
 object EciPreemptionControlPlugin {
   // called for driving the non-existent preemption control for core#0
-  def bypassDriveControl(irqEn: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
+  def bypassDriveControl(irqEn: Bool, irqAck: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     alloc("realCoreId", desc = "Actual core ID serving requests for this context")
-    alloc("ipiAck", attr = RO, readSensitive = true,
+    val irqAckAddr = alloc("ipiAck", attr = RO, readSensitive = true,
       desc = "Preemption command from hardware (read will ACK the interrupt)",
       ty =
         """
@@ -63,6 +63,12 @@ object EciPreemptionControlPlugin {
           |  _          31 rsvd;
           |}
           |""".stripMargin)
+    busCtrl.read(U(0), irqAckAddr)
+
+    irqAck := False
+    busCtrl.onRead(irqAckAddr) {
+      irqAck := True
+    }
 
     // generate IRQ enable reg for bypass
     val irqEnAddr = alloc("irqEn",

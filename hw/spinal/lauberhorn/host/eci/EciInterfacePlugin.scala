@@ -347,7 +347,7 @@ class EciInterfacePlugin extends FiberPlugin {
           bypassProto.irqOut >> ipiCtrl
 
           // XXX: still allocate registers for bypass core due to allocator limitation
-          drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn), "preempt", cid)
+          drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn, bypassProto.irqAck), "preempt", cid)
 
         case Some(pn) =>
           preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
