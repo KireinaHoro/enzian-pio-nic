@@ -252,7 +252,7 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	lauberhorn_reg_srv_t reg_cmd;
 	lauberhorn_reg_srv_t __user *reg_cmd_usr = (void __user *)arg;
 	lauberhorn_srv_id_t reg_ret;
-	int proc_srv_idx;
+	int proc_srv_idx, i;
 
 	lauberhorn_dereg_srv_t dereg_cmd;
 	lauberhorn_dereg_srv_t __user *dereg_cmd_usr = (void __user *)arg;
@@ -304,6 +304,16 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		deregister_service(fp->dev, srv);
 		proc->srvs[dereg_cmd.id] = NULL;
 
+		break;
+
+	case LAUBERHORN_IOCTL_WAKE_ALL_WORKERS:
+		// Find all unscheduled threads of this app
+		for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
+			struct thr_def *thr = &proc->thr_defs[i];
+			if (thr->enabled && thr->worker_idx == -1) {
+				clean_worker_thread(thr);
+			}
+		}
 		break;
 
 	default:

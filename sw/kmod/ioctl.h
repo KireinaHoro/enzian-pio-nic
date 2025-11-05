@@ -56,4 +56,9 @@ typedef struct {
 // Start / stop handling requests on an application thread
 // These are implemented as mmap / destroy VMA
 
+// Wake up all (unsecheduled) worker threads for clean-up
+// Unscheduled threads will be restored to normal affinity/priority
+// and unblocked to run to finish
+#define LAUBERHORN_IOCTL_WAKE_ALL_WORKERS _IO(LAUBERHORN_IOCTL_MAGIC, 3)
+
 #endif // LAUBERHORN_IOCTL_H
