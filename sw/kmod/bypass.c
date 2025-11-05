@@ -381,7 +381,7 @@ static int napi_poll(struct napi_struct *n, int budget)
 	if (work_done < budget) {
 		// drained all packets, finish NAPI and ACK interrupt
 		if (napi_complete_done(n, work_done)) {
-			lauberhorn_eci_preempt_ipi_ack_rd(&priv->reg_dev);
+			lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
 		}
 	}
 

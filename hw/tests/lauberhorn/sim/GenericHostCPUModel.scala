@@ -21,19 +21,13 @@ trait CoreState {
   var inISR = false
   def log(msg: String) = println(s"[core $cid]\t$msg")
 
-  /** Enter the ISR.  If the kernel is already in ISR, return false */
-  def enterISR(allowDup: Boolean = false): Boolean = {
+  /** Enter the ISR. */
+  def enterISR(): Unit = {
     if (inISR) {
-      if (allowDup) {
-        log("already in kernel, ignoring")
-        return false
-      } else {
-        fail(s"core $cid already in kernel!")
-      }
+      fail(s"core $cid already in kernel!")
     }
     inISR = true
     log("entering kernel")
-    true
   }
 
   /** Finish ISR. */
@@ -182,14 +176,11 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     val preemptRegBlock = ALLOC.readBack("preempt", blockIdx = cid)
     val cs = coreStates(cid)
 
-    // disable interrupt
-    cs.log("disabling IRQ")
-    asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
-
-    val irqPending = !cs.enterISR(allowDup = irq == 15)
+    // no need to mask interrupt: preemption won't send another interrupt
+    // until we write to ACK
+    cs.enterISR()
 
     if (irq == 15) {
-      if (irqPending) return
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
 
       // call bypass handler
@@ -201,12 +192,10 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       cs.log("waiting until we can interrupt")
       waitUntil(wcs.canInterrupt)
 
-      assert(!irqPending, "worker preempt IRQ shouldn't happen multiple times")
       assert(cid >= 1, "worker IRQ should only be sent to worker cores")
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
 
-      // ACK interrupt
-      cs.log("ack-ing IRQ")
+      cs.log("reading preempt cmd")
       val ipiAckReg = asMaster.read(bus, preemptRegBlock("ipiAck"), 8).bytesToBigInt
       val ipiAck = new BigIntParser(ipiAckReg)
 
@@ -227,9 +216,10 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       fail(s"unknown IRQ $irq")
     }
 
-    // re-enable interrupt
-    cs.log("re-enabling IRQ")
-    asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
+    // in the Linux kernel, the next interrupt will not come in until we are out
     cs.exitISR()
+
+    cs.log("ack-ing IRQ")
+    asMaster.write(bus, preemptRegBlock("ipiAck"), 0.toBytesLE)
   }
 }

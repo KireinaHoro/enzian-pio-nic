@@ -6,7 +6,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
 import spinal.lib.fsm._
-import spinal.lib.bus.regif.AccessType.{RO, RW}
+import spinal.lib.bus.regif.AccessType.{WC, RW}
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.host.PreemptionService
@@ -53,8 +53,8 @@ object EciPreemptionControlPlugin {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     alloc("realCoreId", desc = "Actual core ID serving requests for this context")
-    val irqAckAddr = alloc("ipiAck", attr = RO, readSensitive = true,
-      desc = "Preemption command from hardware (read will ACK the interrupt)",
+    val irqAckAddr = alloc("ipiAck", attr = WC, readSensitive = true,
+      desc = "Preemption command from hardware (write will ACK the interrupt)",
       ty =
         """
           |{
@@ -63,10 +63,10 @@ object EciPreemptionControlPlugin {
           |  _          31 rsvd;
           |}
           |""".stripMargin)
-    busCtrl.read(U(0), irqAckAddr)
+    busCtrl.readAndWrite(U(0), irqAckAddr)
 
     irqAck := False
-    busCtrl.onRead(irqAckAddr) {
+    busCtrl.onWrite(irqAckAddr) {
       irqAck := True
     }
 
@@ -93,11 +93,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
     val ipiAckAddr = alloc("ipiAck",
-      desc = "Preemption command from hardware (read will ACK the interrupt)",
-      attr = RO, readSensitive = true)
+      desc = "Preemption command from hardware (write will ACK the interrupt)",
+      attr = WC, readSensitive = true)
     busCtrl.read(logic.ipiAck, ipiAckAddr)
+    busCtrl.write(U(0), ipiAckAddr) // IPI ack carry no data
     busCtrl.onRead(ipiAckAddr) {
-      logic.ipiDoAck := True
+      logic.ipiCmdSent := True
+    }
+    busCtrl.onWrite(ipiAckAddr) {
+      logic.kernelFinished := True
     }
 
     busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId",
@@ -163,7 +167,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     val ipiAck = Reg(IpiAckReg())
     // Are we in the kernel?
-    val ipiDoAck = CombInit(False)
+    val ipiCmdSent = CombInit(False)
 
     awaitBuild()
 
@@ -191,7 +195,6 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // - update thread CL routing
     // - pin the preemption control of the new thread
     val kernelFinished = Reg(Bool()) init False
-    kernelFinished.setWhen(irqEn.rise(initAt = False))
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
@@ -281,7 +284,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val ipiWaitAck: State = new State {
         whenIsActive {
-          when (ipiDoAck) {
+          when (ipiCmdSent) {
             // we can only trigger data path preemption once we are sure we are
             // in the kernel, or the old user thread might have a chance to
             // corrupt the clean state (e.g. sneak covert data in)

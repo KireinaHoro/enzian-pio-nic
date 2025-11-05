@@ -84,8 +84,8 @@ static void _sched_worker_thread(struct work_struct *ws)
 	// Wake up the task
 	wake_up_process(thr->task);
 
-	// Unmask interrupt -- this signals that the rescheduling is complete
-	lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
+	// Ack interrupt
+	lauberhorn_eci_preempt_ipi_ack_wr(&w->fpi_priv->preempt_dev, 0);
 }
 
 /**
