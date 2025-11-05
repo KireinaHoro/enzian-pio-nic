@@ -6,15 +6,17 @@
 		&priv->class##_dev;                             \
 	})
 
-#define RPC_DEC_STATS_LIST(FUNC)                \
-	FUNC(OncRpcCallDecoder, header_only)    \
-	FUNC(OncRpcCallDecoder, partial_header) \
-	FUNC(OncRpcCallDecoder, incomplete_header)
+#define RPC_DEC_STATS_LIST(FUNC)                   \
+	FUNC(OncRpcCallDecoder, header_only)       \
+	FUNC(OncRpcCallDecoder, partial_header)    \
+	FUNC(OncRpcCallDecoder, incomplete_header) \
+	FUNC(OncRpcCallDecoder, normal_packets)
 
-#define UDP_DEC_STATS_LIST(FUNC)         \
-	FUNC(UdpDecoder, header_only)    \
-	FUNC(UdpDecoder, partial_header) \
-	FUNC(UdpDecoder, incomplete_header)
+#define UDP_DEC_STATS_LIST(FUNC)            \
+	FUNC(UdpDecoder, header_only)       \
+	FUNC(UdpDecoder, partial_header)    \
+	FUNC(UdpDecoder, incomplete_header) \
+	FUNC(UdpDecoder, normal_packets)
 
 #define RPC_ENC_STATS_LIST(FUNC) FUNC(OncRpcReplyEncoder, dropped)
 
