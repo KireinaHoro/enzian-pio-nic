@@ -1,4 +1,10 @@
-#include "stat_attrs.h"
+#include "def_attrs.h"
+
+#define DEVICE_TO_MACKEREL_DEV(class, name, dev)                         \
+	({                                                               \
+		struct netdev_priv *priv = netdev_priv(to_net_dev(dev)); \
+		&priv->class##_dev;                                      \
+	})
 
 #define DMA_STATS_LIST(FUNC)                     \
 	FUNC(dma, rx_packet_count)               \

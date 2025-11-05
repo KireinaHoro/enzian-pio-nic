@@ -492,7 +492,7 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
-#include "bypass_stats.h"
+#include "stats/bypass.h"
 
 int init_bypass(void)
 {

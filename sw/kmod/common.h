@@ -68,8 +68,12 @@ struct thr_def;
 
 // Private data for a VMA
 #define THR_DATAPATH_VMA_NAME_SIZE 64
+struct worker_dev;
 struct vma_priv_data {
 	bool is_parity_page;
+
+	// used to access Mackerel devices
+	struct worker_dev *dev;
 
 	union {
 		struct proc_def *proc;

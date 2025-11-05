@@ -123,7 +123,7 @@ class Scheduler extends FiberPlugin {
     logic.statistics.elements.foreach {
       case (name, d: UInt) => busCtrl.read(d, alloc("stat", s"Stat $name", name, attr = RO))
       case (name, v: Vec[_]) => v.zipWithIndex.foreach { case (e, idx) =>
-        val addr = alloc("coreStat", s"Per core stat $name",
+        val addr = alloc("stat", s"Per core stat $name",
           s"${name}_core${idx+1}", attr = RO)
         busCtrl.read(e, addr)
       }
