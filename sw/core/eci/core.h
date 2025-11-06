@@ -349,8 +349,9 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   *ctx->tx_next_cl = !tx_parity;
 
   // Ring the doorbell: read next CL to trigger send
-  (void)*(uint8_t *)(base + LAUBERHORN_ECI_TX_BASE +
-                     !tx_parity * LAUBERHORN_ECI_CL_SIZE);
+  volatile uint8_t *tx_next_ctrl =
+      tx_base + !tx_parity * LAUBERHORN_ECI_CL_SIZE;
+  (void)*tx_next_ctrl;
 
   pr_debug("eci_tx: finished tx\n");
 

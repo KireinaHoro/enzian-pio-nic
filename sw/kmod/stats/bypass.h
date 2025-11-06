@@ -121,6 +121,7 @@ CMAC_STATUS_LIST(CMAC_STATUS_RD_FUNC)
 	FUNC(cmac, rx_bad_fcs)                \
 	FUNC(cmac, rx_packet_bad_fcs)         \
 	FUNC(cmac, rx_stomped_fcs)            \
+	FUNC(cmac, rx_unicast)                \
 	FUNC(cmac, rx_multicast)              \
 	FUNC(cmac, rx_broadcast)              \
 	FUNC(cmac, rx_vlan)                   \
