@@ -133,7 +133,7 @@
 		cmac_tick_tick_reg_wrf(d, 1);                        \
 		return cmac_stat_##name##_rd(d);                     \
 	}
-CMAC_STATS_LIST(CMAC_STAT_RD_FUNC)
+// CMAC_STATS_LIST(CMAC_STAT_RD_FUNC)
 
 #define STAT_GROUPS(FUNC)                     \
 	FUNC(dma_stat, DMA_STATS_LIST)        \
@@ -141,6 +141,6 @@ CMAC_STATS_LIST(CMAC_STAT_RD_FUNC)
 	FUNC(ipdec_stat, IP_DEC_STATS_LIST)   \
 	FUNC(ipenc_stat, IP_ENC_STATS_LIST)   \
 	FUNC(macif_stat, MAC_IF_STATS_LIST)   \
-	FUNC(cmac_stat, CMAC_STATS_LIST)
+	// FUNC(cmac_stat, CMAC_STATS_LIST)
 
 MAKE_STAT_GROUPS(bypass, STAT_GROUPS)
