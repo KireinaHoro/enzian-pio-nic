@@ -215,7 +215,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   sigset_t sigint_mask;
 
-  LOG("worker %d starting", w->worker_id);
+  LOG("worker %d: starting", w->worker_id);
 
   // Map datapath region
   dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, w->ctx->fd,
@@ -283,7 +283,7 @@ static void *lauberhorn_worker_loop(void *arg) {
     core_eci_tx(dp_base, &w->dp, &desc);
   }
 
-  LOG("worker requested to exit, cleaning up");
+  LOG("worker %d: requested to exit, cleaning up", w->worker_id);
   w->fini(w->worker_id);
 
   // further cleanup happen in lauberhorn_join_worker on the
