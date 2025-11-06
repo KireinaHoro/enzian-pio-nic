@@ -641,8 +641,7 @@ type REGS_AXIL_NARROW is record
 end record REGS_AXIL_NARROW;
 
 signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
-signal cmac_reg_axil, nic_engine_axil, io_reg_axil_cdc : REGS_AXIL;
-signal cmac_reg_axil_narrow : REGS_AXIL_NARROW;
+signal io_reg_axil_cdc : REGS_AXIL;
 
 -- Interrupt Controller Command from NicEngine (in app_clk)
 signal intc_cmd : std_logic_vector(31 downto 0);
@@ -1316,133 +1315,6 @@ axil_cdc_inst : entity work.axil_cdc
     m_axil_rready => io_reg_axil_cdc.rready
   );
 
-axil_adapter_inst : entity work.axil_adapter
-  generic map (
-    ADDR_WIDTH => 32,
-    S_DATA_WIDTH => 64,
-    M_DATA_WIDTH => 32
-  )
-  port map (
-    clk => app_clk,
-    rst => app_clk_reset,
-
-    s_axil_awaddr => cmac_reg_axil.awaddr(31 downto 0),
-    s_axil_awprot => cmac_reg_axil.awprot,
-    s_axil_awvalid => cmac_reg_axil.awvalid,
-    s_axil_awready => cmac_reg_axil.awready,
-    s_axil_wdata => cmac_reg_axil.wdata,
-    s_axil_wstrb => cmac_reg_axil.wstrb,
-    s_axil_wvalid => cmac_reg_axil.wvalid,
-    s_axil_wready => cmac_reg_axil.wready,
-    s_axil_bresp => cmac_reg_axil.bresp,
-    s_axil_bvalid => cmac_reg_axil.bvalid,
-    s_axil_bready => cmac_reg_axil.bready,
-    s_axil_araddr => cmac_reg_axil.araddr(31 downto 0),
-    s_axil_arprot => cmac_reg_axil.arprot,
-    s_axil_arvalid => cmac_reg_axil.arvalid,
-    s_axil_arready => cmac_reg_axil.arready,
-    s_axil_rdata => cmac_reg_axil.rdata,
-    s_axil_rresp => cmac_reg_axil.rresp,
-    s_axil_rvalid => cmac_reg_axil.rvalid,
-    s_axil_rready => cmac_reg_axil.rready,
-
-    m_axil_awaddr => cmac_reg_axil_narrow.awaddr,
-    m_axil_awprot => cmac_reg_axil_narrow.awprot,
-    m_axil_awvalid => cmac_reg_axil_narrow.awvalid,
-    m_axil_awready => cmac_reg_axil_narrow.awready,
-    m_axil_wdata => cmac_reg_axil_narrow.wdata,
-    m_axil_wstrb => cmac_reg_axil_narrow.wstrb,
-    m_axil_wvalid => cmac_reg_axil_narrow.wvalid,
-    m_axil_wready => cmac_reg_axil_narrow.wready,
-    m_axil_bresp => cmac_reg_axil_narrow.bresp,
-    m_axil_bvalid => cmac_reg_axil_narrow.bvalid,
-    m_axil_bready => cmac_reg_axil_narrow.bready,
-    m_axil_araddr => cmac_reg_axil_narrow.araddr,
-    m_axil_arprot => cmac_reg_axil_narrow.arprot,
-    m_axil_arvalid => cmac_reg_axil_narrow.arvalid,
-    m_axil_arready => cmac_reg_axil_narrow.arready,
-    m_axil_rdata => cmac_reg_axil_narrow.rdata,
-    m_axil_rresp => cmac_reg_axil_narrow.rresp,
-    m_axil_rvalid => cmac_reg_axil_narrow.rvalid,
-    m_axil_rready => cmac_reg_axil_narrow.rready
-  );
-
-  axil_regs_interconnect_inst : entity work.axil_regs_interconnect
-  generic map (
-    DATA_WIDTH => 64,
-    ADDR_WIDTH => 44,
-    -- registers for NIC engine [0x0 - 0x200000]
-    M00_BASE_ADDR => 0,
-    M00_ADDR_WIDTH => 21,
-    -- registers for CMAC [0x200000 - 0x2007ff]
-    M01_BASE_ADDR => 16#200000#,
-    M01_ADDR_WIDTH => 11
-  )
-  port map (
-    clk => app_clk,
-    rst => app_clk_reset,
-
-    s00_axil_awaddr => io_reg_axil_cdc.awaddr,
-    s00_axil_awprot => io_reg_axil_cdc.awprot,
-    s00_axil_awvalid => io_reg_axil_cdc.awvalid,
-    s00_axil_awready => io_reg_axil_cdc.awready,
-    s00_axil_wdata => io_reg_axil_cdc.wdata,
-    s00_axil_wstrb => io_reg_axil_cdc.wstrb,
-    s00_axil_wvalid => io_reg_axil_cdc.wvalid,
-    s00_axil_wready => io_reg_axil_cdc.wready,
-    s00_axil_bresp => io_reg_axil_cdc.bresp,
-    s00_axil_bvalid => io_reg_axil_cdc.bvalid,
-    s00_axil_bready => io_reg_axil_cdc.bready,
-    s00_axil_araddr => io_reg_axil_cdc.araddr,
-    s00_axil_arprot => io_reg_axil_cdc.arprot,
-    s00_axil_arvalid => io_reg_axil_cdc.arvalid,
-    s00_axil_arready => io_reg_axil_cdc.arready,
-    s00_axil_rdata => io_reg_axil_cdc.rdata,
-    s00_axil_rresp => io_reg_axil_cdc.rresp,
-    s00_axil_rvalid => io_reg_axil_cdc.rvalid,
-    s00_axil_rready => io_reg_axil_cdc.rready,
-
-    m00_axil_awaddr => nic_engine_axil.awaddr,
-    m00_axil_awprot => nic_engine_axil.awprot,
-    m00_axil_awvalid => nic_engine_axil.awvalid,
-    m00_axil_awready => nic_engine_axil.awready,
-    m00_axil_wdata => nic_engine_axil.wdata,
-    m00_axil_wstrb => nic_engine_axil.wstrb,
-    m00_axil_wvalid => nic_engine_axil.wvalid,
-    m00_axil_wready => nic_engine_axil.wready,
-    m00_axil_bresp => nic_engine_axil.bresp,
-    m00_axil_bvalid => nic_engine_axil.bvalid,
-    m00_axil_bready => nic_engine_axil.bready,
-    m00_axil_araddr => nic_engine_axil.araddr,
-    m00_axil_arprot => nic_engine_axil.arprot,
-    m00_axil_arvalid => nic_engine_axil.arvalid,
-    m00_axil_arready => nic_engine_axil.arready,
-    m00_axil_rdata => nic_engine_axil.rdata,
-    m00_axil_rresp => nic_engine_axil.rresp,
-    m00_axil_rvalid => nic_engine_axil.rvalid,
-    m00_axil_rready => nic_engine_axil.rready,
-
-    m01_axil_awaddr => cmac_reg_axil.awaddr,
-    m01_axil_awprot => cmac_reg_axil.awprot,
-    m01_axil_awvalid => cmac_reg_axil.awvalid,
-    m01_axil_awready => cmac_reg_axil.awready,
-    m01_axil_wdata => cmac_reg_axil.wdata,
-    m01_axil_wstrb => cmac_reg_axil.wstrb,
-    m01_axil_wvalid => cmac_reg_axil.wvalid,
-    m01_axil_wready => cmac_reg_axil.wready,
-    m01_axil_bresp => cmac_reg_axil.bresp,
-    m01_axil_bvalid => cmac_reg_axil.bvalid,
-    m01_axil_bready => cmac_reg_axil.bready,
-    m01_axil_araddr => cmac_reg_axil.araddr,
-    m01_axil_arprot => cmac_reg_axil.arprot,
-    m01_axil_arvalid => cmac_reg_axil.arvalid,
-    m01_axil_arready => cmac_reg_axil.arready,
-    m01_axil_rdata => cmac_reg_axil.rdata,
-    m01_axil_rresp => cmac_reg_axil.rresp,
-    m01_axil_rvalid => cmac_reg_axil.rvalid,
-    m01_axil_rready => cmac_reg_axil.rready
-  );
-
   design_1_i: entity work.design_1
   PORT MAP (
     -- GT connections
@@ -1475,25 +1347,6 @@ axil_adapter_inst : entity work.axil_adapter
     rx_axis_tlast => cmac_rx_axis.tlast,
     rx_axis_tkeep => cmac_rx_axis.tkeep,
     rx_axis_tuser => open,
-
-    -- AXI lite reg interface
-    cmac_regs_axil_araddr => cmac_reg_axil_narrow.araddr,
-    cmac_regs_axil_arready => cmac_reg_axil_narrow.arready,
-    cmac_regs_axil_arvalid => cmac_reg_axil_narrow.arvalid,
-    cmac_regs_axil_awaddr => cmac_reg_axil_narrow.awaddr,
-    cmac_regs_axil_awready => cmac_reg_axil_narrow.awready,
-    cmac_regs_axil_awvalid => cmac_reg_axil_narrow.awvalid,
-    cmac_regs_axil_bready => cmac_reg_axil_narrow.bready,
-    cmac_regs_axil_bresp => cmac_reg_axil_narrow.bresp,
-    cmac_regs_axil_bvalid => cmac_reg_axil_narrow.bvalid,
-    cmac_regs_axil_rdata => cmac_reg_axil_narrow.rdata,
-    cmac_regs_axil_rready => cmac_reg_axil_narrow.rready,
-    cmac_regs_axil_rresp => cmac_reg_axil_narrow.rresp,
-    cmac_regs_axil_rvalid => cmac_reg_axil_narrow.rvalid,
-    cmac_regs_axil_wdata => cmac_reg_axil_narrow.wdata,
-    cmac_regs_axil_wready => cmac_reg_axil_narrow.wready,
-    cmac_regs_axil_wstrb => cmac_reg_axil_narrow.wstrb,
-    cmac_regs_axil_wvalid => cmac_reg_axil_narrow.wvalid,
 
     -- Debug DCS odd and even interfaces
     dcs_even_mon_arid => dcs_even_axi.arid,
@@ -1737,25 +1590,25 @@ NicEngine_inst : entity work.NicEngine
     dcsEven_unlockResp_payload_vc => dcs_c18_i.vc_no,
 
     -- regs
-    s_axil_ctrl_awvalid => nic_engine_axil.awvalid,
-    s_axil_ctrl_awready => nic_engine_axil.awready,
-    s_axil_ctrl_awaddr => nic_engine_axil.awaddr,
-    s_axil_ctrl_awprot => nic_engine_axil.awprot,
-    s_axil_ctrl_wvalid => nic_engine_axil.wvalid,
-    s_axil_ctrl_wready => nic_engine_axil.wready,
-    s_axil_ctrl_wdata => nic_engine_axil.wdata,
-    s_axil_ctrl_wstrb => nic_engine_axil.wstrb,
-    s_axil_ctrl_bvalid => nic_engine_axil.bvalid,
-    s_axil_ctrl_bready => nic_engine_axil.bready,
-    s_axil_ctrl_bresp => nic_engine_axil.bresp,
-    s_axil_ctrl_arvalid => nic_engine_axil.arvalid,
-    s_axil_ctrl_arready => nic_engine_axil.arready,
-    s_axil_ctrl_araddr => nic_engine_axil.araddr,
-    s_axil_ctrl_arprot => nic_engine_axil.arprot,
-    s_axil_ctrl_rvalid => nic_engine_axil.rvalid,
-    s_axil_ctrl_rready => nic_engine_axil.rready,
-    s_axil_ctrl_rdata => nic_engine_axil.rdata,
-    s_axil_ctrl_rresp => nic_engine_axil.rresp,
+    s_axil_ctrl_awvalid => io_reg_axil_cdc.awvalid,
+    s_axil_ctrl_awready => io_reg_axil_cdc.awready,
+    s_axil_ctrl_awaddr => io_reg_axil_cdc.awaddr,
+    s_axil_ctrl_awprot => io_reg_axil_cdc.awprot,
+    s_axil_ctrl_wvalid => io_reg_axil_cdc.wvalid,
+    s_axil_ctrl_wready => io_reg_axil_cdc.wready,
+    s_axil_ctrl_wdata => io_reg_axil_cdc.wdata,
+    s_axil_ctrl_wstrb => io_reg_axil_cdc.wstrb,
+    s_axil_ctrl_bvalid => io_reg_axil_cdc.bvalid,
+    s_axil_ctrl_bready => io_reg_axil_cdc.bready,
+    s_axil_ctrl_bresp => io_reg_axil_cdc.bresp,
+    s_axil_ctrl_arvalid => io_reg_axil_cdc.arvalid,
+    s_axil_ctrl_arready => io_reg_axil_cdc.arready,
+    s_axil_ctrl_araddr => io_reg_axil_cdc.araddr,
+    s_axil_ctrl_arprot => io_reg_axil_cdc.arprot,
+    s_axil_ctrl_rvalid => io_reg_axil_cdc.rvalid,
+    s_axil_ctrl_rready => io_reg_axil_cdc.rready,
+    s_axil_ctrl_rdata => io_reg_axil_cdc.rdata,
+    s_axil_ctrl_rresp => io_reg_axil_cdc.rresp,
 
     -- Debug interfaces
     core0_rxRouter_state => core0_states(2 downto 0),
