@@ -33,30 +33,41 @@
 
 #define MAC_IF_STATS_LIST(FUNC) FUNC(macIf, rx_mac_overflow_count)
 
-#define CMAC_STATS_LIST(FUNC)                 \
-	FUNC(cmac, tx_status)                 \
-	FUNC(cmac, rx_status)                 \
-	FUNC(cmac, status_1)                  \
-	FUNC(cmac, rx_block_lock)             \
-	FUNC(cmac, rx_lane_sync)              \
-	FUNC(cmac, rx_lane_sync_err)          \
-	FUNC(cmac, rx_am_err)                 \
-	FUNC(cmac, rx_am_len_err)             \
-	FUNC(cmac, rx_am_repeat_err)          \
-	FUNC(cmac, rx_pcsl_demuxed)           \
-	FUNC(cmac, rx_bip_override)           \
-	FUNC(cmac, tx_otn_status)             \
-	FUNC(cmac, an_status)                 \
-	FUNC(cmac, an_ability)                \
-	FUNC(cmac, an_link_ctl_1)             \
-	FUNC(cmac, an_link_ctl_2)             \
-	FUNC(cmac, lt_status_1)               \
-	FUNC(cmac, lt_status_2)               \
-	FUNC(cmac, lt_status_3)               \
-	FUNC(cmac, lt_status_4)               \
-	FUNC(cmac, rsfec_status)              \
-	FUNC(cmac, rsfec_lane_mapping)        \
-	FUNC(cmac, tx_otn_rsfec_status)       \
+#define CMAC_STATUS_LIST(FUNC)         \
+	FUNC(cmac, tx_status)          \
+	FUNC(cmac, rx_status)          \
+	FUNC(cmac, status_1)           \
+	FUNC(cmac, rx_block_lock)      \
+	FUNC(cmac, rx_lane_sync)       \
+	FUNC(cmac, rx_lane_sync_err)   \
+	FUNC(cmac, rx_am_err)          \
+	FUNC(cmac, rx_am_len_err)      \
+	FUNC(cmac, rx_am_repeat_err)   \
+	FUNC(cmac, rx_pcsl_demuxed)    \
+	FUNC(cmac, rx_bip_override)    \
+	FUNC(cmac, tx_otn_status)      \
+	FUNC(cmac, an_status)          \
+	FUNC(cmac, an_ability)         \
+	FUNC(cmac, an_link_ctl_1)      \
+	FUNC(cmac, an_link_ctl_2)      \
+	FUNC(cmac, lt_status_1)        \
+	FUNC(cmac, lt_status_2)        \
+	FUNC(cmac, lt_status_3)        \
+	FUNC(cmac, lt_status_4)        \
+	FUNC(cmac, rsfec_status)       \
+	FUNC(cmac, rsfec_lane_mapping) \
+	FUNC(cmac, tx_otn_rsfec_status)
+
+#define CMAC_STATUS_RD_FUNC(class, name)                             \
+	static inline u64 lauberhorn_eci_##class##_stat_##name##_rd( \
+		class##_t *d)                                        \
+	{                                                            \
+		return cmac_stat_##name##_rd(d);                     \
+	}
+CMAC_STATUS_LIST(CMAC_STATUS_RD_FUNC)
+
+#define CMAC_STATISTICS_LIST(FUNC)            \
+	FUNC(cmac, cycle_count)               \
 	FUNC(cmac, rx_bad_code)               \
 	FUNC(cmac, tx_frame_error)            \
 	FUNC(cmac, tx_total_packets)          \
@@ -126,21 +137,35 @@
 	FUNC(cmac, otn_tx_stomped_fcs)        \
 	FUNC(cmac, otn_tx_bad_code)
 
-#define CMAC_STAT_RD_FUNC(class, name)                               \
+static struct {
+#define DECL_CMAC_COUNTER(class, name) u64 name;
+	CMAC_STATISTICS_LIST(DECL_CMAC_COUNTER)
+} cmac_statistics_acc;
+
+static void cmac_latch_all_statistics(cmac_t *d)
+{
+	cmac_tick_enable_wrf(d, 1);
+#define ACC_CMAC_COUNTER(class, name) \
+	cmac_statistics_acc.name += cmac_stat_##name##_value_rdf(d);
+	CMAC_STATISTICS_LIST(ACC_CMAC_COUNTER)
+}
+
+#define CMAC_STATISTIC_RD_FUNC(class, name)                          \
 	static inline u64 lauberhorn_eci_##class##_stat_##name##_rd( \
 		class##_t *d)                                        \
 	{                                                            \
-		cmac_tick_tick_reg_wrf(d, 1);                        \
-		return cmac_stat_##name##_rd(d);                     \
+		cmac_latch_all_statistics(d);                        \
+		return cmac_statistics_acc.name;                     \
 	}
-CMAC_STATS_LIST(CMAC_STAT_RD_FUNC)
+CMAC_STATISTICS_LIST(CMAC_STATISTIC_RD_FUNC)
 
-#define STAT_GROUPS(FUNC)                     \
-	FUNC(dma_stat, DMA_STATS_LIST)        \
-	FUNC(ethdec_stat, ETH_DEC_STATS_LIST) \
-	FUNC(ipdec_stat, IP_DEC_STATS_LIST)   \
-	FUNC(ipenc_stat, IP_ENC_STATS_LIST)   \
-	FUNC(macif_stat, MAC_IF_STATS_LIST)   \
-	FUNC(cmac_stat, CMAC_STATS_LIST)
+#define STAT_GROUPS(FUNC)                      \
+	FUNC(dma_stats, DMA_STATS_LIST)        \
+	FUNC(ethdec_stats, ETH_DEC_STATS_LIST) \
+	FUNC(ipdec_stats, IP_DEC_STATS_LIST)   \
+	FUNC(ipenc_stats, IP_ENC_STATS_LIST)   \
+	FUNC(macif_stats, MAC_IF_STATS_LIST)   \
+	FUNC(cmac_status, CMAC_STATUS_LIST)    \
+	FUNC(cmac_stats, CMAC_STATISTICS_LIST)
 
 MAKE_STAT_GROUPS(bypass, STAT_GROUPS)
