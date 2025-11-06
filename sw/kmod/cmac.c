@@ -90,14 +90,13 @@ int start_cmac(cmac_t *cmac, bool loopback)
 		cmac_tick_tick_reg_wrf(cmac, 1);
 
 		status = cmac_stat_rx_status_rawrd(cmac);
-		if (cmac_stat_rx_status_stat_rx_aligned_extract(status) &&
-		    cmac_stat_rx_status_stat_rx_status_extract(status))
-			break; // RX_aligned && RX_status
+		if (cmac_stat_rx_status_stat_rx_status_extract(status))
+			break; // RX_status
 		mdelay(LINE_UP_WAIT_MS);
 	}
 
 	if (attempts == LINE_UP_MAX_ATTEMPTS) {
-		pr_err("Wait for RX_aligned && RX_status timed out\n");
+		pr_err("Wait for RX_status timed out\n");
 		return -EBUSY;
 	}
 
