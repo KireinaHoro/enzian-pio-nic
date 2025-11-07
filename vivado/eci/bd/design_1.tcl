@@ -134,6 +134,7 @@ xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:system_ila:1.1\
 xilinx.com:inline_hdl:ilconstant:1.0\
+xilinx.com:ip:vio:3.0\
 "
 
    set list_ips_missing ""
@@ -392,7 +393,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_EN_STRG_QUAL {1} \
     CONFIG.C_INPUT_PIPE_STAGES {2} \
-    CONFIG.C_MON_TYPE {MIX} \
+    CONFIG.C_MON_TYPE {INTERFACE} \
     CONFIG.C_NUM_OF_PROBES {4} \
     CONFIG.C_SLOT_0_APC_EN {1} \
     CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
@@ -424,6 +425,15 @@ proc create_root_design { parentCell } {
   set_property CONFIG.CONST_VAL {0} $ilconstant_1
 
 
+  # Create instance: vio_0, and set properties
+  set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
+  set_property -dict [list \
+    CONFIG.C_NUM_PROBE_IN {4} \
+    CONFIG.C_NUM_PROBE_OUT {5} \
+    CONFIG.C_PROBE_OUT0_WIDTH {12} \
+  ] $vio_0
+
+
   # Create interface connections
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS]
@@ -444,7 +454,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins rst_cmac_init/slowest_sync_clk] \
   [get_bd_pins cmac_usplus_0/gt_drpclk] \
   [get_bd_pins cmac_usplus_0/init_clk] \
-  [get_bd_pins cmac_usplus_0/drp_clk]
+  [get_bd_pins cmac_usplus_0/drp_clk] \
+  [get_bd_pins vio_0/clk]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins clk_wiz_app/clk_out1] \
   [get_bd_ports app_clk] \
   [get_bd_pins rst_app/slowest_sync_clk] \
@@ -461,16 +472,16 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins ila_cmac_tx/clk] \
   [get_bd_pins rst_cmac_tx/slowest_sync_clk]
   connect_bd_net -net cmac_usplus_0_stat_rx_aligned  [get_bd_pins cmac_usplus_0/stat_rx_aligned] \
-  [get_bd_pins ila_cmac_rx/probe0] \
-  [get_bd_pins cmac_usplus_0/ctl_tx_enable]
+  [get_bd_pins cmac_usplus_0/ctl_tx_enable] \
+  [get_bd_pins vio_0/probe_in0]
   connect_bd_net -net cmac_usplus_0_stat_rx_local_fault  [get_bd_pins cmac_usplus_0/stat_rx_local_fault] \
   [get_bd_pins cmac_usplus_0/ctl_tx_send_rfi] \
-  [get_bd_pins ila_cmac_rx/probe2]
+  [get_bd_pins vio_0/probe_in2]
   connect_bd_net -net cmac_usplus_0_stat_rx_remote_fault  [get_bd_pins cmac_usplus_0/stat_rx_remote_fault] \
   [get_bd_pins cmac_usplus_0/ctl_tx_send_idle] \
-  [get_bd_pins ila_cmac_rx/probe3]
+  [get_bd_pins vio_0/probe_in3]
   connect_bd_net -net cmac_usplus_0_stat_rx_status  [get_bd_pins cmac_usplus_0/stat_rx_status] \
-  [get_bd_pins ila_cmac_rx/probe1]
+  [get_bd_pins vio_0/probe_in1]
   connect_bd_net -net core0_states_1  [get_bd_ports core0_states] \
   [get_bd_pins ila_app/probe0]
   connect_bd_net -net core1_states_1  [get_bd_ports core1_states] \
@@ -490,10 +501,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net dcs_odd_trace_1_1  [get_bd_ports dcs_odd_trace_1] \
   [get_bd_pins ila_app/probe14]
   connect_bd_net -net ilconstant_1_dout  [get_bd_pins ilconstant_1/dout] \
-  [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath] \
-  [get_bd_pins cmac_usplus_0/gtwiz_reset_rx_datapath] \
-  [get_bd_pins cmac_usplus_0/core_rx_reset] \
-  [get_bd_pins cmac_usplus_0/core_tx_reset] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins ilconstant_2/dout] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
@@ -523,6 +530,16 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins ila_app/probe7]
   connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
   [get_bd_pins ila_app/probe10]
+  connect_bd_net -net vio_0_probe_out0  [get_bd_pins vio_0/probe_out0] \
+  [get_bd_pins cmac_usplus_0/gt_loopback_in]
+  connect_bd_net -net vio_0_probe_out1  [get_bd_pins vio_0/probe_out1] \
+  [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath]
+  connect_bd_net -net vio_0_probe_out2  [get_bd_pins vio_0/probe_out2] \
+  [get_bd_pins cmac_usplus_0/gtwiz_reset_rx_datapath]
+  connect_bd_net -net vio_0_probe_out3  [get_bd_pins vio_0/probe_out3] \
+  [get_bd_pins cmac_usplus_0/core_rx_reset]
+  connect_bd_net -net vio_0_probe_out4  [get_bd_pins vio_0/probe_out4] \
+  [get_bd_pins cmac_usplus_0/core_tx_reset]
   connect_bd_net -net xlconstant_0_dout  [get_bd_pins ilconstant_0/dout] \
   [get_bd_pins cmac_usplus_0/gt_rxpolarity] \
   [get_bd_pins cmac_usplus_0/gt_txpolarity]
