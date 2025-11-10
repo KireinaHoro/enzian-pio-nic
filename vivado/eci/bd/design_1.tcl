@@ -43,6 +43,13 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # To test this script, run the following commands from Vivado Tcl console:
 # source design_1_script.tcl
 
+
+# The design that will be created by this Tcl script contains the following 
+# module references:
+# gt_loopback_gen
+
+# Please add the sources of those modules before sourcing this Tcl script.
+
 # If there is no project opened, this script will create a
 # project, but make sure you do not have an existing project
 # <./myproj/project_1.xpr> in the current working folder.
@@ -154,6 +161,31 @@ xilinx.com:ip:c_counter_binary:12.0\
       set bCheckIPsPassed 0
    }
 
+}
+
+##################################################################
+# CHECK Modules
+##################################################################
+set bCheckModules 1
+if { $bCheckModules == 1 } {
+   set list_check_mods "\ 
+gt_loopback_gen\
+"
+
+   set list_mods_missing ""
+   common::send_gid_msg -ssname BD::TCL -id 2020 -severity "INFO" "Checking if the following modules exist in the project's sources: $list_check_mods ."
+
+   foreach mod_vlnv $list_check_mods {
+      if { [can_resolve_reference $mod_vlnv] == 0 } {
+         lappend list_mods_missing $mod_vlnv
+      }
+   }
+
+   if { $list_mods_missing ne "" } {
+      catch {common::send_gid_msg -ssname BD::TCL -id 2021 -severity "ERROR" "The following module(s) are not found in the project: $list_mods_missing" }
+      common::send_gid_msg -ssname BD::TCL -id 2022 -severity "INFO" "Please add source files for the missing module(s) above."
+      set bCheckIPsPassed 0
+   }
 }
 
 if { $bCheckIPsPassed != 1 } {
@@ -563,7 +595,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   set_property -dict [list \
     CONFIG.C_NUM_PROBE_IN {4} \
     CONFIG.C_NUM_PROBE_OUT {5} \
-    CONFIG.C_PROBE_OUT0_WIDTH {12} \
+    CONFIG.C_PROBE_OUT0_WIDTH {1} \
   ] $vio_0
 
 
@@ -578,6 +610,17 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   ] $ilconstant_0
 
 
+  # Create instance: gt_loopback_gen_0, and set properties
+  set block_name gt_loopback_gen
+  set block_cell_name gt_loopback_gen_0
+  if { [catch {set gt_loopback_gen_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_gid_msg -ssname BD::TCL -id 2095 -severity "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $gt_loopback_gen_0 eq "" } {
+     catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
   # Create port connections
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins rxclk] \
   [get_bd_pins vio_0/clk] \
@@ -603,7 +646,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   [get_bd_pins core_rx_reset]
   connect_bd_net -net core_tx_reset  [get_bd_pins vio_0/probe_out4] \
   [get_bd_pins core_tx_reset]
-  connect_bd_net -net gt_loopback_in  [get_bd_pins vio_0/probe_out0] \
+  connect_bd_net -net gt_loopback_gen_0_gt_loopback_in  [get_bd_pins gt_loopback_gen_0/gt_loopback_in] \
   [get_bd_pins gt_loopback_in]
   connect_bd_net -net gtwiz_reset_rx_datapath  [get_bd_pins vio_0/probe_out2] \
   [get_bd_pins gtwiz_reset_rx_datapath]
@@ -613,6 +656,8 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   [get_bd_pins gt_polarity]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins ilconstant_2/dout] \
   [get_bd_pins hi]
+  connect_bd_net -net loopback  [get_bd_pins vio_0/probe_out0] \
+  [get_bd_pins gt_loopback_gen_0/loopback]
   connect_bd_net -net xpm_cdc_gen_1_dest_out  [get_bd_pins xpm_cdc_gen_1/dest_out] \
   [get_bd_pins stat_rx_aligned_txclk]
   connect_bd_net -net xpm_cdc_gen_2_dest_out  [get_bd_pins xpm_cdc_gen_2/dest_out] \
