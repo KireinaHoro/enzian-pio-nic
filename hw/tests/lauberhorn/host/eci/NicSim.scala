@@ -332,7 +332,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     })
 
     fork {
-      sleepCycles(Random.nextInt(200))
+      sleepCycles(simRandom.nextInt(200))
 
       val toSend = packet.getRawData.toList
       axisMaster.send(toSend)
@@ -351,7 +351,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
-      0 until Random.between(25, 50) foreach { _ =>
+      0 until simRandom.between(25, 50) foreach { _ =>
         import PacketType._
         val (packet, proto) = randomPacket(size, randomizeLen = false)(Ethernet, Ip, Udp)
         rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxRetries)
@@ -392,15 +392,15 @@ class NicSim extends DutSimFunSuite[NicEngine]
       .version(IpVersion.IPV4)
       .protocol(IpNumber.IGMP)
       .tos(IpV4Rfc1349Tos.newInstance(0))
-      .ttl(Random.nextInt().toByte)
-      .srcAddr(InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address])
+      .ttl(simRandom.nextInt().toByte)
+      .srcAddr(InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address])
       .dstAddr(InetAddress.getByName("224.0.0.1").asInstanceOf[Inet4Address])
       .correctLengthAtBuild(true)
       .correctChecksumAtBuild(true)
       .payloadBuilder(rawPayloadBuilder(hexToBytesBE("1164ee9b00000000").toArray))
 
     val ethernetBuilder = (new EthernetPacket.Builder)
-      .srcAddr(MacAddress.getByAddress(Random.nextBytes(6)))
+      .srcAddr(MacAddress.getByAddress(simRandom.nextBytes(6)))
       .dstAddr(MacAddress.getByName("01:00:5e:00:00:01"))
       .`type`(EtherType.IPV4)
       .paddingAtBuild(true)
@@ -485,7 +485,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
           cs.log(f"Received status register: $desc")
 
           // do not process packets too fast, or other cores will never get invoked
-          sleepCycles(Random.between(50, 100))
+          sleepCycles(simRandom.between(50, 100))
           cs.log("Sleep finished, checking packet data...")
 
           // packet generator return little endian xid but sends in big endian
@@ -613,7 +613,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
                  (implicit d: PcapDumper, dut: NicEngine) = {
     // Sweep at given range and step, send IP packets over bypass
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
-      0 until Random.between(25, 50) foreach { _ =>
+      0 until simRandom.between(25, 50) foreach { _ =>
         txTestSingle(dcsMaster, csrMaster, axisSlave, getIpPacketFromEnzian(1, size), tid)
       }
     }
@@ -918,7 +918,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val (packet, pld, xid) = getPacket()
 
     // first response data (longer than inline bytes)
-    val respData = Random.nextBytes(512).toList
+    val respData = simRandom.nextBytes(512).toList
     val clientIp = packet.get(classOf[IpV4Packet]).getHeader.getSrcAddr
     val clientMac = packet.getHeader.getSrcAddr
 
@@ -926,7 +926,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val (packet2, pld2, xid2) = getPacket()
 
     // second response data (shorter than inline bytes)
-    val respData2 = Random.nextBytes(16).toList
+    val respData2 = simRandom.nextBytes(16).toList
     val clientIp2 = packet2.get(classOf[IpV4Packet]).getHeader.getSrcAddr
     val clientMac2 = packet2.getHeader.getSrcAddr
 
@@ -1098,7 +1098,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       Some("rx-sched-idle-scale-many"))
     // sending packets is based on per service
     val pktsToSendStructured = srvDefs.map { case (_, ss) =>
-      ss.map(_ => Random.between(50, 100))
+      ss.map(_ => simRandom.between(50, 100))
     }
     val pktsToSend = pktsToSendStructured.flatten
     val pktsSent = mutable.ArrayBuffer.fill(srvs.length)(0)
@@ -1117,7 +1117,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     fork {
       while (pktsToSend.sum > pktsSent.sum) {
-        val srvToSend = Random.nextInt(srvs.length)
+        val srvToSend = simRandom.nextInt(srvs.length)
         if (pktsToSend(srvToSend) > pktsSent(srvToSend)) {
           val (funcPtr, getPacket, pid) = srvs(srvToSend)
 
@@ -1179,7 +1179,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
               exitCriticalSection(dcsMaster, tid)
               procLog("finished receiving")
-              sleepCycles(Random.between(50, 100))
+              sleepCycles(simRandom.between(50, 100))
 
               val xid = Integer.reverseBytes(info.xid.toInt)
               if (!pktsToReceive.contains((pid, xid))) {
