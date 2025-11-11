@@ -8,9 +8,9 @@ import org.pcap4j.util.MacAddress
 import org.scalatest.Assertions.fail
 import org.scalatest.Tag
 import spinal.core.IntToBuilder
+import spinal.core.sim.simRandom
 
 import java.net.{Inet4Address, InetAddress}
-import scala.util.Random
 
 package object sim {
   object Rx extends Tag("lauberhorn.sim.tags.Rx")
@@ -58,7 +58,7 @@ package object sim {
   }
 
   def randomExclude(lowerInclusive: Int, upperInclusive: Int)(excludes: Int*): Int = {
-    var attempt = Random.between(lowerInclusive, upperInclusive)
+    var attempt = simRandom.between(lowerInclusive, upperInclusive)
     for (e <- excludes.sorted) {
       if (attempt < e) {
         return attempt
@@ -71,16 +71,16 @@ package object sim {
 
   def ethernetPacket(ty: EtherType, payloadBuilder: Packet.Builder) =
     (new EthernetPacket.Builder)
-      .srcAddr(MacAddress.getByAddress(Random.nextBytes(6)))
-      .dstAddr(MacAddress.getByAddress(Random.nextBytes(6)))
+      .srcAddr(MacAddress.getByAddress(simRandom.nextBytes(6)))
+      .dstAddr(MacAddress.getByAddress(simRandom.nextBytes(6)))
       .`type`(ty)
       .paddingAtBuild(true)
       .payloadBuilder(payloadBuilder)
       .build()
 
   def ipPacket(ty: IpNumber, payloadBuilder: Packet.Builder) = {
-    val srcAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
-    val dstAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
+    val srcAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
+    val dstAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
     payloadBuilder match {
       case udpBuilder: UdpPacket.Builder =>
         udpBuilder
@@ -93,7 +93,7 @@ package object sim {
       .version(IpVersion.IPV4)
       .protocol(ty)
       .tos(IpV4Rfc1349Tos.newInstance(0))
-      .ttl(Random.nextInt().toByte)
+      .ttl(simRandom.nextInt().toByte)
       .srcAddr(srcAddr)
       .dstAddr(dstAddr)
       .correctLengthAtBuild(true)
@@ -138,16 +138,16 @@ package object sim {
   def rawPayloadBuilder(payload: Array[Byte]) = (new UnknownPacket.Builder).rawData(payload)
 
   def randomPacket(mtu: Int, randomizeLen: Boolean = true)(protocols: PacketType*): (Packet, PacketType) = {
-    val proto = choose(protocols.iterator, Random)
+    val proto = choose(protocols.iterator, simRandom)
     var payloadLen: Int = 0
 
     def randomPayloadLen(headerLen: Int) = {
-      val totalLen = if (randomizeLen) Random.nextInt(mtu) else mtu
+      val totalLen = if (randomizeLen) simRandom.nextInt(mtu) else mtu
       if (totalLen < headerLen) 0
       else totalLen - headerLen
     }
 
-    def builder() = rawPayloadBuilder(Random.nextBytes(payloadLen))
+    def builder() = rawPayloadBuilder(simRandom.nextBytes(payloadLen))
 
     val ret = proto match {
       case Ethernet =>
@@ -168,8 +168,8 @@ package object sim {
       case Udp =>
         payloadLen = randomPayloadLen(14 + 20 + 8)
         udpPacket(
-          Random.nextInt(65536),
-          Random.nextInt(65536),
+          simRandom.nextInt(65536),
+          simRandom.nextInt(65536),
           builder())
     }
 
@@ -206,7 +206,7 @@ package object sim {
       .dstAddr(dstIpAddr)
       .correctLengthAtBuild(true)
       .correctChecksumAtBuild(true)
-      .payloadBuilder(rawPayloadBuilder(Random.nextBytes(pldLen)))
+      .payloadBuilder(rawPayloadBuilder(simRandom.nextBytes(pldLen)))
 
     val ret = (new EthernetPacket.Builder)
       .srcAddr(srcMacAddr)
@@ -234,16 +234,16 @@ package object sim {
   }
 
   def getIpPacketToEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
-    val srcIpAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
-    val srcMacAddr = MacAddress.getByAddress(Random.nextBytes(6))
+    val srcIpAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
+    val srcMacAddr = MacAddress.getByAddress(simRandom.nextBytes(6))
     val (dstIpAddr, dstMacAddr) = enzianIpMacAddrs(hostNum)
 
     getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
   }
 
   def getIpPacketFromEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
-    val dstIpAddr = InetAddress.getByAddress(Random.nextBytes(4)).asInstanceOf[Inet4Address]
-    val dstMacAddr = MacAddress.getByAddress(Random.nextBytes(6))
+    val dstIpAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
+    val dstMacAddr = MacAddress.getByAddress(simRandom.nextBytes(6))
     val (srcIpAddr, srcMacAddr) = enzianIpMacAddrs(hostNum)
 
     getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
