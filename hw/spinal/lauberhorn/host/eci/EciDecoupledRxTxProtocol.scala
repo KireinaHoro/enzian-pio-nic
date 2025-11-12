@@ -430,7 +430,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txFsm.build()
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
-    isBypass generate new Area {
+    isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
