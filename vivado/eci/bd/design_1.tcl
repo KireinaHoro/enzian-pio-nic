@@ -449,6 +449,7 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
   create_bd_pin -dir O -type rst app_clk_reset
   create_bd_pin -dir O -from 0 -to 0 -type rst app_clk_resetn
   create_bd_pin -dir O -from 0 -to 0 no_rst
+  create_bd_pin -dir I -type rst app_aux_reset
 
   # Create instance: clk_wiz_app, and set properties
   set clk_wiz_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_app ]
@@ -482,6 +483,8 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
 
   # Create instance: rst_app, and set properties
   set rst_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_app ]
+  set_property CONFIG.C_AUX_RESET_HIGH {1} $rst_app
+
 
   # Create instance: ilconstant_1, and set properties
   set ilconstant_1 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilconstant:1.0 ilconstant_1 ]
@@ -493,6 +496,8 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
   [get_bd_pins app_clk_reset]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins rst_app/peripheral_aresetn] \
   [get_bd_pins app_clk_resetn]
+  connect_bd_net -net aux_reset_in_0_1  [get_bd_pins app_aux_reset] \
+  [get_bd_pins rst_app/aux_reset_in]
   connect_bd_net -net clk_io_2  [get_bd_pins clk_io] \
   [get_bd_pins rst_cmac_init/slowest_sync_clk] \
   [get_bd_pins clk_wiz_app/clk_in1]
@@ -574,6 +579,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   create_bd_pin -dir O -from 0 -to 0 core_tx_reset
   create_bd_pin -dir O -from 0 -to 0 hi
   create_bd_pin -dir O -from 3 -to 0 gt_polarity
+  create_bd_pin -dir O -from 0 -to 0 app_aux_reset
 
   # Create instance: xpm_cdc_gen_1, and set properties
   set xpm_cdc_gen_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xpm_cdc_gen:1.0 xpm_cdc_gen_1 ]
@@ -594,7 +600,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
   set_property -dict [list \
     CONFIG.C_NUM_PROBE_IN {4} \
-    CONFIG.C_NUM_PROBE_OUT {5} \
+    CONFIG.C_NUM_PROBE_OUT {6} \
     CONFIG.C_PROBE_OUT0_WIDTH {1} \
   ] $vio_0
 
@@ -622,6 +628,8 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
    }
   
   # Create port connections
+  connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
+  [get_bd_pins app_aux_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins rxclk] \
   [get_bd_pins vio_0/clk] \
   [get_bd_pins xpm_cdc_gen_2/src_clk] \
@@ -835,6 +843,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
 
   # Create port connections
+  connect_bd_net -net app_aux_reset_1  [get_bd_pins hier_cmac_ctrl_stat/app_aux_reset] \
+  [get_bd_pins hier_clk_rst/app_aux_reset]
   connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins hier_clk_rst/app_clk_reset] \
   [get_bd_ports app_clk_reset]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins hier_clk_rst/app_clk_resetn] \
