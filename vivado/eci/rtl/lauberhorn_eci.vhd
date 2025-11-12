@@ -1671,7 +1671,7 @@ NicEngine_inst : entity work.NicEngine
 
     alloc_req_valid => alloc_req(17),
     alloc_req_ready => alloc_req(16),
-    alloc_req_payload_size_bits => alloc_req(15 downto 0)
+    alloc_req_payload_bits => alloc_req(15 downto 0)
   );
 
 end Behavioral;
