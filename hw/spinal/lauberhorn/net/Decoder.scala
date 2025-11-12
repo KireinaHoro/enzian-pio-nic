@@ -54,8 +54,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param payload payload data stream produced by this stage
     */
   protected def produce(metadata: Stream[T], payload: Axi4Stream): Unit = new Composite(this, "produce") {
-    // FIXME: do we need synchronous here?
-    val forkedHeaders = StreamFork(metadata, consumers.length + 1)//, synchronous = true)
+    val forkedHeaders = StreamFork(metadata, consumers.length + 1)
     val forkedPayloads = StreamFork(payload, consumers.length + 1)
 
     val attempts = mutable.ListBuffer[Bool]()

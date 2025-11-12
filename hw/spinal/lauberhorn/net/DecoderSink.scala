@@ -87,7 +87,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     val pldSel = RegNext(pldSelNext)
     pldSelNext := pldSel
 
-    // we can't enforce that the payload must come IMMEDIATELY AFTER the descriptor,
+    // We can't enforce that the payload must come IMMEDIATELY AFTER the descriptor,
     // since interfaces might get pipelined and will get out of sync.  We only activate
     // the mux after each descriptor and disable it after each payload, to avoid the
     // following situation:
@@ -97,8 +97,13 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     // UDP Hdr      h         h
     // UDP Pld  pppppppp  pppppppp
     //
-    // In the above situation, if we don't disable the payload mux, the second UDP payload
-    // will be confused as the payload for the Ethernet packet.
+    // In the above situation, if we would use a round-robin arbiter for payloads, the
+    // second UDP payload will be confused as the payload for the Ethernet packet.
+    //
+    // This introduces a deadlock due to back pressure: a later Ethernet packet
+    // can flip the payload mux and block an earlier Ip packet from draining,
+    // which then back pressures the Ethernet decoder from fully outputting the
+    // first packet.  We really need to refactor to use TUSER for packet header...
     val pldSelEnNext = Bool()
     val pldSelEn = RegNext(pldSelEnNext) init False
     pldSelEnNext := pldSelEn

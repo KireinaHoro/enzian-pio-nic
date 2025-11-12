@@ -332,7 +332,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     })
 
     fork {
-      sleepCycles(simRandom.nextInt(200))
+      randomSleep(200)
 
       val toSend = packet.getRawData.toList
       axisMaster.send(toSend)
@@ -485,7 +485,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
           cs.log(f"Received status register: $desc")
 
           // do not process packets too fast, or other cores will never get invoked
-          sleepCycles(simRandom.between(50, 100))
+          randomSleep(100, 50)
           cs.log("Sleep finished, checking packet data...")
 
           // packet generator return little endian xid but sends in big endian
@@ -808,7 +808,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   testWithDB("rx-bypass-pipelined", Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
-    val numPackets = 5
+    val numPackets = 200
 
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
@@ -835,6 +835,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
       }
       println(s"Received packet #$received")
 
+      randomSleep(2000)
+
       received += 1
     })
 
@@ -850,6 +852,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
         println(s"Sent packet #$pid of length ${toSend.length}")
 
         toCheck.append((packet, proto))
+
+        // Add random delay to trigger more paths
+        randomSleep(2000)
       }
     }
 
@@ -1179,7 +1184,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
               exitCriticalSection(dcsMaster, tid)
               procLog("finished receiving")
-              sleepCycles(simRandom.between(50, 100))
+              randomSleep(100, 50)
 
               val xid = Integer.reverseBytes(info.xid.toInt)
               if (!pktsToReceive.contains((pid, xid))) {
