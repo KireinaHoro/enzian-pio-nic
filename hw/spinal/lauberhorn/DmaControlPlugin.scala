@@ -54,6 +54,7 @@ class DmaControlPlugin extends FiberPlugin {
     */
   lazy val dps = host.list[DatapathService]
   lazy val sched = host[Scheduler]
+  lazy val debug = host[DebugPlugin]
 
   val bypassSink = during setup host[BypassCmdSink].getSink()
   val logic = during build new Area {
@@ -96,6 +97,10 @@ class DmaControlPlugin extends FiberPlugin {
     def inc(f: statistics.type => UInt) = {
       f(statistics) := f(statistics) + 1
     }
+
+    debug.postDebug("alloc_free", rxAlloc.io.freeReq)
+    debug.postDebug("alloc_req", rxAlloc.io.allocReq)
+    debug.postDebug("alloc_resp", rxAlloc.io.allocResp)
 
     rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
     rxAlloc.io.allocResp.setBlocked()
