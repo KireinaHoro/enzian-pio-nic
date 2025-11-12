@@ -144,6 +144,7 @@ xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:system_ila:1.1\
 xilinx.com:ip:c_counter_binary:12.0\
+xilinx.com:inline_hdl:ilvector_logic:1.0\
 "
 
    set list_ips_missing ""
@@ -233,9 +234,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   current_bd_instance $hier_obj
 
   # Create interface pins
-  create_bd_intf_pin -mode Monitor -vlnv xilinx.com:interface:aximm_rtl:1.0 SLOT_0_AXI
+  create_bd_intf_pin -mode Monitor -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_even
 
-  create_bd_intf_pin -mode Monitor -vlnv xilinx.com:interface:aximm_rtl:1.0 SLOT_1_AXI
+  create_bd_intf_pin -mode Monitor -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_odd
 
   create_bd_intf_pin -mode Monitor -vlnv xilinx.com:interface:axis_rtl:1.0 SLOT_0_AXIS
 
@@ -264,6 +265,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -type rst resetn1
   create_bd_pin -dir I -type clk rxclk
   create_bd_pin -dir I -type rst resetn2
+  create_bd_pin -dir I -from 41 -to 0 alloc_free
+  create_bd_pin -dir I -from 41 -to 0 alloc_resp
+  create_bd_pin -dir I -from 17 -to 0 alloc_req
 
   # Create instance: ila_app, and set properties
   set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
@@ -274,7 +278,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {16} \
+    CONFIG.C_NUM_OF_PROBES {19} \
     CONFIG.C_PROBE0_WIDTH {17} \
     CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE11_WIDTH {58} \
@@ -283,6 +287,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE14_WIDTH {58} \
     CONFIG.C_PROBE15_TYPE {1} \
     CONFIG.C_PROBE15_WIDTH {48} \
+    CONFIG.C_PROBE16_WIDTH {42} \
+    CONFIG.C_PROBE17_WIDTH {42} \
+    CONFIG.C_PROBE18_WIDTH {18} \
     CONFIG.C_PROBE1_WIDTH {17} \
     CONFIG.C_PROBE2_WIDTH {17} \
     CONFIG.C_PROBE3_WIDTH {17} \
@@ -293,31 +300,22 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE8_WIDTH {76} \
     CONFIG.C_PROBE9_WIDTH {76} \
     CONFIG.C_PROBE_WIDTH_PROPAGATION {MANUAL} \
-    CONFIG.C_SLOT {0} \
-    CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_SLOT {1} \
+    CONFIG.C_SLOT_0_APC_EN {0} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {38} \
     CONFIG.C_SLOT_0_AXI_DATA_WIDTH {512} \
     CONFIG.C_SLOT_0_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_0_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_0_MAX_WR_BURSTS {8} \
-    CONFIG.C_SLOT_1_APC_EN {1} \
+    CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
+    CONFIG.C_SLOT_1_APC_EN {0} \
     CONFIG.C_SLOT_1_AXI_ADDR_WIDTH {38} \
     CONFIG.C_SLOT_1_AXI_DATA_WIDTH {512} \
     CONFIG.C_SLOT_1_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_1_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_1_MAX_WR_BURSTS {8} \
+    CONFIG.C_SLOT_1_TXN_CNTR_EN {0} \
   ] $ila_app
-
-
-  # Create instance: ila_cmac_tx, and set properties
-  set ila_cmac_tx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_cmac_tx ]
-  set_property -dict [list \
-    CONFIG.C_ADV_TRIGGER {true} \
-    CONFIG.C_EN_STRG_QUAL {1} \
-    CONFIG.C_INPUT_PIPE_STAGES {2} \
-    CONFIG.C_SLOT_0_APC_EN {1} \
-    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
-  ] $ila_cmac_tx
 
 
   # Create instance: app_clock, and set properties
@@ -336,32 +334,88 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   set_property -dict [list \
     CONFIG.C_ADV_TRIGGER {true} \
     CONFIG.C_EN_STRG_QUAL {1} \
-    CONFIG.C_INPUT_PIPE_STAGES {2} \
-    CONFIG.C_MON_TYPE {INTERFACE} \
-    CONFIG.C_NUM_OF_PROBES {4} \
-    CONFIG.C_SLOT_0_APC_EN {1} \
+    CONFIG.C_INPUT_PIPE_STAGES {0} \
+    CONFIG.C_MON_TYPE {MIX} \
+    CONFIG.C_NUM_MONITOR_SLOTS {1} \
+    CONFIG.C_NUM_OF_PROBES {1} \
+    CONFIG.C_SLOT {0} \
+    CONFIG.C_SLOT_0_APC_EN {0} \
     CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+    CONFIG.C_SLOT_1_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
   ] $ila_cmac_rx
 
 
+  # Create instance: cmac_rx_clk, and set properties
+  set cmac_rx_clk [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_counter_binary:12.0 cmac_rx_clk ]
+  set_property -dict [list \
+    CONFIG.Implementation {DSP48} \
+    CONFIG.Output_Width {48} \
+    CONFIG.SCLR {true} \
+  ] $cmac_rx_clk
+
+
+  # Create instance: ila_cmac_tx, and set properties
+  set ila_cmac_tx [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_cmac_tx ]
+  set_property -dict [list \
+    CONFIG.C_ADV_TRIGGER {true} \
+    CONFIG.C_EN_STRG_QUAL {1} \
+    CONFIG.C_INPUT_PIPE_STAGES {0} \
+    CONFIG.C_MON_TYPE {MIX} \
+    CONFIG.C_NUM_MONITOR_SLOTS {1} \
+    CONFIG.C_NUM_OF_PROBES {1} \
+    CONFIG.C_SLOT {0} \
+    CONFIG.C_SLOT_0_APC_EN {0} \
+    CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+    CONFIG.C_SLOT_1_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+  ] $ila_cmac_tx
+
+
+  # Create instance: cmac_tx_clk, and set properties
+  set cmac_tx_clk [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_counter_binary:12.0 cmac_tx_clk ]
+  set_property -dict [list \
+    CONFIG.Implementation {DSP48} \
+    CONFIG.Output_Width {48} \
+    CONFIG.SCLR {true} \
+  ] $cmac_tx_clk
+
+
+  # Create instance: ilvector_logic_0, and set properties
+  set ilvector_logic_0 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilvector_logic:1.0 ilvector_logic_0 ]
+  set_property CONFIG.C_OPERATION {not} $ilvector_logic_0
+
+
+  # Create instance: ilvector_logic_1, and set properties
+  set ilvector_logic_1 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilvector_logic:1.0 ilvector_logic_1 ]
+  set_property CONFIG.C_OPERATION {not} $ilvector_logic_1
+
+
   # Create interface connections
-  connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_pins SLOT_0_AXIS] [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS]
+  connect_bd_intf_net -intf_net Conn [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS] [get_bd_intf_pins SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_pins SLOT_0_AXIS1] [get_bd_intf_pins ila_cmac_rx/SLOT_0_AXIS]
-  connect_bd_intf_net -intf_net dcs_even [get_bd_intf_pins SLOT_0_AXI] [get_bd_intf_pins ila_app/SLOT_0_AXI]
-  connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_pins SLOT_1_AXI] [get_bd_intf_pins ila_app/SLOT_1_AXI]
+  connect_bd_intf_net -intf_net dcs_even [get_bd_intf_pins dcs_even] [get_bd_intf_pins ila_app/SLOT_0_AXI]
+  connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_pins dcs_odd] [get_bd_intf_pins ila_app/SLOT_1_AXI]
 
   # Create port connections
+  connect_bd_net -net alloc_free  [get_bd_pins alloc_free] \
+  [get_bd_pins ila_app/probe16]
+  connect_bd_net -net alloc_req  [get_bd_pins alloc_req] \
+  [get_bd_pins ila_app/probe18]
+  connect_bd_net -net alloc_resp  [get_bd_pins alloc_resp] \
+  [get_bd_pins ila_app/probe17]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
-  connect_bd_net -net app_clock_Q  [get_bd_pins app_clock/Q] \
+  connect_bd_net -net app_clock  [get_bd_pins app_clock/Q] \
   [get_bd_pins ila_app/probe15]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins app_clk] \
   [get_bd_pins app_clock/CLK] \
   [get_bd_pins ila_app/clk]
+  connect_bd_net -net cmac_rx_clk  [get_bd_pins cmac_rx_clk/Q] \
+  [get_bd_pins ila_cmac_rx/probe0]
+  connect_bd_net -net cmac_tx_clk  [get_bd_pins cmac_tx_clk/Q] \
+  [get_bd_pins ila_cmac_tx/probe0]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins rxclk] \
-  [get_bd_pins ila_cmac_rx/clk]
-  connect_bd_net -net cmac_usplus_0_gt_txusrclk2  [get_bd_pins txclk] \
-  [get_bd_pins ila_cmac_tx/clk]
+  [get_bd_pins ila_cmac_rx/clk] \
+  [get_bd_pins cmac_rx_clk/CLK]
   connect_bd_net -net core0_states_1  [get_bd_pins core0_states] \
   [get_bd_pins ila_app/probe0]
   connect_bd_net -net core1_states_1  [get_bd_pins core1_states] \
@@ -380,6 +434,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe13]
   connect_bd_net -net dcs_odd_trace_1_1  [get_bd_pins dcs_odd_trace_1] \
   [get_bd_pins ila_app/probe14]
+  connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
+  [get_bd_pins cmac_rx_clk/SCLR]
+  connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
+  [get_bd_pins cmac_tx_clk/SCLR]
   connect_bd_net -net lci_even_1  [get_bd_pins lci_even] \
   [get_bd_pins ila_app/probe5]
   connect_bd_net -net lci_odd_1  [get_bd_pins lci_odd] \
@@ -388,10 +446,15 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe6]
   connect_bd_net -net lcia_odd_1  [get_bd_pins lcia_odd] \
   [get_bd_pins ila_app/probe9]
-  connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins resetn1] \
-  [get_bd_pins ila_cmac_tx/resetn]
+  connect_bd_net -net resetn1_1  [get_bd_pins resetn1] \
+  [get_bd_pins ila_cmac_tx/resetn] \
+  [get_bd_pins ilvector_logic_1/Op1]
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins resetn2] \
-  [get_bd_pins ila_cmac_rx/resetn]
+  [get_bd_pins ila_cmac_rx/resetn] \
+  [get_bd_pins ilvector_logic_0/Op1]
+  connect_bd_net -net txclk_1  [get_bd_pins txclk] \
+  [get_bd_pins cmac_tx_clk/CLK] \
+  [get_bd_pins ila_cmac_tx/clk]
   connect_bd_net -net ul_even_1  [get_bd_pins ul_even] \
   [get_bd_pins ila_app/probe7]
   connect_bd_net -net ul_odd_1  [get_bd_pins ul_odd] \
@@ -797,6 +860,9 @@ proc create_root_design { parentCell } {
   set dcs_even_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_even_trace_1 ]
   set dcs_odd_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_0 ]
   set dcs_odd_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_1 ]
+  set alloc_free [ create_bd_port -dir I -from 41 -to 0 alloc_free ]
+  set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
+  set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -838,8 +904,8 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports 
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets cmac_usplus_0_axis_rx] [get_bd_intf_ports rx_axis] [get_bd_intf_pins hier_ilas/SLOT_0_AXIS1]
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
-connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins hier_ilas/SLOT_0_AXI]
-connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins hier_ilas/SLOT_1_AXI]
+connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins hier_ilas/dcs_even]
+connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins hier_ilas/dcs_odd]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
 
   # Create port connections
@@ -923,6 +989,12 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/lcia_even]
   connect_bd_net -net lcia_odd_1  [get_bd_ports lcia_odd] \
   [get_bd_pins hier_ilas/lcia_odd]
+  connect_bd_net -net probe16_0_1  [get_bd_ports alloc_free] \
+  [get_bd_pins hier_ilas/alloc_free]
+  connect_bd_net -net probe17_0_1  [get_bd_ports alloc_resp] \
+  [get_bd_pins hier_ilas/alloc_resp]
+  connect_bd_net -net probe18_0_1  [get_bd_ports alloc_req] \
+  [get_bd_pins hier_ilas/alloc_req]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset]
   connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins hier_clk_rst/txclk_rstn] \
