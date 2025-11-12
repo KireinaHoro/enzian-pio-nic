@@ -671,6 +671,9 @@ signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(16 downto 0);
 signal dcs_even_trace_0, dcs_even_trace_1, dcs_odd_trace_0, dcs_odd_trace_1 : std_logic_vector(57 downto 0);
 
+signal alloc_resp, alloc_free : std_logic_vector(41 downto 0);
+signal alloc_req : std_logic_vector(17 downto 0);
+
 -- LCL channel signals between DC and the NIC engine
 signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
 signal dcs_c17_i               : LCL_CHANNEL; -- LCL FWD WOD
@@ -1448,7 +1451,12 @@ axil_cdc_inst : entity work.axil_cdc
     dcs_even_trace_0 => dcs_even_trace_0,
     dcs_even_trace_1 => dcs_even_trace_1,
     dcs_odd_trace_0 => dcs_odd_trace_0,
-    dcs_odd_trace_1 => dcs_odd_trace_1
+    dcs_odd_trace_1 => dcs_odd_trace_1,
+
+    -- RX allocator
+    alloc_free => alloc_free,
+    alloc_resp => alloc_resp,
+    alloc_req => alloc_req
 );
 
 NicEngine_inst : entity work.NicEngine
@@ -1649,7 +1657,21 @@ NicEngine_inst : entity work.NicEngine
     core4_rxFsm_state => core4_states(11 downto 9),
     core4_txFsm_state => core4_states(14 downto 12),
     core4_rxClIdx => core4_states(15),
-    core4_txClIdx => core4_states(16)
+    core4_txClIdx => core4_states(16),
+
+    alloc_free_valid => alloc_free(41),
+    alloc_free_ready => alloc_free(40),
+    alloc_free_payload_addr_bits => alloc_free(39 downto 16),
+    alloc_free_payload_size_bits => alloc_free(15 downto 0),
+
+    alloc_resp_valid => alloc_resp(41),
+    alloc_resp_ready => alloc_resp(40),
+    alloc_resp_payload_addr_bits => alloc_resp(39 downto 16),
+    alloc_resp_payload_size_bits => alloc_resp(15 downto 0),
+
+    alloc_req_valid => alloc_req(17),
+    alloc_req_ready => alloc_req(16),
+    alloc_req_payload_size_bits => alloc_req(15 downto 0)
   );
 
 end Behavioral;
