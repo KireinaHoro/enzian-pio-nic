@@ -511,14 +511,16 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int)(implicit dut: NicEngine): Unit = {
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false)(implicit dut: NicEngine): Unit = {
     val etd = getEciThreadData(tid)
     val coreBase = etd.baseAddr
     def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
 
-    // since we didn't implement killing a process yet, we should never get descheduled during TX
-    val descheduled = !enterCriticalSection(dcsMaster, tid)
-    assert(!descheduled, "should never get descheduled during TX")
+    if (!skipCS) {
+      // since we didn't implement killing a process yet, we should never get descheduled during TX
+      val descheduled = !enterCriticalSection(dcsMaster, tid)
+      assert(!descheduled, "should never get descheduled during TX")
+    }
 
     etd.log(f"sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
     dcsMaster.write(clAddr, txDesc.toTxDesc)
@@ -536,7 +538,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
     etd.flipTx()
     dcsMaster.read(clAddr, 1)
 
-    exitCriticalSection(dcsMaster, tid)
+    if (!skipCS) {
+      exitCriticalSection(dcsMaster, tid)
+    }
   }
 
   /** Test sending one single packet as bypass on a specific thread.  Also checks if the expected packet appears on the
@@ -870,6 +874,71 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestSimple(dcsMaster, axisMaster, packet, proto, maxRetries = maxTries + 1)
 
     assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "packet should not be duplicated")
+  }
+
+  testWithDB("rx-tx-interleaved")() { implicit dut =>
+    // The bypass core can have RX and TX happening simultaneously, so it's
+    // important that the interconnects can allow unrelated reads/writes to
+    // interleave.  However, we can't directly check on bypass, since no
+    // read blocking is in place for bypass, making it difficult to construct
+    // an artificial case where two reads will go to the same 2F2F state machine
+    // and potentially interleave.  In this case we test with one worker core
+    // and skip the TX critical section to allow the following two reads to
+    // interleave:
+    // - RX read (blocked until NACK)
+    // - TX read (CL refill for load exclusive -> modify)
+
+    // use very high read timeout
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(20000)
+
+    // set up a random process
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom))).head
+
+    // send a packet to get scheduled
+    val (pkt1, pld, xid) = getPacket()
+    fork {
+      axisMaster.send(pkt1.getRawData.toList)
+      println("Sent first request packet")
+    }
+
+    val cs = workerCore(0)
+    cs.waitUser()
+    val tid = cs.currThread.get.tid
+    cs.log("Entered user thread")
+
+    val _ = tryReadPacketDesc(dcsMaster, tid).result.get
+
+    // start reading second packet
+    var done = false
+    fork {
+      println("Starting long read that will block...")
+      assert(tryReadPacketDesc(dcsMaster, tid, maxTries = 1).result.isEmpty)
+      println("Read done!")
+      done = true
+    }
+
+    // try sending a packet and see if we can get through
+    {
+      val resp1 = simRandom.nextBytes(16).toList
+      val desc = TxOncRpcReplySim(resp1.length, funcPtr, xid, resp1.bytesToBigInt)
+
+      sleepCycles(1000)
+
+      println("Starting read for TX...")
+      // skip critical section!
+      txSendSingle(dcsMaster, desc, List.empty, tid, skipCS = true)
+
+      // wait a bit and check did we finish after RX did;
+      // if we could properly interleave, this small wait won't make a difference;
+      // if we would be blocked, the wait would allow RX to set done and thus fail
+      // the assertion
+      sleepCycles(5000)
+      assert(!done, "TX delayed until RX is finished!")
+      println("TX done")
+    }
+
+    waitUntil(done)
   }
 
   testWithDB("rx-no-promisc")(Rx) { implicit dut =>
