@@ -4,6 +4,8 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.misc.plugin.FiberPlugin
 
+import lauberhorn.Global.BYPASS_PKTS
+
 import scala.collection.mutable
 
 /** Collects different sources of commands for the bypass core and muxes them
@@ -22,6 +24,9 @@ class BypassCmdSink extends FiberPlugin {
   }
 
   val logic = during build new Area {
-    bypassDp.hostRx <-/< StreamArbiterFactory(s"${getName()}_bypassDescMux").roundRobin.on(upstreams)
+    bypassDp.hostRx <-/< StreamArbiterFactory(s"${getName()}_bypassDescMux")
+      .roundRobin
+      .on(upstreams)
+      .queue(BYPASS_PKTS)
   }
 }

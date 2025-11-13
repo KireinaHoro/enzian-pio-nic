@@ -56,21 +56,30 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     txFifo.s_axis <-/< txAligner.io.output
     txFifo.m_axis >> m_axis_tx
 
-    val rxFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(cmacRxClock, clockDomain)
+    val rxFifo = AxiStreamAsyncFifo(axisConfig,
+      frameFifo = true,    // frame mode to allow frameLen to be produced before packet goes downstream
+      dropWhenFull = true, // must set since nobody is listening to s_axis_rx.ready
+      depthBytes = ROUNDED_MTU)()(cmacRxClock, clockDomain)
     rxFifo.s_axis << s_axis_rx
 
     // report overflow
-    val rxOverflow = Bool()
-    val rxOverflowCdc = PulseCCByToggle(rxOverflow, cmacRxClock, clockDomain)
-    val rxMacOverflowCount = Counter(REG_WIDTH bits, rxOverflowCdc)
+    val rxMacOverflowCount = Counter(REG_WIDTH bits, rxFifo.io.m_status.overflow)
 
-    // extract frame length
-    val frameLen = s_axis_rx.frameLength.map(_.resized.toPacketLength).toStream(rxOverflow)
+    // extract frame length and push into TUSER
+    // EthernetDecoder relies on this being available before packet content
+    val frameLenOverflow = Bool()
+    val frameLen = s_axis_rx
+      .frameLength
+      .map(_.resized.toPacketLength)
+      .toStream(frameLenOverflow)
+      .throwWhen(rxFifo.io.s_status.overflow) // do not enqueue the length of a dropped packet
+    assert(!frameLenOverflow, "frame length should never overflow")
+
     val frameLenCdc = frameLen.clone
-    // XXX: this is only buffering packet length.  We should never drop anything here: the decoder pipeline
-    //      should decode everything.  The place where a drop is allowed to happen, is in the scheduler
-    // this FIFO needs to hold max burst rate * inter packet gap on decoder pipeline
-    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc, 32, cmacRxClock, clockDomain)
+
+    // this FIFO needs to hold lengths of everything buffered in rxFifo
+    val frameLenCdcFifo = SimpleAsyncFifo(frameLen, frameLenCdc,
+      ROUNDED_MTU / 64, cmacRxClock, clockDomain)
 
     // profile timestamps
     p.profile(
