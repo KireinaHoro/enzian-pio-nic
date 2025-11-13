@@ -21,6 +21,7 @@ object Global extends AreaRoot {
   val NUM_PROCS = value[Int]
   val NUM_THREADS = value[Int]
   val RX_PKTS_PER_PROC = value[Int]
+  val BYPASS_PKTS = value[Int]
 
   val DATAPATH_WIDTH = value[Int]
   val REG_WIDTH = value[Int]
@@ -130,6 +131,8 @@ object Global extends AreaRoot {
     NUM_SESSIONS.set(16)
     NUM_PROCS.set(16)
     RX_PKTS_PER_PROC.set(32)
+
+    BYPASS_PKTS.set(128)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
 
     // maximum #worker threads per process (app)
