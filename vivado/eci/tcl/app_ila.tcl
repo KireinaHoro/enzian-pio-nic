@@ -21,60 +21,45 @@ proc def_alloc_chan_without_addr { busName probeNum } {
     create_hw_probe -no_gui_update -map probe$probeNum[15:0]     alloc_$busName.size[15:0] $ila
 }
 
+proc states_to_enum_defs { stateList } {
+    set idx 0
+    set numStates [llength $stateList]
+    set width [string length [format "%b" [expr $numStates - 1]]]
+    foreach s $stateList {
+        lappend ret $s
+        lappend ret [format "eq%d'h%x" $width $idx]
+        incr idx
+    }
+    return $ret
+}
+
 proc def_core_states { coreNum probeNum } {
     variable ila
 
-    add_hw_probe_enum -dict { \
-        BOOT        eq3'h0 \
-        idle        eq3'h1 \
-        decodeAr    eq3'h2 \
-        waitDesc    eq3'h3 \
-        waitInv     eq3'h4 \
-        sendDesc    eq3'h5 \
-        readPktBuf  eq3'h6 \
-        sendData    eq3'h7 \
-    } [create_hw_probe -no_gui_update -map probe$probeNum[2:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT idle decodeAr waitDesc waitInv
+        sendDesc readPktBuf sendData
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[2:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
 
-    add_hw_probe_enum -dict { \
-        BOOT            eq3'h0 \
-        idle            eq3'h1 \
-        decodeCmd       eq3'h2 \
-        waitInv         eq3'h3 \
-        sendPartialDesc eq3'h4 \
-        readPktBufCmd   eq3'h5 \
-        readPktBufData  eq3'h6 \
-        transmitDesc    eq3'h7 \
-    } [create_hw_probe -no_gui_update -map probe$probeNum[5:3]      core${coreNum}_txRouter_read_state[2:0]  $ila]
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT idle decodeCmd waitInv sendPartialDesc
+        readPktBufCmd readPktBufData transmitDesc
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[5:3]      core${coreNum}_txRouter_read_state[2:0]  $ila]
 
-    add_hw_probe_enum -dict { \
-        BOOT            eq3'h0 \
-        idle            eq3'h1 \
-        decodeCmd       eq3'h2 \
-        recvPartialDesc eq3'h3 \
-        writePktBufCmd  eq3'h4 \
-        writePktBufData eq3'h5 \
-        writePktBufResp eq3'h6 \
-    } [create_hw_probe -no_gui_update -map probe$probeNum[8:6]      core${coreNum}_txRouter_write_state[2:0] $ila]
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT idle decodeCmd recvPartialDesc
+        writePktBufCmd writePktBufData writePktBufResp
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[8:6]      core${coreNum}_txRouter_write_state[2:0] $ila]
 
-    add_hw_probe_enum -dict { \
-        BOOT                    eq3'h0 \
-        waitHostRead            eq3'h1 \
-        hostIssuedRead          eq3'h2 \
-        repeatPacket            eq3'h3 \
-        invalidatePacketData    eq3'h4 \
-        invalidateCtrl          eq3'h5 \
-        waitInvResp             eq3'h6 \
-    } [create_hw_probe -no_gui_update -map probe$probeNum[11:9]     core${coreNum}_rxFsm_state[2:0]          $ila]
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT waitHostRead hostIssuedRead repeatPacket
+        invalidatePacketData invalidateCtrl waitInvResp
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[11:9]     core${coreNum}_rxFsm_state[2:0]          $ila]
 
-    add_hw_probe_enum -dict { \
-        BOOT                    eq3'h0 \
-        idle                    eq3'h1 \
-        waitPacket              eq3'h2 \
-        invalidateCtrl          eq3'h3 \
-        waitInvResp             eq3'h4 \
-        invalidatePacketData    eq3'h5 \
-        tx                      eq3'h6 \
-    } [create_hw_probe -no_gui_update -map probe$probeNum[14:12]    core${coreNum}_txFsm_state[2:0]          $ila]
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT idle waitPacket invalidateCtrl
+        waitInvResp invalidatePacketData tx
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[14:12]    core${coreNum}_txFsm_state[2:0]          $ila]
 
     create_hw_probe -no_gui_update -map probe$probeNum[15]       core${coreNum}_rxClIdx                   $ila
     create_hw_probe -no_gui_update -map probe$probeNum[16]       core${coreNum}_txClIdx                   $ila
@@ -150,7 +135,7 @@ regexp {(\d+)$} [get_property NAME $ila] match ila_idx
 current_wave_config hw_ila_data_${ila_idx}.wcfg
 
 # Delete all user-defined probes first to avoid conflict.
-set usr_probes [get_hw_probes -of_object $ila -filter {SOURCE == user}]
+set usr_probes [get_hw_probes -quiet -of_object $ila -filter {SOURCE == user}]
 if {$usr_probes != ""} {
     delete_hw_probe $usr_probes
 }
