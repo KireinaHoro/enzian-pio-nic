@@ -123,7 +123,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   // TODO: test for various failures
-  testWithDB("rx-regular") { implicit dut =>
+  testWithDB("rx-regular")() { implicit dut =>
     val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core")
     val (master, axisMaster) = rxDutSetup(10000)
@@ -141,7 +141,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  testWithDB("tx-regular") { implicit dut =>
+  testWithDB("tx-regular")() { implicit dut =>
     // test sending with bypass core
     val coreBlock = ALLOC.readBack("core")
     val pktBufAddr = ALLOC.readBack("pkt")("buffer")
@@ -173,7 +173,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   }
 
   /** test enabling a ONCRPC service */
-  testWithDB("rx-oncrpc-roundrobin") { implicit dut =>
+  testWithDB("rx-oncrpc-roundrobin")() { implicit dut =>
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
     val globalBlock = ALLOC.readBack("global")
@@ -218,7 +218,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     dut.clockDomain.waitActiveEdgeWhere(master.idle)
   }
 
-  testWithDB("rx-timestamped-queued") { implicit dut =>
+  testWithDB("rx-timestamped-queued")() { implicit dut =>
     // test timestamp collection with oncrpc call
     val (master, axisMaster) = rxDutSetup(10000)
 
@@ -251,7 +251,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(readStart - entry >= delayed - 2)
   }
 
-  testWithDB("rx-timestamped-stalled") { implicit dut =>
+  testWithDB("rx-timestamped-stalled")() { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
 
     val globalBlock = ALLOC.readBack("global")
@@ -285,7 +285,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(entry - readStart >= delayed)
   }
 
-  testWithDB("tx-timestamped") { implicit dut =>
+  testWithDB("tx-timestamped")() { implicit dut =>
     val (master, axisSlave) = txDutSetup()
 
     val globalBlock = ALLOC.readBack("global")
