@@ -90,7 +90,7 @@ proc dcs_slice_to_slot { sliceName } {
     }
 }
 
-proc add_group_with_highlight { groupName signalList highlightList {groupParent ""} } {
+proc add_group_with_highlight { groupName signalList highlightList groupParent memberRegexp } {
     if {$groupParent == ""} {
         set groupParent [current_wave_config]
     }
@@ -104,16 +104,19 @@ proc add_group_with_highlight { groupName signalList highlightList {groupParent 
                 break
             }
         }
-        add_wave -into $group -color $mycolor $s
+
+        regexp $memberRegexp $s match dispName
+
+        add_wave -into $group -color $mycolor -name $dispName $s
     }
 }
 
-proc add_stream { groupName signals {groupParent ""} } {
-    add_group_with_highlight $groupName $signals {ready valid} $groupParent
+proc add_stream { groupName signals {memberRegexp "(.*)"} {groupParent ""} } {
+    add_group_with_highlight $groupName $signals {ready valid} $groupParent $memberRegexp
 }
 
-proc add_group { groupName signals {groupParent ""} } {
-    add_group_with_highlight $groupName $signals {} $groupParent
+proc add_group { groupName signals {memberRegexp "(.*)"} {groupParent ""} } {
+    add_group_with_highlight $groupName $signals {} $groupParent $memberRegexp
 }
 
 proc add_dcs_axi { sliceName } {
@@ -124,7 +127,7 @@ proc add_dcs_axi { sliceName } {
     set axi_group    [add_wave_group "DCS $sliceName AXI"]
 
     foreach ch {aw w b ar r} {
-        add_stream "[string toupper $ch]" [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_${ch}*"] $axi_group
+        add_stream "[string toupper $ch]" [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_${ch}*"] {_([a-z]*)$} $axi_group
     }
 }
 
@@ -195,14 +198,16 @@ display_hw_ila_data [upload_hw_ila_data $ila]
 
 # Add useful waves.
 # No need to filter with {SOURCE == user}, netlist probes have the net name as CUSTOM
-add_group "Bypass Core States" [get_hw_probes -of_objects $ila -regexp core0_.*]
+add_group "Bypass Core States" [get_hw_probes -of_objects $ila -regexp core0_.*] {core0_(.*)$}
 
 add_dcs_axi even
 add_dcs_axi odd
 
-add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*]
-add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*]
-add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*]
+set alloc_name_re {\.([a-z]*)$}
+
+add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*] $alloc_name_re
+add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*] $alloc_name_re
+add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*] $alloc_name_re
 
 # Configure ILA trigger and window.
 set total_samples [get_property STATIC.MAX_DATA_DEPTH $ila]
