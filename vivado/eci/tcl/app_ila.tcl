@@ -90,23 +90,42 @@ proc dcs_slice_to_slot { sliceName } {
     }
 }
 
+proc add_group_with_highlight { groupName signalList highlightList {groupParent ""} } {
+    if {$groupParent == ""} {
+        set groupParent [current_wave_config]
+    }
+
+    set group [add_wave_group -into $groupParent $groupName]
+    foreach s $signalList {
+        set mycolor Lime
+        foreach h $highlightList {
+            if {[regexp "$h$" $s]} {
+                set mycolor Red
+                break
+            }
+        }
+        add_wave -into $group -color $mycolor $s
+    }
+}
+
+proc add_stream { groupName signals {groupParent ""} } {
+    add_group_with_highlight $groupName $signals {ready valid} $groupParent
+}
+
+proc add_group { groupName signals {groupParent ""} } {
+    add_group_with_highlight $groupName $signals {} $groupParent
+}
+
 proc add_dcs_axi { sliceName } {
     variable ila
 
     set slotNum [dcs_slice_to_slot $sliceName]
 
     set axi_group    [add_wave_group "DCS $sliceName AXI"]
-    set axi_aw_group [add_wave_group -into $axi_group "AW Channel"]
-    set axi_w_group  [add_wave_group -into $axi_group "W Channel"]
-    set axi_b_group  [add_wave_group -into $axi_group "B Channel"]
-    set axi_ar_group [add_wave_group -into $axi_group "AR Channel"]
-    set axi_r_group  [add_wave_group -into $axi_group "R Channel"]
 
-    add_wave -into $axi_aw_group -color Orange [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_aw*"]
-    add_wave -into $axi_w_group  -color Lime   [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_w*"]
-    add_wave -into $axi_b_group  -color Lime   [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_b*"]
-    add_wave -into $axi_ar_group -color Orange [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_ar*"]
-    add_wave -into $axi_r_group  -color Lime   [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_r*"]
+    foreach ch {aw w b ar r} {
+        add_stream "[string toupper $ch]" [get_hw_probes -of_objects $ila -filter "NAME.SHORT =~ net_slot_${slotNum}_axi_${ch}*"] $axi_group
+    }
 }
 
 proc trigger_dcs_axi_read { sliceName } {
@@ -169,13 +188,21 @@ def_alloc_chan_with_addr    free 16
 def_alloc_chan_with_addr    resp 17
 def_alloc_chan_without_addr req  18
 
+# Trigger once to populate all waves (or add_wave might fail).
+run_hw_ila -trigger_now $ila
+wait_on_hw_ila $ila
+display_hw_ila_data [upload_hw_ila_data $ila]
+
 # Add useful waves.
-set bypass_state_group [add_wave_group "Bypass Core States"]
 # No need to filter with {SOURCE == user}, netlist probes have the net name as CUSTOM
-add_wave -into $bypass_state_group [get_hw_probes -of_objects $ila -regexp core0_.*]
+add_group "Bypass Core States" [get_hw_probes -of_objects $ila -regexp core0_.*]
 
 add_dcs_axi even
 add_dcs_axi odd
+
+add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*]
+add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*]
+add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*]
 
 # Configure ILA trigger and window.
 set total_samples [get_property STATIC.MAX_DATA_DEPTH $ila]
@@ -190,11 +217,6 @@ trigger_dcs_axi_read even
 trigger_dcs_axi_read odd
 # trigger_dcs_axi_write even
 # trigger_dcs_axi_write odd
-
-# Trigger once to allow inspection of the waveform
-run_hw_ila -trigger_now $ila
-wait_on_hw_ila $ila
-display_hw_ila_data [upload_hw_ila_data $ila]
 
 # Arm the ILA.
 run_hw_ila $ila
