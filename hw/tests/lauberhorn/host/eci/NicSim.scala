@@ -361,7 +361,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // TODO: check DCS master cacheline state
   }
 
-  testWithDB("rx-bypass-scan-sizes", Slow, Rx) { implicit dut =>
+  testWithDB("rx-bypass-scan-sizes")(Slow, Rx) { implicit dut =>
     // set a large enough rx block cycles, such that there shouldn't be a need to retry
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(5000000) // 20 ms @ 250 MHz
     // enable promisc mode
@@ -370,7 +370,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
   }
 
-  testWithDB("rx-bypass-simple", Rx) { implicit dut =>
+  testWithDB("rx-bypass-simple")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
@@ -378,13 +378,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 256, 64, maxRetries = 5)
   }
 
-  testWithDB("rx-bypass-multicast", Rx) { implicit dut =>
+  testWithDB("rx-bypass-multicast")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
-    var done = false
-    fork {
-      sleepCycles(10000)
-      assert(done, "test timed out")
-    }
 
     // leave promisc mode off -- we have a IP and MAC address by default for zuestoll01
     // send one IGMP membership qeury to test both IP and Ethernet filtering
@@ -410,10 +405,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val proto = PacketType.Ip // we should receive this as a bypass IP packet
 
     rxTestSimple(dcsMaster, axisMaster, ethernetPacket, proto, maxRetries = 5)
-    done = true
   }
 
-  testWithDB("rx-oncrpc-allcores", Rx) { implicit dut =>
+  testWithDB("rx-oncrpc-allcores")(Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores,
@@ -599,10 +593,6 @@ class NicSim extends DutSimFunSuite[NicEngine]
     txSendSingle(dcsMaster, desc, pld, tid)
 
     etd.log("waiting for packet")
-    fork {
-      sleepCycles(5000)
-      assert(received, s"Thread $tid: packet receive timeout!")
-    }
     waitUntil(received)
 
     // packet will be acknowledged by writing next packet
@@ -621,7 +611,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   def txScanOnCore(cid: Int) = {
     val testName = s"tx-scan-sizes-core$cid"
-    testWithDB(testName, Slow, Tx) { implicit dut =>
+    testWithDB(testName)(Slow, Tx) { implicit dut =>
       implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
 
       val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
@@ -641,7 +631,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   0 until numCores foreach txScanOnCore
 
-  testWithDB("tx-bypass-simple", Tx) { implicit dut =>
+  testWithDB("tx-bypass-simple")(Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-bypass-simple") / "packets-expecting.pcap").toString)
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
@@ -650,7 +640,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   // Test sending IPv6 packets (produced by Linux kernel)
-  testWithDB("tx-icmp6", Tx) { implicit dut =>
+  testWithDB("tx-icmp6")(Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-icmp6") / "packets-expecting.pcap").toString)
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
@@ -715,7 +705,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   def txAllCores(doVoluntaryInv: Boolean) = {
     val testName = s"tx-all-cores-${if (!doVoluntaryInv) "no-" else ""}inv"
-    testWithDB(testName, Tx) { implicit dut =>
+    testWithDB(testName, timeout = 10e9.toLong)(Tx) { implicit dut =>
       val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
       implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
@@ -746,7 +736,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   Seq(false, true) foreach txAllCores
 
-  testWithDB("tx-neighbor-resolve-request", Tx) { implicit dut =>
+  testWithDB("tx-neighbor-resolve-request")(Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-neighbor-resolve-request") / "packets-expecting.pcap").toString)
 
     val pkt = getIpPacketFromEnzian(1, 512)
@@ -805,7 +795,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     waitUntil(checked)
   }
 
-  testWithDB("rx-bypass-pipelined", Rx) { implicit dut =>
+  testWithDB("rx-bypass-pipelined")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
 
     val numPackets = 200
@@ -861,7 +851,11 @@ class NicSim extends DutSimFunSuite[NicEngine]
     waitUntil(received == numPackets)
   }
 
-  testWithDB("rx-bypass-no-repeat", Rx) { implicit dut =>
+  testWithDB("rx-bypass-overflow")(Rx) { implicit dut =>
+    // flood RX with too many packets, receive full packets and check dropped counter
+  }
+
+  testWithDB("rx-bypass-no-repeat")(Rx) { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
     val maxTries = 5
@@ -878,7 +872,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  testWithDB("rx-no-promisc", Rx) { implicit dut =>
+  testWithDB("rx-no-promisc")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
 
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-no-promisc") / "packets.pcap").toString)
@@ -896,7 +890,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(2, 512), PacketType.Ip, maxRetries = 1)
   }
 
-  testWithDB("roundtrip-oncrpc-timestamped", Rx, Tx) { implicit dut =>
+  testWithDB("roundtrip-oncrpc-timestamped")(Rx, Tx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores
@@ -1088,7 +1082,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /* Test that Lauberhorn can scale up to multiple services */
-  testWithDB("rx-sched-idle-scale-many", Rx) { implicit dut =>
+  testWithDB("rx-sched-idle-scale-many")(Rx) { implicit dut =>
     // do not use every core for every service
     // three procs: A (2 thr); B (3 thr); C (3 thr)
 
@@ -1220,7 +1214,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   /** After preemption, no CLs should be Shared -- otherwise we leak a descriptor from the previous
     * application on this core */
-  testWithDB("rx-preempt-no-leaking", Rx) { implicit dut =>
+  testWithDB("rx-preempt-no-leaking")(Rx) { implicit dut =>
     // Spawn two services.  Send a few requests for the first one, drain all of them, then
     // send a request to the second service.  After the core finishes preemption, check if
     // no info is leaked (the new process only sees a NACK in the opposite CL)
@@ -1228,7 +1222,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /* Test killing a process that did not unset BUSY */
-  testWithDB("rx-sched-crit-timeout", Rx) { implicit dut =>
+  testWithDB("rx-sched-crit-timeout")(Rx) { implicit dut =>
 
   }
 }
