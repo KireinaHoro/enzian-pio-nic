@@ -52,7 +52,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
   val dut = Config.sim
     // verilog-axi flags
     .addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH")
-    .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL")
+    .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL -Wno-INITIALDLY")
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName("eci")

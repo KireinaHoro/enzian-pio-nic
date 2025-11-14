@@ -177,10 +177,20 @@ class EciInterfacePlugin extends FiberPlugin {
     }
     val masters = translatedDcsAxi
 
-    Axi4CrossbarFactory()
-      .addSlaves(slaves zip mappings :_*)
-      .addConnections(masters.map { _ -> slaves }: _*)
-      .build()
+    val dcsXbar = new AxiCrossbar(axiConfig,
+      masters.map { _ => AxiCrossbarSlaveConfig(
+        threads = 32,       // number of DCUs per slice`
+        concurrentOps = 32, // each DCU can only issue one concurrent read/write
+      ) },
+      mappings map { sm => AxiCrossbarMasterConfig(
+        regions = Seq(sm),
+        readFromSlaves = Seq.fill(masters.length)(true),
+        writeFromSlaves = Seq.fill(masters.length)(true),
+        concurrentOps = 2,  // Rx and Tx router can handle one concurrent request
+      ) },
+    )
+    dcsXbar.s_axi zip masters foreach { case (sp, m) => m >> sp }
+    dcsXbar.m_axi zip slaves foreach { case (mp, s) => mp >> s }
 
     /** Bind the LCI/UL commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
       * list of LCI endpoints (incl. non-existent preemption control for bypass core).
