@@ -161,19 +161,25 @@ class EciInterfacePlugin extends FiberPlugin {
       rp.axiToProto
     }
 
-    Axi4CrossbarFactory()
-      .addSlaves(dcsNodes.zipWithIndex flatMap { case ((dataNode, preemptNodeOption), idx) =>
-        val dataPathSize = host.list[EciPioProtocol].apply(idx).sizePerCore
-        val preemptSize = if (idx != 0) {
-          host.list[EciPreemptionControlPlugin].apply(idx - 1).requiredAddrSpace
-        } else 0
-        val sizePerCore = dataPathSize + preemptSize
-        assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core (plus preempt control)")
+    val slaves = dcsNodes.flatMap { case (dataNode, preemptNodeOption) =>
+      Seq(dataNode) ++ preemptNodeOption.toSeq
+    }
+    val mappings = dcsNodes.zipWithIndex.flatMap { case ((dataNode, preemptNodeOption), idx) =>
+      val dataPathSize = host.list[EciPioProtocol].apply(idx).sizePerCore
+      val preemptSize = if (idx != 0) {
+        host.list[EciPreemptionControlPlugin].apply(idx - 1).requiredAddrSpace
+      } else 0
+      val sizePerCore = dataPathSize + preemptSize
+      assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core (plus preempt control)")
 
-        Seq(dataNode -> SizeMapping(coreOffset * idx, dataPathSize)) ++
-          preemptNodeOption.map(_ -> SizeMapping(coreOffset * idx + dataPathSize, preemptSize)).toSeq
-      }: _*)
-      .addConnections(translatedDcsAxi.map { _ -> dcsNodes.flatMap { case (d, p) => Seq(d) ++ p.toSeq } }: _*)
+      Seq(SizeMapping(coreOffset * idx, dataPathSize)) ++
+        preemptNodeOption.map(_ => SizeMapping(coreOffset * idx + dataPathSize, preemptSize)).toSeq
+    }
+    val masters = translatedDcsAxi
+
+    Axi4CrossbarFactory()
+      .addSlaves(slaves zip mappings :_*)
+      .addConnections(masters.map { _ -> slaves }: _*)
       .build()
 
     /** Bind the LCI/UL commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
