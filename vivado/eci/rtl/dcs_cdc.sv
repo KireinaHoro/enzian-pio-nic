@@ -115,7 +115,7 @@ module dcs_cdc #(
     input logic [1:0]                             m_axi_bresp,
     input logic                                   m_axi_bvalid,
     output logic                                  m_axi_bready,
-    
+
     // Tracing output
     output logic        tracing_valid[2],
     output logic        tracing_error[2],
@@ -551,13 +551,13 @@ dcs_2_axi #(
 
   `AXI_ASSIGN_TO_FLAT_PORT(p_axi, dcs_axi_req, dcs_axi_resp),
 
-      // tracing interfaces
+  // tracing interfaces
   .tracing_valid,
   .tracing_error,
   .tracing_cli,
   .tracing_state,
   .tracing_action,
-  .tracing_request    
+  .tracing_request
 );
 
 endmodule
