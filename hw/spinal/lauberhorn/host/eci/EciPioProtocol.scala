@@ -6,9 +6,9 @@ import lauberhorn._
 import lauberhorn.host.{DatapathPlugin, HostReq}
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.Axi4
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config}
 import spinal.lib.bus.amba4.axilite.AxiLite4
-import spinal.lib.bus.misc.BusSlaveFactory
+import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
 
 /** PIO cacheline protocol state machine interface.
   *
@@ -24,11 +24,11 @@ trait EciPioProtocol extends DatapathPlugin {
   val ul = during setup Stream(EciCmdDefs.EciAddress)
 
   /**
-    * Connect slave interface to the DCS interfaces.
-    * @param bus DCS interface to respond to, demux'ed for this core
-    * @param pktBufAxi access to [[PacketBuffer]], demux'ed for this core
+    * Create access ports for protocol elements.  Returns tuple of two lists of AXI nodes:
+    * - first list contains slave nodes to be accessed by the DCS and their mappings
+    * - second list contains master nodes to access the packet buffer
     */
-  def driveDcsBus(bus: Axi4, pktBufAxi: Axi4): Unit
+  def makeAccessPorts(dcsSlaveConfig: Axi4Config, memMasterConfig: Axi4Config): (Seq[(Axi4, SizeMapping)], Seq[Axi4])
 
   /** Drive control registers. */
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit

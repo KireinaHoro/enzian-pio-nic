@@ -2,21 +2,22 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.eci.{EciCmdDefs, EciIntcInterface}
 import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.axi._
 import lauberhorn._
 import lauberhorn.host.DatapathPlugin
 import lauberhorn.host.eci.EciDecoupledRxTxProtocol.emittedMackerel
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4CrossbarFactory}
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4CrossbarFactory}
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
 import spinal.lib.bus.regif.AccessType.{RO, RW}
 import spinal.lib.fsm._
+import Global._
 
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
-import Global._
-import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 
 class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with EciPioProtocol {
   val isBypass = coreID == 0
@@ -75,9 +76,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     (currIdx * EciCmdDefs.ECI_CL_SIZE_BYTES + (if (isTx) U(txOffset) else U(0))).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
   }
 
-  def driveDcsBus(bus: Axi4, pktBufAxiNode: Axi4): Unit = new Area {
+  def makeAccessPorts(dcsConfig: Axi4Config, memConfig: Axi4Config): (Seq[(Axi4, SizeMapping)], Seq[Axi4]) = new Area {
     // RX router
-    val rxRouter = DcsRxAxiRouter(bus.config, pktBufAxiNode.config)
+    val rxRouter = DcsRxAxiRouter(dcsConfig, memConfig)
 
     // No need to halt the stream here during preemption: host can't be reading
     // when preemption happens, since it is out of the critical region where a
@@ -89,7 +90,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
-    val txRouter = DcsTxAxiRouter(bus.config, pktBufAxiNode.config)
+    val txRouter = DcsTxAxiRouter(dcsConfig, memConfig)
     txRouter.txDesc >> hostTxAck
     txRouter.currCl := logic.txCurrClIdx.asUInt
     txRouter.txAddr := logic.savedTxAddr.addr
@@ -97,24 +98,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.doPreempt := preemptReq.valid
     logic.txInvLen := txRouter.currInvLen
     logic.txReqs := txRouter.hostReq
-
-    // mux RX and TX routers to DCS master
-    Axi4CrossbarFactory()
-      .addSlaves(
-        rxRouter.dcsAxi -> SizeMapping(0, txOffset),
-        txRouter.dcsAxi -> SizeMapping(txOffset, txOffset)
-      )
-      .addConnection(bus, Seq(rxRouter.dcsAxi, txRouter.dcsAxi))
-      .build()
-
-    // mux packet buffer access nodes
-    Axi4CrossbarFactory()
-      .addSlave(pktBufAxiNode, SizeMapping(0, PKT_BUF_SIZE.get))
-      .addConnections(
-        rxRouter.pktBufAxi -> Seq(pktBufAxiNode),
-        txRouter.pktBufAxi -> Seq(pktBufAxiNode),
-      )
-      .build()
 
     if (isBypass) {
       // bypass core will have non-blocking poll of cachelines
@@ -130,7 +113,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     debug.postDebug(s"core${coreID}_rxRouter_state", rxRouter.stateOut)
     debug.postDebug(s"core${coreID}_txRouter_read_state", txRouter.readStateOut)
     debug.postDebug(s"core${coreID}_txRouter_write_state", txRouter.writeStateOut)
-  }.setCompositeName(this, "driveDcsBus")
+
+    val ret = (Seq(
+      (rxRouter.dcsAxi, SizeMapping(0, txOffset)),
+      (txRouter.dcsAxi, SizeMapping(txOffset, txOffset)),
+    ), Seq(rxRouter.pktBufAxi, txRouter.pktBufAxi))
+  }.setCompositeName(this, "driveDcsBus").ret
 
   def preemptReq = logic.preemptReq
 

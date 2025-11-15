@@ -125,11 +125,6 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
-    val accessNodes = Seq.fill(NUM_CORES)(Axi4(memNode.config.copy(idWidth = 9)))
-    Axi4CrossbarFactory()
-      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE.get))
-      .addConnections(accessNodes.map(_.fullPipe() -> Seq(memNode)): _*)
-      .build()
 
     val coreIdMask  = 0x7e0000
     val preemptMask = 0x010000
@@ -137,17 +132,12 @@ class EciInterfacePlugin extends FiberPlugin {
     val unitIdShift = Integer.numberOfTrailingZeros(unitIdMask)
 
     // list of data path nodes with optionally the preemption control node
-    val dcsNodes = Seq.tabulate(NUM_CORES) { idx =>
-      val config = axiConfig.copy(
-        // 2 masters, ID width + 1
-        idWidth = 8,
-        // truncate address here so that the core protocol modules wouldn't have to subtract the core offset
-        addressWidth = log2Up(coreOffset - 1),
-      )
-
-      // no preemption control node for bypass core
-      (Axi4(config), Option.when(idx != 0)(Axi4(config)))
-    }
+    val dcsNodeConfig = axiConfig.copy(
+      // 2 masters, ID width + 1
+      idWidth = 8,
+      // truncate address here so that the core protocol modules wouldn't have to subtract the core offset
+      addressWidth = log2Up(coreOffset - 1),
+    )
 
     val unaliasedDcsAxi = dcsIntfs map { dcs =>
       dcs.axi.remapAddr { a =>
@@ -160,37 +150,6 @@ class EciInterfacePlugin extends FiberPlugin {
       ua >> rp.axiFromDcs
       rp.axiToProto
     }
-
-    val slaves = dcsNodes.flatMap { case (dataNode, preemptNodeOption) =>
-      Seq(dataNode) ++ preemptNodeOption.toSeq
-    }
-    val mappings = dcsNodes.zipWithIndex.flatMap { case ((dataNode, preemptNodeOption), idx) =>
-      val dataPathSize = host.list[EciPioProtocol].apply(idx).sizePerCore
-      val preemptSize = if (idx != 0) {
-        host.list[EciPreemptionControlPlugin].apply(idx - 1).requiredAddrSpace
-      } else 0
-      val sizePerCore = dataPathSize + preemptSize
-      assert(coreOffset >= sizePerCore, "core offset smaller than needed mem size per core (plus preempt control)")
-
-      Seq(SizeMapping(coreOffset * idx, dataPathSize)) ++
-        preemptNodeOption.map(_ => SizeMapping(coreOffset * idx + dataPathSize, preemptSize)).toSeq
-    }
-    val masters = translatedDcsAxi
-
-    val dcsXbar = new AxiCrossbar(axiConfig,
-      masters.map { _ => AxiCrossbarSlaveConfig(
-        threads = 32,       // number of DCUs per slice`
-        concurrentOps = 32, // each DCU can only issue one concurrent read/write
-      ) },
-      mappings map { sm => AxiCrossbarMasterConfig(
-        regions = Seq(sm),
-        readFromSlaves = Seq.fill(masters.length)(true),
-        writeFromSlaves = Seq.fill(masters.length)(true),
-        concurrentOps = 2,  // Rx and Tx router can handle one concurrent request
-      ) },
-    )
-    dcsXbar.s_axi zip masters foreach { case (sp, m) => m >> sp }
-    dcsXbar.m_axi zip slaves foreach { case (mp, s) => mp >> s }
 
     /** Bind the LCI/UL commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
       * list of LCI endpoints (incl. non-existent preemption control for bypass core).
@@ -320,17 +279,17 @@ class EciInterfacePlugin extends FiberPlugin {
       }.setCompositeName(this, "bindUl").ret
     }, _.ul.address, 18, 19, _.unlockResp, isUl = true)
 
+    val allSlaveNodes = mutable.ListBuffer[(Axi4, SizeMapping)]()
+    val allMasterNodes = mutable.ListBuffer[Axi4]()
+
     // drive core control interface -- datapath per core
     0 until NUM_CORES foreach { cid => new Area {
-      // get all nodes to bind
-      val (dcsNode, preemptNodeOption) = dcsNodes(cid)
       val Seq(dataLci, preemptLci) = coresLci(cid)
       val Seq(dataLcia, preemptLcia) = coresLcia(cid)
       val Seq(dataUl, preemptUl) = coresUl(cid)
       val proto = protos(cid)
       val preempt = preempts(cid)
       val ipiCtrl = demuxedIpiIntfs(cid)
-      val memNode = accessNodes(cid)
 
       val baseAddress = (1 + cid) * 0x1000
 
@@ -345,33 +304,65 @@ class EciInterfacePlugin extends FiberPlugin {
         host[Scheduler].logic.coreMeta(cid - 1) >> proto.hostRx
       }
 
-      proto.driveDcsBus(dcsNode, memNode)
-
       drive(proto.driveControl, "worker", cid)
 
-      preemptNodeOption match {
-        case None =>
-          preemptLci.setIdle()
-          preemptUl.setIdle()
-          preemptLcia.setBlocked()
-          assert(preempt == null)
-          // tie down preemption request for bypass
-          proto.preemptReq.setIdle()
+      val (slaveNodesWithMapping, masterNodes) = proto.makeAccessPorts(dcsNodeConfig, memNode.config)
+      allMasterNodes.appendAll(masterNodes)
 
-          // bypass core generates interrupt to host that signifies non-empty queue
-          val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol].logic
-          bypassProto.irqOut >> ipiCtrl
+      slaveNodesWithMapping.foreach { case (sn, map) =>
+        allSlaveNodes.append((sn, map.copy(base = map.base + coreOffset * cid)))
+      }
+      if (cid != 0) {
+        // also add preempt node
+        val preemptNode = Axi4(dcsNodeConfig)
+        val preemptSize = host.list[EciPreemptionControlPlugin].apply(cid - 1).requiredAddrSpace
+        val preemptMapping = SizeMapping(coreOffset * cid + proto.sizePerCore, preemptSize)
 
-          // XXX: still allocate registers for bypass core due to allocator limitation
-          drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn, bypassProto.irqAck), "preempt", cid)
+        preempt.driveDcsBus(preemptNode, preemptLci, preemptLcia, preemptUl)
+        drive(preempt.driveControl, "preempt", cid)
+        preempt.logic.ipiToIntc >> ipiCtrl
 
-        case Some(pn) =>
-          preempt.driveDcsBus(pn, preemptLci, preemptLcia, preemptUl)
-          drive(preempt.driveControl, "preempt", cid)
-          preempt.logic.ipiToIntc >> ipiCtrl
+        allSlaveNodes.append((preemptNode, preemptMapping))
+      } else {
+        preemptLci.setIdle()
+        preemptUl.setIdle()
+        preemptLcia.setBlocked()
+        assert(preempt == null)
+        // tie down preemption request for bypass
+        proto.preemptReq.setIdle()
+
+        // bypass core generates interrupt to host that signifies non-empty queue
+        val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol].logic
+        bypassProto.irqOut >> ipiCtrl
+
+        // XXX: still allocate registers for bypass core due to allocator limitation
+        drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn, bypassProto.irqAck), "preempt", cid)
       }
     }.setCompositeName(this, "bindProtoToCoreCtrl")
     }
+
+    // No need to use full crossbar with parallelism since DCS routers issue
+    // request one at a time
+    Axi4CrossbarFactory()
+      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE.get))
+      .addConnections(allMasterNodes.map(_.fullPipe() -> Seq(memNode)).toSeq: _*)
+      .build()
+
+    val masters = translatedDcsAxi
+    val dcsXbar = new AxiCrossbar(axiConfig,
+      masters.map { _ => AxiCrossbarSlaveConfig(
+        concurrentOps = 4,  // PULP's downsize adapter can only handle this much efficiently
+        threads = 4,        // every DCU (thus every unique ID) can only issue one req at a time
+      ) },
+      allSlaveNodes.map { case (_, sm) => AxiCrossbarMasterConfig(
+        regions = Seq(sm),
+        readFromSlaves = Seq.fill(masters.length)(true),
+        writeFromSlaves = Seq.fill(masters.length)(true),
+        concurrentOps = 2,  // Rx and Tx router can handle one concurrent request
+      ) }.toSeq,
+    )
+    dcsXbar.s_axi zip masters foreach { case (sp, m) => m >> sp }
+    dcsXbar.m_axi zip allSlaveNodes foreach { case (mp, (s, _)) => mp >> s }
 
     // connect all AXI-Lite nodes
     val fullNodes = ctrlAxiLiteNodes.map { case (n, sm) =>

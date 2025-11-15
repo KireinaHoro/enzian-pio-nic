@@ -33,6 +33,7 @@ import scala.language.postfixOps
   */
 case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) extends Component {
   assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
+  assert(pktBufConfig.dataWidth == 512, "only supports 512b bus from pkt buffer AXI interface")
   assert(PKT_BUF_RX_SIZE_PER_CORE % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
   /** Incoming RX descriptors from scheduler.
