@@ -348,20 +348,20 @@ class EciInterfacePlugin extends FiberPlugin {
       .addConnections(allMasterNodes.map(_.fullPipe() -> Seq(memNode)).toSeq: _*)
       .build()
 
-    val masters = translatedDcsAxi
+    val numMasters = translatedDcsAxi.length
     val dcsXbar = new AxiCrossbar(axiConfig,
-      masters.map { _ => AxiCrossbarSlaveConfig(
+      translatedDcsAxi.map { _ => AxiCrossbarSlaveConfig(
         concurrentOps = 4,  // PULP's downsize adapter can only handle this much efficiently
         threads = 4,        // every DCU (thus every unique ID) can only issue one req at a time
       ) },
       allSlaveNodes.map { case (_, sm) => AxiCrossbarMasterConfig(
         regions = Seq(sm),
-        readFromSlaves = Seq.fill(masters.length)(true),
-        writeFromSlaves = Seq.fill(masters.length)(true),
-        concurrentOps = 2,  // Rx and Tx router can handle one concurrent request
+        readFromSlaves = Seq.fill(numMasters)(true),
+        writeFromSlaves = Seq.fill(numMasters)(true),
+        concurrentOps = 1,  // Rx/Tx router as well as preemption control can handle one concurrent request
       ) }.toSeq,
     )
-    dcsXbar.s_axi zip masters foreach { case (sp, m) => m >> sp }
+    dcsXbar.s_axi zip translatedDcsAxi foreach { case (sp, m) => m >> sp }
     dcsXbar.m_axi zip allSlaveNodes foreach { case (mp, (s, _)) => mp >> s }
 
     // connect all AXI-Lite nodes
