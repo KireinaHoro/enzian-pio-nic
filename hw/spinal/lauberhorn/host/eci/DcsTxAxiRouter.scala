@@ -19,8 +19,10 @@ import scala.language.postfixOps
   *
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
-case class DcsTxAxiRouter(config: Axi4Config) extends Component {
-  assert(config.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
+case class DcsTxAxiRouter(dcsConfig: Axi4Config,
+                          pktBufConfig: Axi4Config,
+                         ) extends Component {
+  assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
 
   /** Outgoing TX descriptors to the encoder pipeline. */
   val txDesc = master(Stream(HostReq()))
@@ -31,10 +33,10 @@ case class DcsTxAxiRouter(config: Axi4Config) extends Component {
     * Note that writes from the host still carries a "valid" lowest bit, to use
     * the same datatype on the CPU.  This bit carries no meaning and will be discarded
     */
-  val dcsAxi = slave(Axi4(config))
+  val dcsAxi = slave(Axi4(dcsConfig))
 
   /** Forwarded requests to global packet buffer (starts at 0) */
-  val pktBufAxi = master(Axi4(config))
+  val pktBufAxi = master(Axi4(pktBufConfig.copy(idWidth = dcsConfig.idWidth)))
 
   /** Current control cache line index.  Used to check if the host evicted the current
     * cache line (e.g. due to a capacity conflict).  Responds to reloads of the current
