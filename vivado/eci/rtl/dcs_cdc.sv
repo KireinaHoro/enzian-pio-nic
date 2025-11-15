@@ -170,8 +170,9 @@ axi_dw_converter_intf #(
     .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
     .AXI_SLV_PORT_DATA_WIDTH(DCS_2_AXI_DATA_WIDTH),
     .AXI_MST_PORT_DATA_WIDTH(AXI_DATA_WIDTH),
-    .AXI_MAX_READS(4) // 32 DCUs per slice, but we can't have
-                      // that many...
+    .AXI_MAX_READS(5) // 32 DCUs per slice, but we can't have
+                      // that many...  at least need to be NUM_CORES
+                      // to avoid HOL blocking by all worker RX
 ) i_downsizer (
     .clk_i(app_clk),
     .rst_ni(!app_reset),

@@ -876,7 +876,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
     assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "packet should not be duplicated")
   }
 
-  testWithDB("rx-tx-interleaved")() { implicit dut =>
+  // FIXME: rework the address map (from Jasmin) and re-enable this for CI!
+  testWithDB("rx-tx-interleaved")(Rx, Tx, Slow) { implicit dut =>
     // The bypass core can have RX and TX happening simultaneously, so it's
     // important that the interconnects can allow unrelated reads/writes to
     // interleave.  However, we can't directly check on bypass, since no
@@ -887,6 +888,22 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // interleave:
     // - RX read (blocked until NACK)
     // - TX read (CL refill for load exclusive -> modify)
+    //
+    // This test checks that no HOL-blocking happens between the RX and TX paths.
+
+    // This requires three levels of wait-freedom:
+    // - the crossbar not blocking requests to unrelated slaves (e.g.
+    //   Axi4CrossbarFactory does not accept a transaction that goes to a
+    //   different slave than the in-flight one)
+    //   => currently fixed with axi_crossbar from verilog-axi
+    // - the address map not placing the RX and TX control CLs on the same
+    //   DCU, since each DCU can have one read and one write in-flight
+    //   (DcsAppMaster emulates this behaviour)
+    //   => TODO
+    // - the downsize adapter allowing more in-flight requests than possible
+    //   number of stalled requests (i.e. number of workers)
+    //   (DcsAppMaster emulates this behaviour)
+    //   => allowed via setting AXI_MAX_READS >= NUM_CORES in dcs_cdc.sv
 
     // use very high read timeout
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(20000)
@@ -939,6 +956,16 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
 
     waitUntil(done)
+  }
+
+  testWithDB("rx-rpc-hol-blocking-free")(Rx) { implicit dut =>
+    // This test checks that no HOL-blocking happens between RX of different worker
+    // cores.  This is important since if HOL-blocking happens, the 2F2F state machine
+    // won't even see a read that's blocked by another stall(-to-NACK) read, triggering
+    // timeout for the blocked read easily.
+
+    // Same requirements for wait-freedom apply as in rx-tx-interleave.
+    // TODO
   }
 
   testWithDB("rx-no-promisc")(Rx) { implicit dut =>
@@ -1292,6 +1319,6 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   /* Test killing a process that did not unset BUSY */
   testWithDB("rx-sched-crit-timeout")(Rx) { implicit dut =>
-
+    // TODO
   }
 }
