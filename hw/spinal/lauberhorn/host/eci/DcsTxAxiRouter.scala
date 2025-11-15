@@ -23,6 +23,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
                           pktBufConfig: Axi4Config,
                          ) extends Component {
   assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
+  assert(pktBufConfig.dataWidth == 512, "only supports 512b bus from pkt buffer AXI interface")
 
   /** Outgoing TX descriptors to the encoder pipeline. */
   val txDesc = master(Stream(HostReq()))
