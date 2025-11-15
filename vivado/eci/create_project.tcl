@@ -126,7 +126,33 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axil_adapter_wr.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_cdc.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_cdc_rd.v" \
-    "$hw_deps_dir/verilog-axi/rtl/axil_cdc_wr.v"
+    "$hw_deps_dir/verilog-axi/rtl/axil_cdc_wr.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_rd.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_wr.v" \
+    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_addr.v" \
+    "$hw_deps_dir/pulp/axi/src/axi_dw_converter.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_dw_downsizer.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_dw_upsizer.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_err_slv.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_atop_filter.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_pkg.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_intf.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_demux.sv" \
+    "$hw_deps_dir/pulp/axi/src/axi_demux_simple.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/cf_math_pkg.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/rr_arb_tree.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/stream_register.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/fifo_v3.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/counter.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/delta_counter.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/spill_register.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/spill_register_flushable.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/onehot_to_bin.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/id_queue.sv" \
+    "$hw_deps_dir/pulp/common_cells/src/lzc.sv"
+
+set_property include_dirs "$hw_deps_dir/pulp/axi/include $hw_deps_dir/pulp/common_cells/include" [get_filesets sources_1]
 
 # Add constraints from us necessary for synthesis
 set synth_constrs [list \
@@ -199,8 +225,13 @@ set my_ip [get_ips axi_reg_dcs]
 set_property -dict [list \
     CONFIG.ADDR_WIDTH {38} \
     CONFIG.DATA_WIDTH {512} \
-    CONFIG.HAS_QOS {0} \
-    CONFIG.HAS_REGION {0} \
+    CONFIG.ARUSER_WIDTH {1} \
+    CONFIG.AWUSER_WIDTH {1} \
+    CONFIG.BUSER_WIDTH {1} \
+    CONFIG.HAS_QOS {1} \
+    CONFIG.HAS_REGION {1} \
+    CONFIG.RUSER_WIDTH {1} \
+    CONFIG.WUSER_WIDTH {1} \
     CONFIG.ID_WIDTH {7} \
     CONFIG.MAX_BURST_LENGTH {2} \
     CONFIG.NUM_READ_OUTSTANDING {4} \
