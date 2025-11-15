@@ -1,6 +1,9 @@
 `ifndef DCS_CDC_SV
 `define DCS_CDC_SV
 
+`include "axi/assign.svh"
+`include "axi/typedef.svh"
+
 import eci_cmd_defs::*;
 import eci_dcs_defs::*;
 
@@ -122,7 +125,59 @@ module dcs_cdc #(
     output logic [4:0]	tracing_request[2]
 );
 
+// Use 1024b interface with the DC since the ECI to AXI converters
+// do not support interleaved R channel (it blindly assembles a
+// 1024-bit response).
+localparam DCS_2_AXI_DATA_WIDTH = ECI_CL_WIDTH;
+localparam DCS_2_AXI_STRB_WIDTH = DCS_2_AXI_DATA_WIDTH/8;
+
+typedef logic [AXI_ADDR_WIDTH-1:0] addr_t;
+typedef logic [DCS_2_AXI_DATA_WIDTH-1:0] dcs_data_t;
+typedef logic [AXI_DATA_WIDTH-1:0] app_data_t;
+typedef logic [AXI_ID_WIDTH-1:0]   id_t;
+typedef logic [DCS_2_AXI_STRB_WIDTH-1:0] dcs_strb_t;
+typedef logic [AXI_STRB_WIDTH-1:0] app_strb_t;
+
+`AXI_TYPEDEF_ALL(dcs_axi, addr_t, id_t, dcs_data_t, dcs_strb_t, logic)
+`AXI_TYPEDEF_ALL(app_axi, addr_t, id_t, app_data_t, app_strb_t, logic)
+
+AXI_BUS #(
+    .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+    .AXI_DATA_WIDTH(DCS_2_AXI_DATA_WIDTH),
+    .AXI_ID_WIDTH(AXI_ID_WIDTH),
+    .AXI_USER_WIDTH(0)
+) from_dcs();
+dcs_axi_req_t dcs_axi_req;
+dcs_axi_resp_t dcs_axi_resp;
+`AXI_ASSIGN_FROM_REQ(from_dcs, dcs_axi_req)
+`AXI_ASSIGN_TO_RESP(dcs_axi_resp, from_dcs)
+
+AXI_BUS #(
+    .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+    .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+    .AXI_ID_WIDTH(AXI_ID_WIDTH),
+    .AXI_USER_WIDTH(0)
+) to_pipe_regs();
+app_axi_req_t app_axi_req;
+app_axi_resp_t app_axi_resp;
+`AXI_ASSIGN_TO_REQ(app_axi_req, to_pipe_regs)
+`AXI_ASSIGN_FROM_RESP(to_pipe_regs, app_axi_resp)
+
 logic app_reset;
+
+axi_dw_converter_intf #(
+    .AXI_ID_WIDTH(AXI_ID_WIDTH),
+    .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+    .AXI_SLV_PORT_DATA_WIDTH(DCS_2_AXI_DATA_WIDTH),
+    .AXI_MST_PORT_DATA_WIDTH(AXI_DATA_WIDTH),
+    .AXI_MAX_READS(1 << (DS_DCU_ID_WIDTH-1)) // 32 DCUs per slice
+) i_downsizer (
+    .clk_i(app_clk),
+    .rst_ni(!app_reset),
+    .slv(from_dcs),
+    .mst(to_pipe_regs)
+);
+
 xpm_cdc_sync_rst i_app_rst_sync (
     .dest_clk(app_clk),
     .dest_rst(app_reset),
@@ -386,81 +441,11 @@ axis_reg_eci_wod i_chan_pipe_lcl_rsp_wod_master (
   .s_axis_tready(pipe_lcl_rsp_wod_pkt_ready_i)
 );
 
-logic [AXI_ID_WIDTH-1:0]               p_axi_arid;
-logic [AXI_ADDR_WIDTH-1:0]             p_axi_araddr;
-logic [7:0]                            p_axi_arlen;
-logic [2:0]                            p_axi_arsize;
-logic [1:0]                            p_axi_arburst;
-logic                                  p_axi_arlock;
-logic [3:0]                            p_axi_arcache;
-logic [2:0]                            p_axi_arprot;
-logic                                  p_axi_arvalid;
-logic                                  p_axi_arready;
-logic [AXI_ID_WIDTH-1:0]               p_axi_rid;
-logic [AXI_DATA_WIDTH-1:0]             p_axi_rdata;
-logic [1:0]                            p_axi_rresp;
-logic                                  p_axi_rlast;
-logic                                  p_axi_rvalid;
-logic                                  p_axi_rready;
-
-logic [AXI_ID_WIDTH-1:0]               p_axi_awid;
-logic [AXI_ADDR_WIDTH-1:0]             p_axi_awaddr;
-logic [7:0]                            p_axi_awlen;
-logic [2:0]                            p_axi_awsize;
-logic [1:0]                            p_axi_awburst;
-logic                                  p_axi_awlock;
-logic [3:0]                            p_axi_awcache;
-logic [2:0]                            p_axi_awprot;
-logic                                  p_axi_awvalid;
-logic                                  p_axi_awready;
-logic [AXI_DATA_WIDTH-1:0]             p_axi_wdata;
-logic [AXI_STRB_WIDTH-1:0]             p_axi_wstrb;
-logic                                  p_axi_wlast;
-logic                                  p_axi_wvalid;
-logic                                  p_axi_wready;
-logic [AXI_ID_WIDTH-1:0]               p_axi_bid;
-logic [1:0]                            p_axi_bresp;
-logic                                  p_axi_bvalid;
-logic                                  p_axi_bready;
-
 axi_reg_dcs i_axi_pipe (
   .aclk(app_clk),                 // input wire aclk
   .aresetn(!app_reset),           // input wire aresetn
-  .s_axi_awid(p_axi_awid),        // input wire [6 : 0] s_axi_awid
-  .s_axi_awaddr(p_axi_awaddr),    // input wire [37 : 0] s_axi_awaddr
-  .s_axi_awlen(p_axi_awlen),      // input wire [7 : 0] s_axi_awlen
-  .s_axi_awsize(p_axi_awsize),    // input wire [2 : 0] s_axi_awsize
-  .s_axi_awburst(p_axi_awburst),  // input wire [1 : 0] s_axi_awburst
-  .s_axi_awlock(p_axi_awlock),    // input wire [0 : 0] s_axi_awlock
-  .s_axi_awcache(p_axi_awcache),  // input wire [3 : 0] s_axi_awcache
-  .s_axi_awprot(p_axi_awprot),    // input wire [2 : 0] s_axi_awprot
-  .s_axi_awvalid(p_axi_awvalid),  // input wire s_axi_awvalid
-  .s_axi_awready(p_axi_awready),  // output wire s_axi_awready
-  .s_axi_wdata(p_axi_wdata),      // input wire [511 : 0] s_axi_wdata
-  .s_axi_wstrb(p_axi_wstrb),      // input wire [63 : 0] s_axi_wstrb
-  .s_axi_wlast(p_axi_wlast),      // input wire s_axi_wlast
-  .s_axi_wvalid(p_axi_wvalid),    // input wire s_axi_wvalid
-  .s_axi_wready(p_axi_wready),    // output wire s_axi_wready
-  .s_axi_bid(p_axi_bid),          // output wire [6 : 0] s_axi_bid
-  .s_axi_bresp(p_axi_bresp),      // output wire [1 : 0] s_axi_bresp
-  .s_axi_bvalid(p_axi_bvalid),    // output wire s_axi_bvalid
-  .s_axi_bready(p_axi_bready),    // input wire s_axi_bready
-  .s_axi_arid(p_axi_arid),        // input wire [6 : 0] s_axi_arid
-  .s_axi_araddr(p_axi_araddr),    // input wire [37 : 0] s_axi_araddr
-  .s_axi_arlen(p_axi_arlen),      // input wire [7 : 0] s_axi_arlen
-  .s_axi_arsize(p_axi_arsize),    // input wire [2 : 0] s_axi_arsize
-  .s_axi_arburst(p_axi_arburst),  // input wire [1 : 0] s_axi_arburst
-  .s_axi_arlock(p_axi_arlock),    // input wire [0 : 0] s_axi_arlock
-  .s_axi_arcache(p_axi_arcache),  // input wire [3 : 0] s_axi_arcache
-  .s_axi_arprot(p_axi_arprot),    // input wire [2 : 0] s_axi_arprot
-  .s_axi_arvalid(p_axi_arvalid),  // input wire s_axi_arvalid
-  .s_axi_arready(p_axi_arready),  // output wire s_axi_arready
-  .s_axi_rid(p_axi_rid),          // output wire [6 : 0] s_axi_rid
-  .s_axi_rdata(p_axi_rdata),      // output wire [511 : 0] s_axi_rdata
-  .s_axi_rresp(p_axi_rresp),      // output wire [1 : 0] s_axi_rresp
-  .s_axi_rlast(p_axi_rlast),      // output wire s_axi_rlast
-  .s_axi_rvalid(p_axi_rvalid),    // output wire s_axi_rvalid
-  .s_axi_rready(p_axi_rready),    // input wire s_axi_rready
+
+  `AXI_ASSIGN_TO_FLAT_PORT(s_axi, app_axi_req, app_axi_resp),
 
   .m_axi_awid(m_axi_awid),        // output wire [6 : 0] m_axi_awid
   .m_axi_awaddr(m_axi_awaddr),    // output wire [37 : 0] m_axi_awaddr
@@ -502,14 +487,13 @@ axi_reg_dcs i_axi_pipe (
 dcs_2_axi #(
   .AXI_ID_WIDTH(AXI_ID_WIDTH),
   .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-  .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-  .AXI_STRB_WIDTH(AXI_STRB_WIDTH),
+  .AXI_DATA_WIDTH(DCS_2_AXI_DATA_WIDTH),
+  .AXI_STRB_WIDTH(DCS_2_AXI_STRB_WIDTH),
   .PERF_REGS_WIDTH(PERF_REGS_WIDTH),
   .SYNTH_PERF_REGS(SYNTH_PERF_REGS)
 ) i_dcs (
   .clk(app_clk),
   .reset(app_reset),
-
 
   .req_wod_hdr_i(cdc_req_wod_hdr_i),
   .req_wod_pkt_size_i(cdc_req_wod_pkt_size_i),
@@ -565,41 +549,7 @@ dcs_2_axi #(
   .lcl_rsp_wod_pkt_valid_o(pipe_lcl_rsp_wod_pkt_valid_o),
   .lcl_rsp_wod_pkt_ready_i(pipe_lcl_rsp_wod_pkt_ready_i),
 
-  .p_axi_arid,
-  .p_axi_araddr,
-  .p_axi_arlen,
-  .p_axi_arsize,
-  .p_axi_arburst,
-  .p_axi_arlock,
-  .p_axi_arcache,
-  .p_axi_arprot,
-  .p_axi_arvalid,
-  .p_axi_arready,
-  .p_axi_rid,
-  .p_axi_rdata,
-  .p_axi_rresp,
-  .p_axi_rlast,
-  .p_axi_rvalid,
-  .p_axi_rready,
-  .p_axi_awid,
-  .p_axi_awaddr,
-  .p_axi_awlen,
-  .p_axi_awsize,
-  .p_axi_awburst,
-  .p_axi_awlock,
-  .p_axi_awcache,
-  .p_axi_awprot,
-  .p_axi_awvalid,
-  .p_axi_awready,
-  .p_axi_wdata,
-  .p_axi_wstrb,
-  .p_axi_wlast,
-  .p_axi_wvalid,
-  .p_axi_wready,
-  .p_axi_bid,
-  .p_axi_bresp,
-  .p_axi_bvalid,
-  .p_axi_bready,
+  `AXI_ASSIGN_TO_FLAT_PORT(p_axi, dcs_axi_req, dcs_axi_resp),
 
       // tracing interfaces
   .tracing_valid,
