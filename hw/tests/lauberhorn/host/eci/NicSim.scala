@@ -303,15 +303,15 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /** read back one single bypass packet */
-  def rxSingle(dcsMaster: DcsAppMaster, maxRetries: Int)(implicit dut: NicEngine): (BypassCtrlInfoSim, List[Byte]) = {
-    val (info, pldDesc) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = maxRetries + 1).result.get
-    println(s"Received status register: $info")
-    assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
+  def rxSingle(dcsMaster: DcsAppMaster, maxRetries: Int)(implicit dut: NicEngine): Option[(BypassCtrlInfoSim, List[Byte])] =
+    tryReadPacketDesc(dcsMaster, tid = -1, maxTries = maxRetries + 1).result.map { case (info, pldDesc) =>
+      println(s"Received status register: $info")
+      assert(info.isInstanceOf[BypassCtrlInfoSim], "should only receive bypass packet!")
 
-    val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
+      val bypassDesc = info.asInstanceOf[BypassCtrlInfoSim]
 
-    (bypassDesc, readPayload(dcsMaster, pldDesc, bypassDesc.len))
-  }
+      (bypassDesc, readPayload(dcsMaster, pldDesc, bypassDesc.len))
+    }
 
   /** test reading one bypass packet; when called multiple times, this checks in a blocking fashion */
   def rxTestSimple(dcsMaster: DcsAppMaster, axisMaster: Axi4StreamMaster, packet: Packet, proto: PacketType, maxRetries: Int)(implicit dut: NicEngine): Unit = {
@@ -320,7 +320,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     setBypassCore(() => {
       // read memory and check data
-      val (desc, data) = rxSingle(dcsMaster, maxRetries)
+      val (desc, data) = rxSingle(dcsMaster, maxRetries).get
       assert(checkSingle(packet, proto, data, desc), "failed to receive single packet")
 
       // TODO: check performance counters
@@ -814,24 +814,29 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     var received = 0
     setBypassCore(() => {
+      // poll loop on interrupt, same as in kernel
       // when bypass interrupt happens, there must be a descriptor to fetch
-      val (desc, data) = rxSingle(dcsMaster, maxRetries = 0)
-
-      // XXX: occasionally the packet received is out of order
-      //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
-      //      resulting in Ethernet packet arriving first
-      toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
-        .zipWithIndex.dropWhile(!_._1).headOption match {
-        case Some((_, idx)) =>
-          println(s"Found expected packet as #$idx in queue")
-          toCheck.remove(idx)
-        case None => fail("failed to find received packet in expect queue")
+      var canHaveMoreData = true
+      while (canHaveMoreData) {
+        rxSingle(dcsMaster, maxRetries = 0) match {
+          case Some((desc, data)) =>
+            // XXX: occasionally the packet received is out of order
+            //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+            //      resulting in Ethernet packet arriving first
+            toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
+              .zipWithIndex.dropWhile(!_._1).headOption match {
+              case Some((_, idx)) =>
+                println(s"Found expected packet as #$idx in queue")
+                toCheck.remove(idx)
+              case None => fail("failed to find received packet in expect queue")
+            }
+            println(s"Received packet #$received")
+            received += 1
+          case None =>
+            println(s"Received NACK, finishing polling loop")
+            canHaveMoreData = false
+        }
       }
-      println(s"Received packet #$received")
-
-      randomSleep(2000)
-
-      received += 1
     })
 
     fork {
