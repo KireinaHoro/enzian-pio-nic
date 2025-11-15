@@ -31,8 +31,8 @@ import scala.language.postfixOps
   *
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
-case class DcsRxAxiRouter(config: Axi4Config) extends Component {
-  assert(config.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
+case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) extends Component {
+  assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
   assert(PKT_BUF_RX_SIZE_PER_CORE % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
   /** Incoming RX descriptors from scheduler.
@@ -70,10 +70,10 @@ case class DcsRxAxiRouter(config: Axi4Config) extends Component {
   val nackSent = out Bool()
 
   /** Per-core AXI interface from DCS (already demuxed by ECI interface) */
-  val dcsAxi = slave(Axi4(config))
+  val dcsAxi = slave(Axi4(dcsConfig))
 
   /** Forwarded requests to global packet buffer (starts at 0) */
-  val pktBufAxi = master(Axi4(config))
+  val pktBufAxi = master(Axi4(pktBufConfig.copy(idWidth = dcsConfig.idWidth)))
 
   checkEciAxiCmd(dcsAxi)
 
