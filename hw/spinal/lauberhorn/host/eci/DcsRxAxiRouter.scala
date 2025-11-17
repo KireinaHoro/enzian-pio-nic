@@ -1,6 +1,7 @@
 package lauberhorn.host.eci
 
 import jsteward.blocks.axi.RichAxi4
+import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn.PacketAddr
 import lauberhorn.Global._
 import lauberhorn.host.HostReq
@@ -32,7 +33,7 @@ import scala.language.postfixOps
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
 case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) extends Component {
-  assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
+  assert(dcsConfig.dataWidth == 1024, "only supports 1024 bus from DCS AXI interface")
   assert(pktBufConfig.dataWidth == 512, "only supports 512b bus from pkt buffer AXI interface")
   assert(PKT_BUF_RX_SIZE_PER_CORE % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
@@ -92,28 +93,28 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // command saved from DCS in AR
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
 
-  // do not read from the packet buffer if current CL served with NACK
-  val noReadPktBuf = Reg(Bool()) init False // needs cleaning on preempt!
-  val lastPktBufSlot = Reg(PacketAddr())   
+  // packet buffer slot that the descriptor carried
+  val currentPktBuf = Reg(new Bundle {
+    val addr = PacketAddr()
+    val numBeats = UInt(PKT_BUF_LEN_WIDTH - 5 bits) // divided by 64
+  })
+  currentPktBuf.numBeats init 0
 
-  // offset and length to read from the pkt buffer
+  // packet buffer read dimensions, as decoded from DCS AXI request
+  // length will be filtered to fit to packet buffer slot
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
-
-  // we read max 2 beats each round, will fit inside one AXI burst
-  // NOTE: this counts number of BEATS left, not BYTES
-  val pktBufReadLen = Reg(pktBufAxi.ar.len.clone)
+  val pktBufReadBeats = Reg(UInt(2 bits)) // we will read at most 2 beats at a time
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
 
-  // buffered first half CL for responding to host reloads on the same CL
-  val savedControl = Reg(Bits(512 bits)) init 0   // needs cleaning on preempt!
-  val loadedFirstControl = Reg(Bool()) init False
-  
+  // buffer CL for responding to host reloads on the same CL
+  val savedCl = Reg(Flow(Bits(EciCmdDefs.ECI_CL_WIDTH bits)))
+  savedCl.valid init False
+
   when (doPreempt) {
-    noReadPktBuf := True
-    savedControl.clearAll()
-    loadedFirstControl := False
+    currentPktBuf.numBeats := 0
+    savedCl.valid := False
   }
 
   // invalidation can finish before we enter waitInv, store it here
@@ -135,28 +136,29 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
     val decodeAr: State = new State {
       whenIsActive {
+        assert(readCmd.len === 0, "only support single-beat reads from DCS")
+
         when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
-          // host reading the first half CL in either first or second CL
-          pktBufReadOff := 0x0
-          pktBufReadLen := 1
+          // host reading a control CL
+          pktBufReadOff   := 0x0
+          pktBufReadBeats := 1
 
           val reqCl = (readCmd.addr === 0x80).asUInt
           hostReq(reqCl) := True
 
           // the very first read request needs to pop a descriptor, even if it's reading the
-          // same CL as current
-          // afterwards, reading the opposite CL will have triggered popping a descriptor
-          when (reqCl === currCl && loadedFirstControl) {
-            goto(sendDesc)
+          // same CL as current;
+          // after that, only reading the opposite CL will have triggered popping a descriptor;
+          // reading the same CL will result in the CL replayed
+          when (reqCl === currCl && savedCl.valid) {
+            goto(sendCl)
           } otherwise {
             goto(waitDesc)
           }
         } otherwise {
-          // host reading second half of some CL
-          // XXX: we assume the first half-CL is always read first
-          //      so we can ignore any state change and just serve packet buffer contents
+          // host reading an overflow CL
           pktBufReadOff := (readCmd.addr - 0xc0).resized
-          pktBufReadLen := 2
+          pktBufReadBeats := 2
           goto(readPktBuf)
         }
       }
@@ -171,22 +173,19 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedControl := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
+          savedCl.payload(511 downto 0) := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
 
           // when a packet is present, read from slot in packet buffer
           when (rxDesc.valid) {
-            lastPktBufSlot := rxDesc.buffer.addr
+            currentPktBuf.addr := rxDesc.buffer.addr
+            // buffer size is the actual length of packet --
+            // calculate size of actual packet buffer
+            currentPktBuf.numBeats := rxDesc.buffer.size.bits >> 5
           }
 
-          // do not read from packet buffer when:
-          // - we are sending a NACK
-          // - no payload actually in packet buffer (all embedded in header)
-          noReadPktBuf := !rxDesc.valid || rxDesc.buffer.size.bits === 0
-
-          when (!loadedFirstControl) {
+          when (!savedCl.valid) {
             // no need to wait for invalidating opposite CL for first load
-            loadedFirstControl := True
-            goto(sendDesc)
+            goto(readPktBuf)
           } otherwise {
             goto(waitInv)
           }
@@ -196,66 +195,74 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val waitInv: State = new State {
       whenIsActive {
         when (invFinished) {
-          goto(sendDesc)
+          goto(readPktBuf)
         }
       }
     }
-    val sendDesc: State = new State {
+    val sendCl: State = new State {
       whenIsActive {
-        // send first beat, could be NACK
-        dcsQ.r.data := savedControl
+        assert(savedCl.valid, "saved CL not valid")
+        dcsQ.r.data := savedCl.payload
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
-        dcsQ.r.last := False
+        dcsQ.r.last := True
         dcsQ.r.id := readCmd.id
         when (dcsQ.r.ready) {
-          nackSent := !savedControl(0)
-          when (noReadPktBuf) {
-            // do not send AXI request
-            goto(sendData)
-          } otherwise {
-            goto(readPktBuf)
-          }
+          nackSent := !savedCl.payload(0)
+          goto(idle)
         }
       }
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        // send read request to pkt buf axi
-        pktBufAxi.ar.valid := True
-        pktBufAxi.ar.len := pktBufReadLen - 1
-        pktBufAxi.ar.addr := pktBufReadOff + lastPktBufSlot.bits.resized
-        pktBufAxi.ar.id := readCmd.id
-        pktBufAxi.ar.setFullSize()
-        pktBufAxi.ar.setBurstINCR()
-        when(pktBufAxi.ar.ready) {
-          goto(sendData)
+        val startBeatNum = pktBufReadOff >> 5
+        val startInside = startBeatNum < currentPktBuf.numBeats
+        val endInside = startBeatNum + pktBufReadBeats <= currentPktBuf.numBeats
+        // packet buffer slots should be aligned, so we don't have
+        // to save partial dummy data
+        assert(!(startInside && !endInside), "packet buffer slot not aligned properly!")
+
+        when (!startInside) {
+          // trying to read beyond current packet buffer slot, return dummy data
+          goto(saveDummyData)
+        } otherwise {
+          // send read request to pkt buf axi
+          pktBufAxi.ar.valid := True
+          pktBufAxi.ar.len := (pktBufReadBeats - 1).resized
+          pktBufAxi.ar.addr := pktBufReadOff + currentPktBuf.addr.bits.resized
+          pktBufAxi.ar.id := readCmd.id
+          pktBufAxi.ar.setFullSize()
+          pktBufAxi.ar.setBurstINCR()
+          when(pktBufAxi.ar.ready) {
+            goto(savePktData)
+          }
         }
       }
     }
-    val sendData: State = new State {
-      whenIsActive {
-        when (noReadPktBuf) {
-          // return dummy result for packet buffer fetch
-          dcsQ.r.valid := True
-          dcsQ.r.data := B(0)
-          dcsQ.r.id := readCmd.id
-          dcsQ.r.setOKAY()
-          dcsQ.r.last := pktBufReadLen === 1
-        } otherwise {
-          // Does not check if this overruns the buffer for this
-          // request!  Relies on proper alignment (64 + n * 128)
-          pktBufAxi.r.ready := dcsQ.r.ready
-          dcsQ.r.payload := pktBufAxi.r.payload
-          dcsQ.r.valid := pktBufAxi.r.valid
-        }
 
-        when (dcsQ.r.fire) {
-          when (pktBufReadLen === 1) {
-            assert(dcsQ.r.last, "no more packet buffer to read but last not set")
-            goto(idle)
-          }
-          pktBufReadLen := pktBufReadLen - 1
+    def saveBeat(b: Bits) = {
+      val halfClId = 2 - pktBufReadBeats
+      savedCl.payload.subdivideIn(512 bits)(halfClId.resized) := b
+
+      pktBufReadBeats := pktBufReadBeats - 1
+      when (halfClId === 1) {
+        savedCl.valid := True
+        goto(sendCl)
+      }
+    }
+    val saveDummyData: State = new State {
+      whenIsActive {
+        saveBeat(B(0, 512 bits))
+      }
+    }
+    val savePktData: State = new State {
+      whenIsActive {
+        pktBufAxi.r.ready := True
+        when (pktBufAxi.r.valid) {
+          assert(pktBufAxi.r.isOKAY(), "packet buffer AXI resp not OKAY")
+          assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer AXI last not match")
+
+          saveBeat(pktBufAxi.r.data)
         }
       }
     }
