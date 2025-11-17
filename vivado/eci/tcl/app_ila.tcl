@@ -38,31 +38,31 @@ proc def_core_states { coreNum probeNum } {
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeAr waitDesc waitInv
-        sendDesc readPktBuf sendData
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[2:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
+        sendCl readPktBuf saveDummyData savePktData
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT idle decodeCmd waitInv sendPartialDesc
-        readPktBufCmd readPktBufData transmitDesc
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[5:3]      core${coreNum}_txRouter_read_state[2:0]  $ila]
+        BOOT idle decodeCmd waitInv sendCl
+        readPktBufCmd savePktData transmitDesc
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[6:4]      core${coreNum}_txRouter_read_state[2:0]  $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT idle decodeCmd recvPartialDesc
+        BOOT idle decodeCmd saveCl
         writePktBufCmd writePktBufData writePktBufResp
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[8:6]      core${coreNum}_txRouter_write_state[2:0] $ila]
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[9:7]      core${coreNum}_txRouter_write_state[2:0] $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT waitHostRead hostIssuedRead repeatPacket
         invalidatePacketData invalidateCtrl waitInvResp
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[11:9]     core${coreNum}_rxFsm_state[2:0]          $ila]
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[12:10]    core${coreNum}_rxFsm_state[2:0]          $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle waitPacket invalidateCtrl
         waitInvResp invalidatePacketData tx
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[14:12]    core${coreNum}_txFsm_state[2:0]          $ila]
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[15:13]    core${coreNum}_txFsm_state[2:0]          $ila]
 
-    create_hw_probe -no_gui_update -map probe$probeNum[15]       core${coreNum}_rxClIdx                   $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[16]       core${coreNum}_txClIdx                   $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[16]       core${coreNum}_rxClIdx                   $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[17]       core${coreNum}_txClIdx                   $ila
 }
 
 proc def_dcs_trace { sliceName unitNum probeNum } {

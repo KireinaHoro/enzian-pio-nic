@@ -44,7 +44,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # source design_1_script.tcl
 
 
-# The design that will be created by this Tcl script contains the following 
+# The design that will be created by this Tcl script contains the following
 # module references:
 # gt_loopback_gen
 
@@ -101,7 +101,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES: 
+   # USE CASES:
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -135,7 +135,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\ 
+   set list_check_ips "\
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
@@ -169,7 +169,7 @@ xilinx.com:inline_hdl:ilvector_logic:1.0\
 ##################################################################
 set bCheckModules 1
 if { $bCheckModules == 1 } {
-   set list_check_mods "\ 
+   set list_check_mods "\
 gt_loopback_gen\
 "
 
@@ -245,11 +245,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
 
   # Create pins
   create_bd_pin -dir I -type clk app_clk
-  create_bd_pin -dir I -from 16 -to 0 -type data core0_states
-  create_bd_pin -dir I -from 16 -to 0 -type data core1_states
-  create_bd_pin -dir I -from 16 -to 0 -type data core2_states
-  create_bd_pin -dir I -from 16 -to 0 -type data core3_states
-  create_bd_pin -dir I -from 16 -to 0 -type data core4_states
+  create_bd_pin -dir I -from 17 -to 0 -type data core0_states
+  create_bd_pin -dir I -from 17 -to 0 -type data core1_states
+  create_bd_pin -dir I -from 17 -to 0 -type data core2_states
+  create_bd_pin -dir I -from 17 -to 0 -type data core3_states
+  create_bd_pin -dir I -from 17 -to 0 -type data core4_states
   create_bd_pin -dir I -from 75 -to 0 -type data lci_even
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_even
   create_bd_pin -dir I -from 75 -to 0 -type data ul_even
@@ -290,10 +290,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE16_WIDTH {42} \
     CONFIG.C_PROBE17_WIDTH {42} \
     CONFIG.C_PROBE18_WIDTH {18} \
-    CONFIG.C_PROBE1_WIDTH {17} \
-    CONFIG.C_PROBE2_WIDTH {17} \
-    CONFIG.C_PROBE3_WIDTH {17} \
-    CONFIG.C_PROBE4_WIDTH {17} \
+    CONFIG.C_PROBE1_WIDTH {18} \
+    CONFIG.C_PROBE2_WIDTH {18} \
+    CONFIG.C_PROBE3_WIDTH {18} \
+    CONFIG.C_PROBE4_WIDTH {18} \
     CONFIG.C_PROBE5_WIDTH {76} \
     CONFIG.C_PROBE6_WIDTH {76} \
     CONFIG.C_PROBE7_WIDTH {76} \
@@ -689,7 +689,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-  
+
   # Create port connections
   connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
   [get_bd_pins app_aux_reset]
@@ -845,11 +845,11 @@ proc create_root_design { parentCell } {
  ] $txclk
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $txclk
 
-  set core0_states [ create_bd_port -dir I -from 16 -to 0 -type data core0_states ]
-  set core1_states [ create_bd_port -dir I -from 16 -to 0 -type data core1_states ]
-  set core2_states [ create_bd_port -dir I -from 16 -to 0 -type data core2_states ]
-  set core3_states [ create_bd_port -dir I -from 16 -to 0 -type data core3_states ]
-  set core4_states [ create_bd_port -dir I -from 16 -to 0 -type data core4_states ]
+  set core0_states [ create_bd_port -dir I -from 17 -to 0 -type data core0_states ]
+  set core1_states [ create_bd_port -dir I -from 17 -to 0 -type data core1_states ]
+  set core2_states [ create_bd_port -dir I -from 17 -to 0 -type data core2_states ]
+  set core3_states [ create_bd_port -dir I -from 17 -to 0 -type data core3_states ]
+  set core4_states [ create_bd_port -dir I -from 17 -to 0 -type data core4_states ]
   set lci_even [ create_bd_port -dir I -from 75 -to 0 -type data lci_even ]
   set lci_odd [ create_bd_port -dir I -from 75 -to 0 -type data lci_odd ]
   set lcia_even [ create_bd_port -dir I -from 75 -to 0 -type data lcia_even ]
