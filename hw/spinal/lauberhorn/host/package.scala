@@ -69,6 +69,7 @@ package object host {
     override def clone = HostReq()
 
     val buffer = PacketBufDesc()
+    val len = PacketLength()
     val ty = HostReqType()
     val data = HostReqData()
 

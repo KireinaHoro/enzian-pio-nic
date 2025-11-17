@@ -11,7 +11,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 /** RX DMA tag used to construct [[HostReq]] after DMA.  Filled from [[lauberhorn.net.PacketDesc]] */
 case class RxDmaTag() extends Bundle {
   /** packet buffer address from allocator.  used to fill buffer in [[HostReq]] */
-  val addr = PacketAddr()
+  val buf = PacketBufDesc()
   val ty = HostReqType()
   val data = HostReqData()
 }
