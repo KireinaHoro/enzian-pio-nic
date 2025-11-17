@@ -327,7 +327,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       // pop hostTx to honour the protocol
       hostTx.freeRun()
     }
-    val savedTxAddr = hostTx.toFlowFire.toReg()
+    val savedTxAddr = hostTx.asFlow.toReg()
     val txInvLen = PacketLength()
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
