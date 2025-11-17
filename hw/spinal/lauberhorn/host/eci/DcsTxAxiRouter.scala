@@ -198,7 +198,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsQ.b.setOKAY()
         dcsQ.b.id := writeCmd.id
         when (dcsQ.b.fire) {
-          assert(pktBufAxi.b.isOKAY(), "error response from packet buffer")
+          assert(pktBufAxi.b.isOKAY(), "error BRESP from packet buffer")
           goto(idle)
         }
       }
@@ -288,7 +288,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         pktBufAxi.r.ready := True
         when (pktBufAxi.r.valid) {
-          assert(pktBufAxi.r.isOKAY(), "error response from packet buffer")
+          assert(pktBufAxi.r.isOKAY(), "error RRESP from packet buffer")
           assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer read last not match")
 
           val halfClId = 2 - pktBufReadBeats
