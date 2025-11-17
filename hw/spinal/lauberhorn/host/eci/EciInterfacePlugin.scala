@@ -349,10 +349,11 @@ class EciInterfacePlugin extends FiberPlugin {
       .build()
 
     val numMasters = translatedDcsAxi.length
+    val numConcurrentReqs = NUM_WORKER_CORES.get + 2 // every worker has one thread, bypass has RX and TX
     val dcsXbar = new AxiCrossbar(axiConfig,
       translatedDcsAxi.map { _ => AxiCrossbarSlaveConfig(
-        concurrentOps = EciDcsDefs.DS_NUM_DCU_PER_SLICE,
-        threads = EciDcsDefs.DS_NUM_DCU_PER_SLICE, // every DCU (thus every unique ID) can only issue one req at a time
+        concurrentOps = numConcurrentReqs,
+        threads = numConcurrentReqs,
       ) },
       allSlaveNodes.map { case (_, sm) => AxiCrossbarMasterConfig(
         regions = Seq(sm),
