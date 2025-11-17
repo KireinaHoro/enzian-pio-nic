@@ -128,7 +128,7 @@ class DmaControlPlugin extends FiberPlugin {
             // encode proto metadata into DMA tag
             val tag = RxDmaTag()
             tag.data.raw.assignDontCare()
-            tag.addr := rxAlloc.io.allocResp.addr
+            tag.buf := rxAlloc.io.allocResp
             when (rxPacketDescTagged.isBypass) {
               tag.ty := HostReqType.bypass
               tag.data.bypassMeta.ty := rxPacketDescTagged.desc.ty
@@ -152,7 +152,7 @@ class DmaControlPlugin extends FiberPlugin {
 
             when (rxPacketDescTagged.desc.getPayloadSize === 0) {
               // no payload to DMA -- directly enqueue packet
-              pktTagToEnqueue.addr := rxAlloc.io.allocResp.addr
+              pktTagToEnqueue.buf := rxAlloc.io.allocResp
               pktTagToEnqueue.ty   := tag.ty
               pktTagToEnqueue.data := tag.data
               pktSizeToEnqueue.bits := 0
@@ -197,8 +197,8 @@ class DmaControlPlugin extends FiberPlugin {
         whenIsActive {
           def assign(hostRx: Stream[HostReq]) = {
             hostRx.valid := True
-            hostRx.buffer.addr := pktTagToEnqueue.addr
-            hostRx.buffer.size := pktSizeToEnqueue
+            hostRx.buffer := pktTagToEnqueue.buf
+            hostRx.len := pktSizeToEnqueue
             hostRx.ty := pktTagToEnqueue.ty
             hostRx.data := pktTagToEnqueue.data
 

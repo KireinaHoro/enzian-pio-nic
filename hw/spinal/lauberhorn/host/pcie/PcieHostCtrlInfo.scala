@@ -122,6 +122,7 @@ object PcieHostCtrlInfo {
         ret.data.oncRpcCall.xb21 := 0
       }
     }
-    ret.buffer := desc.buffer
+    ret.buffer.addr := desc.buffer.addr
+    ret.buffer.size := desc.len
   }.ret
 }

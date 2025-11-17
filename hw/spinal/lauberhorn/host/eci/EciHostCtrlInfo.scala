@@ -171,6 +171,6 @@ object EciHostCtrlInfo {
         ret.data.arpReq.xb9 := 0
       }
     }
-    ret.len := desc.buffer.size
+    ret.len := desc.len
   }.ret
 }

@@ -175,6 +175,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
               bypassSink.get.buffer.size.bits := 0
               bypassSink.get.buffer.addr.bits := 0
+              bypassSink.get.len.bits := 0
               bypassSink.get.ty := HostReqType.arpReq
               bypassSink.get.data.arpReq.ipAddr := neighResult.userData
               bypassSink.get.data.arpReq.neighTblIdx := allocResult.idx

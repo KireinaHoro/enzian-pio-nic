@@ -118,7 +118,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       (rxRouter.dcsAxi, SizeMapping(0, txOffset)),
       (txRouter.dcsAxi, SizeMapping(txOffset, txOffset)),
     ), Seq(rxRouter.pktBufAxi, txRouter.pktBufAxi))
-  }.setCompositeName(this, "driveDcsBus").ret
+  }.setCompositeName(this, "makeAccessPorts").ret
 
   def preemptReq = logic.preemptReq
 
