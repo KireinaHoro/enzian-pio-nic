@@ -49,8 +49,8 @@ class EciInterfacePlugin extends FiberPlugin {
   val axiConfig = Axi4Config(
     // ECI address width
     addressWidth = EciDcsDefs.DS_ADDR_WIDTH,
-    dataWidth = 512,
-    idWidth = 7,
+    dataWidth = EciCmdDefs.ECI_CL_WIDTH,
+    idWidth = EciDcsDefs.MAX_DCU_ID_WIDTH,
     useRegion = false,
     useQos = false,
   )
@@ -351,8 +351,8 @@ class EciInterfacePlugin extends FiberPlugin {
     val numMasters = translatedDcsAxi.length
     val dcsXbar = new AxiCrossbar(axiConfig,
       translatedDcsAxi.map { _ => AxiCrossbarSlaveConfig(
-        concurrentOps = 4,  // PULP's downsize adapter can only handle this much efficiently
-        threads = 4,        // every DCU (thus every unique ID) can only issue one req at a time
+        concurrentOps = EciDcsDefs.DS_NUM_DCU_PER_SLICE,
+        threads = EciDcsDefs.DS_NUM_DCU_PER_SLICE, // every DCU (thus every unique ID) can only issue one req at a time
       ) },
       allSlaveNodes.map { case (_, sm) => AxiCrossbarMasterConfig(
         regions = Seq(sm),
