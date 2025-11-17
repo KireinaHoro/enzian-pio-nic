@@ -130,27 +130,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar.v" \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_rd.v" \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_wr.v" \
-    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_addr.v" \
-    "$hw_deps_dir/pulp/axi/src/axi_dw_converter.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_dw_downsizer.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_dw_upsizer.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_err_slv.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_atop_filter.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_pkg.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_intf.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_demux.sv" \
-    "$hw_deps_dir/pulp/axi/src/axi_demux_simple.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/cf_math_pkg.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/rr_arb_tree.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/stream_register.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/fifo_v3.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/counter.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/delta_counter.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/spill_register.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/spill_register_flushable.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/onehot_to_bin.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/id_queue.sv" \
-    "$hw_deps_dir/pulp/common_cells/src/lzc.sv"
+    "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_addr.v"
 
 set_property include_dirs "$hw_deps_dir/pulp/axi/include $hw_deps_dir/pulp/common_cells/include" [get_filesets sources_1]
 
