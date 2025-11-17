@@ -466,7 +466,7 @@ axi_reg_dcs i_axi_pipe (
   .s_axi_rresp(p_axi_rresp),      // input wire [1 : 0] m_axi_rresp
   .s_axi_rlast(p_axi_rlast),      // input wire m_axi_rlast
   .s_axi_rvalid(p_axi_rvalid),    // input wire m_axi_rvalid
-  .s_axi_rready(p_axi_rready)    // output wire m_axi_rready
+  .s_axi_rready(p_axi_rready),    // output wire m_axi_rready
 
   .m_axi_awid(m_axi_awid),        // output wire [6 : 0] m_axi_awid
   .m_axi_awaddr(m_axi_awaddr),    // output wire [37 : 0] m_axi_awaddr

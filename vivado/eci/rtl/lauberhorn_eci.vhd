@@ -432,7 +432,7 @@ port (
   m_axi_awvalid : out std_logic;
   m_axi_awready : in std_logic ;
   m_axi_wdata   : out std_logic_vector (1023 downto 0);
-  m_axi_wstrb   : out std_logic_vector (63 downto 0);
+  m_axi_wstrb   : out std_logic_vector (127 downto 0);
   m_axi_wlast   : out std_logic;
   m_axi_wvalid  : out std_logic;
   m_axi_wready  : in std_logic;
@@ -553,7 +553,7 @@ type DCS_AXI is record
     awvalid : std_logic;
     awready : std_logic ;
     wdata   : std_logic_vector (1023 downto 0);
-    wstrb   : std_logic_vector (63 downto 0);
+    wstrb   : std_logic_vector (127 downto 0);
     wlast   : std_logic;
     wvalid  : std_logic;
     wready  : std_logic;
