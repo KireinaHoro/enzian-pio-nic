@@ -33,7 +33,7 @@ import scala.language.postfixOps
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
 case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) extends Component {
-  assert(dcsConfig.dataWidth == 1024, "only supports 1024 bus from DCS AXI interface")
+  assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
   assert(pktBufConfig.dataWidth == 512, "only supports 512b bus from pkt buffer AXI interface")
   assert(PKT_BUF_RX_SIZE_PER_CORE % 64 == 0, "pkt buffer size (B) should be multiple of 64")
 
@@ -108,13 +108,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
 
-  // buffer CL for responding to host reloads on the same CL
-  val savedCl = Reg(Flow(Bits(EciCmdDefs.ECI_CL_WIDTH bits)))
-  savedCl.valid init False
+  // buffer control descriptor for responding to host reloads
+  val savedControl = Reg(Flow(Bits(512 bits)))
+  savedControl.valid init False
 
   when (doPreempt) {
     currentPktBuf.numBeats := 0
-    savedCl.valid := False
+    savedControl.valid := False
   }
 
   // invalidation can finish before we enter waitInv, store it here
@@ -136,7 +136,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
     val decodeAr: State = new State {
       whenIsActive {
-        assert(readCmd.len === 0, "only support single-beat reads from DCS")
+        assert(readCmd.len === 1, "only support two-beat reads from DCS")
 
         when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
           // host reading a control CL
@@ -150,8 +150,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // same CL as current;
           // after that, only reading the opposite CL will have triggered popping a descriptor;
           // reading the same CL will result in the CL replayed
-          when (reqCl === currCl && savedCl.valid) {
-            goto(sendCl)
+          when (reqCl === currCl && savedControl.valid) {
+            goto(sendDesc)
           } otherwise {
             goto(waitDesc)
           }
@@ -173,7 +173,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedCl.payload(511 downto 0) := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
+          savedControl.payload := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
 
           // when a packet is present, read from slot in packet buffer
           when (rxDesc.valid) {
@@ -183,9 +183,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
             currentPktBuf.numBeats := rxDesc.buffer.size.bits >> 5
           }
 
-          when (!savedCl.valid) {
+          when (!savedControl.valid) {
             // no need to wait for invalidating opposite CL for first load
-            goto(readPktBuf)
+            savedControl.valid := True
+            goto(sendDesc)
           } otherwise {
             goto(waitInv)
           }
@@ -195,21 +196,21 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val waitInv: State = new State {
       whenIsActive {
         when (invFinished) {
-          goto(readPktBuf)
+          goto(sendDesc)
         }
       }
     }
-    val sendCl: State = new State {
+    val sendDesc: State = new State {
       whenIsActive {
-        assert(savedCl.valid, "saved CL not valid")
-        dcsQ.r.data := savedCl.payload
+        assert(savedControl.valid, "saved CL not valid")
+        dcsQ.r.data := savedControl.payload
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
-        dcsQ.r.last := True
+        dcsQ.r.last := False
         dcsQ.r.id := readCmd.id
         when (dcsQ.r.ready) {
-          nackSent := !savedCl.payload(0)
-          goto(idle)
+          nackSent := !savedControl.payload(0)
+          goto(readPktBuf)
         }
       }
     }
@@ -224,7 +225,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
         when (!startInside) {
           // trying to read beyond current packet buffer slot, return dummy data
-          goto(saveDummyData)
+          goto(sendDummyData)
         } otherwise {
           // send read request to pkt buf axi
           pktBufAxi.ar.valid := True
@@ -234,35 +235,36 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           pktBufAxi.ar.setFullSize()
           pktBufAxi.ar.setBurstINCR()
           when(pktBufAxi.ar.ready) {
-            goto(savePktData)
+            goto(sendPktData)
           }
         }
       }
     }
-
-    def saveBeat(b: Bits) = {
-      val halfClId = 2 - pktBufReadBeats
-      savedCl.payload.subdivideIn(512 bits)(halfClId.resized) := b
-
-      pktBufReadBeats := pktBufReadBeats - 1
-      when (halfClId === 1) {
-        savedCl.valid := True
-        goto(sendCl)
+    val sendDummyData: State = new State {
+      whenIsActive {
+        dcsQ.r.valid := True
+        dcsQ.r.data := B(0)
+        dcsQ.r.id := readCmd.id
+        dcsQ.r.setOKAY()
+        dcsQ.r.last := pktBufReadBeats === 1
+        when (dcsQ.r.ready) {
+          when (pktBufReadBeats === 1) {
+            goto(idle)
+          }
+          pktBufReadBeats := pktBufReadBeats - 1
+        }
       }
     }
-    val saveDummyData: State = new State {
+    val sendPktData: State = new State {
       whenIsActive {
-        saveBeat(B(0, 512 bits))
-      }
-    }
-    val savePktData: State = new State {
-      whenIsActive {
-        pktBufAxi.r.ready := True
-        when (pktBufAxi.r.valid) {
+        pktBufAxi.r >> dcsQ.r
+        when (pktBufAxi.r.fire) {
           assert(pktBufAxi.r.isOKAY(), "packet buffer AXI resp not OKAY")
           assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer AXI last not match")
-
-          saveBeat(pktBufAxi.r.data)
+          when (pktBufAxi.r.last) {
+            goto(idle)
+          }
+          pktBufReadBeats := pktBufReadBeats - 1
         }
       }
     }

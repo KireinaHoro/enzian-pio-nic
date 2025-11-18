@@ -204,7 +204,7 @@ create_ip -name axi_register_slice -vendor xilinx.com -library ip -version 2.1 -
 set my_ip [get_ips axi_reg_dcs]
 set_property -dict [list \
     CONFIG.ADDR_WIDTH {38} \
-    CONFIG.DATA_WIDTH {1024} \
+    CONFIG.DATA_WIDTH {512} \
     CONFIG.HAS_QOS {0} \
     CONFIG.HAS_REGION {0} \
     CONFIG.ID_WIDTH {7} \

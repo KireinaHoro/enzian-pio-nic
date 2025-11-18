@@ -415,7 +415,7 @@ port (
   m_axi_arvalid : out std_logic;
   m_axi_arready : in std_logic;
   m_axi_rid     : in std_logic_vector( 6 downto 0);
-  m_axi_rdata   : in std_logic_vector(1023 downto 0);
+  m_axi_rdata   : in std_logic_vector(511 downto 0);
   m_axi_rresp   : in std_logic_vector( 1 downto 0);
   m_axi_rlast   : in std_logic;
   m_axi_rvalid  : in std_logic;
@@ -431,8 +431,8 @@ port (
   m_axi_awprot  : out std_logic_vector ( 2 downto 0);
   m_axi_awvalid : out std_logic;
   m_axi_awready : in std_logic ;
-  m_axi_wdata   : out std_logic_vector (1023 downto 0);
-  m_axi_wstrb   : out std_logic_vector (127 downto 0);
+  m_axi_wdata   : out std_logic_vector (511 downto 0);
+  m_axi_wstrb   : out std_logic_vector (63 downto 0);
   m_axi_wlast   : out std_logic;
   m_axi_wvalid  : out std_logic;
   m_axi_wready  : in std_logic;
@@ -536,7 +536,7 @@ type DCS_AXI is record
     arvalid : std_logic;
     arready : std_logic;
     rid     : std_logic_vector( 6 downto 0);
-    rdata   : std_logic_vector(1023 downto 0);
+    rdata   : std_logic_vector(511 downto 0);
     rresp   : std_logic_vector( 1 downto 0);
     rlast   : std_logic;
     rvalid  : std_logic;
@@ -552,8 +552,8 @@ type DCS_AXI is record
     awprot  : std_logic_vector ( 2 downto 0);
     awvalid : std_logic;
     awready : std_logic ;
-    wdata   : std_logic_vector (1023 downto 0);
-    wstrb   : std_logic_vector (127 downto 0);
+    wdata   : std_logic_vector (511 downto 0);
+    wstrb   : std_logic_vector (63 downto 0);
     wlast   : std_logic;
     wvalid  : std_logic;
     wready  : std_logic;

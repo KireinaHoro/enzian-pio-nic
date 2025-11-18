@@ -49,7 +49,7 @@ class EciInterfacePlugin extends FiberPlugin {
   val axiConfig = Axi4Config(
     // ECI address width
     addressWidth = EciDcsDefs.DS_ADDR_WIDTH,
-    dataWidth = EciCmdDefs.ECI_CL_WIDTH,
+    dataWidth = 512,
     idWidth = EciDcsDefs.MAX_DCU_ID_WIDTH,
     useRegion = false,
     useQos = false,
