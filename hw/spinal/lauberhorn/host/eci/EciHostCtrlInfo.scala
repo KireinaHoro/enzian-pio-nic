@@ -29,11 +29,11 @@ case class EciHostCtrlInfo() extends Bundle {
   override def clone: EciHostCtrlInfo = EciHostCtrlInfo()
 
   /* reserve one bit for valid in readStream */                       // [0 : 1)  = 1b
-  val ty = HostReqType()           // [1 : 4)  = 3b
+  val ty = HostReqType()                                              // [1 : 4)  = 3b
   val len = PacketLength()                                            // [4 : 20) = 16b
   val data = new Union {
     case class BypassBundle() extends Bundle {
-      val ty = PacketDescType() // [20: 23) = 3b
+      val ty = PacketDescType()                                       // [20: 23) = 3b
       val xb9 = Bits(9 bits) /* make sure header is word aligned */   // [23: 32) = 9b
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
