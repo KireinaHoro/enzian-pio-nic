@@ -872,7 +872,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
-    assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "should not have packet on standby yet")
+    (0 until 10).foreach { _ =>
+      assert(tryReadPacketDesc(dcsMaster, -1, maxTries).result.isEmpty, "should not have packet on standby yet")
+    }
 
     import PacketType._
     val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)

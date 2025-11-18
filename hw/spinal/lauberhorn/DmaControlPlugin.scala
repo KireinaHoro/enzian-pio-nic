@@ -218,6 +218,11 @@ class DmaControlPlugin extends FiberPlugin {
       }
     }
 
+    rxFsm.build()
+    debug.postDebug("dma_rxFsm_state", rxFsm.stateReg)
+    debug.postDebug("dma_write_desc", writeDesc)
+    debug.postDebug("dma_write_desc_status", writeDescStatus)
+
     // tell allocator how much we need for RX in the packet buffer
     // allocator handles zero-sized allocations and will return a zero-sized buffer
     rxAlloc.io.allocReq << incomingDesc.map { wrappedDesc =>

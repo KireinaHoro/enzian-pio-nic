@@ -268,6 +268,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 41 -to 0 alloc_free
   create_bd_pin -dir I -from 41 -to 0 alloc_resp
   create_bd_pin -dir I -from 17 -to 0 alloc_req
+  create_bd_pin -dir I -from 2 -to 0 -type data dma_rxFsm_state
+  create_bd_pin -dir I -from 36 -to 0 dma_write_desc
+  create_bd_pin -dir I -from 16 -to 0 dma_write_desc_status
 
   # Create instance: ila_app, and set properties
   set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
@@ -278,7 +281,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {19} \
+    CONFIG.C_NUM_OF_PROBES {22} \
     CONFIG.C_PROBE0_WIDTH {18} \
     CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE11_WIDTH {58} \
@@ -290,6 +293,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE16_WIDTH {42} \
     CONFIG.C_PROBE17_WIDTH {42} \
     CONFIG.C_PROBE18_WIDTH {18} \
+    CONFIG.C_PROBE19_WIDTH {3} \
+    CONFIG.C_PROBE20_WIDTH {37} \
+    CONFIG.C_PROBE21_WIDTH {17} \
     CONFIG.C_PROBE1_WIDTH {18} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
@@ -402,6 +408,12 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe18]
   connect_bd_net -net alloc_resp  [get_bd_pins alloc_resp] \
   [get_bd_pins ila_app/probe17]
+  connect_bd_net -net dma_rxFsm_state  [get_bd_pins dma_rxFsm_state] \
+  [get_bd_pins ila_app/probe19]
+  connect_bd_net -net dma_write_desc  [get_bd_pins dma_write_desc] \
+  [get_bd_pins ila_app/probe20]
+  connect_bd_net -net dma_write_desc_status  [get_bd_pins dma_write_desc_status] \
+  [get_bd_pins ila_app/probe21]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
   connect_bd_net -net app_clock  [get_bd_pins app_clock/Q] \
@@ -863,6 +875,9 @@ proc create_root_design { parentCell } {
   set alloc_free [ create_bd_port -dir I -from 41 -to 0 alloc_free ]
   set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
   set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
+  set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
+  set dma_write_desc [ create_bd_port -dir I -from 36 -to 0 dma_write_desc ]
+  set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -995,6 +1010,12 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/alloc_resp]
   connect_bd_net -net probe18_0_1  [get_bd_ports alloc_req] \
   [get_bd_pins hier_ilas/alloc_req]
+  connect_bd_net -net probe19_0_1  [get_bd_ports dma_rxFsm_state] \
+  [get_bd_pins hier_ilas/dma_rxFsm_state]
+  connect_bd_net -net probe20_0_1  [get_bd_ports dma_write_desc] \
+  [get_bd_pins hier_ilas/dma_write_desc]
+  connect_bd_net -net probe21_0_1  [get_bd_ports dma_write_desc_status] \
+  [get_bd_pins hier_ilas/dma_write_desc_status]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset]
   connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins hier_clk_rst/txclk_rstn] \
