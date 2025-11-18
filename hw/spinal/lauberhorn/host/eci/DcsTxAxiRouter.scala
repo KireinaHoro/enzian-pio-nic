@@ -23,7 +23,7 @@ import scala.language.postfixOps
 case class DcsTxAxiRouter(dcsConfig: Axi4Config,
                           pktBufConfig: Axi4Config,
                          ) extends Component {
-  assert(dcsConfig.dataWidth == 1024, "only supports 1024b bus from DCS AXI interface")
+  assert(dcsConfig.dataWidth == 512, "only supports 512b bus from DCS AXI interface")
   assert(pktBufConfig.dataWidth == 512, "only supports 512b bus from pkt buffer AXI interface")
 
   /** Outgoing TX descriptors to the encoder pipeline. */
@@ -80,11 +80,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   pktBufAxi.setIdle()
   txDesc.setIdle()
 
-  // capture the entire CL to:
-  // - generate two write beats to packet buffer
-  // - construct one read response to DCS
-  val wrSavedCl, rdSavedCl = Reg(Bits(EciCmdDefs.ECI_CL_WIDTH bits)) init 0
-
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
   val savedControl = Reg(Bits(512 bits)) init 0
@@ -93,8 +88,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   currInvLen := aliasedHostCtrl.len
   
   when (doPreempt) {
-    wrSavedCl.clearAll()
-    rdSavedCl.clearAll()
     savedControl.clearAll()
   }
 
@@ -126,18 +119,19 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val decodeCmd: State = new State {
       whenIsActive {
-        assert(writeCmd.len === 0, "only support single-beat writes from DCS")
+        assert(writeCmd.len === 1, "only support two-beat writes from DCS")
 
         when (writeAddr === currCl * 0x80) {
           pktBufWriteOff := 0x0
           pktBufWriteBeats := 1
+          goto(saveDesc)
         } elsewhen (writeAddr === (1 - currCl) * 0x80) {
           report("write cannot happen on the inactive CL", FAILURE)
         } otherwise {
           pktBufWriteOff := (writeAddr - 0xc0).resized
           pktBufWriteBeats := 2
+          goto(writePktBufCmd)
         }
-        goto(saveCl)
       }
     }
 
@@ -148,15 +142,15 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         when (en) { buf := byte }
       }
     }
-    val saveCl: State = new State {
+    val saveDesc: State = new State {
       whenIsActive {
         // the host is writing a control CL: capture write into control CL
         dcsQ.w.ready := True
         when (dcsQ.w.valid) {
+          assert(!dcsQ.w.last, "not expecting last yet")
           when (pktBufWriteBeats === 1) {
             captureWrite(savedControl)
           }
-          captureWrite(wrSavedCl)
 
           goto(writePktBufCmd)
         }
@@ -177,26 +171,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val writePktBufData: State = new State {
       whenIsActive {
-        val halfClId = 2 - pktBufWriteBeats
-        pktBufAxi.w.valid := True
-        pktBufAxi.w.data := wrSavedCl.subdivideIn(512 bits)(halfClId.resized)
-        pktBufAxi.w.strb.setAll()
-        pktBufAxi.w.last := halfClId === 1
+        pktBufAxi.w << dcsQ.w
 
-        when (pktBufAxi.w.ready) {
-          when (halfClId === 1) {
-            goto(writePktBufResp)
-          }
-          pktBufWriteBeats := pktBufWriteBeats - 1
+        when (pktBufAxi.w.fire && pktBufAxi.w.last) {
+          goto(writePktBufResp)
         }
       }
     }
     val writePktBufResp: State = new State {
       whenIsActive {
-        pktBufAxi.b.ready := dcsQ.b.ready
-        dcsQ.b.valid := pktBufAxi.b.valid
-        dcsQ.b.setOKAY()
-        dcsQ.b.id := writeCmd.id
+        pktBufAxi.b >> dcsQ.b
         when (dcsQ.b.fire) {
           assert(pktBufAxi.b.isOKAY(), "error BRESP from packet buffer")
           goto(idle)
@@ -218,11 +202,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         }
       }
     }
-    def saveControlCl() = {
-      rdSavedCl(511 downto 0) := savedControl
-      goto(readPktBuf)
-    }
-
     val decodeCmd: State = new State {
       whenIsActive {
         when (readAddr === 0x0 || readAddr === 0x80) {
@@ -233,12 +212,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           hostReq(reqCl) := True
 
           when (reqCl === currCl) {
-            saveControlCl()
+            goto(sendDesc)
           } otherwise {
             // host dummy-reading opposite cache line; protocol will invalidate all cache
             // lines before we can send the descriptor to encoders.  we need to serve
             // a dummy data
-            rdSavedCl.clearAll()
             goto(waitInv)
           }
         } otherwise {
@@ -257,15 +235,15 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         }
       }
     }
-    val sendCl: State = new State {
+    val sendDesc: State = new State {
       whenIsActive {
-        dcsQ.r.data := rdSavedCl
+        dcsQ.r.data := savedControl
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
         dcsQ.r.id := readCmd.id
-        dcsQ.r.last := True
+        dcsQ.r.last := False
         when (dcsQ.r.ready) {
-          goto(idle)
+          goto(readPktBuf)
         }
       }
     }
@@ -280,24 +258,20 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         pktBufAxi.ar.setFullSize()
         pktBufAxi.ar.setBurstINCR()
         when (pktBufAxi.ar.ready) {
-          goto(savePktData)
+          goto(sendPktData)
         }
       }
     }
-    val savePktData: State = new State {
+    val sendPktData: State = new State {
       whenIsActive {
-        pktBufAxi.r.ready := True
-        when (pktBufAxi.r.valid) {
+        pktBufAxi.r >> dcsQ.r
+        when (pktBufAxi.r.fire) {
           assert(pktBufAxi.r.isOKAY(), "error RRESP from packet buffer")
           assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer read last not match")
-
-          val halfClId = 2 - pktBufReadBeats
-          rdSavedCl.subdivideIn(512 bits)(halfClId.resized) := pktBufAxi.r.data
-          pktBufReadBeats := pktBufReadBeats - 1
-
-          when (halfClId === 1) {
-            goto(sendCl)
+          when (pktBufAxi.r.last) {
+            goto(idle)
           }
+          pktBufReadBeats := pktBufReadBeats - 1
         }
       }
     }
@@ -314,7 +288,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
         when (txDesc.ready) {
           // we are in the middle of a read for next CL -- serve read
-          saveControlCl()
+          goto(sendDesc)
         }
       }
     }

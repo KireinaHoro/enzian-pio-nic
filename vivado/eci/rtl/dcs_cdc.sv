@@ -7,7 +7,7 @@ import eci_dcs_defs::*;
 module dcs_cdc #(
    parameter AXI_ID_WIDTH = MAX_DCU_ID_WIDTH, //7
    parameter AXI_ADDR_WIDTH = DS_ADDR_WIDTH,  //38
-   parameter AXI_DATA_WIDTH = 1024,
+   parameter AXI_DATA_WIDTH = 512,
    localparam AXI_STRB_WIDTH = (AXI_DATA_WIDTH/8),
    parameter PERF_REGS_WIDTH = 32,
    parameter SYNTH_PERF_REGS = 1 //0,1

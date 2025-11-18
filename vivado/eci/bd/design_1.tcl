@@ -303,14 +303,14 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_SLOT {1} \
     CONFIG.C_SLOT_0_APC_EN {0} \
     CONFIG.C_SLOT_0_AXI_ADDR_WIDTH {38} \
-    CONFIG.C_SLOT_0_AXI_DATA_WIDTH {1024} \
+    CONFIG.C_SLOT_0_AXI_DATA_WIDTH {512} \
     CONFIG.C_SLOT_0_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_0_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_0_MAX_WR_BURSTS {8} \
     CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
     CONFIG.C_SLOT_1_APC_EN {0} \
     CONFIG.C_SLOT_1_AXI_ADDR_WIDTH {38} \
-    CONFIG.C_SLOT_1_AXI_DATA_WIDTH {1024} \
+    CONFIG.C_SLOT_1_AXI_DATA_WIDTH {512} \
     CONFIG.C_SLOT_1_AXI_ID_WIDTH {7} \
     CONFIG.C_SLOT_1_MAX_RD_BURSTS {8} \
     CONFIG.C_SLOT_1_MAX_WR_BURSTS {8} \
@@ -799,7 +799,7 @@ proc create_root_design { parentCell } {
   set dcs_even_mon [ create_bd_intf_port -mode Monitor -mon_dir SlaveType -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_even_mon ]
   set_property -dict [ list \
    CONFIG.ADDR_WIDTH {38} \
-   CONFIG.DATA_WIDTH {1024} \
+   CONFIG.DATA_WIDTH {512} \
    CONFIG.FREQ_HZ {200000000} \
    CONFIG.HAS_QOS {0} \
    CONFIG.HAS_REGION {0} \
@@ -812,7 +812,7 @@ proc create_root_design { parentCell } {
   set dcs_odd_mon [ create_bd_intf_port -mode Monitor -mon_dir SlaveType -vlnv xilinx.com:interface:aximm_rtl:1.0 dcs_odd_mon ]
   set_property -dict [ list \
    CONFIG.ADDR_WIDTH {38} \
-   CONFIG.DATA_WIDTH {1024} \
+   CONFIG.DATA_WIDTH {512} \
    CONFIG.FREQ_HZ {200000000} \
    CONFIG.HAS_QOS {0} \
    CONFIG.HAS_REGION {0} \

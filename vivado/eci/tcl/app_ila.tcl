@@ -38,16 +38,16 @@ proc def_core_states { coreNum probeNum } {
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeAr waitDesc waitInv
-        sendCl readPktBuf saveDummyData savePktData
+        sendDesc readPktBuf sendDummyData sendPktData
     }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT idle decodeCmd waitInv sendCl
-        readPktBufCmd savePktData transmitDesc
+        BOOT idle decodeCmd waitInv sendDesc
+        readPktBuf sendPktData transmitDesc
     }] [create_hw_probe -no_gui_update -map probe$probeNum[6:4]      core${coreNum}_txRouter_read_state[2:0]  $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT idle decodeCmd saveCl
+        BOOT idle decodeCmd saveDesc
         writePktBufCmd writePktBufData writePktBufResp
     }] [create_hw_probe -no_gui_update -map probe$probeNum[9:7]      core${coreNum}_txRouter_write_state[2:0] $ila]
 
