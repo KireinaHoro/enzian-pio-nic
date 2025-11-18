@@ -39,7 +39,7 @@ proc def_core_states { coreNum probeNum } {
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeAr waitDesc waitInv
         sendDesc readPktBuf sendDummyData sendPktData
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[3:0]       $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeCmd waitInv sendDesc
