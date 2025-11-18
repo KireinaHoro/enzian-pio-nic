@@ -279,7 +279,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
     CONFIG.C_NUM_OF_PROBES {19} \
-    CONFIG.C_PROBE0_WIDTH {17} \
+    CONFIG.C_PROBE0_WIDTH {18} \
     CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE11_WIDTH {58} \
     CONFIG.C_PROBE12_WIDTH {58} \
