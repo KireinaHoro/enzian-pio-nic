@@ -83,8 +83,8 @@ proc def_dma_state { probeNum } {
     variable ila
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT idle sendDmaCmd waitDma
-        enqueuePkt
+        BOOT idle allocatePkt waitAlloc
+        sendDmaCmd waitDma enqueuePkt
     }] [create_hw_probe -no_gui_update -map probe$probeNum[2:0]    dma_rxFsm_state[2:0]          $ila]
 }
 

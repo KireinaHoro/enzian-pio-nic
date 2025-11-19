@@ -813,7 +813,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-bypass-pipelined") / "packets.pcap").toString)
 
     var received = 0
-    setBypassCore(() => {
+    setBypassCore { () =>
       // poll loop on interrupt, same as in kernel
       // when bypass interrupt happens, there must be a descriptor to fetch
       var canHaveMoreData = true
@@ -837,7 +837,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
             canHaveMoreData = false
         }
       }
-    })
+    }
 
     fork {
       0 until numPackets foreach { pid =>
@@ -862,6 +862,60 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   testWithDB("rx-bypass-overflow")(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter
+
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+    val numPackets = 500
+
+    // enable promisc mode
+    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+
+    var sent = 0
+    fork {
+      0 until numPackets foreach { pid =>
+        import PacketType._
+        val len = simRandom.between(64, 1536)
+        val (packet, proto) = randomPacket(len)(Ethernet, Ip, Udp)
+
+        val toSend = packet.getRawData.toList
+        axisMaster.send(toSend)
+        println(s"Sent packet #$pid of length ${toSend.length}")
+        sent += 1
+      }
+    }
+
+    // wait until all packets are sent
+    sleepCycles(10000)
+
+    var received = 0
+    setBypassCore { () =>
+      var pollDone = false
+      while (!pollDone) {
+        rxSingle(dcsMaster, maxRetries = 0) match {
+          case Some((desc, data)) =>
+            println(s"Received $desc")
+            received += 1
+          case None =>
+            println(s"Received NACK, finishing polling loop")
+            pollDone = true
+        }
+
+        sleepCycles(simRandom.nextInt(400))
+      }
+    }
+
+    // periodically check overflow counter
+    var done = false
+    fork {
+      while (!done) {
+        val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
+        done = sent == numPackets && overflowCount + received == sent
+
+        println(s"Sent $sent, received $received, dropped $overflowCount")
+        sleepCycles(2000)
+      }
+    }
+
+    waitUntil(done)
   }
 
   testWithDB("rx-bypass-no-repeat")(Rx) { implicit dut =>
