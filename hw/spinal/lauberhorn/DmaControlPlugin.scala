@@ -164,14 +164,14 @@ class DmaControlPlugin extends FiberPlugin {
         whenIsActive {
           rxAlloc.io.allocResp.ready := True
           when (rxAlloc.io.allocResp.valid) {
-            pktToEnqueue.buffer := rxAlloc.io.allocResp
+            pktToEnqueue.buffer := rxAlloc.io.allocResp.payload
             goto(sendDmaCmd)
           }
         }
       }
       val sendDmaCmd: State = new State {
         whenIsActive {
-          writeDesc.addr := rxAlloc.io.allocResp.addr.bits.resized
+          writeDesc.addr := pktToEnqueue.buffer.addr.bits.resized
           writeDesc.len := pktToEnqueue.len.bits // use the actual size instead of length of buffer
           writeDesc.tag := 0
           writeDesc.valid := True
