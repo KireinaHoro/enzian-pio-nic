@@ -130,5 +130,3 @@ add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i
 
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/rx_rst_sync/*"]
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/tx_rst_sync/*"]
-add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/nic_engine_rst_sync/*"]
-

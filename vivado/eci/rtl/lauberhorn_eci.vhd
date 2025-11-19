@@ -664,7 +664,6 @@ signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
-signal nic_engine_app_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -1262,13 +1261,6 @@ port map (
     dest_rst => txclk_reset
 );
 
-nic_engine_rst_sync : xpm_cdc_sync_rst
-port map (
-    src_rst => reset,
-    dest_clk => app_clk,
-    dest_rst => nic_engine_app_reset
-);
-
 axil_cdc_inst : entity work.axil_cdc
   generic map (
     DATA_WIDTH => 64,
@@ -1471,7 +1463,7 @@ axil_cdc_inst : entity work.axil_cdc
 NicEngine_inst : entity work.NicEngine
   port map (
     clk => app_clk,
-    reset => nic_engine_app_reset,
+    reset => app_clk_reset,
 
     -- CMAC clocks
     cmacRxClock_clk => rxclk,
