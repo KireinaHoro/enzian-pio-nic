@@ -144,6 +144,7 @@ class DmaControlPlugin extends FiberPlugin {
 
             when (len === 0) {
               // no payload -- enqueue directly
+              pktToEnqueue.buffer.clearAll()
               goto(enqueuePkt)
             } otherwise {
               goto(allocatePkt)

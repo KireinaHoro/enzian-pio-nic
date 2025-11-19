@@ -94,7 +94,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     bypassPldFilter.io.action.payload := attempted ? FilterAction.drop | FilterAction.pass
 
     host[DecoderSinkService].consume(bypassPldFilter.io.output,
-      bypassHeader, isBypass = true) setCompositeName(this, "dispatchBypass")
+      bypassHeader, isBypass = true).setCompositeName(this, "dispatchBypass")
   }
 
   /**
