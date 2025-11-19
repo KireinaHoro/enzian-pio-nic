@@ -808,7 +808,6 @@ class NicSim extends DutSimFunSuite[NicEngine]
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
-    val size = 128
 
     val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-bypass-pipelined") / "packets.pcap").toString)
 
@@ -842,7 +841,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
     fork {
       0 until numPackets foreach { pid =>
         import PacketType._
-        val (packet, proto) = randomPacket(size)(Ethernet, Ip, Udp)
+        val len = simRandom.between(64, 1536)
+        val (packet, proto) = randomPacket(len)(Ethernet, Ip, Udp)
         dumper.dump(packet)
         dumper.flush()
 
