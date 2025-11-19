@@ -1254,7 +1254,11 @@ class NicSim extends DutSimFunSuite[NicEngine]
       Some("rx-sched-idle-scale-many"))
     // sending packets is based on per service
     val pktsToSendStructured = srvDefs.map { case (_, ss) =>
-      ss.map(_ => simRandom.between(50, 100))
+      ss.map { srv =>
+        val toSend = simRandom.between(50, 100)
+        println(s"Sending $toSend requests for service $srv")
+        toSend
+      }
     }
     val pktsToSend = pktsToSendStructured.flatten
     val pktsSent = mutable.ArrayBuffer.fill(srvs.length)(0)
