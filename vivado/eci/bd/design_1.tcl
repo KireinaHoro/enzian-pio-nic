@@ -44,7 +44,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # source design_1_script.tcl
 
 
-# The design that will be created by this Tcl script contains the following
+# The design that will be created by this Tcl script contains the following 
 # module references:
 # gt_loopback_gen
 
@@ -101,7 +101,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -135,7 +135,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
+   set list_check_ips "\ 
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
@@ -169,7 +169,7 @@ xilinx.com:inline_hdl:ilvector_logic:1.0\
 ##################################################################
 set bCheckModules 1
 if { $bCheckModules == 1 } {
-   set list_check_mods "\
+   set list_check_mods "\ 
 gt_loopback_gen\
 "
 
@@ -294,9 +294,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE17_WIDTH {42} \
     CONFIG.C_PROBE18_WIDTH {18} \
     CONFIG.C_PROBE19_WIDTH {3} \
+    CONFIG.C_PROBE1_WIDTH {18} \
     CONFIG.C_PROBE20_WIDTH {37} \
     CONFIG.C_PROBE21_WIDTH {17} \
-    CONFIG.C_PROBE1_WIDTH {18} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
     CONFIG.C_PROBE4_WIDTH {18} \
@@ -408,12 +408,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe18]
   connect_bd_net -net alloc_resp  [get_bd_pins alloc_resp] \
   [get_bd_pins ila_app/probe17]
-  connect_bd_net -net dma_rxFsm_state  [get_bd_pins dma_rxFsm_state] \
-  [get_bd_pins ila_app/probe19]
-  connect_bd_net -net dma_write_desc  [get_bd_pins dma_write_desc] \
-  [get_bd_pins ila_app/probe20]
-  connect_bd_net -net dma_write_desc_status  [get_bd_pins dma_write_desc_status] \
-  [get_bd_pins ila_app/probe21]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
   connect_bd_net -net app_clock  [get_bd_pins app_clock/Q] \
@@ -446,6 +440,12 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe13]
   connect_bd_net -net dcs_odd_trace_1_1  [get_bd_pins dcs_odd_trace_1] \
   [get_bd_pins ila_app/probe14]
+  connect_bd_net -net dma_rxFsm_state  [get_bd_pins dma_rxFsm_state] \
+  [get_bd_pins ila_app/probe19]
+  connect_bd_net -net dma_write_desc  [get_bd_pins dma_write_desc] \
+  [get_bd_pins ila_app/probe20]
+  connect_bd_net -net dma_write_desc_status  [get_bd_pins dma_write_desc_status] \
+  [get_bd_pins ila_app/probe21]
   connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
   [get_bd_pins cmac_rx_clk/SCLR]
   connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
@@ -558,7 +558,10 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
 
   # Create instance: rst_app, and set properties
   set rst_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_app ]
-  set_property CONFIG.C_AUX_RESET_HIGH {1} $rst_app
+  set_property -dict [list \
+    CONFIG.C_AUX_RESET_HIGH {1} \
+    CONFIG.C_AUX_RST_WIDTH {1} \
+  ] $rst_app
 
 
   # Create instance: ilconstant_1, and set properties
@@ -701,7 +704,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-
+  
   # Create port connections
   connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
   [get_bd_pins app_aux_reset]
@@ -838,7 +841,6 @@ proc create_root_design { parentCell } {
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
-   CONFIG.ASSOCIATED_BUSIF {} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
