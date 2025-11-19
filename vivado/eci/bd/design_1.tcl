@@ -44,7 +44,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # source design_1_script.tcl
 
 
-# The design that will be created by this Tcl script contains the following
+# The design that will be created by this Tcl script contains the following 
 # module references:
 # gt_loopback_gen
 
@@ -101,7 +101,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -135,7 +135,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
+   set list_check_ips "\ 
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
@@ -169,7 +169,7 @@ xilinx.com:inline_hdl:ilvector_logic:1.0\
 ##################################################################
 set bCheckModules 1
 if { $bCheckModules == 1 } {
-   set list_check_mods "\
+   set list_check_mods "\ 
 gt_loopback_gen\
 "
 
@@ -268,6 +268,9 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 41 -to 0 alloc_free
   create_bd_pin -dir I -from 41 -to 0 alloc_resp
   create_bd_pin -dir I -from 17 -to 0 alloc_req
+  create_bd_pin -dir I -from 2 -to 0 -type data dma_rxFsm_state
+  create_bd_pin -dir I -from 36 -to 0 dma_write_desc
+  create_bd_pin -dir I -from 16 -to 0 dma_write_desc_status
 
   # Create instance: ila_app, and set properties
   set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
@@ -278,8 +281,8 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {19} \
-    CONFIG.C_PROBE0_WIDTH {17} \
+    CONFIG.C_NUM_OF_PROBES {22} \
+    CONFIG.C_PROBE0_WIDTH {18} \
     CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE11_WIDTH {58} \
     CONFIG.C_PROBE12_WIDTH {58} \
@@ -290,7 +293,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE16_WIDTH {42} \
     CONFIG.C_PROBE17_WIDTH {42} \
     CONFIG.C_PROBE18_WIDTH {18} \
+    CONFIG.C_PROBE19_WIDTH {3} \
     CONFIG.C_PROBE1_WIDTH {18} \
+    CONFIG.C_PROBE20_WIDTH {37} \
+    CONFIG.C_PROBE21_WIDTH {17} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
     CONFIG.C_PROBE4_WIDTH {18} \
@@ -434,6 +440,12 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe13]
   connect_bd_net -net dcs_odd_trace_1_1  [get_bd_pins dcs_odd_trace_1] \
   [get_bd_pins ila_app/probe14]
+  connect_bd_net -net dma_rxFsm_state  [get_bd_pins dma_rxFsm_state] \
+  [get_bd_pins ila_app/probe19]
+  connect_bd_net -net dma_write_desc  [get_bd_pins dma_write_desc] \
+  [get_bd_pins ila_app/probe20]
+  connect_bd_net -net dma_write_desc_status  [get_bd_pins dma_write_desc_status] \
+  [get_bd_pins ila_app/probe21]
   connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
   [get_bd_pins cmac_rx_clk/SCLR]
   connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
@@ -546,7 +558,10 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
 
   # Create instance: rst_app, and set properties
   set rst_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_app ]
-  set_property CONFIG.C_AUX_RESET_HIGH {1} $rst_app
+  set_property -dict [list \
+    CONFIG.C_AUX_RESET_HIGH {1} \
+    CONFIG.C_AUX_RST_WIDTH {1} \
+  ] $rst_app
 
 
   # Create instance: ilconstant_1, and set properties
@@ -689,7 +704,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-
+  
   # Create port connections
   connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
   [get_bd_pins app_aux_reset]
@@ -826,7 +841,6 @@ proc create_root_design { parentCell } {
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
-   CONFIG.ASSOCIATED_BUSIF {} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
@@ -863,6 +877,9 @@ proc create_root_design { parentCell } {
   set alloc_free [ create_bd_port -dir I -from 41 -to 0 alloc_free ]
   set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
   set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
+  set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
+  set dma_write_desc [ create_bd_port -dir I -from 36 -to 0 dma_write_desc ]
+  set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -995,6 +1012,12 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/alloc_resp]
   connect_bd_net -net probe18_0_1  [get_bd_ports alloc_req] \
   [get_bd_pins hier_ilas/alloc_req]
+  connect_bd_net -net probe19_0_1  [get_bd_ports dma_rxFsm_state] \
+  [get_bd_pins hier_ilas/dma_rxFsm_state]
+  connect_bd_net -net probe20_0_1  [get_bd_ports dma_write_desc] \
+  [get_bd_pins hier_ilas/dma_write_desc]
+  connect_bd_net -net probe21_0_1  [get_bd_ports dma_write_desc_status] \
+  [get_bd_pins hier_ilas/dma_write_desc_status]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset]
   connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins hier_clk_rst/txclk_rstn] \

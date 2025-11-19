@@ -8,14 +8,6 @@ import spinal.core._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.misc.plugin.FiberPlugin
 
-/** RX DMA tag used to construct [[HostReq]] after DMA.  Filled from [[lauberhorn.net.PacketDesc]] */
-case class RxDmaTag() extends Bundle {
-  /** packet buffer address from allocator.  used to fill buffer in [[HostReq]] */
-  val buf = PacketBufDesc()
-  val ty = HostReqType()
-  val data = HostReqData()
-}
-
 /**
   * Global packet buffer for payloads of RX and TX packets.  These compliment the decoded headers held in
   * [[lauberhorn.net.PacketDesc]].  Contains AXI-attached packet buffers (one for RX and one for TX) and an AXI DMA
@@ -44,8 +36,7 @@ class PacketBuffer extends FiberPlugin {
     useRegion = false,
   )
 
-  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig,
-    tagWidth = RxDmaTag().getBitsWidth, lenWidth = PKT_BUF_LEN_WIDTH)
+  lazy val dmaConfig = AxiDmaConfig(axiConfig, ms.axisConfig, tagWidth = 1, lenWidth = PKT_BUF_LEN_WIDTH)
 
   // TX packet buffers located after all RX buffers, one "rounded mtu" per core
   PKT_BUF_TX_OFFSET.set(NUM_CORES * PKT_BUF_RX_SIZE_PER_CORE)

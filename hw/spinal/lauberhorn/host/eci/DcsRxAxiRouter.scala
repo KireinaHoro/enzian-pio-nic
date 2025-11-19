@@ -181,6 +181,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
             // buffer size is the actual length of packet --
             // calculate size of actual packet buffer
             currentPktBuf.numBeats := rxDesc.buffer.size.bits >> 5
+          } otherwise {
+            // clear buffer length so we don't leak the previous
+            // packet (already freed) on a NACK
+            currentPktBuf.numBeats := 0
           }
 
           when (!savedControl.valid) {

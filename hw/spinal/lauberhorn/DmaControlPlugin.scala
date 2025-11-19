@@ -79,11 +79,8 @@ class DmaControlPlugin extends FiberPlugin {
     val writeDesc = dmaConfig.writeDescBus
     val writeDescStatus = dmaConfig.writeDescStatusBus
 
-    // allow storing command but valid stays combinational
-    readDesc.payload.setAsReg()
-    writeDesc.payload.setAsReg()
-    writeDesc.valid := False
-    readDesc.valid := False
+    readDesc.setIdle()
+    writeDesc.setIdle()
 
     val statistics = new Bundle {
       val rxPacketCount = Reg(UInt(REG_WIDTH bits)) init 0
@@ -103,88 +100,94 @@ class DmaControlPlugin extends FiberPlugin {
     debug.postDebug("alloc_resp", rxAlloc.io.allocResp)
 
     rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
+
+    rxAlloc.io.allocReq.setIdle()
     rxAlloc.io.allocResp.setBlocked()
 
     bypassSink.setIdle()
     sched.logic.rxMeta.setIdle()
 
     outgoingDesc.setIdle()
-
-    val rxPacketDescTagged = incomingDesc.toFlowFire.toReg()
+    incomingDesc.setBlocked()
 
     // details of packet to enqueue
-    val pktTagToEnqueue = Reg(RxDmaTag())
-    val pktSizeToEnqueue = Reg(PacketLength())
+    val pktToEnqueue = Reg(HostReq())
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          rxAlloc.io.allocResp.freeRun()
-          when(rxAlloc.io.allocResp.valid) {
-            // new request allocated
-            writeDesc.addr := rxAlloc.io.allocResp.addr.bits.resized
-            writeDesc.len := rxPacketDescTagged.desc.getPayloadSize // use the actual size instead of length of buffer
+          incomingDesc.ready := True
+          when(incomingDesc.valid) {
+            val len = incomingDesc.desc.getPayloadSize
+            pktToEnqueue.len.bits := len
 
-            // encode proto metadata into DMA tag
-            val tag = RxDmaTag()
-            tag.data.raw.assignDontCare()
-            tag.buf := rxAlloc.io.allocResp
-            when (rxPacketDescTagged.isBypass) {
-              tag.ty := HostReqType.bypass
-              tag.data.bypassMeta.ty := rxPacketDescTagged.desc.ty
-              tag.data.bypassMeta.hdr := rxPacketDescTagged.desc.collectHeaders
+            when (incomingDesc.isBypass) {
+              pktToEnqueue.ty := HostReqType.bypass
+              pktToEnqueue.data.bypassMeta.ty := incomingDesc.desc.ty
+              pktToEnqueue.data.bypassMeta.hdr := incomingDesc.desc.collectHeaders
             } otherwise {
-              switch (rxPacketDescTagged.desc.ty) {
+              switch (incomingDesc.desc.ty) {
                 is (PacketDescType.oncRpcCall) {
-                  tag.ty := HostReqType.oncRpcCall
+                  pktToEnqueue.ty := HostReqType.oncRpcCall
 
-                  tag.data.oncRpcCallRx.funcPtr := rxPacketDescTagged.desc.metadata.oncRpcCall.funcPtr
-                  tag.data.oncRpcCallRx.pid := rxPacketDescTagged.desc.metadata.oncRpcCall.pid
-                  tag.data.oncRpcCallRx.xid := rxPacketDescTagged.desc.metadata.oncRpcCall.hdr.xid
-                  tag.data.oncRpcCallRx.data := rxPacketDescTagged.desc.metadata.oncRpcCall.args
+                  pktToEnqueue.data.oncRpcCallRx.funcPtr := incomingDesc.desc.metadata.oncRpcCall.funcPtr
+                  pktToEnqueue.data.oncRpcCallRx.pid := incomingDesc.desc.metadata.oncRpcCall.pid
+                  pktToEnqueue.data.oncRpcCallRx.xid := incomingDesc.desc.metadata.oncRpcCall.hdr.xid
+                  pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCall.args
                 }
                 default {
-                  tag.ty := HostReqType.error
+                  pktToEnqueue.ty := HostReqType.error
                   report("unsupported protocol metadata type on non-bypass packet", FAILURE)
                 }
               }
             }
 
-            when (rxPacketDescTagged.desc.getPayloadSize === 0) {
-              // no payload to DMA -- directly enqueue packet
-              pktTagToEnqueue.buf := rxAlloc.io.allocResp
-              pktTagToEnqueue.ty   := tag.ty
-              pktTagToEnqueue.data := tag.data
-              pktSizeToEnqueue.bits := 0
+            when (len === 0) {
+              // no payload -- enqueue directly
               goto(enqueuePkt)
             } otherwise {
-              // issue DMA cmd
-              writeDesc.tag := tag.asBits
-              goto(sendDmaCmd)
+              goto(allocatePkt)
             }
+          }
+        }
+      }
+      val allocatePkt: State = new State {
+        whenIsActive {
+          rxAlloc.io.allocReq.payload := pktToEnqueue.len
+          rxAlloc.io.allocReq.valid := True
+          when (rxAlloc.io.allocReq.ready) {
+            goto(waitAlloc)
+          }
+        }
+      }
+      val waitAlloc: State = new State {
+        whenIsActive {
+          rxAlloc.io.allocResp.ready := True
+          when (rxAlloc.io.allocResp.valid) {
+            pktToEnqueue.buffer := rxAlloc.io.allocResp.payload
+            goto(sendDmaCmd)
           }
         }
       }
       val sendDmaCmd: State = new State {
         whenIsActive {
-          rxAlloc.io.allocResp.ready := False
-          // command already stored in register
+          writeDesc.addr := pktToEnqueue.buffer.addr.bits.resized
+          writeDesc.len := pktToEnqueue.len.bits // use the actual size instead of length of buffer
+          writeDesc.tag := 0
           writeDesc.valid := True
-          when(writeDesc.ready) {
+          when (writeDesc.ready) {
             goto(waitDma)
           }
         }
       }
       val waitDma: State = new State {
         whenIsActive {
+          // status is a Flow
           when(writeDescStatus.fire) {
             when(writeDescStatus.payload.error === 0) {
               // fill host descriptor
-              val tag = RxDmaTag()
-              tag.assignFromBits(writeDescStatus.tag)
-
-              pktTagToEnqueue := tag
-              pktSizeToEnqueue.bits := writeDescStatus.len
+              assert(writeDescStatus.len === pktToEnqueue.len.bits,
+                "DMA didn't write all packet bytes!")
               goto(enqueuePkt)
             } otherwise {
               inc(_.rxDmaErrorCount)
@@ -197,10 +200,10 @@ class DmaControlPlugin extends FiberPlugin {
         whenIsActive {
           def assign(hostRx: Stream[HostReq]) = {
             hostRx.valid := True
-            hostRx.buffer := pktTagToEnqueue.buf
-            hostRx.len := pktSizeToEnqueue
-            hostRx.ty := pktTagToEnqueue.ty
-            hostRx.data := pktTagToEnqueue.data
+            hostRx.payload := pktToEnqueue
+
+            assert(pktToEnqueue.buffer.size.bits >= pktToEnqueue.len.bits,
+              "truncated packet during RX DMA")
 
             when (hostRx.ready) {
               inc(_.rxPacketCount)
@@ -209,7 +212,7 @@ class DmaControlPlugin extends FiberPlugin {
           }
 
           p.profile(p.RxEnqueueToHost -> True)
-          when (pktTagToEnqueue.ty === HostReqType.bypass) {
+          when (pktToEnqueue.ty === HostReqType.bypass) {
             assign(bypassSink.get)
           } otherwise {
             assign(sched.logic.rxMeta)
@@ -218,15 +221,10 @@ class DmaControlPlugin extends FiberPlugin {
       }
     }
 
-    // tell allocator how much we need for RX in the packet buffer
-    // allocator handles zero-sized allocations and will return a zero-sized buffer
-    rxAlloc.io.allocReq << incomingDesc.map { wrappedDesc =>
-        val ret = PacketLength()
-        ret.bits := wrappedDesc.desc.getPayloadSize
-        ret
-      }
-      // do not accept new packets when one is being processed (not in idle)
-      .haltWhen(!rxFsm.isActive(rxFsm.idle))
+    rxFsm.build()
+    debug.postDebug("dma_rxFsm_state", rxFsm.stateReg)
+    debug.postDebug("dma_write_desc", writeDesc)
+    debug.postDebug("dma_write_desc_status", writeDescStatus)
 
     // drive TX buffer information for host modules
     // one MTU is reserved for each core for TX
@@ -237,21 +235,13 @@ class DmaControlPlugin extends FiberPlugin {
     }
 
     val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
+    val txReqBuffered = txReqMuxed.asFlow.toReg
     val txPacketDesc = Reg(PacketDesc())
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          txReqMuxed.freeRun()
+          txReqMuxed.ready := True
           when(txReqMuxed.valid) {
-            // check that the actual buffer is used
-            assert(txReqMuxed.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
-              "packet buffer slot out of TX buffer range used")
-
-            // store DMA command
-            readDesc.payload.payload.addr := txReqMuxed.buffer.addr.bits.resized
-            readDesc.payload.payload.len := txReqMuxed.buffer.size.bits
-            readDesc.payload.payload.tag := 0
-
             // parse and save outgoing PacketDesc
             switch (txReqMuxed.ty) {
               is (HostReqType.bypass) {
@@ -267,16 +257,25 @@ class DmaControlPlugin extends FiberPlugin {
               }
             }
 
-            // send descriptor first to set stream mux to correct direction
-            goto(sendDesc)
+            goto(sendDmaCmd)
           }
         }
       }
       val sendDmaCmd: State = new State {
         whenIsActive {
+          // check that the actual buffer is used
+          assert(txReqBuffered.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
+            "packet buffer slot out of TX buffer range used")
+
+          // store DMA command
+          readDesc.payload.payload.addr := txReqBuffered.buffer.addr.bits.resized
+          readDesc.payload.payload.len := txReqBuffered.buffer.size.bits
+          readDesc.payload.payload.tag := 0
           readDesc.valid := True
-          when(readDesc.ready) {
-            goto(waitDma)
+
+          // send descriptor first to set stream mux to correct direction
+          when (readDesc.ready) {
+            goto(sendDesc)
           }
         }
       }
@@ -299,7 +298,7 @@ class DmaControlPlugin extends FiberPlugin {
           outgoingDesc.payload := txPacketDesc
           outgoingDesc.valid := True
           when (outgoingDesc.ready) {
-            goto(sendDmaCmd)
+            goto(waitDma)
           }
         }
       }

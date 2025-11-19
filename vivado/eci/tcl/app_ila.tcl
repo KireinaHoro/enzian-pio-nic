@@ -21,6 +21,20 @@ proc def_alloc_chan_without_addr { busName probeNum } {
     create_hw_probe -no_gui_update -map probe$probeNum[15:0]     alloc_$busName.size[15:0] $ila
 }
 
+proc def_dma_wr_desc { probeNum } {
+    variable ila
+    create_hw_probe -no_gui_update -map probe$probeNum[36]      dma_write_desc.valid         $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[35]      dma_write_desc.ready         $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[34:16]   dma_write_desc.addr[18:0]    $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[15:0]    dma_write_desc.len[15:0]     $ila
+}
+
+proc def_dma_wr_status { probeNum } {
+    variable ila
+    create_hw_probe -no_gui_update -map probe$probeNum[16]      dma_write_status.valid         $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[15:0]    dma_write_status.len[15:0]     $ila
+}
+
 proc states_to_enum_defs { stateList } {
     set idx 0
     set numStates [llength $stateList]
@@ -39,7 +53,7 @@ proc def_core_states { coreNum probeNum } {
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeAr waitDesc waitInv
         sendDesc readPktBuf sendDummyData sendPktData
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[2:0]       $ila]
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[3:0]      core${coreNum}_rxRouter_state[3:0]       $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle decodeCmd waitInv sendDesc
@@ -63,6 +77,15 @@ proc def_core_states { coreNum probeNum } {
 
     create_hw_probe -no_gui_update -map probe$probeNum[16]       core${coreNum}_rxClIdx                   $ila
     create_hw_probe -no_gui_update -map probe$probeNum[17]       core${coreNum}_txClIdx                   $ila
+}
+
+proc def_dma_state { probeNum } {
+    variable ila
+
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        BOOT idle allocatePkt waitAlloc
+        sendDmaCmd waitDma enqueuePkt
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[2:0]    dma_rxFsm_state[2:0]          $ila]
 }
 
 proc def_dcs_trace { sliceName unitNum probeNum } {
@@ -191,6 +214,10 @@ def_alloc_chan_with_addr    free 16
 def_alloc_chan_with_addr    resp 17
 def_alloc_chan_without_addr req  18
 
+def_dma_state 19
+def_dma_wr_desc 20
+def_dma_wr_status 21
+
 # Trigger once to populate all waves (or add_wave might fail).
 run_hw_ila -trigger_now $ila
 wait_on_hw_ila $ila
@@ -203,11 +230,17 @@ add_group "Bypass Core States" [get_hw_probes -of_objects $ila -regexp core0_.*]
 add_dcs_axi even
 add_dcs_axi odd
 
-set alloc_name_re {\.([a-z]*)$}
+set groupItemNameRe {\.([a-z]*)$}
 
-add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*] $alloc_name_re
-add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*] $alloc_name_re
-add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*] $alloc_name_re
+add_wave -name "200 MHz Clock" [get_hw_probes -of_objects $ila -regexp .*probe15]
+
+add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*] $groupItemNameRe
+add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*] $groupItemNameRe
+add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*] $groupItemNameRe
+
+add_stream "DMA Write Desc" [get_hw_probes -of_objects $ila -regexp dma_write_desc.*] $groupItemNameRe
+add_stream "DMA Write Status" [get_hw_probes -of_objects $ila -regexp dma_write_status.*] $groupItemNameRe
+add_wave -name "DMA RX State" [get_hw_probes -of_objects $ila -regexp dma_rxFsm_state]
 
 # Configure ILA trigger and window.
 set total_samples [get_property STATIC.MAX_DATA_DEPTH $ila]

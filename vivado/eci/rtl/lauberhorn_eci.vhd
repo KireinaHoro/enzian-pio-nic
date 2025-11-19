@@ -664,7 +664,6 @@ signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
-signal nic_engine_app_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -673,6 +672,10 @@ signal dcs_even_trace_0, dcs_even_trace_1, dcs_odd_trace_0, dcs_odd_trace_1 : st
 
 signal alloc_resp, alloc_free : std_logic_vector(41 downto 0);
 signal alloc_req : std_logic_vector(17 downto 0);
+
+signal dma_rxFsm_state : std_logic_vector(2 downto 0);
+signal dma_write_desc : std_logic_vector(36 downto 0);
+signal dma_write_desc_status : std_logic_vector(16 downto 0);
 
 -- LCL channel signals between DC and the NIC engine
 signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
@@ -1258,13 +1261,6 @@ port map (
     dest_rst => txclk_reset
 );
 
-nic_engine_rst_sync : xpm_cdc_sync_rst
-port map (
-    src_rst => reset,
-    dest_clk => app_clk,
-    dest_rst => nic_engine_app_reset
-);
-
 axil_cdc_inst : entity work.axil_cdc
   generic map (
     DATA_WIDTH => 64,
@@ -1456,13 +1452,18 @@ axil_cdc_inst : entity work.axil_cdc
     -- RX allocator
     alloc_free => alloc_free,
     alloc_resp => alloc_resp,
-    alloc_req => alloc_req
+    alloc_req => alloc_req,
+
+    -- DMA states
+    dma_rxFsm_state => dma_rxFsm_state,
+    dma_write_desc => dma_write_desc,
+    dma_write_desc_status => dma_write_desc_status
 );
 
 NicEngine_inst : entity work.NicEngine
   port map (
     clk => app_clk,
-    reset => nic_engine_app_reset,
+    reset => app_clk_reset,
 
     -- CMAC clocks
     cmacRxClock_clk => rxclk,
@@ -1671,7 +1672,17 @@ NicEngine_inst : entity work.NicEngine
 
     alloc_req_valid => alloc_req(17),
     alloc_req_ready => alloc_req(16),
-    alloc_req_payload_bits => alloc_req(15 downto 0)
+    alloc_req_payload_bits => alloc_req(15 downto 0),
+
+    dma_write_desc_valid => dma_write_desc(36),
+    dma_write_desc_ready => dma_write_desc(35),
+    dma_write_desc_payload_addr => dma_write_desc(34 downto 16),
+    dma_write_desc_payload_len => dma_write_desc(15 downto 0),
+
+    dma_write_desc_status_valid => dma_write_desc_status(16),
+    dma_write_desc_status_payload_len => dma_write_desc_status(15 downto 0),
+
+    dma_rxFsm_state => dma_rxFsm_state
   );
 
 end Behavioral;
