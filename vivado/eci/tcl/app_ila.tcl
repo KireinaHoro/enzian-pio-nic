@@ -232,6 +232,8 @@ add_dcs_axi odd
 
 set groupItemNameRe {\.([a-z]*)$}
 
+add_wave -name "200 MHz Clock" [get_hw_probes -of_objects $ila -regexp .*probe15]
+
 add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*] $groupItemNameRe
 add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*] $groupItemNameRe
 add_stream "Alloc Free Request" [get_hw_probes -of_objects $ila -regexp alloc_free.*] $groupItemNameRe
