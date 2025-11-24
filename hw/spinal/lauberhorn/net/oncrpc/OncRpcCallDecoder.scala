@@ -88,13 +88,15 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     val metadata = Stream(OncRpcCallRxMeta())
 
     // we do not invoke produce: there should be no downstream decoders
-    produceFinal(metadata, payload)
+    val outputAck = Bool()
+    produceFinal(metadata, payload, outputAck)
     produceDone()
 
     awaitBuild()
     val minLen = OncRpcCallHeader().getBitsWidth / 8
     val maxLen = minLen + ONCRPC_INLINE_BYTES
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, maxLen)(minLen)
+    decoder.io.outputAck := outputAck
     // TODO: variable length field memory allocation (arena-style?)
 
     val currentUdpHeader = udpHeader.toFlowFire.toReg()

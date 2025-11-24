@@ -22,7 +22,12 @@ import scala.language.postfixOps
  */
 trait DecoderSinkService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean = false): Area
+  def consume[T <: DecoderMetadata](
+                                     payloadSink: Axi4Stream,
+                                     payloadAck: Bool,
+                                     metadataSink: Stream[T],
+                                     isBypass: Boolean = false,
+                                   ): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
   def isPromisc: Bool
@@ -45,7 +50,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val descSources = mutable.ListBuffer[Stream[RxPacketDescWithSource]]()
   lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, metadataSink: Stream[T], isBypass: Boolean) = new Area {
+  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, payloadAck: Bool, metadataSink: Stream[T], isBypass: Boolean) = new Area {
     payloadSink.assertPersistence()
     metadataSink.assertPersistence()
 
@@ -64,10 +69,14 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     // take care not to introduce latency in the forward path, due to the timing requirement between
     // the descriptor and its payload
     descSources.append(tagged.pipelined(FULL))
+
+    // Payload is ack'ed when we disable the AXIS mux
+    payloadAck := pldMuxDisable
   }
   override def packetSink = logic.axisMux.m_axis
 
   lazy val promisc = Bool()
+  lazy val pldMuxDisable = Bool()
   val logic = during build new Area {
     retainer.await()
 
@@ -114,6 +123,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     when (axisMux.m_axis.valid) {
       pldSelEnNext := False
     }
+    pldMuxDisable := pldSelEn.fall(False)
 
     val descArbiter = StreamArbiterFactory().lowerFirst.buildOn(descSources)
     when (descArbiter.io.output.fire) {
