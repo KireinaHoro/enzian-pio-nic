@@ -58,7 +58,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     // frameLen.valid must be high when we have a metadata fire
     macIf.frameLen.ready := metadata.fire
 
-    produce(metadata, payload, decoder.io.outputAck)
+    produce(metadata, payload, decoder.io.outputAck, priority = 0)
     produceDone()
   }
 }

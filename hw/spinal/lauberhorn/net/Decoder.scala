@@ -53,7 +53,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
     */
-  protected def produce(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool): Unit = new Composite(this, "produce") {
+  protected def produce(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool, priority: Int): Unit = new Composite(this, "produce") {
     val forkedHeaders = StreamFork(metadata, consumers.length + 1)
     val forkedPayloads = StreamFork(payload, consumers.length + 1)
 
@@ -93,8 +93,10 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     bypassPldFilter.io.action.valid := forkedHeaders.last.fire
     bypassPldFilter.io.action.payload := attempted ? FilterAction.drop | FilterAction.pass
 
-    host[DecoderSinkService].consume(bypassPldFilter.io.output, payloadAck,
-      bypassHeader, isBypass = true).setCompositeName(this, "dispatchBypass")
+    host[DecoderSinkService].consume(DecoderOutput(
+      priority, decoderName,
+      bypassHeader.map(_.toRxTaggedDesc(true)),
+      bypassPldFilter.io.output, payloadAck)).setCompositeName(this, "dispatchBypass")
   }
 
   /**
@@ -105,7 +107,10 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param payload payload data stream produced by this stage
     */
   protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool): Unit = {
-    host[DecoderSinkService].consume(payload, payloadAck, metadata) setCompositeName(this, "dispatch")
+    host[DecoderSinkService].consume(DecoderOutput(
+      Int.MaxValue, decoderName,
+      metadata.map(_.toRxTaggedDesc(false)),
+      payload, payloadAck)).setCompositeName(this, "dispatch")
   }
 
   /** Release retainer from packet dispatcher to allow it to continue elaborating */
