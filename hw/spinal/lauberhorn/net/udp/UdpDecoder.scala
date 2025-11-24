@@ -123,7 +123,7 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)()
     ipPayload >> decoder.io.input
 
-    produce(metadata, payload, decoder.io.outputAck)
+    produce(metadata, payload, decoder.io.outputAck, priority = 200)
     produceDone()
 
     val currentIpHeader = ipHeader.toFlowFire.toReg()

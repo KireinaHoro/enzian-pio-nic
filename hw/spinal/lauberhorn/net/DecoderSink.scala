@@ -14,6 +14,11 @@ import spinal.lib.misc.plugin.FiberPlugin
 import scala.collection.mutable
 import scala.language.postfixOps
 
+case class DecoderOutput(priority: Int, name: String,
+                         desc: Stream[RxPacketDescWithSource], pld: Axi4Stream,
+                         payloadAck: Bool,   // can this decoder emit another desc?
+                        )
+
 /**
  * Service for RX decoder pipeline plugins as well as the AXI DMA engine to invoke.
  *
@@ -22,12 +27,7 @@ import scala.language.postfixOps
  */
 trait DecoderSinkService {
   /** called by packet decoders to post packets for DMA */
-  def consume[T <: DecoderMetadata](
-                                     payloadSink: Axi4Stream,
-                                     payloadAck: Bool,
-                                     metadataSink: Stream[T],
-                                     isBypass: Boolean = false,
-                                   ): Area
+  def consume(dec: DecoderOutput): Area
   /** packet payload stream consumed by AXI DMA engine, to write into packet buffers */
   def packetSink: Axi4Stream
   def isPromisc: Bool
@@ -48,30 +48,15 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val retainer = Retainer()
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
-  lazy val descSources = mutable.ListBuffer[Stream[RxPacketDescWithSource]]()
-  lazy val payloadSources = mutable.ListBuffer[Axi4Stream]()
-  def consume[T <: DecoderMetadata](payloadSink: Axi4Stream, payloadAck: Bool, metadataSink: Stream[T], isBypass: Boolean) = new Area {
-    payloadSink.assertPersistence()
-    metadataSink.assertPersistence()
+  lazy val decoderOutputs = mutable.ListBuffer[DecoderOutput]()
+  def consume(dec: DecoderOutput) = new Area {
+    dec.pld.assertPersistence()
+    dec.desc.assertPersistence()
 
-    // handle payload data
-    payloadSources.append(payloadSink)
-
-    // handle metadata
-    val tagged = metadataSink.map { md =>
-      val ret = RxPacketDescWithSource()
-      ret.desc.ty := md.getType
-      ret.desc.metadata := md.asUnion
-      ret.isBypass := Bool(isBypass)
-      ret
-    }
-
-    // take care not to introduce latency in the forward path, due to the timing requirement between
-    // the descriptor and its payload
-    descSources.append(tagged.pipelined(FULL))
+    decoderOutputs.append(dec.copy(desc = dec.desc.pipelined(FULL)))
 
     // Payload is ack'ed when we disable the AXIS mux
-    payloadAck := pldMuxDisable
+    dec.payloadAck := pldMuxDisable
   }
   override def packetSink = logic.axisMux.m_axis
 
@@ -80,19 +65,28 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val logic = during build new Area {
     retainer.await()
 
-    assert(descSources.length == payloadSources.length)
-    assert(descSources.length > 1)
+    val numDecoders = decoderOutputs.length
+    assert(numDecoders > 1)
+
+    // Sort by priority.  Downstream decoders (higher up in OSI stack) has higher
+    // priority -- e.g. UDP > IP > Ethernet
+    val sortedDecoders = decoderOutputs.sortBy(_.priority)(Ordering[Int].reverse)
+
+    println("Decoders registered with sink:")
+    sortedDecoders.zipWithIndex foreach { case (d, idx) =>
+      println(s"#$idx: ${d.name}\t(priority ${d.priority})")
+    }
 
     // mux payload data axis to DMA:
     // select upstream port based on which desc port had a request.
     // a arbiter mux might mix up desc and payload from different decoders
-    val axisMux = new AxiStreamMux(ms.axisConfig, numSlavePorts = payloadSources.length)
-    axisMux.s_axis zip payloadSources foreach { case (sl, ms) =>
-      sl << ms
+    val axisMux = new AxiStreamMux(ms.axisConfig, numSlavePorts = numDecoders)
+    axisMux.s_axis zip sortedDecoders foreach { case (sl, d) =>
+      sl << d.pld
     }
 
     // set payload mux to take from upstream that emitted a descriptor.
-    val pldSelNext = UInt(log2Up(payloadSources.length) bits)
+    val pldSelNext = UInt(log2Up(numDecoders) bits)
     val pldSel = RegNext(pldSelNext)
     pldSelNext := pldSel
 
@@ -125,7 +119,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     }
     pldMuxDisable := pldSelEn.fall(False)
 
-    val descArbiter = StreamArbiterFactory().lowerFirst.buildOn(descSources)
+    val descArbiter = StreamArbiterFactory().lowerFirst.buildOn(sortedDecoders.map(_.desc))
     when (descArbiter.io.output.fire) {
       pldSelNext := descArbiter.io.chosen
       pldSelEnNext := True

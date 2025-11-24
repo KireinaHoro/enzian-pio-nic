@@ -57,6 +57,14 @@ package object net {
     def collectHeaders: Bits
     /** cast to union for assigning to [[PacketDescData]] */
     def asUnion: PacketDescData
+
+    def toRxTaggedDesc(isBypass: Boolean): RxPacketDescWithSource = {
+      val ret = RxPacketDescWithSource()
+      ret.desc.ty := getType
+      ret.desc.metadata := asUnion
+      ret.isBypass := Bool(isBypass)
+      ret
+    }
   }
 
   /**

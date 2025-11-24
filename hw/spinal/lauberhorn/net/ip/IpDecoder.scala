@@ -45,7 +45,7 @@ class IpDecoder extends Decoder[IpRxMeta] {
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8)() // IPv4 without options
     // TODO: chain output with secondary decoder to decode IP options
 
-    produce(metadata, payload, decoder.io.outputAck)
+    produce(metadata, payload, decoder.io.outputAck, priority = 100)
     produceDone()
 
     val lastEthMeta = ethernetHeader.toFlowFire.toReg()
