@@ -123,6 +123,11 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     when (descArbiter.io.output.fire) {
       pldSelNext := descArbiter.io.chosen
       pldSelEnNext := True
+
+      // also allow next header when this packet did not have payload
+      when (descArbiter.io.output.desc.getPayloadSize === 0) {
+        pldMuxDisable := True
+      }
     }
 
     descArbiter.io.output >> dc.incomingDesc
