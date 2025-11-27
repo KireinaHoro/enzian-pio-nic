@@ -93,7 +93,7 @@ trait HwProjModule extends Module {
 
   def vivadoRoot = millSourcePath / "vivado" / variant
   def vivadoProjectName = s"pio-nic-$variant"
-  def projectTcl = T.source(vivadoRoot / "tcl" / "create_project.tcl")
+  def projectTcl = T.source(vivadoRoot / "create_project.tcl")
   def projectTclDeps = T.source(vivadoRoot / "bd" / "design_1.tcl")
   def vivadoProject = T {
     projectTclDeps()
@@ -102,7 +102,7 @@ trait HwProjModule extends Module {
     PathRef(T.dest / vivadoProjectName)
   }
 
-  def bitstreamTcl = T.source(vivadoRoot / "tcl" / "create_bitstream.tcl")
+  def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
 
   def bitstreamEnv = T { Map.empty[String, String] }
   def generateBitstream = T {
