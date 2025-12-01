@@ -66,8 +66,8 @@ proc def_core_states { coreNum probeNum } {
     }] [create_hw_probe -no_gui_update -map probe$probeNum[9:7]      core${coreNum}_txRouter_write_state[2:0] $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
-        BOOT waitHostRead hostIssuedRead repeatPacket
-        invalidatePacketData invalidateCtrl waitInvResp
+        BOOT waitHostRead hostReadPending repeatDesc
+        freeSlot invalidatePacketData invalidateCtrl waitInvResp
     }] [create_hw_probe -no_gui_update -map probe$probeNum[12:10]    core${coreNum}_rxFsm_state[2:0]          $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {

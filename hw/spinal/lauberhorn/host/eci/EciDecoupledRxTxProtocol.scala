@@ -87,6 +87,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
     rxRouter.doPreempt := preemptReq.valid
+    logic.rxSentNack := rxRouter.nackSent
     logic.rxReqs := rxRouter.hostReq
 
     // TX router
@@ -135,6 +136,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val rxInvDone = Bool()
     val txInvDone = Bool()
 
+    // the router sent back a NACK
+    val rxSentNack = Bool()
+
     ECI_RX_BASE.set(0)
     ECI_TX_BASE.set(txOffset)
     ECI_OVERFLOW_OFFSET.set(0x100)
@@ -178,92 +182,79 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     hostRxAck.setIdle()
     hostTx.setBlocked()
+    hostRxReq := False
 
     val rxOverflowInvIssued, rxOverflowInvAcked = Counter(overflowCountWidth bits)
     val rxOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
+    val rxSlotToFree = Reg(PacketBufDesc())
+
+    val rxSlotCaptured = hostRx.toFlowFire.map(_.buffer).toReg()
+    val rxSlotCapturedValid = Reg(Bool()).setWhen(hostRx.fire).init(False)
+
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
 
-    // register accepted host rx packet for:
-    // - get out of hostWaiting.  two cases:
-    //   - hostRx.fire happened during invalidation
-    //   - a packet is already waiting, so host left repeatPacket with a new packet buffered
-    // - generating hostRxAck
-    // - driving mem offset for packet buffer load
-    //
-    // This will only register a packet on hostRx.fire, meaning the host has at least read
-    // the packet ONCE -- this means that the host is at least inside the preemption critical
-    // region.  A preemption request wouldn't come unless the host finished the critical section.
-    // Also, this only captures the _buffer definition_ (base, size) and not the actual data,
-    // so no risk of leaking data even if we messed up the reasoning here.
-    // As a result, we don't need to drop anything here on preemption, since it won't buffer
-    // a packet that the host CPU hasn't seen yet.
-    val rxPktBufSaved = RegNextWhen(hostRx.buffer, hostRx.fire)
-    val rxPktBufSavedValid = Reg(Bool()).setWhen(hostRx.fire) init False
-
-    // read start is when request for the selected CL is active for the first time
-    val hostFirstRead = Reg(Bool()) init False
-    hostRxReq := hostFirstRead
-
     val rxFsm = new StateMachine {
+      def handlePreempt() = {
+        when (preemptReq.valid) {
+          assert(!rxReqs.orR, "critical section violation: no read is allowed during preemption")
+          preemptReq.ready := True
+          goto(waitHostRead)
+        }
+      }
       val waitHostRead: State = new State with EntryPoint {
         whenIsActive {
-          rxOverflowToInvalidate.clearAll()
-          rxOverflowInvAcked.clear()
-          rxOverflowInvIssued.clear()
-          hostFirstRead.clear()
-
+          // Wait for the very first read from host:
+          // - after boot
+          // - after preemption
+          // In other cases, first read for the next request IS the one triggering the switch,
+          // so we'd always end in hostIssuedRead
           when (rxReqs(rxCurrClIdx.asUInt)) {
             assert(!preemptReq.valid, "critical section violation: no preemption is allowed during read")
-            hostFirstRead.set()
-            goto(hostIssuedRead)
-          }
-
-          when (preemptReq.valid) {
-            assert(!rxReqs.orR, "critical section violation: no read is allowed during preemption")
-            preemptReq.ready := True
-          }
+            hostRxReq := True // only used for timestamping...
+            goto(hostReadPending)
+          } otherwise { handlePreempt() }
         }
       }
-      val hostIssuedRead: State = new State {
+      val hostReadPending: State = new State {
         whenIsActive {
-          when (rxPktBufSavedValid) {
+          when (rxSlotCapturedValid) {
             // A packet arrived in time.  Save the buffer that we sent to host and wait until
             // we need to invalidate the descriptor AND overflow data
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPktBufSaved.size.bits)
-            goto(repeatPacket)
-          } elsewhen (rxTriggerNew) {
-            // No packet arrived in time, the router delivered a NACK -- no state transition
-            // here.  Now the host is reading a new CL, only need to invalidate that NACK
-            goto(invalidateCtrl)
-          } elsewhen (preemptReq.valid) {
-            // No need to invalidate anything in L2 since all threads have separate physical
-            // addresses
-            preemptReq.ready := True
-            goto(waitHostRead)
-          }
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxSlotCaptured.size.bits)
+            rxSlotToFree := rxSlotCaptured
+            rxSlotCapturedValid := False
+            goto(repeatDesc)
+          } elsewhen (rxSentNack) {
+            // No packet arrived in time, the router delivered a NACK
+            rxOverflowToInvalidate := 0
+            rxSlotToFree.clearAll()
+            goto(repeatDesc)
+          } otherwise { handlePreempt() }
         }
       }
-      val repeatPacket: State = new State {
+      val repeatDesc: State = new State {
         whenIsActive {
-          // We got the first read of the packet descriptor.  The router repeats until the
-          // CPU acks the packet by reading the opposite CL
+          // We got the first read.  The router repeats until the
+          // CPU acks the descriptor (or NACK) by reading the opposite CL
           when (rxTriggerNew) {
-            hostRxAck.payload := rxPktBufSaved
-            hostRxAck.valid := True
-            when (hostRxAck.fire) {
-              when (!hostRx.valid) {
-                // Only clear saved valid flag, when the read on the opposite CL (that
-                // triggered the switch) did not capture a new request.
-                rxPktBufSavedValid.clear()
-              }
-              goto(invalidatePacketData)
+            when (rxSlotToFree.size.bits === 0) {
+              // nothing to free or invalidate, just invalidate this NACK
+              goto(invalidateCtrl)
+            } otherwise {
+              goto(freeSlot)
             }
-          } elsewhen (preemptReq.valid) {
-            // No need to invalidate anything in L2 since all threads have separate physical
-            // addresses (which will be mapped separately).
-            preemptReq.ready := True
-            goto(waitHostRead)
+          } otherwise { handlePreempt() }
+        }
+      }
+      val freeSlot: State = new State {
+        whenIsActive {
+          hostRxAck.payload := rxSlotToFree
+          hostRxAck.valid := True
+          when (hostRxAck.fire) {
+            rxOverflowInvAcked.clear()
+            rxOverflowInvIssued.clear()
+            goto(invalidatePacketData)
           }
         }
       }
@@ -316,8 +307,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             // always toggle, even if NACK was sent
             rxCurrClIdx.toggleWhen(True)
 
+            // Invalidation is triggered by reading opposite
             rxInvDone := True
-            goto(waitHostRead)
+            goto(hostReadPending)
           }
         }
       }
@@ -337,8 +329,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitPacket: State = new State {
         whenIsActive {
-          txOverflowInvIssued.clear()
-          txOverflowInvAcked.clear()
           txOverflowToInvalidate.clearAll()
           when (txReqs(1 - txCurrClIdx.asUInt)) {
             // invalidate control first to know how many overflows do we need to invalidate
@@ -368,6 +358,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             val toInvalidate = packetSizeToNumOverflowCls(txInvLen.bits)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
+              txOverflowInvIssued.clear()
+              txOverflowInvAcked.clear()
               goto(invalidatePacketData)
             } otherwise {
               goto(tx)

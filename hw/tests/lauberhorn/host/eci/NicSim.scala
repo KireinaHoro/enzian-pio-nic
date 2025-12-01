@@ -242,8 +242,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       val pldDesc = RxPayloadDesc(etd.rxNextCl, coreBase)
       etd.log(f"Reading packet desc at $clAddr%#x, $maxTries times left...")
       // read ctrl in first
-      // XXX: we do not check if the cacheline stays idempotent (refer to EciDecoupledRxTxProtocol)
-      val control = dcsMaster.read(clAddr, 64, doInvIdemptCheck = false).bytesToBigInt
+      val control = dcsMaster.read(clAddr, 64).bytesToBigInt
       // always toggle cacheline
       etd.flipRx()
       val ret = if ((control & 1) == 0) {
