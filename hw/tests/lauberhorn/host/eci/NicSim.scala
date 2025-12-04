@@ -798,17 +798,17 @@ class NicSim extends DutSimFunSuite[NicEngine]
     waitUntil(checked)
   }
 
-  testWithDB("rx-bypass-pipelined")(Rx) { implicit dut =>
+  def rxTestPipelined(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-pipelined-$name")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
-
-    val numPackets = 200
 
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
 
-    val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-bypass-pipelined") / "packets.pcap").toString)
+    val dumper = if (savePackets) {
+      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-pipelined-$name") / "packets.pcap").toString))
+    } else None
 
     var received = 0
     setBypassCore { () =>
@@ -837,27 +837,54 @@ class NicSim extends DutSimFunSuite[NicEngine]
       }
     }
 
+    var numPackets = 0
+    var doneSending = false
     fork {
-      0 until numPackets foreach { pid =>
-        import PacketType._
-        val len = simRandom.between(64, 1536)
-        val (packet, proto) = randomPacket(len)(Ethernet, Ip, Udp)
-        dumper.dump(packet)
-        dumper.flush()
+      while (!doneSending) { nextPacket() match {
+        case Some((packet, proto)) =>
+          dumper.foreach(_.dump(packet))
+          dumper.foreach(_.flush())
 
-        val toSend = packet.getRawData.toList
-        axisMaster.send(toSend)
-        println(s"Sent packet #$pid of length ${toSend.length}")
+          val toSend = packet.getRawData.toList
+          axisMaster.send(toSend)
+          println(s"Sent packet #$numPackets of length ${toSend.length}")
 
-        toCheck.append((packet, proto))
+          toCheck.append((packet, proto))
 
-        // Add random delay to trigger more paths
-        randomSleep(2000)
-      }
+          numPackets += 1
+
+          // Add random delay to trigger more paths
+          randomSleep(2000)
+        case None =>
+          doneSending = true
+      } }
     }
 
-    waitUntil(received == numPackets)
+    waitUntil(doneSending && received == numPackets)
   }
+
+  rxTestPipelined("random", {
+    var sent = 0
+    () => {
+      if (sent == 200) None else {
+        sent += 1
+        val len = simRandom.between(64, 1536)
+        Some(randomPacket(len)(Ethernet, Ip, Udp))
+      }
+    }
+  }, savePackets = true)
+
+  def loadPcapForRxTest(name: String) = {
+    val pcapPath = os.pwd / "data" / "eci" / "iladata" / name
+    val pcapHandle = Pcaps.openOffline(pcapPath.toString)
+    () => {
+      val packet = pcapHandle.getNextPacket
+      if (packet == null) None
+      else Some((packet, pcap4jPacketToType(packet.get(classOf[EthernetPacket]))))
+    }
+  }
+
+  rxTestPipelined("lockup-pcap", loadPcapForRxTest("rx-lockup.pcap"))
 
   testWithDB("rx-bypass-overflow")(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter
