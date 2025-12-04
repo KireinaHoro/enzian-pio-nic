@@ -884,7 +884,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  rxTestPipelined("lockup-pcap", loadPcapForRxTest("rx-lockup.pcap"))
+  rxTestPipelined("lockup", loadPcapForRxTest("rx-lockup.pcap"))
 
   testWithDB("rx-bypass-overflow")(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter

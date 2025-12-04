@@ -189,6 +189,8 @@ package object sim {
       case _ => 0
     }
     val expectedLen = if (payload.length < minDescLen) minDescLen else payload.length
+
+    // XXX: this will also fail if packet has trailing data -- check pcap file
     assert(descLen == expectedLen, s"packet length mismatch: expected $expectedLen, got $descLen")
     payload
   }
