@@ -90,7 +90,9 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	struct net_device *dev = *(struct net_device **)cookie;
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+	BUG_ON(!dev);
+
+	dev_warn(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
 
 	napi_schedule(&priv->napi);
