@@ -9,9 +9,9 @@ and assembles them into individual packets, saving to a PCAP file.
 import csv
 import struct
 import sys
+import argparse
 from datetime import datetime
 from pathlib import Path
-
 
 class PCAPWriter:
     """Write packets to PCAP format."""
@@ -110,74 +110,97 @@ def parse_ila_dump(csv_file):
     Returns a list of tuples (packet_data, timestamp_counter).
     probe0 is a 250 MHz counter, convert to microseconds.
     """
+
     packets = []
     current_packet = bytearray()
     first_timestamp = None
-    current_timestamp = None
-    
+    current_sample_ids = []
+    last_timestamp_us = None
+
+
     with open(csv_file, 'r') as f:
         reader = csv.DictReader(f)
-        
+
         # Skip the radix line
         next(reader)
-        
+
         for row in reader:
-            # Parse relevant columns
+            sample_id = row['Sample in Buffer']
             tvalid = int(row['i_app/design_1_i/hier_ilas/ila_cmac_rx/U0/net_slot_0_axis_tvalid'])
             tlast = int(row['i_app/design_1_i/hier_ilas/ila_cmac_rx/U0/net_slot_0_axis_tlast'])
             tdata_hex = row['i_app/design_1_i/hier_ilas/ila_cmac_rx/U0/net_slot_0_axis_tdata[511:0]']
             tkeep_hex = row['i_app/design_1_i/hier_ilas/ila_cmac_rx/U0/net_slot_0_axis_tkeep[63:0]']
             probe0_hex = row['i_app/design_1_i/hier_ilas/ila_cmac_rx/U0/probe0[47:0]']
-            
+
             # Parse probe0 as 250 MHz counter
             probe0_cycles = int(probe0_hex, 16)
             timestamp_us = int(probe0_cycles * 1_000_000 / 250_000_000)  # Convert 250 MHz cycles to microseconds
-            
+
             # Only process when tvalid is high
             if tvalid == 1:
+                # Heuristic: forcibly end packet if gap is too large
+                if last_timestamp_us is not None and len(current_packet) > 0:
+                    gap_us = timestamp_us - last_timestamp_us
+                    if parse_ila_dump.max_packet_gap_us and gap_us > parse_ila_dump.max_packet_gap_us:
+                        print(f"WARNING: Packet forcibly ended due to gap ({gap_us} us > {parse_ila_dump.max_packet_gap_us} us) between samples {current_sample_ids[-1]} and {sample_id}. Last beat (tlast=1) is missing. Packet samples: {current_sample_ids}")
+                        packets.append((bytes(current_packet), first_timestamp, list(current_sample_ids)))
+                        current_packet = bytearray()
+                        first_timestamp = None
+                        current_sample_ids = []
+
                 # Capture timestamp at start of packet
                 if len(current_packet) == 0:
                     first_timestamp = timestamp_us
-                    current_timestamp = timestamp_us
-                
+                    current_sample_ids = []
+
                 # Extract valid bytes from this beat
                 valid_bytes = extract_valid_bytes(tdata_hex, tkeep_hex)
                 current_packet.extend(valid_bytes)
-                
+                current_sample_ids.append(sample_id)
+                last_timestamp_us = timestamp_us
+
                 # Check if this is the last beat of a packet
                 if tlast == 1:
                     if len(current_packet) > 0:
-                        packets.append((bytes(current_packet), first_timestamp))
+                        packets.append((bytes(current_packet), first_timestamp, list(current_sample_ids)))
                         current_packet = bytearray()
                         first_timestamp = None
-    
+                        current_sample_ids = []
+                        last_timestamp_us = None
+
     # Handle any incomplete packet at end
     if len(current_packet) > 0:
-        packets.append((bytes(current_packet), first_timestamp))
-    
+        print(f"WARNING: Incomplete packet at end of file. Last beat (tlast=1) is missing. Packet samples: {current_sample_ids}")
+        packets.append((bytes(current_packet), first_timestamp, list(current_sample_ids)))
+
     return packets
 
 
 def main():
     """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python iladata_to_pcap.py <input_csv> [output_pcap]")
-        sys.exit(1)
-    
-    input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else Path(input_file).stem + '.pcap'
-    
+    parser = argparse.ArgumentParser(description="Convert Vivado ILA AXIS interface dump to PCAP format.")
+    parser.add_argument("input_csv", help="Input ILA CSV file")
+    parser.add_argument("output_pcap", nargs="?", help="Output PCAP file (default: <input_csv>.pcap)")
+    parser.add_argument("--max-packet-gap-us", type=int, default=1, help="Maximum allowed time (in microseconds) between packet beats (default: 1)")
+    args = parser.parse_args()
+
+    input_file = args.input_csv
+    output_file = args.output_pcap if args.output_pcap else Path(input_file).stem + '.pcap'
+
+    # Set the tunable parameter for the parser function
+    parse_ila_dump.max_packet_gap_us = args.max_packet_gap_us
+
     print(f"Parsing ILA dump: {input_file}")
     packets = parse_ila_dump(input_file)
-    
+
     print(f"Found {len(packets)} packets")
-    
+
     # Write to PCAP
     pcap = PCAPWriter(output_file)
-    for i, (packet, timestamp_us) in enumerate(packets):
+    for i, (packet, timestamp_us, sample_ids) in enumerate(packets):
         pcap.write_packet(packet, timestamp_us)
-        print(f"  Packet {i+1}: {len(packet)} bytes, timestamp: {timestamp_us} µs")
-    
+        print(f"  Packet {i+1}: {len(packet)} bytes, timestamp: {timestamp_us} µs, samples: {sample_ids}")
+
     pcap.close()
     print(f"\nWrote {pcap.packet_count} packets to {output_file}")
 
