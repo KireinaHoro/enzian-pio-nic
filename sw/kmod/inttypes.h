@@ -12,4 +12,7 @@
 #define PRIx32 "x"
 #define PRIx64 "llx"
 
+#define PRIu32 "u"
+#define PRIu64 "lu"
+
 #endif // LAUBERHORN_INTTYPES_H

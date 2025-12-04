@@ -208,7 +208,11 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
     if (pkt_len > 0) {
       uint8_t *copy_dest = ctx->rx_buf + desc->payload_len;
       desc->payload_len += pkt_len;
-      assert(desc->payload_len <= ctx->rx_buf_size);
+      if (desc->payload_len > ctx->rx_buf_size) {
+        pr_err("payload length %" PRIu64 " too big! buffer size %" PRIu32 "\n",
+               desc->payload_len, ctx->rx_buf_size);
+        assert(false);
+      }
 
       int first_read_size = pkt_len > LAUBERHORN_ECI_INLINE_DATA_SIZE
                                 ? LAUBERHORN_ECI_INLINE_DATA_SIZE
