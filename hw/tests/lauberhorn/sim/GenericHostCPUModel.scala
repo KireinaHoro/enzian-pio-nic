@@ -138,12 +138,8 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
   def setWorkerCore(wcid: Int, wc: WorkerCoreState) = coreStates(wcid + 1) = wc
 
   // set dummy bypass core handler
-  var irqIgnoreMsgPrinted = false
   setBypassCore { () =>
-    if (!irqIgnoreMsgPrinted) {
-      println("Bypass handler not initialized, ignoring interrupt")
-      irqIgnoreMsgPrinted = true
-    }
+    println("Bypass handler not initialized, ignoring interrupt")
   }
 
   val threads = mutable.HashMap[Int, ThreadDef]()
