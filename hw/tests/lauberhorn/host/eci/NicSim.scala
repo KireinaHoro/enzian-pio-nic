@@ -798,49 +798,28 @@ class NicSim extends DutSimFunSuite[NicEngine]
     waitUntil(checked)
   }
 
-  def rxTestPipelined(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-pipelined-$name")(Rx) { implicit dut =>
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+  type TaggedPkt = (Packet, PacketType)
+  type ToCheckPkts = mutable.ArrayDeque[TaggedPkt]
+  type NextPkt = () => Option[TaggedPkt]
 
-    // enable promisc mode
-    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
-
-    val toCheck = new mutable.ArrayDeque[(Packet, PacketType)]
-
-    val dumper = if (savePackets) {
-      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-pipelined-$name") / "packets.pcap").toString))
-    } else None
-
-    var received = 0
-    setBypassCore { () =>
-      // poll loop on interrupt, same as in kernel
-      // when bypass interrupt happens, there must be a descriptor to fetch
-      var canHaveMoreData = true
-      while (canHaveMoreData) {
-        rxSingle(dcsMaster, maxRetries = 0) match {
-          case Some((desc, data)) =>
-            // XXX: occasionally the packet received is out of order
-            //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
-            //      resulting in Ethernet packet arriving first
-            toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
-              .zipWithIndex.dropWhile(!_._1).headOption match {
-              case Some((_, idx)) =>
-                println(s"Found expected packet as #$idx in queue")
-                toCheck.remove(idx)
-              case None => fail("failed to find received packet in expect queue")
-            }
-            println(s"Received packet #$received")
-            received += 1
-          case None =>
-            println(s"Received NACK, finishing polling loop")
-            canHaveMoreData = false
-        }
-      }
+  def checkRxPacket(toCheck: ToCheckPkts, desc: BypassCtrlInfoSim, data: List[Byte]): Unit = {
+    // XXX: occasionally the packet received is out of order
+    //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
+    //      resulting in Ethernet packet arriving first
+    toCheck.view.map { case (p, pr) => checkSingle(p, pr, data, desc) }
+      .zipWithIndex.dropWhile(!_._1).headOption match {
+      case Some((_, idx)) =>
+        println(s"Found expected packet as #$idx in queue")
+        toCheck.remove(idx)
+      case None => fail("failed to find received packet in expect queue")
     }
+  }
 
+  def bypassStandardSend(axisMaster: Axi4StreamMaster, toCheck: ToCheckPkts, nextPacket: NextPkt, dumper: Option[PcapDumper])(implicit dut: NicEngine): (() => Boolean, () => Int) = {
     var numPackets = 0
     var doneSending = false
     fork {
-      while (!doneSending) { nextPacket() match {
+      while (!doneSending) nextPacket() match {
         case Some((packet, proto)) =>
           dumper.foreach(_.dump(packet))
           dumper.foreach(_.flush())
@@ -857,22 +836,64 @@ class NicSim extends DutSimFunSuite[NicEngine]
           randomSleep(2000)
         case None =>
           doneSending = true
-      } }
+      }
     }
 
-    waitUntil(doneSending && received == numPackets)
+    (
+      () => doneSending,
+      () => numPackets
+    )
   }
 
-  rxTestPipelined("random", {
+  def bypassStandardRecv(dcsMaster: DcsAppMaster, toCheck: ToCheckPkts)(implicit dut: NicEngine): () => Int = {
+    var received = 0
+    setBypassCore { () =>
+      // poll loop on interrupt, same as in kernel
+      // when bypass interrupt happens, there must be a descriptor to fetch
+      var canHaveMoreData = true
+      while (canHaveMoreData) {
+        rxSingle(dcsMaster, maxRetries = 0) match {
+          case Some((desc, data)) =>
+            checkRxPacket(toCheck, desc, data)
+            println(s"Received packet #$received")
+            received += 1
+          case None =>
+            println(s"Received NACK, finishing polling loop")
+            canHaveMoreData = false
+        }
+      }
+    }
+
+    () => received
+  }
+
+  def rxTestPipelined(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-pipelined-$name")(Rx) { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
+
+    // enable promisc mode
+    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+
+    val toCheck = new ToCheckPkts
+    val dumper = if (savePackets) {
+      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-pipelined-$name") / "packets.pcap").toString))
+    } else None
+
+    val received = bypassStandardRecv(dcsMaster, toCheck)
+    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
+
+    waitUntil(doneSending() && received() == sent())
+  }
+
+  def loadRandomPackets(numPackets: Int) = {
     var sent = 0
     () => {
-      if (sent == 200) None else {
+      if (sent == numPackets) None else {
         sent += 1
         val len = simRandom.between(64, 1536)
         Some(randomPacket(len)(Ethernet, Ip, Udp))
       }
     }
-  }, savePackets = true)
+  }
 
   def loadPcapForRxTest(name: String) = {
     val pcapPath = os.pwd / "data" / "eci" / "iladata" / name
@@ -884,65 +905,49 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  rxTestPipelined("lockup", loadPcapForRxTest("rx-lockup.pcap"))
-
-  testWithDB("rx-bypass-overflow")(Rx) { implicit dut =>
+  def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-overflow-$name")(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
-    val numPackets = 500
 
     // enable promisc mode
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
-    var sent = 0
-    fork {
-      0 until numPackets foreach { pid =>
-        import PacketType._
-        val len = simRandom.between(64, 1536)
-        val (packet, proto) = randomPacket(len)(Ethernet, Ip, Udp)
+    val toCheck = new ToCheckPkts
+    val dumper = if (savePackets) {
+      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-overflow-$name") / "packets.pcap").toString))
+    } else None
 
-        val toSend = packet.getRawData.toList
-        axisMaster.send(toSend)
-        println(s"Sent packet #$pid of length ${toSend.length}")
-        sent += 1
-      }
-    }
+    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
 
     // wait until all packets are sent
-    sleepCycles(10000)
+    waitUntil(doneSending())
 
-    var received = 0
-    setBypassCore { () =>
-      var pollDone = false
-      while (!pollDone) {
-        rxSingle(dcsMaster, maxRetries = 0) match {
-          case Some((desc, data)) =>
-            println(s"Received $desc")
-            received += 1
-          case None =>
-            println(s"Received NACK, finishing polling loop")
-            pollDone = true
-        }
-
-        sleepCycles(simRandom.nextInt(400))
-      }
-    }
+    val received = bypassStandardRecv(dcsMaster, toCheck)
 
     // periodically check overflow counter
     var done = false
     fork {
       while (!done) {
         val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
-        done = sent == numPackets && overflowCount + received == sent
+        val rcvd = received()
+        done = overflowCount + rcvd == sent()
 
-        println(s"Sent $sent, received $received, dropped $overflowCount")
+        println(s"Sent ${sent()}, received $rcvd, dropped $overflowCount")
         sleepCycles(2000)
       }
     }
 
     waitUntil(done)
   }
+
+  rxTestPipelined("random", loadRandomPackets(200), savePackets = true)
+  rxTestPipelined("lockup", loadPcapForRxTest("rx-lockup.pcap"))
+  rxTestPipelined("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"))
+
+  rxTestOverflow("random", loadRandomPackets(500), savePackets = true)
+  rxTestOverflow("lockup", loadPcapForRxTest("rx-lockup.pcap"))
+  rxTestOverflow("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"))
 
   testWithDB("rx-bypass-no-repeat")(Rx) { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
