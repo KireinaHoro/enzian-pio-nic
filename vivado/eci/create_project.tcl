@@ -179,7 +179,7 @@ create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 
 set my_ip [get_ips axis_reg_eci_wd]
 set_property -dict [list \
     CONFIG.REG_CONFIG {16} \
-    CONFIG.TDATA_NUM_BYTES {138} \
+    CONFIG.TDATA_NUM_BYTES {69} \
 ] $my_ip
 generate_target all $my_ip
 
@@ -195,7 +195,23 @@ create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1
 set my_ip [get_ips axis_cdc_eci_wd]
 set_property -dict [list \
     CONFIG.ACLKEN_CONV_MODE {0} \
-    CONFIG.TDATA_NUM_BYTES {138} \
+    CONFIG.TDATA_NUM_BYTES {69} \
+] $my_ip
+generate_target all $my_ip
+
+create_ip -name axis_dwidth_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_downsize_eci_wd
+set my_ip [get_ips axis_downsize_eci_wd]
+set_property -dict [list \
+    CONFIG.M_TDATA_NUM_BYTES {69} \
+    CONFIG.S_TDATA_NUM_BYTES {138} \
+] $my_ip
+generate_target all $my_ip
+
+create_ip -name axis_dwidth_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_upsize_eci_wd
+set my_ip [get_ips axis_upsize_eci_wd]
+set_property -dict [list \
+    CONFIG.M_TDATA_NUM_BYTES {138} \
+    CONFIG.S_TDATA_NUM_BYTES {69} \
 ] $my_ip
 generate_target all $my_ip
 
