@@ -4,6 +4,192 @@
 import eci_cmd_defs::*;
 import eci_dcs_defs::*;
 
+module cross_chan #(
+    parameter FIRST_CDC = 0,
+    parameter WITH_DATA = 0,
+    localparam PKT_WIDTH = WITH_DATA ?
+        ECI_PACKET_SIZE * ECI_WORD_WIDTH :
+        ECI_WORD_WIDTH
+) (
+    input logic                                   in_reset,
+    input logic                                   in_clk,
+
+    input logic [PKT_WIDTH-1:0]                   in,
+    input logic [ECI_PACKET_SIZE_WIDTH-1:0]       in_size,
+    input logic [3:0]                             in_vc,
+    input logic                                   in_valid,
+    output logic                                  in_ready,
+
+    input logic                                   out_reset,
+    input logic                                   out_clk,
+
+    output logic [PKT_WIDTH-1:0]                  out,
+    output logic [ECI_PACKET_SIZE_WIDTH-1:0]      out_size,
+    output logic [3:0]                            out_vc,
+    output logic                                  out_valid,
+    input logic                                   out_ready
+);
+
+localparam FRAG_WIDTH = WITH_DATA ? 69 * 8 : 10 * 8;
+
+logic [FRAG_WIDTH-1:0]    in_frag;
+logic                     in_frag_valid;
+logic                     in_frag_ready;
+
+logic [FRAG_WIDTH-1:0]    cdc_frag;
+logic                     cdc_frag_valid;
+logic                     cdc_frag_ready;
+
+logic [FRAG_WIDTH-1:0]    pipe_frag;
+logic                     pipe_frag_valid;
+logic                     pipe_frag_ready;
+
+logic [FRAG_WIDTH-1:0]    out_frag;
+logic                     out_frag_valid;
+logic                     out_frag_ready;
+
+generate
+if (WITH_DATA == 0) begin
+
+assign in_frag = {7'b0, in, in_size, in_vc};
+assign in_frag_valid = in_valid;
+assign in_ready = in_frag_ready;
+
+assign {out, out_size, out_vc} = out_frag;
+assign out_valid = out_frag_valid;
+assign out_frag_ready = out_ready;
+
+if (FIRST_CDC == 0) begin
+// pipeline first then CDC -- pipeline regs in in clock domain
+axis_reg_eci_wod i_pipe (
+  .aclk(in_clk),
+  .aresetn(!in_reset),
+  .s_axis_tdata(in_frag),
+  .s_axis_tvalid(in_frag_valid),
+  .s_axis_tready(in_frag_ready),
+  .m_axis_tdata(pipe_frag),
+  .m_axis_tvalid(pipe_frag_valid),
+  .m_axis_tready(pipe_frag_ready)
+);
+axis_cdc_eci_wod i_cdc (
+  .s_axis_aclk(in_clk),
+  .s_axis_aresetn(!in_reset),
+  .s_axis_tdata(pipe_frag),
+  .s_axis_tvalid(pipe_frag_valid),
+  .s_axis_tready(pipe_frag_ready),
+  .m_axis_aclk(out_clk),
+  .m_axis_aresetn(!out_reset),
+  .m_axis_tdata(out_frag),
+  .m_axis_tvalid(out_frag_valid),
+  .m_axis_tready(out_frag_ready)
+);
+end else begin
+// CDC first then pipeline -- pipeline regs in out clock domain
+axis_cdc_eci_wod i_cdc (
+  .s_axis_aclk(in_clk),
+  .s_axis_aresetn(!in_reset),
+  .s_axis_tdata(in_frag),
+  .s_axis_tvalid(in_frag_valid),
+  .s_axis_tready(in_frag_ready),
+  .m_axis_aclk(out_clk),
+  .m_axis_aresetn(!out_reset),
+  .m_axis_tdata(cdc_frag),
+  .m_axis_tvalid(cdc_frag_valid),
+  .m_axis_tready(cdc_frag_ready)
+);
+axis_reg_eci_wod i_pipe (
+  .aclk(out_clk),
+  .aresetn(!out_reset),
+  .s_axis_tdata(cdc_frag),
+  .s_axis_tvalid(cdc_frag_valid),
+  .s_axis_tready(cdc_frag_ready),
+  .m_axis_tdata(out_frag),
+  .m_axis_tvalid(out_frag_valid),
+  .m_axis_tready(out_frag_ready)
+);
+end // FIRST_CDC
+
+end else begin
+
+// fragment input ECI bus
+axis_downsize_eci_wd i_downsize (
+  .aclk(in_clk),
+  .aresetn(!in_reset),
+  .s_axis_tdata({7'b0, in, in_size, in_vc}),
+  .s_axis_tvalid(in_valid),
+  .s_axis_tready(in_ready),
+  .m_axis_tdata(in_frag),
+  .m_axis_tvalid(in_frag_valid),
+  .m_axis_tready(in_frag_ready)
+);
+// reassemble ECI bus
+axis_upsize_eci_wd i_upsize (
+  .aclk(out_clk),
+  .aresetn(!out_reset),
+  .s_axis_tdata(out_frag),
+  .s_axis_tvalid(out_frag_valid),
+  .s_axis_tready(out_frag_ready),
+  .m_axis_tdata({7'b0, out, out_size, out_vc}),
+  .m_axis_tvalid(out_valid),
+  .m_axis_tready(out_ready)
+);
+
+if (FIRST_CDC == 0) begin
+// pipeline first then CDC -- pipeline regs in in clock domain
+axis_reg_eci_wd i_pipe (
+  .aclk(in_clk),
+  .aresetn(!in_reset),
+  .s_axis_tdata(in_frag),
+  .s_axis_tvalid(in_frag_valid),
+  .s_axis_tready(in_frag_ready),
+  .m_axis_tdata(pipe_frag),
+  .m_axis_tvalid(pipe_frag_valid),
+  .m_axis_tready(pipe_frag_ready)
+);
+axis_cdc_eci_wd i_cdc (
+  .s_axis_aclk(in_clk),
+  .s_axis_aresetn(!in_reset),
+  .s_axis_tdata(pipe_frag),
+  .s_axis_tvalid(pipe_frag_valid),
+  .s_axis_tready(pipe_frag_ready),
+  .m_axis_aclk(out_clk),
+  .m_axis_aresetn(!out_reset),
+  .m_axis_tdata(out_frag),
+  .m_axis_tvalid(out_frag_valid),
+  .m_axis_tready(out_frag_ready)
+);
+end else begin
+// CDC first then pipeline -- pipeline regs in out clock domain
+axis_cdc_eci_wd i_cdc (
+  .s_axis_aclk(in_clk),
+  .s_axis_aresetn(!in_reset),
+  .s_axis_tdata(in_frag),
+  .s_axis_tvalid(in_frag_valid),
+  .s_axis_tready(in_frag_ready),
+  .m_axis_aclk(out_clk),
+  .m_axis_aresetn(!out_reset),
+  .m_axis_tdata(cdc_frag),
+  .m_axis_tvalid(cdc_frag_valid),
+  .m_axis_tready(cdc_frag_ready)
+);
+axis_reg_eci_wd i_pipe (
+  .aclk(out_clk),
+  .aresetn(!out_reset),
+  .s_axis_tdata(cdc_frag),
+  .s_axis_tvalid(cdc_frag_valid),
+  .s_axis_tready(cdc_frag_ready),
+  .m_axis_tdata(out_frag),
+  .m_axis_tvalid(out_frag_valid),
+  .m_axis_tready(out_frag_ready)
+);
+end // FIRST_CDC
+
+end // WITH_DATA
+
+endgenerate
+
+endmodule
+
 module dcs_cdc #(
    parameter AXI_ID_WIDTH = MAX_DCU_ID_WIDTH, //7
    parameter AXI_ADDR_WIDTH = DS_ADDR_WIDTH,  //38
@@ -174,213 +360,160 @@ xpm_cdc_sync_rst i_app_rst_sync (
     .src_rst(eci_reset)
 );
 
-logic [ECI_WORD_WIDTH-1:0]        cdc_req_wod_hdr_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_req_wod_pkt_size_i;
-logic [3:0]                       cdc_req_wod_pkt_vc_i;
-logic                             cdc_req_wod_pkt_valid_i;
-logic                             cdc_req_wod_pkt_ready_o;
+logic [ECI_WORD_WIDTH-1:0]        xslr_req_wod_hdr_i;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_req_wod_pkt_size_i;
+logic [3:0]                       xslr_req_wod_pkt_vc_i;
+logic                             xslr_req_wod_pkt_valid_i;
+logic                             xslr_req_wod_pkt_ready_o;
+cross_chan #(
+    .WITH_DATA(0),
+    .FIRST_CDC(0)
+) i_cross_req_wod_slave (
+    .in_reset               (eci_reset),
+    .in_clk                 (eci_clk),
+    .in                     (req_wod_hdr_i),
+    .in_size                (req_wod_pkt_size_i),
+    .in_vc                  (req_wod_pkt_vc_i),
+    .in_valid               (req_wod_pkt_valid_i),
+    .in_ready               (req_wod_pkt_ready_o),
 
-logic [ECI_WORD_WIDTH-1:0]        pipe_req_wod_hdr_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_req_wod_pkt_size_i;
-logic [3:0]                       pipe_req_wod_pkt_vc_i;
-logic                             pipe_req_wod_pkt_valid_i;
-logic                             pipe_req_wod_pkt_ready_o;
-axis_cdc_eci_wod i_chan_cdc_req_wod_slave (
-  .s_axis_aclk(eci_clk),
-  .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_req_wod_hdr_i, pipe_req_wod_pkt_size_i, pipe_req_wod_pkt_vc_i}),
-  .s_axis_tvalid(pipe_req_wod_pkt_valid_i),
-  .s_axis_tready(pipe_req_wod_pkt_ready_o),
-  .m_axis_aclk(app_clk),
-  .m_axis_aresetn(!app_reset),
-  .m_axis_tdata({7'b0, cdc_req_wod_hdr_i, cdc_req_wod_pkt_size_i, cdc_req_wod_pkt_vc_i}),
-  .m_axis_tvalid(cdc_req_wod_pkt_valid_i),
-  .m_axis_tready(cdc_req_wod_pkt_ready_o)
-);
-axis_reg_eci_wod i_chan_pipe_eci_req_wod_slave (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, req_wod_hdr_i, req_wod_pkt_size_i, req_wod_pkt_vc_i}),
-  .s_axis_tvalid(req_wod_pkt_valid_i),
-  .s_axis_tready(req_wod_pkt_ready_o),
-  .m_axis_tdata({7'b0, pipe_req_wod_hdr_i, pipe_req_wod_pkt_size_i, pipe_req_wod_pkt_vc_i}),
-  .m_axis_tvalid(pipe_req_wod_pkt_valid_i),
-  .m_axis_tready(pipe_req_wod_pkt_ready_o)
+    .out_reset              (app_reset),
+    .out_clk                (app_clk),
+    .out                    (xslr_req_wod_hdr_i),
+    .out_size               (xslr_req_wod_pkt_size_i),
+    .out_vc                 (xslr_req_wod_pkt_vc_i),
+    .out_valid              (xslr_req_wod_pkt_valid_i),
+    .out_ready              (xslr_req_wod_pkt_ready_o)
 );
 
+logic [ECI_WORD_WIDTH-1:0]        xslr_rsp_wod_hdr_i;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_rsp_wod_pkt_size_i;
+logic [3:0]                       xslr_rsp_wod_pkt_vc_i;
+logic                             xslr_rsp_wod_pkt_valid_i;
+logic                             xslr_rsp_wod_pkt_ready_o;
+cross_chan #(
+    .WITH_DATA(0),
+    .FIRST_CDC(0)
+) i_cross_rsp_wod_slave (
+    .in_reset               (eci_reset),
+    .in_clk                 (eci_clk),
+    .in                     (rsp_wod_hdr_i),
+    .in_size                (rsp_wod_pkt_size_i),
+    .in_vc                  (rsp_wod_pkt_vc_i),
+    .in_valid               (rsp_wod_pkt_valid_i),
+    .in_ready               (rsp_wod_pkt_ready_o),
 
-logic [ECI_WORD_WIDTH-1:0]        cdc_rsp_wod_hdr_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_rsp_wod_pkt_size_i;
-logic [3:0]                       cdc_rsp_wod_pkt_vc_i;
-logic                             cdc_rsp_wod_pkt_valid_i;
-logic                             cdc_rsp_wod_pkt_ready_o;
-
-logic [ECI_WORD_WIDTH-1:0]        pipe_rsp_wod_hdr_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_rsp_wod_pkt_size_i;
-logic [3:0]                       pipe_rsp_wod_pkt_vc_i;
-logic                             pipe_rsp_wod_pkt_valid_i;
-logic                             pipe_rsp_wod_pkt_ready_o;
-axis_cdc_eci_wod i_chan_cdc_rsp_wod_slave (
-  .s_axis_aclk(eci_clk),
-  .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_rsp_wod_hdr_i, pipe_rsp_wod_pkt_size_i, pipe_rsp_wod_pkt_vc_i}),
-  .s_axis_tvalid(pipe_rsp_wod_pkt_valid_i),
-  .s_axis_tready(pipe_rsp_wod_pkt_ready_o),
-  .m_axis_aclk(app_clk),
-  .m_axis_aresetn(!app_reset),
-  .m_axis_tdata({7'b0, cdc_rsp_wod_hdr_i, cdc_rsp_wod_pkt_size_i, cdc_rsp_wod_pkt_vc_i}),
-  .m_axis_tvalid(cdc_rsp_wod_pkt_valid_i),
-  .m_axis_tready(cdc_rsp_wod_pkt_ready_o)
-);
-axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_slave (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, rsp_wod_hdr_i, rsp_wod_pkt_size_i, rsp_wod_pkt_vc_i}),
-  .s_axis_tvalid(rsp_wod_pkt_valid_i),
-  .s_axis_tready(rsp_wod_pkt_ready_o),
-  .m_axis_tdata({7'b0, pipe_rsp_wod_hdr_i, pipe_rsp_wod_pkt_size_i, pipe_rsp_wod_pkt_vc_i}),
-  .m_axis_tvalid(pipe_rsp_wod_pkt_valid_i),
-  .m_axis_tready(pipe_rsp_wod_pkt_ready_o)
+    .out_reset              (app_reset),
+    .out_clk                (app_clk),
+    .out                    (xslr_rsp_wod_hdr_i),
+    .out_size               (xslr_rsp_wod_pkt_size_i),
+    .out_vc                 (xslr_rsp_wod_pkt_vc_i),
+    .out_valid              (xslr_rsp_wod_pkt_valid_i),
+    .out_ready              (xslr_rsp_wod_pkt_ready_o)
 );
 
+logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          xslr_rsp_wd_pkt_i;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_rsp_wd_pkt_size_i;
+logic [3:0]                       xslr_rsp_wd_pkt_vc_i;
+logic                             xslr_rsp_wd_pkt_valid_i;
+logic                             xslr_rsp_wd_pkt_ready_o;
+cross_chan #(
+    .WITH_DATA(1),
+    .FIRST_CDC(0)
+) i_cross_rsp_wd_slave (
+    .in_reset               (eci_reset),
+    .in_clk                 (eci_clk),
+    .in                     (rsp_wd_pkt_i),
+    .in_size                (rsp_wd_pkt_size_i),
+    .in_vc                  (rsp_wd_pkt_vc_i),
+    .in_valid               (rsp_wd_pkt_valid_i),
+    .in_ready               (rsp_wd_pkt_ready_o),
 
-logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          cdc_rsp_wd_pkt_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_rsp_wd_pkt_size_i;
-logic [3:0]                       cdc_rsp_wd_pkt_vc_i;
-logic                             cdc_rsp_wd_pkt_valid_i;
-logic                             cdc_rsp_wd_pkt_ready_o;
-
-logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          pipe_rsp_wd_pkt_i;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_rsp_wd_pkt_size_i;
-logic [3:0]                       pipe_rsp_wd_pkt_vc_i;
-logic                             pipe_rsp_wd_pkt_valid_i;
-logic                             pipe_rsp_wd_pkt_ready_o;
-axis_cdc_eci_wd i_chan_cdc_rsp_wd_slave (
-  .s_axis_aclk(eci_clk),
-  .s_axis_aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_rsp_wd_pkt_i, pipe_rsp_wd_pkt_size_i, pipe_rsp_wd_pkt_vc_i}),
-  .s_axis_tvalid(pipe_rsp_wd_pkt_valid_i),
-  .s_axis_tready(pipe_rsp_wd_pkt_ready_o),
-  .m_axis_aclk(app_clk),
-  .m_axis_aresetn(!app_reset),
-  .m_axis_tdata({7'b0, cdc_rsp_wd_pkt_i, cdc_rsp_wd_pkt_size_i, cdc_rsp_wd_pkt_vc_i}),
-  .m_axis_tvalid(cdc_rsp_wd_pkt_valid_i),
-  .m_axis_tready(cdc_rsp_wd_pkt_ready_o)
-);
-axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_slave (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, rsp_wd_pkt_i, rsp_wd_pkt_size_i, rsp_wd_pkt_vc_i}),
-  .s_axis_tvalid(rsp_wd_pkt_valid_i),
-  .s_axis_tready(rsp_wd_pkt_ready_o),
-  .m_axis_tdata({7'b0, pipe_rsp_wd_pkt_i, pipe_rsp_wd_pkt_size_i, pipe_rsp_wd_pkt_vc_i}),
-  .m_axis_tvalid(pipe_rsp_wd_pkt_valid_i),
-  .m_axis_tready(pipe_rsp_wd_pkt_ready_o)
+    .out_reset              (app_reset),
+    .out_clk                (app_clk),
+    .out                    (xslr_rsp_wd_pkt_i),
+    .out_size               (xslr_rsp_wd_pkt_size_i),
+    .out_vc                 (xslr_rsp_wd_pkt_vc_i),
+    .out_valid              (xslr_rsp_wd_pkt_valid_i),
+    .out_ready              (xslr_rsp_wd_pkt_ready_o)
 );
 
+logic [(ECI_WORD_WIDTH)-1:0]      xslr_rsp_wod_hdr_o;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_rsp_wod_pkt_size_o;
+logic [3:0]                       xslr_rsp_wod_pkt_vc_o;
+logic                             xslr_rsp_wod_pkt_valid_o;
+logic                             xslr_rsp_wod_pkt_ready_i;
+cross_chan #(
+    .WITH_DATA(0),
+    .FIRST_CDC(1)
+) i_cross_rsp_wod_master (
+    .in_reset               (app_reset),
+    .in_clk                 (app_clk),
+    .in                     (xslr_rsp_wod_hdr_o),
+    .in_size                (xslr_rsp_wod_pkt_size_o),
+    .in_vc                  (xslr_rsp_wod_pkt_vc_o),
+    .in_valid               (xslr_rsp_wod_pkt_valid_o),
+    .in_ready               (xslr_rsp_wod_pkt_ready_i),
 
-logic [(ECI_WORD_WIDTH)-1:0]          cdc_rsp_wod_hdr_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_rsp_wod_pkt_size_o;
-logic [3:0]                       cdc_rsp_wod_pkt_vc_o;
-logic                             cdc_rsp_wod_pkt_valid_o;
-logic                             cdc_rsp_wod_pkt_ready_i;
-
-logic [(ECI_WORD_WIDTH)-1:0]          pipe_rsp_wod_hdr_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_rsp_wod_pkt_size_o;
-logic [3:0]                       pipe_rsp_wod_pkt_vc_o;
-logic                             pipe_rsp_wod_pkt_valid_o;
-logic                             pipe_rsp_wod_pkt_ready_i;
-axis_cdc_eci_wod i_chan_cdc_rsp_wod_master (
-  .s_axis_aclk(app_clk),
-  .s_axis_aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_rsp_wod_hdr_o, cdc_rsp_wod_pkt_size_o, cdc_rsp_wod_pkt_vc_o}),
-  .s_axis_tvalid(cdc_rsp_wod_pkt_valid_o),
-  .s_axis_tready(cdc_rsp_wod_pkt_ready_i),
-  .m_axis_aclk(eci_clk),
-  .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, pipe_rsp_wod_hdr_o, pipe_rsp_wod_pkt_size_o, pipe_rsp_wod_pkt_vc_o}),
-  .m_axis_tvalid(pipe_rsp_wod_pkt_valid_o),
-  .m_axis_tready(pipe_rsp_wod_pkt_ready_i)
-);
-axis_reg_eci_wod i_chan_pipe_eci_rsp_wod_master (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_rsp_wod_hdr_o, pipe_rsp_wod_pkt_size_o, pipe_rsp_wod_pkt_vc_o}),
-  .s_axis_tvalid(pipe_rsp_wod_pkt_valid_o),
-  .s_axis_tready(pipe_rsp_wod_pkt_ready_i),
-  .m_axis_tdata({7'b0, rsp_wod_hdr_o, rsp_wod_pkt_size_o, rsp_wod_pkt_vc_o}),
-  .m_axis_tvalid(rsp_wod_pkt_valid_o),
-  .m_axis_tready(rsp_wod_pkt_ready_i)
+    .out_reset              (eci_reset),
+    .out_clk                (eci_clk),
+    .out                    (rsp_wod_hdr_o),
+    .out_size               (rsp_wod_pkt_size_o),
+    .out_vc                 (rsp_wod_pkt_vc_o),
+    .out_valid              (rsp_wod_pkt_valid_o),
+    .out_ready              (rsp_wod_pkt_ready_i)
 );
 
+logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          xslr_rsp_wd_pkt_o;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_rsp_wd_pkt_size_o;
+logic [3:0]                       xslr_rsp_wd_pkt_vc_o;
+logic                             xslr_rsp_wd_pkt_valid_o;
+logic                             xslr_rsp_wd_pkt_ready_i;
+cross_chan #(
+    .WITH_DATA(1),
+    .FIRST_CDC(1)
+) i_cross_rsp_wd_master (
+    .in_reset               (app_reset),
+    .in_clk                 (app_clk),
+    .in                     (xslr_rsp_wd_pkt_o),
+    .in_size                (xslr_rsp_wd_pkt_size_o),
+    .in_vc                  (xslr_rsp_wd_pkt_vc_o),
+    .in_valid               (xslr_rsp_wd_pkt_valid_o),
+    .in_ready               (xslr_rsp_wd_pkt_ready_i),
 
-logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          cdc_rsp_wd_pkt_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_rsp_wd_pkt_size_o;
-logic [3:0]                       cdc_rsp_wd_pkt_vc_o;
-logic                             cdc_rsp_wd_pkt_valid_o;
-logic                             cdc_rsp_wd_pkt_ready_i;
-
-logic [(ECI_WORD_WIDTH * ECI_PACKET_SIZE)-1:0]          pipe_rsp_wd_pkt_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_rsp_wd_pkt_size_o;
-logic [3:0]                       pipe_rsp_wd_pkt_vc_o;
-logic                             pipe_rsp_wd_pkt_valid_o;
-logic                             pipe_rsp_wd_pkt_ready_i;
-axis_cdc_eci_wd i_chan_cdc_rsp_wd_master (
-  .s_axis_aclk(app_clk),
-  .s_axis_aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_rsp_wd_pkt_o, cdc_rsp_wd_pkt_size_o, cdc_rsp_wd_pkt_vc_o}),
-  .s_axis_tvalid(cdc_rsp_wd_pkt_valid_o),
-  .s_axis_tready(cdc_rsp_wd_pkt_ready_i),
-  .m_axis_aclk(eci_clk),
-  .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, pipe_rsp_wd_pkt_o, pipe_rsp_wd_pkt_size_o, pipe_rsp_wd_pkt_vc_o}),
-  .m_axis_tvalid(pipe_rsp_wd_pkt_valid_o),
-  .m_axis_tready(pipe_rsp_wd_pkt_ready_i)
-);
-axis_reg_eci_wd i_chan_pipe_eci_rsp_wd_master (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_rsp_wd_pkt_o, pipe_rsp_wd_pkt_size_o, pipe_rsp_wd_pkt_vc_o}),
-  .s_axis_tvalid(pipe_rsp_wd_pkt_valid_o),
-  .s_axis_tready(pipe_rsp_wd_pkt_ready_i),
-  .m_axis_tdata({7'b0, rsp_wd_pkt_o, rsp_wd_pkt_size_o, rsp_wd_pkt_vc_o}),
-  .m_axis_tvalid(rsp_wd_pkt_valid_o),
-  .m_axis_tready(rsp_wd_pkt_ready_i)
+    .out_reset              (eci_reset),
+    .out_clk                (eci_clk),
+    .out                    (rsp_wd_pkt_o),
+    .out_size               (rsp_wd_pkt_size_o),
+    .out_vc                 (rsp_wd_pkt_vc_o),
+    .out_valid              (rsp_wd_pkt_valid_o),
+    .out_ready              (rsp_wd_pkt_ready_i)
 );
 
+logic [(ECI_WORD_WIDTH)-1:0]          xslr_fwd_wod_hdr_o;
+logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_fwd_wod_pkt_size_o;
+logic [3:0]                       xslr_fwd_wod_pkt_vc_o;
+logic                             xslr_fwd_wod_pkt_valid_o;
+logic                             xslr_fwd_wod_pkt_ready_i;
+cross_chan #(
+    .WITH_DATA(0),
+    .FIRST_CDC(1)
+) i_cross_fwd_wod_master (
+    .in_reset               (app_reset),
+    .in_clk                 (app_clk),
+    .in                     (xslr_fwd_wod_hdr_o),
+    .in_size                (xslr_fwd_wod_pkt_size_o),
+    .in_vc                  (xslr_fwd_wod_pkt_vc_o),
+    .in_valid               (xslr_fwd_wod_pkt_valid_o),
+    .in_ready               (xslr_fwd_wod_pkt_ready_i),
 
-logic [(ECI_WORD_WIDTH)-1:0]          cdc_fwd_wod_hdr_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] cdc_fwd_wod_pkt_size_o;
-logic [3:0]                       cdc_fwd_wod_pkt_vc_o;
-logic                             cdc_fwd_wod_pkt_valid_o;
-logic                             cdc_fwd_wod_pkt_ready_i;
-
-logic [(ECI_WORD_WIDTH)-1:0]          pipe_fwd_wod_hdr_o;
-logic [ECI_PACKET_SIZE_WIDTH-1:0] pipe_fwd_wod_pkt_size_o;
-logic [3:0]                       pipe_fwd_wod_pkt_vc_o;
-logic                             pipe_fwd_wod_pkt_valid_o;
-logic                             pipe_fwd_wod_pkt_ready_i;
-axis_cdc_eci_wod i_chan_cdc_fwd_wod_master (
-  .s_axis_aclk(app_clk),
-  .s_axis_aresetn(!app_reset),
-  .s_axis_tdata({7'b0, cdc_fwd_wod_hdr_o, cdc_fwd_wod_pkt_size_o, cdc_fwd_wod_pkt_vc_o}),
-  .s_axis_tvalid(cdc_fwd_wod_pkt_valid_o),
-  .s_axis_tready(cdc_fwd_wod_pkt_ready_i),
-  .m_axis_aclk(eci_clk),
-  .m_axis_aresetn(!eci_reset),
-  .m_axis_tdata({7'b0, pipe_fwd_wod_hdr_o, pipe_fwd_wod_pkt_size_o, pipe_fwd_wod_pkt_vc_o}),
-  .m_axis_tvalid(pipe_fwd_wod_pkt_valid_o),
-  .m_axis_tready(pipe_fwd_wod_pkt_ready_i)
-);
-axis_reg_eci_wod i_chan_pipe_eci_fwd_wod_master (
-  .aclk(eci_clk),
-  .aresetn(!eci_reset),
-  .s_axis_tdata({7'b0, pipe_fwd_wod_hdr_o, pipe_fwd_wod_pkt_size_o, pipe_fwd_wod_pkt_vc_o}),
-  .s_axis_tvalid(pipe_fwd_wod_pkt_valid_o),
-  .s_axis_tready(pipe_fwd_wod_pkt_ready_i),
-  .m_axis_tdata({7'b0, fwd_wod_hdr_o, fwd_wod_pkt_size_o, fwd_wod_pkt_vc_o}),
-  .m_axis_tvalid(fwd_wod_pkt_valid_o),
-  .m_axis_tready(fwd_wod_pkt_ready_i)
+    .out_reset              (eci_reset),
+    .out_clk                (eci_clk),
+    .out                    (fwd_wod_hdr_o),
+    .out_size               (fwd_wod_pkt_size_o),
+    .out_vc                 (fwd_wod_pkt_vc_o),
+    .out_valid              (fwd_wod_pkt_valid_o),
+    .out_ready              (fwd_wod_pkt_ready_i)
 );
 
 logic [ECI_WORD_WIDTH-1:0]            pipe_lcl_fwd_wod_hdr_i;
@@ -519,41 +652,41 @@ dcs_2_axi #(
   .clk(app_clk),
   .reset(app_reset),
 
-  .req_wod_hdr_i(cdc_req_wod_hdr_i),
-  .req_wod_pkt_size_i(cdc_req_wod_pkt_size_i),
-  .req_wod_pkt_vc_i(cdc_req_wod_pkt_vc_i),
-  .req_wod_pkt_valid_i(cdc_req_wod_pkt_valid_i),
-  .req_wod_pkt_ready_o(cdc_req_wod_pkt_ready_o),
+  .req_wod_hdr_i(xslr_req_wod_hdr_i),
+  .req_wod_pkt_size_i(xslr_req_wod_pkt_size_i),
+  .req_wod_pkt_vc_i(xslr_req_wod_pkt_vc_i),
+  .req_wod_pkt_valid_i(xslr_req_wod_pkt_valid_i),
+  .req_wod_pkt_ready_o(xslr_req_wod_pkt_ready_o),
 
-  .rsp_wod_hdr_i(cdc_rsp_wod_hdr_i),
-  .rsp_wod_pkt_size_i(cdc_rsp_wod_pkt_size_i),
-  .rsp_wod_pkt_vc_i(cdc_rsp_wod_pkt_vc_i),
-  .rsp_wod_pkt_valid_i(cdc_rsp_wod_pkt_valid_i),
-  .rsp_wod_pkt_ready_o(cdc_rsp_wod_pkt_ready_o),
+  .rsp_wod_hdr_i(xslr_rsp_wod_hdr_i),
+  .rsp_wod_pkt_size_i(xslr_rsp_wod_pkt_size_i),
+  .rsp_wod_pkt_vc_i(xslr_rsp_wod_pkt_vc_i),
+  .rsp_wod_pkt_valid_i(xslr_rsp_wod_pkt_valid_i),
+  .rsp_wod_pkt_ready_o(xslr_rsp_wod_pkt_ready_o),
 
-  .rsp_wd_pkt_i(cdc_rsp_wd_pkt_i),
-  .rsp_wd_pkt_size_i(cdc_rsp_wd_pkt_size_i),
-  .rsp_wd_pkt_vc_i(cdc_rsp_wd_pkt_vc_i),
-  .rsp_wd_pkt_valid_i(cdc_rsp_wd_pkt_valid_i),
-  .rsp_wd_pkt_ready_o(cdc_rsp_wd_pkt_ready_o),
+  .rsp_wd_pkt_i(xslr_rsp_wd_pkt_i),
+  .rsp_wd_pkt_size_i(xslr_rsp_wd_pkt_size_i),
+  .rsp_wd_pkt_vc_i(xslr_rsp_wd_pkt_vc_i),
+  .rsp_wd_pkt_valid_i(xslr_rsp_wd_pkt_valid_i),
+  .rsp_wd_pkt_ready_o(xslr_rsp_wd_pkt_ready_o),
 
-  .rsp_wod_hdr_o(cdc_rsp_wod_hdr_o),
-  .rsp_wod_pkt_size_o(cdc_rsp_wod_pkt_size_o),
-  .rsp_wod_pkt_vc_o(cdc_rsp_wod_pkt_vc_o),
-  .rsp_wod_pkt_valid_o(cdc_rsp_wod_pkt_valid_o),
-  .rsp_wod_pkt_ready_i(cdc_rsp_wod_pkt_ready_i),
+  .rsp_wod_hdr_o(xslr_rsp_wod_hdr_o),
+  .rsp_wod_pkt_size_o(xslr_rsp_wod_pkt_size_o),
+  .rsp_wod_pkt_vc_o(xslr_rsp_wod_pkt_vc_o),
+  .rsp_wod_pkt_valid_o(xslr_rsp_wod_pkt_valid_o),
+  .rsp_wod_pkt_ready_i(xslr_rsp_wod_pkt_ready_i),
 
-  .rsp_wd_pkt_o(cdc_rsp_wd_pkt_o),
-  .rsp_wd_pkt_size_o(cdc_rsp_wd_pkt_size_o),
-  .rsp_wd_pkt_vc_o(cdc_rsp_wd_pkt_vc_o),
-  .rsp_wd_pkt_valid_o(cdc_rsp_wd_pkt_valid_o),
-  .rsp_wd_pkt_ready_i(cdc_rsp_wd_pkt_ready_i),
+  .rsp_wd_pkt_o(xslr_rsp_wd_pkt_o),
+  .rsp_wd_pkt_size_o(xslr_rsp_wd_pkt_size_o),
+  .rsp_wd_pkt_vc_o(xslr_rsp_wd_pkt_vc_o),
+  .rsp_wd_pkt_valid_o(xslr_rsp_wd_pkt_valid_o),
+  .rsp_wd_pkt_ready_i(xslr_rsp_wd_pkt_ready_i),
 
-  .fwd_wod_hdr_o(cdc_fwd_wod_hdr_o),
-  .fwd_wod_pkt_size_o(cdc_fwd_wod_pkt_size_o),
-  .fwd_wod_pkt_vc_o(cdc_fwd_wod_pkt_vc_o),
-  .fwd_wod_pkt_valid_o(cdc_fwd_wod_pkt_valid_o),
-  .fwd_wod_pkt_ready_i(cdc_fwd_wod_pkt_ready_i),
+  .fwd_wod_hdr_o(xslr_fwd_wod_hdr_o),
+  .fwd_wod_pkt_size_o(xslr_fwd_wod_pkt_size_o),
+  .fwd_wod_pkt_vc_o(xslr_fwd_wod_pkt_vc_o),
+  .fwd_wod_pkt_valid_o(xslr_fwd_wod_pkt_valid_o),
+  .fwd_wod_pkt_ready_i(xslr_fwd_wod_pkt_ready_i),
 
   .lcl_fwd_wod_hdr_i(pipe_lcl_fwd_wod_hdr_i),
   .lcl_fwd_wod_pkt_size_i(pipe_lcl_fwd_wod_pkt_size_i),
