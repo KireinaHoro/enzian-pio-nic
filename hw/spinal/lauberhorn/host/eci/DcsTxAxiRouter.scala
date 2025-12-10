@@ -62,7 +62,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val invDone = in Bool()
 
   /** Pulse: the host just started a new request on a CL */
-  val hostReq = out(Vec(Bool(), 2)).setAsReg()
+  val hostReq = out(Vec(Bool(), 2)).setAsReg().initZero()
 
   checkEciAxiCmd(dcsAxi)
 
@@ -72,8 +72,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val readAddr = readCmd.addr - ECI_TX_BASE.get
   val writeCmd: Axi4Aw = Reg(dcsAxi.aw.payload.clone)
   val writeAddr = writeCmd.addr - ECI_TX_BASE.get
-
-  hostReq.foreach(_ init False)
 
   // initialization to avoid latches
   dcsQ.setBlocked()
