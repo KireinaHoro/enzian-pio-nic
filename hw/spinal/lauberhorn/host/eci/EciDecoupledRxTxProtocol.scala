@@ -160,7 +160,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val txReqs = Vec(Bool(), 2)
 
     lci.setIdle()
-    lci.valid.setAsReg()
+    lci.valid.setAsReg() init False
     lci.payload.setAsReg()
     lci.assertPersistence()
     preemptReq.setBlocked()
