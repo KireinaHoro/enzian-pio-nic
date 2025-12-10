@@ -815,7 +815,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  def bypassStandardSend(axisMaster: Axi4StreamMaster, toCheck: ToCheckPkts, nextPacket: NextPkt, dumper: Option[PcapDumper])(implicit dut: NicEngine): (() => Boolean, () => Int) = {
+  def bypassStandardSend(axisMaster: Axi4StreamMaster, toCheck: ToCheckPkts, nextPacket: NextPkt, dumper: Option[PcapDumper], noSleep: Boolean = false)(implicit dut: NicEngine): (() => Boolean, () => Int) = {
     var numPackets = 0
     var doneSending = false
     fork {
@@ -833,7 +833,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
           numPackets += 1
 
           // Add random delay to trigger more paths
-          randomSleep(2000)
+          if (!noSleep) randomSleep(2000)
         case None =>
           doneSending = true
       }
@@ -918,7 +918,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
       Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-overflow-$name") / "packets.pcap").toString))
     } else None
 
-    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
+    // simulate real flood send
+    axisMaster.setFactor(1)
+    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper, noSleep = true)
 
     // wait until all packets are sent
     waitUntil(doneSending())
