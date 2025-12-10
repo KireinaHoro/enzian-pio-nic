@@ -165,6 +165,9 @@ logic [1:0]                             p_axi_bresp;
 logic                                   p_axi_bvalid;
 logic                                   p_axi_bready;
 
+// Pipeline FIFO and CDC for all ECI channels.
+// We first pipeline into SLR0/2, then CDC, to relieve congestion in SLR1.
+
 xpm_cdc_sync_rst i_app_rst_sync (
     .dest_clk(app_clk),
     .dest_rst(app_reset),
