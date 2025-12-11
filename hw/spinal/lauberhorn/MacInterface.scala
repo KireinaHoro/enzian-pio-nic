@@ -62,8 +62,16 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
       depthBytes = ROUNDED_MTU)()(cmacRxClock, clockDomain)
     rxFifo.s_axis << s_axis_rx
 
-    // report overflow
-    val rxMacOverflowCount = Counter(REG_WIDTH bits, rxFifo.io.m_status.overflow)
+    val rxDomain = new ClockingArea(cmacRxClock) {
+      val pktCount = Counter(REG_WIDTH bits, s_axis_rx.lastFire)
+      val overflowCount = Counter(REG_WIDTH bits, rxFifo.io.s_status.overflow)
+    }
+
+    def cross(c: Counter) = {
+      fromGray(BufferCC.withTag(toGray(c.value)))
+    }
+    val rxMacOverflowCount = cross(rxDomain.overflowCount)
+    val rxMacIngressCount = cross(rxDomain.pktCount)
 
     // extract frame length and push into TUSER
     // EthernetDecoder relies on this being available before packet content
@@ -92,7 +100,9 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    busCtrl.read(logic.rxMacOverflowCount.value, alloc(name = "stat", subName = "rxMacOverflowCount", attr = RO,
-      desc = "Receive CDC FIFO overflow count"))
+    busCtrl.read(logic.rxMacOverflowCount, alloc(name = "stat", subName = "rxMacOverflowCount", attr = RO,
+      desc = "Number of packets dropped at CDC FIFO push side"))
+    busCtrl.read(logic.rxMacIngressCount, alloc(name = "stat", subName = "rxMacIngressCount", attr = RO,
+      desc = "Number of packets delivered by CMAC"))
   }
 }
