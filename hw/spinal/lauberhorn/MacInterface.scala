@@ -68,7 +68,10 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     }
 
     def cross(c: Counter) = {
-      fromGray(BufferCC.withTag(toGray(c.value)))
+      val rxD = new ClockingArea(cmacRxClock) {
+        val grayEncoded = RegNext(toGray(c.value))
+      }
+      fromGray(BufferCC.withTag(rxD.grayEncoded))
     }
     val rxMacOverflowCount = cross(rxDomain.overflowCount)
     val rxMacIngressCount = cross(rxDomain.pktCount)
