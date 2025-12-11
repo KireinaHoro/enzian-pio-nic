@@ -177,13 +177,9 @@ class Scheduler extends FiberPlugin {
     // per-process queues are in memory
     val queueMem = Mem(HostReq(), totalPkts)
 
-    case class QueueMetadata(off: UInt, cap: UInt)(idx: Int) extends Bundle {
+    case class QueueMetadata(off: Int, cap: Int)(idx: Int) extends Bundle {
       val offset, head, tail = MemAddr
       val capacity, fill = UInt(log2Up(RX_PKTS_PER_PROC + 1) bits)
-
-      // XXX: offset and capacity must be UInt, since we need to mux to select one
-      offset := off
-      capacity := cap
 
       // use signalCache to prevent storing these derived signals as registers
       def full = signalCache(this, "full") {
@@ -199,8 +195,8 @@ class Scheduler extends FiberPlugin {
 
       // actions called on a reg to mutate
       def initEmpty: Unit = {
-        head init offset
-        tail init offset
+        head init off
+        tail init off
         fill init 0
         offset := off
         capacity := cap

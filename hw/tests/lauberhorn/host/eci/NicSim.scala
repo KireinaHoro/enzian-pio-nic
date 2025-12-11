@@ -1383,7 +1383,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
                 simFailure("XID not found")
               }
               val (pkt, pld, funcPtr) = pktsToReceive((pid, xid))
-              procLog(f"received xid $xid%x, expecting packet $pkt")
+              procLog(f"received xid $xid%#x, expecting packet $pkt")
               checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
 
               procLog(s"finished (simulated) processing packet #${pktsReceived.sum}")
