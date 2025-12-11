@@ -72,6 +72,7 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     }
     val rxMacOverflowCount = cross(rxDomain.overflowCount)
     val rxMacIngressCount = cross(rxDomain.pktCount)
+    val rxMacIngressAfterCdcCount = Counter(REG_WIDTH bits, rxFifo.m_axis.get.lastFire)
 
     // extract frame length and push into TUSER
     // EthernetDecoder relies on this being available before packet content
@@ -104,5 +105,8 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
       desc = "Number of packets dropped at CDC FIFO push side"))
     busCtrl.read(logic.rxMacIngressCount, alloc(name = "stat", subName = "rxMacIngressCount", attr = RO,
       desc = "Number of packets delivered by CMAC"))
+    busCtrl.read(logic.rxMacIngressAfterCdcCount.value,
+      alloc(name = "stat", subName = "rxMacIngressAfterCdcCount", attr = RO,
+      desc = "Number of packets sent to decoders"))
   }
 }
