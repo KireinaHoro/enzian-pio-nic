@@ -10,7 +10,11 @@ object XilinxCmacSim {
   def cmacDutSetup(implicit dut: NicEngine) = {
     val cmacIf = dut.host[XilinxCmacPlugin].logic.get
 
+    // create out-of-phase clocks
+    sleep(900 ps)
     cmacIf.cmacRxClock.forkStimulus(frequency = 250 MHz)
+
+    sleep(1500 ps)
     cmacIf.cmacTxClock.forkStimulus(frequency = 250 MHz)
 
     (Axi4StreamMaster(cmacIf.s_axis_rx, cmacIf.cmacRxClock, allowStall = false),

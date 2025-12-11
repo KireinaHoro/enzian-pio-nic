@@ -80,7 +80,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     val (axisMaster, axisSlave) = XilinxCmacSim.cmacDutSetup
 
-    dut.clockDomain.forkStimulus(hzToLong(250 MHz), sleepDuration = 100, resetCycles = 0)
+    dut.clockDomain.forkStimulus(hzToLong(200 MHz), sleepDuration = 100, resetCycles = 0)
 
     // enable IRQ for all cores
     0 until NUM_CORES foreach { cid =>
