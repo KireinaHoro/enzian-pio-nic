@@ -136,12 +136,11 @@ add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*Encoder_logic_*"]
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EncoderSource*"]
 
-add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/driveDcsBus_core*_*Router"]
+add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*makeAccessPorts_*Router"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/Scheduler_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciInterfacePlugin_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciThreadClRouter_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*EciDecoupledRxTxProtocol*"]
 
-add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/rx_rst_sync/*"]
-add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/tx_rst_sync/*"]
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/*x_rst_sync"]
