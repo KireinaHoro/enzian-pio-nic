@@ -64,84 +64,71 @@ set dcs_odd_pblock     [get_pblocks pblock_slr0]
 set eci_gateway_pblock [get_pblocks pblock_slr1]
 
 # assign two DCS to top and bottom SLR slices
-add_cells_to_pblock $dcs_even_pblock [get_cells [list \
-  i_app/dcs_even/i_dcs \
-  i_app/dcs_even/i_app_rst_sync \
-]]
-add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_cdc_*}]
+add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {
+    NAME=~i_app/dcs_even/i_cross_*/i_cdc ||
+    NAME=~i_app/dcs_even/i_dcs ||
+    NAME=~i_app/dcs_even/i_app_rst_sync
+}]
 
-add_cells_to_pblock $dcs_odd_pblock [get_cells [list \
-  i_app/dcs_odd/i_dcs \
-  i_app/dcs_odd/i_app_rst_sync \
-]]
-add_cells_to_pblock $dcs_odd_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_cdc_*}]
+add_cells_to_pblock $dcs_odd_pblock [get_cells -hierarchical -filter {
+    NAME=~i_app/dcs_odd/i_cross_*/i_cdc ||
+    NAME=~i_app/dcs_odd/i_dcs ||
+    NAME=~i_app/dcs_odd/i_app_rst_sync
+}]
 
-# CDC logic belong with the gateway
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_*/i_chan_cdc_*}]
+set is_chan_src  "(NAME=~*slr_auto_src*  || NAME=~*s_areset_*)"
+set is_chan_dest "(NAME=~*slr_auto_dest* || NAME=~*m_areset_*)"
 
-# SI/MI constraints for pipelining reg slices between DCS and ECI gateway
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_slave/*m_areset_resp*}]
+# SI/MI constraints: ECI channels (ECI gateway => DC)
+set is_eci_fwd  "NAME=~*i_cross_*_slave*"
+set is_eci_resp "NAME=~*i_cross_*_master*"
 
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_slave/*s_areset_resp*}]
+set is_eci_fwd_src   "$is_chan_src  && $is_eci_fwd"
+set is_eci_fwd_dest  "$is_chan_dest && $is_eci_fwd"
+set is_eci_resp_src  "$is_chan_src  && $is_eci_resp"
+set is_eci_resp_dest "$is_chan_dest && $is_eci_resp"
 
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_master/*slr_auto_dest*}]
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_master/*m_areset_resp*}]
+add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_even/* && ($is_eci_fwd_dest || $is_eci_resp_src)"]
 
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_master/*slr_auto_src*}]
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_cross_*_master/*s_areset_resp*}]
+add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_*      && ($is_eci_fwd_src || $is_eci_resp_dest)"]
 
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_slave/*m_areset_resp*}]
+add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_odd/*  && ($is_eci_fwd_dest || $is_eci_resp_src)"]
 
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_slave/*s_areset_resp*}]
+# SI/MI constraints: LCL channels (NicEngine => DC)
+set is_lcl_fwd_src   "$is_chan_src  && NAME=~*i_chan_pipe_lcl_*_slave*"
+set is_lcl_fwd_dest  "$is_chan_dest && NAME=~*i_chan_pipe_lcl_*_slave*"
+set is_lcl_resp_src  "$is_chan_src  && NAME=~*i_chan_pipe_lcl_*_master*"
+set is_lcl_resp_dest "$is_chan_dest && NAME=~*i_chan_pipe_lcl_*_master*"
 
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_master/*slr_auto_dest*}]
-add_cells_to_pblock $eci_gateway_pblock [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_master/*m_areset_resp*}]
+add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_even/* && ($is_lcl_fwd_dest || $is_lcl_resp_src)"]
 
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_master/*slr_auto_src*}]
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_cross_*_master/*s_areset_resp*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_*      && ($is_lcl_fwd_src || $is_lcl_resp_dest)"]
 
-# SI/MI constraints for pipelining reg slices between DCS and NicEngine
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*m_areset_resp*}]
+add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_odd/*  && ($is_lcl_fwd_dest || $is_lcl_resp_src)"]
 
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_slave/*s_areset_resp*}]
+# SI/MI constraints: DCS AXI (DC => NicEngine)
+set is_axi_fwd  "(NAME=~*ar16.ar_auto* || NAME=~*aw16.aw_auto* || NAME=~*w16.w_auto*)"
+set is_axi_resp "(NAME=~*r16.r_auto*   || NAME=~*b16.b_auto*)"
 
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*m_areset_resp*}]
+set is_axi_fwd_src   "$is_chan_src  && $is_axi_fwd"
+set is_axi_fwd_dest  "$is_chan_dest && $is_axi_fwd"
+set is_axi_resp_src  "$is_chan_src  && $is_axi_resp"
+set is_axi_resp_dest "$is_chan_dest && $is_axi_resp"
 
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter {NAME =~ i_app/dcs_even/i_chan_pipe_lcl_*_master/*s_areset_resp*}]
+add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_even/i_axi_pipe* && ($is_axi_fwd_src  || $is_axi_resp_dest)"]
 
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_dest*}]
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*m_areset_resp*}]
+add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_*/i_axi_pipe*    && ($is_axi_fwd_dest || $is_axi_resp_src)"]
 
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*slr_auto_src*}]
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_slave/*s_areset_resp*}]
-
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_dest*}]
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*m_areset_resp*}]
-
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*slr_auto_src*}]
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter {NAME =~ i_app/dcs_odd/i_chan_pipe_lcl_*_master/*s_areset_resp*}]
-
-# SI/MI constraints for pipelining AXI between DCS and NicEngine
-# !!! need to differentiate between channel directions
-set is_fwd  "(NAME=~*ar16.ar_auto* || NAME=~*aw16.aw_auto* || NAME=~*w16.w_auto*)"
-set is_resp "(NAME=~*r16.r_auto*   || NAME=~*b16.b_auto*)"
-
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter "NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_src*  && $is_fwd"]
-add_cells_to_pblock $dcs_even_pblock    [get_cells -hierarchical -filter "NAME=~i_app/dcs_even/i_axi_pipe*slr_auto_dest* && $is_resp"]
-
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter "NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_src*   && $is_fwd"]
-add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter "NAME=~i_app/dcs_odd/i_axi_pipe*slr_auto_dest*  && $is_resp"]
-
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_dest*    && $is_fwd"]
-add_cells_to_pblock $nic_hostif_pblock  [get_cells -hierarchical -filter "NAME=~i_app/dcs_*/i_axi_pipe*slr_auto_src*     && $is_resp"]
+add_cells_to_pblock $dcs_odd_pblock     [get_cells -hierarchical -filter \
+    "NAME=~i_app/dcs_odd/i_axi_pipe*  && ($is_axi_fwd_src  || $is_axi_resp_dest)"]
 
 # NicEngine
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*Decoder_logic_*"]
