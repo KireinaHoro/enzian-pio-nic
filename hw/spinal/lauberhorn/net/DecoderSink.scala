@@ -17,6 +17,7 @@ import scala.language.postfixOps
 case class DecoderOutput(priority: Int, name: String,
                          desc: Stream[RxPacketDescWithSource], pld: Axi4Stream,
                          payloadAck: Bool,   // can this decoder emit another desc?
+                         dropped: Bool,      // did this decoder just drop a packet?
                         )
 
 /**
@@ -49,14 +50,17 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val decoderOutputs = mutable.ListBuffer[DecoderOutput]()
+  lazy val pktDropped = Bool()
   def consume(dec: DecoderOutput) = new Area {
     dec.pld.assertPersistence()
     dec.desc.assertPersistence()
 
     decoderOutputs.append(dec.copy(desc = dec.desc.pipelined(FULL)))
 
-    // Payload is ack'ed when we disable the AXIS mux
-    dec.payloadAck := pldMuxDisable
+    // Payload is ack'ed when:
+    // - we disable the AXIS mux, packet sent to DMA
+    // - a decoder dropped this packet
+    dec.payloadAck := pldMuxDisable || pktDropped
   }
   override def packetSink = logic.axisMux.m_axis
 
@@ -67,6 +71,9 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
 
     val numDecoders = decoderOutputs.length
     assert(numDecoders > 1)
+
+    // every decoder gets to see if anyone dropped
+    pktDropped := decoderOutputs.map(_.dropped).orR
 
     // Sort by priority.  Downstream decoders (higher up in OSI stack) has higher
     // priority -- e.g. UDP > IP > Ethernet

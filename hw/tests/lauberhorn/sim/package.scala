@@ -230,15 +230,16 @@ package object sim {
     val hostIdHi = hostId / 0x100
 
     val ipAddr = InetAddress.getByName(s"192.168.${128 + hostIdHi}.$hostIdLo").asInstanceOf[Inet4Address]
+    val prefixLen = 18
     val macAddr = MacAddress.getByName(f"0c:53:31:03:$hostIdHi%02x:$hostIdLo%02x")
 
-    (ipAddr, macAddr)
+    (ipAddr, prefixLen, macAddr)
   }
 
   def getIpPacketToEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
     val srcIpAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
     val srcMacAddr = MacAddress.getByAddress(simRandom.nextBytes(6))
-    val (dstIpAddr, dstMacAddr) = enzianIpMacAddrs(hostNum)
+    val (dstIpAddr, _, dstMacAddr) = enzianIpMacAddrs(hostNum)
 
     getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
   }
@@ -246,7 +247,7 @@ package object sim {
   def getIpPacketFromEnzian(hostNum: Int, pldLen: Int)(implicit dumper: PcapDumper) = {
     val dstIpAddr = InetAddress.getByAddress(simRandom.nextBytes(4)).asInstanceOf[Inet4Address]
     val dstMacAddr = MacAddress.getByAddress(simRandom.nextBytes(6))
-    val (srcIpAddr, srcMacAddr) = enzianIpMacAddrs(hostNum)
+    val (srcIpAddr, _, srcMacAddr) = enzianIpMacAddrs(hostNum)
 
     getIpPacket(srcIpAddr, dstIpAddr, srcMacAddr, dstMacAddr, pldLen)
   }
