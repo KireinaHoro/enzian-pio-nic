@@ -39,13 +39,13 @@ class IpDecoder extends Decoder[IpRxMeta] {
 
     awaitBuild()
 
-    val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(IpRxMeta())
 
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8)() // IPv4 without options
     // TODO: chain output with secondary decoder to decode IP options
 
-    produce(metadata, payload, decoder.io.outputAck, priority = 100)
+    val drop = Bool()
+    produce(metadata, decoder.io.output, decoder.io.outputAck, priority = 100, drop)
     produceDone()
 
     val lastEthMeta = ethernetHeader.toFlowFire.toReg()
@@ -53,15 +53,8 @@ class IpDecoder extends Decoder[IpRxMeta] {
       .clearWhen(ethernetHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    val drop = Bool()
-    val pldFilter = AxiStreamFilter(macIf.axisConfig)
-    pldFilter.io.input << decoder.io.output
-    pldFilter.io.output >> payload
-    pldFilter.io.action.valid := decoder.io.header.fire
-    pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
-
     ethernetPayload >> decoder.io.input
-    metadata << decoder.io.header.throwWhen(drop).map { hdr =>
+    metadata << decoder.io.header.map { hdr =>
       new Composite(this, "remap") {
         val meta = IpRxMeta()
         meta.hdr.assignFromBits(hdr)
