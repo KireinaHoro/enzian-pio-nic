@@ -2,6 +2,7 @@ package lauberhorn.net
 
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
+import lauberhorn.MacInterfaceService
 import spinal.core._
 import spinal.lib.StreamPipe.{FULL, M2S}
 import spinal.lib._
@@ -53,9 +54,25 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
     */
-  protected def produce(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool, priority: Int): Unit = new Composite(this, "produce") {
-    val forkedHeaders = StreamFork(metadata, consumers.length + 1)
-    val forkedPayloads = StreamFork(payload, consumers.length + 1)
+  protected def produce(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool, priority: Int, drop: Bool = null): Unit = new Composite(this, "produce") {
+    val filteredHeader = metadata.clone
+    val filteredPayload = payload.clone
+
+    if (drop != null) new Area {
+      val pldFilter = AxiStreamFilter(host[MacInterfaceService].axisConfig)
+      pldFilter.io.input << payload
+      pldFilter.io.output >> filteredPayload
+      pldFilter.io.action.valid := metadata.fire
+      pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
+
+      filteredHeader << metadata.throwWhen(drop)
+    } else {
+      filteredHeader << metadata
+      filteredPayload << payload
+    }
+
+    val forkedHeaders = StreamFork(filteredHeader, consumers.length + 1)
+    val forkedPayloads = StreamFork(filteredPayload, consumers.length + 1)
 
     val attempts = mutable.ListBuffer[Bool]()
     consumers.zipWithIndex foreach { case ((name, matchFunc, headerSink, payloadSink), idx) => new Composite(this, s"to_$name") {

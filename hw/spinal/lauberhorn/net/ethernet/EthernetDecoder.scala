@@ -24,7 +24,6 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
   }
 
   val logic = during setup new Area {
-    private val payload = Axi4Stream(macIf.axisConfig)
     private val metadata = Stream(EthernetRxMeta())
 
     // zuestoll01 FPGA MAC address: 0C:53:31:03:00:28
@@ -36,13 +35,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
 
     // TODO: dropped packets counter
     val drop = Bool()
-    val pldFilter = AxiStreamFilter(macIf.axisConfig)
-    pldFilter.io.input << decoder.io.output
-    pldFilter.io.output >> payload
-    pldFilter.io.action.valid := decoder.io.header.fire
-    pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
-
-    metadata << decoder.io.header.throwWhen(drop).map { hdr =>
+    metadata << decoder.io.header.map { hdr =>
       new Composite(this, "remap") {
         val meta = EthernetRxMeta()
         meta.hdr.assignFromBits(hdr)
@@ -58,7 +51,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     // frameLen.valid must be high when we have a metadata fire
     macIf.frameLen.ready := metadata.fire
 
-    produce(metadata, payload, decoder.io.outputAck, priority = 0)
+    produce(metadata, decoder.io.output, decoder.io.outputAck, priority = 0, drop)
     produceDone()
   }
 }
