@@ -905,13 +905,18 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
   }
 
-  def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-overflow-$name")(Rx) { implicit dut =>
+  def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)],
+                     savePackets: Boolean = false,
+                     doPromisc: Boolean = true,
+                    ) = testWithDB(s"rx-bypass-overflow-$name${if (!doPromisc) "-nopromisc"}")(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
 
-    // enable promisc mode
-    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+    if (doPromisc) {
+      // enable promisc mode
+      csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+    }
 
     val toCheck = new ToCheckPkts
     val dumper = if (savePackets) {
@@ -925,6 +930,16 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // wait until all packets are sent
     waitUntil(doneSending())
 
+    val filtered = if (!doPromisc) {
+      val (_, myMac) = enzianIpMacAddrs(14) // pcap traces are recorded on zuestoll14
+
+      // unicast packets that do not belong to us will be ignored
+      toCheck.count { case (pkt, _) =>
+        val dst = pkt.get(classOf[EthernetPacket]).getHeader.getDstAddr
+        dst.isUnicast && dst != myMac
+      }
+    } else 0
+
     val received = bypassStandardRecv(dcsMaster, toCheck)
 
     // periodically check overflow counter
@@ -933,9 +948,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
       while (!done) {
         val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
         val rcvd = received()
-        done = overflowCount + rcvd == sent()
+        done = overflowCount + rcvd + filtered == sent()
 
-        println(s"Sent ${sent()}, received $rcvd, dropped $overflowCount")
+        println(s"Sent ${sent()}, received $rcvd, filtered $filtered, dropped $overflowCount")
         sleepCycles(2000)
       }
     }
@@ -950,6 +965,10 @@ class NicSim extends DutSimFunSuite[NicEngine]
   rxTestOverflow("random", loadRandomPackets(500), savePackets = true)
   rxTestOverflow("lockup", loadPcapForRxTest("rx-lockup.pcap"))
   rxTestOverflow("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"))
+
+  rxTestOverflow("random", loadRandomPackets(500), savePackets = true, doPromisc = false)
+  rxTestOverflow("lockup", loadPcapForRxTest("rx-lockup.pcap"), doPromisc = false)
+  rxTestOverflow("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"), doPromisc = false)
 
   testWithDB("rx-bypass-no-repeat")(Rx) { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
