@@ -867,53 +867,12 @@ class NicSim extends DutSimFunSuite[NicEngine]
     () => received
   }
 
-  def rxTestPipelined(name: String, nextPacket: () => Option[(Packet, PacketType)], savePackets: Boolean = false) = testWithDB(s"rx-bypass-pipelined-$name")(Rx) { implicit dut =>
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
-
-    // enable promisc mode
-    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
-
-    val toCheck = new ToCheckPkts
-    val dumper = if (savePackets) {
-      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-pipelined-$name") / "packets.pcap").toString))
-    } else None
-
-    val received = bypassStandardRecv(dcsMaster, toCheck)
-    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
-
-    waitUntil(doneSending() && received() == sent())
-  }
-
-  def loadRandomPackets(numPackets: Int) = {
-    var sent = 0
-    () => {
-      if (sent == numPackets) None else {
-        sent += 1
-        val len = simRandom.between(64, 1536)
-        Some(randomPacket(len)(Ethernet, Ip, Udp))
-      }
-    }
-  }
-
-  def loadPcapForRxTest(name: String) = {
-    val pcapPath = os.pwd / "data" / "eci" / "iladata" / name
-    val pcapHandle = Pcaps.openOffline(pcapPath.toString)
-    () => {
-      val packet = pcapHandle.getNextPacket
-      if (packet == null) None
-      else Some((packet, pcap4jPacketToType(packet.get(classOf[EthernetPacket]))))
-    }
-  }
-
-  def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)],
-                     savePackets: Boolean = false,
-                     doPromisc: Boolean = true,
-                    ) = {
-  val testName = s"rx-bypass-overflow-$name${if (!doPromisc) "-nopromisc" else ""}"
+  def rxTestPipelined(name: String, nextPacket: () => Option[(Packet, PacketType)],
+      savePackets: Boolean = false,
+      doPromisc: Boolean = true) = {
+  val testName = s"rx-bypass-pipelined-$name${if (!doPromisc) "-nopromisc" else ""}"
   testWithDB(testName)(Rx) { implicit dut =>
-    // flood RX with too many packets, receive full packets and check dropped counter
-
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(100)
     val (myIp, prefixLen, myMac) = enzianIpMacAddrs(14) // pcap traces are recorded on zuestoll14
 
     if (doPromisc) {
@@ -930,14 +889,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
       Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets.pcap").toString))
     } else None
 
-    // simulate real flood send
-    axisMaster.setFactor(1)
-    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper, noSleep = true)
-
-    // wait until all packets are sent
-    waitUntil(doneSending())
-
-    val filtered = if (!doPromisc) {
+    def filtered() = if (!doPromisc) {
       def addrToInt(addr: Inet4Address) = addr.getAddress.map(_.toInt).reduceLeft { (v, acc: Int) =>
         (acc << 8) + v
       }
@@ -965,6 +917,57 @@ class NicSim extends DutSimFunSuite[NicEngine]
     } else 0
 
     val received = bypassStandardRecv(dcsMaster, toCheck)
+    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
+
+    waitUntil(doneSending() && received() + filtered() == sent())
+  } }
+
+  def loadRandomPackets(numPackets: Int) = {
+    var sent = 0
+    () => {
+      if (sent == numPackets) None else {
+        sent += 1
+        val len = simRandom.between(64, 1536)
+        Some(randomPacket(len)(Ethernet, Ip, Udp))
+      }
+    }
+  }
+
+  def loadPcapForRxTest(name: String) = {
+    val pcapPath = os.pwd / "data" / "eci" / "iladata" / name
+    val pcapHandle = Pcaps.openOffline(pcapPath.toString)
+    () => {
+      val packet = pcapHandle.getNextPacket
+      if (packet == null) None
+      else Some((packet, pcap4jPacketToType(packet.get(classOf[EthernetPacket]))))
+    }
+  }
+
+  def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)],
+                     savePackets: Boolean = false,
+                    ) = {
+  val testName = s"rx-bypass-overflow-$name"
+  testWithDB(testName)(Rx) { implicit dut =>
+    // flood RX with too many packets, receive full packets and check dropped counter
+
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+
+    // always enable promisc mode for overflow test
+    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+
+    val toCheck = new ToCheckPkts
+    val dumper = if (savePackets) {
+      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets.pcap").toString))
+    } else None
+
+    // simulate real flood send
+    axisMaster.setFactor(1)
+    val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper, noSleep = true)
+
+    // wait until all packets are sent
+    waitUntil(doneSending())
+
+    val received = bypassStandardRecv(dcsMaster, toCheck)
 
     // periodically check overflow counter
     var done = false
@@ -972,9 +975,12 @@ class NicSim extends DutSimFunSuite[NicEngine]
       while (!done) {
         val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
         val rcvd = received()
-        done = overflowCount + rcvd + filtered == sent()
+        val snd = sent()
+        println(s"Sent $snd, received $rcvd, dropped $overflowCount")
 
-        println(s"Sent ${sent()}, received $rcvd, filtered $filtered, dropped $overflowCount")
+        assert(rcvd + overflowCount <= snd)
+        done = snd == rcvd + overflowCount
+
         sleepCycles(2000)
       }
     }
@@ -991,9 +997,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
   rxTestOverflow("lockup", loadPcapForRxTest("rx-lockup.pcap"))
   rxTestOverflow("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"))
 
-  rxTestOverflow("random", loadRandomPackets(500), savePackets = true, doPromisc = false)
-  rxTestOverflow("lockup", loadPcapForRxTest("rx-lockup.pcap"), doPromisc = false)
-  rxTestOverflow("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"), doPromisc = false)
+  rxTestPipelined("random", loadRandomPackets(500), savePackets = true, doPromisc = false)
+  rxTestPipelined("lockup", loadPcapForRxTest("rx-lockup.pcap"), doPromisc = false)
+  rxTestPipelined("lockup-2", loadPcapForRxTest("rx-lockup-2.pcap"), doPromisc = false)
 
   testWithDB("rx-bypass-no-repeat")(Rx) { implicit dut =>
     // send one packet, receive twice -- no second packet should arrive
@@ -1106,10 +1112,10 @@ class NicSim extends DutSimFunSuite[NicEngine]
     // TODO
   }
 
-  testWithDB("rx-no-promisc")(Rx) { implicit dut =>
+  testWithDB("rx-simple-no-promisc")(Rx) { implicit dut =>
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
 
-    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-no-promisc") / "packets.pcap").toString)
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("rx-simple-no-promisc") / "packets.pcap").toString)
 
     // NOT enabling promisc
 
