@@ -2,6 +2,7 @@ package lauberhorn.net.ethernet
 
 import jsteward.blocks.axi._
 import jsteward.blocks.misc.RegBlockAlloc
+import lauberhorn.Global.REG_WIDTH
 import lauberhorn._
 import lauberhorn.net.Decoder
 import spinal.core._
@@ -21,6 +22,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
       busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
     busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "Our MAC address", "macAddress"))
+    busCtrl.read(logic.dropCount.value, alloc("stat", "Number of packets dropped", "dropCount"))
   }
 
   val logic = during setup new Area {
@@ -33,7 +35,6 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, EthernetHeader().getBitsWidth / 8)()
     decoder.io.input << macIf.rxStream
 
-    // TODO: dropped packets counter
     val drop = Bool()
     metadata << decoder.io.header.map { hdr =>
       new Composite(this, "remap") {
@@ -43,10 +44,13 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
 
         // allow unicast, multicast, broadcast
         val isBroadcast = meta.hdr.dst.andR
+        // TODO: multicast table
         val isMulticast = meta.hdr.dst(0) // LSB of the first octet
         drop := macAddress =/= meta.hdr.dst && !isBroadcast && !isMulticast && !isPromisc
       }.meta
     }
+
+    val dropCount = Counter(REG_WIDTH bits, drop && metadata.fire)
 
     // frameLen.valid must be high when we have a metadata fire
     macIf.frameLen.ready := metadata.fire

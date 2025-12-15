@@ -57,6 +57,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
   protected def produce(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool, priority: Int, drop: Bool = null): Unit = new Composite(this, "produce") {
     val filteredHeader = metadata.clone
     val filteredPayload = payload.clone
+    val dropped = Bool()
 
     if (drop != null) new Area {
       val pldFilter = AxiStreamFilter(host[MacInterfaceService].axisConfig)
@@ -65,10 +66,12 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
       pldFilter.io.action.valid := metadata.fire
       pldFilter.io.action.payload := drop ? FilterAction.drop | FilterAction.pass
 
+      dropped := metadata.fire && drop
       filteredHeader << metadata.throwWhen(drop)
     } else {
       filteredHeader << metadata
       filteredPayload << payload
+      dropped := False
     }
 
     val forkedHeaders = StreamFork(filteredHeader, consumers.length + 1)
@@ -113,7 +116,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     host[DecoderSinkService].consume(DecoderOutput(
       priority, decoderName,
       bypassHeader.map(_.toRxTaggedDesc(true)),
-      bypassPldFilter.io.output, payloadAck)).setCompositeName(this, "dispatchBypass")
+      bypassPldFilter.io.output, payloadAck, dropped)).setCompositeName(this, "dispatchBypass")
   }
 
   /**
@@ -127,7 +130,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     host[DecoderSinkService].consume(DecoderOutput(
       Int.MaxValue, decoderName,
       metadata.map(_.toRxTaggedDesc(false)),
-      payload, payloadAck)).setCompositeName(this, "dispatch")
+      payload, payloadAck, False)).setCompositeName(this, "dispatch")
   }
 
   /** Release retainer from packet dispatcher to allow it to continue elaborating */

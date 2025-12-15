@@ -467,11 +467,14 @@ static int inetaddr_event(struct notifier_block *nb, unsigned long event,
 	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
 		if (event == NETDEV_UP) {
 			dev_info(&dev->dev,
-				 "Updating primary IP address in HW to %pI4\n",
-				 &ifa->ifa_address);
+				 "Updating primary IP address in HW to %pI4/%d\n",
+				 &ifa->ifa_address, ifa->ifa_prefixlen);
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
 				&priv->IpDecoder_dev, ifa->ifa_address);
+
+			lauberhorn_eci_IpDecoder_ctrl_prefix_len_wr(
+				&priv->IpDecoder_dev, ifa->ifa_prefixlen);
 		} else if (event == NETDEV_DOWN) {
 			dev_info(&dev->dev, "Clearing primary IP address\n");
 

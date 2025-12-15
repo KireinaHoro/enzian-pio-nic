@@ -648,7 +648,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
-    val (_, ourMac) = enzianIpMacAddrs(14)
+    val (_, _, ourMac) = enzianIpMacAddrs(14)
     csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), ourMac.getAddress.toList)
 
     def testIcmp6(ethPld: String, dstMac: String) = {
@@ -908,19 +908,26 @@ class NicSim extends DutSimFunSuite[NicEngine]
   def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)],
                      savePackets: Boolean = false,
                      doPromisc: Boolean = true,
-                    ) = testWithDB(s"rx-bypass-overflow-$name${if (!doPromisc) "-nopromisc"}")(Rx) { implicit dut =>
+                    ) = {
+  val testName = s"rx-bypass-overflow-$name${if (!doPromisc) "-nopromisc" else ""}"
+  testWithDB(testName)(Rx) { implicit dut =>
     // flood RX with too many packets, receive full packets and check dropped counter
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(500)
+    val (myIp, prefixLen, myMac) = enzianIpMacAddrs(14) // pcap traces are recorded on zuestoll14
 
     if (doPromisc) {
       // enable promisc mode
       csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+    } else {
+      // program with zuestoll14 MAC/IP addresses for trace replay
+      csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), myIp.getAddress.toList)
+      csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), myMac.getAddress.toList)
     }
 
     val toCheck = new ToCheckPkts
     val dumper = if (savePackets) {
-      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(s"rx-bypass-overflow-$name") / "packets.pcap").toString))
+      Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets.pcap").toString))
     } else None
 
     // simulate real flood send
@@ -931,12 +938,29 @@ class NicSim extends DutSimFunSuite[NicEngine]
     waitUntil(doneSending())
 
     val filtered = if (!doPromisc) {
-      val (_, myMac) = enzianIpMacAddrs(14) // pcap traces are recorded on zuestoll14
+      def addrToInt(addr: Inet4Address) = addr.getAddress.map(_.toInt).reduceLeft { (v, acc: Int) =>
+        (acc << 8) + v
+      }
+      def subnet(addr: Inet4Address) = addrToInt(addr) >> (32 - prefixLen)
+      def host(addr: Inet4Address) = addrToInt(addr) & ((1 << (32 - prefixLen)) - 1)
 
       // unicast packets that do not belong to us will be ignored
       toCheck.count { case (pkt, _) =>
-        val dst = pkt.get(classOf[EthernetPacket]).getHeader.getDstAddr
-        dst.isUnicast && dst != myMac
+        val ethDst = pkt.get(classOf[EthernetPacket]).getHeader.getDstAddr
+        val macForUs = ethDst == myMac
+        var ipForUs = false
+        var isMulticast = !ethDst.isUnicast
+
+        if (pkt.contains(classOf[IpV4Packet])) {
+          val ipDst = pkt.get(classOf[IpV4Packet]).getHeader.getDstAddr
+          val isLocalBroadcast = addrToInt(ipDst) == 0xffffffff
+          val isDirectedBroadcast = subnet(ipDst) == subnet(myIp) && host(ipDst) == ((1 << (32 - prefixLen)) - 1)
+
+          isMulticast &= ipDst.isMulticastAddress || isLocalBroadcast || isDirectedBroadcast
+          ipForUs = ipDst == myIp
+        }
+
+        !(macForUs || ipForUs || isMulticast)
       }
     } else 0
 
@@ -956,6 +980,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     }
 
     waitUntil(done)
+  }
   }
 
   rxTestPipelined("random", loadRandomPackets(200), savePackets = true)
@@ -1092,7 +1117,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     rxTestSimple(dcsMaster, axisMaster, getIpPacketToEnzian(1, 512), PacketType.Ip, maxRetries = 1)
 
     // change host ID: address regs are in big endian
-    val (ip, mac) = enzianIpMacAddrs(2)
+    val (ip, _, mac) = enzianIpMacAddrs(2)
     csrMaster.write(ALLOC.readBack("IpDecoder")("ctrl", "ipAddress"), ip.getAddress.toList)
     csrMaster.write(ALLOC.readBack("EthernetDecoder")("ctrl", "macAddress"), mac.getAddress.toList)
 
@@ -1138,7 +1163,7 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val clientIp2 = packet2.get(classOf[IpV4Packet]).getHeader.getSrcAddr
     val clientMac2 = packet2.getHeader.getSrcAddr
 
-    val (serverIp, serverMac) = enzianIpMacAddrs(1)
+    val (serverIp, _, serverMac) = enzianIpMacAddrs(1)
 
     // set up neighbor table for replies
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
