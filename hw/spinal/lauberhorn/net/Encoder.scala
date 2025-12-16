@@ -80,14 +80,14 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
     assert(payloadUpstreams.nonEmpty, "encoder does not have upstream (forgot to set acceptHostPackets = true?)")
 
     if (payloadUpstreams.length == 1) {
-      metadata << descUpstreams.head
-      payload << payloadUpstreams.head
+      metadata <-/< descUpstreams.head
+      payload <-/< payloadUpstreams.head
     } else new Area {
-      metadata << StreamArbiterFactory(s"${Encoder.this.getName()}_descMux").roundRobin.on(descUpstreams)
+      metadata <-/< StreamArbiterFactory(s"${Encoder.this.getName()}_descMux").roundRobin.on(descUpstreams)
       val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)
 
       axisMux.s_axis zip payloadUpstreams foreach { case (sl, ms) => sl << ms }
-      axisMux.m_axis >> payload
+      axisMux.m_axis >/-> payload
     }
   }
 }

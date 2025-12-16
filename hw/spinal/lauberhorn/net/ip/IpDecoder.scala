@@ -36,8 +36,9 @@ class IpDecoder extends Decoder[IpRxMeta] {
     val ipAddress = Reg(Bits(32 bits)) init EndiannessSwap(B("32'xc0_a8_80_28"))
     val prefixLen = Reg(UInt(8 bits)) init 18 // 0 - 32
     val hostLen = 32 - prefixLen
-    val hostMask = ((U(1) << hostLen) - 1).resize(32).asBits
-    val netMask = ~hostMask
+    val hostMaskNext = ((U(1) << hostLen) - 1).resize(32).asBits
+    val hostMask = RegNext(hostMaskNext)
+    val netMask = RegNext(~hostMaskNext)
 
     def subnet(addr: Bits) = addr & netMask
     def host(addr: Bits) = addr & hostMask
