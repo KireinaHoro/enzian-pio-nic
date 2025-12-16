@@ -3,6 +3,7 @@ package lauberhorn
 import spinal.core.sim._
 import spinal.lib.sim._
 import jsteward.blocks.DutSimFunSuite
+import lauberhorn.Global.PKT_BUF_TX_OFFSET
 import spinal.lib.misc.database.Database
 
 import scala.collection.mutable
@@ -13,30 +14,29 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
   val db = new Database
   db on {
     import Global._
-    PKT_BUF_ADDR_WIDTH.set(32)
+    PKT_BUF_ADDR_WIDTH.set(24)
+    PKT_BUF_LEN_WIDTH.set(16)
     PKT_BUF_ALLOC_SIZES.set(Seq(
-      (128, .6), // 60% 128B packets
-      (1518, .3), // 30% 1518B packets (max Ethernet frame with MTU 1500)
-      (9618, .1), // 10% 9618B packets (max jumbo frame)
+      (128, .1),
+      (1518, .3),
+      (9618, .6),
     ))
-    DATAPATH_WIDTH.set(64)
+    DATAPATH_WIDTH.set(512)
+    PKT_BUF_TX_OFFSET.set(0x50000)
   }
 
   val dut = Config.sim
-    .compile(db on PacketAlloc(0xdead0000, 0x40000))
+    .compile(db on PacketAlloc(0, PKT_BUF_TX_OFFSET.get))
 
   // TODO: refactor overflow case out
-  test("simple-allocate-free") { dut =>
-    SimTimeout(6000)
+  test("many-alloc-free") { dut =>
+    SimTimeout(6000000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
     // this will overflow the larger buffers, but since we free them the allocator should block
     // TODO: test the block-till-free case properly
 
-    val sizes = mutable.Queue(64 until 9618 by 64: _*) ++
-      // should correctly give out alloc resp without popping any buffer
-      // should correctly ignore freeing of zero buffers
-      Seq.fill(20)(0)
+    val sizes = mutable.Queue.fill(40000)(simRandom.between(16, 300))
     val expect = mutable.Queue[Long]()
     val toFree = mutable.Queue[(Long, Long)]()
 
@@ -72,14 +72,14 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
           assert(addr == dut.base, "zero-sized response should have the base address")
         }
 
+        println(f"Allocated addr $addr%#x size $size")
         assert(expected <= size,
           f"allocated packet $size%d smaller than expected $expected%d")
         assert(dut.base <= addr && addr < dut.len,
           f"packet addr $addr%#x outside address range [${dut.base}%#x - ${dut.len + dut.base}%#x]")
         // TODO: assert that the buffer is not previously allocated
-        println(f"Allocated addr $addr%#x size $size")
-        // hold packets for 20 cycles
-        delayed(20) {
+
+        delayed(simRandom.nextInt(20000)) {
           toFree.enqueue((addr, size))
         }
       }
