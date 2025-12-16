@@ -2,6 +2,7 @@ package lauberhorn
 
 import spinal.core._
 import spinal.lib._
+import spinal.lib.fsm._
 
 import scala.language.postfixOps
 
@@ -62,6 +63,10 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
   println("==============")
   println(f"Allocator [$base%#x - ${base + len}%#x]")
 
+  io.allocReq.assertPersistence()
+  io.freeReq.assertPersistence()
+  io.allocResp.assertPersistence()
+
   // return largest possible buffer if requested larger than everything
   val defaultIdx = U(numPorts - 1, log2Up(numPorts+1) bits)
 
@@ -94,7 +99,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
 
   val inIdx = io.allocReq.map(sizeIdx)
   inIdx.ready := !inProgress
-  allocRespMux.io.select := inIdx.asFlow.toReg
+  allocRespMux.io.select := inIdx.toFlowFire.toReg
 
   var curBase = base
 
@@ -105,22 +110,34 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
     // FIXME: what happens if try to allocate when empty?
     val slotFifo = StreamFifo(PacketAddr(), slots)
 
-    val initDone = RegInit(False)
-    val remainingInit = Counter(0, slots - 1, slotFifo.io.push.fire && !initDone)
-    when(remainingInit.willOverflow) {
-      initDone := True
-    }
+    slotFifo.io.push.setIdle()
+    slotFifo.io.push.assertPersistence()
+    freeDemux(idx).setBlocked()
 
-    val initEnq = Stream(PacketAddr())
-    initEnq.payload.bits := (curBase + alignedSize * remainingInit.value).resized
-    initEnq.valid := !initDone
-
+    val remainingInit = Counter(slots)
     val myBase = curBase
     curBase += alignedSize * slots
 
-    slotFifo.io.push << StreamArbiterFactory(s"size_${alignedSize}_allocFifo_push_arb")
-      .lowerFirst
-      .onArgs(freeDemux(idx).map(_.addr), initEnq)
+    val fsm = new StateMachine {
+      val init = new State with EntryPoint {
+        whenIsActive {
+          slotFifo.io.push.valid := True
+          slotFifo.io.push.bits := (myBase + alignedSize * remainingInit.value).resized
+          when (slotFifo.io.push.ready) {
+            remainingInit.increment()
+            when (remainingInit.willOverflow) {
+              goto(ready)
+            }
+          }
+        }
+      }
+      val ready = new State {
+        whenIsActive {
+          freeDemux(idx).map(_.addr) >> slotFifo.io.push
+        }
+      }
+    }
+
     // pop only when we have a pending request
     slotFifo.io.pop.translateInto(allocRespMux.io.inputs(idx)) { (dst, src) =>
       dst.addr := src
@@ -158,7 +175,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
           s"size $alignedSize: slot already occupied")
         slotOccupied(popIdx) := True
       }
-    }
+    }.setName(s"simChecks_$alignedSize")
   }.setName(s"size_$alignedSize") }
 
   println("==============")
