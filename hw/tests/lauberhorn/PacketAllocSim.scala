@@ -29,7 +29,7 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
     .compile(db on PacketAlloc(0, PKT_BUF_TX_OFFSET.get))
 
   // TODO: refactor overflow case out
-  test("many-alloc-free") { dut =>
+  test("many-alloc-free") { implicit dut =>
     SimTimeout(6000000)
     dut.clockDomain.forkStimulus(period = 4) // 250 MHz
 
@@ -50,17 +50,22 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
       }
     }
 
+    val allocatedMap = mutable.HashSet[Long]()
     StreamDriver(dut.io.freeReq, dut.clockDomain) { p =>
       if (toFree.nonEmpty) {
         val (addr, size) = toFree.dequeue()
         println(f"Free addr $addr%#x size $size")
         p.addr.bits #= addr
         p.size.bits #= size
+        assert(allocatedMap.contains(addr), s"freeing unallocated slot $addr!")
+        allocatedMap.remove(addr)
+        println(s"Allocated buffers: ${allocatedMap.map(_.toHexString).mkString(",")}")
         true
       } else false
     }
 
     StreamReadyRandomizer(dut.io.allocResp, dut.clockDomain)
+      .setFactor(0.7f)
     StreamMonitor(dut.io.allocResp, dut.clockDomain) { p =>
       if (expect.nonEmpty) {
         val expected = expect.dequeue
@@ -73,18 +78,28 @@ class PacketAllocSim extends DutSimFunSuite[PacketAlloc] {
         }
 
         println(f"Allocated addr $addr%#x size $size")
+
         assert(expected <= size,
           f"allocated packet $size%d smaller than expected $expected%d")
         assert(dut.base <= addr && addr < dut.len,
           f"packet addr $addr%#x outside address range [${dut.base}%#x - ${dut.len + dut.base}%#x]")
-        // TODO: assert that the buffer is not previously allocated
 
-        delayed(simRandom.nextInt(20000)) {
+        // assert that the buffer is not previously allocated
+        println(s"Allocated buffers: ${allocatedMap.map(_.toHexString).mkString(",")}")
+        assert(!allocatedMap.contains(addr), s"double allocation for $addr!")
+        allocatedMap.add(addr)
+
+        delayed(simRandom.nextInt(2000)) {
           toFree.enqueue((addr, size))
         }
       }
     }
 
-    dut.clockDomain.waitActiveEdgeWhere(sizes.isEmpty && expect.isEmpty && toFree.isEmpty)
+    dut.clockDomain.waitActiveEdgeWhere(sizes.isEmpty && expect.isEmpty && toFree.isEmpty && allocatedMap.isEmpty)
+    sleepCycles(5)
+
+    dut.roundedMap.zipWithIndex.foreach { case ((alignedSize, slots), idx) =>
+      assert(dut.io.slotOccupancy(idx).toLong == slots, s"slots of size $alignedSize missing!")
+    }
   }
 }
