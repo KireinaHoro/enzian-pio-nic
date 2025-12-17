@@ -92,7 +92,7 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 
 	BUG_ON(!dev);
 
-	dev_warn(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
 
 	napi_schedule(&priv->napi);
@@ -609,11 +609,6 @@ int init_bypass(void)
 		cl_hit_inv(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET +
 			   0x80 * cl_id);
 	}
-
-	// Reset packet buffer allocator
-	lauberhorn_eci_dma_ctrl_alloc_reset_wr(&priv->dma_dev, 1);
-	udelay(1);
-	lauberhorn_eci_dma_ctrl_alloc_reset_wr(&priv->dma_dev, 0);
 
 	// Register NAPI poll
 	netif_napi_add(netdev, &priv->napi, napi_poll);
