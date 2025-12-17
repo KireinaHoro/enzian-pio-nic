@@ -343,11 +343,6 @@ class NicSim extends DutSimFunSuite[NicEngine]
 
   /** test scanning a range of lengths of packets to send and check */
   def rxTestRange(csrMaster: AxiLite4Master, axisMaster: Axi4StreamMaster, dcsMaster: DcsAppMaster, startSize: Int, endSize: Int, step: Int, maxRetries: Int)(implicit dut: NicEngine) = {
-    // reset packet allocator
-    csrMaster.write(ALLOC.readBack("dma")("ctrl", "allocReset"), 1.toBytesLE)
-    sleepCycles(200)
-    csrMaster.write(ALLOC.readBack("dma")("ctrl", "allocReset"), 0.toBytesLE)
-
     // sweep from 64B to 9600B
     for (size <- Iterator.from(startSize / step).map(_ * step).takeWhile(_ <= endSize)) {
       0 until simRandom.between(25, 50) foreach { _ =>

@@ -13,13 +13,12 @@
 import lauberhorn_eci;
 
 device lauberhorn_eci_dma lsbfirst (addr base) "dma block for lauberhorn_eci" {
-register ctrl_alloc_reset rw addr(base, 0x0) "Reset packet buffer allocator" type(uint64);
-register stat_rx_packet_count ro addr(base, 0x8) "Stat rxPacketCount" type(uint64);
-register stat_tx_packet_count ro addr(base, 0x10) "Stat txPacketCount" type(uint64);
-register stat_rx_dma_error_count ro addr(base, 0x18) "Stat rxDmaErrorCount" type(uint64);
-register stat_tx_dma_error_count ro addr(base, 0x20) "Stat txDmaErrorCount" type(uint64);
-register stat_rx_alloc_occupancy_up_to_192 ro addr(base, 0x28) "Free slots left for packet size up to 192" type(uint64);
-register stat_rx_alloc_occupancy_up_to_1600 ro addr(base, 0x30) "Free slots left for packet size up to 1600" type(uint64);
-register stat_rx_alloc_occupancy_up_to_9664 ro addr(base, 0x38) "Free slots left for packet size up to 9664" type(uint64);
+register stat_rx_packet_count ro addr(base, 0x0) "Stat rxPacketCount" type(uint64);
+register stat_tx_packet_count ro addr(base, 0x8) "Stat txPacketCount" type(uint64);
+register stat_rx_dma_error_count ro addr(base, 0x10) "Stat rxDmaErrorCount" type(uint64);
+register stat_tx_dma_error_count ro addr(base, 0x18) "Stat txDmaErrorCount" type(uint64);
+register stat_rx_alloc_occupancy_up_to_192 ro addr(base, 0x20) "Free slots left for packet size up to 192" type(uint64);
+register stat_rx_alloc_occupancy_up_to_1600 ro addr(base, 0x28) "Free slots left for packet size up to 1600" type(uint64);
+register stat_rx_alloc_occupancy_up_to_9664 ro addr(base, 0x30) "Free slots left for packet size up to 9664" type(uint64);
 
 };

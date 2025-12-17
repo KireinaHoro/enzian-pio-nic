@@ -60,12 +60,8 @@ class DmaControlPlugin extends FiberPlugin {
   val logic = during build new Area {
     val dmaConfig = pktBuf.dmaConfig
 
-    val allocReset = Bool()
-    // one allocator for the entire RX buffer
-    val rxAlloc = new ResetArea(allocReset, true) {
-      // do not allocate space reserved for TX
-      val inst = PacketAlloc(0, PKT_BUF_TX_OFFSET.get)
-    }.inst
+    // do not allocate space reserved for TX
+    val rxAlloc = PacketAlloc(0, PKT_BUF_TX_OFFSET.get)
 
     /** Incoming packet descriptors from decoder pipeline */
     val incomingDesc = Stream(RxPacketDescWithSource())
@@ -307,14 +303,7 @@ class DmaControlPlugin extends FiberPlugin {
 
     def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
       val busCtrl = AxiLite4SlaveFactory(bus)
-      ctrl(busCtrl, alloc)
       stat(busCtrl, alloc)
-    }
-
-    def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
-      busCtrl.driveAndRead(allocReset, alloc("ctrl",
-        "Reset packet buffer allocator",
-        "allocReset")) init false
     }
 
     def stat(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
