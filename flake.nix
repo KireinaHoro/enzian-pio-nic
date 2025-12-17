@@ -207,7 +207,12 @@
         runtimeInputs = [ millw ];
         text = ''
           test_name="$1"
-          while mill gen.test.testOnly lauberhorn.host.eci.NicSim -- -t "$test_name"; do
+          if [[ $# == 2 ]]; then
+            test_suite="$2"
+          else
+            test_suite="lauberhorn.host.eci.NicSim"
+          fi
+          while mill gen.test.testOnly "$test_suite" -- -t "$test_name"; do
             echo "Test succeeded, retrying..."
           done
         '';

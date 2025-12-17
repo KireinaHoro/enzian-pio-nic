@@ -67,39 +67,43 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
   io.freeReq.assertPersistence()
   io.allocResp.assertPersistence()
 
+  io.allocReq.setBlocked()
+  io.freeReq.setBlocked()
+  io.allocResp.setIdle()
+
   // return largest possible buffer if requested larger than everything
   val defaultIdx = U(numPorts - 1, log2Up(numPorts+1) bits)
+  def sizeIdx(size: PacketLength) = roundedMap.map(_._1).zipWithIndex
+    .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
+      Mux(size.bits <= alignedSize, idx, signal)
+    }
 
-  // when size is 0, select the imaginary FIFO for size 0 at index numPorts
-  def sizeIdx(size: PacketLength) = Mux(size.bits === 0, U(numPorts),
-    roundedMap.map(_._1).zipWithIndex
-      .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
-        Mux(size.bits <= alignedSize, idx, signal)
-      })
+  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts)
+  val allocSel = Reg(UInt(log2Up(numPorts) bits)) init 0
+  allocRespMux.io.select := allocSel
+  allocRespMux.io.output.setBlocked()
 
-  val inProgress: Bool = Reg(Bool()) init False
-  inProgress := (io.allocReq.fire ## io.allocResp.fire) mux(
-    b"10" -> True,
-    b"01" -> False,
-    default -> inProgress,
-  )
-
-  val freeReqNoZeroes = io.freeReq.throwWhen(io.freeReq.size.bits === 0)
-  val freeDemux = StreamDemux(
-    freeReqNoZeroes,
-    sizeIdx(freeReqNoZeroes.payload.size),
-    numPorts)
-  val allocRespMux = new StreamMux(PacketBufDesc(), numPorts+1)
-  allocRespMux.io.output.haltWhen(!inProgress) >> io.allocResp
-
-  // for requests with length zero, always return a zero-length buffer at the beginning of buffer
-  allocRespMux.io.inputs(numPorts).valid := True
-  allocRespMux.io.inputs(numPorts).addr.bits := base
-  allocRespMux.io.inputs(numPorts).size.bits := 0
-
-  val inIdx = io.allocReq.map(sizeIdx)
-  inIdx.ready := !inProgress
-  allocRespMux.io.select := inIdx.toFlowFire.toReg
+  // the state machine limits allocation II=2; ok since DMA state machine is slower
+  val allocFsm = new StateMachine {
+    val idle: State = new State with EntryPoint {
+      whenIsActive {
+        io.allocReq.ready := True
+        when (io.allocReq.valid) {
+          assert(io.allocReq.bits =/= 0, "allocator only handles non-zero sizes!")
+          allocSel := sizeIdx(io.allocReq)
+          goto(popResp)
+        }
+      }
+    }
+    val popResp = new State {
+      whenIsActive {
+        allocRespMux.io.output >> io.allocResp
+        when (io.allocResp.fire) {
+          goto(idle)
+        }
+      }
+    }
+  }
 
   var curBase = base
 
@@ -112,13 +116,12 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
 
     slotFifo.io.push.setIdle()
     slotFifo.io.push.assertPersistence()
-    freeDemux(idx).setBlocked()
 
     val remainingInit = Counter(slots)
     val myBase = curBase
     curBase += alignedSize * slots
 
-    val fsm = new StateMachine {
+    val freeFsm = new StateMachine {
       val init = new State with EntryPoint {
         whenIsActive {
           slotFifo.io.push.valid := True
@@ -133,7 +136,10 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
       }
       val ready = new State {
         whenIsActive {
-          freeDemux(idx).map(_.addr) >> slotFifo.io.push
+          when (io.freeReq.size.bits === alignedSize) {
+            io.freeReq.map(_.addr) >> slotFifo.io.push
+          }
+          assert(!slotFifo.io.push.isStall, "free channel should not stall after init!")
         }
       }
     }
