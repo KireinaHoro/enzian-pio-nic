@@ -31,7 +31,10 @@
 	FUNC(IpEncoder, dropped) \
 	FUNC(IpEncoder, neigh_tbl_full)
 
-#define MAC_IF_STATS_LIST(FUNC) FUNC(macIf, rx_mac_overflow_count)
+#define MAC_IF_STATS_LIST(FUNC)            \
+	FUNC(macIf, rx_mac_overflow_count) \
+	FUNC(macIf, rx_mac_ingress_count)  \
+	FUNC(macIf, rx_mac_ingress_after_cdc_count)
 
 #define CMAC_STATUS_LIST(FUNC)         \
 	FUNC(cmac, tx_status)          \

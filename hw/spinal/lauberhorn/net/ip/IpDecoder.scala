@@ -23,9 +23,10 @@ class IpDecoder extends Decoder[IpRxMeta] {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
+    busCtrl.read(logic.dropCount.value, alloc("stat", "Number of packets dropped", "dropCount", attr = RO))
+
     busCtrl.readAndWrite(logic.ipAddress, alloc("ctrl", "Our IP address", "ipAddress"))
     busCtrl.readAndWrite(logic.prefixLen, alloc("ctrl", "Our IP prefix length (0-32)", "prefixLen"))
-    busCtrl.read(logic.dropCount.value, alloc("stat", "Number of packets dropped", "dropCount"))
   }
 
   val logic = during setup new Area {
