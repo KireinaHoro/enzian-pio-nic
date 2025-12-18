@@ -53,6 +53,7 @@ struct netdev_priv {
 	lauberhorn_eci_IpEncoder_t IpEncoder_dev;
 	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
+	lauberhorn_eci_worker_t bypass_dev;
 	// cmac_t cmac_dev;
 
 	// Datapath state for bypass
@@ -97,8 +98,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 
 	BUG_ON(!dev);
 
-	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
-		__LINE__, smp_processor_id(), irq);
+	dev_warn(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+		 __LINE__, smp_processor_id(), irq);
 
 	napi_schedule(&priv->napi);
 
@@ -355,38 +356,56 @@ static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
 	neigh_release(nei);
 }
 
+typedef enum {
+	POLL_NACK,
+	POLL_WORK_DONE,
+	POLL_ALLOC_FAIL,
+} poll_result_t;
+
+static poll_result_t poll_once(struct napi_struct *n)
+{
+	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
+	struct net_device *dev = priv->dev;
+	lauberhorn_pkt_desc_t desc;
+
+	spin_lock_bh(&priv->dp_lock);
+	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	spin_unlock_bh(&priv->dp_lock);
+
+	if (!got_req)
+		return POLL_NACK;
+
+	switch (desc.type) {
+	case TY_BYPASS:
+		if (!rx_bypass_pkt(&desc, n, dev))
+			return POLL_ALLOC_FAIL;
+		break;
+	case TY_ARP_REQ:
+		rx_handle_arp(&desc, priv);
+		break;
+	default:
+		dev_warn(&dev->dev, "unsupported host req type %d\n",
+			 desc.type);
+	}
+
+	return POLL_WORK_DONE;
+}
+
 static int napi_poll(struct napi_struct *n, int budget)
 {
 	struct netdev_priv *priv = container_of(n, struct netdev_priv, napi);
 	struct net_device *dev = priv->dev;
 	int work_done = 0;
 
-	lauberhorn_pkt_desc_t desc;
-
 	while (work_done < budget) {
-		spin_lock_bh(&priv->dp_lock);
-		bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx,
-					   &desc);
-		spin_unlock_bh(&priv->dp_lock);
-
-		if (!got_req)
+		poll_result_t res = poll_once(n);
+		if (res == POLL_NACK) {
 			break;
-
-		switch (desc.type) {
-		case TY_BYPASS:
-			if (!rx_bypass_pkt(&desc, n, dev))
-				continue;
-			break;
-		case TY_ARP_REQ:
-			rx_handle_arp(&desc, priv);
-			break;
-		default:
-			dev_warn(&dev->dev, "unsupported host req type %d\n",
-				 desc.type);
+		} else if (res == POLL_ALLOC_FAIL) {
 			continue;
+		} else { // POLL_WORK_DONE
+			work_done++;
 		}
-
-		work_done++;
 	}
 
 	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
@@ -566,6 +585,8 @@ int init_bypass(void)
 					LAUBERHORN_ECI_MAC_IF_BASE);
 	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
+	lauberhorn_eci_worker_initialize(&priv->bypass_dev,
+					 LAUBERHORN_ECI_WORKER_BASE(0));
 	// cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
 	// Verify CMAC version
@@ -598,7 +619,12 @@ int init_bypass(void)
 	// Initialize datapath core state
 	priv->ctx.rx_next_cl = &priv->rx_parity;
 	priv->ctx.tx_next_cl = &priv->tx_parity;
-	priv->rx_parity = priv->tx_parity = 0;
+
+	// Read out current parity in hardware
+	priv->rx_parity =
+		lauberhorn_eci_worker_rx_curr_cl_idx_rd(&priv->bypass_dev);
+	priv->tx_parity =
+		lauberhorn_eci_worker_tx_curr_cl_idx_rd(&priv->bypass_dev);
 
 	// Allocate buffer for receive
 	// We directly read out of the skb for TX, not allocating here
@@ -637,6 +663,14 @@ int init_bypass(void)
 			err);
 		goto del_netif;
 	}
+
+	// Clear any interrupt that might be pending in HW
+	// FIXME: this is a hack!  Only useful if the CPU somehow missed an interrupt
+	lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
+
+	// Poll twice to trigger at least one invalidation
+	poll_once(&priv->napi);
+	poll_once(&priv->napi);
 
 	return 0;
 
