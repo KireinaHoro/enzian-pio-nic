@@ -526,6 +526,26 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
+static void debug_irq(struct netdev_priv *priv, struct net_device *netdev)
+{
+	dev_warn(&netdev->dev, "IRQ FSM state before force ACK: %lld\n",
+		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+
+	// Clear any interrupt that might be pending in HW
+	// FIXME: this is a hack!  Only useful if the CPU somehow missed an interrupt
+	lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
+
+	dev_warn(&netdev->dev, "IRQ FSM state before force inject: %lld\n",
+		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+
+	// Trigger an interrupt from HW
+	// TODO: expose over sysfs for debugging
+	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 1);
+
+	dev_warn(&netdev->dev, "IRQ FSM state after force inject: %lld\n",
+		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+}
+
 #include "stats/bypass.h"
 
 int init_bypass(void)
@@ -664,13 +684,7 @@ int init_bypass(void)
 		goto del_netif;
 	}
 
-	// Clear any interrupt that might be pending in HW
-	// FIXME: this is a hack!  Only useful if the CPU somehow missed an interrupt
-	lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
-
-	// Poll twice to trigger at least one invalidation
-	poll_once(&priv->napi);
-	poll_once(&priv->napi);
+	debug_irq(priv, netdev);
 
 	return 0;
 
