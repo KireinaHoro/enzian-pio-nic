@@ -12,7 +12,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4CrossbarFactory}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
-import spinal.lib.bus.regif.AccessType.{RO, RW}
+import spinal.lib.bus.regif.AccessType.{RO, RW, WO}
 import spinal.lib.fsm._
 import Global._
 
@@ -47,6 +47,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     debug.postDebug(s"core${coreID}_txFsm_state", logic.txFsm.stateReg)
     debug.postDebug(s"core${coreID}_rxClIdx", logic.rxCurrClIdx)
     debug.postDebug(s"core${coreID}_txClIdx", logic.txCurrClIdx)
+
+    if (isBypass) {
+      busCtrl.write(logic.bypassIrqArea.irqInject,
+        alloc("irqInject", attr = WO, desc = "inject IRQ to bypass core"))
+      busCtrl.read(logic.bypassIrqArea.irqFsm.stateReg,
+        alloc("irqFsmState", attr = RO, desc = "state of the bypass IRQ state machine (raw value)"))
+
+      debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
+    }
   }
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
@@ -410,12 +419,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txFsm.build()
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
-    isBypass generate new Composite(this, "irqGen") {
+    val bypassIrqArea: Area{val irqInject: Bool; val irqFsm: StateMachine} = isBypass generate new Composite(this, "irqGen") {
+      val irqInject = RegInit(False)
+
       irqOut.setIdle()
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (hostRx.isStall && irqEn) {
+            when ((hostRx.isStall || irqInject) && irqEn) {
               goto(sendIrq)
             }
           }
@@ -435,11 +446,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         val waitAck: State = new State {
           whenIsActive {
             when (irqAck) {
+              irqInject := False
               goto(idle)
             }
           }
         }
       }
+      irqFsm.build()
     }
   }
 
