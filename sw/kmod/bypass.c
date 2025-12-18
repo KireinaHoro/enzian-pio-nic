@@ -62,6 +62,11 @@ struct netdev_priv {
 
 	// Shadow table for ARP cache in HW
 	__be32 arp_cache[LAUBERHORN_NUM_NEIGHBOR_ENTRIES];
+
+	// Make sure the following are mutually exclusive:
+	// - RX: napi_poll, softirq
+	// - TX: netdev_xmit, BH disabled
+	spinlock_t dp_lock;
 };
 
 static int do_loopback = 0;
@@ -257,7 +262,9 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	desc.payload_len = skb->len;
 	priv->ctx.tx_buf = skb->data;
 
+	spin_lock_bh(&priv->dp_lock);
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	spin_unlock_bh(&priv->dp_lock);
 
 	// free skb and return
 	dev_kfree_skb(skb);
@@ -357,8 +364,10 @@ static int napi_poll(struct napi_struct *n, int budget)
 	lauberhorn_pkt_desc_t desc;
 
 	while (work_done < budget) {
+		spin_lock_bh(&priv->dp_lock);
 		bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx,
 					   &desc);
+		spin_unlock_bh(&priv->dp_lock);
 
 		if (!got_req)
 			break;
@@ -466,9 +475,10 @@ static int inetaddr_event(struct notifier_block *nb, unsigned long event,
 
 	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
 		if (event == NETDEV_UP) {
-			dev_info(&dev->dev,
-				 "Updating primary IP address in HW to %pI4/%d\n",
-				 &ifa->ifa_address, ifa->ifa_prefixlen);
+			dev_info(
+				&dev->dev,
+				"Updating primary IP address in HW to %pI4/%d\n",
+				&ifa->ifa_address, ifa->ifa_prefixlen);
 
 			lauberhorn_eci_IpDecoder_ctrl_ip_address_wr(
 				&priv->IpDecoder_dev, ifa->ifa_address);
@@ -522,6 +532,7 @@ int init_bypass(void)
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
+	priv->dp_lock = __SPIN_LOCK_UNLOCKED(dp_lock);
 
 	// Register netdev
 	err = register_netdev(netdev);
