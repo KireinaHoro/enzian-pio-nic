@@ -21,8 +21,9 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>
       busCtrl.read(stat, alloc("stat", s"Stat $name", name, attr = RO))
     }
+    busCtrl.read(logic.dropCount.value, alloc("stat", "Number of packets dropped", "dropCount", attr = RO))
+
     busCtrl.readAndWrite(logic.macAddress, alloc("ctrl", "Our MAC address", "macAddress"))
-    busCtrl.read(logic.dropCount.value, alloc("stat", "Number of packets dropped", "dropCount"))
   }
 
   val logic = during setup new Area {
