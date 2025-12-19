@@ -969,10 +969,24 @@ class NicSim extends DutSimFunSuite[NicEngine]
     fork {
       while (!done) {
         val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
+        val ingressCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacIngressCount"), 8).bytesToBigInt
+        val afterCdcCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacIngressAfterCdcCount"), 8).bytesToBigInt
         val rcvd = received()
         val snd = sent()
-        println(s"Sent $snd, received $rcvd, dropped $overflowCount")
 
+        // If RX is locked up, we will be stuck at:
+        // - ingress - afterCdc - dropped > 0: number of packets still in FIFO
+        // - afterCdc - received > 0: packets decoded but stuck (not sent to host)
+        //
+        // possible causes:
+        // - decoder pipeline locked up:
+        //    - hostRx at bypass is not valid (bypassDescMux inputs are not valid)
+        //    - Ethernet decoder ingress is stalled
+        // - 2F2F message passing locked up:
+        //    - hostRx stalled, bypass queue full
+        println(s"Sent $snd, received $rcvd, dropped $overflowCount; ingress $ingressCount, afterCdc: $afterCdcCount")
+
+        assert(snd == ingressCount)
         assert(rcvd + overflowCount <= snd)
         done = snd == rcvd + overflowCount
 
