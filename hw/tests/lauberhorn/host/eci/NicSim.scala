@@ -1382,7 +1382,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
           val queueFill = csrMaster.read(ALLOC.readBack("sched")("stat", "readback_queueFill"), 8).bytesToBigInt
           println(f"PID $pid%#x has $queueFill elements queued in scheduler")
 
-          if (queueFill >= RX_PKTS_PER_PROC.get - 5) {
+          // XXX: heuristic!  more packets can be pending in decoder pipeline and not yet pushed to queue
+          if (queueFill >= RX_PKTS_PER_PROC.get - 8) {
             println(f"Trying to send for srvId $srvToSend: PID $pid%#x's queue is almost full, skipping sending and throttling")
             sleepCycles(200)
           } else {

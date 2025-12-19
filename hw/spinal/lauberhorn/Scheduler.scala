@@ -181,6 +181,8 @@ class Scheduler extends FiberPlugin {
       val offset, head, tail = MemAddr
       val capacity, fill = UInt(log2Up(RX_PKTS_PER_PROC + 1) bits)
 
+      val enqueued, dequeued = UInt(REG_WIDTH bits)
+
       // use signalCache to prevent storing these derived signals as registers
       def full = signalCache(this, "full") {
         (fill === capacity).setCompositeName(this, "full")
@@ -200,9 +202,11 @@ class Scheduler extends FiberPlugin {
         fill init 0
         offset := off
         capacity := cap
+        enqueued init 0
+        dequeued init 0
       }
 
-      private def advance(ptr: UInt): UInt = {
+      private def advance(ptr: UInt, stat: UInt): UInt = {
         val newPtr = ptr.clone
         when (ptr + 1 === offset + capacity) {
           newPtr := offset
@@ -210,25 +214,28 @@ class Scheduler extends FiberPlugin {
           newPtr := ptr + 1
         }
         ptr := newPtr
+        stat := stat + 1
         newPtr
       }
+      private def push() = advance(tail, enqueued)
+      private def pop() = advance(head, dequeued)
 
       def pushOne(): Unit = {
         assert(!full, s"queue #$idx: trying to push one into a full queue")
-        advance(tail)
+        push()
         fill := fill + 1
       }
 
       def popOne(): Unit = {
         assert(!empty, s"queue #$idx: trying to pop one from an empty queue")
-        advance(head)
+        pop()
         fill := fill - 1
       }
 
       def passOne(): Unit = {
         assert(!full && !empty, s"queue #$idx: can only pass one from non-empty, non-full queue")
-        advance(head)
-        advance(tail)
+        push()
+        pop()
       }
     }
     val queueMetas = Vec.tabulate(NUM_PROCS+1) { idx =>

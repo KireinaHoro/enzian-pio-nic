@@ -56,6 +56,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
+
+    busCtrl.read(logic.numRetired.value, alloc("numRetired", attr = RO, desc = "number of retired requests"))
+    busCtrl.read(logic.numReq.value, alloc("numReq", attr = RO, desc = "number of requests observed"))
+    busCtrl.read(logic.numNack.value, alloc("numNack", attr = RO, desc = "number of NACKs observed"))
+    busCtrl.read(logic.numPreempted.value, alloc("numPreempted", attr = RO, desc = "times this worker has been preempted"))
   }
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
@@ -157,6 +162,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val irqEn = isBypass generate Bool()
     val irqAck = isBypass generate Bool()
 
+    val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
+
     awaitBuild()
 
     assert(txOffset >= sizePerMtuPerDirection, "tx offset does not allow one MTU for rx")
@@ -208,6 +215,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         when (preemptReq.valid) {
           assert(!rxReqs.orR, "critical section violation: no read is allowed during preemption")
           preemptReq.ready := True
+          numPreempted.increment()
           goto(waitHostRead)
         }
       }
@@ -233,11 +241,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxSlotCaptured.size.bits)
             rxSlotToFree := rxSlotCaptured
             rxSlotCapturedValid := False
+            numReq.increment()
             goto(repeatDesc)
           } elsewhen (rxSentNack) {
             // No packet arrived in time, the router delivered a NACK
             rxOverflowToInvalidate := 0
             rxSlotToFree.clearAll()
+            numNack.increment()
             goto(repeatDesc)
           } otherwise { handlePreempt() }
         }
@@ -315,6 +325,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
             // always toggle, even if NACK was sent
             rxCurrClIdx.toggleWhen(True)
+
+            numRetired.increment()
 
             // Invalidation is triggered by reading opposite
             rxInvDone := True
