@@ -64,14 +64,16 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
 
     val rxDomain = new ClockingArea(cmacRxClock) {
       val pktCount = Counter(REG_WIDTH bits, s_axis_rx.lastFire)
+      // we count directly in CMAC RX domain with s_status.overflow instead of counting
+      // m_status.overflow, since this is a fast-to-slow CDC and we might lose pulses
       val overflowCount = Counter(REG_WIDTH bits, rxFifo.io.s_status.overflow)
     }
 
     def cross(c: Counter) = {
       val rxD = new ClockingArea(cmacRxClock) {
-        val grayEncoded = RegNext(toGray(c.value))
+        val grayEncoded = RegNext(toGray(c.value)) init 0
       }
-      fromGray(BufferCC.withTag(rxD.grayEncoded))
+      fromGray(BufferCC.withTag(rxD.grayEncoded, 0))
     }
     val rxMacOverflowCount = cross(rxDomain.overflowCount)
     val rxMacIngressCount = cross(rxDomain.pktCount)
