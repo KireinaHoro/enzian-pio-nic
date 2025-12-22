@@ -530,6 +530,19 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
+static void debug_irq(struct netdev_priv *priv, struct net_device *netdev)
+{
+	dev_warn(&netdev->dev, "IRQ FSM state before force inject: %lld\n",
+		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+
+	// Trigger an interrupt from HW
+	// TODO: expose over sysfs for debugging
+	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 1);
+
+	dev_warn(&netdev->dev, "IRQ FSM state after force inject: %lld\n",
+		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+}
+
 #include "stats/bypass.h"
 
 int init_bypass(void)
@@ -669,6 +682,8 @@ int init_bypass(void)
 			err);
 		goto del_netif;
 	}
+
+	debug_irq(priv, netdev);
 
 	return 0;
 
