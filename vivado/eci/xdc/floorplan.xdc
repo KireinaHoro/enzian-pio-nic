@@ -76,8 +76,11 @@ add_cells_to_pblock $dcs_odd_pblock [get_cells -hierarchical -filter {
     NAME=~i_app/dcs_odd/i_app_rst_sync
 }]
 
-set is_chan_src  "(NAME=~*slr_auto_src*  || NAME=~*s_areset_*)"
-set is_chan_dest "(NAME=~*slr_auto_dest* || NAME=~*m_areset_*)"
+# reset synchronizer LOC can lead to [DRC NTCN-15]
+#set is_chan_src  "(NAME=~*slr_auto_src*  || NAME=~*s_areset_*)"
+#set is_chan_dest "(NAME=~*slr_auto_dest* || NAME=~*m_areset_*)"
+set is_chan_src  "NAME=~*slr_auto_src*"
+set is_chan_dest "NAME=~*slr_auto_dest*"
 
 # SI/MI constraints: ECI channels (ECI gateway => DC)
 set is_eci_fwd  "NAME=~*i_cross_*_slave*"
