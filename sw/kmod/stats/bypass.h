@@ -19,13 +19,24 @@
 	FUNC(EthernetDecoder, header_only)       \
 	FUNC(EthernetDecoder, partial_header)    \
 	FUNC(EthernetDecoder, incomplete_header) \
-	FUNC(EthernetDecoder, normal_packets)
+	FUNC(EthernetDecoder, normal_packets)    \
+	FUNC(EthernetDecoder, total_headers)     \
+	FUNC(EthernetDecoder, drop_count)
 
 #define IP_DEC_STATS_LIST(FUNC)            \
 	FUNC(IpDecoder, header_only)       \
 	FUNC(IpDecoder, partial_header)    \
 	FUNC(IpDecoder, incomplete_header) \
-	FUNC(IpDecoder, normal_packets)
+	FUNC(IpDecoder, normal_packets)    \
+	FUNC(IpDecoder, total_headers)     \
+	FUNC(IpDecoder, drop_count)
+
+#define UDP_DEC_STATS_LIST(FUNC)            \
+	FUNC(UdpDecoder, header_only)       \
+	FUNC(UdpDecoder, partial_header)    \
+	FUNC(UdpDecoder, incomplete_header) \
+	FUNC(UdpDecoder, normal_packets)    \
+	FUNC(UdpDecoder, total_headers)
 
 #define IP_ENC_STATS_LIST(FUNC)  \
 	FUNC(IpEncoder, dropped) \
@@ -167,6 +178,7 @@ CMAC_STATISTICS_LIST(CMAC_STATISTIC_RD_FUNC)
 	FUNC(dma_stats, DMA_STATS_LIST)        \
 	FUNC(ethdec_stats, ETH_DEC_STATS_LIST) \
 	FUNC(ipdec_stats, IP_DEC_STATS_LIST)   \
+	FUNC(udpdec_stats, UDP_DEC_STATS_LIST) \
 	FUNC(ipenc_stats, IP_ENC_STATS_LIST)   \
 	FUNC(macif_stats, MAC_IF_STATS_LIST)
 // FUNC(cmac_status, CMAC_STATUS_LIST)
