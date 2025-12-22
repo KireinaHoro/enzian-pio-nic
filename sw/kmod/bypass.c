@@ -100,8 +100,10 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 
 	BUG_ON(!dev);
 
-	dev_warn(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
-		 __LINE__, smp_processor_id(), irq);
+	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
+		__LINE__, smp_processor_id(), irq);
+
+	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
 
 	napi_schedule(&priv->napi);
 
@@ -413,9 +415,9 @@ static int napi_poll(struct napi_struct *n, int budget)
 	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
 
 	if (work_done < budget) {
-		// drained all packets, finish NAPI and ACK interrupt
+		// drained all packets, finish NAPI and reenable interrupt
 		if (napi_complete_done(n, work_done)) {
-			lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
+			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 		}
 	}
 
@@ -526,26 +528,6 @@ static void init_netdev(struct net_device *dev)
 	ether_setup(dev);
 	dev->netdev_ops = &netdev_ops;
 	dev->mtu = LAUBERHORN_MTU;
-}
-
-static void debug_irq(struct netdev_priv *priv, struct net_device *netdev)
-{
-	dev_warn(&netdev->dev, "IRQ FSM state before force ACK: %lld\n",
-		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
-
-	// Clear any interrupt that might be pending in HW
-	// FIXME: this is a hack!  Only useful if the CPU somehow missed an interrupt
-	lauberhorn_eci_preempt_ipi_ack_wr(&priv->reg_dev, 0);
-
-	dev_warn(&netdev->dev, "IRQ FSM state before force inject: %lld\n",
-		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
-
-	// Trigger an interrupt from HW
-	// TODO: expose over sysfs for debugging
-	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 1);
-
-	dev_warn(&netdev->dev, "IRQ FSM state after force inject: %lld\n",
-		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
 }
 
 #include "stats/bypass.h"
@@ -687,8 +669,6 @@ int init_bypass(void)
 			err);
 		goto del_netif;
 	}
-
-	debug_irq(priv, netdev);
 
 	return 0;
 
