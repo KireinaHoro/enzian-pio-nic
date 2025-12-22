@@ -17,8 +17,9 @@ register stat_header_only ro addr(base, 0x0) "Stat headerOnly" type(uint64);
 register stat_partial_header ro addr(base, 0x8) "Stat partialHeader" type(uint64);
 register stat_incomplete_header ro addr(base, 0x10) "Stat incompleteHeader" type(uint64);
 register stat_normal_packets ro addr(base, 0x18) "Stat normalPackets" type(uint64);
-register ctrl_listen_port wo addr(base, 0x20) "Listen table update port" type(uint64);
-register ctrl_listen_next_proto wo addr(base, 0x28) "Listen table update nextProto" type(uint64);
-register ctrl_listen_idx wo addr(base, 0x30) "Index of listen entry to update" type(uint64);
+register stat_total_headers ro addr(base, 0x20) "Stat totalHeaders" type(uint64);
+register ctrl_listen_port wo addr(base, 0x28) "Listen table update port" type(uint64);
+register ctrl_listen_next_proto wo addr(base, 0x30) "Listen table update nextProto" type(uint64);
+register ctrl_listen_idx wo addr(base, 0x38) "Index of listen entry to update" type(uint64);
 
 };
