@@ -1,10 +1,13 @@
 package lauberhorn.host
 
+import jsteward.blocks.misc.RegBlockAlloc
 import spinal.core._
 import spinal.lib._
 import spinal.lib.misc.plugin.FiberPlugin
-
 import lauberhorn.Global.BYPASS_PKTS
+import spinal.core.Component.push
+import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
+import spinal.lib.bus.regif.AccessType.RO
 
 import scala.collection.mutable
 
@@ -23,10 +26,19 @@ class BypassCmdSink extends FiberPlugin {
     ret
   }
 
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+    busCtrl.read(logic.bypassFifo.io.occupancy, alloc("stat", "Number of queued bypass descriptors",
+      "queueOccupancy", attr = RO))
+    busCtrl.read(logic.bypassFifo.io.availability, alloc("stat", "Number of free slots in bypass queue",
+      "queueAvailability", attr = RO))
+  }
+
   val logic = during build new Area {
-    bypassDp.hostRx <-/< StreamArbiterFactory(s"${getName()}_bypassDescMux")
+    val bypassFifo = StreamFifo(HostReq(), BYPASS_PKTS)
+    bypassFifo.io.push << StreamArbiterFactory(s"${getName()}_bypassDescMux")
       .roundRobin
       .on(upstreams)
-      .queue(BYPASS_PKTS)
+    bypassDp.hostRx << bypassFifo.io.pop
   }
 }

@@ -30,6 +30,7 @@
 
 #include "lauberhorn_eci_preempt_dev.h"
 #include "lauberhorn_eci_dma_dev.h"
+#include "lauberhorn_eci_bypassSink_dev.h"
 #include "lauberhorn_eci_EthernetDecoder_dev.h"
 #include "lauberhorn_eci_IpDecoder_dev.h"
 #include "lauberhorn_eci_UdpDecoder_dev.h"
@@ -49,6 +50,7 @@ struct netdev_priv {
 	// Mackerel devices
 	lauberhorn_eci_preempt_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
+	lauberhorn_eci_bypassSink_t bypassSink_dev;
 	lauberhorn_eci_EthernetDecoder_t EthernetDecoder_dev;
 	lauberhorn_eci_IpDecoder_t IpDecoder_dev;
 	lauberhorn_eci_UdpDecoder_t UdpDecoder_dev;
@@ -591,6 +593,8 @@ int init_bypass(void)
 	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
 					  LAUBERHORN_ECI_PREEMPT_BASE(0));
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
+	lauberhorn_eci_bypassSink_initialize(&priv->bypassSink_dev,
+					     LAUBERHORN_ECI_BYPASS_SINK_BASE);
 	lauberhorn_eci_EthernetDecoder_initialize(
 		&priv->EthernetDecoder_dev,
 		LAUBERHORN_ECI__ETHERNET_DECODER_BASE);

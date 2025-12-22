@@ -12,6 +12,7 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.amba4.axilite._
 import spinal.lib.bus.misc.SizeMapping
 import Global._
+import lauberhorn.host.BypassCmdSink
 import lauberhorn.net.ip.IpEncoder
 import lauberhorn.net.oncrpc.OncRpcReplyEncoder
 import spinal.lib.bus.amba4.axilite.AxiLite4Utils.AxiLite4Rich
@@ -114,6 +115,7 @@ class EciInterfacePlugin extends FiberPlugin {
     drive(host[Scheduler].driveControl, "sched")
     drive(host[DmaControlPlugin].logic.driveControl, "dma")
     drive(host[EciThreadClRouter].driveControl, "threadRouter")
+    drive(host[BypassCmdSink].driveControl, "bypassSink")
 
     drive({ (bus, alloc) =>
       val busCtrl = AxiLite4SlaveFactory(bus)

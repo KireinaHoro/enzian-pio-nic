@@ -24,23 +24,25 @@
 
 #define LAUBERHORN_ECI_THREAD_ROUTER_BASE 0xb00
 
-#define LAUBERHORN_ECI_HOST_IF_BASE 0xc00
+#define LAUBERHORN_ECI_BYPASS_SINK_BASE 0xc00
+
+#define LAUBERHORN_ECI_HOST_IF_BASE 0xd00
 
 static uint64_t __lauberhorn_eci_worker_bases[] __attribute__((unused)) = {
-  0xd00,
-  0xf00,
-  0x1100,
-  0x1300,
-  0x1500,
-};
-#define LAUBERHORN_ECI_WORKER_BASE(blockIdx) (__lauberhorn_eci_worker_bases[blockIdx])
-
-static uint64_t __lauberhorn_eci_preempt_bases[] __attribute__((unused)) = {
   0xe00,
   0x1000,
   0x1200,
   0x1400,
   0x1600,
+};
+#define LAUBERHORN_ECI_WORKER_BASE(blockIdx) (__lauberhorn_eci_worker_bases[blockIdx])
+
+static uint64_t __lauberhorn_eci_preempt_bases[] __attribute__((unused)) = {
+  0xf00,
+  0x1100,
+  0x1300,
+  0x1500,
+  0x1700,
 };
 #define LAUBERHORN_ECI_PREEMPT_BASE(blockIdx) (__lauberhorn_eci_preempt_bases[blockIdx])
 

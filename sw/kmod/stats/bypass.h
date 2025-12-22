@@ -15,6 +15,10 @@
 	FUNC(dma, rx_alloc_occupancy_up_to_1600) \
 	FUNC(dma, rx_alloc_occupancy_up_to_9664)
 
+#define BYPASS_STATS_LIST(FUNC)           \
+	FUNC(bypassSink, queue_occupancy) \
+	FUNC(bypassSink, queue_availability)
+
 #define ETH_DEC_STATS_LIST(FUNC)                 \
 	FUNC(EthernetDecoder, header_only)       \
 	FUNC(EthernetDecoder, partial_header)    \
@@ -176,6 +180,7 @@ CMAC_STATISTICS_LIST(CMAC_STATISTIC_RD_FUNC)
 
 #define STAT_GROUPS(FUNC)                      \
 	FUNC(dma_stats, DMA_STATS_LIST)        \
+	FUNC(bypass_stats, BYPASS_STATS_LIST)  \
 	FUNC(ethdec_stats, ETH_DEC_STATS_LIST) \
 	FUNC(ipdec_stats, IP_DEC_STATS_LIST)   \
 	FUNC(udpdec_stats, UDP_DEC_STATS_LIST) \
