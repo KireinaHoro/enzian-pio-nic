@@ -22,12 +22,15 @@ trait CoreState {
   def log(msg: String) = println(s"[core $cid]\t$msg")
 
   /** Enter the ISR. */
-  def enterISR(): Unit = {
+  def enterISR(): Boolean = {
     if (inISR) {
-      fail(s"core $cid already in kernel!")
+      log("already in kernel! skipping ISR")
+      false
+    } else {
+      inISR = true
+      log("entering kernel")
+      true
     }
-    inISR = true
-    log("entering kernel")
   }
 
   /** Finish ISR. */
@@ -176,12 +179,16 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     val preemptRegBlock = ALLOC.readBack("preempt", blockIdx = cid)
     val cs = coreStates(cid)
 
-    // no need to mask interrupt: preemption won't send another interrupt
+    // no need to mask interrupt for worker: preemption won't send another interrupt
     // until we write to ACK
-    cs.enterISR()
+    if (!cs.enterISR()) return
 
     if (irq == 15) {
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
+
+      // disable IRQ for bypass
+      cs.log("disabling IRQ")
+      asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
 
       // call bypass handler
       cs.asInstanceOf[BypassCoreState].handler()
@@ -219,7 +226,12 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     // in the Linux kernel, the next interrupt will not come in until we are out
     cs.exitISR()
 
-    cs.log("ack-ing IRQ")
-    asMaster.write(bus, preemptRegBlock("ipiAck"), 0.toBytesLE)
+    if (irq == 15) {
+      cs.log("re-enabling IRQ")
+      asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
+    } else {
+      cs.log("ack-ing IRQ")
+      asMaster.write(bus, preemptRegBlock("ipiAck"), 0.toBytesLE)
+    }
   }
 }
