@@ -32,6 +32,7 @@
 #include "lauberhorn_eci_dma_dev.h"
 #include "lauberhorn_eci_EthernetDecoder_dev.h"
 #include "lauberhorn_eci_IpDecoder_dev.h"
+#include "lauberhorn_eci_UdpDecoder_dev.h"
 #include "lauberhorn_eci_IpEncoder_dev.h"
 #include "lauberhorn_eci_macIf_dev.h"
 #include "lauberhorn_eci_decoderSink_dev.h"
@@ -50,6 +51,7 @@ struct netdev_priv {
 	lauberhorn_eci_dma_t dma_dev;
 	lauberhorn_eci_EthernetDecoder_t EthernetDecoder_dev;
 	lauberhorn_eci_IpDecoder_t IpDecoder_dev;
+	lauberhorn_eci_UdpDecoder_t UdpDecoder_dev;
 	lauberhorn_eci_IpEncoder_t IpEncoder_dev;
 	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
@@ -599,6 +601,8 @@ int init_bypass(void)
 		LAUBERHORN_ECI__ETHERNET_DECODER_BASE);
 	lauberhorn_eci_IpDecoder_initialize(&priv->IpDecoder_dev,
 					    LAUBERHORN_ECI__IP_DECODER_BASE);
+	lauberhorn_eci_UdpDecoder_initialize(&priv->UdpDecoder_dev,
+					     LAUBERHORN_ECI__UDP_DECODER_BASE);
 	lauberhorn_eci_IpEncoder_initialize(&priv->IpEncoder_dev,
 					    LAUBERHORN_ECI__IP_ENCODER_BASE);
 	lauberhorn_eci_macIf_initialize(&priv->macIf_dev,
