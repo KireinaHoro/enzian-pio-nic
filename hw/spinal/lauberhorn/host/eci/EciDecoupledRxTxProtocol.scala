@@ -160,7 +160,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val irqOut = isBypass generate Stream(EciIntcInterface())
     val irqEn = isBypass generate Bool()
-    val irqAck = isBypass generate Bool()
 
     val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
 
@@ -435,6 +434,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val irqInject = RegInit(False)
 
       irqOut.setIdle()
+
+      // Level-triggered interrupt for NAPI
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
@@ -451,14 +452,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.cmd     := 0
             irqOut.intId   := 15  // use 15 for bypass interrupts
             when (irqOut.ready) {
-              goto(waitAck)
-            }
-          }
-        }
-        val waitAck: State = new State {
-          whenIsActive {
-            when (irqAck) {
-              irqInject := False
               goto(idle)
             }
           }
