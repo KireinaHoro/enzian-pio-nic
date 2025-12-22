@@ -451,7 +451,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.affLvl1 := 0
             irqOut.cmd     := 0
             irqOut.intId   := 15  // use 15 for bypass interrupts
-            when (irqOut.ready) {
+            when (irqOut.ready || !irqEn) {
+              // XXX: this drops an IRQ when enable became low before the INTC acknowledged the IRQ
               goto(idle)
             }
           }
