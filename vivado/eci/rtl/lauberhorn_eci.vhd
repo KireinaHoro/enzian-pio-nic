@@ -849,7 +849,7 @@ port map (
 -- CDC FIFO for IPI commands
 ipi_cmd_cdc : entity work.axis_async_fifo
 generic map (
-    DEPTH       => 2,
+    DEPTH       => 32,
     DATA_WIDTH  => 32,
     KEEP_ENABLE => 0,
     USER_ENABLE => 0,
