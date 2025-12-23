@@ -105,8 +105,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
 
+	dev_dbg(&dev->dev, "Disabling bypass IRQ and scheduling NAPI\n");
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
-
 	napi_schedule(&priv->napi);
 
 	return IRQ_HANDLED;
@@ -194,6 +194,7 @@ static int netdev_open(struct net_device *dev)
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
 
+	dev_dbg(&dev->dev, "netdev UP, enabling bypass IRQ\n");
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
 	return 0;
@@ -240,6 +241,7 @@ static int netdev_stop(struct net_device *dev)
 
 	// stop_cmac(&priv->cmac_dev);
 
+	dev_dbg(&dev->dev, "netdev DOWN, disabling bypass IRQ\n");
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
 
 	napi_disable(&priv->napi);
@@ -258,6 +260,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	desc.bypass.header_type = HDR_ETHERNET;
 
 	BUG_ON(skb->len < ETH_HLEN);
+	dev_dbg(&dev->dev, "TX bypass packet len %u\n", skb->len);
 
 	// CMAC requires packets to be padded to 64B
 	// XXX: do this in hardware?
@@ -304,6 +307,8 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 	// we don't do checksum verification in hardware
 
 	napi_gro_receive(n, skb);
+	dev_dbg(&dev->dev, "pushed bypass packet len %lu to network stack\n",
+		desc->payload_len);
 
 	dev->stats.rx_packets++;
 	dev->stats.rx_bytes += desc->payload_len;
@@ -352,6 +357,11 @@ static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
 					   lauberhorn_eci_neigh_reachable);
 		}
 		// if not connected, let trigger handle update
+		dev_info(
+			&priv->dev->dev,
+			"ARP HW entry %d: entry exists but not valid for %pI4, "
+			"waiting for ARP state change\n",
+			idx, &dst);
 	} else {
 		// trigger lookup
 		dev_info(&priv->dev->dev, "Triggering ARP lookup for %pI4\n",
@@ -378,8 +388,10 @@ static poll_result_t poll_once(struct napi_struct *n)
 	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 	spin_unlock_bh(&priv->dp_lock);
 
-	if (!got_req)
+	if (!got_req) {
+		dev_dbg(&dev->dev, "finished polling, no more packets\n");
 		return POLL_NACK;
+	}
 
 	switch (desc.type) {
 	case TY_BYPASS:
@@ -403,6 +415,8 @@ static int napi_poll(struct napi_struct *n, int budget)
 	struct net_device *dev = priv->dev;
 	int work_done = 0;
 
+	dev_dbg(&dev->dev, "starting NAPI poll with budget %d\n", budget);
+
 	while (work_done < budget) {
 		poll_result_t res = poll_once(n);
 		if (res == POLL_NACK) {
@@ -414,11 +428,14 @@ static int napi_poll(struct napi_struct *n, int budget)
 		}
 	}
 
-	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll\n", work_done);
+	dev_dbg(&dev->dev, "pushed %d packets in NAPI poll (budget %d)\n",
+		work_done, budget);
 
 	if (work_done < budget) {
 		// drained all packets, finish NAPI and reenable interrupt
 		if (napi_complete_done(n, work_done)) {
+			dev_dbg(&dev->dev,
+				"NAPI complete, re-enabling bypass IRQ\n");
 			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 		}
 	}
@@ -459,6 +476,8 @@ static int arp_event(struct notifier_block *nb, unsigned long event, void *ptr)
 
 	switch (event) {
 	case NETEVENT_NEIGH_UPDATE:
+		dev_dbg(&dev->dev, "ARP event: update for %pI4, state %#x\n",
+			&dst, n->nud_state);
 		if (n->nud_state & NUD_VALID) {
 			// now we have a valid MAC address, program into HW
 			dev_info(
@@ -532,18 +551,31 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
-static void debug_irq(struct netdev_priv *priv, struct net_device *netdev)
+static ssize_t bypass_inject_irq_store(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
 {
-	dev_warn(&netdev->dev, "IRQ FSM state before force inject: %lld\n",
+	struct netdev_priv *priv = netdev_priv(to_net_dev(dev));
+
+	dev_warn(dev, "IRQ FSM state before force inject: %lld\n",
 		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
 
-	// Trigger an interrupt from HW
-	// TODO: expose over sysfs for debugging
+	// Enable interrupt injection
+	dev_warn(dev, "Enabling IRQ injection\n");
 	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 1);
 
-	dev_warn(&netdev->dev, "IRQ FSM state after force inject: %lld\n",
+	dev_warn(dev, "IRQ FSM state after force inject: %lld\n",
 		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
+
+	udelay(10);
+
+	// Disable interrupt injection
+	dev_warn(dev, "Disabling IRQ injection\n");
+	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 0);
+
+	return count;
 }
+static DEVICE_ATTR_WO(bypass_inject_irq);
 
 #include "stats/bypass.h"
 
@@ -587,6 +619,16 @@ int init_bypass(void)
 			"failed to create sysfs statistics entries: err %d\n",
 			err);
 		goto free_dev;
+	}
+
+	// Create sysfs toggle for force interrupt injection
+	err = sysfs_create_file(&netdev->dev.kobj,
+				&dev_attr_bypass_inject_irq.attr);
+	if (err < 0) {
+		dev_err(&netdev->dev,
+			"failed to create sysfs entry for IRQ injection: err %d\n",
+			err);
+		goto remove_groups;
 	}
 
 	// Create Mackerel devices
@@ -648,6 +690,8 @@ int init_bypass(void)
 		lauberhorn_eci_worker_rx_curr_cl_idx_rd(&priv->bypass_dev);
 	priv->tx_parity =
 		lauberhorn_eci_worker_tx_curr_cl_idx_rd(&priv->bypass_dev);
+	dev_dbg(&netdev->dev, "Initial RX parity %u, TX parity %u\n",
+		priv->rx_parity, priv->tx_parity);
 
 	// Allocate buffer for receive
 	// We directly read out of the skb for TX, not allocating here
@@ -686,8 +730,6 @@ int init_bypass(void)
 			err);
 		goto del_netif;
 	}
-
-	debug_irq(priv, netdev);
 
 	return 0;
 
