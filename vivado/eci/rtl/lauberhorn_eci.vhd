@@ -674,7 +674,7 @@ signal alloc_resp, alloc_free : std_logic_vector(41 downto 0);
 signal alloc_req : std_logic_vector(17 downto 0);
 
 signal dma_rxFsm_state : std_logic_vector(2 downto 0);
-signal dma_write_desc : std_logic_vector(36 downto 0);
+signal dma_write_desc : std_logic_vector(34 downto 0);
 signal dma_write_desc_status : std_logic_vector(16 downto 0);
 
 -- LCL channel signals between DC and the NIC engine
@@ -1681,9 +1681,9 @@ NicEngine_inst : entity work.NicEngine
     alloc_req_ready => alloc_req(16),
     alloc_req_payload_bits => alloc_req(15 downto 0),
 
-    dma_write_desc_valid => dma_write_desc(36),
-    dma_write_desc_ready => dma_write_desc(35),
-    dma_write_desc_payload_addr => dma_write_desc(34 downto 16),
+    dma_write_desc_valid => dma_write_desc(34),
+    dma_write_desc_ready => dma_write_desc(33),
+    dma_write_desc_payload_addr => dma_write_desc(32 downto 16),
     dma_write_desc_payload_len => dma_write_desc(15 downto 0),
 
     dma_write_desc_status_valid => dma_write_desc_status(16),

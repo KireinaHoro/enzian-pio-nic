@@ -98,8 +98,8 @@ object Global extends AreaRoot {
     MAX_CORE_ID.set(47)
 
     val bufSizeMap = Seq(
-      128  -> .25,
-      1518 -> .75, // max Ethernet frame with MTU 1500
+      128  -> .2,
+      1518 -> .8, // max Ethernet frame with MTU 1500
     )
     PKT_BUF_ALLOC_SIZES.set(bufSizeMap)
     PKT_BUF_ADDR_WIDTH.set(24)
@@ -109,7 +109,7 @@ object Global extends AreaRoot {
     MTU.set(bufSizeMap.map(_._1).max)
     ROUNDED_MTU.set(roundUp(MTU.get, DATAPATH_WIDTH.get).toInt)
 
-    PKT_BUF_RX_SIZE_PER_CORE.set(8 * 1024)
+    PKT_BUF_RX_SIZE_PER_CORE.set(16 * 1024)
     PKT_BUF_TX_SIZE_PER_CORE.set(ROUNDED_MTU)
     PKT_BUF_SIZE.set {
       val sz = NUM_CORES * (PKT_BUF_RX_SIZE_PER_CORE + PKT_BUF_TX_SIZE_PER_CORE)
