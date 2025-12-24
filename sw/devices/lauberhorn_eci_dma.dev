@@ -19,6 +19,5 @@ register stat_rx_dma_error_count ro addr(base, 0x10) "Stat rxDmaErrorCount" type
 register stat_tx_dma_error_count ro addr(base, 0x18) "Stat txDmaErrorCount" type(uint64);
 register stat_rx_alloc_occupancy_up_to_192 ro addr(base, 0x20) "Free slots left for packet size up to 192" type(uint64);
 register stat_rx_alloc_occupancy_up_to_1600 ro addr(base, 0x28) "Free slots left for packet size up to 1600" type(uint64);
-register stat_rx_alloc_occupancy_up_to_9664 ro addr(base, 0x30) "Free slots left for packet size up to 9664" type(uint64);
 
 };
