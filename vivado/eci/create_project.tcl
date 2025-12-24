@@ -236,6 +236,17 @@ set_property -dict [list \
 ] $my_ip
 generate_target all $my_ip
 
+# ILA for ECI interrupt controller
+create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_eci_intc
+set my_ip [get_ips ila_eci_intc]
+set_property -dict [list \
+    CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+    CONFIG.C_NUM_OF_PROBES {2} \
+    CONFIG.C_PROBE0_WIDTH {2} \
+    CONFIG.C_PROBE1_WIDTH {34} \
+] $my_ip
+generate_target all $my_ip
+
 close_project
 
 # local config file for static-shell flows
