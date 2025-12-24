@@ -850,7 +850,7 @@ ipi_ctrl_ila : entity work.ila_eci_intc
 port map (
     clk                        => clk,
     probe0                     => link_eci_packet_tx.ipi_c12.valid & link_eci_packet_tx.ipi_c12_ready,
-    probe1                     => intc_cmd_cdc & intc_cmd_cdc_valid & intc_cmd_ready
+    probe1                     => intc_cmd_cdc & intc_cmd_cdc_valid & intc_cmd_cdc_ready
 );
 
 -- CDC FIFO for IPI commands
