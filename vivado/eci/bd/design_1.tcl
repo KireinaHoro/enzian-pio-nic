@@ -44,7 +44,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # source design_1_script.tcl
 
 
-# The design that will be created by this Tcl script contains the following 
+# The design that will be created by this Tcl script contains the following
 # module references:
 # gt_loopback_gen
 
@@ -101,7 +101,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES: 
+   # USE CASES:
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -135,7 +135,7 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\ 
+   set list_check_ips "\
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
@@ -169,7 +169,7 @@ xilinx.com:inline_hdl:ilvector_logic:1.0\
 ##################################################################
 set bCheckModules 1
 if { $bCheckModules == 1 } {
-   set list_check_mods "\ 
+   set list_check_mods "\
 gt_loopback_gen\
 "
 
@@ -269,7 +269,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 41 -to 0 alloc_resp
   create_bd_pin -dir I -from 17 -to 0 alloc_req
   create_bd_pin -dir I -from 2 -to 0 -type data dma_rxFsm_state
-  create_bd_pin -dir I -from 36 -to 0 dma_write_desc
+  create_bd_pin -dir I -from 34 -to 0 dma_write_desc
   create_bd_pin -dir I -from 16 -to 0 dma_write_desc_status
 
   # Create instance: ila_app, and set properties
@@ -295,7 +295,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE18_WIDTH {18} \
     CONFIG.C_PROBE19_WIDTH {3} \
     CONFIG.C_PROBE1_WIDTH {18} \
-    CONFIG.C_PROBE20_WIDTH {37} \
+    CONFIG.C_PROBE20_WIDTH {35} \
     CONFIG.C_PROBE21_WIDTH {17} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
@@ -704,7 +704,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-  
+
   # Create port connections
   connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
   [get_bd_pins app_aux_reset]
@@ -878,7 +878,7 @@ proc create_root_design { parentCell } {
   set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
   set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
   set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
-  set dma_write_desc [ create_bd_port -dir I -from 36 -to 0 dma_write_desc ]
+  set dma_write_desc [ create_bd_port -dir I -from 34 -to 0 dma_write_desc ]
   set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
 
   # Create instance: cmac_usplus_0, and set properties
