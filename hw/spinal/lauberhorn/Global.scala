@@ -129,7 +129,7 @@ object Global extends AreaRoot {
     NUM_SERVICES.set(8)
     NUM_SESSIONS.set(16)
     NUM_PROCS.set(16)
-    RX_PKTS_PER_PROC.set(32)
+    RX_PKTS_PER_PROC.set(16)
 
     BYPASS_PKTS.set(64)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
