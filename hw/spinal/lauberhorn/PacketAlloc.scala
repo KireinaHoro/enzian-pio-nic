@@ -72,7 +72,7 @@ case class PacketAlloc(base: Long, len: Long) extends Component {
   io.allocResp.setIdle()
 
   // return largest possible buffer if requested larger than everything
-  val defaultIdx = U(numPorts - 1, log2Up(numPorts+1) bits)
+  val defaultIdx = U(numPorts - 1, log2Up(numPorts) bits)
   def sizeIdx(size: PacketLength) = roundedMap.map(_._1).zipWithIndex
     .foldRight(defaultIdx) { case ((alignedSize, idx), signal) =>
       Mux(size.bits <= alignedSize, idx, signal)

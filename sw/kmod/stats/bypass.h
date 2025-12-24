@@ -6,14 +6,13 @@
 		&priv->class##_dev;                                      \
 	})
 
-#define DMA_STATS_LIST(FUNC)                     \
-	FUNC(dma, rx_packet_count)               \
-	FUNC(dma, tx_packet_count)               \
-	FUNC(dma, rx_dma_error_count)            \
-	FUNC(dma, tx_dma_error_count)            \
-	FUNC(dma, rx_alloc_occupancy_up_to_192)  \
-	FUNC(dma, rx_alloc_occupancy_up_to_1600) \
-	FUNC(dma, rx_alloc_occupancy_up_to_9664)
+#define DMA_STATS_LIST(FUNC)                    \
+	FUNC(dma, rx_packet_count)              \
+	FUNC(dma, tx_packet_count)              \
+	FUNC(dma, rx_dma_error_count)           \
+	FUNC(dma, tx_dma_error_count)           \
+	FUNC(dma, rx_alloc_occupancy_up_to_192) \
+	FUNC(dma, rx_alloc_occupancy_up_to_1600)
 
 #define BYPASS_STATS_LIST(FUNC)           \
 	FUNC(bypassSink, queue_occupancy) \
