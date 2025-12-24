@@ -435,10 +435,16 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
       irqOut.setIdle()
 
-      // Level-triggered interrupt for NAPI
+      // Level-triggered interrupt for NAPI.
+      // FIXME: VC12 SGI seems to have some kind of rate limit: if we send too fast, we get
+      //        stuck and nothing gets through any more.  Limit how fast we will send.
+      //        Sleep for some cycles, before raising another IRQ on the same non-empty
+      //        event (to keep level-triggered semantics).
+      val irqCooldown = Counter(0, 256)
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
+            irqCooldown.clear()
             when ((hostRx.isStall || irqInject) && irqEn) {
               goto(sendIrq)
             }
@@ -451,8 +457,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.affLvl1 := 0
             irqOut.cmd     := 0
             irqOut.intId   := 15  // use 15 for bypass interrupts
-            when (irqOut.ready || !irqEn) {
+            when (irqOut.ready) {
+              goto(cooldown)
+            } elsewhen (!irqEn) {
               // XXX: this drops an IRQ when enable became low before the INTC acknowledged the IRQ
+              goto(idle)
+            }
+          }
+        }
+        val cooldown: State = new State {
+          whenIsActive {
+            irqCooldown.increment()
+            when (irqCooldown.willOverflow || hostRx.isFree) {
               goto(idle)
             }
           }
