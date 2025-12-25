@@ -468,7 +468,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         val cooldown: State = new State {
           whenIsActive {
             irqCooldown.increment()
-            when (irqCooldown.willOverflow || hostRx.isFree) {
+
+            // FIXME: this will delay a new packet, in exchange for a strict rate limit.
+            //        investigate exactly what the limit is
+            // when (irqCooldown.willOverflow || hostRx.isFree) {
+            when (irqCooldown.willOverflow) {
               goto(idle)
             }
           }
