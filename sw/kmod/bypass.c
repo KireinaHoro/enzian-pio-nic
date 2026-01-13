@@ -561,32 +561,6 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
-static ssize_t bypass_inject_irq_store(struct device *dev,
-				       struct device_attribute *attr,
-				       const char *buf, size_t count)
-{
-	struct netdev_priv *priv = netdev_priv(to_net_dev(dev));
-
-	dev_warn(dev, "IRQ FSM state before force inject: %lld\n",
-		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
-
-	// Enable interrupt injection
-	dev_warn(dev, "Enabling IRQ injection\n");
-	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 1);
-
-	dev_warn(dev, "IRQ FSM state after force inject: %lld\n",
-		 lauberhorn_eci_worker_irq_fsm_state_rd(&priv->bypass_dev));
-
-	udelay(10);
-
-	// Disable interrupt injection
-	dev_warn(dev, "Disabling IRQ injection\n");
-	lauberhorn_eci_worker_irq_inject_wr(&priv->bypass_dev, 0);
-
-	return count;
-}
-static DEVICE_ATTR_WO(bypass_inject_irq);
-
 #include "stats/bypass.h"
 
 int init_bypass(void)
@@ -629,16 +603,6 @@ int init_bypass(void)
 			"failed to create sysfs statistics entries: err %d\n",
 			err);
 		goto free_dev;
-	}
-
-	// Create sysfs toggle for force interrupt injection
-	err = sysfs_create_file(&netdev->dev.kobj,
-				&dev_attr_bypass_inject_irq.attr);
-	if (err < 0) {
-		dev_err(&netdev->dev,
-			"failed to create sysfs entry for IRQ injection: err %d\n",
-			err);
-		goto remove_groups;
 	}
 
 	// Create Mackerel devices
