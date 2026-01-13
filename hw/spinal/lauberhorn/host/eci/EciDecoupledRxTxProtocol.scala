@@ -88,7 +88,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // ACK is only a pulse
     logic.irqAck := False
-    busCtrl.write(logic.irqAck, irqAckAddr)
+    busCtrl.write(U(0), irqAckAddr)
+    busCtrl.onWrite(irqAckAddr) {
+      logic.irqAck := True
+    }
 
     // generate IRQ enable reg for bypass
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
