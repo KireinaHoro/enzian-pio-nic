@@ -57,7 +57,7 @@ struct netdev_priv {
 	lauberhorn_eci_IpEncoder_t IpEncoder_dev;
 	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
-	lauberhorn_eci_worker_t bypass_dev;
+	lauberhorn_eci_worker_t worker_dev;
 	// cmac_t cmac_dev;
 
 	// Datapath state for bypass
@@ -624,7 +624,7 @@ int init_bypass(void)
 					LAUBERHORN_ECI_MAC_IF_BASE);
 	lauberhorn_eci_decoderSink_initialize(&priv->dec_dev,
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
-	lauberhorn_eci_worker_initialize(&priv->bypass_dev,
+	lauberhorn_eci_worker_initialize(&priv->worker_dev,
 					 LAUBERHORN_ECI_WORKER_BASE(0));
 	// cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
@@ -661,9 +661,9 @@ int init_bypass(void)
 
 	// Read out current parity in hardware
 	priv->rx_parity =
-		lauberhorn_eci_worker_rx_curr_cl_idx_rd(&priv->bypass_dev);
+		lauberhorn_eci_worker_ctrl_rx_curr_cl_idx_rd(&priv->worker_dev);
 	priv->tx_parity =
-		lauberhorn_eci_worker_tx_curr_cl_idx_rd(&priv->bypass_dev);
+		lauberhorn_eci_worker_ctrl_tx_curr_cl_idx_rd(&priv->worker_dev);
 	dev_dbg(&netdev->dev, "Initial RX parity %u, TX parity %u\n",
 		priv->rx_parity, priv->tx_parity);
 
