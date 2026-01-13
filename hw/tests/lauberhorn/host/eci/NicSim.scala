@@ -212,8 +212,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
       log(s"setting thread parity (RX:${etd.rxNextCl} TX:${etd.txNextCl}) in worker")
 
       // write our CL parity bits into hardware
-      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("rxCurrClIdx"), etd.rxNextCl.toBytesLE)
-      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("txCurrClIdx"), etd.txNextCl.toBytesLE)
+      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("ctrl", "rxCurrClIdx"), etd.rxNextCl.toBytesLE)
+      csrMaster.write(ALLOC.readBack("worker", blockIdx = cid)("ctrl", "txCurrClIdx"), etd.txNextCl.toBytesLE)
     }
   }
 

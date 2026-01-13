@@ -234,7 +234,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
     } else {
       cs.log("ack-ing IRQ")
-      asMaster.write(bus, preemptRegBlock("ipiAck"), 0.toBytesLE)
+      asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
     }
   }
 }
