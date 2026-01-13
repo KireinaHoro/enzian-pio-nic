@@ -192,6 +192,9 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
 
       // call bypass handler
       cs.asInstanceOf[BypassCoreState].handler()
+
+      // ACK interrupt
+      asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
     } else if (irq == 8) {
       val wcs = cs.asInstanceOf[WorkerCoreState]
 
@@ -203,7 +206,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
 
       cs.log("reading preempt cmd")
-      val ipiAckReg = asMaster.read(bus, preemptRegBlock("ipiAck"), 8).bytesToBigInt
+      val ipiAckReg = asMaster.read(bus, preemptRegBlock("irqAck"), 8).bytesToBigInt
       val ipiAck = new BigIntParser(ipiAckReg)
 
       val pidToSched = ipiAck.pop(PID_WIDTH)

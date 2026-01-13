@@ -334,11 +334,9 @@ class EciInterfacePlugin extends FiberPlugin {
         proto.preemptReq.setIdle()
 
         // bypass core generates interrupt to host that signifies non-empty queue
-        val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol].logic
-        bypassProto.irqOut >> ipiCtrl
-
-        // XXX: still allocate registers for bypass core due to allocator limitation
-        drive(EciPreemptionControlPlugin.bypassDriveControl(bypassProto.irqEn), "preempt", cid)
+        val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol]
+        bypassProto.logic.irqOut >> ipiCtrl
+        drive(bypassProto.driveBypassIrqCtrl, "preempt", cid)
       }
     }.setCompositeName(this, "bindProtoToCoreCtrl")
     }
