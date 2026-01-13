@@ -33,14 +33,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     // TODO: emit constants type for FSM state value
-    busCtrl.read(logic.rxFsm.stateReg, alloc("rxFsmState", attr = RO,
+    busCtrl.read(logic.rxFsm.stateReg, alloc("stat", subName = "rxFsmState", attr = RO,
       desc = "state of the RX state machine (raw value)"))
-    busCtrl.read(logic.txFsm.stateReg, alloc("txFsmState", attr = RO,
+    busCtrl.read(logic.txFsm.stateReg, alloc("stat", subName = "txFsmState", attr = RO,
       desc = "state of the TX state machine (raw value)"))
 
-    busCtrl.readAndWrite(logic.txCurrClIdx, alloc("txCurrClIdx", attr = RW,
+    busCtrl.readAndWrite(logic.txCurrClIdx, alloc("ctrl", subName = "txCurrClIdx", attr = RW,
       desc = "parity (next CL to write) of the TX state machine"))
-    busCtrl.readAndWrite(logic.rxCurrClIdx, alloc("rxCurrClIdx", attr = RW,
+    busCtrl.readAndWrite(logic.rxCurrClIdx, alloc("ctrl", subName = "rxCurrClIdx", attr = RW,
       desc = "parity (next CL to read) of the RX state machine"))
 
     debug.postDebug(s"core${coreID}_rxFsm_state", logic.rxFsm.stateReg)
@@ -50,19 +50,23 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     if (isBypass) {
       busCtrl.read(logic.bypassIrqArea.irqFsm.stateReg,
-        alloc("irqFsmState", attr = RO, desc = "state of the bypass IRQ state machine (raw value)"))
+        alloc("stat", subName = "irqFsmState", attr = RO, desc = "state of the bypass IRQ state machine (raw value)"))
       busCtrl.read(logic.bypassIrqArea.issued.value,
-        alloc("irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
+        alloc("stat", subName = "irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
       busCtrl.read(logic.bypassIrqArea.acked.value,
-        alloc("irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
+        alloc("stat", subName = "irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
 
-    busCtrl.read(logic.numRetired.value, alloc("numRetired", attr = RO, desc = "number of retired requests"))
-    busCtrl.read(logic.numReq.value, alloc("numReq", attr = RO, desc = "number of requests observed"))
-    busCtrl.read(logic.numNack.value, alloc("numNack", attr = RO, desc = "number of NACKs observed"))
-    busCtrl.read(logic.numPreempted.value, alloc("numPreempted", attr = RO, desc = "times this worker has been preempted"))
+    busCtrl.read(logic.numRetired.value,
+      alloc("stat", subName = "numRetired", attr = RO, desc = "number of retired requests"))
+    busCtrl.read(logic.numReq.value,
+      alloc("stat", subName = "numReq", attr = RO, desc = "number of requests observed"))
+    busCtrl.read(logic.numNack.value,
+      alloc("stat", subName = "numNack", attr = RO, desc = "number of NACKs observed"))
+    busCtrl.read(logic.numPreempted.value,
+      alloc("stat", subName = "numPreempted", attr = RO, desc = "times this worker has been preempted"))
   }
 
   // called for driving the non-existent preemption control for core#0
