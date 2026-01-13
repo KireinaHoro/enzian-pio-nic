@@ -12,7 +12,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4CrossbarFactory}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
-import spinal.lib.bus.regif.AccessType.{RO, RW, WO}
+import spinal.lib.bus.regif.AccessType.{RO, WC, RW, WO}
 import spinal.lib.fsm._
 import Global._
 
@@ -49,10 +49,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     debug.postDebug(s"core${coreID}_txClIdx", logic.txCurrClIdx)
 
     if (isBypass) {
-      busCtrl.write(logic.bypassIrqArea.irqInject,
-        alloc("irqInject", attr = WO, desc = "inject IRQ to bypass core"))
       busCtrl.read(logic.bypassIrqArea.irqFsm.stateReg,
         alloc("irqFsmState", attr = RO, desc = "state of the bypass IRQ state machine (raw value)"))
+      busCtrl.read(logic.bypassIrqArea.issued.value,
+        alloc("irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
+      busCtrl.read(logic.bypassIrqArea.acked.value,
+        alloc("irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
@@ -62,6 +64,35 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     busCtrl.read(logic.numNack.value, alloc("numNack", attr = RO, desc = "number of NACKs observed"))
     busCtrl.read(logic.numPreempted.value, alloc("numPreempted", attr = RO, desc = "times this worker has been preempted"))
   }
+
+  // called for driving the non-existent preemption control for core#0
+  def driveBypassIrqCtrl(bus: AxiLite4, alloc: RegBlockAlloc) = {
+    val busCtrl = AxiLite4SlaveFactory(bus)
+
+    alloc("realCoreId", desc = "Actual core ID serving requests for this context")
+    val irqAckAddr = alloc("irqAck", attr = WC, readSensitive = true,
+      desc = "IRQ ACK, write to ACK for bypass, read to ACK for worker",
+      ty =
+        """
+          |{
+          |  next_pid   32 "Next PID to schedule";
+          |  killed     1  "Previously running process is killed";
+          |  _          31 rsvd;
+          |}
+          |""".stripMargin)
+    busCtrl.read(U(0), irqAckAddr)
+
+    // ACK is only a pulse
+    logic.irqAck := False
+    busCtrl.write(logic.irqAck, irqAckAddr)
+
+    // generate IRQ enable reg for bypass
+    val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
+    busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
+
+    PreemptionControlCl().addMackerel()
+  }
+
   lazy val overflowCountWidth = log2Up(numOverflowCls)
 
   // two control half CLs, one extra first word half CL, one MTU
@@ -160,6 +191,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val irqOut = isBypass generate Stream(EciIntcInterface())
     val irqEn = isBypass generate Bool()
+    val irqAck = isBypass generate Bool()
 
     val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
 
@@ -430,22 +462,23 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txFsm.build()
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
-    val bypassIrqArea: Area{val irqInject: Bool; val irqFsm: StateMachine} = isBypass generate new Composite(this, "irqGen") {
-      val irqInject = RegInit(False)
-
+    val bypassIrqArea: Area {
+      val issued, acked: Counter
+      val irqFsm: StateMachine
+    } = isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
 
-      // Level-triggered interrupt for NAPI.
-      // FIXME: VC12 SGI seems to have some kind of rate limit: if we send too fast, we get
-      //        stuck and nothing gets through any more.  Limit how fast we will send.
-      //        Sleep for some cycles, before raising another IRQ on the same non-empty
-      //        event (to keep level-triggered semantics).
-      val irqCooldown = Counter(0, 256)
+      val issued, acked = Counter(REG_WIDTH bits)
+
+      // Edge-triggered interrupt.
+      //
+      // VC12 SGI seems to have some kind of rate limit: if we send too fast, we get
+      // stuck and nothing gets through any more.  Hence we use edge-triggered
+      // semantics, even though NAPI in Linux prefers level-triggered interrupts.
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            irqCooldown.clear()
-            when ((hostRx.isStall || irqInject) && irqEn) {
+            when (hostRx.isStall && irqEn) {
               goto(sendIrq)
             }
           }
@@ -457,20 +490,16 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.affLvl1 := 0
             irqOut.cmd     := 0
             irqOut.intId   := 15  // use 15 for bypass interrupts
-            when (irqOut.ready || !irqEn) {
-              // XXX: this drops an IRQ when enable became low before the INTC acknowledged the IRQ
-              goto(cooldown)
+            when (irqOut.ready) {
+              goto(waitAck)
+              issued.increment()
             }
           }
         }
-        val cooldown: State = new State {
+        val waitAck: State = new State {
           whenIsActive {
-            irqCooldown.increment()
-
-            // FIXME: this will delay a new packet, in exchange for a strict rate limit.
-            //        investigate exactly what the limit is
-            // when (irqCooldown.willOverflow || hostRx.isFree) {
-            when (irqCooldown.willOverflow) {
+            when (irqAck) {
+              acked.increment()
               goto(idle)
             }
           }

@@ -17,11 +17,12 @@ register rx_fsm_state ro addr(base, 0x0) "state of the RX state machine (raw val
 register tx_fsm_state ro addr(base, 0x8) "state of the TX state machine (raw value)" type(uint64);
 register tx_curr_cl_idx rw addr(base, 0x10) "parity (next CL to write) of the TX state machine" type(uint64);
 register rx_curr_cl_idx rw addr(base, 0x18) "parity (next CL to read) of the RX state machine" type(uint64);
-register irq_inject wo addr(base, 0x20) "inject IRQ to bypass core" type(uint64);
-register irq_fsm_state ro addr(base, 0x28) "state of the bypass IRQ state machine (raw value)" type(uint64);
-register num_retired ro addr(base, 0x30) "number of retired requests" type(uint64);
-register num_req ro addr(base, 0x38) "number of requests observed" type(uint64);
-register num_nack ro addr(base, 0x40) "number of NACKs observed" type(uint64);
-register num_preempted ro addr(base, 0x48) "times this worker has been preempted" type(uint64);
+register irq_fsm_state ro addr(base, 0x20) "state of the bypass IRQ state machine (raw value)" type(uint64);
+register irqs_issued ro addr(base, 0x28) "number of bypass IRQs issued" type(uint64);
+register irqs_acked ro addr(base, 0x30) "number of bypass IRQs acknowledged by ISR" type(uint64);
+register num_retired ro addr(base, 0x38) "number of retired requests" type(uint64);
+register num_req ro addr(base, 0x40) "number of requests observed" type(uint64);
+register num_nack ro addr(base, 0x48) "number of NACKs observed" type(uint64);
+register num_preempted ro addr(base, 0x50) "times this worker has been preempted" type(uint64);
 
 };

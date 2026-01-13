@@ -19,7 +19,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 {
 	u32 next_pid;
 	bool killed;
-	lauberhorn_eci_preempt_ipi_ack_t ack_reg;
+	lauberhorn_eci_preempt_irq_ack_t ack_reg;
 	struct worker_fpi_data *priv = *(struct worker_fpi_data **)data;
 
 	struct proc_def *next_proc;
@@ -30,11 +30,11 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 		irq);
 
 	// Read out preempt command -- this tells the HW we are in the kernel
-	ack_reg = lauberhorn_eci_preempt_ipi_ack_rawrd(&priv->preempt_dev);
+	ack_reg = lauberhorn_eci_preempt_irq_ack_rawrd(&priv->preempt_dev);
 
 	// Decode next task and killed
-	next_pid = lauberhorn_eci_preempt_ipi_ack_next_pid_extract(ack_reg);
-	killed = lauberhorn_eci_preempt_ipi_ack_killed_extract(ack_reg);
+	next_pid = lauberhorn_eci_preempt_irq_ack_next_pid_extract(ack_reg);
+	killed = lauberhorn_eci_preempt_irq_ack_killed_extract(ack_reg);
 
 	BUG_ON(killed);
 	next_proc = find_proc(next_pid);
@@ -62,13 +62,13 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 
 /**
  * Install handlers for the software-generated interrupts (SGI) that comes from
- * the FPGA, for the worker cores.  Adam's Linux Memory Driver calls these FPIs, 
+ * the FPGA, for the worker cores.  Adam's Linux Memory Driver calls these FPIs,
  * probably FPGA peripheral interrupts.
- * 
+ *
  * The Lauberhorn NIC sends two SGI interrupts:
  * - #15  only to core 0: bypass core descriptor FIFO non-empty
  * - #8   to all worker cores: preemption interrupt for switching tasks
- * 
+ *
  * This function only handles the interrupt for the worker cores; the bypass core
  * interrupt is handled inside `init_bypass`.
  */

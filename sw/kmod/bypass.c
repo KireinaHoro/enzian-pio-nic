@@ -105,8 +105,7 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
 
-	dev_dbg(&dev->dev, "Disabling bypass IRQ and scheduling NAPI\n");
-	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+	dev_dbg(&dev->dev, "Scheduling NAPI\n");
 	napi_schedule(&priv->napi);
 
 	return IRQ_HANDLED;
@@ -417,6 +416,7 @@ static int napi_poll(struct napi_struct *n, int budget)
 
 	dev_dbg(&dev->dev, "starting NAPI poll with budget %d\n", budget);
 
+restart_poll:
 	while (work_done < budget) {
 		poll_result_t res = poll_once(n);
 		if (res == POLL_NACK) {
@@ -435,8 +435,18 @@ static int napi_poll(struct napi_struct *n, int budget)
 		// drained all packets, finish NAPI and reenable interrupt
 		if (napi_complete_done(n, work_done)) {
 			dev_dbg(&dev->dev,
-				"NAPI complete, re-enabling bypass IRQ\n");
-			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+				"NAPI complete, ACK-ing bypass IRQ\n");
+			lauberhorn_eci_preempt_irq_ack_wr(&priv->reg_dev, 0);
+
+			dev_dbg(&dev->dev,
+				"re-checking before finishing poll\n");
+			if (poll_once(n) != POLL_NACK) {
+				dev_dbg(&dev->dev,
+					"request came in again, restarting polling\n");
+				if (napi_schedule(&priv->napi)) {
+					goto restart_poll;
+				}
+			}
 		}
 	}
 

@@ -47,33 +47,6 @@ case class IpiAckReg() extends Bundle {
   val killed = Bool()
 }
 
-object EciPreemptionControlPlugin {
-  // called for driving the non-existent preemption control for core#0
-  def bypassDriveControl(irqEn: Bool)(bus: AxiLite4, alloc: RegBlockAlloc) = {
-    val busCtrl = AxiLite4SlaveFactory(bus)
-
-    alloc("realCoreId", desc = "Actual core ID serving requests for this context")
-    val irqAckAddr = alloc("ipiAck", attr = WC, readSensitive = true,
-      desc = "Preemption command from hardware (write will ACK the interrupt)",
-      ty =
-        """
-          |{
-          |  next_pid   32 "Next PID to schedule";
-          |  killed     1  "Previously running process is killed";
-          |  _          31 rsvd;
-          |}
-          |""".stripMargin)
-    busCtrl.readAndWrite(U(0), irqAckAddr)
-
-    // generate IRQ enable reg for bypass
-    val irqEnAddr = alloc("irqEn",
-      desc = "Enable IRQ to this core")
-    busCtrl.driveAndRead(irqEn, irqEnAddr) init False
-
-    PreemptionControlCl().addMackerel()
-  }
-}
-
 /**
   * Preemption control plugin for ECI.  Interfaces with [[EciInterfacePlugin]] to issue interrupts to CPU as IPI.
   *
@@ -87,9 +60,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    val ipiAckAddr = alloc("ipiAck",
-      desc = "Preemption command from hardware (write will ACK the interrupt)",
-      attr = WC, readSensitive = true)
+    val ipiAckAddr = alloc("irqAck", attr = WC, readSensitive = true,
+      desc = "IRQ ACK, write to ACK for bypass, read to ACK for worker")
     busCtrl.read(logic.ipiAck, ipiAckAddr)
     busCtrl.write(U(0), ipiAckAddr) // IPI ack carry no data
     busCtrl.onRead(ipiAckAddr) {
