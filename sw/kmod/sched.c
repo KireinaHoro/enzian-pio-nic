@@ -77,10 +77,10 @@ static void _sched_worker_thread(struct work_struct *ws)
 	route_prefix_to_core(thr->prefix, thr->worker_idx + 1);
 
 	// Program parity bits into HW
-	lauberhorn_eci_worker_rx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						rx_parity);
-	lauberhorn_eci_worker_tx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						tx_parity);
+	lauberhorn_eci_worker_ctrl_rx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
+						     rx_parity);
+	lauberhorn_eci_worker_ctrl_tx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
+						     tx_parity);
 
 	// Lock preemption control CL in L2 -- will be unlocked when the FPGA
 	// tries to preempt this thread

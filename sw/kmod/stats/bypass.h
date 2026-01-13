@@ -50,6 +50,15 @@
 	FUNC(macIf, rx_mac_ingress_count)  \
 	FUNC(macIf, rx_mac_ingress_after_cdc_count)
 
+#define BYPASS_DP_STATS_LIST(FUNC)  \
+	FUNC(worker, irqs_issued)   \
+	FUNC(worker, irqs_acked)    \
+	FUNC(worker, irq_fsm_state) \
+	FUNC(worker, num_retired)   \
+	FUNC(worker, num_req)       \
+	FUNC(worker, num_nack)      \
+	FUNC(worker, num_preempted)
+
 #define CMAC_STATUS_LIST(FUNC)         \
 	FUNC(cmac, tx_status)          \
 	FUNC(cmac, rx_status)          \
@@ -184,7 +193,8 @@ CMAC_STATISTICS_LIST(CMAC_STATISTIC_RD_FUNC)
 	FUNC(ipdec_stats, IP_DEC_STATS_LIST)   \
 	FUNC(udpdec_stats, UDP_DEC_STATS_LIST) \
 	FUNC(ipenc_stats, IP_ENC_STATS_LIST)   \
-	FUNC(macif_stats, MAC_IF_STATS_LIST)
+	FUNC(macif_stats, MAC_IF_STATS_LIST)   \
+	FUNC(bypass_dp_stats, BYPASS_DP_STATS_LIST)
 // FUNC(cmac_status, CMAC_STATUS_LIST)
 // FUNC(cmac_stats, CMAC_STATISTICS_LIST)
 
