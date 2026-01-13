@@ -186,15 +186,8 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     if (irq == 15) {
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
 
-      // disable IRQ for bypass
-      cs.log("disabling IRQ")
-      asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
-
       // call bypass handler
       cs.asInstanceOf[BypassCoreState].handler()
-
-      // ACK interrupt
-      asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
     } else if (irq == 8) {
       val wcs = cs.asInstanceOf[WorkerCoreState]
 
@@ -229,12 +222,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     // in the Linux kernel, the next interrupt will not come in until we are out
     cs.exitISR()
 
-    if (irq == 15) {
-      cs.log("re-enabling IRQ")
-      asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
-    } else {
-      cs.log("ack-ing IRQ")
-      asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
-    }
+    cs.log("ack-ing IRQ")
+    asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
   }
 }
