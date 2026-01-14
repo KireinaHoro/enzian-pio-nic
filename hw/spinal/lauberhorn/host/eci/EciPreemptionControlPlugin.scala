@@ -6,7 +6,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
 import spinal.lib.fsm._
-import spinal.lib.bus.regif.AccessType.{WC, RW}
+import spinal.lib.bus.regif.AccessType.{RC, RW}
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.host.PreemptionService
@@ -60,15 +60,11 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
-    val ipiAckAddr = alloc("irqAck", attr = WC, readSensitive = true,
-      desc = "IRQ ACK, write to ACK for bypass, read to ACK for worker")
-    busCtrl.read(logic.ipiAck, ipiAckAddr)
-    busCtrl.write(U(0), ipiAckAddr) // IPI ack carry no data
-    busCtrl.onRead(ipiAckAddr) {
+    val schedCmdAddr = alloc("schedCmd", attr = RC, readSensitive = true,
+      desc = "Preemption command for worker core (all zero for bypass)")
+    busCtrl.read(logic.schedCmd, schedCmdAddr)
+    busCtrl.onRead(schedCmdAddr) {
       logic.ipiCmdSent := True
-    }
-    busCtrl.onWrite(ipiAckAddr) {
-      logic.kernelFinished := True
     }
 
     busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId",
@@ -76,6 +72,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
+    when (logic.irqEn.rise()) {
+      logic.kernelFinished := True
+    }
   }
 
   val requiredAddrSpace = 0x80
@@ -132,15 +131,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val preemptReq = Stream(PreemptReq())
     preemptReq.setBlocked()
 
-    val ipiAck = Reg(IpiAckReg())
+    val schedCmd = Reg(IpiAckReg())
     // Are we in the kernel?
     val ipiCmdSent = CombInit(False)
 
     awaitBuild()
 
     // TODO: drive killed with counter output
-    ipiAck.killed := False
-    ipiAck.pid := preemptReq.pid
+    schedCmd.killed := False
+    schedCmd.pid := preemptReq.pid
 
     ipiToIntc.cmd := 0
     // 8 to 15 are allowed
@@ -210,7 +209,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
               // busy when we unset ready
               when (preemptTimer >= preemptCritSecTimeout) {
                 // timer has expired -- kill
-                ipiAck.killed := True
+                schedCmd.killed := True
                 goto(issueIpi)
               } otherwise {
                 // timer has not expired -- poll again

@@ -183,6 +183,9 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     // until we write to ACK
     if (!cs.enterISR()) return
 
+    cs.log("disabling IRQ")
+    asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
+
     if (irq == 15) {
       assert(cid == 0, "bypass IRQ should only be sent to core 0")
 
@@ -199,7 +202,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
 
       cs.log("reading preempt cmd")
-      val ipiAckReg = asMaster.read(bus, preemptRegBlock("irqAck"), 8).bytesToBigInt
+      val ipiAckReg = asMaster.read(bus, preemptRegBlock("schedCmd"), 8).bytesToBigInt
       val ipiAck = new BigIntParser(ipiAckReg)
 
       val pidToSched = ipiAck.pop(PID_WIDTH)
@@ -222,7 +225,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     // in the Linux kernel, the next interrupt will not come in until we are out
     cs.exitISR()
 
-    cs.log("ack-ing IRQ")
-    asMaster.write(bus, preemptRegBlock("irqAck"), 0.toBytesLE)
+    cs.log("re-enabling IRQ")
+    asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
   }
 }
