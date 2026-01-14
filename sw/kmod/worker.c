@@ -19,7 +19,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 {
 	u32 next_pid;
 	bool killed;
-	lauberhorn_eci_preempt_irq_ack_t ack_reg;
+	lauberhorn_eci_preempt_sched_cmd_t ack_reg;
 	struct worker_fpi_data *priv = *(struct worker_fpi_data **)data;
 
 	struct proc_def *next_proc;
@@ -29,12 +29,15 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 	pr_info("%s.%d[%2d]: FPI %d\n", __func__, __LINE__, smp_processor_id(),
 		irq);
 
+	// Disable interrupt
+	lauberhorn_eci_preempt_irq_en_wr(&priv->preempt_dev, 0);
+
 	// Read out preempt command -- this tells the HW we are in the kernel
-	ack_reg = lauberhorn_eci_preempt_irq_ack_rawrd(&priv->preempt_dev);
+	ack_reg = lauberhorn_eci_preempt_sched_cmd_rawrd(&priv->preempt_dev);
 
 	// Decode next task and killed
-	next_pid = lauberhorn_eci_preempt_irq_ack_next_pid_extract(ack_reg);
-	killed = lauberhorn_eci_preempt_irq_ack_killed_extract(ack_reg);
+	next_pid = lauberhorn_eci_preempt_sched_cmd_next_pid_extract(ack_reg);
+	killed = lauberhorn_eci_preempt_sched_cmd_killed_extract(ack_reg);
 
 	BUG_ON(killed);
 	next_proc = find_proc(next_pid);
