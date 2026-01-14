@@ -12,7 +12,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4CrossbarFactory}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
-import spinal.lib.bus.regif.AccessType.{RO, WC, RW, WO}
+import spinal.lib.bus.regif.AccessType.{RO, RC, RW, WO}
 import spinal.lib.fsm._
 import Global._
 
@@ -74,8 +74,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val busCtrl = AxiLite4SlaveFactory(bus)
 
     alloc("realCoreId", desc = "Actual core ID serving requests for this context")
-    val irqAckAddr = alloc("irqAck", attr = WC, readSensitive = true,
-      desc = "IRQ ACK, write to ACK for bypass, read to ACK for worker",
+    val schedCmdAddr = alloc("schedCmd", attr = RC, readSensitive = true,
+      desc = "Preemption command for worker core (all zero for bypass)",
       ty =
         """
           |{
@@ -84,18 +84,17 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           |  _          31 rsvd;
           |}
           |""".stripMargin)
-    busCtrl.read(U(0), irqAckAddr)
-
-    // ACK is only a pulse
-    logic.irqAck := False
-    busCtrl.write(U(0), irqAckAddr)
-    busCtrl.onWrite(irqAckAddr) {
-      logic.irqAck := True
-    }
+    busCtrl.read(U(0), schedCmdAddr)
 
     // generate IRQ enable reg for bypass
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
+
+    // ACK is only a pulse
+    logic.irqAck := False
+    when (logic.irqEn.rise()) {
+      logic.irqAck := True
+    }
 
     PreemptionControlCl().addMackerel()
   }
