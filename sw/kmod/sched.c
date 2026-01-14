@@ -91,7 +91,7 @@ static void _sched_worker_thread(struct work_struct *ws)
 	wake_up_process(thr->task);
 
 	// Ack interrupt
-	lauberhorn_eci_preempt_irq_ack_wr(&w->fpi_priv->preempt_dev, 0);
+	lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
 }
 
 /**
