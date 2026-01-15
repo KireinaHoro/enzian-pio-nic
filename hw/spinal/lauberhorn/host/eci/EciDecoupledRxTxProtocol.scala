@@ -55,6 +55,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         alloc("stat", subName = "irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
       busCtrl.read(logic.bypassIrqArea.acked.value,
         alloc("stat", subName = "irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
+      busCtrl.read(logic.bypassIrqArea.earlyAck.value,
+        alloc("stat", subName = "irqsEarlyAck", attr = RO, desc = "times when ACK came in before FPI is accepted"))
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
@@ -90,8 +92,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
 
-    // ACK is only a pulse
-    logic.irqAck := False
+    // ACK might come in, when irqFsm is not in waitAck
     when (logic.irqEn.rise()) {
       logic.irqAck := True
     }
@@ -197,7 +198,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val irqOut = isBypass generate Stream(EciIntcInterface())
     val irqEn = isBypass generate Bool()
-    val irqAck = isBypass generate Bool()
+    val irqAck = isBypass generate RegInit(False)
 
     val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
 
@@ -469,12 +470,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {
-      val issued, acked: Counter
+      val issued, acked, earlyAck: Counter
       val irqFsm: StateMachine
     } = isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
 
-      val issued, acked = Counter(REG_WIDTH bits)
+      val issued, acked, earlyAck = Counter(REG_WIDTH bits)
 
       // Edge-triggered interrupt.
       //
@@ -491,6 +492,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         }
         val sendIrq: State = new State {
           whenIsActive {
+            when (irqEn.rise()) {
+              // ACK came in when we are raising a new IRQ;
+              // log this case to see if this caused a deadlock in waitAck
+              earlyAck.increment()
+            }
+
             irqOut.valid   := True
             irqOut.affLvl0 := 1   // always send to core 0
             irqOut.affLvl1 := 0
@@ -505,6 +512,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         val waitAck: State = new State {
           whenIsActive {
             when (irqAck) {
+              irqAck := False
               acked.increment()
               goto(idle)
             }
