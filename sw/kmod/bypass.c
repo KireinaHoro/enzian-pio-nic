@@ -555,6 +555,43 @@ static void init_netdev(struct net_device *dev)
 	dev->mtu = LAUBERHORN_MTU;
 }
 
+static ssize_t bypass_irq_en_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct netdev_priv *priv = netdev_priv(to_net_dev(dev));
+
+	return sysfs_emit(
+		buf, "%d\n",
+		(bool)lauberhorn_eci_preempt_irq_en_rd(&priv->reg_dev));
+}
+
+static ssize_t bypass_irq_en_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct netdev_priv *priv = netdev_priv(to_net_dev(dev));
+	bool en, old_en;
+	int ret;
+
+	ret = kstrtobool(buf, &en);
+	if (ret)
+		return ret;
+
+	old_en = lauberhorn_eci_preempt_irq_en_rd(&priv->reg_dev);
+	if (old_en == en) {
+		dev_warn(
+			dev,
+			"IRQ enable state %d same as in HW, not writing register\n",
+			old_en);
+	} else {
+		dev_warn(dev, "toggling IRQ enable state: %d -> %d\n", old_en,
+			 en);
+		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, en);
+	}
+	return count;
+}
+static DEVICE_ATTR_RW(bypass_irq_en);
+
 #include "stats/bypass.h"
 
 int init_bypass(void)
@@ -597,6 +634,16 @@ int init_bypass(void)
 			"failed to create sysfs statistics entries: err %d\n",
 			err);
 		goto free_dev;
+	}
+
+	// Create sysfs toggle for IRQ enable toggle (only for debugging)
+	err = sysfs_create_file(&netdev->dev.kobj,
+				&dev_attr_bypass_irq_en.attr);
+	if (err < 0) {
+		dev_err(&netdev->dev,
+			"failed to create sysfs entry for IRQ enable toggle: err %d\n",
+			err);
+		goto remove_groups;
 	}
 
 	// Create Mackerel devices
