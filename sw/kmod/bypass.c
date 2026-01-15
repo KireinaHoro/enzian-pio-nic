@@ -418,6 +418,7 @@ static int napi_poll(struct napi_struct *n, int budget)
 
 	dev_dbg(&dev->dev, "starting NAPI poll with budget %d\n", budget);
 
+restart_poll:
 	while (work_done < budget) {
 		poll_result_t res = poll_once(n);
 		if (res == POLL_NACK) {
@@ -439,8 +440,18 @@ static int napi_poll(struct napi_struct *n, int budget)
 				"NAPI complete, re-enabling interrupt\n");
 			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
-			// No need for the hack to recheck IRQ pending bit, since we can't
-			// miss an interrupt with irq_en
+			// Check if an IRQ was issued while we were in ISR; if yes, restart poll
+			if (lauberhorn_eci_worker_stat_irq_fsm_state_rd(
+				    &priv->worker_dev) != 1) {
+				dev_dbg(&dev->dev, "missed IRQ\n");
+				if (napi_schedule(n)) {
+					dev_dbg(&dev->dev,
+						"disabling interrupt and restarting poll\n");
+					lauberhorn_eci_preempt_irq_en_wr(
+						&priv->reg_dev, 0);
+					goto restart_poll;
+				}
+			}
 		}
 	}
 
