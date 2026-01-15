@@ -20,9 +20,10 @@ register ctrl_rx_curr_cl_idx rw addr(base, 0x18) "parity (next CL to read) of th
 register stat_irq_fsm_state ro addr(base, 0x20) "state of the bypass IRQ state machine (raw value)" type(uint64);
 register stat_irqs_issued ro addr(base, 0x28) "number of bypass IRQs issued" type(uint64);
 register stat_irqs_acked ro addr(base, 0x30) "number of bypass IRQs acknowledged by ISR" type(uint64);
-register stat_num_retired ro addr(base, 0x38) "number of retired requests" type(uint64);
-register stat_num_req ro addr(base, 0x40) "number of requests observed" type(uint64);
-register stat_num_nack ro addr(base, 0x48) "number of NACKs observed" type(uint64);
-register stat_num_preempted ro addr(base, 0x50) "times this worker has been preempted" type(uint64);
+register stat_irqs_early_ack ro addr(base, 0x38) "times when ACK came in before FPI is accepted" type(uint64);
+register stat_num_retired ro addr(base, 0x40) "number of retired requests" type(uint64);
+register stat_num_req ro addr(base, 0x48) "number of requests observed" type(uint64);
+register stat_num_nack ro addr(base, 0x50) "number of NACKs observed" type(uint64);
+register stat_num_preempted ro addr(base, 0x58) "times this worker has been preempted" type(uint64);
 
 };

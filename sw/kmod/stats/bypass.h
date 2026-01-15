@@ -50,13 +50,14 @@
 	FUNC(macIf, rx_mac_ingress_count)  \
 	FUNC(macIf, rx_mac_ingress_after_cdc_count)
 
-#define BYPASS_DP_STATS_LIST(FUNC)  \
-	FUNC(worker, irqs_issued)   \
-	FUNC(worker, irqs_acked)    \
-	FUNC(worker, irq_fsm_state) \
-	FUNC(worker, num_retired)   \
-	FUNC(worker, num_req)       \
-	FUNC(worker, num_nack)      \
+#define BYPASS_DP_STATS_LIST(FUNC)   \
+	FUNC(worker, irqs_issued)    \
+	FUNC(worker, irqs_acked)     \
+	FUNC(worker, irqs_early_ack) \
+	FUNC(worker, irq_fsm_state)  \
+	FUNC(worker, num_retired)    \
+	FUNC(worker, num_req)        \
+	FUNC(worker, num_nack)       \
 	FUNC(worker, num_preempted)
 
 #define CMAC_STATUS_LIST(FUNC)         \
