@@ -106,9 +106,8 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 		__LINE__, smp_processor_id(), irq);
 
 	dev_dbg(&dev->dev, "disabling IRQ and scheduling NAPI\n");
-
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
-	napi_schedule(&priv->napi);
+	napi_schedule_irqoff(&priv->napi);
 
 	return IRQ_HANDLED;
 }
@@ -440,13 +439,16 @@ restart_poll:
 				"NAPI complete, re-enabling interrupt\n");
 			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
-			// Check if an IRQ was issued while we were in ISR; if yes, restart poll
+			// If an IRQ is pending on exit from poll...
 			if (lauberhorn_eci_worker_stat_irq_fsm_state_rd(
 				    &priv->worker_dev) != 1) {
-				dev_dbg(&dev->dev, "missed IRQ\n");
+				dev_warn(&dev->dev,
+					 "potentially missed IRQ!\n");
 				if (napi_schedule(n)) {
-					dev_dbg(&dev->dev,
-						"disabling interrupt and restarting poll\n");
+					// ...and a poll is not yet scheduled (by the ISR)
+					dev_warn(
+						&dev->dev,
+						"disabling IRQ and restarting poll\n");
 					lauberhorn_eci_preempt_irq_en_wr(
 						&priv->reg_dev, 0);
 					goto restart_poll;

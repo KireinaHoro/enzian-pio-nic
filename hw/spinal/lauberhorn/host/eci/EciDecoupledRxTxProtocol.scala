@@ -55,8 +55,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         alloc("stat", subName = "irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
       busCtrl.read(logic.bypassIrqArea.acked.value,
         alloc("stat", subName = "irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
-      busCtrl.read(logic.bypassIrqArea.earlyAck.value,
-        alloc("stat", subName = "irqsEarlyAck", attr = RO, desc = "times when ACK came in before FPI is accepted"))
+      busCtrl.read(logic.bypassIrqArea.assumed.value,
+        alloc("stat", subName = "irqsAssumed", attr = RO, desc = "number of bypass IRQs assumed"))
+
+      busCtrl.driveAndRead(logic.bypassIrqArea.waitAckTimeout,
+        alloc("ctrl", subName = "waitAckTimeout", attr = RW,
+          desc = "cycles before we assume an SGI is lost")) init 10000 // 50 us
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
@@ -470,12 +474,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {
-      val issued, acked, earlyAck: Counter
+      val issued, acked, assumed : Counter
+      val waitAckTimeout: UInt
       val irqFsm: StateMachine
     } = isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
 
-      val issued, acked, earlyAck = Counter(REG_WIDTH bits)
+      val issued, acked, assumed = Counter(REG_WIDTH bits)
+
+      // SGIs seem to be lossy -- avoid deadlock.
+      // Timeout waiting for ACK, configurable from SW.
+      val waitCount = Counter(REG_WIDTH bits)
+      val waitAckTimeout = UInt(REG_WIDTH bits)
 
       // Edge-triggered interrupt.
       //
@@ -492,12 +502,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         }
         val sendIrq: State = new State {
           whenIsActive {
-            when (irqEn.rise()) {
-              // ACK came in when we are raising a new IRQ;
-              // log this case to see if this caused a deadlock in waitAck
-              earlyAck.increment()
-            }
-
             irqOut.valid   := True
             irqOut.affLvl0 := 1   // always send to core 0
             irqOut.affLvl1 := 0
@@ -511,9 +515,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         }
         val waitAck: State = new State {
           whenIsActive {
-            when (irqAck) {
-              irqAck := False
-              acked.increment()
+            waitCount.increment()
+            when (irqAck || waitCount.value >= waitAckTimeout) {
+              when (irqAck) {
+                irqAck := False
+                acked.increment()
+              } otherwise {
+                waitCount.clear()
+                assumed.increment()
+              }
               goto(idle)
             }
           }
