@@ -256,10 +256,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 75 -to 0 -type data lci_odd
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_odd
   create_bd_pin -dir I -from 75 -to 0 -type data ul_odd
-  create_bd_pin -dir I -from 57 -to 0 -type data dcs_even_trace_0
-  create_bd_pin -dir I -from 57 -to 0 -type data dcs_even_trace_1
-  create_bd_pin -dir I -from 57 -to 0 -type data dcs_odd_trace_0
-  create_bd_pin -dir I -from 57 -to 0 -type data dcs_odd_trace_1
   create_bd_pin -dir I -type rst resetn
   create_bd_pin -dir I -type clk txclk
   create_bd_pin -dir I -type rst resetn1
@@ -271,6 +267,8 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 2 -to 0 -type data dma_rxFsm_state
   create_bd_pin -dir I -from 34 -to 0 dma_write_desc
   create_bd_pin -dir I -from 16 -to 0 dma_write_desc_status
+  create_bd_pin -dir I -from 124 -to 0 trace
+  create_bd_pin -dir O -from 0 -to 0 trace_dump
 
   # Create instance: ila_app, and set properties
   set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
@@ -281,22 +279,22 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {22} \
+    CONFIG.C_NUM_OF_PROBES {19} \
     CONFIG.C_PROBE0_WIDTH {18} \
     CONFIG.C_PROBE10_WIDTH {76} \
-    CONFIG.C_PROBE11_WIDTH {58} \
-    CONFIG.C_PROBE12_WIDTH {58} \
-    CONFIG.C_PROBE13_WIDTH {58} \
-    CONFIG.C_PROBE14_WIDTH {58} \
+    CONFIG.C_PROBE11_WIDTH {125} \
+    CONFIG.C_PROBE12_WIDTH {48} \
+    CONFIG.C_PROBE13_WIDTH {42} \
+    CONFIG.C_PROBE14_WIDTH {42} \
     CONFIG.C_PROBE15_TYPE {1} \
-    CONFIG.C_PROBE15_WIDTH {48} \
-    CONFIG.C_PROBE16_WIDTH {42} \
-    CONFIG.C_PROBE17_WIDTH {42} \
-    CONFIG.C_PROBE18_WIDTH {18} \
-    CONFIG.C_PROBE19_WIDTH {3} \
+    CONFIG.C_PROBE15_WIDTH {18} \
+    CONFIG.C_PROBE16_WIDTH {3} \
+    CONFIG.C_PROBE17_WIDTH {35} \
+    CONFIG.C_PROBE18_WIDTH {17} \
+    CONFIG.C_PROBE19_WIDTH {1} \
     CONFIG.C_PROBE1_WIDTH {18} \
-    CONFIG.C_PROBE20_WIDTH {35} \
-    CONFIG.C_PROBE21_WIDTH {17} \
+    CONFIG.C_PROBE20_WIDTH {1} \
+    CONFIG.C_PROBE21_WIDTH {1} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
     CONFIG.C_PROBE4_WIDTH {18} \
@@ -395,6 +393,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   set_property CONFIG.C_OPERATION {not} $ilvector_logic_1
 
 
+  # Create instance: vio_0, and set properties
+  set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
+  set_property CONFIG.C_NUM_PROBE_IN {0} $vio_0
+
+
   # Create interface connections
   connect_bd_intf_net -intf_net Conn [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS] [get_bd_intf_pins SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_pins SLOT_0_AXIS1] [get_bd_intf_pins ila_cmac_rx/SLOT_0_AXIS]
@@ -402,19 +405,20 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_pins dcs_odd] [get_bd_intf_pins ila_app/SLOT_1_AXI]
 
   # Create port connections
-  connect_bd_net -net alloc_free  [get_bd_pins alloc_free] \
-  [get_bd_pins ila_app/probe16]
-  connect_bd_net -net alloc_req  [get_bd_pins alloc_req] \
-  [get_bd_pins ila_app/probe18]
-  connect_bd_net -net alloc_resp  [get_bd_pins alloc_resp] \
-  [get_bd_pins ila_app/probe17]
+  connect_bd_net -net alloc_free_1  [get_bd_pins alloc_free] \
+  [get_bd_pins ila_app/probe13]
+  connect_bd_net -net alloc_req_1  [get_bd_pins alloc_req] \
+  [get_bd_pins ila_app/probe15]
+  connect_bd_net -net alloc_resp_1  [get_bd_pins alloc_resp] \
+  [get_bd_pins ila_app/probe14]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
-  connect_bd_net -net app_clock  [get_bd_pins app_clock/Q] \
-  [get_bd_pins ila_app/probe15]
+  connect_bd_net -net app_clock_Q  [get_bd_pins app_clock/Q] \
+  [get_bd_pins ila_app/probe12]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins app_clk] \
   [get_bd_pins app_clock/CLK] \
-  [get_bd_pins ila_app/clk]
+  [get_bd_pins ila_app/clk] \
+  [get_bd_pins vio_0/clk]
   connect_bd_net -net cmac_rx_clk  [get_bd_pins cmac_rx_clk/Q] \
   [get_bd_pins ila_cmac_rx/probe0]
   connect_bd_net -net cmac_tx_clk  [get_bd_pins cmac_tx_clk/Q] \
@@ -432,20 +436,12 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   [get_bd_pins ila_app/probe3]
   connect_bd_net -net core4_states_1  [get_bd_pins core4_states] \
   [get_bd_pins ila_app/probe4]
-  connect_bd_net -net dcs_even_trace_0_1  [get_bd_pins dcs_even_trace_0] \
-  [get_bd_pins ila_app/probe11]
-  connect_bd_net -net dcs_even_trace_1_1  [get_bd_pins dcs_even_trace_1] \
-  [get_bd_pins ila_app/probe12]
-  connect_bd_net -net dcs_odd_trace_0_1  [get_bd_pins dcs_odd_trace_0] \
-  [get_bd_pins ila_app/probe13]
-  connect_bd_net -net dcs_odd_trace_1_1  [get_bd_pins dcs_odd_trace_1] \
-  [get_bd_pins ila_app/probe14]
-  connect_bd_net -net dma_rxFsm_state  [get_bd_pins dma_rxFsm_state] \
-  [get_bd_pins ila_app/probe19]
-  connect_bd_net -net dma_write_desc  [get_bd_pins dma_write_desc] \
-  [get_bd_pins ila_app/probe20]
-  connect_bd_net -net dma_write_desc_status  [get_bd_pins dma_write_desc_status] \
-  [get_bd_pins ila_app/probe21]
+  connect_bd_net -net dma_rxFsm_state_1  [get_bd_pins dma_rxFsm_state] \
+  [get_bd_pins ila_app/probe16]
+  connect_bd_net -net dma_write_desc_1  [get_bd_pins dma_write_desc] \
+  [get_bd_pins ila_app/probe17]
+  connect_bd_net -net dma_write_desc_status_1  [get_bd_pins dma_write_desc_status] \
+  [get_bd_pins ila_app/probe18]
   connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
   [get_bd_pins cmac_rx_clk/SCLR]
   connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
@@ -464,6 +460,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins resetn2] \
   [get_bd_pins ila_cmac_rx/resetn] \
   [get_bd_pins ilvector_logic_0/Op1]
+  connect_bd_net -net trace  [get_bd_pins trace] \
+  [get_bd_pins ila_app/probe11]
+  connect_bd_net -net trace_dump  [get_bd_pins vio_0/probe_out0] \
+  [get_bd_pins trace_dump]
   connect_bd_net -net txclk_1  [get_bd_pins txclk] \
   [get_bd_pins cmac_tx_clk/CLK] \
   [get_bd_pins ila_cmac_tx/clk]
@@ -870,16 +870,14 @@ proc create_root_design { parentCell } {
   set lcia_odd [ create_bd_port -dir I -from 75 -to 0 -type data lcia_odd ]
   set ul_even [ create_bd_port -dir I -from 75 -to 0 -type data ul_even ]
   set ul_odd [ create_bd_port -dir I -from 75 -to 0 -type data ul_odd ]
-  set dcs_even_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_even_trace_0 ]
-  set dcs_even_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_even_trace_1 ]
-  set dcs_odd_trace_0 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_0 ]
-  set dcs_odd_trace_1 [ create_bd_port -dir I -from 57 -to 0 -type data dcs_odd_trace_1 ]
   set alloc_free [ create_bd_port -dir I -from 41 -to 0 alloc_free ]
   set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
   set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
   set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
   set dma_write_desc [ create_bd_port -dir I -from 34 -to 0 dma_write_desc ]
   set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
+  set trace [ create_bd_port -dir I -from 124 -to 0 trace ]
+  set trace_dump [ create_bd_port -dir O -from 0 -to 0 trace_dump ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -975,14 +973,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/core_rx_reset]
   connect_bd_net -net core_tx_reset  [get_bd_pins hier_cmac_ctrl_stat/core_tx_reset] \
   [get_bd_pins cmac_usplus_0/core_tx_reset]
-  connect_bd_net -net dcs_even_trace_0_1  [get_bd_ports dcs_even_trace_0] \
-  [get_bd_pins hier_ilas/dcs_even_trace_0]
-  connect_bd_net -net dcs_even_trace_1_1  [get_bd_ports dcs_even_trace_1] \
-  [get_bd_pins hier_ilas/dcs_even_trace_1]
-  connect_bd_net -net dcs_odd_trace_0_1  [get_bd_ports dcs_odd_trace_0] \
-  [get_bd_pins hier_ilas/dcs_odd_trace_0]
-  connect_bd_net -net dcs_odd_trace_1_1  [get_bd_ports dcs_odd_trace_1] \
-  [get_bd_pins hier_ilas/dcs_odd_trace_1]
   connect_bd_net -net gt_loopback_in  [get_bd_pins hier_cmac_ctrl_stat/gt_loopback_in] \
   [get_bd_pins cmac_usplus_0/gt_loopback_in]
   connect_bd_net -net gtwiz_reset_rx_datapath  [get_bd_pins hier_cmac_ctrl_stat/gtwiz_reset_rx_datapath] \
@@ -991,6 +981,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath]
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
+  connect_bd_net -net hier_ilas_probe_out0_0  [get_bd_pins hier_ilas/trace_dump] \
+  [get_bd_ports trace_dump]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
@@ -1006,6 +998,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/lcia_even]
   connect_bd_net -net lcia_odd_1  [get_bd_ports lcia_odd] \
   [get_bd_pins hier_ilas/lcia_odd]
+  connect_bd_net -net probe11_0_1  [get_bd_ports trace] \
+  [get_bd_pins hier_ilas/trace]
   connect_bd_net -net probe16_0_1  [get_bd_ports alloc_free] \
   [get_bd_pins hier_ilas/alloc_free]
   connect_bd_net -net probe17_0_1  [get_bd_ports alloc_resp] \
