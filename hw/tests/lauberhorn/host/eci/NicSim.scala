@@ -15,6 +15,7 @@ import org.pcap4j.util.MacAddress
 import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.core.sim._
 import spinal.lib._
+import spinal.lib.sim._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
 import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 
@@ -1478,5 +1479,42 @@ class NicSim extends DutSimFunSuite[NicEngine]
   /* Test killing a process that did not unset BUSY */
   testWithDB("rx-sched-crit-timeout")(Rx) { implicit dut =>
     // TODO
+  }
+
+  testWithDB("dcs-trace")() { implicit dut =>
+    val eciIf = dut.host[EciInterfacePlugin].logic.get
+    val traceBuf = dut.host[DcsTraceBuffer].logic.get
+
+    traceBuf.dump #= false
+    Seq(eciIf.dcsEven, eciIf.dcsOdd).flatMap(_.tracing).foreach { tp =>
+      tp.valid #= false
+    }
+
+    commonDutSetup(100)
+
+    // wait until memory is initialized
+    sleepCycles(1000)
+
+    Seq(eciIf.dcsEven, eciIf.dcsOdd).flatMap(_.tracing).foreach { tp =>
+      var samples = 0
+      FlowDriver(tp, dut.clockDomain) { p =>
+        if (samples < 200 && simRandom.nextDouble() > 0.8) {
+          p.cli     #= samples * 16
+          p.action  #= 3
+          p.error   #= false
+          p.request #= 5
+          p.state   #= 2
+
+          samples += 1
+          true
+        } else false
+      }
+    }
+
+    sleepCycles(200)
+
+    traceBuf.dump #= true
+
+    sleepCycles(1000)
   }
 }

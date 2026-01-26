@@ -27,14 +27,13 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
 
     val cycleCount = CounterFreeRun(REG_WIDTH bits)
     val storage = Mem(TraceEvent(), numSlots)
-    val nextAddr = RegInit(U(0, log2Up(numSlots) bits))
 
     val dump = in(Bool())
     val data = out(TraceEvent())
     val sampleLost = out(RegInit(False))
     data.clearAll()
 
-    val dumpAddr = Counter(numSlots)
+    val dumpAddr, captureAddr = Counter(numSlots)
     val readoutFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -56,7 +55,10 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
       }
     }
 
-    val allPorts = Vec(tracePorts)
+    // add delay to simplify PNR
+    val allPorts = Vec(tracePorts.map { p =>
+      DelayWithInit(p, 3) { dp => dp.valid init False }
+    })
 
     val catPorts = Flow(allPorts)
     catPorts.valid := allPorts.map(_.valid).orR
@@ -69,10 +71,32 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
     sampleLost.setWhen(overflow)
 
     val savedPorts = bufferedPorts.toFlowFire.toReg()
+    savedPorts.foreach { sp => sp.valid init False }
     val nextPort = OHToUInt(OHMasking.first(savedPorts.map(_.valid)))
 
+    // create one write port for both init and capture
+    val writeData = CombInit(savedPorts(nextPort).map { p =>
+      val ret = TraceEvent()
+      ret.event := p
+      ret.src := nextPort
+      ret.ts := cycleCount
+      ret
+    })
+    val writeEn = CombInit(False)
+    storage.write(captureAddr, writeData, writeEn)
+
     val captureFsm = new StateMachine {
-      val idle: State = new State with EntryPoint {
+      val init: State = new State with EntryPoint {
+        whenIsActive {
+          writeEn := True
+          writeData.clearAll()
+          captureAddr.increment()
+          when (captureAddr.willOverflow) {
+            goto(idle)
+          }
+        }
+      }
+      val idle: State = new State {
         whenIsActive {
           bufferedPorts.ready := True
           when (bufferedPorts.valid) {
@@ -82,19 +106,12 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
       }
       val captureEvent = new State {
         whenIsActive {
-          when (!savedPorts.map(_.valid).orR) {
-            // all samples from all ports fully processed
+          writeEn := True
+          captureAddr.increment()
+          savedPorts(nextPort).valid := False
+          when (CountOne(savedPorts.map(_.valid)) === 1) {
+            // that was the last one, we're done
             goto(idle)
-          } otherwise {
-            storage(nextAddr) := savedPorts(nextPort).map { p =>
-              val ret = TraceEvent()
-              ret.event := p
-              ret.src := nextPort
-              ret.ts := cycleCount
-              ret
-            }
-            nextAddr := nextAddr + 1
-            savedPorts(nextPort).valid := False
           }
         }
       }
