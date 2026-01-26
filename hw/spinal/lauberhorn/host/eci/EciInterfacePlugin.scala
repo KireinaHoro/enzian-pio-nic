@@ -62,7 +62,7 @@ class EciInterfacePlugin extends FiberPlugin {
   val coreOffset = 0x20000
   ECI_CORE_OFFSET.set(coreOffset)
 
-  val logic = during build new Area {
+  val logic = during setup new Area {
     val clockDomain = ClockDomain.current
 
     // even and odd in ALIASED addresses
@@ -74,6 +74,7 @@ class EciInterfacePlugin extends FiberPlugin {
     dcsEven.axi.setName("s_axi_dcs_even")
 
     val dcsIntfs = Seq(dcsEven, dcsOdd)
+    awaitBuild()
 
     // muxed interface to ECI interrupt controller
     val ipiToIntc = master(Stream(EciIntcInterface()))
