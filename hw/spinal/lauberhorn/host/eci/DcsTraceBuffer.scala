@@ -19,7 +19,10 @@ case class TraceEvent() extends Bundle {
 /** Capture traces from DCS interfaces in a buffer and stream them out to ILA
   * on trigger from VIO.  Also records timestamps of each trace event.
   */
-class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
+class DcsTraceBuffer(
+                      numSlots: Int = 1024,
+                      burstFifoSize: Int = 16,
+                    ) extends FiberPlugin {
   val logic = during build new Area {
     val tracePorts = host[EciInterfacePlugin].logic.dcsIntfs.flatMap(_.tracing)
     println(s"DCS trace buffer: ${tracePorts.length} ports, $numSlots buffer entries")
@@ -66,7 +69,7 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
 
     // use a small FIFO to resolve conflicts, and also keep a flag when we overflow
     val overflow = Bool()
-    val bufferedPorts = catPorts.toStream(overflow, 8, 8)
+    val bufferedPorts = catPorts.toStream(overflow, burstFifoSize, burstFifoSize)
     bufferedPorts.ready := False
     sampleLost.setWhen(overflow)
 
