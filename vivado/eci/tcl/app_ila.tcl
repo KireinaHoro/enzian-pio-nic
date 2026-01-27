@@ -88,14 +88,48 @@ proc def_dma_state { probeNum } {
     }] [create_hw_probe -no_gui_update -map probe$probeNum[2:0]    dma_rxFsm_state[2:0]          $ila]
 }
 
-proc def_dcs_trace { sliceName unitNum probeNum } {
+proc def_dcs_trace { probeNum } {
     variable ila
-    create_hw_probe -no_gui_update -map probe$probeNum[57]       dcs_${sliceName}_trace_${unitNum}.valid       $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[56]       dcs_${sliceName}_trace_${unitNum}.error       $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[55:49]    dcs_${sliceName}_trace_${unitNum}.state[6:0]  $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[48:45]    dcs_${sliceName}_trace_${unitNum}.action[3:0] $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[44:40]    dcs_${sliceName}_trace_${unitNum}.req[4:0]    $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[39:0]     dcs_${sliceName}_trace_${unitNum}.cli[39:0]   $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[124]      dcs_trace.dump                 $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[123]      dcs_trace.sampleLost           $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[122]      dcs_trace.event.error          $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[121:82]   dcs_trace.event.cli[39:0]      $ila
+
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        s1__1 s1__1_A11 s1__1_A22 s1__1_V21 s1__1_V32 s1__1_WDDA s1__1pRRA
+        s1__1pRWA s1__2 s1__2_A22 s1__2_WDDA s1__2pRA2 s1__3 s1__3pRA3
+        s1pCI__1_A21 s1pCI__1_A31d s1pCI__1_V31 s1pCI__1_V32 s1pCI__1_V32_A11
+        s1pCI__1_WDDA s1pCI__1_WDDA_A11 s1pCI__1_WDDA_A21 s1pCI__1_WDDA_V21
+        s1pC__1_A32 s1pC__1_V31 s1pC__1_V32 s1pC__1_WDDA s1pC__1_WDDA_A11
+        s1pC__1_WDDA_A22 s1pC__1_WDDA_V21 s1pC__2_A32d s1pC__2_V32 s1pC__2_WDDA
+        s1pC__2_WDDA_A22 s1pICI__1_A21 s1pICI__1_A31d s1pICI__1_V31
+        s1pICI__1_V32 s1pICI__1_V32_A11 s1pICI__1_WDDA s1pICI__1_WDDA_A11
+        s1pICI__1_WDDA_A21 s1pICI__1_WDDA_V21 s1pLRA__1 s1pLRA__1_A11
+        s1pLRA__1_A22 s1pLRA__1_V21 s1pLRA__2 s1pLRA__2_A22 s1pLWA__1
+        s1pLWA__1_A11 s1pLWA__1_V21 s1pR__1_A32 s1pR__1_V31 s1pR__1_V32
+        s1pR__1_WDDA s1pR__1_WDDA_A11 s1pR__1_WDDA_A22 s1pR__1_WDDA_V21
+        s1pR__2_A32d s1pR__2_V32 s1pR__2_WDDA s1pR__2_WDDA_A22 s1pUL__1
+        s1pUL__1_A11 s1pUL__1_A22 s1pUL__1_V21 s1pUL__2 s1pUL__2_A22
+        s1pW__1_A21 s1pW__1_A31d s1pW__1_V31 s1pW__1_V32 s1pW__1_V32_A11
+        s1pW__1_WDDA s1pW__1_WDDA_A11 s1pW__1_WDDA_A21 s1pW__1_WDDA_V21
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[81:75]    dcs_trace.event.state[6:0]     $ila]
+
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        NO_ACTION NOT_ALLOWED RDD SEND_F21 SEND_F31 SEND_F32 SEND_LCA
+        SEND_LCIA SEND_LRA SEND_LWA SEND_RA2 SEND_RA3 SEND_RRA SEND_RWA STALL
+        WDD
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[74:71]    dcs_trace.event.action[3:0]    $ila]
+
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        UNKNOWN_REQ A11 A21 A22 A31 A31d A32 A32d F21 F31 F32 ICI LC LCI
+        LR LW R12 R13 R23 RDDA RR RW UL V21 V31 V31d V32 V32d WDDA
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[70:66]    dcs_trace.event.req[4:0]       $ila]
+
+    add_hw_probe_enum -dict [states_to_enum_defs {
+        even_0 even_1 odd_0 odd_1
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[65:64]    dcs_trace.src[1:0]             $ila]
+
+    create_hw_probe -no_gui_update -map probe$probeNum[63:0]     dcs_trace.ts[63:0]             $ila
 }
 
 proc def_dcs_lcl { sliceName busName probeNum } {
@@ -205,18 +239,17 @@ def_dcs_lcl odd  lci  8
 def_dcs_lcl odd  lcia 9
 def_dcs_lcl odd  ul   10
 
-def_dcs_trace even 0 11
-def_dcs_trace even 1 12
-def_dcs_trace odd  0 13
-def_dcs_trace odd  1 14
+def_dcs_trace 11
 
-def_alloc_chan_with_addr    free 16
-def_alloc_chan_with_addr    resp 17
-def_alloc_chan_without_addr req  18
+# probe 12 is the clock
 
-def_dma_state 19
-def_dma_wr_desc 20
-def_dma_wr_status 21
+def_alloc_chan_with_addr    free 13
+def_alloc_chan_with_addr    resp 14
+def_alloc_chan_without_addr req  15
+
+def_dma_state 16
+def_dma_wr_desc 17
+def_dma_wr_status 18
 
 # Trigger once to populate all waves (or add_wave might fail).
 run_hw_ila -trigger_now $ila
@@ -227,12 +260,14 @@ display_hw_ila_data [upload_hw_ila_data $ila]
 # No need to filter with {SOURCE == user}, netlist probes have the net name as CUSTOM
 add_group "Bypass Core States" [get_hw_probes -of_objects $ila -regexp core0_.*] {core0_(.*)$}
 
+add_group "DCS Trace" [get_hw_probes -of_objects $ila -regexp dcs_trace.*] {dcs_trace\.(.*)$}
+
 add_dcs_axi even
 add_dcs_axi odd
 
 set groupItemNameRe {\.([a-z]*)$}
 
-add_wave -name "200 MHz Clock" [get_hw_probes -of_objects $ila -regexp .*probe15]
+add_wave -name "200 MHz Clock" [get_hw_probes -of_objects $ila -regexp .*probe12]
 
 add_stream "Alloc Request" [get_hw_probes -of_objects $ila -regexp alloc_req.*] $groupItemNameRe
 add_stream "Alloc Response" [get_hw_probes -of_objects $ila -regexp alloc_resp.*] $groupItemNameRe
