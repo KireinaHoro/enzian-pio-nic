@@ -72,6 +72,7 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
 
     val savedPorts = bufferedPorts.toFlowFire.toReg()
     savedPorts.foreach { sp => sp.valid init False }
+    val savedTs = RegNextWhen(cycleCount.value, bufferedPorts.fire)
     val nextPort = OHToUInt(OHMasking.first(savedPorts.map(_.valid)))
 
     // create one write port for both init and capture
@@ -79,7 +80,7 @@ class DcsTraceBuffer(numSlots: Int = 256) extends FiberPlugin {
       val ret = TraceEvent()
       ret.event := p
       ret.src := nextPort
-      ret.ts := cycleCount
+      ret.ts := savedTs
       ret
     })
     val writeEn = CombInit(False)
