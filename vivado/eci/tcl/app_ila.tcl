@@ -23,9 +23,9 @@ proc def_alloc_chan_without_addr { busName probeNum } {
 
 proc def_dma_wr_desc { probeNum } {
     variable ila
-    create_hw_probe -no_gui_update -map probe$probeNum[36]      dma_write_desc.valid         $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[35]      dma_write_desc.ready         $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[34:16]   dma_write_desc.addr[18:0]    $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[34]      dma_write_desc.valid         $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[33]      dma_write_desc.ready         $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[32:16]   dma_write_desc.addr[16:0]    $ila
     create_hw_probe -no_gui_update -map probe$probeNum[15:0]    dma_write_desc.len[15:0]     $ila
 }
 
@@ -39,9 +39,10 @@ proc states_to_enum_defs { stateList } {
     set idx 0
     set numStates [llength $stateList]
     set width [string length [format "%b" [expr $numStates - 1]]]
+    set digits [expr {int(ceil(double($width)/4))}]
     foreach s $stateList {
         lappend ret $s
-        lappend ret [format "eq%d'h%x" $width $idx]
+        lappend ret [format "eq%d'h%0${digits}x" $width $idx]
         incr idx
     }
     return $ret
