@@ -93,14 +93,16 @@ static const struct kernel_param_ops loopback_ops = {
 module_param_cb(loopback, &loopback_ops, &do_loopback, 0);
 
 static u64 irq_no;
-static DEFINE_PER_CPU_READ_MOSTLY(struct net_device *, bypass_fpi_cookie);
+static struct net_device *bypass_dev;
 
 static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 {
-	struct net_device *dev = *(struct net_device **)cookie;
+	struct net_device *dev = bypass_dev;
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	BUG_ON(!dev);
+	if (unlikely(!dev)) {
+		return IRQ_NONE;
+	}
 
 	dev_dbg(&dev->dev, "%s.%d[%2d]: bypass IRQ (FPI %d)\n", __func__,
 		__LINE__, smp_processor_id(), irq);
@@ -127,10 +129,6 @@ static int init_bypass_fpi(struct net_device *dev)
 	gic_domain = gic_irq_data->domain;
 	fwnode = *(struct fwnode_handle **)(gic_domain->host_data);
 
-	// Write net_device pointer to CPU cookie
-	struct net_device **cookie_ptr = per_cpu_ptr(&bypass_fpi_cookie, 0);
-	*cookie_ptr = dev;
-
 	// Allocate an IRQ number for SGI #15 for bypass core
 	fwspec_fpi = (struct irq_fwspec){
 		.fwnode = fwnode,
@@ -149,7 +147,7 @@ static int init_bypass_fpi(struct net_device *dev)
 
 	// Register handler for bypass IRQ
 	err = request_percpu_irq(irq_no, bypass_fpi_handler,
-				 "Lauberhorn Bypass IRQ", &bypass_fpi_cookie);
+				 "Lauberhorn Bypass IRQ", &bypass_dev);
 	if (err < 0) {
 		dev_err(&dev->dev, "failed to allocate bypass IRQ: err %d\n",
 			err);
@@ -174,7 +172,8 @@ static void deinit_bypass_fpi(void)
 
 	err = smp_call_on_cpu(0, do_fpi_irq_deactivate, (void *)irq_no, true);
 	WARN_ON(err < 0);
-	free_percpu_irq(irq_no, &bypass_fpi_cookie);
+	synchronize_irq(irq_no);
+	free_percpu_irq(irq_no, &bypass_dev);
 	irq_dispose_mapping(irq_no);
 }
 
@@ -203,6 +202,7 @@ static int netdev_open(struct net_device *dev)
 		&priv->worker_dev, irq_timeout_usecs * cycles_per_usec);
 
 	dev_dbg(&dev->dev, "netdev UP, enabling bypass IRQ\n");
+	smp_wmb();
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
 	return 0;
@@ -627,8 +627,9 @@ int init_bypass(void)
 	macaddr_cast_t mac_addr;
 
 	// Create netdev
-	netdev = alloc_netdev(sizeof(struct netdev_priv), "lauberhorn%d",
-			      NET_NAME_UNKNOWN, init_netdev);
+	bypass_dev = netdev = alloc_netdev(sizeof(struct netdev_priv),
+					   "lauberhorn%d", NET_NAME_UNKNOWN,
+					   init_netdev);
 	if (!netdev) {
 		pr_err("failed to allocate netdev\n");
 		err = -ENOMEM;
@@ -687,6 +688,9 @@ int init_bypass(void)
 	lauberhorn_eci_worker_initialize(&priv->worker_dev,
 					 LAUBERHORN_ECI_WORKER_BASE(0));
 	// cmac_initialize(&priv->cmac_dev, CMAC_BASE);
+
+	// Make sure the FPI handler can see these...
+	smp_wmb();
 
 	// Verify CMAC version
 	/*
@@ -779,8 +783,7 @@ out:
 
 void deinit_bypass(void)
 {
-	struct net_device **cookie_ptr = per_cpu_ptr(&bypass_fpi_cookie, 0);
-	struct net_device *netdev = *cookie_ptr;
+	struct net_device *netdev = bypass_dev;
 	struct netdev_priv *priv = netdev_priv(netdev);
 
 	// Remove sysfs entries
