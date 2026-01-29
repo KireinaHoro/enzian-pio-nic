@@ -638,6 +638,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
     txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, -1)
   }
 
+  testWithDB("tx-voluntary-inv")(Tx) { implicit dut =>
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
+
+    // write 0x8000 and drop, simulating a R12 -> R23 -> V31d
+    dcsMaster.write(0x8000, 0.toBytesLE)
+  }
+
   // Test sending IPv6 packets (produced by Linux kernel)
   testWithDB("tx-icmp6")(Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("tx-icmp6") / "packets-expecting.pcap").toString)
