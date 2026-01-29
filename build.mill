@@ -1,0 +1,120 @@
+//| mill-allow-nested-build-mill: true
+//| mvnDeps:
+//| - com.typesafe:config:1.4.2
+//| - com.lihaoyi::requests:0.8.2
+package build
+
+import mill._, util._, scalalib._, api.BuildCtx
+
+object Versions {
+  val scala = "2.13.12"
+  val eciStaticShell = "v0.1.5"
+}
+
+trait CommonModule extends ScalaModule {
+  override def scalaVersion = Versions.scala
+  override def sources = Task.Source(BuildCtx.workspaceRoot/"hw"/"spinal")
+
+  def sref = build.deps.spinalhdl.SpinalModuleRef(Versions.scala)
+  def bref = build.deps.`spinal-blocks`.BlocksModuleRef(Versions.scala, sref)
+
+  def scalacOptions = super.scalacOptions() ++ sref.idslpluginMod.pluginOptions()
+  override def moduleDeps = super.moduleDeps ++ Seq(bref.blocksMod, sref.coreMod, sref.libMod)
+
+  override def mvnDeps = Seq(mvn"com.lihaoyi::mainargs:0.5.4")
+}
+
+import sys.process._
+def gitHash(dir: os.Path) = (try {
+  s"git -C ${dir.toString} rev-parse HEAD".!!
+} catch {
+  case e: java.io.IOException => "???"
+}).linesIterator.next()
+
+trait HwProjModule extends Module {
+  def variant: String
+  def generatedSourcesPath = BuildCtx.workspaceRoot/"hw"/"gen"/variant
+  override def millSourcePath = os.pwd
+
+  // 8 bytes
+  def gitVersion = gitHash(Task.dest)
+
+  def generateVerilog = Task {
+    gen.runForkedTask(
+      mainClass = Task { "lauberhorn.GenEngineVerilog" },
+      args = T.task {
+        Args("--name", variant, "--version", gitVersion())
+      }
+    )()
+
+    // use .sv suffix for IPs
+    os.move.over(generatedSourcesPath/"NicEngine_ips.v", generatedSourcesPath/"NicEngine_ips.sv")
+
+    Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath/fn))
+  }
+
+  def extraEnvironment = T { Map.empty[String, String] }
+
+  def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
+    os.proc("vivado",
+      "-mode", "batch",
+      "-source", tcl,
+      "-tclargs",
+      args).call(
+        stdout = os.Inherit,
+        stderr = os.Inherit,
+        cwd = cwd,
+        env = env,
+      )
+  }
+
+  def vivadoRoot = millSourcePath / "vivado" / variant
+  def vivadoProjectName = s"pio-nic-$variant"
+  def projectTcl = T.source(vivadoRoot / "create_project.tcl")
+  def projectTclDeps = T.source(vivadoRoot / "bd" / "design_1.tcl")
+  def vivadoProject = T {
+    projectTclDeps()
+    generateVerilog()
+    callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), T.dest)
+    PathRef(T.dest / vivadoProjectName)
+  }
+
+  def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
+
+  def bitstreamEnv = T { Map.empty[String, String] }
+  def generateBitstream = T {
+    generateVerilog()
+    callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
+    Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
+  }
+}
+
+object gen extends CommonModule { outer =>
+  object test extends ScalaTests with TestModule.ScalaTest {
+    override def moduleDeps = super.moduleDeps ++ Agg(spinalTester, blocksTester)
+    override def millSourcePath = outer.millSourcePath
+    override def sources = T.sources(millSourcePath / "hw" / "tests")
+
+    override def ivyDeps = Agg(
+      ivy"com.lihaoyi::os-lib:0.9.3",
+      ivy"commons-io:commons-io:2.15.1",
+      ivy"org.pcap4j:pcap4j-core:1.8.2",
+      ivy"org.pcap4j:pcap4j-packetfactory-static:1.8.2",
+    )
+  }
+}
+
+object pcie extends HwProjModule { def variant = "pcie" }
+object eci extends HwProjModule {
+  def variant = "eci"
+  override def bitstreamEnv = Task {
+    val sv = Versions.eciStaticShell
+
+    println(s"Downloading static shell $sv checkpoint...")
+    val staticShellCkptUrl = s"https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/$sv/build_static_shell_routed.dcp"
+    os.write(Task.dest / "static_shell_routed.dcp", requests.get.stream(staticShellCkptUrl))
+    Map("ENZIAN_SHELL_DIR" -> Task.dest.toString)
+  }
+}
+
+// vi: ft=scala
