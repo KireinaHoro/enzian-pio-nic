@@ -13,7 +13,6 @@ object Versions {
 
 trait CommonModule extends ScalaModule {
   override def scalaVersion = Versions.scala
-  override def sources = Task.Source(BuildCtx.workspaceRoot/"hw"/"spinal")
 
   def sref = build.deps.spinalhdl.SpinalModuleRef(Versions.scala)
   def bref = build.deps.`spinal-blocks`.BlocksModuleRef(Versions.scala, sref)
@@ -41,10 +40,8 @@ trait HwProjModule extends Module {
 
   def generateVerilog = Task {
     gen.runForkedTask(
-      mainClass = Task { "lauberhorn.GenEngineVerilog" },
-      args = T.task {
-        Args("--name", variant, "--version", gitVersion())
-      }
+      mainClass = Task.Anon("lauberhorn.GenEngineVerilog"),
+      args = Task.Anon(Args("--name", variant, "--version", gitVersion)),
     )()
 
     // use .sv suffix for IPs
@@ -52,8 +49,6 @@ trait HwProjModule extends Module {
 
     Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath/fn))
   }
-
-  def extraEnvironment = T { Map.empty[String, String] }
 
   def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
     os.proc("vivado",
@@ -68,21 +63,21 @@ trait HwProjModule extends Module {
       )
   }
 
-  def vivadoRoot = millSourcePath / "vivado" / variant
-  def vivadoProjectName = s"pio-nic-$variant"
-  def projectTcl = T.source(vivadoRoot / "create_project.tcl")
-  def projectTclDeps = T.source(vivadoRoot / "bd" / "design_1.tcl")
-  def vivadoProject = T {
+  def vivadoRoot = BuildCtx.workspaceRoot / "vivado" / variant
+  def vivadoProjectName = s"lauberhorn-$variant"
+  def projectTcl = Task.Source(vivadoRoot / "create_project.tcl")
+  def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
+  def vivadoProject = Task {
     projectTclDeps()
     generateVerilog()
-    callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), T.dest)
-    PathRef(T.dest / vivadoProjectName)
+    callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), Task.dest)
+    PathRef(Task.dest / vivadoProjectName)
   }
 
-  def bitstreamTcl = T.source(vivadoRoot / "create_bitstream.tcl")
+  def bitstreamTcl = Task.Source(vivadoRoot / "create_bitstream.tcl")
 
-  def bitstreamEnv = T { Map.empty[String, String] }
-  def generateBitstream = T {
+  def bitstreamEnv = Task { Map.empty[String, String] }
+  def generateBitstream = Task {
     generateVerilog()
     callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
     Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
@@ -91,15 +86,13 @@ trait HwProjModule extends Module {
 
 object gen extends CommonModule { outer =>
   object test extends ScalaTests with TestModule.ScalaTest {
-    override def moduleDeps = super.moduleDeps ++ Agg(spinalTester, blocksTester)
-    override def millSourcePath = outer.millSourcePath
-    override def sources = T.sources(millSourcePath / "hw" / "tests")
+    override def moduleDeps = super.moduleDeps ++ Seq(sref.testerMod, bref.testerMod)
 
-    override def ivyDeps = Agg(
-      ivy"com.lihaoyi::os-lib:0.9.3",
-      ivy"commons-io:commons-io:2.15.1",
-      ivy"org.pcap4j:pcap4j-core:1.8.2",
-      ivy"org.pcap4j:pcap4j-packetfactory-static:1.8.2",
+    override def mvnDeps = Seq(
+      mvn"com.lihaoyi::os-lib:0.9.3",
+      mvn"commons-io:commons-io:2.15.1",
+      mvn"org.pcap4j:pcap4j-core:1.8.2",
+      mvn"org.pcap4j:pcap4j-packetfactory-static:1.8.2",
     )
   }
 }
