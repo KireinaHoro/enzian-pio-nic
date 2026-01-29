@@ -19,8 +19,8 @@
       name = "millw";
       nativeBuildInputs = [ pkgs.makeWrapper ];
       src = pkgs.fetchurl {
-        url = https://raw.githubusercontent.com/com-lihaoyi/mill/f5d0c9f87ac58795323904c2cce44c105e652b50/mill;
-        hash = "sha256-yXCQ5YR0dOxjvC3beZDF0O3pVUXbZIyeKiEwU1nxWEw=";
+        url = https://raw.githubusercontent.com/com-lihaoyi/mill/601c1995e2a0946724a64ff8ebc461248e6f50e0/mill;
+        hash = "sha256-yHj5g8qTR7T/QsMz65WuZwO+MtIjGRJMRISCYohoipU=";
       };
       phases = [ "installPhase" ];
       installPhase = ''
