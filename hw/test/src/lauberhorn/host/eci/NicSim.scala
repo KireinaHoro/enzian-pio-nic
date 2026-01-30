@@ -930,7 +930,8 @@ class NicSim extends DutSimFunSuite[NicEngine]
   }
 
   def loadPcapForRxTest(name: String) = {
-    val pcapPath = os.pwd / "data" / "eci" / "iladata" / name
+    val projRoot = os.call("git rev-parse --show-toplevel".split(" ")).out.text().stripLineEnd
+    val pcapPath = os.Path(projRoot) / "data" / "eci" / "iladata" / name
     val pcapHandle = Pcaps.openOffline(pcapPath.toString)
     () => {
       val packet = pcapHandle.getNextPacket
