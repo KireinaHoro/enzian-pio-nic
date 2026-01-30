@@ -159,7 +159,7 @@ class EciInterfacePlugin extends FiberPlugin {
       *
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
-    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[LclChannel], isUl: Boolean = false): Unit = {
+    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[EciChannel], isUl: Boolean = false): Unit = {
       val chanName = if (isUl) "ul" else "lci"
       val routerPort = host[EciThreadClRouter].logic.lcl
       val (toRouter, fromRouter) = if (isUl) {
@@ -181,7 +181,7 @@ class EciInterfacePlugin extends FiberPlugin {
       muxed >> toRouter
 
       // pack into ECI channel
-      val chan = Stream(LclChannel())
+      val chan = Stream(EciChannel())
       chan.translateFrom(fromRouter) { case (c, fr) =>
         c.data := fr.mapElement(addrLocator)(EciCmdDefs.aliasAddress)
         c.vc := ~addrLocator(chan.data)(7) ? B(oddVc) | B(evenVc)
@@ -200,7 +200,7 @@ class EciInterfacePlugin extends FiberPlugin {
       *
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
-    def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[LclChannel]): Unit = {
+    def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[EciChannel]): Unit = {
       val routerPort = host[EciThreadClRouter].logic.lcl
       val (toRouter, fromRouter) = (routerPort.lciaFromDcs, routerPort.lciaToProto)
 

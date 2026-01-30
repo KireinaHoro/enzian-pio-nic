@@ -130,6 +130,15 @@ object gen extends CommonModule { outer =>
 object pcie extends HwProjModule { def variant = "pcie" }
 object eci extends HwProjModule {
   def variant = "eci"
+  override def generateVerilog = T {
+    val nic = super.generateVerilog()
+
+    gen.runForkedTask(
+      mainClass = T.task { "lauberhorn.host.eci.GenEciTraceBuffer" },
+    )()
+
+    nic ++ Seq(PathRef(generatedSourcesPath / "eci_trace_buffer.v"))
+  }
   override def bitstreamEnv = T {
     println(s"Downloading static shell ${v.eciStaticShellVersion} checkpoint...")
     val staticShellCkptUrl = s"https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/${v.eciStaticShellVersion}/build_static_shell_routed.dcp"
