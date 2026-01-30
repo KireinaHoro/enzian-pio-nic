@@ -5,21 +5,39 @@
 package build
 
 import mill._, util._, scalalib._, api.BuildCtx
+import build.deps.spinalhdl.SpinalModuleInfo
+import build.deps.blocks.{Blocks, BlocksTester, BlocksModule}
 
 object Versions {
-  val scala = "2.13.12"
+  val scala = Seq("2.13.12")
   val eciStaticShell = "v0.1.5"
 }
 
+object MyStuff {
+  val mySpinal = SpinalModuleInfo(Versions.scala.head)
+  val myBlocks = (Map(
+    "blocks" -> blocks(Versions.scala.head),
+    "tester" -> tester(Versions.scala.head),
+    ), mySpinal)
+}
+
+trait My { this: BlocksModule =>
+  def name: String
+  def bi = MyStuff.myBlocks
+  override def moduleDir = BuildCtx.workspaceRoot/"deps"/"blocks"/name
+}
+trait MyBlocks extends Blocks with My { def name = "blocks" }
+trait MyTester extends BlocksTester with My { def name = "tester" }
+
+object blocks extends Cross[MyBlocks](Versions.scala)
+object tester extends Cross[MyTester](Versions.scala)
+
 trait CommonModule extends ScalaModule {
-  override def scalaVersion = Versions.scala
-
-  def sref = build.deps.spinalhdl.SpinalModuleRef(Versions.scala)
-  def bref = build.deps.`spinal-blocks`.BlocksModuleRef(Versions.scala, sref)
-
-  def scalacOptions = super.scalacOptions() ++ sref.idslpluginMod.pluginOptions()
-  override def moduleDeps = super.moduleDeps ++ Seq(bref.blocksMod, sref.coreMod, sref.libMod)
-
+  override def scalaVersion = Versions.scala.head
+  def sm = MyStuff.mySpinal._1
+  def bm = MyStuff.myBlocks._1
+  def scalacOptions = super.scalacOptions() ++ MyStuff.mySpinal._2()()
+  override def moduleDeps = super.moduleDeps ++ Seq(sm("idslplugin"), bm("blocks"), sm("core"), sm("lib"))
   override def mvnDeps = Seq(mvn"com.lihaoyi::mainargs:0.5.4")
 }
 
@@ -28,20 +46,16 @@ def gitHash(dir: os.Path) = (try {
   s"git -C ${dir.toString} rev-parse HEAD".!!
 } catch {
   case e: java.io.IOException => "???"
-}).linesIterator.next()
+}).linesIterator.next().take(16) // 8 bytes
 
 trait HwProjModule extends Module {
   def variant: String
   def generatedSourcesPath = BuildCtx.workspaceRoot/"hw"/"gen"/variant
-  override def millSourcePath = os.pwd
 
-  // 8 bytes
-  def gitVersion = gitHash(Task.dest)
-
-  def generateVerilog = Task {
+  def generateVerilog() = Task.Command {
     gen.runForkedTask(
       mainClass = Task.Anon("lauberhorn.GenEngineVerilog"),
-      args = Task.Anon(Args("--name", variant, "--version", gitVersion)),
+      args = Task.Anon(Args("--name", variant, "--version", gitHash(Task.dest))),
     )()
 
     // use .sv suffix for IPs
@@ -85,8 +99,10 @@ trait HwProjModule extends Module {
 }
 
 object gen extends CommonModule { outer =>
+  override def moduleDir = BuildCtx.workspaceRoot / "hw"
+
   object test extends ScalaTests with TestModule.ScalaTest {
-    override def moduleDeps = super.moduleDeps ++ Seq(sref.testerMod, bref.testerMod)
+    override def moduleDeps = super.moduleDeps ++ Seq(sm("tester"), bm("tester"))
 
     override def mvnDeps = Seq(
       mvn"com.lihaoyi::os-lib:0.9.3",
