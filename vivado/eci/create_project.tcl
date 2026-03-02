@@ -7,7 +7,7 @@ proc print_help {} {
     variable script_file
     puts "Create vivado project for Lauberhorn.\n"
     puts "Syntax:"
-    puts "$script_file -tclargs --origin_dir <path> --gen_srcs <path>"
+    puts "$script_file -tclargs --origin_dir <path> --gen_rtls <colon separated file list> --gen_xdcs <colon separated file list>"
     exit 0
 }
 
@@ -16,8 +16,8 @@ if { $::argc > 0 } {
         set option [string trim [lindex $::argv $i]]
         switch -regexp -- $option {
             "--origin_dir"    { incr i; set origin_dir [lindex $::argv $i] }
-            "--out_dir"       { incr i; set out_dir    [lindex $::argv $i] }
-            "--gen_srcs"      { incr i; set gen_srcs   [lindex $::argv $i] }
+            "--gen_rtls"      { incr i; set gen_rtls   [lindex $::argv $i] }
+            "--gen_xdcs"      { incr i; set gen_xdcs   [lindex $::argv $i] }
             default {
                 if { [regexp {^-} $option] } {
                     puts "ERROR: Unknown option '$option' specified, please type '$script_file -tclargs --help' for usage info.\n"
@@ -31,12 +31,12 @@ if { ! [info exists origin_dir] } {
     puts "ERROR: required option '--origin_dir' not specified.\n"
     return 1
 }
-if { ! [info exists out_dir] } {
-    puts "ERROR: required option '--out_dir' not specified.\n"
+if { ! [info exists gen_rtls] } {
+    puts "ERROR: required option '--gen_rtls' not specified.\n"
     return 1
 }
-if { ! [info exists gen_srcs] } {
-    puts "ERROR: required option '--gen_srcs' not specified.\n"
+if { ! [info exists gen_xdcs] } {
+    puts "ERROR: required option '--gen_xdcs' not specified.\n"
     return 1
 }
 
@@ -45,16 +45,16 @@ set part "xcvu9p-flgb2104-3-e"
 set top_module "lauberhorn_eci"
 
 set src_dir "$origin_dir"
-set hw_deps_dir "$src_dir/../../deps/spinal-blocks/deps"
+set hw_deps_dir "$src_dir/../../deps/blocks/deps"
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
-create_project $project $out_dir/$project -part $part
+create_project $project ./$project -part $part
 set proj [current_project]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
 set_property "ip_cache_permissions" "read write"            $proj
-set_property "ip_output_repo" "${out_dir}/${project}/${project}.cache/ip"  $proj
+set_property "ip_output_repo" "./${project}/${project}.cache/ip"  $proj
 set_property "sim.ip.auto_export_scripts" "1"               $proj
 set_property "simulator_language" "Mixed"                   $proj
 set_property "target_language" "VHDL"                       $proj
@@ -135,7 +135,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 
 # Add generated source
 add_files -fileset [get_filesets sources_1] -norecurse \
-    [split $gen_srcs :]
+    [split $gen_rtls :]
 
 set_property include_dirs "$hw_deps_dir/pulp/axi/include $hw_deps_dir/pulp/common_cells/include" [get_filesets sources_1]
 
@@ -151,7 +151,9 @@ set_property used_in_implementation false [get_files -of_objects [get_filesets c
 # implementation-only constraints: copied to out dir
 set impl_constrs_dir "$project/xdc/impl"
 file mkdir $impl_constrs_dir
-file copy -force "$spinal_gen_dir/NicEngine.xdc" "$impl_constrs_dir"
+foreach gen_xdc [split $gen_xdcs :] {
+    file copy -force $gen_xdc "$impl_constrs_dir"
+}
 file copy -force "$src_dir/xdc/floorplan.xdc" "$impl_constrs_dir"
 foreach tclf $synth_constrs {
     set xdcf "[file tail [file rootname $tclf]].xdc"
@@ -257,7 +259,7 @@ create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila
 set my_ip [get_ips ila_dcs_eci]
 set_property -dict [list \
     CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
-    CONFIG.C_DATA_DEPTH {512} \
+    CONFIG.C_DATA_DEPTH {1024} \
     CONFIG.C_NUM_OF_PROBES {7} \
     CONFIG.C_PROBE0_WIDTH {64} \
     CONFIG.C_PROBE1_WIDTH {5} \

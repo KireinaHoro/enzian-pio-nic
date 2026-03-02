@@ -89,7 +89,7 @@ trait HwProjModule extends Module {
   def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
   def vivadoProject = Task {
     projectTclDeps()
-    val generated = generateVerilog()
+    val generated = generateVerilog().map(_.path)
 
     callVivado(projectTcl().path, Seq(
       "--origin_dir", vivadoRoot.toString,
