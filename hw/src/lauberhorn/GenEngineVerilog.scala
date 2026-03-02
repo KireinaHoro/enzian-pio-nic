@@ -120,7 +120,8 @@ object GenEngineVerilog {
 
     // write trace buffer module
     if (name == "eci") {
-      elabConfig.generateVerilog {
+      // DCS trace buffer
+      Config.spinal(outDir, prefix = "dtb_").generateVerilog {
         // 6 channels:
         // req_wod_slave, rsp_wod_slave, rsp_wd_slave
         // rsp_wod_master, rsp_wd_master, fwd_wod_master

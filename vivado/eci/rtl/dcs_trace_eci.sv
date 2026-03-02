@@ -54,7 +54,7 @@ logic [63:0] traceOut_ts;
 
 vio_dcs_eci i_vio (
     .clk,
-    .probe0_out(dump)
+    .probe_out0(dump)
 );
 
 ila_dcs_eci i_ila (
