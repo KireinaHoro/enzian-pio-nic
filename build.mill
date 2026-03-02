@@ -84,7 +84,7 @@ trait HwProjModule extends Module {
   def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
   def vivadoProject = Task {
     projectTclDeps()
-    generateVerilog()
+    generateVerilog()()
     callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), Task.dest)
     PathRef(Task.dest / vivadoProjectName)
   }
@@ -93,7 +93,7 @@ trait HwProjModule extends Module {
 
   def bitstreamEnv = Task { Map.empty[String, String] }
   def generateBitstream = Task {
-    generateVerilog()
+    generateVerilog()()
     callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
     Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
   }
