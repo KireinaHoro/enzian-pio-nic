@@ -5,19 +5,19 @@ set script_file "create_project.tcl"
 
 proc print_help {} {
     variable script_file
-    puts "Create vivado project for the ECI PIO NIC, as an ECI application.\n"
+    puts "Create vivado project for Lauberhorn.\n"
     puts "Syntax:"
-    puts "$script_file -tclargs --origin_dir <path>"
+    puts "$script_file -tclargs --origin_dir <path> --gen_srcs <path>"
     exit 0
 }
-
-set origin_dir [file normalize "[file dirname [info script]]"]
 
 if { $::argc > 0 } {
     for {set i 0} {$i < $::argc} {incr i} {
         set option [string trim [lindex $::argv $i]]
         switch -regexp -- $option {
             "--origin_dir"    { incr i; set origin_dir [lindex $::argv $i] }
+            "--out_dir"       { incr i; set out_dir    [lindex $::argv $i] }
+            "--gen_srcs"      { incr i; set gen_srcs   [lindex $::argv $i] }
             default {
                 if { [regexp {^-} $option] } {
                     puts "ERROR: Unknown option '$option' specified, please type '$script_file -tclargs --help' for usage info.\n"
@@ -27,36 +27,39 @@ if { $::argc > 0 } {
         }
     }
 }
+if { ! [info exists origin_dir] } {
+    puts "ERROR: required option '--origin_dir' not specified.\n"
+    return 1
+}
+if { ! [info exists out_dir] } {
+    puts "ERROR: required option '--out_dir' not specified.\n"
+    return 1
+}
+if { ! [info exists gen_srcs] } {
+    puts "ERROR: required option '--gen_srcs' not specified.\n"
+    return 1
+}
 
 set project "lauberhorn-eci"
 set part "xcvu9p-flgb2104-3-e"
 set top_module "lauberhorn_eci"
 
-# repo for custom IPs, if any
-# set ip_dir {...}
-
 set src_dir "$origin_dir"
-set spinal_gen_dir "$src_dir/../../hw/gen/eci/"
 set hw_deps_dir "$src_dir/../../deps/spinal-blocks/deps"
-set build_dir [file normalize "."]
 
 set dcs_src_dir "${src_dir}/directory-controller-slice"
 
-create_project $project ./$project -part $part
+create_project $project $out_dir/$project -part $part
 set proj [current_project]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
 set_property "ip_cache_permissions" "read write"            $proj
-set_property "ip_output_repo" "${build_dir}/${project}/${project}.cache/ip"  $proj
+set_property "ip_output_repo" "${out_dir}/${project}/${project}.cache/ip"  $proj
 set_property "sim.ip.auto_export_scripts" "1"               $proj
 set_property "simulator_language" "Mixed"                   $proj
 set_property "target_language" "VHDL"                       $proj
 set_property "xpm_libraries" "XPM_CDC XPM_MEMORY"           $proj
-# set_property "ip_repo_paths" "${ip_dir}"                      $proj
 set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_context} -objects [get_runs synth_1]
-
-# Make sure any repository IP is visible.
-# update_ip_catalog
 
 # Add ECI toolkit sources and synth constraints
 add_files -fileset [get_filesets sources_1] "${src_dir}/eci-toolkit/hdl"
@@ -116,9 +119,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/axil_regs_interconnect.v" \
     "$src_dir/rtl/gt_loopback_gen.v" \
-    "$spinal_gen_dir/NicEngine_ips.sv" \
-    "$spinal_gen_dir/NicEngine.v" \
-    "$spinal_gen_dir/dcs_eci_buf.v" \
     "$hw_deps_dir/verilog-axis/rtl/axis_pipeline_register.v" \
     "$hw_deps_dir/verilog-axis/rtl/axis_register.v" \
     "$hw_deps_dir/verilog-axi/rtl/axil_interconnect.v" \
@@ -132,6 +132,10 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_rd.v" \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_wr.v" \
     "$hw_deps_dir/verilog-axi/rtl/axi_crossbar_addr.v"
+
+# Add generated source
+add_files -fileset [get_filesets sources_1] -norecurse \
+    [split $gen_srcs :]
 
 set_property include_dirs "$hw_deps_dir/pulp/axi/include $hw_deps_dir/pulp/common_cells/include" [get_filesets sources_1]
 

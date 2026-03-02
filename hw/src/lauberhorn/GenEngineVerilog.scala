@@ -15,6 +15,9 @@ import spinal.lib.BinaryBuilder2
 import spinal.lib.eda._
 import spinal.lib.eda.xilinx.TimingExtractorXdc
 
+import jsteward.blocks.eci.EciChannel
+import jsteward.blocks.misc.TraceBuffer
+
 import scala.language.postfixOps
 
 object GenEngineVerilog {
@@ -74,6 +77,8 @@ object GenEngineVerilog {
   def run(
            @arg(doc = "name of engine to generate")
            name: String,
+           @arg(doc = "output directory")
+           outDir: String,
            @arg(doc = "generate driver headers")
            genHeaders: Boolean = true,
            @arg(doc = "print register map")
@@ -82,15 +87,14 @@ object GenEngineVerilog {
            version: Option[String],
          ): Unit = {
     val gitVersion = version.map(_.asHex).getOrElse((BigInt(1) << 64) - 1)
-    val genDir = os.pwd / os.RelPath(Config.outputDirectory) / name
-    os.makeDir.all(genDir)
-
-    val elabConfig = Config.spinal(genDir.toString)
+    val elabConfig = Config.spinal(outDir)
     val report = elabConfig.generateVerilog {
       val e = engine(4, name)
       e.database on { Global.GIT_VERSION.set(gitVersion) }
       e
     }
+
+    val out = os.Path(outDir)
 
     report.toplevel.database on {
       ALLOC.dumpAll()
@@ -99,17 +103,31 @@ object GenEngineVerilog {
         ALLOC.writeMackerel(os.pwd / "sw" / "devices", s"lauberhorn_$name")
 
         println("Writing register address map")
-        ALLOC.writeHeader(s"lauberhorn_$name", genDir / "regblock_bases.h")
+        ALLOC.writeHeader(s"lauberhorn_$name", out / "regblock_bases.h")
 
         println("Writing configs in database")
-        writeConfigs(genDir / "config.h", elabConfig)
+        writeConfigs(out / "config.h", elabConfig)
       }
     }
     println("Writing merged RTL sources for all IPs")
     report.mergeRTLSource("NicEngine_ips")
 
+    // use .sv suffix for IPs
+    os.move.over(out / "NicEngine_ips.v", out / "NicEngine_ips.sv")
+
     println("Writing timing constraints for Vivado")
     TimingExtractor(report, new TimingExtractorXdc)
+
+    // write trace buffer module
+    if (name == "eci") {
+      elabConfig.generateVerilog {
+        // 6 channels:
+        // req_wod_slave, rsp_wod_slave, rsp_wd_slave
+        // rsp_wod_master, rsp_wd_master, fwd_wod_master
+        // we only log the header (no CL contents)
+        TraceBuffer(EciChannel(), 6, 512).setDefinitionName("dcs_eci_buf")
+      }
+    }
   }
 
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
