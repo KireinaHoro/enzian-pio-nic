@@ -210,7 +210,7 @@
       ];
       env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
       shellHook = ''
-        export COURSIER_CACHE=$PWD/out/coursier-cache/
+        export XDG_CACHE_HOME=$PWD/out/xdg-cache-home/
       '';
     };
   });
