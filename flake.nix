@@ -15,23 +15,6 @@
   with nixpkgs.lib;
   flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
     pkgs = import nixpkgs { inherit system; };
-    millw = pkgs.stdenvNoCC.mkDerivation {
-      name = "millw";
-      nativeBuildInputs = [ pkgs.makeWrapper ];
-      src = pkgs.fetchurl {
-        url = https://raw.githubusercontent.com/com-lihaoyi/mill/f5d0c9f87ac58795323904c2cce44c105e652b50/mill;
-        hash = "sha256-yXCQ5YR0dOxjvC3beZDF0O3pVUXbZIyeKiEwU1nxWEw=";
-      };
-      phases = [ "installPhase" ];
-      installPhase = ''
-        mkdir -p $out/bin
-        cp $src $out/bin/mill
-        chmod +x $out/bin/mill
-        wrapProgram $out/bin/mill \
-          --add-flags "--no-server"
-      '';
-    };
-
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
 
     # aarch64 cross compiler
@@ -198,13 +181,12 @@
     };
 
     # for interactive development (mill needs to download Ivy deps for now)
-    # TODO: upgrade SpinalHDL to newer mill version and use mill-ivy-fetch
-    #       to allow running the generator inside the stdenv sandbox
+    # TODO: use mill-ivy-fetch to allow running the generator inside the stdenv sandbox
     devShells.default = with pkgs; let
       # hammer a test that failed on CI but can't be easily reproduced locally
       repeatTest = writeShellApplication {
         name = "repeat-test";
-        runtimeInputs = [ millw ];
+        runtimeInputs = [ mill ];
         text = ''
           test_name="$1"
           if [[ $# == 2 ]]; then
@@ -221,12 +203,15 @@
       buildInputs = [
         zlib.dev verilator clang
         gtkwave sby yices
-        jdk millw cmake
+        jdk mill cmake
         crossGcc mackerel
         # quick script to repeat known failing test to find a good reproducer
         repeatTest
       ];
       env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
+      shellHook = ''
+        export COURSIER_CACHE=$PWD/out/coursier-cache/
+      '';
     };
   });
 }

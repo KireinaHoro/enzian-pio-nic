@@ -1,0 +1,130 @@
+//| mill-jvm-version: system
+//| mill-allow-nested-build-mill: true
+//| mvnDeps:
+//| - com.typesafe:config:1.4.2
+//| - com.lihaoyi::requests:0.8.2
+package build
+
+import mill._, util._, scalalib._, api.BuildCtx
+import build.deps.spinalhdl.SpinalModuleInfo
+import build.deps.blocks.{Blocks, BlocksTester, BlocksModule}
+
+object Versions {
+  val scala = Seq("2.13.12")
+  val eciStaticShell = "v0.1.5"
+}
+
+object MyStuff {
+  val mySpinal = SpinalModuleInfo(Versions.scala.head)
+  val myBlocks = (Map(
+    "blocks" -> blocks(Versions.scala.head),
+    "tester" -> tester(Versions.scala.head),
+    ), mySpinal)
+}
+
+trait My { this: BlocksModule =>
+  def name: String
+  def bi = MyStuff.myBlocks
+  override def moduleDir = BuildCtx.workspaceRoot/"deps"/"blocks"/name
+}
+trait MyBlocks extends Blocks with My { def name = "blocks" }
+trait MyTester extends BlocksTester with My { def name = "tester" }
+
+object blocks extends Cross[MyBlocks](Versions.scala)
+object tester extends Cross[MyTester](Versions.scala)
+
+trait CommonModule extends ScalaModule {
+  override def scalaVersion = Versions.scala.head
+  def sm = MyStuff.mySpinal._1
+  def bm = MyStuff.myBlocks._1
+  def scalacOptions = super.scalacOptions() ++ MyStuff.mySpinal._2()()
+  override def moduleDeps = super.moduleDeps ++ Seq(sm("idslplugin"), bm("blocks"), sm("core"), sm("lib"))
+  override def mvnDeps = Seq(mvn"com.lihaoyi::mainargs:0.5.4")
+}
+
+import sys.process._
+def gitHash(dir: os.Path) = (try {
+  s"git -C ${dir.toString} rev-parse HEAD".!!
+} catch {
+  case e: java.io.IOException => "???"
+}).linesIterator.next().take(16) // 8 bytes
+
+trait HwProjModule extends Module {
+  def variant: String
+  def generatedSourcesPath = BuildCtx.workspaceRoot/"hw"/"gen"/variant
+
+  def generateVerilog() = Task.Command {
+    gen.runForkedTask(
+      mainClass = Task.Anon("lauberhorn.GenEngineVerilog"),
+      args = Task.Anon(Args("--name", variant, "--version", gitHash(Task.dest))),
+    )()
+
+    // use .sv suffix for IPs
+    os.move.over(generatedSourcesPath/"NicEngine_ips.v", generatedSourcesPath/"NicEngine_ips.sv")
+
+    Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath/fn))
+  }
+
+  def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
+    os.proc("vivado",
+      "-mode", "batch",
+      "-source", tcl,
+      "-tclargs",
+      args).call(
+        stdout = os.Inherit,
+        stderr = os.Inherit,
+        cwd = cwd,
+        env = env,
+      )
+  }
+
+  def vivadoRoot = BuildCtx.workspaceRoot / "vivado" / variant
+  def vivadoProjectName = s"lauberhorn-$variant"
+  def projectTcl = Task.Source(vivadoRoot / "create_project.tcl")
+  def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
+  def vivadoProject = Task {
+    projectTclDeps()
+    generateVerilog()
+    callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), Task.dest)
+    PathRef(Task.dest / vivadoProjectName)
+  }
+
+  def bitstreamTcl = Task.Source(vivadoRoot / "create_bitstream.tcl")
+
+  def bitstreamEnv = Task { Map.empty[String, String] }
+  def generateBitstream = Task {
+    generateVerilog()
+    callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
+    Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
+  }
+}
+
+object gen extends CommonModule { outer =>
+  override def moduleDir = BuildCtx.workspaceRoot / "hw"
+
+  object test extends ScalaTests with TestModule.ScalaTest {
+    override def moduleDeps = super.moduleDeps ++ Seq(sm("tester"), bm("tester"))
+
+    override def mvnDeps = Seq(
+      mvn"com.lihaoyi::os-lib:0.11.7",
+      mvn"commons-io:commons-io:2.15.1",
+      mvn"org.pcap4j:pcap4j-core:1.8.2",
+      mvn"org.pcap4j:pcap4j-packetfactory-static:1.8.2",
+    )
+  }
+}
+
+object pcie extends HwProjModule { def variant = "pcie" }
+object eci extends HwProjModule {
+  def variant = "eci"
+  override def bitstreamEnv = Task {
+    val sv = Versions.eciStaticShell
+
+    println(s"Downloading static shell $sv checkpoint...")
+    val staticShellCkptUrl = s"https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/$sv/build_static_shell_routed.dcp"
+    os.write(Task.dest / "static_shell_routed.dcp", requests.get.stream(staticShellCkptUrl))
+    Map("ENZIAN_SHELL_DIR" -> Task.dest.toString)
+  }
+}
+
+// vi: ft=scala
