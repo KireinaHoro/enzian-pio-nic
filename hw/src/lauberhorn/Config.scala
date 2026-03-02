@@ -10,9 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.language.postfixOps
 
 object Config {
-  val outputDirectory = "hw/gen"
-
-  def spinal(outDir: String = outputDirectory, blackboxPolicy: MemBlackboxingPolicy = blackboxAll) = SpinalConfig(
+  def spinal(outDir: String, blackboxPolicy: MemBlackboxingPolicy = blackboxAll) = SpinalConfig(
     targetDirectory = outDir,
     memBlackBoxers = ArrayBuffer[Phase](new PhaseMemBlackBoxingXpm(blackboxPolicy)),
     defaultConfigForClockDomains = ClockDomainConfig(
@@ -25,7 +23,10 @@ object Config {
     defaultClockDomainFrequency = FixedFrequency(200 MHz),
   )
 
-  def sim = SimConfig.withConfig(spinal(blackboxPolicy = blackboxOnlyIfRequested).includeSimulation)
+  def sim = SimConfig.withConfig(spinal(
+    outDir = ".",  // relative to sim target in out/
+    blackboxPolicy = blackboxOnlyIfRequested
+  ).includeSimulation)
     .withFstWave
     .withVerilator
     .allOptimisation

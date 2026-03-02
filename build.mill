@@ -51,18 +51,23 @@ def gitHash(dir: os.Path) = (try {
 
 trait HwProjModule extends Module {
   def variant: String
-  def generatedSourcesPath = BuildCtx.workspaceRoot/"hw"/"gen"/variant
+  def generatedFiles: Seq[String] = Seq(
+    "NicEngine.xdc",
+    "NicEngine_ips.sv",
+    "NicEngine.v",
+  )
 
-  def generateVerilog() = Task.Command {
+  def generateVerilog = Task {
     gen.runForkedTask(
       mainClass = Task.Anon("lauberhorn.GenEngineVerilog"),
-      args = Task.Anon(Args("--name", variant, "--version", gitHash(Task.dest))),
+      args = Task.Anon(Args(
+        "--name", variant,
+        "--version", gitHash(Task.dest),
+        "--outDir", Task.dest,
+      )),
     )()
 
-    // use .sv suffix for IPs
-    os.move.over(generatedSourcesPath/"NicEngine_ips.v", generatedSourcesPath/"NicEngine_ips.sv")
-
-    Seq("NicEngine_ips.sv", "NicEngine.v", "NicEngine.xdc").map(fn => PathRef(generatedSourcesPath/fn))
+    generatedFiles.map(fn => PathRef(Task.dest/fn))
   }
 
   def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
@@ -84,8 +89,13 @@ trait HwProjModule extends Module {
   def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
   def vivadoProject = Task {
     projectTclDeps()
-    generateVerilog()()
-    callVivado(projectTcl().path, Seq("--origin_dir", vivadoRoot.toString), Task.dest)
+    val generated = generateVerilog()
+
+    callVivado(projectTcl().path, Seq(
+      "--origin_dir", vivadoRoot.toString,
+      "--gen_rtls", generated.tail.mkString(":"),
+      "--gen_xdcs", generated.head.toString,
+    ), Task.dest)
     PathRef(Task.dest / vivadoProjectName)
   }
 
@@ -93,9 +103,10 @@ trait HwProjModule extends Module {
 
   def bitstreamEnv = Task { Map.empty[String, String] }
   def generateBitstream = Task {
-    generateVerilog()()
-    callVivado(bitstreamTcl().path, Seq(), vivadoProject().path / os.up, env = bitstreamEnv())
-    Seq("bit", "ltx").map(ext => PathRef(vivadoProject().path / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
+    val proj = vivadoProject().path
+    generateVerilog()
+    callVivado(bitstreamTcl().path, Seq(), proj / os.up, env = bitstreamEnv())
+    Seq("bit", "ltx").map(ext => PathRef(proj / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
   }
 }
 
@@ -117,6 +128,9 @@ object gen extends CommonModule { outer =>
 object pcie extends HwProjModule { def variant = "pcie" }
 object eci extends HwProjModule {
   def variant = "eci"
+  override def generatedFiles: Seq[String] =
+    super.generatedFiles ++ Seq("dcs_eci_buf.v")
+
   override def bitstreamEnv = Task {
     val sv = Versions.eciStaticShell
 
