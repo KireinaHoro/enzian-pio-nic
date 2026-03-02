@@ -2,7 +2,7 @@
 	path = deps/spinalhdl
 	url = https://github.com/KireinaHoro/SpinalHDL
 [submodule "deps/spinal-blocks"]
-	path = deps/spinal-blocks
+	path = deps/blocks
 	url = https://github.com/KireinaHoro/spinal-blocks
 [submodule "vivado/eci/static-shell"]
 	path = vivado/eci/static-shell
