@@ -752,6 +752,77 @@ dcs_2_axi #(
   .tracing_request
 );
 
+// also trace ECI messages into the DC (before and after cross)
+dcs_trace_eci i_trace_app (
+    .reset(app_reset),
+    .clk(app_clk),
+
+    .req_wod_hdr_i(xslr_req_wod_hdr_i),
+    .req_wod_pkt_size_i(xslr_req_wod_pkt_size_i),
+    .req_wod_pkt_vc_i(xslr_req_wod_pkt_vc_i),
+    .req_wod_pkt_valid_i(xslr_req_wod_pkt_valid_i),
+    .req_wod_pkt_ready_o(xslr_req_wod_pkt_ready_o),
+
+    .rsp_wod_hdr_i(xslr_rsp_wod_hdr_i),
+    .rsp_wod_pkt_size_i(xslr_rsp_wod_pkt_size_i),
+    .rsp_wod_pkt_vc_i(xslr_rsp_wod_pkt_vc_i),
+    .rsp_wod_pkt_valid_i(xslr_rsp_wod_pkt_valid_i),
+    .rsp_wod_pkt_ready_o(xslr_rsp_wod_pkt_ready_o),
+
+    .rsp_wd_pkt_i(xslr_rsp_wd_pkt_i),
+    .rsp_wd_pkt_size_i(xslr_rsp_wd_pkt_size_i),
+    .rsp_wd_pkt_vc_i(xslr_rsp_wd_pkt_vc_i),
+    .rsp_wd_pkt_valid_i(xslr_rsp_wd_pkt_valid_i),
+    .rsp_wd_pkt_ready_o(xslr_rsp_wd_pkt_ready_o),
+
+    .rsp_wod_hdr_o(xslr_rsp_wod_hdr_o),
+    .rsp_wod_pkt_size_o(xslr_rsp_wod_pkt_size_o),
+    .rsp_wod_pkt_vc_o(xslr_rsp_wod_pkt_vc_o),
+    .rsp_wod_pkt_valid_o(xslr_rsp_wod_pkt_valid_o),
+    .rsp_wod_pkt_ready_i(xslr_rsp_wod_pkt_ready_i),
+
+    .rsp_wd_pkt_o(xslr_rsp_wd_pkt_o),
+    .rsp_wd_pkt_size_o(xslr_rsp_wd_pkt_size_o),
+    .rsp_wd_pkt_vc_o(xslr_rsp_wd_pkt_vc_o),
+    .rsp_wd_pkt_valid_o(xslr_rsp_wd_pkt_valid_o),
+    .rsp_wd_pkt_ready_i(xslr_rsp_wd_pkt_ready_i)
+);
+
+dcs_trace_eci i_trace_sys (
+    .reset(eci_reset),
+    .clk(eci_clk),
+
+    .req_wod_hdr_i(req_wod_hdr_i),
+    .req_wod_pkt_size_i(req_wod_pkt_size_i),
+    .req_wod_pkt_vc_i(req_wod_pkt_vc_i),
+    .req_wod_pkt_valid_i(req_wod_pkt_valid_i),
+    .req_wod_pkt_ready_o(req_wod_pkt_ready_o),
+
+    .rsp_wod_hdr_i(rsp_wod_hdr_i),
+    .rsp_wod_pkt_size_i(rsp_wod_pkt_size_i),
+    .rsp_wod_pkt_vc_i(rsp_wod_pkt_vc_i),
+    .rsp_wod_pkt_valid_i(rsp_wod_pkt_valid_i),
+    .rsp_wod_pkt_ready_o(rsp_wod_pkt_ready_o),
+
+    .rsp_wd_pkt_i(rsp_wd_pkt_i),
+    .rsp_wd_pkt_size_i(rsp_wd_pkt_size_i),
+    .rsp_wd_pkt_vc_i(rsp_wd_pkt_vc_i),
+    .rsp_wd_pkt_valid_i(rsp_wd_pkt_valid_i),
+    .rsp_wd_pkt_ready_o(rsp_wd_pkt_ready_o),
+
+    .rsp_wod_hdr_o(rsp_wod_hdr_o),
+    .rsp_wod_pkt_size_o(rsp_wod_pkt_size_o),
+    .rsp_wod_pkt_vc_o(rsp_wod_pkt_vc_o),
+    .rsp_wod_pkt_valid_o(rsp_wod_pkt_valid_o),
+    .rsp_wod_pkt_ready_i(rsp_wod_pkt_ready_i),
+
+    .rsp_wd_pkt_o(rsp_wd_pkt_o),
+    .rsp_wd_pkt_size_o(rsp_wd_pkt_size_o),
+    .rsp_wd_pkt_vc_o(rsp_wd_pkt_vc_o),
+    .rsp_wd_pkt_valid_o(rsp_wd_pkt_valid_o),
+    .rsp_wd_pkt_ready_i(rsp_wd_pkt_ready_i)
+);
+
 endmodule
 
 `endif
