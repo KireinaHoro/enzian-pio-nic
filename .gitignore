@@ -35,6 +35,3 @@ dev-hdrs
 
 # packet dumps copied from enzian
 *.pcap
-
-# FIXME: remove this when mill from nixpkgs fixes https://github.com/NixOS/nixpkgs/issues/495796
-\?/
