@@ -96,10 +96,11 @@
     ];
     allSpinalIn = allSourcesIn isSpinal;
 
+    gitRev = if self ? rev then self.rev else "dirty";
+
     # generate RTL, mackerel devices, and C headers
     genVerilog = with pkgs; let
       ivyCache = ivy-gather ./project-lock.nix;
-      gitRev = if self ? rev then self.rev else "ffffffffffffffff";
     in stdenvNoCC.mkDerivation {
       name = "lauberhorn-hw-rtl-config";
       src = allSpinalIn [ ./build.mill ./hw ./deps ];
@@ -144,7 +145,9 @@
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
         cd sw/kmod
-        make V=1 MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers}
+        make V=1 \
+          MACKEREL_DEV_HDRS=${devHdrs} \
+          HW_CFG_HDRS=${genVerilog.headers}
       '';
       installPhase = ''
         mkdir -p $out
@@ -204,10 +207,12 @@
       '';
     };
 
+    commitMarker = pkgs.writeText "git-hash" gitRev;
+
     deployFs = let
       allApps = [ "adder-demo" ];
     in pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
-      storeContents = map buildLauberhornApp allApps ++ [ kmod ];
+      storeContents = map buildLauberhornApp allApps ++ [ kmod commitMarker ];
     };
   in {
     packages = {
