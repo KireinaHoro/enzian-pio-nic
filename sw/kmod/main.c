@@ -8,8 +8,7 @@ static int __init mod_init(void)
 {
 	int err;
 
-	pr_info("Lauberhorn kernel module init (compiled for %s)\n",
-		LAUBERHORN_SW_GIT_HASH);
+	pr_info("Lauberhorn kernel module init\n");
 
 	err = map_node1();
 	if (err != 0) {
