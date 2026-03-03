@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-#include "eci/regblock_bases.h"
+#include "regblock_bases.h"
 
 #include "lauberhorn_eci_preempt_dev.h"
 #include "lauberhorn_eci_threadRouter_dev.h"

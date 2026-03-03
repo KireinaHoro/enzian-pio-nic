@@ -4,8 +4,8 @@
 #include "common.h"
 
 #include "lauberhorn_eci_profiler_dev.h"
-#include "eci/config.h"
-#include "eci/regblock_bases.h"
+#include "config.h"
+#include "regblock_bases.h"
 
 #define SHELL_REGS_BASE (0x97EFFFFFF000UL)
 #define SHELL_REGS_VERSION_ADDR (0x3fe)
