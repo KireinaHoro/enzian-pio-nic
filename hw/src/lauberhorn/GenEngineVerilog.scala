@@ -100,7 +100,7 @@ object GenEngineVerilog {
       ALLOC.dumpAll()
       if (genHeaders) {
         println("Writing mackerel device files")
-        ALLOC.writeMackerel(os.pwd / "sw" / "devices", s"lauberhorn_$name")
+        ALLOC.writeMackerel(out, s"lauberhorn_$name")
 
         println("Writing register address map")
         ALLOC.writeHeader(s"lauberhorn_$name", out / "regblock_bases.h")

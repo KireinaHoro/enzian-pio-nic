@@ -1,8 +1,14 @@
 {
   description = "devShell for Lauberhorn";
   inputs = {
+    self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    mill-ivy-fetcher = {
+      # url = "github:Avimitin/mill-ivy-fetcher";
+      url = "path:/local/home/pengxu/work-local/mill-ivy-fetcher";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     mackerel = {
       url = "git+https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -10,11 +16,17 @@
     };
   };
 
-  outputs = inputs@{ nixpkgs, flake-utils, ... }:
+  outputs = inputs@{ self, nixpkgs, flake-utils, ... }:
   with builtins;
   with nixpkgs.lib;
   flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
-    pkgs = import nixpkgs { inherit system; };
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [
+        inputs.mill-ivy-fetcher.overlays.default
+        inputs.mill-ivy-fetcher.overlays.mill-overlay
+      ];
+    };
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
 
     # aarch64 cross compiler
@@ -70,11 +82,48 @@
       dontFixup = true;
     };
 
+    allSourcesIn = ty: paths: with fileset; toSource {
+      root = ./.;
+      fileset = unions (map (p: fileFilter ty p) paths);
+    };
+
+    isC = f: f.name == "Makefile" || lists.any f.hasExt [ "mk" "c" "h" "x" ];
+    allCIn = allSourcesIn isC;
+
+    isSpinal = f: lists.any f.hasExt [
+      "scala" "java" "xml" "conf" # spinalhdl
+      "mill"                      # mill build files
+      "v" "sv"                    # RTL dependencies
+    ];
+    allSpinalIn = allSourcesIn isSpinal;
+
+    # generate RTL, mackerel devices, and C headers
+    genVerilog = with pkgs; let
+      ivyCache = ivy-gather ./project-lock.nix;
+      gitRev = if self ? rev then self.rev else "ffffffffffffffff";
+    in stdenvNoCC.mkDerivation {
+      name = "lauberhorn-hw-rtl-config";
+      src = allSpinalIn [ ./build.mill ./hw ./deps ];
+      outputs = [ "out" "devices" "headers" ];
+      buildInputs = [ ivyCache ];
+      nativeBuildInputs = [ mill configure-mill-env-hook ];
+      buildPhase = ''
+        mill --no-daemon --offline \
+          -Dnix-git-hash=${gitRev} eci.generateVerilog
+      '';
+      installPhase = ''
+        mkdir -p $out $devices $headers
+        mv out/eci/generateVerilog.dest/*.{v,sv,xdc} $out/
+        mv out/eci/generateVerilog.dest/*.h          $headers/
+        mv out/eci/generateVerilog.dest/*.dev        $devices/
+      '';
+    };
+
     # FIXME: we can't run the SpinalHDL generator inside stdenv, since mill
     #        wants to fetch all dependencies from the Internet.  Hence we check
     #        in all generated device files for now
 
-    # generate C headers
+    # generate mackerel device headers
     devHdrs = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-dev-hdrs";
       src = cleanSource ./sw/devices;
@@ -90,30 +139,23 @@
 
     hwGenHdrs = cleanSource ./hw/gen;
 
-    isCSource = f: f.name == "Makefile" || lists.any f.hasExt [ "mk" "c" "h" "x" ];
-    allSourcesIn = paths: with fileset; toSource {
-      root = ./sw;
-      fileset = unions (map (p: fileFilter isCSource p) paths);
-    };
-
     # cross-compile lauberhorn kernel module
     kmod = pkgs.stdenv.mkDerivation {
       name = "lauberhorn-kmod";
       version = "0.0.1";
-      src = allSourcesIn [ ./sw/kmod ./sw/core ];
+      src = allCIn [ ./sw/kmod ./sw/core ];
       nativeBuildInputs = linuxTools ++ [ pkgs.nukeReferences ];
       buildPhase = ''
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
-        pushd kmod
+        cd sw/kmod
         make V=1 MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
-        popd
       '';
       installPhase = ''
         mkdir -p $out
-        nuke-refs kmod/lauberhorn.ko
-        cp kmod/lauberhorn.ko $out/
+        nuke-refs lauberhorn.ko
+        mv lauberhorn.ko $out/
       '';
       dontFixup = true;
     };
@@ -121,21 +163,20 @@
     runtime = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-rt";
       version = "0.0.1";
-      src = allSourcesIn [
+      src = allCIn [
         ./sw/rt ./sw/include ./sw/core
         ./sw/usr-common.mk ./sw/kmod/ioctl.h
       ];
       buildInputs = [ aarch64Pkgs.libtirpc ];
       nativeBuildInputs = linuxTools;
       buildPhase = ''
-        pushd rt
+        cd sw/rt
         make MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
-        popd
       '';
       dontStrip = true;
       installPhase = ''
         mkdir -p $out
-        cp rt/liblauberhorn.so $out/
+        mv liblauberhorn.so $out/
       '';
     };
 
@@ -155,18 +196,17 @@
     buildLauberhornApp = name: with pkgs; stdenv.mkDerivation {
       name = "lauberhorn-app-${name}";
       version = "0.0.1";
-      src = allSourcesIn [ ./sw/apps/${name} ./sw/include ./sw/usr-common.mk ];
+      src = allCIn [ ./sw/apps/${name} ./sw/include ./sw/usr-common.mk ];
       buildInputs = [ aarch64Pkgs.libtirpc ];
       nativeBuildInputs = linuxTools;
       buildPhase = ''
-        pushd apps/${name}
+        cd sw/apps/${name}
         make LAUBERHORN_RT=${runtime}/
-        popd
       '';
       dontStrip = true;
       installPhase = ''
         mkdir -p $out
-        cp apps/${name}/${name} $out/
+        mv ${name} $out/
       '';
     };
 
@@ -177,11 +217,10 @@
     };
   in {
     packages = {
-      inherit devHdrs kmod runtime deployFs;
+      inherit devHdrs kmod runtime deployFs genVerilog;
     };
 
-    # for interactive development (mill needs to download Ivy deps for now)
-    # TODO: use mill-ivy-fetch to allow running the generator inside the stdenv sandbox
+    # for interactive development
     devShells.default = with pkgs; let
       # hammer a test that failed on CI but can't be easily reproduced locally
       repeatTest = writeShellApplication {
@@ -201,9 +240,9 @@
       };
     in mkShell {
       buildInputs = [
-        zlib.dev verilator clang
+        zlib.dev verilator clang cmake
         gtkwave sby yices
-        jdk mill cmake
+        jdk mill mill-ivy-fetcher nixfmt
         crossGcc mackerel
         # quick script to repeat known failing test to find a good reproducer
         repeatTest
