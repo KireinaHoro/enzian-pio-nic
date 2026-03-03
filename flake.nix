@@ -5,8 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     mill-ivy-fetcher = {
-      # url = "github:Avimitin/mill-ivy-fetcher";
-      url = "path:/local/home/pengxu/work-local/mill-ivy-fetcher";
+      url = "github:Avimitin/mill-ivy-fetcher";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mackerel = {
@@ -238,11 +237,18 @@
           done
         '';
       };
+      updateMillLockFile = writeShellApplication {
+        name = "update-mill-lock";
+        runtimeInputs = [ mill-ivy-fetcher nixfmt ];
+        text = ''
+          mif codegen --cache "$XDG_CACHE_HOME" -o project-lock.nix
+        '';
+      };
     in mkShell {
       buildInputs = [
         zlib.dev verilator clang cmake
         gtkwave sby yices
-        jdk mill mill-ivy-fetcher nixfmt
+        jdk mill updateMillLockFile
         crossGcc mackerel
         # quick script to repeat known failing test to find a good reproducer
         repeatTest
