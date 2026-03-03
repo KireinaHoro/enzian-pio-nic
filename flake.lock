@@ -71,14 +71,17 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1772539568,
-        "narHash": "sha256-UcVNRfQobSpwAU0Jy3Lv75QNcWpZ7ACeoDx0zR4ocv0=",
-        "path": "/local/home/pengxu/work-local/mill-ivy-fetcher",
-        "type": "path"
+        "lastModified": 1772533460,
+        "narHash": "sha256-xOFgFbJUb/Fx+GD6GIIuDLAxEwt5yRXqXyIeAvXfjKM=",
+        "owner": "Avimitin",
+        "repo": "mill-ivy-fetcher",
+        "rev": "d035872955464c6fdc34f27d2852cd1719e088f7",
+        "type": "github"
       },
       "original": {
-        "path": "/local/home/pengxu/work-local/mill-ivy-fetcher",
-        "type": "path"
+        "owner": "Avimitin",
+        "repo": "mill-ivy-fetcher",
+        "type": "github"
       }
     },
     "nixpkgs": {

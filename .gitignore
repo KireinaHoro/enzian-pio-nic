@@ -27,7 +27,7 @@ model/lauberhorn.toolbox/.*
 
 # Nix
 .direnv/
-result
+result*
 dev-hdrs
 
 # git mergetool
