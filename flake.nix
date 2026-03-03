@@ -118,10 +118,6 @@
       '';
     };
 
-    # FIXME: we can't run the SpinalHDL generator inside stdenv, since mill
-    #        wants to fetch all dependencies from the Internet.  Hence we check
-    #        in all generated device files for now
-
     # generate mackerel device headers
     devHdrs = pkgs.stdenvNoCC.mkDerivation {
       name = "lauberhorn-dev-hdrs";
@@ -129,14 +125,13 @@
       nativeBuildInputs = [ mackerel ];
       buildPhase = ''
         mkdir -p $out
-        for a in *.dev; do
+        for a in *.dev ${genVerilog.devices}/*; do
           echo "Compiling $a..."
-          mackerel2 -c $a -I$PWD -o $out/''${a%.dev}_dev.h
+          fn=$(basename $a)
+          mackerel2 -c $a -I$(dirname $a) -o $out/''${fn%.dev}_dev.h
         done
       '';
     };
-
-    hwGenHdrs = cleanSource ./hw/gen;
 
     # cross-compile lauberhorn kernel module
     kmod = pkgs.stdenv.mkDerivation {
@@ -149,7 +144,7 @@
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
         cd sw/kmod
-        make V=1 MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
+        make V=1 MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers}
       '';
       installPhase = ''
         mkdir -p $out
@@ -170,7 +165,7 @@
       nativeBuildInputs = linuxTools;
       buildPhase = ''
         cd sw/rt
-        make MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${hwGenHdrs}
+        make MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers}
       '';
       dontStrip = true;
       installPhase = ''
