@@ -17,7 +17,7 @@
 #include "lauberhorn.h"
 #include "oncrpc.h"
 
-#include "eci/config.h"
+#include "config.h"
 #include "eci/core.h"
 
 #define LAUBERHORN_DEV_PATH "/dev/lauberhorn"

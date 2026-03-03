@@ -26,7 +26,7 @@
 
 #include "cmac_dev.h"
 #include "eci/core.h"
-#include "eci/regblock_bases.h"
+#include "regblock_bases.h"
 
 #include "lauberhorn_eci_preempt_dev.h"
 #include "lauberhorn_eci_dma_dev.h"

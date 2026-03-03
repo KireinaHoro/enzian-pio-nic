@@ -9,8 +9,8 @@
 #ifndef LAUBERHORN_CORE_ECI_CORE_H
 #define LAUBERHORN_CORE_ECI_CORE_H
 
+#include "config.h"
 #include "core-common.h"
-#include "eci/config.h"
 #include "lauberhorn_eci_dev.h"
 
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)

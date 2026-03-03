@@ -9,7 +9,7 @@
 #include "lauberhorn_eci_UdpDecoder_dev.h"
 #include "lauberhorn_eci_OncRpcReplyEncoder_dev.h"
 #include "lauberhorn_eci_dev.h"
-#include "eci/regblock_bases.h"
+#include "regblock_bases.h"
 
 static dev_t devt = 0;
 static struct class *dev_class;

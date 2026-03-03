@@ -27,7 +27,7 @@
 #include <asm/io.h>
 #include <asm/arch_gicv3.h>
 
-#include "eci/config.h"
+#include "config.h"
 
 #include "lauberhorn_eci_preempt_dev.h"
 #include "lauberhorn_eci_worker_dev.h"
