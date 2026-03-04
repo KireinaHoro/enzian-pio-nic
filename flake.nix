@@ -207,7 +207,7 @@
       '';
     };
 
-    commitMarker = pkgs.writeText "git-hash" gitRev;
+    commitMarker = pkgs.writeText "git-hash" (gitRev + "\n");
 
     deployFs = let
       allApps = [ "adder-demo" ];
