@@ -38,7 +38,7 @@ proc def_dma_wr_status { probeNum } {
 proc states_to_enum_defs { stateList } {
     set idx 0
     set numStates [llength $stateList]
-    set width [string length [format "%b" [expr $numStates - 1]]]
+    set width [expr {int(ceil(log($numStates)/log(2)))}]
     set digits [expr {int(ceil(double($width)/4))}]
     foreach s $stateList {
         lappend ret $s
