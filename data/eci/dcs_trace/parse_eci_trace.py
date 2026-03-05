@@ -307,7 +307,6 @@ def main():
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input", nargs="?", default="odd-app.csv", help="Input CSV file")
 	ap.add_argument("-o", "--output", default="parsed.csv", help="Output CSV file")
-	ap.add_argument("-n", "--count", type=int, default=512, help="Number of samples to parse")
 	ap.add_argument("--dump-col", default=None, help="Dump column name (substring match) if not auto-detected")
 	ap.add_argument("--data-col", default=None, help="Event data column name (substring match) if not auto-detected")
 	ap.add_argument("--ts-col", default=None, help="Timestamp column name (substring match) if not auto-detected")
@@ -341,8 +340,7 @@ def main():
 		sys.exit(4)
 
 	start_idx = dump_indices[1]
-	end_idx = min(start_idx + args.count, len(rows))
-	selected = rows[start_idx:end_idx]
+	selected = rows[start_idx:]
 
 	out_path = Path(args.output)
 	# collect decoded rows
@@ -379,6 +377,9 @@ def main():
 		if src_val is not None:
 			d["src"] = src_val
 		decoded.append(d)
+
+	# Sort decoded rows by timestamp in ascending order
+	decoded.sort(key=lambda x: x.get("timestamp", 0))
 
 	# build header from union of keys
 	keys = ["index", "raw", "opcode", "message", "timestamp"]
