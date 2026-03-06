@@ -97,19 +97,24 @@
     allSpinalIn = allSourcesIn isSpinal;
 
     gitRev = if self ? rev then self.rev else "dirty";
+    millIvyCache = pkgs.ivy-gather ./project-lock.nix;
+    myMill = with pkgs; runCommand "mill-offline" {
+      nativeBuildInputs = [ makeWrapper ];
+    } ''
+      mkdir -p $out/bin
+      makeWrapper ${mill}/bin/mill $out/bin/mill \
+        --add-flag --offline
+    '';
 
     # generate RTL, mackerel devices, and C headers
-    genVerilog = with pkgs; let
-      ivyCache = ivy-gather ./project-lock.nix;
-    in stdenvNoCC.mkDerivation {
+    genVerilog = with pkgs; stdenvNoCC.mkDerivation {
       name = "lauberhorn-hw-rtl-config";
       src = allSpinalIn [ ./build.mill ./hw ./deps ];
       outputs = [ "out" "devices" "headers" ];
-      buildInputs = [ ivyCache ];
-      nativeBuildInputs = [ mill configure-mill-env-hook ];
+      buildInputs = [ millIvyCache ];
+      nativeBuildInputs = [ myMill ];
       buildPhase = ''
-        mill --no-daemon --offline \
-          -Dnix-git-hash=${gitRev} eci.generateVerilog
+        mill --no-daemon -Dnix-git-hash=${gitRev} eci.generateVerilog
       '';
       installPhase = ''
         mkdir -p $out $devices $headers
@@ -247,15 +252,16 @@
     in mkShell {
       buildInputs = [
         zlib.dev verilator clang cmake
-        gtkwave sby yices
-        jdk mill updateMillLockFile
+        gtkwave sby yices jdk
+        myMill updateMillLockFile millIvyCache
         crossGcc mackerel
         # quick script to repeat known failing test to find a good reproducer
         repeatTest
       ];
       env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
       shellHook = ''
-        export XDG_CACHE_HOME=$PWD/out/xdg-cache-home/
+        configureMillHome
+        install_ivy_cache
       '';
     };
   });
