@@ -785,7 +785,13 @@ dcs_trace_eci i_trace_app (
     .rsp_wd_pkt_size_o(xslr_rsp_wd_pkt_size_o),
     .rsp_wd_pkt_vc_o(xslr_rsp_wd_pkt_vc_o),
     .rsp_wd_pkt_valid_o(xslr_rsp_wd_pkt_valid_o),
-    .rsp_wd_pkt_ready_i(xslr_rsp_wd_pkt_ready_i)
+    .rsp_wd_pkt_ready_i(xslr_rsp_wd_pkt_ready_i),
+
+    .fwd_wod_hdr_o(xslr_fwd_wod_hdr_o),
+    .fwd_wod_pkt_size_o(xslr_fwd_wod_pkt_size_o),
+    .fwd_wod_pkt_vc_o(xslr_fwd_wod_pkt_vc_o),
+    .fwd_wod_pkt_valid_o(xslr_fwd_wod_pkt_valid_o),
+    .fwd_wod_pkt_ready_i(xslr_fwd_wod_pkt_ready_i)
 );
 
 dcs_trace_eci i_trace_sys (
@@ -820,7 +826,13 @@ dcs_trace_eci i_trace_sys (
     .rsp_wd_pkt_size_o(rsp_wd_pkt_size_o),
     .rsp_wd_pkt_vc_o(rsp_wd_pkt_vc_o),
     .rsp_wd_pkt_valid_o(rsp_wd_pkt_valid_o),
-    .rsp_wd_pkt_ready_i(rsp_wd_pkt_ready_i)
+    .rsp_wd_pkt_ready_i(rsp_wd_pkt_ready_i),
+
+    .fwd_wod_hdr_o(fwd_wod_hdr_o),
+    .fwd_wod_pkt_size_o(fwd_wod_pkt_size_o),
+    .fwd_wod_pkt_vc_o(fwd_wod_pkt_vc_o),
+    .fwd_wod_pkt_valid_o(fwd_wod_pkt_valid_o),
+    .fwd_wod_pkt_ready_i(fwd_wod_pkt_ready_i)
 );
 
 endmodule
