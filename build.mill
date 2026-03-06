@@ -10,7 +10,7 @@ import build.deps.spinalhdl.SpinalModuleInfo
 import build.deps.blocks.{Blocks, BlocksTester, BlocksModule}
 
 object Versions {
-  val scala = Seq("2.13.18")
+  val scala = Seq("2.13.12")
   val eciStaticShell = "v0.1.5"
 }
 
