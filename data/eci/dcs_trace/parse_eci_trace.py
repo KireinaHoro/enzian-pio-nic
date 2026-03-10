@@ -58,6 +58,17 @@ def fmt_hex0x(v: int, bits: int = 40) -> str:
 	return f"0x{v:0{hex_digits}x}"
 
 
+def fmt_hex_no0x(v: Optional[int]) -> str:
+	"""Return plain hex digits (no 0x), no leading zeros. Return empty string for None."""
+	if v is None:
+		return ""
+	try:
+		iv = int(v)
+	except Exception:
+		return ""
+	return format(iv, 'x')
+
+
 def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = None) -> Dict[str, Any]:
 	"""Decode a 64-bit ECI word into fields based on opcode and (optionally) vc.
 
@@ -159,8 +170,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"ns": bits(word, 45, 45),
 			"xb3": bits(word, 44, 42),
 			"xb2": bits(word, 41, 40),
-			"aliased_addr": fmt_hex0x(aliased, bits=40),
-			"unaliased_addr": fmt_hex0x(unaliased, bits=40),
+			"aliased_addr": fmt_hex_no0x(aliased),
+			"unaliased_addr": fmt_hex_no0x(unaliased),
 		})
 		return res
 
@@ -185,8 +196,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"dmask": bits(word, 49, 46),
 			"ns": bits(word, 45, 45),
 			"xb5": bits(word, 44, 40),
-			"aliased_addr": fmt_hex0x(aliased, bits=40),
-			"unaliased_addr": fmt_hex0x(unaliased, bits=40),
+			"aliased_addr": fmt_hex_no0x(aliased),
+			"unaliased_addr": fmt_hex_no0x(unaliased),
 		})
 		return res
 
@@ -200,8 +211,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"dmask": bits(word, 49, 46),
 			"ns": bits(word, 45, 45),
 			"xb5": bits(word, 44, 40),
-			"aliased_addr": fmt_hex0x(aliased, bits=40),
-			"unaliased_addr": fmt_hex0x(unaliased, bits=40),
+			"aliased_addr": fmt_hex_no0x(aliased),
+			"unaliased_addr": fmt_hex_no0x(unaliased),
 		})
 		return res
 
@@ -218,8 +229,13 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 		return res
 
 	# mrsp 9..10 (pemd/psha_new)
+	# For these messages the cache_line_index occupies bits 39:7 (not a full EciAddress)
+	# Reconstruct the aliased address from the cache-line index and produce aliased/unaliased addresses.
 	if cls == 'mrsp' and opcode in (9, 10):
 		aliased_cli = bits(word, 39, 7)
+		# Reconstruct 40-bit aliased address: cli << 7 (lower 7 bits are the byte offset)
+		aliased_addr = (aliased_cli << 7) & ((1 << 40) - 1)
+		unaliased_addr = unalias_address(aliased_addr)
 		res.update({
 			"nxm": bits(word, 58, 58),
 			"xb3": bits(word, 57, 55),
@@ -228,8 +244,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"xb1": bits(word, 45, 45),
 			"dirty": bits(word, 44, 41),
 			"xb1_2": bits(word, 40, 40),
-			"cache_line_index_aliased": aliased_cli,
-			"cache_line_index_unaliased": unalias_cacheline_index(aliased_cli),
+			"aliased_addr": fmt_hex_no0x(aliased_addr),
+			"unaliased_addr": fmt_hex_no0x(unaliased_addr),
 			"fillo": bits(word, 6, 5),
 			"xb5": bits(word, 4, 0),
 		})
@@ -247,8 +263,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"xb1": bits(word, 44, 44),
 			"rnode": bits(word, 43, 42),
 			"xb2": bits(word, 41, 40),
-			"aliased_addr": fmt_hex0x(aliased, bits=40),
-			"unaliased_addr": fmt_hex0x(unaliased, bits=40),
+			"aliased_addr": fmt_hex_no0x(aliased),
+			"unaliased_addr": fmt_hex_no0x(unaliased),
 		})
 		return res
 
@@ -262,8 +278,8 @@ def decode_by_opcode(word: int, vc: Optional[int] = None, src: Optional[int] = N
 			"dmask": bits(word, 49, 46),
 			"ns": bits(word, 45, 45),
 			"xb5": bits(word, 44, 40),
-			"aliased_addr": fmt_hex0x(aliased, bits=40),
-			"unaliased_addr": fmt_hex0x(unaliased, bits=40),
+			"aliased_addr": fmt_hex_no0x(aliased),
+			"unaliased_addr": fmt_hex_no0x(unaliased),
 		})
 		return res
 
