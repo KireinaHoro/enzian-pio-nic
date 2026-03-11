@@ -4,6 +4,9 @@
 #
 #       source vivado/eci/tcl/app_ila.tcl
 
+# where is this script?
+set myPath [file dirname [file normalize [info script]]]
+
 # ============ Helper functions ============
 
 proc def_alloc_chan_with_addr { busName probeNum } {
@@ -189,6 +192,67 @@ proc add_dcs_axi { sliceName } {
     }
 }
 
+proc capture_many_windows { windowDepth } {
+    variable ila
+
+    set totalSamples [get_property STATIC.MAX_DATA_DEPTH $ila]
+    set_property CONTROL.DATA_DEPTH $windowDepth $ila
+    set_property CONTROL.WINDOW_COUNT [expr $totalSamples / $windowDepth] $ila
+    set_property CONTROL.TRIGGER_POSITION 2 $ila
+    set_property CONTROL.TRIGGER_CONDITION OR $ila
+}
+
+proc capture_trace_buffer { traceSource outDir } {
+    variable myDev
+
+    if {$traceSource == "dcs"} {
+        set dumpNameIla "dcs_trace.dump"
+        set dumpNameVio "trace_dump"
+
+        variable ila
+        set vio [get_hw_vios -of_objects $myDev -filter {CELL_NAME =~ "i_app/design_1_i/hier_ilas/vio_0"}]
+    } else {
+        # even_sys, even_app, odd_sys, odd_app
+        set dumpNameIla "dump_1"
+        set dumpNameVio "dump"
+
+        lassign [split $traceSource _] evenOdd clockDomain
+        set baseHier "i_app/dcs_$evenOdd/i_trace_$clockDomain"
+
+        set ila [get_hw_ilas -of_objects $myDev -filter "CELL_NAME =~ $baseHier/i_ila"]
+        set vio [get_hw_vios -of_objects $myDev -filter "CELL_NAME =~ $baseHier/i_vio"]
+    }
+
+    # Run ILA to capture dump output
+    set totalSamples [get_property STATIC.MAX_DATA_DEPTH $ila]
+    puts "<$traceSource> Setting ILA $ila to capture $totalSamples in one window..."
+    set_property CONTROL.DATA_DEPTH $totalSamples $ila
+    set_property CONTROL.WINDOW_COUNT 1 $ila
+    set_property CONTROL.TRIGGER_POSITION 16 $ila
+    set_property CONTROL.TRIGGER_CONDITION OR $ila
+
+    puts "<$traceSource> Running $ila..."
+    set_property TRIGGER_COMPARE_VALUE eq1'b1 [get_hw_probes -of_object $ila -filter "NAME.SHORT == $dumpNameIla"]
+
+    run_hw_ila $ila
+
+    # Toggle dump in VIO
+    puts "<$traceSource> Triggering dump on $vio..."
+    set dumpProbe [get_hw_probes -of_object $vio -filter "NAME.SHORT == $dumpNameVio"]
+    set_property OUTPUT_VALUE 0 $dumpProbe
+    commit_hw_vio $dumpProbe
+    set_property OUTPUT_VALUE 1 $dumpProbe
+    commit_hw_vio $dumpProbe
+    set_property OUTPUT_VALUE 0 $dumpProbe
+    commit_hw_vio $dumpProbe
+
+    # Dump ILA data
+    set outFile "$outDir/$traceSource.csv"
+    puts "<$traceSource> Dumping ILA data from $ila to $outFile..."
+    wait_on_hw_ila $ila
+    write_hw_ila_data -csv_file $outFile -force [upload_hw_ila_data $ila]
+}
+
 proc trigger_dcs_axi_read { sliceName } {
     variable ila
     set slotNum [dcs_slice_to_slot $sliceName]
@@ -209,8 +273,8 @@ proc trigger_dcs_axi_write { sliceName } {
 # ============ Configuration ============
 
 # Find our ILA instance.
-set mydev [lindex [get_hw_devices] 0]
-set ila [get_hw_ilas -of_objects $mydev -filter {CELL_NAME =~ "i_app/design_1_i/hier_ilas/ila_app/*"}]
+set myDev [lindex [get_hw_devices] 0]
+set ila [get_hw_ilas -of_objects $myDev -filter {CELL_NAME =~ "i_app/design_1_i/hier_ilas/ila_app/*"}]
 regexp {(\d+)$} [get_property NAME $ila] match ila_idx
 current_wave_config hw_ila_data_${ila_idx}.wcfg
 
@@ -278,19 +342,25 @@ add_stream "DMA Write Desc" [get_hw_probes -of_objects $ila -regexp dma_write_de
 add_stream "DMA Write Status" [get_hw_probes -of_objects $ila -regexp dma_write_status.*] $groupItemNameRe
 add_wave -name "DMA RX State" [get_hw_probes -of_objects $ila -regexp dma_rxFsm_state]
 
-# Configure ILA trigger and window.
-set total_samples [get_property STATIC.MAX_DATA_DEPTH $ila]
-set window_depth 64
-set_property CONTROL.DATA_DEPTH $window_depth $ila
-set_property CONTROL.WINDOW_COUNT [expr $total_samples / $window_depth] $ila
-set_property CONTROL.TRIGGER_POSITION 2 $ila
-set_property CONTROL.TRIGGER_CONDITION OR $ila
-
 # Trigger on DCS AXI transactions.
-trigger_dcs_axi_read even
-trigger_dcs_axi_read odd
+# capture_many_windows 64
+# trigger_dcs_axi_read even
+# trigger_dcs_axi_read odd
 # trigger_dcs_axi_write even
 # trigger_dcs_axi_write odd
-
+#
 # Arm the ILA.
-run_hw_ila $ila
+# run_hw_ila $ila
+
+proc dump_all_traces { outName } {
+    variable myPath
+    set outDir "$myPath/../../../data/eci/dcs_trace/$outName"
+    file mkdir $outDir
+
+    capture_trace_buffer "dcs"      $outDir
+    capture_trace_buffer "even_app" $outDir
+    capture_trace_buffer "even_sys" $outDir
+    capture_trace_buffer "odd_app"  $outDir
+    capture_trace_buffer "odd_sys"  $outDir
+}
+
