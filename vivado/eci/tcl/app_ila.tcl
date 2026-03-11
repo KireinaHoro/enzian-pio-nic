@@ -354,13 +354,23 @@ add_wave -name "DMA RX State" [get_hw_probes -of_objects $ila -regexp dma_rxFsm_
 
 proc dump_all_traces { outName } {
     variable myPath
-    set outDir "$myPath/../../../data/eci/dcs_trace/$outName"
-    file mkdir $outDir
+    set date [clock format [clock seconds] -format "%Y-%m-%d"]
+    set traceDataDir [file normalize "$myPath/../../../data/eci/dcs_trace"]
 
-    capture_trace_buffer "dcs"      $outDir
-    capture_trace_buffer "even_app" $outDir
-    capture_trace_buffer "even_sys" $outDir
-    capture_trace_buffer "odd_app"  $outDir
-    capture_trace_buffer "odd_sys"  $outDir
+    set outDir "$traceDataDir/$outName-$date"
+    file mkdir $outDir/parsed
+
+    foreach tr {dcs even_app even_sys odd_app odd_sys} {
+        capture_trace_buffer $tr $outDir
+
+        # parse traces
+        puts "<$tr> Parsing trace..."
+        if {$tr == "dcs"} {
+            set parser dcs
+        } else {
+            set parser eci
+        }
+        puts [exec $traceDataDir/parse_${parser}_trace.py $outDir/$tr.csv -o $outDir/parsed/$tr.csv]
+    }
 }
 
