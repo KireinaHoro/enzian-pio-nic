@@ -13,7 +13,6 @@
 #include <linux/printk.h>
 
 #define BARRIER dmb(sy)
-#define PREFETCH
 
 // always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
@@ -52,9 +51,6 @@
 #define BARRIER asm volatile("dmb sy")
 
 #include "cs.h"
-
-// prototype for prefetch -- defined in rt/eci.c
-void prefetchw(const void *ptr);
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 

@@ -345,6 +345,16 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     // fill overflow CLs
     if (payload_len > 0) {
       memcpy(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, copy_from, payload_len);
+
+#ifdef __KERNEL__
+      // XXX: invalidate CLs immediately to generate HAKI/VICD
+      // FIXME: take this out after we verified that this is not the issue
+      assert(base == mem_node1_off_to_virt(0));
+      phys_addr_t tx_phys_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
+      for (u64 off = 0; off < payload_len; off += LAUBERHORN_ECI_CL_SIZE) {
+        cl_hit_wb_inv(tx_phys_base + LAUBERHORN_ECI_OVERFLOW_OFFSET + off);
+      }
+#endif
     }
   }
   BARRIER; // make sure all data is written before we ring the doorbell

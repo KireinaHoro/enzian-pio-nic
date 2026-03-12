@@ -174,6 +174,11 @@ static inline void cl_hit_inv(phys_addr_t addr)
 	// L2 Cache Hit Invalidate, SYS CVMCACHEINVL2, Xt
 	asm volatile("sys #0,c11,c1,#1,%0 \n" ::"r"(addr));
 }
+static inline void cl_hit_wb_inv(phys_addr_t addr)
+{
+	// L2 Cache Hit Writeback Invalidate, SYS CVMCACHEWBIL2, Xt
+	asm volatile("sys #0,c11,c1,#2,%0 \n" ::"r"(addr));
+}
 static inline void cl_fetch_and_lock(phys_addr_t addr)
 {
 	// L2 Cache Fetch and Lock, SYS CVMCACHELCKL2, Xt
