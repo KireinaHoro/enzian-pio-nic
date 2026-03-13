@@ -107,19 +107,27 @@ def main():
 		action_val = r.get(action_col, "").strip()
 		state_val = r.get(state_col, "").strip()
 
+		# Convert cycles to microseconds assuming 200 MHz clock (1 cycle = 5 ns = 0.005 us)
+		if ts_val is None:
+			ts_us_str = ""
+		else:
+			ts_us = float(ts_val) * 0.005
+			# emit with microsecond precision (6 decimal places)
+			ts_us_str = format(ts_us, '.6f')
+
 		d = {
 			"index": idx,
 			"dcs_trace.event.req": req_val,
 			"dcs_trace.event.cli": cli_val,
 			"dcs_trace.event.action": action_val,
 			"dcs_trace.event.state": state_val,
-			"timestamp": str(ts_val) if ts_val is not None else "",
-			"timestamp_int": ts_val,  # for sorting
+			"timestamp": ts_us_str,
+			"cycles": ts_val,  # original cycles (for sorting)
 		}
 		extracted.append(d)
 
-	# Sort by timestamp (integer value) ascending
-	extracted.sort(key=lambda x: x.get("timestamp_int", 0))
+	# Sort by original cycle count ("cycles") ascending
+	extracted.sort(key=lambda x: x.get("cycles", 0))
 
 	# Write output CSV (without timestamp_int, that was just for sorting)
 	with out_path.open("w", newline="") as f:
