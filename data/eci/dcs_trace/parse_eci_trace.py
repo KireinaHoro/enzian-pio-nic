@@ -323,6 +323,7 @@ def main():
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input", nargs="?", default="odd-app.csv", help="Input CSV file")
 	ap.add_argument("-o", "--output", default="parsed.csv", help="Output CSV file")
+	ap.add_argument("--sys-clock", action="store_true", help="Use system clock 322.265625 MHz instead of default 200 MHz")
 	ap.add_argument("--dump-col", default=None, help="Dump column name (substring match) if not auto-detected")
 	ap.add_argument("--data-col", default=None, help="Event data column name (substring match) if not auto-detected")
 	ap.add_argument("--ts-col", default=None, help="Timestamp column name (substring match) if not auto-detected")
@@ -332,6 +333,11 @@ def main():
 	if not input_path.exists():
 		print(f"Input file not found: {input_path}")
 		sys.exit(2)
+
+	# Choose clock frequency (MHz): default 200, use 322.265625 if --sys-clock present
+	freq_mhz = 322.265625 if args.sys_clock else 200.0
+	# microseconds per cycle = 1 / freq_in_MHz
+	period_us = 1.0 / freq_mhz
 
 	with input_path.open() as f:
 		reader = csv.DictReader(f)
@@ -387,15 +393,23 @@ def main():
 
 		d = decode_by_opcode(word, vc=vc_val, src=src_val)
 		d["index"] = idx
-		d["timestamp"] = ts_val
+		# Convert cycles to microseconds using selected clock period
+		if ts_val is None:
+			ts_us_str = ""
+		else:
+			ts_us = float(ts_val) * period_us
+			ts_us_str = format(ts_us, '.6f')
+		d["timestamp"] = ts_us_str
+		# keep original cycles for sorting/traceability
+		d["cycles"] = ts_val
 		if vc_val is not None:
 			d["vc"] = vc_val
 		if src_val is not None:
 			d["src"] = src_val
 		decoded.append(d)
 
-	# Sort decoded rows by timestamp in ascending order
-	decoded.sort(key=lambda x: x.get("timestamp", 0))
+	# Sort decoded rows by original cycle count ("cycles") ascending
+	decoded.sort(key=lambda x: x.get("cycles", 0))
 
 	# build header from union of keys
 	keys = ["index", "raw", "opcode", "message", "timestamp"]
