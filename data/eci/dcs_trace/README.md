@@ -47,9 +47,13 @@ the CPU held in firmware (before pressing N) for some hours.
 Symptom is that a KP happens immediately at `ip link up` -- before it returns.
 The following traces demonstrate this:
 
-- [early-timeout-rd-0x100](./early-timeout-rd-0x100), potentially incomplete:
+- [first](./early-timeout-rd-0x100), incomplete:
+    - very old tracer, missing all MFWD messages
+- [second](./boot-serror-2026-03-11), potentially incomplete:
     - used old `TraceBuffer` that couldn't capture in the very first cycles
     - missing `panic.txt`
+
+I'm working on reproducing this with the current, better trace setup.
 
 #### During `iperf`
 
