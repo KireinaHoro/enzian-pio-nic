@@ -1,0 +1,3 @@
+index,raw,opcode,message,timestamp,aliased_addr,cycles,dmask,hreq_id,ns,rreq_id,src,unaliased_addr,vc,xb2,xb3,xb4,xb5
+17,0x3004200000008080,6,ECI_CMD_MRSP_HAKI,35025591.620000,8080,7005118324,0,1,1,,1,8080,10,,0,,0
+18,0x0007e00000000080,0,ECI_CMD_MREQ_RLDD,256298627.095000,80,51259725419,15,,1,1,0,80,6,0,0,0,

@@ -1,0 +1,5 @@
+index,dcs_trace.event.req,dcs_trace.event.cli,dcs_trace.event.action,dcs_trace.event.state,timestamp
+17,R12,0000000000,RDD,s1__2pRA2,159060473.480000
+18,RDDA,0000000000,SEND_RA2,s1__2,159060473.745000
+19,R12,0000000100,RDD,s1__2pRA2,159060475.045000
+20,RDDA,0000000100,SEND_RA2,s1__2,159060475.305000
