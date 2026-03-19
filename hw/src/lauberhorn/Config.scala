@@ -24,10 +24,12 @@ object Config {
     globalPrefix = prefix,
   )
 
-  def sim = SimConfig.withConfig(spinal(
-    outDir = ".",  // relative to sim target in out/
-    blackboxPolicy = blackboxOnlyIfRequested
-  ).includeSimulation)
+  def sim = SimConfig
+    .withConfig(spinal(
+      outDir = ".",  // relative to sim target in out/
+      blackboxPolicy = blackboxOnlyIfRequested
+    ).includeSimulation)
+    .cachePath("verilator-cache") // relative to sim target in out/
     .withFstWave
     .withVerilator
     .allOptimisation

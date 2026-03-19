@@ -129,7 +129,7 @@ object gen extends CommonModule { outer =>
 
   object test extends ScalaTests with TestModule.ScalaTest {
     override def moduleDeps = super.moduleDeps ++ Seq(sm("tester"), bm("tester"))
-
+    override def testParallelism = false // to avoid re-compiling Verilator model
     override def mvnDeps = Seq(
       mvn"com.lihaoyi::os-lib:0.11.7",
       mvn"commons-io:commons-io:2.15.1",
