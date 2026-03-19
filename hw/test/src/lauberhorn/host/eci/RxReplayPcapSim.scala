@@ -166,7 +166,7 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
   def rxTestOverflow(name: String, nextPacket: () => Option[(Packet, PacketType)],
                      savePackets: Boolean = false,
                     ) = {
-    val testName = s"rx-bypass-overflow-$name"
+    val testName = s"overflow-$name"
     testWithDB(testName)(Rx) { implicit dut =>
       // flood RX with too many packets, receive full packets and check dropped counter
 
