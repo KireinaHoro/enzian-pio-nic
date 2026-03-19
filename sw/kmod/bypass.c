@@ -201,7 +201,10 @@ static int netdev_open(struct net_device *dev)
 	lauberhorn_eci_worker_ctrl_wait_ack_timeout_wr(
 		&priv->worker_dev, irq_timeout_usecs * cycles_per_usec);
 
-	dev_dbg(&dev->dev, "netdev UP, enabling bypass IRQ\n");
+	dev_dbg(&dev->dev, "netdev UP, disabling drop all\n");
+	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 0);
+
+	dev_dbg(&dev->dev, "enabling bypass IRQ\n");
 	smp_wmb();
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
 
@@ -249,7 +252,10 @@ static int netdev_stop(struct net_device *dev)
 
 	// stop_cmac(&priv->cmac_dev);
 
-	dev_dbg(&dev->dev, "netdev DOWN, disabling bypass IRQ\n");
+	dev_dbg(&dev->dev, "netdev DOWN, enabling drop all\n");
+	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 1);
+
+	dev_dbg(&dev->dev, "disabling bypass IRQ\n");
 	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
 
 	napi_disable(&priv->napi);

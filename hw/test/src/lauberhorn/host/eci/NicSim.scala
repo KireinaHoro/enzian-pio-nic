@@ -110,8 +110,13 @@ class NicSim extends DutSimFunSuite[NicEngine]
     cmacIf.cmacTxClock.onSamplings {
       assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
     }
-
+    
     val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles)
+
+    // enable rx already for normal tests -- there is a separate test to see
+    // if the rx drop all switch is effective
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+
     (csrMaster, axisMaster, dcsMaster)
   }
 
@@ -363,6 +368,25 @@ class NicSim extends DutSimFunSuite[NicEngine]
     csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
 
     rxTestRange(csrMaster, axisMaster, dcsMaster, 64, 9618, 64, maxRetries = 0)
+  }
+  
+  testWithDB("rx-bypass-drop-when-uninitialized")(Rx) { implicit dut =>
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    
+    // enable rx drop all again
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 1.toBytesLE)
+
+    // enable promisc mode
+    csrMaster.write(ALLOC.readBack("decoderSink")("ctrl", "promisc"), 1.toBytesLE)
+    
+    // send a packet
+    val (packet, proto) = randomPacket(512, randomizeLen = false)(Ethernet, Ip, Udp)
+    axisMaster.send(packet.getRawData.toList)
+    
+    // try receive -- no packet should come
+    (0 until 10).foreach { _ =>
+      assert(tryReadPacketDesc(dcsMaster, -1, 5).result.isEmpty, "should not have packet on standby yet")
+    }
   }
 
   testWithDB("rx-bypass-simple")(Rx) { implicit dut =>
@@ -1166,6 +1190,9 @@ class NicSim extends DutSimFunSuite[NicEngine]
     val delayed = 1000
 
     val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100)
+
+    // enable rx
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
       procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
