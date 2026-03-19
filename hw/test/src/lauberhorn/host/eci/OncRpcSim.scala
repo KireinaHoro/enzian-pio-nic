@@ -1,34 +1,19 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
-import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, hexToBytesBE, isSorted}
-import org.pcap4j.core.{PcapDumper, Pcaps}
-import org.pcap4j.packet.{EthernetPacket, IpV4Packet, IpV4Rfc1349Tos, Packet, UdpPacket}
-import org.pcap4j.packet.namednumber.{DataLinkType, EtherType, IpNumber, IpVersion}
-import org.scalatest.exceptions.TestFailedException
-import lauberhorn._
+import jsteward.blocks.misc.sim.{IntRicherEndianAware, isSorted}
 import lauberhorn.Global._
 import lauberhorn.sim._
-import lauberhorn.sim.PacketType._
-import org.pcap4j.util.MacAddress
-import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
+import org.pcap4j.packet.{EthernetPacket, IpV4Packet, UdpPacket}
+import org.scalatest.tagobjects.Slow
 import spinal.core.sim._
+import spinal.core.{BigIntToSInt => _, BigIntToUInt => _}
 import spinal.lib._
-import spinal.lib.sim._
-import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
-import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 
 import scala.collection.mutable
 import scala.language.postfixOps
-import scala.util._
-import scala.util.control.TailCalls._
-import org.scalatest.tagobjects.Slow
-
-import java.net.{Inet4Address, InetAddress}
 
 class OncRpcSim extends NicSim with OncRpcSuiteFactory {
-  testWithDB("rx-oncrpc-allcores")(Rx) { implicit dut =>
+  testWithDB("rx-allcores")(Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores,
@@ -44,7 +29,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // test one service on one process on all cores
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
       procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
-      packetDumpWorkspace = Some("rx-oncrpc-allcores")
+      packetDumpWorkspace = Some("rx-allcores")
     ).head
     val inflightPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
     var packetsReceived = 0
@@ -131,7 +116,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(packetsReceived == totalToSend)
   }
 
-  testWithDB("roundtrip-oncrpc-timestamped")(Rx, Tx) { implicit dut =>
+  testWithDB("rt-timestamped")(Rx, Tx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores
@@ -155,7 +140,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
       procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom)),
-      packetDumpWorkspace = Some("roundtrip-oncrpc-timestamped")).head
+      packetDumpWorkspace = Some("rt-timestamped")).head
 
     // first request packet
     val (packet, pld, xid) = getPacket()
@@ -323,5 +308,248 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     }
 
     waitUntil(allDone)
+  }
+
+  testWithDB("rx-hol-blocking-free")(Rx) { implicit dut =>
+    // This test checks that no HOL-blocking happens between RX of different worker
+    // cores.  This is important since if HOL-blocking happens, the 2F2F state machine
+    // won't even see a read that's blocked by another stall(-to-NACK) read, triggering
+    // timeout for the blocked read easily.
+
+    // Same requirements for wait-freedom apply as in rx-tx-interleave.
+    // TODO
+  }
+
+  // FIXME: rework the address map (from Jasmin) and re-enable this for CI!
+  testWithDB("rx-tx-interleaved")(Rx, Tx, Slow) { implicit dut =>
+    // The bypass core can have RX and TX happening simultaneously, so it's
+    // important that the interconnects can allow unrelated reads/writes to
+    // interleave.  However, we can't directly check on bypass, since no
+    // read blocking is in place for bypass, making it difficult to construct
+    // an artificial case where two reads will go to the same 2F2F state machine
+    // and potentially interleave.  In this case we test with one worker core
+    // and skip the TX critical section to allow the following two reads to
+    // interleave:
+    // - RX read (blocked until NACK)
+    // - TX read (CL refill for load exclusive -> modify)
+    //
+    // This test checks that no HOL-blocking happens between the RX and TX paths.
+
+    // This requires three levels of wait-freedom:
+    // - the crossbar not blocking requests to unrelated slaves (e.g.
+    //   Axi4CrossbarFactory does not accept a transaction that goes to a
+    //   different slave than the in-flight one)
+    //   => currently fixed with axi_crossbar from verilog-axi
+    // - the address map not placing the RX and TX control CLs on the same
+    //   DCU, since each DCU can have one read and one write in-flight
+    //   (DcsAppMaster emulates this behaviour)
+    //   => TODO
+    // - the downsize adapter allowing more in-flight requests than possible
+    //   number of stalled requests (i.e. number of workers)
+    //   (DcsAppMaster emulates this behaviour)
+    //   => allowed via setting AXI_MAX_READS >= NUM_CORES in dcs_cdc.sv
+
+    // use very high read timeout
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(20000)
+
+    // set up a random process
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(mkRandomProc(NUM_WORKER_CORES) -> Seq(RpcSrvDef.mkRandom))).head
+
+    // send a packet to get scheduled
+    val (pkt1, pld, xid) = getPacket()
+    fork {
+      axisMaster.send(pkt1.getRawData.toList)
+      println("Sent first request packet")
+    }
+
+    val cs = workerCore(0)
+    cs.waitUser()
+    val tid = cs.currThread.get.tid
+    cs.log("Entered user thread")
+
+    val _ = tryReadPacketDesc(dcsMaster, tid).result.get
+
+    // start reading second packet
+    var done = false
+    fork {
+      println("Starting long read that will block...")
+      assert(tryReadPacketDesc(dcsMaster, tid, maxTries = 1).result.isEmpty)
+      println("Read done!")
+      done = true
+    }
+
+    // try sending a packet and see if we can get through
+    {
+      val resp1 = simRandom.nextBytes(16).toList
+      val desc = TxOncRpcReplySim(resp1.length, funcPtr, xid, resp1.bytesToBigInt)
+
+      sleepCycles(1000)
+
+      println("Starting read for TX...")
+      // skip critical section!
+      txSendSingle(dcsMaster, desc, List.empty, tid, skipCS = true)
+
+      // wait a bit and check did we finish after RX did;
+      // if we could properly interleave, this small wait won't make a difference;
+      // if we would be blocked, the wait would allow RX to set done and thus fail
+      // the assertion
+      sleepCycles(5000)
+      assert(!done, "TX delayed until RX is finished!")
+      println("TX done")
+    }
+
+    waitUntil(done)
+  }
+
+
+  /* Test that Lauberhorn can scale up to multiple services */
+  testWithDB("rx-sched-idle-scale-many")(Rx) { implicit dut =>
+    // do not use every core for every service
+    // three procs: A (2 thr); B (3 thr); C (3 thr)
+
+    val srvDefs = Seq(
+      mkRandomProc(2) -> Seq(RpcSrvDef.mkRandom),
+      mkRandomProc(3) -> Seq(RpcSrvDef.mkRandom),
+      mkRandomProc(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
+    )
+    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+
+    val srvs = oncRpcCallPacketFactory(csrMaster, srvDefs,
+      Some("rx-sched-idle-scale-many"))
+    // sending packets is based on per service
+    val pktsToSendStructured = srvDefs.map { case (_, ss) =>
+      ss.map { srv =>
+        val toSend = simRandom.between(50, 100)
+        println(s"Sending $toSend requests for service $srv")
+        toSend
+      }
+    }
+    val pktsToSend = pktsToSendStructured.flatten
+    val pktsSent = mutable.ArrayBuffer.fill(srvs.length)(0)
+
+    // receiving packets is based on per proc
+    val pktsExpecting = pktsToSendStructured.map(_.sum)
+    val pktsReceived = mutable.ArrayBuffer.fill(srvDefs.length)(0)
+
+    // (PID, XID) => (packet, payload)
+    val pktsToReceive = mutable.Map[(Int, Int), (EthernetPacket, List[Byte], Long)]()
+
+    def pidToTblIdx(pid: Int) = srvDefs.indexWhere { case (pdef, _) => pdef.pid == pid } + 1
+
+    // each thread has a max number of retries
+    val threadRetryMap = mutable.HashMap[Int, Int]()
+
+    fork {
+      while (pktsToSend.sum > pktsSent.sum) {
+        val srvToSend = simRandom.nextInt(srvs.length)
+        if (pktsToSend(srvToSend) > pktsSent(srvToSend)) {
+          val (funcPtr, getPacket, pid) = srvs(srvToSend)
+
+          // This test is designed to allow all cores to receive all packets sent; we need to wait if the queue for the
+          // corresponding PID is about to overflow.  If the scheduler failed to preempt some core to handle a non-empty
+          // queue, the core reads will eventually run out of retries.
+          val pidIdx = pidToTblIdx(pid)
+          println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
+          csrMaster.write(ALLOC.readBack("sched")("stat", "readback_idx"), pidIdx.toBytesLE)
+          val queueFill = csrMaster.read(ALLOC.readBack("sched")("stat", "readback_queueFill"), 8).bytesToBigInt
+          println(f"PID $pid%#x has $queueFill elements queued in scheduler")
+
+          // XXX: heuristic!  more packets can be pending in decoder pipeline and not yet pushed to queue
+          if (queueFill >= RX_PKTS_PER_PROC.get - 8) {
+            println(f"Trying to send for srvId $srvToSend: PID $pid%#x's queue is almost full, skipping sending and throttling")
+            sleepCycles(200)
+          } else {
+            val (pkt, pld, xid) = getPacket()
+            println(f"Sending packet for PID $pid%#x with XID $xid%#x")
+            val toSend = pkt.getRawData.toList
+            axisMaster.send(toSend)
+
+            assert(!pktsToReceive.contains((pid, xid)), "random packet generation collision")
+            pktsToReceive((pid, xid)) = (pkt, pld, funcPtr)
+            pktsSent(srvToSend) += 1
+          }
+        }
+      }
+    }
+
+    0 until NUM_WORKER_CORES foreach { wcid =>
+      fork {
+        val cs = workerCore(wcid)
+
+        cs.log("Wait until a user thread is scheduled")
+        cs.waitUser()
+
+        def tid = cs.currThread.get.tid
+        def pid = cs.currThread.get.proc.pid
+
+        def procLog(msg: String) = cs.log(f"<pid $pid%#x> $msg")
+        def currIdx = pidToTblIdx(pid) - 1
+
+        while (pktsExpecting.sum != pktsReceived.sum) {
+          if (pktsExpecting(currIdx) > pktsReceived(currIdx)) {
+            cs.waitUser()
+            procLog("try receive one")
+
+            // this read might be launched before the queue was empty
+            val descOption = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result
+            if (descOption.nonEmpty) {
+              // reset retry count for this thread
+              threadRetryMap(tid) = 0
+
+              val (desc, pldDesc) = descOption.get
+              val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
+              procLog(s"received status $desc")
+              val tail = readPayload(dcsMaster, pldDesc, desc.len)
+              procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
+
+              exitCriticalSection(dcsMaster, tid)
+              procLog("finished receiving")
+              randomSleep(100, 50)
+
+              val xid = Integer.reverseBytes(info.xid.toInt)
+              if (!pktsToReceive.contains((pid, xid))) {
+                procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
+                pktsToReceive.view.filterKeys(_._1 == pid).foreach { case ((_, x), _) =>
+                  println(f"XID $x%#x")
+                }
+                simFailure("XID not found")
+              }
+              val (pkt, pld, funcPtr) = pktsToReceive((pid, xid))
+              procLog(f"received xid $xid%#x, expecting packet $pkt")
+              checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
+
+              procLog(s"finished (simulated) processing packet #${pktsReceived.sum}")
+              pktsReceived(currIdx) += 1
+            } else {
+              procLog(s"try receive timed out, checking if process is finished...")
+
+              val retries = threadRetryMap.getOrElseUpdate(tid, 0)
+              assert(retries <= 5, "ran out of retries for thread")
+              threadRetryMap(tid) += 1
+            }
+          } else {
+            procLog("process finished receiving, waiting for preemption...")
+            waitUntil(cs.inISR)
+          }
+        }
+      }
+    }
+
+    waitUntil(pktsExpecting.sum == pktsReceived.sum)
+  }
+
+  /** After preemption, no CLs should be Shared -- otherwise we leak a descriptor from the previous
+   * application on this core */
+  testWithDB("rx-preempt-no-leaking")(Rx) { implicit dut =>
+    // Spawn two services.  Send a few requests for the first one, drain all of them, then
+    // send a request to the second service.  After the core finishes preemption, check if
+    // no info is leaked (the new process only sees a NACK in the opposite CL)
+    // TODO
+  }
+
+  /* Test killing a process that did not unset BUSY */
+  testWithDB("rx-sched-crit-timeout")(Rx) { implicit dut =>
+    // TODO
   }
 }
