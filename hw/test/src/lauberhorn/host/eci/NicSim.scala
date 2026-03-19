@@ -43,7 +43,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     .addSimulatorFlag("-Wwarn-ZEROREPL -Wno-ZEROREPL -Wno-INITIALDLY")
     // wb2axip flags
     .addSimulatorFlag("-Wno-SIDEEFFECT")
-    .workspaceName("eci")
+    .workspaceName(getClass.getSimpleName)
     .compile(lauberhorn.GenEngineVerilog.engine(numWorkerCores, "eci"))
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
