@@ -1,30 +1,19 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware, hexToBytesBE, isSorted}
-import org.pcap4j.core.{PcapDumper, Pcaps}
-import org.pcap4j.packet.{EthernetPacket, IpV4Packet, IpV4Rfc1349Tos, Packet, UdpPacket}
-import org.pcap4j.packet.namednumber.{DataLinkType, EtherType, IpNumber, IpVersion}
-import org.scalatest.exceptions.TestFailedException
-import lauberhorn._
+import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
+import jsteward.blocks.misc.sim.IntRicherEndianAware
 import lauberhorn.Global._
+import lauberhorn._
 import lauberhorn.sim._
-import lauberhorn.sim.PacketType._
-import org.pcap4j.util.MacAddress
-import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.core.sim._
+import spinal.core.{BigIntToSInt => _, BigIntToUInt => _, _}
 import spinal.lib._
-import spinal.lib.sim._
 import spinal.lib.bus.amba4.axilite.sim.AxiLite4Master
-import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
-import scala.collection.mutable
 
 import scala.collection.mutable
 import scala.language.postfixOps
-import scala.util._
 import scala.util.control.TailCalls._
-import org.scalatest.tagobjects.Slow
 
 class EciThreadData(val td: ThreadDef) {
   /** 2F2F protocol parity bits */
@@ -88,6 +77,27 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     eciThreadDataMap.clear()
 
     (csrMaster, axisMaster, axisSlave, dcsAppMaster)
+  }
+
+  /** Set up the DUT and create the DCS and AXI-Lite simulation bus masters and arm an IRQ handler.
+   * Calls into [[GenericHostCPUModel]] to simulate software state changes in the kernel.
+   */
+  /** In addition to [[commonDutSetup]], assert that the TX interface is inactive during RX-only tests.  */
+  def rxDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
+    val cmacIf = dut.host[XilinxCmacPlugin].logic.get
+
+    // the tx interface should never be active!
+    cmacIf.cmacTxClock.onSamplings {
+      assert(!cmacIf.m_axis_tx.valid.toBoolean, "tx axi stream fired during rx only operation!")
+    }
+
+    val (csrMaster, axisMaster, _, dcsMaster) = commonDutSetup(rxBlockCycles)
+
+    // enable rx already for normal tests -- there is a separate test to see
+    // if the rx drop all switch is effective
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+
+    (csrMaster, axisMaster, dcsMaster)
   }
 
   /** Extra data for each [[ThreadDef]] with ECI-related states, notably CL parity bits */
@@ -259,5 +269,38 @@ trait NicSim extends DutSimFunSuite[NicEngine]
       data ++= dcsMaster.read(pldDesc.overflowAddr, overflowLen)
     }
     data
+  }
+
+  /** Send one descriptor, optionally with a tail payload. */
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false)(implicit dut: NicEngine): Unit = {
+    val etd = getEciThreadData(tid)
+    val coreBase = etd.baseAddr
+    def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
+
+    if (!skipCS) {
+      // since we didn't implement killing a process yet, we should never get descheduled during TX
+      val descheduled = !enterCriticalSection(dcsMaster, tid)
+      assert(!descheduled, "should never get descheduled during TX")
+    }
+
+    etd.log(f"sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
+    dcsMaster.write(clAddr, txDesc.toTxDesc)
+
+    val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
+    dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
+    if (toSend.size > 64) {
+      val overflowAddr = ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + coreBase
+      dcsMaster.write(overflowAddr, toSend.drop(firstWriteSize))
+    }
+
+    // trigger a read on the next cacheline to actually send the packet
+    etd.log(f"sent packet at $clAddr%#x")
+
+    etd.flipTx()
+    dcsMaster.read(clAddr, 1)
+
+    if (!skipCS) {
+      exitCriticalSection(dcsMaster, tid)
+    }
   }
 }
