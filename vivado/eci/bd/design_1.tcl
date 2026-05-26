@@ -44,7 +44,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 # source design_1_script.tcl
 
 
-# The design that will be created by this Tcl script contains the following
+# The design that will be created by this Tcl script contains the following 
 # module references:
 # gt_loopback_gen
 
@@ -101,7 +101,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -135,14 +135,16 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
+   set list_check_ips "\ 
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:ddr4:2.2\
+xilinx.com:ip:jtag_axi:1.2\
+xilinx.com:ip:smartconnect:1.0\
+xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
 xilinx.com:inline_hdl:ilconstant:1.0\
 xilinx.com:ip:clk_wiz:6.0\
-xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:system_ila:1.1\
 xilinx.com:ip:c_counter_binary:12.0\
 xilinx.com:inline_hdl:ilvector_logic:1.0\
@@ -170,7 +172,7 @@ xilinx.com:inline_hdl:ilvector_logic:1.0\
 ##################################################################
 set bCheckModules 1
 if { $bCheckModules == 1 } {
-   set list_check_mods "\
+   set list_check_mods "\ 
 gt_loopback_gen\
 "
 
@@ -200,7 +202,7 @@ if { $bCheckIPsPassed != 1 } {
 # DATA FILE TCL PROCs
 ##################################################################
 
-proc write_ddr4_file_design_1_ddr4_4_1 { str_filepath } {
+proc write_ddr4_file_design_1_ddr4_4_0 { str_filepath } {
 
    file mkdir [ file dirname "$str_filepath" ]
    set data_file [open $str_filepath  w+]
@@ -212,7 +214,7 @@ proc write_ddr4_file_design_1_ddr4_4_1 { str_filepath } {
 
    close $data_file
 }
-# End of write_ddr4_file_design_1_ddr4_4_1()
+# End of write_ddr4_file_design_1_ddr4_4_0()
 
 
 
@@ -713,7 +715,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
      catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
-
+  
   # Create port connections
   connect_bd_net -net app_aux_reset  [get_bd_pins vio_0/probe_out5] \
   [get_bd_pins app_aux_reset]
@@ -854,12 +856,11 @@ proc create_root_design { parentCell } {
 
   set trace_ddr_axi [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:aximm_rtl:1.0 trace_ddr_axi ]
   set_property -dict [ list \
-   CONFIG.ADDR_WIDTH {34} \
+   CONFIG.ADDR_WIDTH {35} \
    CONFIG.ARUSER_WIDTH {0} \
    CONFIG.AWUSER_WIDTH {0} \
    CONFIG.BUSER_WIDTH {0} \
    CONFIG.DATA_WIDTH {512} \
-   CONFIG.FREQ_HZ {300000000} \
    CONFIG.HAS_BRESP {1} \
    CONFIG.HAS_BURST {1} \
    CONFIG.HAS_CACHE {1} \
@@ -918,6 +919,7 @@ proc create_root_design { parentCell } {
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
+   CONFIG.ASSOCIATED_BUSIF {trace_ddr_axi} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
@@ -935,8 +937,8 @@ proc create_root_design { parentCell } {
    CONFIG.ASSOCIATED_BUSIF {tx_axis} \
  ] $txclk
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $txclk
-  set trace_stall_threshold [ create_bd_port -dir O -from 5 -to 0 trace_stall_threshold ]
 
+  set trace_stall_threshold [ create_bd_port -dir O -from 5 -to 0 trace_stall_threshold ]
   set core0_states [ create_bd_port -dir I -from 17 -to 0 -type data core0_states ]
   set core1_states [ create_bd_port -dir I -from 17 -to 0 -type data core1_states ]
   set core2_states [ create_bd_port -dir I -from 17 -to 0 -type data core2_states ]
@@ -997,7 +999,7 @@ proc create_root_design { parentCell } {
    set str_ddr4_file_name dram_parts.csv
    set str_ddr4_file_path ${str_ddr4_folder}/${str_ddr4_file_name}
 
-   write_ddr4_file_design_1_ddr4_4_1 $str_ddr4_file_path
+   write_ddr4_file_design_1_ddr4_4_0 $str_ddr4_file_path
 
   set_property -dict [list \
     CONFIG.C0.ADDR_WIDTH {18} \
@@ -1022,8 +1024,29 @@ proc create_root_design { parentCell } {
   ] $ddr4_4
 
 
+  # Create instance: jtag_axi_0, and set properties
+  set jtag_axi_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:jtag_axi:1.2 jtag_axi_0 ]
+  set_property -dict [list \
+    CONFIG.M_AXI_ADDR_WIDTH {64} \
+    CONFIG.M_AXI_DATA_WIDTH {64} \
+  ] $jtag_axi_0
+
+
+  # Create instance: axi_smc, and set properties
+  set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc ]
+  set_property -dict [list \
+    CONFIG.ADVANCED_PROPERTIES { __view__ { timing { S01_Buffer { AW_SLR_PIPE 3 AW_M_PIPE 3 B_SLR_PIPE 3 B_SYNC_STAGES 3 W_SLR_PIPE 3 W_M_PIPE 3 } } }} \
+    CONFIG.NUM_CLKS {2} \
+    CONFIG.NUM_SI {2} \
+  ] $axi_smc
+
+
+  # Create instance: rst_ddr4_4_300M, and set properties
+  set rst_ddr4_4_300M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ddr4_4_300M ]
+
   # Create interface connections
   connect_bd_intf_net -intf_net C0_DDR4_S_AXI_CTRL_0_1 [get_bd_intf_ports trace_ddr_axi_ctrl] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI_CTRL]
+  connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins hier_ilas/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
@@ -1033,7 +1056,8 @@ connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_
 connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins hier_ilas/dcs_odd]
   connect_bd_intf_net -intf_net ddr4_4_C0_DDR4 [get_bd_intf_ports trace_ddr] [get_bd_intf_pins ddr4_4/C0_DDR4]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
-  connect_bd_intf_net -intf_net trace_ddr_axi_1 [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
+  connect_bd_intf_net -intf_net jtag_axi_0_M_AXI [get_bd_intf_pins jtag_axi_0/M_AXI] [get_bd_intf_pins axi_smc/S00_AXI]
+  connect_bd_intf_net -intf_net trace_ddr_axi_1 [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins axi_smc/S01_AXI]
   connect_bd_intf_net -intf_net trace_ddr_clk_1 [get_bd_intf_ports trace_ddr_clk] [get_bd_intf_pins ddr4_4/C0_SYS_CLK]
 
   # Create port connections
@@ -1050,7 +1074,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_clk_rst/clk_io]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins hier_clk_rst/app_clk] \
   [get_bd_ports app_clk] \
-  [get_bd_pins hier_ilas/app_clk]
+  [get_bd_pins hier_ilas/app_clk] \
+  [get_bd_pins axi_smc/aclk1]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins hier_clk_rst/clk_io_rst] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
@@ -1086,6 +1111,12 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/core_rx_reset]
   connect_bd_net -net core_tx_reset  [get_bd_pins hier_cmac_ctrl_stat/core_tx_reset] \
   [get_bd_pins cmac_usplus_0/core_tx_reset]
+  connect_bd_net -net ddr4_4_c0_ddr4_ui_clk  [get_bd_pins ddr4_4/c0_ddr4_ui_clk] \
+  [get_bd_pins axi_smc/aclk] \
+  [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk] \
+  [get_bd_pins jtag_axi_0/aclk]
+  connect_bd_net -net ddr4_4_c0_ddr4_ui_clk_sync_rst  [get_bd_pins ddr4_4/c0_ddr4_ui_clk_sync_rst] \
+  [get_bd_pins rst_ddr4_4_300M/ext_reset_in]
   connect_bd_net -net gt_loopback_in  [get_bd_pins hier_cmac_ctrl_stat/gt_loopback_in] \
   [get_bd_pins cmac_usplus_0/gt_loopback_in]
   connect_bd_net -net gtwiz_reset_rx_datapath  [get_bd_pins hier_cmac_ctrl_stat/gtwiz_reset_rx_datapath] \
@@ -1094,8 +1125,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath]
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
-  connect_bd_net -net trace_stall_threshold  [get_bd_pins hier_cmac_ctrl_stat/trace_stall_threshold] \
-  [get_bd_ports trace_stall_threshold]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
@@ -1130,6 +1159,12 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/resetn1]
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins hier_clk_rst/rxclk_rstn] \
   [get_bd_pins hier_ilas/resetn2]
+  connect_bd_net -net rst_ddr4_4_300M_peripheral_aresetn  [get_bd_pins rst_ddr4_4_300M/peripheral_aresetn] \
+  [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
+  [get_bd_pins jtag_axi_0/aresetn] \
+  [get_bd_pins axi_smc/aresetn]
+  connect_bd_net -net trace_stall_threshold  [get_bd_pins hier_cmac_ctrl_stat/trace_stall_threshold] \
+  [get_bd_ports trace_stall_threshold]
   connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
   [get_bd_pins hier_ilas/ul_even]
   connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
@@ -1145,7 +1180,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/ctl_tx_send_idle]
 
   # Create address segments
-  assign_bd_address -offset 0x00000000 -range 0x000400000000 -target_address_space [get_bd_addr_spaces trace_ddr_axi] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP/C0_DDR4_ADDRESS_BLOCK] -force
+  assign_bd_address -offset 0x00000000 -range 0x000800000000 -target_address_space [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP/C0_DDR4_ADDRESS_BLOCK] -force
+  assign_bd_address -offset 0x00000000 -range 0x000800000000 -target_address_space [get_bd_addr_spaces trace_ddr_axi] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP/C0_DDR4_ADDRESS_BLOCK] -force
   assign_bd_address -offset 0x80000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces trace_ddr_axi_ctrl] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP_CTRL/C0_REG] -force
 
 
@@ -1163,4 +1199,5 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
 ##################################################################
 
 create_root_design ""
+
 
