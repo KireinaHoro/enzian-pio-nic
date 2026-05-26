@@ -309,9 +309,9 @@ module dcs_cdc #(
 
     // Packed ECI frame trace payloads for the global trace DMA.
     output logic [5:0]   trace_eci_app_valid,
-    output logic [127:0] trace_eci_app_payload[6],
+    output logic [74:0]  trace_eci_app_payload[6],
     output logic [5:0]   trace_eci_sys_valid,
-    output logic [127:0] trace_eci_sys_payload[6]
+    output logic [74:0]  trace_eci_sys_payload[6]
 );
 
 // Use 1024b interface with the DC since the ECI to AXI converters
@@ -357,24 +357,11 @@ logic [1:0]                             p_axi_bresp;
 logic                                   p_axi_bvalid;
 logic                                   p_axi_bready;
 
-localparam logic [3:0] TRACE_VERSION = 4'd0;
-localparam logic [3:0] TRACE_KIND_ECI = 4'd1;
-
-function automatic logic [127:0] pack_eci_trace(
-    input logic [7:0]                       local_source,
-    input logic [ECI_WORD_WIDTH-1:0]        data,
-    input logic [ECI_PACKET_SIZE_WIDTH-1:0] size,
-    input logic [3:0]                       vc
+function automatic logic [74:0] pack_eci_trace_payload(
+    input logic [ECI_WORD_WIDTH-1:0] data,
+    input logic [3:0]                vc
 );
-    pack_eci_trace = {
-        TRACE_VERSION,
-        TRACE_KIND_ECI,
-        local_source,
-        38'b0,
-        1'b0, vc,
-        size,
-        data
-    };
+    pack_eci_trace_payload = {7'b0, vc, data};
 endfunction
 
 // Pipeline FIFO and CDC for all ECI channels.
@@ -786,12 +773,12 @@ assign trace_eci_app_valid[3] = xslr_rsp_wod_pkt_valid_o && xslr_rsp_wod_pkt_rea
 assign trace_eci_app_valid[4] = xslr_rsp_wd_pkt_valid_o && xslr_rsp_wd_pkt_ready_i;
 assign trace_eci_app_valid[5] = xslr_fwd_wod_pkt_valid_o && xslr_fwd_wod_pkt_ready_i;
 
-assign trace_eci_app_payload[0] = pack_eci_trace(8'd0, xslr_req_wod_hdr_i, xslr_req_wod_pkt_size_i, xslr_req_wod_pkt_vc_i);
-assign trace_eci_app_payload[1] = pack_eci_trace(8'd1, xslr_rsp_wod_hdr_i, xslr_rsp_wod_pkt_size_i, xslr_rsp_wod_pkt_vc_i);
-assign trace_eci_app_payload[2] = pack_eci_trace(8'd2, xslr_rsp_wd_pkt_i[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_size_i, xslr_rsp_wd_pkt_vc_i);
-assign trace_eci_app_payload[3] = pack_eci_trace(8'd3, xslr_rsp_wod_hdr_o, xslr_rsp_wod_pkt_size_o, xslr_rsp_wod_pkt_vc_o);
-assign trace_eci_app_payload[4] = pack_eci_trace(8'd4, xslr_rsp_wd_pkt_o[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_size_o, xslr_rsp_wd_pkt_vc_o);
-assign trace_eci_app_payload[5] = pack_eci_trace(8'd5, xslr_fwd_wod_hdr_o, xslr_fwd_wod_pkt_size_o, xslr_fwd_wod_pkt_vc_o);
+assign trace_eci_app_payload[0] = pack_eci_trace_payload(xslr_req_wod_hdr_i, xslr_req_wod_pkt_vc_i);
+assign trace_eci_app_payload[1] = pack_eci_trace_payload(xslr_rsp_wod_hdr_i, xslr_rsp_wod_pkt_vc_i);
+assign trace_eci_app_payload[2] = pack_eci_trace_payload(xslr_rsp_wd_pkt_i[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_vc_i);
+assign trace_eci_app_payload[3] = pack_eci_trace_payload(xslr_rsp_wod_hdr_o, xslr_rsp_wod_pkt_vc_o);
+assign trace_eci_app_payload[4] = pack_eci_trace_payload(xslr_rsp_wd_pkt_o[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_vc_o);
+assign trace_eci_app_payload[5] = pack_eci_trace_payload(xslr_fwd_wod_hdr_o, xslr_fwd_wod_pkt_vc_o);
 
 assign trace_eci_sys_valid[0] = req_wod_pkt_valid_i && req_wod_pkt_ready_o;
 assign trace_eci_sys_valid[1] = rsp_wod_pkt_valid_i && rsp_wod_pkt_ready_o;
@@ -800,12 +787,12 @@ assign trace_eci_sys_valid[3] = rsp_wod_pkt_valid_o && rsp_wod_pkt_ready_i;
 assign trace_eci_sys_valid[4] = rsp_wd_pkt_valid_o && rsp_wd_pkt_ready_i;
 assign trace_eci_sys_valid[5] = fwd_wod_pkt_valid_o && fwd_wod_pkt_ready_i;
 
-assign trace_eci_sys_payload[0] = pack_eci_trace(8'd0, req_wod_hdr_i, req_wod_pkt_size_i, req_wod_pkt_vc_i);
-assign trace_eci_sys_payload[1] = pack_eci_trace(8'd1, rsp_wod_hdr_i, rsp_wod_pkt_size_i, rsp_wod_pkt_vc_i);
-assign trace_eci_sys_payload[2] = pack_eci_trace(8'd2, rsp_wd_pkt_i[0], rsp_wd_pkt_size_i, rsp_wd_pkt_vc_i);
-assign trace_eci_sys_payload[3] = pack_eci_trace(8'd3, rsp_wod_hdr_o, rsp_wod_pkt_size_o, rsp_wod_pkt_vc_o);
-assign trace_eci_sys_payload[4] = pack_eci_trace(8'd4, rsp_wd_pkt_o[0], rsp_wd_pkt_size_o, rsp_wd_pkt_vc_o);
-assign trace_eci_sys_payload[5] = pack_eci_trace(8'd5, fwd_wod_hdr_o, fwd_wod_pkt_size_o, fwd_wod_pkt_vc_o);
+assign trace_eci_sys_payload[0] = pack_eci_trace_payload(req_wod_hdr_i, req_wod_pkt_vc_i);
+assign trace_eci_sys_payload[1] = pack_eci_trace_payload(rsp_wod_hdr_i, rsp_wod_pkt_vc_i);
+assign trace_eci_sys_payload[2] = pack_eci_trace_payload(rsp_wd_pkt_i[0], rsp_wd_pkt_vc_i);
+assign trace_eci_sys_payload[3] = pack_eci_trace_payload(rsp_wod_hdr_o, rsp_wod_pkt_vc_o);
+assign trace_eci_sys_payload[4] = pack_eci_trace_payload(rsp_wd_pkt_o[0], rsp_wd_pkt_vc_o);
+assign trace_eci_sys_payload[5] = pack_eci_trace_payload(fwd_wod_hdr_o, fwd_wod_pkt_vc_o);
 
 endmodule
 

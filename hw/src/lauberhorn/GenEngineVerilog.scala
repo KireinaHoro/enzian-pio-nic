@@ -120,6 +120,7 @@ object GenEngineVerilog {
       Config.spinal(outDir, prefix = "dtb_").generateVerilog {
         LauberhornTraceDma().setDefinitionName("lauberhorn_trace_dma")
       }
+      LauberhornTraceDma.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
     }
   }
 
