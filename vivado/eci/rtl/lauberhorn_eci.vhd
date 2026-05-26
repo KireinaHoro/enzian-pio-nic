@@ -1456,7 +1456,7 @@ axil_cdc_inst : entity work.axil_cdc
 
     -- Trace buffer DDR
     trace_ddr_act_n => F_D4_ACT_N,
-    trace_ddr_a, => F_D4_A,
+    trace_ddr_a => F_D4_A,
     trace_ddr_ba => F_D4_BA,
     trace_ddr_bg => F_D4_BG,
     trace_ddr_ck_n => F_D4_CK_N,
