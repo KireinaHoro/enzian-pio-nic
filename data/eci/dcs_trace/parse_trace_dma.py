@@ -102,6 +102,7 @@ def decode_sample(index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[st
     beat_bits = int(sample_cfg.get("axi_data_width", 512))
     lost_source = int(sample_cfg.get("lost_source", (1 << source_width) - 1))
     lost_count_width = int(sample_cfg.get("lost_count_width", 32))
+    eci_stall_counter_shift = int(sample_cfg.get("eci_stall_counter_shift", 0))
 
     payload = bits(sample, 0, payload_width)
     source = bits(sample, payload_width, source_width)
@@ -134,6 +135,8 @@ def decode_sample(index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[st
     if row["type"] == "eci":
         eci_header = bits(payload, 0, 64)
         row["eci_header"] = f"0x{eci_header:016x}"
+        row["stall_counter_shift"] = eci_stall_counter_shift
+        row["stall_cycles"] = int(row.get("stall_count", 0)) << eci_stall_counter_shift
         if decode_by_opcode is not None:
             row.update(decode_by_opcode(eci_header, vc=row.get("vc"), src=row.get("local_source")))
 
@@ -168,7 +171,8 @@ def main() -> int:
         "sample", "beat", "timestamp", "source", "port", "type", "clock_domain",
         "dcs", "local_source", "channel", "payload", "lost_count",
         "error", "cli", "state", "action", "request",
-        "eci_header", "vc", "opcode", "message", "aliased_addr", "unaliased_addr",
+        "eci_header", "vc", "stall_count", "stall_counter_shift", "stall_cycles", "accepted",
+        "opcode", "message", "aliased_addr", "unaliased_addr",
     ]
     extra = sorted({key for row in rows for key in row.keys() if key not in fieldnames})
     fieldnames.extend(extra)

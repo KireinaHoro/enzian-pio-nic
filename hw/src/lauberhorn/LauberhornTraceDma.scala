@@ -27,6 +27,7 @@ object LauberhornTraceDma {
       |    "sample_width": 128,
       |    "lost_source": 31,
       |    "lost_count_width": 32,
+      |    "eci_stall_counter_shift": 16,
       |    "axi_data_width": 512,
       |    "byte_order": "little"
       |  },
@@ -43,7 +44,9 @@ object LauberhornTraceDma {
       |    "eci": {
       |      "fields": {
       |        "eci_header": {"offset": 0, "width": 64, "format": "hex"},
-      |        "vc": {"offset": 64, "width": 4}
+      |        "vc": {"offset": 64, "width": 4},
+      |        "stall_count": {"offset": 68, "width": 6},
+      |        "accepted": {"offset": 74, "width": 1}
       |      }
       |    }
       |  },
@@ -108,7 +111,10 @@ case class LauberhornTraceDma(
   // ECI frame payloads:
   //   [63:0]  ECI header word
   //   [67:64] VC
-  //   [74:68] reserved
+  //   [73:68] scaled stall count, saturated at 63
+  //   [74]    accepted within the configured stall threshold
+  // The scaled stall count is stalled_cycles >> 16 by default.  This spans at
+  // least 10 ms for clocks up to about 400 MHz while preserving the 128b sample.
   //
   // appTraceIn is sampled in the app clock domain. Current source allocation:
   //   0..3   DCS event traces

@@ -334,6 +334,9 @@ subtype trace_payload_t is std_logic_vector(74 downto 0);
 type trace_payload_array is array (integer range <>) of trace_payload_t;
 
 component dcs_cdc is
+generic (
+  TRACE_ECI_STALL_COUNTER_SHIFT : integer := 16
+);
 port (
   eci_clk, eci_reset, app_clk : in std_logic;
 
@@ -451,6 +454,7 @@ port (
   trace_dcs_event_action  : out trace_dcs_event_action_array(1 downto 0);
   trace_dcs_event_request : out trace_dcs_event_request_array(1 downto 0);
 
+  trace_eci_stall_threshold : in std_logic_vector(5 downto 0);
   trace_eci_app_valid   : out std_logic_vector(5 downto 0);
   trace_eci_app_payload : out trace_payload_array(5 downto 0);
   trace_eci_sys_valid   : out std_logic_vector(5 downto 0);
@@ -732,6 +736,7 @@ signal core0_states, core1_states, core2_states, core3_states, core4_states : st
 signal trace_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error : std_logic;
 signal trace_write_slot : std_logic_vector(27 downto 0);
+signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_payload : trace_payload_array(5 downto 0);
@@ -1197,6 +1202,7 @@ port map (
   trace_dcs_event_request => dcs_even_trace_dcs_event_request ,
   trace_dcs_event_cli     => dcs_even_trace_dcs_event_cli,
 
+  trace_eci_stall_threshold => trace_eci_stall_threshold,
   trace_eci_app_valid   => dcs_even_trace_eci_app_valid,
   trace_eci_app_payload => dcs_even_trace_eci_app_payload,
   trace_eci_sys_valid   => dcs_even_trace_eci_sys_valid,
@@ -1322,6 +1328,7 @@ port map (
   trace_dcs_event_request => dcs_odd_trace_dcs_event_request ,
   trace_dcs_event_cli     => dcs_odd_trace_dcs_event_cli,
 
+  trace_eci_stall_threshold => trace_eci_stall_threshold,
   trace_eci_app_valid   => dcs_odd_trace_eci_app_valid,
   trace_eci_app_payload => dcs_odd_trace_eci_app_payload,
   trace_eci_sys_valid   => dcs_odd_trace_eci_sys_valid,
@@ -1522,6 +1529,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     txclk => txclk,
     reset => reset,
     app_clk_reset => app_clk_reset,
+    trace_stall_threshold => trace_eci_stall_threshold,
 
     -- TX interface
     tx_axis_tready => cmac_tx_axis.tready,
