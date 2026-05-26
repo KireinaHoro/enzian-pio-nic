@@ -10,8 +10,9 @@ design, each sample is 128 bits:
   [payload_width+source_width-1:payload]    source id
   [sample_width-1:payload+source]           timestamp
 
-The all-ones source id for the configured source width is reserved for
-lost-sample count frames.
+The all-ones source id for the configured source width is reserved for marker
+frames: non-zero payload reports lost samples, while zero payload is a bubble
+inserted to flush a partial AXI beat.
 """
 
 import argparse
@@ -122,8 +123,9 @@ def decode_sample(index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[st
     }
 
     if source == lost_source or row["type"] == "lost":
-        row["type"] = "lost"
-        row["lost_count"] = bits(payload, 0, lost_count_width)
+        lost_count = bits(payload, 0, lost_count_width)
+        row["type"] = "bubble" if lost_count == 0 else "lost"
+        row["lost_count"] = lost_count
         return row
 
     payload_format = trace_map.get("payload_formats", {}).get(row["type"], {})
