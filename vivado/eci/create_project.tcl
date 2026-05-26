@@ -115,7 +115,6 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 # Add sources from us
 add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/dcs_2_axi.sv" \
-    "$src_dir/rtl/dcs_trace_eci.sv" \
     "$src_dir/rtl/dcs_cdc.sv" \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/axil_regs_interconnect.v" \
@@ -256,30 +255,6 @@ set_property -dict [list \
 generate_target all $my_ip
 
 # ILA for tracing DCS ECI
-create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_dcs_eci
-set my_ip [get_ips ila_dcs_eci]
-set_property -dict [list \
-    CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
-    CONFIG.C_DATA_DEPTH {1024} \
-    CONFIG.C_NUM_OF_PROBES {7} \
-    CONFIG.C_PROBE0_WIDTH {64} \
-    CONFIG.C_PROBE1_WIDTH {5} \
-    CONFIG.C_PROBE2_WIDTH {5} \
-    CONFIG.C_PROBE3_WIDTH {3} \
-    CONFIG.C_PROBE4_WIDTH {64} \
-    CONFIG.C_PROBE5_WIDTH {1} \
-    CONFIG.C_PROBE6_WIDTH {1} \
-] $my_ip
-generate_target all $my_ip
-
-# VIO for triggering DCS ECI trace dump
-create_ip -name vio -vendor xilinx.com -library ip -version 3.0 -module_name vio_dcs_eci
-set my_ip [get_ips vio_dcs_eci]
-set_property -dict [list \
-    CONFIG.C_NUM_PROBE_IN {0} \
-] $my_ip
-generate_target all $my_ip
-
 close_project
 
 # local config file for static-shell flows

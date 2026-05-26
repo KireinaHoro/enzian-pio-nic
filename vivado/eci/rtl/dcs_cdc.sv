@@ -299,13 +299,19 @@ module dcs_cdc #(
     input logic                                   m_axi_bvalid,
     output logic                                  m_axi_bready,
 
-    // Tracing output
-    output logic        tracing_valid[2],
-    output logic        tracing_error[2],
-    output logic [39:0] tracing_cli[2],
-    output logic [6:0]	tracing_state[2],
-    output logic [3:0]	tracing_action[2],
-    output logic [4:0]	tracing_request[2]
+    // DCS event trace output.
+    output logic        trace_dcs_event_valid[2],
+    output logic        trace_dcs_event_error[2],
+    output logic [39:0] trace_dcs_event_cli[2],
+    output logic [6:0]  trace_dcs_event_state[2],
+    output logic [3:0]  trace_dcs_event_action[2],
+    output logic [4:0]  trace_dcs_event_request[2],
+
+    // Packed ECI frame trace payloads for the global trace DMA.
+    output logic [5:0]   trace_eci_app_valid,
+    output logic [127:0] trace_eci_app_payload[6],
+    output logic [5:0]   trace_eci_sys_valid,
+    output logic [127:0] trace_eci_sys_payload[6]
 );
 
 // Use 1024b interface with the DC since the ECI to AXI converters
@@ -350,6 +356,26 @@ logic [AXI_ID_WIDTH-1:0]                p_axi_bid;
 logic [1:0]                             p_axi_bresp;
 logic                                   p_axi_bvalid;
 logic                                   p_axi_bready;
+
+localparam logic [3:0] TRACE_VERSION = 4'd0;
+localparam logic [3:0] TRACE_KIND_ECI = 4'd1;
+
+function automatic logic [127:0] pack_eci_trace(
+    input logic [7:0]                       local_source,
+    input logic [ECI_WORD_WIDTH-1:0]        data,
+    input logic [ECI_PACKET_SIZE_WIDTH-1:0] size,
+    input logic [3:0]                       vc
+);
+    pack_eci_trace = {
+        TRACE_VERSION,
+        TRACE_KIND_ECI,
+        local_source,
+        38'b0,
+        1'b0, vc,
+        size,
+        data
+    };
+endfunction
 
 // Pipeline FIFO and CDC for all ECI channels.
 // We first pipeline into SLR0/2, then CDC, to relieve congestion in SLR1.
@@ -744,96 +770,42 @@ dcs_2_axi #(
   .p_axi_bready,
 
   // tracing interfaces
-  .tracing_valid,
-  .tracing_error,
-  .tracing_cli,
-  .tracing_state,
-  .tracing_action,
-  .tracing_request
+  .trace_dcs_event_valid,
+  .trace_dcs_event_error,
+  .trace_dcs_event_cli,
+  .trace_dcs_event_state,
+  .trace_dcs_event_action,
+  .trace_dcs_event_request
 );
 
 // also trace ECI messages into the DC (before and after cross)
-dcs_trace_eci i_trace_app (
-    .reset(app_reset),
-    .clk(app_clk),
+assign trace_eci_app_valid[0] = xslr_req_wod_pkt_valid_i && xslr_req_wod_pkt_ready_o;
+assign trace_eci_app_valid[1] = xslr_rsp_wod_pkt_valid_i && xslr_rsp_wod_pkt_ready_o;
+assign trace_eci_app_valid[2] = xslr_rsp_wd_pkt_valid_i && xslr_rsp_wd_pkt_ready_o;
+assign trace_eci_app_valid[3] = xslr_rsp_wod_pkt_valid_o && xslr_rsp_wod_pkt_ready_i;
+assign trace_eci_app_valid[4] = xslr_rsp_wd_pkt_valid_o && xslr_rsp_wd_pkt_ready_i;
+assign trace_eci_app_valid[5] = xslr_fwd_wod_pkt_valid_o && xslr_fwd_wod_pkt_ready_i;
 
-    .req_wod_hdr_i(xslr_req_wod_hdr_i),
-    .req_wod_pkt_size_i(xslr_req_wod_pkt_size_i),
-    .req_wod_pkt_vc_i(xslr_req_wod_pkt_vc_i),
-    .req_wod_pkt_valid_i(xslr_req_wod_pkt_valid_i),
-    .req_wod_pkt_ready_o(xslr_req_wod_pkt_ready_o),
+assign trace_eci_app_payload[0] = pack_eci_trace(8'd0, xslr_req_wod_hdr_i, xslr_req_wod_pkt_size_i, xslr_req_wod_pkt_vc_i);
+assign trace_eci_app_payload[1] = pack_eci_trace(8'd1, xslr_rsp_wod_hdr_i, xslr_rsp_wod_pkt_size_i, xslr_rsp_wod_pkt_vc_i);
+assign trace_eci_app_payload[2] = pack_eci_trace(8'd2, xslr_rsp_wd_pkt_i[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_size_i, xslr_rsp_wd_pkt_vc_i);
+assign trace_eci_app_payload[3] = pack_eci_trace(8'd3, xslr_rsp_wod_hdr_o, xslr_rsp_wod_pkt_size_o, xslr_rsp_wod_pkt_vc_o);
+assign trace_eci_app_payload[4] = pack_eci_trace(8'd4, xslr_rsp_wd_pkt_o[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_size_o, xslr_rsp_wd_pkt_vc_o);
+assign trace_eci_app_payload[5] = pack_eci_trace(8'd5, xslr_fwd_wod_hdr_o, xslr_fwd_wod_pkt_size_o, xslr_fwd_wod_pkt_vc_o);
 
-    .rsp_wod_hdr_i(xslr_rsp_wod_hdr_i),
-    .rsp_wod_pkt_size_i(xslr_rsp_wod_pkt_size_i),
-    .rsp_wod_pkt_vc_i(xslr_rsp_wod_pkt_vc_i),
-    .rsp_wod_pkt_valid_i(xslr_rsp_wod_pkt_valid_i),
-    .rsp_wod_pkt_ready_o(xslr_rsp_wod_pkt_ready_o),
+assign trace_eci_sys_valid[0] = req_wod_pkt_valid_i && req_wod_pkt_ready_o;
+assign trace_eci_sys_valid[1] = rsp_wod_pkt_valid_i && rsp_wod_pkt_ready_o;
+assign trace_eci_sys_valid[2] = rsp_wd_pkt_valid_i && rsp_wd_pkt_ready_o;
+assign trace_eci_sys_valid[3] = rsp_wod_pkt_valid_o && rsp_wod_pkt_ready_i;
+assign trace_eci_sys_valid[4] = rsp_wd_pkt_valid_o && rsp_wd_pkt_ready_i;
+assign trace_eci_sys_valid[5] = fwd_wod_pkt_valid_o && fwd_wod_pkt_ready_i;
 
-    .rsp_wd_pkt_i(xslr_rsp_wd_pkt_i),
-    .rsp_wd_pkt_size_i(xslr_rsp_wd_pkt_size_i),
-    .rsp_wd_pkt_vc_i(xslr_rsp_wd_pkt_vc_i),
-    .rsp_wd_pkt_valid_i(xslr_rsp_wd_pkt_valid_i),
-    .rsp_wd_pkt_ready_o(xslr_rsp_wd_pkt_ready_o),
-
-    .rsp_wod_hdr_o(xslr_rsp_wod_hdr_o),
-    .rsp_wod_pkt_size_o(xslr_rsp_wod_pkt_size_o),
-    .rsp_wod_pkt_vc_o(xslr_rsp_wod_pkt_vc_o),
-    .rsp_wod_pkt_valid_o(xslr_rsp_wod_pkt_valid_o),
-    .rsp_wod_pkt_ready_i(xslr_rsp_wod_pkt_ready_i),
-
-    .rsp_wd_pkt_o(xslr_rsp_wd_pkt_o),
-    .rsp_wd_pkt_size_o(xslr_rsp_wd_pkt_size_o),
-    .rsp_wd_pkt_vc_o(xslr_rsp_wd_pkt_vc_o),
-    .rsp_wd_pkt_valid_o(xslr_rsp_wd_pkt_valid_o),
-    .rsp_wd_pkt_ready_i(xslr_rsp_wd_pkt_ready_i),
-
-    .fwd_wod_hdr_o(xslr_fwd_wod_hdr_o),
-    .fwd_wod_pkt_size_o(xslr_fwd_wod_pkt_size_o),
-    .fwd_wod_pkt_vc_o(xslr_fwd_wod_pkt_vc_o),
-    .fwd_wod_pkt_valid_o(xslr_fwd_wod_pkt_valid_o),
-    .fwd_wod_pkt_ready_i(xslr_fwd_wod_pkt_ready_i)
-);
-
-dcs_trace_eci i_trace_sys (
-    .reset(eci_reset),
-    .clk(eci_clk),
-
-    .req_wod_hdr_i(req_wod_hdr_i),
-    .req_wod_pkt_size_i(req_wod_pkt_size_i),
-    .req_wod_pkt_vc_i(req_wod_pkt_vc_i),
-    .req_wod_pkt_valid_i(req_wod_pkt_valid_i),
-    .req_wod_pkt_ready_o(req_wod_pkt_ready_o),
-
-    .rsp_wod_hdr_i(rsp_wod_hdr_i),
-    .rsp_wod_pkt_size_i(rsp_wod_pkt_size_i),
-    .rsp_wod_pkt_vc_i(rsp_wod_pkt_vc_i),
-    .rsp_wod_pkt_valid_i(rsp_wod_pkt_valid_i),
-    .rsp_wod_pkt_ready_o(rsp_wod_pkt_ready_o),
-
-    .rsp_wd_pkt_i(rsp_wd_pkt_i),
-    .rsp_wd_pkt_size_i(rsp_wd_pkt_size_i),
-    .rsp_wd_pkt_vc_i(rsp_wd_pkt_vc_i),
-    .rsp_wd_pkt_valid_i(rsp_wd_pkt_valid_i),
-    .rsp_wd_pkt_ready_o(rsp_wd_pkt_ready_o),
-
-    .rsp_wod_hdr_o(rsp_wod_hdr_o),
-    .rsp_wod_pkt_size_o(rsp_wod_pkt_size_o),
-    .rsp_wod_pkt_vc_o(rsp_wod_pkt_vc_o),
-    .rsp_wod_pkt_valid_o(rsp_wod_pkt_valid_o),
-    .rsp_wod_pkt_ready_i(rsp_wod_pkt_ready_i),
-
-    .rsp_wd_pkt_o(rsp_wd_pkt_o),
-    .rsp_wd_pkt_size_o(rsp_wd_pkt_size_o),
-    .rsp_wd_pkt_vc_o(rsp_wd_pkt_vc_o),
-    .rsp_wd_pkt_valid_o(rsp_wd_pkt_valid_o),
-    .rsp_wd_pkt_ready_i(rsp_wd_pkt_ready_i),
-
-    .fwd_wod_hdr_o(fwd_wod_hdr_o),
-    .fwd_wod_pkt_size_o(fwd_wod_pkt_size_o),
-    .fwd_wod_pkt_vc_o(fwd_wod_pkt_vc_o),
-    .fwd_wod_pkt_valid_o(fwd_wod_pkt_valid_o),
-    .fwd_wod_pkt_ready_i(fwd_wod_pkt_ready_i)
-);
+assign trace_eci_sys_payload[0] = pack_eci_trace(8'd0, req_wod_hdr_i, req_wod_pkt_size_i, req_wod_pkt_vc_i);
+assign trace_eci_sys_payload[1] = pack_eci_trace(8'd1, rsp_wod_hdr_i, rsp_wod_pkt_size_i, rsp_wod_pkt_vc_i);
+assign trace_eci_sys_payload[2] = pack_eci_trace(8'd2, rsp_wd_pkt_i[0], rsp_wd_pkt_size_i, rsp_wd_pkt_vc_i);
+assign trace_eci_sys_payload[3] = pack_eci_trace(8'd3, rsp_wod_hdr_o, rsp_wod_pkt_size_o, rsp_wod_pkt_vc_o);
+assign trace_eci_sys_payload[4] = pack_eci_trace(8'd4, rsp_wd_pkt_o[0], rsp_wd_pkt_size_o, rsp_wd_pkt_vc_o);
+assign trace_eci_sys_payload[5] = pack_eci_trace(8'd5, fwd_wod_hdr_o, fwd_wod_pkt_size_o, fwd_wod_pkt_vc_o);
 
 endmodule
 

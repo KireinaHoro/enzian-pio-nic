@@ -142,13 +142,13 @@ module dcs_2_axi #
     input logic                        p_axi_bvalid,
     output logic                        p_axi_bready,
 
-    // Tracing output
-    output logic        tracing_valid[2],
-    output logic        tracing_error[2],
-    output logic [39:0] tracing_cli[2],
-    output logic [6:0]    tracing_state[2],
-    output logic [3:0]    tracing_action[2],
-    output logic [4:0]    tracing_request[2]
+    // DCS event trace output
+    output logic        trace_dcs_event_valid[2],
+    output logic        trace_dcs_event_error[2],
+    output logic [39:0] trace_dcs_event_cli[2],
+    output logic [6:0]  trace_dcs_event_state[2],
+    output logic [3:0]  trace_dcs_event_action[2],
+    output logic [4:0]  trace_dcs_event_request[2]
     );
 
    // VC width is 5 bits here, upstream ECI is only 4 bits.
@@ -467,12 +467,12 @@ module dcs_2_axi #
       .wr_rsp_ready_o    (dcs_wr_rsp_ctrl_i.ready),
 
       // tracing interfaces
-      .tracing_valid,
-      .tracing_error,
-      .tracing_cli,
-      .tracing_state,
-      .tracing_action,
-      .tracing_request
+      .tracing_valid(trace_dcs_event_valid),
+      .tracing_error(trace_dcs_event_error),
+      .tracing_cli(trace_dcs_event_cli),
+      .tracing_state(trace_dcs_event_state),
+      .tracing_action(trace_dcs_event_action),
+      .tracing_request(trace_dcs_event_request)
       );
 
    // DCS to AXI RD signals.
@@ -599,4 +599,3 @@ module dcs_2_axi #
 
 endmodule //dcs_2_axi
 `endif
-
