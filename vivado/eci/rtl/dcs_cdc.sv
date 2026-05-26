@@ -190,13 +190,84 @@ endgenerate
 
 endmodule
 
+module eci_trace_channel #(
+    parameter STALL_WIDTH = 6,
+    parameter STALL_COUNTER_SHIFT = 16
+) (
+    input logic                     clk,
+    input logic                     reset,
+    input logic [ECI_WORD_WIDTH-1:0] header,
+    input logic [3:0]               vc,
+    input logic                     valid,
+    input logic                     ready,
+    input logic [STALL_WIDTH-1:0]   stall_threshold,
+
+    output logic                    trace_valid,
+    output logic [74:0]             trace_payload
+);
+
+localparam logic [STALL_WIDTH-1:0] STALL_MAX = {STALL_WIDTH{1'b1}};
+localparam STALL_SCALE_COUNTER_WIDTH = (STALL_COUNTER_SHIFT == 0) ? 1 : STALL_COUNTER_SHIFT;
+
+logic [STALL_WIDTH-1:0] stall_count;
+logic [STALL_WIDTH-1:0] next_stall_count;
+logic [STALL_SCALE_COUNTER_WIDTH-1:0] stall_scale_count;
+logic scale_tick;
+logic timed_out;
+
+assign next_stall_count = (stall_count == STALL_MAX) ? STALL_MAX : stall_count + {{(STALL_WIDTH-1){1'b0}}, 1'b1};
+assign scale_tick = (STALL_COUNTER_SHIFT == 0) ? 1'b1 : (stall_scale_count == {STALL_SCALE_COUNTER_WIDTH{1'b1}});
+
+always_ff @(posedge clk) begin
+    if (reset) begin
+        trace_valid <= 1'b0;
+        trace_payload <= '0;
+        stall_count <= '0;
+        stall_scale_count <= '0;
+        timed_out <= 1'b0;
+    end else begin
+        trace_valid <= 1'b0;
+
+        if (!valid) begin
+            stall_count <= '0;
+            stall_scale_count <= '0;
+            timed_out <= 1'b0;
+        end else if (ready) begin
+            if (!timed_out) begin
+                trace_valid <= 1'b1;
+                trace_payload <= {1'b1, stall_count, vc, header};
+            end
+            stall_count <= '0;
+            stall_scale_count <= '0;
+            timed_out <= 1'b0;
+        end else begin
+            if (scale_tick) begin
+                stall_count <= next_stall_count;
+                stall_scale_count <= '0;
+                if (!timed_out && stall_threshold != '0 && next_stall_count >= stall_threshold) begin
+                    trace_valid <= 1'b1;
+                    trace_payload <= {1'b0, next_stall_count, vc, header};
+                    timed_out <= 1'b1;
+                end
+            end else begin
+                stall_scale_count <= stall_scale_count + {{(STALL_SCALE_COUNTER_WIDTH-1){1'b0}}, 1'b1};
+            end
+        end
+    end
+end
+
+endmodule
+
 module dcs_cdc #(
    parameter AXI_ID_WIDTH = MAX_DCU_ID_WIDTH, //7
    parameter AXI_ADDR_WIDTH = DS_ADDR_WIDTH,  //38
    parameter AXI_DATA_WIDTH = 512,
    localparam AXI_STRB_WIDTH = (AXI_DATA_WIDTH/8),
    parameter PERF_REGS_WIDTH = 32,
-   parameter SYNTH_PERF_REGS = 1 //0,1
+   parameter SYNTH_PERF_REGS = 1, //0,1
+   // The 6-bit ECI trace stall field stores stalled_cycles >> this shift.
+   // The default gives at least 10 ms of range for clocks up to about 400 MHz.
+   parameter TRACE_ECI_STALL_COUNTER_SHIFT = 16
 ) (
     // ===== interfaces toward ECI gateway are clocked with eci_clk =====
     input logic                                   eci_reset,
@@ -308,6 +379,9 @@ module dcs_cdc #(
     output logic [4:0]  trace_dcs_event_request[2],
 
     // Packed ECI frame trace payloads for the global trace DMA.
+    // stall_threshold is in scaled stall-count units.
+    // 0 disables "unaccepted" timeout markers.
+    input logic [5:0]    trace_eci_stall_threshold,
     output logic [5:0]   trace_eci_app_valid,
     output logic [74:0]  trace_eci_app_payload[6],
     output logic [5:0]   trace_eci_sys_valid,
@@ -357,13 +431,6 @@ logic [1:0]                             p_axi_bresp;
 logic                                   p_axi_bvalid;
 logic                                   p_axi_bready;
 
-function automatic logic [74:0] pack_eci_trace_payload(
-    input logic [ECI_WORD_WIDTH-1:0] data,
-    input logic [3:0]                vc
-);
-    pack_eci_trace_payload = {7'b0, vc, data};
-endfunction
-
 // Pipeline FIFO and CDC for all ECI channels.
 // We first pipeline into SLR0/2, then CDC, to relieve congestion in SLR1.
 
@@ -372,6 +439,31 @@ xpm_cdc_sync_rst i_app_rst_sync (
     .dest_rst(app_reset),
     .src_rst(eci_reset)
 );
+
+logic [5:0] trace_eci_stall_threshold_app_meta;
+logic [5:0] trace_eci_stall_threshold_app;
+logic [5:0] trace_eci_stall_threshold_sys_meta;
+logic [5:0] trace_eci_stall_threshold_sys;
+
+always_ff @(posedge app_clk) begin
+    if (app_reset) begin
+        trace_eci_stall_threshold_app_meta <= '0;
+        trace_eci_stall_threshold_app <= '0;
+    end else begin
+        trace_eci_stall_threshold_app_meta <= trace_eci_stall_threshold;
+        trace_eci_stall_threshold_app <= trace_eci_stall_threshold_app_meta;
+    end
+end
+
+always_ff @(posedge eci_clk) begin
+    if (eci_reset) begin
+        trace_eci_stall_threshold_sys_meta <= '0;
+        trace_eci_stall_threshold_sys <= '0;
+    end else begin
+        trace_eci_stall_threshold_sys_meta <= trace_eci_stall_threshold;
+        trace_eci_stall_threshold_sys <= trace_eci_stall_threshold_sys_meta;
+    end
+end
 
 logic [ECI_WORD_WIDTH-1:0]        xslr_req_wod_hdr_i;
 logic [ECI_PACKET_SIZE_WIDTH-1:0] xslr_req_wod_pkt_size_i;
@@ -765,34 +857,174 @@ dcs_2_axi #(
   .trace_dcs_event_request
 );
 
-// also trace ECI messages into the DC (before and after cross)
-assign trace_eci_app_valid[0] = xslr_req_wod_pkt_valid_i && xslr_req_wod_pkt_ready_o;
-assign trace_eci_app_valid[1] = xslr_rsp_wod_pkt_valid_i && xslr_rsp_wod_pkt_ready_o;
-assign trace_eci_app_valid[2] = xslr_rsp_wd_pkt_valid_i && xslr_rsp_wd_pkt_ready_o;
-assign trace_eci_app_valid[3] = xslr_rsp_wod_pkt_valid_o && xslr_rsp_wod_pkt_ready_i;
-assign trace_eci_app_valid[4] = xslr_rsp_wd_pkt_valid_o && xslr_rsp_wd_pkt_ready_i;
-assign trace_eci_app_valid[5] = xslr_fwd_wod_pkt_valid_o && xslr_fwd_wod_pkt_ready_i;
+// Trace ECI messages into the DC before and after the CDC boundaries.
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_req_wod_i (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_req_wod_hdr_i),
+    .vc(xslr_req_wod_pkt_vc_i),
+    .valid(xslr_req_wod_pkt_valid_i),
+    .ready(xslr_req_wod_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[0]),
+    .trace_payload(trace_eci_app_payload[0])
+);
 
-assign trace_eci_app_payload[0] = pack_eci_trace_payload(xslr_req_wod_hdr_i, xslr_req_wod_pkt_vc_i);
-assign trace_eci_app_payload[1] = pack_eci_trace_payload(xslr_rsp_wod_hdr_i, xslr_rsp_wod_pkt_vc_i);
-assign trace_eci_app_payload[2] = pack_eci_trace_payload(xslr_rsp_wd_pkt_i[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_vc_i);
-assign trace_eci_app_payload[3] = pack_eci_trace_payload(xslr_rsp_wod_hdr_o, xslr_rsp_wod_pkt_vc_o);
-assign trace_eci_app_payload[4] = pack_eci_trace_payload(xslr_rsp_wd_pkt_o[ECI_WORD_WIDTH-1:0], xslr_rsp_wd_pkt_vc_o);
-assign trace_eci_app_payload[5] = pack_eci_trace_payload(xslr_fwd_wod_hdr_o, xslr_fwd_wod_pkt_vc_o);
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_rsp_wod_i (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_rsp_wod_hdr_i),
+    .vc(xslr_rsp_wod_pkt_vc_i),
+    .valid(xslr_rsp_wod_pkt_valid_i),
+    .ready(xslr_rsp_wod_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[1]),
+    .trace_payload(trace_eci_app_payload[1])
+);
 
-assign trace_eci_sys_valid[0] = req_wod_pkt_valid_i && req_wod_pkt_ready_o;
-assign trace_eci_sys_valid[1] = rsp_wod_pkt_valid_i && rsp_wod_pkt_ready_o;
-assign trace_eci_sys_valid[2] = rsp_wd_pkt_valid_i && rsp_wd_pkt_ready_o;
-assign trace_eci_sys_valid[3] = rsp_wod_pkt_valid_o && rsp_wod_pkt_ready_i;
-assign trace_eci_sys_valid[4] = rsp_wd_pkt_valid_o && rsp_wd_pkt_ready_i;
-assign trace_eci_sys_valid[5] = fwd_wod_pkt_valid_o && fwd_wod_pkt_ready_i;
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_rsp_wd_i (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_rsp_wd_pkt_i[ECI_WORD_WIDTH-1:0]),
+    .vc(xslr_rsp_wd_pkt_vc_i),
+    .valid(xslr_rsp_wd_pkt_valid_i),
+    .ready(xslr_rsp_wd_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[2]),
+    .trace_payload(trace_eci_app_payload[2])
+);
 
-assign trace_eci_sys_payload[0] = pack_eci_trace_payload(req_wod_hdr_i, req_wod_pkt_vc_i);
-assign trace_eci_sys_payload[1] = pack_eci_trace_payload(rsp_wod_hdr_i, rsp_wod_pkt_vc_i);
-assign trace_eci_sys_payload[2] = pack_eci_trace_payload(rsp_wd_pkt_i[0], rsp_wd_pkt_vc_i);
-assign trace_eci_sys_payload[3] = pack_eci_trace_payload(rsp_wod_hdr_o, rsp_wod_pkt_vc_o);
-assign trace_eci_sys_payload[4] = pack_eci_trace_payload(rsp_wd_pkt_o[0], rsp_wd_pkt_vc_o);
-assign trace_eci_sys_payload[5] = pack_eci_trace_payload(fwd_wod_hdr_o, fwd_wod_pkt_vc_o);
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_rsp_wod_o (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_rsp_wod_hdr_o),
+    .vc(xslr_rsp_wod_pkt_vc_o),
+    .valid(xslr_rsp_wod_pkt_valid_o),
+    .ready(xslr_rsp_wod_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[3]),
+    .trace_payload(trace_eci_app_payload[3])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_rsp_wd_o (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_rsp_wd_pkt_o[ECI_WORD_WIDTH-1:0]),
+    .vc(xslr_rsp_wd_pkt_vc_o),
+    .valid(xslr_rsp_wd_pkt_valid_o),
+    .ready(xslr_rsp_wd_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[4]),
+    .trace_payload(trace_eci_app_payload[4])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_app_fwd_wod_o (
+    .clk(app_clk),
+    .reset(app_reset),
+    .header(xslr_fwd_wod_hdr_o),
+    .vc(xslr_fwd_wod_pkt_vc_o),
+    .valid(xslr_fwd_wod_pkt_valid_o),
+    .ready(xslr_fwd_wod_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_app),
+    .trace_valid(trace_eci_app_valid[5]),
+    .trace_payload(trace_eci_app_payload[5])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_req_wod_i (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(req_wod_hdr_i),
+    .vc(req_wod_pkt_vc_i),
+    .valid(req_wod_pkt_valid_i),
+    .ready(req_wod_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[0]),
+    .trace_payload(trace_eci_sys_payload[0])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_rsp_wod_i (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(rsp_wod_hdr_i),
+    .vc(rsp_wod_pkt_vc_i),
+    .valid(rsp_wod_pkt_valid_i),
+    .ready(rsp_wod_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[1]),
+    .trace_payload(trace_eci_sys_payload[1])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_rsp_wd_i (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(rsp_wd_pkt_i[0]),
+    .vc(rsp_wd_pkt_vc_i),
+    .valid(rsp_wd_pkt_valid_i),
+    .ready(rsp_wd_pkt_ready_o),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[2]),
+    .trace_payload(trace_eci_sys_payload[2])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_rsp_wod_o (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(rsp_wod_hdr_o),
+    .vc(rsp_wod_pkt_vc_o),
+    .valid(rsp_wod_pkt_valid_o),
+    .ready(rsp_wod_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[3]),
+    .trace_payload(trace_eci_sys_payload[3])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_rsp_wd_o (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(rsp_wd_pkt_o[0]),
+    .vc(rsp_wd_pkt_vc_o),
+    .valid(rsp_wd_pkt_valid_o),
+    .ready(rsp_wd_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[4]),
+    .trace_payload(trace_eci_sys_payload[4])
+);
+
+eci_trace_channel #(
+    .STALL_COUNTER_SHIFT(TRACE_ECI_STALL_COUNTER_SHIFT)
+) i_trace_eci_sys_fwd_wod_o (
+    .clk(eci_clk),
+    .reset(eci_reset),
+    .header(fwd_wod_hdr_o),
+    .vc(fwd_wod_pkt_vc_o),
+    .valid(fwd_wod_pkt_valid_o),
+    .ready(fwd_wod_pkt_ready_i),
+    .stall_threshold(trace_eci_stall_threshold_sys),
+    .trace_valid(trace_eci_sys_valid[5]),
+    .trace_payload(trace_eci_sys_payload[5])
+);
 
 endmodule
 
