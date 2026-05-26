@@ -1445,14 +1445,32 @@ axil_cdc_inst : entity work.axil_cdc
     core3_states => core3_states,
     core4_states => core4_states,
 
-    -- Trace interfaces
-    trace => dcs_trace,
-    trace_dump(0) => dcs_trace_dump,
-
     -- RX allocator
     alloc_free => alloc_free,
     alloc_resp => alloc_resp,
     alloc_req => alloc_req,
+
+    -- Trace buffer AXI ports
+    -- TODO: connect trace_ddr_axi to TraceBufferDMA
+    -- TODO: tie down trace_ddr_axi_ctrl (unused)
+
+    -- Trace buffer DDR
+    trace_ddr_act_n => F_D4_ACT_N,
+    trace_ddr_a, => F_D4_A,
+    trace_ddr_ba => F_D4_BA,
+    trace_ddr_bg => F_D4_BG,
+    trace_ddr_ck_n => F_D4_CK_N,
+    trace_ddr_ck_p => F_D4_CK_P,
+    trace_ddr_cke => F_D4_CKE,
+    trace_ddr_cs_n => F_D4_CS_N,
+    trace_ddr_dq => F_D4_DQ,
+    trace_ddr_dqs_n => F_D4_DQS_N,
+    trace_ddr_dqs_p => F_D4_DQS_P,
+    trace_ddr_odt => F_D4_ODT,
+    trace_ddr_parity_n => F_D4_PARITY_N,
+    trace_ddr_reset_n => F_D4_RESET_N,
+    trace_ddr_clk_n => F_D4C_CLK_N,
+    trace_ddr_clk_p => F_D4C_CLK_P,
 
     -- DMA states
     dma_rxFsm_state => dma_rxFsm_state,
