@@ -137,6 +137,7 @@ set bCheckIPs 1
 if { $bCheckIPs == 1 } {
    set list_check_ips "\
 xilinx.com:ip:cmac_usplus:3.1\
+xilinx.com:ip:ddr4:2.2\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
 xilinx.com:inline_hdl:ilconstant:1.0\
@@ -193,6 +194,27 @@ if { $bCheckIPsPassed != 1 } {
   common::send_gid_msg -ssname BD::TCL -id 2023 -severity "WARNING" "Will not continue with creation of design due to the error(s) above."
   return 3
 }
+
+
+##################################################################
+# DATA FILE TCL PROCs
+##################################################################
+
+proc write_ddr4_file_design_1_ddr4_4_1 { str_filepath } {
+
+   file mkdir [ file dirname "$str_filepath" ]
+   set data_file [open $str_filepath  w+]
+
+   puts $data_file {Part type,Part name,Rank,StackHeight,CA Mirror,Data mask,Address width,Row width,Column width,Bank width,Bank group width,CS width,CKE width,ODT width,CK width,Memory speed grade,Memory density,Component density,Memory device width,Memory component width,Data bits per strobe,IO Voltages,Data widths,Min period,Max period,tCKE,tFAW,tFAW_dlr,tMRD,tRAS,tRCD,tREFI,tRFC,tRFC_dlr,tRP,tRRD_S,tRRD_L,tRRD_dlr,tRTP,tWR,tWTR_S,tWTR_L,tXPR,tZQCS,tZQINIT,tCCD_3ds,cas latency,cas write latency,burst length}
+   puts $data_file {RDIMMs,KSM26RS4-16MEI,1,1,0,0,17,17,10,2,2,2,1,1,1,MEI,16GB,2Gb,72,4,4,1.2V,72,750,1600,5000 ps,12000 ps,16 tck,8 tck,32000 ps,13750 ps,7800000 ps,350000 ps,110000 ps,13750 ps,3000 ps,4900 ps,4 tck,7500 ps,15000 ps,2500 ps,7500 ps,360 ns,128 tck,1024 tck,0,17,16,8}
+   puts $data_file {RDIMMs,"JEDEC Limit",2,4,1,0,18,18,10,2,2,2,2,2,2,2400,256GB,16Gb,72,4,4,1.2V,72,938,1600,"5000 ps","13000 ps","16 tck","8 tck","32000 ps","14160 ps","7800000 ps","350000 ps","110000 ps","14160 ps","3300 ps","4900 ps","4 tck","7500 ps","15000 ps","2500 ps","7500 ps","360 ns","128 tck","1024 tck","5 tck",16,14,8}
+   puts $data_file {RDIMMs,KSM26RS4/32MFR,1,1,0,0,18,18,10,2,2,1,1,1,1,083,32GB,16Gb,72,4,4,1.2V,72,833,1600,"5000 ps","12000 ps","16 tck","8 tck","32000 ps","13750 ps","7800000 ps","350000 ps",0,"13750 ps","3000 ps","4900 ps",0,"7500 ps","15000 ps","2500 ps","7500 ps","270 ns","128 tck","1024 tck",0,15,11,8}
+
+   close $data_file
+}
+# End of write_ddr4_file_design_1_ddr4_4_1()
+
+
 
 ##################################################################
 # DESIGN PROCs
@@ -267,8 +289,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 2 -to 0 -type data dma_rxFsm_state
   create_bd_pin -dir I -from 34 -to 0 dma_write_desc
   create_bd_pin -dir I -from 16 -to 0 dma_write_desc_status
-  create_bd_pin -dir I -from 124 -to 0 trace
-  create_bd_pin -dir O -from 0 -to 0 trace_dump
 
   # Create instance: ila_app, and set properties
   set ila_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_app ]
@@ -279,22 +299,19 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {19} \
+    CONFIG.C_NUM_OF_PROBES {18} \
     CONFIG.C_PROBE0_WIDTH {18} \
     CONFIG.C_PROBE10_WIDTH {76} \
-    CONFIG.C_PROBE11_WIDTH {125} \
-    CONFIG.C_PROBE12_WIDTH {48} \
+    CONFIG.C_PROBE11_WIDTH {48} \
+    CONFIG.C_PROBE12_WIDTH {42} \
     CONFIG.C_PROBE13_WIDTH {42} \
-    CONFIG.C_PROBE14_WIDTH {42} \
-    CONFIG.C_PROBE15_TYPE {1} \
-    CONFIG.C_PROBE15_WIDTH {18} \
-    CONFIG.C_PROBE16_WIDTH {3} \
-    CONFIG.C_PROBE17_WIDTH {35} \
-    CONFIG.C_PROBE18_WIDTH {17} \
-    CONFIG.C_PROBE19_WIDTH {1} \
+    CONFIG.C_PROBE14_TYPE {1} \
+    CONFIG.C_PROBE14_WIDTH {18} \
+    CONFIG.C_PROBE15_WIDTH {3} \
+    CONFIG.C_PROBE16_WIDTH {35} \
+    CONFIG.C_PROBE17_WIDTH {17} \
+    CONFIG.C_PROBE18_WIDTH {1} \
     CONFIG.C_PROBE1_WIDTH {18} \
-    CONFIG.C_PROBE20_WIDTH {1} \
-    CONFIG.C_PROBE21_WIDTH {1} \
     CONFIG.C_PROBE2_WIDTH {18} \
     CONFIG.C_PROBE3_WIDTH {18} \
     CONFIG.C_PROBE4_WIDTH {18} \
@@ -393,11 +410,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   set_property CONFIG.C_OPERATION {not} $ilvector_logic_1
 
 
-  # Create instance: vio_0, and set properties
-  set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
-  set_property CONFIG.C_NUM_PROBE_IN {0} $vio_0
-
-
   # Create interface connections
   connect_bd_intf_net -intf_net Conn [get_bd_intf_pins ila_cmac_tx/SLOT_0_AXIS] [get_bd_intf_pins SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_pins SLOT_0_AXIS1] [get_bd_intf_pins ila_cmac_rx/SLOT_0_AXIS]
@@ -406,19 +418,18 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
 
   # Create port connections
   connect_bd_net -net alloc_free_1  [get_bd_pins alloc_free] \
-  [get_bd_pins ila_app/probe13]
+  [get_bd_pins ila_app/probe12]
   connect_bd_net -net alloc_req_1  [get_bd_pins alloc_req] \
-  [get_bd_pins ila_app/probe15]
-  connect_bd_net -net alloc_resp_1  [get_bd_pins alloc_resp] \
   [get_bd_pins ila_app/probe14]
+  connect_bd_net -net alloc_resp_1  [get_bd_pins alloc_resp] \
+  [get_bd_pins ila_app/probe13]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
   connect_bd_net -net app_clock_Q  [get_bd_pins app_clock/Q] \
-  [get_bd_pins ila_app/probe12]
+  [get_bd_pins ila_app/probe11]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins app_clk] \
   [get_bd_pins app_clock/CLK] \
-  [get_bd_pins ila_app/clk] \
-  [get_bd_pins vio_0/clk]
+  [get_bd_pins ila_app/clk]
   connect_bd_net -net cmac_rx_clk  [get_bd_pins cmac_rx_clk/Q] \
   [get_bd_pins ila_cmac_rx/probe0]
   connect_bd_net -net cmac_tx_clk  [get_bd_pins cmac_tx_clk/Q] \
@@ -437,11 +448,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net core4_states_1  [get_bd_pins core4_states] \
   [get_bd_pins ila_app/probe4]
   connect_bd_net -net dma_rxFsm_state_1  [get_bd_pins dma_rxFsm_state] \
-  [get_bd_pins ila_app/probe16]
+  [get_bd_pins ila_app/probe15]
   connect_bd_net -net dma_write_desc_1  [get_bd_pins dma_write_desc] \
-  [get_bd_pins ila_app/probe17]
+  [get_bd_pins ila_app/probe16]
   connect_bd_net -net dma_write_desc_status_1  [get_bd_pins dma_write_desc_status] \
-  [get_bd_pins ila_app/probe18]
+  [get_bd_pins ila_app/probe17]
   connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
   [get_bd_pins cmac_rx_clk/SCLR]
   connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
@@ -460,10 +471,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins resetn2] \
   [get_bd_pins ila_cmac_rx/resetn] \
   [get_bd_pins ilvector_logic_0/Op1]
-  connect_bd_net -net trace  [get_bd_pins trace] \
-  [get_bd_pins ila_app/probe11]
-  connect_bd_net -net trace_dump  [get_bd_pins vio_0/probe_out0] \
-  [get_bd_pins trace_dump]
   connect_bd_net -net txclk_1  [get_bd_pins txclk] \
   [get_bd_pins cmac_tx_clk/CLK] \
   [get_bd_pins ila_cmac_tx/clk]
@@ -837,6 +844,72 @@ proc create_root_design { parentCell } {
    CONFIG.PROTOCOL {AXI4} \
    ] $dcs_odd_mon
 
+  set trace_ddr [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddr4_rtl:1.0 trace_ddr ]
+
+  set trace_ddr_clk [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 trace_ddr_clk ]
+
+  set trace_ddr_axi [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:aximm_rtl:1.0 trace_ddr_axi ]
+  set_property -dict [ list \
+   CONFIG.ADDR_WIDTH {34} \
+   CONFIG.ARUSER_WIDTH {0} \
+   CONFIG.AWUSER_WIDTH {0} \
+   CONFIG.BUSER_WIDTH {0} \
+   CONFIG.DATA_WIDTH {512} \
+   CONFIG.FREQ_HZ {300000000} \
+   CONFIG.HAS_BRESP {1} \
+   CONFIG.HAS_BURST {1} \
+   CONFIG.HAS_CACHE {1} \
+   CONFIG.HAS_LOCK {1} \
+   CONFIG.HAS_PROT {1} \
+   CONFIG.HAS_QOS {1} \
+   CONFIG.HAS_REGION {0} \
+   CONFIG.HAS_RRESP {1} \
+   CONFIG.HAS_WSTRB {1} \
+   CONFIG.ID_WIDTH {7} \
+   CONFIG.MAX_BURST_LENGTH {256} \
+   CONFIG.NUM_READ_OUTSTANDING {2} \
+   CONFIG.NUM_READ_THREADS {1} \
+   CONFIG.NUM_WRITE_OUTSTANDING {2} \
+   CONFIG.NUM_WRITE_THREADS {1} \
+   CONFIG.PROTOCOL {AXI4} \
+   CONFIG.READ_WRITE_MODE {READ_WRITE} \
+   CONFIG.RUSER_BITS_PER_BYTE {0} \
+   CONFIG.RUSER_WIDTH {0} \
+   CONFIG.SUPPORTS_NARROW_BURST {1} \
+   CONFIG.WUSER_BITS_PER_BYTE {0} \
+   CONFIG.WUSER_WIDTH {0} \
+   ] $trace_ddr_axi
+
+  set trace_ddr_axi_ctrl [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:aximm_rtl:1.0 trace_ddr_axi_ctrl ]
+  set_property -dict [ list \
+   CONFIG.ADDR_WIDTH {32} \
+   CONFIG.ARUSER_WIDTH {0} \
+   CONFIG.AWUSER_WIDTH {0} \
+   CONFIG.BUSER_WIDTH {0} \
+   CONFIG.DATA_WIDTH {32} \
+   CONFIG.FREQ_HZ {300000000} \
+   CONFIG.HAS_BRESP {1} \
+   CONFIG.HAS_BURST {0} \
+   CONFIG.HAS_CACHE {0} \
+   CONFIG.HAS_LOCK {0} \
+   CONFIG.HAS_PROT {0} \
+   CONFIG.HAS_QOS {0} \
+   CONFIG.HAS_REGION {0} \
+   CONFIG.HAS_RRESP {1} \
+   CONFIG.HAS_WSTRB {0} \
+   CONFIG.ID_WIDTH {0} \
+   CONFIG.NUM_READ_OUTSTANDING {1} \
+   CONFIG.NUM_READ_THREADS {1} \
+   CONFIG.NUM_WRITE_OUTSTANDING {1} \
+   CONFIG.NUM_WRITE_THREADS {1} \
+   CONFIG.PROTOCOL {AXI4LITE} \
+   CONFIG.READ_WRITE_MODE {READ_WRITE} \
+   CONFIG.RUSER_BITS_PER_BYTE {0} \
+   CONFIG.RUSER_WIDTH {0} \
+   CONFIG.WUSER_BITS_PER_BYTE {0} \
+   CONFIG.WUSER_WIDTH {0} \
+   ] $trace_ddr_axi_ctrl
+
 
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
@@ -876,8 +949,6 @@ proc create_root_design { parentCell } {
   set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
   set dma_write_desc [ create_bd_port -dir I -from 34 -to 0 dma_write_desc ]
   set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
-  set trace [ create_bd_port -dir I -from 124 -to 0 trace ]
-  set trace_dump [ create_bd_port -dir O -from 0 -to 0 trace_dump ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -913,7 +984,41 @@ proc create_root_design { parentCell } {
   # Create instance: hier_ilas
   create_hier_cell_hier_ilas [current_bd_instance .] hier_ilas
 
+  # Create instance: ddr4_4, and set properties
+  set ddr4_4 [ create_bd_cell -type ip -vlnv xilinx.com:ip:ddr4:2.2 ddr4_4 ]
+
+   # Generate the DDR4 Custom Parts File
+   set str_ddr4_folder [get_property IP_DIR [ get_ips [ get_property CONFIG.Component_Name $ddr4_4 ] ] ]
+   set str_ddr4_file_name dram_parts.csv
+   set str_ddr4_file_path ${str_ddr4_folder}/${str_ddr4_file_name}
+
+   write_ddr4_file_design_1_ddr4_4_1 $str_ddr4_file_path
+
+  set_property -dict [list \
+    CONFIG.C0.ADDR_WIDTH {18} \
+    CONFIG.C0.CKE_WIDTH {1} \
+    CONFIG.C0.CK_WIDTH {1} \
+    CONFIG.C0.CS_WIDTH {1} \
+    CONFIG.C0.DDR4_AxiAddressWidth {35} \
+    CONFIG.C0.DDR4_AxiDataWidth {512} \
+    CONFIG.C0.DDR4_CasLatency {15} \
+    CONFIG.C0.DDR4_CasWriteLatency {11} \
+    CONFIG.C0.DDR4_CustomParts {dram_parts.csv} \
+    CONFIG.C0.DDR4_DataWidth {72} \
+    CONFIG.C0.DDR4_EN_PARITY {true} \
+    CONFIG.C0.DDR4_InputClockPeriod {9996} \
+    CONFIG.C0.DDR4_MemoryPart {KSM26RS4/32MFR} \
+    CONFIG.C0.DDR4_MemoryType {RDIMMs} \
+    CONFIG.C0.DDR4_TimePeriod {833} \
+    CONFIG.C0.DDR4_isCustom {true} \
+    CONFIG.C0.LR_WIDTH {1} \
+    CONFIG.C0.ODT_WIDTH {1} \
+    CONFIG.C0.StackHeight {1} \
+  ] $ddr4_4
+
+
   # Create interface connections
+  connect_bd_intf_net -intf_net C0_DDR4_S_AXI_CTRL_0_1 [get_bd_intf_ports trace_ddr_axi_ctrl] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI_CTRL]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins hier_ilas/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
@@ -921,7 +1026,10 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets cmac_usplus_0_axis_rx] [get_bd_i
   connect_bd_intf_net -intf_net cmac_usplus_0_gt_serial_port [get_bd_intf_ports gt] [get_bd_intf_pins cmac_usplus_0/gt_serial_port]
 connect_bd_intf_net -intf_net dcs_even [get_bd_intf_ports dcs_even_mon] [get_bd_intf_pins hier_ilas/dcs_even]
 connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_intf_pins hier_ilas/dcs_odd]
+  connect_bd_intf_net -intf_net ddr4_4_C0_DDR4 [get_bd_intf_ports trace_ddr] [get_bd_intf_pins ddr4_4/C0_DDR4]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
+  connect_bd_intf_net -intf_net trace_ddr_axi_1 [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
+  connect_bd_intf_net -intf_net trace_ddr_clk_1 [get_bd_intf_ports trace_ddr_clk] [get_bd_intf_pins ddr4_4/C0_SYS_CLK]
 
   # Create port connections
   connect_bd_net -net app_aux_reset_1  [get_bd_pins hier_cmac_ctrl_stat/app_aux_reset] \
@@ -981,8 +1089,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath]
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
-  connect_bd_net -net hier_ilas_probe_out0_0  [get_bd_pins hier_ilas/trace_dump] \
-  [get_bd_ports trace_dump]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
@@ -998,22 +1104,21 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/lcia_even]
   connect_bd_net -net lcia_odd_1  [get_bd_ports lcia_odd] \
   [get_bd_pins hier_ilas/lcia_odd]
-  connect_bd_net -net probe11_0_1  [get_bd_ports trace] \
-  [get_bd_pins hier_ilas/trace]
-  connect_bd_net -net probe16_0_1  [get_bd_ports alloc_free] \
+  connect_bd_net -net probe15_0_1  [get_bd_ports alloc_free] \
   [get_bd_pins hier_ilas/alloc_free]
-  connect_bd_net -net probe17_0_1  [get_bd_ports alloc_resp] \
+  connect_bd_net -net probe16_0_1  [get_bd_ports alloc_resp] \
   [get_bd_pins hier_ilas/alloc_resp]
-  connect_bd_net -net probe18_0_1  [get_bd_ports alloc_req] \
+  connect_bd_net -net probe17_0_1  [get_bd_ports alloc_req] \
   [get_bd_pins hier_ilas/alloc_req]
-  connect_bd_net -net probe19_0_1  [get_bd_ports dma_rxFsm_state] \
+  connect_bd_net -net probe18_0_1  [get_bd_ports dma_rxFsm_state] \
   [get_bd_pins hier_ilas/dma_rxFsm_state]
-  connect_bd_net -net probe20_0_1  [get_bd_ports dma_write_desc] \
+  connect_bd_net -net probe19_0_1  [get_bd_ports dma_write_desc] \
   [get_bd_pins hier_ilas/dma_write_desc]
-  connect_bd_net -net probe21_0_1  [get_bd_ports dma_write_desc_status] \
+  connect_bd_net -net probe20_0_1  [get_bd_ports dma_write_desc_status] \
   [get_bd_pins hier_ilas/dma_write_desc_status]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
-  [get_bd_pins hier_clk_rst/reset]
+  [get_bd_pins hier_clk_rst/reset] \
+  [get_bd_pins ddr4_4/sys_rst]
   connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins hier_clk_rst/txclk_rstn] \
   [get_bd_pins hier_ilas/resetn1]
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins hier_clk_rst/rxclk_rstn] \
@@ -1033,6 +1138,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/ctl_tx_send_idle]
 
   # Create address segments
+  assign_bd_address -offset 0x00000000 -range 0x000400000000 -target_address_space [get_bd_addr_spaces trace_ddr_axi] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP/C0_DDR4_ADDRESS_BLOCK] -force
+  assign_bd_address -offset 0x80000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces trace_ddr_axi_ctrl] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP_CTRL/C0_REG] -force
 
 
   # Restore current instance
