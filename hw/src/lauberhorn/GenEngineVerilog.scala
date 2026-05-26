@@ -15,9 +15,6 @@ import spinal.lib.BinaryBuilder2
 import spinal.lib.eda._
 import spinal.lib.eda.xilinx.TimingExtractorXdc
 
-import jsteward.blocks.eci.EciChannel
-import jsteward.blocks.misc.TraceBuffer
-
 import scala.language.postfixOps
 
 object GenEngineVerilog {
@@ -62,7 +59,7 @@ object GenEngineVerilog {
         case "pcie" => Seq(new PcieBridgeInterfacePlugin) ++
           Seq.tabulate(nc)(new PcieDatapathPlugin(_)) ++
           Seq.tabulate(nw)(cid => new PciePreemptionControlPlugin(cid + 1))
-        case "eci" => Seq(new EciInterfacePlugin, new EciThreadClRouter, new DcsTraceBuffer) ++
+        case "eci" => Seq(new EciInterfacePlugin, new EciThreadClRouter) ++
           // TODO: only one DecoupledRxTxProtocol for bypass; numCores CoupledProtocol for RPC requests
           Seq.tabulate(nc)(new EciDecoupledRxTxProtocol(_)) ++
           Seq.tabulate(nw)(cid => new EciPreemptionControlPlugin(cid + 1))
@@ -118,16 +115,12 @@ object GenEngineVerilog {
     println("Writing timing constraints for Vivado")
     TimingExtractor(report, new TimingExtractorXdc)
 
-    // write trace buffer module
+    // write trace DMA module
     if (name == "eci") {
-      // DCS trace buffer
       Config.spinal(outDir, prefix = "dtb_").generateVerilog {
-        // 6 channels:
-        // req_wod_slave, rsp_wod_slave, rsp_wd_slave
-        // rsp_wod_master, rsp_wd_master, fwd_wod_master
-        // we only log the header (no CL contents)
-        TraceBuffer(EciChannel(), 6, 512).setDefinitionName("dcs_eci_buf")
+        LauberhornTraceDma().setDefinitionName("lauberhorn_trace_dma")
       }
+      LauberhornTraceDma.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
     }
   }
 

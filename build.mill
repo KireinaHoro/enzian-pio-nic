@@ -57,7 +57,7 @@ trait HwProjModule extends Module {
     "NicEngine.xdc",
     "NicEngine_ips.sv",
     "NicEngine.v",
-  )
+  ) ++ (if (variant == "eci") Seq("lauberhorn_trace_dma.v") else Seq())
 
   def gitHash = Task.Input {
     (sys.props("nix-git-hash") match {
@@ -142,8 +142,6 @@ object gen extends CommonModule { outer =>
 object pcie extends HwProjModule { def variant = "pcie" }
 object eci extends HwProjModule {
   def variant = "eci"
-  override def generatedFiles: Seq[String] =
-    super.generatedFiles ++ Seq("dcs_eci_buf.v")
 
   override def bitstreamEnv = Task {
     val sv = Versions.eciStaticShell
