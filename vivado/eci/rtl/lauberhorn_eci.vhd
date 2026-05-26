@@ -576,7 +576,7 @@ end record DCS_AXI;
 
 type TRACE_AXI is record
     arid    : std_logic_vector( 6 downto 0);
-    araddr  : std_logic_vector(33 downto 0);
+    araddr  : std_logic_vector(34 downto 0);
     arlen   : std_logic_vector( 7 downto 0);
     arsize  : std_logic_vector( 2 downto 0);
     arburst : std_logic_vector( 1 downto 0);
@@ -593,7 +593,7 @@ type TRACE_AXI is record
     rready  : std_logic;
 
     awid    : std_logic_vector ( 6 downto 0);
-    awaddr  : std_logic_vector (33 downto 0);
+    awaddr  : std_logic_vector (34 downto 0);
     awlen   : std_logic_vector ( 7 downto 0);
     awsize  : std_logic_vector ( 2 downto 0);
     awburst : std_logic_vector ( 1 downto 0);
@@ -1706,21 +1706,21 @@ i_trace_dma : entity work.lauberhorn_trace_dma
 
     -- Trace buffer DDR
     trace_ddr_act_n => F_D4_ACT_N,
-    trace_ddr_a => F_D4_A,
+    trace_ddr_adr => F_D4_A,
     trace_ddr_ba => F_D4_BA,
     trace_ddr_bg => F_D4_BG,
-    trace_ddr_ck_n => F_D4_CK_N,
-    trace_ddr_ck_p => F_D4_CK_P,
-    trace_ddr_cke => F_D4_CKE,
-    trace_ddr_cs_n => F_D4_CS_N,
+    trace_ddr_ck_c(0) => F_D4_CK_N(0),
+    trace_ddr_ck_t(0) => F_D4_CK_P(0),
+    trace_ddr_cke(0) => F_D4_CKE(0),
+    trace_ddr_cs_n(0) => F_D4_CS_N(0),
     trace_ddr_dq => F_D4_DQ,
-    trace_ddr_dqs_n => F_D4_DQS_N,
-    trace_ddr_dqs_p => F_D4_DQS_P,
-    trace_ddr_odt => F_D4_ODT,
-    trace_ddr_parity_n => F_D4_PARITY_N,
+    trace_ddr_dqs_c => F_D4_DQS_N,
+    trace_ddr_dqs_t => F_D4_DQS_P,
+    trace_ddr_odt(0) => F_D4_ODT(0),
+    trace_ddr_par => F_D4_PARITY_N,
     trace_ddr_reset_n => F_D4_RESET_N,
-    trace_ddr_clk_n => F_D4C_CLK_N,
-    trace_ddr_clk_p => F_D4C_CLK_P,
+    trace_ddr_clk_clk_n => F_D4C_CLK_N,
+    trace_ddr_clk_clk_p => F_D4C_CLK_P,
 
     -- DMA states
     dma_rxFsm_state => dma_rxFsm_state,
