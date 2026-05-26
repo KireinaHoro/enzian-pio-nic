@@ -246,7 +246,7 @@
       };
     in mkShell {
       buildInputs = [
-        zlib.dev verilator clang cmake
+        zlib.dev verilator clang cmake ghdl
         gtkwave sby yices
         jdk mill updateMillLockFile
         crossGcc mackerel

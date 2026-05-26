@@ -326,12 +326,17 @@ architecture Behavioral of lauberhorn_eci is
 
 -- Must use component declarations since direct entity instantiation
 -- does not work with the unpacked arrays
-type dc_tracing_cli_array is array (integer range <>) of std_logic_vector(39 downto 0);
-type dc_tracing_state_array is array (integer range <>) of std_logic_vector(6 downto 0);
-type dc_tracing_action_array is array (integer range <>) of std_logic_vector(3 downto 0);
-type dc_tracing_request_array is array (integer range <>) of std_logic_vector(4 downto 0);
+type trace_dcs_event_cli_array is array (integer range <>) of std_logic_vector(39 downto 0);
+type trace_dcs_event_state_array is array (integer range <>) of std_logic_vector(6 downto 0);
+type trace_dcs_event_action_array is array (integer range <>) of std_logic_vector(3 downto 0);
+type trace_dcs_event_request_array is array (integer range <>) of std_logic_vector(4 downto 0);
+subtype trace_payload_t is std_logic_vector(74 downto 0);
+type trace_payload_array is array (integer range <>) of trace_payload_t;
 
 component dcs_cdc is
+generic (
+  TRACE_ECI_STALL_COUNTER_SHIFT : integer := 16
+);
 port (
   eci_clk, eci_reset, app_clk : in std_logic;
 
@@ -442,12 +447,18 @@ port (
   m_axi_bready  : out std_logic;
 
   -- Tracing
-  tracing_valid   : out std_logic_vector(1 downto 0);
-  tracing_error   : out std_logic_vector(1 downto 0);
-  tracing_cli     : out dc_tracing_cli_array(1 downto 0);
-  tracing_state   : out dc_tracing_state_array(1 downto 0);
-  tracing_action  : out dc_tracing_action_array(1 downto 0);
-  tracing_request : out dc_tracing_request_array(1 downto 0)
+  trace_dcs_event_valid   : out std_logic_vector(1 downto 0);
+  trace_dcs_event_error   : out std_logic_vector(1 downto 0);
+  trace_dcs_event_cli     : out trace_dcs_event_cli_array(1 downto 0);
+  trace_dcs_event_state   : out trace_dcs_event_state_array(1 downto 0);
+  trace_dcs_event_action  : out trace_dcs_event_action_array(1 downto 0);
+  trace_dcs_event_request : out trace_dcs_event_request_array(1 downto 0);
+
+  trace_eci_stall_threshold : in std_logic_vector(5 downto 0);
+  trace_eci_app_valid   : out std_logic_vector(5 downto 0);
+  trace_eci_app_payload : out trace_payload_array(5 downto 0);
+  trace_eci_sys_valid   : out std_logic_vector(5 downto 0);
+  trace_eci_sys_payload : out trace_payload_array(5 downto 0)
 );
 end component;
 
@@ -563,6 +574,45 @@ type DCS_AXI is record
     bready  : std_logic;
 end record DCS_AXI;
 
+type TRACE_AXI is record
+    arid    : std_logic_vector( 6 downto 0);
+    araddr  : std_logic_vector(33 downto 0);
+    arlen   : std_logic_vector( 7 downto 0);
+    arsize  : std_logic_vector( 2 downto 0);
+    arburst : std_logic_vector( 1 downto 0);
+    arlock  : std_logic_vector( 0 downto 0);
+    arcache : std_logic_vector( 3 downto 0);
+    arprot  : std_logic_vector( 2 downto 0);
+    arvalid : std_logic;
+    arready : std_logic;
+    rid     : std_logic_vector( 6 downto 0);
+    rdata   : std_logic_vector(511 downto 0);
+    rresp   : std_logic_vector( 1 downto 0);
+    rlast   : std_logic;
+    rvalid  : std_logic;
+    rready  : std_logic;
+
+    awid    : std_logic_vector ( 6 downto 0);
+    awaddr  : std_logic_vector (33 downto 0);
+    awlen   : std_logic_vector ( 7 downto 0);
+    awsize  : std_logic_vector ( 2 downto 0);
+    awburst : std_logic_vector ( 1 downto 0);
+    awlock  : std_logic_vector ( 0 downto 0);
+    awcache : std_logic_vector ( 3 downto 0);
+    awprot  : std_logic_vector ( 2 downto 0);
+    awvalid : std_logic;
+    awready : std_logic ;
+    wdata   : std_logic_vector (511 downto 0);
+    wstrb   : std_logic_vector (63 downto 0);
+    wlast   : std_logic;
+    wvalid  : std_logic;
+    wready  : std_logic;
+    bid     : std_logic_vector( 6 downto 0);
+    bresp   : std_logic_vector( 1 downto 0);
+    bvalid  : std_logic;
+    bready  : std_logic;
+end record TRACE_AXI;
+
 type BSCAN is record
     bscanid_en     : std_logic;
     capture        : std_logic;
@@ -640,6 +690,19 @@ type REGS_AXIL_NARROW is record
     bready  : std_logic;
 end record REGS_AXIL_NARROW;
 
+constant TRACE_ZERO_18 : std_logic_vector(17 downto 0) := (others => '0');
+
+function pack_dcs_trace(
+    error     : std_logic;
+    cli       : std_logic_vector(39 downto 0);
+    state     : std_logic_vector(6 downto 0);
+    action    : std_logic_vector(3 downto 0);
+    request   : std_logic_vector(4 downto 0)
+) return trace_payload_t is
+begin
+    return TRACE_ZERO_18 & request & action & state & cli & error;
+end function;
+
 signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
 signal io_reg_axil_cdc : REGS_AXIL;
 
@@ -669,23 +732,35 @@ signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
 signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(17 downto 0);
 
--- Trace port wires
-signal dcs_trace : std_logic_vector(124 downto 0);
-signal dcs_trace_dump : std_logic;
+-- Trace DMA wires
+signal trace_dma_axi : TRACE_AXI;
+signal trace_sample_lost, trace_dma_error : std_logic;
+signal trace_write_slot : std_logic_vector(27 downto 0);
+signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
 
-signal dcs_odd_tracing_valid   : std_logic_vector(1 downto 0);
-signal dcs_odd_tracing_error   : std_logic_vector(1 downto 0);
-signal dcs_odd_tracing_cli     : dc_tracing_cli_array(1 downto 0);
-signal dcs_odd_tracing_state   : dc_tracing_state_array(1 downto 0);
-signal dcs_odd_tracing_action  : dc_tracing_action_array(1 downto 0);
-signal dcs_odd_tracing_request : dc_tracing_request_array(1 downto 0);
+signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
+signal dcs_even_trace_eci_app_payload : trace_payload_array(5 downto 0);
+signal dcs_even_trace_eci_sys_valid : std_logic_vector(5 downto 0);
+signal dcs_even_trace_eci_sys_payload : trace_payload_array(5 downto 0);
 
-signal dcs_even_tracing_valid   : std_logic_vector(1 downto 0);
-signal dcs_even_tracing_error   : std_logic_vector(1 downto 0);
-signal dcs_even_tracing_cli     : dc_tracing_cli_array(1 downto 0);
-signal dcs_even_tracing_state   : dc_tracing_state_array(1 downto 0);
-signal dcs_even_tracing_action  : dc_tracing_action_array(1 downto 0);
-signal dcs_even_tracing_request : dc_tracing_request_array(1 downto 0);
+signal dcs_odd_trace_eci_app_valid : std_logic_vector(5 downto 0);
+signal dcs_odd_trace_eci_app_payload : trace_payload_array(5 downto 0);
+signal dcs_odd_trace_eci_sys_valid : std_logic_vector(5 downto 0);
+signal dcs_odd_trace_eci_sys_payload : trace_payload_array(5 downto 0);
+
+signal dcs_odd_trace_dcs_event_valid   : std_logic_vector(1 downto 0);
+signal dcs_odd_trace_dcs_event_error   : std_logic_vector(1 downto 0);
+signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(1 downto 0);
+signal dcs_odd_trace_dcs_event_state   : trace_dcs_event_state_array(1 downto 0);
+signal dcs_odd_trace_dcs_event_action  : trace_dcs_event_action_array(1 downto 0);
+signal dcs_odd_trace_dcs_event_request : trace_dcs_event_request_array(1 downto 0);
+
+signal dcs_even_trace_dcs_event_valid   : std_logic_vector(1 downto 0);
+signal dcs_even_trace_dcs_event_error   : std_logic_vector(1 downto 0);
+signal dcs_even_trace_dcs_event_cli     : trace_dcs_event_cli_array(1 downto 0);
+signal dcs_even_trace_dcs_event_state   : trace_dcs_event_state_array(1 downto 0);
+signal dcs_even_trace_dcs_event_action  : trace_dcs_event_action_array(1 downto 0);
+signal dcs_even_trace_dcs_event_request : trace_dcs_event_request_array(1 downto 0);
 
 signal alloc_resp, alloc_free : std_logic_vector(41 downto 0);
 signal alloc_req : std_logic_vector(17 downto 0);
@@ -1120,12 +1195,18 @@ port map (
   m_axi_bready  => dcs_even_axi.bready,
 
   -- Tracing interface
-  tracing_valid   => dcs_even_tracing_valid   ,
-  tracing_error   => dcs_even_tracing_error   ,
-  tracing_state   => dcs_even_tracing_state   ,
-  tracing_action  => dcs_even_tracing_action  ,
-  tracing_request => dcs_even_tracing_request ,
-  tracing_cli     => dcs_even_tracing_cli
+  trace_dcs_event_valid   => dcs_even_trace_dcs_event_valid   ,
+  trace_dcs_event_error   => dcs_even_trace_dcs_event_error   ,
+  trace_dcs_event_state   => dcs_even_trace_dcs_event_state   ,
+  trace_dcs_event_action  => dcs_even_trace_dcs_event_action  ,
+  trace_dcs_event_request => dcs_even_trace_dcs_event_request ,
+  trace_dcs_event_cli     => dcs_even_trace_dcs_event_cli,
+
+  trace_eci_stall_threshold => trace_eci_stall_threshold,
+  trace_eci_app_valid   => dcs_even_trace_eci_app_valid,
+  trace_eci_app_payload => dcs_even_trace_eci_app_payload,
+  trace_eci_sys_valid   => dcs_even_trace_eci_sys_valid,
+  trace_eci_sys_payload => dcs_even_trace_eci_sys_payload
 );
 
 -- DCS for odd VCs ie even CL indices.
@@ -1240,12 +1321,18 @@ port map (
   m_axi_bready  => dcs_odd_axi.bready,
 
   -- Tracing interface
-  tracing_valid   => dcs_odd_tracing_valid   ,
-  tracing_error   => dcs_odd_tracing_error   ,
-  tracing_state   => dcs_odd_tracing_state   ,
-  tracing_action  => dcs_odd_tracing_action  ,
-  tracing_request => dcs_odd_tracing_request ,
-  tracing_cli     => dcs_odd_tracing_cli
+  trace_dcs_event_valid   => dcs_odd_trace_dcs_event_valid   ,
+  trace_dcs_event_error   => dcs_odd_trace_dcs_event_error   ,
+  trace_dcs_event_state   => dcs_odd_trace_dcs_event_state   ,
+  trace_dcs_event_action  => dcs_odd_trace_dcs_event_action  ,
+  trace_dcs_event_request => dcs_odd_trace_dcs_event_request ,
+  trace_dcs_event_cli     => dcs_odd_trace_dcs_event_cli,
+
+  trace_eci_stall_threshold => trace_eci_stall_threshold,
+  trace_eci_app_valid   => dcs_odd_trace_eci_app_valid,
+  trace_eci_app_payload => dcs_odd_trace_eci_app_payload,
+  trace_eci_sys_valid   => dcs_odd_trace_eci_sys_valid,
+  trace_eci_sys_payload => dcs_odd_trace_eci_sys_payload
 );
 
 -- reset synchronizers for RX and TX clocks
@@ -1316,6 +1403,115 @@ axil_cdc_inst : entity work.axil_cdc
     m_axil_rready => io_reg_axil_cdc.rready
   );
 
+i_trace_dma : entity work.lauberhorn_trace_dma
+  port map (
+    clk => app_clk,
+    reset => app_clk_reset,
+    sys_clk => clk,
+    sys_reset => reset,
+
+    appTraceIn_0_valid => dcs_even_trace_dcs_event_valid(0),
+    appTraceIn_0_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(0), dcs_even_trace_dcs_event_cli(0), dcs_even_trace_dcs_event_state(0), dcs_even_trace_dcs_event_action(0), dcs_even_trace_dcs_event_request(0)),
+    appTraceIn_1_valid => dcs_even_trace_dcs_event_valid(1),
+    appTraceIn_1_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(1), dcs_even_trace_dcs_event_cli(1), dcs_even_trace_dcs_event_state(1), dcs_even_trace_dcs_event_action(1), dcs_even_trace_dcs_event_request(1)),
+    appTraceIn_2_valid => dcs_odd_trace_dcs_event_valid(0),
+    appTraceIn_2_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(0), dcs_odd_trace_dcs_event_cli(0), dcs_odd_trace_dcs_event_state(0), dcs_odd_trace_dcs_event_action(0), dcs_odd_trace_dcs_event_request(0)),
+    appTraceIn_3_valid => dcs_odd_trace_dcs_event_valid(1),
+    appTraceIn_3_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(1), dcs_odd_trace_dcs_event_cli(1), dcs_odd_trace_dcs_event_state(1), dcs_odd_trace_dcs_event_action(1), dcs_odd_trace_dcs_event_request(1)),
+
+    appTraceIn_4_valid => dcs_even_trace_eci_app_valid(0),
+    appTraceIn_4_payload => dcs_even_trace_eci_app_payload(0),
+    appTraceIn_5_valid => dcs_even_trace_eci_app_valid(1),
+    appTraceIn_5_payload => dcs_even_trace_eci_app_payload(1),
+    appTraceIn_6_valid => dcs_even_trace_eci_app_valid(2),
+    appTraceIn_6_payload => dcs_even_trace_eci_app_payload(2),
+    appTraceIn_7_valid => dcs_even_trace_eci_app_valid(3),
+    appTraceIn_7_payload => dcs_even_trace_eci_app_payload(3),
+    appTraceIn_8_valid => dcs_even_trace_eci_app_valid(4),
+    appTraceIn_8_payload => dcs_even_trace_eci_app_payload(4),
+    appTraceIn_9_valid => dcs_even_trace_eci_app_valid(5),
+    appTraceIn_9_payload => dcs_even_trace_eci_app_payload(5),
+
+    appTraceIn_10_valid => dcs_odd_trace_eci_app_valid(0),
+    appTraceIn_10_payload => dcs_odd_trace_eci_app_payload(0),
+    appTraceIn_11_valid => dcs_odd_trace_eci_app_valid(1),
+    appTraceIn_11_payload => dcs_odd_trace_eci_app_payload(1),
+    appTraceIn_12_valid => dcs_odd_trace_eci_app_valid(2),
+    appTraceIn_12_payload => dcs_odd_trace_eci_app_payload(2),
+    appTraceIn_13_valid => dcs_odd_trace_eci_app_valid(3),
+    appTraceIn_13_payload => dcs_odd_trace_eci_app_payload(3),
+    appTraceIn_14_valid => dcs_odd_trace_eci_app_valid(4),
+    appTraceIn_14_payload => dcs_odd_trace_eci_app_payload(4),
+    appTraceIn_15_valid => dcs_odd_trace_eci_app_valid(5),
+    appTraceIn_15_payload => dcs_odd_trace_eci_app_payload(5),
+
+    sysTraceIn_0_valid => dcs_even_trace_eci_sys_valid(0),
+    sysTraceIn_0_payload => dcs_even_trace_eci_sys_payload(0),
+    sysTraceIn_1_valid => dcs_even_trace_eci_sys_valid(1),
+    sysTraceIn_1_payload => dcs_even_trace_eci_sys_payload(1),
+    sysTraceIn_2_valid => dcs_even_trace_eci_sys_valid(2),
+    sysTraceIn_2_payload => dcs_even_trace_eci_sys_payload(2),
+    sysTraceIn_3_valid => dcs_even_trace_eci_sys_valid(3),
+    sysTraceIn_3_payload => dcs_even_trace_eci_sys_payload(3),
+    sysTraceIn_4_valid => dcs_even_trace_eci_sys_valid(4),
+    sysTraceIn_4_payload => dcs_even_trace_eci_sys_payload(4),
+    sysTraceIn_5_valid => dcs_even_trace_eci_sys_valid(5),
+    sysTraceIn_5_payload => dcs_even_trace_eci_sys_payload(5),
+
+    sysTraceIn_6_valid => dcs_odd_trace_eci_sys_valid(0),
+    sysTraceIn_6_payload => dcs_odd_trace_eci_sys_payload(0),
+    sysTraceIn_7_valid => dcs_odd_trace_eci_sys_valid(1),
+    sysTraceIn_7_payload => dcs_odd_trace_eci_sys_payload(1),
+    sysTraceIn_8_valid => dcs_odd_trace_eci_sys_valid(2),
+    sysTraceIn_8_payload => dcs_odd_trace_eci_sys_payload(2),
+    sysTraceIn_9_valid => dcs_odd_trace_eci_sys_valid(3),
+    sysTraceIn_9_payload => dcs_odd_trace_eci_sys_payload(3),
+    sysTraceIn_10_valid => dcs_odd_trace_eci_sys_valid(4),
+    sysTraceIn_10_payload => dcs_odd_trace_eci_sys_payload(4),
+    sysTraceIn_11_valid => dcs_odd_trace_eci_sys_valid(5),
+    sysTraceIn_11_payload => dcs_odd_trace_eci_sys_payload(5),
+
+    axi_aw_valid => trace_dma_axi.awvalid,
+    axi_aw_ready => trace_dma_axi.awready,
+    axi_aw_payload_addr => trace_dma_axi.awaddr,
+    axi_aw_payload_id => trace_dma_axi.awid,
+    axi_aw_payload_len => trace_dma_axi.awlen,
+    axi_aw_payload_size => trace_dma_axi.awsize,
+    axi_aw_payload_burst => trace_dma_axi.awburst,
+    axi_aw_payload_lock => trace_dma_axi.awlock,
+    axi_aw_payload_cache => trace_dma_axi.awcache,
+    axi_aw_payload_prot => trace_dma_axi.awprot,
+    axi_w_valid => trace_dma_axi.wvalid,
+    axi_w_ready => trace_dma_axi.wready,
+    axi_w_payload_data => trace_dma_axi.wdata,
+    axi_w_payload_strb => trace_dma_axi.wstrb,
+    axi_w_payload_last => trace_dma_axi.wlast,
+    axi_b_valid => trace_dma_axi.bvalid,
+    axi_b_ready => trace_dma_axi.bready,
+    axi_b_payload_id => trace_dma_axi.bid,
+    axi_b_payload_resp => trace_dma_axi.bresp,
+    axi_ar_valid => trace_dma_axi.arvalid,
+    axi_ar_ready => trace_dma_axi.arready,
+    axi_ar_payload_addr => trace_dma_axi.araddr,
+    axi_ar_payload_id => trace_dma_axi.arid,
+    axi_ar_payload_len => trace_dma_axi.arlen,
+    axi_ar_payload_size => trace_dma_axi.arsize,
+    axi_ar_payload_burst => trace_dma_axi.arburst,
+    axi_ar_payload_lock => trace_dma_axi.arlock,
+    axi_ar_payload_cache => trace_dma_axi.arcache,
+    axi_ar_payload_prot => trace_dma_axi.arprot,
+    axi_r_valid => trace_dma_axi.rvalid,
+    axi_r_ready => trace_dma_axi.rready,
+    axi_r_payload_data => trace_dma_axi.rdata,
+    axi_r_payload_id => trace_dma_axi.rid,
+    axi_r_payload_resp => trace_dma_axi.rresp,
+    axi_r_payload_last => trace_dma_axi.rlast,
+
+    sampleLost => trace_sample_lost,
+    dmaError => trace_dma_error,
+    writeSlot => trace_write_slot
+  );
+
   design_1_i: entity work.design_1
   PORT MAP (
     -- GT connections
@@ -1333,6 +1529,7 @@ axil_cdc_inst : entity work.axil_cdc
     txclk => txclk,
     reset => reset,
     app_clk_reset => app_clk_reset,
+    trace_stall_threshold => trace_eci_stall_threshold,
 
     -- TX interface
     tx_axis_tready => cmac_tx_axis.tready,
@@ -1451,8 +1648,61 @@ axil_cdc_inst : entity work.axil_cdc
     alloc_req => alloc_req,
 
     -- Trace buffer AXI ports
-    -- TODO: connect trace_ddr_axi to TraceBufferDMA
-    -- TODO: tie down trace_ddr_axi_ctrl (unused)
+    trace_ddr_axi_awid => trace_dma_axi.awid,
+    trace_ddr_axi_awaddr => trace_dma_axi.awaddr,
+    trace_ddr_axi_awlen => trace_dma_axi.awlen,
+    trace_ddr_axi_awsize => trace_dma_axi.awsize,
+    trace_ddr_axi_awburst => trace_dma_axi.awburst,
+    trace_ddr_axi_awlock => trace_dma_axi.awlock,
+    trace_ddr_axi_awcache => trace_dma_axi.awcache,
+    trace_ddr_axi_awprot => trace_dma_axi.awprot,
+    trace_ddr_axi_awqos => (others => '0'),
+    trace_ddr_axi_awvalid => trace_dma_axi.awvalid,
+    trace_ddr_axi_awready => trace_dma_axi.awready,
+    trace_ddr_axi_wdata => trace_dma_axi.wdata,
+    trace_ddr_axi_wstrb => trace_dma_axi.wstrb,
+    trace_ddr_axi_wlast => trace_dma_axi.wlast,
+    trace_ddr_axi_wvalid => trace_dma_axi.wvalid,
+    trace_ddr_axi_wready => trace_dma_axi.wready,
+    trace_ddr_axi_bid => trace_dma_axi.bid,
+    trace_ddr_axi_bresp => trace_dma_axi.bresp,
+    trace_ddr_axi_bvalid => trace_dma_axi.bvalid,
+    trace_ddr_axi_bready => trace_dma_axi.bready,
+    trace_ddr_axi_arid => trace_dma_axi.arid,
+    trace_ddr_axi_araddr => trace_dma_axi.araddr,
+    trace_ddr_axi_arlen => trace_dma_axi.arlen,
+    trace_ddr_axi_arsize => trace_dma_axi.arsize,
+    trace_ddr_axi_arburst => trace_dma_axi.arburst,
+    trace_ddr_axi_arlock => trace_dma_axi.arlock,
+    trace_ddr_axi_arcache => trace_dma_axi.arcache,
+    trace_ddr_axi_arprot => trace_dma_axi.arprot,
+    trace_ddr_axi_arqos => (others => '0'),
+    trace_ddr_axi_arvalid => trace_dma_axi.arvalid,
+    trace_ddr_axi_arready => trace_dma_axi.arready,
+    trace_ddr_axi_rid => trace_dma_axi.rid,
+    trace_ddr_axi_rdata => trace_dma_axi.rdata,
+    trace_ddr_axi_rresp => trace_dma_axi.rresp,
+    trace_ddr_axi_rlast => trace_dma_axi.rlast,
+    trace_ddr_axi_rvalid => trace_dma_axi.rvalid,
+    trace_ddr_axi_rready => trace_dma_axi.rready,
+
+    -- Trace DDR AXI-Lite control interface is unused by Lauberhorn.
+    trace_ddr_axi_ctrl_awaddr => (others => '0'),
+    trace_ddr_axi_ctrl_awvalid => '0',
+    trace_ddr_axi_ctrl_awready => open,
+    trace_ddr_axi_ctrl_wdata => (others => '0'),
+    trace_ddr_axi_ctrl_wvalid => '0',
+    trace_ddr_axi_ctrl_wready => open,
+    trace_ddr_axi_ctrl_bresp => open,
+    trace_ddr_axi_ctrl_bvalid => open,
+    trace_ddr_axi_ctrl_bready => '1',
+    trace_ddr_axi_ctrl_araddr => (others => '0'),
+    trace_ddr_axi_ctrl_arvalid => '0',
+    trace_ddr_axi_ctrl_arready => open,
+    trace_ddr_axi_ctrl_rdata => open,
+    trace_ddr_axi_ctrl_rresp => open,
+    trace_ddr_axi_ctrl_rvalid => open,
+    trace_ddr_axi_ctrl_rready => '1',
 
     -- Trace buffer DDR
     trace_ddr_act_n => F_D4_ACT_N,
@@ -1563,20 +1813,6 @@ NicEngine_inst : entity work.NicEngine
     dcsOdd_unlockResp_payload_size => dcs_c19_i.size,
     dcsOdd_unlockResp_payload_vc => dcs_c19_i.vc_no,
 
-    dcsOdd_tracing_0_valid             => dcs_odd_tracing_valid   (0),
-    dcsOdd_tracing_0_payload_error     => dcs_odd_tracing_error   (0),
-    dcsOdd_tracing_0_payload_cli       => dcs_odd_tracing_cli     (0),
-    dcsOdd_tracing_0_payload_state     => dcs_odd_tracing_state   (0),
-    dcsOdd_tracing_0_payload_action    => dcs_odd_tracing_action  (0),
-    dcsOdd_tracing_0_payload_request   => dcs_odd_tracing_request (0),
-
-    dcsOdd_tracing_1_valid             => dcs_odd_tracing_valid   (1),
-    dcsOdd_tracing_1_payload_error     => dcs_odd_tracing_error   (1),
-    dcsOdd_tracing_1_payload_cli       => dcs_odd_tracing_cli     (1),
-    dcsOdd_tracing_1_payload_state     => dcs_odd_tracing_state   (1),
-    dcsOdd_tracing_1_payload_action    => dcs_odd_tracing_action  (1),
-    dcsOdd_tracing_1_payload_request   => dcs_odd_tracing_request (1),
-
     -- DCS even interface
     s_axi_dcs_even_awvalid => dcs_even_axi.awvalid,
     s_axi_dcs_even_awready => dcs_even_axi.awready,
@@ -1629,20 +1865,6 @@ NicEngine_inst : entity work.NicEngine
     dcsEven_unlockResp_payload_data => dcs_c18_i.data,
     dcsEven_unlockResp_payload_size => dcs_c18_i.size,
     dcsEven_unlockResp_payload_vc => dcs_c18_i.vc_no,
-
-    dcsEven_tracing_0_valid             => dcs_even_tracing_valid   (0),
-    dcsEven_tracing_0_payload_error     => dcs_even_tracing_error   (0),
-    dcsEven_tracing_0_payload_cli       => dcs_even_tracing_cli     (0),
-    dcsEven_tracing_0_payload_state     => dcs_even_tracing_state   (0),
-    dcsEven_tracing_0_payload_action    => dcs_even_tracing_action  (0),
-    dcsEven_tracing_0_payload_request   => dcs_even_tracing_request (0),
-
-    dcsEven_tracing_1_valid             => dcs_even_tracing_valid   (1),
-    dcsEven_tracing_1_payload_error     => dcs_even_tracing_error   (1),
-    dcsEven_tracing_1_payload_cli       => dcs_even_tracing_cli     (1),
-    dcsEven_tracing_1_payload_state     => dcs_even_tracing_state   (1),
-    dcsEven_tracing_1_payload_action    => dcs_even_tracing_action  (1),
-    dcsEven_tracing_1_payload_request   => dcs_even_tracing_request (1),
 
     -- regs
     s_axil_ctrl_awvalid => io_reg_axil_cdc.awvalid,
@@ -1728,20 +1950,7 @@ NicEngine_inst : entity work.NicEngine
     dma_write_desc_status_valid => dma_write_desc_status(16),
     dma_write_desc_status_payload_len => dma_write_desc_status(15 downto 0),
 
-    dma_rxFsm_state => dma_rxFsm_state,
-
-    -- trace out
-    trace_dump => dcs_trace_dump,
-    trace_sampleLost => dcs_trace(123),
-    trace_data_event_error => dcs_trace(122),
-    trace_data_event_cli => dcs_trace(121 downto 82),
-    trace_data_event_state => dcs_trace(81 downto 75),
-    trace_data_event_action => dcs_trace(74 downto 71),
-    trace_data_event_request => dcs_trace(70 downto 66),
-    trace_data_src => dcs_trace(65 downto 64),
-    trace_data_ts => dcs_trace(63 downto 0)
+    dma_rxFsm_state => dma_rxFsm_state
   );
-
-dcs_trace(124) <= dcs_trace_dump;
 
 end Behavioral;

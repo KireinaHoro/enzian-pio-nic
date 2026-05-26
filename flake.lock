@@ -71,11 +71,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1772549846,
-        "narHash": "sha256-R6J8KOey8OyEE7cAV8G1U2gY0eOrPJkBAHR7pX3yryo=",
+        "lastModified": 1772960587,
+        "narHash": "sha256-JXcsEMWWoChpsCPuJQJaTdkEemC4Q5bcu3fPNTJvTGk=",
         "owner": "Avimitin",
         "repo": "mill-ivy-fetcher",
-        "rev": "325b485c8213b2f21677c0fae240b13f85055d7a",
+        "rev": "54fbe54b4ad66d0dcefc240ed6388238c5fc1dfd",
         "type": "github"
       },
       "original": {
@@ -86,11 +86,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1772459795,
-        "narHash": "sha256-FMhBOAGz1ju4e2EL39yGYzYZJ2rKZfqDZUfcUOdCZTo=",
+        "lastModified": 1779287493,
+        "narHash": "sha256-9W48SL3bErOVRNmfIRSNNUdkjjoOpdFQz88NFbvfMYg=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b804b6b992ac690f1403a601801a9082bebea22f",
+        "rev": "0acbcf2ef991d8e757d989e263253119cb3fcb48",
         "type": "github"
       },
       "original": {
