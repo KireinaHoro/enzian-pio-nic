@@ -94,7 +94,7 @@ case class LauberhornTraceDma(
                                sysSources: Int = LauberhornTraceDma.SysSources,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,
-                               axiBufferSize: BigInt = BigInt("400000000", 16),
+                               axiBufferSize: BigInt = BigInt(32L * 1024 * 1024 * 1024)
                              ) extends Component {
   // TraceBufferDMA adds a 5-bit global source index and a 48-bit timestamp
   // around each 75-bit source-specific payload.  That makes the Lauberhorn
@@ -127,7 +127,7 @@ case class LauberhornTraceDma(
   //   6..11  odd-DCS ECI frames before app CDC
   val totalSources = appSources + sysSources
   val axiConfig = Axi4Config(
-    addressWidth = 34,
+    addressWidth = 35,
     dataWidth = 512,
     idWidth = 7,
     useQos = false,
