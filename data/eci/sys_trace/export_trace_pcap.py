@@ -144,6 +144,10 @@ def source_matches(sample: int, trace_map: Dict[str, Any], source: Optional[int]
     return sample_source(sample, trace_map) == source
 
 
+def source_info(trace_map: Dict[str, Any], source: int) -> Dict[str, Any]:
+    return trace_map.get("sources_by_id", {}).get(source, {})
+
+
 def write_pcap(
     input_path: Path,
     output_path: Path,
@@ -180,7 +184,15 @@ def write_pcap(
                 continue
 
             if source_matches(sample, trace_map, source):
-                packet = sample_packet(logical_index, physical_index, timestamp, src, sample, width)
+                packet = sample_packet(
+                    logical_index,
+                    physical_index,
+                    timestamp,
+                    src,
+                    sample,
+                    width,
+                    source_info(trace_map, src),
+                )
                 writer.write_packet(packet, timestamp_ns=packet_timestamp_ns(timestamp, cycle_ns))
 
 
@@ -213,6 +225,7 @@ def write_legacy_ila_pcap(
                     sample.source,
                     sample.sample,
                     width,
+                    source_info(trace_map, sample.source),
                 )
                 writer.write_packet(packet, timestamp_ns=sample.timestamp_ns)
 
