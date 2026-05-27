@@ -1,13 +1,12 @@
-local lhtrace = Proto("lhtrace", "Lauberhorn Trace")
+local lhtrace = Proto("lhtrace", "Lauberhorn Trace Dispatcher")
 local lhmeta = Proto("lhtrace_meta", "Lauberhorn Trace Metadata")
-local lhmarker = Proto("lhtrace_marker", "Lauberhorn Trace Marker")
-local lhdcs = Proto("lhtrace_dcs", "Lauberhorn DCS Trace")
-local lheci = Proto("lhtrace_eci", "Lauberhorn ECI Trace")
-local lhevent = Proto("lhtrace_event", "Lauberhorn Event Trace")
-local lhraw = Proto("lhtrace_raw", "Lauberhorn Raw Trace")
+local lhctrl = Proto("lhtrace_ctrl", "Lauberhorn Trace Control")
+local lhdcs = Proto("lhtrace_dcs", "Lauberhorn DCS Event")
+local lheci_app = Proto("lhtrace_eci_app", "Lauberhorn App ECI Frame")
+local lheci_sys = Proto("lhtrace_eci_sys", "Lauberhorn Sys ECI Frame")
+local lhevent = Proto("lhtrace_event", "Lauberhorn NicEngine Event")
 
 local KIND_METADATA = 1
-local KIND_SAMPLE = 2
 local KIND_LOST = 3
 local KIND_BUBBLE = 4
 
@@ -16,6 +15,15 @@ local kind_names = {
     [2] = "sample",
     [3] = "lost",
     [4] = "bubble",
+}
+
+local packet_protocols = {
+    LHTM = { proto = lhmeta, col = "LHMETA", title = "Lauberhorn Trace Metadata", family = "metadata" },
+    LHTC = { proto = lhctrl, col = "LHCTRL", title = "Lauberhorn Trace Control", family = "control" },
+    LHTE = { proto = lhevent, col = "LHEVENT", title = "Lauberhorn NicEngine Event", family = "event" },
+    LHTD = { proto = lhdcs, col = "LHDCS", title = "Lauberhorn DCS Event", family = "dcs" },
+    LHEA = { proto = lheci_app, col = "LHECIAPP", title = "Lauberhorn App ECI Frame", family = "eci" },
+    LHES = { proto = lheci_sys, col = "LHECISYS", title = "Lauberhorn Sys ECI Frame", family = "eci" },
 }
 
 local f = lhtrace.fields
@@ -34,7 +42,7 @@ f.payload = ProtoField.bytes("lhtrace.payload", "Payload")
 local mf = lhmeta.fields
 mf.json = ProtoField.string("lhtrace.meta.json", "Trace Map JSON")
 
-local sf = lhraw.fields
+local sf = lhtrace.fields
 sf.source_type = ProtoField.string("lhtrace.source.type", "Source Type")
 sf.source_port = ProtoField.string("lhtrace.source.port", "Source Port")
 sf.clock_domain = ProtoField.string("lhtrace.source.clock_domain", "Clock Domain")
@@ -49,7 +57,7 @@ df.state = ProtoField.uint8("lhtrace.dcs.state", "State", base.DEC)
 df.action = ProtoField.uint8("lhtrace.dcs.action", "Action", base.DEC)
 df.request = ProtoField.uint8("lhtrace.dcs.request", "Request", base.DEC)
 
-local ef = lheci.fields
+local ef = lheci_app.fields
 ef.header = ProtoField.uint64("lhtrace.eci.header", "Header", base.HEX)
 ef.opcode = ProtoField.uint8("lhtrace.eci.opcode", "Opcode", base.DEC)
 ef.vc = ProtoField.uint8("lhtrace.eci.vc", "VC", base.DEC)
@@ -294,29 +302,27 @@ end
 
 local function dissect_dcs(payload_tvb, tree)
     local fields = fields_for_type("dcs_event") or {}
-    local subtree = tree:add(lhdcs, payload_tvb(), "DCS Trace")
     local error_value = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
     local cli = extract_bits_le(payload_tvb, 0, fields.cli.offset, fields.cli.width)
     local state = extract_bits_le(payload_tvb, 0, fields.state.offset, fields.state.width)
     local action = extract_bits_le(payload_tvb, 0, fields.action.offset, fields.action.width)
     local request = extract_bits_le(payload_tvb, 0, fields.request.offset, fields.request.width)
-    subtree:add(df.error, payload_tvb(0, 0), error_value)
-    subtree:add(df.cli, payload_tvb(0, 0), string.format("0x%010x", cli))
-    append_enum(subtree:add(df.state, payload_tvb(0, 0), state), "dcs_event", "state", state)
-    append_enum(subtree:add(df.action, payload_tvb(0, 0), action), "dcs_event", "action", action)
-    append_enum(subtree:add(df.request, payload_tvb(0, 0), request), "dcs_event", "request", request)
+    tree:add(df.error, payload_tvb(0, 0), error_value)
+    tree:add(df.cli, payload_tvb(0, 0), string.format("0x%010x", cli))
+    append_enum(tree:add(df.state, payload_tvb(0, 0), state), "dcs_event", "state", state)
+    append_enum(tree:add(df.action, payload_tvb(0, 0), action), "dcs_event", "action", action)
+    append_enum(tree:add(df.request, payload_tvb(0, 0), request), "dcs_event", "request", request)
 end
 
 local function dissect_eci(payload_tvb, tree, source_info)
     local fields = fields_for_type("eci") or {}
-    local subtree = tree:add(lheci, payload_tvb(), "ECI Trace")
-    subtree:add_le(ef.header, payload_tvb(0, 8))
+    tree:add_le(ef.header, payload_tvb(0, 8))
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
-    local opcode_item = subtree:add(ef.opcode, payload_tvb(7, 1), opcode)
+    local opcode_item = tree:add(ef.opcode, payload_tvb(7, 1), opcode)
     local message = eci_opcode_name(source_info, opcode)
     if message ~= nil then
         opcode_item:append_text(" (" .. message .. ")")
-        subtree:add(ef.message, payload_tvb(0, 0), message)
+        tree:add(ef.message, payload_tvb(0, 0), message)
     end
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local stall_count = extract_bits_le(payload_tvb, 0, fields.stall_count.offset, fields.stall_count.width)
@@ -325,10 +331,10 @@ local function dissect_eci(payload_tvb, tree, source_info)
     if trace_map ~= nil and trace_map.sample ~= nil then
         shift = tonumber(trace_map.sample.eci_stall_counter_shift) or 0
     end
-    subtree:add(ef.vc, payload_tvb(0, 0), vc)
-    subtree:add(ef.stall_count, payload_tvb(0, 0), stall_count)
-    subtree:add(ef.stall_cycles, payload_tvb(0, 0), stall_count * (2 ^ shift))
-    subtree:add(ef.accepted, payload_tvb(0, 0), accepted)
+    tree:add(ef.vc, payload_tvb(0, 0), vc)
+    tree:add(ef.stall_count, payload_tvb(0, 0), stall_count)
+    tree:add(ef.stall_cycles, payload_tvb(0, 0), stall_count * (2 ^ shift))
+    tree:add(ef.accepted, payload_tvb(0, 0), accepted)
 end
 
 local function dissect_event(payload_tvb, tree)
@@ -338,37 +344,26 @@ local function dissect_event(payload_tvb, tree)
     local core_field = fields.core_id or { offset = 6, width = 6 }
     local event_id = extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width)
     local name = event_name(event_id)
-    local subtree = tree:add(lhevent, payload_tvb(), "Lauberhorn Event: " .. name)
-    subtree:add(evf.event_id, payload_tvb(0, 0), event_id):append_text(" (" .. name .. ")")
-    subtree:add(evf.event_name, payload_tvb(0, 0), name)
+    tree:append_text(": " .. name)
+    tree:add(evf.event_id, payload_tvb(0, 0), event_id):append_text(" (" .. name .. ")")
+    tree:add(evf.event_name, payload_tvb(0, 0), name)
     local extra_byte_offset = math.floor(extra_field.offset / 8)
     local extra_byte_len = math.ceil(((extra_field.offset % 8) + extra_field.width) / 8)
-    subtree:add(evf.extra_data, payload_tvb(extra_byte_offset, extra_byte_len))
-    subtree:add(evf.core_id, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, core_field.offset, core_field.width))
-end
-
-local function dissect_sample_payload(payload_tvb, source, tree)
-    local src = add_source_info(tree, payload_tvb, source)
-    if src.type == "dcs_event" then
-        dissect_dcs(payload_tvb, tree)
-    elseif src.type == "eci" then
-        dissect_eci(payload_tvb, tree, src)
-    elseif src.type == "lauberhorn_event" then
-        dissect_event(payload_tvb, tree)
-    else
-        tree:add(f.payload, payload_tvb())
-    end
+    tree:add(evf.extra_data, payload_tvb(extra_byte_offset, extra_byte_len))
+    tree:add(evf.core_id, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, core_field.offset, core_field.width))
 end
 
 function lhtrace.dissector(tvb, pinfo, tree)
     if tvb:len() < HEADER_LEN then
         return 0
     end
-    if tvb(0, 4):string() ~= "LHTR" then
+    local magic = tvb(0, 4):string()
+    local packet_protocol = packet_protocols[magic]
+    if packet_protocol == nil then
         return 0
     end
 
-    pinfo.cols.protocol = "LHTRACE"
+    pinfo.cols.protocol = packet_protocol.col
 
     local kind = tvb(5, 1):uint()
     local sample = tvb(8, 8):le_uint64()
@@ -385,7 +380,7 @@ function lhtrace.dissector(tvb, pinfo, tree)
         tostring(timestamp))
     pinfo.cols.info = info
 
-    local subtree = tree:add(lhtrace, tvb(), "Lauberhorn Trace: " .. info)
+    local subtree = tree:add(packet_protocol.proto, tvb(), packet_protocol.title .. ": " .. info)
     subtree:add(f.magic, tvb(0, 4))
     subtree:add_le(f.version, tvb(4, 1))
     subtree:add_le(f.kind, tvb(5, 1))
@@ -399,18 +394,24 @@ function lhtrace.dissector(tvb, pinfo, tree)
 
     if payload_len > 0 and tvb:len() >= HEADER_LEN + payload_len then
         local payload_tvb = tvb(HEADER_LEN, payload_len)
-        if kind == KIND_METADATA then
+        if packet_protocol.family == "metadata" then
             local json_text = payload_tvb:string()
             load_trace_map(json_text)
-            local meta_tree = subtree:add(lhmeta, payload_tvb(), "Trace Map Metadata")
-            meta_tree:add(mf.json, payload_tvb())
-        elseif kind == KIND_SAMPLE then
-            dissect_sample_payload(payload_tvb, source, subtree)
+            subtree:add(mf.json, payload_tvb())
+        elseif packet_protocol.family == "dcs" then
+            add_source_info(subtree, payload_tvb, source)
+            dissect_dcs(payload_tvb, subtree)
+        elseif packet_protocol.family == "eci" then
+            local src = add_source_info(subtree, payload_tvb, source)
+            dissect_eci(payload_tvb, subtree, src)
+        elseif packet_protocol.family == "event" then
+            add_source_info(subtree, payload_tvb, source)
+            dissect_event(payload_tvb, subtree)
         else
             subtree:add(f.payload, payload_tvb)
         end
-    elseif kind == KIND_LOST or kind == KIND_BUBBLE then
-        subtree:add(lhmarker, tvb(), (kind_names[kind] or "marker") .. " count=" .. tostring(lost_count))
+    elseif packet_protocol.family == "control" then
+        subtree:append_text(" count=" .. tostring(lost_count))
     end
 
     return tvb:len()

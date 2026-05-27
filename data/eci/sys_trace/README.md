@@ -29,6 +29,12 @@ as one interactive packet list. The pcapng contains one metadata packet with the
 trace-map JSON, raw packets for real samples, and marker packets for lost/bubble
 samples.
 
+Packets share the same little-endian envelope after the first four magic bytes,
+but use separate magics so Wireshark can display them as separate protocols:
+`LHTM` for metadata, `LHTC` for lost/bubble control frames, `LHTE` for
+NicEngine event trace data, `LHTD` for DCS events, `LHEA` for app-clock ECI
+frames, and `LHES` for sys-clock ECI frames.
+
 The input path is a raw binary DRAM dump. `--from-vivado` is reserved for a
 future mode that streams the trace buffer via Vivado hardware manager and the
 JTAG AXI master instead of first writing a raw dump file.
