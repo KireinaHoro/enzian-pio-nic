@@ -1,27 +1,15 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from .common import bits, parse_hex_int, platform_root
+    from .common import bits, platform_root
     from .dcs_decode import decode_dcs_event
     from .eci_decode import decode_eci_by_opcode
 except ImportError:
-    from common import bits, parse_hex_int, platform_root
+    from common import bits, platform_root
     from dcs_decode import decode_dcs_event
     from eci_decode import decode_eci_by_opcode
-
-
-FIELDNAMES = [
-    "sample", "beat", "physical_sample", "physical_beat", "timestamp",
-    "source", "port", "type", "clock_domain", "dcs", "local_source",
-    "channel", "payload", "lost_count",
-    "error", "cli", "state", "state_name", "action", "action_name",
-    "request", "request_name", "dcs_trace.event.req", "dcs_trace.event.cli",
-    "dcs_trace.event.action", "dcs_trace.event.state",
-    "eci_header", "vc", "stall_count", "stall_counter_shift", "stall_cycles", "accepted",
-    "raw", "opcode", "message", "aliased_addr", "unaliased_addr",
-]
 
 
 def default_map_path() -> Path:
@@ -41,20 +29,6 @@ def load_map(path: Path) -> Dict[str, Any]:
         trace_map = json.load(f)
     trace_map["sources_by_id"] = {int(src["source"]): src for src in trace_map.get("sources", [])}
     return trace_map
-
-
-def iter_binary_samples(data: bytes, offset: int, sample_width: int) -> Iterable[Tuple[int, int]]:
-    value = int.from_bytes(data[offset:], "little")
-    sample_count = ((len(data) - offset) * 8) // sample_width
-    for index in range(sample_count):
-        yield index, bits(value, index * sample_width, sample_width)
-
-
-def iter_hex_samples(data: bytes) -> Iterable[Tuple[int, int]]:
-    for index, token in enumerate(data.decode("ascii", errors="ignore").replace(",", " ").split()):
-        value = parse_hex_int(token)
-        if value is not None:
-            yield index, value
 
 
 def decode_fields(payload: int, fields: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
