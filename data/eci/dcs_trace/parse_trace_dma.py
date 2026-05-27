@@ -13,6 +13,12 @@ design, each sample is 128 bits:
 The all-ones source id for the configured source width is reserved for marker
 frames: non-zero payload reports lost samples, while zero payload is a bubble
 inserted to flush a partial AXI beat.
+
+TraceBufferDMA writes the DRAM region as a circular buffer. When the dumped
+buffer has wrapped, the newest samples appear at the physical beginning of the
+dump and the oldest remaining samples appear after the current write position.
+The parser detects that case from the timestamp discontinuity and rotates the
+samples before decoding.
 """
 
 import argparse
@@ -93,7 +99,29 @@ def decode_fields(payload: int, fields: Dict[str, Dict[str, Any]]) -> Dict[str, 
     return decoded
 
 
-def decode_sample(index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[str, Any]:
+def sample_timestamp(sample: int, trace_map: Dict[str, Any]) -> int:
+    sample_cfg = trace_map["sample"]
+    payload_width = int(sample_cfg["payload_width"])
+    source_width = int(sample_cfg["source_width"])
+    timestamp_width = int(sample_cfg["timestamp_width"])
+    return bits(sample, payload_width + source_width, timestamp_width)
+
+
+def realign_samples_by_timestamp(
+    samples: List[Tuple[int, int]],
+    trace_map: Dict[str, Any],
+) -> List[Tuple[int, int]]:
+    if len(samples) < 2:
+        return samples
+
+    timestamps = [sample_timestamp(sample, trace_map) for _, sample in samples]
+    for index in range(1, len(samples)):
+        if timestamps[index] < timestamps[index - 1]:
+            return samples[index:] + samples[:index]
+    return samples
+
+
+def decode_sample(logical_index: int, physical_index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[str, Any]:
     sample_cfg = trace_map["sample"]
     payload_width = int(sample_cfg["payload_width"])
     source_width = int(sample_cfg["source_width"])
@@ -110,8 +138,10 @@ def decode_sample(index: int, sample: int, trace_map: Dict[str, Any]) -> Dict[st
     source_info = trace_map["sources_by_id"].get(source, {"type": "unknown"})
 
     row: Dict[str, Any] = {
-        "sample": index,
-        "beat": (index * sample_width) // beat_bits,
+        "sample": logical_index,
+        "beat": (logical_index * sample_width) // beat_bits,
+        "physical_sample": physical_index,
+        "physical_beat": (physical_index * sample_width) // beat_bits,
         "timestamp": timestamp,
         "source": source,
         "port": source_info.get("port", ""),
@@ -159,17 +189,25 @@ def main() -> int:
     data = Path(args.input).read_bytes()
     iterator = iter_hex_samples(data) if args.hex_text else iter_binary_samples(data, args.offset, sample_width)
 
-    rows: List[Dict[str, Any]] = []
+    samples: List[Tuple[int, int]] = []
     for index, sample in iterator:
-        if args.samples is not None and len(rows) >= args.samples:
-            break
         if not args.include_zero and sample == 0:
             break
-        rows.append(decode_sample(index, sample, trace_map))
+        samples.append((index, sample))
+
+    samples = realign_samples_by_timestamp(samples, trace_map)
+    if args.samples is not None:
+        samples = samples[:args.samples]
+
+    rows = [
+        decode_sample(logical_index, physical_index, sample, trace_map)
+        for logical_index, (physical_index, sample) in enumerate(samples)
+    ]
 
     fieldnames = [
-        "sample", "beat", "timestamp", "source", "port", "type", "clock_domain",
-        "dcs", "local_source", "channel", "payload", "lost_count",
+        "sample", "beat", "physical_sample", "physical_beat", "timestamp",
+        "source", "port", "type", "clock_domain", "dcs", "local_source",
+        "channel", "payload", "lost_count",
         "error", "cli", "state", "action", "request",
         "eci_header", "vc", "stall_count", "stall_counter_shift", "stall_cycles", "accepted",
         "opcode", "message", "aliased_addr", "unaliased_addr",
