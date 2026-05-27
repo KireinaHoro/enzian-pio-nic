@@ -1,0 +1,7 @@
+# Lauberhorn trace coloring rules for Wireshark.
+@Trace Lost@lhtrace.magic == "LHTC" && lhtrace.kind == 3@[0,0,0][0,65535,3616]
+@Trace Metadata@lhtrace.magic == "LHTM"@[65535,65535,65535][41026,41026,41026]
+@Trace Bubble@lhtrace.magic == "LHTC" && lhtrace.kind == 4@[65535,65535,65535][41026,41026,41026]
+@Lauberhorn Events@lhtrace.magic == "LHTE"@[65535,24383,24383][0,0,0]
+@DC@lhtrace.magic == "LHTD"@[59345,58980,65534][0,0,0]
+@ECI (app)@lhtrace.magic == "LHEA"@[64250,61680,55255][0,0,0]

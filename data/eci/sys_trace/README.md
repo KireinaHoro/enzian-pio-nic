@@ -22,6 +22,18 @@ tshark -r trace.pcapng \
 
 For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` into the
 personal plugin directory, or load it with the equivalent Lua script option.
+The optional `colorfilters` file in this directory can be imported through
+View -> Coloring Rules instead of being installed by the Lua plugin at startup.
+Alternatively, use the repo-local profile, which already contains the coloring
+rules:
+
+```sh
+wireshark \
+  -P persconf:data/eci/sys_trace/wireshark_config \
+  -C Lauberhorn \
+  -r trace.pcapng \
+  -X lua_script:data/eci/sys_trace/lauberhorn_trace.lua
+```
 
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
