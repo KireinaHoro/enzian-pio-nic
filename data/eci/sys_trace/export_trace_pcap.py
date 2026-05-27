@@ -9,11 +9,13 @@ try:
     from .dma_decode import default_map_path, load_map
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
+    from .trace_metadata import enrich_trace_map
 except ImportError:
     from common import bits
     from dma_decode import default_map_path, load_map
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
+    from trace_metadata import enrich_trace_map
 
 
 def acquire_dump_from_vivado(_args: argparse.Namespace) -> Path:
@@ -153,11 +155,12 @@ def write_pcap(
     width = sample_bytes(trace_map)
     lost_source = int(trace_map["sample"]["lost_source"])
     lost_count_width = int(trace_map["sample"].get("lost_count_width", 32))
+    export_map = enrich_trace_map(trace_map)
 
     with output_path.open("wb") as f:
         writer = PcapngWriter(f)
         writer.write_header()
-        writer.write_packet(metadata_packet(trace_map), timestamp_ns=0)
+        writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
 
         for logical_index, physical_index, sample, timestamp in iter_chronological_samples(
             input_path,
