@@ -2,7 +2,7 @@ package lauberhorn.net
 
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
-import lauberhorn.MacInterfaceService
+import lauberhorn.{MacInterfaceService, TracePlugin}
 import spinal.core._
 import spinal.lib.StreamPipe.{FULL, M2S}
 import spinal.lib._
@@ -58,6 +58,9 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     val filteredHeader = metadata.clone
     val filteredPayload = payload.clone
     val dropped = Bool()
+
+    // TODO: pass a packet ID in the pipeline for tracing
+    host[DecoderSink].tp.trace(decoderName, dropped.asBits) := metadata.fire
 
     if (drop != null) new Area {
       val pldFilter = AxiStreamFilter(host[MacInterfaceService].axisConfig)

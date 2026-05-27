@@ -27,7 +27,8 @@ trait MacInterfaceService {
 }
 
 class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
-  lazy val trace = host[TracePlugin]
+  val rxCmacClkTp, rxAppClkTp,
+      txCmacClkTp, txAppClkTp = during setup host[TracePlugin].makePort()
 
   // matches Xilinx CMAC configuration
   lazy val axisConfig = Axi4StreamConfig(
@@ -99,13 +100,10 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
     val frameLenCdcFifo = SimpleAsyncFifo(rxDomain.frameLen, frameLenCdc,
       ROUNDED_MTU / 64, cmacRxClock, clockDomain)
 
-    // profile timestamps
-    trace.trace(
-      trace.RxCmacEntry -> PulseCCByToggle(rxDomain.afterDrop.lastFire, cmacRxClock, clockDomain),
-      trace.RxAfterCdcQueue -> rxFifo.m_axis.fire,
-      trace.TxBeforeCdcQueue -> txFifo.s_axis.fire,
-      trace.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
-    )
+    rxCmacClkTp.trace("RxCmacEntry") := PulseCCByToggle(rxDomain.afterDrop.lastFire, cmacRxClock, clockDomain)
+    rxAppClkTp.trace("RxAfterCdcQueue") := rxFifo.m_axis.fire
+    txAppClkTp.trace("TxBeforeCdcQueue") := txFifo.s_axis.fire
+    txCmacClkTp.trace("TxCmacExit") := PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain)
   }
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {

@@ -40,7 +40,8 @@ case class RxPacketDescWithSource() extends Bundle {
   */
 class DmaControlPlugin extends FiberPlugin {
   lazy val pktBuf = host[PacketBuffer]
-  lazy val trace = host[TracePlugin]
+
+  val rxTp, txTp = during setup host[TracePlugin].makePort()
 
   /** Access points for downstream/upstream [[HostReq]] instances.
     *
@@ -208,7 +209,8 @@ class DmaControlPlugin extends FiberPlugin {
             }
           }
 
-          trace.trace(trace.RxEnqueueToHost -> True)
+          // TODO: assign packet trace ID
+          rxTp.trace("RxEnqueueToHost") := True
           when (pktToEnqueue.ty === HostReqType.bypass) {
             assign(bypassSink.get)
           } otherwise {
@@ -282,7 +284,7 @@ class DmaControlPlugin extends FiberPlugin {
             when(readDescStatus.payload.error === 0) {
               inc(_.txPacketCount)
 
-              trace.trace(trace.TxAfterDmaRead -> True)
+              txTp.trace("TxAfterDmaRead") := True
             } otherwise {
               inc(_.txDmaErrorCount)
             }

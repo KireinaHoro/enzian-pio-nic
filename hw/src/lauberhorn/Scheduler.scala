@@ -311,7 +311,7 @@ class Scheduler extends FiberPlugin {
       when (queueMetas(pushResult.idx).full) {
         // the destination proc queue is full
         // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
-        // FIXME: free the buffer by sending back a hostRxAck
+        // FIXME: free the buffer by sending back a hostRxAck (normally sent by host module)
         inc(_.dropped)
       } otherwise {
         // store at where the tail was

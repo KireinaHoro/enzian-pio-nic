@@ -1,6 +1,7 @@
 package lauberhorn.net
 
 import jsteward.blocks.axi.AxiStreamArbMux
+import lauberhorn.TracePlugin
 import spinal.core._
 import spinal.lib.{Stream, StreamArbiterFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
@@ -17,6 +18,9 @@ import scala.reflect.ClassTag
   * @tparam T input metadata type
   */
 trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
+  // Encoder pipeline is fully parallel so need a port per encoder
+  val tp = during setup host[TracePlugin].makePort()
+
   /** Create one instance of the concrete [[DecoderMetadata]] for this encoder */
   def getMetadata: T
 
@@ -39,6 +43,9 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
     */
   protected def to[M <: EncoderMetadata, E <: Encoder[M]: ClassTag](metadata: Stream[M], payload: Axi4Stream): Unit = {
     host[E].producers.append((this.getDisplayName(), metadata, payload))
+
+    // TODO: include packet ID for tracing
+    tp.trace(getClass.getSimpleName) := metadata.fire
   }
 
   /**

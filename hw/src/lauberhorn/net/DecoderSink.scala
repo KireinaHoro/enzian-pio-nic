@@ -2,7 +2,7 @@ package lauberhorn.net
 
 import jsteward.blocks.axi.AxiStreamMux
 import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer, RxPacketDescWithSource}
+import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer, RxPacketDescWithSource, TracePlugin}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib.StreamPipe.FULL
@@ -48,6 +48,9 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   lazy val dc = host[DmaControlPlugin].logic
   val retainer = Retainer()
 
+  // all decoders are serialized so we only need one trace port
+  val tp = during setup host[TracePlugin].makePort()
+
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val decoderOutputs = mutable.ListBuffer[DecoderOutput]()
   lazy val pktDropped = Bool()
@@ -60,6 +63,9 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
     // Payload is ack'ed when:
     // - we disable the AXIS mux, packet sent to DMA
     // - a decoder dropped this packet
+    // This means the decoders work in a serialized fashion -- only
+    // when the first packet is fully processed, is the second one
+    // allowed to enter
     dec.payloadAck := pldMuxDisable || pktDropped
   }
   override def packetSink = logic.axisMux.m_axis

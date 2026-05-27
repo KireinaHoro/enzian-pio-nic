@@ -4,57 +4,55 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.misc.plugin.FiberPlugin
 
+import scala.collection.mutable
 import scala.language.postfixOps
 
 class TracePlugin extends FiberPlugin {
-  setName("")
+  var nextEventID = 0
+  def allocEventID(name: String) = {
+    val ret = nextEventID
+    nextEventID += 1
 
-  case class TraceEvent(id: Int, name: String)
-
-  /** Packet entered Lauberhorn from the CMAC. */
-  val RxCmacEntry = TraceEvent(0, "RxCmacEntry")
-  /** Packet popped from the CDC queue inside [[MacInterfaceService]]. */
-  val RxAfterCdcQueue = TraceEvent(1, "RxAfterCdcQueue")
-  /** Packet finished DMA into [[lauberhorn.PacketBuffer]] and on its way to [[Scheduler]] or bypass
-    * [[lauberhorn.host.DatapathService]] */
-  val RxEnqueueToHost = TraceEvent(2, "RxEnqueueToHost")
-
-  val RxCoreReadStart = TraceEvent(3, "RxCoreReadStart")
-  val RxCoreReadFinish = TraceEvent(4, "RxCoreReadFinish")
-  val RxCoreCommit = TraceEvent(5, "RxCoreCommit")
-
-  val TxCoreAcquire = TraceEvent(6, "TxCoreAcquire")
-  val TxCoreCommit = TraceEvent(7, "TxCoreCommit")
-  val TxAfterDmaRead = TraceEvent(8, "TxAfterDmaRead")
-  val TxBeforeCdcQueue = TraceEvent(9, "TxBeforeCdcQueue") // time before packet passing through Tx CDC fifo
-  val TxCmacExit = TraceEvent(10, "TxCmacExit") // time exiting to CMAC
-
-  val logic = during setup new Area {
-    val traceValid = Bool().setName("lauberhorn_trace_valid").asOutput()
-    val tracePayload = Bits(LauberhornTraceDma.PayloadWidth bits).setName("lauberhorn_trace_payload").asOutput()
-
-    traceValid := False
-    tracePayload := 0
+    // TODO: emit name -> event ID mapping to LauberhornTraceDma for export into JSON
+    ret
   }
 
-  private def payload(event: TraceEvent, coreId: Int): Bits = {
-    val encoded = (BigInt(coreId & 0xf) << 8) | BigInt(event.id & 0xff)
-    B(encoded, LauberhornTraceDma.PayloadWidth bits)
-  }
+  class TracePort {
+    /** Trace a given event.  On every cycle this port can emit at most
+     * one event; if multiple `trace` return values have been assigned to True,
+     * only the last one will survive due to the last when statement having priority.
+     *
+     * @param name      Name of the event
+     * @param extraData Extra data to embed into the emitted trace frame
+     * @return Trigger condition for emitting the event; assign to this
+     */
+    def trace(name: String, extraData: Bits = B(0)): Bool = {
+      val myID = allocEventID(name)
+      val cond = Bool()
+      when (cond) {
+        out.valid := True
 
-  def trace(keycond: (TraceEvent, Bool)*): Unit =
-    traceCore(0, keycond: _*)
-
-  def traceCore(coreId: Int, keycond: (TraceEvent, Bool)*): Unit = {
-    keycond.foreach { case (event, cond) =>
-      // FIXME: this will collide when multiple trace points fire at the same time;
-      //        use a bitmap to capture all trace events to fit inside a trace sample;
-      //        this way we can handle up to 64 trace points, without worrying about collision.
-      //        limit the per-core trace events as they will be times #numCores
-      when(cond) {
-        logic.traceValid := True
-        logic.tracePayload := payload(event, coreId)
+        // extraData will be padded with zero after resize
+        out.payload := (extraData ## B(myID, 6 bits)).resized
       }
+      cond
     }
+
+    val out = Flow(Bits(LauberhornTraceDma.PayloadWidth bits))
+    out.valid := False
+    out.payload.assignDontCare()
+  }
+
+  def makePort(): TracePort = {
+    val ret = new TracePort()
+    tracePorts.append(ret)
+    ret
+  }
+  val tracePorts = mutable.ArrayBuffer[TracePort]()
+  // TODO: pass number of trace ports to LauberhornTraceDma
+
+  val logic = during build new Area {
+    val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)
+    trace zip tracePorts foreach { case (to, tp) => to := tp.out }
   }
 }
