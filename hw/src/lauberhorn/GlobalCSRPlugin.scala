@@ -1,6 +1,6 @@
 package lauberhorn
 
-import jsteward.blocks.misc.{CycleClock, RegBlockAlloc}
+import jsteward.blocks.misc.RegBlockAlloc
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
@@ -15,11 +15,16 @@ class GlobalCSRPlugin extends FiberPlugin {
     val ctrl = new Bundle {
     }
     val status = new Bundle {
-      val version = Bits(REG_WIDTH bits)
+      val gitVersion = Bits(REG_WIDTH bits)
+      val magic = Bits(REG_WIDTH bits)
+      val cycles = UInt(REG_WIDTH bits)
     }
 
     println(f"Git version: ${GIT_VERSION.get}%x")
-    status.version := B(GIT_VERSION)
+    status.gitVersion := B(GIT_VERSION)
+    // "LBERHORN" in hex
+    status.magic := B("64'x4C424552484F524E")
+    status.cycles := CounterFreeRun(REG_WIDTH bits)
   }
 
   def readAndWrite(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
@@ -33,7 +38,13 @@ class GlobalCSRPlugin extends FiberPlugin {
       }
     }
     logic.status.elements.foreach { case (name, data) =>
-      busCtrl.read(data, alloc("csr", name, attr = RO))
+      val desc = name match {
+        case "gitVersion" => "Git version of HW"
+        case "magic" => "Magic number to check (should be LBERHORN)"
+        case "cycles" => s"Cycle counter @ ${component.clockDomain.frequency.getValue} MHz"
+        case _ => s"Status CSR $name"
+      }
+      busCtrl.read(data, alloc("csr", desc, name, attr = RO))
     }
   }
 }

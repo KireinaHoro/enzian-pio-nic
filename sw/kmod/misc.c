@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-#include "lauberhorn_eci_profiler_dev.h"
+#include "lauberhorn_eci_global_dev.h"
 #include "config.h"
 #include "regblock_bases.h"
 
@@ -14,7 +14,7 @@ int probe_versions(void)
 {
 	u64 nic_ver;
 	u32 shell_ver;
-	lauberhorn_eci_profiler_t prof_dev;
+	lauberhorn_eci_global_t global_dev;
 	u32 *shell_regs_virt;
 
 	union {
@@ -37,18 +37,17 @@ int probe_versions(void)
 	iounmap(shell_regs_virt);
 
 	// check running hardware magic and version
-	lauberhorn_eci_profiler_initialize(&prof_dev,
-					   LAUBERHORN_ECI_PROFILER_BASE);
+	lauberhorn_eci_global_initialize(&global_dev, LAUBERHORN_ECI_GLOBAL_BASE);
 
 	// string representation is big endian
 	magic_str_cast.v =
-		cpu_to_be64(lauberhorn_eci_profiler_magic_rd(&prof_dev));
+		cpu_to_be64(lauberhorn_eci_global_csr_magic_rd(&global_dev));
 	if (strcmp(magic_str_cast.str, "LBERHORN") != 0) {
 		pr_err("Unexpected magic string: %s\n", magic_str_cast.str);
 		return -1;
 	}
 
-	nic_ver = lauberhorn_eci_profiler_git_version_rd(&prof_dev);
+	nic_ver = lauberhorn_eci_global_csr_git_version_rd(&global_dev);
 	pr_info("Lauberhorn NIC version: %08llx\n", nic_ver);
 
 	return 0;

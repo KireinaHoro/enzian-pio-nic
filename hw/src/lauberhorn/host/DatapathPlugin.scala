@@ -7,7 +7,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 
 /** Common functionalities of a per-core datapath plugin. */
 abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with DatapathService {
-  lazy val p = host[ProfilerPlugin]
+  lazy val trace = host[TracePlugin]
 
   /** datapath interfaces */
   lazy val hostTx = Stream(PacketBufDesc())
@@ -17,9 +17,9 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   lazy val hostRxReq = Bool()
 
   during build new Area {
-    import p._
+    import trace._
 
-    profile(
+    traceCore(coreID,
       RxCoreReadStart -> hostRxReq.rise(False),
       RxCoreReadFinish -> hostRx.fire,
       RxCoreCommit -> hostRxAck.fire,

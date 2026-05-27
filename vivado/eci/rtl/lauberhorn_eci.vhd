@@ -737,6 +737,8 @@ signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error : std_logic;
 signal trace_write_slot : std_logic_vector(27 downto 0);
 signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
+signal lauberhorn_trace_valid : std_logic;
+signal lauberhorn_trace_payload : trace_payload_t;
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_payload : trace_payload_array(5 downto 0);
@@ -1471,6 +1473,9 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysTraceIn_11_valid => dcs_odd_trace_eci_sys_valid(5),
     sysTraceIn_11_payload => dcs_odd_trace_eci_sys_payload(5),
 
+    lauberhornTraceIn_0_valid => lauberhorn_trace_valid,
+    lauberhornTraceIn_0_payload => lauberhorn_trace_payload,
+
     axi_aw_valid => trace_dma_axi.awvalid,
     axi_aw_ready => trace_dma_axi.awready,
     axi_aw_payload_addr => trace_dma_axi.awaddr,
@@ -1886,6 +1891,10 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rready => io_reg_axil_cdc.rready,
     s_axil_ctrl_rdata => io_reg_axil_cdc.rdata,
     s_axil_ctrl_rresp => io_reg_axil_cdc.rresp,
+
+    -- Lauberhorn trace events
+    lauberhorn_trace_valid => lauberhorn_trace_valid,
+    lauberhorn_trace_payload => lauberhorn_trace_payload,
 
     -- Debug interfaces
     core0_rxRouter_state => core0_states(3 downto 0),

@@ -116,6 +116,11 @@ def decode_sample(logical_index: int, physical_index: int, sample: int, trace_ma
         row["stall_cycles"] = int(row.get("stall_count", 0)) << eci_stall_counter_shift
         row.update(decode_eci_by_opcode(eci_header, vc=row.get("vc"), src=row.get("local_source")))
 
+    if row["type"] == "lauberhorn_event":
+        events = payload_format.get("events", {})
+        event_id = int(row.get("event_id", 0))
+        row["event"] = events.get(str(event_id), f"event_{event_id}")
+
     return row
 
 

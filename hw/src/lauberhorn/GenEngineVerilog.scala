@@ -22,7 +22,8 @@ object GenEngineVerilog {
     Seq(
       new PatchSignalNames,
       new DebugPlugin,
-      new ProfilerPlugin,
+      new GlobalCSRPlugin,
+      new TracePlugin,
 
       // packet decoder pipeline
       new XilinxCmacPlugin,
