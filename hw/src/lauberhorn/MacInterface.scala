@@ -27,7 +27,7 @@ trait MacInterfaceService {
 }
 
 class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
-  lazy val p = host[ProfilerPlugin]
+  lazy val trace = host[TracePlugin]
 
   // matches Xilinx CMAC configuration
   lazy val axisConfig = Axi4StreamConfig(
@@ -100,11 +100,11 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
       ROUNDED_MTU / 64, cmacRxClock, clockDomain)
 
     // profile timestamps
-    p.profile(
-      p.RxCmacEntry -> PulseCCByToggle(rxDomain.afterDrop.lastFire, cmacRxClock, clockDomain),
-      p.RxAfterCdcQueue -> rxFifo.m_axis.fire,
-      p.TxBeforeCdcQueue -> txFifo.s_axis.fire,
-      p.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
+    trace.trace(
+      trace.RxCmacEntry -> PulseCCByToggle(rxDomain.afterDrop.lastFire, cmacRxClock, clockDomain),
+      trace.RxAfterCdcQueue -> rxFifo.m_axis.fire,
+      trace.TxBeforeCdcQueue -> txFifo.s_axis.fire,
+      trace.TxCmacExit -> PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain),
     )
   }
 

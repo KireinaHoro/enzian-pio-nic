@@ -114,7 +114,7 @@ def main() -> int:
     parser.add_argument("--map", default=str(default_map_path()), help="Trace map JSON emitted by LauberhornTraceDma")
     parser.add_argument("--offset", type=lambda x: int(x, 0), default=0, help="Byte offset into the binary dump")
     parser.add_argument("--samples", type=int, default=None, help="Maximum number of samples to decode after wrap realignment")
-    parser.add_argument("--type", choices=["dcs_event", "eci", "lost", "bubble"], default=None, help="Only export one decoded trace type")
+    parser.add_argument("--type", choices=["dcs_event", "eci", "lauberhorn_event", "lost", "bubble"], default=None, help="Only export one decoded trace type")
     parser.add_argument("--source", type=int, default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")
     parser.add_argument("--from-vivado", action="store_true",

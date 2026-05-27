@@ -105,6 +105,9 @@ class EciInterfacePlugin extends FiberPlugin {
       func(node, alloc)
     }
 
+    drive({ (bus, alloc) =>
+      host[GlobalCSRPlugin].readAndWrite(AxiLite4SlaveFactory(bus), alloc)
+    }, "global")
     drive(host[MacInterfaceService].driveControl, "macIf")
     drive(host[DecoderSink].driveControl, "decoderSink")
     host.list[Decoder[_]].foreach { pd => drive(pd.driveControl, pd.decoderName) }
@@ -112,7 +115,6 @@ class EciInterfacePlugin extends FiberPlugin {
     drive(host[IpEncoder].driveControl, "IpEncoder")
     drive(host[OncRpcReplyEncoder].driveControl, "OncRpcReplyEncoder")
 
-    drive(host[ProfilerPlugin].logic.driveControl, "profiler")
     drive(host[Scheduler].driveControl, "sched")
     drive(host[DmaControlPlugin].logic.driveControl, "dma")
     drive(host[EciThreadClRouter].driveControl, "threadRouter")

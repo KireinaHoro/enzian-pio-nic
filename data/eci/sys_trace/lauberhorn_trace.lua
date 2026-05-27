@@ -6,6 +6,7 @@ local kind_names = {
     [2] = "eci",
     [3] = "lost",
     [4] = "bubble",
+    [5] = "lauberhorn_event",
 }
 
 local clock_names = {
@@ -64,6 +65,8 @@ f.eci_header = ProtoField.uint64("lhtrace.eci.header", "ECI Header", base.HEX)
 f.eci_opcode = ProtoField.uint8("lhtrace.eci.opcode", "ECI Opcode", base.DEC)
 f.stall_count = ProtoField.uint8("lhtrace.eci.stall_count", "Stall Count", base.DEC)
 f.stall_shift = ProtoField.uint8("lhtrace.eci.stall_shift", "Stall Shift", base.DEC)
+f.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
+f.event_core = ProtoField.uint16("lhtrace.event.core", "Event Core", base.DEC)
 f.payload_len = ProtoField.uint16("lhtrace.payload_len", "Payload Length", base.DEC)
 f.payload = ProtoField.bytes("lhtrace.payload", "Payload")
 
@@ -117,7 +120,9 @@ function lhtrace.dissector(tvb, pinfo, tree)
 
     subtree:add_le(f.stall_count, tvb(64, 1))
     subtree:add_le(f.stall_shift, tvb(65, 1))
+    subtree:add_le(f.event_id, tvb(66, 2))
     subtree:add_le(f.payload_len, tvb(68, 2))
+    subtree:add_le(f.event_core, tvb(70, 2))
 
     local payload_len = tvb(68, 2):le_uint()
     if payload_len > 0 and tvb:len() >= HEADER_LEN + payload_len then

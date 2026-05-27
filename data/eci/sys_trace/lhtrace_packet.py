@@ -10,6 +10,7 @@ KIND_DCS_EVENT = 1
 KIND_ECI = 2
 KIND_LOST = 3
 KIND_BUBBLE = 4
+KIND_LAUBERHORN_EVENT = 5
 
 CLOCK_DOMAIN_IDS = {
     "app": 1,
@@ -50,6 +51,8 @@ def _kind(row: Dict[str, Any]) -> int:
         return KIND_LOST
     if typ == "bubble":
         return KIND_BUBBLE
+    if typ == "lauberhorn_event":
+        return KIND_LAUBERHORN_EVENT
     return KIND_UNKNOWN
 
 
@@ -94,9 +97,9 @@ def row_to_packet(row: Dict[str, Any]) -> bytes:
         _int_value(row.get("eci_header") or row.get("raw")),
         _int_value(row.get("stall_count")),
         _int_value(row.get("stall_counter_shift")),
-        0,
+        _int_value(row.get("event_id")),
         len(payload),
-        0,
+        _int_value(row.get("core_id")),
     )
     return header + payload
 

@@ -11,7 +11,8 @@ import scala.language.postfixOps
 object LauberhornTraceDma {
   val AppSources = 16
   val SysSources = 12
-  val TotalSources = AppSources + SysSources
+  val LauberhornSources = 1
+  val TotalSources = AppSources + SysSources + LauberhornSources
   val SourceWidth = log2Up(TotalSources + 1)
   val TimestampWidth = 48
   val PayloadWidth = 128 - SourceWidth - TimestampWidth
@@ -48,6 +49,25 @@ object LauberhornTraceDma {
       |        "stall_count": {"offset": 68, "width": 6},
       |        "accepted": {"offset": 74, "width": 1}
       |      }
+      |    },
+      |    "lauberhorn_event": {
+      |      "fields": {
+      |        "event_id": {"offset": 0, "width": 8},
+      |        "core_id": {"offset": 8, "width": 4}
+      |      },
+      |      "events": {
+      |        "0": "RxCmacEntry",
+      |        "1": "RxAfterCdcQueue",
+      |        "2": "RxEnqueueToHost",
+      |        "3": "RxCoreReadStart",
+      |        "4": "RxCoreReadFinish",
+      |        "5": "RxCoreCommit",
+      |        "6": "TxCoreAcquire",
+      |        "7": "TxCoreCommit",
+      |        "8": "TxAfterDmaRead",
+      |        "9": "TxBeforeCdcQueue",
+      |        "10": "TxCmacExit"
+      |      }
       |    }
       |  },
       |  "sources": [
@@ -79,6 +99,7 @@ object LauberhornTraceDma {
       |    {"source": 25, "port": "sysTraceIn_9", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 3, "channel": "rsp_wod_o"},
       |    {"source": 26, "port": "sysTraceIn_10", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 4, "channel": "rsp_wd_o"},
       |    {"source": 27, "port": "sysTraceIn_11", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 5, "channel": "fwd_wod_o"},
+      |    {"source": 28, "port": "lauberhornTraceIn_0", "type": "lauberhorn_event", "clock_domain": "app", "local_source": 0},
       |    {"source": 31, "port": "lost", "type": "lost"}
       |  ]
       |}
@@ -92,6 +113,7 @@ case class LauberhornTraceDma(
                                payloadWidth: Int = LauberhornTraceDma.PayloadWidth,
                                appSources: Int = LauberhornTraceDma.AppSources,
                                sysSources: Int = LauberhornTraceDma.SysSources,
+                               lauberhornSources: Int = LauberhornTraceDma.LauberhornSources,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,
                                axiBufferSize: BigInt = BigInt(32L * 1024 * 1024 * 1024)
@@ -125,7 +147,10 @@ case class LauberhornTraceDma(
   // Current source allocation:
   //   0..5   even-DCS ECI frames before app CDC
   //   6..11  odd-DCS ECI frames before app CDC
-  val totalSources = appSources + sysSources
+  //
+  // lauberhornTraceIn is sampled in the app clock domain and carries events
+  // from TracePlugin inside NicEngine.
+  val totalSources = appSources + sysSources + lauberhornSources
   val axiConfig = Axi4Config(
     addressWidth = 35,
     dataWidth = 512,
@@ -138,6 +163,7 @@ case class LauberhornTraceDma(
   val sys_reset = in Bool()
   val appTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appSources)
   val sysTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), sysSources)
+  val lauberhornTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), lauberhornSources)
   val axi = master(Axi4(axiConfig))
   val sampleLost = out(Bool())
   val dmaError = out(Bool())
@@ -179,5 +205,9 @@ case class LauberhornTraceDma(
     traceDma.traceIn(appSources + idx).valid := fifo.masterPort.valid
     traceDma.traceIn(appSources + idx).payload := fifo.masterPort.payload
     fifo.masterPort.ready := True
+  }
+
+  for (idx <- 0 until lauberhornSources) {
+    traceDma.traceIn(appSources + sysSources + idx) := lauberhornTraceIn(idx)
   }
 }

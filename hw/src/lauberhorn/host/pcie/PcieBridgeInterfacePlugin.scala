@@ -56,7 +56,6 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
 
     // control for the decoders
     // host.list[Decoder[_]].foreach(_.driveControl(busCtrl, alloc))
-    // host[ProfilerPlugin].logic.reportTimestamps(busCtrl, alloc)
     // host[Scheduler].driveControl(busCtrl, alloc)
     // host[Scheduler].reportStatistics(busCtrl, alloc)
     // host[DmaControlPlugin].logic.connectControl(busCtrl, alloc)
