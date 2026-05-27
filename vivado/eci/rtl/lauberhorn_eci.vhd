@@ -737,8 +737,8 @@ signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error : std_logic;
 signal trace_write_slot : std_logic_vector(27 downto 0);
 signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
-signal lauberhorn_trace_valid : std_logic;
-signal lauberhorn_trace_payload : trace_payload_t;
+signal lauberhorn_trace_valid : std_logic_vector(15 downto 0);
+signal lauberhorn_trace_payload : trace_payload_array(15 downto 0);
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_payload : trace_payload_array(5 downto 0);
@@ -1473,8 +1473,38 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysTraceIn_11_valid => dcs_odd_trace_eci_sys_valid(5),
     sysTraceIn_11_payload => dcs_odd_trace_eci_sys_payload(5),
 
-    lauberhornTraceIn_0_valid => lauberhorn_trace_valid,
-    lauberhornTraceIn_0_payload => lauberhorn_trace_payload,
+    lauberhornTraceIn_0_valid => lauberhorn_trace_valid(0),
+    lauberhornTraceIn_0_payload => lauberhorn_trace_payload(0),
+    lauberhornTraceIn_1_valid => lauberhorn_trace_valid(1),
+    lauberhornTraceIn_1_payload => lauberhorn_trace_payload(1),
+    lauberhornTraceIn_2_valid => lauberhorn_trace_valid(2),
+    lauberhornTraceIn_2_payload => lauberhorn_trace_payload(2),
+    lauberhornTraceIn_3_valid => lauberhorn_trace_valid(3),
+    lauberhornTraceIn_3_payload => lauberhorn_trace_payload(3),
+    lauberhornTraceIn_4_valid => lauberhorn_trace_valid(4),
+    lauberhornTraceIn_4_payload => lauberhorn_trace_payload(4),
+    lauberhornTraceIn_5_valid => lauberhorn_trace_valid(5),
+    lauberhornTraceIn_5_payload => lauberhorn_trace_payload(5),
+    lauberhornTraceIn_6_valid => lauberhorn_trace_valid(6),
+    lauberhornTraceIn_6_payload => lauberhorn_trace_payload(6),
+    lauberhornTraceIn_7_valid => lauberhorn_trace_valid(7),
+    lauberhornTraceIn_7_payload => lauberhorn_trace_payload(7),
+    lauberhornTraceIn_8_valid => lauberhorn_trace_valid(8),
+    lauberhornTraceIn_8_payload => lauberhorn_trace_payload(8),
+    lauberhornTraceIn_9_valid => lauberhorn_trace_valid(9),
+    lauberhornTraceIn_9_payload => lauberhorn_trace_payload(9),
+    lauberhornTraceIn_10_valid => lauberhorn_trace_valid(10),
+    lauberhornTraceIn_10_payload => lauberhorn_trace_payload(10),
+    lauberhornTraceIn_11_valid => lauberhorn_trace_valid(11),
+    lauberhornTraceIn_11_payload => lauberhorn_trace_payload(11),
+    lauberhornTraceIn_12_valid => lauberhorn_trace_valid(12),
+    lauberhornTraceIn_12_payload => lauberhorn_trace_payload(12),
+    lauberhornTraceIn_13_valid => lauberhorn_trace_valid(13),
+    lauberhornTraceIn_13_payload => lauberhorn_trace_payload(13),
+    lauberhornTraceIn_14_valid => lauberhorn_trace_valid(14),
+    lauberhornTraceIn_14_payload => lauberhorn_trace_payload(14),
+    lauberhornTraceIn_15_valid => lauberhorn_trace_valid(15),
+    lauberhornTraceIn_15_payload => lauberhorn_trace_payload(15),
 
     axi_aw_valid => trace_dma_axi.awvalid,
     axi_aw_ready => trace_dma_axi.awready,
@@ -1893,8 +1923,38 @@ NicEngine_inst : entity work.NicEngine
     s_axil_ctrl_rresp => io_reg_axil_cdc.rresp,
 
     -- Lauberhorn trace events
-    lauberhorn_trace_valid => lauberhorn_trace_valid,
-    lauberhorn_trace_payload => lauberhorn_trace_payload,
+    trace_0_valid => lauberhorn_trace_valid(0),
+    trace_0_payload => lauberhorn_trace_payload(0),
+    trace_1_valid => lauberhorn_trace_valid(1),
+    trace_1_payload => lauberhorn_trace_payload(1),
+    trace_2_valid => lauberhorn_trace_valid(2),
+    trace_2_payload => lauberhorn_trace_payload(2),
+    trace_3_valid => lauberhorn_trace_valid(3),
+    trace_3_payload => lauberhorn_trace_payload(3),
+    trace_4_valid => lauberhorn_trace_valid(4),
+    trace_4_payload => lauberhorn_trace_payload(4),
+    trace_5_valid => lauberhorn_trace_valid(5),
+    trace_5_payload => lauberhorn_trace_payload(5),
+    trace_6_valid => lauberhorn_trace_valid(6),
+    trace_6_payload => lauberhorn_trace_payload(6),
+    trace_7_valid => lauberhorn_trace_valid(7),
+    trace_7_payload => lauberhorn_trace_payload(7),
+    trace_8_valid => lauberhorn_trace_valid(8),
+    trace_8_payload => lauberhorn_trace_payload(8),
+    trace_9_valid => lauberhorn_trace_valid(9),
+    trace_9_payload => lauberhorn_trace_payload(9),
+    trace_10_valid => lauberhorn_trace_valid(10),
+    trace_10_payload => lauberhorn_trace_payload(10),
+    trace_11_valid => lauberhorn_trace_valid(11),
+    trace_11_payload => lauberhorn_trace_payload(11),
+    trace_12_valid => lauberhorn_trace_valid(12),
+    trace_12_payload => lauberhorn_trace_payload(12),
+    trace_13_valid => lauberhorn_trace_valid(13),
+    trace_13_payload => lauberhorn_trace_payload(13),
+    trace_14_valid => lauberhorn_trace_valid(14),
+    trace_14_payload => lauberhorn_trace_payload(14),
+    trace_15_valid => lauberhorn_trace_valid(15),
+    trace_15_payload => lauberhorn_trace_payload(15),
 
     -- Debug interfaces
     core0_rxRouter_state => core0_states(3 downto 0),

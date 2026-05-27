@@ -189,6 +189,16 @@ in
     installPath = "https/repo1.maven.org/maven2/com/lihaoyi/geny_2.13/1.0.0";
   };
 
+  "com.lihaoyi_geny_2.13-1.1.0" = fetchMaven {
+    name = "com.lihaoyi_geny_2.13-1.1.0";
+    urls = [
+      "https://repo1.maven.org/maven2/com/lihaoyi/geny_2.13/1.1.0/geny_2.13-1.1.0.jar"
+      "https://repo1.maven.org/maven2/com/lihaoyi/geny_2.13/1.1.0/geny_2.13-1.1.0.pom"
+    ];
+    hash = "sha256-z9oB4D+MOO9BqE/1pf/E4NGbxHTHsoS9N9TPW/7ofA4=";
+    installPath = "https/repo1.maven.org/maven2/com/lihaoyi/geny_2.13/1.1.0";
+  };
+
   "com.lihaoyi_geny_3-1.0.0" = fetchMaven {
     name = "com.lihaoyi_geny_3-1.0.0";
     urls = [ "https://repo1.maven.org/maven2/com/lihaoyi/geny_3/1.0.0/geny_3-1.0.0.pom" ];
@@ -867,6 +877,16 @@ in
     installPath = "https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_3/0.4.4";
   };
 
+  "com.lihaoyi_ujson_2.13-3.3.1" = fetchMaven {
+    name = "com.lihaoyi_ujson_2.13-3.3.1";
+    urls = [
+      "https://repo1.maven.org/maven2/com/lihaoyi/ujson_2.13/3.3.1/ujson_2.13-3.3.1.jar"
+      "https://repo1.maven.org/maven2/com/lihaoyi/ujson_2.13/3.3.1/ujson_2.13-3.3.1.pom"
+    ];
+    hash = "sha256-tS5BVFeMdRfzGHUlrAywtQb4mG6oel56ooMEtlsWGjI=";
+    installPath = "https/repo1.maven.org/maven2/com/lihaoyi/ujson_2.13/3.3.1";
+  };
+
   "com.lihaoyi_ujson_3-4.4.2" = fetchMaven {
     name = "com.lihaoyi_ujson_3-4.4.2";
     urls = [
@@ -895,6 +915,16 @@ in
     ];
     hash = "sha256-9HjqFwwpCtV+B3KNe0SXk1GisLauM8QID0wL1js/Ek4=";
     installPath = "https/repo1.maven.org/maven2/com/lihaoyi/upack_3/4.4.2";
+  };
+
+  "com.lihaoyi_upickle-core_2.13-3.3.1" = fetchMaven {
+    name = "com.lihaoyi_upickle-core_2.13-3.3.1";
+    urls = [
+      "https://repo1.maven.org/maven2/com/lihaoyi/upickle-core_2.13/3.3.1/upickle-core_2.13-3.3.1.jar"
+      "https://repo1.maven.org/maven2/com/lihaoyi/upickle-core_2.13/3.3.1/upickle-core_2.13-3.3.1.pom"
+    ];
+    hash = "sha256-+vXjTD3FY+FMlDpvsOkhwycDbvhnIY0SOcHKOYc+StM=";
+    installPath = "https/repo1.maven.org/maven2/com/lihaoyi/upickle-core_2.13/3.3.1";
   };
 
   "com.lihaoyi_upickle-core_3-4.4.2" = fetchMaven {

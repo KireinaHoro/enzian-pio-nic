@@ -118,10 +118,15 @@ object GenEngineVerilog {
 
     // write trace DMA module
     if (name == "eci") {
-      Config.spinal(outDir, prefix = "dtb_").generateVerilog {
-        LauberhornTraceDma().setDefinitionName("lauberhorn_trace_dma")
+      val tracePlugin = report.toplevel.host[TracePlugin]
+
+      val traceDmaReport = Config.spinal(outDir, prefix = "dtb_").generateVerilog {
+        LauberhornTraceDma(
+          lauberhornSources = tracePlugin.tracePortCount,
+          lauberhornEvents = tracePlugin.eventNames.toSeq,
+        ).setDefinitionName("lauberhorn_trace_dma")
       }
-      LauberhornTraceDma.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
+      traceDmaReport.toplevel.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
     }
   }
 

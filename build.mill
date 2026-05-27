@@ -39,7 +39,10 @@ trait CommonModule extends ScalaModule {
   def bm = MyStuff.myBlocks._1
   def scalacOptions = super.scalacOptions() ++ MyStuff.mySpinal._2()()
   override def moduleDeps = super.moduleDeps ++ Seq(sm("idslplugin"), bm("blocks"), sm("core"), sm("lib"))
-  override def mvnDeps = Seq(mvn"com.lihaoyi::mainargs:0.5.4")
+  override def mvnDeps = Seq(
+    mvn"com.lihaoyi::mainargs:0.5.4",
+    mvn"com.lihaoyi::ujson:3.3.1",
+  )
 }
 
 // find git hash; not used by Nix
