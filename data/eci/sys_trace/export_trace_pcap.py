@@ -7,12 +7,14 @@ from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
 try:
     from .common import bits
     from .dma_decode import default_map_path, load_map
+    from .legacy_ila import chronological_legacy_samples
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
     from .trace_metadata import enrich_trace_map
 except ImportError:
     from common import bits
     from dma_decode import default_map_path, load_map
+    from legacy_ila import chronological_legacy_samples
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
     from trace_metadata import enrich_trace_map
@@ -182,11 +184,46 @@ def write_pcap(
                 writer.write_packet(packet, timestamp_ns=packet_timestamp_ns(timestamp, cycle_ns))
 
 
+def write_legacy_ila_pcap(
+    trace_dir: Path,
+    output_path: Path,
+    trace_map: Dict[str, Any],
+    start_sample: int,
+    sample_limit: Optional[int],
+    source: Optional[int],
+) -> None:
+    width = sample_bytes(trace_map)
+    export_map = enrich_trace_map(trace_map)
+    with output_path.open("wb") as f:
+        writer = PcapngWriter(f)
+        writer.write_header()
+        writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
+
+        for logical_index, sample in chronological_legacy_samples(
+            trace_dir,
+            export_map,
+            start_sample=start_sample,
+            sample_limit=sample_limit,
+        ):
+            if source_matches(sample.sample, trace_map, source):
+                packet = sample_packet(
+                    logical_index,
+                    sample.physical_sample,
+                    sample.timestamp,
+                    sample.source,
+                    sample.sample,
+                    width,
+                )
+                writer.write_packet(packet, timestamp_ns=sample.timestamp_ns)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", nargs="?", help="Raw binary DRAM dump")
     parser.add_argument("-o", "--output", required=True, help="Output pcapng path")
     parser.add_argument("--map", default=str(default_map_path()), help="Trace map JSON emitted by LauberhornTraceDma")
+    parser.add_argument("--legacy-ila", type=Path, default=None,
+                        help="Read legacy Vivado ILA CSVs from a dcs_trace directory instead of a DRAM dump")
     parser.add_argument("--offset", type=lambda x: int(x, 0), default=0, help="Byte offset into the binary dump")
     parser.add_argument("--start", type=int, default=0, help="First chronological sample to export after wrap realignment")
     parser.add_argument("--samples", type=int, default=None, help="Maximum number of chronological samples to export")
@@ -196,7 +233,9 @@ def main() -> int:
                         help="Reserved: acquire the trace buffer through Vivado hardware manager/JTAG AXI")
     args = parser.parse_args()
 
-    if args.from_vivado:
+    if args.legacy_ila is not None:
+        input_path = None
+    elif args.from_vivado:
         input_path = acquire_dump_from_vivado(args)
     elif args.input is None:
         parser.error("input dump file is required")
@@ -204,16 +243,27 @@ def main() -> int:
         input_path = Path(args.input)
 
     trace_map = load_map(Path(args.map))
-    write_pcap(
-        input_path=input_path,
-        output_path=Path(args.output),
-        trace_map=trace_map,
-        offset=args.offset,
-        start_sample=args.start,
-        sample_limit=args.samples,
-        source=args.source,
-        cycle_ns=args.cycle_ns,
-    )
+    if args.legacy_ila is not None:
+        write_legacy_ila_pcap(
+            trace_dir=args.legacy_ila,
+            output_path=Path(args.output),
+            trace_map=trace_map,
+            start_sample=args.start,
+            sample_limit=args.samples,
+            source=args.source,
+        )
+    else:
+        assert input_path is not None
+        write_pcap(
+            input_path=input_path,
+            output_path=Path(args.output),
+            trace_map=trace_map,
+            offset=args.offset,
+            start_sample=args.start,
+            sample_limit=args.samples,
+            source=args.source,
+            cycle_ns=args.cycle_ns,
+        )
 
     return 0
 

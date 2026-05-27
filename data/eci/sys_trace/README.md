@@ -32,3 +32,19 @@ samples.
 The input path is a raw binary DRAM dump. `--from-vivado` is reserved for a
 future mode that streams the trace buffer via Vivado hardware manager and the
 JTAG AXI master instead of first writing a raw dump file.
+
+Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
+through the same pcapng/Lua path:
+
+```sh
+python3 data/eci/sys_trace/export_trace_pcap.py \
+  --legacy-ila data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20 \
+  --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
+  -o legacy-trace.pcapng
+```
+
+This mode reads the old CSV window directly. For DCS samples it extracts
+`src`, `req`, `action`, `cli`, `state`, and `error`; for ECI samples it extracts
+the VC and raw 64-bit header. Those fields are packed into the current 128-bit
+trace sample envelope, so the Lua dissector still sees raw packets and decodes
+source-specific payloads from the embedded trace-map metadata.
