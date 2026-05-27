@@ -1,5 +1,10 @@
 ## DCS and ECI traces from L2C_TAD TIMEOUT kernel panics
 
+**These traces are archived!!**  The old ILA-based trace buffers have been
+unplugged in Lauberhorn; the traces and trace scripts are preserved, but
+tracing work is now focused on the new `TraceBufferDMA`-based HW implementation.
+The new parser is in `../sys_trace`.
+
 Due to the manner of the timeout triggering after a lot of traffic, the ILAs
 are not sufficient to capture enough debugging information, since you can
 trigger them only a limited number of times (e.g. 64 windows).
