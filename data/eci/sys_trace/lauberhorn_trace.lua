@@ -18,26 +18,6 @@ local kind_names = {
     [4] = "bubble",
 }
 
-local request_names = {
-    [0] = "UNKNOWN_REQ", [1] = "A11", [2] = "A21", [3] = "A22",
-    [4] = "A31", [5] = "A31d", [6] = "A32", [7] = "A32d",
-    [8] = "F21", [9] = "F31", [10] = "F32", [11] = "ICI",
-    [12] = "LC", [13] = "LCI", [14] = "LR", [15] = "LW",
-    [16] = "R12", [17] = "R13", [18] = "R23", [19] = "RDDA",
-    [20] = "RR", [21] = "RW", [22] = "UL", [23] = "V21",
-    [24] = "V31", [25] = "V31d", [26] = "V32", [27] = "V32d",
-    [28] = "WDDA",
-}
-
-local action_names = {
-    [0] = "NO_ACTION", [1] = "NOT_ALLOWED", [2] = "RDD",
-    [3] = "SEND_F21", [4] = "SEND_F31", [5] = "SEND_F32",
-    [6] = "SEND_LCA", [7] = "SEND_LCIA", [8] = "SEND_LRA",
-    [9] = "SEND_LWA", [10] = "SEND_RA2", [11] = "SEND_RA3",
-    [12] = "SEND_RRA", [13] = "SEND_RWA", [14] = "STALL",
-    [15] = "WDD",
-}
-
 local f = lhtrace.fields
 f.magic = ProtoField.string("lhtrace.magic", "Magic")
 f.version = ProtoField.uint8("lhtrace.version", "Version", base.DEC)
@@ -64,10 +44,10 @@ sf.local_source = ProtoField.uint16("lhtrace.source.local", "Local Source", base
 
 local df = lhdcs.fields
 df.error = ProtoField.uint8("lhtrace.dcs.error", "Error", base.DEC)
-df.cli = ProtoField.uint64("lhtrace.dcs.cli", "CLI", base.HEX)
+df.cli = ProtoField.string("lhtrace.dcs.cli", "CLI")
 df.state = ProtoField.uint8("lhtrace.dcs.state", "State", base.DEC)
-df.action = ProtoField.uint8("lhtrace.dcs.action", "Action", base.DEC, action_names)
-df.request = ProtoField.uint8("lhtrace.dcs.request", "Request", base.DEC, request_names)
+df.action = ProtoField.uint8("lhtrace.dcs.action", "Action", base.DEC)
+df.request = ProtoField.uint8("lhtrace.dcs.request", "Request", base.DEC)
 
 local ef = lheci.fields
 ef.header = ProtoField.uint64("lhtrace.eci.header", "Header", base.HEX)
@@ -76,6 +56,7 @@ ef.vc = ProtoField.uint8("lhtrace.eci.vc", "VC", base.DEC)
 ef.stall_count = ProtoField.uint8("lhtrace.eci.stall_count", "Stall Count", base.DEC)
 ef.stall_cycles = ProtoField.uint32("lhtrace.eci.stall_cycles", "Stall Cycles", base.DEC)
 ef.accepted = ProtoField.uint8("lhtrace.eci.accepted", "Accepted", base.DEC)
+ef.message = ProtoField.string("lhtrace.eci.message", "Message")
 
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
@@ -251,6 +232,55 @@ local function fields_for_type(source_type)
     return fmt.fields
 end
 
+local function enum_name(source_type, field_name, value)
+    if trace_map == nil or trace_map.payload_formats == nil then
+        return nil
+    end
+    local fmt = trace_map.payload_formats[source_type]
+    if fmt == nil or fmt.fields == nil then
+        return nil
+    end
+    local field = fmt.fields[field_name]
+    if field == nil or field.enum == nil then
+        return nil
+    end
+    return field.enum[tostring(value)]
+end
+
+local function append_enum(item, source_type, field_name, value)
+    local name = enum_name(source_type, field_name, value)
+    if name ~= nil then
+        item:append_text(" (" .. name .. ")")
+    end
+end
+
+local function eci_class(source_info)
+    local local_source = tonumber(source_info.local_source)
+    if local_source == 0 then
+        return "mreq"
+    elseif local_source ~= nil and local_source >= 1 and local_source <= 4 then
+        return "mrsp"
+    elseif local_source == 5 then
+        return "mfwd"
+    end
+    return nil
+end
+
+local function eci_opcode_name(source_info, opcode)
+    if trace_map == nil or trace_map.payload_formats == nil then
+        return nil
+    end
+    local fmt = trace_map.payload_formats.eci
+    if fmt == nil or fmt.opcode_enums == nil then
+        return nil
+    end
+    local class = eci_class(source_info)
+    if class == nil or fmt.opcode_enums[class] == nil then
+        return nil
+    end
+    return fmt.opcode_enums[class][tostring(opcode)]
+end
+
 local function event_name(event_id)
     if trace_map == nil or trace_map.payload_formats == nil then
         return string.format("event_%d", event_id)
@@ -265,19 +295,29 @@ end
 local function dissect_dcs(payload_tvb, tree)
     local fields = fields_for_type("dcs_event") or {}
     local subtree = tree:add(lhdcs, payload_tvb(), "DCS Trace")
-    subtree:add(df.error, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width))
-    subtree:add(df.cli, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, fields.cli.offset, fields.cli.width))
-    subtree:add(df.state, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, fields.state.offset, fields.state.width))
-    subtree:add(df.action, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, fields.action.offset, fields.action.width))
-    subtree:add(df.request, payload_tvb(0, 0), extract_bits_le(payload_tvb, 0, fields.request.offset, fields.request.width))
+    local error_value = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
+    local cli = extract_bits_le(payload_tvb, 0, fields.cli.offset, fields.cli.width)
+    local state = extract_bits_le(payload_tvb, 0, fields.state.offset, fields.state.width)
+    local action = extract_bits_le(payload_tvb, 0, fields.action.offset, fields.action.width)
+    local request = extract_bits_le(payload_tvb, 0, fields.request.offset, fields.request.width)
+    subtree:add(df.error, payload_tvb(0, 0), error_value)
+    subtree:add(df.cli, payload_tvb(0, 0), string.format("0x%010x", cli))
+    append_enum(subtree:add(df.state, payload_tvb(0, 0), state), "dcs_event", "state", state)
+    append_enum(subtree:add(df.action, payload_tvb(0, 0), action), "dcs_event", "action", action)
+    append_enum(subtree:add(df.request, payload_tvb(0, 0), request), "dcs_event", "request", request)
 end
 
-local function dissect_eci(payload_tvb, tree)
+local function dissect_eci(payload_tvb, tree, source_info)
     local fields = fields_for_type("eci") or {}
     local subtree = tree:add(lheci, payload_tvb(), "ECI Trace")
     subtree:add_le(ef.header, payload_tvb(0, 8))
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
-    subtree:add(ef.opcode, payload_tvb(7, 1), opcode)
+    local opcode_item = subtree:add(ef.opcode, payload_tvb(7, 1), opcode)
+    local message = eci_opcode_name(source_info, opcode)
+    if message ~= nil then
+        opcode_item:append_text(" (" .. message .. ")")
+        subtree:add(ef.message, payload_tvb(0, 0), message)
+    end
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local stall_count = extract_bits_le(payload_tvb, 0, fields.stall_count.offset, fields.stall_count.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
@@ -312,7 +352,7 @@ local function dissect_sample_payload(payload_tvb, source, tree)
     if src.type == "dcs_event" then
         dissect_dcs(payload_tvb, tree)
     elseif src.type == "eci" then
-        dissect_eci(payload_tvb, tree)
+        dissect_eci(payload_tvb, tree, src)
     elseif src.type == "lauberhorn_event" then
         dissect_event(payload_tvb, tree)
     else

@@ -4,12 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from .common import bits, platform_root
-    from .dcs_decode import decode_dcs_event
-    from .eci_decode import decode_eci_by_opcode
 except ImportError:
     from common import bits, platform_root
-    from dcs_decode import decode_dcs_event
-    from eci_decode import decode_eci_by_opcode
 
 
 def default_map_path() -> Path:
@@ -106,15 +102,11 @@ def decode_sample(logical_index: int, physical_index: int, sample: int, trace_ma
     payload_format = trace_map.get("payload_formats", {}).get(row["type"], {})
     row.update(decode_fields(payload, payload_format.get("fields", {})))
 
-    if row["type"] == "dcs_event":
-        row.update(decode_dcs_event(row))
-
     if row["type"] == "eci":
         eci_header = bits(payload, 0, 64)
         row["eci_header"] = f"0x{eci_header:016x}"
         row["stall_counter_shift"] = eci_stall_counter_shift
         row["stall_cycles"] = int(row.get("stall_count", 0)) << eci_stall_counter_shift
-        row.update(decode_eci_by_opcode(eci_header, vc=row.get("vc"), src=row.get("local_source")))
 
     if row["type"] == "lauberhorn_event":
         events = payload_format.get("events", {})
