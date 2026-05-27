@@ -5,124 +5,251 @@ import jsteward.blocks.axi.SimpleAsyncFifo
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
+import ujson.{Arr, Obj, Value}
 
 import scala.language.postfixOps
 
 object LauberhornTraceDma {
-  val AppSources = 16
-  val SysSources = 12
-  val LauberhornSources = 1
-  val TotalSources = AppSources + SysSources + LauberhornSources
-  val SourceWidth = log2Up(TotalSources + 1)
-  val TimestampWidth = 48
-  val PayloadWidth = 128 - SourceWidth - TimestampWidth
+  // Samples are fixed at 128 bits so four samples pack exactly into each
+  // 512-bit AXI beat. The full sample layout is:
+  //   [74:0]   payload
+  //   [80:75]  source id
+  //   [127:81] timestamp
+  // The all-ones source id is reserved by TraceBufferDMA for marker samples:
+  // a zero payload marker is a bubble used to flush partial beats, and a
+  // non-zero marker payload reports the saturated lost-sample count.
+  val SampleWidth = 128
+
+  // The lost count is stored inside the 75-bit payload field of marker samples,
+  // so it does not affect the 128-bit sample layout.
   val LostCountWidth = 32
-  val LostSource = (BigInt(1) << SourceWidth) - 1
 
-  // TODO: serialize this from a Scala data structure -- don't repeat!
-  // TODO: include updated lauberhorn_trace definition
-  val TraceMapJson: String =
-    """{
-      |  "sample": {
-      |    "payload_width": 75,
-      |    "source_width": 5,
-      |    "timestamp_width": 48,
-      |    "sample_width": 128,
-      |    "lost_source": 31,
-      |    "lost_count_width": 32,
-      |    "eci_stall_counter_shift": 16,
-      |    "axi_data_width": 512,
-      |    "byte_order": "little"
-      |  },
-      |  "payload_formats": {
-      |    "dcs_event": {
-      |      "fields": {
-      |        "error": {"offset": 0, "width": 1},
-      |        "cli": {"offset": 1, "width": 40, "format": "hex"},
-      |        "state": {"offset": 41, "width": 7},
-      |        "action": {"offset": 48, "width": 4},
-      |        "request": {"offset": 52, "width": 5}
-      |      }
-      |    },
-      |    "eci": {
-      |      "fields": {
-      |        "eci_header": {"offset": 0, "width": 64, "format": "hex"},
-      |        "vc": {"offset": 64, "width": 4},
-      |        "stall_count": {"offset": 68, "width": 6},
-      |        "accepted": {"offset": 74, "width": 1}
-      |      }
-      |    },
-      |    "lauberhorn_event": {
-      |      "fields": {
-      |        "event_id": {"offset": 0, "width": 8},
-      |        "core_id": {"offset": 8, "width": 4}
-      |      },
-      |      "events": {
-      |        "0": "RxCmacEntry",
-      |        "1": "RxAfterCdcQueue",
-      |        "2": "RxEnqueueToHost",
-      |        "3": "RxCoreReadStart",
-      |        "4": "RxCoreReadFinish",
-      |        "5": "RxCoreCommit",
-      |        "6": "TxCoreAcquire",
-      |        "7": "TxCoreCommit",
-      |        "8": "TxAfterDmaRead",
-      |        "9": "TxBeforeCdcQueue",
-      |        "10": "TxCmacExit"
-      |      }
-      |    }
-      |  },
-      |  "sources": [
-      |    {"source": 0, "port": "appTraceIn_0", "type": "dcs_event", "clock_domain": "app", "dcs": "even", "local_source": 0},
-      |    {"source": 1, "port": "appTraceIn_1", "type": "dcs_event", "clock_domain": "app", "dcs": "even", "local_source": 1},
-      |    {"source": 2, "port": "appTraceIn_2", "type": "dcs_event", "clock_domain": "app", "dcs": "odd", "local_source": 0},
-      |    {"source": 3, "port": "appTraceIn_3", "type": "dcs_event", "clock_domain": "app", "dcs": "odd", "local_source": 1},
-      |    {"source": 4, "port": "appTraceIn_4", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 0, "channel": "req_wod_i"},
-      |    {"source": 5, "port": "appTraceIn_5", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 1, "channel": "rsp_wod_i"},
-      |    {"source": 6, "port": "appTraceIn_6", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 2, "channel": "rsp_wd_i"},
-      |    {"source": 7, "port": "appTraceIn_7", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 3, "channel": "rsp_wod_o"},
-      |    {"source": 8, "port": "appTraceIn_8", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 4, "channel": "rsp_wd_o"},
-      |    {"source": 9, "port": "appTraceIn_9", "type": "eci", "clock_domain": "app", "dcs": "even", "local_source": 5, "channel": "fwd_wod_o"},
-      |    {"source": 10, "port": "appTraceIn_10", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 0, "channel": "req_wod_i"},
-      |    {"source": 11, "port": "appTraceIn_11", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 1, "channel": "rsp_wod_i"},
-      |    {"source": 12, "port": "appTraceIn_12", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 2, "channel": "rsp_wd_i"},
-      |    {"source": 13, "port": "appTraceIn_13", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 3, "channel": "rsp_wod_o"},
-      |    {"source": 14, "port": "appTraceIn_14", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 4, "channel": "rsp_wd_o"},
-      |    {"source": 15, "port": "appTraceIn_15", "type": "eci", "clock_domain": "app", "dcs": "odd", "local_source": 5, "channel": "fwd_wod_o"},
-      |    {"source": 16, "port": "sysTraceIn_0", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 0, "channel": "req_wod_i"},
-      |    {"source": 17, "port": "sysTraceIn_1", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 1, "channel": "rsp_wod_i"},
-      |    {"source": 18, "port": "sysTraceIn_2", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 2, "channel": "rsp_wd_i"},
-      |    {"source": 19, "port": "sysTraceIn_3", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 3, "channel": "rsp_wod_o"},
-      |    {"source": 20, "port": "sysTraceIn_4", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 4, "channel": "rsp_wd_o"},
-      |    {"source": 21, "port": "sysTraceIn_5", "type": "eci", "clock_domain": "sys", "dcs": "even", "local_source": 5, "channel": "fwd_wod_o"},
-      |    {"source": 22, "port": "sysTraceIn_6", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 0, "channel": "req_wod_i"},
-      |    {"source": 23, "port": "sysTraceIn_7", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 1, "channel": "rsp_wod_i"},
-      |    {"source": 24, "port": "sysTraceIn_8", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 2, "channel": "rsp_wd_i"},
-      |    {"source": 25, "port": "sysTraceIn_9", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 3, "channel": "rsp_wod_o"},
-      |    {"source": 26, "port": "sysTraceIn_10", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 4, "channel": "rsp_wd_o"},
-      |    {"source": 27, "port": "sysTraceIn_11", "type": "eci", "clock_domain": "sys", "dcs": "odd", "local_source": 5, "channel": "fwd_wod_o"},
-      |    {"source": 28, "port": "lauberhornTraceIn_0", "type": "lauberhorn_event", "clock_domain": "app", "local_source": 0},
-      |    {"source": 31, "port": "lost", "type": "lost"}
-      |  ]
-      |}
-      |""".stripMargin
+  // TracePlugin emits events as it elaborates, before the final event list is
+  // known, so the hardware reserves enough low payload bits for up to 64 event
+  // IDs. The JSON map reports the actually used event-id width from the final
+  // trace event list.
+  val EventIdSlotWidth = 6
 
-  def writeTraceMap(path: os.Path): Unit =
-    os.write.over(path, TraceMapJson)
+  // ECI stall counts are stored as stalled_cycles >> 16. Six stored bits then
+  // cover at least 10 ms at 400 MHz while leaving the ECI payload at 75 bits.
+  val EciStallCounterShift = 16
+
+  // Matches the ECI design's 512-bit AXI datapath.
+  val AxiDataWidth = 512
+
+  case class PayloadField(name: String, offset: Int, width: Int, format: Option[String] = None) {
+    def end: Int = offset + width
+
+    def json: (String, Value) = {
+      val fields = Seq("offset" -> ujson.Num(offset), "width" -> ujson.Num(width)) ++
+        format.map(fmt => Seq("format" -> ujson.Str(fmt))).getOrElse(Seq.empty)
+      name -> Obj.from(fields)
+    }
+  }
+
+  case class PayloadFormat(fields: Seq[PayloadField], extra: Seq[(String, Value)] = Seq.empty) {
+    def width: Int = fields.map(_.end).max
+    def json: Value = Obj.from(Seq("fields" -> Obj.from(fields.map(_.json))) ++ extra)
+  }
+
+  case class SourceInfo(fields: Seq[(String, Value)]) {
+    def json: Value = Obj.from(fields)
+  }
+
+  private case class SourceSpec(portPrefix: String, fields: Seq[(String, Value)]) {
+    def info(source: Int): SourceInfo =
+      SourceInfo(("source" -> ujson.Num(source)) +: ("port" -> ujson.Str(s"${portPrefix}_$source")) +: fields)
+
+    def localInfo(source: Int, localSource: Int): SourceInfo =
+      SourceInfo(("source" -> ujson.Num(source)) +: ("port" -> ujson.Str(s"${portPrefix}_$localSource")) +: fields)
+  }
+
+  private val EciChannels = Seq("req_wod_i", "rsp_wod_i", "rsp_wd_i", "rsp_wod_o", "rsp_wd_o", "fwd_wod_o")
+
+  // DCS tracing provides two local event sources per DCS and there are two DCSs
+  // in the ECI design: even and odd.
+  private val AppDcsSpecs = Seq("even" -> 2, "odd" -> 2).flatMap { case (dcs, count) =>
+    (0 until count).map { localSource =>
+      SourceSpec("appTraceIn", Seq(
+        "type" -> "dcs_event",
+        "clock_domain" -> "app",
+        "dcs" -> dcs,
+        "local_source" -> localSource,
+      ))
+    }
+  }
+
+  // Each DCS has six ECI channels. appTraceIn records frames after crossing
+  // into the app clock domain.
+  private val AppEciSpecs = Seq("even", "odd").flatMap { dcs =>
+    EciChannels.zipWithIndex.map { case (channel, localSource) =>
+      SourceSpec("appTraceIn", Seq(
+        "type" -> "eci",
+        "clock_domain" -> "app",
+        "dcs" -> dcs,
+        "local_source" -> localSource,
+        "channel" -> channel,
+      ))
+    }
+  }
+
+  private val AppSpecs = AppDcsSpecs ++ AppEciSpecs
+
+  // sysTraceIn records the same six ECI channels per DCS before app CDC.
+  private val SysSpecs = Seq("even", "odd").flatMap { dcs =>
+    EciChannels.zipWithIndex.map { case (channel, localSource) =>
+      SourceSpec("sysTraceIn", Seq(
+        "type" -> "eci",
+        "clock_domain" -> "sys",
+        "dcs" -> dcs,
+        "local_source" -> localSource,
+        "channel" -> channel,
+      ))
+    }
+  }
+
+  val AppSources = AppSpecs.length
+  val SysSources = SysSpecs.length
+
+  // DCS event payload layout comes from the DCS trace producer.
+  private val DcsEventFormat = PayloadFormat(Seq(
+    PayloadField("error", offset = 0, width = 1),
+    PayloadField("cli", offset = 1, width = 40, format = Some("hex")),
+    PayloadField("state", offset = 41, width = 7),
+    PayloadField("action", offset = 48, width = 4),
+    PayloadField("request", offset = 52, width = 5),
+  ))
+
+  // ECI trace payloads carry the 64-bit header plus local decode metadata:
+  // virtual channel, scaled stall count, and whether the frame was accepted.
+  private val EciFormat = PayloadFormat(Seq(
+    PayloadField("eci_header", offset = 0, width = 64, format = Some("hex")),
+    PayloadField("vc", offset = 64, width = 4),
+    PayloadField("stall_count", offset = 68, width = 6),
+    PayloadField("accepted", offset = 74, width = 1),
+  ))
+
+  private val FixedPayloadFormats = Seq(
+    "dcs_event" -> DcsEventFormat,
+    "eci" -> EciFormat,
+  )
+
+  val PayloadWidth = FixedPayloadFormats.map(_._2.width).max
+  require(PayloadWidth >= EventIdSlotWidth, s"payload width $PayloadWidth cannot hold $EventIdSlotWidth-bit event IDs")
+
+  def eventIdWidth(lauberhornEvents: Seq[String]): Int =
+    log2Up(scala.math.max(lauberhornEvents.length, 2))
+
+  private def lauberhornEventFormat(lauberhornEvents: Seq[String]): PayloadFormat = {
+    val idWidth = eventIdWidth(lauberhornEvents)
+    val reservedIdBits = EventIdSlotWidth - idWidth
+    require(reservedIdBits >= 0, s"too many trace events for $EventIdSlotWidth-bit event IDs")
+
+    val fields = Seq(
+      PayloadField("event_id", offset = 0, width = idWidth),
+    ) ++
+      Option.when(reservedIdBits > 0)(
+        PayloadField("reserved_event_id", offset = idWidth, width = reservedIdBits)
+      ) ++ Seq(
+        PayloadField("extra_data", offset = EventIdSlotWidth, width = PayloadWidth - EventIdSlotWidth, format = Some("hex")),
+        PayloadField("core_id", offset = EventIdSlotWidth, width = 6),
+      )
+
+    PayloadFormat(
+      fields = fields,
+      extra = Seq("events" -> Obj.from(lauberhornEvents.zipWithIndex.map { case (name, id) =>
+        id.toString -> name
+      })),
+    )
+  }
+
+  case class SourceLayout(lauberhornSources: Int) {
+    require(lauberhornSources > 0, "LauberhornTraceDma needs at least one Lauberhorn trace source")
+
+    val appInputs: Seq[SourceInfo] = AppSpecs.zipWithIndex.map { case (spec, source) =>
+      spec.info(source)
+    }
+
+    val sysInputs: Seq[SourceInfo] = SysSpecs.zipWithIndex.map { case (spec, localSource) =>
+      spec.localInfo(appInputs.length + localSource, localSource)
+    }
+
+    val lauberhornInputs: Seq[SourceInfo] = (0 until lauberhornSources).map { localSource =>
+      val source = appInputs.length + sysInputs.length + localSource
+      SourceInfo(Seq(
+        "source" -> source,
+        "port" -> s"lauberhornTraceIn_$localSource",
+        "type" -> "lauberhorn_event",
+        "clock_domain" -> "app",
+        "local_source" -> localSource,
+      ))
+    }
+
+    val inputs: Seq[SourceInfo] = appInputs ++ sysInputs ++ lauberhornInputs
+    val totalSources: Int = inputs.length
+    val sourceWidth: Int = log2Up(totalSources + 1)
+    val lostSource: BigInt = (BigInt(1) << sourceWidth) - 1
+    val sources: Seq[SourceInfo] = inputs :+ SourceInfo(Seq(
+      "source" -> ujson.Num(lostSource.toDouble),
+      "port" -> "lost",
+      "type" -> "lost",
+    ))
+
+    def timestampWidth(payloadWidth: Int): Int = SampleWidth - payloadWidth - sourceWidth
+  }
+
+  private def traceMap(
+                        lauberhornSources: Int,
+                        lauberhornEvents: Seq[String],
+                      ): Value = {
+    val layout = SourceLayout(lauberhornSources)
+    val tw = layout.timestampWidth(PayloadWidth)
+    require(tw > 0, s"trace source count leaves no room for a positive timestamp width")
+
+    Obj(
+      "sample" -> Obj(
+        "payload_width" -> PayloadWidth,
+        "source_width" -> layout.sourceWidth,
+        "timestamp_width" -> tw,
+        "sample_width" -> SampleWidth,
+        "lost_source" -> ujson.Num(layout.lostSource.toDouble),
+        "lost_count_width" -> LostCountWidth,
+        "eci_stall_counter_shift" -> EciStallCounterShift,
+        "axi_data_width" -> AxiDataWidth,
+        "byte_order" -> "little",
+      ),
+      "payload_formats" -> Obj.from(
+        FixedPayloadFormats.map { case (name, format) => name -> format.json } :+
+          ("lauberhorn_event" -> lauberhornEventFormat(lauberhornEvents).json)
+      ),
+      "sources" -> Arr.from(layout.sources.map(_.json)),
+    )
+  }
 }
 
 case class LauberhornTraceDma(
-                               payloadWidth: Int = LauberhornTraceDma.PayloadWidth,
-                               appSources: Int = LauberhornTraceDma.AppSources,
-                               sysSources: Int = LauberhornTraceDma.SysSources,
-                               lauberhornSources: Int = LauberhornTraceDma.LauberhornSources,
+                               lauberhornSources: Int,
+                               lauberhornEvents: Seq[String] = Seq.empty,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,
                                axiBufferSize: BigInt = BigInt(32L * 1024 * 1024 * 1024)
                              ) extends Component {
-  // TraceBufferDMA adds a 5-bit global source index and a 48-bit timestamp
-  // around each 75-bit source-specific payload.  That makes the Lauberhorn
-  // trace sample exactly 128 bits, so four samples pack into each 512-bit beat.
+  // TraceBufferDMA stores each trace sample as:
+  //   [74:0]   payload
+  //   [80:75]  source id
+  //   [127:81] timestamp
+  //
+  // The 75-bit payload width is the maximum of the payload formats below. The
+  // source id width is log2Up(totalSources + 1): this design has 16 app sources,
+  // 12 sys sources, and 16 generated Lauberhorn event ports in the current ECI
+  // build, so 44 real sources plus the all-ones marker source require 6 bits.
+  // The remaining 47 bits are the timestamp, giving 75 + 6 + 47 = 128 bits.
+  // 128-bit samples are intentional because exactly four fit in each 512-bit
+  // AXI beat.
+  //
+  // Marker samples use the reserved all-ones source id. Their payload is either
+  // zero for a bubble inserted while flushing a partial beat, or a 32-bit
+  // saturated lost-sample count in the low payload bits.
   //
   // DCS event payloads:
   //   [0]     error
@@ -130,7 +257,6 @@ case class LauberhornTraceDma(
   //   [47:41] state
   //   [51:48] action
   //   [56:52] request
-  //   [74:57] reserved
   //
   // ECI frame payloads:
   //   [63:0]  ECI header word
@@ -138,7 +264,12 @@ case class LauberhornTraceDma(
   //   [73:68] scaled stall count, saturated at 63
   //   [74]    accepted within the configured stall threshold
   // The scaled stall count is stalled_cycles >> 16 by default.  This spans at
-  // least 10 ms for clocks up to about 400 MHz while preserving the 128b sample.
+  // least 10 ms for clocks up to about 400 MHz.
+  //
+  // Lauberhorn event payloads:
+  //   [5:0]   event id slot; the JSON map reports how many of these bits are
+  //           actually needed for the generated event list
+  //   [74:6]  extra data, currently including the core id in [11:6]
   //
   // appTraceIn is sampled in the app clock domain. Current source allocation:
   //   0..3   DCS event traces
@@ -152,10 +283,35 @@ case class LauberhornTraceDma(
   //
   // lauberhornTraceIn is sampled in the app clock domain and carries events
   // from TracePlugin inside NicEngine.
-  val totalSources = appSources + sysSources + lauberhornSources
+  val layout = LauberhornTraceDma.SourceLayout(lauberhornSources)
+  val totalSources = layout.totalSources
+  val appSourceCount = layout.appInputs.length
+  val sysSourceCount = layout.sysInputs.length
+  val lauberhornSourceCount = layout.lauberhornInputs.length
+  val payloadWidth = LauberhornTraceDma.PayloadWidth
+  val timestampWidth = layout.timestampWidth(payloadWidth)
+  require(timestampWidth > 0, s"trace source count leaves no room for a positive timestamp width")
+  require(lauberhornEvents.length <= (1 << LauberhornTraceDma.EventIdSlotWidth),
+    s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
+
+  def traceMap: Value =
+    LauberhornTraceDma.traceMap(
+      lauberhornSources = lauberhornSources,
+      lauberhornEvents = lauberhornEvents,
+    )
+
+  def traceMapJson: String =
+    ujson.write(traceMap, indent = 2)
+
+  def writeTraceMap(path: os.Path): Unit =
+    os.write.over(path, traceMapJson)
+
   val axiConfig = Axi4Config(
+    // The trace DMA buffer is 32 GiB by default, so 35 address bits cover the
+    // full byte address range.
     addressWidth = 35,
-    dataWidth = 512,
+    dataWidth = LauberhornTraceDma.AxiDataWidth,
+    // Matches the ID width used by the surrounding ECI AXI fabric.
     idWidth = 7,
     useQos = false,
     useRegion = false,
@@ -163,9 +319,9 @@ case class LauberhornTraceDma(
 
   val sys_clk = in Bool()
   val sys_reset = in Bool()
-  val appTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appSources)
-  val sysTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), sysSources)
-  val lauberhornTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), lauberhornSources)
+  val appTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appSourceCount)
+  val sysTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), sysSourceCount)
+  val lauberhornTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), lauberhornSourceCount)
   val axi = master(Axi4(axiConfig))
   val sampleLost = out(Bool())
   val dmaError = out(Bool())
@@ -177,7 +333,7 @@ case class LauberhornTraceDma(
     axiConfig = axiConfig,
     axiBufferBase = axiBufferBase,
     axiBufferSize = axiBufferSize,
-    timestampWidth = LauberhornTraceDma.TimestampWidth,
+    timestampWidth = timestampWidth,
     lostCountWidth = LauberhornTraceDma.LostCountWidth,
     axiMaxBurstLen = 256,
   )
@@ -187,7 +343,7 @@ case class LauberhornTraceDma(
   dmaError := traceDma.dmaError
   writeSlot := traceDma.writeSlot.resized
 
-  for (idx <- 0 until appSources) {
+  for (idx <- 0 until appSourceCount) {
     traceDma.traceIn(idx) := appTraceIn(idx)
   }
 
@@ -197,19 +353,19 @@ case class LauberhornTraceDma(
     config = ClockDomain.current.config,
   )
 
-  for (idx <- 0 until sysSources) {
+  for (idx <- 0 until sysSourceCount) {
     val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClockDomain, ClockDomain.current)
     new ClockingArea(sysClockDomain) {
       fifo.slavePort.valid := sysTraceIn(idx).valid
       fifo.slavePort.payload := sysTraceIn(idx).payload
     }
 
-    traceDma.traceIn(appSources + idx).valid := fifo.masterPort.valid
-    traceDma.traceIn(appSources + idx).payload := fifo.masterPort.payload
+    traceDma.traceIn(appSourceCount + idx).valid := fifo.masterPort.valid
+    traceDma.traceIn(appSourceCount + idx).payload := fifo.masterPort.payload
     fifo.masterPort.ready := True
   }
 
-  for (idx <- 0 until lauberhornSources) {
-    traceDma.traceIn(appSources + sysSources + idx) := lauberhornTraceIn(idx)
+  for (idx <- 0 until lauberhornSourceCount) {
+    traceDma.traceIn(appSourceCount + sysSourceCount + idx) := lauberhornTraceIn(idx)
   }
 }

@@ -9,11 +9,13 @@ import scala.language.postfixOps
 
 class TracePlugin extends FiberPlugin {
   var nextEventID = 0
-  def allocEventID(name: String) = {
-    val ret = nextEventID
-    nextEventID += 1
+  val eventNames = mutable.ArrayBuffer[String]()
 
-    // TODO: emit name -> event ID mapping to LauberhornTraceDma for export into JSON
+  def allocEventID(name: String): Int = {
+    val ret = nextEventID
+    require(ret < (1 << LauberhornTraceDma.EventIdSlotWidth), s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
+    nextEventID += 1
+    eventNames.append(name)
     ret
   }
 
@@ -33,7 +35,7 @@ class TracePlugin extends FiberPlugin {
         out.valid := True
 
         // extraData will be padded with zero after resize
-        out.payload := (extraData ## B(myID, 6 bits)).resized
+        out.payload := (extraData ## B(myID, LauberhornTraceDma.EventIdSlotWidth bits)).resized
       }
       cond
     }
@@ -49,7 +51,7 @@ class TracePlugin extends FiberPlugin {
     ret
   }
   val tracePorts = mutable.ArrayBuffer[TracePort]()
-  // TODO: pass number of trace ports to LauberhornTraceDma
+  def tracePortCount: Int = tracePorts.length
 
   val logic = during build new Area {
     val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)
