@@ -19,6 +19,8 @@ object LauberhornTraceDma {
   val LostCountWidth = 32
   val LostSource = (BigInt(1) << SourceWidth) - 1
 
+  // TODO: serialize this from a Scala data structure -- don't repeat!
+  // TODO: include updated lauberhorn_trace definition
   val TraceMapJson: String =
     """{
       |  "sample": {
