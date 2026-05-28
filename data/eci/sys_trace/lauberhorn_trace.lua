@@ -73,8 +73,8 @@ ef.unaliased_addr = ProtoField.string("lhtrace.eci.unaliased_addr", "Unaliased A
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
 evf.event_name = ProtoField.string("lhtrace.event.name", "Event Name")
-evf.extra_data = ProtoField.bytes("lhtrace.event.extra_data", "Extra Data")
-evf.core_id = ProtoField.uint16("lhtrace.event.core", "Core ID", base.DEC)
+evf.trace_data = ProtoField.none("lhtrace.event.trace_data", "Trace Data")
+evf.trace_data_value = ProtoField.uint64("lhtrace.event.trace_data.value", "Trace Data Value", base.DEC)
 
 local HEADER_LEN = 50
 local trace_map = nil
@@ -364,6 +364,43 @@ local function event_name(event_id)
     return fmt.events[tostring(event_id)] or string.format("event_%d", event_id)
 end
 
+local function event_data_fields(event_id)
+    if trace_map == nil or trace_map.payload_formats == nil then
+        return {}
+    end
+    local fmt = trace_map.payload_formats.lauberhorn_event
+    if fmt == nil or fmt.event_data == nil then
+        return {}
+    end
+    local data = fmt.event_data[tostring(event_id)] or {}
+    if #data > 0 and type(data[1]) == "table" then
+        return data
+    end
+
+    local offset = 0
+    if fmt.fields ~= nil then
+        for name, field in pairs(fmt.fields) do
+            if name == "event_id" or name == "reserved_event_id" then
+                local field_end = tonumber(field.offset) + tonumber(field.width)
+                if field_end > offset then
+                    offset = field_end
+                end
+            end
+        end
+    end
+
+    local fields = {}
+    for _, name in ipairs(data) do
+        local key = fmt.trace_data_keys ~= nil and fmt.trace_data_keys[name] or nil
+        if key ~= nil then
+            local width = tonumber(key.width)
+            table.insert(fields, { name = name, offset = offset, width = width })
+            offset = offset + width
+        end
+    end
+    return fields
+end
+
 local function event_name_from_payload(payload_tvb)
     local fields = fields_for_type("lauberhorn_event") or {}
     local id_field = fields.event_id or { offset = 0, width = 6 }
@@ -435,16 +472,24 @@ end
 local function dissect_event(payload_tvb, tree)
     local fields = fields_for_type("lauberhorn_event") or {}
     local id_field = fields.event_id or { offset = 0, width = 6 }
-    local extra_field = fields.extra_data or { offset = 6, width = 69 }
-    local core_field = fields.core_id or { offset = 6, width = 6 }
     local event_id = extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width)
     local name = event_name(event_id)
     tree:add(evf.event_name, byte_range_for_bits(payload_tvb, id_field.offset, id_field.width), name)
     tree:add(evf.event_id, byte_range_for_bits(payload_tvb, id_field.offset, id_field.width), event_id):append_text(" (" .. name .. ")")
-    local extra_byte_offset = math.floor(extra_field.offset / 8)
-    local extra_byte_len = math.ceil(((extra_field.offset % 8) + extra_field.width) / 8)
-    tree:add(evf.extra_data, payload_tvb(extra_byte_offset, extra_byte_len))
-    tree:add(evf.core_id, byte_range_for_bits(payload_tvb, core_field.offset, core_field.width), extract_bits_le(payload_tvb, 0, core_field.offset, core_field.width))
+
+    local data_fields = event_data_fields(event_id)
+    local data_tree = tree:add(evf.trace_data, payload_tvb())
+    if #data_fields == 0 then
+        data_tree:append_text(" (none)")
+    else
+        data_tree:append_text(" (" .. tostring(#data_fields) .. ")")
+    end
+    for _, field in ipairs(data_fields) do
+        local value = extract_bits_le(payload_tvb, 0, field.offset, field.width)
+        data_tree:add(evf.trace_data_value, byte_range_for_bits(payload_tvb, field.offset, field.width), value)
+            :set_text(tostring(field.name) .. ": " .. tostring(value))
+    end
+
     return {
         info = name,
         source = name,
