@@ -37,6 +37,11 @@ object LauberhornTraceDma {
   // Matches the ECI design's 512-bit AXI datapath.
   val AxiDataWidth = 512
 
+  val NicDecoderSlr = 0
+  val NicHostInterfaceSlr = 1
+  val TraceBufferDmaSlr = 2
+  val PipelineStagesPerSlrCrossing = 5
+
   val EciHeaderWidth = 64
   val EciVcWidth = 4
   val EciStallCountWidth = 6
@@ -65,12 +70,36 @@ object LauberhornTraceDma {
     def json: Value = Obj.from(fields)
   }
 
-  private case class SourceSpec(portPrefix: String, fields: Seq[(String, Value)]) {
+  def pipelineStagesToTraceBufferDma(sourceSlr: Int): Int = {
+    require(sourceSlr >= 0 && sourceSlr <= TraceBufferDmaSlr, s"trace source SLR must be in [0, $TraceBufferDmaSlr], got $sourceSlr")
+    scala.math.abs(TraceBufferDmaSlr - sourceSlr) * PipelineStagesPerSlrCrossing
+  }
+
+  private def dcsSlr(dcs: String): Int = dcs match {
+    case "even" => TraceBufferDmaSlr
+    case "odd" => NicDecoderSlr
+  }
+
+  private def normalizedLauberhornPipelineStages(lauberhornSources: Int, pipelineStages: Seq[Int]): Seq[Int] = {
+    val normalized = if (pipelineStages.isEmpty) Seq.fill(lauberhornSources)(0) else pipelineStages
+    require(normalized.length == lauberhornSources,
+      s"expected $lauberhornSources Lauberhorn trace pipeline stage entries, got ${normalized.length}")
+    normalized.foreach(stages => require(stages >= 0, s"trace pipeline stages must be non-negative, got $stages"))
+    normalized
+  }
+
+  private case class SourceSpec(portPrefix: String, pipelineStages: Int, fields: Seq[(String, Value)]) {
     def info(source: Int): SourceInfo =
-      SourceInfo(("source" -> ujson.Num(source)) +: ("port" -> ujson.Str(s"${portPrefix}_$source")) +: fields)
+      SourceInfo(("source" -> ujson.Num(source)) +:
+        ("port" -> ujson.Str(s"${portPrefix}_$source")) +:
+        ("pipeline_stages" -> ujson.Num(pipelineStages)) +:
+        fields)
 
     def localInfo(source: Int, localSource: Int): SourceInfo =
-      SourceInfo(("source" -> ujson.Num(source)) +: ("port" -> ujson.Str(s"${portPrefix}_$localSource")) +: fields)
+      SourceInfo(("source" -> ujson.Num(source)) +:
+        ("port" -> ujson.Str(s"${portPrefix}_$localSource")) +:
+        ("pipeline_stages" -> ujson.Num(pipelineStages)) +:
+        fields)
   }
 
   private val EciChannels = Seq("req_wod_i", "rsp_wod_i", "rsp_wd_i", "rsp_wod_o", "rsp_wd_o", "fwd_wod_o")
@@ -79,7 +108,7 @@ object LauberhornTraceDma {
   // in the ECI design: even and odd.
   private val AppDcsSpecs = Seq("even" -> 2, "odd" -> 2).flatMap { case (dcs, count) =>
     (0 until count).map { localSource =>
-      SourceSpec("appDcsTraceIn", Seq(
+      SourceSpec("appDcsTraceIn", pipelineStagesToTraceBufferDma(dcsSlr(dcs)), Seq(
         "type" -> "dcs_event",
         "clock_domain" -> "app",
         "dcs" -> dcs,
@@ -92,7 +121,7 @@ object LauberhornTraceDma {
   // into the app clock domain.
   private val AppEciSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
-      SourceSpec("appEciTraceIn", Seq(
+      SourceSpec("appEciTraceIn", pipelineStagesToTraceBufferDma(dcsSlr(dcs)), Seq(
         "type" -> "eci",
         "clock_domain" -> "app",
         "dcs" -> dcs,
@@ -105,7 +134,7 @@ object LauberhornTraceDma {
   // sysEciTraceIn records the same six ECI channels per DCS before app CDC.
   private val SysSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
-      SourceSpec("sysEciTraceIn", Seq(
+      SourceSpec("sysEciTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
         "type" -> "eci",
         "clock_domain" -> "sys",
         "dcs" -> dcs,
@@ -117,6 +146,9 @@ object LauberhornTraceDma {
 
   val AppSources = AppDcsSpecs.length + AppEciSpecs.length
   val SysSources = SysSpecs.length
+  val AppDcsPipelineStages: Seq[Int] = AppDcsSpecs.map(_.pipelineStages)
+  val AppEciPipelineStages: Seq[Int] = AppEciSpecs.map(_.pipelineStages)
+  val SysPipelineStages: Seq[Int] = SysSpecs.map(_.pipelineStages)
 
   // DCS event payload layout comes from the DCS trace producer.
   private val DcsEventFormat = PayloadFormat(Seq(
@@ -170,8 +202,10 @@ object LauberhornTraceDma {
     )
   }
 
-  case class SourceLayout(lauberhornSources: Int) {
+  case class SourceLayout(lauberhornSources: Int, lauberhornPipelineStages: Seq[Int] = Seq.empty) {
     require(lauberhornSources > 0, "LauberhornTraceDma needs at least one Lauberhorn trace source")
+    val normalizedLauberhornPipelineStages: Seq[Int] =
+      LauberhornTraceDma.normalizedLauberhornPipelineStages(lauberhornSources, lauberhornPipelineStages)
 
     val appDcsInputs: Seq[SourceInfo] = AppDcsSpecs.zipWithIndex.map { case (spec, source) =>
       spec.info(source)
@@ -195,6 +229,7 @@ object LauberhornTraceDma {
         "type" -> "lauberhorn_event",
         "clock_domain" -> "app",
         "local_source" -> localSource,
+        "pipeline_stages" -> normalizedLauberhornPipelineStages(localSource),
       ))
     }
 
@@ -214,8 +249,9 @@ object LauberhornTraceDma {
   private def traceMap(
                         lauberhornSources: Int,
                         lauberhornEvents: Seq[String],
+                        lauberhornPipelineStages: Seq[Int],
                       ): Value = {
-    val layout = SourceLayout(lauberhornSources)
+    val layout = SourceLayout(lauberhornSources, lauberhornPipelineStages)
     val tw = layout.timestampWidth(PayloadWidth)
     require(tw > 0, s"trace source count leaves no room for a positive timestamp width")
 
@@ -243,6 +279,7 @@ object LauberhornTraceDma {
 case class LauberhornTraceDma(
                                lauberhornSources: Int,
                                lauberhornEvents: Seq[String] = Seq.empty,
+                               lauberhornPipelineStages: Seq[Int] = Seq.empty,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,
                                axiBufferSize: BigInt = BigInt(32L * 1024 * 1024 * 1024)
@@ -297,8 +334,10 @@ case class LauberhornTraceDma(
   //   6..11  odd-DCS ECI frames before app CDC
   //
   // lauberhornTraceIn is sampled in the app clock domain and carries events
-  // from TracePlugin inside NicEngine.
-  val layout = LauberhornTraceDma.SourceLayout(lauberhornSources)
+  // from TracePlugin inside NicEngine.  Each source can have a fixed pipeline
+  // delay before TraceBufferDMA; the trace parser subtracts that delay from the
+  // recorded timestamp using the trace-map metadata.
+  val layout = LauberhornTraceDma.SourceLayout(lauberhornSources, lauberhornPipelineStages)
   val totalSources = layout.totalSources
   val appSourceCount = layout.appInputs.length
   val appDcsSourceCount = layout.appDcsInputs.length
@@ -315,6 +354,7 @@ case class LauberhornTraceDma(
     LauberhornTraceDma.traceMap(
       lauberhornSources = lauberhornSources,
       lauberhornEvents = lauberhornEvents,
+      lauberhornPipelineStages = lauberhornPipelineStages,
     )
 
   def traceMapJson: String =
@@ -418,11 +458,12 @@ case class LauberhornTraceDma(
   }.out
 
   for (idx <- 0 until appDcsSourceCount) {
-    traceDma.traceIn(idx) := appDcsTraceIn(idx)
+    traceDma.traceIn(idx) := appDcsTraceIn(idx).delay(LauberhornTraceDma.AppDcsPipelineStages(idx))
   }
 
   for (idx <- 0 until appEciSourceCount) {
-    traceDma.traceIn(appDcsSourceCount + idx) := traceEciFrame(appEciTraceIn(idx), appTraceEciStallThreshold)
+    traceDma.traceIn(appDcsSourceCount + idx) :=
+      traceEciFrame(appEciTraceIn(idx), appTraceEciStallThreshold).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
   val sysClockDomain = ClockDomain(
@@ -442,12 +483,15 @@ case class LauberhornTraceDma(
       fifo.slavePort.payload := sysTrace.payload
     }
 
-    traceDma.traceIn(appSourceCount + idx).valid := fifo.masterPort.valid
-    traceDma.traceIn(appSourceCount + idx).payload := fifo.masterPort.payload
+    val sysTraceToDma = Flow(Bits(payloadWidth bits))
+    sysTraceToDma.valid := fifo.masterPort.valid
+    sysTraceToDma.payload := fifo.masterPort.payload
+    traceDma.traceIn(appSourceCount + idx) := sysTraceToDma.delay(LauberhornTraceDma.SysPipelineStages(idx))
     fifo.masterPort.ready := True
   }
 
   for (idx <- 0 until lauberhornSourceCount) {
-    traceDma.traceIn(appSourceCount + sysSourceCount + idx) := lauberhornTraceIn(idx)
+    traceDma.traceIn(appSourceCount + sysSourceCount + idx) :=
+      lauberhornTraceIn(idx).delay(layout.normalizedLauberhornPipelineStages(idx))
   }
 }

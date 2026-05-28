@@ -19,7 +19,9 @@ class TracePlugin extends FiberPlugin {
     ret
   }
 
-  class TracePort {
+  class TracePort(val sourceSlr: Int) {
+    val pipelineStages: Int = LauberhornTraceDma.pipelineStagesToTraceBufferDma(sourceSlr)
+
     /** Trace a given event.  On every cycle this port can emit at most
      * one event; if multiple `trace` return values have been assigned to True,
      * only the last one will survive due to the last when statement having priority.
@@ -45,13 +47,14 @@ class TracePlugin extends FiberPlugin {
     out.payload.assignDontCare()
   }
 
-  def makePort(): TracePort = {
-    val ret = new TracePort()
+  def makePort(sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
+    val ret = new TracePort(sourceSlr)
     tracePorts.append(ret)
     ret
   }
   val tracePorts = mutable.ArrayBuffer[TracePort]()
   def tracePortCount: Int = tracePorts.length
+  def tracePipelineStages: Seq[Int] = tracePorts.map(_.pipelineStages).toSeq
 
   val logic = during build new Area {
     val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)
