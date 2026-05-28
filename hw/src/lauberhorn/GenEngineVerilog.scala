@@ -124,6 +124,7 @@ object GenEngineVerilog {
         LauberhornTraceDma(
           lauberhornSources = tracePlugin.tracePortCount,
           lauberhornEvents = tracePlugin.eventNames.toSeq,
+          lauberhornPipelineStages = tracePlugin.tracePipelineStages,
         ).setDefinitionName("lauberhorn_trace_dma")
       }
       traceDmaReport.toplevel.writeTraceMap(out / "lauberhorn_trace_dma_map.json")

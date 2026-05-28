@@ -41,7 +41,7 @@ case class RxPacketDescWithSource() extends Bundle {
 class DmaControlPlugin extends FiberPlugin {
   lazy val pktBuf = host[PacketBuffer]
 
-  val rxTp, txTp = during setup host[TracePlugin].makePort()
+  val rxTp, txTp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicHostInterfaceSlr)
 
   /** Access points for downstream/upstream [[HostReq]] instances.
     *

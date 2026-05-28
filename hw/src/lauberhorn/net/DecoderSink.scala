@@ -2,7 +2,7 @@ package lauberhorn.net
 
 import jsteward.blocks.axi.AxiStreamMux
 import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.{DmaControlPlugin, MacInterfaceService, PacketBuffer, RxPacketDescWithSource, TracePlugin}
+import lauberhorn.{DmaControlPlugin, LauberhornTraceDma, MacInterfaceService, PacketBuffer, RxPacketDescWithSource, TracePlugin}
 import spinal.core._
 import spinal.core.fiber.Retainer
 import spinal.lib.StreamPipe.FULL
@@ -49,7 +49,7 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val retainer = Retainer()
 
   // all decoders are serialized so we only need one trace port
-  val tp = during setup host[TracePlugin].makePort()
+  val tp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicDecoderSlr)
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val decoderOutputs = mutable.ListBuffer[DecoderOutput]()

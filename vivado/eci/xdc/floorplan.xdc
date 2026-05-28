@@ -148,6 +148,9 @@ add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i
 
 # Trace buffer
 add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter "NAME=~i_app/design_1_i/ddr4_4/*"]
-add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter "NAME=~i_app/i_trace_dma/*"]
+add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {
+    NAME=~i_app/i_trace_dma/traceDma ||
+    NAME=~i_app/i_trace_dma/traceDma/*
+}]
 
 add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/*x_rst_sync"]
