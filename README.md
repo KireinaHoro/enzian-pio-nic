@@ -1,181 +1,181 @@
-# Enzian Fast RPC
+# Lauberhorn
 
-This repo contains the RPC-accelerating NIC for Enzian; it builds upon the old
-PIO paper NIC artifact, now in the `pio-paper` branch.
+Lauberhorn is an RPC-accelerating NIC for Enzian.  The hardware is written in
+SpinalHDL, simulation is driven through Mill/ScalaTest/Verilator, and the
+software stack contains the Enzian kernel module, userspace runtime, and demo
+applications.
+
+See [HW-ARCH.md](docs/HW-ARCH.md) for the hardware source structure, `NicEngine`
+plugin layout, and elaboration flow.
 
 ## Setup
 
-The recommended way to set up the environment is to use the [Docker
-container](./Dockerfile), available at the ETH registry
-`registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04`.  This
-image is also used by the department GitLab CI for running unit tests and
-building bitstreams.  For a local setup, refer to the Dockerfile for
-instructions.
-
-Set up `git` to use SSH for all HTTPS links on the D-INFK GitLab:
+Use the Nix flake for development.  It provides Mill, JDK, Verilator, GHDL,
+formal tools, Mackerel, the aarch64 cross compiler, and the helper scripts used
+by this repository.
 
 ```console
-$ git config --global url.ssh://git@gitlab.inf.ethz.ch/.insteadOf https://gitlab.inf.ethz.ch/
+$ git clone --recursive <lauberhorn-platform-url>
+$ cd platform
+$ nix develop
 ```
 
-Clone with submodules:
+One-shot commands can be run without entering an interactive shell:
 
 ```console
-$ git clone --recursive git@gitlab.inf.ethz.ch:pengxu/enzian-pio-nic.git
-$ cd enzian-pio-nic
+$ nix develop -c mill gen.test -- -l org.scalatest.tags.Slow
 ```
 
-## Generate Output Products
+The old Docker image is no longer the preferred local environment.  Use it only
+when reproducing old CI runs or debugging container-specific behavior.
 
-Run simulation test benches:
+## Hardware Tests
+
+Run the Scala/Verilator simulation suites through the Nix shell.
 
 ```console
-$ mill gen.test -- -P8 # run all test suites in parallel with 8 threads
-...
-[Progress] Verilator compilation done in 4941.624 ms
-NicSim:
-[info] simulation transcript at /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/pcie/rx-regular/sim_transcript.log.gz
-- rx-regular
-...
-$ mill gen.test.testOnly lauberhorn.host.eci.NicSim # run only the test suite for ECI integration test
-$ mill gen.test -l org.scalatest.tags.Slow # exclude slow-running integration tests
-...
+# Fast/default test pass: exclude ScalaTest's Slow tag.
+$ nix develop -c mill gen.test -- -l org.scalatest.tags.Slow
+
+# Full simulation pass, including slow integration tests.
+$ nix develop -c mill gen.test
+
+# Ask ScalaTest to run suites in parallel.  Mill keeps module-level test
+# parallelism disabled to avoid repeatedly rebuilding Verilator models.
+$ nix develop -c mill gen.test -- -P8
 ```
 
-Simulation transcripts are stored in
-`simWorkspace/<design>/<test>/sim_transcript_<setup seed>_<sim seed>.log.gz`;
-they are compressed to save disk space.  To browse the transcript:
+Run one suite:
 
 ```console
-$ vim <transcript>          # to view in an editor, after the simulation has finished (vim supports gz files)
-$ gztool -T <transcript>    # to follow the transcript (in the same way as `tail -f`)
+$ nix develop -c mill gen.test.testOnly lauberhorn.PacketAllocSim
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxBypassSim
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.TxBypassSim
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxReplayPcapSim
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.pcie.NicSim
 ```
 
-**Note**: if mill complains about not incorrect `VERILATOR_ROOT` setup, even
-after correcting the problem, try killing the mill server:
+Run the `deps/blocks` regression suite used by Lauberhorn.  Quote the Mill
+target so the shell does not treat the cross-version brackets as a glob.
 
 ```console
-$ ps aux | grep '[M]illServerMain' | awk '{print $2}' | xargs kill
-$ mill --no-server <...>
+$ nix develop -c mill 'blocks[2.13.12].test'
 ```
 
-This is due to the old mill server still using the old environment
-(specifically with the old `VERILATOR_ROOT` variable).  Running mill with
-`--no-server` forces mill to run as a standalone process (thus forcing the new
-environment every time).
+CI runs this blocks suite only when the `deps/blocks` submodule is bumped.
 
-You can reproduce a specific simulation (for debugging) by supplying the exact
-setup and sim seeds to `NicSim` with the command at the start of the
-transcript:
+Run one named test inside a suite:
 
 ```console
-$ zcat /local/home/pengxu/work-local/enzian-pio-nic/simWorkspace/PacketAlloc/simple-allocate-free/sim_transcript.log.gz
->>>>> Simulation transcript lauberhorn.PacketAllocSim for test simple-allocate-free
->>>>> To reproduce: mill gen.test.testOnly lauberhorn.PacketAllocSim -- -t simple-allocate-free -DsetupSeed=1024949829 -DsimSeed=-1610542669 -DprintSimLog=true
-
-[0] [Progress] Start PacketAlloc simple-allocate-free simulation with seed 565014101
-...
+$ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim -- -t rx-tx-interleaved
 ```
 
-Create Vivado project and generate the bitstream for ECI and PCIe:
+Repeat a flaky test until it fails.  `repeat-test` is provided by the dev shell
+and defaults to `lauberhorn.host.eci.NicSim` if no suite is supplied.
 
 ```console
-$ mill --no-server pcie.generateBitstream
-...
-
-$ file out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.{bit,ltx}
-[...]/pio-nic-pcie.bit: Xilinx BIT data - from design_1_wrapper;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2022.1 - for xcvu9p-flgb2104-3-e - built 2023/12/23(11:09:14) - data length 0x1b2cf00
-[...]/pio-nic-pcie.ltx: ASCII text
-$ mill --no-server eci.generateBitstream
+$ nix develop -c repeat-test rx-tx-interleaved lauberhorn.host.eci.OncRpcSim
 ```
 
-Same as with `VERILATOR_ROOT`, if mill complains about not able to find
-`vivado`, despite already sourcing the environment file, try killing the mill
-server and running with `--no-server`.  This also helps if Vivado's output is
-not printed to the standard output (but instead to the server process).
+Simulation transcripts are written under `out/` and `simWorkspace/`, depending
+on the suite and generated Verilator workspace.  Compressed transcripts can be
+viewed directly with `less`, `vim`, or `zcat`.
 
-Build userspace software (drivers):
+## CI
+
+GitLab CI currently runs these jobs:
+
+- `fast-tests-eci`: fast ECI Scala/Verilator tests on every pipeline, using
+  `mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci`.
+- `blocks-tests`: the `deps/blocks` regression suite, using
+  `mill 'blocks[2.13.12].test'`; this job is only triggered when the
+  `deps/blocks` submodule path changes.
+- `build-hw-eci`: the ECI Vivado bitstream build, using
+  `mill --no-server eci.generateBitstream`; this runs after `fast-tests-eci`
+  and publishes the bitstream, probes, routed checkpoint, generated headers,
+  and generated device description artifacts.
+- `publish`: tag-only release job that uploads the `build-hw-eci` artifacts.
+
+## Build Products
+
+Generate ECI RTL and generated configuration headers:
 
 ```console
-$ mill pcie.generateVerilog # generate header files
-$ cd sw/pcie && make
-...
-$ file lauberhorn-test
-lauberhorn-test: ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=898cb76f926551cdf354110ac0a269dbe271c93e, for GNU/Linux 3.7.0, not stripped
-$ mill eci.generateVerilog # generate header files
-$ cd sw/eci && make
+$ nix develop -c mill eci.generateVerilog
 ```
 
-The PCIe test should be ran on an Enzian with a PCIe cable between the CPU and
-FPGA (`zuestoll11-12` at the moment).  The ECI test should work on any Enzian.
-
-## (Re)-running the experiments
-
-Configure the correct iSCSI boot image and grub config with `emg(2)`.  Remember
-to `sudo poweroff` (i.e. shut down the OS) before releasing the iSCSI target.
-
-```bash
-# release the image, cleaning out the old configuration
-emg release zuestoll11
-# run vanilla kernel with no isolation
-emg acquire zuestoll11 -n pio-nic
-# run vanilla kernel with isolcpus
-emg acquire zuestoll11 -n pio-nic -a 'isolcpus=nohz,domain,managed_irq,47 nohz_full=47 rcu_nocbs=47 irqaffinity=0-46 kthread_cpus=0-46 rcu_nocb_poll'
-# run custom, nohz_full kernel with isolcpus
-emg acquire zuestoll11 -n pio-nic -a 'isolcpus=nohz,domain,managed_irq,47 nohz_full=47 rcu_nocbs=47 irqaffinity=0-46 kthread_cpus=0-46 rcu_nocb_poll' -k 'pengxu/vmlinuz-5.4.0-196-generic' -i 'pengxu/initrd.img-5.4.0-196-generic'
-```
-
-Boot up an Enzian with the desired bitstream:
-- Power up both the CPU and FPGA
-- Interrupt the CPU boot process during BDK
-- Program FPGA bitstream
-- Continue CPU boot process and verify that the link between CPU and FPGA is correctly configured
-  - PCIe: `N0.PCIe2: Link active, 8 lanes, speed gen3`
-  - ECI: `N0.CCPI Lanes([] is good):[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]`
-
-Run the experiment, pinning the application to a specific core (should match
-the core specified in `isolcpus`/`nohz_full` options above):
-
-```bash
-# for ECI
-sudo taskset -c 47 ./lauberhorn-test
-# for PCIe
-sudo taskset -c 47 ./lauberhorn-test 0004:90:00.0
-```
-
-Retrieve the `pcie_lat.csv`/`eci_lat.csv` and `loopback.csv` and run `data/*/plot.py` to generate plots.
-
-## Devs Area
-
-Create project for IntelliJ IDEA:
+Build the same RTL/configuration output as a Nix package:
 
 ```console
-$ mill mill.idea.GenIdea/idea
+$ nix build .#genVerilog -L
 ```
 
-Interact with the Vivado project (e.g. change the block design, read timing
-reports, etc.):
+Generate the ECI Vivado project or bitstream from inside the dev shell:
 
 ```console
-$ mill --no-server pcie.vivadoProject
-...
-$ vivado out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.xpr
-$ vivado out/eci/vivadoProject.dest/pio-nic-eci/pio-nic-eci.xpr # synth-only project!
+$ nix develop -c mill --no-daemon eci.vivadoProject
+$ nix develop -c mill --no-daemon eci.generateBitstream
 ```
 
-For the PCIe project, remember to export the project Tcl again to keep the
-build process reproducible.  In Vivado's Tcl console:
+The ECI bitstream flow downloads the configured static shell checkpoint during
+the Mill task.  Use `--no-daemon` for Vivado-related tasks so a stale Mill
+server does not keep an old environment.
 
-```tcl
-write_project_tcl -no_ip_version -paths_relative_to ./vivado/pcie -force vivado/pcie/create_project.tcl
+PCIe generation tasks still exist for the legacy path:
+
+```console
+$ nix develop -c mill --no-daemon pcie.generateVerilog
+$ nix develop -c mill --no-daemon pcie.generateBitstream
 ```
 
-For the ECI project, remember to export the block design Tcl again.  In
-Vivado's Tcl console:
+## Software Builds
 
-```tcl
-write_bd_tcl -force vivado/eci/bd/design_1.tcl
+Build software artifacts with Nix:
+
+```console
+# Kernel module for Enzian/aarch64.
+$ nix build .#kmod -L
+$ file result/lauberhorn.ko
+
+# Userspace runtime library.
+$ nix build .#runtime -L
+$ file result/liblauberhorn.so
+
+# SquashFS deployment image containing the kernel module and demo apps.
+$ nix build .#deployFs -L
 ```
 
-Update `vivado/eci/create_project.tcl` accordingly (the script is
-hand-written).
+The Nix builds generate RTL-derived headers and Mackerel headers automatically.
+For manual development inside `nix develop`, run `mill eci.generateVerilog`
+first so generated headers exist before invoking lower-level `make` targets.
+
+## Trace Tools
+
+The system trace exporter and Wireshark Lua dissector live in
+`data/eci/sys_trace`.  See [data/eci/sys_trace/README.md](data/eci/sys_trace/README.md)
+for converting trace buffers or legacy Vivado ILA CSV captures to pcapng.
+
+## Enzian Use
+
+Build the bitstream, kernel module, runtime, and deployment image as above,
+then boot an Enzian with the matching FPGA image.  The kernel module exposes
+`/dev/lauberhorn` and the bypass network interface `lauberhorn0`; see
+[sw/kmod/README.md](sw/kmod/README.md) for module loading and interface setup.
+
+## Development Notes
+
+Create an IntelliJ IDEA project:
+
+```console
+$ nix develop -c mill mill.idea.GenIdea/idea
+```
+
+Update the Mill dependency lock after changing Mill dependencies:
+
+```console
+$ nix develop -c update-mill-lock
+```
+
+If Mill keeps using stale environment variables, stop the daemon or run the
+command with `--no-daemon`.
