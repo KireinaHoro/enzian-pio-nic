@@ -30,6 +30,24 @@ fast-tests-eci:
       - simWorkspace/**/sim_transcript.log.gz
       - simWorkspace/**/wave.fst
 
+blocks-tests:
+  extends: .docker-image-hw
+  stage: test
+  rules:
+    - changes:
+        - deps/blocks
+        - deps/blocks/**/*
+    - when: never
+  script:
+    - mill 'blocks[2.13.12].test'
+  artifacts:
+    when: on_failure
+    paths:
+      - simWorkspace/**/sim_transcript.log.gz
+      - simWorkspace/**/wave.fst
+      - deps/blocks/simWorkspace/**/sim_transcript.log.gz
+      - deps/blocks/simWorkspace/**/wave.fst
+
 .build-hw:
   extends: .docker-image-hw
   stage: build-hw
