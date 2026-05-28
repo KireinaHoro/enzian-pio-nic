@@ -1,10 +1,12 @@
 # Lauberhorn System Trace
 
+This directory contains the tools for turning a trace DDR dump into pcapng and
+viewing it in Wireshark/TShark.  For the architecture and role split between
+hardware, Python, and Lua, see `../../../docs/TRACING.md`.
+
 `export_trace_pcap.py` exports selected TraceBufferDMA samples to pcapng for
-Wireshark/TShark visualization with `lauberhorn_trace.lua`. The Python exporter
-owns dump acquisition, sample windowing, source filtering, circular-buffer
-realignment, and outer sample framing. The Lua dissector owns source-specific
-payload parsing using the trace-map JSON embedded as the first pcapng packet.
+visualization with `lauberhorn_trace.lua`. It consumes a raw binary dump of the
+trace DDR buffer plus the generated `lauberhorn_trace_dma_map.json`.
 
 Example:
 
@@ -37,11 +39,14 @@ wireshark \
 
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
-as one interactive packet list. The pcapng contains one metadata packet with the
-trace-map JSON, raw packets for real samples, and marker packets for lost/bubble
-samples. Sample packets are sorted by timestamp after subtracting each source's
-`pipeline_stages`; the original hardware timestamp is still carried in the
-packet envelope as `lhtrace.raw_timestamp`.
+as one interactive packet list. Use `--source`, `--start`, and `--samples` to
+select a useful window.
+
+The pcapng contains one metadata packet with the trace-map JSON, raw packets for
+real samples, and marker packets for lost/bubble samples. Sample packets are
+sorted by timestamp after subtracting each source's `pipeline_stages`; the
+original hardware timestamp is still carried in the packet envelope as
+`lhtrace.raw_timestamp`.
 
 Packets share the same little-endian envelope after the first four magic bytes,
 but use separate magics so Wireshark can display them as separate protocols:
