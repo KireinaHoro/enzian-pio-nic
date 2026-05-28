@@ -18,15 +18,17 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   val tp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicHostInterfaceSlr)
 
   during build new Area {
-    // TODO: assign request/response trace ID
-    tp.trace("RxCoreReadStart", B(coreID)) := hostRxReq.rise(False)
-    tp.trace("RxCoreReadFinish", B(coreID)) := hostRx.fire
-    tp.trace("RxCoreCommit", B(coreID)) := hostRxAck.fire
+    // TODO: also assign request/response trace ID
+    val td = Seq(CoreID(B(coreID)))
+
+    tp.trace("RxCoreReadStart", td: _*) := hostRxReq.rise(False)
+    tp.trace("RxCoreReadFinish", td: _*) := hostRx.fire
+    tp.trace("RxCoreCommit", td: _*) := hostRxAck.fire
 
     // FIXME: this not reliable for PCIe since hostTx sits in the same 512B word as other regs
     //        so a read on other regs could also trigger this.
     //        Mitigated by allocating hostTx as read sensitive
-    tp.trace("TxCoreAcquire", B(coreID)) := hostTx.fire
-    tp.trace("TxCoreCommit", B(coreID)) := hostTxAck.fire
+    tp.trace("TxCoreAcquire", td: _*) := hostTx.fire
+    tp.trace("TxCoreCommit", td: _*) := hostTxAck.fire
   }
 }
