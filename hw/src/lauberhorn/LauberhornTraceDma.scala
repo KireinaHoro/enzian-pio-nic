@@ -176,29 +176,53 @@ object LauberhornTraceDma {
   val PayloadWidth = FixedPayloadFormats.map(_._2.width).max
   require(PayloadWidth >= EventIdSlotWidth, s"payload width $PayloadWidth cannot hold $EventIdSlotWidth-bit event IDs")
 
-  def eventIdWidth(lauberhornEvents: Seq[String]): Int =
+  def eventIdWidth(lauberhornEvents: Seq[TraceEvent]): Int =
     log2Up(scala.math.max(lauberhornEvents.length, 2))
 
-  private def lauberhornEventFormat(lauberhornEvents: Seq[String]): PayloadFormat = {
+  private def traceDataKeys(lauberhornEvents: Seq[TraceEvent]): Seq[TraceDataKey] =
+    lauberhornEvents
+      .flatMap(_.dataKeys)
+      .foldLeft(Seq.empty[TraceDataKey]) { case (keys, key) =>
+        keys.find(_.name == key.name) match {
+          case Some(existing) =>
+            require(existing.width == key.width,
+              s"trace data key ${key.name} has conflicting widths ${existing.width} and ${key.width}")
+            keys
+          case None => keys :+ key
+        }
+      }
+
+  private def lauberhornEventFormat(lauberhornEvents: Seq[TraceEvent]): PayloadFormat = {
     val idWidth = eventIdWidth(lauberhornEvents)
     val reservedIdBits = EventIdSlotWidth - idWidth
     require(reservedIdBits >= 0, s"too many trace events for $EventIdSlotWidth-bit event IDs")
+    val dataKeys = traceDataKeys(lauberhornEvents)
+    lauberhornEvents.foreach { event =>
+      require(EventIdSlotWidth + event.dataKeys.map(_.width).sum <= PayloadWidth,
+        s"trace event ${event.name} data does not fit in $PayloadWidth-bit payload")
+    }
 
     val fields = Seq(
       PayloadField("event_id", offset = 0, width = idWidth),
     ) ++
       Option.when(reservedIdBits > 0)(
         PayloadField("reserved_event_id", offset = idWidth, width = reservedIdBits)
-      ) ++ Seq(
-        PayloadField("extra_data", offset = EventIdSlotWidth, width = PayloadWidth - EventIdSlotWidth, format = Some("hex")),
-        PayloadField("core_id", offset = EventIdSlotWidth, width = 6),
       )
 
     PayloadFormat(
       fields = fields,
-      extra = Seq("events" -> Obj.from(lauberhornEvents.zipWithIndex.map { case (name, id) =>
-        id.toString -> name
-      })),
+      extra = Seq(
+        "events" -> Obj.from(lauberhornEvents.zipWithIndex.map { case (event, id) =>
+          id.toString -> event.name
+        }),
+        "trace_data_keys" -> Obj.from(dataKeys.map { key =>
+          key.name -> Obj("width" -> key.width)
+        }),
+        "event_data" -> Obj.from(lauberhornEvents.zipWithIndex.collect {
+          case (event, id) if event.dataKeys.nonEmpty =>
+            id.toString -> Arr.from(event.dataKeys.map(key => ujson.Str(key.name)))
+        }),
+      ),
     )
   }
 
@@ -248,7 +272,7 @@ object LauberhornTraceDma {
 
   private def traceMap(
                         lauberhornSources: Int,
-                        lauberhornEvents: Seq[String],
+                        lauberhornEvents: Seq[TraceEvent],
                         lauberhornPipelineStages: Seq[Int],
                       ): Value = {
     val layout = SourceLayout(lauberhornSources, lauberhornPipelineStages)
@@ -278,7 +302,7 @@ object LauberhornTraceDma {
 
 case class LauberhornTraceDma(
                                lauberhornSources: Int,
-                               lauberhornEvents: Seq[String] = Seq.empty,
+                               lauberhornEvents: Seq[TraceEvent] = Seq.empty,
                                lauberhornPipelineStages: Seq[Int] = Seq.empty,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,

@@ -23,17 +23,26 @@ case object CoreID        extends TraceDataKey { def width = 3 }
 case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey])
 
 class TracePlugin extends FiberPlugin {
-  var nextEventID = 0
   private val eventBuffer = mutable.ArrayBuffer[TraceEvent]()
   def traceEvents: Seq[TraceEvent] = eventBuffer.toSeq
   def eventNames: Seq[String] = traceEvents.map(_.name)
 
+  private def eventSignature(name: String, dataKeys: Seq[TraceDataKey]): (String, Seq[String]) =
+    (name, dataKeys.map(_.name))
+
   def allocEventID(name: String, dataKeys: Seq[TraceDataKey]): Int = {
-    val ret = nextEventID
-    require(ret < (1 << LauberhornTraceDma.EventIdSlotWidth), s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
-    nextEventID += 1
-    eventBuffer.append(TraceEvent(name, dataKeys))
-    ret
+    val signature = eventSignature(name, dataKeys)
+    eventBuffer.indexWhere(event => eventSignature(event.name, event.dataKeys) == signature) match {
+      case existing if existing >= 0 => existing
+      case _ =>
+        require(!eventBuffer.exists(_.name == name),
+          s"trace event $name was already declared with a different trace-data layout")
+        require(eventBuffer.length < (1 << LauberhornTraceDma.EventIdSlotWidth),
+          s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
+        val ret = eventBuffer.length
+        eventBuffer.append(TraceEvent(name, dataKeys))
+        ret
+    }
   }
 
   class TracePort(val sourceSlr: Int) {
@@ -54,9 +63,7 @@ class TracePlugin extends FiberPlugin {
         out.valid := True
 
         // data will be padded with zero after resize
-        // TODO: emit trace data keys present on this event, as well as the layout, into
-        //       traceMap in LauberhornTraceDma
-        val allData = td.reverse.map(_.data).foldLeft(B(0))(_ ## _)
+        val allData = td.reverse.map(_.data).foldLeft(B(0, 0 bits))(_ ## _)
         out.payload := (allData ## B(myID, LauberhornTraceDma.EventIdSlotWidth bits)).resized
       }
       cond
