@@ -37,6 +37,15 @@ object LauberhornTraceDma {
   // Matches the ECI design's 512-bit AXI datapath.
   val AxiDataWidth = 512
 
+  val EciHeaderWidth = 64
+  val EciVcWidth = 4
+  val EciStallCountWidth = 6
+
+  case class EciTraceFrame() extends Bundle {
+    val header = Bits(EciHeaderWidth bits)
+    val vc = Bits(EciVcWidth bits)
+  }
+
   case class PayloadField(name: String, offset: Int, width: Int, format: Option[String] = None) {
     def end: Int = offset + width
 
@@ -70,7 +79,7 @@ object LauberhornTraceDma {
   // in the ECI design: even and odd.
   private val AppDcsSpecs = Seq("even" -> 2, "odd" -> 2).flatMap { case (dcs, count) =>
     (0 until count).map { localSource =>
-      SourceSpec("appTraceIn", Seq(
+      SourceSpec("appDcsTraceIn", Seq(
         "type" -> "dcs_event",
         "clock_domain" -> "app",
         "dcs" -> dcs,
@@ -79,11 +88,11 @@ object LauberhornTraceDma {
     }
   }
 
-  // Each DCS has six ECI channels. appTraceIn records frames after crossing
+  // Each DCS has six ECI channels. appEciTraceIn records frames after crossing
   // into the app clock domain.
   private val AppEciSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
-      SourceSpec("appTraceIn", Seq(
+      SourceSpec("appEciTraceIn", Seq(
         "type" -> "eci",
         "clock_domain" -> "app",
         "dcs" -> dcs,
@@ -93,12 +102,10 @@ object LauberhornTraceDma {
     }
   }
 
-  private val AppSpecs = AppDcsSpecs ++ AppEciSpecs
-
-  // sysTraceIn records the same six ECI channels per DCS before app CDC.
+  // sysEciTraceIn records the same six ECI channels per DCS before app CDC.
   private val SysSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
-      SourceSpec("sysTraceIn", Seq(
+      SourceSpec("sysEciTraceIn", Seq(
         "type" -> "eci",
         "clock_domain" -> "sys",
         "dcs" -> dcs,
@@ -108,7 +115,7 @@ object LauberhornTraceDma {
     }
   }
 
-  val AppSources = AppSpecs.length
+  val AppSources = AppDcsSpecs.length + AppEciSpecs.length
   val SysSources = SysSpecs.length
 
   // DCS event payload layout comes from the DCS trace producer.
@@ -166,9 +173,15 @@ object LauberhornTraceDma {
   case class SourceLayout(lauberhornSources: Int) {
     require(lauberhornSources > 0, "LauberhornTraceDma needs at least one Lauberhorn trace source")
 
-    val appInputs: Seq[SourceInfo] = AppSpecs.zipWithIndex.map { case (spec, source) =>
+    val appDcsInputs: Seq[SourceInfo] = AppDcsSpecs.zipWithIndex.map { case (spec, source) =>
       spec.info(source)
     }
+
+    val appEciInputs: Seq[SourceInfo] = AppEciSpecs.zipWithIndex.map { case (spec, localSource) =>
+      spec.localInfo(appDcsInputs.length + localSource, localSource)
+    }
+
+    val appInputs: Seq[SourceInfo] = appDcsInputs ++ appEciInputs
 
     val sysInputs: Seq[SourceInfo] = SysSpecs.zipWithIndex.map { case (spec, localSource) =>
       spec.localInfo(appInputs.length + localSource, localSource)
@@ -271,12 +284,14 @@ case class LauberhornTraceDma(
   //           actually needed for the generated event list
   //   [74:6]  extra data, currently including the core id in [11:6]
   //
-  // appTraceIn is sampled in the app clock domain. Current source allocation:
+  // appDcsTraceIn is sampled in the app clock domain. Current source allocation:
   //   0..3   DCS event traces
-  //   4..9   even-DCS ECI frames after crossing into app
-  //   10..15 odd-DCS ECI frames after crossing into app
   //
-  // sysTraceIn is sampled in the system clock domain and crossed into app here.
+  // appEciTraceIn is sampled in the app clock domain. Current source allocation:
+  //   0..5   even-DCS ECI frames after crossing into app
+  //   6..11  odd-DCS ECI frames after crossing into app
+  //
+  // sysEciTraceIn is sampled in the system clock domain and crossed into app here.
   // Current source allocation:
   //   0..5   even-DCS ECI frames before app CDC
   //   6..11  odd-DCS ECI frames before app CDC
@@ -286,6 +301,8 @@ case class LauberhornTraceDma(
   val layout = LauberhornTraceDma.SourceLayout(lauberhornSources)
   val totalSources = layout.totalSources
   val appSourceCount = layout.appInputs.length
+  val appDcsSourceCount = layout.appDcsInputs.length
+  val appEciSourceCount = layout.appEciInputs.length
   val sysSourceCount = layout.sysInputs.length
   val lauberhornSourceCount = layout.lauberhornInputs.length
   val payloadWidth = LauberhornTraceDma.PayloadWidth
@@ -319,8 +336,10 @@ case class LauberhornTraceDma(
 
   val sys_clk = in Bool()
   val sys_reset = in Bool()
-  val appTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appSourceCount)
-  val sysTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), sysSourceCount)
+  val traceEciStallThreshold = in UInt(LauberhornTraceDma.EciStallCountWidth bits)
+  val appDcsTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appDcsSourceCount)
+  val appEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), appEciSourceCount)
+  val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysSourceCount)
   val lauberhornTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), lauberhornSourceCount)
   val axi = master(Axi4(axiConfig))
   val sampleLost = out(Bool())
@@ -342,9 +361,68 @@ case class LauberhornTraceDma(
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
   writeSlot := traceDma.writeSlot.resized
+  val appTraceEciStallThreshold = BufferCC(traceEciStallThreshold)
 
-  for (idx <- 0 until appSourceCount) {
-    traceDma.traceIn(idx) := appTraceIn(idx)
+  def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame], stallThreshold: UInt): Flow[Bits] = new Area {
+    val stallCountMax = U((BigInt(1) << LauberhornTraceDma.EciStallCountWidth) - 1, LauberhornTraceDma.EciStallCountWidth bits)
+    val stallScaleCounterWidth = scala.math.max(LauberhornTraceDma.EciStallCounterShift, 1)
+
+    val stallCount = Reg(UInt(LauberhornTraceDma.EciStallCountWidth bits)) init(0)
+    val stallScaleCount = Reg(UInt(stallScaleCounterWidth bits)) init(0)
+    val timedOut = RegInit(False)
+    val traceValid = RegInit(False)
+    val tracePayload = Reg(Bits(payloadWidth bits)) init(0)
+
+    val nextStallCount = UInt(LauberhornTraceDma.EciStallCountWidth bits)
+    nextStallCount := stallCount
+    when(stallCount =/= stallCountMax) {
+      nextStallCount := stallCount + 1
+    }
+
+    val scaleTick = if (LauberhornTraceDma.EciStallCounterShift == 0) True else stallScaleCount.andR
+
+    def packPayload(accepted: Bool, count: UInt): Bits =
+      (accepted.asBits ## count.asBits ## in.payload.vc ## in.payload.header).resized
+
+    traceValid := False
+
+    when(!in.valid) {
+      stallCount := 0
+      stallScaleCount := 0
+      timedOut := False
+    } elsewhen(in.ready) {
+      when(!timedOut) {
+        traceValid := True
+        tracePayload := packPayload(True, stallCount)
+      }
+      stallCount := 0
+      stallScaleCount := 0
+      timedOut := False
+    } otherwise {
+      when(scaleTick) {
+        stallCount := nextStallCount
+        stallScaleCount := 0
+        when(!timedOut && stallThreshold =/= 0 && nextStallCount >= stallThreshold) {
+          traceValid := True
+          tracePayload := packPayload(False, nextStallCount)
+          timedOut := True
+        }
+      } otherwise {
+        stallScaleCount := stallScaleCount + 1
+      }
+    }
+
+    val out = Flow(Bits(payloadWidth bits))
+    out.valid := traceValid
+    out.payload := tracePayload
+  }.out
+
+  for (idx <- 0 until appDcsSourceCount) {
+    traceDma.traceIn(idx) := appDcsTraceIn(idx)
+  }
+
+  for (idx <- 0 until appEciSourceCount) {
+    traceDma.traceIn(appDcsSourceCount + idx) := traceEciFrame(appEciTraceIn(idx), appTraceEciStallThreshold)
   }
 
   val sysClockDomain = ClockDomain(
@@ -352,12 +430,16 @@ case class LauberhornTraceDma(
     reset = sys_reset,
     config = ClockDomain.current.config,
   )
+  val sysTraceEciStallThreshold = new ClockingArea(sysClockDomain) {
+    val value = BufferCC(traceEciStallThreshold)
+  }
 
   for (idx <- 0 until sysSourceCount) {
     val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClockDomain, ClockDomain.current)
     new ClockingArea(sysClockDomain) {
-      fifo.slavePort.valid := sysTraceIn(idx).valid
-      fifo.slavePort.payload := sysTraceIn(idx).payload
+      val sysTrace = traceEciFrame(sysEciTraceIn(idx), sysTraceEciStallThreshold.value)
+      fifo.slavePort.valid := sysTrace.valid
+      fifo.slavePort.payload := sysTrace.payload
     }
 
     traceDma.traceIn(appSourceCount + idx).valid := fifo.masterPort.valid
