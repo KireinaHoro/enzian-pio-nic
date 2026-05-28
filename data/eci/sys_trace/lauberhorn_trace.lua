@@ -33,7 +33,8 @@ f.kind = ProtoField.uint8("lhtrace.kind", "Kind", base.DEC, kind_names)
 f.flags = ProtoField.uint16("lhtrace.flags", "Flags", base.HEX)
 f.sample = ProtoField.uint64("lhtrace.sample", "Sample", base.DEC)
 f.physical_sample = ProtoField.uint64("lhtrace.physical_sample", "Physical Sample", base.DEC)
-f.timestamp = ProtoField.uint64("lhtrace.timestamp", "Timestamp", base.DEC)
+f.timestamp = ProtoField.uint64("lhtrace.timestamp", "Adjusted Timestamp", base.DEC)
+f.raw_timestamp = ProtoField.uint64("lhtrace.raw_timestamp", "Raw Timestamp", base.DEC)
 f.source = ProtoField.uint16("lhtrace.source", "Source", base.DEC)
 f.lost_count = ProtoField.uint32("lhtrace.lost_count", "Lost Count", base.DEC)
 f.payload_len = ProtoField.uint32("lhtrace.payload_len", "Payload Length", base.DEC)
@@ -75,7 +76,7 @@ evf.event_name = ProtoField.string("lhtrace.event.name", "Event Name")
 evf.extra_data = ProtoField.bytes("lhtrace.event.extra_data", "Extra Data")
 evf.core_id = ProtoField.uint16("lhtrace.event.core", "Core ID", base.DEC)
 
-local HEADER_LEN = 44
+local HEADER_LEN = 50
 local trace_map = nil
 local sources_by_id = {}
 
@@ -465,9 +466,10 @@ function lhtrace.dissector(tvb, pinfo, tree)
     local sample = tvb(8, 8):le_uint64()
     local physical_sample = tvb(16, 8):le_uint64()
     local timestamp = tvb(24, 8):le_uint64()
-    local source = tvb(32, 2):le_uint()
-    local lost_count = tvb(36, 4):le_uint()
-    local payload_len = tvb(40, 4):le_uint()
+    local raw_timestamp = tvb(32, 8):le_uint64()
+    local source = tvb(40, 2):le_uint()
+    local lost_count = tvb(42, 4):le_uint()
+    local payload_len = tvb(46, 4):le_uint()
     local payload_tvb = nil
     if payload_len > 0 and tvb:len() >= HEADER_LEN + payload_len then
         payload_tvb = tvb(HEADER_LEN, payload_len)
@@ -526,9 +528,10 @@ function lhtrace.dissector(tvb, pinfo, tree)
     raw_tree:add_le(f.sample, tvb(8, 8))
     raw_tree:add_le(f.physical_sample, tvb(16, 8))
     raw_tree:add_le(f.timestamp, tvb(24, 8))
-    raw_tree:add_le(f.source, tvb(32, 2))
-    raw_tree:add_le(f.lost_count, tvb(36, 4))
-    raw_tree:add_le(f.payload_len, tvb(40, 4))
+    raw_tree:add_le(f.raw_timestamp, tvb(32, 8))
+    raw_tree:add_le(f.source, tvb(40, 2))
+    raw_tree:add_le(f.lost_count, tvb(42, 4))
+    raw_tree:add_le(f.payload_len, tvb(46, 4))
     if payload_tvb ~= nil and packet_protocol.family ~= "metadata" then
         raw_tree:add(f.payload, payload_tvb)
     end
