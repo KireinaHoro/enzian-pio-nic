@@ -38,18 +38,6 @@ def sample_bytes(trace_map: Dict[str, Any]) -> int:
     return sample_width // 8
 
 
-def decode_fields(payload: int, fields: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    decoded: Dict[str, Any] = {}
-    for name, spec in fields.items():
-        value = bits(payload, int(spec["offset"]), int(spec["width"]))
-        if spec.get("format") == "hex":
-            width = int(spec["width"])
-            decoded[name] = f"0x{value:0{(width + 3) // 4}x}"
-        else:
-            decoded[name] = value
-    return decoded
-
-
 def sample_source(sample: int, trace_map: Dict[str, Any]) -> int:
     sample_cfg = trace_map["sample"]
     payload_width = int(sample_cfg["payload_width"])
@@ -220,7 +208,6 @@ def decode_sample(logical_index: int, physical_index: int, sample: int, trace_ma
     beat_bits = int(sample_cfg.get("axi_data_width", 512))
     lost_source = int(sample_cfg.get("lost_source", (1 << source_width) - 1))
     lost_count_width = int(sample_cfg.get("lost_count_width", 32))
-    eci_stall_counter_shift = int(sample_cfg.get("eci_stall_counter_shift", 0))
 
     payload = sample_payload(sample, trace_map)
     source = sample_source(sample, trace_map)
@@ -252,20 +239,6 @@ def decode_sample(logical_index: int, physical_index: int, sample: int, trace_ma
         row["type"] = "bubble" if lost_count == 0 else "lost"
         row["lost_count"] = lost_count
         return row
-
-    payload_format = trace_map.get("payload_formats", {}).get(row["type"], {})
-    row.update(decode_fields(payload, payload_format.get("fields", {})))
-
-    if row["type"] == "eci":
-        eci_header = bits(payload, 0, 64)
-        row["eci_header"] = f"0x{eci_header:016x}"
-        row["stall_counter_shift"] = eci_stall_counter_shift
-        row["stall_cycles"] = int(row.get("stall_count", 0)) << eci_stall_counter_shift
-
-    if row["type"] == "lauberhorn_event":
-        events = payload_format.get("events", {})
-        event_id = int(row.get("event_id", 0))
-        row["event"] = events.get(str(event_id), f"event_{event_id}")
 
     return row
 
