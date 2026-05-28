@@ -123,7 +123,7 @@ object GenEngineVerilog {
       val traceDmaReport = Config.spinal(outDir, prefix = "dtb_").generateVerilog {
         LauberhornTraceDma(
           lauberhornSources = tracePlugin.tracePortCount,
-          lauberhornEvents = tracePlugin.eventNames.toSeq,
+          lauberhornEvents = tracePlugin.traceEvents,
           lauberhornPipelineStages = tracePlugin.tracePipelineStages,
         ).setDefinitionName("lauberhorn_trace_dma")
       }
