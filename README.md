@@ -5,8 +5,8 @@ SpinalHDL, simulation is driven through Mill/ScalaTest/Verilator, and the
 software stack contains the Enzian kernel module, userspace runtime, and demo
 applications.
 
-See [HW-ARCH.md](docs/HW-ARCH.md) for the hardware source structure, `NicEngine`
-plugin layout, and elaboration flow.
+There are separate [documentation](docs/) about system-level designs, such as
+overall source structure, the tracing concept, and packet processing pipelines.
 
 ## Setup
 
