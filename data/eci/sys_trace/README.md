@@ -39,7 +39,9 @@ The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. The pcapng contains one metadata packet with the
 trace-map JSON, raw packets for real samples, and marker packets for lost/bubble
-samples.
+samples. Sample packets are sorted by timestamp after subtracting each source's
+`pipeline_stages`; the original hardware timestamp is still carried in the
+packet envelope as `lhtrace.raw_timestamp`.
 
 Packets share the same little-endian envelope after the first four magic bytes,
 but use separate magics so Wireshark can display them as separate protocols:

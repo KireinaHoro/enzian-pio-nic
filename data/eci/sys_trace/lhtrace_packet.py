@@ -9,7 +9,7 @@ MAGIC_EVENT = b"LHTE"
 MAGIC_DCS = b"LHTD"
 MAGIC_ECI_APP = b"LHEA"
 MAGIC_ECI_SYS = b"LHES"
-VERSION = 2
+VERSION = 3
 
 KIND_METADATA = 1
 KIND_SAMPLE = 2
@@ -18,7 +18,7 @@ KIND_BUBBLE = 4
 
 SOURCE_METADATA = 0xFFFF
 
-HEADER = struct.Struct("<4sBBHQQQHHII")
+HEADER = struct.Struct("<4sBBHQQQQHII")
 HEADER_LEN = HEADER.size
 
 
@@ -32,6 +32,7 @@ def _packet(
     logical_sample: int = 0,
     physical_sample: int = 0,
     timestamp: int = 0,
+    raw_timestamp: int = 0,
     source: int = 0,
     lost_count: int = 0,
     payload: bytes = b"",
@@ -44,8 +45,8 @@ def _packet(
         int(logical_sample),
         int(physical_sample),
         int(timestamp),
+        int(raw_timestamp),
         int(source),
-        0,
         int(lost_count),
         len(payload),
     )
@@ -79,6 +80,7 @@ def sample_packet(
     logical_sample: int,
     physical_sample: int,
     timestamp: int,
+    raw_timestamp: int,
     source: int,
     sample: int,
     sample_bytes: int,
@@ -90,12 +92,20 @@ def sample_packet(
         logical_sample=logical_sample,
         physical_sample=physical_sample,
         timestamp=timestamp,
+        raw_timestamp=raw_timestamp,
         source=source,
         payload=int(sample).to_bytes(sample_bytes, "little"),
     )
 
 
-def marker_packet(logical_sample: int, physical_sample: int, timestamp: int, source: int, lost_count: int) -> bytes:
+def marker_packet(
+    logical_sample: int,
+    physical_sample: int,
+    timestamp: int,
+    raw_timestamp: int,
+    source: int,
+    lost_count: int,
+) -> bytes:
     kind = KIND_BUBBLE if lost_count == 0 else KIND_LOST
     return _packet(
         MAGIC_CONTROL,
@@ -103,6 +113,7 @@ def marker_packet(logical_sample: int, physical_sample: int, timestamp: int, sou
         logical_sample=logical_sample,
         physical_sample=physical_sample,
         timestamp=timestamp,
+        raw_timestamp=raw_timestamp,
         source=source,
         lost_count=lost_count,
     )
