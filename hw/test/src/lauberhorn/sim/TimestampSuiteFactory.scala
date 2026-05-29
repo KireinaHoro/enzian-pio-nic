@@ -1,41 +1,103 @@
 package lauberhorn.sim
 
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.misc.RegBlockReadBack
-import lauberhorn.{AsSimBusMaster, NicEngine}
-import lauberhorn.Global.ALLOC
-import spinal.lib.BytesRicher
+import lauberhorn.NicEngine
 
 trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] =>
-  def getRxTimestamps[B](master: B)(implicit asMaster: AsSimBusMaster[B]) = {
-    new {
-      val entry = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxCmacEntry"), 8).bytesToBigInt
-      val afterRxQueue = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxAfterCdcQueue"), 8).bytesToBigInt
-      val readStart = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxCoreReadStart"), 8).bytesToBigInt
-      val afterRead = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxCoreReadFinish"), 8).bytesToBigInt
-      val enqueueToHost = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxEnqueueToHost"), 8).bytesToBigInt
-      val afterRxCommit = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "RxCoreCommit"), 8).bytesToBigInt
+  case class RxTraceTimestamps(
+                                entry: BigInt,
+                                afterRxQueue: BigInt,
+                                readStart: BigInt,
+                                afterRead: BigInt,
+                                enqueueToHost: BigInt,
+                                afterRxCommit: BigInt,
+                              )
 
-      println(s"RxCmacEntry: $entry")
-      println(s"RxAfterCdcQueue: $afterRxQueue")
-      println(s"RxCoreReadStart: $readStart")
-      println(s"RxCoreReadFinish: $afterRead")
-      println(s"RxEnqueueToHost: $enqueueToHost")
-      println(s"RxCoreCommit: $afterRxCommit")
+  case class TxTraceTimestamps(
+                                acquire: BigInt,
+                                afterTxCommit: BigInt,
+                                afterDmaRead: BigInt,
+                                exit: BigInt,
+                              )
+
+  def traceConsumer(implicit dut: NicEngine): TraceEventConsumer =
+    TraceEventConsumer(dut)
+
+  private def latestTraceCycle(
+                                trace: TraceEventConsumer,
+                                eventName: String,
+                                data: Map[String, BigInt],
+                                since: Int,
+                              ): BigInt = {
+    trace.latest(eventName, data, since).map(_.cycle).getOrElse {
+      val seen = trace.eventsSince(since).map { event =>
+        val fields =
+          if (event.data.isEmpty) ""
+          else event.data.map { case (key, value) => s"$key=$value" }.mkString(" ", " ", "")
+        s"${event.cycle}:${event.portName}:${event.eventName}$fields"
+      }.mkString(", ")
+      throw new AssertionError(s"trace event $eventName${if (data.isEmpty) "" else s" $data"} not captured; saw [$seen]")
     }
   }
 
-  def getTxTimestamps[B](master: B)(implicit asMaster: AsSimBusMaster[B]) = {
-    new {
-      val acquire = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "TxCoreAcquire"), 8).bytesToBigInt
-      val afterTxCommit = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "TxCoreCommit"), 8).bytesToBigInt
-      val afterDmaRead = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "TxAfterDmaRead"), 8).bytesToBigInt
-      val exit = asMaster.read(master, ALLOC.readBack("profiler")("lastProfile", "TxCmacExit"), 8).bytesToBigInt
+  private def firstTraceCycle(
+                               trace: TraceEventConsumer,
+                               eventName: String,
+                               data: Map[String, BigInt],
+                               since: Int,
+                             ): BigInt =
+    trace.first(eventName, data, since)
+      .map(_.cycle)
+      .getOrElse(latestTraceCycle(trace, eventName, data, since))
 
-      println(s"TxCoreAcquire: $acquire")
-      println(s"TxCoreCommit: $afterTxCommit")
-      println(s"TxAfterDmaRead: $afterDmaRead")
-      println(s"TxCmacExit: $exit")
-    }
+  def getRxTimestamps(
+                       trace: TraceEventConsumer,
+                       coreId: Option[Int] = None,
+                       since: Int = 0,
+                       requireCommit: Boolean = true,
+                     ): RxTraceTimestamps = {
+    def coreData = coreId.map(id => Map("CoreID" -> BigInt(id))).getOrElse(Map.empty[String, BigInt])
+    def globalCycle(eventName: String) = latestTraceCycle(trace, eventName, Map.empty, since)
+    def coreCycle(eventName: String) = latestTraceCycle(trace, eventName, coreData, since)
+    def firstCoreCycle(eventName: String) = firstTraceCycle(trace, eventName, coreData, since)
+    def optionalCoreCycle(eventName: String) = trace.latest(eventName, coreData, since).map(_.cycle).getOrElse(BigInt(0))
+
+    val timestamps = RxTraceTimestamps(
+      entry = globalCycle("RxCmacEntry"),
+      afterRxQueue = globalCycle("RxAfterCdcQueue"),
+      readStart = firstCoreCycle("RxCoreReadStart"),
+      afterRead = coreCycle("RxCoreReadFinish"),
+      enqueueToHost = globalCycle("RxEnqueueToHost"),
+      afterRxCommit = if (requireCommit) coreCycle("RxCoreCommit") else optionalCoreCycle("RxCoreCommit"),
+    )
+
+    println(s"RxCmacEntry: ${timestamps.entry}")
+    println(s"RxAfterCdcQueue: ${timestamps.afterRxQueue}")
+    println(s"RxCoreReadStart: ${timestamps.readStart}")
+    println(s"RxCoreReadFinish: ${timestamps.afterRead}")
+    println(s"RxEnqueueToHost: ${timestamps.enqueueToHost}")
+    println(s"RxCoreCommit: ${timestamps.afterRxCommit}")
+
+    timestamps
+  }
+
+  def getTxTimestamps(trace: TraceEventConsumer, coreId: Option[Int] = None, since: Int = 0): TxTraceTimestamps = {
+    val coreData = coreId.map(id => Map("CoreID" -> BigInt(id))).getOrElse(Map.empty[String, BigInt])
+    def coreCycle(eventName: String) = latestTraceCycle(trace, eventName, coreData, since)
+    def globalCycle(eventName: String) = latestTraceCycle(trace, eventName, Map.empty, since)
+
+    val timestamps = TxTraceTimestamps(
+      acquire = coreCycle("TxCoreAcquire"),
+      afterTxCommit = coreCycle("TxCoreCommit"),
+      afterDmaRead = globalCycle("TxAfterDmaRead"),
+      exit = globalCycle("TxCmacExit"),
+    )
+
+    println(s"TxCoreAcquire: ${timestamps.acquire}")
+    println(s"TxCoreCommit: ${timestamps.afterTxCommit}")
+    println(s"TxAfterDmaRead: ${timestamps.afterDmaRead}")
+    println(s"TxCmacExit: ${timestamps.exit}")
+
+    timestamps
   }
 }

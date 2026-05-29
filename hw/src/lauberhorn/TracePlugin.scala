@@ -45,7 +45,8 @@ class TracePlugin extends FiberPlugin {
     }
   }
 
-  class TracePort(val name: String, val sourceSlr: Int) {
+  class TracePort(rawName: String, val sourceSlr: Int) {
+    val name: String = Option(rawName).filter(_.nonEmpty).getOrElse(s"trace_${tracePorts.length}")
     val pipelineStages: Int = LauberhornTraceDma.pipelineStagesToTraceBufferDma(sourceSlr)
     val traceEventValids = mutable.ArrayBuffer[Bool]()
 
@@ -79,14 +80,13 @@ class TracePlugin extends FiberPlugin {
     out.payload.assignDontCare()
   }
 
-  def makePort(name: String, sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
+  def makePort(name: String = "", sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
     val ret = new TracePort(name, sourceSlr)
+    require(!tracePorts.exists(_.name == ret.name), s"duplicate trace port name ${ret.name}")
     tracePorts.append(ret)
     ret
   }
   val tracePorts = mutable.ArrayBuffer[TracePort]()
-  def tracePortCount: Int = tracePorts.length
-  def tracePipelineStages: Seq[Int] = tracePorts.map(_.pipelineStages).toSeq
 
   val logic = during build new Area {
     val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)

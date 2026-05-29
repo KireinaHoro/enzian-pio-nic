@@ -122,9 +122,8 @@ object GenEngineVerilog {
 
       val traceDmaReport = Config.spinal(outDir, prefix = "dtb_").generateVerilog {
         LauberhornTraceDma(
-          lauberhornSources = tracePlugin.tracePortCount,
+          lauberhornTracePorts = tracePlugin.tracePorts.toSeq,
           lauberhornEvents = tracePlugin.traceEvents,
-          lauberhornPipelineStages = tracePlugin.tracePipelineStages,
         ).setDefinitionName("lauberhorn_trace_dma")
       }
       traceDmaReport.toplevel.writeTraceMap(out / "lauberhorn_trace_dma_map.json")

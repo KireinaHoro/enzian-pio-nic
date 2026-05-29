@@ -221,8 +221,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
   testWithDB("rx-timestamped-queued")() { implicit dut =>
     // test timestamp collection with oncrpc call
     val (master, axisMaster) = rxDutSetup(10000)
+    val trace = traceConsumer
 
-    val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master,
@@ -231,18 +231,19 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val (packet, _, _) = getPacket()
     val toSend = packet.getRawData.toList
 
+    val traceStart = trace.cursor
     axisMaster.send(toSend)
     // ensure that the packet has landed
     val delayed = 1000
     sleepCycles(delayed)
 
     val desc = readRxPacketDesc(master, coreBlock).get
-    val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
+    val timestamp = trace.currentCycle
 
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
-    val timestamps = getRxTimestamps(master)
+    val timestamps = getRxTimestamps(trace, Some(1), traceStart)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -253,8 +254,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   testWithDB("rx-timestamped-stalled")() { implicit dut =>
     val (master, axisMaster) = rxDutSetup(10000)
+    val trace = traceConsumer
 
-    val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core", blockIdx = 1)
 
     val (_, getPacket, pid) = oncRpcCallPacketFactory(master,
@@ -264,6 +265,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val toSend = packet.getRawData.toList
     val delayed = 500
 
+    val traceStart = trace.cursor
     fork {
       sleepCycles(delayed)
 
@@ -271,12 +273,12 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     }
 
     val desc = readRxPacketDesc(master, coreBlock).get
-    val timestamp = master.read(globalBlock("csr", "cycles"), 8).bytesToBigInt
+    val timestamp = trace.currentCycle
 
     // commit
     master.write(coreBlock("hostRxAck"), desc.toRxAck.toBytesLE)
 
-    val timestamps = getRxTimestamps(master)
+    val timestamps = getRxTimestamps(trace, Some(1), traceStart)
     import timestamps._
 
     println(s"Current timestamp: $timestamp")
@@ -287,8 +289,8 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
 
   testWithDB("tx-timestamped")() { implicit dut =>
     val (master, axisSlave) = txDutSetup()
+    val trace = traceConsumer
 
-    val globalBlock = ALLOC.readBack("global")
     val coreBlock = ALLOC.readBack("core")
     val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
@@ -299,6 +301,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     master.write(pktBufAddr + desc.addr, toSend)
 
     // insert delay
+    val traceStart = trace.cursor
     fork {
       sleepCycles(delayed)
       master.write(coreBlock("hostTxAck"), desc.copy(size = toSend.length).toTxDesc)
@@ -307,7 +310,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     // receive packet, check timestamps
     axisSlave.recv()
 
-    val timestamps = getTxTimestamps(master)
+    val timestamps = getTxTimestamps(trace, Some(0), traceStart)
     import timestamps._
 
     assert(isSorted(acquire, afterTxCommit, afterDmaRead, exit))
