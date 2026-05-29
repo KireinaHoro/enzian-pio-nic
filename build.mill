@@ -60,7 +60,10 @@ trait HwProjModule extends Module {
     "NicEngine.xdc",
     "NicEngine_ips.sv",
     "NicEngine.v",
-  ) ++ (if (variant == "eci") Seq("lauberhorn_trace_dma.v") else Seq())
+  ) ++ (if (variant == "eci") Seq(
+    "lauberhorn_trace_dma.v",
+    "lauberhorn_trace_dma.xdc",
+  ) else Seq())
 
   def gitHash = Task.Input {
     (sys.props("nix-git-hash") match {
@@ -107,11 +110,12 @@ trait HwProjModule extends Module {
   def vivadoProject = Task {
     projectTclDeps()
     val generated = generateVerilog().map(_.path)
+    val (xdcs, rtls) = generated.partition(_.ext == "xdc")
 
     callVivado(projectTcl().path, Seq(
       "--origin_dir", vivadoRoot.toString,
-      "--gen_rtls", generated.tail.mkString(":"),
-      "--gen_xdcs", generated.head.toString,
+      "--gen_rtls", rtls.mkString(":"),
+      "--gen_xdcs", xdcs.mkString(":"),
     ), Task.dest)
     PathRef(Task.dest / vivadoProjectName)
   }

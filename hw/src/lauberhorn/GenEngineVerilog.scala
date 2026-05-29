@@ -113,7 +113,7 @@ object GenEngineVerilog {
     // use .sv suffix for IPs
     os.move.over(out / "NicEngine_ips.v", out / "NicEngine_ips.sv")
 
-    println("Writing timing constraints for Vivado")
+    println("Writing NicEngine timing constraints")
     TimingExtractor(report, new TimingExtractorXdc)
 
     // write trace DMA module
@@ -128,6 +128,9 @@ object GenEngineVerilog {
         ).setDefinitionName("lauberhorn_trace_dma")
       }
       traceDmaReport.toplevel.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
+
+      println("Writing trace DMA timing constraints")
+      TimingExtractor(traceDmaReport, new TimingExtractorXdc)
     }
   }
 
