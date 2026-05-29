@@ -80,14 +80,6 @@ object LauberhornTraceDma {
     case "odd" => NicDecoderSlr
   }
 
-  private def normalizedLauberhornPipelineStages(lauberhornSources: Int, pipelineStages: Seq[Int]): Seq[Int] = {
-    val normalized = if (pipelineStages.isEmpty) Seq.fill(lauberhornSources)(0) else pipelineStages
-    require(normalized.length == lauberhornSources,
-      s"expected $lauberhornSources Lauberhorn trace pipeline stage entries, got ${normalized.length}")
-    normalized.foreach(stages => require(stages >= 0, s"trace pipeline stages must be non-negative, got $stages"))
-    normalized
-  }
-
   private case class SourceSpec(portPrefix: String, pipelineStages: Int, fields: Seq[(String, Value)]) {
     def info(source: Int): SourceInfo =
       SourceInfo(("source" -> ujson.Num(source)) +:
@@ -226,10 +218,13 @@ object LauberhornTraceDma {
     )
   }
 
-  case class SourceLayout(lauberhornSources: Int, lauberhornPipelineStages: Seq[Int] = Seq.empty) {
-    require(lauberhornSources > 0, "LauberhornTraceDma needs at least one Lauberhorn trace source")
-    val normalizedLauberhornPipelineStages: Seq[Int] =
-      LauberhornTraceDma.normalizedLauberhornPipelineStages(lauberhornSources, lauberhornPipelineStages)
+  case class SourceLayout(lauberhornTracePorts: Seq[TracePlugin#TracePort]) {
+    require(lauberhornTracePorts.nonEmpty, "LauberhornTraceDma needs at least one Lauberhorn trace source")
+    require(lauberhornTracePorts.map(_.name).distinct.length == lauberhornTracePorts.length,
+      s"Lauberhorn trace source names must be unique: ${lauberhornTracePorts.map(_.name).mkString(", ")}")
+    lauberhornTracePorts.foreach { port =>
+      require(port.pipelineStages >= 0, s"trace pipeline stages must be non-negative, got ${port.pipelineStages}")
+    }
 
     val appDcsInputs: Seq[SourceInfo] = AppDcsSpecs.zipWithIndex.map { case (spec, source) =>
       spec.info(source)
@@ -245,15 +240,16 @@ object LauberhornTraceDma {
       spec.localInfo(appInputs.length + localSource, localSource)
     }
 
-    val lauberhornInputs: Seq[SourceInfo] = (0 until lauberhornSources).map { localSource =>
+    val lauberhornInputs: Seq[SourceInfo] = lauberhornTracePorts.zipWithIndex.map { case (port, localSource) =>
       val source = appInputs.length + sysInputs.length + localSource
       SourceInfo(Seq(
         "source" -> source,
         "port" -> s"lauberhornTraceIn_$localSource",
+        "name" -> port.name,
         "type" -> "lauberhorn_event",
         "clock_domain" -> "app",
         "local_source" -> localSource,
-        "pipeline_stages" -> normalizedLauberhornPipelineStages(localSource),
+        "pipeline_stages" -> port.pipelineStages,
       ))
     }
 
@@ -271,11 +267,10 @@ object LauberhornTraceDma {
   }
 
   private def traceMap(
-                        lauberhornSources: Int,
+                        lauberhornTracePorts: Seq[TracePlugin#TracePort],
                         lauberhornEvents: Seq[TraceEvent],
-                        lauberhornPipelineStages: Seq[Int],
                       ): Value = {
-    val layout = SourceLayout(lauberhornSources, lauberhornPipelineStages)
+    val layout = SourceLayout(lauberhornTracePorts)
     val tw = layout.timestampWidth(PayloadWidth)
     require(tw > 0, s"trace source count leaves no room for a positive timestamp width")
 
@@ -301,9 +296,8 @@ object LauberhornTraceDma {
 }
 
 case class LauberhornTraceDma(
-                               lauberhornSources: Int,
+                               lauberhornTracePorts: Seq[TracePlugin#TracePort],
                                lauberhornEvents: Seq[TraceEvent] = Seq.empty,
-                               lauberhornPipelineStages: Seq[Int] = Seq.empty,
                                sysCdcFifoDepth: Int = 64,
                                axiBufferBase: BigInt = 0,
                                axiBufferSize: BigInt = BigInt(32L * 1024 * 1024 * 1024)
@@ -343,7 +337,7 @@ case class LauberhornTraceDma(
   // Lauberhorn event payloads:
   //   [5:0]   event id slot; the JSON map reports how many of these bits are
   //           actually needed for the generated event list
-  //   [74:6]  extra data, currently including the core id in [11:6]
+  //   [74:6]  extra data, currently including the core id in [9:6]
   //
   // appDcsTraceIn is sampled in the app clock domain. Current source allocation:
   //   0..3   DCS event traces
@@ -361,7 +355,7 @@ case class LauberhornTraceDma(
   // from TracePlugin inside NicEngine.  Each source can have a fixed pipeline
   // delay before TraceBufferDMA; the trace parser subtracts that delay from the
   // recorded timestamp using the trace-map metadata.
-  val layout = LauberhornTraceDma.SourceLayout(lauberhornSources, lauberhornPipelineStages)
+  val layout = LauberhornTraceDma.SourceLayout(lauberhornTracePorts)
   val totalSources = layout.totalSources
   val appSourceCount = layout.appInputs.length
   val appDcsSourceCount = layout.appDcsInputs.length
@@ -376,9 +370,8 @@ case class LauberhornTraceDma(
 
   def traceMap: Value =
     LauberhornTraceDma.traceMap(
-      lauberhornSources = lauberhornSources,
+      lauberhornTracePorts = lauberhornTracePorts,
       lauberhornEvents = lauberhornEvents,
-      lauberhornPipelineStages = lauberhornPipelineStages,
     )
 
   def traceMapJson: String =
@@ -523,6 +516,6 @@ case class LauberhornTraceDma(
 
   for (idx <- 0 until lauberhornSourceCount) {
     traceDma.traceIn(appSourceCount + sysSourceCount + idx) :=
-      lauberhornTraceIn(idx).delay(layout.normalizedLauberhornPipelineStages(idx))
+      lauberhornTraceIn(idx).delay(lauberhornTracePorts(idx).pipelineStages)
   }
 }

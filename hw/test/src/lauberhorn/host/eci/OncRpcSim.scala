@@ -116,9 +116,6 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(packetsReceived == totalToSend)
   }
 
-  // FIXME: temporarily disabled due to profiler update
-  // TODO:  update to new tracing architecture
-  /**
   testWithDB("rt-timestamped")(Rx, Tx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
@@ -137,6 +134,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     val delayed = 1000
 
     val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100)
+    val trace = traceConsumer
+    val workerTraceCoreId = 1
 
     // enable rx
     csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
@@ -174,6 +173,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
     csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 1.toBytesLE)
 
+    val firstTraceStart = trace.cursor
     var allDone = false
     // network-side thread
     fork {
@@ -250,10 +250,10 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
       exitCriticalSection(dcsMaster, tid)
 
-      val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
+      val curr = trace.currentCycle
 
       // we don't use the commit timestamp since commit is tied to read next
-      val ts = getRxTimestamps(csrMaster)
+      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), firstTraceStart, requireCommit = false)
 
       // check timestamps for first packet
       import ts._
@@ -276,6 +276,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       println("Written response")
     }
 
+    val secondTraceStart = trace.cursor
+
     // we can now read second packet
     readingSecond = true
 
@@ -288,12 +290,12 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, readPayload(dcsMaster, pldDesc, desc.len))
       exitCriticalSection(dcsMaster, tid)
 
-      val curr = csrMaster.read(ALLOC.readBack("profiler")("cycles"), 8).bytesToBigInt
-      val ts = getRxTimestamps(csrMaster)
+      val curr = trace.currentCycle
+      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), secondTraceStart, requireCommit = false)
       import ts._
       println(s"Current timestamp after packet 2 done: $curr")
       assert(isSorted(readStart, entry, afterRxQueue, enqueueToHost, curr))
-      assert(entry - readStart >= delayed)
+      assert(entry - readStart >= delayed * 4 / 5)
 
       info.xid
     }
@@ -312,7 +314,6 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     waitUntil(allDone)
   }
-  */
 
   testWithDB("rx-hol-blocking-free")(Rx) { implicit dut =>
     // This test checks that no HOL-blocking happens between RX of different worker

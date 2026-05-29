@@ -277,6 +277,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val hostReadPending: State = new State {
         whenIsActive {
+          when (rxReqs.orR) {
+            hostRxReq := True // only used for timestamping...
+          }
+
           when (rxSlotCapturedValid) {
             // A packet arrived in time.  Save the buffer that we sent to host and wait until
             // we need to invalidate the descriptor AND overflow data
@@ -299,6 +303,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           // We got the first read.  The router repeats until the
           // CPU acks the descriptor (or NACK) by reading the opposite CL
           when (rxTriggerNew) {
+            hostRxReq := True // only used for timestamping...
             when (rxSlotToFree.size.bits === 0) {
               // nothing to free or invalidate, just invalidate this NACK
               goto(invalidateCtrl)
