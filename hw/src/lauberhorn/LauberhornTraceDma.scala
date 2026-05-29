@@ -398,17 +398,29 @@ case class LauberhornTraceDma(
     useRegion = false,
   )
 
-  val sys_clk = in Bool()
-  val sys_reset = in Bool()
-  val traceEciStallThreshold = in UInt(LauberhornTraceDma.EciStallCountWidth bits)
+  val sysClock = ClockDomain.external("sysClock")
+
+  // only declared for trace ECI stall threshold to:
+  // - check illegal CDC use
+  // - satisfy timing XDC extractor
+  // we don't generate logic under this domain, so no clock port will appear
+  // in generated Verilog
+  val cmacRxClock = ClockDomain.external("cmacRxClock")
+
+  // driven from CMAC RX status VIO
+  val traceEciStallThreshold = in UInt(LauberhornTraceDma.EciStallCountWidth bits) addTag ClockDomainTag(cmacRxClock)
+
+  // these are in our clock domain (app)
   val appDcsTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appDcsSourceCount)
   val appEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), appEciSourceCount)
-  val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysSourceCount)
   val lauberhornTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), lauberhornSourceCount)
   val axi = master(Axi4(axiConfig))
   val sampleLost = out(Bool())
   val dmaError = out(Bool())
   val writeSlot = out(UInt(28 bits))
+
+  // this is in sys clock domain
+  val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysSourceCount) addTag ClockDomainTag(sysClock)
 
   val traceDma = TraceBufferDMA(
     Bits(payloadWidth bits),
@@ -425,7 +437,7 @@ case class LauberhornTraceDma(
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
   writeSlot := traceDma.writeSlot.resized
-  val appTraceEciStallThreshold = BufferCC(traceEciStallThreshold)
+  val appTraceEciStallThreshold = BufferCC.withTag(traceEciStallThreshold)
 
   def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame], stallThreshold: UInt): Flow[Bits] = new Area {
     val stallCountMax = U((BigInt(1) << LauberhornTraceDma.EciStallCountWidth) - 1, LauberhornTraceDma.EciStallCountWidth bits)
@@ -490,18 +502,13 @@ case class LauberhornTraceDma(
       traceEciFrame(appEciTraceIn(idx), appTraceEciStallThreshold).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
-  val sysClockDomain = ClockDomain(
-    clock = sys_clk,
-    reset = sys_reset,
-    config = ClockDomain.current.config,
-  )
-  val sysTraceEciStallThreshold = new ClockingArea(sysClockDomain) {
-    val value = BufferCC(traceEciStallThreshold)
+  val sysTraceEciStallThreshold = new ClockingArea(sysClock) {
+    val value = BufferCC.withTag(traceEciStallThreshold)
   }
 
   for (idx <- 0 until sysSourceCount) {
-    val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClockDomain, ClockDomain.current)
-    new ClockingArea(sysClockDomain) {
+    val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClock, ClockDomain.current)
+    new ClockingArea(sysClock) {
       val sysTrace = traceEciFrame(sysEciTraceIn(idx), sysTraceEciStallThreshold.value)
       fifo.slavePort.valid := sysTrace.valid
       fifo.slavePort.payload := sysTrace.payload

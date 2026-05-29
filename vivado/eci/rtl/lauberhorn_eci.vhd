@@ -1427,8 +1427,8 @@ i_trace_dma : entity work.lauberhorn_trace_dma
   port map (
     clk => app_clk,
     reset => app_clk_reset,
-    sys_clk => clk,
-    sys_reset => reset,
+    sysClock_clk => clk,
+    sysClock_reset => reset,
     traceEciStallThreshold => trace_eci_stall_threshold,
 
     appDcsTraceIn_0_valid => dcs_even_trace_dcs_event_valid(0),
