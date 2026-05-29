@@ -534,6 +534,7 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
   create_bd_pin -dir O -from 0 -to 0 -type rst app_clk_resetn
   create_bd_pin -dir O -from 0 -to 0 no_rst
   create_bd_pin -dir I -type rst app_aux_reset
+  create_bd_pin -dir O -from 0 -to 0 -type rst peripheral_aresetn
 
   # Create instance: clk_wiz_app, and set properties
   set clk_wiz_app [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_app ]
@@ -604,6 +605,8 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
   [get_bd_pins rst_cmac_init/ext_reset_in] \
   [get_bd_pins rst_cmac_tx/ext_reset_in] \
   [get_bd_pins rst_cmac_rx/ext_reset_in]
+  connect_bd_net -net rst_cmac_init_peripheral_aresetn  [get_bd_pins rst_cmac_init/peripheral_aresetn] \
+  [get_bd_pins peripheral_aresetn]
   connect_bd_net -net rst_cmac_usplus_0_322M_1_peripheral_aresetn  [get_bd_pins rst_cmac_tx/peripheral_aresetn] \
   [get_bd_pins txclk_rstn]
   connect_bd_net -net rst_cmac_usplus_0_322M_peripheral_aresetn  [get_bd_pins rst_cmac_rx/peripheral_aresetn] \
@@ -1036,7 +1039,7 @@ proc create_root_design { parentCell } {
   set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc ]
   set_property -dict [list \
     CONFIG.ADVANCED_PROPERTIES { __view__ { timing { S01_Buffer { AW_SLR_PIPE 3 AW_M_PIPE 3 B_SLR_PIPE 3 B_SYNC_STAGES 3 W_SLR_PIPE 3 W_M_PIPE 3 } } }} \
-    CONFIG.NUM_CLKS {2} \
+    CONFIG.NUM_CLKS {3} \
     CONFIG.NUM_SI {2} \
   ] $axi_smc
 
@@ -1071,7 +1074,9 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/gt_drpclk] \
   [get_bd_pins cmac_usplus_0/init_clk] \
   [get_bd_pins cmac_usplus_0/drp_clk] \
-  [get_bd_pins hier_clk_rst/clk_io]
+  [get_bd_pins hier_clk_rst/clk_io] \
+  [get_bd_pins jtag_axi_0/aclk] \
+  [get_bd_pins axi_smc/aclk2]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins hier_clk_rst/app_clk] \
   [get_bd_ports app_clk] \
   [get_bd_pins hier_ilas/app_clk] \
@@ -1113,8 +1118,7 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/core_tx_reset]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk  [get_bd_pins ddr4_4/c0_ddr4_ui_clk] \
   [get_bd_pins axi_smc/aclk] \
-  [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk] \
-  [get_bd_pins jtag_axi_0/aclk]
+  [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk_sync_rst  [get_bd_pins ddr4_4/c0_ddr4_ui_clk_sync_rst] \
   [get_bd_pins rst_ddr4_4_300M/ext_reset_in]
   connect_bd_net -net gt_loopback_in  [get_bd_pins hier_cmac_ctrl_stat/gt_loopback_in] \
@@ -1125,6 +1129,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/gtwiz_reset_tx_datapath]
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
+  connect_bd_net -net hier_clk_rst_peripheral_aresetn  [get_bd_pins hier_clk_rst/peripheral_aresetn] \
+  [get_bd_pins jtag_axi_0/aresetn]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
@@ -1161,7 +1167,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/resetn2]
   connect_bd_net -net rst_ddr4_4_300M_peripheral_aresetn  [get_bd_pins rst_ddr4_4_300M/peripheral_aresetn] \
   [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
-  [get_bd_pins jtag_axi_0/aresetn] \
   [get_bd_pins axi_smc/aresetn]
   connect_bd_net -net trace_stall_threshold  [get_bd_pins hier_cmac_ctrl_stat/trace_stall_threshold] \
   [get_bd_ports trace_stall_threshold]
