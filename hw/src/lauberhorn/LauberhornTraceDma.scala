@@ -399,12 +399,6 @@ case class LauberhornTraceDma(
   )
 
   val sysClock = ClockDomain.external("sysClock")
-
-  // only declared for trace ECI stall threshold to:
-  // - check illegal CDC use
-  // - satisfy timing XDC extractor
-  // we don't generate logic under this domain, so no clock port will appear
-  // in generated Verilog
   val cmacRxClock = ClockDomain.external("cmacRxClock")
 
   // driven from CMAC RX status VIO
@@ -437,7 +431,13 @@ case class LauberhornTraceDma(
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
   writeSlot := traceDma.writeSlot.resized
-  val appTraceEciStallThreshold = BufferCC.withTag(traceEciStallThreshold)
+
+  // pipeline to allow more slack -- the main tracing infra is in SLR2
+  // also, for BufferCC.withTag to work, we need at least one reg stage in Spinal
+  val pipelinedTraceStallThr = new ClockingArea(cmacRxClock) {
+    val v = Delay(traceEciStallThreshold, LauberhornTraceDma.PipelineStagesPerSlrCrossing)
+  }
+  val appTraceStallThr = BufferCC.withTag(pipelinedTraceStallThr.v)
 
   def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame], stallThreshold: UInt): Flow[Bits] = new Area {
     val stallCountMax = U((BigInt(1) << LauberhornTraceDma.EciStallCountWidth) - 1, LauberhornTraceDma.EciStallCountWidth bits)
@@ -499,17 +499,17 @@ case class LauberhornTraceDma(
 
   for (idx <- 0 until appEciSourceCount) {
     traceDma.traceIn(appDcsSourceCount + idx) :=
-      traceEciFrame(appEciTraceIn(idx), appTraceEciStallThreshold).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
+      traceEciFrame(appEciTraceIn(idx), appTraceStallThr).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
-  val sysTraceEciStallThreshold = new ClockingArea(sysClock) {
-    val value = BufferCC.withTag(traceEciStallThreshold)
+  val sysTraceStallThr = new ClockingArea(sysClock) {
+    val v = BufferCC.withTag(pipelinedTraceStallThr.v)
   }
 
   for (idx <- 0 until sysSourceCount) {
     val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClock, ClockDomain.current)
     new ClockingArea(sysClock) {
-      val sysTrace = traceEciFrame(sysEciTraceIn(idx), sysTraceEciStallThreshold.value)
+      val sysTrace = traceEciFrame(sysEciTraceIn(idx), sysTraceStallThr.v)
       fifo.slavePort.valid := sysTrace.valid
       fifo.slavePort.payload := sysTrace.payload
     }
