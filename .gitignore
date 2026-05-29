@@ -35,3 +35,5 @@ dev-hdrs
 
 # packet dumps copied from enzian
 *.pcap
+
+*.swp
