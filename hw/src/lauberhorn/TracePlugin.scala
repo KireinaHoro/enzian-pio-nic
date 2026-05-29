@@ -65,10 +65,14 @@ class TracePlugin extends FiberPlugin {
      * @return Trigger condition for emitting the event; assign to this to
      *         *narrow down* the trigger condition
      */
-    def trace(name: String, td: TraceData*): Bool = {
-      val myID = allocEventID(name, td.map(_.ty))
+    def trace(eventName: String, td: TraceData*): Bool = {
+      val myID = allocEventID(eventName, td.map(_.ty))
+
       val cond = True.allowOverride()
-      when (ConditionalContext.isTrue && cond) {
+      val realCond = ConditionalContext.isTrue && cond
+      realCond.setName(s"trace_${name}_${eventName}_cond")
+
+      when (realCond) {
         out.valid := True
 
         // data will be padded with zero after resize
@@ -77,7 +81,7 @@ class TracePlugin extends FiberPlugin {
       }
 
       // need to check if only one event is valid at a time
-      traceEventValids.append(cond)
+      traceEventValids.append(realCond)
 
       cond
     }
@@ -101,7 +105,7 @@ class TracePlugin extends FiberPlugin {
       to := tp.out
 
       Component.current.addPrePopTask { () =>
-        println(s"Trace port ${tp.name} has ${tp.traceEventValids.length} valid events")
+        println(s"Trace port ${tp.name} has ${tp.traceEventValids.length} events")
         if (tp.traceEventValids.length > 1) {
           val allConds = tp.traceEventValids.asBits()
           assert(CountOne(allConds) <= 1, s"trace port ${tp.name}: more than one event source is valid!")
