@@ -32,12 +32,15 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
     val axiWideConfigNode = Axi4(axiConfig)
     val busCtrl = Axi4SlaveFactory(axiWideConfigNode.resize(REG_WIDTH))
 
-    val pktBuffer = host[PacketBuffer].logic.axiMem
-
     private val alloc = ALLOC.get("global")(0, 0x1000, REG_WIDTH / 8)(axiConfig.dataWidth)
-    csr.readAndWrite(busCtrl, alloc)
 
     private val pktBufferAlloc = ALLOC.get("pkt")(0x100000, PKT_BUF_SIZE.get, PKT_BUF_SIZE.get)(axiConfig.dataWidth)
+
+    awaitBuild()
+
+    csr.readAndWrite(busCtrl, alloc)
+
+    val pktBuffer = host[PacketBuffer].logic.axiMem
 
     Axi4CrossbarFactory()
       .addSlaves(
@@ -46,8 +49,6 @@ class PcieBridgeInterfacePlugin extends FiberPlugin {
       )
       .addConnection(s_axi -> Seq(axiWideConfigNode, pktBuffer.io.s_axi_b))
       .build()
-
-    awaitBuild()
 
     // drive control interface (packet action)
     dps foreach { dp =>
