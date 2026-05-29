@@ -1429,6 +1429,8 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     reset => app_clk_reset,
     sysClock_clk => clk,
     sysClock_reset => reset,
+    cmacRxClock_clk => rxclk,
+    cmacRxClock_reset => rxclk_reset,
     traceEciStallThreshold => trace_eci_stall_threshold,
 
     appDcsTraceIn_0_valid => dcs_even_trace_dcs_event_valid(0),
