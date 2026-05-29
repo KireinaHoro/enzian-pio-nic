@@ -19,6 +19,8 @@ case object ReqID         extends TraceDataKey { def width = 8 }
 case object RespID        extends TraceDataKey { def width = 8 }
 case object ThreadID      extends TraceDataKey { def width = 8 }
 case object CoreID        extends TraceDataKey { def width = 3 }
+case object CacheLineIndex extends TraceDataKey { def width = 1 }
+case object OverflowCount extends TraceDataKey { def width = 6 }
 
 case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey])
 
@@ -54,14 +56,19 @@ class TracePlugin extends FiberPlugin {
      * one event; if multiple `trace` return values have been assigned to True,
      * only the last one will survive due to the last when statement having priority.
      *
+     * The trigger condition honors the current conditional context: you can
+     * leave the return value unassigned, if the trace call is inside `when`
+     * or state machine states.
+     *
      * @param name      Name of the event
      * @param td        Structured data to embed into the emitted trace frame
-     * @return Trigger condition for emitting the event; assign to this
+     * @return Trigger condition for emitting the event; assign to this to
+     *         *narrow down* the trigger condition
      */
     def trace(name: String, td: TraceData*): Bool = {
       val myID = allocEventID(name, td.map(_.ty))
-      val cond = Bool()
-      when (cond) {
+      val cond = True.allowOverride()
+      when (ConditionalContext.isTrue && cond) {
         out.valid := True
 
         // data will be padded with zero after resize

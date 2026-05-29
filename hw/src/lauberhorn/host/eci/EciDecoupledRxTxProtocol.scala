@@ -23,6 +23,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   val isBypass = coreID == 0
   lazy val debug = host[DebugPlugin]
 
+  // potentially RX and TX can run at the same time (for bypass)
+  val rxTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_rx", LauberhornTraceDma.NicHostInterfaceSlr)
+  val txTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx", LauberhornTraceDma.NicHostInterfaceSlr)
+
   if (isBypass) {
     withPrefix("proto_bypass")
   } else {
@@ -240,7 +244,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     hostRxAck.setIdle()
     hostTx.setBlocked()
-    hostRxReq := False
 
     val rxOverflowInvIssued, rxOverflowInvAcked = Counter(overflowCountWidth bits)
     val rxOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
@@ -251,6 +254,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
     val txOverflowToInvalidate = Reg(UInt(overflowCountWidth bits))
+
+    // trace data
+    val coreTd = CoreID(B(coreID))
+    val rxClTd = Seq(coreTd, CacheLineIndex(rxCurrClIdx))
+    val txClTd = Seq(coreTd, CacheLineIndex(txCurrClIdx))
+    val rxOverflowTd = Seq(coreTd, OverflowCount(rxOverflowToInvalidate))
+    val txOverflowTd = Seq(coreTd, OverflowCount(txOverflowToInvalidate))
 
     val rxFsm = new StateMachine {
       def handlePreempt() = {
@@ -270,17 +280,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           // so we'd always end in hostIssuedRead
           when (rxReqs(rxCurrClIdx.asUInt)) {
             assert(!preemptReq.valid, "critical section violation: no preemption is allowed during read")
-            hostRxReq := True // only used for timestamping...
+            rxTp.trace("EciRxReadStart", rxClTd: _*)
             goto(hostReadPending)
           } otherwise { handlePreempt() }
         }
       }
       val hostReadPending: State = new State {
         whenIsActive {
-          when (rxReqs.orR) {
-            hostRxReq := True // only used for timestamping...
-          }
-
           when (rxSlotCapturedValid) {
             // A packet arrived in time.  Save the buffer that we sent to host and wait until
             // we need to invalidate the descriptor AND overflow data
@@ -288,12 +294,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             rxSlotToFree := rxSlotCaptured
             rxSlotCapturedValid := False
             numReq.increment()
+            rxTp.trace("EciRxDescReady", rxOverflowTd: _*)
             goto(repeatDesc)
           } elsewhen (rxSentNack) {
             // No packet arrived in time, the router delivered a NACK
             rxOverflowToInvalidate := 0
             rxSlotToFree.clearAll()
             numNack.increment()
+            rxTp.trace("EciRxNackReady", coreTd)
             goto(repeatDesc)
           } otherwise { handlePreempt() }
         }
@@ -303,7 +311,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           // We got the first read.  The router repeats until the
           // CPU acks the descriptor (or NACK) by reading the opposite CL
           when (rxTriggerNew) {
-            hostRxReq := True // only used for timestamping...
+            rxTp.trace("EciRxAckRead", rxClTd: _*)
             when (rxSlotToFree.size.bits === 0) {
               // nothing to free or invalidate, just invalidate this NACK
               goto(invalidateCtrl)
@@ -320,6 +328,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (hostRxAck.fire) {
             rxOverflowInvAcked.clear()
             rxOverflowInvIssued.clear()
+            rxTp.trace("EciRxFreeSlot", rxOverflowTd: _*)
             goto(invalidatePacketData)
           }
         }
@@ -333,6 +342,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (lci.fire) {
             rxOverflowInvIssued.increment()
+            rxTp.trace("EciRxDataInvalidate", rxOverflowTd: _*)
           }
 
           lcia.freeRun()
@@ -342,6 +352,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             ulFlow.valid := True
 
             rxOverflowInvAcked.increment()
+            rxTp.trace("EciRxDataUnlock", rxOverflowTd: _*)
           }
 
           // count till all overflow cachelines are invalidated
@@ -356,6 +367,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           lci.valid := True
           when(lci.fire) {
             lci.valid := False
+            rxTp.trace("EciRxCtrlInvalidate", rxClTd: _*)
             goto(waitInvResp)
           }
         }
@@ -377,6 +389,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
             // Invalidation is triggered by reading opposite
             rxInvDone := True
+            rxTp.trace("EciRxCtrlUnlocked", rxClTd: _*)
             goto(hostReadPending)
           }
         }
@@ -392,7 +405,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          when (txReqs(txCurrClIdx.asUInt)) { goto(waitPacket) }
+          when (txReqs(txCurrClIdx.asUInt)) {
+            txTp.trace("EciTxAcquire", txClTd: _*)
+            goto(waitPacket)
+          }
         }
       }
       val waitPacket: State = new State {
@@ -400,6 +416,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           txOverflowToInvalidate.clearAll()
           when (txReqs(1 - txCurrClIdx.asUInt)) {
             // invalidate control first to know how many overflows do we need to invalidate
+            txTp.trace("EciTxCommitRead", txClTd: _*)
             goto(invalidateCtrl)
           }
         }
@@ -410,6 +427,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           lci.valid := True
           when(lci.fire) {
             lci.valid := False
+            txTp.trace("EciTxCtrlInvalidate", txClTd: _*)
             goto(waitInvResp)
           }
         }
@@ -421,6 +439,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             // immediately unlock
             ulFlow.payload := lcia.payload
             ulFlow.valid := True
+            txTp.trace("EciTxCtrlUnlocked", txClTd: _*)
 
             // we should've latched tx descriptor in savedTxDesc
             val toInvalidate = packetSizeToNumOverflowCls(txInvLen.bits)
@@ -444,6 +463,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (lci.fire) {
             txOverflowInvIssued.increment()
+            txTp.trace("EciTxDataInvalidate", txOverflowTd: _*)
           }
 
           lcia.freeRun()
@@ -453,6 +473,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             ulFlow.valid := True
 
             txOverflowInvAcked.increment()
+            txTp.trace("EciTxDataUnlock", txOverflowTd: _*)
           }
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
@@ -467,6 +488,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (hostTxAck.fire) {
             txCurrClIdx.toggleWhen(True)
+            txTp.trace("EciTxSubmit", txClTd: _*)
             goto(idle)
           }
         }

@@ -13,8 +13,6 @@ import spinal.lib.bus.amba4.axi.Axi4
 trait DatapathService {
   def coreID: Int
 
-  /** Host ready to process the next request (for statistics) */
-  def hostRxReq: Bool
   /** Fully decoded and translated request to pass to host core */
   def hostRx: Stream[HostReq]
   /** Packet buffer slot to free up */
