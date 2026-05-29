@@ -45,8 +45,9 @@ class TracePlugin extends FiberPlugin {
     }
   }
 
-  class TracePort(val sourceSlr: Int) {
+  class TracePort(val name: String, val sourceSlr: Int) {
     val pipelineStages: Int = LauberhornTraceDma.pipelineStagesToTraceBufferDma(sourceSlr)
+    val traceEventValids = mutable.ArrayBuffer[Bool]()
 
     /** Trace a given event.  On every cycle this port can emit at most
      * one event; if multiple `trace` return values have been assigned to True,
@@ -66,6 +67,10 @@ class TracePlugin extends FiberPlugin {
         val allData = td.reverse.map(_.data).foldLeft(B(0, 0 bits))(_ ## _)
         out.payload := (allData ## B(myID, LauberhornTraceDma.EventIdSlotWidth bits)).resized
       }
+
+      // need to check if only one event is valid at a time
+      traceEventValids.append(cond)
+
       cond
     }
 
@@ -74,8 +79,8 @@ class TracePlugin extends FiberPlugin {
     out.payload.assignDontCare()
   }
 
-  def makePort(sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
-    val ret = new TracePort(sourceSlr)
+  def makePort(name: String, sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
+    val ret = new TracePort(name, sourceSlr)
     tracePorts.append(ret)
     ret
   }
@@ -85,6 +90,16 @@ class TracePlugin extends FiberPlugin {
 
   val logic = during build new Area {
     val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)
-    trace zip tracePorts foreach { case (to, tp) => to := tp.out }
+    trace zip tracePorts foreach { case (to, tp) =>
+      to := tp.out
+
+      Component.current.addPrePopTask { () =>
+        println(s"Trace port ${tp.name} has ${tp.traceEventValids.length} valid events")
+        if (tp.traceEventValids.length > 1) {
+          val allConds = tp.traceEventValids.asBits()
+          assert(CountOne(allConds) <= 1, s"trace port ${tp.name}: more than one event source is valid!")
+        }
+      }
+    }
   }
 }

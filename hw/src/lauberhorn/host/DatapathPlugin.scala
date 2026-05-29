@@ -15,7 +15,7 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   lazy val hostRxReq = Bool()
 
   // every core only needs one trace port
-  val tp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicHostInterfaceSlr)
+  val tp = during setup host[TracePlugin].makePort(s"datapath_core$coreID", LauberhornTraceDma.NicHostInterfaceSlr)
 
   during build new Area {
     // TODO: also assign request/response trace ID

@@ -19,7 +19,7 @@ import scala.reflect.ClassTag
   */
 trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
   // Encoder pipeline is fully parallel so need a port per encoder
-  val tp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicDecoderSlr)
+  val tp = during setup host[TracePlugin].makePort(encoderName, LauberhornTraceDma.NicDecoderSlr)
 
   /** Create one instance of the concrete [[DecoderMetadata]] for this encoder */
   def getMetadata: T
@@ -45,8 +45,9 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
     host[E].producers.append((this.getDisplayName(), metadata, payload))
 
     // TODO: include packet ID for tracing
-    tp.trace(getClass.getSimpleName) := metadata.fire
+    tp.trace(encoderName) := metadata.fire
   }
+  def encoderName: String = getClass.getSimpleName
 
   /**
     * Collect all payload streams of this encoder, from previous decoder stages.  Will provide packets from:

@@ -27,8 +27,10 @@ trait MacInterfaceService {
 }
 
 class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
-  val rxCmacClkTp, rxAppClkTp,
-      txCmacClkTp, txAppClkTp = during setup host[TracePlugin].makePort(LauberhornTraceDma.NicDecoderSlr)
+  val rxCmacClkTp = during setup host[TracePlugin].makePort("cmac_rx_macclk", LauberhornTraceDma.NicDecoderSlr)
+  val txCmacClkTp = during setup host[TracePlugin].makePort("cmac_tx_macclk", LauberhornTraceDma.NicDecoderSlr)
+  val rxAppClkTp = during setup host[TracePlugin].makePort("cmac_rx_appclk", LauberhornTraceDma.NicDecoderSlr)
+  val txAppClkTp = during setup host[TracePlugin].makePort("cmac_tx_appclk", LauberhornTraceDma.NicDecoderSlr)
 
   // matches Xilinx CMAC configuration
   lazy val axisConfig = Axi4StreamConfig(
