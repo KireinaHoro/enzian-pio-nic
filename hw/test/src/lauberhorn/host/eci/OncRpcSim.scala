@@ -25,6 +25,28 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     val totalToSend = 50 * NUM_WORKER_CORES
 
     val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    def macRxStat(name: String) = csrMaster.read(ALLOC.readBack("macIf")("stat", name), 8).bytesToBigInt
+    val initialRxMacOverflow = macRxStat("rxMacOverflowCount")
+
+    def waitMacRxCdcDrained(): Unit = {
+      var ingress = macRxStat("rxMacIngressCount")
+      var afterCdc = macRxStat("rxMacIngressAfterCdcCount")
+      var overflow = macRxStat("rxMacOverflowCount")
+      var tries = 0
+      while (ingress != afterCdc && tries < 1000) {
+        assert(overflow == initialRxMacOverflow,
+          s"RX MAC CDC FIFO overflowed while throttling: got $overflow, expected $initialRxMacOverflow")
+        sleepCycles(20)
+        ingress = macRxStat("rxMacIngressCount")
+        afterCdc = macRxStat("rxMacIngressAfterCdcCount")
+        overflow = macRxStat("rxMacOverflowCount")
+        tries += 1
+      }
+      assert(ingress == afterCdc,
+        s"RX MAC CDC FIFO did not drain: ingress $ingress, after CDC $afterCdc, overflow $overflow")
+      assert(overflow == initialRxMacOverflow,
+        s"RX MAC CDC FIFO overflowed: got $overflow, expected $initialRxMacOverflow")
+    }
 
     // test one service on one process on all cores
     val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
@@ -33,6 +55,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     ).head
     val inflightPackets = mutable.Map[Int, (EthernetPacket, List[Byte])]()
     var packetsReceived = 0
+    var doneSending = false
+    var lastReceiveProgress = simTime()
 
     fork {
       // send all packets
@@ -44,17 +68,24 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           sleepCycles(1000)
         }
 
+        // The simulated CMAC input is intentionally non-backpressured, and the
+        // hardware RX CDC FIFO drops whole frames when full.  This test is about
+        // scheduler/ECI delivery, so keep the MAC CDC boundary lossless.
+        waitMacRxCdcDrained()
+
         val (packet, payload, xid) = getPacket()
         println(f"Sending packet with XID $xid%#x")
-        val toSend = packet.getRawData.toList
-        // blocking send
-        axisMaster.send(toSend)
-
-        // record packet in map: xid is key
+        // record packet in map before driving the stream: the RX path can complete
+        // quickly enough that workers observe the packet before send() returns.
         // FIXME: this might collide..
         assert(!inflightPackets.contains(xid), "random packet generation collision")
         inflightPackets(xid) = (packet, payload)
+
+        val toSend = packet.getRawData.toList
+        // blocking send
+        axisMaster.send(toSend)
       }
+      doneSending = true
     }
 
     0 until NUM_WORKER_CORES foreach { wcid =>
@@ -63,22 +94,26 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
         cs.log("Wait until a user thread is scheduled")
         cs.waitUser()
-
-        val tid = cs.currThread.get.tid
         cs.log("returned to userspace")
 
         def tryReceiveAndCheckOne(): Unit = {
+          cs.waitUser()
+          val tid = cs.currThread.get.tid
+
           val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result match {
             case Some(ret) => ret
             case None =>
-              cs.log("ran out of tries, checking if we are still expecting packets")
-              if (packetsReceived != totalToSend) {
-                cs.log(s"packets still in flight: ${inflightPackets.mkString(", ")}")
-                fail(s"worker $wcid ran out of tries!  only received $packetsReceived packets, expected $totalToSend")
-              } else {
+              if (packetsReceived == totalToSend) {
                 cs.log("no more packets expected, exiting...")
-                return
+              } else {
+                cs.log("no packet available yet, retrying")
+                if (doneSending && simTime() - lastReceiveProgress > 1000000000L) {
+                  cs.log(s"packets still in flight: ${inflightPackets.mkString(", ")}")
+                  fail(s"no receive progress after sender finished; only received $packetsReceived packets, expected $totalToSend")
+                }
+                sleepCycles(100)
               }
+              return
           }
 
           val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
@@ -100,6 +135,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
           cs.log(f"Received packet #$packetsReceived (XID $xid%x)")
           packetsReceived += 1
+          lastReceiveProgress = simTime()
 
           inflightPackets.remove(xid)
 
