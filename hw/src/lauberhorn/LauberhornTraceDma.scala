@@ -171,16 +171,16 @@ object LauberhornTraceDma {
   def eventIdWidth(lauberhornEvents: Seq[TraceEvent]): Int =
     log2Up(scala.math.max(lauberhornEvents.length, 2))
 
-  private def traceDataKeys(lauberhornEvents: Seq[TraceEvent]): Seq[TraceDataKey] =
+  private def traceDataKeys(lauberhornEvents: Seq[TraceEvent]): Seq[(TraceDataKey, Int)] =
     lauberhornEvents
-      .flatMap(_.dataKeys)
-      .foldLeft(Seq.empty[TraceDataKey]) { case (keys, key) =>
-        keys.find(_.name == key.name) match {
-          case Some(existing) =>
-            require(existing.width == key.width,
-              s"trace data key ${key.name} has conflicting widths ${existing.width} and ${key.width}")
+      .flatMap(event => event.dataKeys.zip(event.dataWidths))
+      .foldLeft(Seq.empty[(TraceDataKey, Int)]) { case (keys, (key, width)) =>
+        keys.find(_._1.name == key.name) match {
+          case Some((existing, existingWidth)) =>
+            require(existingWidth == width,
+              s"trace data key ${existing.name} has conflicting widths ${existingWidth} and ${width}")
             keys
-          case None => keys :+ key
+          case None => keys :+ (key -> width)
         }
       }
 
@@ -190,7 +190,7 @@ object LauberhornTraceDma {
     require(reservedIdBits >= 0, s"too many trace events for $EventIdSlotWidth-bit event IDs")
     val dataKeys = traceDataKeys(lauberhornEvents)
     lauberhornEvents.foreach { event =>
-      require(EventIdSlotWidth + event.dataKeys.map(_.width).sum <= PayloadWidth,
+      require(EventIdSlotWidth + event.dataWidths.sum <= PayloadWidth,
         s"trace event ${event.name} data does not fit in $PayloadWidth-bit payload")
     }
 
@@ -207,8 +207,8 @@ object LauberhornTraceDma {
         "events" -> Obj.from(lauberhornEvents.zipWithIndex.map { case (event, id) =>
           id.toString -> event.name
         }),
-        "trace_data_keys" -> Obj.from(dataKeys.map { key =>
-          key.name -> Obj("width" -> key.width)
+        "trace_data_keys" -> Obj.from(dataKeys.map { case (key, width) =>
+          key.name -> Obj("width" -> width)
         }),
         "event_data" -> Obj.from(lauberhornEvents.zipWithIndex.collect {
           case (event, id) if event.dataKeys.nonEmpty =>

@@ -211,7 +211,7 @@ class DmaControlPlugin extends FiberPlugin {
       }
       val enqueuePkt: State = new State {
         whenIsActive {
-          def assign(hostRx: Stream[HostReq]) = {
+          def assignHost(hostRx: Stream[HostReq]) = {
             hostRx.valid := True
             hostRx.payload := pktToEnqueue
 
@@ -226,12 +226,22 @@ class DmaControlPlugin extends FiberPlugin {
 
           when (pktToEnqueue.ty === HostReqType.bypass) {
             rxTp.trace("RxBypassEnqueueToHost", PacketID(rxTracePacketId), HostMsgID(rxTraceHostMsgId)) := True
-            assign(bypassSink.get)
+            assignHost(bypassSink.get)
           } otherwise {
             when (pktToEnqueue.ty === HostReqType.oncRpcCall) {
               rxTp.trace("RxRpcEnqueueToHost", RpcID(rxTraceRpcId), HostMsgID(rxTraceHostMsgId)) := True
             }
-            assign(sched.logic.rxMeta)
+            sched.logic.rxMeta.valid := True
+            sched.logic.rxMeta.payload.req := pktToEnqueue
+            sched.logic.rxMeta.payload.hostMsgId := rxTraceHostMsgId
+
+            assert(pktToEnqueue.buffer.size.bits >= pktToEnqueue.len.bits,
+              "truncated packet during RX DMA")
+
+            when (sched.logic.rxMeta.ready) {
+              inc(_.rxPacketCount)
+              goto(idle)
+            }
           }
         }
       }

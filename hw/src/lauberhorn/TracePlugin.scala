@@ -38,12 +38,13 @@ case object RpcID         extends TraceDataKey { def width = 6 }
 /** ID of a message to/from host.  May correspond to one or more RPC messages (RpcID),
   * or synthesized requests (e.g. ARP resolve request from the IP encoder). */
 case object HostMsgID     extends TraceDataKey { def width = 6 }
-case object ThreadID      extends TraceDataKey { def width = 8 }
-case object CoreID        extends TraceDataKey { def width = 3 }
-case object CacheLineIndex extends TraceDataKey { def width = 1 }
-case object OverflowCount extends TraceDataKey { def width = 6 }
+case object ThreadID      extends TraceDataKey { def width = log2Up(Global.NUM_THREADS.get) }
+case object ProcessID     extends TraceDataKey { def width = Global.PID_WIDTH.get }
+case object CoreID        extends TraceDataKey { def width = log2Up(Global.MAX_CORE_ID.get + 1) }
+case object CacheLineIndex extends TraceDataKey { def width = Bool().getBitsWidth }
+case object OverflowCount extends TraceDataKey { def width = log2Up(Global.ECI_NUM_OVERFLOW_CL.get) }
 
-case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey])
+case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey], dataWidths: Seq[Int])
 
 class TracePlugin extends FiberPlugin {
   private val eventBuffer = mutable.ArrayBuffer[TraceEvent]()
@@ -53,17 +54,20 @@ class TracePlugin extends FiberPlugin {
   private def eventSignature(name: String, dataKeys: Seq[TraceDataKey]): (String, Seq[String]) =
     (name, dataKeys.map(_.name))
 
-  def allocEventID(name: String, dataKeys: Seq[TraceDataKey]): Int = {
+  def allocEventID(name: String, dataKeys: Seq[TraceDataKey], dataWidths: Seq[Int]): Int = {
     val signature = eventSignature(name, dataKeys)
     eventBuffer.indexWhere(event => eventSignature(event.name, event.dataKeys) == signature) match {
-      case existing if existing >= 0 => existing
+      case existing if existing >= 0 =>
+        require(eventBuffer(existing).dataWidths == dataWidths,
+          s"trace event $name was already declared with different trace-data widths")
+        existing
       case _ =>
         require(!eventBuffer.exists(_.name == name),
           s"trace event $name was already declared with a different trace-data layout")
         require(eventBuffer.length < (1 << LauberhornTraceDma.EventIdSlotWidth),
           s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
         val ret = eventBuffer.length
-        eventBuffer.append(TraceEvent(name, dataKeys))
+        eventBuffer.append(TraceEvent(name, dataKeys, dataWidths))
         ret
     }
   }
@@ -87,11 +91,11 @@ class TracePlugin extends FiberPlugin {
      *         *narrow down* the trigger condition
      */
     def trace(eventName: String, td: TraceData*): Bool = {
-      val myID = allocEventID(eventName, td.map(_.ty))
+      val myID = allocEventID(eventName, td.map(_.ty), td.map(_.data.getWidth))
 
       val cond = True.allowOverride()
       val realCond = ConditionalContext.isTrue && cond
-      realCond.setName(s"trace_${name}_${eventName}_cond")
+      realCond.setName(s"trace_${name}_${eventName}_${traceEventValids.length}_cond")
 
       when (realCond) {
         out.valid := True
