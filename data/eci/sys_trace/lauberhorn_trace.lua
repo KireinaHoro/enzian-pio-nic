@@ -73,8 +73,8 @@ ef.unaliased_addr = ProtoField.string("lhtrace.eci.unaliased_addr", "Unaliased A
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
 evf.event_name = ProtoField.string("lhtrace.event.name", "Event Name")
-evf.trace_data = ProtoField.none("lhtrace.event.trace_data", "Trace Data")
-evf.trace_data_value = ProtoField.uint64("lhtrace.event.trace_data.value", "Trace Data Value", base.DEC)
+evf.trace_data = ProtoField.string("lhtrace.event.trace_data", "Trace Data")
+evf.trace_data_value = ProtoField.string("lhtrace.event.trace_data.value", "Trace Data Value")
 
 local HEADER_LEN = 50
 local trace_map = nil
@@ -407,6 +407,17 @@ local function event_name_from_payload(payload_tvb)
     return event_name(extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width))
 end
 
+local function format_event_data(values)
+    if #values == 0 then
+        return ""
+    end
+    local parts = {}
+    for _, value in ipairs(values) do
+        table.insert(parts, tostring(value.name) .. "=" .. tostring(value.value))
+    end
+    return table.concat(parts, " ")
+end
+
 local function dissect_dcs(payload_tvb, tree)
     local fields = fields_for_type("dcs_event") or {}
     local error_value = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
@@ -478,20 +489,23 @@ local function dissect_event(payload_tvb, tree)
     tree:add(evf.event_id, byte_range_for_bits(payload_tvb, id_field.offset, id_field.width), event_id):append_text(" (" .. name .. ")")
 
     local data_fields = event_data_fields(event_id)
-    local data_tree = tree:add(evf.trace_data, payload_tvb())
-    if #data_fields == 0 then
-        data_tree:append_text(" (none)")
-    else
-        data_tree:append_text(" (" .. tostring(#data_fields) .. ")")
-    end
+    local data_values = {}
     for _, field in ipairs(data_fields) do
         local value = extract_bits_le(payload_tvb, 0, field.offset, field.width)
-        data_tree:add(evf.trace_data_value, byte_range_for_bits(payload_tvb, field.offset, field.width), value)
-            :set_text(tostring(field.name) .. ": " .. tostring(value))
+        table.insert(data_values, { name = field.name, value = value })
+        local value_text = tostring(field.name) .. "=" .. tostring(value)
+        tree:add(evf.trace_data_value, byte_range_for_bits(payload_tvb, field.offset, field.width), value_text)
+    end
+
+    local data_info = format_event_data(data_values)
+    tree:add(evf.trace_data, payload_tvb(), data_info ~= "" and data_info or "none")
+    local info = name
+    if data_info ~= "" then
+        info = info .. " " .. data_info
     end
 
     return {
-        info = name,
+        info = info,
         source = name,
         dest = "",
     }
