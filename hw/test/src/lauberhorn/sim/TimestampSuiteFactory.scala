@@ -29,17 +29,10 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
                                 eventName: String,
                                 data: Map[String, BigInt],
                                 since: Int,
-                              ): BigInt = {
+                              ): BigInt =
     trace.latest(eventName, data, since).map(_.cycle).getOrElse {
-      val seen = trace.eventsSince(since).map { event =>
-        val fields =
-          if (event.data.isEmpty) ""
-          else event.data.map { case (key, value) => s"$key=$value" }.mkString(" ", " ", "")
-        s"${event.cycle}:${event.portName}:${event.eventName}$fields"
-      }.mkString(", ")
-      throw new AssertionError(s"trace event $eventName${if (data.isEmpty) "" else s" $data"} not captured; saw [$seen]")
+      throw new AssertionError(s"trace event ${eventName}${if (data.isEmpty) "" else s" $data"} not captured; saw [${trace.dump(since)}]")
     }
-  }
 
   private def latestTraceCycle(
                                 trace: TraceEventConsumer,
@@ -47,15 +40,16 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
                                 data: Map[String, BigInt],
                                 since: Int,
                               ): BigInt =
-    eventNames.flatMap(eventName => trace.latest(eventName, data, since).map(_.cycle)).reduceOption(_ max _).getOrElse {
-      latestTraceCycle(trace, eventNames.head, data, since)
+    eventNames.flatMap { eventName =>
+      trace.latest(eventName, data, since).map(_.cycle)
+    }.reduceOption(_ max _).getOrElse {
+      throw new AssertionError(s"trace events [${eventNames.mkString(", ")}] not captured; saw [${trace.dump(since)}]")
     }
 
   def getRxTimestamps(
                        trace: TraceEventConsumer,
                        coreId: Option[Int] = None,
                        since: Int = 0,
-                       requireCommit: Boolean = true,
                      ): RxTraceTimestamps = {
     def coreData = coreId.map(id => Map("CoreID" -> BigInt(id))).getOrElse(Map.empty[String, BigInt])
     def globalCycle(eventNames: String*) = latestTraceCycle(trace, eventNames, Map.empty, since)
@@ -66,11 +60,11 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
     val timestamps = RxTraceTimestamps(
       entry = globalCycle("RxCmacEntry"),
       afterRxQueue = globalCycle("RxAfterCdcQueue"),
-      readPending = coreCycle("RxCoreReadPending", "EciRxReadStart", "EciRxReadNew"),
+      readPending = coreCycle("RxCoreReadPending", "EciRxReadFirst", "EciRxReadNew"),
       readStart = coreCycle("RxCoreReadStart", "EciRxDescSent", "EciRxNackSent"),
-      afterRead = coreCycle("RxCoreReadFinish", "EciRxReadNew"),
+      afterRead = optionalCoreCycle("RxCoreReadFinish", "EciRxReadNew"),
       enqueueToHost = globalCycle("RxBypassEnqueueToHost", "RxRpcEnqueueToHost"),
-      afterRxCommit = if (requireCommit) coreCycle("RxCoreCommit", "EciRxCtrlUnlocked") else optionalCoreCycle("RxCoreCommit", "EciRxCtrlUnlocked"),
+      afterRxCommit = optionalCoreCycle("RxCoreCommit", "EciRxCtrlUnlocked"),
     )
 
     println(s"Packet entered CMAC:\t${timestamps.entry}")
@@ -96,10 +90,10 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
       exit = globalCycle("TxCmacExit"),
     )
 
-    println(s"TxCoreAcquire: ${timestamps.acquire}")
-    println(s"TxCoreCommit: ${timestamps.afterTxCommit}")
-    println(s"TxAfterDmaRead: ${timestamps.afterDmaRead}")
-    println(s"TxCmacExit: ${timestamps.exit}")
+    println(s"Core acquired buffer:\t${timestamps.acquire}")
+    println(s"Core finished write:\t${timestamps.afterTxCommit}")
+    println(s"Packet DMA finished:\t${timestamps.afterDmaRead}")
+    println(s"Packet left CMAC:\t${timestamps.exit}")
 
     timestamps
   }

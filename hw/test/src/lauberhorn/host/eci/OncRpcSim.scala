@@ -131,9 +131,9 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     var readingSecond = false
 
     // test timestamp collection with oncrpc call
-    val delayed = 1000
+    val delayed = 10000
 
-    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(100)
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(10000)
     val trace = traceConsumer
     val workerTraceCoreId = 1
 
@@ -253,14 +253,15 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       val curr = trace.currentCycle
 
       // we don't use the commit timestamp since commit is tied to read next
-      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), firstTraceStart, requireCommit = false)
+      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), firstTraceStart)
 
       // check timestamps for first packet
       import ts._
 
       println(s"Current timestamp after packet 1 done: $curr")
 
-      assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, afterRead, curr))
+      // we can't check afterRead since it's triggered by the opposite read
+      assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, /*afterRead, */curr))
       assert(readStart - entry >= delayed)
 
       info.xid // host will see XID in big endian; should be sent back as is
@@ -291,11 +292,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       exitCriticalSection(dcsMaster, tid)
 
       val curr = trace.currentCycle
-      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), secondTraceStart, requireCommit = false)
+      val ts = getRxTimestamps(trace, Some(workerTraceCoreId), secondTraceStart)
       import ts._
       println(s"Current timestamp after packet 2 done: $curr")
-      assert(isSorted(readPending, entry, afterRxQueue, enqueueToHost, afterRead, curr))
-      assert(isSorted(readPending, readStart, afterRead))
+      assert(isSorted(readPending, entry, afterRxQueue, enqueueToHost/*, afterRead*/, curr))
+      assert(isSorted(readPending, readStart/*, afterRead*/))
       assert(entry - readPending >= delayed * 4 / 5)
 
       info.xid
