@@ -241,6 +241,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     )
 
     lcia.setBlocked()
+    def recvLciaSendUl(counter: Counter = null): Unit = {
+      lcia.freeRun()
+      when (lcia.fire) {
+        ulFlow.payload := lcia.payload
+        ulFlow.valid := True
+        if (counter != null)
+          counter.increment()
+      }
+    }
 
     hostRxAck.setIdle()
     hostTx.setBlocked()
@@ -328,8 +337,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (hostRxAck.fire) {
             rxOverflowInvAcked.clear()
             rxOverflowInvIssued.clear()
-            rxTp.trace("EciRxFreeSlot", rxOverflowTd: _*)
-            goto(invalidatePacketData)
+            when (rxOverflowToInvalidate > 0) {
+              rxTp.trace("EciRxDataLciStart", rxOverflowTd: _*)
+              goto(invalidatePacketData)
+            } otherwise {
+              rxTp.trace("EciRxFreeSlot", rxOverflowTd: _*)
+              goto(invalidateCtrl)
+            }
           }
         }
       }
@@ -342,21 +356,21 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (lci.fire) {
             rxOverflowInvIssued.increment()
-            rxTp.trace("EciRxDataInvalidate", rxOverflowTd: _*)
+            when (rxOverflowInvIssued.valueNext === rxOverflowToInvalidate) {
+              rxTp.trace("EciRxDataLciDone", rxOverflowTd: _*)
+              goto(waitDataLciaDone)
+            }
           }
 
-          lcia.freeRun()
-          when (lcia.fire) {
-            // unlock immediately since we guarantee that the CPU only loads the overflow cachelines after control
-            ulFlow.payload := lcia.payload
-            ulFlow.valid := True
+          recvLciaSendUl(rxOverflowInvAcked)
+        }
+      }
+      val waitDataLciaDone: State = new State {
+        whenIsActive {
+          recvLciaSendUl(rxOverflowInvAcked)
 
-            rxOverflowInvAcked.increment()
-            rxTp.trace("EciRxDataUnlock", rxOverflowTd: _*)
-          }
-
-          // count till all overflow cachelines are invalidated
           when (rxOverflowInvAcked === rxOverflowToInvalidate) {
+            rxTp.trace("EciRxDataLciaUlDone", rxOverflowTd: _*)
             goto(invalidateCtrl)
           }
         }
@@ -374,18 +388,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          lcia.freeRun()
+          recvLciaSendUl(numRetired)
+
           when (lcia.fire) {
-            // FIXME: should we check the response address?
-
-            // immediately unlock so that we can see later load requests
-            ulFlow.payload := lcia.payload
-            ulFlow.valid := True
-
             // always toggle, even if NACK was sent
             rxCurrClIdx.toggleWhen(True)
-
-            numRetired.increment()
 
             // Invalidation is triggered by reading opposite
             rxInvDone := True
@@ -434,21 +441,19 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          lcia.freeRun()
-          when (lcia.fire) {
-            // immediately unlock
-            ulFlow.payload := lcia.payload
-            ulFlow.valid := True
-            txTp.trace("EciTxCtrlUnlocked", txClTd: _*)
+          recvLciaSendUl()
 
+          when (lcia.fire) {
             // we should've latched tx descriptor in savedTxDesc
             val toInvalidate = packetSizeToNumOverflowCls(txInvLen.bits)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
               txOverflowInvIssued.clear()
               txOverflowInvAcked.clear()
+              txTp.trace("EciTxDataLciStart", coreTd, OverflowCount(toInvalidate))
               goto(invalidatePacketData)
             } otherwise {
+              txTp.trace("EciTxCtrlUnlocked", txClTd: _*)
               goto(tx)
             }
           }
@@ -463,20 +468,21 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
           when (lci.fire) {
             txOverflowInvIssued.increment()
-            txTp.trace("EciTxDataInvalidate", txOverflowTd: _*)
+            when (txOverflowInvIssued.valueNext === txOverflowToInvalidate) {
+              txTp.trace("EciTxDataLciDone", txOverflowTd: _*)
+              goto(waitDataLciaDone)
+            }
           }
 
-          lcia.freeRun()
-          when (lcia.fire) {
-            // unlock immediately
-            ulFlow.payload := lcia.payload
-            ulFlow.valid := True
-
-            txOverflowInvAcked.increment()
-            txTp.trace("EciTxDataUnlock", txOverflowTd: _*)
-          }
+          recvLciaSendUl(txOverflowInvAcked)
+        }
+      }
+      val waitDataLciaDone: State = new State {
+        whenIsActive {
+          recvLciaSendUl(txOverflowInvAcked)
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
+            txTp.trace("EciTxDataLciaUlDone", txOverflowTd: _*)
             goto(tx)
           }
         }
