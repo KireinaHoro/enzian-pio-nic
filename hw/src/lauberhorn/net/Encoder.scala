@@ -44,8 +44,10 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
   protected def to[M <: EncoderMetadata, E <: Encoder[M]: ClassTag](metadata: Stream[M], payload: Axi4Stream): Unit = {
     host[E].producers.append((this.getDisplayName(), metadata, payload))
 
-    // TODO: include packet ID for tracing
-    tp.trace(encoderName) := metadata.fire
+    val traceData = metadata.payload.traceData
+    if (traceData.nonEmpty) {
+      tp.trace(encoderName, traceData: _*) := metadata.fire
+    }
   }
   def encoderName: String = getClass.getSimpleName
 

@@ -5,6 +5,7 @@ import lauberhorn.net.ethernet.EthernetRxMeta
 import spinal.core._
 import spinal.lib._
 import lauberhorn.Global._
+import lauberhorn.{PacketID, RpcID, TraceData}
 
 import scala.language.postfixOps
 
@@ -44,6 +45,7 @@ package object ip {
     val hdr = IpHeader()
     val ethMeta = EthernetRxMeta()
 
+    def packetId: UInt = ethMeta.packetId
     def getType = PacketDescType.ip
     def getPayloadSize: UInt = ethMeta.getPayloadSize - hdr.getBitsWidth / 8
     def collectHeaders: Bits = hdr.asBits ## ethMeta.collectHeaders
@@ -55,11 +57,14 @@ package object ip {
   }
 
   case class IpTxMeta() extends Bundle with EncoderMetadata {
+    val packetId = UInt(PacketID.width bits)
+    val rpcId = UInt(RpcID.width bits)
     val daddr = Bits(32 bits)
     val pldLen = UInt(16 bits) // without IP header!
     val proto = Bits(8 bits)
 
     def getType = PacketDescType.ip
+    override def traceData: Seq[TraceData] = Seq(PacketID(packetId), RpcID(rpcId))
   }
 
   object IpNeighborEntryState extends SpinalEnum {

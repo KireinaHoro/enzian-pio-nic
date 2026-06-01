@@ -1,7 +1,7 @@
 package lauberhorn.net.oncrpc
 
 import lauberhorn.Global.{ONCRPC_INLINE_BYTES, PKT_BUF_LEN_WIDTH}
-import lauberhorn.PID
+import lauberhorn.{PID, PacketID, RpcID, TraceData}
 import lauberhorn.net.{DecoderMetadata, PacketDescData, PacketDescType}
 import spinal.core._
 
@@ -10,6 +10,8 @@ import scala.language.postfixOps
 case class OncRpcCallRxMeta() extends Bundle with DecoderMetadata {
   override def clone = OncRpcCallRxMeta()
 
+  val packetId = UInt(PacketID.width bits)
+  val rpcId = UInt(RpcID.width bits)
   val funcPtr = Bits(64 bits)
   val pid = PID()
   // first fields in the XDR payload
@@ -18,6 +20,7 @@ case class OncRpcCallRxMeta() extends Bundle with DecoderMetadata {
   val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
 
   def getType = PacketDescType.oncRpcCall
+  override def traceData: Seq[TraceData] = Seq(PacketID(packetId), RpcID(rpcId))
 
   def getPayloadSize: UInt = {
     val inlineLen = ONCRPC_INLINE_BYTES.get

@@ -15,6 +15,7 @@ import spinal.lib.bus.regif.AccessType
 import scala.language.postfixOps
 
 case class OncRpcCallLookupUserData() extends Bundle {
+  val packetId = UInt(PacketID.width bits)
   val hdr = OncRpcCallHeader()
   val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
@@ -86,6 +87,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
 
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(OncRpcCallRxMeta())
+    val nextRpcId = Reg(UInt(RpcID.width bits)) init 0
 
     // we do not invoke produce: there should be no downstream decoders
     val outputAck = Bool()
@@ -122,6 +124,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       lk.query.port := currentUdpHeader.hdr.dport
 
       lk.userData.hdr := hdrParsed
+      lk.userData.packetId := currentUdpHeader.packetId
       // TODO: endianness swap for host: these are in BIG ENDIAN
       lk.userData.args.assignFromBits(hdr(maxLen * 8 - 1 downto minLen * 8))
       lk.userData.udpPayloadSize := currentUdpHeader.getPayloadSize
@@ -140,11 +143,16 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     }
 
     metadata.translateFrom(dbResult.throwWhen(drop)) { case (md, lr) =>
+      md.packetId := lr.userData.packetId
+      md.rpcId := nextRpcId
       md.hdr := lr.userData.hdr
       md.args := lr.userData.args
       md.udpPayloadSize := lr.userData.udpPayloadSize
       md.funcPtr := lr.value.funcPtr
       md.pid := lr.value.pid
+    }
+    when (metadata.fire) {
+      nextRpcId := nextRpcId + 1
     }
 
     // record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response

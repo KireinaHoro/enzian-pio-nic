@@ -2,7 +2,7 @@ package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType}
-import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType}
+import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType, invalidTraceId}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -111,6 +111,16 @@ class DmaControlPlugin extends FiberPlugin {
     // details of packet to enqueue
     val pktToEnqueue = Reg(HostReq())
 
+    // Enqueue trace IDs so later Scheduler and 2F2F trace points can relate
+    // host messages back to packet/RPC pipeline events without changing HostReq.
+    // RX correlation points emitted here:
+    // - bypass: PacketID <-> HostMsgID
+    // - RPC:    RpcID    <-> HostMsgID
+    val rxTracePacketId = Reg(UInt(PacketID.width bits)) init 0
+    val rxTraceRpcId = Reg(UInt(RpcID.width bits)) init invalidTraceId(RpcID.width)
+    val rxTraceHostMsgId = Reg(UInt(HostMsgID.width bits)) init 0
+    val nextRxHostMsgId = Reg(UInt(HostMsgID.width bits)) init 0
+
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -118,6 +128,10 @@ class DmaControlPlugin extends FiberPlugin {
           when(incomingDesc.valid) {
             val len = incomingDesc.desc.getPayloadSize
             pktToEnqueue.len.bits := len
+            rxTracePacketId := incomingDesc.desc.packetId
+            rxTraceRpcId := incomingDesc.desc.rpcId
+            rxTraceHostMsgId := nextRxHostMsgId
+            nextRxHostMsgId := nextRxHostMsgId + 1
 
             when (incomingDesc.isBypass) {
               pktToEnqueue.ty := HostReqType.bypass
@@ -210,11 +224,13 @@ class DmaControlPlugin extends FiberPlugin {
             }
           }
 
-          // TODO: assign packet trace ID
-          rxTp.trace("RxEnqueueToHost") := True
           when (pktToEnqueue.ty === HostReqType.bypass) {
+            rxTp.trace("RxBypassEnqueueToHost", PacketID(rxTracePacketId), HostMsgID(rxTraceHostMsgId)) := True
             assign(bypassSink.get)
           } otherwise {
+            when (pktToEnqueue.ty === HostReqType.oncRpcCall) {
+              rxTp.trace("RxRpcEnqueueToHost", RpcID(rxTraceRpcId), HostMsgID(rxTraceHostMsgId)) := True
+            }
             assign(sched.logic.rxMeta)
           }
         }
@@ -237,6 +253,7 @@ class DmaControlPlugin extends FiberPlugin {
     val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
     val txReqBuffered = txReqMuxed.asFlow.toReg
     val txPacketDesc = Reg(PacketDesc())
+
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -250,13 +267,16 @@ class DmaControlPlugin extends FiberPlugin {
               is (HostReqType.oncRpcReply) {
                 txPacketDesc.ty := PacketDescType.oncRpcReply
                 txPacketDesc.metadata.assignDontCare()
-                txPacketDesc.metadata.oncRpcReply.get := txReqMuxed.data.oncRpcReplyTx
+                txPacketDesc.metadata.oncRpcReply.rpcId := invalidTraceId(RpcID.width)
+                txPacketDesc.metadata.oncRpcReply.funcPtr := txReqMuxed.data.oncRpcReplyTx.funcPtr
+                txPacketDesc.metadata.oncRpcReply.xid := txReqMuxed.data.oncRpcReplyTx.xid
+                txPacketDesc.metadata.oncRpcReply.data := txReqMuxed.data.oncRpcReplyTx.data
+                txPacketDesc.metadata.oncRpcReply.replyLen := txReqMuxed.data.oncRpcReplyTx.replyLen
               }
               default {
                 report("unsupported host request type", FAILURE)
               }
             }
-
             goto(sendDmaCmd)
           }
         }
@@ -303,6 +323,7 @@ class DmaControlPlugin extends FiberPlugin {
         }
       }
     }
+    txFsm.build()
 
     def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
       val busCtrl = AxiLite4SlaveFactory(bus)

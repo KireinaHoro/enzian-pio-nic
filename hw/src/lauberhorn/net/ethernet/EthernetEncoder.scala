@@ -26,6 +26,8 @@ class EthernetEncoder extends Encoder[EthernetTxMeta] {
     // allow host to send raw Ethernet frames (e.g. for ARP)
     collectInto(md, pld, acceptHostPackets = true)
 
+    tp.trace(encoderName, md.payload.traceData: _*) := md.fire
+
     val encoder = AxiStreamInjectHeader(ms.axisConfig, EthernetHeader().getBitsWidth / 8)
     encoder.io.header << md ~ hdr.asBits
     encoder.io.input << pld
