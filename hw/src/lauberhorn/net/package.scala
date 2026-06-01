@@ -12,6 +12,19 @@ import lauberhorn.net.oncrpc.{OncRpcCallRxMeta, OncRpcReplyTxMeta}
 import lauberhorn.net.udp.{UdpRxMeta, UdpTxMeta}
 
 package object net {
+  def invalidTraceId(width: Int): UInt = U((BigInt(1) << width) - 1, width bits)
+
+  case class EthernetTxHostHeader() extends Bundle {
+    val dst = Bits(48 bits)
+    val etherType = Bits(16 bits)
+  }
+
+  case class IpTxHostHeader() extends Bundle {
+    val daddr = Bits(32 bits)
+    val pldLen = UInt(16 bits)
+    val proto = Bits(8 bits)
+  }
+
   /**
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[lauberhorn.host.HostReqBypassHeaders]].
    */
@@ -49,6 +62,8 @@ package object net {
    * [[lauberhorn.host.HostReq]] to enqueue into the [[Scheduler]].
    */
   trait DecoderMetadata extends Data {
+    /** Trace packet ID assigned when the packet enters the decoder pipeline. */
+    def packetId: UInt
     /** tag metadata sent to cores */
     def getType: PacketDescType.E
     /** size of payload for the payload of this stage */
@@ -57,6 +72,8 @@ package object net {
     def collectHeaders: Bits
     /** cast to union for assigning to [[PacketDescData]] */
     def asUnion: PacketDescData
+    /** Trace data emitted when this metadata crosses a decoder trace point. */
+    def traceData: Seq[TraceData] = Seq(PacketID(packetId))
 
     def toRxTaggedDesc(isBypass: Boolean): RxPacketDescWithSource = {
       val ret = RxPacketDescWithSource()
@@ -69,13 +86,18 @@ package object net {
 
   /**
     * Metadata for the encoder pipeline.  Every encoder takes a [[EncoderMetadata]] for itself (either another
-    * encoder or the host) and generates the metadata for the next stage encoder.  For example, the IP encoder
-    * [[lauberhorn.net.ip.IpEncoder]] takes a [[IpTxMetadata]]
-    * it can get; e.g. the IP encoder need
+    * encoder or the host) and generates the metadata for the next stage encoder.
+    *
+    * Packet IDs are deliberately not part of the base trait: on TX, the packet ID
+    * is owned by UDP and does not exist for upstream metadata such as ONC-RPC
+    * replies.  Concrete metadata only emits trace data for IDs owned by, or
+    * already correlated at, that layer.
     */
   trait EncoderMetadata extends Data {
     /** tag metadata sent from cores */
     def getType: PacketDescType.E
+    /** Trace data emitted when this metadata crosses an encoder trace point. */
+    def traceData: Seq[TraceData] = Seq.empty
   }
 
   case class PacketDescData() extends Union {
@@ -114,6 +136,27 @@ package object net {
       }
     }.ret
 
+    def packetId: UInt = new Composite(this, "packetId") {
+      val ret = UInt(PacketID.width bits)
+      ret := invalidTraceId(PacketID.width)
+      switch (ty) {
+        import PacketDescType._
+        is (ethernet) { ret := metadata.ethernetRx.packetId }
+        is (ip) { ret := metadata.ipRx.packetId }
+        is (udp) { ret := metadata.udpRx.packetId }
+        is (oncRpcCall) { ret := metadata.oncRpcCall.packetId }
+      }
+    }.ret
+
+    def rpcId: UInt = new Composite(this, "rpcId") {
+      val ret = UInt(RpcID.width bits)
+      ret := invalidTraceId(RpcID.width)
+      switch (ty) {
+        import PacketDescType._
+        is (oncRpcCall) { ret := metadata.oncRpcCall.rpcId }
+      }
+    }.ret
+
     /**
       * Collect all headers to generate [[lauberhorn.host.HostReqBypassHeaders]].  Called by [[DmaControlPlugin]] to pack
       * incoming request into a bypass [[HostReq]] to pass to host.
@@ -143,8 +186,22 @@ package object net {
       metadata.assignDontCare()
       switch (bypassMeta.ty) {
         import PacketDescType._
-        is (ethernet) { metadata.ethernetTx.assignFromBits(bypassMeta.hdr) }
-        is (ip) { metadata.ipTx.assignFromBits(bypassMeta.hdr) }
+        is (ethernet) {
+          val hdr = EthernetTxHostHeader()
+          hdr.assignFromBits(bypassMeta.hdr)
+          metadata.ethernetTx.packetId := invalidTraceId(PacketID.width)
+          metadata.ethernetTx.dst := hdr.dst
+          metadata.ethernetTx.etherType := hdr.etherType
+        }
+        is (ip) {
+          val hdr = IpTxHostHeader()
+          hdr.assignFromBits(bypassMeta.hdr)
+          metadata.ipTx.packetId := invalidTraceId(PacketID.width)
+          metadata.ipTx.rpcId := invalidTraceId(RpcID.width)
+          metadata.ipTx.daddr := hdr.daddr
+          metadata.ipTx.pldLen := hdr.pldLen
+          metadata.ipTx.proto := hdr.proto
+        }
         // is (udp) { metadata.udpTx.assignFromHdrBits(bypassMeta.hdr) }
         default {
           report("Attempting to send unsupported protocol in bypass", FAILURE)

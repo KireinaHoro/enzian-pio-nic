@@ -28,6 +28,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
 
   val logic = during setup new Area {
     private val metadata = Stream(EthernetRxMeta())
+    private val nextPacketId = Reg(UInt(PacketID.width bits)) init 0
 
     // zuestoll01 FPGA MAC address: 0C:53:31:03:00:28
     val macAddress = Reg(Bits(48 bits)) init EndiannessSwap(B("48'x0C_53_31_03_00_28"))
@@ -40,6 +41,7 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
     metadata << decoder.io.header.map { hdr =>
       new Composite(this, "remap") {
         val meta = EthernetRxMeta()
+        meta.packetId := nextPacketId
         meta.hdr.assignFromBits(hdr)
         meta.frameLen := macIf.frameLen
 
@@ -49,6 +51,10 @@ class EthernetDecoder extends Decoder[EthernetRxMeta] {
         val isMulticast = meta.hdr.dst(0) // LSB of the first octet
         drop := macAddress =/= meta.hdr.dst && !isBroadcast && !isMulticast && !isPromisc
       }.meta
+    }
+
+    when (metadata.fire) {
+      nextPacketId := nextPacketId + 1
     }
 
     val dropCount = Counter(REG_WIDTH bits, drop && metadata.fire)

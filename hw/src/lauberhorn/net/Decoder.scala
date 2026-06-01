@@ -59,8 +59,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     val filteredPayload = payload.clone
     val dropped = Bool()
 
-    // TODO: pass a packet ID in the pipeline for tracing
-    host[DecoderSink].tp.trace(decoderName, PacketDropped(dropped)) := metadata.fire
+    host[DecoderSink].tp.trace(decoderName, (Seq(PacketDropped(dropped)) ++ metadata.payload.traceData): _*) := metadata.fire
 
     if (drop != null) new Area {
       val pldFilter = AxiStreamFilter(host[MacInterfaceService].axisConfig)
@@ -130,8 +129,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param payload payload data stream produced by this stage
     */
   protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool): Unit = {
-    // TODO: packet ID!
-    host[DecoderSink].tp.trace(decoderName) := metadata.fire
+    host[DecoderSink].tp.trace(decoderName, metadata.payload.traceData: _*) := metadata.fire
 
     host[DecoderSinkService].consume(DecoderOutput(
       Int.MaxValue, decoderName,

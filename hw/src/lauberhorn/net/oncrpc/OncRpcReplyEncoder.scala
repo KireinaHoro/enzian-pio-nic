@@ -3,7 +3,7 @@ package lauberhorn.net.oncrpc
 import jsteward.blocks.axi.AxiStreamInjectHeader
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global.{NUM_SESSIONS, ONCRPC_INLINE_BYTES, REG_WIDTH}
-import lauberhorn.{MacInterfaceService, PacketLength}
+import lauberhorn.{MacInterfaceService, PacketLength, RpcID, TraceData}
 import lauberhorn.net.udp.{UdpEncoder, UdpTxMeta}
 import lauberhorn.net.{Encoder, EncoderMetadata, PacketDescType}
 import spinal.core._
@@ -16,6 +16,7 @@ import spinal.lib.fsm.{EntryPoint, State, StateMachine}
 import scala.language.postfixOps
 
 case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
+  val rpcId = UInt(RpcID.width bits)
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
   val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
@@ -24,6 +25,7 @@ case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   val replyLen = PacketLength()
 
   def getType = PacketDescType.oncRpcReply
+  override def traceData: Seq[TraceData] = Seq(RpcID(rpcId))
 }
 
 class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
@@ -63,6 +65,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
   val logic = during setup new Area {
     val md = Stream(OncRpcReplyTxMeta())
     val pld = Axi4Stream(axisConfig)
+    val nextRpcId = Reg(UInt(RpcID.width bits)) init 0
 
     val outMd = Stream(UdpTxMeta())
     val outPld = Axi4Stream(axisConfig)
@@ -148,7 +151,14 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     txQ.translateFrom(md) { case (q, md) =>
       q.query.funcPtr := md.funcPtr
       q.query.xid     := md.xid
-      q.userData      := md
+      q.userData.rpcId := nextRpcId
+      q.userData.funcPtr := md.funcPtr
+      q.userData.xid := md.xid
+      q.userData.data := md.data
+      q.userData.replyLen := md.replyLen
+    }
+    when (txQ.fire) {
+      nextRpcId := nextRpcId + 1
     }
     txR.ready := False
 
@@ -182,6 +192,8 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             inlinedData := (txR.userData.data.asBits << (inlinedShiftNext * 8)).resized
 
             when (txR.matched) {
+              tp.trace("OncRpcReplyEncode", RpcID(txR.userData.rpcId)) := True
+
               // send header to encoder
               outHdr.xid        := txR.userData.xid
               outHdr.msgType    := 1 // msg_type == REPLY
@@ -190,6 +202,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
               outHdr.acceptStat := 0 // accept_stat == SUCCESS
 
               outMd.daddr       := txR.value.clientAddr
+              outMd.rpcId       := txR.userData.rpcId
               outMd.dport       := txR.value.clientPort
               outMd.sport       := txR.value.serverPort
               outMd.pldLen      := txR.userData.replyLen.bits + outHdr.getBitsWidth / 8

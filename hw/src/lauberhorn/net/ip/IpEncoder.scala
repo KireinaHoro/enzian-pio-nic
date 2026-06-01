@@ -211,9 +211,10 @@ class IpEncoder extends Encoder[IpTxMeta] {
           }
         }
       }
-      val sendDownstreamMd: State = new State {
+        val sendDownstreamMd: State = new State {
         whenIsActive {
           outMd.valid := True
+          outMd.packetId := md.packetId
           outMd.etherType := EndiannessSwap(B("16'x0800"))
           outMd.dst := destMac
           when (outMd.ready) {

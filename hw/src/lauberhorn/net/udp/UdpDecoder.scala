@@ -47,6 +47,7 @@ case class UdpRxMeta() extends Bundle with DecoderMetadata {
   val hdr = UdpHeader()
   val ipMeta = IpRxMeta()
 
+  def packetId: UInt = ipMeta.packetId
   def getType = PacketDescType.udp
   def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
   def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders

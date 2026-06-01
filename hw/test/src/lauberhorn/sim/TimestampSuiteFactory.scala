@@ -58,7 +58,7 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
                        requireCommit: Boolean = true,
                      ): RxTraceTimestamps = {
     def coreData = coreId.map(id => Map("CoreID" -> BigInt(id))).getOrElse(Map.empty[String, BigInt])
-    def globalCycle(eventName: String) = latestTraceCycle(trace, eventName, Map.empty, since)
+    def globalCycle(eventNames: String*) = latestTraceCycle(trace, eventNames, Map.empty, since)
     def coreCycle(eventNames: String*) = latestTraceCycle(trace, eventNames, coreData, since)
     def optionalCoreCycle(eventNames: String*) =
       eventNames.flatMap(eventName => trace.latest(eventName, coreData, since).map(_.cycle)).reduceOption(_ max _).getOrElse(BigInt(0))
@@ -69,7 +69,7 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
       readPending = coreCycle("RxCoreReadPending", "EciRxReadStart", "EciRxReadNew"),
       readStart = coreCycle("RxCoreReadStart", "EciRxDescSent", "EciRxNackSent"),
       afterRead = coreCycle("RxCoreReadFinish", "EciRxReadNew"),
-      enqueueToHost = globalCycle("RxEnqueueToHost"),
+      enqueueToHost = globalCycle("RxBypassEnqueueToHost", "RxRpcEnqueueToHost"),
       afterRxCommit = if (requireCommit) coreCycle("RxCoreCommit", "EciRxCtrlUnlocked") else optionalCoreCycle("RxCoreCommit", "EciRxCtrlUnlocked"),
     )
 

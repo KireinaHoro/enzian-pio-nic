@@ -3,7 +3,6 @@ package lauberhorn
 import jsteward.blocks.misc.RegAllocatorFactory
 import lauberhorn.Global._
 import lauberhorn.net.PacketDescType
-import lauberhorn.net.oncrpc.OncRpcReplyTxMeta
 import spinal.core._
 import spinal.lib.NoData
 
@@ -37,6 +36,18 @@ package object host {
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   }
 
+  /** Sent by host as an ONC-RPC reply.  Trace IDs are owned by packet-processing
+    * modules and must not be encoded in host-visible descriptors.
+    */
+  case class HostReqOncRpcReplyTx() extends Bundle {
+    val funcPtr = Bits(64 bits)
+    val xid = Bits(32 bits)
+    val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
+
+    /** Total length of the entire reply message, including inlined bits. */
+    val replyLen = PacketLength()
+  }
+
   // TODO: client bundles for sending a nested call and receiving a reply
 
   /** Received by host for bypass packets.  Also used for sending bypass packets; when used
@@ -57,7 +68,7 @@ package object host {
   case class HostReqData() extends Union {
     val bypassMeta = newElement(HostReqBypassHeaders())
     val oncRpcCallRx = newElement(HostReqOncRpcCallRx())
-    val oncRpcReplyTx = newElement(OncRpcReplyTxMeta())
+    val oncRpcReplyTx = newElement(HostReqOncRpcReplyTx())
     val arpReq = newElement(HostReqArpRequest())
   }
 

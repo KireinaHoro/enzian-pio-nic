@@ -16,6 +16,7 @@ package object ethernet {
   case class EthernetRxMeta() extends Bundle with DecoderMetadata {
     override def clone = EthernetRxMeta()
 
+    val packetId = UInt(PacketID.width bits)
     val frameLen = PacketLength()
     val hdr = EthernetHeader()
 
@@ -30,9 +31,11 @@ package object ethernet {
   }
 
   case class EthernetTxMeta() extends Bundle with EncoderMetadata {
+    val packetId = UInt(PacketID.width bits)
     val dst = Bits(48 bits)
     val etherType = Bits(16 bits)
 
     def getType = PacketDescType.ethernet
+    override def traceData: Seq[TraceData] = Seq(PacketID(packetId))
   }
 }
