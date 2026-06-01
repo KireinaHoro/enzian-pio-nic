@@ -266,10 +266,10 @@ object LauberhornTraceDma {
     def timestampWidth(payloadWidth: Int): Int = SampleWidth - payloadWidth - sourceWidth
   }
 
-  private def traceMap(
-                        lauberhornTracePorts: Seq[TracePlugin#TracePort],
-                        lauberhornEvents: Seq[TraceEvent],
-                      ): Value = {
+  def traceMap(
+                lauberhornTracePorts: Seq[TracePlugin#TracePort],
+                lauberhornEvents: Seq[TraceEvent],
+              ): Value = {
     val layout = SourceLayout(lauberhornTracePorts)
     val tw = layout.timestampWidth(PayloadWidth)
     require(tw > 0, s"trace source count leaves no room for a positive timestamp width")
@@ -293,6 +293,19 @@ object LauberhornTraceDma {
       "sources" -> Arr.from(layout.sources.map(_.json)),
     )
   }
+
+  def traceMapJson(
+                    lauberhornTracePorts: Seq[TracePlugin#TracePort],
+                    lauberhornEvents: Seq[TraceEvent],
+                  ): String =
+    ujson.write(traceMap(lauberhornTracePorts, lauberhornEvents), indent = 2)
+
+  def writeTraceMap(
+                     path: os.Path,
+                     lauberhornTracePorts: Seq[TracePlugin#TracePort],
+                     lauberhornEvents: Seq[TraceEvent],
+                   ): Unit =
+    os.write.over(path, traceMapJson(lauberhornTracePorts, lauberhornEvents))
 }
 
 case class LauberhornTraceDma(
@@ -367,18 +380,6 @@ case class LauberhornTraceDma(
   require(timestampWidth > 0, s"trace source count leaves no room for a positive timestamp width")
   require(lauberhornEvents.length <= (1 << LauberhornTraceDma.EventIdSlotWidth),
     s"too many trace events for ${LauberhornTraceDma.EventIdSlotWidth}-bit event IDs")
-
-  def traceMap: Value =
-    LauberhornTraceDma.traceMap(
-      lauberhornTracePorts = lauberhornTracePorts,
-      lauberhornEvents = lauberhornEvents,
-    )
-
-  def traceMapJson: String =
-    ujson.write(traceMap, indent = 2)
-
-  def writeTraceMap(path: os.Path): Unit =
-    os.write.over(path, traceMapJson)
 
   val axiConfig = Axi4Config(
     // The trace DMA buffer is 32 GiB by default, so 35 address bits cover the

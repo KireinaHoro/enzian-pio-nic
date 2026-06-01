@@ -3,7 +3,7 @@ package lauberhorn.sim
 import jsteward.blocks.DutSimFunSuite
 import lauberhorn.NicEngine
 
-trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] =>
+trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
   case class RxTraceTimestamps(
                                 entry: BigInt,
                                 afterRxQueue: BigInt,
@@ -22,7 +22,7 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] =>
                               )
 
   def traceConsumer(implicit dut: NicEngine): TraceEventConsumer =
-    TraceEventConsumer(dut)
+    activeTraceConsumer.getOrElse(TraceEventConsumer(dut))
 
   private def latestTraceCycle(
                                 trace: TraceEventConsumer,

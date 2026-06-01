@@ -126,7 +126,11 @@ object GenEngineVerilog {
           lauberhornEvents = tracePlugin.traceEvents,
         ).setDefinitionName("lauberhorn_trace_dma")
       }
-      traceDmaReport.toplevel.writeTraceMap(out / "lauberhorn_trace_dma_map.json")
+      LauberhornTraceDma.writeTraceMap(
+        out / "lauberhorn_trace_dma_map.json",
+        tracePlugin.tracePorts.toSeq,
+        tracePlugin.traceEvents,
+      )
 
       println("Writing trace DMA timing constraints")
       TimingExtractor(traceDmaReport, new TimingExtractorXdc)
