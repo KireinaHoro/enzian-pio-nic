@@ -741,8 +741,8 @@ signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error : std_logic;
 signal trace_write_slot : std_logic_vector(27 downto 0);
 signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
-signal lauberhorn_trace_valid : std_logic_vector(15 downto 0);
-signal lauberhorn_trace_payload : trace_payload_array(15 downto 0);
+signal lauberhorn_trace_valid : std_logic_vector(25 downto 0);
+signal lauberhorn_trace_payload : trace_payload_array(25 downto 0);
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_ready : std_logic_vector(5 downto 0);
@@ -1574,6 +1574,26 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     lauberhornTraceIn_14_payload => lauberhorn_trace_payload(14),
     lauberhornTraceIn_15_valid => lauberhorn_trace_valid(15),
     lauberhornTraceIn_15_payload => lauberhorn_trace_payload(15),
+    lauberhornTraceIn_16_valid => lauberhorn_trace_valid(16),
+    lauberhornTraceIn_16_payload => lauberhorn_trace_payload(16),
+    lauberhornTraceIn_17_valid => lauberhorn_trace_valid(17),
+    lauberhornTraceIn_17_payload => lauberhorn_trace_payload(17),
+    lauberhornTraceIn_18_valid => lauberhorn_trace_valid(18),
+    lauberhornTraceIn_18_payload => lauberhorn_trace_payload(18),
+    lauberhornTraceIn_19_valid => lauberhorn_trace_valid(19),
+    lauberhornTraceIn_19_payload => lauberhorn_trace_payload(19),
+    lauberhornTraceIn_20_valid => lauberhorn_trace_valid(20),
+    lauberhornTraceIn_20_payload => lauberhorn_trace_payload(20),
+    lauberhornTraceIn_21_valid => lauberhorn_trace_valid(21),
+    lauberhornTraceIn_21_payload => lauberhorn_trace_payload(21),
+    lauberhornTraceIn_22_valid => lauberhorn_trace_valid(22),
+    lauberhornTraceIn_22_payload => lauberhorn_trace_payload(22),
+    lauberhornTraceIn_23_valid => lauberhorn_trace_valid(23),
+    lauberhornTraceIn_23_payload => lauberhorn_trace_payload(23),
+    lauberhornTraceIn_24_valid => lauberhorn_trace_valid(24),
+    lauberhornTraceIn_24_payload => lauberhorn_trace_payload(24),
+    lauberhornTraceIn_25_valid => lauberhorn_trace_valid(25),
+    lauberhornTraceIn_25_payload => lauberhorn_trace_payload(25),
 
     axi_aw_valid => trace_dma_axi.awvalid,
     axi_aw_ready => trace_dma_axi.awready,
