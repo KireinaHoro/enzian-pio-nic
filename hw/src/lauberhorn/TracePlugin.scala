@@ -50,7 +50,7 @@ class TracePlugin extends FiberPlugin {
   class TracePort(rawName: String, val sourceSlr: Int) {
     val name: String = Option(rawName).filter(_.nonEmpty).getOrElse(s"trace_${tracePorts.length}")
     val pipelineStages: Int = LauberhornTraceDma.pipelineStagesToTraceBufferDma(sourceSlr)
-    val traceEventValids = mutable.ArrayBuffer[Bool]()
+    val traceEventValids = mutable.ArrayBuffer[(String, Bool)]()
 
     /** Trace a given event.  On every cycle this port can emit at most
      * one event; if multiple `trace` return values have been assigned to True,
@@ -81,7 +81,7 @@ class TracePlugin extends FiberPlugin {
       }
 
       // need to check if only one event is valid at a time
-      traceEventValids.append(realCond)
+      traceEventValids.append(eventName -> realCond)
 
       cond
     }
@@ -107,8 +107,17 @@ class TracePlugin extends FiberPlugin {
       Component.current.addPrePopTask { () =>
         println(s"Trace port ${tp.name} has ${tp.traceEventValids.length} events")
         if (tp.traceEventValids.length > 1) {
-          val allConds = tp.traceEventValids.asBits()
+          val allConds = tp.traceEventValids.map(_._2).asBits()
           assert(CountOne(allConds) <= 1, s"trace port ${tp.name}: more than one event source is valid!")
+
+          tp.traceEventValids.combinations(2).foreach { pair =>
+            val (leftName, leftCond) = pair(0)
+            val (rightName, rightCond) = pair(1)
+            assert(
+              !(leftCond && rightCond),
+              s"trace port ${tp.name}: event sources $leftName and $rightName are valid at the same time!"
+            )
+          }
         }
       }
     }
