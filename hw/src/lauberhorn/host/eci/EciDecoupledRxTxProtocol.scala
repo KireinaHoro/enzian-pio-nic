@@ -303,14 +303,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             rxSlotToFree := rxSlotCaptured
             rxSlotCapturedValid := False
             numReq.increment()
-            rxTp.trace("EciRxDescReady", rxOverflowTd: _*)
+            rxTp.trace("EciRxDescSent", rxOverflowTd: _*)
             goto(repeatDesc)
           } elsewhen (rxSentNack) {
             // No packet arrived in time, the router delivered a NACK
             rxOverflowToInvalidate := 0
             rxSlotToFree.clearAll()
             numNack.increment()
-            rxTp.trace("EciRxNackReady", coreTd)
+            rxTp.trace("EciRxNackSent", coreTd)
             goto(repeatDesc)
           } otherwise { handlePreempt() }
         }
@@ -320,7 +320,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           // We got the first read.  The router repeats until the
           // CPU acks the descriptor (or NACK) by reading the opposite CL
           when (rxTriggerNew) {
-            rxTp.trace("EciRxAckRead", rxClTd: _*)
+            rxTp.trace("EciRxReadNew", rxClTd: _*)
             when (rxSlotToFree.size.bits === 0) {
               // nothing to free or invalidate, just invalidate this NACK
               goto(invalidateCtrl)
