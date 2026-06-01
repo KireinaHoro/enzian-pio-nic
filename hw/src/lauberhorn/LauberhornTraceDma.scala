@@ -184,6 +184,59 @@ object LauberhornTraceDma {
         }
       }
 
+  private def traceCorrelation: Value = Obj(
+    "id_kinds" -> Obj(
+      PacketID.name -> Obj(
+        "flow_kind" -> "packet",
+        "invalid" -> "all_ones",
+        "wrap" -> true,
+      ),
+      RpcID.name -> Obj(
+        "flow_kind" -> "rpc",
+        "invalid" -> "all_ones",
+        "wrap" -> true,
+      ),
+      HostMsgID.name -> Obj(
+        "flow_kind" -> "host_msg",
+        "invalid" -> "all_ones",
+        "wrap" -> true,
+      ),
+    ),
+    "flow_kinds" -> Obj(
+      "packet" -> Obj(
+        "id_kind" -> PacketID.name,
+        "title" -> "packetFlow",
+        "label" -> "packet",
+      ),
+      "rpc" -> Obj(
+        "id_kind" -> RpcID.name,
+        "title" -> "rpcFlow",
+        "label" -> "rpc",
+      ),
+      "host_msg" -> Obj(
+        "id_kind" -> HostMsgID.name,
+        "title" -> "hostMsgFlow",
+        "label" -> "hostMsg",
+      ),
+    ),
+    "relationships" -> Arr(
+      Obj(
+        "type" -> "same_event_union",
+        "id_kinds" -> Arr(PacketID.name, RpcID.name, HostMsgID.name),
+      ),
+    ),
+    "directions" -> Arr(
+      Obj(
+        "direction" -> "rx",
+        "contains" -> Arr("scheduler", "decoder", "_rx", "rx"),
+      ),
+      Obj(
+        "direction" -> "tx",
+        "contains" -> Arr("encoder", "_tx", "tx"),
+      ),
+    ),
+  )
+
   private def lauberhornEventFormat(lauberhornEvents: Seq[TraceEvent]): PayloadFormat = {
     val idWidth = eventIdWidth(lauberhornEvents)
     val reservedIdBits = EventIdSlotWidth - idWidth
@@ -290,6 +343,7 @@ object LauberhornTraceDma {
         FixedPayloadFormats.map { case (name, format) => name -> format.json } :+
           ("lauberhorn_event" -> lauberhornEventFormat(lauberhornEvents).json)
       ),
+      "trace_correlation" -> traceCorrelation,
       "sources" -> Arr.from(layout.sources.map(_.json)),
     )
   }
