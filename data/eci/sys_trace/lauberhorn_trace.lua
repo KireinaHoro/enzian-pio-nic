@@ -40,6 +40,21 @@ f.lost_count = ProtoField.uint32("lhtrace.lost_count", "Lost Count", base.DEC)
 f.payload_len = ProtoField.uint32("lhtrace.payload_len", "Payload Length", base.DEC)
 f.payload = ProtoField.bytes("lhtrace.payload", "Payload")
 f.source_name = ProtoField.string("lhtrace.source.name", "Source")
+f.flow = ProtoField.string("lhtrace.flow", "Flow")
+f.flow_id = ProtoField.uint32("lhtrace.flow.id", "Correlation Component ID", base.DEC)
+f.flow_type = ProtoField.string("lhtrace.flow.type", "Flow Type")
+f.flow_packet = ProtoField.string("lhtrace.flow.packet", "Packet Flow")
+f.flow_packet_id = ProtoField.uint32("lhtrace.flow.packet.id", "Packet Flow ID", base.DEC)
+f.flow_packet_raw_id = ProtoField.uint32("lhtrace.flow.packet.raw_id", "PacketID", base.DEC)
+f.flow_packet_generation = ProtoField.uint32("lhtrace.flow.packet.generation", "PacketID Generation", base.DEC)
+f.flow_rpc = ProtoField.string("lhtrace.flow.rpc", "RPC Flow")
+f.flow_rpc_id = ProtoField.uint32("lhtrace.flow.rpc.id", "RPC Flow ID", base.DEC)
+f.flow_rpc_raw_id = ProtoField.uint32("lhtrace.flow.rpc.raw_id", "RpcID", base.DEC)
+f.flow_rpc_generation = ProtoField.uint32("lhtrace.flow.rpc.generation", "RpcID Generation", base.DEC)
+f.flow_host_msg = ProtoField.string("lhtrace.flow.host_msg", "Host Message Flow")
+f.flow_host_msg_id = ProtoField.uint32("lhtrace.flow.host_msg.id", "Host Message Flow ID", base.DEC)
+f.flow_host_msg_raw_id = ProtoField.uint32("lhtrace.flow.host_msg.raw_id", "HostMsgID", base.DEC)
+f.flow_host_msg_generation = ProtoField.uint32("lhtrace.flow.host_msg.generation", "HostMsgID Generation", base.DEC)
 
 local mf = lhmeta.fields
 mf.json = ProtoField.string("lhtrace.meta.json", "Trace Map JSON")
@@ -79,6 +94,33 @@ evf.trace_data_value = ProtoField.string("lhtrace.event.trace_data.value", "Trac
 local HEADER_LEN = 50
 local trace_map = nil
 local sources_by_id = {}
+local flow_state = {}
+local frame_flow_cache = {}
+
+local id_kinds = {}
+local id_kind_order = {}
+local flow_kinds = {}
+local flow_kind_order = {}
+local correlation_relationships = {}
+local direction_rules = {}
+
+local function reset_flows()
+    local next_flow_id = {}
+    for _, flow_kind in ipairs(flow_kind_order) do
+        next_flow_id[flow_kind] = 1
+    end
+    flow_state = {
+        nodes = {},
+        nodes_by_key = {},
+        id_state = {},
+        next_node_id = 1,
+        next_component_id = 1,
+        next_flow_id = next_flow_id,
+    }
+    frame_flow_cache = {}
+end
+
+reset_flows()
 
 local function json_decode(text)
     local pos = 1
@@ -194,6 +236,68 @@ local function json_decode(text)
     return parse_value()
 end
 
+local function append_unique(list, value)
+    for _, existing in ipairs(list) do
+        if existing == value then
+            return
+        end
+    end
+    table.insert(list, value)
+end
+
+local function static_fields_for_flow_kind(flow_kind)
+    local field_key = "flow_" .. tostring(flow_kind):gsub("[^%w_]", "_")
+    return {
+        field = f[field_key],
+        flow_id_field = f[field_key .. "_id"],
+        raw_field = f[field_key .. "_raw_id"],
+        generation_field = f[field_key .. "_generation"],
+    }
+end
+
+local function load_trace_correlation()
+    local metadata = trace_map ~= nil and trace_map.trace_correlation or nil
+    if metadata == nil then
+        id_kinds = {}
+        id_kind_order = {}
+        flow_kinds = {}
+        flow_kind_order = {}
+        correlation_relationships = {}
+        direction_rules = {}
+        return
+    end
+
+    id_kinds = {}
+    id_kind_order = {}
+    flow_kinds = {}
+    flow_kind_order = {}
+    correlation_relationships = metadata.relationships or {}
+    direction_rules = metadata.directions or {}
+
+    for flow_kind, spec in pairs(metadata.flow_kinds or {}) do
+        local binding = static_fields_for_flow_kind(flow_kind)
+        flow_kinds[flow_kind] = {
+            id_kind = spec.id_kind,
+            label = spec.label or flow_kind,
+            title = spec.title or (flow_kind .. "Flow"),
+            field = binding.field,
+            flow_id_field = binding.flow_id_field,
+            raw_field = binding.raw_field,
+            generation_field = binding.generation_field,
+        }
+        append_unique(flow_kind_order, flow_kind)
+    end
+
+    for id_kind, spec in pairs(metadata.id_kinds or {}) do
+        id_kinds[id_kind] = {
+            flow_kind = spec.flow_kind,
+            invalid = spec.invalid,
+            wrap = spec.wrap ~= false,
+        }
+        append_unique(id_kind_order, id_kind)
+    end
+end
+
 local function load_trace_map(json_text)
     trace_map = json_decode(json_text)
     sources_by_id = {}
@@ -202,6 +306,8 @@ local function load_trace_map(json_text)
             sources_by_id[tonumber(src.source)] = src
         end
     end
+    load_trace_correlation()
+    reset_flows()
 end
 
 local function extract_bits_le(tvb, base_offset, bit_offset, width)
@@ -221,6 +327,320 @@ local function byte_range_for_bits(tvb, bit_offset, width)
     local byte_offset = math.floor(bit_offset / 8)
     local byte_len = math.ceil(((bit_offset % 8) + width) / 8)
     return tvb(byte_offset, byte_len)
+end
+
+local function tvb_has_bits(tvb, bit_offset, width)
+    if bit_offset == nil or width == nil then
+        return false
+    end
+    return math.ceil((bit_offset + width) / 8) <= tvb:len()
+end
+
+local function trace_data_key_width(name)
+    if trace_map == nil or trace_map.payload_formats == nil then
+        return nil
+    end
+    local fmt = trace_map.payload_formats.lauberhorn_event
+    if fmt == nil or fmt.trace_data_keys == nil or fmt.trace_data_keys[name] == nil then
+        return nil
+    end
+    return tonumber(fmt.trace_data_keys[name].width)
+end
+
+local function invalid_trace_id(name)
+    local spec = id_kinds[name]
+    if spec == nil or spec.invalid ~= "all_ones" then
+        return nil
+    end
+    local width = trace_data_key_width(name)
+    if width == nil then
+        return nil
+    end
+    return (2 ^ width) - 1
+end
+
+local function infer_event_direction(event_name, source_info)
+    local haystack = string.lower(table.concat({
+        event_name or "",
+        source_info ~= nil and (source_info.name or "") or "",
+        source_info ~= nil and (source_info.port or "") or "",
+    }, " "))
+
+    for _, rule in ipairs(direction_rules) do
+        for _, needle in ipairs(rule.contains or {}) do
+            if haystack:find(string.lower(tostring(needle)), 1, true) ~= nil then
+                return tostring(rule.direction)
+            end
+        end
+    end
+    return "unknown"
+end
+
+local function id_namespace(kind, direction)
+    return tostring(kind) .. ":" .. tostring(direction)
+end
+
+local function id_instance_state(kind, direction)
+    local namespace = id_namespace(kind, direction)
+    local state = flow_state.id_state[namespace]
+    if state == nil then
+        local width = trace_data_key_width(kind) or 0
+        local spec = id_kinds[kind] or {}
+        state = {
+            last_value = nil,
+            generation = 0,
+            modulus = 2 ^ width,
+            wrap = spec.wrap ~= false,
+        }
+        flow_state.id_state[namespace] = state
+    end
+    return state
+end
+
+local function generation_for_id(kind, direction, value)
+    local state = id_instance_state(kind, direction)
+    if state.wrap and state.last_value ~= nil and value ~= state.last_value then
+        local high_mark = math.floor(state.modulus * 3 / 4)
+        local low_mark = math.floor(state.modulus / 4)
+        if value < state.last_value and state.last_value >= high_mark and value <= low_mark then
+            state.generation = state.generation + 1
+        end
+    end
+    state.last_value = value
+    return state.generation
+end
+
+local function find_node(node)
+    if node.parent ~= node then
+        node.parent = find_node(node.parent)
+    end
+    return node.parent
+end
+
+local function component_id(root)
+    if root.component_id == nil then
+        root.component_id = flow_state.next_component_id
+        flow_state.next_component_id = flow_state.next_component_id + 1
+    end
+    return root.component_id
+end
+
+local function make_id_node(kind, direction, value)
+    local generation = generation_for_id(kind, direction, value)
+    local key = table.concat({ kind, direction, tostring(generation), tostring(value) }, ":")
+    local node = flow_state.nodes_by_key[key]
+    if node ~= nil then
+        return node
+    end
+
+    node = {
+        id = flow_state.next_node_id,
+        parent = nil,
+        rank = 0,
+        kind = kind,
+        direction = direction,
+        value = value,
+        generation = generation,
+        ids = {},
+        flow_ids = {},
+    }
+    node.parent = node
+    node.ids[kind] = { node }
+    flow_state.next_node_id = flow_state.next_node_id + 1
+    flow_state.nodes_by_key[key] = node
+    table.insert(flow_state.nodes, node)
+    return node
+end
+
+local function merge_node_lists(to_root, from_root)
+    for kind, nodes in pairs(from_root.ids) do
+        if to_root.ids[kind] == nil then
+            to_root.ids[kind] = {}
+        end
+        for _, node in ipairs(nodes) do
+            table.insert(to_root.ids[kind], node)
+        end
+    end
+    for kind, id in pairs(from_root.flow_ids) do
+        if to_root.flow_ids[kind] == nil then
+            to_root.flow_ids[kind] = id
+        end
+    end
+end
+
+local function union_nodes(left, right)
+    local left_root = find_node(left)
+    local right_root = find_node(right)
+    if left_root == right_root then
+        return left_root
+    end
+    if left_root.rank < right_root.rank then
+        left_root, right_root = right_root, left_root
+    end
+    right_root.parent = left_root
+    if left_root.rank == right_root.rank then
+        left_root.rank = left_root.rank + 1
+    end
+    if left_root.component_id == nil then
+        left_root.component_id = right_root.component_id
+    end
+    merge_node_lists(left_root, right_root)
+    return left_root
+end
+
+local function flow_id_for_kind(root, kind)
+    root = find_node(root)
+    if root.ids[kind] == nil then
+        return nil
+    end
+    local spec = id_kinds[kind]
+    if spec == nil or spec.flow_kind == nil then
+        return nil
+    end
+    local flow_kind = spec.flow_kind
+    if root.flow_ids[flow_kind] == nil then
+        root.flow_ids[flow_kind] = flow_state.next_flow_id[flow_kind] or 1
+        flow_state.next_flow_id[flow_kind] = root.flow_ids[flow_kind] + 1
+    end
+    return root.flow_ids[flow_kind]
+end
+
+local function id_token_label(node)
+    return tostring(node.direction) .. ":" .. tostring(node.value) .. "." .. tostring(node.generation)
+end
+
+local function flow_label(root, kind)
+    local id_spec = id_kinds[kind]
+    if id_spec == nil then
+        return nil
+    end
+    local spec = flow_kinds[id_spec.flow_kind]
+    if spec == nil then
+        return nil
+    end
+    local id = flow_id_for_kind(root, kind)
+    if id == nil then
+        return nil
+    end
+
+    local parts = {}
+    for _, node in ipairs(find_node(root).ids[kind] or {}) do
+        table.insert(parts, id_token_label(node))
+    end
+    return spec.title .. "#" .. tostring(id) .. "[" .. table.concat(parts, ",") .. "]"
+end
+
+local function event_flow(data_values, event_name, source_info, pinfo)
+    local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    if pinfo ~= nil and pinfo.visited and frame_number ~= nil and frame_flow_cache[frame_number] ~= nil then
+        return frame_flow_cache[frame_number]
+    end
+
+    local direction = infer_event_direction(event_name, source_info)
+    local nodes = {}
+    local nodes_by_kind = {}
+    local first_range = nil
+    for _, value in ipairs(data_values) do
+        if id_kinds[value.name] ~= nil then
+            local invalid_id = invalid_trace_id(value.name)
+            if invalid_id == nil or value.value ~= invalid_id then
+                local node = make_id_node(value.name, direction, value.value)
+                table.insert(nodes, node)
+                if nodes_by_kind[value.name] == nil then
+                    nodes_by_kind[value.name] = {}
+                end
+                table.insert(nodes_by_kind[value.name], node)
+                first_range = first_range or value.range
+            end
+        end
+    end
+
+    if #nodes == 0 then
+        if frame_number ~= nil then
+            frame_flow_cache[frame_number] = nil
+        end
+        return nil
+    end
+
+    local root = nodes[1]
+    for _, relationship in ipairs(correlation_relationships) do
+        if relationship.type == "same_event_union" then
+            local relationship_nodes = {}
+            for _, kind in ipairs(relationship.id_kinds or {}) do
+                for _, node in ipairs(nodes_by_kind[kind] or {}) do
+                    table.insert(relationship_nodes, node)
+                end
+            end
+            if #relationship_nodes > 0 then
+                local relationship_root = relationship_nodes[1]
+                for idx = 2, #relationship_nodes do
+                    relationship_root = union_nodes(relationship_root, relationship_nodes[idx])
+                end
+                root = union_nodes(root, relationship_root)
+            end
+        end
+    end
+    root = find_node(root)
+    component_id(root)
+
+    local result = {
+        root = root,
+        nodes = nodes,
+        range = first_range,
+    }
+    if frame_number ~= nil then
+        frame_flow_cache[frame_number] = result
+    end
+    return result
+end
+
+local function add_flow_fields(tree, pinfo, flow)
+    if flow == nil then
+        return ""
+    end
+
+    local root = find_node(flow.root)
+    local range = flow.range
+    local labels = {}
+    for _, kind in ipairs(id_kind_order) do
+        local label = flow_label(root, kind)
+        if label ~= nil then
+            table.insert(labels, label)
+        end
+    end
+    if #labels == 0 then
+        return ""
+    end
+
+    local summary = table.concat(labels, " ")
+    local flow_tree = tree:add(f.flow, range, summary)
+    flow_tree:add(f.flow_id, range, component_id(root))
+    flow_tree:add(f.flow_type, range, "transitive_id")
+
+    for _, kind in ipairs(id_kind_order) do
+        local id_spec = id_kinds[kind] or {}
+        local spec = flow_kinds[id_spec.flow_kind]
+        local label = flow_label(root, kind)
+        if label ~= nil then
+            local kind_tree = spec.field ~= nil and flow_tree:add(spec.field, range, label) or flow_tree:add(f.flow, range, label)
+            if spec.flow_id_field ~= nil then
+                kind_tree:add(spec.flow_id_field, range, flow_id_for_kind(root, kind))
+            end
+            for _, node in ipairs(root.ids[kind] or {}) do
+                if spec.raw_field ~= nil then
+                    kind_tree:add(spec.raw_field, range, node.value)
+                end
+                if spec.generation_field ~= nil then
+                    kind_tree:add(spec.generation_field, range, node.generation)
+                end
+            end
+        end
+    end
+
+    if pinfo ~= nil then
+        pinfo.cols.dst = summary
+    end
+    return summary
 end
 
 local function bit_range_num(value, hi, lo)
@@ -480,7 +900,7 @@ local function dissect_eci(payload_tvb, tree, source_info)
     }
 end
 
-local function dissect_event(payload_tvb, tree)
+local function dissect_event(payload_tvb, tree, pinfo, source_info)
     local fields = fields_for_type("lauberhorn_event") or {}
     local id_field = fields.event_id or { offset = 0, width = 6 }
     local event_id = extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width)
@@ -491,10 +911,18 @@ local function dissect_event(payload_tvb, tree)
     local data_fields = event_data_fields(event_id)
     local data_values = {}
     for _, field in ipairs(data_fields) do
-        local value = extract_bits_le(payload_tvb, 0, field.offset, field.width)
-        table.insert(data_values, { name = field.name, value = value })
-        local value_text = tostring(field.name) .. "=" .. tostring(value)
-        tree:add(evf.trace_data_value, byte_range_for_bits(payload_tvb, field.offset, field.width), value_text)
+        local offset = tonumber(field.offset)
+        local width = tonumber(field.width)
+        if tvb_has_bits(payload_tvb, offset, width) then
+            local value = extract_bits_le(payload_tvb, 0, offset, width)
+            local value_range = byte_range_for_bits(payload_tvb, offset, width)
+            table.insert(data_values, { name = field.name, value = value, range = value_range })
+            local value_text = tostring(field.name) .. "=" .. tostring(value)
+            tree:add(evf.trace_data_value, value_range, value_text)
+        else
+            tree:add(evf.trace_data_value, payload_tvb(0, 0),
+                "malformed " .. tostring(field.name) .. ": extends past event payload")
+        end
     end
 
     local data_info = format_event_data(data_values)
@@ -504,10 +932,15 @@ local function dissect_event(payload_tvb, tree)
         info = info .. " " .. data_info
     end
 
+    local flow_info = add_flow_fields(tree, pinfo, event_flow(data_values, name, source_info, pinfo))
+    if flow_info ~= "" then
+        info = info .. " [" .. flow_info .. "]"
+    end
+
     return {
         info = info,
         source = name,
-        dest = "",
+        dest = flow_info,
     }
 end
 
@@ -567,7 +1000,7 @@ function lhtrace.dissector(tvb, pinfo, tree)
             local label = event_name_from_payload(payload_tvb)
             pinfo.cols.src = label
             add_source_info(subtree, tvb, source, label)
-            local parsed = dissect_event(payload_tvb, subtree)
+            local parsed = dissect_event(payload_tvb, subtree, pinfo, src)
             info = parsed.info
         else
             subtree:add(f.payload, payload_tvb)
