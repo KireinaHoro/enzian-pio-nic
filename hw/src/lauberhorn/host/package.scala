@@ -86,4 +86,14 @@ package object host {
 
     HOST_REQ_TY_WIDTH.set(ty.getBitsWidth)
   }
+
+  /** Trace-only sideband carried next to a host request.  This must never be
+    * encoded into host-visible descriptors.
+    */
+  case class HostReqWithTrace() extends Bundle {
+    override def clone = HostReqWithTrace()
+
+    val req = HostReq()
+    val hostMsgId = UInt(HostMsgID.width bits)
+  }
 }

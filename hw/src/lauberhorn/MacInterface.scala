@@ -103,8 +103,8 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
       ROUNDED_MTU / 64, cmacRxClock, clockDomain)
 
     rxCmacClkTp.trace("RxCmacEntry") := PulseCCByToggle(rxDomain.afterDrop.lastFire, cmacRxClock, clockDomain)
-    rxAppClkTp.trace("RxAfterCdcQueue") := rxFifo.m_axis.fire
-    txAppClkTp.trace("TxBeforeCdcQueue") := txFifo.s_axis.fire
+    rxAppClkTp.trace("RxAfterCdcQueue") := rxFifo.m_axis.get.lastFire
+    txAppClkTp.trace("TxBeforeCdcQueue") := txFifo.s_axis.get.lastFire
     txCmacClkTp.trace("TxCmacExit") := PulseCCByToggle(m_axis_tx.lastFire, cmacTxClock, clockDomain)
   }
 

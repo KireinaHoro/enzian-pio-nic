@@ -1,7 +1,7 @@
 package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType}
+import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType, HostReqWithTrace}
 import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType, invalidTraceId}
 import spinal.core._
 import spinal.lib._
@@ -211,9 +211,10 @@ class DmaControlPlugin extends FiberPlugin {
       }
       val enqueuePkt: State = new State {
         whenIsActive {
-          def assignHost(hostRx: Stream[HostReq]) = {
+          def assignHost(hostRx: Stream[HostReqWithTrace]) = {
             hostRx.valid := True
-            hostRx.payload := pktToEnqueue
+            hostRx.req := pktToEnqueue
+            hostRx.hostMsgId := rxTraceHostMsgId
 
             assert(pktToEnqueue.buffer.size.bits >= pktToEnqueue.len.bits,
               "truncated packet during RX DMA")
@@ -225,23 +226,11 @@ class DmaControlPlugin extends FiberPlugin {
           }
 
           when (pktToEnqueue.ty === HostReqType.bypass) {
-            rxTp.trace("RxBypassEnqueueToHost", PacketID(rxTracePacketId), HostMsgID(rxTraceHostMsgId)) := True
+            rxTp.trace("RxBypassEnqueueToHost", PacketID(rxTracePacketId), HostMsgID(rxTraceHostMsgId))
             assignHost(bypassSink.get)
           } otherwise {
-            when (pktToEnqueue.ty === HostReqType.oncRpcCall) {
-              rxTp.trace("RxRpcEnqueueToHost", RpcID(rxTraceRpcId), HostMsgID(rxTraceHostMsgId)) := True
-            }
-            sched.logic.rxMeta.valid := True
-            sched.logic.rxMeta.payload.req := pktToEnqueue
-            sched.logic.rxMeta.payload.hostMsgId := rxTraceHostMsgId
-
-            assert(pktToEnqueue.buffer.size.bits >= pktToEnqueue.len.bits,
-              "truncated packet during RX DMA")
-
-            when (sched.logic.rxMeta.ready) {
-              inc(_.rxPacketCount)
-              goto(idle)
-            }
+            rxTp.trace("RxRpcEnqueueToHost", RpcID(rxTraceRpcId), HostMsgID(rxTraceHostMsgId))
+            assignHost(sched.logic.rxMeta)
           }
         }
       }
@@ -270,18 +259,18 @@ class DmaControlPlugin extends FiberPlugin {
           txReqMuxed.ready := True
           when(txReqMuxed.valid) {
             // parse and save outgoing PacketDesc
-            switch (txReqMuxed.ty) {
+            switch (txReqMuxed.req.ty) {
               is (HostReqType.bypass) {
-                txPacketDesc.fromHeaders(txReqMuxed.data.bypassMeta)
+                txPacketDesc.fromHeaders(txReqMuxed.req.data.bypassMeta)
               }
               is (HostReqType.oncRpcReply) {
                 txPacketDesc.ty := PacketDescType.oncRpcReply
                 txPacketDesc.metadata.assignDontCare()
                 txPacketDesc.metadata.oncRpcReply.rpcId := invalidTraceId(RpcID.width)
-                txPacketDesc.metadata.oncRpcReply.funcPtr := txReqMuxed.data.oncRpcReplyTx.funcPtr
-                txPacketDesc.metadata.oncRpcReply.xid := txReqMuxed.data.oncRpcReplyTx.xid
-                txPacketDesc.metadata.oncRpcReply.data := txReqMuxed.data.oncRpcReplyTx.data
-                txPacketDesc.metadata.oncRpcReply.replyLen := txReqMuxed.data.oncRpcReplyTx.replyLen
+                txPacketDesc.metadata.oncRpcReply.funcPtr := txReqMuxed.req.data.oncRpcReplyTx.funcPtr
+                txPacketDesc.metadata.oncRpcReply.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
+                txPacketDesc.metadata.oncRpcReply.data := txReqMuxed.req.data.oncRpcReplyTx.data
+                txPacketDesc.metadata.oncRpcReply.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
               }
               default {
                 report("unsupported host request type", FAILURE)
@@ -294,12 +283,12 @@ class DmaControlPlugin extends FiberPlugin {
       val sendDmaCmd: State = new State {
         whenIsActive {
           // check that the actual buffer is used
-          assert(txReqBuffered.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
+          assert(txReqBuffered.req.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
             "packet buffer slot out of TX buffer range used")
 
           // store DMA command
-          readDesc.payload.payload.addr := txReqBuffered.buffer.addr.bits.resized
-          readDesc.payload.payload.len := txReqBuffered.buffer.size.bits
+          readDesc.payload.payload.addr := txReqBuffered.req.buffer.addr.bits.resized
+          readDesc.payload.payload.len := txReqBuffered.req.buffer.size.bits
           readDesc.payload.payload.tag := 0
           readDesc.valid := True
 
@@ -315,7 +304,7 @@ class DmaControlPlugin extends FiberPlugin {
             when(readDescStatus.payload.error === 0) {
               inc(_.txPacketCount)
 
-              txTp.trace("TxAfterDmaRead") := True
+              txTp.trace("TxAfterDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
             } otherwise {
               inc(_.txDmaErrorCount)
             }

@@ -1,8 +1,9 @@
 package lauberhorn.host.pcie
 
 import jsteward.blocks.misc.RichStream
-import lauberhorn.{CoreID, GlobalCSRPlugin, LauberhornTraceDma, TracePlugin}
+import lauberhorn.{CoreID, GlobalCSRPlugin, HostMsgID, LauberhornTraceDma, TracePlugin}
 import lauberhorn.host.DatapathPlugin
+import lauberhorn.net.invalidTraceId
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
@@ -32,7 +33,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
       ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
 
-    val rxHostDesc = hostRx.map(PcieHostCtrlInfo.packFrom)
+    val rxHostDesc = hostRx.map(hostReq => PcieHostCtrlInfo.packFrom(hostReq.req))
     // busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
 
     // on read primitive (AR for AXI), set hostRxReq for timing ReadStart
@@ -61,7 +62,8 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
       ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
     hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
-      h.unpackTo(cc)
+      h.unpackTo(cc.req)
+      cc.hostMsgId := invalidTraceId(HostMsgID.width)
     }
 
     val td = Seq(CoreID(B(coreID)))

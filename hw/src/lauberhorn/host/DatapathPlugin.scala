@@ -12,8 +12,8 @@ abstract class DatapathPlugin(val coreID: Int) extends FiberPlugin with Datapath
   /** datapath interfaces */
   val hostIf = during setup new Area {
     val hostTx    = Stream(PacketBufDesc())
-    val hostTxAck = Stream(HostReq())
-    val hostRx    = Stream(HostReq())
+    val hostTxAck = Stream(HostReqWithTrace())
+    val hostRx    = Stream(HostReqWithTrace())
     val hostRxAck = Stream(PacketBufDesc())
   }
   def hostTx    = hostIf.hostTx

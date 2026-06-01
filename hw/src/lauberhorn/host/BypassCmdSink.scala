@@ -19,9 +19,9 @@ import scala.collection.mutable
 class BypassCmdSink extends FiberPlugin {
   lazy val bypassDp = host.list[DatapathService].head
 
-  val upstreams = mutable.ArrayBuffer[Stream[HostReq]]()
+  val upstreams = mutable.ArrayBuffer[Stream[HostReqWithTrace]]()
   def getSink() = {
-    val ret = Stream(HostReq())
+    val ret = Stream(HostReqWithTrace())
     upstreams.append(ret)
     ret
   }
@@ -35,7 +35,7 @@ class BypassCmdSink extends FiberPlugin {
   }
 
   val logic = during build new Area {
-    val bypassFifo = StreamFifo(HostReq(), BYPASS_PKTS)
+    val bypassFifo = StreamFifo(HostReqWithTrace(), BYPASS_PKTS)
     bypassFifo.io.push << StreamArbiterFactory(s"${getName()}_bypassDescMux")
       .roundRobin
       .on(upstreams)
