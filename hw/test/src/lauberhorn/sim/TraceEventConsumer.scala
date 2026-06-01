@@ -137,6 +137,13 @@ class TraceEventConsumer private (dut: NicEngine, clockDomain: ClockDomain) {
       out.close()
     }
   }
+
+  def dump(since: Int = 0): String = eventsSince(since).map { event =>
+    val fields =
+      if (event.data.isEmpty) ""
+      else event.data.map { case (key, value) => s"$key=$value" }.mkString(" ", " ", "")
+    s"${event.cycle}:${event.portName}:${event.eventName}$fields"
+  }.mkString(", ")
 }
 
 object TraceEventConsumer {
