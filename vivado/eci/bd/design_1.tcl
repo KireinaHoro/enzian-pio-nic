@@ -269,11 +269,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
 
   # Create pins
   create_bd_pin -dir I -type clk app_clk
-  create_bd_pin -dir I -from 17 -to 0 -type data core0_states
-  create_bd_pin -dir I -from 17 -to 0 -type data core1_states
-  create_bd_pin -dir I -from 17 -to 0 -type data core2_states
-  create_bd_pin -dir I -from 17 -to 0 -type data core3_states
-  create_bd_pin -dir I -from 17 -to 0 -type data core4_states
+  create_bd_pin -dir I -from 18 -to 0 -type data core0_states
+  create_bd_pin -dir I -from 18 -to 0 -type data core1_states
+  create_bd_pin -dir I -from 18 -to 0 -type data core2_states
+  create_bd_pin -dir I -from 18 -to 0 -type data core3_states
+  create_bd_pin -dir I -from 18 -to 0 -type data core4_states
   create_bd_pin -dir I -from 75 -to 0 -type data lci_even
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_even
   create_bd_pin -dir I -from 75 -to 0 -type data ul_even
@@ -302,7 +302,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
     CONFIG.C_NUM_OF_PROBES {18} \
-    CONFIG.C_PROBE0_WIDTH {18} \
+    CONFIG.C_PROBE0_WIDTH {19} \
     CONFIG.C_PROBE10_WIDTH {76} \
     CONFIG.C_PROBE11_WIDTH {48} \
     CONFIG.C_PROBE12_WIDTH {42} \
@@ -313,10 +313,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE16_WIDTH {35} \
     CONFIG.C_PROBE17_WIDTH {17} \
     CONFIG.C_PROBE18_WIDTH {1} \
-    CONFIG.C_PROBE1_WIDTH {18} \
-    CONFIG.C_PROBE2_WIDTH {18} \
-    CONFIG.C_PROBE3_WIDTH {18} \
-    CONFIG.C_PROBE4_WIDTH {18} \
+    CONFIG.C_PROBE1_WIDTH {19} \
+    CONFIG.C_PROBE2_WIDTH {19} \
+    CONFIG.C_PROBE3_WIDTH {19} \
+    CONFIG.C_PROBE4_WIDTH {19} \
     CONFIG.C_PROBE5_WIDTH {76} \
     CONFIG.C_PROBE6_WIDTH {76} \
     CONFIG.C_PROBE7_WIDTH {76} \
@@ -942,11 +942,11 @@ proc create_root_design { parentCell } {
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $txclk
 
   set trace_stall_threshold [ create_bd_port -dir O -from 5 -to 0 trace_stall_threshold ]
-  set core0_states [ create_bd_port -dir I -from 17 -to 0 -type data core0_states ]
-  set core1_states [ create_bd_port -dir I -from 17 -to 0 -type data core1_states ]
-  set core2_states [ create_bd_port -dir I -from 17 -to 0 -type data core2_states ]
-  set core3_states [ create_bd_port -dir I -from 17 -to 0 -type data core3_states ]
-  set core4_states [ create_bd_port -dir I -from 17 -to 0 -type data core4_states ]
+  set core0_states [ create_bd_port -dir I -from 18 -to 0 -type data core0_states ]
+  set core1_states [ create_bd_port -dir I -from 18 -to 0 -type data core1_states ]
+  set core2_states [ create_bd_port -dir I -from 18 -to 0 -type data core2_states ]
+  set core3_states [ create_bd_port -dir I -from 18 -to 0 -type data core3_states ]
+  set core4_states [ create_bd_port -dir I -from 18 -to 0 -type data core4_states ]
   set lci_even [ create_bd_port -dir I -from 75 -to 0 -type data lci_even ]
   set lci_odd [ create_bd_port -dir I -from 75 -to 0 -type data lci_odd ]
   set lcia_even [ create_bd_port -dir I -from 75 -to 0 -type data lcia_even ]
@@ -1204,5 +1204,4 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
 ##################################################################
 
 create_root_design ""
-
 
