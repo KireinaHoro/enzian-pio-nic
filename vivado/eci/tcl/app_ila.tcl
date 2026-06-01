@@ -71,16 +71,17 @@ proc def_core_states { coreNum probeNum } {
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT waitHostRead hostReadPending repeatDesc
-        freeSlot invalidatePacketData invalidateCtrl waitInvResp
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[12:10]    core${coreNum}_rxFsm_state[2:0]          $ila]
+        freeSlot invalidatePacketData waitDataLciaDone
+        invalidateCtrl waitInvResp
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[13:10]    core${coreNum}_rxFsm_state[3:0]          $ila]
 
     add_hw_probe_enum -dict [states_to_enum_defs {
         BOOT idle waitPacket invalidateCtrl
-        waitInvResp invalidatePacketData tx
-    }] [create_hw_probe -no_gui_update -map probe$probeNum[15:13]    core${coreNum}_txFsm_state[2:0]          $ila]
+        waitInvResp invalidatePacketData waitDataLciaDone tx
+    }] [create_hw_probe -no_gui_update -map probe$probeNum[16:14]    core${coreNum}_txFsm_state[2:0]          $ila]
 
-    create_hw_probe -no_gui_update -map probe$probeNum[16]       core${coreNum}_rxClIdx                   $ila
-    create_hw_probe -no_gui_update -map probe$probeNum[17]       core${coreNum}_txClIdx                   $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[17]       core${coreNum}_rxClIdx                   $ila
+    create_hw_probe -no_gui_update -map probe$probeNum[18]       core${coreNum}_txClIdx                   $ila
 }
 
 proc def_dma_state { probeNum } {
@@ -373,4 +374,3 @@ proc dump_all_traces { outName } {
         puts [exec $traceDataDir/parse_${parser}_trace.py $outDir/$tr.csv -o $outDir/parsed/$tr.csv]
     }
 }
-
