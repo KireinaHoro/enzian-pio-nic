@@ -39,9 +39,9 @@ class TraceEventConsumer private (dut: NicEngine, clockDomain: ClockDomain) {
     val event = eventDefs.lift(eventId)
     var bitOffset = LauberhornTraceDma.EventIdSlotWidth
     val data = event.map { eventDef =>
-      eventDef.dataKeys.map { key =>
-        val value = (payload >> bitOffset) & ((BigInt(1) << key.width) - 1)
-        bitOffset += key.width
+      eventDef.dataKeys.zip(eventDef.dataWidths).map { case (key, width) =>
+        val value = (payload >> bitOffset) & ((BigInt(1) << width) - 1)
+        bitOffset += width
         key.name -> value
       }.toMap
     }.getOrElse(Map.empty[String, BigInt])

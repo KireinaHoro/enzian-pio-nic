@@ -6,6 +6,7 @@ import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.host.{HostReq, HostReqOncRpcCallRx, HostReqType, PreemptionService}
 import lauberhorn.Global._
+import lauberhorn.net.invalidTraceId
 import lauberhorn.net.oncrpc.OncRpcCallRxMeta
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.database.Element.toValue
@@ -30,6 +31,14 @@ case class ProcessDef() extends Bundle {
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
   val maxThreads = UInt(log2Up(NUM_WORKER_CORES + 1) bits)
+}
+
+/** Internal scheduler request metadata.  The host message ID is trace-only
+  * correlation state and must not be exposed through host-facing HostReq.
+  */
+case class SchedulerReq() extends Bundle {
+  val req = HostReq()
+  val hostMsgId = UInt(HostMsgID.width bits)
 }
 
 /**
@@ -68,6 +77,7 @@ class Scheduler extends FiberPlugin {
     val ty = PreemptCmdType()
     val pid = PID()
     val idx = ProcTblIdx
+    val hostMsgId = UInt(HostMsgID.width bits)
   }
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
@@ -133,7 +143,11 @@ class Scheduler extends FiberPlugin {
 
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallRxMeta]] */
-    val rxMeta = Stream(HostReq())
+    val rxMeta = Stream(SchedulerReq())
+
+    val queueTp = host[TracePlugin].makePort("scheduler_queue", LauberhornTraceDma.NicHostInterfaceSlr)
+    val coreTps = Seq.tabulate(NUM_WORKER_CORES)(idx =>
+      host[TracePlugin].makePort(s"scheduler_core${idx + 1}", LauberhornTraceDma.NicHostInterfaceSlr))
 
     /** Packet metadata issued to the downstream [[lauberhorn.host.DatapathPlugin]].
       *
@@ -175,7 +189,7 @@ class Scheduler extends FiberPlugin {
     def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
 
     // per-process queues are in memory
-    val queueMem = Mem(HostReq(), totalPkts)
+    val queueMem = Mem(SchedulerReq(), totalPkts)
 
     case class QueueMetadata(off: Int, cap: Int)(idx: Int) extends Bundle {
       val offset, head, tail = MemAddr
@@ -285,17 +299,17 @@ class Scheduler extends FiberPlugin {
     drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
     val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
 
-    val (pushLookup, pushResult, _) = procDb.makePort(PID(), HostReq(),
+    val (pushLookup, pushResult, _) = procDb.makePort(PID(), SchedulerReq(),
       "rxPush", singleMatch = true) { (v, q, _) =>
       v.enabled && v.pid === q
     }
 
     pushLookup.translateFrom(rxMeta) { case (lk, meta) =>
-      lk.query := meta.data.oncRpcCallRx.pid
+      lk.query := meta.req.data.oncRpcCallRx.pid
       lk.userData := meta
     }
     when (rxMeta.valid) {
-      assert(rxMeta.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
+      assert(rxMeta.req.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
     }
 
     val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
@@ -304,6 +318,7 @@ class Scheduler extends FiberPlugin {
     // preempt request to popping side
     val rxPreemptReq = Reg(Flow(PreemptCmd()))
     rxPreemptReq.valid := False
+    rxPreemptReq.hostMsgId := invalidTraceId(HostMsgID.width)
 
     pushResult.ready := False
     when (pushResult.valid) {
@@ -313,6 +328,9 @@ class Scheduler extends FiberPlugin {
         // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
         // FIXME: free the buffer by sending back a hostRxAck (normally sent by host module)
         inc(_.dropped)
+        queueTp.trace("SchedulerRequestDropped",
+          HostMsgID(pushResult.userData.hostMsgId),
+          ProcessID(pushResult.value.pid.bits)) := True
       } otherwise {
         // store at where the tail was
         queueMem.write(queueMetas(pushResult.idx).tail, pushResult.userData)
@@ -321,12 +339,16 @@ class Scheduler extends FiberPlugin {
         pushQ(pushResult.idx) := True
 
         inc(_.pushed)
+        queueTp.trace("SchedulerRequestQueued",
+          HostMsgID(pushResult.userData.hostMsgId),
+          ProcessID(pushResult.value.pid.bits)) := True
       }
 
       // A new packet arrived, try to select a core to preempt, but do not block the RX process.
       when (pushResultThrCount < pushResult.value.maxThreads) {
         rxPreemptReq.pid := pushResult.value.pid
         rxPreemptReq.idx := pushResult.idx
+        rxPreemptReq.hostMsgId := pushResult.userData.hostMsgId
 
         // preempting as ready takes priority
         when (queueMetas(pushResult.idx).almostFull) {
@@ -388,19 +410,22 @@ class Scheduler extends FiberPlugin {
     val victimCoreMapSel = OHMasking.firstV2(victimCoreMap)
 
     0 until NUM_WORKER_CORES foreach { idx => new Area {
+      val coreTp = coreTps(idx)
       val toCore = coreMeta(idx)
       toCore.setIdle()
 
       val popReq = popReqs(idx)
       popReq.req := False
       popReq.queueIdx.assignDontCare()
-      val savedPoppedReq = Reg(HostReq())
+      val savedPoppedReq = Reg(SchedulerReq())
 
       val corePopQueueIdx = corePidMap(idx)
 
       corePreempt(idx).valid := False
       // save the requested preemption target until preemption is actually done
       val savedPreemptIdx = Reg(ProcTblIdx)
+      val savedPreemptPid = Reg(PID())
+      val savedPreemptHostMsgId = Reg(UInt(HostMsgID.width bits)) init invalidTraceId(HostMsgID.width)
 
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
@@ -415,6 +440,12 @@ class Scheduler extends FiberPlugin {
               corePreempt(idx).outOfIdle := coreIdleMap(idx)
 
               savedPreemptIdx := rxPreemptReq.idx
+              savedPreemptPid := rxPreemptReq.pid
+              savedPreemptHostMsgId := rxPreemptReq.hostMsgId
+              coreTp.trace("SchedulerPreemptCore",
+                HostMsgID(rxPreemptReq.hostMsgId),
+                ProcessID(rxPreemptReq.pid.bits),
+                CoreID(B(idx + 1, CoreID.width bits))) := True
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -447,9 +478,15 @@ class Scheduler extends FiberPlugin {
               // since the core is already ready, it can't be still in idle
               corePreempt(idx).outOfIdle := False
               savedPreemptIdx := drainResult.idx
+              savedPreemptPid := drainResult.value.pid
+              savedPreemptHostMsgId := invalidTraceId(HostMsgID.width)
               drainProcCoreReq(idx) := True
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
                 drainProcInProgress(drainResult.idx) := True
+                coreTp.trace("SchedulerPreemptCore",
+                  HostMsgID(invalidTraceId(HostMsgID.width)),
+                  ProcessID(drainResult.value.pid.bits),
+                  CoreID(B(idx + 1, CoreID.width bits))) := True
                 goto(preempt)
               }
             }
@@ -465,6 +502,10 @@ class Scheduler extends FiberPlugin {
             when (corePreempt(idx).ready) {
               drainProcInProgress(savedPreemptIdx) := False
               inc(_.preempted(idx))
+              coreTp.trace("SchedulerProcessRun",
+                HostMsgID(savedPreemptHostMsgId),
+                ProcessID(savedPreemptPid.bits),
+                CoreID(B(idx + 1, CoreID.width bits))) := True
               goto(idle)
             }
           }
@@ -485,7 +526,7 @@ class Scheduler extends FiberPlugin {
         val sendPoppedReq: State = new State {
           whenIsActive {
             // issue the popped request to core
-            toCore.payload := savedPoppedReq
+            toCore.payload := savedPoppedReq.req
             toCore.valid := True
 
             when (toCore.ready) {
@@ -494,11 +535,16 @@ class Scheduler extends FiberPlugin {
               // TODO: what happens if the core went amok and never retried? Kill proc?
 
               inc(_.dispatched(idx))
+              coreTp.trace("SchedulerRequestDispatched",
+                HostMsgID(savedPoppedReq.hostMsgId),
+                ProcessID(savedPoppedReq.req.data.oncRpcCallRx.pid.bits),
+                CoreID(B(idx + 1, CoreID.width bits))) := True
               goto(idle)
             }
           }
         }
       }
+      popFsm.build()
     }.setCompositeName(this, s"core_$idx") }
   }
 }
