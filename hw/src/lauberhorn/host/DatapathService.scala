@@ -14,12 +14,12 @@ trait DatapathService {
   def coreID: Int
 
   /** Fully decoded and translated request to pass to host core */
-  def hostRx: Stream[HostReq]
+  def hostRx: Stream[HostReqWithTrace]
   /** Packet buffer slot to free up */
   def hostRxAck: Stream[PacketBufDesc]
 
   /** Buffer descriptor for the host to write a packet into */
   def hostTx: Stream[PacketBufDesc]
   /** Packet descriptor from the host core to send */
-  def hostTxAck: Stream[HostReq]
+  def hostTxAck: Stream[HostReqWithTrace]
 }

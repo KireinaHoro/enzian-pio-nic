@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
-import lauberhorn.host.{HostReq, HostReqOncRpcCallRx, HostReqType, PreemptionService}
+import lauberhorn.host.{HostReq, HostReqOncRpcCallRx, HostReqType, HostReqWithTrace, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.invalidTraceId
 import lauberhorn.net.oncrpc.OncRpcCallRxMeta
@@ -31,14 +31,6 @@ case class ProcessDef() extends Bundle {
   val pid = PID()
   /** maximum number of threads that the process is allowed to run on */
   val maxThreads = UInt(log2Up(NUM_WORKER_CORES + 1) bits)
-}
-
-/** Internal scheduler request metadata.  The host message ID is trace-only
-  * correlation state and must not be exposed through host-facing HostReq.
-  */
-case class SchedulerReq() extends Bundle {
-  val req = HostReq()
-  val hostMsgId = UInt(HostMsgID.width bits)
 }
 
 /**
@@ -143,7 +135,7 @@ class Scheduler extends FiberPlugin {
 
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallRxMeta]] */
-    val rxMeta = Stream(SchedulerReq())
+    val rxMeta = Stream(HostReqWithTrace())
 
     val queueTp = host[TracePlugin].makePort("scheduler_queue", LauberhornTraceDma.NicHostInterfaceSlr)
     val coreTps = Seq.tabulate(NUM_WORKER_CORES)(idx =>
@@ -154,7 +146,7 @@ class Scheduler extends FiberPlugin {
       * Note that this is purely for the datapath and does not contain any scheduling information: switching processes
       * on a core is requested through the [[corePreempt]] interfaces.
       */
-    val coreMeta = Seq.fill(NUM_WORKER_CORES)(Stream(HostReq()))
+    val coreMeta = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
 
     awaitBuild()
 
@@ -189,7 +181,7 @@ class Scheduler extends FiberPlugin {
     def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
 
     // per-process queues are in memory
-    val queueMem = Mem(SchedulerReq(), totalPkts)
+    val queueMem = Mem(HostReqWithTrace(), totalPkts)
 
     case class QueueMetadata(off: Int, cap: Int)(idx: Int) extends Bundle {
       val offset, head, tail = MemAddr
@@ -299,7 +291,7 @@ class Scheduler extends FiberPlugin {
     drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
     val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
 
-    val (pushLookup, pushResult, _) = procDb.makePort(PID(), SchedulerReq(),
+    val (pushLookup, pushResult, _) = procDb.makePort(PID(), HostReqWithTrace(),
       "rxPush", singleMatch = true) { (v, q, _) =>
       v.enabled && v.pid === q
     }
@@ -417,7 +409,7 @@ class Scheduler extends FiberPlugin {
       val popReq = popReqs(idx)
       popReq.req := False
       popReq.queueIdx.assignDontCare()
-      val savedPoppedReq = Reg(SchedulerReq())
+      val savedPoppedReq = Reg(HostReqWithTrace())
 
       val corePopQueueIdx = corePidMap(idx)
 
@@ -526,7 +518,7 @@ class Scheduler extends FiberPlugin {
         val sendPoppedReq: State = new State {
           whenIsActive {
             // issue the popped request to core
-            toCore.payload := savedPoppedReq.req
+            toCore.payload := savedPoppedReq
             toCore.valid := True
 
             when (toCore.ready) {
