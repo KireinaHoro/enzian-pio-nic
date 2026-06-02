@@ -90,6 +90,12 @@ object LauberhornTraceDma {
   }
 
   private val EciChannels = Seq("req_wod_i", "rsp_wod_i", "rsp_wd_i", "rsp_wod_o", "rsp_wd_o", "fwd_wod_o")
+  private val SysGsyncChannels = Seq(
+    "gsync_req_odd",
+    "gsync_req_even",
+    "gsync_rsp_odd",
+    "gsync_rsp_even",
+  )
 
   // DCS tracing provides two local event sources per DCS and there are two DCSs
   // in the ECI design: even and odd.
@@ -118,8 +124,9 @@ object LauberhornTraceDma {
     }
   }
 
-  // sysEciTraceIn records the same six ECI channels per DCS before app CDC.
-  private val SysSpecs = Seq("even", "odd").flatMap { dcs =>
+  // sysEciTraceIn records the same six ECI channels per DCS before app CDC,
+  // plus top-level GSYNC request/response channels.
+  private val SysDcsSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
       SourceSpec("sysEciTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
         "type" -> "eci",
@@ -130,6 +137,15 @@ object LauberhornTraceDma {
       ))
     }
   }
+  private val SysGsyncSpecs = SysGsyncChannels.zipWithIndex.map { case (channel, idx) =>
+    SourceSpec("sysEciTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
+      "type" -> "eci",
+      "clock_domain" -> "sys",
+      "local_source" -> (SysDcsSpecs.length + idx),
+      "channel" -> channel,
+    ))
+  }
+  private val SysSpecs = SysDcsSpecs ++ SysGsyncSpecs
 
   val AppSources = AppDcsSpecs.length + AppEciSpecs.length
   val SysSources = SysSpecs.length
@@ -370,11 +386,9 @@ case class LauberhornTraceDma(
   //   [80:75]  source id
   //   [127:81] timestamp
   //
-  // The 75-bit payload width is the maximum of the payload formats below. The
-  // source id width is log2Up(totalSources + 1): this design has 16 app sources,
-  // 12 sys sources, and 16 generated Lauberhorn event ports in the current ECI
-  // build, so 44 real sources plus the all-ones marker source require 6 bits.
-  // The remaining 47 bits are the timestamp, giving 75 + 6 + 47 = 128 bits.
+  // The 75-bit payload width is the maximum of the payload formats below.
+  // The source id width is log2Up(totalSources + 1), with the extra source id
+  // reserved for marker samples. The remaining bits are the timestamp.
   // 128-bit samples are intentional because exactly four fit in each 512-bit
   // AXI beat.
   //
@@ -411,6 +425,7 @@ case class LauberhornTraceDma(
   // Current source allocation:
   //   0..5   even-DCS ECI frames before app CDC
   //   6..11  odd-DCS ECI frames before app CDC
+  //   12..15 GSYNC request/response frames
   //
   // lauberhornTraceIn is sampled in the app clock domain and carries events
   // from TracePlugin inside NicEngine.  Each source can have a fixed pipeline
