@@ -66,10 +66,12 @@ lhtrace::dump
 ```
 
 `LH_TRACE_BYTES` bounds the maximum read. The dumper prints progress and
-throughput while it runs, and by default trims the dump when it reaches a long
-aligned DDR default-fill tail matching `00ff` or `ff00`. If Vivado rejects the
-default AXI burst length, set `LH_TRACE_AXI_LEN` to a smaller value before
-calling `lhtrace::dump`.
+throughput while it runs, prints relevant JTAG AXI properties when Vivado
+exposes them, and probes for the longest accepted Hardware Manager read length.
+It trims the dump by default when it reaches a long aligned DDR default-fill
+tail matching `00ff` or `ff00`. To force a specific read length, set
+`LH_TRACE_AXI_LEN_AUTO 0` and `LH_TRACE_AXI_LEN` before calling
+`lhtrace::dump`.
 
 Convert the resulting binary dump to pcapng with:
 
