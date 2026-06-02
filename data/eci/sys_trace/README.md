@@ -76,10 +76,10 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 ```
 
 For a faster direct-read loop, start an XSDB command server from a Vivado/Vitis
-2025 XSDB shell:
+2023.2 XSDB shell:
 
 ```tcl
-xsdbserver start -host localhost -port 3010
+xsdbserver start -host 0.0.0.0 -port 3010
 ```
 
 Then use the Python-driven XSDB backend. It still connects XSDB to the requested
@@ -104,7 +104,10 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 
 `--vivado-dump-bytes` is required for both readout backends. Use
 `--jtag-axi-name` when there is more than one JTAG AXI master or XSDB target to
-choose from.
+choose from. With Vivado/Vitis 2023.2, the XSDB backend connects to `hw_server`
+with `connect -url TCP:<host>:<port>`. If the automatic `JTAG2AXI` selection is
+not specific enough, pass the exact XSDB target expression with
+`--xsdb-target-filter`, for example `name =~ "*JTAG2AXI*" && jtag_cable_serial =~ "*210357B4B301A*"`.
 
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:
