@@ -59,6 +59,21 @@ def validate_legacy_input(trace_dir: Path, parser: argparse.ArgumentParser) -> N
         parser.error(f"legacy ILA path is not a directory: {trace_dir}")
 
 
+def validate_raw_decode_options(
+    trace_map: Dict[str, Any],
+    input_order: str,
+    vivado_transaction_bytes: int,
+    parser: argparse.ArgumentParser,
+) -> None:
+    if input_order != "vivado-hw-axi":
+        return
+    width = sample_bytes(trace_map)
+    if vivado_transaction_bytes < width or vivado_transaction_bytes % width != 0:
+        parser.error(
+            f"--vivado-transaction-bytes must be a multiple of the {width}-byte trace sample size"
+        )
+
+
 def write_pcap(
     input_path: Path,
     output_path: Path,
@@ -68,6 +83,8 @@ def write_pcap(
     sample_limit: Optional[int],
     source: Optional[int],
     cycle_ns: int,
+    input_order: str,
+    vivado_transaction_bytes: int,
 ) -> None:
     width = sample_bytes(trace_map)
     lost_source = int(trace_map["sample"]["lost_source"])
@@ -85,6 +102,8 @@ def write_pcap(
             offset,
             start_sample=start_sample,
             sample_limit=sample_limit,
+            input_order=input_order,
+            vivado_transaction_bytes=vivado_transaction_bytes,
         ):
             src = sample_source(sample, trace_map)
             if src == lost_source:
@@ -151,6 +170,10 @@ def main() -> int:
     parser.add_argument("--legacy-ila", type=Path, default=None,
                         help="Read legacy Vivado ILA CSVs from a dcs_trace directory instead of a DRAM dump")
     parser.add_argument("--offset", type=lambda x: int(x, 0), default=0, help="Byte offset into the binary dump")
+    parser.add_argument("--input-order", choices=("memory-little", "vivado-hw-axi"), default="memory-little",
+                        help="Raw dump byte order. Use vivado-hw-axi for dumps written from Vivado transaction DATA before this tool reversed transaction display order.")
+    parser.add_argument("--vivado-transaction-bytes", type=lambda x: int(x, 0), default=2048,
+                        help="Bytes per Vivado Hardware Manager AXI read transaction for --input-order vivado-hw-axi")
     parser.add_argument("--start", type=int, default=0, help="First chronological sample to export after wrap realignment")
     parser.add_argument("--samples", type=int, default=None, help="Maximum number of chronological samples to export")
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
@@ -180,6 +203,7 @@ def main() -> int:
         )
     else:
         assert input_path is not None
+        validate_raw_decode_options(trace_map, args.input_order, args.vivado_transaction_bytes, parser)
         write_pcap(
             input_path=input_path,
             output_path=output_path,
@@ -189,6 +213,8 @@ def main() -> int:
             sample_limit=args.samples,
             source=args.source,
             cycle_ns=args.cycle_ns,
+            input_order=args.input_order,
+            vivado_transaction_bytes=args.vivado_transaction_bytes,
         )
 
     return 0
