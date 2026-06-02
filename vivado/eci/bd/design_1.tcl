@@ -670,7 +670,6 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   create_bd_pin -dir O -from 0 -to 0 hi
   create_bd_pin -dir O -from 3 -to 0 gt_polarity
   create_bd_pin -dir O -from 0 -to 0 app_aux_reset
-  create_bd_pin -dir O -from 5 -to 0 trace_stall_threshold
 
   # Create instance: xpm_cdc_gen_1, and set properties
   set xpm_cdc_gen_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xpm_cdc_gen:1.0 xpm_cdc_gen_1 ]
@@ -691,9 +690,8 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
   set_property -dict [list \
     CONFIG.C_NUM_PROBE_IN {4} \
-    CONFIG.C_NUM_PROBE_OUT {7} \
+    CONFIG.C_NUM_PROBE_OUT {6} \
     CONFIG.C_PROBE_OUT0_WIDTH {1} \
-    CONFIG.C_PROBE_OUT6_WIDTH {6} \
   ] $vio_0
 
 
@@ -758,8 +756,6 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   [get_bd_pins hi]
   connect_bd_net -net loopback  [get_bd_pins vio_0/probe_out0] \
   [get_bd_pins gt_loopback_gen_0/loopback]
-  connect_bd_net -net trace_stall_threshold  [get_bd_pins vio_0/probe_out6] \
-  [get_bd_pins trace_stall_threshold]
   connect_bd_net -net xpm_cdc_gen_1_dest_out  [get_bd_pins xpm_cdc_gen_1/dest_out] \
   [get_bd_pins stat_rx_aligned_txclk]
   connect_bd_net -net xpm_cdc_gen_2_dest_out  [get_bd_pins xpm_cdc_gen_2/dest_out] \
@@ -941,7 +937,6 @@ proc create_root_design { parentCell } {
  ] $txclk
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $txclk
 
-  set trace_stall_threshold [ create_bd_port -dir O -from 5 -to 0 trace_stall_threshold ]
   set core0_states [ create_bd_port -dir I -from 18 -to 0 -type data core0_states ]
   set core1_states [ create_bd_port -dir I -from 18 -to 0 -type data core1_states ]
   set core2_states [ create_bd_port -dir I -from 18 -to 0 -type data core2_states ]
@@ -1168,8 +1163,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net rst_ddr4_4_300M_peripheral_aresetn  [get_bd_pins rst_ddr4_4_300M/peripheral_aresetn] \
   [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
   [get_bd_pins axi_smc/aresetn]
-  connect_bd_net -net trace_stall_threshold  [get_bd_pins hier_cmac_ctrl_stat/trace_stall_threshold] \
-  [get_bd_ports trace_stall_threshold]
   connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
   [get_bd_pins hier_ilas/ul_even]
   connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
@@ -1204,4 +1197,3 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
 ##################################################################
 
 create_root_design ""
-

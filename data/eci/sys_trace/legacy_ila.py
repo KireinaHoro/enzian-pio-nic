@@ -166,7 +166,6 @@ def _iter_eci_samples(path: Path, trace_map: Dict[str, Any], file_id: int, base_
         payload = 0
         payload = _set_bits(payload, _hex_cell(row, data_col, "eci raw header"), fields, "eci_header")
         payload = _set_bits(payload, _hex_cell(row, vc_col, "eci vc"), fields, "vc")
-        payload = _set_bits(payload, 0, fields, "stall_count")
         payload = _set_bits(payload, 1, fields, "accepted")
         yield LegacySample(
             timestamp=timestamp,

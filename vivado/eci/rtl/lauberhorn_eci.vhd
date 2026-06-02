@@ -740,7 +740,6 @@ signal core0_states, core1_states, core2_states, core3_states, core4_states : st
 signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error : std_logic;
 signal trace_write_slot : std_logic_vector(27 downto 0);
-signal trace_eci_stall_threshold : std_logic_vector(5 downto 0);
 signal lauberhorn_trace_valid : std_logic_vector(25 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(25 downto 0);
 
@@ -1429,9 +1428,6 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     reset => app_clk_reset,
     sysClock_clk => clk,
     sysClock_reset => reset,
-    cmacRxClock_clk => rxclk,
-    cmacRxClock_reset => rxclk_reset,
-    traceEciStallThreshold => trace_eci_stall_threshold,
 
     appDcsTraceIn_0_valid => dcs_even_trace_dcs_event_valid(0),
     appDcsTraceIn_0_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(0), dcs_even_trace_dcs_event_cli(0), dcs_even_trace_dcs_event_state(0), dcs_even_trace_dcs_event_action(0), dcs_even_trace_dcs_event_request(0)),
@@ -1653,7 +1649,6 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     txclk => txclk,
     reset => reset,
     app_clk_reset => app_clk_reset,
-    trace_stall_threshold => trace_eci_stall_threshold,
 
     -- TX interface
     tx_axis_tready => cmac_tx_axis.tready,

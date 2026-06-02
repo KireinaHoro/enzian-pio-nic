@@ -79,9 +79,8 @@ local ef = lheci_app.fields
 ef.header = ProtoField.uint64("lhtrace.eci.header", "Header", base.HEX)
 ef.opcode = ProtoField.uint8("lhtrace.eci.opcode", "Opcode", base.DEC)
 ef.vc = ProtoField.uint8("lhtrace.eci.vc", "VC", base.DEC)
-ef.stall_count = ProtoField.uint8("lhtrace.eci.stall_count", "Stall Count", base.DEC)
-ef.stall_cycles = ProtoField.uint32("lhtrace.eci.stall_cycles", "Stall Cycles", base.DEC)
 ef.accepted = ProtoField.uint8("lhtrace.eci.accepted", "Accepted", base.DEC)
+ef.phase = ProtoField.string("lhtrace.eci.phase", "Phase")
 ef.message = ProtoField.string("lhtrace.eci.message", "Message")
 ef.unaliased_addr = ProtoField.string("lhtrace.eci.unaliased_addr", "Unaliased Address")
 
@@ -874,8 +873,8 @@ local function dissect_eci(payload_tvb, tree, source_info)
         tree:add(ef.message, payload_tvb(0, 0), message)
     end
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
-    local stall_count = extract_bits_le(payload_tvb, 0, fields.stall_count.offset, fields.stall_count.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
+    local phase = accepted ~= 0 and "accepted" or "valid"
     local aliased_addr
     if eci_class(source_info) == "mrsp" and (opcode == 9 or opcode == 10) then
         aliased_addr = extract_bits_le(payload_tvb, 0, 7, 33) * 128
@@ -883,19 +882,14 @@ local function dissect_eci(payload_tvb, tree, source_info)
         aliased_addr = extract_bits_le(payload_tvb, 0, 0, 40)
     end
     local unaliased = unalias_address(aliased_addr)
-    local shift = 0
-    if trace_map ~= nil and trace_map.sample ~= nil then
-        shift = tonumber(trace_map.sample.eci_stall_counter_shift) or 0
-    end
     tree:add(ef.unaliased_addr, byte_range_for_bits(payload_tvb, 0, 40), fmt_addr(unaliased))
     tree:add(ef.vc, byte_range_for_bits(payload_tvb, fields.vc.offset, fields.vc.width), vc)
     tree:add(ef.accepted, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), accepted)
-    tree:add(ef.stall_cycles, byte_range_for_bits(payload_tvb, fields.stall_count.offset, fields.stall_count.width), stall_count * (2 ^ shift))
-    tree:add(ef.stall_count, byte_range_for_bits(payload_tvb, fields.stall_count.offset, fields.stall_count.width), stall_count)
+    tree:add(ef.phase, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), phase)
     tree:add_le(ef.header, byte_range_for_bits(payload_tvb, fields.eci_header.offset, fields.eci_header.width))
 
     return {
-        info = message or string.format("opcode_%d", opcode),
+        info = (message or string.format("opcode_%d", opcode)) .. " " .. phase,
         dest = fmt_addr(unaliased),
     }
 end

@@ -30,10 +30,6 @@ object LauberhornTraceDma {
   // trace event list.
   val EventIdSlotWidth = 6
 
-  // ECI stall counts are stored as stalled_cycles >> 16. Six stored bits then
-  // cover at least 10 ms at 400 MHz while leaving the ECI payload at 75 bits.
-  val EciStallCounterShift = 16
-
   // Matches the ECI design's 512-bit AXI datapath.
   val AxiDataWidth = 512
 
@@ -44,7 +40,6 @@ object LauberhornTraceDma {
 
   val EciHeaderWidth = 64
   val EciVcWidth = 4
-  val EciStallCountWidth = 6
 
   case class EciTraceFrame() extends Bundle {
     val header = Bits(EciHeaderWidth bits)
@@ -152,12 +147,14 @@ object LauberhornTraceDma {
   ))
 
   // ECI trace payloads carry the 64-bit header plus local decode metadata:
-  // virtual channel, scaled stall count, and whether the frame was accepted.
+  // virtual channel and whether this event is the accepted handshake. If a
+  // frame is not accepted immediately, tracing first emits accepted=0 when the
+  // frame is presented, then accepted=1 when it is accepted.
   private val EciFormat = PayloadFormat(Seq(
     PayloadField("eci_header", offset = 0, width = 64, format = Some("hex")),
     PayloadField("vc", offset = 64, width = 4),
-    PayloadField("stall_count", offset = 68, width = 6),
-    PayloadField("accepted", offset = 74, width = 1),
+    PayloadField("accepted", offset = 68, width = 1),
+    PayloadField("reserved", offset = 69, width = 6),
   ))
 
   private val FixedPayloadFormats = Seq(
@@ -335,7 +332,6 @@ object LauberhornTraceDma {
         "sample_width" -> SampleWidth,
         "lost_source" -> ujson.Num(layout.lostSource.toDouble),
         "lost_count_width" -> LostCountWidth,
-        "eci_stall_counter_shift" -> EciStallCounterShift,
         "axi_data_width" -> AxiDataWidth,
         "byte_order" -> "little",
       ),
@@ -396,10 +392,8 @@ case class LauberhornTraceDma(
   // ECI frame payloads:
   //   [63:0]  ECI header word
   //   [67:64] VC
-  //   [73:68] scaled stall count, saturated at 63
-  //   [74]    accepted within the configured stall threshold
-  // The scaled stall count is stalled_cycles >> 16 by default.  This spans at
-  // least 10 ms for clocks up to about 400 MHz.
+  //   [68]    accepted handshake event
+  //   [74:69] reserved
   //
   // Lauberhorn event payloads:
   //   [5:0]   event id slot; the JSON map reports how many of these bits are
@@ -447,10 +441,6 @@ case class LauberhornTraceDma(
   )
 
   val sysClock = ClockDomain.external("sysClock")
-  val cmacRxClock = ClockDomain.external("cmacRxClock")
-
-  // driven from CMAC RX status VIO
-  val traceEciStallThreshold = in UInt(LauberhornTraceDma.EciStallCountWidth bits) addTag ClockDomainTag(cmacRxClock)
 
   // these are in our clock domain (app)
   val appDcsTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), appDcsSourceCount)
@@ -480,59 +470,27 @@ case class LauberhornTraceDma(
   dmaError := traceDma.dmaError
   writeSlot := traceDma.writeSlot.resized
 
-  // pipeline to allow more slack -- the main tracing infra is in SLR2
-  // also, for BufferCC.withTag to work, we need at least one reg stage in Spinal
-  val pipelinedTraceStallThr = new ClockingArea(cmacRxClock) {
-    val v = Delay(traceEciStallThreshold, LauberhornTraceDma.PipelineStagesPerSlrCrossing)
-  }
-  val appTraceStallThr = BufferCC.withTag(pipelinedTraceStallThr.v)
-
-  def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame], stallThreshold: UInt): Flow[Bits] = new Area {
-    val stallCountMax = U((BigInt(1) << LauberhornTraceDma.EciStallCountWidth) - 1, LauberhornTraceDma.EciStallCountWidth bits)
-    val stallScaleCounterWidth = scala.math.max(LauberhornTraceDma.EciStallCounterShift, 1)
-
-    val stallCount = Reg(UInt(LauberhornTraceDma.EciStallCountWidth bits)) init(0)
-    val stallScaleCount = Reg(UInt(stallScaleCounterWidth bits)) init(0)
-    val timedOut = RegInit(False)
+  def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame]): Flow[Bits] = new Area {
+    val pendingAccepted = RegInit(False)
     val traceValid = RegInit(False)
     val tracePayload = Reg(Bits(payloadWidth bits)) init(0)
 
-    val nextStallCount = UInt(LauberhornTraceDma.EciStallCountWidth bits)
-    nextStallCount := stallCount
-    when(stallCount =/= stallCountMax) {
-      nextStallCount := stallCount + 1
-    }
-
-    val scaleTick = if (LauberhornTraceDma.EciStallCounterShift == 0) True else stallScaleCount.andR
-
-    def packPayload(accepted: Bool, count: UInt): Bits =
-      (accepted.asBits ## count.asBits ## in.payload.vc ## in.payload.header).resized
+    def packPayload(accepted: Bool): Bits =
+      (B(0, 6 bits) ## accepted.asBits ## in.payload.vc ## in.payload.header).resized
 
     traceValid := False
 
     when(!in.valid) {
-      stallCount := 0
-      stallScaleCount := 0
-      timedOut := False
+      pendingAccepted := False
     } elsewhen(in.ready) {
-      when(!timedOut) {
-        traceValid := True
-        tracePayload := packPayload(True, stallCount)
-      }
-      stallCount := 0
-      stallScaleCount := 0
-      timedOut := False
+      traceValid := True
+      tracePayload := packPayload(True)
+      pendingAccepted := False
     } otherwise {
-      when(scaleTick) {
-        stallCount := nextStallCount
-        stallScaleCount := 0
-        when(!timedOut && stallThreshold =/= 0 && nextStallCount >= stallThreshold) {
-          traceValid := True
-          tracePayload := packPayload(False, nextStallCount)
-          timedOut := True
-        }
-      } otherwise {
-        stallScaleCount := stallScaleCount + 1
+      when(!pendingAccepted) {
+        traceValid := True
+        tracePayload := packPayload(False)
+        pendingAccepted := True
       }
     }
 
@@ -547,17 +505,13 @@ case class LauberhornTraceDma(
 
   for (idx <- 0 until appEciSourceCount) {
     traceDma.traceIn(appDcsSourceCount + idx) :=
-      traceEciFrame(appEciTraceIn(idx), appTraceStallThr).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
-  }
-
-  val sysTraceStallThr = new ClockingArea(sysClock) {
-    val v = BufferCC.withTag(pipelinedTraceStallThr.v)
+      traceEciFrame(appEciTraceIn(idx)).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
   for (idx <- 0 until sysSourceCount) {
     val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClock, ClockDomain.current)
     new ClockingArea(sysClock) {
-      val sysTrace = traceEciFrame(sysEciTraceIn(idx), sysTraceStallThr.v)
+      val sysTrace = traceEciFrame(sysEciTraceIn(idx))
       fifo.slavePort.valid := sysTrace.valid
       fifo.slavePort.payload := sysTrace.payload
     }
