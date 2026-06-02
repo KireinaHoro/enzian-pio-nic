@@ -83,6 +83,13 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
   data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
 ```
 
+Older dumps captured by `dump_trace_hw_axi.tcl` before it corrected Vivado's
+transaction display order can be decoded by adding:
+
+```sh
+--input-order vivado-hw-axi --vivado-transaction-bytes 2048
+```
+
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:
 

@@ -77,6 +77,14 @@ proc lhtrace::txn_data_hex {txn} {
     error "Could not read AXI transaction data; expected DATA or READ_DATA property on $txn"
 }
 
+proc lhtrace::reverse_hex_bytes {hex} {
+    set ret ""
+    for {set pos [expr {[string length $hex] - 2}]} {$pos >= 0} {incr pos -2} {
+        append ret [string range $hex $pos [expr {$pos + 1}]]
+    }
+    return $ret
+}
+
 proc lhtrace::property_value {obj names} {
     foreach name $names {
         if {![catch {set value [get_property $name $obj]}] && $value ne ""} {
@@ -412,6 +420,10 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
                 error $err
             }
 
+            # Vivado reports the transaction DATA property in display order
+            # (most-significant byte first for the whole read). The trace DMA
+            # stores little-endian sample words in increasing address order.
+            set hex [lhtrace::reverse_hex_bytes $hex]
             set chunk_bytes [expr {[string length $hex] / 2}]
             if {$chunk_bytes > $remaining} {
                 set hex [string range $hex 0 [expr {$remaining * 2 - 1}]]
