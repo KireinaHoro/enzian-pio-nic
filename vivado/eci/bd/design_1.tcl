@@ -1030,42 +1030,6 @@ proc create_root_design { parentCell } {
   ] $jtag_axi_0
 
 
-  # Create instance: ila_jtag_axi, and set properties
-  set ila_jtag_axi [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_jtag_axi ]
-  set_property -dict [list \
-    CONFIG.C_ADV_TRIGGER {true} \
-    CONFIG.C_DATA_DEPTH {2048} \
-    CONFIG.C_EN_STRG_QUAL {1} \
-    CONFIG.C_INPUT_PIPE_STAGES {1} \
-    CONFIG.C_MON_TYPE {MIX} \
-    CONFIG.C_NUM_MONITOR_SLOTS {1} \
-    CONFIG.C_NUM_OF_PROBES {1} \
-    CONFIG.C_PROBE0_WIDTH {1} \
-    CONFIG.C_SLOT {1} \
-    CONFIG.C_SLOT_0_APC_EN {0} \
-    CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
-  ] $ila_jtag_axi
-
-
-  # Create instance: ila_ddr_axi, and set properties
-  set ila_ddr_axi [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_ddr_axi ]
-  set_property -dict [list \
-    CONFIG.C_ADV_TRIGGER {true} \
-    CONFIG.C_DATA_DEPTH {2048} \
-    CONFIG.C_EN_STRG_QUAL {1} \
-    CONFIG.C_INPUT_PIPE_STAGES {1} \
-    CONFIG.C_MON_TYPE {MIX} \
-    CONFIG.C_NUM_MONITOR_SLOTS {1} \
-    CONFIG.C_NUM_OF_PROBES {3} \
-    CONFIG.C_PROBE0_WIDTH {1} \
-    CONFIG.C_PROBE1_WIDTH {1} \
-    CONFIG.C_PROBE2_WIDTH {1} \
-    CONFIG.C_SLOT {1} \
-    CONFIG.C_SLOT_0_APC_EN {0} \
-    CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
-  ] $ila_ddr_axi
-
-
   # Create instance: axi_smc, and set properties
   set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc ]
   set_property -dict [list \
@@ -1081,7 +1045,6 @@ proc create_root_design { parentCell } {
   # Create interface connections
   connect_bd_intf_net -intf_net C0_DDR4_S_AXI_CTRL_0_1 [get_bd_intf_ports trace_ddr_axi_ctrl] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI_CTRL]
   connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
-  connect_bd_intf_net -intf_net [get_bd_intf_nets axi_smc_M00_AXI] [get_bd_intf_pins ila_ddr_axi/SLOT_0_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins hier_ilas/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
@@ -1092,7 +1055,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_intf_net -intf_net ddr4_4_C0_DDR4 [get_bd_intf_ports trace_ddr] [get_bd_intf_pins ddr4_4/C0_DDR4]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
   connect_bd_intf_net -intf_net jtag_axi_0_M_AXI [get_bd_intf_pins jtag_axi_0/M_AXI] [get_bd_intf_pins axi_smc/S00_AXI]
-  connect_bd_intf_net -intf_net [get_bd_intf_nets jtag_axi_0_M_AXI] [get_bd_intf_pins ila_jtag_axi/SLOT_0_AXI]
   connect_bd_intf_net -intf_net trace_ddr_axi_1 [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins axi_smc/S01_AXI]
   connect_bd_intf_net -intf_net trace_ddr_clk_1 [get_bd_intf_ports trace_ddr_clk] [get_bd_intf_pins ddr4_4/C0_SYS_CLK]
 
@@ -1109,7 +1071,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/drp_clk] \
   [get_bd_pins hier_clk_rst/clk_io] \
   [get_bd_pins jtag_axi_0/aclk] \
-  [get_bd_pins ila_jtag_axi/clk] \
   [get_bd_pins axi_smc/aclk2]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins hier_clk_rst/app_clk] \
   [get_bd_ports app_clk] \
@@ -1152,13 +1113,9 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/core_tx_reset]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk  [get_bd_pins ddr4_4/c0_ddr4_ui_clk] \
   [get_bd_pins axi_smc/aclk] \
-  [get_bd_pins ila_ddr_axi/clk] \
   [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk_sync_rst  [get_bd_pins ddr4_4/c0_ddr4_ui_clk_sync_rst] \
-  [get_bd_pins ila_ddr_axi/probe2] \
   [get_bd_pins rst_ddr4_4_300M/ext_reset_in]
-  connect_bd_net -net ddr4_4_c0_init_calib_complete  [get_bd_pins ddr4_4/c0_init_calib_complete] \
-  [get_bd_pins ila_ddr_axi/probe1]
   connect_bd_net -net gt_loopback_in  [get_bd_pins hier_cmac_ctrl_stat/gt_loopback_in] \
   [get_bd_pins cmac_usplus_0/gt_loopback_in]
   connect_bd_net -net gtwiz_reset_rx_datapath  [get_bd_pins hier_cmac_ctrl_stat/gtwiz_reset_rx_datapath] \
@@ -1168,8 +1125,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
   connect_bd_net -net hier_clk_rst_peripheral_aresetn  [get_bd_pins hier_clk_rst/peripheral_aresetn] \
-  [get_bd_pins ila_jtag_axi/resetn] \
-  [get_bd_pins ila_jtag_axi/probe0] \
   [get_bd_pins jtag_axi_0/aresetn]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
@@ -1207,8 +1162,6 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/resetn2]
   connect_bd_net -net rst_ddr4_4_300M_peripheral_aresetn  [get_bd_pins rst_ddr4_4_300M/peripheral_aresetn] \
   [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
-  [get_bd_pins ila_ddr_axi/resetn] \
-  [get_bd_pins ila_ddr_axi/probe0] \
   [get_bd_pins axi_smc/aresetn]
   connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
   [get_bd_pins hier_ilas/ul_even]
