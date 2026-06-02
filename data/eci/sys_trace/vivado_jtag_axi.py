@@ -39,14 +39,18 @@ proc select_hw_device {jtag_id} {
     foreach dev $devices {
         set idcode [normalize_id [prop_or_empty $dev IDCODE]]
         set name [prop_or_empty $dev NAME]
-        if {$idcode eq $wanted || [string match $jtag_id $name] || [string match $jtag_id $dev]} {
+        set target [prop_or_empty [current_hw_target] NAME]
+        if {$idcode eq $wanted ||
+            [string match $jtag_id $name] || [string match "*$jtag_id*" $name] ||
+            [string match $jtag_id $dev] || [string match "*$jtag_id*" $dev] ||
+            [string match $jtag_id $target] || [string match "*$jtag_id*" $target]} {
             return $dev
         }
     }
 
     set seen {}
     foreach dev $devices {
-        lappend seen "[prop_or_empty $dev NAME](IDCODE=[prop_or_empty $dev IDCODE])"
+        lappend seen "[prop_or_empty $dev NAME](IDCODE=[prop_or_empty $dev IDCODE], target=[prop_or_empty [current_hw_target] NAME])"
     }
     fail "No hardware device matched --fpga-jtag-id '$jtag_id'. Available devices: [join $seen {, }]"
 }
@@ -296,7 +300,10 @@ class XsdbError(RuntimeError):
 
 class XsdbClient:
     def __init__(self, host: str, port: int, timeout_s: float = 30.0):
-        self._sock = socket.create_connection((host, port), timeout=timeout_s)
+        try:
+            self._sock = socket.create_connection((host, port), timeout=timeout_s)
+        except OSError as e:
+            raise XsdbError(f"Could not connect to XSDB command server at {host}:{port}: {e}") from e
         self._file = self._sock.makefile("rwb")
 
     def close(self) -> None:
@@ -386,11 +393,21 @@ def _xsdb_target_filter(fpga_jtag_id: Optional[str], jtag_axi_name: Optional[str
         id_terms = [
             f'jtag_device_ctx =~ "*{raw}*"',
             f'jtag_device_ctx =~ "*{norm}*"',
+            f'jtag_cable_name =~ "*{raw}*"',
             f'jtag_cable_serial =~ "*{raw}*"',
             f'jtag_device_name =~ "*{raw}*"',
+            f'name =~ "*{raw}*"',
         ]
         terms.append("(" + " || ".join(id_terms) + ")")
     return " && ".join(terms)
+
+
+def _xsdb_connect(xsdb: XsdbClient, hw_server_host: str, hw_server_port: int) -> None:
+    url = f"TCP:{hw_server_host}:{int(hw_server_port)}"
+    try:
+        xsdb.command(f"connect -url {_xsdb_quote(url)}")
+    except XsdbError:
+        xsdb.command(f"connect -host {_xsdb_quote(hw_server_host)} -port {int(hw_server_port)}")
 
 
 def _parse_mrd_words(text: str, expected_words: int) -> list[int]:
@@ -415,6 +432,7 @@ def dump_trace_buffer_xsdb(
     jtag_axi_name: Optional[str] = None,
     xsdb_server_host: str = "localhost",
     xsdb_server_port: int = 3010,
+    target_filter: Optional[str] = None,
     word_bits: int = 32,
     max_beats: int = 256,
 ) -> None:
@@ -430,9 +448,9 @@ def dump_trace_buffer_xsdb(
     max_txn_bytes = word_bytes * max_beats
 
     with XsdbClient(xsdb_server_host, xsdb_server_port) as xsdb, output_path.open("wb") as f:
-        xsdb.command(f"connect -host {_xsdb_quote(hw_server_host)} -port {int(hw_server_port)}")
-        target_filter = _xsdb_target_filter(fpga_jtag_id, jtag_axi_name)
-        xsdb.command(f"targets -set -filter {{{target_filter}}}")
+        _xsdb_connect(xsdb, hw_server_host, hw_server_port)
+        selected_filter = target_filter or _xsdb_target_filter(fpga_jtag_id, jtag_axi_name)
+        xsdb.command(f"targets -set -filter {{{selected_filter}}}")
 
         remaining = byte_count
         addr = address

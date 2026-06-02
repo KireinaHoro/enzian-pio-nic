@@ -21,7 +21,7 @@ try:
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
     from .trace_metadata import enrich_trace_map
-    from .vivado_jtag_axi import dump_trace_buffer, dump_trace_buffer_xsdb
+    from .vivado_jtag_axi import XsdbError, dump_trace_buffer, dump_trace_buffer_xsdb
 except ImportError:
     from common import bits
     from dma_decode import (
@@ -38,7 +38,7 @@ except ImportError:
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
     from trace_metadata import enrich_trace_map
-    from vivado_jtag_axi import dump_trace_buffer, dump_trace_buffer_xsdb
+    from vivado_jtag_axi import XsdbError, dump_trace_buffer, dump_trace_buffer_xsdb
 
 
 def acquire_dump_from_vivado(args: argparse.Namespace) -> Path:
@@ -71,11 +71,15 @@ def acquire_dump_from_vivado(args: argparse.Namespace) -> Path:
             tcl_path=args.vivado_tcl_out,
         )
     elif args.vivado_readout == "xsdb":
-        dump_trace_buffer_xsdb(
-            **kwargs,
-            xsdb_server_host=args.xsdb_server_host,
-            xsdb_server_port=args.xsdb_server_port,
-        )
+        try:
+            dump_trace_buffer_xsdb(
+                **kwargs,
+                xsdb_server_host=args.xsdb_server_host,
+                xsdb_server_port=args.xsdb_server_port,
+                target_filter=args.xsdb_target_filter,
+            )
+        except XsdbError as e:
+            raise SystemExit(str(e)) from e
     else:
         raise SystemExit(f"Unknown Vivado readout backend: {args.vivado_readout}")
 
@@ -205,6 +209,8 @@ def main() -> int:
                         help="XSDB command-server host for --vivado-readout=xsdb")
     parser.add_argument("--xsdb-server-port", type=int, default=3010,
                         help="XSDB command-server port for --vivado-readout=xsdb")
+    parser.add_argument("--xsdb-target-filter", default=None,
+                        help="Override the XSDB targets -set filter for --vivado-readout=xsdb")
     args = parser.parse_args()
     args._vivado_temp_dump = None
 
