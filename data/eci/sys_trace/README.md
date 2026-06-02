@@ -54,39 +54,32 @@ but use separate magics so Wireshark can display them as separate protocols:
 NicEngine event trace data, `LHTD` for DCS events, `LHEA` for app-clock ECI
 frames, and `LHES` for sys-clock ECI frames.
 
-The input path is usually a raw binary DRAM dump. The exporter can also acquire
-that dump through XSDB and the JTAG AXI master first. Start an XSDB command
-server from a Vivado/Vitis 2023.2 XSDB shell:
+The input path is usually a raw binary DRAM dump. To capture one from Vivado
+Hardware Manager through the JTAG AXI master, source the Tcl dumper inside the
+Vivado Tcl console after connecting to the target:
 
 ```tcl
-xsdbserver start -host 0.0.0.0 -port 3010
+source data/eci/sys_trace/dump_trace_hw_axi.tcl
+set LH_TRACE_OUT data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
+set LH_TRACE_BYTES 0x800000000
+lhtrace::dump
 ```
 
-Then use `--from-vivado`. The exporter connects XSDB to the requested
-`hw_server`, selects the `JTAG2AXI` target under the requested cable, reads the
-trace DDR over JTAG AXI, writes the raw dump, and converts that dump to pcapng:
+`LH_TRACE_BYTES` bounds the maximum read. The dumper prints progress and
+throughput while it runs, and by default trims the dump when it reaches a long
+aligned DDR default-fill tail matching `00ff` or `ff00`. If Vivado rejects the
+default AXI burst length, set `LH_TRACE_AXI_LEN` to a smaller value before
+calling `lhtrace::dump`.
+
+Convert the resulting binary dump to pcapng with:
 
 ```sh
 python3 data/eci/sys_trace/export_trace_pcap.py \
-  --from-vivado \
-  --xsdb-server-host localhost \
-  --xsdb-server-port 3010 \
-  --hw-server-host 192.0.2.10 \
-  --hw-server-port 3121 \
-  --fpga-jtag-id 210357B4B301A \
-  --vivado-address 0x0 \
-  --vivado-dump-bytes 0x10000000 \
   --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
   --samples 1000000 \
-  -o trace.pcapng
+  -o data/eci/sys_trace/iperf-tx-0x8000-timeout.pcapng \
+  data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
 ```
-
-`--vivado-dump-bytes` is required with `--from-vivado`. The raw binary dump is
-kept by default at the pcapng output path with a `.bin` suffix; use
-`--vivado-dump-out` to choose a path, or `--discard-vivado-dump` to delete the
-temporary raw dump after export. With Vivado/Vitis 2023.2, the XSDB backend
-connects to `hw_server` with `connect -url TCP:<host>:<port>`. Both
-`210357B4B301A` and `Digilent/210357B4B301A` are accepted for `--fpga-jtag-id`.
 
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:
