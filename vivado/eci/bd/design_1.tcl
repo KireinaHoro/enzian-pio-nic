@@ -954,6 +954,10 @@ proc create_root_design { parentCell } {
   set dma_rxFsm_state [ create_bd_port -dir I -from 2 -to 0 -type data dma_rxFsm_state ]
   set dma_write_desc [ create_bd_port -dir I -from 34 -to 0 dma_write_desc ]
   set dma_write_desc_status [ create_bd_port -dir I -from 16 -to 0 dma_write_desc_status ]
+  set trace_write_slot [ create_bd_port -dir I -from 28 -to 0 -type data trace_write_slot ]
+  set trace_wrapped [ create_bd_port -dir I -type data trace_wrapped ]
+  set trace_sample_lost [ create_bd_port -dir I -type data trace_sample_lost ]
+  set trace_dma_error [ create_bd_port -dir I -type data trace_dma_error ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -1051,6 +1055,17 @@ proc create_root_design { parentCell } {
   # Create instance: ila_ddr, and set properties
   set ila_ddr [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_ddr ]
 
+  # Create instance: vio_trace_status, and set properties
+  set vio_trace_status [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_trace_status ]
+  set_property -dict [list \
+    CONFIG.C_NUM_PROBE_IN {4} \
+    CONFIG.C_NUM_PROBE_OUT {0} \
+    CONFIG.C_PROBE_IN0_WIDTH {29} \
+    CONFIG.C_PROBE_IN1_WIDTH {1} \
+    CONFIG.C_PROBE_IN2_WIDTH {1} \
+    CONFIG.C_PROBE_IN3_WIDTH {1} \
+  ] $vio_trace_status
+
   # Create interface connections
   connect_bd_intf_net -intf_net C0_DDR4_S_AXI_CTRL_0_1 [get_bd_intf_ports trace_ddr_axi_ctrl] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI_CTRL]
   connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
@@ -1090,7 +1105,8 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_ports app_clk] \
   [get_bd_pins hier_ilas/app_clk] \
   [get_bd_pins axi_smc/aclk1] \
-  [get_bd_pins ila_trace_master/clk]
+  [get_bd_pins ila_trace_master/clk] \
+  [get_bd_pins vio_trace_status/clk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins hier_clk_rst/clk_io_rst] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
@@ -1170,6 +1186,14 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_pins hier_ilas/dma_write_desc]
   connect_bd_net -net probe20_0_1  [get_bd_ports dma_write_desc_status] \
   [get_bd_pins hier_ilas/dma_write_desc_status]
+  connect_bd_net -net trace_dma_error_1  [get_bd_ports trace_dma_error] \
+  [get_bd_pins vio_trace_status/probe_in3]
+  connect_bd_net -net trace_sample_lost_1  [get_bd_ports trace_sample_lost] \
+  [get_bd_pins vio_trace_status/probe_in2]
+  connect_bd_net -net trace_wrapped_1  [get_bd_ports trace_wrapped] \
+  [get_bd_pins vio_trace_status/probe_in1]
+  connect_bd_net -net trace_write_slot_1  [get_bd_ports trace_write_slot] \
+  [get_bd_pins vio_trace_status/probe_in0]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset] \
   [get_bd_pins ddr4_4/sys_rst]
@@ -1215,5 +1239,3 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
 ##################################################################
 
 create_root_design ""
-
-
