@@ -55,41 +55,20 @@ NicEngine event trace data, `LHTD` for DCS events, `LHEA` for app-clock ECI
 frames, and `LHES` for sys-clock ECI frames.
 
 The input path is usually a raw binary DRAM dump. The exporter can also acquire
-that dump from the Vivado hardware path first. The Tcl backend runs Vivado in
-batch mode, connects to `hw_server`, selects the requested FPGA and JTAG AXI
-master, reads trace DDR, and writes the same little-endian binary format that
-the normal parser expects:
-
-```sh
-python3 data/eci/sys_trace/export_trace_pcap.py \
-  --from-vivado \
-  --vivado-readout tcl \
-  --hw-server-host 192.0.2.10 \
-  --hw-server-port 3121 \
-  --fpga-jtag-id 0x14b31093 \
-  --vivado-address 0x0 \
-  --vivado-dump-bytes 0x10000000 \
-  --vivado-dump-out trace-dram.bin \
-  --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
-  --samples 1000000 \
-  -o trace.pcapng
-```
-
-For a faster direct-read loop, start an XSDB command server from a Vivado/Vitis
-2023.2 XSDB shell:
+that dump through XSDB and the JTAG AXI master first. Start an XSDB command
+server from a Vivado/Vitis 2023.2 XSDB shell:
 
 ```tcl
 xsdbserver start -host 0.0.0.0 -port 3010
 ```
 
-Then use the Python-driven XSDB backend. It still connects XSDB to the requested
-`hw_server`, selects the `JTAG2AXI` target, and reads the trace DDR over JTAG
-AXI, but the outer fetch loop stays in Python:
+Then use `--from-vivado`. The exporter connects XSDB to the requested
+`hw_server`, selects the `JTAG2AXI` target under the requested cable, reads the
+trace DDR over JTAG AXI, writes the raw dump, and converts that dump to pcapng:
 
 ```sh
 python3 data/eci/sys_trace/export_trace_pcap.py \
   --from-vivado \
-  --vivado-readout xsdb \
   --xsdb-server-host localhost \
   --xsdb-server-port 3010 \
   --hw-server-host 192.0.2.10 \
@@ -102,12 +81,12 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
   -o trace.pcapng
 ```
 
-`--vivado-dump-bytes` is required for both readout backends. Use
-`--jtag-axi-name` with the Tcl backend when there is more than one JTAG AXI
-master. With Vivado/Vitis 2023.2, the XSDB backend connects to `hw_server` with
-`connect -url TCP:<host>:<port>` and selects the `JTAG2AXI` target under the
-cable serial given by `--fpga-jtag-id`. Both `210357B4B301A` and
-`Digilent/210357B4B301A` are accepted.
+`--vivado-dump-bytes` is required with `--from-vivado`. The raw binary dump is
+kept by default at the pcapng output path with a `.bin` suffix; use
+`--vivado-dump-out` to choose a path, or `--discard-vivado-dump` to delete the
+temporary raw dump after export. With Vivado/Vitis 2023.2, the XSDB backend
+connects to `hw_server` with `connect -url TCP:<host>:<port>`. Both
+`210357B4B301A` and `Digilent/210357B4B301A` are accepted for `--fpga-jtag-id`.
 
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:

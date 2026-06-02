@@ -21,7 +21,7 @@ try:
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
     from .trace_metadata import enrich_trace_map
-    from .vivado_jtag_axi import XsdbError, dump_trace_buffer, dump_trace_buffer_xsdb
+    from .vivado_jtag_axi import XsdbError, dump_trace_buffer
 except ImportError:
     from common import bits
     from dma_decode import (
@@ -38,49 +38,36 @@ except ImportError:
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
     from trace_metadata import enrich_trace_map
-    from vivado_jtag_axi import XsdbError, dump_trace_buffer, dump_trace_buffer_xsdb
+    from vivado_jtag_axi import XsdbError, dump_trace_buffer
 
 
 def acquire_dump_from_vivado(args: argparse.Namespace) -> Path:
     if args.vivado_dump_bytes is None:
         raise SystemExit("--vivado-dump-bytes is required with --from-vivado")
 
-    if args.vivado_dump_out is not None:
-        output_path = args.vivado_dump_out
-    else:
+    if args.discard_vivado_dump:
         with tempfile.NamedTemporaryFile(prefix="lauberhorn-trace-", suffix=".bin", delete=False) as f:
             output_path = Path(f.name)
         args._vivado_temp_dump = output_path
-
-    kwargs = {
-        "output_path": output_path,
-        "byte_count": args.vivado_dump_bytes,
-        "address": args.vivado_address,
-        "hw_server_host": args.hw_server_host,
-        "hw_server_port": args.hw_server_port,
-        "fpga_jtag_id": args.fpga_jtag_id,
-        "jtag_axi_name": args.jtag_axi_name,
-        "word_bits": args.jtag_axi_word_bits,
-        "max_beats": args.jtag_axi_max_beats,
-    }
-
-    if args.vivado_readout == "tcl":
-        dump_trace_buffer(
-            **kwargs,
-            vivado_bin=args.vivado_bin,
-            tcl_path=args.vivado_tcl_out,
-        )
-    elif args.vivado_readout == "xsdb":
-        try:
-            dump_trace_buffer_xsdb(
-                **kwargs,
-                xsdb_server_host=args.xsdb_server_host,
-                xsdb_server_port=args.xsdb_server_port,
-            )
-        except XsdbError as e:
-            raise SystemExit(str(e)) from e
+    elif args.vivado_dump_out is not None:
+        output_path = args.vivado_dump_out
     else:
-        raise SystemExit(f"Unknown Vivado readout backend: {args.vivado_readout}")
+        output_path = Path(args.output).with_suffix(".bin")
+
+    try:
+        dump_trace_buffer(
+            output_path=output_path,
+            byte_count=args.vivado_dump_bytes,
+            address=args.vivado_address,
+            hw_server_host=args.hw_server_host,
+            hw_server_port=args.hw_server_port,
+            fpga_jtag_id=args.fpga_jtag_id,
+            xsdb_server_host=args.xsdb_server_host,
+            xsdb_server_port=args.xsdb_server_port,
+            max_beats=args.jtag_axi_max_beats,
+        )
+    except XsdbError as e:
+        raise SystemExit(str(e)) from e
 
     return output_path
 
@@ -182,32 +169,25 @@ def main() -> int:
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")
     parser.add_argument("--from-vivado", action="store_true",
-                        help="Acquire the trace buffer through Vivado hardware manager/JTAG AXI before export")
-    parser.add_argument("--vivado-readout", choices=("tcl", "xsdb"), default="tcl",
-                        help="Readout backend: Vivado batch Tcl dump, or Python-driven XSDB command server")
+                        help="Acquire the trace buffer through XSDB/JTAG AXI before export")
     parser.add_argument("--vivado-dump-bytes", type=lambda x: int(x, 0), default=None,
                         help="Number of trace DDR bytes to read with --from-vivado")
     parser.add_argument("--vivado-dump-out", type=Path, default=None,
-                        help="Optional path to keep the raw binary dump read through Vivado/JTAG AXI")
+                        help="Raw binary dump path; defaults to the output path with a .bin suffix")
+    parser.add_argument("--discard-vivado-dump", action="store_true",
+                        help="Use a temporary raw dump and delete it after pcapng export")
     parser.add_argument("--vivado-address", type=lambda x: int(x, 0), default=0,
                         help="AXI byte address to start reading from the JTAG AXI master address space")
     parser.add_argument("--hw-server-host", default="localhost", help="Vivado hw_server host")
     parser.add_argument("--hw-server-port", type=int, default=3121, help="Vivado hw_server TCP port")
     parser.add_argument("--fpga-jtag-id", default=None,
-                        help="FPGA JTAG IDCODE, device name, or matching token for selecting the hardware device")
-    parser.add_argument("--jtag-axi-name", default=None,
-                        help="JTAG AXI core name/pattern for the Tcl backend; XSDB always selects JTAG2AXI")
-    parser.add_argument("--jtag-axi-word-bits", type=int, default=32,
-                        help="Read word size. XSDB currently supports 32; Tcl supports 32 or 64")
+                        help="JTAG cable serial/token for selecting the FPGA, e.g. 210357B4B301A")
     parser.add_argument("--jtag-axi-max-beats", type=int, default=256,
-                        help="Maximum read burst words per JTAG AXI transaction")
-    parser.add_argument("--vivado-bin", default="vivado", help="Vivado executable for --vivado-readout=tcl")
-    parser.add_argument("--vivado-tcl-out", type=Path, default=None,
-                        help="Optional path to write the generated Vivado dump Tcl script")
+                        help="Maximum 32-bit read words per XSDB mrd transaction")
     parser.add_argument("--xsdb-server-host", default="localhost",
-                        help="XSDB command-server host for --vivado-readout=xsdb")
+                        help="XSDB command-server host for --from-vivado")
     parser.add_argument("--xsdb-server-port", type=int, default=3010,
-                        help="XSDB command-server port for --vivado-readout=xsdb")
+                        help="XSDB command-server port for --from-vivado")
     args = parser.parse_args()
     args._vivado_temp_dump = None
 
