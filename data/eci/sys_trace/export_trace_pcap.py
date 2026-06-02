@@ -38,6 +38,27 @@ except ImportError:
     from trace_metadata import enrich_trace_map
 
 
+def validate_output_path(output_path: Path, parser: argparse.ArgumentParser) -> None:
+    if output_path.exists() and output_path.is_dir():
+        parser.error(f"output path is a directory: {output_path}")
+
+
+def validate_raw_input(input_path: Path, output_path: Path, parser: argparse.ArgumentParser) -> None:
+    if not input_path.exists():
+        parser.error(f"input dump file does not exist: {input_path}")
+    if not input_path.is_file():
+        parser.error(f"input dump path is not a file: {input_path}")
+    if output_path.exists() and input_path.samefile(output_path):
+        parser.error(f"input and output refer to the same file: {input_path}")
+
+
+def validate_legacy_input(trace_dir: Path, parser: argparse.ArgumentParser) -> None:
+    if not trace_dir.exists():
+        parser.error(f"legacy ILA directory does not exist: {trace_dir}")
+    if not trace_dir.is_dir():
+        parser.error(f"legacy ILA path is not a directory: {trace_dir}")
+
+
 def write_pcap(
     input_path: Path,
     output_path: Path,
@@ -135,19 +156,23 @@ def main() -> int:
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")
     args = parser.parse_args()
+    output_path = Path(args.output)
+    validate_output_path(output_path, parser)
 
     if args.legacy_ila is not None:
         input_path = None
+        validate_legacy_input(args.legacy_ila, parser)
     elif args.input is None:
         parser.error("input dump file is required")
     else:
         input_path = Path(args.input)
+        validate_raw_input(input_path, output_path, parser)
 
     trace_map = load_map(Path(args.map))
     if args.legacy_ila is not None:
         write_legacy_ila_pcap(
             trace_dir=args.legacy_ila,
-            output_path=Path(args.output),
+            output_path=output_path,
             trace_map=trace_map,
             start_sample=args.start,
             sample_limit=args.samples,
@@ -157,7 +182,7 @@ def main() -> int:
         assert input_path is not None
         write_pcap(
             input_path=input_path,
-            output_path=Path(args.output),
+            output_path=output_path,
             trace_map=trace_map,
             offset=args.offset,
             start_sample=args.start,
