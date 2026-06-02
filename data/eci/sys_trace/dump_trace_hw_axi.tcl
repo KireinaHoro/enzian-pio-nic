@@ -161,9 +161,32 @@ proc lhtrace::progress {written total start_ms {force 0}} {
 }
 
 proc lhtrace::truncate_file {path bytes} {
+    if {[llength [info commands chan]] != 0} {
+        set fd [open $path r+]
+        fconfigure $fd -translation binary -encoding binary
+        if {![catch {chan truncate $fd $bytes} err]} {
+            close $fd
+            return
+        }
+        close $fd
+    }
+
+    set in_fd [open $path rb]
+    fconfigure $in_fd -translation binary -encoding binary
+    set data [read $in_fd $bytes]
+    close $in_fd
+
     set fd [open $path r+]
     fconfigure $fd -translation binary -encoding binary
-    chan truncate $fd $bytes
+    puts -nonewline $fd $data
+    if {[llength [info commands ftruncate]] != 0} {
+        ftruncate $fd $bytes
+    } else {
+        close $fd
+        set fd [open $path wb]
+        fconfigure $fd -translation binary -encoding binary
+        puts -nonewline $fd $data
+    }
     close $fd
 }
 
@@ -196,7 +219,7 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
     puts [format "Dumping %s from AXI address 0x%x to %s" \
         [lhtrace::fmt_bytes $byte_count] $address $out_path]
 
-    try {
+    set rc [catch {
         while {$written < $byte_count} {
             set remaining [expr {$byte_count - $written}]
             set beats [expr {int(ceil(double($remaining) / $LH_TRACE_BYTES_PER_BEAT))}]
@@ -236,8 +259,10 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
                 break
             }
         }
-    } finally {
-        close $fd
+    } err]
+    close $fd
+    if {$rc != 0} {
+        error $err
     }
 
     if {$trim_offset >= 0} {
