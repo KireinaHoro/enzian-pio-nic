@@ -121,6 +121,7 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 
 This mode reads the old CSV window directly. For DCS samples it extracts
 `src`, `req`, `action`, `cli`, `state`, and `error`; for ECI samples it extracts
-the VC and raw 64-bit header. Those fields are packed into the current 128-bit
-trace sample envelope, so the Lua dissector still sees raw packets and decodes
+the VC and raw 64-bit header, then marks each legacy row as an accepted ECI
+trace event. Those fields are packed into the current 128-bit trace sample
+envelope, so the Lua dissector still sees raw packets and decodes
 source-specific payloads from the embedded trace-map metadata.
