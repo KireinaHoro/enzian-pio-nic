@@ -76,7 +76,6 @@ def acquire_dump_from_vivado(args: argparse.Namespace) -> Path:
                 **kwargs,
                 xsdb_server_host=args.xsdb_server_host,
                 xsdb_server_port=args.xsdb_server_port,
-                target_filter=args.xsdb_target_filter,
             )
         except XsdbError as e:
             raise SystemExit(str(e)) from e
@@ -197,7 +196,7 @@ def main() -> int:
     parser.add_argument("--fpga-jtag-id", default=None,
                         help="FPGA JTAG IDCODE, device name, or matching token for selecting the hardware device")
     parser.add_argument("--jtag-axi-name", default=None,
-                        help="JTAG AXI core name/pattern; Tcl defaults to first core, XSDB defaults to *JTAG2AXI*")
+                        help="JTAG AXI core name/pattern for the Tcl backend; XSDB always selects JTAG2AXI")
     parser.add_argument("--jtag-axi-word-bits", type=int, default=32,
                         help="Read word size. XSDB currently supports 32; Tcl supports 32 or 64")
     parser.add_argument("--jtag-axi-max-beats", type=int, default=256,
@@ -209,8 +208,6 @@ def main() -> int:
                         help="XSDB command-server host for --vivado-readout=xsdb")
     parser.add_argument("--xsdb-server-port", type=int, default=3010,
                         help="XSDB command-server port for --vivado-readout=xsdb")
-    parser.add_argument("--xsdb-target-filter", default=None,
-                        help="Override the XSDB targets -set filter for --vivado-readout=xsdb")
     args = parser.parse_args()
     args._vivado_temp_dump = None
 

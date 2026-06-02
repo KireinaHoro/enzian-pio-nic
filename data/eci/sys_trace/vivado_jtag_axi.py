@@ -381,22 +381,18 @@ def _xsdb_quote(value: str) -> str:
     return "{" + value.replace("\\", "\\\\").replace("}", "\\}") + "}"
 
 
-def _xsdb_target_filter(fpga_jtag_id: Optional[str], jtag_axi_name: Optional[str]) -> str:
-    name = jtag_axi_name or "*JTAG2AXI*"
-    if "*" not in name:
-        name = f"*{name}*"
-
-    terms = [f'name =~ "{name}"']
+def _xsdb_target_filter(fpga_jtag_id: Optional[str]) -> str:
+    terms = ['name =~ "JTAG2AXI"']
     if fpga_jtag_id:
         raw = fpga_jtag_id
-        norm = raw[2:] if raw.lower().startswith("0x") else raw
+        token = raw.rsplit("/", 1)[-1]
+        norm = token[2:] if token.lower().startswith("0x") else token
         id_terms = [
-            f'jtag_device_ctx =~ "*{raw}*"',
+            f'jtag_device_ctx =~ "*{token}*"',
             f'jtag_device_ctx =~ "*{norm}*"',
-            f'jtag_cable_name =~ "*{raw}*"',
-            f'jtag_cable_serial =~ "*{raw}*"',
-            f'jtag_device_name =~ "*{raw}*"',
-            f'name =~ "*{raw}*"',
+            f'jtag_cable_name =~ "*{token}*"',
+            f'jtag_cable_serial =~ "*{token}*"',
+            f'jtag_device_name =~ "*{token}*"',
         ]
         terms.append("(" + " || ".join(id_terms) + ")")
     return " && ".join(terms)
@@ -411,10 +407,16 @@ def _xsdb_connect(xsdb: XsdbClient, hw_server_host: str, hw_server_port: int) ->
 
 
 def _parse_mrd_words(text: str, expected_words: int) -> list[int]:
-    words = [int(token, 16) for token in re.findall(r"(?:0x)?[0-9a-fA-F]{1,16}", text)]
+    words = [_parse_int_word(token) for token in re.findall(r"(?:0x)?[0-9a-fA-F]{1,16}", text)]
     if len(words) != expected_words:
         raise XsdbError(f"mrd returned {len(words)} words, expected {expected_words}: {text[:200]!r}")
     return words
+
+
+def _parse_int_word(token: str) -> int:
+    if token.lower().startswith("0x") or any(ch in "abcdefABCDEF" for ch in token):
+        return int(token, 16)
+    return int(token, 10)
 
 
 def _write_le_word(f, word: int, word_bytes: int, limit: int) -> None:
@@ -432,7 +434,6 @@ def dump_trace_buffer_xsdb(
     jtag_axi_name: Optional[str] = None,
     xsdb_server_host: str = "localhost",
     xsdb_server_port: int = 3010,
-    target_filter: Optional[str] = None,
     word_bits: int = 32,
     max_beats: int = 256,
 ) -> None:
@@ -449,8 +450,7 @@ def dump_trace_buffer_xsdb(
 
     with XsdbClient(xsdb_server_host, xsdb_server_port) as xsdb, output_path.open("wb") as f:
         _xsdb_connect(xsdb, hw_server_host, hw_server_port)
-        selected_filter = target_filter or _xsdb_target_filter(fpga_jtag_id, jtag_axi_name)
-        xsdb.command(f"targets -set -filter {{{selected_filter}}}")
+        xsdb.command(f"targets -set -filter {{{_xsdb_target_filter(fpga_jtag_id)}}}")
 
         remaining = byte_count
         addr = address
