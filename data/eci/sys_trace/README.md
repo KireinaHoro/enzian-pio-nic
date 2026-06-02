@@ -94,7 +94,7 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
   --xsdb-server-port 3010 \
   --hw-server-host 192.0.2.10 \
   --hw-server-port 3121 \
-  --fpga-jtag-id 0x14b31093 \
+  --fpga-jtag-id 210357B4B301A \
   --vivado-address 0x0 \
   --vivado-dump-bytes 0x10000000 \
   --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
@@ -103,11 +103,11 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 ```
 
 `--vivado-dump-bytes` is required for both readout backends. Use
-`--jtag-axi-name` when there is more than one JTAG AXI master or XSDB target to
-choose from. With Vivado/Vitis 2023.2, the XSDB backend connects to `hw_server`
-with `connect -url TCP:<host>:<port>`. If the automatic `JTAG2AXI` selection is
-not specific enough, pass the exact XSDB target expression with
-`--xsdb-target-filter`, for example `name =~ "*JTAG2AXI*" && jtag_cable_serial =~ "*210357B4B301A*"`.
+`--jtag-axi-name` with the Tcl backend when there is more than one JTAG AXI
+master. With Vivado/Vitis 2023.2, the XSDB backend connects to `hw_server` with
+`connect -url TCP:<host>:<port>` and selects the `JTAG2AXI` target under the
+cable serial given by `--fpga-jtag-id`. Both `210357B4B301A` and
+`Digilent/210357B4B301A` are accepted.
 
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:
