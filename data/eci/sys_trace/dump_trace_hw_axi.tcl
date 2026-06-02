@@ -323,6 +323,10 @@ proc lhtrace::configure_messages {} {
     }
 }
 
+proc lhtrace::is_user_interrupt {message} {
+    return [regexp -nocase {(cancel|interrupt|abort|stopped)} $message]
+}
+
 proc lhtrace::read_hex {axi address beats} {
     set name lhtrace_rd
     create_hw_axi_txn $name $axi -type read -address [format "0x%x" $address] -len $beats -force
@@ -392,6 +396,9 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
                 set hex [lhtrace::read_hex $axi [expr {$address + $written}] $beats]
             } err]
             if {$rc != 0} {
+                if {[lhtrace::is_user_interrupt $err]} {
+                    error "Interrupted while running AXI read: $err"
+                }
                 if {$beats > 1} {
                     set selected_axi_len [expr {int($beats / 2)}]
                     if {$selected_axi_len < 1} {
