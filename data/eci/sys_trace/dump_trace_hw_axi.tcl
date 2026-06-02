@@ -26,17 +26,14 @@ if {![info exists LH_TRACE_BYTES_PER_BEAT]} {
 if {![info exists LH_TRACE_BYTES_PER_BEAT_AUTO]} {
     set LH_TRACE_BYTES_PER_BEAT_AUTO 1
 }
-if {![info exists LH_TRACE_TRIM_DEFAULT_PATTERN]} {
-    set LH_TRACE_TRIM_DEFAULT_PATTERN 1
+if {![info exists LH_TRACE_AXI_SLOT_BYTES]} {
+    set LH_TRACE_AXI_SLOT_BYTES 64
 }
-if {![info exists LH_TRACE_TRIM_PATTERNS]} {
-    set LH_TRACE_TRIM_PATTERNS {00ff ff00}
+if {![info exists LH_TRACE_USE_VIO_STATUS]} {
+    set LH_TRACE_USE_VIO_STATUS 1
 }
-if {![info exists LH_TRACE_TRIM_MIN_BYTES]} {
-    set LH_TRACE_TRIM_MIN_BYTES 256
-}
-if {![info exists LH_TRACE_TRIM_ALIGNMENT]} {
-    set LH_TRACE_TRIM_ALIGNMENT 16
+if {![info exists LH_TRACE_VIO_FILTER]} {
+    set LH_TRACE_VIO_FILTER {CELL_NAME =~ *vio_trace_status*}
 }
 if {![info exists LH_TRACE_PROGRESS_INTERVAL_MS]} {
     set LH_TRACE_PROGRESS_INTERVAL_MS 1000
@@ -100,6 +97,34 @@ proc lhtrace::property_int {obj names} {
     return ""
 }
 
+proc lhtrace::parse_hw_int {value {bare_hex 0}} {
+    set value [string trim $value]
+    set value [string map {"_" "" " " ""} $value]
+    if {[regexp {^[0-9]+'h([0-9a-fA-F]+)$} $value _ digits]} {
+        return [expr {0x$digits}]
+    }
+    if {[regexp {^[0-9]+'d([0-9]+)$} $value _ digits]} {
+        return [expr {$digits}]
+    }
+    if {[regexp {^[0-9]+'b([01]+)$} $value _ digits]} {
+        set ret 0
+        foreach bit [split $digits ""] {
+            set ret [expr {$ret * 2 + $bit}]
+        }
+        return $ret
+    }
+    if {[regexp {^0x[0-9a-fA-F]+$} $value]} {
+        return [expr {$value}]
+    }
+    if {$bare_hex && [regexp {^[0-9a-fA-F]+$} $value] && [string length $value] > 1} {
+        return [expr {0x$value}]
+    }
+    if {[regexp {^[0-9]+$} $value]} {
+        return [expr {$value}]
+    }
+    error "Cannot parse hardware integer value '$value'"
+}
+
 proc lhtrace::find_axi {} {
     set axis [get_hw_axis -filter {NAME =~ *jtag_axi* || CELL_NAME =~ *jtag_axi*}]
     if {[llength $axis] == 0} {
@@ -112,6 +137,89 @@ proc lhtrace::find_axi {} {
         puts "Using JTAG AXI master $axi"
     }
     return $axi
+}
+
+proc lhtrace::find_trace_vio {} {
+    global LH_TRACE_VIO_FILTER
+    set vios [get_hw_vios -filter $LH_TRACE_VIO_FILTER]
+    if {[llength $vios] == 0} {
+        error "No trace status VIO found with filter '$LH_TRACE_VIO_FILTER'"
+    }
+    set vio [lindex $vios 0]
+    if {[llength $vios] > 1} {
+        puts "Found multiple trace status VIOs, using $vio"
+    } else {
+        puts "Using trace status VIO $vio"
+    }
+    return $vio
+}
+
+proc lhtrace::vio_probe {vio short_name} {
+    set probes [get_hw_probes -of_objects $vio -filter "NAME.SHORT == $short_name"]
+    if {[llength $probes] == 0} {
+        set probes [get_hw_probes -of_objects $vio -filter "NAME =~ *$short_name"]
+    }
+    if {[llength $probes] == 0} {
+        error "No probe '$short_name' found on VIO $vio"
+    }
+    return [lindex $probes 0]
+}
+
+proc lhtrace::vio_probe_value {vio short_name} {
+    set probe [lhtrace::vio_probe $vio $short_name]
+    foreach prop {INPUT_VALUE VALUE} {
+        if {![catch {set value [get_property $prop $probe]}] && $value ne ""} {
+            return [lhtrace::parse_hw_int $value 1]
+        }
+    }
+    catch {report_property $probe}
+    error "Could not read INPUT_VALUE/VALUE from VIO probe $short_name on $vio"
+}
+
+proc lhtrace::trace_status {} {
+    set vio [lhtrace::find_trace_vio]
+    if {[llength [info commands refresh_hw_vio]] != 0} {
+        catch {refresh_hw_vio $vio}
+    }
+
+    set write_slot [lhtrace::vio_probe_value $vio probe_in0]
+    set wrapped [lhtrace::vio_probe_value $vio probe_in1]
+    set sample_lost [lhtrace::vio_probe_value $vio probe_in2]
+    set dma_error [lhtrace::vio_probe_value $vio probe_in3]
+
+    puts "Trace status: writeSlot=$write_slot wrapped=$wrapped sampleLost=$sample_lost dmaError=$dma_error"
+    return [list $write_slot $wrapped $sample_lost $dma_error]
+}
+
+proc lhtrace::effective_dump_bytes {requested_bytes} {
+    global LH_TRACE_USE_VIO_STATUS LH_TRACE_AXI_SLOT_BYTES
+    if {!$LH_TRACE_USE_VIO_STATUS} {
+        return $requested_bytes
+    }
+
+    lassign [lhtrace::trace_status] write_slot wrapped sample_lost dma_error
+    set status_bytes [expr {$write_slot * $LH_TRACE_AXI_SLOT_BYTES}]
+    if {$wrapped} {
+        set status_bytes $requested_bytes
+        puts [format "Trace buffer wrapped; dumping full configured buffer of %s" \
+            [lhtrace::fmt_bytes $status_bytes]]
+    } else {
+        puts [format "Trace buffer has not wrapped; dumping through writeSlot (%s)" \
+            [lhtrace::fmt_bytes $status_bytes]]
+    }
+
+    if {$status_bytes > $requested_bytes} {
+        puts [format "Capping VIO-derived dump size %s to configured limit %s" \
+            [lhtrace::fmt_bytes $status_bytes] [lhtrace::fmt_bytes $requested_bytes]]
+        set status_bytes $requested_bytes
+    }
+    if {$dma_error} {
+        puts "WARNING: trace DMA reported dmaError=1"
+    }
+    if {$sample_lost} {
+        puts "WARNING: trace DMA reported sampleLost=1"
+    }
+    return $status_bytes
 }
 
 proc lhtrace::print_axi_properties {axi} {
@@ -223,39 +331,6 @@ proc lhtrace::read_hex {axi address beats} {
     return [lhtrace::txn_data_hex $txn]
 }
 
-proc lhtrace::find_pattern_run_hex {hex patterns min_bytes alignment} {
-    set hex [lhtrace::normalize_hex $hex]
-    set hex_len [string length $hex]
-    set min_hex_len [expr {$min_bytes * 2}]
-    if {$hex_len < $min_hex_len} {
-        return -1
-    }
-
-    foreach pattern $patterns {
-        set pattern [lhtrace::normalize_hex $pattern]
-        set pattern_len [string length $pattern]
-        if {$pattern_len == 0 || [expr {$pattern_len % 2}] != 0} {
-            error "Invalid trim pattern '$pattern'"
-        }
-
-        set repeated ""
-        while {[string length $repeated] < $min_hex_len} {
-            append repeated $pattern
-        }
-        set repeated [string range $repeated 0 [expr {$min_hex_len - 1}]]
-
-        set start [string first $repeated $hex]
-        while {$start >= 0} {
-            set byte_start [expr {$start / 2}]
-            if {$alignment <= 0 || [expr {$byte_start % $alignment}] == 0} {
-                return [expr {$start / 2}]
-            }
-            set start [string first $repeated $hex [expr {$start + 2}]]
-        }
-    }
-    return -1
-}
-
 proc lhtrace::progress {written total start_ms {force 0}} {
     variable progress_last_ms
     global LH_TRACE_PROGRESS_INTERVAL_MS
@@ -276,40 +351,9 @@ proc lhtrace::progress {written total start_ms {force 0}} {
     flush stdout
 }
 
-proc lhtrace::truncate_file {path bytes} {
-    if {[llength [info commands chan]] != 0} {
-        set fd [open $path r+]
-        fconfigure $fd -translation binary -encoding binary
-        if {![catch {chan truncate $fd $bytes} err]} {
-            close $fd
-            return
-        }
-        close $fd
-    }
-
-    set in_fd [open $path rb]
-    fconfigure $in_fd -translation binary -encoding binary
-    set data [read $in_fd $bytes]
-    close $in_fd
-
-    set fd [open $path r+]
-    fconfigure $fd -translation binary -encoding binary
-    puts -nonewline $fd $data
-    if {[llength [info commands ftruncate]] != 0} {
-        ftruncate $fd $bytes
-    } else {
-        close $fd
-        set fd [open $path wb]
-        fconfigure $fd -translation binary -encoding binary
-        puts -nonewline $fd $data
-    }
-    close $fd
-}
-
 proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
     global LH_TRACE_OUT LH_TRACE_ADDRESS LH_TRACE_BYTES LH_TRACE_AXI_LEN
-    global LH_TRACE_BYTES_PER_BEAT LH_TRACE_TRIM_DEFAULT_PATTERN
-    global LH_TRACE_TRIM_PATTERNS LH_TRACE_TRIM_MIN_BYTES LH_TRACE_TRIM_ALIGNMENT
+    global LH_TRACE_BYTES_PER_BEAT
 
     if {$out_path eq ""} {
         set out_path $LH_TRACE_OUT
@@ -320,6 +364,7 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
     if {$address eq ""} {
         set address $LH_TRACE_ADDRESS
     }
+    set byte_count [lhtrace::effective_dump_bytes $byte_count]
 
     set axi [lhtrace::find_axi]
     lhtrace::print_axi_properties $axi
@@ -330,9 +375,6 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
     fconfigure $fd -translation binary -encoding binary
 
     set written 0
-    set trim_offset -1
-    set tail_hex ""
-    set max_tail_hex [expr {($LH_TRACE_TRIM_MIN_BYTES + $LH_TRACE_TRIM_ALIGNMENT + 64) * 2}]
     set start_ms [clock milliseconds]
 
     puts [format "Dumping %s from AXI address 0x%x to %s" \
@@ -369,30 +411,10 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
                 set chunk_bytes $remaining
             }
 
-            set search_hex "${tail_hex}${hex}"
-            if {$LH_TRACE_TRIM_DEFAULT_PATTERN} {
-                set found [lhtrace::find_pattern_run_hex \
-                    $search_hex $LH_TRACE_TRIM_PATTERNS \
-                    $LH_TRACE_TRIM_MIN_BYTES $LH_TRACE_TRIM_ALIGNMENT]
-                if {$found >= 0} {
-                    set tail_bytes [expr {[string length $tail_hex] / 2}]
-                    set trim_offset [expr {$written - $tail_bytes + $found}]
-                }
-            }
-
             puts -nonewline $fd [binary format H* $hex]
             incr written $chunk_bytes
 
-            if {[string length $search_hex] > $max_tail_hex} {
-                set tail_hex [string range $search_hex [expr {[string length $search_hex] - $max_tail_hex}] end]
-            } else {
-                set tail_hex $search_hex
-            }
-
             lhtrace::progress $written $byte_count $start_ms
-            if {$trim_offset >= 0} {
-                break
-            }
         }
     } err]
     close $fd
@@ -400,18 +422,9 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
         error $err
     }
 
-    if {$trim_offset >= 0} {
-        lhtrace::truncate_file $out_path $trim_offset
-        set written $trim_offset
-        lhtrace::progress $written $byte_count $start_ms 1
-        puts ""
-        puts [format "Detected default DDR tail and trimmed dump to %s (%d bytes)" \
-            [lhtrace::fmt_bytes $written] $written]
-    } else {
-        lhtrace::progress $written $byte_count $start_ms 1
-        puts ""
-        puts [format "Finished dump: %s (%d bytes)" [lhtrace::fmt_bytes $written] $written]
-    }
+    lhtrace::progress $written $byte_count $start_ms 1
+    puts ""
+    puts [format "Finished dump: %s (%d bytes)" [lhtrace::fmt_bytes $written] $written]
 
     return $written
 }

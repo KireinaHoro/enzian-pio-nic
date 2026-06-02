@@ -738,8 +738,8 @@ signal core0_states, core1_states, core2_states, core3_states, core4_states : st
 
 -- Trace DMA wires
 signal trace_dma_axi : TRACE_AXI;
-signal trace_sample_lost, trace_dma_error : std_logic;
-signal trace_write_slot : std_logic_vector(27 downto 0);
+signal trace_sample_lost, trace_dma_error, trace_wrapped : std_logic;
+signal trace_write_slot : std_logic_vector(28 downto 0);
 signal lauberhorn_trace_valid : std_logic_vector(25 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(25 downto 0);
 
@@ -1671,6 +1671,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
 
     sampleLost => trace_sample_lost,
     dmaError => trace_dma_error,
+    wrapped => trace_wrapped,
     writeSlot => trace_write_slot
   );
 
@@ -1807,6 +1808,12 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     alloc_free => alloc_free,
     alloc_resp => alloc_resp,
     alloc_req => alloc_req,
+
+    -- Trace buffer status
+    trace_write_slot => trace_write_slot,
+    trace_wrapped => trace_wrapped,
+    trace_sample_lost => trace_sample_lost,
+    trace_dma_error => trace_dma_error,
 
     -- Trace buffer AXI ports
     trace_ddr_axi_awid => trace_dma_axi.awid,

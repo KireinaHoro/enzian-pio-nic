@@ -464,7 +464,8 @@ case class LauberhornTraceDma(
   val axi = master(Axi4(axiConfig))
   val sampleLost = out(Bool())
   val dmaError = out(Bool())
-  val writeSlot = out(UInt(28 bits))
+  val wrapped = out(Bool())
+  val writeSlot = out(UInt(29 bits))
 
   // this is in sys clock domain
   val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysSourceCount) addTag ClockDomainTag(sysClock)
@@ -483,6 +484,7 @@ case class LauberhornTraceDma(
   traceDma.axi >> axi
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
+  wrapped := traceDma.wrapped
   writeSlot := traceDma.writeSlot.resized
 
   def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame]): Flow[Bits] = new Area {
