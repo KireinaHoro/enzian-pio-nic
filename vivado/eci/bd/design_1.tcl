@@ -141,11 +141,11 @@ xilinx.com:ip:ddr4:2.2\
 xilinx.com:ip:jtag_axi:1.2\
 xilinx.com:ip:smartconnect:1.0\
 xilinx.com:ip:proc_sys_reset:5.0\
+xilinx.com:ip:system_ila:1.1\
 xilinx.com:ip:xpm_cdc_gen:1.0\
 xilinx.com:ip:vio:3.0\
 xilinx.com:inline_hdl:ilconstant:1.0\
 xilinx.com:ip:clk_wiz:6.0\
-xilinx.com:ip:system_ila:1.1\
 xilinx.com:ip:c_counter_binary:12.0\
 xilinx.com:inline_hdl:ilvector_logic:1.0\
 "
@@ -1042,9 +1042,19 @@ proc create_root_design { parentCell } {
   # Create instance: rst_ddr4_4_300M, and set properties
   set rst_ddr4_4_300M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ddr4_4_300M ]
 
+  # Create instance: ila_jtag_master, and set properties
+  set ila_jtag_master [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_jtag_master ]
+
+  # Create instance: ila_trace_master, and set properties
+  set ila_trace_master [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_trace_master ]
+
+  # Create instance: ila_ddr, and set properties
+  set ila_ddr [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 ila_ddr ]
+
   # Create interface connections
   connect_bd_intf_net -intf_net C0_DDR4_S_AXI_CTRL_0_1 [get_bd_intf_ports trace_ddr_axi_ctrl] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI_CTRL]
   connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ddr4_4/C0_DDR4_S_AXI]
+connect_bd_intf_net -intf_net [get_bd_intf_nets axi_smc_M00_AXI] [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ila_ddr/SLOT_0_AXI]
   connect_bd_intf_net -intf_net axis_tx_0_1 [get_bd_intf_ports tx_axis] [get_bd_intf_pins cmac_usplus_0/axis_tx]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_tx_0_1] [get_bd_intf_ports tx_axis] [get_bd_intf_pins hier_ilas/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net cmac_usplus_0_axis_rx [get_bd_intf_ports rx_axis] [get_bd_intf_pins cmac_usplus_0/axis_rx]
@@ -1055,7 +1065,9 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_intf_net -intf_net ddr4_4_C0_DDR4 [get_bd_intf_ports trace_ddr] [get_bd_intf_pins ddr4_4/C0_DDR4]
   connect_bd_intf_net -intf_net gt_ref_clk_0_1 [get_bd_intf_ports gt_ref_clk] [get_bd_intf_pins cmac_usplus_0/gt_ref_clk]
   connect_bd_intf_net -intf_net jtag_axi_0_M_AXI [get_bd_intf_pins jtag_axi_0/M_AXI] [get_bd_intf_pins axi_smc/S00_AXI]
+connect_bd_intf_net -intf_net [get_bd_intf_nets jtag_axi_0_M_AXI] [get_bd_intf_pins jtag_axi_0/M_AXI] [get_bd_intf_pins ila_jtag_master/SLOT_0_AXI]
   connect_bd_intf_net -intf_net trace_ddr_axi_1 [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins axi_smc/S01_AXI]
+connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_ports trace_ddr_axi] [get_bd_intf_pins ila_trace_master/SLOT_0_AXI]
   connect_bd_intf_net -intf_net trace_ddr_clk_1 [get_bd_intf_ports trace_ddr_clk] [get_bd_intf_pins ddr4_4/C0_SYS_CLK]
 
   # Create port connections
@@ -1064,18 +1076,21 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net app_clk_reset_mb_reset  [get_bd_pins hier_clk_rst/app_clk_reset] \
   [get_bd_ports app_clk_reset]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins hier_clk_rst/app_clk_resetn] \
-  [get_bd_pins hier_ilas/resetn]
+  [get_bd_pins hier_ilas/resetn] \
+  [get_bd_pins ila_trace_master/resetn]
   connect_bd_net -net clk_io_2  [get_bd_ports clk_io] \
   [get_bd_pins cmac_usplus_0/gt_drpclk] \
   [get_bd_pins cmac_usplus_0/init_clk] \
   [get_bd_pins cmac_usplus_0/drp_clk] \
   [get_bd_pins hier_clk_rst/clk_io] \
   [get_bd_pins jtag_axi_0/aclk] \
-  [get_bd_pins axi_smc/aclk2]
+  [get_bd_pins axi_smc/aclk2] \
+  [get_bd_pins ila_jtag_master/clk]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins hier_clk_rst/app_clk] \
   [get_bd_ports app_clk] \
   [get_bd_pins hier_ilas/app_clk] \
-  [get_bd_pins axi_smc/aclk1]
+  [get_bd_pins axi_smc/aclk1] \
+  [get_bd_pins ila_trace_master/clk]
   connect_bd_net -net cmac_init_clk_reset_peripheral_reset  [get_bd_pins hier_clk_rst/clk_io_rst] \
   [get_bd_pins cmac_usplus_0/sys_reset]
   connect_bd_net -net cmac_usplus_0_gt_rxusrclk2  [get_bd_pins cmac_usplus_0/gt_rxusrclk2] \
@@ -1113,7 +1128,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins cmac_usplus_0/core_tx_reset]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk  [get_bd_pins ddr4_4/c0_ddr4_ui_clk] \
   [get_bd_pins axi_smc/aclk] \
-  [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk]
+  [get_bd_pins rst_ddr4_4_300M/slowest_sync_clk] \
+  [get_bd_pins ila_ddr/clk]
   connect_bd_net -net ddr4_4_c0_ddr4_ui_clk_sync_rst  [get_bd_pins ddr4_4/c0_ddr4_ui_clk_sync_rst] \
   [get_bd_pins rst_ddr4_4_300M/ext_reset_in]
   connect_bd_net -net gt_loopback_in  [get_bd_pins hier_cmac_ctrl_stat/gt_loopback_in] \
@@ -1125,7 +1141,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   connect_bd_net -net hier_clk_rst_dout  [get_bd_pins hier_clk_rst/no_rst] \
   [get_bd_pins cmac_usplus_0/core_drp_reset]
   connect_bd_net -net hier_clk_rst_peripheral_aresetn  [get_bd_pins hier_clk_rst/peripheral_aresetn] \
-  [get_bd_pins jtag_axi_0/aresetn]
+  [get_bd_pins jtag_axi_0/aresetn] \
+  [get_bd_pins ila_jtag_master/resetn]
   connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
@@ -1162,7 +1179,8 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
   [get_bd_pins hier_ilas/resetn2]
   connect_bd_net -net rst_ddr4_4_300M_peripheral_aresetn  [get_bd_pins rst_ddr4_4_300M/peripheral_aresetn] \
   [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
-  [get_bd_pins axi_smc/aresetn]
+  [get_bd_pins axi_smc/aresetn] \
+  [get_bd_pins ila_ddr/resetn]
   connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
   [get_bd_pins hier_ilas/ul_even]
   connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
@@ -1197,3 +1215,5 @@ connect_bd_intf_net -intf_net dcs_odd [get_bd_intf_ports dcs_odd_mon] [get_bd_in
 ##################################################################
 
 create_root_design ""
+
+
