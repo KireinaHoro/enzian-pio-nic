@@ -761,6 +761,11 @@ signal dcs_odd_trace_eci_sys_ready : std_logic_vector(5 downto 0);
 signal dcs_odd_trace_eci_sys_header : trace_eci_header_array(5 downto 0);
 signal dcs_odd_trace_eci_sys_vc : trace_eci_vc_array(5 downto 0);
 
+signal gsync_trace_eci_sys_valid : std_logic_vector(3 downto 0);
+signal gsync_trace_eci_sys_ready : std_logic_vector(3 downto 0);
+signal gsync_trace_eci_sys_header : trace_eci_header_array(3 downto 0);
+signal gsync_trace_eci_sys_vc : trace_eci_vc_array(3 downto 0);
+
 signal dcs_odd_trace_dcs_event_valid   : std_logic_vector(1 downto 0);
 signal dcs_odd_trace_dcs_event_error   : std_logic_vector(1 downto 0);
 signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(1 downto 0);
@@ -1026,6 +1031,26 @@ port map (
 
 link_eci_packet_tx.c10_gsync.vc_no <= "1010";
 link_eci_packet_tx.c10_gsync.size <= "000";
+
+gsync_trace_eci_sys_header(0) <= link_eci_packet_rx.c7_gsync.data(0);
+gsync_trace_eci_sys_vc(0) <= link_eci_packet_rx.c7_gsync.vc_no;
+gsync_trace_eci_sys_valid(0) <= link_eci_packet_rx.c7_gsync.valid;
+gsync_trace_eci_sys_ready(0) <= link_eci_packet_rx.c7_gsync_ready;
+
+gsync_trace_eci_sys_header(1) <= link_eci_packet_rx.c6_gsync.data(0);
+gsync_trace_eci_sys_vc(1) <= link_eci_packet_rx.c6_gsync.vc_no;
+gsync_trace_eci_sys_valid(1) <= link_eci_packet_rx.c6_gsync.valid;
+gsync_trace_eci_sys_ready(1) <= link_eci_packet_rx.c6_gsync_ready;
+
+gsync_trace_eci_sys_header(2) <= link_eci_packet_tx.c11_gsync.data(0);
+gsync_trace_eci_sys_vc(2) <= link_eci_packet_tx.c11_gsync.vc_no;
+gsync_trace_eci_sys_valid(2) <= link_eci_packet_tx.c11_gsync.valid;
+gsync_trace_eci_sys_ready(2) <= link_eci_packet_tx.c11_gsync_ready;
+
+gsync_trace_eci_sys_header(3) <= link_eci_packet_tx.c10_gsync.data(0);
+gsync_trace_eci_sys_vc(3) <= link_eci_packet_tx.c10_gsync.vc_no;
+gsync_trace_eci_sys_valid(3) <= link_eci_packet_tx.c10_gsync.valid;
+gsync_trace_eci_sys_ready(3) <= link_eci_packet_tx.c10_gsync_ready;
 
 -- RX packetizer.
 -- Packetize data from eci_gateway into ECI packet.
@@ -1537,6 +1562,23 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysEciTraceIn_11_payload_vc => dcs_odd_trace_eci_sys_vc(5),
     sysEciTraceIn_11_valid => dcs_odd_trace_eci_sys_valid(5),
     sysEciTraceIn_11_ready => dcs_odd_trace_eci_sys_ready(5),
+
+    sysEciTraceIn_12_payload_header => gsync_trace_eci_sys_header(0),
+    sysEciTraceIn_12_payload_vc => gsync_trace_eci_sys_vc(0),
+    sysEciTraceIn_12_valid => gsync_trace_eci_sys_valid(0),
+    sysEciTraceIn_12_ready => gsync_trace_eci_sys_ready(0),
+    sysEciTraceIn_13_payload_header => gsync_trace_eci_sys_header(1),
+    sysEciTraceIn_13_payload_vc => gsync_trace_eci_sys_vc(1),
+    sysEciTraceIn_13_valid => gsync_trace_eci_sys_valid(1),
+    sysEciTraceIn_13_ready => gsync_trace_eci_sys_ready(1),
+    sysEciTraceIn_14_payload_header => gsync_trace_eci_sys_header(2),
+    sysEciTraceIn_14_payload_vc => gsync_trace_eci_sys_vc(2),
+    sysEciTraceIn_14_valid => gsync_trace_eci_sys_valid(2),
+    sysEciTraceIn_14_ready => gsync_trace_eci_sys_ready(2),
+    sysEciTraceIn_15_payload_header => gsync_trace_eci_sys_header(3),
+    sysEciTraceIn_15_payload_vc => gsync_trace_eci_sys_vc(3),
+    sysEciTraceIn_15_valid => gsync_trace_eci_sys_valid(3),
+    sysEciTraceIn_15_ready => gsync_trace_eci_sys_ready(3),
 
     lauberhornTraceIn_0_valid => lauberhorn_trace_valid(0),
     lauberhornTraceIn_0_payload => lauberhorn_trace_payload(0),

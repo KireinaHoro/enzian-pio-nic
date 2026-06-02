@@ -83,6 +83,10 @@ ef.accepted = ProtoField.uint8("lhtrace.eci.accepted", "Accepted", base.DEC)
 ef.phase = ProtoField.string("lhtrace.eci.phase", "Phase")
 ef.message = ProtoField.string("lhtrace.eci.message", "Message")
 ef.unaliased_addr = ProtoField.string("lhtrace.eci.unaliased_addr", "Unaliased Address")
+ef.rreq_id = ProtoField.uint8("lhtrace.eci.rreq_id", "RReqID", base.DEC)
+ef.ns = ProtoField.uint8("lhtrace.eci.ns", "NS", base.DEC)
+ef.rtad = ProtoField.uint8("lhtrace.eci.rtad", "RTAD", base.DEC)
+ef.ppvid = ProtoField.uint8("lhtrace.eci.ppvid", "PPVID", base.DEC)
 
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
@@ -746,6 +750,14 @@ local function append_enum(item, source_type, field_name, value)
 end
 
 local function eci_class(source_info)
+    local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
+    if channel:find("req", 1, true) ~= nil then
+        return "mreq"
+    elseif channel:find("rsp", 1, true) ~= nil then
+        return "mrsp"
+    elseif channel:find("fwd", 1, true) ~= nil then
+        return "mfwd"
+    end
     local local_source = tonumber(source_info.local_source)
     if local_source == 0 then
         return "mreq"
@@ -770,6 +782,35 @@ local function eci_opcode_name(source_info, opcode)
         return nil
     end
     return fmt.opcode_enums[class][tostring(opcode)]
+end
+
+local function eci_gsync_details(payload_tvb, tree, class, opcode)
+    if opcode ~= 24 or (class ~= "mreq" and class ~= "mrsp") then
+        return nil
+    end
+
+    local values = {
+        rtad = extract_bits_le(payload_tvb, 0, 7, 3),
+        ppvid = extract_bits_le(payload_tvb, 0, 0, 6),
+    }
+    tree:add(ef.rtad, byte_range_for_bits(payload_tvb, 7, 3), values.rtad)
+    tree:add(ef.ppvid, byte_range_for_bits(payload_tvb, 0, 6), values.ppvid)
+
+    if class == "mreq" then
+        values.rreq_id = extract_bits_le(payload_tvb, 0, 50, 5)
+        tree:add(ef.rreq_id, byte_range_for_bits(payload_tvb, 50, 5), values.rreq_id)
+        return {
+            info = string.format("rreq_id=%d rtad=%d ppvid=%d", values.rreq_id, values.rtad, values.ppvid),
+            dest = string.format("rtad=%d ppvid=%d", values.rtad, values.ppvid),
+        }
+    end
+
+    values.ns = extract_bits_le(payload_tvb, 0, 45, 1)
+    tree:add(ef.ns, byte_range_for_bits(payload_tvb, 45, 1), values.ns)
+    return {
+        info = string.format("ns=%d rtad=%d ppvid=%d", values.ns, values.rtad, values.ppvid),
+        dest = string.format("rtad=%d ppvid=%d", values.rtad, values.ppvid),
+    }
 end
 
 local function event_name(event_id)
@@ -865,6 +906,7 @@ end
 local function dissect_eci(payload_tvb, tree, source_info)
     local fields = fields_for_type("eci") or {}
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
+    local class = eci_class(source_info)
     local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
     local opcode_item = tree:add(ef.opcode, payload_tvb(7, 1), opcode)
     local message = eci_opcode_name(source_info, opcode)
@@ -875,22 +917,36 @@ local function dissect_eci(payload_tvb, tree, source_info)
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
     local phase = accepted ~= 0 and "accepted" or "valid"
+    local gsync_details = eci_gsync_details(payload_tvb, tree, class, opcode)
     local aliased_addr
-    if eci_class(source_info) == "mrsp" and (opcode == 9 or opcode == 10) then
+    if gsync_details ~= nil then
+        aliased_addr = nil
+    elseif class == "mrsp" and (opcode == 9 or opcode == 10) then
         aliased_addr = extract_bits_le(payload_tvb, 0, 7, 33) * 128
     else
         aliased_addr = extract_bits_le(payload_tvb, 0, 0, 40)
     end
-    local unaliased = unalias_address(aliased_addr)
-    tree:add(ef.unaliased_addr, byte_range_for_bits(payload_tvb, 0, 40), fmt_addr(unaliased))
+    local dest
+    if gsync_details ~= nil then
+        dest = gsync_details.dest
+    else
+        local unaliased = unalias_address(aliased_addr)
+        dest = fmt_addr(unaliased)
+        tree:add(ef.unaliased_addr, byte_range_for_bits(payload_tvb, 0, 40), dest)
+    end
     tree:add(ef.vc, byte_range_for_bits(payload_tvb, fields.vc.offset, fields.vc.width), vc)
     tree:add(ef.accepted, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), accepted)
     tree:add(ef.phase, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), phase)
     tree:add_le(ef.header, byte_range_for_bits(payload_tvb, fields.eci_header.offset, fields.eci_header.width))
 
+    local info = (message or string.format("opcode_%d", opcode))
+    if gsync_details ~= nil then
+        info = info .. " " .. gsync_details.info
+    end
+
     return {
-        info = (message or string.format("opcode_%d", opcode)) .. " " .. phase,
-        dest = fmt_addr(unaliased),
+        info = info .. " " .. phase,
+        dest = dest,
     }
 end
 
