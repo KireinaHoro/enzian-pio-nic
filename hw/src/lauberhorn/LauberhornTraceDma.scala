@@ -32,6 +32,8 @@ object LauberhornTraceDma {
 
   // Matches the ECI design's 512-bit AXI datapath.
   val AxiDataWidth = 512
+  val DmaBurstFifoSize = 256
+  val DmaFrameFifoSize = 1024
 
   val NicDecoderSlr = 0
   val NicHostInterfaceSlr = 1
@@ -478,6 +480,8 @@ case class LauberhornTraceDma(
     axiBufferSize = axiBufferSize,
     timestampWidth = timestampWidth,
     lostCountWidth = LauberhornTraceDma.LostCountWidth,
+    burstFifoSize = LauberhornTraceDma.DmaBurstFifoSize,
+    frameFifoSize = LauberhornTraceDma.DmaFrameFifoSize,
     axiMaxBurstLen = 256,
   )
 
