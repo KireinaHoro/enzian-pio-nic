@@ -1041,7 +1041,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_NUM_MONITOR_SLOTS {1} \
     CONFIG.C_NUM_OF_PROBES {1} \
     CONFIG.C_PROBE0_WIDTH {1} \
-    CONFIG.C_SLOT {0} \
+    CONFIG.C_SLOT {1} \
     CONFIG.C_SLOT_0_APC_EN {0} \
     CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
   ] $ila_jtag_axi
@@ -1060,7 +1060,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_PROBE0_WIDTH {1} \
     CONFIG.C_PROBE1_WIDTH {1} \
     CONFIG.C_PROBE2_WIDTH {1} \
-    CONFIG.C_SLOT {0} \
+    CONFIG.C_SLOT {1} \
     CONFIG.C_SLOT_0_APC_EN {0} \
     CONFIG.C_SLOT_0_TXN_CNTR_EN {0} \
   ] $ila_ddr_axi
