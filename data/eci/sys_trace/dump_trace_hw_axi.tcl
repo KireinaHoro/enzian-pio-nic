@@ -1,50 +1,71 @@
 namespace eval lhtrace {
     variable progress_last_ms 0
+    variable last_wrapped ""
 }
 
-if {![info exists LH_TRACE_OUT]} {
-    set LH_TRACE_OUT "data/eci/sys_trace/trace-dram.bin"
+proc lhtrace::default_options {} {
+    return [dict create \
+        -out "data/eci/sys_trace/trace-dram.bin" \
+        -address 0x0 \
+        -bytes 0x800000000 \
+        -axi-len 256 \
+        -bytes-per-beat 8 \
+        -bytes-per-beat-auto 1 \
+        -slot-bytes 64 \
+        -use-vio-status 1 \
+        -vio-filter {CELL_NAME =~ *vio_trace_status*} \
+        -vio-probes {
+            trace_write_slot
+            trace_wrapped
+            trace_sample_lost
+            trace_dma_error
+        } \
+        -progress-interval-ms 1000 \
+        -suppress-read-messages 1 \
+        -print-axi-properties 1 \
+        -append 0 \
+        -append-verify-bytes 4096 \
+    ]
 }
-if {![info exists LH_TRACE_ADDRESS]} {
-    set LH_TRACE_ADDRESS 0x0
-}
-if {![info exists LH_TRACE_BYTES]} {
-    set LH_TRACE_BYTES 0x800000000
-}
-if {![info exists LH_TRACE_AXI_LEN]} {
-    set LH_TRACE_AXI_LEN 256
-}
-if {![info exists LH_TRACE_BYTES_PER_BEAT]} {
-    set LH_TRACE_BYTES_PER_BEAT 8
-}
-if {![info exists LH_TRACE_BYTES_PER_BEAT_AUTO]} {
-    set LH_TRACE_BYTES_PER_BEAT_AUTO 1
-}
-if {![info exists LH_TRACE_AXI_SLOT_BYTES]} {
-    set LH_TRACE_AXI_SLOT_BYTES 64
-}
-if {![info exists LH_TRACE_USE_VIO_STATUS]} {
-    set LH_TRACE_USE_VIO_STATUS 1
-}
-if {![info exists LH_TRACE_VIO_FILTER]} {
-    set LH_TRACE_VIO_FILTER {CELL_NAME =~ *vio_trace_status*}
-}
-if {![info exists LH_TRACE_VIO_PROBES]} {
-    set LH_TRACE_VIO_PROBES {
-        trace_write_slot
-        trace_wrapped
-        trace_sample_lost
-        trace_dma_error
+
+proc lhtrace::usage {command} {
+    set append_default 0
+    if {$command eq "lhtrace::append"} {
+        set append_default 1
     }
+    return "usage: $command ?-out path? ?-bytes count? ?-address addr? ?-axi-len beats? ?-bytes-per-beat bytes? ?-bytes-per-beat-auto 0|1? ?-slot-bytes bytes? ?-use-vio-status 0|1? ?-vio-filter filter? ?-vio-probes probes? ?-progress-interval-ms ms? ?-suppress-read-messages 0|1? ?-print-axi-properties 0|1? ?-append-verify-bytes bytes? ?-append 0|1?\n\nDefaults:\n  -out data/eci/sys_trace/trace-dram.bin\n  -bytes 0x800000000\n  -address 0x0\n  -axi-len 256\n  -bytes-per-beat 8\n  -bytes-per-beat-auto 1\n  -slot-bytes 64\n  -use-vio-status 1\n  -vio-filter {CELL_NAME =~ *vio_trace_status*}\n  -vio-probes {trace_write_slot trace_wrapped trace_sample_lost trace_dma_error}\n  -progress-interval-ms 1000\n  -suppress-read-messages 1\n  -print-axi-properties 1\n  -append-verify-bytes 4096\n  -append $append_default"
 }
-if {![info exists LH_TRACE_PROGRESS_INTERVAL_MS]} {
-    set LH_TRACE_PROGRESS_INTERVAL_MS 1000
+
+proc lhtrace::wants_help {argv} {
+    if {[llength $argv] != 1} {
+        return 0
+    }
+    set arg [lindex $argv 0]
+    return [expr {$arg eq "-help" || $arg eq "--help"}]
 }
-if {![info exists LH_TRACE_SUPPRESS_READ_MESSAGES]} {
-    set LH_TRACE_SUPPRESS_READ_MESSAGES 1
-}
-if {![info exists LH_TRACE_PRINT_AXI_PROPERTIES]} {
-    set LH_TRACE_PRINT_AXI_PROPERTIES 1
+
+proc lhtrace::parse_options {argv command {append_default ""}} {
+    set opts [lhtrace::default_options]
+    if {$append_default ne ""} {
+        dict set opts -append $append_default
+    }
+
+    for {set i 0} {$i < [llength $argv]} {incr i} {
+        set name [lindex $argv $i]
+        if {$name eq "-help" || $name eq "--help"} {
+            error [lhtrace::usage $command]
+        }
+        if {![dict exists $opts $name]} {
+            error "Unknown option '$name'\n[lhtrace::usage $command]"
+        }
+        incr i
+        if {$i >= [llength $argv]} {
+            error "Missing value for option '$name'\n[lhtrace::usage $command]"
+        }
+        dict set opts $name [lindex $argv $i]
+    }
+
+    return $opts
 }
 
 proc lhtrace::fmt_bytes {bytes} {
@@ -82,9 +103,27 @@ proc lhtrace::txn_data_hex {txn} {
 proc lhtrace::reverse_hex_bytes {hex} {
     set ret ""
     for {set pos [expr {[string length $hex] - 2}]} {$pos >= 0} {incr pos -2} {
-        append ret [string range $hex $pos [expr {$pos + 1}]]
+        ::append ret [string range $hex $pos [expr {$pos + 1}]]
     }
     return $ret
+}
+
+proc lhtrace::file_tail_hex {path byte_count} {
+    set size [file size $path]
+    if {$byte_count > $size} {
+        set byte_count $size
+    }
+    if {$byte_count <= 0} {
+        return ""
+    }
+
+    set fd [open $path rb]
+    seek $fd [expr {$size - $byte_count}] start
+    set data [read $fd $byte_count]
+    close $fd
+
+    binary scan $data H* hex
+    return [string tolower $hex]
 }
 
 proc lhtrace::property_value {obj names} {
@@ -149,11 +188,10 @@ proc lhtrace::find_axi {} {
     return $axi
 }
 
-proc lhtrace::find_trace_vio {} {
-    global LH_TRACE_VIO_FILTER
-    set vios [get_hw_vios -filter $LH_TRACE_VIO_FILTER]
+proc lhtrace::find_trace_vio {vio_filter} {
+    set vios [get_hw_vios -filter $vio_filter]
     if {[llength $vios] == 0} {
-        error "No trace status VIO found with filter '$LH_TRACE_VIO_FILTER'"
+        error "No trace status VIO found with filter '$vio_filter'"
     }
     set vio [lindex $vios 0]
     if {[llength $vios] > 1} {
@@ -231,8 +269,7 @@ proc lhtrace::describe_vio_probes {vio} {
     return [join $lines "\n"]
 }
 
-proc lhtrace::vio_probe {vio short_name} {
-    global LH_TRACE_VIO_PROBES
+proc lhtrace::vio_probe {vio short_name vio_probes} {
     set aliases [list $short_name]
     set fallback_index -1
     if {[regexp {^probe_in([0-9]+)$} $short_name _ idx]} {
@@ -247,7 +284,7 @@ proc lhtrace::vio_probe {vio short_name} {
             lappend aliases [dict get $named_aliases $idx]
         }
     }
-    set configured_index [lsearch -exact $LH_TRACE_VIO_PROBES $short_name]
+    set configured_index [lsearch -exact $vio_probes $short_name]
     if {$configured_index >= 0} {
         set fallback_index $configured_index
         lappend aliases probe_in$configured_index
@@ -272,8 +309,8 @@ proc lhtrace::vio_probe {vio short_name} {
     error "No probe '$short_name' found on VIO $vio\n[lhtrace::describe_vio_probes $vio]"
 }
 
-proc lhtrace::vio_probe_value {vio short_name} {
-    set probe [lhtrace::vio_probe $vio $short_name]
+proc lhtrace::vio_probe_value {vio short_name vio_probes} {
+    set probe [lhtrace::vio_probe $vio $short_name $vio_probes]
     foreach prop {INPUT_VALUE VALUE} {
         if {![catch {set value [get_property $prop $probe]}] && $value ne ""} {
             return [lhtrace::parse_hw_int $value 1]
@@ -283,34 +320,35 @@ proc lhtrace::vio_probe_value {vio short_name} {
     error "Could not read INPUT_VALUE/VALUE from VIO probe $short_name on $vio"
 }
 
-proc lhtrace::trace_status {} {
-    global LH_TRACE_VIO_PROBES
-    set vio [lhtrace::find_trace_vio]
+proc lhtrace::trace_status {vio_filter vio_probes} {
+    set vio [lhtrace::find_trace_vio $vio_filter]
     if {[llength [info commands refresh_hw_vio]] != 0} {
         catch {refresh_hw_vio $vio}
     }
 
-    if {[llength $LH_TRACE_VIO_PROBES] != 4} {
-        error "LH_TRACE_VIO_PROBES must contain exactly four probe names: writeSlot wrapped sampleLost dmaError"
+    if {[llength $vio_probes] != 4} {
+        error "-vio-probes must contain exactly four probe names: writeSlot wrapped sampleLost dmaError"
     }
 
-    set write_slot [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 0]]
-    set wrapped [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 1]]
-    set sample_lost [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 2]]
-    set dma_error [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 3]]
+    set write_slot [lhtrace::vio_probe_value $vio [lindex $vio_probes 0] $vio_probes]
+    set wrapped [lhtrace::vio_probe_value $vio [lindex $vio_probes 1] $vio_probes]
+    set sample_lost [lhtrace::vio_probe_value $vio [lindex $vio_probes 2] $vio_probes]
+    set dma_error [lhtrace::vio_probe_value $vio [lindex $vio_probes 3] $vio_probes]
 
     puts "Trace status: writeSlot=$write_slot wrapped=$wrapped sampleLost=$sample_lost dmaError=$dma_error"
     return [list $write_slot $wrapped $sample_lost $dma_error]
 }
 
-proc lhtrace::effective_dump_bytes {requested_bytes} {
-    global LH_TRACE_USE_VIO_STATUS LH_TRACE_AXI_SLOT_BYTES
-    if {!$LH_TRACE_USE_VIO_STATUS} {
+proc lhtrace::effective_dump_bytes {requested_bytes use_vio_status slot_bytes vio_filter vio_probes} {
+    variable last_wrapped
+    set last_wrapped ""
+    if {!$use_vio_status} {
         return $requested_bytes
     }
 
-    lassign [lhtrace::trace_status] write_slot wrapped sample_lost dma_error
-    set status_bytes [expr {$write_slot * $LH_TRACE_AXI_SLOT_BYTES}]
+    lassign [lhtrace::trace_status $vio_filter $vio_probes] write_slot wrapped sample_lost dma_error
+    set last_wrapped $wrapped
+    set status_bytes [expr {$write_slot * $slot_bytes}]
     if {$wrapped} {
         set status_bytes $requested_bytes
         puts [format "Trace buffer wrapped; dumping full configured buffer of %s" \
@@ -334,9 +372,8 @@ proc lhtrace::effective_dump_bytes {requested_bytes} {
     return $status_bytes
 }
 
-proc lhtrace::print_axi_properties {axi} {
-    global LH_TRACE_PRINT_AXI_PROPERTIES
-    if {!$LH_TRACE_PRINT_AXI_PROPERTIES} {
+proc lhtrace::print_axi_properties {axi print_axi_properties} {
+    if {!$print_axi_properties} {
         return
     }
     if {[catch {set props [list_property $axi]}]} {
@@ -356,10 +393,9 @@ proc lhtrace::print_axi_properties {axi} {
     }
 }
 
-proc lhtrace::configure_axi_width {axi} {
-    global LH_TRACE_BYTES_PER_BEAT LH_TRACE_BYTES_PER_BEAT_AUTO
-    if {!$LH_TRACE_BYTES_PER_BEAT_AUTO} {
-        return
+proc lhtrace::configure_axi_width {axi bytes_per_beat bytes_per_beat_auto} {
+    if {!$bytes_per_beat_auto} {
+        return $bytes_per_beat
     }
 
     set width [lhtrace::property_int $axi {
@@ -371,16 +407,16 @@ proc lhtrace::configure_axi_width {axi} {
         CONFIG.C_M_AXI_DATA_WIDTH
     }]
     if {$width ne "" && $width > 0 && [expr {$width % 8}] == 0} {
-        set LH_TRACE_BYTES_PER_BEAT [expr {$width / 8}]
-        puts "Using $LH_TRACE_BYTES_PER_BEAT bytes per AXI beat from DATA_WIDTH=$width"
+        set bytes_per_beat [expr {$width / 8}]
+        puts "Using $bytes_per_beat bytes per AXI beat from DATA_WIDTH=$width"
     } else {
-        puts "Using configured $LH_TRACE_BYTES_PER_BEAT bytes per AXI beat"
+        puts "Using configured $bytes_per_beat bytes per AXI beat"
     }
+    return $bytes_per_beat
 }
 
-proc lhtrace::configure_messages {} {
-    global LH_TRACE_SUPPRESS_READ_MESSAGES
-    if {$LH_TRACE_SUPPRESS_READ_MESSAGES} {
+proc lhtrace::configure_messages {suppress_read_messages} {
+    if {$suppress_read_messages} {
         catch {set_msg_config -id {Labtoolstcl 44-481} -suppress}
     }
 }
@@ -406,11 +442,44 @@ proc lhtrace::read_hex {axi address beats} {
     return [lhtrace::txn_data_hex $txn]
 }
 
-proc lhtrace::progress {written total start_ms {force 0}} {
+proc lhtrace::read_bytes_hex {axi address byte_count max_beats bytes_per_beat} {
+    if {$bytes_per_beat <= 0 || $max_beats <= 0} {
+        error "AXI read geometry must be positive"
+    }
+
+    set ret ""
+    set read_bytes 0
+    while {$read_bytes < $byte_count} {
+        set remaining [expr {$byte_count - $read_bytes}]
+        set beats [expr {int(ceil(double($remaining) / $bytes_per_beat))}]
+        if {$beats > $max_beats} {
+            set beats $max_beats
+        }
+
+        set hex [lhtrace::read_hex $axi [expr {$address + $read_bytes}] $beats]
+
+        # Vivado reports the transaction DATA property in display order
+        # (most-significant byte first for the whole read). The trace DMA
+        # stores little-endian sample words in increasing address order.
+        set hex [lhtrace::reverse_hex_bytes $hex]
+        set chunk_bytes [expr {[string length $hex] / 2}]
+        if {$chunk_bytes > $remaining} {
+            set hex [string range $hex 0 [expr {$remaining * 2 - 1}]]
+            set chunk_bytes $remaining
+        }
+        if {$chunk_bytes <= 0} {
+            error "AXI read returned no data"
+        }
+        ::append ret $hex
+        incr read_bytes $chunk_bytes
+    }
+    return $ret
+}
+
+proc lhtrace::progress {written total start_ms progress_interval_ms {force 0}} {
     variable progress_last_ms
-    global LH_TRACE_PROGRESS_INTERVAL_MS
     set now [clock milliseconds]
-    if {!$force && $now - $progress_last_ms < $LH_TRACE_PROGRESS_INTERVAL_MS} {
+    if {!$force && $now - $progress_last_ms < $progress_interval_ms} {
         return
     }
     set progress_last_ms $now
@@ -426,65 +495,142 @@ proc lhtrace::progress {written total start_ms {force 0}} {
     flush stdout
 }
 
-proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
-    global LH_TRACE_OUT LH_TRACE_ADDRESS LH_TRACE_BYTES LH_TRACE_AXI_LEN
-    global LH_TRACE_BYTES_PER_BEAT
+proc lhtrace::append_start_offset {axi out_path byte_count address selected_axi_len slot_bytes append_verify_bytes bytes_per_beat} {
+    variable last_wrapped
 
-    if {$out_path eq ""} {
-        set out_path $LH_TRACE_OUT
+    if {$last_wrapped ne "" && $last_wrapped} {
+        error "Cannot append trace dump after the trace buffer has wrapped; take a fresh full dump instead"
     }
-    if {$byte_count eq ""} {
-        set byte_count $LH_TRACE_BYTES
+
+    if {![file exists $out_path]} {
+        puts "Append requested but $out_path does not exist; starting a new dump"
+        return 0
     }
-    if {$address eq ""} {
-        set address $LH_TRACE_ADDRESS
+    if {[file isdirectory $out_path]} {
+        error "Cannot append trace dump; output path is a directory: $out_path"
     }
-    set byte_count [lhtrace::effective_dump_bytes $byte_count]
+
+    set size [file size $out_path]
+    if {$size == 0} {
+        puts "Append requested and $out_path is empty; starting at offset 0"
+        return 0
+    }
+    if {$size > $byte_count} {
+        error [format "Cannot append trace dump: existing file size %s exceeds current capture size %s" \
+            [lhtrace::fmt_bytes $size] [lhtrace::fmt_bytes $byte_count]]
+    }
+    if {[expr {$size % $slot_bytes}] != 0} {
+        error [format "Cannot append trace dump: existing file size %s is not aligned to trace slot size %s" \
+            [lhtrace::fmt_bytes $size] [lhtrace::fmt_bytes $slot_bytes]]
+    }
+    if {$size == $byte_count} {
+        puts [format "Existing dump already reaches current write slot (%s); nothing to append" \
+            [lhtrace::fmt_bytes $byte_count]]
+        return $size
+    }
+
+    set verify_bytes $append_verify_bytes
+    if {$verify_bytes > $size} {
+        set verify_bytes $size
+    }
+    if {$verify_bytes <= 0} {
+        return $size
+    }
+
+    set verify_offset [expr {$size - $verify_bytes}]
+    puts [format "Verifying existing dump tail: %s at file offset 0x%x against AXI address 0x%x" \
+        [lhtrace::fmt_bytes $verify_bytes] $verify_offset [expr {$address + $verify_offset}]]
+    set file_hex [lhtrace::file_tail_hex $out_path $verify_bytes]
+    set axi_hex [lhtrace::read_bytes_hex $axi [expr {$address + $verify_offset}] $verify_bytes $selected_axi_len $bytes_per_beat]
+    if {$file_hex ne $axi_hex} {
+        error [format "Cannot append trace dump: existing file tail does not match trace buffer at offset 0x%x" \
+            $verify_offset]
+    }
+
+    puts [format "Append verified; resuming at offset 0x%x (%s)" $size [lhtrace::fmt_bytes $size]]
+    return $size
+}
+
+proc lhtrace::dump {args} {
+    if {[lhtrace::wants_help $args]} {
+        puts [lhtrace::usage lhtrace::dump]
+        return 0
+    }
+    set opts [lhtrace::parse_options $args lhtrace::dump]
+
+    set out_path [dict get $opts -out]
+    set byte_count_arg [dict get $opts -bytes]
+    set address_arg [dict get $opts -address]
+    set selected_axi_len_arg [dict get $opts -axi-len]
+    set bytes_per_beat_arg [dict get $opts -bytes-per-beat]
+    set bytes_per_beat_auto_arg [dict get $opts -bytes-per-beat-auto]
+    set slot_bytes_arg [dict get $opts -slot-bytes]
+    set use_vio_status_arg [dict get $opts -use-vio-status]
+    set byte_count [expr {$byte_count_arg}]
+    set address [expr {$address_arg}]
+    set selected_axi_len [expr {$selected_axi_len_arg}]
+    set bytes_per_beat [expr {$bytes_per_beat_arg}]
+    set bytes_per_beat_auto [expr {$bytes_per_beat_auto_arg}]
+    set slot_bytes [expr {$slot_bytes_arg}]
+    set use_vio_status [expr {$use_vio_status_arg}]
+    set vio_filter [dict get $opts -vio-filter]
+    set vio_probes [dict get $opts -vio-probes]
+    set progress_interval_ms_arg [dict get $opts -progress-interval-ms]
+    set suppress_read_messages_arg [dict get $opts -suppress-read-messages]
+    set print_axi_properties_arg [dict get $opts -print-axi-properties]
+    set append_mode_arg [dict get $opts -append]
+    set append_verify_bytes_arg [dict get $opts -append-verify-bytes]
+    set progress_interval_ms [expr {$progress_interval_ms_arg}]
+    set suppress_read_messages [expr {$suppress_read_messages_arg}]
+    set print_axi_properties [expr {$print_axi_properties_arg}]
+    set append_mode [expr {$append_mode_arg}]
+    set append_verify_bytes [expr {$append_verify_bytes_arg}]
+
+    set byte_count [lhtrace::effective_dump_bytes \
+        $byte_count $use_vio_status $slot_bytes $vio_filter $vio_probes]
 
     set axi [lhtrace::find_axi]
-    lhtrace::print_axi_properties $axi
-    lhtrace::configure_axi_width $axi
-    set selected_axi_len $LH_TRACE_AXI_LEN
+    lhtrace::print_axi_properties $axi $print_axi_properties
+    set bytes_per_beat [lhtrace::configure_axi_width $axi $bytes_per_beat $bytes_per_beat_auto]
     puts "Using configured AXI read length $selected_axi_len beats"
-    lhtrace::configure_messages
-    set fd [open $out_path wb]
+    lhtrace::configure_messages $suppress_read_messages
+
+    set start_offset 0
+    set open_mode wb
+    if {$append_mode} {
+        set start_offset [lhtrace::append_start_offset \
+            $axi $out_path $byte_count $address $selected_axi_len $slot_bytes \
+            $append_verify_bytes $bytes_per_beat]
+        set open_mode ab
+    }
+
+    set fd [open $out_path $open_mode]
     fconfigure $fd -translation binary -encoding binary
 
-    set written 0
+    set written $start_offset
     set start_ms [clock milliseconds]
 
-    puts [format "Dumping %s from AXI address 0x%x to %s" \
-        [lhtrace::fmt_bytes $byte_count] $address $out_path]
+    if {$append_mode} {
+        puts [format "Appending %s from AXI address 0x%x to %s" \
+            [lhtrace::fmt_bytes [expr {$byte_count - $start_offset}]] \
+            [expr {$address + $start_offset}] $out_path]
+    } else {
+        puts [format "Dumping %s from AXI address 0x%x to %s" \
+            [lhtrace::fmt_bytes $byte_count] $address $out_path]
+    }
 
     set rc [catch {
         while {$written < $byte_count} {
             set remaining [expr {$byte_count - $written}]
-            set beats [expr {int(ceil(double($remaining) / $LH_TRACE_BYTES_PER_BEAT))}]
-            if {$beats > $selected_axi_len} {
-                set beats $selected_axi_len
-            }
-
-            set rc [catch {
-                set hex [lhtrace::read_hex $axi [expr {$address + $written}] $beats]
-            } err]
-            if {$rc != 0} {
-                error $err
-            }
-
-            # Vivado reports the transaction DATA property in display order
-            # (most-significant byte first for the whole read). The trace DMA
-            # stores little-endian sample words in increasing address order.
-            set hex [lhtrace::reverse_hex_bytes $hex]
+            set max_chunk_bytes [expr {$selected_axi_len * $bytes_per_beat}]
+            set chunk_target [expr {$remaining < $max_chunk_bytes ? $remaining : $max_chunk_bytes}]
+            set hex [lhtrace::read_bytes_hex $axi [expr {$address + $written}] $chunk_target $selected_axi_len $bytes_per_beat]
             set chunk_bytes [expr {[string length $hex] / 2}]
-            if {$chunk_bytes > $remaining} {
-                set hex [string range $hex 0 [expr {$remaining * 2 - 1}]]
-                set chunk_bytes $remaining
-            }
 
             puts -nonewline $fd [binary format H* $hex]
             incr written $chunk_bytes
 
-            lhtrace::progress $written $byte_count $start_ms
+            lhtrace::progress $written $byte_count $start_ms $progress_interval_ms
         }
     } err]
     close $fd
@@ -492,11 +638,21 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
         error $err
     }
 
-    lhtrace::progress $written $byte_count $start_ms 1
+    lhtrace::progress $written $byte_count $start_ms $progress_interval_ms 1
     puts ""
     puts [format "Finished dump: %s (%d bytes)" [lhtrace::fmt_bytes $written] $written]
 
     return $written
 }
 
-puts "Loaded lhtrace::dump. Configure LH_TRACE_OUT/LH_TRACE_BYTES/LH_TRACE_ADDRESS if needed, then run lhtrace::dump."
+proc lhtrace::append {args} {
+    if {[lhtrace::wants_help $args]} {
+        puts [lhtrace::usage lhtrace::append]
+        return 0
+    }
+    set opts [lhtrace::parse_options $args lhtrace::append 1]
+    dict set opts -append 1
+    return [lhtrace::dump {*}$opts]
+}
+
+puts "Loaded lhtrace::dump/lhtrace::append. Run lhtrace::dump ?-out path? ?-bytes count? ?-address addr? or lhtrace::append with the same options."
