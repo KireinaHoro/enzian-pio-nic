@@ -175,10 +175,12 @@ def main() -> int:
     parser.add_argument("--vivado-transaction-bytes", type=lambda x: int(x, 0), default=2048,
                         help="Bytes per Vivado Hardware Manager AXI read transaction for --input-order vivado-hw-axi")
     parser.add_argument("--start", type=int, default=0, help="First chronological sample to export after wrap realignment")
-    parser.add_argument("--samples", type=int, default=None, help="Maximum number of chronological samples to export")
+    parser.add_argument("--samples", type=int, default=None, help="Export only the last N chronological samples after --start")
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")
     args = parser.parse_args()
+    if args.samples is not None and args.samples < 0:
+        parser.error("--samples must be non-negative")
     output_path = Path(args.output)
     validate_output_path(output_path, parser)
 

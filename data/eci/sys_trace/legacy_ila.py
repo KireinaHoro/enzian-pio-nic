@@ -203,11 +203,10 @@ def chronological_legacy_samples(
         iter_legacy_ila_samples(trace_dir, trace_map),
         key=lambda sample: (sample.timestamp_ns, sample.source, sample.physical_sample),
     )
-    emitted = 0
-    for logical_index, sample in enumerate(samples):
-        if logical_index < start_sample:
-            continue
-        if sample_limit is not None and emitted >= sample_limit:
-            break
-        emitted += 1
+    indexed_samples = list(enumerate(samples))[start_sample:]
+    if sample_limit is not None:
+        if sample_limit < 0:
+            raise ValueError("sample_limit must be non-negative")
+        indexed_samples = [] if sample_limit == 0 else indexed_samples[-sample_limit:]
+    for logical_index, sample in indexed_samples:
         yield logical_index, sample

@@ -40,7 +40,8 @@ wireshark \
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. Use `--source`, `--start`, and `--samples` to
-select a useful window.
+select a useful window. `--samples N` exports the last `N` chronological samples
+remaining after `--start`.
 
 The pcapng contains one metadata packet with the trace-map JSON, raw packets for
 real samples, and marker packets for lost/bubble samples. Sample packets are
@@ -99,6 +100,8 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
   -o data/eci/sys_trace/iperf-tx-0x8000-timeout.pcapng \
   data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
 ```
+
+This writes the last 1,000,000 chronological samples from the dump.
 
 Older dumps captured by `dump_trace_hw_axi.tcl` before it corrected Vivado's
 transaction display order can be decoded by adding:
