@@ -75,6 +75,15 @@ df.action = ProtoField.uint8("lhtrace.dcs.action", "Action", base.DEC)
 df.request = ProtoField.uint8("lhtrace.dcs.request", "Request", base.DEC)
 df.unaliased_addr = ProtoField.string("lhtrace.dcs.unaliased_addr", "Unaliased Address")
 
+local de = {}
+de.cli_low_bits_nonzero = ProtoExpert.new(
+    "lhtrace.dcs.cli_low_bits_nonzero",
+    "DCS CLI lower address bits are nonzero",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+lhdcs.experts = { de.cli_low_bits_nonzero }
+
 local ef = lheci_app.fields
 ef.header = ProtoField.uint64("lhtrace.eci.header", "Header", base.HEX)
 ef.opcode = ProtoField.uint8("lhtrace.eci.opcode", "Opcode", base.DEC)
@@ -671,7 +680,9 @@ local function bit_range_num(value, hi, lo)
     return math.floor(value / (2 ^ lo)) % (2 ^ (hi - lo + 1))
 end
 
-local function unalias_cacheline_index(aliased_cli)
+local function unalias_address(aliased_addr)
+    local aliased_cli = bit_range_num(aliased_addr, 39, 7)
+    local byte_offset = bit_range_num(aliased_addr, 6, 0)
     local cli = 0
     cli = cli + bit_range_num(aliased_cli, 32, 13) * (2 ^ 13)
     cli = cli + bit32.bxor(bit_range_num(aliased_cli, 12, 8), bit_range_num(aliased_cli, 17, 13)) * (2 ^ 8)
@@ -688,11 +699,7 @@ local function unalias_cacheline_index(aliased_cli)
         , bit_range_num(aliased_cli, 15, 13)
         , bit_range_num(aliased_cli, 7, 5)
     )
-    return cli
-end
-
-local function unalias_address(aliased_addr)
-    return unalias_cacheline_index(bit_range_num(aliased_addr, 39, 7)) * 128
+    return cli * 128 + byte_offset
 end
 
 local function fmt_addr(value)
@@ -909,13 +916,20 @@ local function dissect_dcs(payload_tvb, tree)
     local request_name = enum_name("dcs_event", "request", request) or tostring(request)
     local action_name = enum_name("dcs_event", "action", action) or tostring(action)
     local state_name = enum_name("dcs_event", "state", state) or tostring(state)
-    local unaliased = unalias_cacheline_index(cli) * 128
+    local cli_low_bits = bit_range_num(cli, 6, 0)
+    local unaliased = unalias_address(cli)
 
     append_enum(tree:add(df.request, byte_range_for_bits(payload_tvb, fields.request.offset, fields.request.width), request), "dcs_event", "request", request)
     append_enum(tree:add(df.action, byte_range_for_bits(payload_tvb, fields.action.offset, fields.action.width), action), "dcs_event", "action", action)
     append_enum(tree:add(df.state, byte_range_for_bits(payload_tvb, fields.state.offset, fields.state.width), state), "dcs_event", "state", state)
     tree:add(df.unaliased_addr, byte_range_for_bits(payload_tvb, fields.cli.offset, fields.cli.width), fmt_addr(unaliased))
-    tree:add(df.cli, byte_range_for_bits(payload_tvb, fields.cli.offset, fields.cli.width), fmt_addr(cli))
+    local cli_item = tree:add(df.cli, byte_range_for_bits(payload_tvb, fields.cli.offset, fields.cli.width), fmt_addr(cli))
+    if cli_low_bits ~= 0 then
+        cli_item:add_proto_expert_info(
+            de.cli_low_bits_nonzero,
+            string.format("DCS CLI lower address bits are nonzero: 0x%02x", cli_low_bits)
+        )
+    end
     tree:add(df.error, byte_range_for_bits(payload_tvb, fields.error.offset, fields.error.width), error_value)
 
     return {
