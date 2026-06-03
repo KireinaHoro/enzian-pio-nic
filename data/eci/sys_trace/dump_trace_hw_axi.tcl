@@ -14,12 +14,6 @@ if {![info exists LH_TRACE_BYTES]} {
 if {![info exists LH_TRACE_AXI_LEN]} {
     set LH_TRACE_AXI_LEN 256
 }
-if {![info exists LH_TRACE_AXI_LEN_AUTO]} {
-    set LH_TRACE_AXI_LEN_AUTO 1
-}
-if {![info exists LH_TRACE_AXI_LEN_CANDIDATES]} {
-    set LH_TRACE_AXI_LEN_CANDIDATES {65536 32768 16384 8192 4096 2048 1024 512 256 128 64 32 16 8 4}
-}
 if {![info exists LH_TRACE_BYTES_PER_BEAT]} {
     set LH_TRACE_BYTES_PER_BEAT 8
 }
@@ -384,56 +378,6 @@ proc lhtrace::configure_axi_width {axi} {
     }
 }
 
-proc lhtrace::candidate_axi_lengths {axi} {
-    global LH_TRACE_AXI_LEN_CANDIDATES
-
-    set lengths $LH_TRACE_AXI_LEN_CANDIDATES
-    set property_len [lhtrace::property_int $axi {
-        MAX_BURST_LENGTH
-        MAX_BURST_LEN
-        C_MAX_BURST_LEN
-        C_M_AXI_MAX_BURST_LEN
-        CONFIG.MAX_BURST_LENGTH
-        CONFIG.MAX_BURST_LEN
-        CONFIG.C_MAX_BURST_LEN
-        CONFIG.C_M_AXI_MAX_BURST_LEN
-    }]
-    if {$property_len ne "" && $property_len > 0} {
-        set lengths [linsert $lengths 0 $property_len]
-    }
-
-    set unique {}
-    foreach len $lengths {
-        if {[regexp {^[0-9]+$} $len] && $len > 0 && [lsearch -exact $unique $len] < 0} {
-            lappend unique $len
-        }
-    }
-    return $unique
-}
-
-proc lhtrace::select_axi_len {axi address} {
-    global LH_TRACE_AXI_LEN LH_TRACE_AXI_LEN_AUTO
-    if {!$LH_TRACE_AXI_LEN_AUTO} {
-        puts "Using configured AXI read length $LH_TRACE_AXI_LEN beats"
-        return $LH_TRACE_AXI_LEN
-    }
-
-    set name lhtrace_probe
-    foreach len [lhtrace::candidate_axi_lengths $axi] {
-        set rc [catch {
-            create_hw_axi_txn $name $axi -type read -address [format "0x%x" $address] -len $len -force
-        } err]
-        if {$rc == 0} {
-            set LH_TRACE_AXI_LEN $len
-            puts "Using AXI read length $len beats"
-            return $len
-        }
-    }
-
-    puts "Could not probe AXI read length; using configured $LH_TRACE_AXI_LEN beats"
-    return $LH_TRACE_AXI_LEN
-}
-
 proc lhtrace::configure_messages {} {
     global LH_TRACE_SUPPRESS_READ_MESSAGES
     if {$LH_TRACE_SUPPRESS_READ_MESSAGES} {
@@ -442,6 +386,9 @@ proc lhtrace::configure_messages {} {
 }
 
 proc lhtrace::is_user_interrupt {message} {
+    if {$message eq ""} {
+        return 1
+    }
     return [regexp -nocase {(cancel|interrupt|abort|stopped)} $message]
 }
 
@@ -449,7 +396,13 @@ proc lhtrace::read_hex {axi address beats} {
     set name lhtrace_rd
     create_hw_axi_txn $name $axi -type read -address [format "0x%x" $address] -len $beats -force
     set txn [get_hw_axi_txns $name]
-    run_hw_axi $txn
+    set rc [catch {run_hw_axi $txn} err]
+    if {$rc != 0} {
+        if {[lhtrace::is_user_interrupt $err]} {
+            error "AXI read was interrupted or cancelled"
+        }
+        error $err
+    }
     return [lhtrace::txn_data_hex $txn]
 }
 
@@ -491,7 +444,8 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
     set axi [lhtrace::find_axi]
     lhtrace::print_axi_properties $axi
     lhtrace::configure_axi_width $axi
-    set selected_axi_len [lhtrace::select_axi_len $axi $address]
+    set selected_axi_len $LH_TRACE_AXI_LEN
+    puts "Using configured AXI read length $selected_axi_len beats"
     lhtrace::configure_messages
     set fd [open $out_path wb]
     fconfigure $fd -translation binary -encoding binary
@@ -514,19 +468,6 @@ proc lhtrace::dump {{out_path ""} {byte_count ""} {address ""}} {
                 set hex [lhtrace::read_hex $axi [expr {$address + $written}] $beats]
             } err]
             if {$rc != 0} {
-                if {[lhtrace::is_user_interrupt $err]} {
-                    error "Interrupted while running AXI read: $err"
-                }
-                if {$beats > 1} {
-                    set selected_axi_len [expr {int($beats / 2)}]
-                    if {$selected_axi_len < 1} {
-                        set selected_axi_len 1
-                    }
-                    puts ""
-                    puts "AXI read of $beats beats failed: $err"
-                    puts "Retrying with $selected_axi_len beats"
-                    continue
-                }
                 error $err
             }
 
