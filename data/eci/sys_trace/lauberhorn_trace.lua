@@ -96,6 +96,8 @@ ef.rreq_id = ProtoField.uint8("lhtrace.eci.rreq_id", "RReqID", base.DEC)
 ef.ns = ProtoField.uint8("lhtrace.eci.ns", "NS", base.DEC)
 ef.rtad = ProtoField.uint8("lhtrace.eci.rtad", "RTAD", base.DEC)
 ef.ppvid = ProtoField.uint8("lhtrace.eci.ppvid", "PPVID", base.DEC)
+ef.stalled_frame = ProtoField.framenum("lhtrace.eci.stalled_frame", "Stalled Frame", base.NONE, frametype.REQUEST)
+ef.accepted_frame = ProtoField.framenum("lhtrace.eci.accepted_frame", "Accepted Frame", base.NONE, frametype.RESPONSE)
 
 local ee = {}
 ee.vc_zero = ProtoExpert.new(
@@ -116,7 +118,25 @@ ee.wrong_vc = ProtoExpert.new(
     expert.group.PROTOCOL,
     expert.severity.WARN
 )
-lhtrace.experts = { ee.vc_zero, ee.header_zero, ee.wrong_vc }
+ee.stall_payload_changed = ProtoExpert.new(
+    "lhtrace.eci.stall_payload_changed",
+    "ECI payload changed while stalled",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+ee.stalled_never_accepted = ProtoExpert.new(
+    "lhtrace.eci.stalled_never_accepted",
+    "ECI stalled frame was never accepted",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+lhtrace.experts = {
+    ee.vc_zero,
+    ee.header_zero,
+    ee.wrong_vc,
+    ee.stall_payload_changed,
+    ee.stalled_never_accepted,
+}
 
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
@@ -129,6 +149,8 @@ local trace_map = nil
 local sources_by_id = {}
 local flow_state = {}
 local frame_flow_cache = {}
+local eci_pair_state = {}
+local eci_frame_pairs = {}
 
 local id_kinds = {}
 local id_kind_order = {}
@@ -153,7 +175,13 @@ local function reset_flows()
     frame_flow_cache = {}
 end
 
+local function reset_eci_pairs()
+    eci_pair_state = {}
+    eci_frame_pairs = {}
+end
+
 reset_flows()
+reset_eci_pairs()
 
 local function json_decode(text)
     local pos = 1
@@ -352,7 +380,7 @@ local function load_trace_correlation()
     end
 end
 
-local function load_trace_map(json_text)
+local function load_trace_map(json_text, keep_analysis)
     trace_map = json_decode(json_text)
     sources_by_id = {}
     if trace_map ~= nil and trace_map.sources ~= nil then
@@ -361,7 +389,10 @@ local function load_trace_map(json_text)
         end
     end
     load_trace_correlation()
-    reset_flows()
+    if not keep_analysis then
+        reset_flows()
+        reset_eci_pairs()
+    end
 end
 
 local function extract_bits_le(tvb, base_offset, bit_offset, width)
@@ -841,17 +872,110 @@ local function expected_eci_vc(source_info)
     local odd = dcs == "odd" or channel:find("odd", 1, true) ~= nil
     local lane = odd and 1 or 0
     if channel == "req_wod_i" then
-        return 8 + lane
+        return 6 + lane
     elseif channel == "rsp_wod_i" or channel == "rsp_wod_o" then
-        return 4 + lane
-    elseif channel == "rsp_wd_i" or channel == "rsp_wd_o" then
         return 10 + lane
-    elseif channel == "fwd_wod_o" or channel == "gsync_req_even" or channel == "gsync_req_odd" then
+    elseif channel == "rsp_wd_i" or channel == "rsp_wd_o" then
+        return 4 + lane
+    elseif channel == "fwd_wod_o" then
+        return 8 + lane
+    elseif channel == "gsync_req_even" or channel == "gsync_req_odd" then
         return 6 + lane
     elseif channel == "gsync_rsp_even" or channel == "gsync_rsp_odd" then
         return 10 + lane
     end
     return nil
+end
+
+local function eci_payload_key(payload_tvb, fields, header, vc)
+    local header_field = fields ~= nil and fields.eci_header or nil
+    if payload_tvb ~= nil and header_field ~= nil and header_field.offset % 8 == 0 and header_field.width % 8 == 0 then
+        local byte_offset = math.floor(header_field.offset / 8)
+        local byte_len = math.floor(header_field.width / 8)
+        if payload_tvb:len() >= byte_offset + byte_len then
+            return payload_tvb(byte_offset, byte_len):bytes():tohex(false, "") .. ":" .. tostring(vc)
+        end
+    end
+    return tostring(header) .. ":" .. tostring(vc)
+end
+
+local function eci_frame_record(frame_number)
+    local record = eci_frame_pairs[frame_number]
+    if record == nil then
+        record = {}
+        eci_frame_pairs[frame_number] = record
+    end
+    return record
+end
+
+local function add_generated_framenum(tree, field, frame_number)
+    if frame_number == nil then
+        return
+    end
+    local item = tree:add(field, frame_number)
+    item.generated = true
+end
+
+local function note_eci_pair(source, frame_number, phase, header, vc, payload_key)
+    if source == nil or frame_number == nil then
+        return nil
+    end
+
+    local record = eci_frame_record(frame_number)
+    record.phase = phase
+    record.source = source
+    record.header = header
+    record.vc = vc
+
+    if phase == "valid" then
+        local previous = eci_pair_state[source]
+        if previous ~= nil and previous.accepted_frame == nil then
+            previous.unaccepted = true
+            eci_frame_record(previous.frame).unaccepted = true
+        end
+        local pending = {
+            frame = frame_number,
+            header = header,
+            vc = vc,
+            key = payload_key,
+        }
+        eci_pair_state[source] = pending
+        record.accepted_frame = nil
+        record.unaccepted = true
+        return record
+    elseif phase == "accepted" then
+        local pending = eci_pair_state[source]
+        if pending ~= nil then
+            local pending_record = eci_frame_record(pending.frame)
+            local changed = payload_key ~= pending.key
+
+            pending.accepted_frame = frame_number
+            pending.unaccepted = false
+            pending_record.accepted_frame = frame_number
+            pending_record.unaccepted = false
+            pending_record.payload_changed = changed
+            record.stalled_frame = pending.frame
+            record.payload_changed = changed
+            eci_pair_state[source] = nil
+        end
+        return record
+    end
+
+    return record
+end
+
+local function add_eci_pair_fields(tree, record, pinfo)
+    if record == nil then
+        return
+    end
+    add_generated_framenum(tree, ef.stalled_frame, record.stalled_frame)
+    add_generated_framenum(tree, ef.accepted_frame, record.accepted_frame)
+    if record.payload_changed then
+        tree:add_proto_expert_info(ee.stall_payload_changed, "ECI payload changed while stalled")
+    end
+    if record.phase == "valid" and record.unaccepted and (pinfo == nil or pinfo.visited) then
+        tree:add_proto_expert_info(ee.stalled_never_accepted, "ECI stalled frame was never accepted")
+    end
 end
 
 local function eci_gsync_details(payload_tvb, tree, class, opcode)
@@ -980,7 +1104,7 @@ local function dissect_dcs(payload_tvb, tree)
     }
 end
 
-local function dissect_eci(payload_tvb, tree, source_info)
+local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local fields = fields_for_type("eci") or {}
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
     local class = eci_class(source_info)
@@ -994,6 +1118,14 @@ local function dissect_eci(payload_tvb, tree, source_info)
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
     local phase = accepted ~= 0 and "accepted" or "valid"
+    local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    local pair_key = eci_payload_key(payload_tvb, fields, header, vc)
+    local pair_record = nil
+    if pinfo ~= nil and pinfo.visited and frame_number ~= nil then
+        pair_record = eci_frame_pairs[frame_number]
+    else
+        pair_record = note_eci_pair(source, frame_number, phase, header, vc, pair_key)
+    end
     local gsync_details = eci_gsync_details(payload_tvb, tree, class, opcode)
     local aliased_addr
     if gsync_details ~= nil then
@@ -1028,6 +1160,7 @@ local function dissect_eci(payload_tvb, tree, source_info)
             string.format("ECI opcode appeared on VC%d, expected VC%d for this source", vc, expected_vc)
         )
     end
+    add_eci_pair_fields(tree, pair_record, pinfo)
 
     local info = (message or string.format("opcode_%d", opcode))
     if gsync_details ~= nil then
@@ -1117,7 +1250,7 @@ function lhtrace.dissector(tvb, pinfo, tree)
     if payload_tvb ~= nil then
         if packet_protocol.family == "metadata" then
             local json_text = payload_tvb:string()
-            load_trace_map(json_text)
+            load_trace_map(json_text, pinfo.visited)
             subtree:add(mf.json, payload_tvb())
             info = "Trace map JSON"
         elseif packet_protocol.family == "dcs" then
@@ -1133,7 +1266,7 @@ function lhtrace.dissector(tvb, pinfo, tree)
             local label = source_label(src, source)
             pinfo.cols.src = label
             add_source_info(subtree, tvb, source, label)
-            local parsed = dissect_eci(payload_tvb, subtree, src)
+            local parsed = dissect_eci(payload_tvb, subtree, pinfo, source, src)
             pinfo.cols.dst = parsed.dest
             info = parsed.info
         elseif packet_protocol.family == "event" then
