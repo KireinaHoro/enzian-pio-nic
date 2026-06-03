@@ -120,6 +120,7 @@ class DmaControlPlugin extends FiberPlugin {
     val rxTraceRpcId = Reg(UInt(RpcID.width bits)) init invalidTraceId(RpcID.width)
     val rxTraceHostMsgId = Reg(UInt(HostMsgID.width bits)) init 0
     val nextRxHostMsgId = Reg(UInt(HostMsgID.width bits)) init 0
+    val rxEnqueueTraceEmitted = RegInit(False)
 
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -132,6 +133,7 @@ class DmaControlPlugin extends FiberPlugin {
             rxTraceRpcId := incomingDesc.desc.rpcId
             rxTraceHostMsgId := nextRxHostMsgId
             nextRxHostMsgId := nextRxHostMsgId + 1
+            rxEnqueueTraceEmitted := False
 
             when (incomingDesc.isBypass) {
               pktToEnqueue.ty := HostReqType.bypass
@@ -226,11 +228,25 @@ class DmaControlPlugin extends FiberPlugin {
           }
 
           when (pktToEnqueue.ty === HostReqType.bypass) {
-            rxTp.trace("RxBypassEnqueueToHost", PacketID(rxTracePacketId), HostMsgID(rxTraceHostMsgId))
-            assignHost(bypassSink.get)
+            val hostRx = bypassSink.get
+            rxTp.trace(
+              "RxBypassEnqueueToHost",
+              PacketID(rxTracePacketId),
+              HostMsgID(rxTraceHostMsgId),
+              PacketDropped(!hostRx.ready)
+            ) := !rxEnqueueTraceEmitted
+            rxEnqueueTraceEmitted.set()
+            assignHost(hostRx)
           } otherwise {
-            rxTp.trace("RxRpcEnqueueToHost", RpcID(rxTraceRpcId), HostMsgID(rxTraceHostMsgId))
-            assignHost(sched.logic.rxMeta)
+            val hostRx = sched.logic.rxMeta
+            rxTp.trace(
+              "RxRpcEnqueueToHost",
+              RpcID(rxTraceRpcId),
+              HostMsgID(rxTraceHostMsgId),
+              PacketDropped(!hostRx.ready)
+            ) := !rxEnqueueTraceEmitted
+            rxEnqueueTraceEmitted.set()
+            assignHost(hostRx)
           }
         }
       }
