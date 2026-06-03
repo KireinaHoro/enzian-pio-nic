@@ -237,7 +237,9 @@ def adjusted_chronological_samples(
     if start_sample:
         rows = rows[start_sample:]
     if sample_limit is not None:
-        rows = rows[:sample_limit]
+        if sample_limit < 0:
+            raise ValueError("sample_limit must be non-negative")
+        rows = [] if sample_limit == 0 else rows[-sample_limit:]
 
     return [
         (logical_index, physical_index, sample, timestamp, raw_timestamp)
