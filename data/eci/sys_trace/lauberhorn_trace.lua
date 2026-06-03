@@ -97,6 +97,27 @@ ef.ns = ProtoField.uint8("lhtrace.eci.ns", "NS", base.DEC)
 ef.rtad = ProtoField.uint8("lhtrace.eci.rtad", "RTAD", base.DEC)
 ef.ppvid = ProtoField.uint8("lhtrace.eci.ppvid", "PPVID", base.DEC)
 
+local ee = {}
+ee.vc_zero = ProtoExpert.new(
+    "lhtrace.eci.vc_zero",
+    "ECI frame decoded with VC0",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+ee.header_zero = ProtoExpert.new(
+    "lhtrace.eci.header_zero",
+    "ECI frame decoded with zero header",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+ee.wrong_vc = ProtoExpert.new(
+    "lhtrace.eci.wrong_vc",
+    "ECI opcode appeared on the wrong VC",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+lhtrace.experts = { ee.vc_zero, ee.header_zero, ee.wrong_vc }
+
 local evf = lhevent.fields
 evf.event_id = ProtoField.uint16("lhtrace.event.id", "Event ID", base.DEC)
 evf.event_name = ProtoField.string("lhtrace.event.name", "Event Name")
@@ -731,8 +752,7 @@ local function add_source_info(subtree, tvb, source, parsed_name)
     if src == nil then
         return { type = "unknown" }
     end
-    local source_tree = subtree:add(f.source_name, tvb(32, 2), parsed_name or source_label(src, source))
-    source_tree:add_le(f.source, tvb(32, 2))
+    local source_tree = subtree:add(f.source_name, tvb(40, 2), parsed_name or source_label(src, source))
     source_tree:add(sf.source_type, tvb(32, 2), src.type or "")
     source_tree:add(sf.source_port, tvb(32, 2), src.port or "")
     source_tree:add(sf.clock_domain, tvb(32, 2), src.clock_domain or "")
@@ -810,6 +830,28 @@ local function eci_opcode_name(source_info, opcode)
         return nil
     end
     return fmt.opcode_enums[class][tostring(opcode)]
+end
+
+local function expected_eci_vc(source_info)
+    if source_info == nil then
+        return nil
+    end
+    local channel = tostring(source_info.channel or "")
+    local dcs = tostring(source_info.dcs or "")
+    local odd = dcs == "odd" or channel:find("odd", 1, true) ~= nil
+    local lane = odd and 1 or 0
+    if channel == "req_wod_i" then
+        return 8 + lane
+    elseif channel == "rsp_wod_i" or channel == "rsp_wod_o" then
+        return 4 + lane
+    elseif channel == "rsp_wd_i" or channel == "rsp_wd_o" then
+        return 10 + lane
+    elseif channel == "fwd_wod_o" or channel == "gsync_req_even" or channel == "gsync_req_odd" then
+        return 6 + lane
+    elseif channel == "gsync_rsp_even" or channel == "gsync_rsp_odd" then
+        return 10 + lane
+    end
+    return nil
 end
 
 local function eci_gsync_details(payload_tvb, tree, class, opcode)
@@ -973,6 +1015,19 @@ local function dissect_eci(payload_tvb, tree, source_info)
     tree:add(ef.accepted, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), accepted)
     tree:add(ef.phase, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), phase)
     tree:add_le(ef.header, byte_range_for_bits(payload_tvb, fields.eci_header.offset, fields.eci_header.width))
+    if vc == 0 then
+        tree:add_proto_expert_info(ee.vc_zero, "ECI frame decoded with VC0")
+    end
+    if header == 0 then
+        tree:add_proto_expert_info(ee.header_zero, "ECI frame decoded with zero header")
+    end
+    local expected_vc = expected_eci_vc(source_info)
+    if expected_vc ~= nil and vc ~= expected_vc then
+        tree:add_proto_expert_info(
+            ee.wrong_vc,
+            string.format("ECI opcode appeared on VC%d, expected VC%d for this source", vc, expected_vc)
+        )
+    end
 
     local info = (message or string.format("opcode_%d", opcode))
     if gsync_details ~= nil then
