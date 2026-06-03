@@ -60,18 +60,35 @@ Vivado Tcl console after connecting to the target:
 
 ```tcl
 source data/eci/sys_trace/dump_trace_hw_axi.tcl
-set LH_TRACE_OUT data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
-set LH_TRACE_BYTES 0x800000000
-lhtrace::dump
+lhtrace::dump \
+  -out data/eci/sys_trace/iperf-tx-0x8000-timeout.bin \
+  -bytes 0x800000000
 ```
 
-`LH_TRACE_BYTES` bounds the maximum read. The dumper reads the trace status VIO
+`-bytes` bounds the maximum read. The dumper reads the trace status VIO
 first: if the trace buffer has not wrapped, it dumps `writeSlot * 64` bytes; if
 it has wrapped, it dumps the full configured buffer. It also prints progress and
 throughput while it runs, prints relevant JTAG AXI properties when Vivado
-exposes them, and probes for the longest accepted Hardware Manager read length.
-To force a specific read length, set `LH_TRACE_AXI_LEN_AUTO 0` and
-`LH_TRACE_AXI_LEN` before calling `lhtrace::dump`.
+exposes them. To force a specific read length, pass `-axi-len` to
+`lhtrace::dump`. Run `lhtrace::dump -help` for all options and default values.
+
+To resume an existing, unwrapped dump after the write slot has advanced, use:
+
+```tcl
+lhtrace::append \
+  -out data/eci/sys_trace/iperf-tx-0x8000-timeout.bin \
+  -bytes 0x800000000
+```
+
+Append mode reads the current trace status, checks the existing output file
+size, verifies the file tail against the same bytes in the trace DDR buffer, and
+then appends only the bytes between the existing file size and the current
+`writeSlot * 64` boundary. It refuses to append if the current trace buffer has
+wrapped, if the existing file is larger than the current capture range, if the
+file size is not trace-slot aligned, or if the verified tail does not match.
+The tail check size defaults to 4096 bytes and can be changed with
+`-append-verify-bytes`. Run `lhtrace::append -help` for all options and default
+values.
 
 Convert the resulting binary dump to pcapng with:
 
