@@ -448,19 +448,20 @@ port (
   m_axi_bready  : out std_logic;
 
   -- Tracing
+  -- Be careful: SystemVerilog unpacked arrays are indexed from 0 upwards!
   trace_dcs_event_valid   : out std_logic_vector(1 downto 0);
   trace_dcs_event_error   : out std_logic_vector(1 downto 0);
-  trace_dcs_event_cli     : out trace_dcs_event_cli_array(1 downto 0);
-  trace_dcs_event_state   : out trace_dcs_event_state_array(1 downto 0);
-  trace_dcs_event_action  : out trace_dcs_event_action_array(1 downto 0);
-  trace_dcs_event_request : out trace_dcs_event_request_array(1 downto 0);
+  trace_dcs_event_cli     : out trace_dcs_event_cli_array(0 to 1);
+  trace_dcs_event_state   : out trace_dcs_event_state_array(0 to 1);
+  trace_dcs_event_action  : out trace_dcs_event_action_array(0 to 1);
+  trace_dcs_event_request : out trace_dcs_event_request_array(0 to 1);
 
-  trace_eci_app_header : out trace_eci_header_array(5 downto 0);
-  trace_eci_app_vc     : out trace_eci_vc_array(5 downto 0);
+  trace_eci_app_header : out trace_eci_header_array(0 to 5);
+  trace_eci_app_vc     : out trace_eci_vc_array(0 to 5);
   trace_eci_app_valid  : out std_logic_vector(5 downto 0);
   trace_eci_app_ready  : out std_logic_vector(5 downto 0);
-  trace_eci_sys_header : out trace_eci_header_array(5 downto 0);
-  trace_eci_sys_vc     : out trace_eci_vc_array(5 downto 0);
+  trace_eci_sys_header : out trace_eci_header_array(0 to 5);
+  trace_eci_sys_vc     : out trace_eci_vc_array(0 to 5);
   trace_eci_sys_valid  : out std_logic_vector(5 downto 0);
   trace_eci_sys_ready  : out std_logic_vector(5 downto 0)
 );
@@ -745,21 +746,21 @@ signal lauberhorn_trace_payload : trace_payload_array(25 downto 0);
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_ready : std_logic_vector(5 downto 0);
-signal dcs_even_trace_eci_app_header : trace_eci_header_array(5 downto 0);
-signal dcs_even_trace_eci_app_vc : trace_eci_vc_array(5 downto 0);
+signal dcs_even_trace_eci_app_header : trace_eci_header_array(0 to 5);
+signal dcs_even_trace_eci_app_vc : trace_eci_vc_array(0 to 5);
 signal dcs_even_trace_eci_sys_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_sys_ready : std_logic_vector(5 downto 0);
-signal dcs_even_trace_eci_sys_header : trace_eci_header_array(5 downto 0);
-signal dcs_even_trace_eci_sys_vc : trace_eci_vc_array(5 downto 0);
+signal dcs_even_trace_eci_sys_header : trace_eci_header_array(0 to 5);
+signal dcs_even_trace_eci_sys_vc : trace_eci_vc_array(0 to 5);
 
 signal dcs_odd_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_odd_trace_eci_app_ready : std_logic_vector(5 downto 0);
-signal dcs_odd_trace_eci_app_header : trace_eci_header_array(5 downto 0);
-signal dcs_odd_trace_eci_app_vc : trace_eci_vc_array(5 downto 0);
+signal dcs_odd_trace_eci_app_header : trace_eci_header_array(0 to 5);
+signal dcs_odd_trace_eci_app_vc : trace_eci_vc_array(0 to 5);
 signal dcs_odd_trace_eci_sys_valid : std_logic_vector(5 downto 0);
 signal dcs_odd_trace_eci_sys_ready : std_logic_vector(5 downto 0);
-signal dcs_odd_trace_eci_sys_header : trace_eci_header_array(5 downto 0);
-signal dcs_odd_trace_eci_sys_vc : trace_eci_vc_array(5 downto 0);
+signal dcs_odd_trace_eci_sys_header : trace_eci_header_array(0 to 5);
+signal dcs_odd_trace_eci_sys_vc : trace_eci_vc_array(0 to 5);
 
 signal gsync_trace_eci_sys_valid : std_logic_vector(3 downto 0);
 signal gsync_trace_eci_sys_ready : std_logic_vector(3 downto 0);
@@ -768,17 +769,17 @@ signal gsync_trace_eci_sys_vc : trace_eci_vc_array(3 downto 0);
 
 signal dcs_odd_trace_dcs_event_valid   : std_logic_vector(1 downto 0);
 signal dcs_odd_trace_dcs_event_error   : std_logic_vector(1 downto 0);
-signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(1 downto 0);
-signal dcs_odd_trace_dcs_event_state   : trace_dcs_event_state_array(1 downto 0);
-signal dcs_odd_trace_dcs_event_action  : trace_dcs_event_action_array(1 downto 0);
-signal dcs_odd_trace_dcs_event_request : trace_dcs_event_request_array(1 downto 0);
+signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(0 to 1);
+signal dcs_odd_trace_dcs_event_state   : trace_dcs_event_state_array(0 to 1);
+signal dcs_odd_trace_dcs_event_action  : trace_dcs_event_action_array(0 to 1);
+signal dcs_odd_trace_dcs_event_request : trace_dcs_event_request_array(0 to 1);
 
 signal dcs_even_trace_dcs_event_valid   : std_logic_vector(1 downto 0);
 signal dcs_even_trace_dcs_event_error   : std_logic_vector(1 downto 0);
-signal dcs_even_trace_dcs_event_cli     : trace_dcs_event_cli_array(1 downto 0);
-signal dcs_even_trace_dcs_event_state   : trace_dcs_event_state_array(1 downto 0);
-signal dcs_even_trace_dcs_event_action  : trace_dcs_event_action_array(1 downto 0);
-signal dcs_even_trace_dcs_event_request : trace_dcs_event_request_array(1 downto 0);
+signal dcs_even_trace_dcs_event_cli     : trace_dcs_event_cli_array(0 to 1);
+signal dcs_even_trace_dcs_event_state   : trace_dcs_event_state_array(0 to 1);
+signal dcs_even_trace_dcs_event_action  : trace_dcs_event_action_array(0 to 1);
+signal dcs_even_trace_dcs_event_request : trace_dcs_event_request_array(0 to 1);
 
 signal alloc_resp, alloc_free : std_logic_vector(41 downto 0);
 signal alloc_req : std_logic_vector(17 downto 0);
