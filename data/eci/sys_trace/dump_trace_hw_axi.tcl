@@ -35,6 +35,14 @@ if {![info exists LH_TRACE_USE_VIO_STATUS]} {
 if {![info exists LH_TRACE_VIO_FILTER]} {
     set LH_TRACE_VIO_FILTER {CELL_NAME =~ *vio_trace_status*}
 }
+if {![info exists LH_TRACE_VIO_PROBES]} {
+    set LH_TRACE_VIO_PROBES {
+        trace_write_slot
+        trace_wrapped
+        trace_sample_lost
+        trace_dma_error
+    }
+}
 if {![info exists LH_TRACE_PROGRESS_INTERVAL_MS]} {
     set LH_TRACE_PROGRESS_INTERVAL_MS 1000
 }
@@ -162,15 +170,112 @@ proc lhtrace::find_trace_vio {} {
     return $vio
 }
 
+proc lhtrace::probe_prop {probe prop} {
+    if {![catch {set value [get_property $prop $probe]}] && $value ne ""} {
+        return $value
+    }
+    return ""
+}
+
+proc lhtrace::probe_sort_key {probe} {
+    foreach prop {PORT_INDEX PROBE_PORT INDEX INPUT_INDEX} {
+        set value [lhtrace::probe_prop $probe $prop]
+        if {[regexp {^[0-9]+$} $value]} {
+            return [format "%08d:%s" $value $probe]
+        }
+    }
+    return [format "99999999:%s" $probe]
+}
+
+proc lhtrace::sort_probes {probes} {
+    set keyed {}
+    foreach probe $probes {
+        lappend keyed [list [lhtrace::probe_sort_key $probe] $probe]
+    }
+    set ret {}
+    foreach item [lsort -index 0 $keyed] {
+        lappend ret [lindex $item 1]
+    }
+    return $ret
+}
+
+proc lhtrace::vio_probes {vio} {
+    set probes {}
+    foreach cmd [list \
+        [list get_hw_probes -quiet -of_objects $vio] \
+        [list get_hw_probes -quiet -filter "CELL_NAME =~ *vio_trace_status* || NAME =~ *vio_trace_status*"] \
+        [list get_hw_probes -quiet -filter "NAME =~ *probe_in* || NAME =~ *trace_*"] \
+    ] {
+        if {![catch {set found [eval $cmd]}] && [llength $found] > 0} {
+            foreach probe $found {
+                if {[lsearch -exact $probes $probe] < 0} {
+                    lappend probes $probe
+                }
+            }
+        }
+    }
+    return [lhtrace::sort_probes $probes]
+}
+
+proc lhtrace::describe_vio_probes {vio} {
+    set probes [lhtrace::vio_probes $vio]
+    if {[llength $probes] == 0} {
+        return "No hardware probes are visible for $vio"
+    }
+
+    set lines [list "Visible probes for $vio:"]
+    foreach probe $probes {
+        set fields [list $probe]
+        foreach prop {NAME NAME.SHORT CELL_NAME PORT_INDEX PROBE_PORT INDEX INPUT_INDEX INPUT_VALUE VALUE WIDTH} {
+            set value [lhtrace::probe_prop $probe $prop]
+            if {$value ne ""} {
+                lappend fields "$prop=$value"
+            }
+        }
+        lappend lines "  [join $fields { }]"
+    }
+    return [join $lines "\n"]
+}
+
 proc lhtrace::vio_probe {vio short_name} {
-    set probes [get_hw_probes -of_objects $vio -filter "NAME.SHORT == $short_name"]
-    if {[llength $probes] == 0} {
-        set probes [get_hw_probes -of_objects $vio -filter "NAME =~ *$short_name"]
+    global LH_TRACE_VIO_PROBES
+    set aliases [list $short_name]
+    set fallback_index -1
+    if {[regexp {^probe_in([0-9]+)$} $short_name _ idx]} {
+        set fallback_index $idx
+        set named_aliases {
+            0 trace_write_slot
+            1 trace_wrapped
+            2 trace_sample_lost
+            3 trace_dma_error
+        }
+        if {[dict exists $named_aliases $idx]} {
+            lappend aliases [dict get $named_aliases $idx]
+        }
     }
-    if {[llength $probes] == 0} {
-        error "No probe '$short_name' found on VIO $vio"
+    set configured_index [lsearch -exact $LH_TRACE_VIO_PROBES $short_name]
+    if {$configured_index >= 0} {
+        set fallback_index $configured_index
+        lappend aliases probe_in$configured_index
     }
-    return [lindex $probes 0]
+
+    set probes [lhtrace::vio_probes $vio]
+    foreach probe $probes {
+        foreach alias $aliases {
+            foreach prop {NAME NAME.SHORT CELL_NAME} {
+                set value [lhtrace::probe_prop $probe $prop]
+                if {$value ne "" && [string match "*$alias*" $value]} {
+                    return $probe
+                }
+            }
+        }
+    }
+
+    if {$fallback_index >= 0 && [llength $probes] > $fallback_index} {
+        return [lindex $probes $fallback_index]
+    }
+
+    error "No probe '$short_name' found on VIO $vio\n[lhtrace::describe_vio_probes $vio]"
 }
 
 proc lhtrace::vio_probe_value {vio short_name} {
@@ -185,15 +290,20 @@ proc lhtrace::vio_probe_value {vio short_name} {
 }
 
 proc lhtrace::trace_status {} {
+    global LH_TRACE_VIO_PROBES
     set vio [lhtrace::find_trace_vio]
     if {[llength [info commands refresh_hw_vio]] != 0} {
         catch {refresh_hw_vio $vio}
     }
 
-    set write_slot [lhtrace::vio_probe_value $vio probe_in0]
-    set wrapped [lhtrace::vio_probe_value $vio probe_in1]
-    set sample_lost [lhtrace::vio_probe_value $vio probe_in2]
-    set dma_error [lhtrace::vio_probe_value $vio probe_in3]
+    if {[llength $LH_TRACE_VIO_PROBES] != 4} {
+        error "LH_TRACE_VIO_PROBES must contain exactly four probe names: writeSlot wrapped sampleLost dmaError"
+    }
+
+    set write_slot [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 0]]
+    set wrapped [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 1]]
+    set sample_lost [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 2]]
+    set dma_error [lhtrace::vio_probe_value $vio [lindex $LH_TRACE_VIO_PROBES 3]]
 
     puts "Trace status: writeSlot=$write_slot wrapped=$wrapped sampleLost=$sample_lost dmaError=$dma_error"
     return [list $write_slot $wrapped $sample_lost $dma_error]
