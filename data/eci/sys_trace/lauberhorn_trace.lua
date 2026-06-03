@@ -248,6 +248,27 @@ local function append_unique(list, value)
     table.insert(list, value)
 end
 
+local function int_text(value)
+    local n = tonumber(value)
+    if n ~= nil then
+        return string.format("%.0f", n)
+    end
+    local text = tostring(value)
+    n = tonumber(text)
+    if n ~= nil then
+        return string.format("%.0f", n)
+    end
+    local integer = text:match("^(%-?%d+)%.0")
+    if integer ~= nil then
+        return integer
+    end
+    return text
+end
+
+local function flow_text(text)
+    return tostring(text):gsub("(%d+)%.0", "%1")
+end
+
 local function static_fields_for_flow_kind(flow_kind)
     local field_key = "flow_" .. tostring(flow_kind):gsub("[^%w_]", "_")
     return {
@@ -430,7 +451,7 @@ end
 
 local function make_id_node(kind, direction, value)
     local generation = generation_for_id(kind, direction, value)
-    local key = table.concat({ kind, direction, tostring(generation), tostring(value) }, ":")
+    local key = table.concat({ kind, direction, int_text(generation), int_text(value) }, ":")
     local node = flow_state.nodes_by_key[key]
     if node ~= nil then
         return node
@@ -509,7 +530,7 @@ local function flow_id_for_kind(root, kind)
 end
 
 local function id_token_label(node)
-    return tostring(node.direction) .. ":" .. tostring(node.value) .. "." .. tostring(node.generation)
+    return tostring(node.direction) .. ":" .. int_text(node.value) .. "." .. int_text(node.generation)
 end
 
 local function flow_label(root, kind)
@@ -530,7 +551,7 @@ local function flow_label(root, kind)
     for _, node in ipairs(find_node(root).ids[kind] or {}) do
         table.insert(parts, id_token_label(node))
     end
-    return spec.title .. "#" .. tostring(id) .. "[" .. table.concat(parts, ",") .. "]"
+    return flow_text(spec.title .. "#" .. int_text(id) .. "[" .. table.concat(parts, ",") .. "]")
 end
 
 local function event_flow(data_values, event_name, source_info, pinfo)
