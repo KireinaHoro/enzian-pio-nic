@@ -117,7 +117,7 @@ proc lhtrace::parse_hw_int {value {bare_hex 0}} {
     set value [string trim $value]
     set value [string map {"_" "" " " ""} $value]
     if {[regexp {^[0-9]+'h([0-9a-fA-F]+)$} $value _ digits]} {
-        return [expr {0x$digits}]
+        return [expr "0x$digits"]
     }
     if {[regexp {^[0-9]+'d([0-9]+)$} $value _ digits]} {
         return [expr {$digits}]
@@ -132,11 +132,11 @@ proc lhtrace::parse_hw_int {value {bare_hex 0}} {
     if {[regexp {^0x[0-9a-fA-F]+$} $value]} {
         return [expr {$value}]
     }
-    if {$bare_hex && [regexp {^[0-9a-fA-F]+$} $value] && [string length $value] > 1} {
-        return [expr {0x$value}]
-    }
     if {[regexp {^[0-9]+$} $value]} {
         return [expr {$value}]
+    }
+    if {$bare_hex && [regexp {^[0-9a-fA-F]+$} $value] && [string length $value] > 1} {
+        return [expr "0x$value"]
     }
     error "Cannot parse hardware integer value '$value'"
 }
