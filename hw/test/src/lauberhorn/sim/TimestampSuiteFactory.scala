@@ -46,6 +46,18 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
       throw new AssertionError(s"trace events [${eventNames.mkString(", ")}] not captured; saw [${trace.dump(since)}]")
     }
 
+  private def firstTraceCycle(
+                               trace: TraceEventConsumer,
+                               eventNames: Seq[String],
+                               data: Map[String, BigInt],
+                               since: Int,
+                             ): BigInt =
+    eventNames.flatMap { eventName =>
+      trace.first(eventName, data, since).map(_.cycle)
+    }.reduceOption(_ min _).getOrElse {
+      throw new AssertionError(s"trace events [${eventNames.mkString(", ")}] not captured; saw [${trace.dump(since)}]")
+    }
+
   def getRxTimestamps(
                        trace: TraceEventConsumer,
                        coreId: Option[Int] = None,
@@ -54,13 +66,14 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
     def coreData = coreId.map(id => Map("CoreID" -> BigInt(id))).getOrElse(Map.empty[String, BigInt])
     def globalCycle(eventNames: String*) = latestTraceCycle(trace, eventNames, Map.empty, since)
     def coreCycle(eventNames: String*) = latestTraceCycle(trace, eventNames, coreData, since)
+    def firstCoreCycle(eventNames: String*) = firstTraceCycle(trace, eventNames, coreData, since)
     def optionalCoreCycle(eventNames: String*) =
       eventNames.flatMap(eventName => trace.latest(eventName, coreData, since).map(_.cycle)).reduceOption(_ max _).getOrElse(BigInt(0))
 
     val timestamps = RxTraceTimestamps(
       entry = globalCycle("RxCmacEntry"),
       afterRxQueue = globalCycle("RxAfterCdcQueue"),
-      readPending = coreCycle("RxCoreReadPending", "EciRxReadFirst", "EciRxReadNew"),
+      readPending = firstCoreCycle("RxCoreReadPending", "EciRxReadFirst", "EciRxReadNew"),
       readStart = coreCycle("RxCoreReadStart", "EciRxDescSent", "EciRxNackSent"),
       afterRead = optionalCoreCycle("RxCoreReadFinish", "EciRxReadNew"),
       enqueueToHost = globalCycle("RxBypassEnqueueToHost", "RxRpcEnqueueToHost"),
