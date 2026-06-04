@@ -274,7 +274,7 @@ def main() -> int:
     parser.add_argument(
         "--samples",
         default=None,
-        help="Sample window after --start: N exports the last N samples; start:stop or [start,stop) accepts negative indices from the end",
+        help="Sample window after --start using Python slice syntax start:stop; negative indices count from the end",
     )
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")

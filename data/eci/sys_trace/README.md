@@ -13,7 +13,7 @@ Example:
 ```sh
 python3 data/eci/sys_trace/export_trace_pcap.py \
   --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
-  --samples 1000000 \
+  --samples=-1000000: \
   --source 4 \
   -o trace.pcapng \
   trace-dram.bin
@@ -103,11 +103,13 @@ contains generated before/after frame references.
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. Use `--source`, `--start`, and `--samples` to
-select a useful window. `--samples N` exports the last `N` chronological samples
-remaining after `--start`. To scrape a range, pass `--samples=start:stop` or
-`--samples='[start,stop)'`; negative indices count back from the end of the
-post-`--start` window. For example, `--samples=-2000000:-1000000` exports the
-million samples before the last million.
+select a useful window. `--samples` uses Python slice syntax without stepping:
+`--samples=111:` exports from sample 111 to the end, `--samples=:1000` exports
+from the beginning through sample 999, and `--samples=-10000:` exports the last
+10,000 chronological samples remaining after `--start`. Negative indices count
+back from the end of the post-`--start` window. For example,
+`--samples=-2000000:-1000000` exports the million samples before the last
+million.
 
 The pcapng contains one metadata packet with the trace-map JSON, raw packets for
 real samples, and marker packets for lost/bubble samples. Sample packets are
@@ -162,7 +164,7 @@ Convert the resulting binary dump to pcapng with:
 ```sh
 python3 data/eci/sys_trace/export_trace_pcap.py \
   --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
-  --samples 1000000 \
+  --samples=-1000000: \
   -o data/eci/sys_trace/iperf-tx-0x8000-timeout.pcapng \
   data/eci/sys_trace/iperf-tx-0x8000-timeout.bin
 ```
