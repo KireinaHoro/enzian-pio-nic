@@ -98,6 +98,22 @@ ef.rtad = ProtoField.uint8("lhtrace.eci.rtad", "RTAD", base.DEC)
 ef.ppvid = ProtoField.uint8("lhtrace.eci.ppvid", "PPVID", base.DEC)
 ef.stalled_frame = ProtoField.framenum("lhtrace.eci.stalled_frame", "Stalled Frame", base.NONE, frametype.REQUEST)
 ef.accepted_frame = ProtoField.framenum("lhtrace.eci.accepted_frame", "Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.canonical = ProtoField.bool("lhtrace.eci.canonical", "Canonical ECI Frame")
+ef.crossing = ProtoField.string("lhtrace.eci.crossing", "ECI CDC/SLR Crossing")
+ef.crossing_id = ProtoField.uint32("lhtrace.eci.crossing.id", "ECI Crossing ID", base.DEC)
+ef.crossing_key = ProtoField.string("lhtrace.eci.crossing.key", "ECI Crossing Key")
+ef.crossing_direction = ProtoField.string("lhtrace.eci.crossing.direction", "Crossing Direction")
+ef.crossing_stage = ProtoField.string("lhtrace.eci.crossing.stage", "Crossing Stage")
+ef.crossing_before_source = ProtoField.string("lhtrace.eci.crossing.before_source", "Before Crossing Source")
+ef.crossing_after_source = ProtoField.string("lhtrace.eci.crossing.after_source", "After Crossing Source")
+ef.crossing_before_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.before_stalled_frame", "Before Crossing Stalled Frame", base.NONE, frametype.REQUEST)
+ef.crossing_before_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.before_accepted_frame", "Before Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.crossing_after_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.after_stalled_frame", "After Crossing Stalled Frame", base.NONE, frametype.REQUEST)
+ef.crossing_after_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.after_accepted_frame", "After Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.crossing_app_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.app_stalled_frame", "App Stalled Frame", base.NONE, frametype.REQUEST)
+ef.crossing_app_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.app_accepted_frame", "App Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.crossing_sys_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.sys_stalled_frame", "Sys Stalled Frame", base.NONE, frametype.REQUEST)
+ef.crossing_sys_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.sys_accepted_frame", "Sys Accepted Frame", base.NONE, frametype.RESPONSE)
 
 local ee = {}
 ee.vc_zero = ProtoExpert.new(
@@ -130,12 +146,26 @@ ee.stalled_never_accepted = ProtoExpert.new(
     expert.group.PROTOCOL,
     expert.severity.WARN
 )
+ee.crossing_missing_before = ProtoExpert.new(
+    "lhtrace.eci.crossing_missing_before",
+    "ECI CDC/SLR crossing had no matching before-side frame",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+ee.crossing_missing_after = ProtoExpert.new(
+    "lhtrace.eci.crossing_missing_after",
+    "ECI CDC/SLR crossing had no matching after-side frame",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
 lhtrace.experts = {
     ee.vc_zero,
     ee.header_zero,
     ee.wrong_vc,
     ee.stall_payload_changed,
     ee.stalled_never_accepted,
+    ee.crossing_missing_before,
+    ee.crossing_missing_after,
 }
 
 local evf = lhevent.fields
@@ -151,6 +181,10 @@ local flow_state = {}
 local frame_flow_cache = {}
 local eci_pair_state = {}
 local eci_frame_pairs = {}
+local eci_crossing_queues = {}
+local eci_frame_crossings = {}
+local eci_crossing_seen_before = {}
+local next_eci_crossing_id = 1
 
 local id_kinds = {}
 local id_kind_order = {}
@@ -178,6 +212,10 @@ end
 local function reset_eci_pairs()
     eci_pair_state = {}
     eci_frame_pairs = {}
+    eci_crossing_queues = {}
+    eci_frame_crossings = {}
+    eci_crossing_seen_before = {}
+    next_eci_crossing_id = 1
 end
 
 reset_flows()
@@ -974,6 +1012,15 @@ local function add_generated_framenum(tree, field, frame_number, range)
     item.generated = true
 end
 
+local function add_generated_value(tree, field, range, value)
+    if value == nil then
+        return nil
+    end
+    local item = tree:add(field, range, value)
+    item.generated = true
+    return item
+end
+
 local function note_eci_pair(source, frame_number, phase, header, vc, payload_key)
     if source == nil or frame_number == nil then
         return nil
@@ -1022,6 +1069,148 @@ local function note_eci_pair(source, frame_number, phase, header, vc, payload_ke
     return record
 end
 
+local function eci_crossing_spec(source_info)
+    local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
+    if channel:sub(-2) == "_i" then
+        return {
+            direction = "dc_to_eci_gateway",
+            before_domain = "sys",
+            after_domain = "app",
+        }
+    elseif channel:sub(-2) == "_o" then
+        return {
+            direction = "eci_gateway_to_dc",
+            before_domain = "app",
+            after_domain = "sys",
+        }
+    end
+    return nil
+end
+
+local function eci_crossing_stage(source_info, spec)
+    local domain = source_info ~= nil and tostring(source_info.clock_domain or "") or ""
+    if domain == spec.before_domain then
+        return "before"
+    elseif domain == spec.after_domain then
+        return "after"
+    end
+    return nil
+end
+
+local function eci_crossing_key(source_info, payload_key)
+    return table.concat({
+        tostring(source_info.dcs or "none"),
+        tostring(source_info.channel or "unknown"),
+        tostring(payload_key),
+    }, ":")
+end
+
+local function eci_crossing_summary(record)
+    local parts = {
+        "ECI",
+        tostring(record.direction),
+        tostring(record.dcs),
+        tostring(record.channel),
+        tostring(record.message),
+    }
+    return table.concat(parts, " ")
+end
+
+local function eci_crossing_queue(key)
+    local queue = eci_crossing_queues[key]
+    if queue == nil then
+        queue = {}
+        eci_crossing_queues[key] = queue
+    end
+    return queue
+end
+
+local function register_eci_crossing_event(record, event)
+    local entry = {
+        record = record,
+        event = event,
+    }
+    if event.accepted_frame ~= nil then
+        eci_frame_crossings[event.accepted_frame] = entry
+    end
+    if event.stalled_frame ~= nil then
+        eci_frame_crossings[event.stalled_frame] = entry
+    end
+end
+
+local function new_eci_crossing_record(key, spec, source_info, message, header, vc)
+    local record = {
+        id = next_eci_crossing_id,
+        key = key,
+        direction = spec.direction,
+        before_domain = spec.before_domain,
+        after_domain = spec.after_domain,
+        channel = tostring(source_info.channel or "unknown"),
+        dcs = tostring(source_info.dcs or "none"),
+        message = message,
+        header = header,
+        vc = vc,
+        before = nil,
+        after = nil,
+        canonical_frame = nil,
+        missing_before = false,
+        truncated_prefix = false,
+    }
+    next_eci_crossing_id = next_eci_crossing_id + 1
+    return record
+end
+
+local function note_eci_crossing(source, source_info, frame_number, phase, pair_record, header, vc, payload_key, message)
+    if source_info == nil or frame_number == nil or phase ~= "accepted" then
+        return nil
+    end
+
+    local spec = eci_crossing_spec(source_info)
+    if spec == nil then
+        return nil
+    end
+    local stage = eci_crossing_stage(source_info, spec)
+    if stage == nil then
+        return nil
+    end
+
+    local key = eci_crossing_key(source_info, payload_key)
+    local event = {
+        stage = stage,
+        domain = tostring(source_info.clock_domain or ""),
+        source = source,
+        source_label = source_label(source_info, source),
+        stalled_frame = pair_record ~= nil and pair_record.stalled_frame or nil,
+        accepted_frame = frame_number,
+    }
+
+    if stage == "before" then
+        eci_crossing_seen_before[key] = true
+        local record = new_eci_crossing_record(key, spec, source_info, message, header, vc)
+        record.before = event
+        table.insert(eci_crossing_queue(key), record)
+        register_eci_crossing_event(record, event)
+        return eci_frame_crossings[frame_number]
+    end
+
+    local queue = eci_crossing_queue(key)
+    local record = nil
+    if #queue > 0 then
+        record = table.remove(queue, 1)
+    else
+        record = new_eci_crossing_record(key, spec, source_info, message, header, vc)
+        if eci_crossing_seen_before[key] then
+            record.missing_before = true
+        else
+            record.truncated_prefix = true
+        end
+    end
+    record.after = event
+    record.canonical_frame = frame_number
+    register_eci_crossing_event(record, event)
+    return eci_frame_crossings[frame_number]
+end
+
 local function add_eci_pair_fields(tree, record, pinfo, range)
     if record == nil then
         return
@@ -1033,6 +1222,65 @@ local function add_eci_pair_fields(tree, record, pinfo, range)
     end
     if record.phase == "valid" and record.unaccepted and (pinfo == nil or pinfo.visited) then
         tree:add_proto_expert_info(ee.stalled_never_accepted, "ECI stalled frame was never accepted")
+    end
+end
+
+local function crossing_event_for_domain(record, domain)
+    if record.before ~= nil and record.before.domain == domain then
+        return record.before
+    elseif record.after ~= nil and record.after.domain == domain then
+        return record.after
+    end
+    return nil
+end
+
+local function add_crossing_event_frames(tree, range, stalled_field, accepted_field, event)
+    if event == nil then
+        return
+    end
+    add_generated_framenum(tree, stalled_field, event.stalled_frame, range)
+    add_generated_framenum(tree, accepted_field, event.accepted_frame, range)
+end
+
+local function add_eci_crossing_fields(tree, entry, pinfo, range)
+    if entry == nil or entry.record == nil then
+        return
+    end
+
+    local record = entry.record
+    local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    local summary = eci_crossing_summary(record)
+    local crossing_tree = add_generated_value(tree, ef.crossing, range, summary)
+    if crossing_tree == nil then
+        return
+    end
+
+    add_generated_value(crossing_tree, ef.crossing_id, range, record.id)
+    add_generated_value(crossing_tree, ef.crossing_key, range, record.key)
+    add_generated_value(crossing_tree, ef.crossing_direction, range, record.direction)
+    if entry.event ~= nil then
+        add_generated_value(crossing_tree, ef.crossing_stage, range, entry.event.stage)
+    end
+    if record.before ~= nil then
+        add_generated_value(crossing_tree, ef.crossing_before_source, range, record.before.source_label)
+    end
+    if record.after ~= nil then
+        add_generated_value(crossing_tree, ef.crossing_after_source, range, record.after.source_label)
+    end
+
+    add_crossing_event_frames(crossing_tree, range, ef.crossing_before_stalled_frame, ef.crossing_before_accepted_frame, record.before)
+    add_crossing_event_frames(crossing_tree, range, ef.crossing_after_stalled_frame, ef.crossing_after_accepted_frame, record.after)
+    add_crossing_event_frames(crossing_tree, range, ef.crossing_app_stalled_frame, ef.crossing_app_accepted_frame, crossing_event_for_domain(record, "app"))
+    add_crossing_event_frames(crossing_tree, range, ef.crossing_sys_stalled_frame, ef.crossing_sys_accepted_frame, crossing_event_for_domain(record, "sys"))
+
+    if frame_number ~= nil and record.canonical_frame == frame_number then
+        add_generated_value(crossing_tree, ef.canonical, range, true)
+    end
+    if record.missing_before and entry.event ~= nil and entry.event.stage == "after" then
+        tree:add_proto_expert_info(ee.crossing_missing_before, "ECI CDC/SLR crossing had no matching before-side frame")
+    end
+    if record.before ~= nil and record.after == nil and (pinfo == nil or pinfo.visited) then
+        tree:add_proto_expert_info(ee.crossing_missing_after, "ECI CDC/SLR crossing had no matching after-side frame")
     end
 end
 
@@ -1196,10 +1444,23 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
     local pair_key = eci_payload_key(payload_tvb, fields, header, vc)
     local pair_record = nil
+    local crossing_entry = nil
     if pinfo ~= nil and pinfo.visited and frame_number ~= nil then
         pair_record = eci_frame_pairs[frame_number]
+        crossing_entry = eci_frame_crossings[frame_number]
     else
         pair_record = note_eci_pair(source, frame_number, phase, header, vc, pair_key)
+        crossing_entry = note_eci_crossing(
+            source,
+            source_info,
+            frame_number,
+            phase,
+            pair_record,
+            header,
+            vc,
+            pair_key,
+            message or string.format("opcode_%d", opcode)
+        )
     end
     local gsync_details = eci_gsync_details(payload_tvb, tree, class, opcode)
     local aliased_addr
@@ -1236,6 +1497,7 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
         )
     end
     add_eci_pair_fields(tree, pair_record, pinfo, anchor_range(payload_tvb))
+    add_eci_crossing_fields(tree, crossing_entry, pinfo, anchor_range(payload_tvb))
 
     local info = (message or string.format("opcode_%d", opcode))
     if gsync_details ~= nil then

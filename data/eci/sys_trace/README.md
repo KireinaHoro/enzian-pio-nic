@@ -37,6 +37,44 @@ wireshark \
   -X lua_script:data/eci/sys_trace/lauberhorn_trace.lua
 ```
 
+## Useful Wireshark Filters
+
+The Lua dissector adds generated fields for common analysis views:
+
+```text
+lhtrace.eci.canonical
+```
+
+Shows one canonical packet per matched ECI frame after CDC/SLR crossing,
+instead of every raw app/sys and stalled/accepted trace sample.
+
+```text
+lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "dc_to_eci_gateway"
+```
+
+Shows canonical ECI frames moving from the DC side into the ECI gateway.
+
+```text
+lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "eci_gateway_to_dc"
+```
+
+Shows canonical ECI frames moving from the ECI gateway back toward the DC side.
+
+```text
+_ws.expert.message contains "CDC/SLR"
+```
+
+Shows ECI CDC/SLR crossing match warnings. Missing matches at the beginning of
+a truncated trace are suppressed until the dissector has seen an initial
+before-side event for that crossing key.
+
+```text
+lhtrace.eci.stalled_frame || lhtrace.eci.accepted_frame
+```
+
+Shows ECI stalled/accepted frame links. The canonical ECI crossing subtree also
+contains generated app/sys and before/after frame references.
+
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. Use `--source`, `--start`, and `--samples` to
