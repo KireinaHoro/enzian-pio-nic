@@ -385,6 +385,7 @@ def adjusted_chronological_samples(
     input_order: str = "memory-little",
     vivado_transaction_bytes: int = 2048,
     scan_progress_update: Optional[Callable[[int], None]] = None,
+    order_progress_update: Optional[Callable[[int], None]] = None,
 ) -> List[Tuple[int, int, int, int, int]]:
     rows = []
     for raw_logical_index, physical_index, sample, raw_timestamp in iter_chronological_samples(
@@ -397,6 +398,11 @@ def adjusted_chronological_samples(
     ):
         timestamp = adjust_timestamp(raw_timestamp, sample, trace_map)
         rows.append((timestamp, raw_logical_index, physical_index, sample, raw_timestamp))
+        if order_progress_update is not None and len(rows) % 65536 == 0:
+            order_progress_update(len(rows))
+
+    if order_progress_update is not None:
+        order_progress_update(len(rows))
 
     rows.sort(key=lambda row: (row[0], row[1]))
     if start_sample:

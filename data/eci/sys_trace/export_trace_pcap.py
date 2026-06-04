@@ -157,7 +157,17 @@ def write_pcap(
         writer.write_header()
         writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
 
-        scan_progress = ProgressBar(raw_sample_count(input_path, offset, width), label="samples scanned")
+        total_samples = raw_sample_count(input_path, offset, width)
+        scan_progress = ProgressBar(total_samples, label="samples scanned")
+        order_progress: Optional[ProgressBar] = None
+
+        def update_order_progress(current: int) -> None:
+            nonlocal order_progress
+            if order_progress is None:
+                scan_progress.finish()
+                order_progress = ProgressBar(total_samples, label="samples ordered")
+            order_progress.update(current)
+
         samples = adjusted_chronological_samples(
             input_path,
             trace_map,
@@ -167,8 +177,11 @@ def write_pcap(
             input_order=input_order,
             vivado_transaction_bytes=vivado_transaction_bytes,
             scan_progress_update=scan_progress.update,
+            order_progress_update=update_order_progress,
         )
         scan_progress.finish()
+        if order_progress is not None:
+            order_progress.finish()
         progress = ProgressBar(
             sum(1 for _, _, sample, _, _ in samples if dma_sample_is_written(sample, trace_map, lost_source, source))
         )
