@@ -165,13 +165,13 @@ local function eci_crossing_spec(source_info)
     local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
     if channel:sub(-2) == "_i" then
         return {
-            direction = "dc_to_eci_gateway",
+            direction = "gateway_to_dc",
             before_domain = "sys",
             after_domain = "app",
         }
     elseif channel:sub(-2) == "_o" then
         return {
-            direction = "eci_gateway_to_dc",
+            direction = "dc_to_gateway",
             before_domain = "app",
             after_domain = "sys",
         }
