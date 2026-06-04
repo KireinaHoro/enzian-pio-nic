@@ -51,23 +51,10 @@ def parse_sample_window(value: Optional[str]) -> Optional[SampleWindow]:
     if not spec:
         raise ValueError("empty sample window")
 
-    if spec.startswith("[") or spec.endswith(")"):
-        if not (spec.startswith("[") and spec.endswith(")")):
-            raise ValueError("sample range must use [start,stop) syntax")
-        body = spec[1:-1]
-        parts = body.split(",")
-        if len(parts) != 2:
-            raise ValueError("sample range must contain one comma")
-        return SampleWindow(_parse_optional_int(parts[0]), _parse_optional_int(parts[1]))
-
-    if ":" in spec:
-        parts = spec.split(":")
-        if len(parts) != 2:
-            raise ValueError("sample range must contain one colon")
-        return SampleWindow(_parse_optional_int(parts[0]), _parse_optional_int(parts[1]))
-
-    count = int(spec, 0)
-    return last_samples_window(count)
+    parts = spec.split(":")
+    if len(parts) != 2:
+        raise ValueError("sample window must use Python slice syntax start:stop")
+    return SampleWindow(_parse_optional_int(parts[0]), _parse_optional_int(parts[1]))
 
 
 def _parse_optional_int(value: str) -> Optional[int]:
