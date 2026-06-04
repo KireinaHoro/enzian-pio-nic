@@ -154,6 +154,12 @@ ee.crossing_missing_after = ProtoExpert.new(
     expert.group.PROTOCOL,
     expert.severity.WARN
 )
+ee.crossing_missing_before_truncated = ProtoExpert.new(
+    "lhtrace.eci.crossing_missing_before_truncated",
+    "ECI CDC/SLR crossing had no matching before-side frame, possibly due to trace truncation",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
 ee.crossing_matched = ProtoExpert.new(
     "lhtrace.eci.crossing_matched",
     "ECI CDC/SLR crossing matched before and after sides",
@@ -180,6 +186,7 @@ lhtrace.experts = {
     ee.stalled_never_accepted,
     ee.crossing_missing_before,
     ee.crossing_missing_after,
+    ee.crossing_missing_before_truncated,
     ee.crossing_matched,
     ee.crossing_order_ok,
     ee.crossing_order_reversed,

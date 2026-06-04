@@ -319,6 +319,7 @@ local function add_eci_pair_fields(tree, record, pinfo, range)
     end
     if record.phase == "valid" and record.unaccepted and (pinfo == nil or pinfo.visited) then
         add_generated_value(tree, ef.canonical, range, true)
+        tree:add_proto_expert_info(ee.stalled_never_accepted)
     end
 end
 
@@ -328,6 +329,27 @@ local function add_crossing_event_frames(tree, range, stalled_field, accepted_fi
     end
     add_generated_framenum(tree, stalled_field, event.stalled_frame, range)
     add_generated_framenum(tree, accepted_field, event.accepted_frame, range)
+end
+
+local function is_canonical_crossing_frame(record, frame_number, pinfo)
+    if frame_number == nil then
+        return false
+    end
+    if record.canonical_frame == frame_number then
+        return true
+    end
+    return record.before ~= nil
+        and record.after == nil
+        and record.before.accepted_frame == frame_number
+        and (pinfo == nil or pinfo.visited)
+end
+
+local function is_after_accepted_frame(record, frame_number)
+    return frame_number ~= nil and record.after ~= nil and record.after.accepted_frame == frame_number
+end
+
+local function is_before_accepted_frame(record, frame_number)
+    return frame_number ~= nil and record.before ~= nil and record.before.accepted_frame == frame_number
 end
 
 local function add_eci_crossing_fields(tree, entry, pinfo, range)
@@ -359,7 +381,7 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
     add_crossing_event_frames(crossing_tree, range, ef.crossing_before_stalled_frame, ef.crossing_before_accepted_frame, record.before)
     add_crossing_event_frames(crossing_tree, range, ef.crossing_after_stalled_frame, ef.crossing_after_accepted_frame, record.after)
 
-    if frame_number ~= nil and record.canonical_frame == frame_number then
+    if is_canonical_crossing_frame(record, frame_number, pinfo) then
         add_generated_value(crossing_tree, ef.canonical, range, true)
         if record.before ~= nil and record.after ~= nil then
             tree:add_proto_expert_info(ee.crossing_matched)
@@ -377,10 +399,13 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
             end
         end
     end
-    if record.missing_before and entry.event ~= nil and entry.event.stage == "after" then
+    if record.missing_before and is_after_accepted_frame(record, frame_number) then
         tree:add_proto_expert_info(ee.crossing_missing_before)
     end
-    if record.before ~= nil and record.after == nil and (pinfo == nil or pinfo.visited) then
+    if record.truncated_prefix and is_after_accepted_frame(record, frame_number) then
+        tree:add_proto_expert_info(ee.crossing_missing_before_truncated)
+    end
+    if record.after == nil and is_before_accepted_frame(record, frame_number) and (pinfo == nil or pinfo.visited) then
         tree:add_proto_expert_info(ee.crossing_missing_after)
     end
 end

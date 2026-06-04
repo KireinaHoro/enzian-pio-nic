@@ -66,8 +66,9 @@ _ws.expert.message contains "CDC/SLR"
 ```
 
 Shows ECI CDC/SLR crossing match and trace-order notes/warnings. Missing
-matches at the beginning of a truncated trace are suppressed until the dissector
-has seen an initial before-side event for that crossing key.
+before-side matches at the beginning of a trace are reported as possibly due to
+trace truncation until the dissector has seen an initial before-side event for
+that crossing key.
 
 ```text
 _ws.expert.message contains "trace order violates"
