@@ -315,10 +315,10 @@ local function add_eci_pair_fields(tree, record, pinfo, range)
     add_generated_framenum(tree, ef.stalled_frame, record.stalled_frame, range)
     add_generated_framenum(tree, ef.accepted_frame, record.accepted_frame, range)
     if record.payload_changed then
-        tree:add_proto_expert_info(ee.stall_payload_changed, "ECI payload changed while stalled")
+        tree:add_proto_expert_info(ee.stall_payload_changed)
     end
     if record.phase == "valid" and record.unaccepted and (pinfo == nil or pinfo.visited) then
-        tree:add_proto_expert_info(ee.stalled_never_accepted, "ECI stalled frame was never accepted")
+        add_generated_value(tree, ef.canonical, range, true)
     end
 end
 
@@ -362,12 +362,9 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
     if frame_number ~= nil and record.canonical_frame == frame_number then
         add_generated_value(crossing_tree, ef.canonical, range, true)
         if record.before ~= nil and record.after ~= nil then
-            tree:add_proto_expert_info(ee.crossing_matched, "ECI CDC/SLR crossing matched before and after sides")
+            tree:add_proto_expert_info(ee.crossing_matched)
             if record.before.accepted_frame < record.after.accepted_frame then
-                tree:add_proto_expert_info(
-                    ee.crossing_order_ok,
-                    "ECI CDC/SLR crossing trace order matches happen-before relationship"
-                )
+                tree:add_proto_expert_info(ee.crossing_order_ok)
             else
                 tree:add_proto_expert_info(
                     ee.crossing_order_reversed,
@@ -381,10 +378,10 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
         end
     end
     if record.missing_before and entry.event ~= nil and entry.event.stage == "after" then
-        tree:add_proto_expert_info(ee.crossing_missing_before, "ECI CDC/SLR crossing had no matching before-side frame")
+        tree:add_proto_expert_info(ee.crossing_missing_before)
     end
     if record.before ~= nil and record.after == nil and (pinfo == nil or pinfo.visited) then
-        tree:add_proto_expert_info(ee.crossing_missing_after, "ECI CDC/SLR crossing had no matching after-side frame")
+        tree:add_proto_expert_info(ee.crossing_missing_after)
     end
 end
 local function eci_gsync_details(payload_tvb, tree, class, opcode)
@@ -481,10 +478,10 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     tree:add(ef.phase, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), phase)
     tree:add_le(ef.header, byte_range_for_bits(payload_tvb, fields.eci_header.offset, fields.eci_header.width))
     if vc == 0 then
-        tree:add_proto_expert_info(ee.vc_zero, "ECI frame decoded with VC0")
+        tree:add_proto_expert_info(ee.vc_zero)
     end
     if header == 0 then
-        tree:add_proto_expert_info(ee.header_zero, "ECI frame decoded with zero header")
+        tree:add_proto_expert_info(ee.header_zero)
     end
     local expected_vc = expected_eci_vc(source_info)
     if expected_vc ~= nil and vc ~= expected_vc then
