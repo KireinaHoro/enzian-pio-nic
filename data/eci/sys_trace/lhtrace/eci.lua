@@ -179,6 +179,11 @@ local function eci_crossing_spec(source_info)
     return nil
 end
 
+local function is_gsync_source(source_info)
+    local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
+    return channel:sub(1, 6) == "gsync_"
+end
+
 local function eci_crossing_stage(source_info, spec)
     local domain = source_info ~= nil and tostring(source_info.clock_domain or "") or ""
     if domain == spec.before_domain then
@@ -490,6 +495,9 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     end
     add_eci_pair_fields(tree, pair_record, pinfo, anchor_range(payload_tvb))
     add_eci_crossing_fields(tree, crossing_entry, pinfo, anchor_range(payload_tvb))
+    if is_gsync_source(source_info) then
+        add_generated_value(tree, ef.canonical, anchor_range(payload_tvb), true)
+    end
 
     local info = (message or string.format("opcode_%d", opcode))
     if gsync_details ~= nil then
