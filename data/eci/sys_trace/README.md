@@ -107,6 +107,9 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 This writes the last 1,000,000 chronological samples from the dump.
 While exporting, the script prints stderr progress bars for the initial sample
 scan and for how many matching sample packets have been written.
+The initial scan is cached automatically in a JSON sidecar next to the raw dump
+named `<raw>.lhtrace-scan.json`; the cache is reused only when the input hash
+and scan parameters still match.
 
 Older dumps captured by `dump_trace_hw_axi.tcl` before it corrected Vivado's
 transaction display order can be decoded by adding:
