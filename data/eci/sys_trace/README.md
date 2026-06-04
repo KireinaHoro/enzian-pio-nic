@@ -22,10 +22,11 @@ tshark -r trace.pcapng \
   -X lua_script:data/eci/sys_trace/lauberhorn_trace.lua
 ```
 
-For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` into the
-personal plugin directory, or load it with the equivalent Lua script option.
-The optional `colorfilters` file in this directory can be imported through
-View -> Coloring Rules instead of being installed by the Lua plugin at startup.
+For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` and the
+adjacent `lhtrace/` Lua module directory into the personal plugin directory, or
+load the script with the equivalent Lua script option from this directory. The
+optional `colorfilters` file in this directory can be imported through View ->
+Coloring Rules instead of being installed by the Lua plugin at startup.
 Alternatively, use the repo-local profile, which already contains the coloring
 rules:
 
