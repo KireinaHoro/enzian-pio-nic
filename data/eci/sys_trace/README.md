@@ -22,6 +22,22 @@ tshark -r trace.pcapng \
   -X lua_script:data/eci/sys_trace/lauberhorn_trace.lua
 ```
 
+To feed the sys-clock ECI stream into a Python model instead of writing pcapng,
+use:
+
+```sh
+python3 data/eci/sys_trace/export_trace_pcap.py \
+  --output-mode eci-state \
+  --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
+  trace-dram.bin
+```
+
+This mode calls `handle_eci_frame` in `eci_state_output.py` for each accepted
+sys-clock ECI frame. The hook receives `time`, `time_ns`, `opcode`,
+`opcode_name`, `dmask`, `unaliased_address`, and `raw_header`. It requires the
+full trace: `--start`, `--samples`, `--source`, legacy ILA input, circular
+buffer wrap, and lost-sample control frames are rejected.
+
 For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` and the
 adjacent `lhtrace/` Lua module directory into the personal plugin directory, or
 load the script with the equivalent Lua script option from this directory. The
