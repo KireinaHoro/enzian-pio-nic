@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
@@ -103,6 +104,95 @@ def source_matches(sample: int, trace_map: Dict[str, Any], source: Optional[int]
     return sample_source(sample, trace_map) == source
 
 
+SCAN_CACHE_VERSION = 1
+
+
+def scan_cache_path(input_path: Path) -> Path:
+    return input_path.with_name(f"{input_path.name}.lhtrace-scan.json")
+
+
+def scan_cache_params(
+    trace_map: Dict[str, Any],
+    offset: int,
+    input_order: str,
+    vivado_transaction_bytes: int,
+) -> Dict[str, Any]:
+    sample_cfg = trace_map["sample"]
+    return {
+        "offset": int(offset),
+        "input_order": input_order,
+        "vivado_transaction_bytes": int(vivado_transaction_bytes),
+        "payload_width": int(sample_cfg["payload_width"]),
+        "source_width": int(sample_cfg["source_width"]),
+        "timestamp_width": int(sample_cfg["timestamp_width"]),
+        "sample_width": int(sample_cfg["sample_width"]),
+        "byte_order": sample_cfg.get("byte_order", "little"),
+    }
+
+
+def read_scan_cache(cache_path: Path) -> Optional[Dict[str, Any]]:
+    try:
+        with cache_path.open() as f:
+            cache = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(cache, dict):
+        return None
+    return cache
+
+
+def write_scan_cache(
+    cache_path: Path,
+    input_hash: str,
+    params: Dict[str, Any],
+    wrap_index: Optional[int],
+    count: int,
+) -> None:
+    cache = {
+        "version": SCAN_CACHE_VERSION,
+        "input_hash": input_hash,
+        "params": params,
+        "scan": {
+            "wrap_index": wrap_index,
+            "count": int(count),
+        },
+    }
+    tmp_path = cache_path.with_name(f"{cache_path.name}.tmp")
+    try:
+        with tmp_path.open("w") as f:
+            json.dump(cache, f, indent=2, sort_keys=True)
+            f.write("\n")
+        tmp_path.replace(cache_path)
+    except OSError:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+
+
+def cached_scan_result(
+    cache: Dict[str, Any],
+    input_hash: str,
+    params: Dict[str, Any],
+) -> Optional[Tuple[Optional[int], int]]:
+    if cache.get("version") != SCAN_CACHE_VERSION:
+        return None
+    if cache.get("input_hash") != input_hash:
+        return None
+    if cache.get("params") != params:
+        return None
+    scan = cache.get("scan")
+    if not isinstance(scan, dict):
+        return None
+    wrap_index = scan.get("wrap_index")
+    count = scan.get("count")
+    if wrap_index is not None and not isinstance(wrap_index, int):
+        return None
+    if not isinstance(count, int) or count < 0:
+        return None
+    return wrap_index, count
+
+
 def iter_sample_range(
     path: Path,
     trace_map: Dict[str, Any],
@@ -111,6 +201,7 @@ def iter_sample_range(
     stop: Optional[int] = None,
     input_order: str = "memory-little",
     vivado_transaction_bytes: int = 2048,
+    chunk_update: Optional[Callable[[bytes], None]] = None,
 ) -> Iterator[Tuple[int, int]]:
     width = sample_bytes(trace_map)
     with path.open("rb") as f:
@@ -126,8 +217,46 @@ def iter_sample_range(
                 raise ValueError(f"unsupported raw input order: {input_order}")
             if len(chunk) < width:
                 break
+            if chunk_update is not None:
+                chunk_update(chunk)
             yield index, sample_from_bytes(chunk)
             index += 1
+
+
+def hash_sample_stream(
+    input_path: Path,
+    trace_map: Dict[str, Any],
+    offset: int,
+    input_order: str,
+    vivado_transaction_bytes: int,
+) -> Tuple[str, int]:
+    hasher = hashlib.sha256()
+    if input_order == "memory-little":
+        width = sample_bytes(trace_map)
+        size = input_path.stat().st_size
+        count = 0 if offset >= size else (size - offset) // width
+        remaining = count * width
+        with input_path.open("rb") as f:
+            f.seek(offset)
+            while remaining > 0:
+                chunk = f.read(min(4 * 1024 * 1024, remaining))
+                if not chunk:
+                    break
+                hasher.update(chunk)
+                remaining -= len(chunk)
+        return hasher.hexdigest(), count
+
+    count = 0
+    for index, _sample in iter_sample_range(
+        input_path,
+        trace_map,
+        offset,
+        input_order=input_order,
+        vivado_transaction_bytes=vivado_transaction_bytes,
+        chunk_update=hasher.update,
+    ):
+        count = index + 1
+    return hasher.hexdigest(), count
 
 
 def scan_samples(
@@ -145,11 +274,31 @@ def scan_samples(
     one large modulo jump from the newest sample back to older samples. A natural
     timestamp counter wrap is therefore not treated as the buffer wrap.
     """
+    params = scan_cache_params(trace_map, offset, input_order, vivado_transaction_bytes)
+    cache_path = scan_cache_path(input_path)
+    cache = read_scan_cache(cache_path)
+    input_hash: Optional[str] = None
+    if cache is not None:
+        input_hash, _hash_count = hash_sample_stream(
+            input_path,
+            trace_map,
+            offset,
+            input_order=input_order,
+            vivado_transaction_bytes=vivado_transaction_bytes,
+        )
+        result = cached_scan_result(cache, input_hash, params)
+        if result is not None:
+            _wrap_index, cached_count = result
+            if progress_update is not None:
+                progress_update(cached_count)
+            return result
+
     modulus = timestamp_modulus(trace_map)
     wrap_index: Optional[int] = None
     max_delta = 0
     previous_ts: Optional[int] = None
     count = 0
+    hasher = hashlib.sha256()
 
     for index, sample in iter_sample_range(
         input_path,
@@ -157,6 +306,7 @@ def scan_samples(
         offset,
         input_order=input_order,
         vivado_transaction_bytes=vivado_transaction_bytes,
+        chunk_update=hasher.update if input_hash is None else None,
     ):
         ts = raw_sample_timestamp(sample, trace_map)
         if previous_ts is not None:
@@ -173,6 +323,9 @@ def scan_samples(
         progress_update(count)
     if max_delta <= modulus // 2:
         wrap_index = None
+    if input_hash is None:
+        input_hash = hasher.hexdigest()
+    write_scan_cache(cache_path, input_hash, params, wrap_index, count)
     return wrap_index, count
 
 
