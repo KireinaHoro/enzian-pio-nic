@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -19,6 +21,7 @@ try:
     from .legacy_ila import chronological_legacy_samples
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
+    from .sample_window import SampleWindow, parse_sample_window
     from .trace_metadata import enrich_trace_map
 except ImportError:
     from common import bits
@@ -35,6 +38,7 @@ except ImportError:
     from legacy_ila import chronological_legacy_samples
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
+    from sample_window import SampleWindow, parse_sample_window
     from trace_metadata import enrich_trace_map
 
 
@@ -74,13 +78,27 @@ def validate_raw_decode_options(
         )
 
 
+def dma_sample_is_written(sample: int, trace_map: Dict[str, Any], lost_source: int, source: Optional[int]) -> bool:
+    src = sample_source(sample, trace_map)
+    if src == lost_source:
+        return source is None or source == lost_source
+    return source_matches(sample, trace_map, source)
+
+
+def raw_sample_count(input_path: Path, offset: int, width: int) -> int:
+    size = input_path.stat().st_size
+    if offset >= size:
+        return 0
+    return (size - offset) // width
+
+
 def write_pcap(
     input_path: Path,
     output_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
     start_sample: int,
-    sample_limit: Optional[int],
+    sample_window: Optional[SampleWindow],
     source: Optional[int],
     cycle_ns: int,
     input_order: str,
@@ -101,7 +119,7 @@ def write_pcap(
             trace_map,
             offset,
             start_sample=start_sample,
-            sample_limit=sample_limit,
+            sample_window=sample_window,
             input_order=input_order,
             vivado_transaction_bytes=vivado_transaction_bytes,
         ):
@@ -132,7 +150,7 @@ def write_legacy_ila_pcap(
     output_path: Path,
     trace_map: Dict[str, Any],
     start_sample: int,
-    sample_limit: Optional[int],
+    sample_window: Optional[SampleWindow],
     source: Optional[int],
 ) -> None:
     width = sample_bytes(trace_map)
@@ -142,7 +160,7 @@ def write_legacy_ila_pcap(
         writer.write_header()
         writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
 
-        for logical_index, sample in chronological_legacy_samples(
+        samples = list(chronological_legacy_samples(
             trace_dir,
             export_map,
             start_sample=start_sample,
@@ -175,12 +193,18 @@ def main() -> int:
     parser.add_argument("--vivado-transaction-bytes", type=lambda x: int(x, 0), default=2048,
                         help="Bytes per Vivado Hardware Manager AXI read transaction for --input-order vivado-hw-axi")
     parser.add_argument("--start", type=int, default=0, help="First chronological sample to export after wrap realignment")
-    parser.add_argument("--samples", type=int, default=None, help="Export only the last N chronological samples after --start")
+    parser.add_argument(
+        "--samples",
+        default=None,
+        help="Sample window after --start: N exports the last N samples; start:stop or [start,stop) accepts negative indices from the end",
+    )
     parser.add_argument("--source", type=lambda x: int(x, 0), default=None, help="Only export one global source id")
     parser.add_argument("--cycle-ns", type=int, default=5, help="Scale trace timestamp cycles to pcapng nanoseconds")
     args = parser.parse_args()
-    if args.samples is not None and args.samples < 0:
-        parser.error("--samples must be non-negative")
+    try:
+        sample_window = parse_sample_window(args.samples)
+    except ValueError as e:
+        parser.error(f"--samples: {e}")
     output_path = Path(args.output)
     validate_output_path(output_path, parser)
 
@@ -200,7 +224,7 @@ def main() -> int:
             output_path=output_path,
             trace_map=trace_map,
             start_sample=args.start,
-            sample_limit=args.samples,
+            sample_window=sample_window,
             source=args.source,
         )
     else:
@@ -212,7 +236,7 @@ def main() -> int:
             trace_map=trace_map,
             offset=args.offset,
             start_sample=args.start,
-            sample_limit=args.samples,
+            sample_window=sample_window,
             source=args.source,
             cycle_ns=args.cycle_ns,
             input_order=args.input_order,

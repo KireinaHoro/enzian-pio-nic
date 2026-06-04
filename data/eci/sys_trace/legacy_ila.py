@@ -5,9 +5,11 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 try:
     from .common import parse_hex_int
+    from .sample_window import SampleWindow, apply_sample_window, last_samples_window
     from .trace_metadata import enum_value
 except ImportError:
     from common import parse_hex_int
+    from sample_window import SampleWindow, apply_sample_window, last_samples_window
     from trace_metadata import enum_value
 
 
@@ -198,15 +200,15 @@ def chronological_legacy_samples(
     trace_map: Dict[str, Any],
     start_sample: int = 0,
     sample_limit: Optional[int] = None,
+    sample_window: Optional[SampleWindow] = None,
 ) -> Iterator[tuple[int, LegacySample]]:
     samples = sorted(
         iter_legacy_ila_samples(trace_dir, trace_map),
         key=lambda sample: (sample.timestamp_ns, sample.source, sample.physical_sample),
     )
     indexed_samples = list(enumerate(samples))[start_sample:]
-    if sample_limit is not None:
-        if sample_limit < 0:
-            raise ValueError("sample_limit must be non-negative")
-        indexed_samples = [] if sample_limit == 0 else indexed_samples[-sample_limit:]
+    if sample_window is None and sample_limit is not None:
+        sample_window = last_samples_window(sample_limit)
+    indexed_samples = apply_sample_window(indexed_samples, sample_window)
     for logical_index, sample in indexed_samples:
         yield logical_index, sample

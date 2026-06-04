@@ -41,7 +41,10 @@ The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. Use `--source`, `--start`, and `--samples` to
 select a useful window. `--samples N` exports the last `N` chronological samples
-remaining after `--start`.
+remaining after `--start`. To scrape a range, pass `--samples=start:stop` or
+`--samples='[start,stop)'`; negative indices count back from the end of the
+post-`--start` window. For example, `--samples=-2000000:-1000000` exports the
+million samples before the last million.
 
 The pcapng contains one metadata packet with the trace-map JSON, raw packets for
 real samples, and marker packets for lost/bubble samples. Sample packets are

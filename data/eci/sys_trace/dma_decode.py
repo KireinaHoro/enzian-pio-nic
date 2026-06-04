@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 try:
     from .common import bits, platform_root
+    from .sample_window import SampleWindow, apply_sample_window, last_samples_window
 except ImportError:
     from common import bits, platform_root
+    from sample_window import SampleWindow, apply_sample_window, last_samples_window
 
 
 def default_map_path() -> Path:
@@ -236,10 +238,9 @@ def adjusted_chronological_samples(
     rows.sort(key=lambda row: (row[0], row[1]))
     if start_sample:
         rows = rows[start_sample:]
-    if sample_limit is not None:
-        if sample_limit < 0:
-            raise ValueError("sample_limit must be non-negative")
-        rows = [] if sample_limit == 0 else rows[-sample_limit:]
+    if sample_window is None and sample_limit is not None:
+        sample_window = last_samples_window(sample_limit)
+    rows = apply_sample_window(rows, sample_window)
 
     return [
         (logical_index, physical_index, sample, timestamp, raw_timestamp)
