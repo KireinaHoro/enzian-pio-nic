@@ -139,3 +139,51 @@ Current root-cause hypothesis:
   TX path explicitly executes `CVMCACHEWBIL2` (`cl_hit_wb_inv`) on those overflow
   CLs. That code path has an existing FIXME saying to remove it after verifying
   it is not the issue.
+
+## GSYNC/GSDN Interleaving Check
+
+`addr_none.csv` contains the address-less GSYNC stream. In this trace:
+
+- `ECI_CMD_MREQ_GSYNC`: 2,495,097 events.
+- `ECI_CMD_MRSP_GSDN`: 2,495,097 events.
+- Every GSYNC has a following GSDN; there are no unmatched requests.
+- `GSYNC -> GSDN` latency is 0-4 trace ticks.
+
+The GSYNC path in `vivado/eci/rtl/lauberhorn_eci.vhd` uses dedicated GSYNC
+channels:
+
+- VC7 GSYNC -> VC11 GSDN for odd.
+- VC6 GSYNC -> VC10 GSDN for even.
+
+Both instantiate `loopback_vc_resp_nodata`, which accepts a GSYNC only when it
+has no pending response and then holds GSDN valid until the response VC accepts
+it. In the trace, that path never appears backpressured.
+
+There is no tight GSYNC/coherence interleaving near the `0x80` failure:
+
+```text
+bad SINV_H          39276726182
+previous GSYNC      39060528307   (-216197875 ticks)
+next GSYNC          39307526850   (+30800668 ticks)
+```
+
+The last dense GSYNC burst around `39060528307` is isolated from address-bearing
+coherence traffic in this trace. The nearest following CL event is about 439k
+ticks later, and the following RX-control sequence still behaves normally:
+
+```text
+39060987430  addr_0x0000000000  ECI_CMD_MREQ_RLDD
+39060987531  addr_0x0000000080  ECI_CMD_MFWD_SINV_H
+39060987573  addr_0x0000000080  ECI_CMD_MRSP_HAKD
+39060987681  addr_0x0000000000  ECI_CMD_MRSP_PSHA
+```
+
+Across the whole per-address CSV set, the closest observed GSYNC to any
+address-bearing coherence event is 14,092 ticks; none is within 2,000 ticks.
+
+Conclusion from this trace: GSYNC serialization is not supported as the
+proximate cause of the missing `0x80` `SINV_H` response. The simple loopback
+responds promptly and GSYNC does not appear interleaved with the failing
+coherence sequence. This does not prove the loopback semantics are globally
+correct, but this capture does not show the peculiar GSYNC/coherence ordering
+change we were looking for.
