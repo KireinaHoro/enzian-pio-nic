@@ -136,6 +136,7 @@ def scan_samples(
     offset: int,
     input_order: str = "memory-little",
     vivado_transaction_bytes: int = 2048,
+    progress_update: Optional[Callable[[int], None]] = None,
 ) -> Tuple[Optional[int], int]:
     """Find circular-buffer wrap, while allowing the hardware timestamp to wrap.
 
@@ -165,7 +166,11 @@ def scan_samples(
                 wrap_index = index
         previous_ts = ts
         count = index + 1
+        if progress_update is not None and count % 65536 == 0:
+            progress_update(count)
 
+    if progress_update is not None:
+        progress_update(count)
     if max_delta <= modulus // 2:
         wrap_index = None
     return wrap_index, count
@@ -183,6 +188,7 @@ def iter_chronological_samples(
     offset: int,
     input_order: str = "memory-little",
     vivado_transaction_bytes: int = 2048,
+    scan_progress_update: Optional[Callable[[int], None]] = None,
 ) -> Iterator[Tuple[int, int, int, int]]:
     wrap_index, count = scan_samples(
         input_path,
@@ -190,6 +196,7 @@ def iter_chronological_samples(
         offset,
         input_order=input_order,
         vivado_transaction_bytes=vivado_transaction_bytes,
+        progress_update=scan_progress_update,
     )
     modulus = timestamp_modulus(trace_map)
     logical_index = 0
@@ -221,8 +228,10 @@ def adjusted_chronological_samples(
     offset: int,
     start_sample: int = 0,
     sample_limit: Optional[int] = None,
+    sample_window: Optional[SampleWindow] = None,
     input_order: str = "memory-little",
     vivado_transaction_bytes: int = 2048,
+    scan_progress_update: Optional[Callable[[int], None]] = None,
 ) -> List[Tuple[int, int, int, int, int]]:
     rows = []
     for raw_logical_index, physical_index, sample, raw_timestamp in iter_chronological_samples(
@@ -231,6 +240,7 @@ def adjusted_chronological_samples(
         offset,
         input_order=input_order,
         vivado_transaction_bytes=vivado_transaction_bytes,
+        scan_progress_update=scan_progress_update,
     ):
         timestamp = adjust_timestamp(raw_timestamp, sample, trace_map)
         rows.append((timestamp, raw_logical_index, physical_index, sample, raw_timestamp))
