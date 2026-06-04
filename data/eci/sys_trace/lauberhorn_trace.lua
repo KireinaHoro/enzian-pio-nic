@@ -414,11 +414,50 @@ local function byte_range_for_bits(tvb, bit_offset, width)
     return tvb(byte_offset, byte_len)
 end
 
+local function full_range(tvb)
+    return tvb(0, tvb:len())
+end
+
+local function anchor_range(tvb)
+    if tvb:len() > 0 then
+        return tvb(0, 1)
+    end
+    return tvb(0, 0)
+end
+
 local function tvb_has_bits(tvb, bit_offset, width)
     if bit_offset == nil or width == nil then
         return false
     end
     return math.ceil((bit_offset + width) / 8) <= tvb:len()
+end
+
+local function validate_payload_fields(payload_tvb, fields, names, source_type)
+    for _, name in ipairs(names) do
+        local field = fields[name]
+        if field == nil then
+            return false, "missing metadata for " .. tostring(source_type) .. "." .. tostring(name)
+        end
+        local offset = tonumber(field.offset)
+        local width = tonumber(field.width)
+        if not tvb_has_bits(payload_tvb, offset, width) then
+            return false, tostring(source_type) .. "." .. tostring(name) .. " extends past payload"
+        end
+    end
+    return true, nil
+end
+
+local function malformed_payload_result(tree, payload_tvb, label, reason)
+    local info = "Malformed " .. label .. " payload"
+    if reason ~= nil then
+        info = info .. ": " .. reason
+    end
+    tree:add(full_range(payload_tvb), info)
+    return {
+        info = info,
+        source = label,
+        dest = "",
+    }
 end
 
 local function trace_data_key_width(name)
@@ -617,14 +656,26 @@ end
 
 local function event_flow(data_values, event_name, source_info, pinfo)
     local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    local current_range = nil
+    for _, value in ipairs(data_values) do
+        if id_kinds[value.name] ~= nil then
+            local invalid_id = invalid_trace_id(value.name)
+            if invalid_id == nil or value.value ~= invalid_id then
+                current_range = value.range
+                break
+            end
+        end
+    end
+
     if pinfo ~= nil and pinfo.visited and frame_number ~= nil and frame_flow_cache[frame_number] ~= nil then
+        frame_flow_cache[frame_number].range = current_range
         return frame_flow_cache[frame_number]
     end
 
     local direction = infer_event_direction(event_name, source_info)
     local nodes = {}
     local nodes_by_kind = {}
-    local first_range = nil
+    local first_range = current_range
     for _, value in ipairs(data_values) do
         if id_kinds[value.name] ~= nil then
             local invalid_id = invalid_trace_id(value.name)
@@ -698,6 +749,13 @@ local function add_flow_fields(tree, pinfo, flow)
     end
 
     local summary = table.concat(labels, " ")
+    if range == nil then
+        if pinfo ~= nil then
+            pinfo.cols.dst = summary
+        end
+        return summary
+    end
+
     local flow_tree = tree:add(f.flow, range, summary)
     flow_tree:add(f.flow_id, range, component_id(root))
     flow_tree:add(f.flow_type, range, "transitive_id")
@@ -908,11 +966,11 @@ local function eci_frame_record(frame_number)
     return record
 end
 
-local function add_generated_framenum(tree, field, frame_number)
+local function add_generated_framenum(tree, field, frame_number, range)
     if frame_number == nil then
         return
     end
-    local item = tree:add(field, frame_number)
+    local item = tree:add(field, range, frame_number)
     item.generated = true
 end
 
@@ -964,12 +1022,12 @@ local function note_eci_pair(source, frame_number, phase, header, vc, payload_ke
     return record
 end
 
-local function add_eci_pair_fields(tree, record, pinfo)
+local function add_eci_pair_fields(tree, record, pinfo, range)
     if record == nil then
         return
     end
-    add_generated_framenum(tree, ef.stalled_frame, record.stalled_frame)
-    add_generated_framenum(tree, ef.accepted_frame, record.accepted_frame)
+    add_generated_framenum(tree, ef.stalled_frame, record.stalled_frame, range)
+    add_generated_framenum(tree, ef.accepted_frame, record.accepted_frame, range)
     if record.payload_changed then
         tree:add_proto_expert_info(ee.stall_payload_changed, "ECI payload changed while stalled")
     end
@@ -1058,6 +1116,9 @@ end
 local function event_name_from_payload(payload_tvb)
     local fields = fields_for_type("lauberhorn_event") or {}
     local id_field = fields.event_id or { offset = 0, width = 6 }
+    if not tvb_has_bits(payload_tvb, tonumber(id_field.offset), tonumber(id_field.width)) then
+        return "malformed_event"
+    end
     return event_name(extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width))
 end
 
@@ -1074,6 +1135,11 @@ end
 
 local function dissect_dcs(payload_tvb, tree)
     local fields = fields_for_type("dcs_event") or {}
+    local valid, reason = validate_payload_fields(payload_tvb, fields, { "error", "cli", "state", "action", "request" }, "dcs_event")
+    if not valid then
+        return malformed_payload_result(tree, payload_tvb, "DCS", reason)
+    end
+
     local error_value = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
     local cli = extract_bits_le(payload_tvb, 0, fields.cli.offset, fields.cli.width)
     local state = extract_bits_le(payload_tvb, 0, fields.state.offset, fields.state.width)
@@ -1106,6 +1172,14 @@ end
 
 local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local fields = fields_for_type("eci") or {}
+    if payload_tvb:len() < 8 then
+        return malformed_payload_result(tree, payload_tvb, "ECI", "payload is shorter than the 64-bit ECI header")
+    end
+    local valid, reason = validate_payload_fields(payload_tvb, fields, { "eci_header", "vc", "accepted" }, "eci")
+    if not valid then
+        return malformed_payload_result(tree, payload_tvb, "ECI", reason)
+    end
+
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
     local class = eci_class(source_info)
     local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
@@ -1113,7 +1187,8 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local message = eci_opcode_name(source_info, opcode)
     if message ~= nil then
         opcode_item:append_text(" (" .. message .. ")")
-        tree:add(ef.message, payload_tvb(0, 0), message)
+        local item = tree:add(ef.message, anchor_range(payload_tvb), message)
+        item.generated = true
     end
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
@@ -1160,7 +1235,7 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
             string.format("ECI opcode appeared on VC%d, expected VC%d for this source", vc, expected_vc)
         )
     end
-    add_eci_pair_fields(tree, pair_record, pinfo)
+    add_eci_pair_fields(tree, pair_record, pinfo, anchor_range(payload_tvb))
 
     local info = (message or string.format("opcode_%d", opcode))
     if gsync_details ~= nil then
@@ -1176,6 +1251,10 @@ end
 local function dissect_event(payload_tvb, tree, pinfo, source_info)
     local fields = fields_for_type("lauberhorn_event") or {}
     local id_field = fields.event_id or { offset = 0, width = 6 }
+    if not tvb_has_bits(payload_tvb, tonumber(id_field.offset), tonumber(id_field.width)) then
+        return malformed_payload_result(tree, payload_tvb, "event", "event_id extends past payload")
+    end
+
     local event_id = extract_bits_le(payload_tvb, 0, id_field.offset, id_field.width)
     local name = event_name(event_id)
     tree:add(evf.event_name, byte_range_for_bits(payload_tvb, id_field.offset, id_field.width), name)
@@ -1193,13 +1272,14 @@ local function dissect_event(payload_tvb, tree, pinfo, source_info)
             local value_text = tostring(field.name) .. "=" .. tostring(value)
             tree:add(evf.trace_data_value, value_range, value_text)
         else
-            tree:add(evf.trace_data_value, payload_tvb(0, 0),
+            local item = tree:add(evf.trace_data_value, anchor_range(payload_tvb),
                 "malformed " .. tostring(field.name) .. ": extends past event payload")
+            item.generated = true
         end
     end
 
     local data_info = format_event_data(data_values)
-    tree:add(evf.trace_data, payload_tvb(), data_info ~= "" and data_info or "none")
+    tree:add(evf.trace_data, full_range(payload_tvb), data_info ~= "" and data_info or "none")
     local info = name
     if data_info ~= "" then
         info = info .. " " .. data_info
@@ -1245,13 +1325,13 @@ function lhtrace.dissector(tvb, pinfo, tree)
     pinfo.cols.dst = ""
 
     local info = kind_names[kind] or "unknown"
-    local subtree = tree:add(packet_protocol.proto, tvb(), packet_protocol.title)
+    local subtree = tree:add(packet_protocol.proto, full_range(tvb), packet_protocol.title)
 
     if payload_tvb ~= nil then
         if packet_protocol.family == "metadata" then
             local json_text = payload_tvb:string()
             load_trace_map(json_text, pinfo.visited)
-            subtree:add(mf.json, payload_tvb())
+            subtree:add(mf.json, full_range(payload_tvb))
             info = "Trace map JSON"
         elseif packet_protocol.family == "dcs" then
             local src = sources_by_id[source] or { type = "unknown" }
@@ -1285,7 +1365,7 @@ function lhtrace.dissector(tvb, pinfo, tree)
     pinfo.cols.info = info
     subtree:append_text(": " .. info)
 
-    local raw_tree = subtree:add(tvb(), "Raw Trace Envelope")
+    local raw_tree = subtree:add(full_range(tvb), "Raw Trace Envelope")
     raw_tree:add(f.magic, tvb(0, 4))
     raw_tree:add_le(f.version, tvb(4, 1))
     raw_tree:add_le(f.kind, tvb(5, 1))
