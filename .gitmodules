@@ -16,3 +16,6 @@
 [submodule "deps/mackerel2"]
 	path = deps/mackerel2
 	url = https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2.git
+[submodule "deps/thx-fsms"]
+	path = deps/thx-fsms
+	url = git@gitlab.inf.ethz.ch:project-openenzian/tools/thunderx-coherence-fsms.git
