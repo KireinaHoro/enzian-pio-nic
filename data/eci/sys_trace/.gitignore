@@ -1,0 +1,4 @@
+**/*.lhtrace-scan.json
+*.pcapng
+# only track compressed trace
+*.bin
