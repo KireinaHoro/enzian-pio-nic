@@ -215,20 +215,44 @@ local function bit_range_num(value, hi, lo)
     return math.floor(value / (2 ^ lo)) % (2 ^ (hi - lo + 1))
 end
 
+local function bxor(...)
+    local args = { ... }
+    local result = 0
+    local bit_value = 1
+    local remaining = true
+    while remaining do
+        local parity = 0
+        remaining = false
+        for index, value in ipairs(args) do
+            value = math.floor(value)
+            if value > 0 then
+                remaining = true
+            end
+            parity = (parity + (value % 2)) % 2
+            args[index] = math.floor(value / 2)
+        end
+        if parity ~= 0 then
+            result = result + bit_value
+        end
+        bit_value = bit_value * 2
+    end
+    return result
+end
+
 local function unalias_address(aliased_addr)
     local aliased_cli = bit_range_num(aliased_addr, 39, 7)
     local byte_offset = bit_range_num(aliased_addr, 6, 0)
     local cli = 0
     cli = cli + bit_range_num(aliased_cli, 32, 13) * (2 ^ 13)
-    cli = cli + bit32.bxor(bit_range_num(aliased_cli, 12, 8), bit_range_num(aliased_cli, 17, 13)) * (2 ^ 8)
-    cli = cli + bit32.bxor(bit_range_num(aliased_cli, 7, 5), bit_range_num(aliased_cli, 20, 18)) * (2 ^ 5)
-    cli = cli + bit32.bxor(
+    cli = cli + bxor(bit_range_num(aliased_cli, 12, 8), bit_range_num(aliased_cli, 17, 13)) * (2 ^ 8)
+    cli = cli + bxor(bit_range_num(aliased_cli, 7, 5), bit_range_num(aliased_cli, 20, 18)) * (2 ^ 5)
+    cli = cli + bxor(
         bit_range_num(aliased_cli, 4, 3)
         , bit_range_num(aliased_cli, 19, 18)
         , bit_range_num(aliased_cli, 17, 16)
         , bit_range_num(aliased_cli, 6, 5)
     ) * (2 ^ 3)
-    cli = cli + bit32.bxor(
+    cli = cli + bxor(
         bit_range_num(aliased_cli, 2, 0)
         , bit_range_num(aliased_cli, 20, 18)
         , bit_range_num(aliased_cli, 15, 13)
