@@ -65,16 +65,23 @@ Shows canonical ECI frames moving from the ECI gateway back toward the DC side.
 _ws.expert.message contains "CDC/SLR"
 ```
 
-Shows ECI CDC/SLR crossing match warnings. Missing matches at the beginning of
-a truncated trace are suppressed until the dissector has seen an initial
-before-side event for that crossing key.
+Shows ECI CDC/SLR crossing match and trace-order notes/warnings. Missing
+matches at the beginning of a truncated trace are suppressed until the dissector
+has seen an initial before-side event for that crossing key.
+
+```text
+_ws.expert.message contains "trace order violates"
+```
+
+Shows ECI CDC/SLR crossings whose packet order in the trace violates the
+expected happen-before relationship.
 
 ```text
 lhtrace.eci.stalled_frame || lhtrace.eci.accepted_frame
 ```
 
 Shows ECI stalled/accepted frame links. The canonical ECI crossing subtree also
-contains generated app/sys and before/after frame references.
+contains generated before/after frame references.
 
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
