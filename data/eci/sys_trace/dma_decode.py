@@ -46,17 +46,6 @@ def sample_from_bytes(chunk: bytes) -> int:
     return int.from_bytes(chunk, "little")
 
 
-def vivado_hw_axi_chunk(f, dump_offset: int, sample_offset: int, width: int, transaction_bytes: int) -> bytes:
-    if transaction_bytes < width or transaction_bytes % width != 0:
-        raise ValueError("Vivado transaction size must be a multiple of the trace sample size")
-    chunk_base = (sample_offset // transaction_bytes) * transaction_bytes
-    chunk_offset = sample_offset - chunk_base
-    display_offset = chunk_base + transaction_bytes - chunk_offset - width
-    f.seek(dump_offset + display_offset)
-    chunk = f.read(width)
-    return chunk[::-1]
-
-
 def sample_source(sample: int, trace_map: Dict[str, Any]) -> int:
     sample_cfg = trace_map["sample"]
     payload_width = int(sample_cfg["payload_width"])
@@ -126,14 +115,10 @@ def scan_cache_path(input_path: Path) -> Path:
 def scan_cache_params(
     trace_map: Dict[str, Any],
     offset: int,
-    input_order: str,
-    vivado_transaction_bytes: int,
 ) -> Dict[str, Any]:
     sample_cfg = trace_map["sample"]
     return {
         "offset": int(offset),
-        "input_order": input_order,
-        "vivado_transaction_bytes": int(vivado_transaction_bytes),
         "payload_width": int(sample_cfg["payload_width"]),
         "source_width": int(sample_cfg["source_width"]),
         "timestamp_width": int(sample_cfg["timestamp_width"]),
@@ -211,8 +196,6 @@ def iter_sample_range(
     offset: int,
     start: int = 0,
     stop: Optional[int] = None,
-    input_order: str = "memory-little",
-    vivado_transaction_bytes: int = 2048,
     chunk_update: Optional[Callable[[bytes], None]] = None,
 ) -> Iterator[Tuple[int, int]]:
     width = sample_bytes(trace_map)
@@ -220,13 +203,8 @@ def iter_sample_range(
         index = start
         while stop is None or index < stop:
             sample_offset = index * width
-            if input_order == "memory-little":
-                f.seek(offset + sample_offset)
-                chunk = f.read(width)
-            elif input_order == "vivado-hw-axi":
-                chunk = vivado_hw_axi_chunk(f, offset, sample_offset, width, vivado_transaction_bytes)
-            else:
-                raise ValueError(f"unsupported raw input order: {input_order}")
+            f.seek(offset + sample_offset)
+            chunk = f.read(width)
             if len(chunk) < width:
                 break
             if chunk_update is not None:
@@ -239,35 +217,20 @@ def hash_sample_stream(
     input_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
-    input_order: str,
-    vivado_transaction_bytes: int,
 ) -> Tuple[str, int]:
     hasher = hashlib.sha256()
-    if input_order == "memory-little":
-        width = sample_bytes(trace_map)
-        size = input_path.stat().st_size
-        count = 0 if offset >= size else (size - offset) // width
-        remaining = count * width
-        with input_path.open("rb") as f:
-            f.seek(offset)
-            while remaining > 0:
-                chunk = f.read(min(4 * 1024 * 1024, remaining))
-                if not chunk:
-                    break
-                hasher.update(chunk)
-                remaining -= len(chunk)
-        return hasher.hexdigest(), count
-
-    count = 0
-    for index, _sample in iter_sample_range(
-        input_path,
-        trace_map,
-        offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
-        chunk_update=hasher.update,
-    ):
-        count = index + 1
+    width = sample_bytes(trace_map)
+    size = input_path.stat().st_size
+    count = 0 if offset >= size else (size - offset) // width
+    remaining = count * width
+    with input_path.open("rb") as f:
+        f.seek(offset)
+        while remaining > 0:
+            chunk = f.read(min(4 * 1024 * 1024, remaining))
+            if not chunk:
+                break
+            hasher.update(chunk)
+            remaining -= len(chunk)
     return hasher.hexdigest(), count
 
 
@@ -275,9 +238,8 @@ def scan_samples(
     input_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
-    input_order: str = "memory-little",
-    vivado_transaction_bytes: int = 2048,
     progress_update: Optional[Callable[[int], None]] = None,
+    cache_path: Optional[Path] = None,
 ) -> Tuple[Optional[int], int]:
     """Find circular-buffer wrap, while allowing timestamp counter wrap.
 
@@ -288,18 +250,12 @@ def scan_samples(
     A natural timestamp counter wrap is therefore not treated as the buffer
     wrap.
     """
-    params = scan_cache_params(trace_map, offset, input_order, vivado_transaction_bytes)
-    cache_path = scan_cache_path(input_path)
+    params = scan_cache_params(trace_map, offset)
+    cache_path = scan_cache_path(input_path) if cache_path is None else cache_path
     cache = read_scan_cache(cache_path)
     input_hash: Optional[str] = None
     if cache is not None:
-        input_hash, _hash_count = hash_sample_stream(
-            input_path,
-            trace_map,
-            offset,
-            input_order=input_order,
-            vivado_transaction_bytes=vivado_transaction_bytes,
-        )
+        input_hash, _hash_count = hash_sample_stream(input_path, trace_map, offset)
         result = cached_scan_result(cache, input_hash, params)
         if result is not None:
             _wrap_index, cached_count = result
@@ -319,8 +275,6 @@ def scan_samples(
         input_path,
         trace_map,
         offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
         chunk_update=hasher.update if input_hash is None else None,
     ):
         ts = raw_sample_timestamp(sample, trace_map)
@@ -363,17 +317,15 @@ def iter_chronological_samples(
     input_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
-    input_order: str = "memory-little",
-    vivado_transaction_bytes: int = 2048,
     scan_progress_update: Optional[Callable[[int], None]] = None,
+    cache_path: Optional[Path] = None,
 ) -> Iterator[Tuple[int, int, int, int]]:
     wrap_index, count = scan_samples(
         input_path,
         trace_map,
         offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
         progress_update=scan_progress_update,
+        cache_path=cache_path,
     )
     modulus = timestamp_modulus(trace_map)
     logical_index = 0
@@ -387,8 +339,6 @@ def iter_chronological_samples(
             offset,
             start=start,
             stop=stop,
-            input_order=input_order,
-            vivado_transaction_bytes=vivado_transaction_bytes,
         ):
             raw_ts = raw_sample_timestamp(sample, trace_map)
             if previous_ts is not None and raw_ts < previous_ts:
@@ -403,22 +353,19 @@ def adjusted_chronological_samples(
     input_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
-    start_sample: int = 0,
     sample_limit: Optional[int] = None,
     sample_window: Optional[SampleWindow] = None,
-    input_order: str = "memory-little",
-    vivado_transaction_bytes: int = 2048,
     scan_progress_update: Optional[Callable[[int], None]] = None,
     order_progress_update: Optional[Callable[[int], None]] = None,
+    cache_path: Optional[Path] = None,
 ) -> List[Tuple[int, int, int, int, int]]:
     rows = []
     for raw_logical_index, physical_index, sample, raw_timestamp in iter_chronological_samples(
         input_path,
         trace_map,
         offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
         scan_progress_update=scan_progress_update,
+        cache_path=cache_path,
     ):
         timestamp = adjust_timestamp(raw_timestamp, sample, trace_map)
         rows.append((timestamp, raw_logical_index, physical_index, sample, raw_timestamp))
@@ -429,8 +376,6 @@ def adjusted_chronological_samples(
         order_progress_update(len(rows))
 
     rows.sort(key=lambda row: (row[0], row[1]))
-    if start_sample:
-        rows = rows[start_sample:]
     if sample_window is None and sample_limit is not None:
         sample_window = last_samples_window(sample_limit)
     rows = apply_sample_window(rows, sample_window)

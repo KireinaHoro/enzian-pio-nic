@@ -135,19 +135,17 @@ def run_eci_state_output(
     trace_map: Dict[str, Any],
     offset: int,
     cycle_ns: int,
-    input_order: str,
-    vivado_transaction_bytes: int,
     frame_handler: Callable[..., None] = handle_eci_frame,
     scan_progress_update: Optional[Callable[[int], None]] = None,
     order_progress_update: Optional[Callable[[int], None]] = None,
+    cache_path: Optional[Path] = None,
 ) -> int:
     wrap_index, _count = scan_samples(
         input_path,
         trace_map,
         offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
         progress_update=scan_progress_update,
+        cache_path=cache_path,
     )
     if wrap_index is not None:
         raise IncompleteTraceError(
@@ -163,10 +161,9 @@ def run_eci_state_output(
         input_path,
         trace_map,
         offset,
-        input_order=input_order,
-        vivado_transaction_bytes=vivado_transaction_bytes,
         scan_progress_update=None,
         order_progress_update=order_progress_update,
+        cache_path=cache_path,
     )
     for _logical_index, _physical_index, sample, _timestamp, _raw_timestamp in samples:
         source = sample_source(sample, trace_map)

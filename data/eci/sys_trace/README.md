@@ -36,8 +36,8 @@ python3 data/eci/sys_trace/export_trace_pcap.py \
 This mode calls `handle_eci_frame` in `eci_state_output.py` for each accepted
 sys-clock ECI frame. The hook receives `time`, `time_ns`, `opcode`,
 `opcode_name`, `dmask`, `unaliased_address`, and `raw_header`. It requires the
-full trace: `--start`, `--samples`, `--source`, legacy ILA input, circular
-buffer wrap, and lost-sample control frames are rejected.
+full trace: `--samples`, `--source`, legacy ILA input, circular buffer wrap,
+and lost-sample control frames are rejected.
 
 For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` and the
 adjacent `lhtrace/` Lua module directory into the personal plugin directory, or
@@ -103,14 +103,13 @@ contains generated before/after frame references.
 
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
-as one interactive packet list. Use `--source`, `--start`, and `--samples` to
+as one interactive packet list. Use `--source` and `--samples` to
 select a useful window. `--samples` uses Python slice syntax without stepping:
 `--samples=111:` exports from sample 111 to the end, `--samples=:1000` exports
 from the beginning through sample 999, and `--samples=-10000:` exports the last
-10,000 chronological samples remaining after `--start`. Negative indices count
-back from the end of the post-`--start` window. For example,
-`--samples=-2000000:-1000000` exports the million samples before the last
-million.
+10,000 chronological samples. Negative indices count back from the end of the
+dump. For example, `--samples=-2000000:-1000000` exports the million samples
+before the last million.
 
 The pcapng contains one metadata packet with the trace-map JSON, raw packets for
 real samples, and marker packets for lost/bubble samples. Sample packets are
