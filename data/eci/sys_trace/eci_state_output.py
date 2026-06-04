@@ -1,5 +1,9 @@
+import csv
+import io
+import tarfile
+from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Tuple
 
 try:
     from .common import bit_range, bits
@@ -27,24 +31,11 @@ ECI_OPCODE_OFFSET = 59
 ECI_OPCODE_WIDTH = 5
 ECI_DMASK_OFFSET = 46
 ECI_DMASK_WIDTH = 4
+EciCsvEvent = Tuple[int, str, int]
 
 
 class IncompleteTraceError(RuntimeError):
     pass
-
-
-def handle_eci_frame(
-    *,
-    time: int,
-    time_ns: int,
-    opcode: int,
-    opcode_name: str,
-    dmask: int,
-    unaliased_address: Optional[int],
-    raw_header: int,
-) -> None:
-    """Hook for an external ECI state machine model."""
-    _ = (time, time_ns, opcode, opcode_name, dmask, unaliased_address, raw_header)
 
 
 def _field(payload: int, trace_map: Dict[str, Any], name: str) -> int:
@@ -130,16 +121,47 @@ def _is_accepted_eci_payload(payload: int, trace_map: Dict[str, Any]) -> bool:
         return True
 
 
+def _address_filename(address: Optional[int]) -> str:
+    if address is None:
+        return "addr_none.csv"
+    return f"addr_0x{address:010x}.csv"
+
+
+def _address_sort_key(address: Optional[int]) -> Tuple[int, int]:
+    if address is None:
+        return (0, 0)
+    return (1, address)
+
+
+def _write_events_archive(
+    output_path: Path,
+    events_by_address: Dict[Optional[int], List[EciCsvEvent]],
+) -> int:
+    files = 0
+    with tarfile.open(output_path, "w:gz") as archive:
+        for address in sorted(events_by_address, key=_address_sort_key):
+            text = io.StringIO(newline="")
+            writer = csv.writer(text)
+            writer.writerow(["time", "opcode_name", "dmask"])
+            for time, opcode_name, dmask in events_by_address[address]:
+                writer.writerow([time, opcode_name, dmask])
+            data = text.getvalue().encode("utf-8")
+            info = tarfile.TarInfo(_address_filename(address))
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+            files += 1
+    return files
+
+
 def run_eci_state_output(
     input_path: Path,
+    output_path: Path,
     trace_map: Dict[str, Any],
     offset: int,
-    cycle_ns: int,
-    frame_handler: Callable[..., None] = handle_eci_frame,
     scan_progress_update: Optional[Callable[[int], None]] = None,
     order_progress_update: Optional[Callable[[int], None]] = None,
     cache_path: Optional[Path] = None,
-) -> int:
+) -> Tuple[int, int]:
     wrap_index, _count = scan_samples(
         input_path,
         trace_map,
@@ -156,6 +178,7 @@ def run_eci_state_output(
     lost_source = int(trace_map["sample"]["lost_source"])
     lost_count_width = int(trace_map["sample"].get("lost_count_width", 32))
     frames = 0
+    events_by_address: DefaultDict[Optional[int], List[EciCsvEvent]] = defaultdict(list)
 
     samples = adjusted_chronological_samples(
         input_path,
@@ -186,15 +209,14 @@ def run_eci_state_output(
 
         raw_header = _field(payload, trace_map, "eci_header")
         opcode = bits(raw_header, ECI_OPCODE_OFFSET, ECI_OPCODE_WIDTH)
-        frame_handler(
-            time=timestamp,
-            time_ns=timestamp * cycle_ns,
-            opcode=opcode,
-            opcode_name=_opcode_name(export_map, src_info, opcode),
-            dmask=bits(raw_header, ECI_DMASK_OFFSET, ECI_DMASK_WIDTH),
-            unaliased_address=_unaliased_header_address(src_info, opcode, raw_header),
-            raw_header=raw_header,
+        unaliased_address = _unaliased_header_address(src_info, opcode, raw_header)
+        event = (
+            timestamp,
+            _opcode_name(export_map, src_info, opcode),
+            bits(raw_header, ECI_DMASK_OFFSET, ECI_DMASK_WIDTH),
         )
+        events_by_address[unaliased_address].append(event)
         frames += 1
 
-    return frames
+    files = _write_events_archive(output_path, events_by_address)
+    return frames, files
