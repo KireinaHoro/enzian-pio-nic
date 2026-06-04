@@ -18,6 +18,7 @@ try:
         source_info,
         source_matches,
     )
+    from .eci_state_output import IncompleteTraceError, run_eci_state_output
     from .legacy_ila import chronological_legacy_samples
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
@@ -35,6 +36,7 @@ except ImportError:
         source_info,
         source_matches,
     )
+    from eci_state_output import IncompleteTraceError, run_eci_state_output
     from legacy_ila import chronological_legacy_samples
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
@@ -90,12 +92,12 @@ def validate_output_path(output_path: Path, parser: argparse.ArgumentParser) -> 
         parser.error(f"output path is a directory: {output_path}")
 
 
-def validate_raw_input(input_path: Path, output_path: Path, parser: argparse.ArgumentParser) -> None:
+def validate_raw_input(input_path: Path, output_path: Optional[Path], parser: argparse.ArgumentParser) -> None:
     if not input_path.exists():
         parser.error(f"input dump file does not exist: {input_path}")
     if not input_path.is_file():
         parser.error(f"input dump path is not a file: {input_path}")
-    if output_path.exists() and input_path.samefile(output_path):
+    if output_path is not None and output_path.exists() and input_path.samefile(output_path):
         parser.error(f"input and output refer to the same file: {input_path}")
 
 
@@ -253,7 +255,13 @@ def write_legacy_ila_pcap(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", nargs="?", help="Raw binary DRAM dump")
-    parser.add_argument("-o", "--output", required=True, help="Output pcapng path")
+    parser.add_argument("-o", "--output", help="Output pcapng path")
+    parser.add_argument(
+        "--output-mode",
+        choices=("pcapng", "eci-state"),
+        default="pcapng",
+        help="pcapng writes packets; eci-state calls the sys-clock ECI state-machine hook",
+    )
     parser.add_argument("--map", default=str(default_map_path()), help="Trace map JSON emitted by LauberhornTraceDma")
     parser.add_argument("--legacy-ila", type=Path, default=None,
                         help="Read legacy Vivado ILA CSVs from a dcs_trace directory instead of a DRAM dump")
@@ -275,8 +283,25 @@ def main() -> int:
         sample_window = parse_sample_window(args.samples)
     except ValueError as e:
         parser.error(f"--samples: {e}")
-    output_path = Path(args.output)
-    validate_output_path(output_path, parser)
+
+    output_path: Optional[Path]
+    if args.output_mode == "pcapng":
+        if args.output is None:
+            parser.error("-o/--output is required in pcapng output mode")
+        output_path = Path(args.output)
+        validate_output_path(output_path, parser)
+    else:
+        if args.output is not None:
+            parser.error("-o/--output is only valid in pcapng output mode")
+        if args.legacy_ila is not None:
+            parser.error("--output-mode eci-state does not support --legacy-ila")
+        if args.start != 0:
+            parser.error("--output-mode eci-state requires the full trace and does not support --start")
+        if args.samples is not None:
+            parser.error("--output-mode eci-state requires the full trace and does not support --samples")
+        if args.source is not None:
+            parser.error("--output-mode eci-state processes all sys-clock ECI sources and does not support --source")
+        output_path = None
 
     if args.legacy_ila is not None:
         input_path = None
@@ -288,7 +313,42 @@ def main() -> int:
         validate_raw_input(input_path, output_path, parser)
 
     trace_map = load_map(Path(args.map))
-    if args.legacy_ila is not None:
+    if args.output_mode == "eci-state":
+        assert input_path is not None
+        validate_raw_decode_options(trace_map, args.input_order, args.vivado_transaction_bytes, parser)
+        total_samples = raw_sample_count(input_path, args.offset, sample_bytes(trace_map))
+        scan_progress = ProgressBar(total_samples, label="samples scanned")
+        order_progress: Optional[ProgressBar] = None
+
+        def update_order_progress(current: int) -> None:
+            nonlocal order_progress
+            if order_progress is None:
+                scan_progress.finish()
+                order_progress = ProgressBar(total_samples, label="samples ordered")
+            order_progress.update(current)
+
+        try:
+            frames = run_eci_state_output(
+                input_path=input_path,
+                trace_map=trace_map,
+                offset=args.offset,
+                cycle_ns=args.cycle_ns,
+                input_order=args.input_order,
+                vivado_transaction_bytes=args.vivado_transaction_bytes,
+                scan_progress_update=scan_progress.update,
+                order_progress_update=update_order_progress,
+            )
+        except IncompleteTraceError as e:
+            scan_progress.finish()
+            if order_progress is not None:
+                order_progress.finish()
+            parser.error(str(e))
+        scan_progress.finish()
+        if order_progress is not None:
+            order_progress.finish()
+        print(f"ECI state hook processed {frames} sys-clock ECI frames", file=sys.stderr)
+    elif args.legacy_ila is not None:
+        assert output_path is not None
         write_legacy_ila_pcap(
             trace_dir=args.legacy_ila,
             output_path=output_path,
@@ -299,6 +359,7 @@ def main() -> int:
         )
     else:
         assert input_path is not None
+        assert output_path is not None
         validate_raw_decode_options(trace_map, args.input_order, args.vivado_transaction_bytes, parser)
         write_pcap(
             input_path=input_path,
