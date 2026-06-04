@@ -110,10 +110,6 @@ ef.crossing_before_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.bef
 ef.crossing_before_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.before_accepted_frame", "Before Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
 ef.crossing_after_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.after_stalled_frame", "After Crossing Stalled Frame", base.NONE, frametype.REQUEST)
 ef.crossing_after_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.after_accepted_frame", "After Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
-ef.crossing_app_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.app_stalled_frame", "App Stalled Frame", base.NONE, frametype.REQUEST)
-ef.crossing_app_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.app_accepted_frame", "App Accepted Frame", base.NONE, frametype.RESPONSE)
-ef.crossing_sys_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.sys_stalled_frame", "Sys Stalled Frame", base.NONE, frametype.REQUEST)
-ef.crossing_sys_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.sys_accepted_frame", "Sys Accepted Frame", base.NONE, frametype.RESPONSE)
 
 local ee = {}
 ee.vc_zero = ProtoExpert.new(
@@ -158,6 +154,24 @@ ee.crossing_missing_after = ProtoExpert.new(
     expert.group.PROTOCOL,
     expert.severity.WARN
 )
+ee.crossing_matched = ProtoExpert.new(
+    "lhtrace.eci.crossing_matched",
+    "ECI CDC/SLR crossing matched before and after sides",
+    expert.group.PROTOCOL,
+    expert.severity.NOTE
+)
+ee.crossing_order_ok = ProtoExpert.new(
+    "lhtrace.eci.crossing_order_ok",
+    "ECI CDC/SLR crossing trace order matches happen-before relationship",
+    expert.group.PROTOCOL,
+    expert.severity.NOTE
+)
+ee.crossing_order_reversed = ProtoExpert.new(
+    "lhtrace.eci.crossing_order_reversed",
+    "ECI CDC/SLR crossing trace order violates happen-before relationship",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
 lhtrace.experts = {
     ee.vc_zero,
     ee.header_zero,
@@ -166,6 +180,9 @@ lhtrace.experts = {
     ee.stalled_never_accepted,
     ee.crossing_missing_before,
     ee.crossing_missing_after,
+    ee.crossing_matched,
+    ee.crossing_order_ok,
+    ee.crossing_order_reversed,
 }
 
 local evf = lhevent.fields

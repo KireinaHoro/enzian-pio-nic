@@ -317,15 +317,6 @@ local function add_eci_pair_fields(tree, record, pinfo, range)
     end
 end
 
-local function crossing_event_for_domain(record, domain)
-    if record.before ~= nil and record.before.domain == domain then
-        return record.before
-    elseif record.after ~= nil and record.after.domain == domain then
-        return record.after
-    end
-    return nil
-end
-
 local function add_crossing_event_frames(tree, range, stalled_field, accepted_field, event)
     if event == nil then
         return
@@ -362,11 +353,27 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
 
     add_crossing_event_frames(crossing_tree, range, ef.crossing_before_stalled_frame, ef.crossing_before_accepted_frame, record.before)
     add_crossing_event_frames(crossing_tree, range, ef.crossing_after_stalled_frame, ef.crossing_after_accepted_frame, record.after)
-    add_crossing_event_frames(crossing_tree, range, ef.crossing_app_stalled_frame, ef.crossing_app_accepted_frame, crossing_event_for_domain(record, "app"))
-    add_crossing_event_frames(crossing_tree, range, ef.crossing_sys_stalled_frame, ef.crossing_sys_accepted_frame, crossing_event_for_domain(record, "sys"))
 
     if frame_number ~= nil and record.canonical_frame == frame_number then
         add_generated_value(crossing_tree, ef.canonical, range, true)
+        if record.before ~= nil and record.after ~= nil then
+            tree:add_proto_expert_info(ee.crossing_matched, "ECI CDC/SLR crossing matched before and after sides")
+            if record.before.accepted_frame < record.after.accepted_frame then
+                tree:add_proto_expert_info(
+                    ee.crossing_order_ok,
+                    "ECI CDC/SLR crossing trace order matches happen-before relationship"
+                )
+            else
+                tree:add_proto_expert_info(
+                    ee.crossing_order_reversed,
+                    string.format(
+                        "ECI CDC/SLR crossing trace order violates happen-before relationship: before frame %d, after frame %d",
+                        record.before.accepted_frame,
+                        record.after.accepted_frame
+                    )
+                )
+            end
+        end
     end
     if record.missing_before and entry.event ~= nil and entry.event.stage == "after" then
         tree:add_proto_expert_info(ee.crossing_missing_before, "ECI CDC/SLR crossing had no matching before-side frame")
