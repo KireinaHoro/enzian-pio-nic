@@ -42,6 +42,49 @@ except ImportError:
     from trace_metadata import enrich_trace_map
 
 
+class ProgressBar:
+    def __init__(self, total: int, label: str = "samples written", stream=sys.stderr) -> None:
+        self.total = total
+        self.label = label
+        self.stream = stream
+        self.current = 0
+        self.enabled = total > 0 and stream.isatty()
+        self._last_draw = 0.0
+        self._finished = False
+        if self.enabled:
+            self._draw(force=True)
+
+    def advance(self) -> None:
+        self.update(self.current + 1)
+
+    def update(self, current: int) -> None:
+        self.current = min(current, self.total)
+        self._draw()
+
+    def finish(self) -> None:
+        if not self.enabled or self._finished:
+            return
+        if self.current < self.total:
+            self.current = self.total
+            self._draw(force=True)
+        self.stream.write("\n")
+        self.stream.flush()
+        self._finished = True
+
+    def _draw(self, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        now = time.monotonic()
+        if not force and self.current < self.total and now - self._last_draw < 0.1:
+            return
+        self._last_draw = now
+        width = 32
+        filled = width if self.total == 0 else int(width * self.current / self.total)
+        bar = "#" * filled + "-" * (width - filled)
+        self.stream.write(f"\r[{bar}] {self.current}/{self.total} {self.label}")
+        self.stream.flush()
+
+
 def validate_output_path(output_path: Path, parser: argparse.ArgumentParser) -> None:
     if output_path.exists() and output_path.is_dir():
         parser.error(f"output path is a directory: {output_path}")
@@ -114,7 +157,8 @@ def write_pcap(
         writer.write_header()
         writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
 
-        for logical_index, physical_index, sample, timestamp, raw_timestamp in adjusted_chronological_samples(
+        scan_progress = ProgressBar(raw_sample_count(input_path, offset, width), label="samples scanned")
+        samples = adjusted_chronological_samples(
             input_path,
             trace_map,
             offset,
@@ -122,13 +166,20 @@ def write_pcap(
             sample_window=sample_window,
             input_order=input_order,
             vivado_transaction_bytes=vivado_transaction_bytes,
-        ):
+            scan_progress_update=scan_progress.update,
+        )
+        scan_progress.finish()
+        progress = ProgressBar(
+            sum(1 for _, _, sample, _, _ in samples if dma_sample_is_written(sample, trace_map, lost_source, source))
+        )
+        for logical_index, physical_index, sample, timestamp, raw_timestamp in samples:
             src = sample_source(sample, trace_map)
             if src == lost_source:
                 lost_count = bits(sample_payload(sample, trace_map), 0, lost_count_width)
                 if source is None or source == lost_source:
                     packet = marker_packet(logical_index, physical_index, timestamp, raw_timestamp, src, lost_count)
                     writer.write_packet(packet, timestamp_ns=packet_timestamp_ns(timestamp, cycle_ns))
+                    progress.advance()
                 continue
 
             if source_matches(sample, trace_map, source):
@@ -143,6 +194,8 @@ def write_pcap(
                     source_info(trace_map, src),
                 )
                 writer.write_packet(packet, timestamp_ns=packet_timestamp_ns(timestamp, cycle_ns))
+                progress.advance()
+        progress.finish()
 
 
 def write_legacy_ila_pcap(
@@ -164,8 +217,10 @@ def write_legacy_ila_pcap(
             trace_dir,
             export_map,
             start_sample=start_sample,
-            sample_limit=sample_limit,
-        ):
+            sample_window=sample_window,
+        ))
+        progress = ProgressBar(sum(1 for _, sample in samples if source_matches(sample.sample, trace_map, source)))
+        for logical_index, sample in samples:
             if source_matches(sample.sample, trace_map, source):
                 packet = sample_packet(
                     logical_index,
@@ -178,6 +233,8 @@ def write_legacy_ila_pcap(
                     source_info(trace_map, sample.source),
                 )
                 writer.write_packet(packet, timestamp_ns=sample.timestamp_ns)
+                progress.advance()
+        progress.finish()
 
 
 def main() -> int:
