@@ -66,13 +66,13 @@ Shows one canonical packet per matched ECI frame after CDC/SLR crossing,
 instead of every raw app/sys and stalled/accepted trace sample.
 
 ```text
-lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "dc_to_eci_gateway"
+lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "dc_to_gateway"
 ```
 
 Shows canonical ECI frames moving from the DC side into the ECI gateway.
 
 ```text
-lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "eci_gateway_to_dc"
+lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "gateway_to_dc"
 ```
 
 Shows canonical ECI frames moving from the ECI gateway back toward the DC side.
