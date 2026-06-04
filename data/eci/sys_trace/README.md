@@ -30,14 +30,16 @@ use:
 python3 data/eci/sys_trace/export_trace_pcap.py \
   --output-mode eci-state \
   --map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
+  -o eci-events.tar.gz \
   trace-dram.bin
 ```
 
-This mode calls `handle_eci_frame` in `eci_state_output.py` for each accepted
-sys-clock ECI frame. The hook receives `time`, `time_ns`, `opcode`,
-`opcode_name`, `dmask`, `unaliased_address`, and `raw_header`. It requires the
-full trace: `--samples`, `--source`, legacy ILA input, circular buffer wrap,
-and lost-sample control frames are rejected.
+This mode decodes each accepted sys-clock ECI frame in `eci_state_output.py`.
+The output is a gzip-compressed tar archive. Each distinct unaliased address
+gets one CSV member named `addr_0x<address>.csv` with columns `time`,
+`opcode_name`, and `dmask`; address-less messages are written to
+`addr_none.csv`. It requires the full trace: `--samples`, `--source`, legacy
+ILA input, circular buffer wrap, and lost-sample control frames are rejected.
 
 For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` and the
 adjacent `lhtrace/` Lua module directory into the personal plugin directory, or

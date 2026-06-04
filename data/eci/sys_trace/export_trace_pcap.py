@@ -130,6 +130,15 @@ def is_gzip_path(path: Path) -> bool:
     return path.suffix == ".gz"
 
 
+def is_tar_gzip_path(path: Path) -> bool:
+    return "".join(path.suffixes[-2:]) == ".tar.gz"
+
+
+def validate_tar_gzip_output_path(output_path: Path, parser: argparse.ArgumentParser) -> None:
+    if not is_tar_gzip_path(output_path):
+        parser.error(f"ECI state output archive must end with .tar.gz: {output_path}")
+
+
 @contextmanager
 def prepared_raw_input(input_path: Path) -> Iterator[Tuple[Path, Path]]:
     cache_path = input_path.with_name(f"{input_path.name}.lhtrace-scan.json")
@@ -268,12 +277,12 @@ def write_legacy_ila_pcap(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", nargs="?", help="Raw binary DRAM dump, optionally gzip-compressed with .gz suffix")
-    parser.add_argument("-o", "--output", help="Output pcapng path")
+    parser.add_argument("-o", "--output", help="Output pcapng path, or .tar.gz CSV archive in eci-state mode")
     parser.add_argument(
         "--output-mode",
         choices=("pcapng", "eci-state"),
         default="pcapng",
-        help="pcapng writes packets; eci-state calls the sys-clock ECI state-machine hook",
+        help="pcapng writes packets; eci-state writes a .tar.gz with one CSV per unaliased address",
     )
     parser.add_argument("--map", default=str(default_map_path()), help="Trace map JSON emitted by LauberhornTraceDma")
     parser.add_argument("--legacy-ila", type=Path, default=None,
@@ -299,15 +308,17 @@ def main() -> int:
         output_path = Path(args.output)
         validate_output_path(output_path, parser)
     else:
-        if args.output is not None:
-            parser.error("-o/--output is only valid in pcapng output mode")
+        if args.output is None:
+            parser.error("-o/--output is required in eci-state output mode")
+        output_path = Path(args.output)
+        validate_output_path(output_path, parser)
+        validate_tar_gzip_output_path(output_path, parser)
         if args.legacy_ila is not None:
             parser.error("--output-mode eci-state does not support --legacy-ila")
         if args.samples is not None:
             parser.error("--output-mode eci-state requires the full trace and does not support --samples")
         if args.source is not None:
             parser.error("--output-mode eci-state processes all sys-clock ECI sources and does not support --source")
-        output_path = None
 
     if args.legacy_ila is not None:
         input_path = None
@@ -334,11 +345,11 @@ def main() -> int:
                 order_progress.update(current)
 
             try:
-                frames = run_eci_state_output(
+                frames, files = run_eci_state_output(
                     input_path=raw_input_path,
+                    output_path=output_path,
                     trace_map=trace_map,
                     offset=args.offset,
-                    cycle_ns=args.cycle_ns,
                     scan_progress_update=scan_progress.update,
                     order_progress_update=update_order_progress,
                     cache_path=cache_path,
@@ -351,7 +362,10 @@ def main() -> int:
             scan_progress.finish()
             if order_progress is not None:
                 order_progress.finish()
-            print(f"ECI state hook processed {frames} sys-clock ECI frames", file=sys.stderr)
+            print(
+                f"ECI state archive wrote {frames} sys-clock ECI frames across {files} address CSVs to {output_path}",
+                file=sys.stderr,
+            )
     elif args.legacy_ila is not None:
         assert output_path is not None
         write_legacy_ila_pcap(

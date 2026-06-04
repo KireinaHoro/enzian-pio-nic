@@ -1,4 +1,9 @@
 **/*.lhtrace-scan.json
+
+# ignore parsed trace outputs
 *.pcapng
+*.csv
+*.tar.gz
+
 # only track compressed trace
 *.bin
