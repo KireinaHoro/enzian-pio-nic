@@ -6,7 +6,8 @@ hardware, Python, and Lua, see `../../../docs/TRACING.md`.
 
 `export_trace_pcap.py` exports selected TraceBufferDMA samples to pcapng for
 visualization with `lauberhorn_trace.lua`. It consumes a raw binary dump of the
-trace DDR buffer plus the generated `lauberhorn_trace_dma_map.json`.
+trace DDR buffer, optionally gzip-compressed with a `.gz` suffix, plus the
+generated `lauberhorn_trace_dma_map.json`.
 
 Example:
 
@@ -123,9 +124,10 @@ but use separate magics so Wireshark can display them as separate protocols:
 NicEngine event trace data, `LHTD` for DCS events, `LHEA` for app-clock ECI
 frames, and `LHES` for sys-clock ECI frames.
 
-The input path is usually a raw binary DRAM dump. To capture one from Vivado
-Hardware Manager through the JTAG AXI master, source the Tcl dumper inside the
-Vivado Tcl console after connecting to the target:
+The input path is usually a raw binary DRAM dump, or the same dump compressed as
+`*.gz`. To capture one from Vivado Hardware Manager through the JTAG AXI master,
+source the Tcl dumper inside the Vivado Tcl console after connecting to the
+target:
 
 ```tcl
 source data/eci/sys_trace/dump_trace_hw_axi.tcl
@@ -173,16 +175,10 @@ This writes the last 1,000,000 chronological samples from the dump.
 While exporting, the script prints stderr progress bars for the initial sample
 scan, timestamp-adjusted sample ordering, and how many matching sample packets
 have been written.
-The initial scan is cached automatically in a JSON sidecar next to the raw dump
-named `<raw>.lhtrace-scan.json`; the cache is reused only when the input hash
-and scan parameters still match.
-
-Older dumps captured by `dump_trace_hw_axi.tcl` before it corrected Vivado's
-transaction display order can be decoded by adding:
-
-```sh
---input-order vivado-hw-axi --vivado-transaction-bytes 2048
-```
+The initial scan is cached automatically in a JSON sidecar next to the input
+named `<input>.lhtrace-scan.json`; for `.gz` inputs, the sidecar is next to the
+compressed file and stores the hash of the decompressed raw bytes. The cache is
+reused only when the decompressed input hash and scan parameters still match.
 
 Legacy Vivado ILA CSV captures under `data/eci/dcs_trace` can be converted
 through the same pcapng/Lua path:

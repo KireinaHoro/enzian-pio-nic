@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import gzip
+import shutil
 import sys
+import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 try:
     from .common import bits
@@ -137,6 +141,36 @@ def raw_sample_count(input_path: Path, offset: int, width: int) -> int:
     return (size - offset) // width
 
 
+def is_gzip_path(path: Path) -> bool:
+    return path.suffix == ".gz"
+
+
+@contextmanager
+def prepared_raw_input(input_path: Path) -> Iterator[Tuple[Path, Path]]:
+    cache_path = input_path.with_name(f"{input_path.name}.lhtrace-scan.json")
+    if not is_gzip_path(input_path):
+        yield input_path, cache_path
+        return
+
+    tmp = tempfile.NamedTemporaryFile(
+        prefix=f"{input_path.name}.",
+        suffix=".raw",
+        dir=input_path.parent,
+        delete=False,
+    )
+    tmp_path = Path(tmp.name)
+    try:
+        with tmp:
+            with gzip.open(input_path, "rb") as gz:
+                shutil.copyfileobj(gz, tmp)
+        yield tmp_path, cache_path
+    finally:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+
+
 def write_pcap(
     input_path: Path,
     output_path: Path,
@@ -254,7 +288,7 @@ def write_legacy_ila_pcap(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("input", nargs="?", help="Raw binary DRAM dump")
+    parser.add_argument("input", nargs="?", help="Raw binary DRAM dump, optionally gzip-compressed with .gz suffix")
     parser.add_argument("-o", "--output", help="Output pcapng path")
     parser.add_argument(
         "--output-mode",
@@ -315,38 +349,37 @@ def main() -> int:
     trace_map = load_map(Path(args.map))
     if args.output_mode == "eci-state":
         assert input_path is not None
-        validate_raw_decode_options(trace_map, args.input_order, args.vivado_transaction_bytes, parser)
-        total_samples = raw_sample_count(input_path, args.offset, sample_bytes(trace_map))
-        scan_progress = ProgressBar(total_samples, label="samples scanned")
-        order_progress: Optional[ProgressBar] = None
+        with prepared_raw_input(input_path) as (raw_input_path, cache_path):
+            total_samples = raw_sample_count(raw_input_path, args.offset, sample_bytes(trace_map))
+            scan_progress = ProgressBar(total_samples, label="samples scanned")
+            order_progress: Optional[ProgressBar] = None
 
-        def update_order_progress(current: int) -> None:
-            nonlocal order_progress
-            if order_progress is None:
+            def update_order_progress(current: int) -> None:
+                nonlocal order_progress
+                if order_progress is None:
+                    scan_progress.finish()
+                    order_progress = ProgressBar(total_samples, label="samples ordered")
+                order_progress.update(current)
+
+            try:
+                frames = run_eci_state_output(
+                    input_path=raw_input_path,
+                    trace_map=trace_map,
+                    offset=args.offset,
+                    cycle_ns=args.cycle_ns,
+                    scan_progress_update=scan_progress.update,
+                    order_progress_update=update_order_progress,
+                    cache_path=cache_path,
+                )
+            except IncompleteTraceError as e:
                 scan_progress.finish()
-                order_progress = ProgressBar(total_samples, label="samples ordered")
-            order_progress.update(current)
-
-        try:
-            frames = run_eci_state_output(
-                input_path=input_path,
-                trace_map=trace_map,
-                offset=args.offset,
-                cycle_ns=args.cycle_ns,
-                input_order=args.input_order,
-                vivado_transaction_bytes=args.vivado_transaction_bytes,
-                scan_progress_update=scan_progress.update,
-                order_progress_update=update_order_progress,
-            )
-        except IncompleteTraceError as e:
+                if order_progress is not None:
+                    order_progress.finish()
+                parser.error(str(e))
             scan_progress.finish()
             if order_progress is not None:
                 order_progress.finish()
-            parser.error(str(e))
-        scan_progress.finish()
-        if order_progress is not None:
-            order_progress.finish()
-        print(f"ECI state hook processed {frames} sys-clock ECI frames", file=sys.stderr)
+            print(f"ECI state hook processed {frames} sys-clock ECI frames", file=sys.stderr)
     elif args.legacy_ila is not None:
         assert output_path is not None
         write_legacy_ila_pcap(
