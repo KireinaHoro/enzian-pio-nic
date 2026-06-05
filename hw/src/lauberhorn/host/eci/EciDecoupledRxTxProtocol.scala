@@ -174,7 +174,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       // We use normal block cycles for all worker cores.
       // No need to disable this on preemption: no read request will be in progress
       // when the preemption request comes from [[EciPreemptionControlPlugin]]
-      rxRouter.blockCycles := host[EciInterfacePlugin].rxBlockCycles
+      rxRouter.blockCycles := host[EciInterfacePlugin].hostIfCtrl.rxBlockCycles
     }
 
     debug.postDebug(s"core${coreID}_rxRouter_state", rxRouter.stateOut)

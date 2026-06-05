@@ -56,8 +56,10 @@ class EciInterfacePlugin extends FiberPlugin {
     useQos = false,
   )
 
-  lazy val preemptCritSecTimeout = Reg(UInt(REG_WIDTH bits)) init 100000 // 400 us @ 250 MHz
-  lazy val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
+  val hostIfCtrl = during setup new Area {
+    val preemptCritSecTimeout = Reg(UInt(REG_WIDTH bits)) init 100000 // 400 us @ 250 MHz
+    val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
+  }
 
   val coreOffset = 0x20000
   ECI_CORE_OFFSET.set(coreOffset)
@@ -122,9 +124,9 @@ class EciInterfacePlugin extends FiberPlugin {
 
     drive({ (bus, alloc) =>
       val busCtrl = AxiLite4SlaveFactory(bus)
-      busCtrl.readAndWrite(preemptCritSecTimeout, alloc("preemptCritSecTimeout",
+      busCtrl.readAndWrite(hostIfCtrl.preemptCritSecTimeout, alloc("preemptCritSecTimeout",
         desc = "Timeout before preemption victim process is killed (in cycles)"))
-      busCtrl.readAndWrite(rxBlockCycles, alloc("rxBlockCycles",
+      busCtrl.readAndWrite(hostIfCtrl.rxBlockCycles, alloc("rxBlockCycles",
         desc = "Timeout before a NACK is returned for RX (in cycles)"))
     }, "hostIf")
 
