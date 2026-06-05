@@ -138,12 +138,76 @@ proc lhtrace::property_value {obj names} {
 proc lhtrace::property_int {obj names} {
     set value [lhtrace::property_value $obj $names]
     if {[regexp {^[0-9]+$} $value]} {
-        return $value
+        return [lhtrace::parse_decimal_int $value]
     }
     if {[regexp {^0x[0-9a-fA-F]+$} $value]} {
         return [expr {$value}]
     }
     return ""
+}
+
+proc lhtrace::parse_decimal_int {digits} {
+    set ret 0
+    foreach digit [split $digits ""] {
+        set ret [expr {$ret * 10 + $digit}]
+    }
+    return $ret
+}
+
+proc lhtrace::parse_signed_decimal_int {digits} {
+    set sign 1
+    if {[string index $digits 0] eq "-"} {
+        set sign -1
+        set digits [string range $digits 1 end]
+    }
+    return [expr {$sign * [lhtrace::parse_decimal_int $digits]}]
+}
+
+proc lhtrace::parse_radix_int {value radix} {
+    set value [string trim $value]
+    set value [string map {"_" "" " " ""} $value]
+    set radix [string toupper [string trim $radix]]
+
+    if {$radix eq "HEX" || $radix eq "HEXADECIMAL"} {
+        if {![regexp {^[0-9a-fA-F]+$} $value]} {
+            error "Cannot parse hardware integer value '$value' with radix $radix"
+        }
+        return [expr "0x$value"]
+    }
+    if {$radix eq "BINARY" || $radix eq "BIN"} {
+        if {![regexp {^[01]+$} $value]} {
+            error "Cannot parse hardware integer value '$value' with radix $radix"
+        }
+        set ret 0
+        foreach bit [split $value ""] {
+            set ret [expr {$ret * 2 + $bit}]
+        }
+        return $ret
+    }
+    if {$radix eq "OCTAL" || $radix eq "OCT"} {
+        if {![regexp {^[0-7]+$} $value]} {
+            error "Cannot parse hardware integer value '$value' with radix $radix"
+        }
+        set ret 0
+        foreach digit [split $value ""] {
+            set ret [expr {$ret * 8 + $digit}]
+        }
+        return $ret
+    }
+    if {$radix eq "UNSIGNED" || $radix eq "DECIMAL" || $radix eq "DEC"} {
+        if {![regexp {^[0-9]+$} $value]} {
+            error "Cannot parse hardware integer value '$value' with radix $radix"
+        }
+        return [lhtrace::parse_decimal_int $value]
+    }
+    if {$radix eq "SIGNED"} {
+        if {![regexp {^-?[0-9]+$} $value]} {
+            error "Cannot parse hardware integer value '$value' with radix $radix"
+        }
+        return [lhtrace::parse_signed_decimal_int $value]
+    }
+
+    error "Unsupported hardware integer radix '$radix' for value '$value'"
 }
 
 proc lhtrace::parse_hw_int {value {bare_hex 0}} {
@@ -153,7 +217,7 @@ proc lhtrace::parse_hw_int {value {bare_hex 0}} {
         return [expr "0x$digits"]
     }
     if {[regexp {^[0-9]+'d([0-9]+)$} $value _ digits]} {
-        return [expr {$digits}]
+        return [lhtrace::parse_decimal_int $digits]
     }
     if {[regexp {^[0-9]+'b([01]+)$} $value _ digits]} {
         set ret 0
@@ -165,11 +229,11 @@ proc lhtrace::parse_hw_int {value {bare_hex 0}} {
     if {[regexp {^0x[0-9a-fA-F]+$} $value]} {
         return [expr {$value}]
     }
-    if {[regexp {^[0-9]+$} $value]} {
-        return [expr {$value}]
-    }
-    if {$bare_hex && [regexp {^[0-9a-fA-F]+$} $value] && [string length $value] > 1} {
+    if {$bare_hex && [regexp {^[0-9a-fA-F]+$} $value]} {
         return [expr "0x$value"]
+    }
+    if {[regexp {^[0-9]+$} $value]} {
+        return [lhtrace::parse_decimal_int $value]
     }
     error "Cannot parse hardware integer value '$value'"
 }
@@ -258,7 +322,7 @@ proc lhtrace::describe_vio_probes {vio} {
     set lines [list "Visible probes for $vio:"]
     foreach probe $probes {
         set fields [list $probe]
-        foreach prop {NAME NAME.SHORT CELL_NAME PORT_INDEX PROBE_PORT INDEX INPUT_INDEX INPUT_VALUE VALUE WIDTH} {
+        foreach prop {NAME NAME.SHORT CELL_NAME PORT_INDEX PROBE_PORT INDEX INPUT_INDEX INPUT_VALUE INPUT_VALUE_RADIX VALUE VALUE_RADIX WIDTH} {
             set value [lhtrace::probe_prop $probe $prop]
             if {$value ne ""} {
                 lappend fields "$prop=$value"
@@ -313,7 +377,12 @@ proc lhtrace::vio_probe_value {vio short_name vio_probes} {
     set probe [lhtrace::vio_probe $vio $short_name $vio_probes]
     foreach prop {INPUT_VALUE VALUE} {
         if {![catch {set value [get_property $prop $probe]}] && $value ne ""} {
-            return [lhtrace::parse_hw_int $value 1]
+            set radix_prop ${prop}_RADIX
+            if {[catch {set radix [get_property $radix_prop $probe]}] || $radix eq ""} {
+                catch {report_property $probe}
+                error "Could not read $radix_prop from VIO probe $short_name on $vio"
+            }
+            return [lhtrace::parse_radix_int $value $radix]
         }
     }
     catch {report_property $probe}
