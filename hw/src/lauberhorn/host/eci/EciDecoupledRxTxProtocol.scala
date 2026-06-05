@@ -590,9 +590,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
                 acked.increment()
               } otherwise {
                 itrace("Assumed")
-                waitCount.clear()
                 assumed.increment()
               }
+              // always restart wait counting
+              waitCount.clear()
               goto(idle)
             }
           }
