@@ -1,0 +1,86 @@
+[  100.041623] EDAC DEVICE1: UE: thunderx-l2c instance: L2C-TAD10 block: L2C0 count: 1 'thunderx-l2c: L2C_TAD_INT: 0000000000020000, TIMEOUT: c019210000008000
+[  100.041623]  Uncorrected, LFB entry timeout'
+[  101.002991] SError Interrupt on CPU30, code 0x00000000be000000 -- SError
+[  101.003002] CPU: 30 PID: 1678 Comm: iperf Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[  101.003008] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  101.003012] pstate: 80400005 (Nzcv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  101.003017] pc : netdev_xmit+0x174/0x2d0 [lauberhorn]
+[  101.003053] lr : netdev_xmit+0x12c/0x2d0 [lauberhorn]
+[  101.003067] sp : ffff80008c5db240
+[  101.003070] x29: ffff80008c5db240 x28: ffff00011082e828 x27: ffff80008c5db304
+[  101.003081] x26: 00000000000005ea x25: ffff800083264000 x24: ffff000110d1a000
+[  101.003089] x23: ffff00010ef38c5c x22: 0000000000000000 x21: ffff000111af1b00
+[  101.003097] x20: 000000000000059c x19: ffff00010ef38000 x18: ffff8000880eb0e0
+[  101.003106] x17: 0000000000000000 x16: 0000000000000000 x15: 3736353433323130
+[  101.003114] x14: 3938373635343332 x13: 3332313039383736 x12: 3534333231303938
+[  101.003122] x11: 3534333231303938 x10: 3736353433323130 x9 : 3938373635343332
+[  101.003130] x8 : ffff80007c1f1000 x7 : ffff800140000000 x6 : 3534333231303938
+[  101.003139] x5 : ffff800140008000 x4 : ffff000119d126e8 x3 : ffff800140008640
+[  101.003147] x2 : 0000010000008100 x1 : 0000000000000600 x0 : 0000010000008680
+[  101.003156] Kernel panic - not syncing: Asynchronous SError Interrupt
+[  101.003160] CPU: 30 PID: 1678 Comm: iperf Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[  101.003165] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  101.003169] Call trace:
+[  101.003172]  dump_backtrace+0xa4/0x150
+[  101.003181]  show_stack+0x24/0x50
+[  101.003186]  dump_stack_lvl+0x38/0x138
+[  101.003194]  dump_stack+0x1c/0x38
+[  101.003200]  panic+0x3ac/0x448
+[  101.003207]  nmi_panic+0x54/0xd0
+[  101.003212]  arm64_serror_panic+0x7c/0x98
+[  101.003218]  do_serror+0x70/0x78
+[  101.003223]  el1h_64_error_handler+0x3c/0x78
+[  101.003231]  el1h_64_error+0x7c/0x80
+[  101.003236]  netdev_xmit+0x174/0x2d0 [lauberhorn]
+[  101.003254]  dev_hard_start_xmit+0xa8/0x240
+[  101.003260]  sch_direct_xmit+0xdc/0x218
+[  101.003269]  __dev_xmit_skb+0x274/0x670
+[  101.003278]  __dev_queue_xmit+0x39c/0x7c8
+[  101.003283]  neigh_hh_output+0xa0/0x120
+[  101.003289]  ip_finish_output2+0x2d8/0x640
+[  101.003294]  __ip_finish_output+0xcc/0x200
+[  101.003299]  ip_finish_output+0x40/0x1b0
+[  101.003304]  ip_output+0x78/0x140
+[  101.003309]  __ip_queue_xmit+0x174/0x4a0
+[  101.003314]  ip_queue_xmit+0x20/0x50
+[  101.003319]  __tcp_transmit_skb+0x480/0x9e8
+[  101.003328]  tcp_write_xmit+0x4c8/0x9a0
+[  101.003334]  tcp_push_one+0x48/0x88
+[  101.003340]  tcp_sendmsg_locked+0x2a0/0xc50
+[  101.003345]  tcp_sendmsg+0x44/0x88
+[  101.003349]  inet_sendmsg+0x50/0xb8
+[  101.003357]  __sock_sendmsg+0x80/0x108
+[  101.003362]  sock_write_iter+0xac/0x138
+[  101.003367]  vfs_write+0x334/0x3a8
+[  101.003373]  ksys_write+0x118/0x140
+[  101.003378]  __arm64_sys_write+0x28/0x50
+[  101.003383]  invoke_syscall+0x7c/0x130
+[  101.003388]  el0_svc_common.constprop.0+0x4c/0x140
+[  101.003392]  do_el0_svc+0x28/0x58
+[  101.003397]  el0_svc+0x40/0x190
+[  101.003403]  el0t_64_sync_handler+0x148/0x158
+[  101.003410]  el0t_64_sync+0x1b0/0x1b8
+[  101.003416] SMP: stopping secondary CPUs
+[  102.044855] SMP: failed to stop secondary CPUs 2
+[  102.044861] Kernel Offset: disabled
+[  102.044863] CPU features: 0x0,00e00000,14020008,21005203
+[  102.044867] Memory Limit: none
+[  102.047110] SError Interrupt on CPU2, code 0x00000000be000000 -- SError
+[  102.047118] CPU: 2 PID: 849 Comm: systemd-journal Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[  102.047124] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  102.047127] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  102.047133] pc : ptep_set_access_flags+0xc0/0x138
+[  102.047141] lr : ptep_set_access_flags+0xbc/0x138
+[  102.047145] sp : ffff8000881cbc10
+[  102.047148] x29: ffff8000881cbc10 x28: ffff000108172280 x27: ffff0001086fecc0
+[  102.047158] x26: 0000000000000002 x25: 00000000000000fb x24: ffff00010fafc7d8
+[  102.047166] x23: 0000000000000000 x22: 0000000000000973 x21: ffff0001086fecc0
+[  102.047174] x20: fffffc0020048e00 x19: ffff8000881cbcb8 x18: ffff800087fa1050
+[  102.047182] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000
+[  102.047190] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[  102.047198] x11: 0000000000000000 x10: 0000000000000000 x9 : ffff80008043d9e8
+[  102.047206] x8 : 0000000000000000 x7 : 0088000000000480 x6 : 0060000801238fc3
+[  102.047214] x5 : 0060000801238fc3 x4 : 0000000000000001 x3 : 0000000000000000
+[  102.047221] x2 : 0000000000000000 x1 : 0000000000000000 x0 : 0000000000000000
+[  102.090332] pstore: backend (efi_pstore) writing error (-5)
+[  102.521060] ---[ end Kernel panic - not syncing: Asynchronous SError Interrupt ]---
