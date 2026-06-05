@@ -64,9 +64,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       busCtrl.read(logic.bypassIrqArea.assumed.value,
         alloc("stat", subName = "irqsAssumed", attr = RO, desc = "number of bypass IRQs assumed"))
 
-      busCtrl.driveAndRead(logic.bypassIrqArea.waitAckTimeout,
-        alloc("ctrl", subName = "waitAckTimeout", attr = RW,
-          desc = "cycles before we assume an SGI is lost")) init 10000 // 50 us
+      busCtrl.driveAndRead(logic.bypassIrqArea.irqCooldown,
+        alloc("ctrl", subName = "irqCooldown", attr = RW,
+          desc = "minimum cycles between bypass IRQ issues; assume lost if not acked by then")) init 10000 // 50 us
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
@@ -532,17 +532,18 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {
       val issued, acked, assumed : Counter
-      val waitAckTimeout: UInt
+      val irqCooldown: UInt
       val irqFsm: StateMachine
     } = isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
 
       val issued, acked, assumed = Counter(REG_WIDTH bits)
 
-      // SGIs seem to be lossy -- avoid deadlock.
-      // Timeout waiting for ACK, configurable from SW.
-      val waitCount = Counter(REG_WIDTH bits)
-      val waitAckTimeout = UInt(REG_WIDTH bits)
+      // SGIs seem to be lossy and rate-limited.  The timeout is also the
+      // cooldown before the next bypass IRQ can be issued.
+      val cooldownCount = Counter(REG_WIDTH bits)
+      val irqCooldown = UInt(REG_WIDTH bits)
+      val irqAcked = RegInit(False)
 
       // If the bypass queue is non empty, the host needs to be notified to drain it
       def bypassStalled = hostRx.isStall
@@ -575,25 +576,30 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.intId   := 15  // use 15 for bypass interrupts
             when (irqOut.ready) {
               itrace("Issued")
-              goto(waitAck)
+              goto(cooldown)
               issued.increment()
+              cooldownCount.clear()
+              irqAcked := False
+              irqAck := False
             }
           }
         }
-        val waitAck: State = new State {
+        val cooldown: State = new State {
           whenIsActive {
-            waitCount.increment()
-            when (irqAck || waitCount.value >= waitAckTimeout) {
-              when (irqAck) {
-                itrace("Acked")
-                irqAck := False
-                acked.increment()
-              } otherwise {
+            cooldownCount.increment()
+            when (!irqAcked && irqAck) {
+              itrace("Acked")
+              irqAck := False
+              irqAcked := True
+              acked.increment()
+            }
+            when (cooldownCount.value >= irqCooldown) {
+              when (!irqAcked && !irqAck) {
                 itrace("Assumed")
                 assumed.increment()
               }
-              // always restart wait counting
-              waitCount.clear()
+              irqAck := False
+              cooldownCount.clear()
               goto(idle)
             }
           }
