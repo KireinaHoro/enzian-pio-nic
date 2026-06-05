@@ -770,6 +770,11 @@ signal gsync_trace_eci_sys_ready : std_logic_vector(3 downto 0);
 signal gsync_trace_eci_sys_header : trace_eci_header_array(3 downto 0);
 signal gsync_trace_eci_sys_vc : trace_eci_vc_array(3 downto 0);
 
+signal ipi_trace_eci_sys_valid : std_logic_vector(1 downto 0);
+signal ipi_trace_eci_sys_ready : std_logic_vector(1 downto 0);
+signal ipi_trace_eci_sys_header : trace_eci_header_array(1 downto 0);
+signal ipi_trace_eci_sys_vc : trace_eci_vc_array(1 downto 0);
+
 signal dcs_odd_trace_dcs_event_valid   : std_logic_vector(0 to 1);
 signal dcs_odd_trace_dcs_event_error   : std_logic_vector(0 to 1);
 signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(0 to 1);
@@ -1055,6 +1060,16 @@ gsync_trace_eci_sys_header(3) <= link_eci_packet_tx.c10_gsync.data(0);
 gsync_trace_eci_sys_vc(3) <= link_eci_packet_tx.c10_gsync.vc_no;
 gsync_trace_eci_sys_valid(3) <= link_eci_packet_tx.c10_gsync.valid;
 gsync_trace_eci_sys_ready(3) <= link_eci_packet_tx.c10_gsync_ready;
+
+ipi_trace_eci_sys_header(0) <= link_eci_packet_rx.ipi_c12.data(0);
+ipi_trace_eci_sys_vc(0) <= link_eci_packet_rx.ipi_c12.vc_no;
+ipi_trace_eci_sys_valid(0) <= link_eci_packet_rx.ipi_c12.valid;
+ipi_trace_eci_sys_ready(0) <= link_eci_packet_rx.ipi_c12_ready;
+
+ipi_trace_eci_sys_header(1) <= link_eci_packet_tx.ipi_c12.data(0);
+ipi_trace_eci_sys_vc(1) <= link_eci_packet_tx.ipi_c12.vc_no;
+ipi_trace_eci_sys_valid(1) <= link_eci_packet_tx.ipi_c12.valid;
+ipi_trace_eci_sys_ready(1) <= link_eci_packet_tx.ipi_c12_ready;
 
 -- RX packetizer.
 -- Packetize data from eci_gateway into ECI packet.
@@ -1583,6 +1598,14 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysEciTraceIn_15_payload_vc => gsync_trace_eci_sys_vc(3),
     sysEciTraceIn_15_valid => gsync_trace_eci_sys_valid(3),
     sysEciTraceIn_15_ready => gsync_trace_eci_sys_ready(3),
+    sysEciTraceIn_16_payload_header => ipi_trace_eci_sys_header(0),
+    sysEciTraceIn_16_payload_vc => ipi_trace_eci_sys_vc(0),
+    sysEciTraceIn_16_valid => ipi_trace_eci_sys_valid(0),
+    sysEciTraceIn_16_ready => ipi_trace_eci_sys_ready(0),
+    sysEciTraceIn_17_payload_header => ipi_trace_eci_sys_header(1),
+    sysEciTraceIn_17_payload_vc => ipi_trace_eci_sys_vc(1),
+    sysEciTraceIn_17_valid => ipi_trace_eci_sys_valid(1),
+    sysEciTraceIn_17_ready => ipi_trace_eci_sys_ready(1),
 
     lauberhornTraceIn_0_valid => lauberhorn_trace_valid(0),
     lauberhornTraceIn_0_payload => lauberhorn_trace_payload(0),
