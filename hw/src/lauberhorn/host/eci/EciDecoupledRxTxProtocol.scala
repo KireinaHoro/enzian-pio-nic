@@ -27,6 +27,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   // potentially RX and TX can run at the same time (for bypass)
   val rxTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_rx", LauberhornTraceDma.NicHostInterfaceSlr)
   val txTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx", LauberhornTraceDma.NicHostInterfaceSlr)
+  val irqTp = if (isBypass) during setup host[TracePlugin].makePort("datapath_bypass_irq", LauberhornTraceDma.NicHostInterfaceSlr) else null
 
   if (isBypass) {
     withPrefix("proto_bypass")
@@ -543,6 +544,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val waitCount = Counter(REG_WIDTH bits)
       val waitAckTimeout = UInt(REG_WIDTH bits)
 
+      // If the bypass queue is non empty, the host needs to be notified to drain it
+      def bypassStalled = hostRx.isStall
+      def itrace(ev: String) = irqTp.trace(s"BypassIrq$ev",
+        coreTd,
+        InterruptEnabled(irqEn),
+        BypassStalled(bypassStalled),
+      )
+
       // Edge-triggered interrupt.
       //
       // VC12 SGI seems to have some kind of rate limit: if we send too fast, we get
@@ -551,7 +560,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (hostRx.isStall && irqEn) {
+            when (bypassStalled && irqEn) {
+              itrace("Pending")
               goto(sendIrq)
             }
           }
@@ -564,6 +574,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.cmd     := 0
             irqOut.intId   := 15  // use 15 for bypass interrupts
             when (irqOut.ready) {
+              itrace("Issued")
               goto(waitAck)
               issued.increment()
             }
@@ -574,9 +585,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             waitCount.increment()
             when (irqAck || waitCount.value >= waitAckTimeout) {
               when (irqAck) {
+                itrace("Acked")
                 irqAck := False
                 acked.increment()
               } otherwise {
+                itrace("Assumed")
                 waitCount.clear()
                 assumed.increment()
               }
