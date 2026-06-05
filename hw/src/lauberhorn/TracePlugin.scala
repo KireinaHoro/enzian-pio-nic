@@ -41,8 +41,12 @@ case object HostMsgID     extends TraceDataKey { def width = 6 }
 case object ThreadID      extends TraceDataKey { def width = log2Up(Global.NUM_THREADS.get) }
 case object ProcessID     extends TraceDataKey { def width = Global.PID_WIDTH.get }
 case object CoreID        extends TraceDataKey { def width = log2Up(Global.MAX_CORE_ID.get + 1) }
-case object CacheLineIndex extends TraceDataKey { def width = Bool().getBitsWidth }
+case object CacheLineIndex extends TraceDataKey { def width = 1 }
 case object OverflowCount extends TraceDataKey { def width = log2Up(Global.ECI_NUM_OVERFLOW_CL.get) }
+case object QueueIndex    extends TraceDataKey { def width = log2Up(Global.NUM_PROCS.get + 1) }
+case object QueueFill     extends TraceDataKey { def width = log2Up(Global.RX_PKTS_PER_PROC.get + 1) }
+case object PreemptCommand extends TraceDataKey { def width = 2 }
+case object PreemptOutOfIdle extends TraceDataKey { def width = 1 }
 
 case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey], dataWidths: Seq[Int])
 

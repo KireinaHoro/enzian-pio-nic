@@ -322,7 +322,7 @@ class Scheduler extends FiberPlugin {
         inc(_.dropped)
         queueTp.trace("SchedulerRequestDropped",
           HostMsgID(pushResult.userData.hostMsgId),
-          ProcessID(pushResult.value.pid.bits)) := True
+          ProcessID(pushResult.value.pid.bits))
       } otherwise {
         // store at where the tail was
         queueMem.write(queueMetas(pushResult.idx).tail, pushResult.userData)
@@ -419,6 +419,8 @@ class Scheduler extends FiberPlugin {
       val savedPreemptPid = Reg(PID())
       val savedPreemptHostMsgId = Reg(UInt(HostMsgID.width bits)) init invalidTraceId(HostMsgID.width)
 
+      val coreTd = CoreID(B(idx + 1, CoreID.width bits))
+
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
@@ -437,7 +439,11 @@ class Scheduler extends FiberPlugin {
               coreTp.trace("SchedulerPreemptCore",
                 HostMsgID(rxPreemptReq.hostMsgId),
                 ProcessID(rxPreemptReq.pid.bits),
-                CoreID(B(idx + 1, CoreID.width bits))) := True
+                coreTd,
+                PreemptCommand(rxPreemptReq.ty.asBits),
+                PreemptOutOfIdle(coreIdleMap(idx)),
+                QueueIndex(rxPreemptReq.idx),
+                QueueFill(queueMetas(rxPreemptReq.idx).fill))
               goto(preempt)
             } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -476,9 +482,13 @@ class Scheduler extends FiberPlugin {
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
                 drainProcInProgress(drainResult.idx) := True
                 coreTp.trace("SchedulerPreemptCore",
-                  HostMsgID(invalidTraceId(HostMsgID.width)),
+                  HostMsgID(invalidTraceId(HostMsgID.width)), // invalid in the drain case
                   ProcessID(drainResult.value.pid.bits),
-                  CoreID(B(idx + 1, CoreID.width bits))) := True
+                  coreTd,
+                  PreemptCommand(PreemptCmdType.ready.asBits),
+                  PreemptOutOfIdle(False),
+                  QueueIndex(drainResult.idx),
+                  QueueFill(queueMetas(drainResult.idx).fill))
                 goto(preempt)
               }
             }
@@ -497,7 +507,7 @@ class Scheduler extends FiberPlugin {
               coreTp.trace("SchedulerProcessRun",
                 HostMsgID(savedPreemptHostMsgId),
                 ProcessID(savedPreemptPid.bits),
-                CoreID(B(idx + 1, CoreID.width bits))) := True
+                coreTd)
               goto(idle)
             }
           }
@@ -530,7 +540,7 @@ class Scheduler extends FiberPlugin {
               coreTp.trace("SchedulerRequestDispatched",
                 HostMsgID(savedPoppedReq.hostMsgId),
                 ProcessID(savedPoppedReq.req.data.oncRpcCallRx.pid.bits),
-                CoreID(B(idx + 1, CoreID.width bits))) := True
+                coreTd)
               goto(idle)
             }
           }
