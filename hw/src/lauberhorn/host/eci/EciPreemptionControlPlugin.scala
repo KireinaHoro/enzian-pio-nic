@@ -56,6 +56,7 @@ case class IpiAckReg() extends Bundle {
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"worker_${coreID - 1}")
 
+  val tp = during setup host[TracePlugin].makePort(s"preempt_core$coreID", LauberhornTraceDma.NicHostInterfaceSlr)
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
@@ -170,6 +171,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // process (sets killed === True) before sending IPI
     val preemptTimer = Counter(REG_WIDTH bits)
 
+    def ptrace(ev: String) = tp.trace(s"PreemptCtrl$ev",
+      CoreID(B(coreID, CoreID.width bits)),
+      ProcessID(preemptReq.pid.bits),
+      PreemptReady(preemptCtrlCl.ready),
+      PreemptBusy(preemptCtrlCl.busy),
+      PreemptKilled(schedCmd.killed),
+      PreemptOutOfIdle(preemptReq.outOfIdle),
+    )
+
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -180,10 +190,12 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
             when (preemptReq.outOfIdle) {
               // if we are kicking a core out of idle, no thread mapping
               // will be present yet -- directly send interrupt
+              ptrace("Bootstrap")
               goto(issueIpi)
             } otherwise {
               lci.valid := True
               when (lci.ready) {
+                ptrace("ClearReady")
                 goto(unsetReady)
               }
             }
@@ -195,6 +207,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           lcia.freeRun()
           when (lcia.valid) {
             preemptCtrlCl.ready := False
+            ptrace("PollBusy")
             goto(unlockCheckBusy)
           }
         }
@@ -209,13 +222,16 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
               when (preemptTimer >= host[EciInterfacePlugin].hostIfCtrl.preemptCritSecTimeout) {
                 // timer has expired -- kill
                 schedCmd.killed := True
+                ptrace("KillTimeout")
                 goto(issueIpi)
               } otherwise {
                 // timer has not expired -- poll again
+                ptrace("FetchBusy")
                 goto(readBusyReq)
               }
             } otherwise {
               // busy already low but locked, we can issue IPI
+              ptrace("ClearedBusyIssueIpi")
               goto(issueIpi)
             }
           }
@@ -235,6 +251,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           preemptTimer.increment()
           lcia.freeRun()
           when (lcia.valid) {
+            ptrace("CheckBusy")
             goto(unlockCheckBusy)
           }
         }
@@ -243,6 +260,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           ipiToIntc.valid := True
           when (ipiToIntc.ready) {
+            ptrace("IpiIssued")
             goto(ipiWaitAck)
           }
         }
@@ -253,6 +271,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
             // we can only trigger data path preemption once we are sure we are
             // in the kernel, or the old user thread might have a chance to
             // corrupt the clean state (e.g. sneak covert data in)
+            ptrace("PreemptDatapath")
             goto(preemptDataPath)
           }
         }
@@ -268,6 +287,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
             // Before re-enabling IRQ, the kernel will:
             // - update mapping in [[EciThreadClRouter]] to route the new thread, and
             // - update rx/tx parity to new thread in the data path.
+            ptrace("FetchReady")
             goto(setReadyReq)
           }
         }
@@ -292,6 +312,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           lcia.freeRun()
           when (lcia.valid) {
             preemptCtrlCl.ready := True
+            ptrace("AssertedReady")
             goto(unlockToIdle)
           }
         }
@@ -300,12 +321,14 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
         whenIsActive {
           ul.valid := True
           when (ul.ready) {
+            ptrace("Done")
             preemptReq.ready := True
             goto(idle)
           }
         }
       }
     }
+    fsm.build()
   }
 
   override def preemptReq: Stream[PreemptReq] = logic.preemptReq

@@ -47,6 +47,11 @@ case object QueueIndex    extends TraceDataKey { def width = log2Up(Global.NUM_P
 case object QueueFill     extends TraceDataKey { def width = log2Up(Global.RX_PKTS_PER_PROC.get + 1) }
 case object PreemptCommand extends TraceDataKey { def width = 2 }
 case object PreemptOutOfIdle extends TraceDataKey { def width = 1 }
+case object PreemptReady  extends TraceDataKey { def width = 1 }
+case object PreemptBusy   extends TraceDataKey { def width = 1 }
+case object PreemptKilled extends TraceDataKey { def width = 1 }
+case object InterruptEnabled extends TraceDataKey { def width = 1 }
+case object BypassStalled extends TraceDataKey { def width = 1 }
 
 case class TraceEvent(name: String, dataKeys: Seq[TraceDataKey], dataWidths: Seq[Int])
 
