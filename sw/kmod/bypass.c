@@ -180,7 +180,7 @@ static void deinit_bypass_fpi(void)
 static int netdev_open(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
-	u64 irq_timeout_usecs = 200;
+	u64 irq_cooldown_usecs = 200;
 	u64 cycles_per_usec = LAUBERHORN_CLOCK_FREQ / 1000000;
 
 	/*
@@ -196,10 +196,10 @@ static int netdev_open(struct net_device *dev)
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
 
-	dev_info(&dev->dev, "setting missed IRQ timeout to %lld usecs\n",
-		 irq_timeout_usecs);
-	lauberhorn_eci_worker_ctrl_wait_ack_timeout_wr(
-		&priv->worker_dev, irq_timeout_usecs * cycles_per_usec);
+	dev_info(&dev->dev, "setting bypass IRQ cooldown to %lld usecs\n",
+		 irq_cooldown_usecs);
+	lauberhorn_eci_worker_ctrl_irq_cooldown_wr(
+		&priv->worker_dev, irq_cooldown_usecs * cycles_per_usec);
 
 	dev_dbg(&dev->dev, "netdev UP, disabling drop all\n");
 	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 0);
