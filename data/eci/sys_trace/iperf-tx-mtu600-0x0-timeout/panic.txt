@@ -1,0 +1,68 @@
+[  295.452575] EDAC DEVICE1: UE: thunderx-l2c instance: L2C-TAD10 block: L2C0 count: 1 'thunderx-l2c: L2C_TAD_INT: 0000000000020000, TIMEOUT: c008810000000000
+[  295.452575]  Uncorrected, LFB entry timeout'
+[  296.547286] Internal error: synchronous external abort: 0000000096000210 [#1] SMP
+[  296.554776] Modules linked in: lauberhorn(OE) qrtr thunderx_edac thunderx_zip rpcsec_gss_krb5 auth_rpcgss uio_pdrv_genirq uio nfsv4 nfs lockd grace netfs cfg80211 sunrpc binfmt_misc sch_fq_codel dm_multipath efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor xor_neon raid6_pq libcrc32c raid1 raid0 nicvf cavium_ptp rtc_ds1307 crct10dif_ce polyval_ce nicpf polyval_generic cavium_rng_vf ghash_ce sm4 sha2_ce sha256_arm64 sha1_ce gpio_keys thunder_bgx thunder_xcv i2c_thunderx mdio_thunder thunderx_mmc mdio_cavium ahci xhci_pci xhci_pci_renesas cavium_rng aes_neon_bs aes_neon_blk aes_ce_blk aes_ce_cipher
+[  296.621910] CPU: 0 PID: 0 Comm: swapper/0 Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[  296.630870] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  296.639567] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  296.646528] pc : napi_poll+0x2c0/0x808 [lauberhorn]
+[  296.651437] lr : napi_poll+0x28c/0x808 [lauberhorn]
+[  296.656326] sp : ffff800080003d70
+[  296.659636] x29: ffff800080003dd0 x28: 0000000000000000 x27: ffff00010f6af000
+[  296.666780] x26: ffff800140000000 x25: ffff80008136acd4 x24: 0000000000000003
+[  296.673922] x23: ffff00010f6af000 x22: ffff80007c221008 x21: 0000000000000040
+[  296.681065] x20: 000000000000000e x19: ffff00010f6af9e0 x18: ffff800080005030
+[  296.688207] x17: 0000000000000000 x16: 0000000000000000 x15: 10806f497d9933ab
+[  296.695349] x14: 0c5e9edb8913c881 x13: 89454649a210f10c x12: 0000000000000000
+[  296.702491] x11: 0000000000000000 x10: 0000000000000000 x9 : ffff800081680b04
+[  296.709633] x8 : 0000000000000000 x7 : 0000000000000000 x6 : 0000000000000000
+[  296.716774] x5 : 0000000000000000 x4 : 0000000000000000 x3 : ffff800140000000
+[  296.723916] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffff00010f6afc38
+[  296.731059] Call trace:
+[  296.733501]  napi_poll+0x2c0/0x808 [lauberhorn]
+[  296.738045]  __napi_poll+0x44/0x298
+[  296.741535]  net_rx_action+0x1b8/0x438
+[  296.745283]  handle_softirqs+0x134/0x430
+[  296.749206]  __do_softirq+0x20/0x3c
+[  296.752692]  ____do_softirq+0x1c/0x40
+[  296.756353]  call_on_irq_stack+0x3c/0x50
+[  296.760275]  do_softirq_own_stack+0x28/0x50
+[  296.764456]  __irq_exit_rcu+0x138/0x180
+[  296.768290]  irq_exit_rcu+0x1c/0x40
+[  296.771776]  el1_interrupt+0x4c/0xf0
+[  296.775353]  el1h_64_irq_handler+0x1c/0x40
+[  296.779449]  el1h_64_irq+0x7c/0x80
+[  296.782848]  default_idle_call+0x68/0x1c0
+[  296.786857]  cpuidle_idle_call+0x1a0/0x210
+[  296.790955]  do_idle+0xb0/0x130
+[  296.794095]  cpu_startup_entry+0x40/0x50
+[  296.798018]  rest_init+0x10c/0x130
+[  296.801418]  arch_call_rest_init+0x1c/0x28
+[  296.805515]  start_kernel+0x348/0x438
+[  296.809175]  __primary_switched+0xc0/0xd0
+[  296.813188] Code: d503201f 53196386 d379039c 8b1c0343 (3866cb58)
+[  296.819283] ---[ end trace 0000000000000000 ]---
+[  296.869183] pstore: backend (efi_pstore) writing error (-5)
+[  296.874761] Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt
+[  296.883547] SMP: stopping secondary CPUs
+[  297.505902] SError Interrupt on CPU37, code 0x00000000be000000 -- SError
+[  297.505911] CPU: 37 PID: 850 Comm: systemd-journal Tainted: G      D    OE      6.8.0-64-generic #67-Ubuntu
+[  297.505916] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  297.505920] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  297.505925] pc : ptep_set_access_flags+0xc0/0x138
+[  297.505933] lr : ptep_set_access_flags+0xbc/0x138
+[  297.505938] sp : ffff80008866bc10
+[  297.505940] x29: ffff80008866bc10 x28: ffff0007fdd2c500 x27: ffff0001087aa300
+[  297.505950] x26: 0000000000000002 x25: 00000000000000fb x24: ffff000109ce1810
+[  297.505958] x23: 0000000000000000 x22: 0000000000000973 x21: ffff0001087aa300
+[  297.505966] x20: fffffc007e424300 x19: ffff80008866bcb8 x18: ffff800087faf050
+[  297.505974] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000
+[  297.505982] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[  297.505989] x11: 0000000000000000 x10: 0000000000000000 x9 : ffff80008043d9e8
+[  297.505998] x8 : 0000000000000000 x7 : 0088000000000480 x6 : 0060001f9090cfc3
+[  297.506006] x5 : 0060001f9090cfc3 x4 : 0000000000000001 x3 : 0000000000000000
+[  297.506013] x2 : 0000000000000000 x1 : 0000000000000000 x0 : 0000000000000000
+[  297.506024] Kernel Offset: disabled
+[  297.625552] CPU features: 0x0,00e00000,14020008,21005203
+[  297.630863] Memory Limit: none
+[  297.679829] ---[ end Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt ]---
