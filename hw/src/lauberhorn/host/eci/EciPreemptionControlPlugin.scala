@@ -56,7 +56,6 @@ case class IpiAckReg() extends Bundle {
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   withPrefix(s"worker_${coreID - 1}")
 
-  lazy val preemptCritSecTimeout = host[EciInterfacePlugin].preemptCritSecTimeout
 
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
@@ -207,7 +206,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           when (ul.ready) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready
-              when (preemptTimer >= preemptCritSecTimeout) {
+              when (preemptTimer >= host[EciInterfacePlugin].hostIfCtrl.preemptCritSecTimeout) {
                 // timer has expired -- kill
                 schedCmd.killed := True
                 goto(issueIpi)
