@@ -98,6 +98,10 @@ object LauberhornTraceDma {
     "gsync_rsp_odd",
     "gsync_rsp_even",
   )
+  private val SysInterruptChannels = Seq(
+    "intc_req_vc12",
+    "intc_rsp_vc12",
+  )
 
   // DCS tracing provides two local event sources per DCS and there are two DCSs
   // in the ECI design: even and odd.
@@ -127,7 +131,7 @@ object LauberhornTraceDma {
   }
 
   // sysEciTraceIn records the same six ECI channels per DCS before app CDC,
-  // plus top-level GSYNC request/response channels.
+  // plus top-level GSYNC and interrupt-controller request/response channels.
   private val SysDcsSpecs = Seq("even", "odd").flatMap { dcs =>
     EciChannels.zipWithIndex.map { case (channel, localSource) =>
       SourceSpec("sysEciTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
@@ -147,7 +151,15 @@ object LauberhornTraceDma {
       "channel" -> channel,
     ))
   }
-  private val SysSpecs = SysDcsSpecs ++ SysGsyncSpecs
+  private val SysInterruptSpecs = SysInterruptChannels.zipWithIndex.map { case (channel, idx) =>
+    SourceSpec("sysEciTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
+      "type" -> "eci",
+      "clock_domain" -> "sys",
+      "local_source" -> (SysDcsSpecs.length + SysGsyncSpecs.length + idx),
+      "channel" -> channel,
+    ))
+  }
+  private val SysSpecs = SysDcsSpecs ++ SysGsyncSpecs ++ SysInterruptSpecs
 
   val AppSources = AppDcsSpecs.length + AppEciSpecs.length
   val SysSources = SysSpecs.length
@@ -428,6 +440,7 @@ case class LauberhornTraceDma(
   //   0..5   even-DCS ECI frames before app CDC
   //   6..11  odd-DCS ECI frames before app CDC
   //   12..15 GSYNC request/response frames
+  //   16..17 interrupt-controller VC12 request/response frames
   //
   // lauberhornTraceIn is sampled in the app clock domain and carries events
   // from TracePlugin inside NicEngine.  Each source can have a fixed pipeline
