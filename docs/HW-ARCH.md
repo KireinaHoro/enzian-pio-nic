@@ -33,8 +33,9 @@ module.  It connects:
   host AXI-Lite paths, and DDR interfaces;
 - two DCS instances, one for even and one for odd ECI address slices;
 - the generated `NicEngine` module;
-- the generated `lauberhorn_trace_dma` module, which receives DCS, ECI, and
-  Lauberhorn event trace sources and writes trace samples to trace DDR.
+- the generated `lauberhorn_trace_dma` module, which receives DCS, ECI,
+  returned-credit, and Lauberhorn event trace sources and writes trace samples
+  to trace DDR.
 
 `NicEngine` itself is deliberately small.  It owns a SpinalHDL `Database` and a
 `PluginHost`; the real hardware is installed by `GenEngineVerilog.engine`.
