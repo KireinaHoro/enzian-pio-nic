@@ -40,6 +40,22 @@ ECI_OPCODE_WIDTH = 5
 ECI_DMASK_OFFSET = 46
 ECI_DMASK_WIDTH = 4
 MAX_OPEN_SPOOL_FILES = 64
+EVENT_COLUMNS = [
+    "time",
+    "opcode_name",
+    "dmask",
+    "source",
+    "channel",
+    "raw_header",
+    "intc_kind",
+    "intc_word",
+    "intc_cmd",
+    "intc_intid",
+    "intc_affinity0",
+    "intc_affinity1",
+    "rtad",
+    "ppvid",
+]
 
 
 class IncompleteTraceError(RuntimeError):
@@ -109,7 +125,7 @@ def _unalias_address(aliased_addr: int) -> int:
 
 def _unaliased_header_address(src_info: Dict[str, Any], opcode: int, raw_header: int) -> Optional[int]:
     eci_class = _eci_class(src_info)
-    if eci_class in ("mreq", "mrsp") and opcode == 24:
+    if _is_intc_source(src_info) or (eci_class in ("mreq", "mrsp") and opcode == 24):
         return None
     if eci_class == "mrsp" and opcode in (9, 10):
         aliased_addr = bit_range(raw_header, 39, 7) << 7
@@ -120,6 +136,10 @@ def _unaliased_header_address(src_info: Dict[str, Any], opcode: int, raw_header:
 
 def _is_sys_eci_source(src_info: Dict[str, Any]) -> bool:
     return src_info.get("type") == "eci" and src_info.get("clock_domain") == "sys"
+
+
+def _is_intc_source(src_info: Dict[str, Any]) -> bool:
+    return str(src_info.get("channel", "")) in {"intc_req_vc12", "intc_rsp_vc12"}
 
 
 def _is_accepted_eci_payload(payload: int, trace_map: Dict[str, Any]) -> bool:
@@ -148,9 +168,9 @@ class _CsvSpool:
         self.addresses: set[Optional[int]] = set()
         self._open: OrderedDict[Optional[int], Tuple[TextIO, Any]] = OrderedDict()
 
-    def write_event(self, address: Optional[int], timestamp: int, opcode_name: str, dmask: int) -> None:
+    def write_event(self, address: Optional[int], values: Dict[str, Any]) -> None:
         writer = self._writer(address)
-        writer.writerow([timestamp, opcode_name, dmask])
+        writer.writerow(["" if values.get(column) is None else values.get(column, "") for column in EVENT_COLUMNS])
 
     def close(self) -> None:
         while self._open:
@@ -181,7 +201,7 @@ class _CsvSpool:
         file_obj = path.open("a", newline="")
         writer = csv.writer(file_obj)
         if is_new:
-            writer.writerow(["time", "opcode_name", "dmask"])
+            writer.writerow(EVENT_COLUMNS)
             self.addresses.add(address)
         self._open[address] = (file_obj, writer)
 
@@ -201,6 +221,76 @@ def _sys_eci_pipeline_stages(trace_map: Dict[str, Any]) -> set[int]:
         if _is_sys_eci_source(src):
             stages.add(int(src.get("pipeline_stages", 0)))
     return stages
+
+
+def _intc_event_values(src_info: Dict[str, Any], source: int, timestamp: int, raw_header: int) -> Dict[str, Any]:
+    channel = str(src_info.get("channel", ""))
+    if channel == "intc_rsp_vc12" and bits(raw_header, 16, 48) == 0x000000000080:
+        word = 1
+    else:
+        low16 = raw_header & 0xffff
+        word = 1 if channel == "intc_req_vc12" and low16 == 0 and raw_header != 0 else 0
+    values: Dict[str, Any] = {
+        "time": timestamp,
+        "opcode_name": f"INTC_{'REQ' if channel == 'intc_req_vc12' else 'RSP'}_WORD{word}",
+        "source": source,
+        "channel": channel,
+        "raw_header": f"0x{raw_header:016x}",
+        "intc_word": word,
+    }
+
+    if channel == "intc_req_vc12":
+        if word == 0 and (raw_header & 0xff) == 0x17:
+            values["intc_kind"] = "cpu_sgi"
+            values["intc_cmd"] = raw_header & 0xff
+            values["intc_intid"] = bits(raw_header, 44, 4)
+            values["intc_affinity1"] = bits(raw_header, 48, 4)
+        elif word == 1:
+            values["intc_kind"] = "cpu_sgi_affinity"
+            values["intc_affinity0"] = bits(raw_header, 0, 16)
+        else:
+            values["intc_kind"] = "vc12_req_raw"
+        return values
+
+    if word == 0 and (raw_header & ((1 << 44) - 1)) == 0x0500080C817:
+        values["intc_kind"] = "fpga_sgi"
+        values["intc_cmd"] = 0
+        values["intc_intid"] = bits(raw_header, 44, 4)
+        values["intc_affinity1"] = bits(raw_header, 48, 4)
+    elif word == 1 and bits(raw_header, 16, 48) == 0x000000000080:
+        values["intc_kind"] = "fpga_sgi_affinity"
+        values["intc_affinity0"] = bits(raw_header, 0, 16)
+    elif raw_header == 0x100000000080C860:
+        values["intc_kind"] = "cpu_sgi_ack"
+    elif raw_header == 0x0000000000800000:
+        values["intc_kind"] = "cpu_sgi_ack_payload"
+    else:
+        values["intc_kind"] = "vc12_rsp_raw"
+    return values
+
+
+def _eci_event_values(
+    export_map: Dict[str, Any],
+    src_info: Dict[str, Any],
+    source: int,
+    timestamp: int,
+    raw_header: int,
+) -> Tuple[Optional[int], Dict[str, Any]]:
+    opcode = bits(raw_header, ECI_OPCODE_OFFSET, ECI_OPCODE_WIDTH)
+    eci_class = _eci_class(src_info)
+    values: Dict[str, Any] = {
+        "time": timestamp,
+        "opcode_name": _opcode_name(export_map, src_info, opcode),
+        "dmask": bits(raw_header, ECI_DMASK_OFFSET, ECI_DMASK_WIDTH),
+        "source": source,
+        "channel": src_info.get("channel", ""),
+        "raw_header": f"0x{raw_header:016x}",
+    }
+    if eci_class in ("mreq", "mrsp") and opcode == 24:
+        values["dmask"] = ""
+        values["rtad"] = bits(raw_header, 7, 3)
+        values["ppvid"] = bits(raw_header, 0, 6)
+    return _unaliased_header_address(src_info, opcode, raw_header), values
 
 
 def run_eci_state_output(
@@ -271,14 +361,18 @@ def run_eci_state_output(
                         src_info = source_info(trace_map, source)
                         if _is_sys_eci_source(src_info) and _is_accepted_eci_payload(payload, trace_map):
                             raw_header = _field(payload, trace_map, "eci_header")
-                            opcode = bits(raw_header, ECI_OPCODE_OFFSET, ECI_OPCODE_WIDTH)
-                            unaliased_address = _unaliased_header_address(src_info, opcode, raw_header)
-                            spool.write_event(
-                                unaliased_address,
-                                timestamp,
-                                _opcode_name(export_map, src_info, opcode),
-                                bits(raw_header, ECI_DMASK_OFFSET, ECI_DMASK_WIDTH),
-                            )
+                            if _is_intc_source(src_info):
+                                unaliased_address = None
+                                values = _intc_event_values(src_info, source, timestamp, raw_header)
+                            else:
+                                unaliased_address, values = _eci_event_values(
+                                    export_map,
+                                    src_info,
+                                    source,
+                                    timestamp,
+                                    raw_header,
+                                )
+                            spool.write_event(unaliased_address, values)
                             frames += 1
 
                     processed += 1

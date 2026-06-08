@@ -437,6 +437,84 @@ local function eci_gsync_details(payload_tvb, tree, class, opcode)
         dest = string.format("rtad=%d ppvid=%d", values.rtad, values.ppvid),
     }
 end
+local function is_intc_source(source_info)
+    local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
+    return channel == "intc_req_vc12" or channel == "intc_rsp_vc12"
+end
+local function dissect_eci_intc(payload_tvb, tree, source_info, header, vc, accepted, phase)
+    local channel = tostring(source_info.channel or "")
+    local low16 = extract_bits_le(payload_tvb, 0, 0, 16)
+    local rsp_word1_prefix = extract_bits_le(payload_tvb, 0, 16, 48)
+    local word = 0
+    if channel == "intc_rsp_vc12" and rsp_word1_prefix == 0x000000000080 then
+        word = 1
+    elseif channel == "intc_req_vc12" and low16 == 0 and header ~= 0 then
+        word = 1
+    end
+    local prefix = channel == "intc_req_vc12" and "INTC REQ" or "INTC RSP"
+    local kind = nil
+    local details = {}
+
+    tree:add(ef.vc, byte_range_for_bits(payload_tvb, 64, 4), vc)
+    tree:add(ef.accepted, byte_range_for_bits(payload_tvb, 68, 1), accepted)
+    tree:add(ef.phase, byte_range_for_bits(payload_tvb, 68, 1), phase)
+    tree:add_le(ef.header, byte_range_for_bits(payload_tvb, 0, 64))
+    tree:add(ef.intc_word, byte_range_for_bits(payload_tvb, 0, 16), word)
+
+    if channel == "intc_req_vc12" then
+        local cmd = extract_bits_le(payload_tvb, 0, 0, 8)
+        if word == 0 and cmd == 0x17 then
+            kind = "cpu_sgi"
+            local intid = extract_bits_le(payload_tvb, 0, 44, 4)
+            local affinity1 = extract_bits_le(payload_tvb, 0, 48, 4)
+            tree:add(ef.intc_cmd, byte_range_for_bits(payload_tvb, 0, 8), cmd)
+            tree:add(ef.intc_intid, byte_range_for_bits(payload_tvb, 44, 4), intid)
+            tree:add(ef.intc_affinity1, byte_range_for_bits(payload_tvb, 48, 4), affinity1)
+            table.insert(details, string.format("cmd=0x%02x", cmd))
+            table.insert(details, string.format("intid=%d", intid))
+            table.insert(details, string.format("aff1=%d", affinity1))
+        elseif word == 1 then
+            kind = "cpu_sgi_affinity"
+            local affinity0 = extract_bits_le(payload_tvb, 0, 0, 16)
+            tree:add(ef.intc_affinity0, byte_range_for_bits(payload_tvb, 0, 16), affinity0)
+            table.insert(details, string.format("aff0=0x%04x", affinity0))
+        else
+            kind = "vc12_req_raw"
+        end
+    else
+        local rsp_word0_payload = extract_bits_le(payload_tvb, 0, 0, 44)
+        if word == 0 and rsp_word0_payload == 0x0500080c817 then
+            kind = "fpga_sgi"
+            local intid = extract_bits_le(payload_tvb, 0, 44, 4)
+            local affinity1 = extract_bits_le(payload_tvb, 0, 48, 4)
+            tree:add(ef.intc_cmd, byte_range_for_bits(payload_tvb, 0, 8), 0)
+            tree:add(ef.intc_intid, byte_range_for_bits(payload_tvb, 44, 4), intid)
+            tree:add(ef.intc_affinity1, byte_range_for_bits(payload_tvb, 48, 4), affinity1)
+            table.insert(details, "cmd=0x00")
+            table.insert(details, string.format("intid=%d", intid))
+            table.insert(details, string.format("aff1=%d", affinity1))
+        elseif word == 1 and rsp_word1_prefix == 0x000000000080 then
+            kind = "fpga_sgi_affinity"
+            local affinity0 = extract_bits_le(payload_tvb, 0, 0, 16)
+            tree:add(ef.intc_affinity0, byte_range_for_bits(payload_tvb, 0, 16), affinity0)
+            table.insert(details, string.format("aff0=0x%04x", affinity0))
+        else
+            kind = "vc12_rsp_raw"
+        end
+    end
+
+    tree:add(ef.intc_kind, anchor_range(payload_tvb), kind)
+    local message = prefix .. " word" .. tostring(word) .. " " .. kind
+    if #details > 0 then
+        message = message .. " " .. table.concat(details, " ")
+    end
+    local item = tree:add(ef.message, anchor_range(payload_tvb), message)
+    item.generated = true
+    return {
+        info = message,
+        dest = "VC12 interrupt",
+    }
+end
 local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local fields = fields_for_type("eci") or {}
     if payload_tvb:len() < 8 then
@@ -447,9 +525,16 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
         return malformed_payload_result(tree, payload_tvb, "ECI", reason)
     end
 
+    local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
+    local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
+    local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
+    local phase = accepted ~= 0 and "accepted" or "valid"
+    if is_intc_source(source_info) then
+        return dissect_eci_intc(payload_tvb, tree, source_info, header, vc, accepted, phase)
+    end
+
     local opcode = math.floor(payload_tvb(7, 1):uint() / 8)
     local class = eci_class(source_info)
-    local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
     local opcode_item = tree:add(ef.opcode, payload_tvb(7, 1), opcode)
     local message = eci_opcode_name(source_info, opcode)
     if message ~= nil then
@@ -457,9 +542,6 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
         local item = tree:add(ef.message, anchor_range(payload_tvb), message)
         item.generated = true
     end
-    local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
-    local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
-    local phase = accepted ~= 0 and "accepted" or "valid"
     local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
     local pair_key = eci_payload_key(payload_tvb, fields, header, vc)
     local pair_record = nil
