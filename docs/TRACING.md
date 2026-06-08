@@ -15,8 +15,8 @@ The tracing path has four layers:
    outer TraceBufferDMA envelope, trace-buffer wrap detection, timestamp
    realignment, source filtering, and pipeline-latency timestamp correction.
 4. `lauberhorn_trace.lua` decodes the pcapng packets in Wireshark/TShark.  It
-   owns source-specific payload interpretation for DCS, ECI, and Lauberhorn
-   event payloads.
+   owns source-specific payload interpretation for DCS, ECI, returned-credit,
+   and Lauberhorn event payloads.
 
 The important boundary is that Python does not decode inner trace payloads.
 Python preserves raw samples and emits metadata.  Lua uses the embedded trace map
@@ -59,7 +59,10 @@ Its role is to adapt all trace sources to `TraceBufferDMA`:
 
 - DCS event trace sources from the even and odd directory-controller slices.
 - ECI app-clock trace sources after DCS/app clock crossing.
-- ECI sys-clock trace sources before app clock crossing.
+- ECI sys-clock trace sources before app clock crossing, plus GSYNC and
+  interrupt-controller ECI channels.
+- ECI sys-clock trace sources at the post-gateway dynamic/static boundary.
+- Returned-credit pulses from the static shell back into the dynamic gateway.
 - Lauberhorn event trace sources produced by `TracePlugin`.
 
 It assigns source IDs, inserts source-specific `Flow.delay(...)` pipeline stages
@@ -75,8 +78,9 @@ the contract between hardware and software.  It contains:
   lost-source ID, and AXI data width;
 - source metadata: source ID, port, type, clock domain, DCS/channel/local-source
   information, and `pipeline_stages`;
-- payload metadata used by Lua: DCS fields, ECI fields, Lauberhorn event names,
-  trace-data key widths, and per-event trace-data key lists.
+- payload metadata used by tooling: DCS fields, ECI fields, returned-credit
+  fields, Lauberhorn event names, trace-data key widths, and per-event
+  trace-data key lists.
 
 For Lauberhorn events, the map deliberately separates definitions from use:
 
@@ -92,6 +96,78 @@ For Lauberhorn events, the map deliberately separates definitions from use:
 ```
 
 Events with no trace data are omitted from `event_data`.
+
+### ECI Message Trace Points
+
+ECI message tracing deliberately records the same logical traffic at multiple
+points.  The goal is to distinguish "the directory controller produced this
+message" from "the message crossed the last dynamic/static boundary toward the
+static shell and CPU".
+
+Current fixed ECI-related source allocation is:
+
+- sources `4..15`: app-clock DCS ECI channels, after the DCS/sys-to-app clock
+  crossing;
+- sources `16..27`: sys-clock DCS ECI channels, before the app-clock crossing;
+- sources `28..31`: sys-clock GSYNC request/response channels;
+- sources `32..33`: sys-clock interrupt-controller VC12 request/response
+  channels;
+- sources `34..37`: post-gateway dynamic/static boundary channels
+  `link{1,2}_out_{lo,hi}`;
+- sources `38..39`: post-gateway returned-credit vectors
+  `link{1,2}_out_credit_return`.
+
+The generated `lauberhorn_trace_dma_map.json` is the authoritative source list;
+the numbers above document the current layout to make trace inspection easier.
+
+For ECI sources, the payload contains the 64-bit header, VC number, and an
+`accepted` bit.  Hardware emits a stalled sample with `accepted = 0` when
+`valid && !ready`, and an accepted sample with `accepted = 1` when
+`valid && ready`.
+
+The meaning of `accepted = 1` depends on the trace point:
+
+- App-clock DCS ECI sources prove that the frame crossed into the app-clock DCS
+  side and was consumed there.
+- Sys-clock DCS, GSYNC, and interrupt-controller sources prove acceptance by
+  the local sys-clock stream endpoint being traced.  They do not prove that the
+  frame has left the dynamic gateway toward the static shell.
+- Post-gateway boundary sources prove that the corresponding top-level
+  `link*_out_{lo,hi}` stream handshaked at the dynamic/static boundary.  This is
+  after the dynamic gateway's VC-level credit tracking, so the frame has made it
+  past the dynamic-side point where VC credits can still withhold it.
+
+The boundary trace point is therefore the right place to answer "did an FPGA
+ECI message really leave toward the CPU?"  It still is not a CPU-retirement
+trace: after this point the traffic is in static-shell/TLK/link-layer logic, and
+the trace does not observe the ThunderX L2C accepting or retiring the request.
+Under the normal assumption that the lower-level link remains healthy, however,
+an accepted boundary sample is the dynamic-design evidence that the frame was
+sent far enough that it should be visible to the CPU side.
+
+The boundary channels carry link blocks rather than the original higher-level
+DCS channel identity.  The trace records the VC and the first 64-bit header word:
+`link*_out_lo_data` for the low path and `link*_out_hi_data(63 downto 0)` for
+the high path.  This is sufficient to identify one-word ECI messages such as
+many coherence responses, but it is not a full multiword payload capture.
+
+Returned-credit sources record nonzero `link*_out_credit_return(12 downto 2)`
+vectors in payload bits `[10:0]`.  These sources are not ECI messages; they are
+there to correlate boundary sends with VC credit return behavior when checking
+whether a frame could be stuck behind dynamic-gateway credit accounting.
+
+When debugging a suspected missing FPGA-to-CPU message, use the trace points as
+a narrowing ladder:
+
+1. If the frame appears at the relevant sys-clock DCS/GSYNC/interrupt source but
+   not at sources `34..37`, it was still inside the dynamic gateway/static
+   boundary path.
+2. If the frame appears at sources `34..37` with `accepted = 1`, then the
+   dynamic gateway and VC-level credit tracking accepted the send.  Look past
+   the dynamic boundary unless credit-return behavior suggests a broader
+   static-shell accounting issue.
+3. Use sources `38..39` to check whether credits for that link/VC continue to
+   return around the suspect interval.
 
 ### TraceBufferDMA
 
@@ -176,10 +252,12 @@ trace-source pipeline stages, so their raw and adjusted timestamps are the same.
 ## Lua Dissector
 
 `data/eci/sys_trace/lauberhorn_trace.lua` is the Wireshark/TShark dissector.  It
-owns all source-specific payload interpretation for interactive viewing.  It
-loads the trace map embedded by Python, uses source metadata to pick the right
+owns source-specific payload interpretation for interactive viewing.  It loads
+the trace map embedded by Python, uses source metadata to pick the right
 decoder, and turns raw payload bits into DCS fields, ECI packet details, or
-Lauberhorn event names and structured trace data.
+Lauberhorn event names and structured trace data.  Source types that do not yet
+have a rich Lua decoder still carry their typed payload layout in the trace map
+and remain available as raw samples.
 
 Because Lua owns payload interpretation, payload schema changes should normally
 be reflected in the trace map and Lua dissector.  Python should only need to
