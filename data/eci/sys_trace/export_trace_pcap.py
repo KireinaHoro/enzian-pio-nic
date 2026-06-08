@@ -341,7 +341,7 @@ def main() -> int:
                 nonlocal order_progress
                 if order_progress is None:
                     scan_progress.finish()
-                    order_progress = ProgressBar(total_samples, label="samples ordered")
+                    order_progress = ProgressBar(total_samples, label="samples processed")
                 order_progress.update(current)
 
             try:
