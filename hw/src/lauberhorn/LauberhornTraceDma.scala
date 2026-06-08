@@ -108,6 +108,10 @@ object LauberhornTraceDma {
     ("link2_out_lo", "link2", "lo"),
     ("link2_out_hi", "link2", "hi"),
   )
+  private val SysCreditReturnChannels = Seq(
+    ("link1_out_credit_return", "link1"),
+    ("link2_out_credit_return", "link2"),
+  )
 
   // DCS tracing provides two local event sources per DCS and there are two DCSs
   // in the ECI design: even and odd.
@@ -176,13 +180,27 @@ object LauberhornTraceDma {
       "path" -> path,
     ))
   }
-  private val SysSpecs = SysDcsSpecs ++ SysGsyncSpecs ++ SysInterruptSpecs ++ SysBoundarySpecs
+  private val SysEciSpecs = SysDcsSpecs ++ SysGsyncSpecs ++ SysInterruptSpecs ++ SysBoundarySpecs
+  private val SysCreditReturnSpecs = SysCreditReturnChannels.zipWithIndex.map { case ((channel, link), idx) =>
+    SourceSpec("sysCreditTraceIn", pipelineStagesToTraceBufferDma(NicHostInterfaceSlr), Seq(
+      "type" -> "credit_return",
+      "clock_domain" -> "sys",
+      "local_source" -> idx,
+      "channel" -> channel,
+      "boundary" -> "dynamic_static",
+      "link" -> link,
+    ))
+  }
+  private val SysSpecs = SysEciSpecs ++ SysCreditReturnSpecs
 
   val AppSources = AppDcsSpecs.length + AppEciSpecs.length
   val SysSources = SysSpecs.length
+  val SysEciSources = SysEciSpecs.length
+  val SysCreditReturnSources = SysCreditReturnSpecs.length
   val AppDcsPipelineStages: Seq[Int] = AppDcsSpecs.map(_.pipelineStages)
   val AppEciPipelineStages: Seq[Int] = AppEciSpecs.map(_.pipelineStages)
-  val SysPipelineStages: Seq[Int] = SysSpecs.map(_.pipelineStages)
+  val SysEciPipelineStages: Seq[Int] = SysEciSpecs.map(_.pipelineStages)
+  val SysCreditReturnPipelineStages: Seq[Int] = SysCreditReturnSpecs.map(_.pipelineStages)
 
   // DCS event payload layout comes from the DCS trace producer.
   private val DcsEventFormat = PayloadFormat(Seq(
@@ -203,10 +221,14 @@ object LauberhornTraceDma {
     PayloadField("accepted", offset = 68, width = 1),
     PayloadField("reserved", offset = 69, width = 6),
   ))
+  private val CreditReturnFormat = PayloadFormat(Seq(
+    PayloadField("credit_return", offset = 0, width = 11, format = Some("hex")),
+  ))
 
   private val FixedPayloadFormats = Seq(
     "dcs_event" -> DcsEventFormat,
     "eci" -> EciFormat,
+    "credit_return" -> CreditReturnFormat,
   )
 
   val PayloadWidth = FixedPayloadFormats.map(_._2.width).max
@@ -333,9 +355,15 @@ object LauberhornTraceDma {
 
     val appInputs: Seq[SourceInfo] = appDcsInputs ++ appEciInputs
 
-    val sysInputs: Seq[SourceInfo] = SysSpecs.zipWithIndex.map { case (spec, localSource) =>
+    val sysEciInputs: Seq[SourceInfo] = SysEciSpecs.zipWithIndex.map { case (spec, localSource) =>
       spec.localInfo(appInputs.length + localSource, localSource)
     }
+
+    val sysCreditReturnInputs: Seq[SourceInfo] = SysCreditReturnSpecs.zipWithIndex.map { case (spec, localSource) =>
+      spec.localInfo(appInputs.length + sysEciInputs.length + localSource, localSource)
+    }
+
+    val sysInputs: Seq[SourceInfo] = sysEciInputs ++ sysCreditReturnInputs
 
     val lauberhornInputs: Seq[SourceInfo] = lauberhornTracePorts.zipWithIndex.map { case (port, localSource) =>
       val source = appInputs.length + sysInputs.length + localSource
@@ -459,6 +487,7 @@ case class LauberhornTraceDma(
   //   12..15 GSYNC request/response frames
   //   16..17 interrupt-controller VC12 request/response frames
   //   18..21 post-gateway dynamic/static boundary frames
+  //   22..23 post-gateway dynamic/static returned-credit pulses
   //
   // lauberhornTraceIn is sampled in the app clock domain and carries events
   // from TracePlugin inside NicEngine.  Each source can have a fixed pipeline
@@ -470,6 +499,8 @@ case class LauberhornTraceDma(
   val appDcsSourceCount = layout.appDcsInputs.length
   val appEciSourceCount = layout.appEciInputs.length
   val sysSourceCount = layout.sysInputs.length
+  val sysEciSourceCount = LauberhornTraceDma.SysEciSources
+  val sysCreditReturnSourceCount = LauberhornTraceDma.SysCreditReturnSources
   val lauberhornSourceCount = layout.lauberhornInputs.length
   val payloadWidth = LauberhornTraceDma.PayloadWidth
   val timestampWidth = layout.timestampWidth(payloadWidth)
@@ -501,7 +532,8 @@ case class LauberhornTraceDma(
   val writeSlot = out(UInt(29 bits))
 
   // this is in sys clock domain
-  val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysSourceCount) addTag ClockDomainTag(sysClock)
+  val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysEciSourceCount) addTag ClockDomainTag(sysClock)
+  val sysCreditTraceIn = Vec(slave(Flow(Bits(payloadWidth bits))), sysCreditReturnSourceCount) addTag ClockDomainTag(sysClock)
 
   val traceDma = TraceBufferDMA(
     Bits(payloadWidth bits),
@@ -560,7 +592,7 @@ case class LauberhornTraceDma(
       traceEciFrame(appEciTraceIn(idx)).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
-  for (idx <- 0 until sysSourceCount) {
+  for (idx <- 0 until sysEciSourceCount) {
     val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClock, ClockDomain.current)
     new ClockingArea(sysClock) {
       val sysTrace = traceEciFrame(sysEciTraceIn(idx))
@@ -571,7 +603,22 @@ case class LauberhornTraceDma(
     val sysTraceToDma = Flow(Bits(payloadWidth bits))
     sysTraceToDma.valid := fifo.masterPort.valid
     sysTraceToDma.payload := fifo.masterPort.payload
-    traceDma.traceIn(appSourceCount + idx) := sysTraceToDma.delay(LauberhornTraceDma.SysPipelineStages(idx))
+    traceDma.traceIn(appSourceCount + idx) := sysTraceToDma.delay(LauberhornTraceDma.SysEciPipelineStages(idx))
+    fifo.masterPort.ready := True
+  }
+
+  for (idx <- 0 until sysCreditReturnSourceCount) {
+    val fifo = SimpleAsyncFifo(Bits(payloadWidth bits), depthWords = sysCdcFifoDepth)()(sysClock, ClockDomain.current)
+    new ClockingArea(sysClock) {
+      fifo.slavePort.valid := sysCreditTraceIn(idx).valid
+      fifo.slavePort.payload := sysCreditTraceIn(idx).payload
+    }
+
+    val sysTraceToDma = Flow(Bits(payloadWidth bits))
+    sysTraceToDma.valid := fifo.masterPort.valid
+    sysTraceToDma.payload := fifo.masterPort.payload
+    traceDma.traceIn(appSourceCount + sysEciSourceCount + idx) :=
+      sysTraceToDma.delay(LauberhornTraceDma.SysCreditReturnPipelineStages(idx))
     fifo.masterPort.ready := True
   }
 
