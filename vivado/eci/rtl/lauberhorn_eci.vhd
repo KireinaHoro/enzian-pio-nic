@@ -699,6 +699,7 @@ type REGS_AXIL_NARROW is record
 end record REGS_AXIL_NARROW;
 
 constant TRACE_ZERO_18 : std_logic_vector(17 downto 0) := (others => '0');
+constant TRACE_ZERO_64 : std_logic_vector(63 downto 0) := (others => '0');
 
 function pack_dcs_trace(
     error     : std_logic;
@@ -709,6 +710,13 @@ function pack_dcs_trace(
 ) return trace_payload_t is
 begin
     return TRACE_ZERO_18 & request & action & state & cli & error;
+end function;
+
+function pack_credit_return(
+    credit_return : std_logic_vector
+) return trace_payload_t is
+begin
+    return TRACE_ZERO_64 & credit_return;
 end function;
 
 signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
@@ -746,6 +754,8 @@ signal trace_sample_lost, trace_dma_error, trace_wrapped : std_logic;
 signal trace_write_slot : std_logic_vector(28 downto 0);
 signal lauberhorn_trace_valid : std_logic_vector(30 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(30 downto 0);
+signal credit_return_trace_valid : std_logic_vector(1 downto 0);
+signal credit_return_trace_payload : trace_payload_array(1 downto 0);
 
 signal dcs_even_trace_eci_app_valid : std_logic_vector(5 downto 0);
 signal dcs_even_trace_eci_app_ready : std_logic_vector(5 downto 0);
@@ -807,6 +817,11 @@ signal dcs_c19_i               : LCL_CHANNEL; -- LCL RSP WOD
 begin
 
 clk <= clk_sys;
+
+credit_return_trace_valid(0) <= '1' when link1_out_credit_return /= "00000000000" else '0';
+credit_return_trace_payload(0) <= pack_credit_return(link1_out_credit_return);
+credit_return_trace_valid(1) <= '1' when link2_out_credit_return /= "00000000000" else '0';
+credit_return_trace_payload(1) <= pack_credit_return(link2_out_credit_return);
 
 i_eci_gateway : entity work.eci_gateway
   generic map (
@@ -1622,6 +1637,10 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysEciTraceIn_21_payload_vc => link2_out_hi_vc_no,
     sysEciTraceIn_21_valid => link2_out_hi_valid,
     sysEciTraceIn_21_ready => link2_out_hi_ready,
+    sysCreditTraceIn_0_valid => credit_return_trace_valid(0),
+    sysCreditTraceIn_0_payload => credit_return_trace_payload(0),
+    sysCreditTraceIn_1_valid => credit_return_trace_valid(1),
+    sysCreditTraceIn_1_payload => credit_return_trace_payload(1),
 
     lauberhornTraceIn_0_valid => lauberhorn_trace_valid(0),
     lauberhornTraceIn_0_payload => lauberhorn_trace_payload(0),
