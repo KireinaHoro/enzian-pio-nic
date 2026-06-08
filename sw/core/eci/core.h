@@ -342,6 +342,10 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     copy_from += first_write_size;
     payload_len -= first_write_size;
 
+#ifdef __KERNEL__
+    phys_addr_t tx_phys_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
+#endif
+
     // fill overflow CLs
     if (payload_len > 0) {
       memcpy(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, copy_from, payload_len);
@@ -352,17 +356,18 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
       // TODO: do this also for userspace -- somehow get the physical address
       //       make sure we can call cl_hit_wb_inv from userspace
       assert(base == mem_node1_off_to_virt(0));
-      phys_addr_t tx_phys_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
 
       // invalidate overflows
       for (u64 off = 0; off < payload_len; off += LAUBERHORN_ECI_CL_SIZE) {
         cl_hit_wb_inv(tx_phys_base + LAUBERHORN_ECI_OVERFLOW_OFFSET + off);
       }
-
-      // invalidate the ctrl we just touched
-      cl_hit_wb_inv(tx_phys_base + tx_parity * LAUBERHORN_ECI_CL_SIZE);
 #endif
     }
+
+#ifdef __KERNEL__
+    // invalidate the ctrl we just touched
+    cl_hit_wb_inv(tx_phys_base + tx_parity * LAUBERHORN_ECI_CL_SIZE);
+#endif
   }
   BARRIER; // make sure all data is written before we ring the doorbell
 
