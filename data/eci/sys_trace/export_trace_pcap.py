@@ -26,7 +26,7 @@ try:
     from .legacy_ila import chronological_legacy_samples
     from .lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from .pcapng import PcapngWriter
-    from .sample_window import SampleWindow, parse_sample_window
+    from .sample_window import SampleWindow, normalize_sample_window, parse_sample_window
     from .trace_metadata import enrich_trace_map
 except ImportError:
     from common import bits
@@ -44,7 +44,7 @@ except ImportError:
     from legacy_ila import chronological_legacy_samples
     from lhtrace_packet import marker_packet, metadata_packet, packet_timestamp_ns, sample_packet
     from pcapng import PcapngWriter
-    from sample_window import SampleWindow, parse_sample_window
+    from sample_window import SampleWindow, normalize_sample_window, parse_sample_window
     from trace_metadata import enrich_trace_map
 
 
@@ -186,6 +186,14 @@ def write_pcap(
         writer.write_packet(metadata_packet(export_map), timestamp_ns=0)
 
         total_samples = raw_sample_count(input_path, offset, width)
+        if sample_window is not None:
+            window_start, _window_stop = normalize_sample_window(total_samples, sample_window)
+            if window_start > 0:
+                print(
+                    "warning: exported pcapng sample window does not start at the beginning of the trace; "
+                    "ECI VC credit reconstruction may be higher than the actual hardware credit count",
+                    file=sys.stderr,
+                )
         scan_progress = ProgressBar(total_samples, label="samples scanned")
         order_progress: Optional[ProgressBar] = None
 

@@ -4,6 +4,7 @@ local lhctrl = Proto("lhtrace_ctrl", "Trace Control")
 local lhdcs = Proto("lhtrace_dcs", "DC")
 local lheci_app = Proto("lhtrace_eci_app", "ECI app")
 local lheci_sys = Proto("lhtrace_eci_sys", "ECI sys")
+local lhcredit = Proto("lhtrace_credit", "ECI Credit Return")
 local lhevent = Proto("lhtrace_event", "Lauberhorn Events")
 
 local KIND_METADATA = 1
@@ -24,6 +25,7 @@ local packet_protocols = {
     LHTD = { proto = lhdcs, col = "DC", title = "DC", family = "dcs" },
     LHEA = { proto = lheci_app, col = "ECI", title = "ECI", family = "eci" },
     LHES = { proto = lheci_sys, col = "ECI", title = "ECI", family = "eci" },
+    LHCR = { proto = lhcredit, col = "ECI Credit", title = "ECI Credit Return", family = "credit" },
 }
 
 local f = lhtrace.fields
@@ -116,6 +118,34 @@ ef.crossing_before_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.bef
 ef.crossing_before_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.before_accepted_frame", "Before Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
 ef.crossing_after_stalled_frame = ProtoField.framenum("lhtrace.eci.crossing.after_stalled_frame", "After Crossing Stalled Frame", base.NONE, frametype.REQUEST)
 ef.crossing_after_accepted_frame = ProtoField.framenum("lhtrace.eci.crossing.after_accepted_frame", "After Crossing Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.size = ProtoField.uint8("lhtrace.eci.size", "ECI Channel Size", base.DEC)
+ef.delivery = ProtoField.string("lhtrace.eci.delivery", "ECI Outgoing Delivery")
+ef.delivery_id = ProtoField.uint32("lhtrace.eci.delivery.id", "ECI Delivery ID", base.DEC)
+ef.delivery_key = ProtoField.string("lhtrace.eci.delivery.key", "ECI Delivery Key")
+ef.delivery_stage = ProtoField.string("lhtrace.eci.delivery.stage", "ECI Delivery Stage")
+ef.delivery_sys_source = ProtoField.string("lhtrace.eci.delivery.sys_source", "Gateway Input Source")
+ef.delivery_boundary_source = ProtoField.string("lhtrace.eci.delivery.boundary_source", "Boundary Source")
+ef.delivery_sys_accepted_frame = ProtoField.framenum("lhtrace.eci.delivery.sys_accepted_frame", "Gateway Input Accepted Frame", base.NONE, frametype.REQUEST)
+ef.delivery_boundary_stalled_frame = ProtoField.framenum("lhtrace.eci.delivery.boundary_stalled_frame", "Boundary Stalled Frame", base.NONE, frametype.REQUEST)
+ef.delivery_boundary_accepted_frame = ProtoField.framenum("lhtrace.eci.delivery.boundary_accepted_frame", "Boundary Accepted Frame", base.NONE, frametype.RESPONSE)
+ef.credit_link = ProtoField.string("lhtrace.eci.credit.link", "Credit Link")
+ef.credit_path = ProtoField.string("lhtrace.eci.credit.path", "Credit Path")
+ef.credit_vc = ProtoField.uint8("lhtrace.eci.credit.vc", "Credit VC", base.DEC)
+ef.credit_decrement = ProtoField.int32("lhtrace.eci.credit.decrement", "Credit Decrement", base.DEC)
+ef.credit_before = ProtoField.int32("lhtrace.eci.credit.before", "Credit Before", base.DEC)
+ef.credit_after = ProtoField.int32("lhtrace.eci.credit.after", "Credit After", base.DEC)
+ef.credit_under_before = ProtoField.bool("lhtrace.eci.credit.under_before", "Credit Underflow Before")
+ef.credit_under_after = ProtoField.bool("lhtrace.eci.credit.under_after", "Credit Underflow After")
+
+local cf = lhcredit.fields
+cf.return_vector = ProtoField.uint16("lhtrace.credit.return.vector", "Returned Credit Vector", base.HEX)
+cf.link = ProtoField.string("lhtrace.credit.link", "Credit Link")
+cf.update = ProtoField.string("lhtrace.credit.update", "Credit Update")
+cf.vc = ProtoField.uint8("lhtrace.credit.vc", "Credit VC", base.DEC)
+cf.before = ProtoField.int32("lhtrace.credit.before", "Credit Before", base.DEC)
+cf.after = ProtoField.int32("lhtrace.credit.after", "Credit After", base.DEC)
+cf.under_before = ProtoField.bool("lhtrace.credit.under_before", "Credit Underflow Before")
+cf.under_after = ProtoField.bool("lhtrace.credit.under_after", "Credit Underflow After")
 
 local ee = {}
 ee.vc_zero = ProtoExpert.new(
@@ -184,6 +214,24 @@ ee.crossing_order_reversed = ProtoExpert.new(
     expert.group.PROTOCOL,
     expert.severity.WARN
 )
+ee.delivery_matched = ProtoExpert.new(
+    "lhtrace.eci.delivery_matched",
+    "ECI outgoing frame reached the dynamic/static boundary",
+    expert.group.PROTOCOL,
+    expert.severity.NOTE
+)
+ee.delivery_missing_boundary = ProtoExpert.new(
+    "lhtrace.eci.delivery_missing_boundary",
+    "ECI outgoing frame had no matching dynamic/static boundary frame",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
+ee.delivery_stalled_boundary = ProtoExpert.new(
+    "lhtrace.eci.delivery_stalled_boundary",
+    "ECI outgoing frame stalled at the dynamic/static boundary",
+    expert.group.PROTOCOL,
+    expert.severity.WARN
+)
 lhtrace.experts = {
     ee.vc_zero,
     ee.header_zero,
@@ -196,6 +244,9 @@ lhtrace.experts = {
     ee.crossing_matched,
     ee.crossing_order_ok,
     ee.crossing_order_reversed,
+    ee.delivery_matched,
+    ee.delivery_missing_boundary,
+    ee.delivery_stalled_boundary,
 }
 
 local evf = lhevent.fields
@@ -214,6 +265,7 @@ local ctx = {
     de = de,
     ef = ef,
     ee = ee,
+    cf = cf,
     evf = evf,
 }
 
@@ -294,6 +346,14 @@ function lhtrace.dissector(tvb, pinfo, tree)
             pinfo.cols.src = label
             ctx.add_source_info(subtree, tvb, source, label)
             local parsed = ctx.dissect_eci(payload_tvb, subtree, pinfo, source, src)
+            pinfo.cols.dst = parsed.dest
+            info = parsed.info
+        elseif packet_protocol.family == "credit" then
+            local src = ctx.sources_by_id[source] or { type = "unknown" }
+            local label = ctx.source_label(src, source)
+            pinfo.cols.src = label
+            ctx.add_source_info(subtree, tvb, source, label)
+            local parsed = ctx.dissect_credit_return(payload_tvb, subtree, pinfo, source, src)
             pinfo.cols.dst = parsed.dest
             info = parsed.info
         elseif packet_protocol.family == "event" then
