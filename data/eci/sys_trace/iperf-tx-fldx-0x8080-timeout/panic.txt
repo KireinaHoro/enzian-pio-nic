@@ -1,0 +1,59 @@
+[  219.723230] EDAC DEVICE2: UE: thunderx-l2c instance: L2C-TAD20 block: L2C0 count: 1 'thunderx-l2c: L2C_TAD_INT: 0000000000020000, TIMEOUT: c008810000008080
+[  219.723230]  Uncorrected, LFB entry timeout'
+[  221.274945] Internal error: synchronous external abort: 0000000096000210 [#1] SMP
+[  221.282442] Modules linked in: lauberhorn(OE) qrtr thunderx_zip thunderx_edac rpcsec_gss_krb5 auth_rpcgss uio_pdrv_genirq uio nfsv4 nfs lockd grace netfs cfg80211 sunrpc binfmt_misc sch_fq_codel dm_multipath efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor xor_neon raid6_pq libcrc32c raid1 raid0 nicvf cavium_ptp crct10dif_ce polyval_ce polyval_generic ghash_ce rtc_ds1307 sm4 nicpf sha2_ce cavium_rng_vf sha256_arm64 sha1_ce gpio_keys thunder_bgx ahci thunder_xcv i2c_thunderx mdio_thunder thunderx_mmc mdio_cavium xhci_pci xhci_pci_renesas cavium_rng aes_neon_bs aes_neon_blk aes_ce_blk aes_ce_cipher
+[  221.349576] CPU: 41 PID: 1658 Comm: iperf Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[  221.358535] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[  221.367232] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  221.374192] pc : netdev_xmit+0x188/0x2d0 [lauberhorn]
+[  221.379283] lr : netdev_xmit+0x12c/0x2d0 [lauberhorn]
+[  221.384350] sp : ffff80008c503440
+[  221.387661] x29: ffff80008c503440 x28: ffff0007ffb23028 x27: ffff80008c503504
+[  221.394812] x26: 00000000000005ea x25: ffff800083264000 x24: ffff0007ffc4a000
+[  221.401956] x23: ffff0007fe37dc5c x22: 0000000000000000 x21: ffff000108ef2400
+[  221.409098] x20: 000000000000059c x19: ffff0007fe37d000 x18: ffff8000899c50e0
+[  221.416248] x17: 0000000000000000 x16: 0000000000000000 x15: 3534333231303938
+[  221.423399] x14: 3736353433323130 x13: 3130393837363534 x12: 3332313039383736
+[  221.430543] x11: 3332313039383736 x10: 3534333231303938 x9 : 3736353433323130
+[  221.437686] x8 : ffff80007c1ef000 x7 : ffff800140000000 x6 : 3332313039383736
+[  221.444828] x5 : ffff800140008000 x4 : ffff000113e2c6e8 x3 : ffff800140008640
+[  221.451970] x2 : 0000010000008100 x1 : ffff0007fe37dc39 x0 : 0000000000000080
+[  221.459113] Call trace:
+[  221.461555]  netdev_xmit+0x188/0x2d0 [lauberhorn]
+[  221.466274]  dev_hard_start_xmit+0xa8/0x240
+[  221.470459]  sch_direct_xmit+0xdc/0x218
+[  221.474297]  __dev_xmit_skb+0x274/0x670
+[  221.478134]  __dev_queue_xmit+0x39c/0x7c8
+[  221.482141]  neigh_hh_output+0xa0/0x120
+[  221.485977]  ip_finish_output2+0x2d8/0x640
+[  221.490072]  __ip_finish_output+0xcc/0x200
+[  221.494166]  ip_finish_output+0x40/0x1b0
+[  221.498087]  ip_output+0x78/0x140
+[  221.501400]  __ip_queue_xmit+0x174/0x4a0
+[  221.505320]  ip_queue_xmit+0x20/0x50
+[  221.508894]  __tcp_transmit_skb+0x480/0x9e8
+[  221.513079]  tcp_write_xmit+0x4c8/0x9a0
+[  221.516914]  tcp_push_one+0x48/0x88
+[  221.520401]  tcp_sendmsg_locked+0x2a0/0xc50
+[  221.524582]  tcp_sendmsg+0x44/0x88
+[  221.527981]  inet_sendmsg+0x50/0xb8
+[  221.531471]  __sock_sendmsg+0x80/0x108
+[  221.535218]  sock_write_iter+0xac/0x138
+[  221.539052]  vfs_write+0x334/0x3a8
+[  221.542452]  ksys_write+0x118/0x140
+[  221.545939]  __arm64_sys_write+0x28/0x50
+[  221.549860]  invoke_syscall+0x7c/0x130
+[  221.553607]  el0_svc_common.constprop.0+0x4c/0x140
+[  221.558396]  do_el0_svc+0x28/0x58
+[  221.561708]  el0_svc+0x40/0x190
+[  221.564851]  el0t_64_sync_handler+0x148/0x158
+[  221.569207]  el0t_64_sync+0x1b0/0x1b8
+[  221.572871] Code: 710002df 1a9f17e0 39000020 53196000 (3860c8a0)
+[  221.578966] ---[ end trace 0000000000000000 ]---
+[  221.629035] pstore: backend (efi_pstore) writing error (-5)
+[  221.634613] Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt
+[  221.643399] SMP: stopping secondary CPUs
+[  221.647328] Kernel Offset: disabled
+[  221.650813] CPU features: 0x0,00e00000,14020008,21005203
+[  221.656123] Memory Limit: none
+[  221.704487] ---[ end Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt ]---
