@@ -139,7 +139,12 @@ class RemoteFsm:
 def observations_for(event: Event) -> Tuple[IO, ...]:
     if event.opcode_name == "ECI_CMD_MRSP_PEMD":
         return (("InResp", "AE"),) if int(event.dmask, 0) == 0 else (("InResp", "AE_d"),)
-    if event.opcode_name in {"ECI_CMD_MFWD_FLDX_E", "ECI_CMD_MFWD_FLDX_O"}:
+    if event.opcode_name in {
+        "ECI_CMD_MFWD_FLDX_E",
+        "ECI_CMD_MFWD_FLDX_O",
+        "ECI_CMD_MFWD_FLDX_EH",
+        "ECI_CMD_MFWD_FLDX_OH",
+    }:
         return (("InReq", "FE"),) if int(event.dmask, 0) == 0 else (("InReq", "FE_d"),)
     if event.opcode_name in {"ECI_CMD_MFWD_FEVX_EH", "ECI_CMD_MFWD_FEVX_OH"}:
         return (("InReq", "FE"),) if int(event.dmask, 0) == 0 else (("InReq", "FE_d"),)

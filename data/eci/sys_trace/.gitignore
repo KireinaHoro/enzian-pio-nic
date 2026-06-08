@@ -7,3 +7,4 @@
 
 # only track compressed trace
 *.bin
+*.bin.gz.*.raw
