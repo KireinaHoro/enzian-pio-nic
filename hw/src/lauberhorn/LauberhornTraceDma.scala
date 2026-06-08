@@ -42,10 +42,12 @@ object LauberhornTraceDma {
 
   val EciHeaderWidth = 64
   val EciVcWidth = 4
+  val EciSizeWidth = 3
 
   case class EciTraceFrame() extends Bundle {
     val header = Bits(EciHeaderWidth bits)
     val vc = Bits(EciVcWidth bits)
+    val size = Bits(EciSizeWidth bits)
   }
 
   case class PayloadField(name: String, offset: Int, width: Int, format: Option[String] = None) {
@@ -219,7 +221,8 @@ object LauberhornTraceDma {
     PayloadField("eci_header", offset = 0, width = 64, format = Some("hex")),
     PayloadField("vc", offset = 64, width = 4),
     PayloadField("accepted", offset = 68, width = 1),
-    PayloadField("reserved", offset = 69, width = 6),
+    PayloadField("size", offset = 69, width = 3),
+    PayloadField("reserved", offset = 72, width = 3),
   ))
   private val CreditReturnFormat = PayloadFormat(Seq(
     PayloadField("credit_return", offset = 0, width = 11, format = Some("hex")),
@@ -466,7 +469,8 @@ case class LauberhornTraceDma(
   //   [63:0]  ECI header word
   //   [67:64] VC
   //   [68]    accepted handshake event
-  //   [74:69] reserved
+  //   [71:69] ECI channel size
+  //   [74:72] reserved
   //
   // Lauberhorn event payloads:
   //   [5:0]   event id slot; the JSON map reports how many of these bits are
@@ -560,7 +564,7 @@ case class LauberhornTraceDma(
     val tracePayload = Reg(Bits(payloadWidth bits)) init(0)
 
     def packPayload(accepted: Bool): Bits =
-      (B(0, 6 bits) ## accepted.asBits ## in.payload.vc ## in.payload.header).resized
+      (B(0, 3 bits) ## in.payload.size ## accepted.asBits ## in.payload.vc ## in.payload.header).resized
 
     traceValid := False
 
