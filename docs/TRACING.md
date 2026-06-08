@@ -120,10 +120,10 @@ Current fixed ECI-related source allocation is:
 The generated `lauberhorn_trace_dma_map.json` is the authoritative source list;
 the numbers above document the current layout to make trace inspection easier.
 
-For ECI sources, the payload contains the 64-bit header, VC number, and an
-`accepted` bit.  Hardware emits a stalled sample with `accepted = 0` when
-`valid && !ready`, and an accepted sample with `accepted = 1` when
-`valid && ready`.
+For ECI sources, the payload contains the 64-bit header, VC number, `accepted`
+bit, and a 3-bit ECI channel `size`.  Hardware emits a stalled sample with
+`accepted = 0` when `valid && !ready`, and an accepted sample with
+`accepted = 1` when `valid && ready`.
 
 The meaning of `accepted = 1` depends on the trace point:
 
@@ -148,13 +148,26 @@ sent far enough that it should be visible to the CPU side.
 The boundary channels carry link blocks rather than the original higher-level
 DCS channel identity.  The trace records the VC and the first 64-bit header word:
 `link*_out_lo_data` for the low path and `link*_out_hi_data(63 downto 0)` for
-the high path.  This is sufficient to identify one-word ECI messages such as
-many coherence responses, but it is not a full multiword payload capture.
+the high path.  The high path also records `link*_out_hi_size`, which lets the
+software-side credit model charge multiword high-channel sends correctly.  The
+trace is still not a full multiword payload capture.
 
 Returned-credit sources record nonzero `link*_out_credit_return(12 downto 2)`
 vectors in payload bits `[10:0]`.  These sources are not ECI messages; they are
 there to correlate boundary sends with VC credit return behavior when checking
 whether a frame could be stuck behind dynamic-gateway credit accounting.
+
+The Wireshark dissector reconstructs the dynamic gateway's TLK transmit-credit
+state from the boundary ECI samples and returned-credit samples.  The model
+follows `tlk_credits.vhd`: returned-credit bits add eight credits to VC2..VC12,
+accepted boundary sends subtract credits according to the selected link/path/VC,
+and high-path sends use the traced ECI channel `size`.  The model is only as
+complete as the exported trace window; include sources `34..39` when using it.
+If a pcapng window starts after the beginning of the trace, reconstructed
+credits can be higher than the real hardware count because earlier sends are
+missing.  The `eci-state` CSV exporter therefore requires a full, unwrapped,
+lossless trace before adding TX boundary-acceptance latency and remaining-credit
+columns to the `addr_*.csv` output.
 
 When debugging a suspected missing FPGA-to-CPU message, use the trace points as
 a narrowing ladder:

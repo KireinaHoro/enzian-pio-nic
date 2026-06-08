@@ -55,6 +55,9 @@ EVENT_COLUMNS = [
     "intc_affinity1",
     "rtad",
     "ppvid",
+    "tx_boundary_accepted",
+    "tx_boundary_accept_cycles",
+    "tx_vc_credits_after",
 ]
 
 
@@ -138,6 +141,25 @@ def _is_sys_eci_source(src_info: Dict[str, Any]) -> bool:
     return src_info.get("type") == "eci" and src_info.get("clock_domain") == "sys"
 
 
+def _is_boundary_source(src_info: Dict[str, Any]) -> bool:
+    return _is_sys_eci_source(src_info) and src_info.get("boundary") == "dynamic_static"
+
+
+def _is_credit_return_source(src_info: Dict[str, Any]) -> bool:
+    return src_info.get("type") == "credit_return"
+
+
+def _is_tx_to_host_source(src_info: Dict[str, Any]) -> bool:
+    if not _is_sys_eci_source(src_info) or _is_boundary_source(src_info):
+        return False
+    channel = str(src_info.get("channel", ""))
+    return (
+        channel.endswith("_o")
+        or channel.startswith("gsync_rsp_")
+        or channel == "intc_rsp_vc12"
+    )
+
+
 def _is_intc_source(src_info: Dict[str, Any]) -> bool:
     return str(src_info.get("channel", "")) in {"intc_req_vc12", "intc_rsp_vc12"}
 
@@ -147,6 +169,17 @@ def _is_accepted_eci_payload(payload: int, trace_map: Dict[str, Any]) -> bool:
         return _field(payload, trace_map, "accepted") != 0
     except KeyError:
         return True
+
+
+def _eci_payload_key(payload: int, trace_map: Dict[str, Any]) -> Tuple[int, int]:
+    return (_field(payload, trace_map, "eci_header"), _field(payload, trace_map, "vc"))
+
+
+def _eci_payload_size(payload: int, trace_map: Dict[str, Any]) -> int:
+    try:
+        return _field(payload, trace_map, "size")
+    except KeyError:
+        return 0
 
 
 def _address_filename(address: Optional[int]) -> str:
@@ -215,10 +248,10 @@ class _CsvSpool:
         return self.temp_dir / _address_filename(address)
 
 
-def _sys_eci_pipeline_stages(trace_map: Dict[str, Any]) -> set[int]:
+def _eci_state_pipeline_stages(trace_map: Dict[str, Any]) -> set[int]:
     stages = set()
     for src in trace_map.get("sources", []):
-        if _is_sys_eci_source(src):
+        if _is_sys_eci_source(src) or _is_credit_return_source(src):
             stages.add(int(src.get("pipeline_stages", 0)))
     return stages
 
@@ -293,6 +326,152 @@ def _eci_event_values(
     return _unaliased_header_address(src_info, opcode, raw_header), values
 
 
+def _credit_signed(raw: int, width: int) -> int:
+    modulus = 1 << width
+    return raw - modulus if raw >= modulus // 2 else raw
+
+
+def _credit_top2(raw: int, width: int) -> int:
+    return (raw >> (width - 2)) & 0x3
+
+
+def _update_credit_under(old_under: bool, old_raw: int, new_raw: int, width: int) -> bool:
+    old_top = _credit_top2(old_raw, width)
+    new_top = _credit_top2(new_raw, width)
+    if old_top == 0 and new_top == 3:
+        return True
+    if old_top == 3 and new_top == 0:
+        return False
+    return old_under
+
+
+class _CreditCounter:
+    def __init__(self, raw: int, width: int, under: bool = True) -> None:
+        self.raw = raw
+        self.width = width
+        self.under = under
+
+    @property
+    def signed(self) -> int:
+        return _credit_signed(self.raw, self.width)
+
+    def add(self, delta: int) -> int:
+        old_raw = self.raw
+        self.raw = (self.raw + delta) % (1 << self.width)
+        self.under = _update_credit_under(self.under, old_raw, self.raw, self.width)
+        return self.signed
+
+
+class _LinkCreditState:
+    def __init__(self) -> None:
+        self.hi = {
+            **{vc: _CreditCounter(256 - 2, 8) for vc in range(0, 2)},
+            **{vc: _CreditCounter(256 - 17, 8) for vc in range(2, 6)},
+        }
+        self.lo = {vc: _CreditCounter(32 - 2, 5) for vc in range(6, 13)}
+        self.hi_first_cycle = 1
+
+    def counter(self, vc: int) -> Optional[_CreditCounter]:
+        if vc <= 5:
+            return self.hi.get(vc)
+        return self.lo.get(vc)
+
+
+class _CreditTracker:
+    def __init__(self) -> None:
+        self.links: Dict[str, _LinkCreditState] = {}
+
+    def _link(self, link: str) -> _LinkCreditState:
+        state = self.links.get(link)
+        if state is None:
+            state = _LinkCreditState()
+            self.links[link] = state
+        return state
+
+    def apply_return(self, src_info: Dict[str, Any], payload: int, trace_map: Dict[str, Any]) -> None:
+        link = str(src_info.get("link", "unknown"))
+        state = self._link(link)
+        field = trace_map["payload_formats"]["credit_return"]["fields"]["credit_return"]
+        vector = bits(payload, int(field["offset"]), int(field["width"]))
+        for bit in range(11):
+            if (vector >> bit) & 1:
+                vc = bit + 2
+                counter = state.counter(vc)
+                if counter is not None:
+                    counter.add(8)
+
+    def apply_boundary_accept(self, src_info: Dict[str, Any], vc: int, size: int) -> Optional[int]:
+        link = str(src_info.get("link", "unknown"))
+        path = str(src_info.get("path", ""))
+        state = self._link(link)
+        counter = state.counter(vc)
+        if counter is None:
+            return None
+
+        decrement = self._boundary_decrement(state, path, vc, size)
+        if decrement:
+            credits_after = counter.add(-decrement)
+        else:
+            credits_after = counter.signed
+        if path == "hi":
+            state.hi_first_cycle = 1 if size in (0, 1, 2, 3) else 0
+        return credits_after
+
+    @staticmethod
+    def _size_words(size: int) -> int:
+        if size == 0:
+            return 0
+        if size in (1, 5):
+            return 1
+        if size in (2, 6):
+            return 4
+        return 8
+
+    def _boundary_decrement(self, state: _LinkCreditState, path: str, vc: int, size: int) -> int:
+        if path == "lo":
+            return 1
+        if path == "hi":
+            if vc <= 5:
+                return self._size_words(size) + state.hi_first_cycle
+            return 1
+        return 0
+
+
+class _PendingTxRows:
+    def __init__(self, spool: Any) -> None:
+        self.spool = spool
+        self.pending: Dict[Tuple[int, int], list[Tuple[Optional[int], Dict[str, Any]]]] = {}
+
+    def add(self, key: Tuple[int, int], address: Optional[int], values: Dict[str, Any]) -> None:
+        values["tx_boundary_accepted"] = 0
+        self.pending.setdefault(key, []).append((address, values))
+
+    def complete(
+        self,
+        key: Tuple[int, int],
+        boundary_timestamp: int,
+        credits_after: Optional[int],
+    ) -> bool:
+        queue = self.pending.get(key)
+        if not queue:
+            return False
+        address, values = queue.pop(0)
+        if not queue:
+            self.pending.pop(key, None)
+        values["tx_boundary_accepted"] = 1
+        values["tx_boundary_accept_cycles"] = boundary_timestamp - int(values["time"])
+        if credits_after is not None:
+            values["tx_vc_credits_after"] = credits_after
+        self.spool.write_event(address, values)
+        return True
+
+    def flush_unmatched(self) -> None:
+        for key in list(self.pending.keys()):
+            queue = self.pending.pop(key)
+            for address, values in queue:
+                self.spool.write_event(address, values)
+
+
 def run_eci_state_output(
     input_path: Path,
     output_path: Path,
@@ -318,10 +497,10 @@ def run_eci_state_output(
     lost_source = int(trace_map["sample"]["lost_source"])
     lost_count_width = int(trace_map["sample"].get("lost_count_width", 32))
 
-    sys_eci_stages = _sys_eci_pipeline_stages(trace_map)
+    sys_eci_stages = _eci_state_pipeline_stages(trace_map)
     if len(sys_eci_stages) > 1:
         raise IncompleteTraceError(
-            "ECI state output requires all sys-clock ECI sources to have the same "
+            "ECI state output requires all sys-clock ECI and credit-return sources to have the same "
             f"pipeline_stages for streaming order; found {sorted(sys_eci_stages)}"
         )
 
@@ -334,6 +513,8 @@ def run_eci_state_output(
     output_parent = output_path.parent if output_path.parent != Path("") else Path(".")
     with tempfile.TemporaryDirectory(prefix=f"{output_path.name}.", dir=output_parent) as temp_dir_name:
         spool = _CsvSpool(Path(temp_dir_name))
+        pending_tx = _PendingTxRows(spool)
+        credits = _CreditTracker()
         try:
             for start, stop in chronological_ranges(wrap_index, count):
                 for _physical_index, sample in iter_sample_range(
@@ -359,7 +540,19 @@ def run_eci_state_output(
                             )
                     else:
                         src_info = source_info(trace_map, source)
-                        if _is_sys_eci_source(src_info) and _is_accepted_eci_payload(payload, trace_map):
+                        if _is_credit_return_source(src_info):
+                            credits.apply_return(src_info, payload, trace_map)
+                        elif _is_boundary_source(src_info):
+                            if _is_accepted_eci_payload(payload, trace_map):
+                                vc = _field(payload, trace_map, "vc")
+                                size = _eci_payload_size(payload, trace_map)
+                                credits_after = credits.apply_boundary_accept(src_info, vc, size)
+                                pending_tx.complete(
+                                    _eci_payload_key(payload, trace_map),
+                                    timestamp,
+                                    credits_after,
+                                )
+                        elif _is_sys_eci_source(src_info) and _is_accepted_eci_payload(payload, trace_map):
                             raw_header = _field(payload, trace_map, "eci_header")
                             if _is_intc_source(src_info):
                                 unaliased_address = None
@@ -372,7 +565,10 @@ def run_eci_state_output(
                                     timestamp,
                                     raw_header,
                                 )
-                            spool.write_event(unaliased_address, values)
+                            if _is_tx_to_host_source(src_info):
+                                pending_tx.add(_eci_payload_key(payload, trace_map), unaliased_address, values)
+                            else:
+                                spool.write_event(unaliased_address, values)
                             frames += 1
 
                     processed += 1
@@ -381,6 +577,7 @@ def run_eci_state_output(
 
             if order_progress_update is not None:
                 order_progress_update(processed)
+            pending_tx.flush_unmatched()
             files = spool.write_archive(output_path)
         finally:
             spool.close()

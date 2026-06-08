@@ -6,7 +6,13 @@ eci_frame_pairs = {}
 eci_crossing_queues = {}
 eci_frame_crossings = {}
 eci_crossing_seen_before = {}
+eci_delivery_queues = {}
+eci_frame_deliveries = {}
+eci_frame_credit_updates = {}
+credit_return_frame_updates = {}
+credit_state_by_link = {}
 next_eci_crossing_id = 1
+next_eci_delivery_id = 1
 
 local function reset_eci_pairs()
     eci_pair_state = {}
@@ -14,7 +20,13 @@ local function reset_eci_pairs()
     eci_crossing_queues = {}
     eci_frame_crossings = {}
     eci_crossing_seen_before = {}
+    eci_delivery_queues = {}
+    eci_frame_deliveries = {}
+    eci_frame_credit_updates = {}
+    credit_return_frame_updates = {}
+    credit_state_by_link = {}
     next_eci_crossing_id = 1
+    next_eci_delivery_id = 1
 end
 local function eci_class(source_info)
     local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
@@ -111,6 +123,128 @@ local function add_generated_value(tree, field, range, value)
     local item = tree:add(field, range, value)
     item.generated = true
     return item
+end
+
+local function is_boundary_source(source_info)
+    return source_info ~= nil and tostring(source_info.boundary or "") == "dynamic_static"
+end
+
+local function is_outgoing_gateway_source(source_info)
+    if source_info == nil or tostring(source_info.type or "") ~= "eci" then
+        return false
+    end
+    if tostring(source_info.clock_domain or "") ~= "sys" or is_boundary_source(source_info) then
+        return false
+    end
+    local channel = tostring(source_info.channel or "")
+    return channel:sub(-2) == "_o"
+        or channel:sub(1, 10) == "gsync_rsp_"
+        or channel == "intc_rsp_vc12"
+end
+
+local function delivery_queue(key)
+    local queue = eci_delivery_queues[key]
+    if queue == nil then
+        queue = {}
+        eci_delivery_queues[key] = queue
+    end
+    return queue
+end
+
+local function register_delivery_event(record, event)
+    local entry = {
+        record = record,
+        event = event,
+    }
+    if event.sys_accepted_frame ~= nil then
+        eci_frame_deliveries[event.sys_accepted_frame] = entry
+    end
+    if event.boundary_stalled_frame ~= nil then
+        eci_frame_deliveries[event.boundary_stalled_frame] = entry
+    end
+    if event.boundary_accepted_frame ~= nil then
+        eci_frame_deliveries[event.boundary_accepted_frame] = entry
+    end
+end
+
+local function new_delivery_record(key, source_info, message, header, vc)
+    local record = {
+        id = next_eci_delivery_id,
+        key = key,
+        message = message,
+        header = header,
+        vc = vc,
+        sys = nil,
+        boundary = nil,
+        canonical_frame = nil,
+        missing_sys = false,
+    }
+    next_eci_delivery_id = next_eci_delivery_id + 1
+    return record
+end
+
+local function note_eci_delivery(source, source_info, frame_number, phase, pair_record, header, vc, payload_key, message)
+    if source_info == nil or frame_number == nil then
+        return nil
+    end
+
+    local key = payload_key
+    if is_outgoing_gateway_source(source_info) then
+        if phase ~= "accepted" then
+            return nil
+        end
+        local event = {
+            stage = "gateway",
+            source = source,
+            source_label = source_label(source_info, source),
+            sys_accepted_frame = frame_number,
+        }
+        local record = new_delivery_record(key, source_info, message, header, vc)
+        record.sys = event
+        table.insert(delivery_queue(key), record)
+        register_delivery_event(record, event)
+        return eci_frame_deliveries[frame_number]
+    end
+
+    if not is_boundary_source(source_info) then
+        return nil
+    end
+
+    local queue = delivery_queue(key)
+    local record = nil
+    if phase == "accepted" and pair_record ~= nil and pair_record.stalled_frame ~= nil then
+        local stalled_entry = eci_frame_deliveries[pair_record.stalled_frame]
+        if stalled_entry ~= nil then
+            record = stalled_entry.record
+        end
+    end
+    if record == nil and #queue > 0 then
+        record = queue[1]
+    end
+    if record == nil then
+        record = new_delivery_record(key, source_info, message, header, vc)
+        record.missing_sys = true
+    end
+
+    local event = {
+        stage = phase == "accepted" and "boundary_accepted" or "boundary_stalled",
+        source = source,
+        source_label = source_label(source_info, source),
+        boundary_stalled_frame = pair_record ~= nil and pair_record.stalled_frame or nil,
+        boundary_accepted_frame = phase == "accepted" and frame_number or nil,
+    }
+    if phase == "valid" then
+        event.boundary_stalled_frame = frame_number
+    end
+    record.boundary = event
+    if phase == "accepted" then
+        record.canonical_frame = frame_number
+        if queue[1] == record then
+            table.remove(queue, 1)
+        end
+    end
+    register_delivery_event(record, event)
+    return eci_frame_deliveries[frame_number]
 end
 
 local function note_eci_pair(source, frame_number, phase, header, vc, payload_key)
@@ -409,6 +543,309 @@ local function add_eci_crossing_fields(tree, entry, pinfo, range)
         tree:add_proto_expert_info(ee.crossing_missing_after)
     end
 end
+
+local function add_eci_delivery_fields(tree, entry, pinfo, range)
+    if entry == nil or entry.record == nil then
+        return
+    end
+
+    local record = entry.record
+    local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    local summary = "ECI outgoing " .. tostring(record.message or "unknown")
+    local delivery_tree = add_generated_value(tree, ef.delivery, range, summary)
+    if delivery_tree == nil then
+        return
+    end
+
+    add_generated_value(delivery_tree, ef.delivery_id, range, record.id)
+    add_generated_value(delivery_tree, ef.delivery_key, range, record.key)
+    if entry.event ~= nil then
+        add_generated_value(delivery_tree, ef.delivery_stage, range, entry.event.stage)
+    end
+    if record.sys ~= nil then
+        add_generated_value(delivery_tree, ef.delivery_sys_source, range, record.sys.source_label)
+        add_generated_framenum(delivery_tree, ef.delivery_sys_accepted_frame, record.sys.sys_accepted_frame, range)
+    end
+    if record.boundary ~= nil then
+        add_generated_value(delivery_tree, ef.delivery_boundary_source, range, record.boundary.source_label)
+        add_generated_framenum(delivery_tree, ef.delivery_boundary_stalled_frame, record.boundary.boundary_stalled_frame, range)
+        add_generated_framenum(delivery_tree, ef.delivery_boundary_accepted_frame, record.boundary.boundary_accepted_frame, range)
+    end
+
+    if frame_number ~= nil and record.canonical_frame == frame_number then
+        add_generated_value(delivery_tree, ef.canonical, range, true)
+        tree:add_proto_expert_info(ee.delivery_matched)
+    end
+    if record.missing_sys and record.boundary ~= nil and record.boundary.boundary_accepted_frame == frame_number then
+        tree:add_proto_expert_info(ee.crossing_missing_before)
+    end
+    if record.boundary ~= nil
+        and record.boundary.boundary_stalled_frame == frame_number
+        and record.boundary.boundary_accepted_frame == nil
+        and (pinfo == nil or pinfo.visited) then
+        tree:add_proto_expert_info(ee.delivery_stalled_boundary)
+    end
+    if record.sys ~= nil
+        and record.sys.sys_accepted_frame == frame_number
+        and record.boundary == nil
+        and (pinfo == nil or pinfo.visited) then
+        tree:add_proto_expert_info(ee.delivery_missing_boundary)
+    end
+end
+
+local function credit_modulus(width)
+    return 2 ^ width
+end
+
+local function credit_signed(raw, width)
+    local modulus = credit_modulus(width)
+    if raw >= modulus / 2 then
+        return raw - modulus
+    end
+    return raw
+end
+
+local function credit_top2(raw, width)
+    return math.floor(raw / (2 ^ (width - 2))) % 4
+end
+
+local function update_credit_under(old_under, old_raw, new_raw, width)
+    local old_top = credit_top2(old_raw, width)
+    local new_top = credit_top2(new_raw, width)
+    if old_top == 0 and new_top == 3 then
+        return true
+    elseif old_top == 3 and new_top == 0 then
+        return false
+    end
+    return old_under
+end
+
+local function new_credit_state()
+    local hi = {}
+    for vc = 0, 1 do
+        hi[vc] = { raw = 256 - 2, width = 8, under = true }
+    end
+    for vc = 2, 5 do
+        hi[vc] = { raw = 256 - 17, width = 8, under = true }
+    end
+
+    local lo = {}
+    for vc = 6, 12 do
+        lo[vc] = { raw = 32 - 2, width = 5, under = true }
+    end
+
+    return {
+        hi = hi,
+        lo = lo,
+        hi_first_cycle = 1,
+    }
+end
+
+local function link_credit_state(link)
+    local key = tostring(link or "unknown")
+    local state = credit_state_by_link[key]
+    if state == nil then
+        state = new_credit_state()
+        credit_state_by_link[key] = state
+    end
+    return state
+end
+
+local function credit_counter(state, vc)
+    if vc <= 5 then
+        return state.hi[vc], "hi"
+    end
+    return state.lo[vc], "lo"
+end
+
+local function apply_credit_delta(counter, delta)
+    local before_raw = counter.raw
+    local after_raw = (before_raw + delta) % credit_modulus(counter.width)
+    local before_under = counter.under
+    counter.raw = after_raw
+    counter.under = update_credit_under(before_under, before_raw, after_raw, counter.width)
+    return {
+        before = credit_signed(before_raw, counter.width),
+        after = credit_signed(after_raw, counter.width),
+        under_before = before_under,
+        under_after = counter.under,
+    }
+end
+
+local function eci_size_words(size)
+    if size == 0 then
+        return 0
+    elseif size == 1 or size == 5 then
+        return 1
+    elseif size == 2 or size == 6 then
+        return 4
+    end
+    return 8
+end
+
+local function eci_size_is_last(size)
+    return size == 0 or size == 1 or size == 2 or size == 3
+end
+
+local function boundary_credit_decrement(source_info, vc, size)
+    local path = tostring(source_info.path or "")
+    if path == "hi" then
+        if vc <= 5 then
+            return eci_size_words(size) + link_credit_state(source_info.link).hi_first_cycle
+        end
+        return 1
+    elseif path == "lo" then
+        return 1
+    end
+    return 0
+end
+
+local function note_boundary_credit(source_info, frame_number, phase, vc, size)
+    if source_info == nil or frame_number == nil or not is_boundary_source(source_info) then
+        return nil
+    end
+    if eci_frame_credit_updates[frame_number] ~= nil then
+        return eci_frame_credit_updates[frame_number]
+    end
+
+    local link = tostring(source_info.link or "unknown")
+    local path = tostring(source_info.path or "")
+    local state = link_credit_state(link)
+    local counter, bank = credit_counter(state, vc)
+    if counter == nil then
+        return nil
+    end
+
+    local decrement = boundary_credit_decrement(source_info, vc, size)
+    local before_raw = counter.raw
+    local before_under = counter.under
+    local update = {
+        link = link,
+        path = path,
+        vc = vc,
+        bank = bank,
+        decrement = phase == "accepted" and decrement or 0,
+        before = credit_signed(before_raw, counter.width),
+        after = credit_signed(before_raw, counter.width),
+        under_before = before_under,
+        under_after = before_under,
+    }
+
+    if phase == "accepted" and decrement ~= 0 then
+        local applied = apply_credit_delta(counter, -decrement)
+        update.after = applied.after
+        update.under_after = applied.under_after
+    end
+
+    if phase == "accepted" and path == "hi" then
+        state.hi_first_cycle = eci_size_is_last(size) and 1 or 0
+    end
+
+    eci_frame_credit_updates[frame_number] = update
+    return update
+end
+
+local function add_boundary_credit_fields(tree, update, range)
+    if update == nil then
+        return
+    end
+    local credit_tree = add_generated_value(
+        tree,
+        ef.credit_link,
+        range,
+        string.format("%s %s VC%d", update.link, update.path, update.vc)
+    )
+    if credit_tree == nil then
+        return
+    end
+    add_generated_value(credit_tree, ef.credit_path, range, update.path)
+    add_generated_value(credit_tree, ef.credit_vc, range, update.vc)
+    add_generated_value(credit_tree, ef.credit_decrement, range, update.decrement)
+    add_generated_value(credit_tree, ef.credit_before, range, update.before)
+    add_generated_value(credit_tree, ef.credit_after, range, update.after)
+    add_generated_value(credit_tree, ef.credit_under_before, range, update.under_before)
+    add_generated_value(credit_tree, ef.credit_under_after, range, update.under_after)
+end
+
+local function apply_credit_return(source_info, frame_number, vector)
+    source_info = source_info or {}
+    if frame_number ~= nil and credit_return_frame_updates[frame_number] ~= nil then
+        return credit_return_frame_updates[frame_number]
+    end
+
+    local link = tostring(source_info.link or "unknown")
+    local state = link_credit_state(link)
+    local updates = {
+        link = link,
+        vector = vector,
+        vcs = {},
+    }
+    for bit = 0, 10 do
+        if math.floor(vector / (2 ^ bit)) % 2 ~= 0 then
+            local vc = bit + 2
+            local counter, bank = credit_counter(state, vc)
+            if counter ~= nil then
+                local applied = apply_credit_delta(counter, 8)
+                table.insert(updates.vcs, {
+                    vc = vc,
+                    bank = bank,
+                    before = applied.before,
+                    after = applied.after,
+                    under_before = applied.under_before,
+                    under_after = applied.under_after,
+                })
+            end
+        end
+    end
+    if frame_number ~= nil then
+        credit_return_frame_updates[frame_number] = updates
+    end
+    return updates
+end
+
+local function dissect_credit_return(payload_tvb, tree, pinfo, source, source_info)
+    source_info = source_info or {}
+    local fields = fields_for_type("credit_return") or {}
+    local valid, reason = validate_payload_fields(payload_tvb, fields, { "credit_return" }, "credit_return")
+    if not valid then
+        return malformed_payload_result(tree, payload_tvb, "credit_return", reason)
+    end
+
+    local vector = extract_bits_le(payload_tvb, 0, fields.credit_return.offset, fields.credit_return.width)
+    local frame_number = pinfo ~= nil and tonumber(pinfo.number) or nil
+    local updates
+    if pinfo ~= nil and pinfo.visited and frame_number ~= nil then
+        updates = credit_return_frame_updates[frame_number]
+    else
+        updates = apply_credit_return(source_info, frame_number, vector)
+    end
+
+    tree:add(cf.return_vector, byte_range_for_bits(payload_tvb, fields.credit_return.offset, fields.credit_return.width), vector)
+    tree:add(cf.link, anchor_range(payload_tvb), tostring(source_info.link or "unknown"))
+    local parts = {}
+    if updates ~= nil then
+        for _, update in ipairs(updates.vcs) do
+            local text = string.format("VC%d %d->%d", update.vc, update.before, update.after)
+            table.insert(parts, text)
+            local item = tree:add(cf.update, anchor_range(payload_tvb), text)
+            item.generated = true
+            item:add(cf.vc, anchor_range(payload_tvb), update.vc).generated = true
+            item:add(cf.before, anchor_range(payload_tvb), update.before).generated = true
+            item:add(cf.after, anchor_range(payload_tvb), update.after).generated = true
+            item:add(cf.under_before, anchor_range(payload_tvb), update.under_before).generated = true
+            item:add(cf.under_after, anchor_range(payload_tvb), update.under_after).generated = true
+        end
+    end
+
+    local info = "credit_return " .. tostring(source_info.link or "unknown") .. string.format(" vector=0x%03x", vector)
+    if #parts > 0 then
+        info = info .. " " .. table.concat(parts, " ")
+    end
+    return {
+        info = info,
+        dest = tostring(source_info.link or ""),
+    }
+end
 local function eci_gsync_details(payload_tvb, tree, class, opcode)
     if opcode ~= 24 or (class ~= "mreq" and class ~= "mrsp") then
         return nil
@@ -528,6 +965,10 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
     local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
+    local size = 0
+    if fields.size ~= nil and tvb_has_bits(payload_tvb, tonumber(fields.size.offset), tonumber(fields.size.width)) then
+        size = extract_bits_le(payload_tvb, 0, fields.size.offset, fields.size.width)
+    end
     local phase = accepted ~= 0 and "accepted" or "valid"
     if is_intc_source(source_info) then
         return dissect_eci_intc(payload_tvb, tree, source_info, header, vc, accepted, phase)
@@ -546,9 +987,13 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     local pair_key = eci_payload_key(payload_tvb, fields, header, vc)
     local pair_record = nil
     local crossing_entry = nil
+    local delivery_entry = nil
+    local credit_update = nil
     if pinfo ~= nil and pinfo.visited and frame_number ~= nil then
         pair_record = eci_frame_pairs[frame_number]
         crossing_entry = eci_frame_crossings[frame_number]
+        delivery_entry = eci_frame_deliveries[frame_number]
+        credit_update = eci_frame_credit_updates[frame_number]
     else
         pair_record = note_eci_pair(source, frame_number, phase, header, vc, pair_key)
         crossing_entry = note_eci_crossing(
@@ -562,6 +1007,18 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
             pair_key,
             message or string.format("opcode_%d", opcode)
         )
+        delivery_entry = note_eci_delivery(
+            source,
+            source_info,
+            frame_number,
+            phase,
+            pair_record,
+            header,
+            vc,
+            pair_key,
+            message or string.format("opcode_%d", opcode)
+        )
+        credit_update = note_boundary_credit(source_info, frame_number, phase, vc, size)
     end
     local gsync_details = eci_gsync_details(payload_tvb, tree, class, opcode)
     local aliased_addr
@@ -583,6 +1040,9 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     tree:add(ef.vc, byte_range_for_bits(payload_tvb, fields.vc.offset, fields.vc.width), vc)
     tree:add(ef.accepted, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), accepted)
     tree:add(ef.phase, byte_range_for_bits(payload_tvb, fields.accepted.offset, fields.accepted.width), phase)
+    if fields.size ~= nil then
+        tree:add(ef.size, byte_range_for_bits(payload_tvb, fields.size.offset, fields.size.width), size)
+    end
     tree:add_le(ef.header, byte_range_for_bits(payload_tvb, fields.eci_header.offset, fields.eci_header.width))
     if vc == 0 then
         tree:add_proto_expert_info(ee.vc_zero)
@@ -599,6 +1059,8 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     end
     add_eci_pair_fields(tree, pair_record, pinfo, anchor_range(payload_tvb))
     add_eci_crossing_fields(tree, crossing_entry, pinfo, anchor_range(payload_tvb))
+    add_eci_delivery_fields(tree, delivery_entry, pinfo, anchor_range(payload_tvb))
+    add_boundary_credit_fields(tree, credit_update, anchor_range(payload_tvb))
     if is_gsync_source(source_info) then
         add_generated_value(tree, ef.canonical, anchor_range(payload_tvb), true)
     end
@@ -619,5 +1081,6 @@ ctx.eci_class = eci_class
 ctx.eci_opcode_name = eci_opcode_name
 ctx.expected_eci_vc = expected_eci_vc
 ctx.dissect_eci = dissect_eci
+ctx.dissect_credit_return = dissect_credit_return
 
 end

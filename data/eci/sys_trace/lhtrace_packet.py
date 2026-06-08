@@ -9,6 +9,7 @@ MAGIC_EVENT = b"LHTE"
 MAGIC_DCS = b"LHTD"
 MAGIC_ECI_APP = b"LHEA"
 MAGIC_ECI_SYS = b"LHES"
+MAGIC_CREDIT = b"LHCR"
 VERSION = 3
 
 KIND_METADATA = 1
@@ -72,6 +73,8 @@ def sample_magic(source_info: Optional[Dict[str, Any]]) -> bytes:
         if source_info.get("clock_domain") == "sys":
             return MAGIC_ECI_SYS
         return MAGIC_ECI_APP
+    if source_type == "credit_return":
+        return MAGIC_CREDIT
 
     return MAGIC_EVENT
 

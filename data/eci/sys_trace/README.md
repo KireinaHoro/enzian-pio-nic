@@ -38,8 +38,12 @@ This mode decodes each accepted sys-clock ECI frame in `eci_state_output.py`.
 The output is a gzip-compressed tar archive. Each distinct unaliased address
 gets one CSV member named `addr_0x<address>.csv` with columns `time`,
 `opcode_name`, and `dmask`; address-less messages are written to
-`addr_none.csv`. It requires the full trace: `--samples`, `--source`, legacy
-ILA input, circular buffer wrap, and lost-sample control frames are rejected.
+`addr_none.csv`.  For TX-to-host rows, the CSV also records whether the matching
+post-gateway dynamic/static boundary frame was accepted, the acceptance latency
+in trace cycles, and the reconstructed remaining VC credits after the boundary
+send.  Credit reconstruction requires the full trace: `--samples`, `--source`,
+legacy ILA input, circular buffer wrap, and lost-sample control frames are
+rejected.
 
 For interactive Wireshark use, copy or symlink `lauberhorn_trace.lua` and the
 adjacent `lhtrace/` Lua module directory into the personal plugin directory, or
@@ -73,6 +77,9 @@ lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "dc_to_gateway"
 ```
 
 Shows canonical ECI frames moving from the DC side into the ECI gateway.
+With boundary tracing enabled, the same packet also gets an outgoing-delivery
+subtree when the sys-clock gateway-side frame can be matched to a
+dynamic/static-boundary frame.
 
 ```text
 lhtrace.eci.canonical && lhtrace.eci.crossing.direction == "gateway_to_dc"
@@ -103,6 +110,32 @@ lhtrace.eci.stalled_frame || lhtrace.eci.accepted_frame
 Shows ECI stalled/accepted frame links. The canonical ECI crossing subtree also
 contains generated before/after frame references.
 
+```text
+lhtrace.eci.delivery
+```
+
+Shows the outgoing delivery analysis.  This matches accepted sys-clock outgoing
+ECI frames against post-gateway dynamic/static boundary frames, so it can
+separate frames still before the boundary from frames that reached
+`link{1,2}_out_{lo,hi}`.
+
+```text
+_ws.expert.message contains "dynamic/static boundary"
+```
+
+Shows outgoing delivery warnings and notes, including frames that had no
+matching boundary frame and frames that stalled at the boundary.
+
+```text
+lhtrace.credit.return.vector || lhtrace.eci.credit.before
+```
+
+Shows returned-credit samples together with the reconstructed per-link VC credit
+state attached to boundary ECI frames.  The reconstruction follows
+`tlk_credits.vhd`: returned-credit bits add eight credits to VC2..VC12, and
+accepted boundary sends subtract credits according to path, VC, and high-channel
+size.
+
 The exporter intentionally targets filtered or bounded windows. A full 32 GiB
 trace buffer contains billions of 128-bit samples, which is too large to treat
 as one interactive packet list. Use `--source` and `--samples` to
@@ -112,6 +145,12 @@ from the beginning through sample 999, and `--samples=-10000:` exports the last
 10,000 chronological samples. Negative indices count back from the end of the
 dump. For example, `--samples=-2000000:-1000000` exports the million samples
 before the last million.
+
+When exporting pcapng from a sample window that does not start at the beginning
+of the trace, the exporter warns that Wireshark credit reconstruction may be
+higher than the actual hardware credit count.  Returned credits before the
+window are unseen, so the dissector starts from reset-time credit counters rather
+than the true counters at the start of the window.
 
 The pcapng contains one metadata packet with the trace-map JSON, raw packets for
 real samples, and marker packets for lost/bubble samples. Sample packets are
@@ -123,7 +162,8 @@ Packets share the same little-endian envelope after the first four magic bytes,
 but use separate magics so Wireshark can display them as separate protocols:
 `LHTM` for metadata, `LHTC` for lost/bubble control frames, `LHTE` for
 NicEngine event trace data, `LHTD` for DCS events, `LHEA` for app-clock ECI
-frames, and `LHES` for sys-clock ECI frames.
+frames, `LHES` for sys-clock ECI frames, and `LHCR` for returned-credit
+samples.
 
 The input path is usually a raw binary DRAM dump, or the same dump compressed as
 `*.gz`. To capture one from Vivado Hardware Manager through the JTAG AXI master,

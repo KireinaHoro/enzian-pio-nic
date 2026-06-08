@@ -101,6 +101,8 @@ local function source_label(src, source)
             return label .. " (" .. src.clock_domain .. ")"
         end
         return label
+    elseif src.type == "credit_return" then
+        return src.channel or src.port or tostring(source)
     elseif src.type == "lauberhorn_event" then
         return src.event_name or src.port or tostring(source)
     end
