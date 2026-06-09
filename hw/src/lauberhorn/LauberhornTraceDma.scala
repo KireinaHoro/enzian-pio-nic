@@ -548,12 +548,19 @@ case class LauberhornTraceDma(
   val traceDumpRxAxis = slave(Axi4Stream(traceDumpAxisConfig)) addTag ClockDomainTag(traceDumpRxClock)
   val traceDumpTxAxis = master(Axi4Stream(traceDumpAxisConfig)) addTag ClockDomainTag(traceDumpTxClock)
 
+  val traceDumpLocalMacOverrideValid = in(Bool())
+  val traceDumpLocalMacOverride = in(Bits(48 bits))
+  val traceDumpLocalIpOverrideValid = in(Bool())
+  val traceDumpLocalIpOverride = in(Bits(32 bits))
+  val traceDumpListenUdpPortOverrideValid = in(Bool())
+  val traceDumpListenUdpPortOverride = in(Bits(16 bits))
   val traceDumpGatewayMacOverrideValid = in(Bool())
   val traceDumpGatewayMacOverride = in(Bits(48 bits))
-  val traceDumpDestIpOverrideValid = in(Bool())
-  val traceDumpDestIpOverride = in(Bits(32 bits))
-  val traceDumpDestUdpPortOverrideValid = in(Bool())
-  val traceDumpDestUdpPortOverride = in(Bits(16 bits))
+  val traceDumpServerIpOverrideValid = in(Bool())
+  val traceDumpServerIpOverride = in(Bits(32 bits))
+  val traceDumpServerUdpPortOverrideValid = in(Bool())
+  val traceDumpServerUdpPortOverride = in(Bits(16 bits))
+  val traceDumpOverNetwork = in(Bool())
 
   // this is in sys clock domain
   val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysEciSourceCount) addTag ClockDomainTag(sysClock)
@@ -605,12 +612,19 @@ case class LauberhornTraceDma(
   )
   traceDump.rx << traceDumpRxFifo.m_axis
   traceDump.tx >> traceDumpTxAligner.io.input
+  traceDump.cfg.localMacOverrideValid := traceDumpLocalMacOverrideValid
+  traceDump.cfg.localMacOverride := traceDumpLocalMacOverride
+  traceDump.cfg.localIpOverrideValid := traceDumpLocalIpOverrideValid
+  traceDump.cfg.localIpOverride := traceDumpLocalIpOverride
+  traceDump.cfg.listenUdpPortOverrideValid := traceDumpListenUdpPortOverrideValid
+  traceDump.cfg.listenUdpPortOverride := traceDumpListenUdpPortOverride
   traceDump.cfg.gatewayMacOverrideValid := traceDumpGatewayMacOverrideValid
   traceDump.cfg.gatewayMacOverride := traceDumpGatewayMacOverride
-  traceDump.cfg.destIpOverrideValid := traceDumpDestIpOverrideValid
-  traceDump.cfg.destIpOverride := traceDumpDestIpOverride
-  traceDump.cfg.destUdpPortOverrideValid := traceDumpDestUdpPortOverrideValid
-  traceDump.cfg.destUdpPortOverride := traceDumpDestUdpPortOverride
+  traceDump.cfg.dumpServerIpOverrideValid := traceDumpServerIpOverrideValid
+  traceDump.cfg.dumpServerIpOverride := traceDumpServerIpOverride
+  traceDump.cfg.dumpServerUdpPortOverrideValid := traceDumpServerUdpPortOverrideValid
+  traceDump.cfg.dumpServerUdpPortOverride := traceDumpServerUdpPortOverride
+  traceDump.dumpOverNetwork := traceDumpOverNetwork
   traceDump.status.writeSlot := writeSlot
   traceDump.status.wrapped := wrapped
   traceDump.status.sampleLost := sampleLost
