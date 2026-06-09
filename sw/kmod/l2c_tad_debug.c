@@ -106,8 +106,9 @@ int init_l2c_tad_debug(void)
 		return err;
 	}
 
-	pr_info("mapped L2C_TAD0..7 debug registers; TX printing %s\n",
-		l2c_tad_debug_tx ? "enabled" : "disabled");
+	pr_info("mapped L2C_TAD0..7 debug registers; TX printing %s (every %d packets)\n",
+		l2c_tad_debug_tx ? "enabled" : "disabled",
+		l2c_tad_debug_tx_interval);
 	return 0;
 }
 
@@ -154,9 +155,8 @@ void l2c_tad_debug_print_tx(u32 tx_len)
 		lfb_valid_cnt = FIELD_GET(L2C_TAD_STAT_LFB_VALID_CNT, stat);
 		vbf_inuse_cnt = FIELD_GET(L2C_TAD_STAT_VBF_INUSE_CNT, stat);
 
-		pr_info("tx=%llu len=%u TAD%d BAR0=%pa STAT=%016llx TIMEOUT=%016llx LFB_VALID_CNT=%llu VBF_INUSE_CNT=%llu LFB_OCC=%llu WAIT_LFB=%llu WAIT_VAB=%llu OPEN_CCPI=%llu\n",
-			seq, tx_len, i, &l2c_tad_phys[i], stat, timeout,
-			lfb_valid_cnt, vbf_inuse_cnt, lfb_occ, wait_lfb,
-			wait_vab, open_ccpi);
+		pr_warn("tx=%llu len=%u TAD%d STAT=%016llx TIMEOUT=%016llx LFB_VALID_CNT=%llu VBF_INUSE_CNT=%llu LFB_OCC=%llu WAIT_LFB=%llu WAIT_VAB=%llu OPEN_CCPI=%llu\n",
+			seq, tx_len, i, stat, timeout, lfb_valid_cnt,
+			vbf_inuse_cnt, lfb_occ, wait_lfb, wait_vab, open_ccpi);
 	}
 }
