@@ -11,7 +11,7 @@ import scala.language.postfixOps
 object LauberhornTraceDump {
   val HeaderBytes = 14 + 20 + 8
   val ResponseHeaderBytes = 32
-  val MaxPayloadBytes = 1408
+  val MaxPayloadBytes = 1440
   val EtherTypeIpv4 = 0x0800
   val EtherTypeArp = 0x0806
   val IpProtoUdp = 17

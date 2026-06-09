@@ -280,7 +280,8 @@ needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
 ARP client for the gateway.
 
 The software request format requires 64-byte-aligned offsets and lengths.  A
-single hardware response carries at most 1408 bytes of trace data, so the host
+single hardware response carries at most 1440 bytes of trace data: 1500-byte
+Ethernet MTU minus IPv4, UDP, and 32 bytes of trace response metadata.  The host
 tool loops over chunks for multi-GB dumps.  A zero-length read is a status query
 and returns `writeSlot`, `wrapped`, `sampleLost`, and `dmaError` without issuing
 a DDR read.
