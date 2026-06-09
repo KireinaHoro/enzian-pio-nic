@@ -1,10 +1,11 @@
 package lauberhorn
 
 import jsteward.blocks.misc.TraceBufferDMA
-import jsteward.blocks.axi.SimpleAsyncFifo
+import jsteward.blocks.axi.{AxiStreamAligner, AxiStreamAsyncFifo, SimpleAsyncFifo}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
+import spinal.lib.bus.amba4.axis._
 import ujson.{Arr, Obj, Value}
 
 import scala.language.postfixOps
@@ -32,6 +33,8 @@ object LauberhornTraceDma {
 
   // Matches the ECI design's 512-bit AXI datapath.
   val AxiDataWidth = 512
+  val AxiBytes = AxiDataWidth / 8
+  val WriteSlotWidth = 29
   val DmaBurstFifoSize = 256
   val DmaFrameFifoSize = 1024
 
@@ -533,7 +536,24 @@ case class LauberhornTraceDma(
   val sampleLost = out(Bool())
   val dmaError = out(Bool())
   val wrapped = out(Bool())
-  val writeSlot = out(UInt(29 bits))
+  val writeSlot = out(UInt(LauberhornTraceDma.WriteSlotWidth bits))
+
+  val traceDumpRxClock = ClockDomain.external("traceDumpRxClock")
+  val traceDumpTxClock = ClockDomain.external("traceDumpTxClock")
+  val traceDumpAxisConfig = Axi4StreamConfig(
+    dataWidth = LauberhornTraceDma.AxiBytes,
+    useKeep = true,
+    useLast = true,
+  )
+  val traceDumpRxAxis = slave(Axi4Stream(traceDumpAxisConfig)) addTag ClockDomainTag(traceDumpRxClock)
+  val traceDumpTxAxis = master(Axi4Stream(traceDumpAxisConfig)) addTag ClockDomainTag(traceDumpTxClock)
+
+  val traceDumpGatewayMacOverrideValid = in(Bool())
+  val traceDumpGatewayMacOverride = in(Bits(48 bits))
+  val traceDumpDestIpOverrideValid = in(Bool())
+  val traceDumpDestIpOverride = in(Bits(32 bits))
+  val traceDumpDestUdpPortOverrideValid = in(Bool())
+  val traceDumpDestUdpPortOverride = in(Bits(16 bits))
 
   // this is in sys clock domain
   val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysEciSourceCount) addTag ClockDomainTag(sysClock)
@@ -553,10 +573,51 @@ case class LauberhornTraceDma(
   )
 
   traceDma.axi >> axi
+  traceDma.readEnable := True
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
   wrapped := traceDma.wrapped
   writeSlot := traceDma.writeSlot.resized
+
+  val traceDumpRxFifo = AxiStreamAsyncFifo(
+    traceDumpAxisConfig,
+    frameFifo = true,
+    dropWhenFull = true,
+    depthBytes = LauberhornTraceDma.AxiBytes * 32,
+  )()(traceDumpRxClock, ClockDomain.current)
+  new ClockingArea(traceDumpRxClock) {
+    traceDumpRxFifo.s_axis << traceDumpRxAxis
+  }
+
+  val traceDumpTxAligner = AxiStreamAligner(traceDumpAxisConfig)
+  val traceDumpTxFifo = AxiStreamAsyncFifo(
+    traceDumpAxisConfig,
+    frameFifo = true,
+    depthBytes = LauberhornTraceDma.AxiBytes * 32,
+  )()(ClockDomain.current, traceDumpTxClock)
+  traceDumpTxFifo.s_axis <-/< traceDumpTxAligner.io.output
+  traceDumpTxFifo.m_axis >> traceDumpTxAxis
+
+  val traceDump = LauberhornTraceDump(
+    axisConfig = traceDumpAxisConfig,
+    dmaConfig = traceDma.dmaConfig,
+    axiBufferBase = axiBufferBase,
+  )
+  traceDump.rx << traceDumpRxFifo.m_axis
+  traceDump.tx >> traceDumpTxAligner.io.input
+  traceDump.cfg.gatewayMacOverrideValid := traceDumpGatewayMacOverrideValid
+  traceDump.cfg.gatewayMacOverride := traceDumpGatewayMacOverride
+  traceDump.cfg.destIpOverrideValid := traceDumpDestIpOverrideValid
+  traceDump.cfg.destIpOverride := traceDumpDestIpOverride
+  traceDump.cfg.destUdpPortOverrideValid := traceDumpDestUdpPortOverrideValid
+  traceDump.cfg.destUdpPortOverride := traceDumpDestUdpPortOverride
+  traceDump.status.writeSlot := writeSlot
+  traceDump.status.wrapped := wrapped
+  traceDump.status.sampleLost := sampleLost
+  traceDump.status.dmaError := dmaError
+  traceDma.readDesc << traceDump.readDesc
+  traceDma.readData >> traceDump.readData
+  traceDma.readDescStatus >> traceDump.readDescStatus
 
   def traceEciFrame(in: Stream[LauberhornTraceDma.EciTraceFrame]): Flow[Bits] = new Area {
     val pendingAccepted = RegInit(False)
