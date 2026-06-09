@@ -268,6 +268,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
 	lauberhorn_pkt_desc_t desc;
+	u32 tx_len;
 
 	// send the skb as a bypass Ethernet packet
 	desc.type = TY_BYPASS;
@@ -285,15 +286,17 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	desc.payload_len = skb->len;
 	priv->ctx.tx_buf = skb->data;
+	tx_len = skb->len;
 
 	spin_lock_bh(&priv->dp_lock);
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 	spin_unlock_bh(&priv->dp_lock);
+	l2c_tad_debug_print_tx(tx_len);
 
 	// free skb and return
 	dev_kfree_skb(skb);
 	dev->stats.tx_packets++;
-	dev->stats.tx_bytes += skb->len;
+	dev->stats.tx_bytes += tx_len;
 	return NETDEV_TX_OK;
 }
 
