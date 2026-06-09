@@ -232,12 +232,87 @@ This readout path is intentionally separate from the normal ECI/NIC datapath.  I
 does not require software running on the host CPU to understand the trace buffer;
 Vivado reads the MIG-backed trace storage directly over JTAG AXI.
 
+### UDP Readout
+
+Large trace dumps should use the lightweight UDP readout path instead of the
+JTAG AXI dumper.  `lauberhorn_trace_dma` reuses the read side of the same AXI
+DMA that writes the trace buffer and streams bounded trace-DDR reads out through
+a dedicated trace CMAC.  The path is intentionally small: it strips one combined
+Ethernet/IPv4/UDP request header, parses the trace command in the UDP payload,
+issues one aligned DMA read, then injects one combined Ethernet/IPv4/UDP
+response header.  An AXI stream aligner is placed before the trace CMAC TX path
+so partial `TKEEP` beats are only presented at packet end.
+
+The trace CMAC is wired to `F_MAC3`, whose package pins are GTY quad 233 in SLR2
+(`X1Y56` through `X1Y59`) and use CMAC site `CMACE4_X0Y8`.  This is separate
+from the normal `NicEngine` CMAC on `F_MAC0`.  The trace-status VIO controls
+the responder's local identity, next-hop MAC, and dump-capture server address.
+With all override-valid bits left at zero, the hardware defaults are:
+
+- self MAC: `0c:53:31:03:01:d4`
+- self IPv4 address: `192.168.129.201`
+- listen UDP port: `55555`
+- gateway/next-hop MAC: `f4:52:14:63:a0:91`
+- dump server IPv4 address: `129.132.102.8`
+- dump server UDP port: `55555`
+
+The VIO exposes a six-bit override-valid mask plus the six override values and
+a separate `dump over network` boolean output:
+
+- bit 0 enables the self MAC override;
+- bit 1 enables the self IPv4 override;
+- bit 2 enables the listen UDP port override;
+- bit 3 enables the gateway MAC override;
+- bit 4 enables the dump server IPv4 override;
+- bit 5 enables the dump server UDP port override.
+
+The dump-capture machine runs the Python script as a UDP server.  When the VIO
+`dump over network` output rises, the FPGA sends a zero-data metadata packet to
+the configured dump server.  That outbound packet opens the gateway/NAT mapping.
+The Python server accepts the peer address from that metadata datagram and then
+sends read commands back over the same UDP mapping.  Command responses use the
+request's source IPv4 address and source UDP port as the response destination.
+
+The Ethernet destination MAC for FPGA-originated UDP packets is the configured
+gateway/next-hop MAC.  The FPGA also answers ARP requests for its self IPv4
+address with its self MAC, so the local gateway can discover the FPGA when it
+needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
+ARP client for the gateway.
+
+The software request format requires 64-byte-aligned offsets and lengths.  A
+single hardware response carries at most 1408 bytes of trace data, so the host
+tool loops over chunks for multi-GB dumps.  A zero-length read is a status query
+and returns `writeSlot`, `wrapped`, `sampleLost`, and `dmaError` without issuing
+a DDR read.
+
+Example status query:
+
+```sh
+sudo python3 data/eci/sys_trace/dump_trace_udp.py \
+  --bind-ip 129.132.102.8 \
+  --status
+```
+
+Example dump:
+
+```sh
+sudo python3 data/eci/sys_trace/dump_trace_udp.py \
+  --bind-ip 129.132.102.8 \
+  --bytes 0x80000000 \
+  --out trace-dram.bin
+```
+
+Start the tool before toggling the VIO `dump over network` bit.  The tool uses a
+normal UDP socket and waits for the FPGA metadata packet; it does not need the
+FPGA MAC address or private FPGA IP address.
+
 The intended offline flow is:
 
 1. Program and run the design.
 2. Stop or snapshot the workload.
-3. Dump the trace DDR buffer to a raw binary file through Vivado hardware manager
-   and the JTAG AXI master.
+3. Dump the trace DDR buffer to a raw binary file through the UDP trace CMAC.
+   Use the Vivado hardware-manager JTAG AXI path as a fallback when Ethernet
+   readout is unavailable.
 4. Convert the raw dump to pcapng with `export_trace_pcap.py`.
 5. Open the pcapng in Wireshark or TShark with `lauberhorn_trace.lua`.
 
