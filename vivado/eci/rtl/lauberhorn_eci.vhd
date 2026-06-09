@@ -756,10 +756,14 @@ signal core0_states, core1_states, core2_states, core3_states, core4_states : st
 signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error, trace_wrapped : std_logic;
 signal trace_write_slot : std_logic_vector(28 downto 0);
-signal trace_dump_override_valid : std_logic_vector(2 downto 0);
+signal trace_dump_override_valid : std_logic_vector(5 downto 0);
+signal trace_dump_local_mac : std_logic_vector(47 downto 0);
+signal trace_dump_local_ip : std_logic_vector(31 downto 0);
+signal trace_dump_listen_udp_port : std_logic_vector(15 downto 0);
 signal trace_dump_gateway_mac : std_logic_vector(47 downto 0);
-signal trace_dump_dest_ip : std_logic_vector(31 downto 0);
-signal trace_dump_dest_udp_port : std_logic_vector(15 downto 0);
+signal trace_dump_server_ip : std_logic_vector(31 downto 0);
+signal trace_dump_server_udp_port : std_logic_vector(15 downto 0);
+signal trace_dump_over_network : std_logic;
 signal lauberhorn_trace_valid : std_logic_vector(30 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(30 downto 0);
 signal credit_return_trace_valid : std_logic_vector(1 downto 0);
@@ -1807,12 +1811,19 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     traceDumpTxAxis_payload_data => trace_dump_tx_axis.tdata,
     traceDumpTxAxis_payload_keep => trace_dump_tx_axis.tkeep,
     traceDumpTxAxis_payload_last => trace_dump_tx_axis.tlast,
-    traceDumpGatewayMacOverrideValid => trace_dump_override_valid(0),
+    traceDumpLocalMacOverrideValid => trace_dump_override_valid(0),
+    traceDumpLocalMacOverride => trace_dump_local_mac,
+    traceDumpLocalIpOverrideValid => trace_dump_override_valid(1),
+    traceDumpLocalIpOverride => trace_dump_local_ip,
+    traceDumpListenUdpPortOverrideValid => trace_dump_override_valid(2),
+    traceDumpListenUdpPortOverride => trace_dump_listen_udp_port,
+    traceDumpGatewayMacOverrideValid => trace_dump_override_valid(3),
     traceDumpGatewayMacOverride => trace_dump_gateway_mac,
-    traceDumpDestIpOverrideValid => trace_dump_override_valid(1),
-    traceDumpDestIpOverride => trace_dump_dest_ip,
-    traceDumpDestUdpPortOverrideValid => trace_dump_override_valid(2),
-    traceDumpDestUdpPortOverride => trace_dump_dest_udp_port,
+    traceDumpServerIpOverrideValid => trace_dump_override_valid(4),
+    traceDumpServerIpOverride => trace_dump_server_ip,
+    traceDumpServerUdpPortOverrideValid => trace_dump_override_valid(5),
+    traceDumpServerUdpPortOverride => trace_dump_server_udp_port,
+    traceDumpOverNetwork => trace_dump_over_network,
 
     sampleLost => trace_sample_lost,
     dmaError => trace_dma_error,
@@ -1987,9 +1998,13 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     trace_sample_lost => trace_sample_lost,
     trace_dma_error => trace_dma_error,
     trace_dump_override_valid => trace_dump_override_valid,
+    trace_dump_local_mac => trace_dump_local_mac,
+    trace_dump_local_ip => trace_dump_local_ip,
+    trace_dump_listen_udp_port => trace_dump_listen_udp_port,
     trace_dump_gateway_mac => trace_dump_gateway_mac,
-    trace_dump_dest_ip => trace_dump_dest_ip,
-    trace_dump_dest_udp_port => trace_dump_dest_udp_port,
+    trace_dump_server_ip => trace_dump_server_ip,
+    trace_dump_server_udp_port => trace_dump_server_udp_port,
+    trace_dump_over_network => trace_dump_over_network,
 
     -- Trace buffer AXI ports
     trace_ddr_axi_awid => trace_dma_axi.awid,

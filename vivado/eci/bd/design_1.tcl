@@ -989,10 +989,14 @@ proc create_root_design { parentCell } {
   set trace_wrapped [ create_bd_port -dir I -type data trace_wrapped ]
   set trace_sample_lost [ create_bd_port -dir I -type data trace_sample_lost ]
   set trace_dma_error [ create_bd_port -dir I -type data trace_dma_error ]
-  set trace_dump_override_valid [ create_bd_port -dir O -from 2 -to 0 -type data trace_dump_override_valid ]
+  set trace_dump_override_valid [ create_bd_port -dir O -from 5 -to 0 -type data trace_dump_override_valid ]
+  set trace_dump_local_mac [ create_bd_port -dir O -from 47 -to 0 -type data trace_dump_local_mac ]
+  set trace_dump_local_ip [ create_bd_port -dir O -from 31 -to 0 -type data trace_dump_local_ip ]
+  set trace_dump_listen_udp_port [ create_bd_port -dir O -from 15 -to 0 -type data trace_dump_listen_udp_port ]
   set trace_dump_gateway_mac [ create_bd_port -dir O -from 47 -to 0 -type data trace_dump_gateway_mac ]
-  set trace_dump_dest_ip [ create_bd_port -dir O -from 31 -to 0 -type data trace_dump_dest_ip ]
-  set trace_dump_dest_udp_port [ create_bd_port -dir O -from 15 -to 0 -type data trace_dump_dest_udp_port ]
+  set trace_dump_server_ip [ create_bd_port -dir O -from 31 -to 0 -type data trace_dump_server_ip ]
+  set trace_dump_server_udp_port [ create_bd_port -dir O -from 15 -to 0 -type data trace_dump_server_udp_port ]
+  set trace_dump_over_network [ create_bd_port -dir O -type data trace_dump_over_network ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -1121,15 +1125,19 @@ proc create_root_design { parentCell } {
   set vio_trace_status [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_trace_status ]
   set_property -dict [list \
     CONFIG.C_NUM_PROBE_IN {4} \
-    CONFIG.C_NUM_PROBE_OUT {4} \
+    CONFIG.C_NUM_PROBE_OUT {8} \
     CONFIG.C_PROBE_IN0_WIDTH {29} \
     CONFIG.C_PROBE_IN1_WIDTH {1} \
     CONFIG.C_PROBE_IN2_WIDTH {1} \
     CONFIG.C_PROBE_IN3_WIDTH {1} \
-    CONFIG.C_PROBE_OUT0_WIDTH {3} \
+    CONFIG.C_PROBE_OUT0_WIDTH {6} \
     CONFIG.C_PROBE_OUT1_WIDTH {48} \
     CONFIG.C_PROBE_OUT2_WIDTH {32} \
     CONFIG.C_PROBE_OUT3_WIDTH {16} \
+    CONFIG.C_PROBE_OUT4_WIDTH {48} \
+    CONFIG.C_PROBE_OUT5_WIDTH {32} \
+    CONFIG.C_PROBE_OUT6_WIDTH {16} \
+    CONFIG.C_PROBE_OUT7_WIDTH {1} \
   ] $vio_trace_status
 
   # Create interface connections
@@ -1303,12 +1311,20 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_pins vio_trace_status/probe_in0]
   connect_bd_net -net trace_dump_override_valid_1  [get_bd_pins vio_trace_status/probe_out0] \
   [get_bd_ports trace_dump_override_valid]
-  connect_bd_net -net trace_dump_gateway_mac_1  [get_bd_pins vio_trace_status/probe_out1] \
+  connect_bd_net -net trace_dump_local_mac_1  [get_bd_pins vio_trace_status/probe_out1] \
+  [get_bd_ports trace_dump_local_mac]
+  connect_bd_net -net trace_dump_local_ip_1  [get_bd_pins vio_trace_status/probe_out2] \
+  [get_bd_ports trace_dump_local_ip]
+  connect_bd_net -net trace_dump_listen_udp_port_1  [get_bd_pins vio_trace_status/probe_out3] \
+  [get_bd_ports trace_dump_listen_udp_port]
+  connect_bd_net -net trace_dump_gateway_mac_1  [get_bd_pins vio_trace_status/probe_out4] \
   [get_bd_ports trace_dump_gateway_mac]
-  connect_bd_net -net trace_dump_dest_ip_1  [get_bd_pins vio_trace_status/probe_out2] \
-  [get_bd_ports trace_dump_dest_ip]
-  connect_bd_net -net trace_dump_dest_udp_port_1  [get_bd_pins vio_trace_status/probe_out3] \
-  [get_bd_ports trace_dump_dest_udp_port]
+  connect_bd_net -net trace_dump_server_ip_1  [get_bd_pins vio_trace_status/probe_out5] \
+  [get_bd_ports trace_dump_server_ip]
+  connect_bd_net -net trace_dump_server_udp_port_1  [get_bd_pins vio_trace_status/probe_out6] \
+  [get_bd_ports trace_dump_server_udp_port]
+  connect_bd_net -net trace_dump_over_network_1  [get_bd_pins vio_trace_status/probe_out7] \
+  [get_bd_ports trace_dump_over_network]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset] \
   [get_bd_pins ddr4_4/sys_rst]
