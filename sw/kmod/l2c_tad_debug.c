@@ -9,9 +9,6 @@
 #define L2C_TAD_UNITS 8
 #define PCI_VENDOR_ID_CAVIUM 0x177d
 #define PCI_DEVICE_ID_THUNDER_L2C_TAD 0xa02e
-#define L2C_TAD_BASE 0x87e050000000ULL
-#define L2C_TAD_STRIDE 0x1000000ULL
-#define L2C_TAD_MAP_SIZE 0x60000
 
 #define L2C_TAD_PRF_SEL_E 0x10000
 #define L2C_TAD_PFC(n) (0x10100 + (n) * sizeof(u64))
@@ -56,22 +53,6 @@ static void l2c_tad_program_prf(void __iomem *regs)
 	writeq(prf_sel, regs + L2C_TAD_PRF_SEL_E);
 }
 
-static int l2c_tad_index_from_bar(resource_size_t phys)
-{
-	resource_size_t off;
-
-	if (phys < L2C_TAD_BASE)
-		return -EINVAL;
-
-	off = phys - L2C_TAD_BASE;
-	if (off % L2C_TAD_STRIDE != 0)
-		return -EINVAL;
-	if (off / L2C_TAD_STRIDE >= L2C_TAD_UNITS)
-		return -EINVAL;
-
-	return off / L2C_TAD_STRIDE;
-}
-
 static int l2c_tad_map_from_pci(void)
 {
 	struct pci_dev *pdev = NULL;
@@ -81,17 +62,11 @@ static int l2c_tad_map_from_pci(void)
 				      PCI_DEVICE_ID_THUNDER_L2C_TAD, pdev))) {
 		resource_size_t phys = pci_resource_start(pdev, 0);
 		resource_size_t len = pci_resource_len(pdev, 0);
-		int idx = l2c_tad_index_from_bar(phys);
+		int idx = found;
 
-		if (idx < 0) {
-			pr_warn("ignoring L2C-TAD PCI device %s with unexpected BAR0 %pa len %#llx\n",
+		if (idx >= L2C_TAD_UNITS) {
+			pr_warn("ignoring extra L2C-TAD PCI device %s BAR0 %pa len %#llx\n",
 				pci_name(pdev), &phys, (u64)len);
-			continue;
-		}
-
-		if (l2c_tad_regs[idx]) {
-			pr_warn("ignoring duplicate L2C_TAD%d PCI device %s at BAR0 %pa\n",
-				idx, pci_name(pdev), &phys);
 			continue;
 		}
 
@@ -120,29 +95,6 @@ static int l2c_tad_map_from_pci(void)
 	return found == L2C_TAD_UNITS ? 0 : -ENODEV;
 }
 
-static int l2c_tad_map_from_fixed_addresses(void)
-{
-	int i;
-
-	for (i = 0; i < L2C_TAD_UNITS; i++) {
-		phys_addr_t phys = L2C_TAD_BASE + i * L2C_TAD_STRIDE;
-
-		l2c_tad_regs[i] = ioremap(phys, L2C_TAD_MAP_SIZE);
-		if (!l2c_tad_regs[i]) {
-			pr_err("failed to map L2C_TAD%d at %pa\n", i, &phys);
-			return -ENOMEM;
-		}
-
-		l2c_tad_phys[i] = phys;
-		l2c_tad_program_prf(l2c_tad_regs[i]);
-		pr_info("mapped L2C_TAD%d from fixed BAR0 %pa; STAT=%pa TIMEOUT=%pa\n",
-			i, &phys, &(phys_addr_t){ phys + L2C_TAD_STAT },
-			&(phys_addr_t){ phys + L2C_TAD_TIMEOUT });
-	}
-
-	return 0;
-}
-
 int init_l2c_tad_debug(void)
 {
 	int err;
@@ -150,15 +102,13 @@ int init_l2c_tad_debug(void)
 	err = l2c_tad_map_from_pci();
 	if (err) {
 		deinit_l2c_tad_debug();
-		pr_warn("could not map all L2C-TAD BARs through PCI, falling back to fixed physical addresses\n");
-		err = l2c_tad_map_from_fixed_addresses();
+		pr_err("failed to map all L2C_TAD0..7 debug registers through PCI\n");
+		return err;
 	}
-	if (err)
-		deinit_l2c_tad_debug();
 
 	pr_info("mapped L2C_TAD0..7 debug registers; TX printing %s\n",
 		l2c_tad_debug_tx ? "enabled" : "disabled");
-	return err;
+	return 0;
 }
 
 void deinit_l2c_tad_debug(void)
@@ -167,8 +117,7 @@ void deinit_l2c_tad_debug(void)
 
 	for (i = 0; i < L2C_TAD_UNITS; i++) {
 		if (l2c_tad_regs[i]) {
-			if (l2c_tad_phys[i])
-				iounmap(l2c_tad_regs[i]);
+			iounmap(l2c_tad_regs[i]);
 			l2c_tad_regs[i] = NULL;
 			l2c_tad_phys[i] = 0;
 		}
