@@ -2004,7 +2004,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     trace_dump_gateway_mac => trace_dump_gateway_mac,
     trace_dump_server_ip => trace_dump_server_ip,
     trace_dump_server_udp_port => trace_dump_server_udp_port,
-    trace_dump_over_network => trace_dump_over_network,
+    trace_dump_over_network(0) => trace_dump_over_network,
 
     -- Trace buffer AXI ports
     trace_ddr_axi_awid => trace_dma_axi.awid,
