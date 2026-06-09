@@ -21,10 +21,16 @@ static int __init mod_init(void)
 		goto unmap;
 	}
 
+	err = init_l2c_tad_debug();
+	if (err != 0) {
+		pr_err("init_l2c_tad_debug failed: err = %d\n", err);
+		goto unmap;
+	}
+
 	err = init_workers();
 	if (err != 0) {
 		pr_err("init_workers failed: err = %d\n", err);
-		goto unmap;
+		goto tad_debug;
 	}
 
 	err = init_bypass();
@@ -46,6 +52,8 @@ bypass:
 	deinit_bypass();
 workers:
 	deinit_workers();
+tad_debug:
+	deinit_l2c_tad_debug();
 unmap:
 	unmap_node1();
 out:
@@ -60,6 +68,7 @@ static void __exit mod_exit(void)
 	remove_devices();
 	deinit_workers();
 	deinit_bypass();
+	deinit_l2c_tad_debug();
 	unmap_node1();
 
 	pr_info("Lauberhorn unloaded\n");

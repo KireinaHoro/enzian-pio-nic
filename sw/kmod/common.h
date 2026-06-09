@@ -63,6 +63,11 @@ void remove_devices(void);
 int map_node1(void);
 void unmap_node1(void);
 
+// ThunderX L2C-TAD debug sampling
+int init_l2c_tad_debug(void);
+void deinit_l2c_tad_debug(void);
+void l2c_tad_debug_print_tx(u32 tx_len);
+
 struct proc_def;
 struct thr_def;
 
