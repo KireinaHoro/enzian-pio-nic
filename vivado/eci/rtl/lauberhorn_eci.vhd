@@ -721,6 +721,7 @@ begin
 end function;
 
 signal cmac_rx_axis, cmac_tx_axis : CMAC_AXIS;
+signal trace_dump_rx_axis, trace_dump_tx_axis : CMAC_AXIS;
 signal io_reg_axil_cdc : REGS_AXIL;
 
 -- Interrupt Controller Command from NicEngine (in app_clk)
@@ -742,6 +743,8 @@ signal reset_n : std_logic;
 
 signal txclk, rxclk : std_logic;
 signal txclk_reset, rxclk_reset : std_logic;
+signal trace_dump_txclk, trace_dump_rxclk : std_logic;
+signal trace_dump_txclk_reset, trace_dump_rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
 
@@ -753,6 +756,10 @@ signal core0_states, core1_states, core2_states, core3_states, core4_states : st
 signal trace_dma_axi : TRACE_AXI;
 signal trace_sample_lost, trace_dma_error, trace_wrapped : std_logic;
 signal trace_write_slot : std_logic_vector(28 downto 0);
+signal trace_dump_override_valid : std_logic_vector(2 downto 0);
+signal trace_dump_gateway_mac : std_logic_vector(47 downto 0);
+signal trace_dump_dest_ip : std_logic_vector(31 downto 0);
+signal trace_dump_dest_udp_port : std_logic_vector(15 downto 0);
 signal lauberhorn_trace_valid : std_logic_vector(30 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(30 downto 0);
 signal credit_return_trace_valid : std_logic_vector(1 downto 0);
@@ -1429,6 +1436,20 @@ port map (
     dest_rst => txclk_reset
 );
 
+trace_dump_rx_rst_sync : xpm_cdc_sync_rst
+port map (
+    dest_clk => trace_dump_rxclk,
+    src_rst => reset,
+    dest_rst => trace_dump_rxclk_reset
+);
+
+trace_dump_tx_rst_sync : xpm_cdc_sync_rst
+port map (
+    dest_clk => trace_dump_txclk,
+    src_rst => reset,
+    dest_rst => trace_dump_txclk_reset
+);
+
 axil_cdc_inst : entity work.axil_cdc
   generic map (
     DATA_WIDTH => 64,
@@ -1776,10 +1797,31 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     axi_r_payload_resp => trace_dma_axi.rresp,
     axi_r_payload_last => trace_dma_axi.rlast,
 
+    traceDumpRxAxis_valid => trace_dump_rx_axis.tvalid,
+    traceDumpRxAxis_ready => trace_dump_rx_axis.tready,
+    traceDumpRxAxis_payload_data => trace_dump_rx_axis.tdata,
+    traceDumpRxAxis_payload_keep => trace_dump_rx_axis.tkeep,
+    traceDumpRxAxis_payload_last => trace_dump_rx_axis.tlast,
+    traceDumpTxAxis_valid => trace_dump_tx_axis.tvalid,
+    traceDumpTxAxis_ready => trace_dump_tx_axis.tready,
+    traceDumpTxAxis_payload_data => trace_dump_tx_axis.tdata,
+    traceDumpTxAxis_payload_keep => trace_dump_tx_axis.tkeep,
+    traceDumpTxAxis_payload_last => trace_dump_tx_axis.tlast,
+    traceDumpGatewayMacOverrideValid => trace_dump_override_valid(0),
+    traceDumpGatewayMacOverride => trace_dump_gateway_mac,
+    traceDumpDestIpOverrideValid => trace_dump_override_valid(1),
+    traceDumpDestIpOverride => trace_dump_dest_ip,
+    traceDumpDestUdpPortOverrideValid => trace_dump_override_valid(2),
+    traceDumpDestUdpPortOverride => trace_dump_dest_udp_port,
+
     sampleLost => trace_sample_lost,
     dmaError => trace_dma_error,
     wrapped => trace_wrapped,
-    writeSlot => trace_write_slot
+    writeSlot => trace_write_slot,
+    traceDumpRxClock_reset => trace_dump_rxclk_reset,
+    traceDumpRxClock_clk => trace_dump_rxclk,
+    traceDumpTxClock_reset => trace_dump_txclk_reset,
+    traceDumpTxClock_clk => trace_dump_txclk
   );
 
   design_1_i: entity work.design_1
@@ -1791,12 +1833,20 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     gt_gtx_p => F_MAC0_TX_P,
     gt_ref_clk_clk_n => F_MAC0C_CLK_N,
     gt_ref_clk_clk_p => F_MAC0C_CLK_P,
+    trace_gt_grx_n => F_MAC3_RX_N,
+    trace_gt_grx_p => F_MAC3_RX_P,
+    trace_gt_gtx_n => F_MAC3_TX_N,
+    trace_gt_gtx_p => F_MAC3_TX_P,
+    trace_gt_ref_clk_clk_n => F_MAC3C_CLK_N,
+    trace_gt_ref_clk_clk_p => F_MAC3C_CLK_P,
 
     -- clocking & reset
     clk_io => clk_io,
     app_clk => app_clk,
     rxclk => rxclk,
     txclk => txclk,
+    trace_rxclk => trace_dump_rxclk,
+    trace_txclk => trace_dump_txclk,
     reset => reset,
     app_clk_reset => app_clk_reset,
 
@@ -1814,6 +1864,21 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     rx_axis_tlast => cmac_rx_axis.tlast,
     rx_axis_tkeep => cmac_rx_axis.tkeep,
     rx_axis_tuser => open,
+
+    -- Trace dump TX interface
+    trace_tx_axis_tready => trace_dump_tx_axis.tready,
+    trace_tx_axis_tvalid => trace_dump_tx_axis.tvalid,
+    trace_tx_axis_tdata => trace_dump_tx_axis.tdata,
+    trace_tx_axis_tlast => trace_dump_tx_axis.tlast,
+    trace_tx_axis_tkeep => trace_dump_tx_axis.tkeep,
+    trace_tx_axis_tuser => '0',
+
+    -- Trace dump RX interface (no tready)
+    trace_rx_axis_tvalid => trace_dump_rx_axis.tvalid,
+    trace_rx_axis_tdata => trace_dump_rx_axis.tdata,
+    trace_rx_axis_tlast => trace_dump_rx_axis.tlast,
+    trace_rx_axis_tkeep => trace_dump_rx_axis.tkeep,
+    trace_rx_axis_tuser => open,
 
     -- Debug DCS odd and even interfaces
     dcs_even_mon_arid => dcs_even_axi.arid,
@@ -1921,6 +1986,10 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     trace_wrapped => trace_wrapped,
     trace_sample_lost => trace_sample_lost,
     trace_dma_error => trace_dma_error,
+    trace_dump_override_valid => trace_dump_override_valid,
+    trace_dump_gateway_mac => trace_dump_gateway_mac,
+    trace_dump_dest_ip => trace_dump_dest_ip,
+    trace_dump_dest_udp_port => trace_dump_dest_udp_port,
 
     -- Trace buffer AXI ports
     trace_ddr_axi_awid => trace_dma_axi.awid,

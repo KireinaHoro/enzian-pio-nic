@@ -5,8 +5,11 @@ resize_pblock [get_pblocks pblock_slr2] -add {CLOCKREGION_X0Y14:CLOCKREGION_X5Y1
 resize_pblock [get_pblocks pblock_slr2] -add {SLICE_X142Y720:SLICE_X168Y839 SLICE_X112Y630:SLICE_X168Y659 SLICE_X155Y600:SLICE_X168Y629}
 resize_pblock [get_pblocks pblock_slr2] -add {CFGIO_SITE_X0Y2:CFGIO_SITE_X0Y2}
 resize_pblock [get_pblocks pblock_slr2] -add {DSP48E2_X17Y288:DSP48E2_X18Y335 DSP48E2_X18Y240:DSP48E2_X18Y263 DSP48E2_X14Y252:DSP48E2_X17Y263}
+resize_pblock [get_pblocks pblock_slr2] -add {CMACE4_X0Y8:CMACE4_X0Y8}
 resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_CHANNEL_X1Y40:GTYE4_CHANNEL_X1Y43}
 resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_COMMON_X1Y10:GTYE4_COMMON_X1Y10}
+resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_CHANNEL_X1Y56:GTYE4_CHANNEL_X1Y59}
+resize_pblock [get_pblocks pblock_slr2] -add {GTYE4_COMMON_X1Y14:GTYE4_COMMON_X1Y14}
 resize_pblock [get_pblocks pblock_slr2] -add {ILKNE4_X1Y7:ILKNE4_X1Y7}
 resize_pblock [get_pblocks pblock_slr2] -add {IOB_X1Y546:IOB_X1Y571}
 resize_pblock [get_pblocks pblock_slr2] -add {LAGUNA_X22Y480:LAGUNA_X23Y599 LAGUNA_X16Y540:LAGUNA_X21Y599}
