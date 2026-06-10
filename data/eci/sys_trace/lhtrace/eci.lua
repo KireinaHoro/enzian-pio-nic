@@ -597,9 +597,9 @@ local function credit_modulus(width)
     return 2 ^ width
 end
 
-local function credit_signed(raw, width)
+local function credit_value(raw, width, under)
     local modulus = credit_modulus(width)
-    if raw >= modulus / 2 then
+    if under then
         return raw - modulus
     end
     return raw
@@ -665,8 +665,8 @@ local function apply_credit_delta(counter, delta)
     counter.raw = after_raw
     counter.under = update_credit_under(before_under, before_raw, after_raw, counter.width)
     return {
-        before = credit_signed(before_raw, counter.width),
-        after = credit_signed(after_raw, counter.width),
+        before = credit_value(before_raw, counter.width, before_under),
+        after = credit_value(after_raw, counter.width, counter.under),
         under_before = before_under,
         under_after = counter.under,
     }
@@ -725,8 +725,8 @@ local function note_boundary_credit(source_info, frame_number, phase, vc, size)
         vc = vc,
         bank = bank,
         decrement = phase == "accepted" and decrement or 0,
-        before = credit_signed(before_raw, counter.width),
-        after = credit_signed(before_raw, counter.width),
+        before = credit_value(before_raw, counter.width, before_under),
+        after = credit_value(before_raw, counter.width, before_under),
         under_before = before_under,
         under_after = before_under,
     }

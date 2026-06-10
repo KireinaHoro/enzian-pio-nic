@@ -326,9 +326,9 @@ def _eci_event_values(
     return _unaliased_header_address(src_info, opcode, raw_header), values
 
 
-def _credit_signed(raw: int, width: int) -> int:
+def _credit_value(raw: int, width: int, under: bool) -> int:
     modulus = 1 << width
-    return raw - modulus if raw >= modulus // 2 else raw
+    return raw - modulus if under else raw
 
 
 def _credit_top2(raw: int, width: int) -> int:
@@ -352,14 +352,14 @@ class _CreditCounter:
         self.under = under
 
     @property
-    def signed(self) -> int:
-        return _credit_signed(self.raw, self.width)
+    def value(self) -> int:
+        return _credit_value(self.raw, self.width, self.under)
 
     def add(self, delta: int) -> int:
         old_raw = self.raw
         self.raw = (self.raw + delta) % (1 << self.width)
         self.under = _update_credit_under(self.under, old_raw, self.raw, self.width)
-        return self.signed
+        return self.value
 
 
 class _LinkCreditState:
@@ -412,7 +412,7 @@ class _CreditTracker:
         if decrement:
             credits_after = counter.add(-decrement)
         else:
-            credits_after = counter.signed
+            credits_after = counter.value
         if path == "hi":
             state.hi_first_cycle = 1 if size in (0, 1, 2, 3) else 0
         return credits_after
