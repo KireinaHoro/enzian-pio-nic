@@ -40,6 +40,15 @@
 
 #define CMAC_BASE 0x200000UL
 
+static bool force_poll;
+module_param(force_poll, bool, 0444);
+MODULE_PARM_DESC(force_poll,
+		 "Use timer-driven NAPI polling and do not enable interrupts");
+
+static u32 force_poll_us = 100;
+module_param(force_poll_us, uint, 0444);
+MODULE_PARM_DESC(force_poll_us, "Interval in us for forced poll mode");
+
 struct netdev_priv {
 	struct napi_struct napi;
 	struct net_device *dev;
@@ -72,7 +81,24 @@ struct netdev_priv {
 	// - RX: napi_poll, softirq
 	// - TX: netdev_xmit, BH disabled
 	spinlock_t dp_lock;
+
+	// Timer for forced poll mode
+	struct timer_list poll_timer;
+	bool poll_rearm;
 };
+
+static void forced_napi_poll_cb(struct timer_list *t)
+{
+	struct netdev_priv *priv = from_timer(priv, t, poll_timer);
+
+	if (napi_schedule_prep(&priv->napi))
+		__napi_schedule(&priv->napi);
+
+	if (READ_ONCE(priv->poll_rearm)) {
+		mod_timer(&priv->poll_timer,
+			  jiffies + usecs_to_jiffies(force_poll_us));
+	}
+}
 
 static int do_loopback = 0;
 static int loopback_set(const char *val, const struct kernel_param *kp)
@@ -196,17 +222,28 @@ static int netdev_open(struct net_device *dev)
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
 
-	dev_info(&dev->dev, "setting bypass IRQ cooldown to %lld usecs\n",
-		 irq_cooldown_usecs);
-	lauberhorn_eci_worker_ctrl_irq_cooldown_wr(
-		&priv->worker_dev, irq_cooldown_usecs * cycles_per_usec);
-
 	dev_dbg(&dev->dev, "netdev UP, disabling drop all\n");
 	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 0);
 
-	dev_dbg(&dev->dev, "enabling bypass IRQ\n");
-	smp_wmb();
-	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+	if (force_poll) {
+		// schedule timer to call napi_schedule
+		WRITE_ONCE(priv->poll_rearm, true);
+
+		timer_setup(&priv->poll_timer, forced_napi_poll_cb, 0);
+		mod_timer(&priv->poll_timer,
+			  jiffies + usecs_to_jiffies(force_poll_us));
+	} else {
+		dev_info(&dev->dev,
+			 "setting bypass IRQ cooldown to %lld usecs\n",
+			 irq_cooldown_usecs);
+		lauberhorn_eci_worker_ctrl_irq_cooldown_wr(
+			&priv->worker_dev,
+			irq_cooldown_usecs * cycles_per_usec);
+
+		dev_dbg(&dev->dev, "enabling bypass IRQ\n");
+		smp_wmb();
+		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+	}
 
 	return 0;
 }
@@ -255,8 +292,13 @@ static int netdev_stop(struct net_device *dev)
 	dev_dbg(&dev->dev, "netdev DOWN, enabling drop all\n");
 	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 1);
 
-	dev_dbg(&dev->dev, "disabling bypass IRQ\n");
-	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+	if (force_poll) {
+		WRITE_ONCE(priv->poll_rearm, false);
+		timer_delete(&priv->poll_timer);
+	} else {
+		dev_dbg(&dev->dev, "disabling bypass IRQ\n");
+		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+	}
 
 	napi_disable(&priv->napi);
 	netif_stop_queue(dev);
@@ -451,7 +493,7 @@ restart_poll:
 
 	if (work_done < budget) {
 		// drained all packets, finish NAPI and reenable interrupt
-		if (napi_complete_done(n, work_done)) {
+		if (napi_complete_done(n, work_done) && !force_poll) {
 			dev_dbg(&dev->dev,
 				"NAPI complete, re-enabling interrupt\n");
 			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
@@ -770,12 +812,17 @@ int init_bypass(void)
 	// Register callback for ARP resolution
 	register_netevent_notifier(&arp_notifier);
 
-	// Enable FIFO non-empty interrupt
-	err = init_bypass_fpi(netdev);
-	if (err < 0) {
-		dev_err(&netdev->dev, "failed to allocate interrupt: err %d\n",
-			err);
-		goto del_netif;
+	if (force_poll) {
+		dev_info(&netdev->dev,
+			 "not allocating interrupt in forced poll mode\n");
+	} else {
+		// Enable FIFO non-empty interrupt
+		err = init_bypass_fpi(netdev);
+		if (err < 0) {
+			dev_err(&netdev->dev,
+				"failed to allocate interrupt: err %d\n", err);
+			goto del_netif;
+		}
 	}
 
 	return 0;
