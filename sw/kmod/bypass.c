@@ -80,6 +80,10 @@ struct netdev_priv {
 	// Make sure the following are mutually exclusive:
 	// - RX: napi_poll, softirq
 	// - TX: netdev_xmit, BH disabled
+	// FIXME: this is needed due to RX (0x0-0x700) and TX (0x8000-0x8700) CLs
+	//        not really independent; overflow CLs mapped to the same DCU as
+	//        ctrl CLs can deadlock and crash the system.  We need to rework the
+	//        address mapping and get rid of this lock
 	spinlock_t dp_lock;
 
 	// Timer for forced poll mode
