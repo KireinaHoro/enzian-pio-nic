@@ -111,14 +111,197 @@ For prefix 0, the current layout starts like this:
 | TX overflow 0 | `0x08100` | `0x08100` | 2 | 1 | 0 |
 | TX overflow 1 | `0x08180` | `0x08180` | 3 | 1 | 1 |
 
-So RX control and TX control collide on `DCU_IDX 0`, and the first RX/TX
-overflow CLs collide on `DCU_IDX 1`. The per-flow stride does not automatically
-fix this. Prefixes 0 through 7 keep the same low DCU index assignment; prefixes
-8 through 15 flip odd/even but still keep the same DCU indexes. Prefix 16 starts
-moving the control pair to `DCU_IDX 1`, which then collides with the default
-overflow color.
+So RX control and TX control collide on the same global DCU colors per parity
+(`DCU_ID` 0 and 1), and the first RX/TX overflow CLs collide on `DCU_ID` 2 and
+3. The per-flow stride does not automatically fix this. Prefixes 0 through 7
+keep the same low DCU index assignment; prefixes 8 through 15 flip odd/even but
+still keep the same DCU indexes. Prefix 16 starts moving the control pair to
+`DCU_IDX 1`, which then collides with the default overflow color.
 
 This means the current prefix allocation is not a color allocation.
+
+## Physical Allocation Design
+
+The allocator should work in terms of colored 4 KiB pages, not contiguous
+`base + offset` regions. The reason is practical: CPU mappings are page based,
+but the 2F2F hazard is cache-line based. If control and overflow remain in the
+same 4 KiB page, their colors are tied together by the address scrambling
+sequence inside that page. That makes it hard to allocate enough independent
+active RX/TX endpoints.
+
+Change the logical layout first:
+
+```text
+RX control page:    logical +0x0000, uses CL 0 and CL 1
+RX overflow page:   logical +0x1000, uses CL 0..N-1
+TX control page:    logical +0x2000, uses CL 0 and CL 1
+TX overflow page:   logical +0x3000, uses CL 0..N-1
+preempt page:       logical +0x4000, non-bypass only
+logical flow size:  at least 0x5000, rounded up for router decode
+```
+
+That implies relaxing the current `ECI_OVERFLOW_OFFSET == 2 * CL_SIZE`
+assumption and teaching the hardware/software constants that overflow starts on
+a page boundary. `core_eci_rx()` and `core_eci_tx()` can still do contiguous
+`memcpy()` on the overflow area; the virtual mapping makes the logical overflow
+page contiguous even if the physical page is not adjacent to the control page.
+
+### Color Units
+
+Use a global resource color:
+
+```text
+global_dcu_color = aliased_dcu_id = {dcu_idx, odd_even_bit}
+```
+
+This is equivalent to `(DCS slice, DCU_IDX)`. If a future trace shows that the
+two odd/even slices share a lower-level blocking resource, the allocator can be
+made more conservative by dropping `odd_even_bit` and coloring only by
+`DCU_IDX`; that halves the usable color space. The current RTL/test model
+tracks one read and one write per aliased DCU ID, so the first implementation
+should use the full aliased DCU ID.
+
+### Pools
+
+For the current 64 global DCU colors, use two pools:
+
+```text
+control colors:  0..31
+overflow colors: 32..63
+```
+
+Control pages consume two control colors, one per parity CL. Overflow pages
+consume the colors used by their first `ECI_NUM_OVERFLOW_CL` cache lines.
+Overflow pages may share colors with other overflow pages; they must not share
+colors with any active control page. Control pages must not share control colors
+with any other active control page.
+
+For the common simulation/build shape with bypass plus four worker cores, there
+are ten active 2F2F endpoints:
+
+```text
+bypass RX, bypass TX,
+worker0 RX, worker0 TX,
+worker1 RX, worker1 TX,
+worker2 RX, worker2 TX,
+worker3 RX, worker3 TX
+```
+
+Those need 20 control colors, which fits in the 0..31 control pool. Larger
+builds should compute this at generation time:
+
+```text
+required_control_colors = 2 * 2 * NUM_CORES
+                       = 4 * NUM_CORES
+```
+
+If `required_control_colors` exceeds the chosen control-color pool, either
+reduce the number of concurrently active worker cores, shrink the overflow pool,
+or use a color-aware scheduler that admits only a safe subset of threads at a
+time.
+
+### Example For Bypass Plus Four Workers
+
+The following table is an example allocation. Physical page offsets are relative
+to a reserved ECI-colored physical arena and are chosen by applying the ECI
+scrambling function, not by inspecting raw address bits.
+
+| Endpoint | control colors | control phys page | overflow colors | overflow phys page |
+| - | - | - | - | - |
+| bypass RX | 0, 1 | `+0x000000` | 32..43 | `+0x901000` |
+| bypass TX | 2, 3 | `+0x200000` | 48..59 | `+0xb03000` |
+| worker0 RX | 4, 5 | `+0x004000` | 32..43 | `+0x909000` |
+| worker0 TX | 6, 7 | `+0x204000` | 48..59 | `+0xb0b000` |
+| worker1 RX | 8, 9 | `+0x800000` | 32..43 | `+0x911000` |
+| worker1 TX | 10, 11 | `+0xa00000` | 48..59 | `+0xb13000` |
+| worker2 RX | 12, 13 | `+0x804000` | 32..43 | `+0x919000` |
+| worker2 TX | 14, 15 | `+0xa04000` | 48..59 | `+0xb1b000` |
+| worker3 RX | 16, 17 | `+0x202000` | 32..43 | `+0x921000` |
+| worker3 TX | 18, 19 | `+0x002000` | 48..59 | `+0xb23000` |
+
+The example intentionally reuses two overflow color patterns, but every endpoint
+gets a distinct physical overflow page. Reusing overflow colors is acceptable
+for the deadlock argument because overflow-overflow sharing does not put a
+stalled doorbell read in front of a progress-critical invalidation. It may still
+cost throughput, so a performance-oriented allocator can stripe overflow pages
+across more high-color patterns.
+
+Do not hard-code these offsets as the design. The allocator should scan the
+reserved physical arena for pages whose first two cache lines have the requested
+control colors, and pages whose first `ECI_NUM_OVERFLOW_CL` lines are all in
+the overflow-color pool.
+
+### Mapping Model
+
+The CPU should see one contiguous logical 2F2F region per bypass/worker context.
+The physical mapping behind it should be discontiguous:
+
+```text
+logical +0x0000 -> selected RX control physical page
+logical +0x1000 -> selected RX overflow physical page
+logical +0x2000 -> selected TX control physical page
+logical +0x3000 -> selected TX overflow physical page
+logical +0x4000 -> selected preempt physical page, for workers
+```
+
+For userspace workers, `chrdev.c` should map each logical page separately
+instead of using one `remap_pfn_range()` over a contiguous PFN range. For bypass,
+the kernel should use an equivalent virtually contiguous mapping, for example a
+small `vmap()`/remap-backed region, instead of assuming that
+`mem_node1_off_to_virt(0) + offset` is the physical layout.
+
+The thread router must also become page/subregion aware. Today it matches and
+rewrites one prefix for the whole flow. With colored pages, it needs entries
+like:
+
+```text
+thread physical RX control page    <-> core logical RX control page
+thread physical RX overflow page   <-> core logical RX overflow page
+thread physical TX control page    <-> core logical TX control page
+thread physical TX overflow page   <-> core logical TX overflow page
+thread physical preempt page       <-> core logical preempt page
+```
+
+Incoming DCS AXI requests should be matched against the active thread's physical
+colored pages and translated to the selected core slot's logical pages. Outgoing
+LCI/LCIA/UL traffic from the 2F2F protocol should be translated back from core
+logical pages to the active thread's physical colored pages.
+
+### Thread Allocation And Scheduling
+
+There are two viable policies for RPC threads:
+
+1. **Static safe allocation:** give every registered RPC worker thread a unique
+   control-color group. This is simple but can only support
+   `control_pool_size / 4` threads if every thread has both RX and TX endpoints.
+   With a 32-color control pool, that is eight threads.
+2. **Color-aware active allocation:** give each thread a color group from a
+   finite set and make the scheduler admit only non-conflicting groups
+   concurrently. This matches the actual hardware limit better: only
+   `NUM_WORKER_CORES` RPC threads plus bypass are active at once.
+
+The second policy is likely the practical one. Store each thread's RX/TX color
+group in `struct thr_def`. When scheduling a thread, check that its control
+colors do not collide with any active thread and that none of its control colors
+are in the active overflow pool. If there is no safe color group, leave the
+thread unscheduled until a worker core frees a compatible group.
+
+Bypass should reserve its RX and TX control colors permanently because it can
+run concurrently with all RPC workers and is not managed by the RPC scheduler.
+
+### Remaining Non-2F2F Memory Risk
+
+This allocation isolates the 2F2F control and overflow pages. It does not, by
+itself, prove progress against unrelated memory accesses that happen to use the
+same DCU colors. A full guarantee would also require page coloring for memory
+that isolated worker cores and the bypass path touch while a doorbell read is
+outstanding, or a proof that those accesses cannot sit in front of
+progress-critical invalidations.
+
+For a first implementation, the 2F2F page coloring is still the right boundary:
+it removes the known RX/TX and worker/worker self-inflicted collisions and gives
+traces a much cleaner shape. If crashes remain, the next suspect is unrelated
+Linux/SKB/user memory traffic sharing a control color.
 
 ## Why The Deadlock Is Practical
 
