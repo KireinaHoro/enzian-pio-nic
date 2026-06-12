@@ -366,8 +366,8 @@ layout search:
 
 The same search can also allow heterogeneous layouts, where different QPs use
 different local offset choices. Heterogeneous layouts enlarge the signature
-universe, but the requirement is unchanged: the active signatures must form a
-admissible active set.
+universe, but the requirement is unchanged: the active signatures must form
+an admissible active set.
 
 <details>
 <summary>Pseudocode to find a permissive layout</summary>
@@ -598,17 +598,70 @@ one write per aliased DCU ID and separately limits slice-level in-flight reads.
 The disabled `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
 must not be placed on the same DCU.
 
-This does not prove that every observed crash is this deadlock, but it makes the
-scenario architecturally plausible.
+Under the model above, the current layout gives a concrete same-QP version of
+this hazard. As shown in [Current Layout Fails Locally](#current-layout-fails-locally),
+the current RX and TX blocks have the same local signature:
 
-## Crash Evidence
+```text
+RX control CL 0 color == TX control CL 0 color
+RX control CL 1 color == TX control CL 1 color
+```
 
-The screenshot in `~/Downloads/image(1).png` shows multiple ThunderX L2C-TAD
-LFB entry timeouts followed by an SError in `netdev_xmit`. The low address-like
-fields include offsets around `0x8000`, `0x8100`, `0x8200`, and `0x8300`, which
-match the current TX control and TX overflow region. That is consistent with a
-stuck TX-side 2F2F transaction, but without a full trace it is not proof of the
-dependency cycle.
+So the bypass RX/TX spinlock is currently preventing the two routines from
+exercising the locally invalid RX/TX signature at the same time.
+
+A plausible concrete case without that lock is:
+
+```text
+TX current CL is 1.
+Host commits TX by reading TX +0x8000, the opposite TX control CL.
+  TX +0x8000 is CL 256, color 0, and the TX router waits for txInvDone.
+
+The TX FSM first needs to invalidate the previous TX control CL:
+  TX +0x8080 is CL 257, color 1.
+
+At the same time, RX current CL is 0.
+Host commits RX by reading RX +0x0080, the opposite RX control CL.
+  RX +0x0080 is CL 1, color 1, and the RX router waits for rxInvDone.
+
+The RX FSM eventually needs to invalidate the previous RX control CL:
+  RX +0x0000 is CL 0, color 0.
+```
+
+If the color-1 DCU is blocked by the outstanding RX doorbell read, the TX
+control invalidation to `TX +0x8080` can fail to complete. That prevents
+`txInvDone`, so the TX router stays in `waitInv`. Symmetrically, if the color-0
+DCU is blocked by the outstanding TX doorbell read, the RX control invalidation
+to `RX +0x0000` can fail to complete. The opposite parity case swaps colors 0
+and 1. This cycle uses only the current control CL placements; it does not
+require a TX overflow CL to have color 0.
+
+The observed timeout pattern is consistent with this TX-side version. The L2C
+TAD reported LFB entry timeouts for low address offsets in the TX region:
+
+```text
++0x8000  TX control CL 0   color 0
++0x8100  TX overflow CL 0  color 2
++0x8200  TX overflow CL 2  color 4
++0x8300  TX overflow CL 4  color 6
+```
+
+In `DcsTxAxiRouter`, the read FSM accepts a DCS AXI read address only in `idle`.
+A read of the opposite TX control CL is treated as the TX doorbell: it records a
+host request and enters `waitInv` until `invDone` is observed. While the FSM is
+in `waitInv`, it does not accept another `dcsQ.ar` request. A TX overflow refill
+read would normally take the overflow path into `readPktBuf`, but it cannot do
+that while an earlier TX doorbell read is still waiting for invalidation
+completion.
+
+`invDone` is `txInvDone` from `EciDecoupledRxTxProtocol`, and that signal is
+asserted only after the TX state machine has invalidated the TX control CL,
+invalidated the required TX overflow CLs, observed the corresponding LCIA/UL
+completion, and reached the submit state. Therefore, if the TX invalidation
+sequence is stuck for any reason, the TX router can stop servicing later refill
+reads to TX overflow CLs. Under this interpretation, the observed `+0x8100`,
+`+0x8200`, and `+0x8300` timeouts are consistent downstream symptoms of a stuck
+TX doorbell transaction.
 
 Older notes under `data/eci/sys_trace/remote_fsm_trace_notes.md` reached a
 similar partial conclusion for previous TX timeout traces: visible coherence
@@ -621,6 +674,10 @@ making progress.
 A full trace should answer these before removing `dp_lock`:
 
 - Which exact CL read was outstanding at the first L2C-TAD timeout?
+- Was `DcsTxAxiRouter.readFsm` in `waitInv`, and if so which TX control CL was
+  stored in `readCmd`?
+- Were later TX overflow refill reads queued in `dcsQ` or upstream while the TX
+  router was waiting for `txInvDone`?
 - Which 2F2F state machines were waiting for LCIA or UL at that point?
 - For every pending control and overflow CL, what were the aliased DCU ID and
   DCU index?
