@@ -1,318 +1,306 @@
-# ECI 2F2F DCU Progress Notes
+# ECI 2F2F DCU Progress Model
 
-This note records the current hypothesis behind the bypass RX/TX spinlock in
-`sw/kmod/bypass.c`, and what would be needed to remove it safely.
+This note describes the cache-line coloring requirement needed to make 2F2F
+RX/TX progress independent of software mutual exclusion. It intentionally does
+not assume a particular thread-to-worker mapping design. The same model applies
+whether QPs are owned by logical threads, worker cores, bypass, or another
+runtime abstraction.
 
 The short version is:
 
-- The bypass lock is not just protecting shared software state. It is also
-  masking an address placement problem.
-- The current address map does not intentionally color 2F2F control and
-  overflow cache lines across DCUs.
-- The DCU RTL does support a practical head-of-line blocking path: a DCU has
-  one read transaction manager and one write transaction manager, and the
-  controller stalls incoming ECI events if the required manager or output path
-  is busy.
-- The current bypass and RPC address assignment gives each 2F2F flow a
-  contiguous `ECI_CORE_OFFSET` region. That maps threads to 2F2F protocol
-  state machines, but it does not guarantee forward-progress isolation at the
-  DCU level.
+- The bypass RX/TX lock is masking an address placement problem.
+- The placement unit for progress analysis is an RX/TX queue pair (QP).
+- Each QP has a color signature: four control colors plus one overflow color
+  set.
+- A set of simultaneously active QPs is safe only if active control colors are
+  globally unique and do not intersect any active overflow color.
+- The current RX at `+0x0000` and TX at `+0x8000` layout is locally unsafe:
+  RX and TX control CLs land on the same DCU colors after ECI address
+  scrambling.
+- Feasible solutions are compatible sets of QP signatures. How those signatures
+  are assigned to threads or workers is a separate scheduling/runtime design
+  question.
 
-## Current Software Behavior
+## Terms
 
-Bypass has one kernel `lauberhorn_core_state_t`, with RX parity and TX parity
-stored in `struct netdev_priv`. RX and TX can be entered from different kernel
-contexts:
+- **CL:** ECI cache line, 128 bytes.
+- **Color:** the aliased DCU ID used by the DCS after ECI address scrambling.
+  With the current DCS configuration this is `aliased_cli[5:0]`, i.e.
+  `{dcu_idx, odd_even_bit}`.
+- **Queue pair / QP:** one RX endpoint plus one TX endpoint.
+- **QP layout:** the CL offsets used by a QP for RX controls, RX overflow, TX
+  controls, and TX overflow.
+- **QP signature:** the DCU colors induced by a QP layout at a particular
+  physical address.
+- **Active set:** the QPs that can issue 2F2F doorbell transactions
+  concurrently.
 
-- TX: `netdev_xmit()` calls `core_eci_tx()`.
-- RX: NAPI polling calls `core_eci_rx()`.
+## Progress Requirement
 
-`sw/kmod/bypass.c` wraps both calls with `dp_lock`. The local comment already
-states the suspected root cause: RX and TX CLs are not really independent, and
-overflow CLs mapped to the same DCU as control CLs can deadlock and crash the
-system.
-
-RPC workers are different locally but not globally. A single worker thread runs:
-
-1. `core_eci_rx()`
-2. user handler
-3. `core_eci_tx()`
-
-so one thread does not intentionally overlap its own RX and TX routine. However,
-multiple RPC workers and multiple user processes can run concurrently. Global
-mutual exclusion across those processes would be difficult and would defeat the
-intended parallelism.
-
-## Current Address Assignment
-
-The shared ECI layout is in `sw/core/eci/core.h` and is generated from the
-hardware constants:
+For each active QP, name the color groups:
 
 ```text
-RX control:       +0x0000 and +0x0080
-RX overflow:      +0x0100 ...
-TX control:       +0x8000 and +0x8080
-TX overflow:      +0x8100 ...
-per-flow stride:  ECI_CORE_OFFSET = 0x20000
+A = RX control CL 0
+B = RX control CL 1
+C = TX control CL 0
+D = TX control CL 1
+E = all RX/TX overflow CL colors
 ```
 
-Bypass uses prefix 0 and routes it to core slot 0:
+`A`, `B`, `C`, and `D` are single colors. `E` is a set of colors.
+
+The reason to treat all four control CLs symmetrically is parity. Over time both
+control CLs in each direction can act as doorbells, and the opposite control CL
+can be progress-critical while invalidations are pending. A static proof should
+therefore treat every active control CL as doorbell-capable and every other
+active control CL plus every active overflow CL as progress-critical.
+
+The local rule for one QP is:
 
 ```text
-route_prefix_to_core(0, 0)
-base = mem_node1_off_to_virt(0)
+A, B, C, D are pairwise distinct
+{A, B, C, D} intersects E == empty
 ```
 
-RPC datapath VMAs are assigned in `sw/kmod/chrdev.c`:
+The global rule for any active set is:
 
 ```text
-thr->prefix = 1 + proc->idx * LAUBERHORN_NUM_WORKER_CORES + thr_idx
-physical base = prefix * LAUBERHORN_ECI_CORE_OFFSET
+active_controls = union(A, B, C, D for every active QP)
+active_overflow = union(E for every active QP)
+
+active_controls has no duplicate colors
+active_controls intersects active_overflow == empty
 ```
 
-When a worker is scheduled, `sw/kmod/sched.c` routes that prefix to one worker
-core slot. `EciThreadClRouter` only rewrites at `ECI_CORE_OFFSET` granularity:
-it matches `addr >> log2(ECI_CORE_OFFSET)` and preserves the low offset bits.
-This is enough to select the correct 2F2F state machine, but it does not assign
-RX/TX control and overflow CLs to safe DCU colors.
+Overflow sets from different QPs may overlap for progress. That can reduce
+throughput, but it does not by itself place a stalled doorbell transaction in
+front of a progress-critical invalidation.
 
-## DCU Address Coloring And Scrambling
+## Address Scrambling
 
-With the current DC configuration (`DS_NUM_SETS_PER_DCU = 128`), the DCU ID is
-in aliased byte-address bits `[12:7]`. The DCU index is `DCU_ID[5:1]`; the low
-bit is the odd/even offset.
-
-The important detail is that the DCU selection is based on the ECI-scrambled
-address, not the raw physical address. In the code this is usually called
-`aliasAddress()` / `unaliasAddress()`, but it is an address scrambling transform:
-several low cache-line-index fields are XORed with higher address bits before
-the DCS sees the address. A color allocator must therefore choose unaliased
-physical addresses by running them through the ECI alias/scramble function and
-checking the resulting DCU ID/index.
+The color computation must use the ECI alias/scramble function. Choosing raw
+physical addresses by unscrambled bit positions is not sufficient.
 
 The relevant implementation references are:
 
-- Scala/Spinal: `deps/blocks/blocks/src/jsteward/blocks/eci/EciCmdDefs.scala`
-- Test model: `deps/blocks/tester/src/jsteward/blocks/eci/sim/package.scala`
-- SystemVerilog/VHDL copies:
-  `vivado/eci/static-shell/eci-toolkit/hdl/eci_cmd_defs.sv` and
-  `vivado/eci/static-shell/eci-toolkit/hdl/eci_defs.vhd`
+- `deps/blocks/blocks/src/jsteward/blocks/eci/EciCmdDefs.scala`
+- `deps/blocks/tester/src/jsteward/blocks/eci/sim/package.scala`
+- `vivado/eci/static-shell/eci-toolkit/hdl/eci_cmd_defs.sv`
+- `vivado/eci/static-shell/eci-toolkit/hdl/eci_defs.vhd`
 
-For prefix 0, the current layout starts like this:
-
-| CL | unaliased offset | aliased offset | DCU_ID | DCU_IDX | O/E |
-| - | - | - | - | - | - |
-| RX ctrl 0 | `0x00000` | `0x00000` | 0 | 0 | 0 |
-| RX ctrl 1 | `0x00080` | `0x00080` | 1 | 0 | 1 |
-| RX overflow 0 | `0x00100` | `0x00100` | 2 | 1 | 0 |
-| RX overflow 1 | `0x00180` | `0x00180` | 3 | 1 | 1 |
-| TX ctrl 0 | `0x08000` | `0x08000` | 0 | 0 | 0 |
-| TX ctrl 1 | `0x08080` | `0x08080` | 1 | 0 | 1 |
-| TX overflow 0 | `0x08100` | `0x08100` | 2 | 1 | 0 |
-| TX overflow 1 | `0x08180` | `0x08180` | 3 | 1 | 1 |
-
-So RX control and TX control collide on the same global DCU colors per parity
-(`DCU_ID` 0 and 1), and the first RX/TX overflow CLs collide on `DCU_ID` 2 and
-3. The per-flow stride does not automatically fix this. Prefixes 0 through 7
-keep the same low DCU index assignment; prefixes 8 through 15 flip odd/even but
-still keep the same DCU indexes. Prefix 16 starts moving the control pair to
-`DCU_IDX 1`, which then collides with the default overflow color.
-
-This means the current prefix allocation is not a color allocation.
-
-## Physical Allocation Design
-
-The allocator should work in terms of colored 4 KiB pages, not contiguous
-`base + offset` regions. The reason is practical: CPU mappings are page based,
-but the 2F2F hazard is cache-line based. If control and overflow remain in the
-same 4 KiB page, their colors are tied together by the address scrambling
-sequence inside that page. That makes it hard to allocate enough independent
-active RX/TX endpoints.
-
-Change the logical layout first:
+The low aliased color bits include higher cache-line-index bits:
 
 ```text
-RX control page:    logical +0x0000, uses CL 0 and CL 1
-RX overflow page:   logical +0x1000, uses CL 0..N-1
-TX control page:    logical +0x2000, uses CL 0 and CL 1
-TX overflow page:   logical +0x3000, uses CL 0..N-1
-preempt page:       logical +0x4000, non-bypass only
-logical flow size:  at least 0x5000, rounded up for router decode
+aliased_cli[5]   = cli[5] ^ cli[18]
+aliased_cli[4:3] = cli[4:3] ^ cli[17:16] ^ cli[6:5]
+aliased_cli[2:0] = cli[2:0] ^ cli[15:13] ^ cli[7:5]
 ```
 
-That implies relaxing the current `ECI_OVERFLOW_OFFSET == 2 * CL_SIZE`
-assumption and teaching the hardware/software constants that overflow starts on
-a page boundary. `core_eci_rx()` and `core_eci_tx()` can still do contiguous
-`memcpy()` on the overflow area; the virtual mapping makes the logical overflow
-page contiguous even if the physical page is not adjacent to the control page.
+So both the fixed CL offset inside a QP layout and the physical block/page index
+contribute to the resulting color.
 
-### Color Units
+## QP Signatures
 
-Use a global resource color:
+For a QP placed at physical base `base`:
 
 ```text
-global_dcu_color = aliased_dcu_id = {dcu_idx, odd_even_bit}
+qp_signature(base, layout) = {
+  A = color(base + RX_CTRL0_OFFSET(layout))
+  B = color(base + RX_CTRL1_OFFSET(layout))
+  C = color(base + TX_CTRL0_OFFSET(layout))
+  D = color(base + TX_CTRL1_OFFSET(layout))
+  E = colors(base + RX_OVERFLOW_OFFSETS(layout))
+    union colors(base + TX_OVERFLOW_OFFSETS(layout))
+}
 ```
 
-This is equivalent to `(DCS slice, DCU_IDX)`. If a future trace shows that the
-two odd/even slices share a lower-level blocking resource, the allocator can be
-made more conservative by dropping `odd_even_bit` and coloring only by
-`DCU_IDX`; that halves the usable color space. The current RTL/test model
-tracks one read and one write per aliased DCU ID, so the first implementation
-should use the full aliased DCU ID.
+A **signature universe** is the set of signatures the implementation can
+instantiate. It may come from:
 
-### Pools
+- one fixed layout translated by different physical block indices,
+- several layouts chosen per QP,
+- different QP block sizes,
+- or any combination of those mechanisms.
 
-For the current 64 global DCU colors, use two pools:
+The progress problem is then purely combinatorial: find a compatible subset of
+the signature universe with size equal to the number of QPs that must be active
+at the same time.
+
+If a compatible set of size `K` exists, it is a valid static assignment for `K`
+concurrently active QPs. If no such set exists, no scheduler or mapping design
+can run `K` QPs concurrently while preserving this DCU progress invariant.
+
+## Fixed-Block Signatures
+
+One practical signature family uses one contiguous block per QP and keeps all
+RX/TX CL offsets inside that block. If every QP uses the same layout and the
+block is aligned to a power-of-two stride, the signature often decomposes as:
 
 ```text
-control colors:  0..31
-overflow colors: 32..63
+qp_signature(block_index) = local_signature xor block_mask(block_index)
 ```
 
-Control pages consume two control colors, one per parity CL. Overflow pages
-consume the colors used by their first `ECI_NUM_OVERFLOW_CL` cache lines.
-Overflow pages may share colors with other overflow pages; they must not share
-colors with any active control page. Control pages must not share control colors
-with any other active control page.
+The local signature comes from the RX/TX CL offsets inside the block. The block
+mask comes from the scrambled high address bits contributed by the block index.
 
-For the common simulation/build shape with bypass plus four worker cores, there
-are ten active 2F2F endpoints:
+For the current `ECI_CORE_OFFSET = 0x20000`:
 
 ```text
-bypass RX, bypass TX,
-worker0 RX, worker0 TX,
-worker1 RX, worker1 TX,
-worker2 RX, worker2 TX,
-worker3 RX, worker3 TX
+ECI_CORE_OFFSET = 1024 CLs = 32 * 4 KiB pages
+block_index q   = physical_base / ECI_CORE_OFFSET
+block_mask      = (q >> 3) & 0x3f
 ```
 
-Those need 20 control colors, which fits in the 0..31 control pool. Larger
-builds should compute this at generation time:
+Equivalently, if `p = physical_base / 0x1000`, then
+`block_mask = (p >> 8) & 0x3f` for an `ECI_CORE_OFFSET`-aligned base.
+
+There are 64 reachable masks. The mask repeats every 512 block indices, with
+eight distinct block indices per mask.
+
+Changing the block size can change both layout freedom and reachable masks:
+
+| Block size | CLs | reachable masks | mask period in block indices |
+| - | - | - | - |
+| `0x8000` | 256 | 64 | 2048 |
+| `0x10000` | 512 | 64 | 1024 |
+| `0x20000` | 1024 | 64 | 512 |
+| `0x40000` | 2048 | 64 | 256 |
+| `0x80000` | 4096 | 64 | 128 |
+| `0x100000` | 8192 | 64 | 64 |
+| `0x200000` | 16384 | 32 | 32 |
+| `0x400000` | 32768 | 16 | 16 |
+
+The current `0x20000` already reaches all 64 masks. Increasing the block size
+can make local layout easier, but once the stride reaches `0x200000` the mask
+space starts shrinking.
+
+## Current Layout Fails Locally
+
+The current layout in `sw/core/eci/core.h` is:
 
 ```text
-required_control_colors = 2 * 2 * NUM_CORES
-                       = 4 * NUM_CORES
+RX control:       +0x0000 and +0x0080      CL 0 and CL 1
+RX overflow:      +0x0100 ...              CL 2 ...
+TX control:       +0x8000 and +0x8080      CL 256 and CL 257
+TX overflow:      +0x8100 ...              CL 258 ...
 ```
 
-If `required_control_colors` exceeds the chosen control-color pool, either
-reduce the number of concurrently active worker cores, shrink the overflow pool,
-or use a color-aware scheduler that admits only a safe subset of threads at a
-time.
-
-### Example For Bypass Plus Four Workers
-
-The following table is an example allocation. Physical page offsets are relative
-to a reserved ECI-colored physical arena and are chosen by applying the ECI
-scrambling function, not by inspecting raw address bits.
-
-| Endpoint | control colors | control phys page | overflow colors | overflow phys page |
-| - | - | - | - | - |
-| bypass RX | 0, 1 | `+0x000000` | 32..43 | `+0x901000` |
-| bypass TX | 2, 3 | `+0x200000` | 48..59 | `+0xb03000` |
-| worker0 RX | 4, 5 | `+0x004000` | 32..43 | `+0x909000` |
-| worker0 TX | 6, 7 | `+0x204000` | 48..59 | `+0xb0b000` |
-| worker1 RX | 8, 9 | `+0x800000` | 32..43 | `+0x911000` |
-| worker1 TX | 10, 11 | `+0xa00000` | 48..59 | `+0xb13000` |
-| worker2 RX | 12, 13 | `+0x804000` | 32..43 | `+0x919000` |
-| worker2 TX | 14, 15 | `+0xa04000` | 48..59 | `+0xb1b000` |
-| worker3 RX | 16, 17 | `+0x202000` | 32..43 | `+0x921000` |
-| worker3 TX | 18, 19 | `+0x002000` | 48..59 | `+0xb23000` |
-
-The example intentionally reuses two overflow color patterns, but every endpoint
-gets a distinct physical overflow page. Reusing overflow colors is acceptable
-for the deadlock argument because overflow-overflow sharing does not put a
-stalled doorbell read in front of a progress-critical invalidation. It may still
-cost throughput, so a performance-oriented allocator can stripe overflow pages
-across more high-color patterns.
-
-Do not hard-code these offsets as the design. The allocator should scan the
-reserved physical arena for pages whose first two cache lines have the requested
-control colors, and pages whose first `ECI_NUM_OVERFLOW_CL` lines are all in
-the overflow-color pool.
-
-### Mapping Model
-
-The CPU should see one contiguous logical 2F2F region per bypass/worker context.
-The physical mapping behind it should be discontiguous:
+`+0x8000` is eight 4 KiB pages after RX. For an `ECI_CORE_OFFSET`-aligned base,
+that offset changes page bit 3 but not the page bits that feed
+`aliased_cli[5:0]`. Therefore RX and TX have the same local color signature:
 
 ```text
-logical +0x0000 -> selected RX control physical page
-logical +0x1000 -> selected RX overflow physical page
-logical +0x2000 -> selected TX control physical page
-logical +0x3000 -> selected TX overflow physical page
-logical +0x4000 -> selected preempt physical page, for workers
+A == C
+B == D
+RX overflow colors == TX overflow colors
 ```
 
-For userspace workers, `chrdev.c` should map each logical page separately
-instead of using one `remap_pfn_range()` over a contiguous PFN range. For bypass,
-the kernel should use an equivalent virtually contiguous mapping, for example a
-small `vmap()`/remap-backed region, instead of assuming that
-`mem_node1_off_to_virt(0) + offset` is the physical layout.
+Changing only the physical block index gives translated versions of the same
+bad local signature. None are locally valid, because `A/B/C/D` are not pairwise
+distinct.
 
-The thread router must also become page/subregion aware. Today it matches and
-rewrites one prefix for the whole flow. With colored pages, it needs entries
-like:
+## Example Permissive Layout
+
+One constructive fixed-block layout, assuming `ECI_NUM_OVERFLOW_CL = 12`, is:
 
 ```text
-thread physical RX control page    <-> core logical RX control page
-thread physical RX overflow page   <-> core logical RX overflow page
-thread physical TX control page    <-> core logical TX control page
-thread physical TX overflow page   <-> core logical TX overflow page
-thread physical preempt page       <-> core logical preempt page
+RX control:   CL 6 and CL 7       byte offsets +0x0300, +0x0380
+RX overflow:  CL 8 .. CL 19       byte offsets +0x0400 .. +0x0980
+TX control:   CL 38 and CL 39     byte offsets +0x1300, +0x1380
+TX overflow:  CL 40 .. CL 51      byte offsets +0x1400 .. +0x1980
 ```
 
-Incoming DCS AXI requests should be matched against the active thread's physical
-colored pages and translated to the selected core slot's logical pages. Outgoing
-LCI/LCIA/UL traffic from the 2F2F protocol should be translated back from core
-logical pages to the active thread's physical colored pages.
+For block mask 0:
 
-### Thread Allocation And Scheduling
+```text
+A = RX control CL 6   -> color 6
+B = RX control CL 7   -> color 7
+C = TX control CL 38  -> color 47
+D = TX control CL 39  -> color 46
 
-There are two viable policies for RPC threads:
+RX overflow CL 8..19 colors:
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
 
-1. **Static safe allocation:** give every registered RPC worker thread a unique
-   control-color group. This is simple but can only support
-   `control_pool_size / 4` threads if every thread has both RX and TX endpoints.
-   With a 32-color control pool, that is eight threads.
-2. **Color-aware active allocation:** give each thread a color group from a
-   finite set and make the scheduler admit only non-conflicting groups
-   concurrently. This matches the actual hardware limit better: only
-   `NUM_WORKER_CORES` RPC threads plus bypass are active at once.
+TX overflow CL 40..51 colors:
+  33, 32, 35, 34, 37, 36, 39, 38, 57, 56, 59, 58
 
-The second policy is likely the practical one. Store each thread's RX/TX color
-group in `struct thr_def`. When scheduling a thread, check that its control
-colors do not collide with any active thread and that none of its control colors
-are in the active overflow pool. If there is no safe color group, leave the
-thread unscheduled until a worker core frees a compatible group.
+E = {
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+  32, 33, 34, 35, 36, 37, 38, 39, 56, 57, 58, 59
+}
+```
 
-Bypass should reserve its RX and TX control colors permanently because it can
-run concurrently with all RPC workers and is not managed by the RPC scheduler.
+The masks `{0, 2, 4, 6, 24}` come from a compatibility search over the 64
+reachable block masks for this local layout. Applying a mask XOR-translates
+every color in the local signature:
 
-### Remaining Non-2F2F Memory Risk
+```text
+signature(mask m) = {
+  A ^ m, B ^ m, C ^ m, D ^ m,
+  { e ^ m | e in E }
+}
+```
 
-This allocation isolates the 2F2F control and overflow pages. It does not, by
-itself, prove progress against unrelated memory accesses that happen to use the
-same DCU colors. A full guarantee would also require page coloring for memory
-that isolated worker cores and the bypass path touch while a doorbell read is
-outstanding, or a proof that those accesses cannot sit in front of
-progress-critical invalidations.
+For this layout, the selected masks produce these control colors:
 
-For a first implementation, the 2F2F page coloring is still the right boundary:
-it removes the known RX/TX and worker/worker self-inflicted collisions and gives
-traces a much cleaner shape. If crashes remain, the next suspect is unrelated
-Linux/SKB/user memory traffic sharing a control color.
+```text
+mask 0:   6, 7, 47, 46
+mask 2:   4, 5, 45, 44
+mask 4:   2, 3, 43, 42
+mask 6:   0, 1, 41, 40
+mask 24:  30, 31, 55, 54
+```
+
+The 20 resulting control colors are pairwise distinct and have no intersection
+with the union of the five translated overflow sets. Thus these masks form one
+compatible set of five QP signatures. This is evidence that fixed-offset block
+coloring is viable; it is not a claim that this layout is optimal.
+
+For `ECI_CORE_OFFSET = 0x20000`, the block mask is:
+
+```text
+mask = (block_index >> 3) & 0x3f
+```
+
+So one concrete five-QP assignment is:
+
+| QP | mask | valid block index example | physical base |
+| - | - | - | - |
+| QP0 | 0 | 0 | `0x0000000` |
+| QP1 | 2 | 16 | `0x0200000` |
+| QP2 | 4 | 32 | `0x0400000` |
+| QP3 | 6 | 48 | `0x0600000` |
+| QP4 | 24 | 192 | `0x1800000` |
+
+These are only representative block indices. In general, any block index
+satisfying `(block_index >> 3) & 0x3f == mask` gives the same translated
+signature for this analysis.
+
+If more simultaneous QPs are required, the right next step is an automated
+layout search:
+
+1. Enumerate candidate RX/TX CL offsets inside a chosen block size.
+2. Reject layouts that fail the local QP rule.
+3. Compute translated signatures for all reachable block masks.
+4. Build a compatibility graph over signatures.
+5. Search for a compatible set with the required active QP count.
+6. Emit hardware/software constants for the selected layout and physical
+   assignment.
+
+The same search can also allow heterogeneous layouts, where different QPs use
+different local offset choices. Heterogeneous layouts enlarge the signature
+universe, but the requirement is unchanged: the active signatures must form a
+compatible set.
 
 ## Why The Deadlock Is Practical
 
 The proposed failure mode needs two properties:
 
 1. A doorbell read can remain outstanding while waiting for 2F2F invalidations.
-2. A later transaction or invalidation that is needed for progress can be stuck
-   behind the blocked transaction or behind a transaction that shares the same
-   DCU resources.
+2. A later transaction or invalidation needed for progress can be stuck behind a
+   blocked transaction that shares DCU resources.
 
-The Lauberhorn 2F2F logic has this shape:
+The 2F2F protocol has this shape:
 
 - RX doorbell: reading the opposite RX control CL causes the FPGA to free packet
   state, invalidate RX overflow CLs, then invalidate the previous RX control CL.
@@ -325,17 +313,16 @@ The DCU RTL supports the required blocking behavior:
 
 - `rd_trmgr` allows only one outstanding read transaction.
 - `wr_trmgr` allows only one outstanding write transaction.
-- `dcu_controller` prioritizes read responses, then write responses, then a new
-  incoming ECI event.
+- `dcu_controller` prioritizes read responses, then write responses, then new
+  incoming ECI events.
 - If the read manager, write manager, ECI transaction slot, RTG, or output
   response path is unavailable, the controller stalls the current ECI event. The
   RTL comments explicitly call this head-of-line blocking.
 
-The test model also encodes this assumption. `DcsAppMaster` allows one read and
-one write per DCU and separately limits slice-level in-flight reads. The disabled
-`rx-tx-interleaved` test in `OncRpcSim` lists the same requirement: RX and TX
-control CLs must not be placed on the same DCU, and the downstream read path
-must allow enough in-flight requests.
+The test model encodes the same assumption. `DcsAppMaster` tracks one read and
+one write per aliased DCU ID and separately limits slice-level in-flight reads.
+The disabled `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
+must not be placed on the same DCU.
 
 This does not prove that every observed crash is this deadlock, but it makes the
 scenario architecturally plausible.
@@ -344,10 +331,10 @@ scenario architecturally plausible.
 
 The screenshot in `~/Downloads/image(1).png` shows multiple ThunderX L2C-TAD
 LFB entry timeouts followed by an SError in `netdev_xmit`. The low address-like
-fields in the timeout lines include offsets around `0x8000`, `0x8100`,
-`0x8200`, and `0x8300`, which match the current TX control and TX overflow
-region. That is consistent with a stuck TX-side 2F2F transaction, but without a
-full trace it is not proof of the dependency cycle.
+fields include offsets around `0x8000`, `0x8100`, `0x8200`, and `0x8300`, which
+match the current TX control and TX overflow region. That is consistent with a
+stuck TX-side 2F2F transaction, but without a full trace it is not proof of the
+dependency cycle.
 
 Older notes under `data/eci/sys_trace/remote_fsm_trace_notes.md` reached a
 similar partial conclusion for previous TX timeout traces: visible coherence
@@ -355,47 +342,14 @@ behavior can look valid until a final invalidation receives no visible ack, and
 the L2C timeout suggests a ThunderX-side in-flight coherence entry stopped
 making progress.
 
-## Proposed Direction
-
-The forward-progress requirement should be expressed as an address coloring
-constraint, not a software spinlock.
-
-A conservative version is:
-
-- Treat every 2F2F control CL as a doorbell-capable CL.
-- Treat every opposite control CL and overflow CL invalidated by the protocol as
-  progress-critical.
-- Do not map any doorbell-capable control CL to a DCU that may also need to
-  process progress-critical invalidations for any concurrently active 2F2F flow.
-- Do not rely on process-local locks. The color allocator must be global across
-  bypass and all RPC worker prefixes.
-
-In implementation terms, this likely requires:
-
-1. Define a finite set of DCU color classes based on the scrambled/aliased DCU
-   index.
-2. Replace the fixed contiguous sub-layout with per-subregion colored physical
-   offsets for RX control, RX overflow, TX control, TX overflow, and preemption
-   control.
-3. Extend the thread router from simple prefix replacement to subregion-aware
-   translation, including reverse translation for LCI/LCIA/UL paths.
-4. Allocate prefixes or physical pages from a global color allocator. If there
-   are not enough safe colors for all active flows, fall back to scheduling or
-   admission control for flows that would share a dangerous color set.
-
-The color computation must use the ECI address scrambling function. Choosing
-addresses by unaliased bit positions alone is not sufficient, and a simple
-`base + stride` scheme can accidentally preserve the same DCU colors for many
-successive prefixes.
-
 ## Questions For A Full Trace
 
 A full trace should answer these before removing `dp_lock`:
 
 - Which exact CL read was outstanding at the first L2C-TAD timeout?
 - Which 2F2F state machines were waiting for LCIA or UL at that point?
-- For every pending control and overflow CL, what were the aliased DCU_ID and
-  DCU_IDX?
+- For every pending control and overflow CL, what were the aliased DCU ID and
+  DCU index?
 - For each such CL, what was the raw physical address before scrambling, and
   what was the exact scrambled/aliased address observed by the DCS?
 - Did the missing progress-critical event target a DCU whose read manager was
