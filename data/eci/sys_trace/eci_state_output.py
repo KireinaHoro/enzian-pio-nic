@@ -59,6 +59,24 @@ EVENT_COLUMNS = [
     "tx_boundary_accept_cycles",
     "tx_vc_credits_after",
 ]
+CREDIT_COLUMNS = [
+    "time",
+    "event",
+    "source",
+    "link",
+    "path",
+    "channel",
+    "vc",
+    "size",
+    "raw_header",
+    "intc_kind",
+    "intc_word",
+    "credit_return_vector",
+    "credit_return_vcs",
+    "tx_vc_credits_after",
+    "tx_vc_words_since_return",
+    "tx_vc_words_total",
+]
 
 
 class IncompleteTraceError(RuntimeError):
@@ -194,11 +212,16 @@ def _address_sort_key(address: Optional[int]) -> Tuple[int, int]:
     return (1, address)
 
 
+def _credit_return_vcs(vector: int) -> str:
+    return " ".join(str(bit + 2) for bit in range(11) if (vector >> bit) & 1)
+
+
 class _CsvSpool:
     def __init__(self, temp_dir: Path, max_open_files: int = MAX_OPEN_SPOOL_FILES) -> None:
         self.temp_dir = temp_dir
         self.max_open_files = max_open_files
         self.addresses: set[Optional[int]] = set()
+        self.extra_files: Dict[str, Path] = {}
         self._open: OrderedDict[Optional[int], Tuple[TextIO, Any]] = OrderedDict()
 
     def write_event(self, address: Optional[int], values: Dict[str, Any]) -> None:
@@ -210,6 +233,9 @@ class _CsvSpool:
             _address, (file_obj, _writer) = self._open.popitem()
             file_obj.close()
 
+    def add_extra_file(self, archive_name: str, path: Path) -> None:
+        self.extra_files[archive_name] = path
+
     def write_archive(self, output_path: Path) -> int:
         self.close()
         files = 0
@@ -217,6 +243,13 @@ class _CsvSpool:
             for address in sorted(self.addresses, key=_address_sort_key):
                 path = self._path(address)
                 info = tarfile.TarInfo(_address_filename(address))
+                info.size = path.stat().st_size
+                with path.open("rb") as f:
+                    archive.addfile(info, f)
+                files += 1
+            for archive_name in sorted(self.extra_files):
+                path = self.extra_files[archive_name]
+                info = tarfile.TarInfo(archive_name)
                 info.size = path.stat().st_size
                 with path.open("rb") as f:
                     archive.addfile(info, f)
@@ -248,6 +281,42 @@ class _CsvSpool:
         return self.temp_dir / _address_filename(address)
 
 
+class _CreditCsvSpool:
+    def __init__(self, temp_dir: Path) -> None:
+        self.temp_dir = temp_dir
+        self._open: Dict[str, Tuple[TextIO, Any]] = {}
+
+    def write_event(self, values: Dict[str, Any]) -> None:
+        self._write_to("credits.csv", values)
+        vc = values.get("vc")
+        if vc not in (None, ""):
+            self._write_to(f"credits_vc{vc}.csv", values)
+
+    def close(self) -> None:
+        while self._open:
+            _name, (file_obj, _writer) = self._open.popitem()
+            file_obj.close()
+
+    def add_to_archive_spool(self, spool: _CsvSpool) -> None:
+        self.close()
+        for path in sorted(self.temp_dir.glob("credits*.csv")):
+            spool.add_extra_file(path.name, path)
+
+    def _write_to(self, name: str, values: Dict[str, Any]) -> None:
+        opened = self._open.get(name)
+        if opened is None:
+            path = self.temp_dir / name
+            is_new = not path.exists()
+            file_obj = path.open("a", newline="")
+            writer = csv.writer(file_obj)
+            if is_new:
+                writer.writerow(CREDIT_COLUMNS)
+            self._open[name] = (file_obj, writer)
+        else:
+            file_obj, writer = opened
+        writer.writerow(["" if values.get(column) is None else values.get(column, "") for column in CREDIT_COLUMNS])
+
+
 def _eci_state_pipeline_stages(trace_map: Dict[str, Any]) -> set[int]:
     stages = set()
     for src in trace_map.get("sources", []):
@@ -273,7 +342,11 @@ def _intc_event_values(src_info: Dict[str, Any], source: int, timestamp: int, ra
     }
 
     if channel == "intc_req_vc12":
-        if word == 0 and (raw_header & 0xff) == 0x17:
+        if raw_header == 0x100000008000D860:
+            values["intc_kind"] = "fpga_sgi_ack"
+        elif raw_header == 0x0000000080000000:
+            values["intc_kind"] = "fpga_sgi_ack_payload"
+        elif word == 0 and (raw_header & 0xff) == 0x17:
             values["intc_kind"] = "cpu_sgi"
             values["intc_cmd"] = raw_header & 0xff
             values["intc_intid"] = bits(raw_header, 44, 4)
@@ -380,6 +453,8 @@ class _LinkCreditState:
 class _CreditTracker:
     def __init__(self) -> None:
         self.links: Dict[str, _LinkCreditState] = {}
+        self.words_since_return: Dict[Tuple[str, int], int] = {}
+        self.words_total: Dict[Tuple[str, int], int] = {}
 
     def _link(self, link: str) -> _LinkCreditState:
         state = self.links.get(link)
@@ -388,34 +463,51 @@ class _CreditTracker:
             self.links[link] = state
         return state
 
-    def apply_return(self, src_info: Dict[str, Any], payload: int, trace_map: Dict[str, Any]) -> None:
+    def apply_return(self, src_info: Dict[str, Any], payload: int, trace_map: Dict[str, Any]) -> list[Dict[str, Any]]:
         link = str(src_info.get("link", "unknown"))
         state = self._link(link)
         field = trace_map["payload_formats"]["credit_return"]["fields"]["credit_return"]
         vector = bits(payload, int(field["offset"]), int(field["width"]))
+        rows = []
         for bit in range(11):
             if (vector >> bit) & 1:
                 vc = bit + 2
                 counter = state.counter(vc)
                 if counter is not None:
-                    counter.add(8)
+                    credits_after = counter.add(8)
+                    words_key = (link, vc)
+                    rows.append({
+                        "link": link,
+                        "channel": src_info.get("channel", ""),
+                        "vc": vc,
+                        "credit_return_vector": f"0x{vector:03x}",
+                        "credit_return_vcs": _credit_return_vcs(vector),
+                        "tx_vc_credits_after": credits_after,
+                        "tx_vc_words_since_return": self.words_since_return.get(words_key, 0),
+                        "tx_vc_words_total": self.words_total.get(words_key, 0),
+                    })
+                    self.words_since_return[words_key] = 0
+        return rows
 
-    def apply_boundary_accept(self, src_info: Dict[str, Any], vc: int, size: int) -> Optional[int]:
+    def apply_boundary_accept(self, src_info: Dict[str, Any], vc: int, size: int) -> Tuple[Optional[int], int, int]:
         link = str(src_info.get("link", "unknown"))
         path = str(src_info.get("path", ""))
         state = self._link(link)
         counter = state.counter(vc)
         if counter is None:
-            return None
+            return None, 0, 0
 
         decrement = self._boundary_decrement(state, path, vc, size)
         if decrement:
             credits_after = counter.add(-decrement)
         else:
             credits_after = counter.value
+        words_key = (link, vc)
+        self.words_since_return[words_key] = self.words_since_return.get(words_key, 0) + decrement
+        self.words_total[words_key] = self.words_total.get(words_key, 0) + decrement
         if path == "hi":
             state.hi_first_cycle = 1 if size in (0, 1, 2, 3) else 0
-        return credits_after
+        return credits_after, self.words_since_return[words_key], self.words_total[words_key]
 
     @staticmethod
     def _size_words(size: int) -> int:
@@ -513,6 +605,7 @@ def run_eci_state_output(
     output_parent = output_path.parent if output_path.parent != Path("") else Path(".")
     with tempfile.TemporaryDirectory(prefix=f"{output_path.name}.", dir=output_parent) as temp_dir_name:
         spool = _CsvSpool(Path(temp_dir_name))
+        credit_spool = _CreditCsvSpool(Path(temp_dir_name))
         pending_tx = _PendingTxRows(spool)
         credits = _CreditTracker()
         try:
@@ -541,12 +634,35 @@ def run_eci_state_output(
                     else:
                         src_info = source_info(trace_map, source)
                         if _is_credit_return_source(src_info):
-                            credits.apply_return(src_info, payload, trace_map)
+                            for row in credits.apply_return(src_info, payload, trace_map):
+                                row["time"] = timestamp
+                                row["event"] = "credit_return"
+                                row["source"] = source
+                                credit_spool.write_event(row)
                         elif _is_boundary_source(src_info):
                             if _is_accepted_eci_payload(payload, trace_map):
                                 vc = _field(payload, trace_map, "vc")
                                 size = _eci_payload_size(payload, trace_map)
-                                credits_after = credits.apply_boundary_accept(src_info, vc, size)
+                                credits_after, words_since_return, words_total = credits.apply_boundary_accept(
+                                    src_info,
+                                    vc,
+                                    size,
+                                )
+                                raw_header = _field(payload, trace_map, "eci_header")
+                                credit_spool.write_event({
+                                    "time": timestamp,
+                                    "event": "boundary_accept",
+                                    "source": source,
+                                    "link": src_info.get("link", ""),
+                                    "path": src_info.get("path", ""),
+                                    "channel": src_info.get("channel", ""),
+                                    "vc": vc,
+                                    "size": size,
+                                    "raw_header": f"0x{raw_header:016x}",
+                                    "tx_vc_credits_after": credits_after,
+                                    "tx_vc_words_since_return": words_since_return,
+                                    "tx_vc_words_total": words_total,
+                                })
                                 pending_tx.complete(
                                     _eci_payload_key(payload, trace_map),
                                     timestamp,
@@ -557,6 +673,16 @@ def run_eci_state_output(
                             if _is_intc_source(src_info):
                                 unaliased_address = None
                                 values = _intc_event_values(src_info, source, timestamp, raw_header)
+                                credit_spool.write_event({
+                                    "time": timestamp,
+                                    "event": "intc",
+                                    "source": source,
+                                    "channel": src_info.get("channel", ""),
+                                    "vc": _field(payload, trace_map, "vc"),
+                                    "raw_header": f"0x{raw_header:016x}",
+                                    "intc_kind": values.get("intc_kind", ""),
+                                    "intc_word": values.get("intc_word", ""),
+                                })
                             else:
                                 unaliased_address, values = _eci_event_values(
                                     export_map,
@@ -578,8 +704,10 @@ def run_eci_state_output(
             if order_progress_update is not None:
                 order_progress_update(processed)
             pending_tx.flush_unmatched()
+            credit_spool.add_to_archive_spool(spool)
             files = spool.write_archive(output_path)
         finally:
+            credit_spool.close()
             spool.close()
 
     return frames, files
