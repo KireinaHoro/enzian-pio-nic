@@ -764,6 +764,7 @@ signal trace_dump_gateway_mac : std_logic_vector(47 downto 0);
 signal trace_dump_server_ip : std_logic_vector(31 downto 0);
 signal trace_dump_server_udp_port : std_logic_vector(15 downto 0);
 signal trace_dump_over_network : std_logic;
+signal trace_stop : std_logic;
 signal lauberhorn_trace_valid : std_logic_vector(30 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(30 downto 0);
 signal credit_return_trace_valid : std_logic_vector(1 downto 0);
@@ -1824,6 +1825,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     traceDumpServerUdpPortOverrideValid => trace_dump_override_valid(5),
     traceDumpServerUdpPortOverride => trace_dump_server_udp_port,
     traceDumpOverNetwork => trace_dump_over_network,
+    traceStop => trace_stop,
 
     sampleLost => trace_sample_lost,
     dmaError => trace_dma_error,
@@ -2005,6 +2007,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     trace_dump_server_ip => trace_dump_server_ip,
     trace_dump_server_udp_port => trace_dump_server_udp_port,
     trace_dump_over_network(0) => trace_dump_over_network,
+    trace_stop(0) => trace_stop,
 
     -- Trace buffer AXI ports
     trace_ddr_axi_awid => trace_dma_axi.awid,
