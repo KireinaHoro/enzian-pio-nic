@@ -17,9 +17,9 @@ The short version is:
 - The current RX at `+0x0000` and TX at `+0x8000` layout is locally unsafe:
   RX and TX control CLs land on the same DCU colors after ECI address
   scrambling.
-- Feasible solutions are compatible sets of QP signatures. How those signatures
-  are assigned to threads or workers is a separate scheduling/runtime design
-  question.
+- Feasible solutions are admissible active sets of QP signatures. How those
+  signatures are assigned to threads or workers is a separate
+  scheduling/runtime design question.
 
 ## Terms
 
@@ -32,8 +32,22 @@ The short version is:
   controls, and TX overflow.
 - **QP signature:** the DCU colors induced by a QP layout at a particular
   physical address.
-- **Active set:** the QPs that can issue 2F2F doorbell transactions
+- **Signature universe:** the set of QP signatures the implementation can
+  instantiate. For one fixed layout this is the set of signatures produced by
+  all reachable masks. With multiple allowed layouts, it is the union across all
+  layouts and reachable masks.
+- **Active set:** the QP signatures that can issue 2F2F doorbell transactions
   concurrently.
+- **Admissible active set:** an active set whose signatures satisfy the global
+  progress invariant. In graph terms, signatures are vertices, compatibility is
+  an edge, and admissible active sets are cliques.
+
+If possible, we would like QPs to share the same layout under different offsets.
+Terms under this simplified problem:
+
+- **Block layout**: the shared **QP layout** for all QPs.
+- **Block stride**: how far apart are blocks placed.  In the current design, this
+  is denoted by `ECI_CORE_OFFSET = 0x20000`.
 
 ## Progress Requirement
 
@@ -114,21 +128,20 @@ qp_signature(base, layout) = {
 }
 ```
 
-A **signature universe** is the set of signatures the implementation can
-instantiate. It may come from:
+A signature universe may come from:
 
 - one fixed layout translated by different physical block indices,
 - several layouts chosen per QP,
-- different QP block sizes,
+- different QP block strides,
 - or any combination of those mechanisms.
 
-The progress problem is then purely combinatorial: find a compatible subset of
-the signature universe with size equal to the number of QPs that must be active
-at the same time.
+The progress problem is then purely combinatorial: construct the signature
+universe, then find an admissible active set with size equal to the number of
+QPs that must be active at the same time.
 
-If a compatible set of size `K` exists, it is a valid static assignment for `K`
-concurrently active QPs. If no such set exists, no scheduler or mapping design
-can run `K` QPs concurrently while preserving this DCU progress invariant.
+If an admissible active set of size `K` exists, it is a valid static assignment
+for `K` concurrently active QPs. If no such set exists, no scheduler or mapping
+design can run `K` QPs concurrently while preserving this DCU progress invariant.
 
 ## Fixed-Block Signatures
 
@@ -141,7 +154,7 @@ qp_signature(block_index) = local_signature xor block_mask(block_index)
 ```
 
 The local signature comes from the RX/TX CL offsets inside the block. The block
-mask comes from the scrambled high address bits contributed by the block index.
+mask comes from the scrambled high address bits, as contributed by the block index.
 
 For the current `ECI_CORE_OFFSET = 0x20000`:
 
@@ -151,13 +164,30 @@ block_index q   = physical_base / ECI_CORE_OFFSET
 block_mask      = (q >> 3) & 0x3f
 ```
 
-Equivalently, if `p = physical_base / 0x1000`, then
-`block_mask = (p >> 8) & 0x3f` for an `ECI_CORE_OFFSET`-aligned base.
-
-There are 64 reachable masks. The mask repeats every 512 block indices, with
+There are 64 **reachable masks** `0..63`. The mask repeats every 512 block indices, with
 eight distinct block indices per mask.
 
-Changing the block size can change both layout freedom and reachable masks:
+This maximum number of reachable masks is not a coincidence. In this fixed-block
+model, the mask is the high-address contribution into the low aliased DCU color
+bits:
+
+```text
+color = local_color ^ block_mask
+```
+
+The color is `aliased_cli[5:0]`, so it has six bits and therefore 64 possible
+values. A block mask that translates colors in this model is also a six-bit
+value. Thus:
+
+```text
+max_reachable_masks <= number_of_colors = 64
+```
+
+Some block strides expose enough varying block-index bits to reach all 64 masks.
+Larger strides can hide some of those bits, reducing the reachable-mask count
+below the number of colors.
+
+Changing the block stride can change both layout freedom and reachable masks:
 
 | Block size | CLs | reachable masks | mask period in block indices |
 | - | - | - | - |
@@ -170,7 +200,7 @@ Changing the block size can change both layout freedom and reachable masks:
 | `0x200000` | 16384 | 32 | 32 |
 | `0x400000` | 32768 | 16 | 16 |
 
-The current `0x20000` already reaches all 64 masks. Increasing the block size
+The current `0x20000` already reaches all 64 masks. Increasing the block strides
 can make local layout easier, but once the stride reaches `0x200000` the mask
 space starts shrinking.
 
@@ -253,13 +283,14 @@ mask 24:  30, 31, 55, 54
 
 The 20 resulting control colors are pairwise distinct and have no intersection
 with the union of the five translated overflow sets. Thus these masks form one
-compatible set of five QP signatures. This is evidence that fixed-offset block
-coloring is viable; it is not a claim that this layout is optimal.
+admissible active set of five QP signatures. This is evidence that fixed-offset
+block coloring is viable; it is not a claim that this layout is optimal.
 
-For `ECI_CORE_OFFSET = 0x20000`, the block mask is:
+For `ECI_CORE_OFFSET = 0x20000`, the block mask is derived from the block
+index:
 
 ```text
-mask = (block_index >> 3) & 0x3f
+mask := (block_index >> 3) & 0x3f
 ```
 
 So one concrete five-QP assignment is:
@@ -272,9 +303,17 @@ So one concrete five-QP assignment is:
 | QP3 | 6 | 48 | `0x0600000` |
 | QP4 | 24 | 192 | `0x1800000` |
 
-These are only representative block indices. In general, any block index
-satisfying `(block_index >> 3) & 0x3f == mask` gives the same translated
-signature for this analysis.
+These are only representative block indices. In general, any block index that
+derives the same mask through this equation gives the same translated signature
+for this analysis. The mask is derived from the block index; it is not an
+independent property to check against the block index.
+
+Distinct masks are not equivalent to admissibility. Distinct masks only produce
+different translated signatures. Two distinct masks are admissible together only
+if their translated signatures satisfy the global rule: no duplicate active
+control colors and no active-control versus active-overflow intersection. The
+compatibility search must therefore check signature intersections, not just mask
+inequality.
 
 Expanding every selected QP signature:
 
@@ -317,20 +356,21 @@ across QPs. The unused colors are:
 If more simultaneous QPs are required, the right next step is an automated
 layout search:
 
-1. Enumerate candidate RX/TX CL offsets inside a chosen block size.
+1. Enumerate candidate RX/TX CL offsets inside a chosen block stride.
 2. Reject layouts that fail the local QP rule.
 3. Compute translated signatures for all reachable block masks.
 4. Build a compatibility graph over signatures.
-5. Search for a compatible set with the required active QP count.
+5. Search for an admissible active set with the required active QP count.
 6. Emit hardware/software constants for the selected layout and physical
    assignment.
 
 The same search can also allow heterogeneous layouts, where different QPs use
 different local offset choices. Heterogeneous layouts enlarge the signature
 universe, but the requirement is unchanged: the active signatures must form a
-compatible set.
+admissible active set.
 
-## Pseudocode
+<details>
+<summary>Pseudocode to find a permissive layout</summary>
 
 The following pseudocode treats colors as integers in `0..63`, where
 `color(byte_addr)` applies ECI address scrambling and extracts
@@ -408,7 +448,7 @@ the same.
 
 Given a local layout, enumerate all reachable masks and find compatible sets of
 masks. For `ECI_CORE_OFFSET = 0x20000`, the reachable mask set is `0..63` and
-`mask(block_index) = (block_index >> 3) & 0x3f`.
+`mask(block_index) := (block_index >> 3) & 0x3f`.
 
 ```text
 translated_signature(local_signature, mask):
@@ -460,12 +500,13 @@ find_compatible_masks(local_signature, required_qps):
   return find_clique(graph, required_qps)
 ```
 
-Once a mask is chosen, corresponding block indices can be generated:
+Once the compatibility search chooses a desired mask, corresponding block
+indices can be generated by inverting the mask equation:
 
 ```text
 block_indices_for_mask(mask):
   # For ECI_CORE_OFFSET = 0x20000:
-  # mask = (block_index >> 3) & 0x3f
+  # derived mask := (block_index >> 3) & 0x3f
   for k in 0 .. infinity:
     yield (mask << 3) + k * 512
     yield (mask << 3) + 1 + k * 512
@@ -522,6 +563,8 @@ check_assignment(layout, block_indices):
 
   return true
 ```
+
+</details>
 
 ## Why The Deadlock Is Practical
 
