@@ -71,6 +71,7 @@ sf.local_source = ProtoField.uint16("lhtrace.source.local", "Local Source", base
 
 local df = lhdcs.fields
 df.error = ProtoField.uint8("lhtrace.dcs.error", "Error", base.DEC)
+df.error_code = ProtoField.uint8("lhtrace.dcs.error_code", "Error Code", base.DEC)
 df.cli = ProtoField.string("lhtrace.dcs.cli", "CLI")
 df.state = ProtoField.uint8("lhtrace.dcs.state", "State", base.DEC)
 df.action = ProtoField.uint8("lhtrace.dcs.action", "Action", base.DEC)

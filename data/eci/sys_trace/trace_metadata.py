@@ -40,6 +40,16 @@ DCS_ACTION_NAMES = [
     "SEND_RA3", "SEND_RRA", "SEND_RWA", "STALL", "WDD",
 ]
 
+DCS_ERROR_CODE_NAMES = [
+    "ERR_NO_ERROR",
+    "ERR_ECI_EVT_NOT_DECODED",
+    "ERR_CC_EVT_NOT_ALLOWED",
+    "ERR_DEV_ACTION_NOT_DEFINED",
+    "ERR_WRITE_0_DMASK",
+    "ERR_TSU_NXM",
+    "ERR_REQ_STALLED",
+]
+
 MREQ_OPCODE_NAMES = {
     0: "ECI_CMD_MREQ_RLDD", 1: "ECI_CMD_MREQ_RLDI",
     2: "ECI_CMD_MREQ_RLDT", 3: "ECI_CMD_MREQ_RLDY",
@@ -101,6 +111,8 @@ def enrich_trace_map(trace_map: Dict[str, Any]) -> Dict[str, Any]:
 
     payload_formats = enriched.setdefault("payload_formats", {})
     dcs_fields = payload_formats.setdefault("dcs_event", {}).setdefault("fields", {})
+    if "error_code" in dcs_fields:
+        dcs_fields["error_code"].setdefault("enum", _indexed_enum(DCS_ERROR_CODE_NAMES))
     dcs_fields.setdefault("request", {}).setdefault("enum", _indexed_enum(DCS_REQUEST_NAMES))
     dcs_fields.setdefault("action", {}).setdefault("enum", _indexed_enum(DCS_ACTION_NAMES))
     dcs_fields.setdefault("state", {}).setdefault("enum", _indexed_enum(DCS_STATE_NAMES))

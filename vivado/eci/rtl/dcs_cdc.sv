@@ -302,6 +302,7 @@ module dcs_cdc #(
     // DCS event trace output.
     output logic        trace_dcs_event_valid[2],
     output logic        trace_dcs_event_error[2],
+    output logic [3:0]  trace_dcs_event_error_code[2],
     output logic [39:0] trace_dcs_event_cli[2],
     output logic [6:0]  trace_dcs_event_state[2],
     output logic [3:0]  trace_dcs_event_action[2],
@@ -756,6 +757,7 @@ dcs_2_axi #(
   // tracing interfaces
   .trace_dcs_event_valid,
   .trace_dcs_event_error,
+  .trace_dcs_event_error_code,
   .trace_dcs_event_cli,
   .trace_dcs_event_state,
   .trace_dcs_event_action,

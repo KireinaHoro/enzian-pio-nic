@@ -214,6 +214,7 @@ object LauberhornTraceDma {
     PayloadField("state", offset = 41, width = 7),
     PayloadField("action", offset = 48, width = 4),
     PayloadField("request", offset = 52, width = 5),
+    PayloadField("error_code", offset = 57, width = 4),
   ))
 
   // ECI trace payloads carry the 64-bit header plus local decode metadata:
@@ -467,6 +468,8 @@ case class LauberhornTraceDma(
   //   [47:41] state
   //   [51:48] action
   //   [56:52] request
+  //   [60:57] error code
+  //   [74:61] reserved
   //
   // ECI frame payloads:
   //   [63:0]  ECI header word

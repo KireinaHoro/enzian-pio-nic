@@ -137,6 +137,16 @@ The meaning of `accepted = 1` depends on the trace point:
   after the dynamic gateway's VC-level credit tracking, so the frame has made it
   past the dynamic-side point where VC credits can still withhold it.
 
+DCS event sources are generated from the DCU debug interface.  A stalled input
+request is traced as a bounded burst of up to 16 events for each continuous
+stall, then suppressed until the stall resolves.  This keeps deadlock captures
+from being overwritten by a single stuck DCU debug condition while still showing
+that the stall persisted.  The DCS event `error_code` field carries the DCU
+error code, with `ERR_REQ_STALLED` used for these request-stall trace events.
+The original single-bit DCS `error` field remains in bit 0 for compatibility
+with old captures and old decoders; `error_code` is stored in the previously
+unused high payload bits.
+
 The boundary trace point is therefore the right place to answer "did an FPGA
 ECI message really leave toward the CPU?"  It still is not a CPU-retirement
 trace: after this point the traffic is in static-shell/TLK/link-layer logic, and

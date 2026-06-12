@@ -327,6 +327,7 @@ architecture Behavioral of lauberhorn_eci is
 -- Must use component declarations since direct entity instantiation
 -- does not work with the unpacked arrays
 type trace_dcs_event_cli_array is array (integer range <>) of std_logic_vector(39 downto 0);
+type trace_dcs_event_error_code_array is array (integer range <>) of std_logic_vector(3 downto 0);
 type trace_dcs_event_state_array is array (integer range <>) of std_logic_vector(6 downto 0);
 type trace_dcs_event_action_array is array (integer range <>) of std_logic_vector(3 downto 0);
 type trace_dcs_event_request_array is array (integer range <>) of std_logic_vector(4 downto 0);
@@ -450,10 +451,11 @@ port (
   -- Tracing
   -- Be careful: SystemVerilog unpacked arrays are indexed from 0 upwards.
   -- The DCS event valid/error ports are unpacked scalar arrays too, so keep
-  -- them ascending to stay aligned with the DCS payload arrays. ECI
-  -- valid/ready are packed SV vectors and remain descending std_logic_vectors.
+  -- them ascending to stay aligned with the DCS payload arrays. ECI valid/ready
+  -- are packed SV vectors and remain descending std_logic_vectors.
   trace_dcs_event_valid   : out std_logic_vector(0 to 1);
   trace_dcs_event_error   : out std_logic_vector(0 to 1);
+  trace_dcs_event_error_code : out trace_dcs_event_error_code_array(0 to 1);
   trace_dcs_event_cli     : out trace_dcs_event_cli_array(0 to 1);
   trace_dcs_event_state   : out trace_dcs_event_state_array(0 to 1);
   trace_dcs_event_action  : out trace_dcs_event_action_array(0 to 1);
@@ -698,19 +700,20 @@ type REGS_AXIL_NARROW is record
     bready  : std_logic;
 end record REGS_AXIL_NARROW;
 
-constant TRACE_ZERO_18 : std_logic_vector(17 downto 0) := (others => '0');
+constant TRACE_ZERO_14 : std_logic_vector(13 downto 0) := (others => '0');
 constant TRACE_ZERO_64 : std_logic_vector(63 downto 0) := (others => '0');
 constant TRACE_ECI_SIZE_UNKNOWN : std_logic_vector(2 downto 0) := (others => '0');
 
 function pack_dcs_trace(
-    error     : std_logic;
-    cli       : std_logic_vector(39 downto 0);
-    state     : std_logic_vector(6 downto 0);
-    action    : std_logic_vector(3 downto 0);
-    request   : std_logic_vector(4 downto 0)
+    error      : std_logic;
+    error_code : std_logic_vector(3 downto 0);
+    cli        : std_logic_vector(39 downto 0);
+    state      : std_logic_vector(6 downto 0);
+    action     : std_logic_vector(3 downto 0);
+    request    : std_logic_vector(4 downto 0)
 ) return trace_payload_t is
 begin
-    return TRACE_ZERO_18 & request & action & state & cli & error;
+    return TRACE_ZERO_14 & error_code & request & action & state & cli & error;
 end function;
 
 function pack_credit_return(
@@ -800,6 +803,7 @@ signal ipi_trace_eci_sys_vc : trace_eci_vc_array(1 downto 0);
 
 signal dcs_odd_trace_dcs_event_valid   : std_logic_vector(0 to 1);
 signal dcs_odd_trace_dcs_event_error   : std_logic_vector(0 to 1);
+signal dcs_odd_trace_dcs_event_error_code : trace_dcs_event_error_code_array(0 to 1);
 signal dcs_odd_trace_dcs_event_cli     : trace_dcs_event_cli_array(0 to 1);
 signal dcs_odd_trace_dcs_event_state   : trace_dcs_event_state_array(0 to 1);
 signal dcs_odd_trace_dcs_event_action  : trace_dcs_event_action_array(0 to 1);
@@ -807,6 +811,7 @@ signal dcs_odd_trace_dcs_event_request : trace_dcs_event_request_array(0 to 1);
 
 signal dcs_even_trace_dcs_event_valid   : std_logic_vector(0 to 1);
 signal dcs_even_trace_dcs_event_error   : std_logic_vector(0 to 1);
+signal dcs_even_trace_dcs_event_error_code : trace_dcs_event_error_code_array(0 to 1);
 signal dcs_even_trace_dcs_event_cli     : trace_dcs_event_cli_array(0 to 1);
 signal dcs_even_trace_dcs_event_state   : trace_dcs_event_state_array(0 to 1);
 signal dcs_even_trace_dcs_event_action  : trace_dcs_event_action_array(0 to 1);
@@ -1282,6 +1287,7 @@ port map (
   -- Tracing interface
   trace_dcs_event_valid   => dcs_even_trace_dcs_event_valid   ,
   trace_dcs_event_error   => dcs_even_trace_dcs_event_error   ,
+  trace_dcs_event_error_code => dcs_even_trace_dcs_event_error_code,
   trace_dcs_event_state   => dcs_even_trace_dcs_event_state   ,
   trace_dcs_event_action  => dcs_even_trace_dcs_event_action  ,
   trace_dcs_event_request => dcs_even_trace_dcs_event_request ,
@@ -1411,6 +1417,7 @@ port map (
   -- Tracing interface
   trace_dcs_event_valid   => dcs_odd_trace_dcs_event_valid   ,
   trace_dcs_event_error   => dcs_odd_trace_dcs_event_error   ,
+  trace_dcs_event_error_code => dcs_odd_trace_dcs_event_error_code,
   trace_dcs_event_state   => dcs_odd_trace_dcs_event_state   ,
   trace_dcs_event_action  => dcs_odd_trace_dcs_event_action  ,
   trace_dcs_event_request => dcs_odd_trace_dcs_event_request ,
@@ -1516,13 +1523,13 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     sysClock_reset => reset,
 
     appDcsTraceIn_0_valid => dcs_even_trace_dcs_event_valid(0),
-    appDcsTraceIn_0_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(0), dcs_even_trace_dcs_event_cli(0), dcs_even_trace_dcs_event_state(0), dcs_even_trace_dcs_event_action(0), dcs_even_trace_dcs_event_request(0)),
+    appDcsTraceIn_0_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(0), dcs_even_trace_dcs_event_error_code(0), dcs_even_trace_dcs_event_cli(0), dcs_even_trace_dcs_event_state(0), dcs_even_trace_dcs_event_action(0), dcs_even_trace_dcs_event_request(0)),
     appDcsTraceIn_1_valid => dcs_even_trace_dcs_event_valid(1),
-    appDcsTraceIn_1_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(1), dcs_even_trace_dcs_event_cli(1), dcs_even_trace_dcs_event_state(1), dcs_even_trace_dcs_event_action(1), dcs_even_trace_dcs_event_request(1)),
+    appDcsTraceIn_1_payload => pack_dcs_trace(dcs_even_trace_dcs_event_error(1), dcs_even_trace_dcs_event_error_code(1), dcs_even_trace_dcs_event_cli(1), dcs_even_trace_dcs_event_state(1), dcs_even_trace_dcs_event_action(1), dcs_even_trace_dcs_event_request(1)),
     appDcsTraceIn_2_valid => dcs_odd_trace_dcs_event_valid(0),
-    appDcsTraceIn_2_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(0), dcs_odd_trace_dcs_event_cli(0), dcs_odd_trace_dcs_event_state(0), dcs_odd_trace_dcs_event_action(0), dcs_odd_trace_dcs_event_request(0)),
+    appDcsTraceIn_2_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(0), dcs_odd_trace_dcs_event_error_code(0), dcs_odd_trace_dcs_event_cli(0), dcs_odd_trace_dcs_event_state(0), dcs_odd_trace_dcs_event_action(0), dcs_odd_trace_dcs_event_request(0)),
     appDcsTraceIn_3_valid => dcs_odd_trace_dcs_event_valid(1),
-    appDcsTraceIn_3_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(1), dcs_odd_trace_dcs_event_cli(1), dcs_odd_trace_dcs_event_state(1), dcs_odd_trace_dcs_event_action(1), dcs_odd_trace_dcs_event_request(1)),
+    appDcsTraceIn_3_payload => pack_dcs_trace(dcs_odd_trace_dcs_event_error(1), dcs_odd_trace_dcs_event_error_code(1), dcs_odd_trace_dcs_event_cli(1), dcs_odd_trace_dcs_event_state(1), dcs_odd_trace_dcs_event_action(1), dcs_odd_trace_dcs_event_request(1)),
 
     appEciTraceIn_0_payload_header => dcs_even_trace_eci_app_header(0),
     appEciTraceIn_0_payload_vc => dcs_even_trace_eci_app_vc(0),
