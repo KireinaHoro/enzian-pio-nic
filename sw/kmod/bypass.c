@@ -334,9 +334,9 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	priv->ctx.tx_buf = skb->data;
 	tx_len = skb->len;
 
-	spin_lock_bh(&priv->dp_lock);
+	// spin_lock_bh(&priv->dp_lock);
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
-	spin_unlock_bh(&priv->dp_lock);
+	// spin_unlock_bh(&priv->dp_lock);
 	l2c_tad_debug_print_tx(tx_len);
 
 	// free skb and return
@@ -447,9 +447,9 @@ static poll_result_t poll_once(struct napi_struct *n)
 	struct net_device *dev = priv->dev;
 	lauberhorn_pkt_desc_t desc;
 
-	spin_lock_bh(&priv->dp_lock);
+	// spin_lock_bh(&priv->dp_lock);
 	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
-	spin_unlock_bh(&priv->dp_lock);
+	// spin_unlock_bh(&priv->dp_lock);
 
 	if (!got_req) {
 		dev_dbg(&dev->dev, "finished polling, no more packets\n");

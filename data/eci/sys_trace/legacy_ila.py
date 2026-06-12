@@ -126,7 +126,12 @@ def _iter_dcs_samples(path: Path, trace_map: Dict[str, Any], file_id: int) -> It
     action_col = _column(headers, "dcs_trace.event.action", "event.action")
     cli_col = _column(headers, "dcs_trace.event.cli", "event.cli")
     state_col = _column(headers, "dcs_trace.event.state", "event.state")
-    error_col = _column(headers, "dcs_trace.event.error", "event.error")
+    try:
+        error_code_col = _column(headers, "dcs_trace.event.error_code", "event.error_code")
+        error_col = None
+    except ValueError:
+        error_code_col = None
+        error_col = _column(headers, "dcs_trace.event.error", "event.error")
     dump_col = _column(headers, "dcs_trace.dump", "dump")
     fields = trace_map["payload_formats"]["dcs_event"]["fields"]
 
@@ -136,7 +141,13 @@ def _iter_dcs_samples(path: Path, trace_map: Dict[str, Any], file_id: int) -> It
             break
         source = _dcs_source(row, src_col)
         payload = 0
-        payload = _set_bits(payload, _hex_cell(row, error_col, "dcs error"), fields, "error")
+        if error_code_col is not None:
+            error_code = _hex_cell(row, error_code_col, "dcs error code")
+            payload = _set_bits(payload, 1 if error_code != 0 else 0, fields, "error")
+            if "error_code" in fields:
+                payload = _set_bits(payload, error_code, fields, "error_code")
+        else:
+            payload = _set_bits(payload, _hex_cell(row, error_col, "dcs error"), fields, "error")
         payload = _set_bits(payload, _hex_cell(row, cli_col, "dcs cli"), fields, "cli")
         payload = _set_bits(payload, _enum_cell(row, state_col, fields["state"]["enum"], "dcs state"), fields, "state")
         payload = _set_bits(payload, _enum_cell(row, action_col, fields["action"]["enum"], "dcs action"), fields, "action")

@@ -5,13 +5,14 @@
 Reads a CSV trace (e.g. dcs.csv), finds the second row where dump==1,
 and extracts the following 4 event columns (plus timestamp) for the next N samples
 while timestamp != 0:
+  - dcs_trace.event.error_code
   - dcs_trace.event.req
   - dcs_trace.event.cli
   - dcs_trace.event.action
   - dcs_trace.event.state
   - dcs_trace.ts (timestamp)
 
-Output: CSV with these 5 columns, sorted by timestamp ascending.
+Output: CSV with these event columns, sorted by timestamp ascending.
 """
 
 import argparse
@@ -71,12 +72,18 @@ def main():
 		cli_col = find_column(headers, "dcs_trace.event.cli") or find_column(headers, "event.cli")
 		action_col = find_column(headers, "dcs_trace.event.action") or find_column(headers, "event.action")
 		state_col = find_column(headers, "dcs_trace.event.state") or find_column(headers, "event.state")
+		error_code_col = (
+			find_column(headers, "dcs_trace.event.error_code")
+			or find_column(headers, "event.error_code")
+			or find_column(headers, "dcs_trace.event.error")
+			or find_column(headers, "event.error")
+		)
 
 		if not dump_col or not ts_col:
 			print(f"Could not auto-detect dump or timestamp columns. Headers: {headers}")
 			sys.exit(3)
 
-		if not all([req_col, cli_col, action_col, state_col]):
+		if not all([req_col, cli_col, action_col, state_col, error_code_col]):
 			print(f"Could not auto-detect event columns. Available headers: {headers}")
 			sys.exit(3)
 
@@ -106,6 +113,7 @@ def main():
 		cli_val = r.get(cli_col, "").strip()
 		action_val = r.get(action_col, "").strip()
 		state_val = r.get(state_col, "").strip()
+		error_code_val = r.get(error_code_col, "").strip()
 
 		# Convert cycles to microseconds assuming 200 MHz clock (1 cycle = 5 ns = 0.005 us)
 		if ts_val is None:
@@ -117,6 +125,7 @@ def main():
 
 		d = {
 			"index": idx,
+			"dcs_trace.event.error_code": error_code_val,
 			"dcs_trace.event.req": req_val,
 			"dcs_trace.event.cli": cli_val,
 			"dcs_trace.event.action": action_val,
@@ -131,7 +140,7 @@ def main():
 
 	# Write output CSV (without timestamp_int, that was just for sorting)
 	with out_path.open("w", newline="") as f:
-		fieldnames = ["index", "dcs_trace.event.req", "dcs_trace.event.cli", "dcs_trace.event.action", "dcs_trace.event.state", "timestamp"]
+		fieldnames = ["index", "dcs_trace.event.error_code", "dcs_trace.event.req", "dcs_trace.event.cli", "dcs_trace.event.action", "dcs_trace.event.state", "timestamp"]
 		writer = csv.DictWriter(f, fieldnames=fieldnames)
 		writer.writeheader()
 		for d in extracted:

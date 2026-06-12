@@ -76,11 +76,16 @@ local function dissect_dcs(payload_tvb, tree)
         return malformed_payload_result(tree, payload_tvb, "DCS", reason)
     end
 
-    local error_value = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
+    local error = extract_bits_le(payload_tvb, 0, fields.error.offset, fields.error.width)
+    local error_code = nil
+    if fields.error_code ~= nil and tvb_has_bits(payload_tvb, tonumber(fields.error_code.offset), tonumber(fields.error_code.width)) then
+        error_code = extract_bits_le(payload_tvb, 0, fields.error_code.offset, fields.error_code.width)
+    end
     local cli = extract_bits_le(payload_tvb, 0, fields.cli.offset, fields.cli.width)
     local state = extract_bits_le(payload_tvb, 0, fields.state.offset, fields.state.width)
     local action = extract_bits_le(payload_tvb, 0, fields.action.offset, fields.action.width)
     local request = extract_bits_le(payload_tvb, 0, fields.request.offset, fields.request.width)
+    local error_code_name = error_code ~= nil and (enum_name("dcs_event", "error_code", error_code) or tostring(error_code)) or nil
     local request_name = enum_name("dcs_event", "request", request) or tostring(request)
     local action_name = enum_name("dcs_event", "action", action) or tostring(action)
     local state_name = enum_name("dcs_event", "state", state) or tostring(state)
@@ -98,10 +103,20 @@ local function dissect_dcs(payload_tvb, tree)
             string.format("DCS CLI lower address bits are nonzero: 0x%02x", cli_low_bits)
         )
     end
-    tree:add(df.error, byte_range_for_bits(payload_tvb, fields.error.offset, fields.error.width), error_value)
+    tree:add(df.error, byte_range_for_bits(payload_tvb, fields.error.offset, fields.error.width), error)
+    if error_code ~= nil then
+        append_enum(tree:add(df.error_code, byte_range_for_bits(payload_tvb, fields.error_code.offset, fields.error_code.width), error_code), "dcs_event", "error_code", error_code)
+    end
+
+    local info = request_name .. ": " .. action_name .. " => " .. state_name
+    if error_code ~= nil and error_code ~= 0 then
+        info = info .. " [" .. error_code_name .. "]"
+    elseif error ~= 0 then
+        info = info .. " [error]"
+    end
 
     return {
-        info = request_name .. ": " .. action_name .. " => " .. state_name,
+        info = info,
         dest = fmt_addr(unaliased),
     }
 end
