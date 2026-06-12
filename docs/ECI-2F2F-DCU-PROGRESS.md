@@ -276,6 +276,44 @@ These are only representative block indices. In general, any block index
 satisfying `(block_index >> 3) & 0x3f == mask` gives the same translated
 signature for this analysis.
 
+Expanding every selected QP signature:
+
+| QP | mask | control colors `A,B,C,D` | overflow colors `E`, sorted |
+| - | - | - | - |
+| QP0 | 0 | `6, 7, 47, 46` | `8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 56, 57, 58, 59` |
+| QP1 | 2 | `4, 5, 45, 44` | `8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 56, 57, 58, 59` |
+| QP2 | 4 | `2, 3, 43, 42` | `8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 32, 33, 34, 35, 36, 37, 38, 39, 60, 61, 62, 63` |
+| QP3 | 6 | `0, 1, 41, 40` | `8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 32, 33, 34, 35, 36, 37, 38, 39, 60, 61, 62, 63` |
+| QP4 | 24 | `30, 31, 55, 54` | `8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23, 32, 33, 34, 35, 56, 57, 58, 59, 60, 61, 62, 63` |
+
+The aggregate check is:
+
+```text
+active_controls = {
+  0, 1, 2, 3, 4, 5, 6, 7,
+  30, 31,
+  40, 41, 42, 43, 44, 45, 46, 47,
+  54, 55
+}
+
+active_overflow = {
+  8, 9, 10, 11, 12, 13, 14, 15,
+  16, 17, 18, 19, 20, 21, 22, 23,
+  32, 33, 34, 35, 36, 37, 38, 39,
+  56, 57, 58, 59, 60, 61, 62, 63
+}
+
+active_controls intersects active_overflow = empty
+```
+
+This consumes 20 distinct control colors and 32 overflow colors. The total
+number of colors touched is 52 because overflow colors are intentionally reused
+across QPs. The unused colors are:
+
+```text
+24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53
+```
+
 If more simultaneous QPs are required, the right next step is an automated
 layout search:
 
