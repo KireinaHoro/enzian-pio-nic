@@ -330,6 +330,199 @@ different local offset choices. Heterogeneous layouts enlarge the signature
 universe, but the requirement is unchanged: the active signatures must form a
 compatible set.
 
+## Pseudocode
+
+The following pseudocode treats colors as integers in `0..63`, where
+`color(byte_addr)` applies ECI address scrambling and extracts
+`aliased_cli[5:0]`.
+
+### Find A Locally Viable Block Layout
+
+Given an upper bound `max_e_size` for the overflow color set `E`, search for one
+local QP layout whose control colors are distinct and disjoint from its overflow
+colors.
+
+```text
+find_local_layout(block_size_cl, num_overflow_cl, max_e_size):
+  for rx_ctrl0 in 0 .. block_size_cl - 1:
+    rx_ctrl1 = rx_ctrl0 + 1
+    rx_ov_start = rx_ctrl0 + 2
+    rx_ov_end = rx_ov_start + num_overflow_cl
+
+    if rx_ov_end > block_size_cl:
+      continue
+
+    rx_used_cls = range(rx_ctrl0, rx_ov_end)
+
+    for tx_ctrl0 in 0 .. block_size_cl - 1:
+      tx_ctrl1 = tx_ctrl0 + 1
+      tx_ov_start = tx_ctrl0 + 2
+      tx_ov_end = tx_ov_start + num_overflow_cl
+
+      if tx_ov_end > block_size_cl:
+        continue
+
+      tx_used_cls = range(tx_ctrl0, tx_ov_end)
+
+      if intersects(rx_used_cls, tx_used_cls):
+        continue
+
+      A = local_color(rx_ctrl0)
+      B = local_color(rx_ctrl1)
+      C = local_color(tx_ctrl0)
+      D = local_color(tx_ctrl1)
+
+      controls = {A, B, C, D}
+      if size(controls) != 4:
+        continue
+
+      E = set()
+      for cl in range(rx_ov_start, rx_ov_end):
+        E.add(local_color(cl))
+      for cl in range(tx_ov_start, tx_ov_end):
+        E.add(local_color(cl))
+
+      if size(E) > max_e_size:
+        continue
+
+      if intersects(controls, E):
+        continue
+
+      return Layout(
+        rx_ctrl = [rx_ctrl0, rx_ctrl1],
+        rx_overflow = range(rx_ov_start, rx_ov_end),
+        tx_ctrl = [tx_ctrl0, tx_ctrl1],
+        tx_overflow = range(tx_ov_start, tx_ov_end),
+        local_signature = {A, B, C, D, E}
+      )
+
+  return none
+```
+
+This version assumes each direction is laid out as two adjacent control CLs
+followed by a contiguous overflow run. A more general generator can enumerate
+non-contiguous overflow CLs or different RX/TX shapes; the local test remains
+the same.
+
+### Find Compatible Masks For A Layout
+
+Given a local layout, enumerate all reachable masks and find compatible sets of
+masks. For `ECI_CORE_OFFSET = 0x20000`, the reachable mask set is `0..63` and
+`mask(block_index) = (block_index >> 3) & 0x3f`.
+
+```text
+translated_signature(local_signature, mask):
+  return Signature(
+    controls = {
+      local_signature.A ^ mask,
+      local_signature.B ^ mask,
+      local_signature.C ^ mask,
+      local_signature.D ^ mask
+    },
+    overflow = { e ^ mask for e in local_signature.E }
+  )
+
+signatures_compatible(sig_a, sig_b):
+  if intersects(sig_a.controls, sig_b.controls):
+    return false
+
+  if intersects(sig_a.controls, sig_b.overflow):
+    return false
+
+  if intersects(sig_b.controls, sig_a.overflow):
+    return false
+
+  return true
+
+find_compatible_masks(local_signature, required_qps):
+  candidates = []
+
+  for mask in reachable_masks():
+    sig = translated_signature(local_signature, mask)
+
+    # A reachable mask should still satisfy the local rule.
+    if size(sig.controls) != 4:
+      continue
+    if intersects(sig.controls, sig.overflow):
+      continue
+
+    candidates.append((mask, sig))
+
+  graph = CompatibilityGraph()
+  for each candidate c:
+    graph.add_node(c.mask, c.sig)
+
+  for each pair (a, b) in candidates:
+    if signatures_compatible(a.sig, b.sig):
+      graph.add_edge(a.mask, b.mask)
+
+  # Any clique of size required_qps is one valid concurrently active mask set.
+  return find_clique(graph, required_qps)
+```
+
+Once a mask is chosen, corresponding block indices can be generated:
+
+```text
+block_indices_for_mask(mask):
+  # For ECI_CORE_OFFSET = 0x20000:
+  # mask = (block_index >> 3) & 0x3f
+  for k in 0 .. infinity:
+    yield (mask << 3) + k * 512
+    yield (mask << 3) + 1 + k * 512
+    yield (mask << 3) + 2 + k * 512
+    ...
+    yield (mask << 3) + 7 + k * 512
+```
+
+### Check A Concrete Assignment
+
+Given a block layout and a list of concrete block indices, verify the invariant
+directly. This is the check to run on generated assignments and in debug tooling.
+
+```text
+signature_for_block(layout, block_index):
+  base = block_index * ECI_CORE_OFFSET
+
+  A = color(base + layout.rx_ctrl[0] * CL_SIZE)
+  B = color(base + layout.rx_ctrl[1] * CL_SIZE)
+  C = color(base + layout.tx_ctrl[0] * CL_SIZE)
+  D = color(base + layout.tx_ctrl[1] * CL_SIZE)
+
+  E = set()
+  for cl in layout.rx_overflow:
+    E.add(color(base + cl * CL_SIZE))
+  for cl in layout.tx_overflow:
+    E.add(color(base + cl * CL_SIZE))
+
+  return Signature(controls = {A, B, C, D}, overflow = E)
+
+check_assignment(layout, block_indices):
+  active_controls = set()
+  active_overflow = set()
+
+  for block_index in block_indices:
+    sig = signature_for_block(layout, block_index)
+
+    # Local rule.
+    if size(sig.controls) != 4:
+      return false
+    if intersects(sig.controls, sig.overflow):
+      return false
+
+    # Global rule against already accepted QPs.
+    if intersects(sig.controls, active_controls):
+      return false
+    if intersects(sig.controls, active_overflow):
+      return false
+    if intersects(sig.overflow, active_controls):
+      return false
+
+    active_controls = union(active_controls, sig.controls)
+    active_overflow = union(active_overflow, sig.overflow)
+
+  return true
+```
+
 ## Why The Deadlock Is Practical
 
 The proposed failure mode needs two properties:
