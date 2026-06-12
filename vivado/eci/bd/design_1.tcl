@@ -997,6 +997,7 @@ proc create_root_design { parentCell } {
   set trace_dump_server_ip [ create_bd_port -dir O -from 31 -to 0 -type data trace_dump_server_ip ]
   set trace_dump_server_udp_port [ create_bd_port -dir O -from 15 -to 0 -type data trace_dump_server_udp_port ]
   set trace_dump_over_network [ create_bd_port -dir O -type data trace_dump_over_network ]
+  set trace_stop [ create_bd_port -dir O -type data trace_stop ]
 
   # Create instance: cmac_usplus_0, and set properties
   set cmac_usplus_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_0 ]
@@ -1125,7 +1126,7 @@ proc create_root_design { parentCell } {
   set vio_trace_status [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_trace_status ]
   set_property -dict [list \
     CONFIG.C_NUM_PROBE_IN {4} \
-    CONFIG.C_NUM_PROBE_OUT {8} \
+    CONFIG.C_NUM_PROBE_OUT {9} \
     CONFIG.C_PROBE_IN0_WIDTH {29} \
     CONFIG.C_PROBE_IN1_WIDTH {1} \
     CONFIG.C_PROBE_IN2_WIDTH {1} \
@@ -1138,6 +1139,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_PROBE_OUT5_WIDTH {32} \
     CONFIG.C_PROBE_OUT6_WIDTH {16} \
     CONFIG.C_PROBE_OUT7_WIDTH {1} \
+    CONFIG.C_PROBE_OUT8_WIDTH {1} \
   ] $vio_trace_status
 
   # Create interface connections
@@ -1325,6 +1327,8 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_ports trace_dump_server_udp_port]
   connect_bd_net -net trace_dump_over_network_1  [get_bd_pins vio_trace_status/probe_out7] \
   [get_bd_ports trace_dump_over_network]
+  connect_bd_net -net trace_stop_1  [get_bd_pins vio_trace_status/probe_out8] \
+  [get_bd_ports trace_stop]
   connect_bd_net -net reset_sys_1  [get_bd_ports reset] \
   [get_bd_pins hier_clk_rst/reset] \
   [get_bd_pins ddr4_4/sys_rst]

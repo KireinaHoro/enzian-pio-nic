@@ -561,6 +561,7 @@ case class LauberhornTraceDma(
   val traceDumpServerUdpPortOverrideValid = in(Bool())
   val traceDumpServerUdpPortOverride = in(Bits(16 bits))
   val traceDumpOverNetwork = in(Bool())
+  val traceStop = in(Bool())
 
   // this is in sys clock domain
   val sysEciTraceIn = Vec(in(Stream(LauberhornTraceDma.EciTraceFrame())), sysEciSourceCount) addTag ClockDomainTag(sysClock)
@@ -581,6 +582,7 @@ case class LauberhornTraceDma(
 
   traceDma.axi >> axi
   traceDma.readEnable := True
+  traceDma.traceStop := traceStop
   sampleLost := traceDma.sampleLost
   dmaError := traceDma.dmaError
   wrapped := traceDma.wrapped

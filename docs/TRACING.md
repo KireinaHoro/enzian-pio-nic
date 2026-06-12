@@ -256,8 +256,8 @@ With all override-valid bits left at zero, the hardware defaults are:
 - dump server IPv4 address: `129.132.102.8`
 - dump server UDP port: `55555`
 
-The VIO exposes a six-bit override-valid mask plus the six override values and
-a separate `dump over network` boolean output:
+The VIO exposes a six-bit override-valid mask plus the six override values, a
+`dump over network` boolean output, and a `trace stop` boolean output:
 
 - bit 0 enables the self MAC override;
 - bit 1 enables the self IPv4 override;
@@ -265,6 +265,12 @@ a separate `dump over network` boolean output:
 - bit 3 enables the gateway MAC override;
 - bit 4 enables the dump server IPv4 override;
 - bit 5 enables the dump server UDP port override.
+
+Asserting `trace stop` freezes trace collection into DDR by preventing
+`TraceBufferDMA` from issuing new write descriptors.  If a descriptor is already
+in flight when the bit is asserted, that descriptor can still complete before
+`writeSlot` stops advancing.  The trace dump/read path remains active, so the
+frozen buffer can be dumped with the normal UDP or JTAG tools.
 
 The dump-capture machine runs the Python script as a UDP server.  When the VIO
 `dump over network` output rises, the FPGA sends a zero-data metadata packet to
