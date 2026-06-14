@@ -144,8 +144,8 @@ from being overwritten by a single stuck DCU debug condition while still showing
 that the stall persisted.  The DCS event `error_code` field carries the DCU
 error code, with `ERR_REQ_STALLED` used for these request-stall trace events.
 The original single-bit DCS `error` field remains in bit 0 for compatibility
-with old captures and old decoders; `error_code` is stored in the previously
-unused high payload bits.
+with old captures and old decoders; `error_code` follows the DCS `request`
+field in payload bits `[60:57]`.
 
 The boundary trace point is therefore the right place to answer "did an FPGA
 ECI message really leave toward the CPU?"  It still is not a CPU-retirement
