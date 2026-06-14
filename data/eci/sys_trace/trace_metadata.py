@@ -89,6 +89,17 @@ MFWD_OPCODE_NAMES = {
     14: "ECI_CMD_MFWD_SINV_H",
 }
 
+LCL_MFWD_OPCODE_NAMES = {
+    0: "ECI_CMD_LCL_MFWD_CLEAN",
+    1: "ECI_CMD_LCL_MFWD_CLEAN_INV",
+}
+
+LCL_MRSP_OPCODE_NAMES = {
+    0: "ECI_CMD_LCL_MRSP_CLEAN_ACK",
+    1: "ECI_CMD_LCL_MRSP_CLEAN_INV_ACK",
+    2: "ECI_CMD_LCL_MRSP_UNLOCK",
+}
+
 
 def _indexed_enum(names: Iterable[str]) -> Dict[str, str]:
     return {str(index): name for index, name in enumerate(names)}
@@ -122,6 +133,8 @@ def enrich_trace_map(trace_map: Dict[str, Any]) -> Dict[str, Any]:
         "mreq": _numeric_enum(MREQ_OPCODE_NAMES),
         "mrsp": _numeric_enum(MRSP_OPCODE_NAMES),
         "mfwd": _numeric_enum(MFWD_OPCODE_NAMES),
+        "lcl_mfwd": _numeric_enum(LCL_MFWD_OPCODE_NAMES),
+        "lcl_mrsp": _numeric_enum(LCL_MRSP_OPCODE_NAMES),
     })
 
     return enriched

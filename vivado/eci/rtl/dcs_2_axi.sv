@@ -149,7 +149,12 @@ module dcs_2_axi #
     output logic [39:0] trace_dcs_event_cli[2],
     output logic [6:0]  trace_dcs_event_state[2],
     output logic [3:0]  trace_dcs_event_action[2],
-    output logic [4:0]  trace_dcs_event_request[2]
+    output logic [4:0]  trace_dcs_event_request[2],
+
+    output logic [ECI_WORD_WIDTH-1:0] trace_lcl_app_header[4],
+    output logic [3:0]                trace_lcl_app_vc[4],
+    output logic [3:0]                trace_lcl_app_valid,
+    output logic [3:0]                trace_lcl_app_ready
     );
 
    // VC width is 5 bits here, upstream ECI is only 4 bits.
@@ -474,7 +479,11 @@ module dcs_2_axi #
       .tracing_cli(trace_dcs_event_cli),
       .tracing_state(trace_dcs_event_state),
       .tracing_action(trace_dcs_event_action),
-      .tracing_request(trace_dcs_event_request)
+      .tracing_request(trace_dcs_event_request),
+      .trace_lcl_app_header(trace_lcl_app_header),
+      .trace_lcl_app_vc(trace_lcl_app_vc),
+      .trace_lcl_app_valid(trace_lcl_app_valid),
+      .trace_lcl_app_ready(trace_lcl_app_ready)
       );
 
    // DCS to AXI RD signals.

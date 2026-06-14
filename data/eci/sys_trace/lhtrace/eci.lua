@@ -30,7 +30,11 @@ local function reset_eci_pairs()
 end
 local function eci_class(source_info)
     local channel = source_info ~= nil and tostring(source_info.channel or "") or ""
-    if channel:find("req", 1, true) ~= nil then
+    if channel:find("lcl_fwd", 1, true) ~= nil or channel:find("dcu_lcl_fwd", 1, true) ~= nil then
+        return "lcl_mfwd"
+    elseif channel:find("lcl_rsp", 1, true) ~= nil or channel:find("dcu_lcl_rsp", 1, true) ~= nil then
+        return "lcl_mrsp"
+    elseif channel:find("req", 1, true) ~= nil then
         return "mreq"
     elseif channel:find("rsp", 1, true) ~= nil then
         return "mrsp"
@@ -79,12 +83,31 @@ local function expected_eci_vc(source_info)
         return 4 + lane
     elseif channel == "fwd_wod_o" then
         return 8 + lane
+    elseif channel:find("lcl_fwd", 1, true) ~= nil or channel:find("dcu_lcl_fwd", 1, true) ~= nil then
+        return 16 + lane
+    elseif channel:find("lcl_rsp", 1, true) ~= nil or channel:find("dcu_lcl_rsp", 1, true) ~= nil then
+        return 18 + lane
     elseif channel == "gsync_req_even" or channel == "gsync_req_odd" then
         return 6 + lane
     elseif channel == "gsync_rsp_even" or channel == "gsync_rsp_odd" then
         return 10 + lane
     end
     return nil
+end
+
+local function logical_eci_vc(source_info, vc)
+    local class = eci_class(source_info)
+    if class ~= "lcl_mfwd" and class ~= "lcl_mrsp" then
+        return vc
+    end
+    local dcs = tostring(source_info.dcs or "")
+    local channel = tostring(source_info.channel or "")
+    local odd = dcs == "odd" or channel:find("odd", 1, true) ~= nil
+    local lane = odd and 1 or 0
+    if class == "lcl_mfwd" then
+        return 16 + lane
+    end
+    return 18 + lane
 end
 
 local function eci_payload_key(payload_tvb, fields, header, vc)
@@ -963,7 +986,8 @@ local function dissect_eci(payload_tvb, tree, pinfo, source, source_info)
     end
 
     local header = extract_bits_le(payload_tvb, 0, fields.eci_header.offset, fields.eci_header.width)
-    local vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
+    local stored_vc = extract_bits_le(payload_tvb, 0, fields.vc.offset, fields.vc.width)
+    local vc = logical_eci_vc(source_info, stored_vc)
     local accepted = extract_bits_le(payload_tvb, 0, fields.accepted.offset, fields.accepted.width)
     local size = 0
     if fields.size ~= nil and tvb_has_bits(payload_tvb, tonumber(fields.size.offset), tonumber(fields.size.width)) then
