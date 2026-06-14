@@ -8,3 +8,7 @@
 # only track compressed trace
 *.bin
 *.bin.gz.*.raw
+
+# only track panic txt
+*.txt
+!panic.txt
