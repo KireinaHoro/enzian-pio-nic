@@ -42,6 +42,7 @@ case object ThreadID      extends TraceDataKey { def width = log2Up(Global.NUM_T
 case object ProcessID     extends TraceDataKey { def width = Global.PID_WIDTH.get }
 case object CoreID        extends TraceDataKey { def width = log2Up(Global.MAX_CORE_ID.get + 1) }
 case object CacheLineIndex extends TraceDataKey { def width = 1 }
+case object LclAddress    extends TraceDataKey { def width = 40 }
 case object OverflowCount extends TraceDataKey { def width = log2Up(Global.ECI_NUM_OVERFLOW_CL.get) }
 case object QueueIndex    extends TraceDataKey { def width = log2Up(Global.NUM_PROCS.get + 1) }
 case object QueueFill     extends TraceDataKey { def width = log2Up(Global.RX_PKTS_PER_PROC.get + 1) }
