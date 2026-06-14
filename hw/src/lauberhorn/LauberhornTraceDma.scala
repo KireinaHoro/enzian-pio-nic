@@ -97,6 +97,15 @@ object LauberhornTraceDma {
   }
 
   private val EciChannels = Seq("req_wod_i", "rsp_wod_i", "rsp_wd_i", "rsp_wod_o", "rsp_wd_o", "fwd_wod_o")
+  private val AppLclTraceChannels = Seq(
+    "lcl_fwd_wod_i",
+    "lcl_rsp_wod_i",
+    "lcl_fwd_wod_pipe_o",
+    "lcl_rsp_wod_pipe_o",
+    "dcu_lcl_fwd_wod_i",
+    "dcu_lcl_rsp_wod_i",
+    "lcl_rsp_wod_o",
+  )
   private val SysGsyncChannels = Seq(
     "gsync_req_odd",
     "gsync_req_even",
@@ -131,10 +140,11 @@ object LauberhornTraceDma {
     }
   }
 
-  // Each DCS has six ECI channels. appEciTraceIn records frames after crossing
-  // into the app clock domain.
+  // Each DCS has six regular ECI channels. appEciTraceIn records frames after crossing
+  // into the app clock domain, then appends LCL taps from the Lauberhorn/DCS
+  // boundary and selected DCS internal handoff points.
   private val AppEciSpecs = Seq("even", "odd").flatMap { dcs =>
-    EciChannels.zipWithIndex.map { case (channel, localSource) =>
+    (EciChannels ++ AppLclTraceChannels).zipWithIndex.map { case (channel, localSource) =>
       SourceSpec("appEciTraceIn", pipelineStagesToTraceBufferDma(dcsSlr(dcs)), Seq(
         "type" -> "eci",
         "clock_domain" -> "app",

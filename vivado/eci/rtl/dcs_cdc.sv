@@ -309,10 +309,10 @@ module dcs_cdc #(
     output logic [4:0]  trace_dcs_event_request[2],
 
     // Raw ECI frame trace taps for the global trace DMA.
-    output logic [ECI_WORD_WIDTH-1:0] trace_eci_app_header[6],
-    output logic [3:0]                trace_eci_app_vc[6],
-    output logic [5:0]                trace_eci_app_valid,
-    output logic [5:0]                trace_eci_app_ready,
+    output logic [ECI_WORD_WIDTH-1:0] trace_eci_app_header[13],
+    output logic [3:0]                trace_eci_app_vc[13],
+    output logic [12:0]               trace_eci_app_valid,
+    output logic [12:0]               trace_eci_app_ready,
     output logic [ECI_WORD_WIDTH-1:0] trace_eci_sys_header[6],
     output logic [3:0]                trace_eci_sys_vc[6],
     output logic [5:0]                trace_eci_sys_valid,
@@ -564,6 +564,10 @@ logic [ECI_PACKET_SIZE_WIDTH-1:0]     pipe_lcl_rsp_wod_pkt_size_o;
 logic [ECI_LCL_TOT_NUM_VCS_WIDTH-1:0] pipe_lcl_rsp_wod_pkt_vc_o;
 logic                                 pipe_lcl_rsp_wod_pkt_valid_o;
 logic                                 pipe_lcl_rsp_wod_pkt_ready_i;
+logic [ECI_WORD_WIDTH-1:0]            trace_lcl_app_header[4];
+logic [3:0]                           trace_lcl_app_vc[4];
+logic [3:0]                           trace_lcl_app_valid;
+logic [3:0]                           trace_lcl_app_ready;
 axis_reg_eci_wod i_chan_pipe_lcl_rsp_wod_master (
   .aclk(app_clk),
   .aresetn(!app_reset),
@@ -761,7 +765,11 @@ dcs_2_axi #(
   .trace_dcs_event_cli,
   .trace_dcs_event_state,
   .trace_dcs_event_action,
-  .trace_dcs_event_request
+  .trace_dcs_event_request,
+  .trace_lcl_app_header,
+  .trace_lcl_app_vc,
+  .trace_lcl_app_valid,
+  .trace_lcl_app_ready
 );
 
 // Trace ECI messages into the DC before and after the CDC boundaries.
@@ -794,6 +802,41 @@ assign trace_eci_app_header[5] = xslr_fwd_wod_hdr_o;
 assign trace_eci_app_vc[5] = xslr_fwd_wod_pkt_vc_o;
 assign trace_eci_app_valid[5] = xslr_fwd_wod_pkt_valid_o;
 assign trace_eci_app_ready[5] = xslr_fwd_wod_pkt_ready_i;
+
+assign trace_eci_app_header[6] = lcl_fwd_wod_hdr_i;
+assign trace_eci_app_vc[6] = lcl_fwd_wod_pkt_vc_i[3:0];
+assign trace_eci_app_valid[6] = lcl_fwd_wod_pkt_valid_i;
+assign trace_eci_app_ready[6] = lcl_fwd_wod_pkt_ready_o;
+
+assign trace_eci_app_header[7] = lcl_rsp_wod_hdr_i;
+assign trace_eci_app_vc[7] = lcl_rsp_wod_pkt_vc_i[3:0];
+assign trace_eci_app_valid[7] = lcl_rsp_wod_pkt_valid_i;
+assign trace_eci_app_ready[7] = lcl_rsp_wod_pkt_ready_o;
+
+assign trace_eci_app_header[8] = trace_lcl_app_header[0];
+assign trace_eci_app_vc[8] = trace_lcl_app_vc[0];
+assign trace_eci_app_valid[8] = trace_lcl_app_valid[0];
+assign trace_eci_app_ready[8] = trace_lcl_app_ready[0];
+
+assign trace_eci_app_header[9] = trace_lcl_app_header[1];
+assign trace_eci_app_vc[9] = trace_lcl_app_vc[1];
+assign trace_eci_app_valid[9] = trace_lcl_app_valid[1];
+assign trace_eci_app_ready[9] = trace_lcl_app_ready[1];
+
+assign trace_eci_app_header[10] = trace_lcl_app_header[2];
+assign trace_eci_app_vc[10] = trace_lcl_app_vc[2];
+assign trace_eci_app_valid[10] = trace_lcl_app_valid[2];
+assign trace_eci_app_ready[10] = trace_lcl_app_ready[2];
+
+assign trace_eci_app_header[11] = trace_lcl_app_header[3];
+assign trace_eci_app_vc[11] = trace_lcl_app_vc[3];
+assign trace_eci_app_valid[11] = trace_lcl_app_valid[3];
+assign trace_eci_app_ready[11] = trace_lcl_app_ready[3];
+
+assign trace_eci_app_header[12] = lcl_rsp_wod_hdr_o;
+assign trace_eci_app_vc[12] = lcl_rsp_wod_pkt_vc_o[3:0];
+assign trace_eci_app_valid[12] = lcl_rsp_wod_pkt_valid_o;
+assign trace_eci_app_ready[12] = lcl_rsp_wod_pkt_ready_i;
 
 assign trace_eci_sys_header[0] = req_wod_hdr_i;
 assign trace_eci_sys_vc[0] = req_wod_pkt_vc_i;

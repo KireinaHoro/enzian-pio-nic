@@ -90,6 +90,10 @@ def _field(payload: int, trace_map: Dict[str, Any], name: str) -> int:
 
 def _eci_class(src_info: Dict[str, Any]) -> Optional[str]:
     channel = str(src_info.get("channel", ""))
+    if "lcl_fwd" in channel or "dcu_lcl_fwd" in channel:
+        return "lcl_mfwd"
+    if "lcl_rsp" in channel or "dcu_lcl_rsp" in channel:
+        return "lcl_mrsp"
     if "req" in channel:
         return "mreq"
     if "rsp" in channel:
