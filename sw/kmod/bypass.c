@@ -77,15 +77,6 @@ struct netdev_priv {
 	// Shadow table for ARP cache in HW
 	__be32 arp_cache[LAUBERHORN_NUM_NEIGHBOR_ENTRIES];
 
-	// Make sure the following are mutually exclusive:
-	// - RX: napi_poll, softirq
-	// - TX: netdev_xmit, BH disabled
-	// FIXME: this is needed due to RX (0x0-0x700) and TX (0x8000-0x8700) CLs
-	//        not really independent; overflow CLs mapped to the same DCU as
-	//        ctrl CLs can deadlock and crash the system.  We need to rework the
-	//        address mapping and get rid of this lock
-	spinlock_t dp_lock;
-
 	// Timer for forced poll mode
 	struct timer_list poll_timer;
 	bool poll_rearm;
@@ -334,9 +325,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	priv->ctx.tx_buf = skb->data;
 	tx_len = skb->len;
 
-	// spin_lock_bh(&priv->dp_lock);
 	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
-	// spin_unlock_bh(&priv->dp_lock);
 	l2c_tad_debug_print_tx(tx_len);
 
 	// free skb and return
@@ -447,9 +436,7 @@ static poll_result_t poll_once(struct napi_struct *n)
 	struct net_device *dev = priv->dev;
 	lauberhorn_pkt_desc_t desc;
 
-	// spin_lock_bh(&priv->dp_lock);
 	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
-	// spin_unlock_bh(&priv->dp_lock);
 
 	if (!got_req) {
 		dev_dbg(&dev->dev, "finished polling, no more packets\n");
@@ -692,7 +679,6 @@ int init_bypass(void)
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
-	priv->dp_lock = __SPIN_LOCK_UNLOCKED(dp_lock);
 
 	// Register netdev
 	err = register_netdev(netdev);
