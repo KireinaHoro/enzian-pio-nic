@@ -2,7 +2,7 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.eci.{EciCmdDefs, EciIntcInterface}
 import jsteward.blocks.misc.RegBlockAlloc
-import jsteward.blocks.axi._
+import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.host.DatapathPlugin
 import lauberhorn.host.eci.EciDecoupledRxTxProtocol.emittedMackerel
@@ -10,12 +10,11 @@ import lauberhorn.net.invalidTraceId
 import spinal.core._
 import spinal.core.fiber.Handle._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4CrossbarFactory}
+import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
-import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
-import spinal.lib.bus.regif.AccessType.{RO, RC, RW, WO}
+import spinal.lib.bus.misc.SizeMapping
+import spinal.lib.bus.regif.AccessType.{RC, RO, RW}
 import spinal.lib.fsm._
-import Global._
 
 import scala.language.postfixOps
 import scala.math.BigInt.int2bigInt
@@ -235,26 +234,37 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val txReqs = Vec(Bool(), 2)
 
-    lci.setIdle()
-    lci.valid.setAsReg() init False
-    lci.payload.setAsReg()
-    lci.assertPersistence()
+    Seq(rxLcl.lci, txLcl.lci).foreach { lci =>
+      lci.setIdle()
+      lci.valid.setAsReg() init False
+      lci.payload.setAsReg()
+      lci.assertPersistence()
+    }
     preemptReq.setBlocked()
 
     rxInvDone := False
     txInvDone := False
 
-    val ulFlow = Flow(EciCmdDefs.EciAddress).setIdle()
-    val ulOverflow = Bool()
+    val rxUlFlow = Flow(EciCmdDefs.EciAddress).setIdle()
+    val txUlFlow = Flow(EciCmdDefs.EciAddress).setIdle()
+    val rxUlOverflow = Bool()
+    val txUlOverflow = Bool()
     // max number of inflight ULs: overflow CLs + 2 ctrl CLs
-    ul << ulFlow.toStream(ulOverflow).queue(numOverflowCls + 2)
+    rxLcl.ul << rxUlFlow.toStream(rxUlOverflow).queue(numOverflowCls + 2)
+    txLcl.ul << txUlFlow.toStream(txUlOverflow).queue(numOverflowCls + 2)
     assert(
-      assertion = !ulOverflow,
-      message = s"UL flow overflow",
+      assertion = !rxUlOverflow,
+      message = s"RX UL flow overflow",
+      severity = FAILURE
+    )
+    assert(
+      assertion = !txUlOverflow,
+      message = s"TX UL flow overflow",
       severity = FAILURE
     )
 
-    lcia.setBlocked()
+    rxLcl.lcia.setBlocked()
+    txLcl.lcia.setBlocked()
 
     hostRxAck.setIdle()
     hostTx.setBlocked()
@@ -290,7 +300,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       tp.trace(eventName, coreTd, hostMsgTd, LclAddress(address))
     }
 
-    def recvLciaSendUl(counter: Counter, lciaTracePort: TracePlugin#TracePort, ulEnqTracePort: TracePlugin#TracePort, hostMsgTd: TraceData): Unit = {
+    def recvLciaSendUl(lcia: Stream[Bits], ulFlow: Flow[Bits], counter: Counter, lciaTracePort: TracePlugin#TracePort, ulEnqTracePort: TracePlugin#TracePort, hostMsgTd: TraceData): Unit = {
       lcia.freeRun()
       when (lcia.fire) {
         traceLcl(lciaTracePort, "EciLclLciaFire", hostMsgTd, lcia.payload)
@@ -302,7 +312,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
     }
 
-    traceLcl(ulOutTp, "EciLclUlFire", invalidHostMsgTd, ul.payload) := ul.fire
+    val ulTracePayload = Bits(EciCmdDefs.ECI_ADDR_WIDTH bits)
+    ulTracePayload := txLcl.ul.payload
+    when (rxLcl.ul.fire) {
+      ulTracePayload := rxLcl.ul.payload
+    }
+    traceLcl(ulOutTp, "EciLclUlFire", invalidHostMsgTd, ulTracePayload) := (rxLcl.ul.fire || txLcl.ul.fire)
 
     val rxFsm = new StateMachine {
       def handlePreempt() = {
@@ -384,12 +399,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val invalidatePacketData: State = new State {
         whenIsActive {
           when (rxOverflowInvIssued.valueNext < rxOverflowToInvalidate) {
-            lci.payload := overflowIdxToAddr(rxOverflowInvIssued.valueNext)
-            lci.valid := True
+            rxLcl.lci.payload := overflowIdxToAddr(rxOverflowInvIssued.valueNext)
+            rxLcl.lci.valid := True
           }
 
-          when (lci.fire) {
-            traceLcl(rxLciTp, "EciLclLciFire", rxHostMsgTd, lci.payload)
+          when (rxLcl.lci.fire) {
+            traceLcl(rxLciTp, "EciLclLciFire", rxHostMsgTd, rxLcl.lci.payload)
             rxOverflowInvIssued.increment()
             when (rxOverflowInvIssued.valueNext === rxOverflowToInvalidate) {
               rxTp.trace("EciRxDataLciDone", rxOverflowTd: _*)
@@ -397,12 +412,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
           }
 
-          recvLciaSendUl(rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLciaSendUl(rxLcl.lcia, rxUlFlow, rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
         }
       }
       val waitDataLciaDone: State = new State {
         whenIsActive {
-          recvLciaSendUl(rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLciaSendUl(rxLcl.lcia, rxUlFlow, rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
 
           when (rxOverflowInvAcked === rxOverflowToInvalidate) {
             rxTp.trace("EciRxDataLciaUlDone", rxOverflowTd: _*)
@@ -412,11 +427,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val invalidateCtrl: State = new State {
         whenIsActive {
-          lci.payload := ctrlToAddr(rxCurrClIdx.asUInt)
-          lci.valid := True
-          when(lci.fire) {
-            traceLcl(rxLciTp, "EciLclLciFire", rxHostMsgTd, lci.payload)
-            lci.valid := False
+          rxLcl.lci.payload := ctrlToAddr(rxCurrClIdx.asUInt)
+          rxLcl.lci.valid := True
+          when(rxLcl.lci.fire) {
+            traceLcl(rxLciTp, "EciLclLciFire", rxHostMsgTd, rxLcl.lci.payload)
+            rxLcl.lci.valid := False
             rxTp.trace("EciRxCtrlInvalidate", rxClTd: _*)
             goto(waitInvResp)
           }
@@ -424,9 +439,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          recvLciaSendUl(numRetired, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLciaSendUl(rxLcl.lcia, rxUlFlow, numRetired, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
 
-          when (lcia.fire) {
+          when (rxLcl.lcia.fire) {
             // always toggle, even if NACK was sent
             rxCurrClIdx.toggleWhen(True)
 
@@ -472,11 +487,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val invalidateCtrl: State = new State {
         whenIsActive {
-          lci.payload := ctrlToAddr(txCurrClIdx.asUInt, isTx = true)
-          lci.valid := True
-          when(lci.fire) {
-            traceLcl(txLciTp, "EciLclLciFire", txHostMsgTd, lci.payload)
-            lci.valid := False
+          txLcl.lci.payload := ctrlToAddr(txCurrClIdx.asUInt, isTx = true)
+          txLcl.lci.valid := True
+          when(txLcl.lci.fire) {
+            traceLcl(txLciTp, "EciLclLciFire", txHostMsgTd, txLcl.lci.payload)
+            txLcl.lci.valid := False
             txTp.trace("EciTxCtrlInvalidate", txClTd: _*)
             goto(waitInvResp)
           }
@@ -484,9 +499,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          recvLciaSendUl(null, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLciaSendUl(txLcl.lcia, txUlFlow, null, txLciaTp, txUlEnqTp, txHostMsgTd)
 
-          when (lcia.fire) {
+          when (txLcl.lcia.fire) {
             // we should've latched tx descriptor in savedTxDesc
             val toInvalidate = packetSizeToNumOverflowCls(txInvLen.bits)
             txOverflowToInvalidate := toInvalidate
@@ -505,12 +520,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       val invalidatePacketData: State = new State {
         whenIsActive {
           when(txOverflowInvIssued.valueNext < txOverflowToInvalidate) {
-            lci.payload := overflowIdxToAddr(txOverflowInvIssued.valueNext, isTx = true)
-            lci.valid := True
+            txLcl.lci.payload := overflowIdxToAddr(txOverflowInvIssued.valueNext, isTx = true)
+            txLcl.lci.valid := True
           }
 
-          when (lci.fire) {
-            traceLcl(txLciTp, "EciLclLciFire", txHostMsgTd, lci.payload)
+          when (txLcl.lci.fire) {
+            traceLcl(txLciTp, "EciLclLciFire", txHostMsgTd, txLcl.lci.payload)
             txOverflowInvIssued.increment()
             when (txOverflowInvIssued.valueNext === txOverflowToInvalidate) {
               txTp.trace("EciTxDataLciDone", txOverflowTd: _*)
@@ -518,12 +533,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
           }
 
-          recvLciaSendUl(txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLciaSendUl(txLcl.lcia, txUlFlow, txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
         }
       }
       val waitDataLciaDone: State = new State {
         whenIsActive {
-          recvLciaSendUl(txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLciaSendUl(txLcl.lcia, txUlFlow, txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
             txTp.trace("EciTxDataLciaUlDone", txOverflowTd: _*)

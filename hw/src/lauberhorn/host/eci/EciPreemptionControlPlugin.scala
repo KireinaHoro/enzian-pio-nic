@@ -1,6 +1,6 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.EciCmdDefs
+import jsteward.blocks.eci.{DcsAppLclInterface, EciCmdDefs, EciIntcInterface}
 import lauberhorn._
 import spinal.core._
 import spinal.lib._
@@ -8,7 +8,6 @@ import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
 import spinal.lib.fsm._
 import spinal.lib.bus.regif.AccessType.{RC, RW}
 import jsteward.blocks.misc.RegBlockAlloc
-import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.host.PreemptionService
 import Global._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
@@ -89,12 +88,9 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     val proto = host.list[EciDecoupledRxTxProtocol].apply(coreID)
 
     // DCS interfaces
-    val lci = Stream(EciCmdDefs.EciAddress)
-    val lcia = Stream(EciCmdDefs.EciAddress)
-    val ul = Stream(EciCmdDefs.EciAddress)
-
-    lci.assertPersistence()
-    ul.assertPersistence()
+    val lcl = DcsAppLclInterface()
+    lcl.assertPersistence()
+    import lcl._
 
     // muxed interface to ECI interrupt controller
     val ipiToIntc = Stream(EciIntcInterface())
@@ -332,12 +328,10 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
   }
 
   override def preemptReq: Stream[PreemptReq] = logic.preemptReq
-  def driveDcsBus(bus: Axi4, lci: Stream[Bits], lcia: Stream[Bits], ul: Stream[Bits]): Unit = new Area {
+  def driveDcsBus(bus: Axi4, lcl: DcsAppLclInterface): Unit = new Area {
     val busCtrl = Axi4SlaveFactory(bus)
     busCtrl.readAndWrite(logic.preemptCtrlCl, controlClAddr)
 
-    lci  << logic.lci
-    ul   << logic.ul
-    lcia >> logic.lcia
+    lcl << logic.lcl
   }.setCompositeName(this, "driveDcsBus")
 }

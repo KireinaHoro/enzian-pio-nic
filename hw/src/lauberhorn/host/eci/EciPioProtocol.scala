@@ -1,6 +1,6 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.EciCmdDefs
+import jsteward.blocks.eci.{DcsAppLclInterface, EciCmdDefs}
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn._
 import lauberhorn.host.{DatapathPlugin, HostReq}
@@ -14,14 +14,13 @@ import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
   *
   * Keeps track of the two cache-line 2F2F state machine:
   *  - responds to AXI requests from the DCS
-  *  - issues cache line state changes via the [[lci]], [[lcia]], [[ul]] interfaces
+  *  - issues cache line state changes via the RX/TX LCI, LCIA, and UL interfaces
   *  - produces/consumes packet descriptors to/from [[DmaControlPlugin]] (bypass) and [[Scheduler]] (RX worker)
   */
 trait EciPioProtocol extends DatapathPlugin {
-  /** DCS commands */
-  val lci = during setup Stream(EciCmdDefs.EciAddress)
-  val lcia = during setup Stream(EciCmdDefs.EciAddress)
-  val ul = during setup Stream(EciCmdDefs.EciAddress)
+  /** RX/TX DCS commands */
+  val rxLcl = during setup DcsAppLclInterface()
+  val txLcl = during setup DcsAppLclInterface()
 
   /**
     * Create access ports for protocol elements.  Returns tuple of two lists of AXI nodes:
