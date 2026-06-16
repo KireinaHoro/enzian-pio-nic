@@ -201,8 +201,6 @@ static void deinit_bypass_fpi(void)
 static int netdev_open(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
-	u64 irq_cooldown_usecs = 200;
-	u64 cycles_per_usec = LAUBERHORN_CLOCK_FREQ / 1000000;
 
 	/*
 	int err;
@@ -228,13 +226,6 @@ static int netdev_open(struct net_device *dev)
 		mod_timer(&priv->poll_timer,
 			  jiffies + usecs_to_jiffies(force_poll_us));
 	} else {
-		dev_info(&dev->dev,
-			 "setting bypass IRQ cooldown to %lld usecs\n",
-			 irq_cooldown_usecs);
-		lauberhorn_eci_worker_ctrl_irq_cooldown_wr(
-			&priv->worker_dev,
-			irq_cooldown_usecs * cycles_per_usec);
-
 		dev_dbg(&dev->dev, "enabling bypass IRQ\n");
 		smp_wmb();
 		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
@@ -467,7 +458,6 @@ static int napi_poll(struct napi_struct *n, int budget)
 
 	dev_dbg(&dev->dev, "starting NAPI poll with budget %d\n", budget);
 
-restart_poll:
 	while (work_done < budget) {
 		poll_result_t res = poll_once(n);
 		if (res == POLL_NACK) {
@@ -488,20 +478,6 @@ restart_poll:
 			dev_dbg(&dev->dev,
 				"NAPI complete, re-enabling interrupt\n");
 			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
-
-			// If an IRQ is pending on exit from poll...
-			if (lauberhorn_eci_worker_stat_irq_fsm_state_rd(
-				    &priv->worker_dev) != 1) {
-				dev_dbg(&dev->dev, "potentially missed IRQ!\n");
-				if (napi_schedule(n)) {
-					// ...and a poll is not yet scheduled (by the ISR)
-					dev_dbg(&dev->dev,
-						"disabling IRQ and restarting poll\n");
-					lauberhorn_eci_preempt_irq_en_wr(
-						&priv->reg_dev, 0);
-					goto restart_poll;
-				}
-			}
 		}
 	}
 

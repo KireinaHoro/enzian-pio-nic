@@ -52,8 +52,6 @@
 
 #define BYPASS_DP_STATS_LIST(FUNC)  \
 	FUNC(worker, irqs_issued)   \
-	FUNC(worker, irqs_acked)    \
-	FUNC(worker, irqs_assumed)  \
 	FUNC(worker, irq_fsm_state) \
 	FUNC(worker, num_retired)   \
 	FUNC(worker, num_req)       \
