@@ -65,14 +65,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         alloc("stat", subName = "irqFsmState", attr = RO, desc = "state of the bypass IRQ state machine (raw value)"))
       busCtrl.read(logic.bypassIrqArea.issued.value,
         alloc("stat", subName = "irqsIssued", attr = RO, desc = "number of bypass IRQs issued"))
-      busCtrl.read(logic.bypassIrqArea.acked.value,
-        alloc("stat", subName = "irqsAcked", attr = RO, desc = "number of bypass IRQs acknowledged by ISR"))
-      busCtrl.read(logic.bypassIrqArea.assumed.value,
-        alloc("stat", subName = "irqsAssumed", attr = RO, desc = "number of bypass IRQs assumed"))
-
-      busCtrl.driveAndRead(logic.bypassIrqArea.irqCooldown,
-        alloc("ctrl", subName = "irqCooldown", attr = RW,
-          desc = "minimum cycles between bypass IRQ issues; assume lost if not acked by then")) init 10000 // 50 us
 
       debug.postDebug(s"core${coreID}_irqFsm_state", logic.bypassIrqArea.irqFsm.stateReg)
     }
@@ -107,11 +99,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // generate IRQ enable reg for bypass
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
-
-    // ACK might come in, when irqFsm is not in waitAck
-    when (logic.irqEn.rise()) {
-      logic.irqAck := True
-    }
 
     PreemptionControlCl().addMackerel()
   }
@@ -219,7 +206,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     val irqOut = isBypass generate Stream(EciIntcInterface())
     val irqEn = isBypass generate Bool()
-    val irqAck = isBypass generate RegInit(False)
 
     val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
 
@@ -567,19 +553,12 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {
-      val issued, acked, assumed : Counter
-      val irqCooldown: UInt
+      val issued : Counter
       val irqFsm: StateMachine
     } = isBypass generate new Composite(this, "irqGen") {
       irqOut.setIdle()
 
-      val issued, acked, assumed = Counter(REG_WIDTH bits)
-
-      // SGIs seem to be lossy and rate-limited.  The timeout is also the
-      // cooldown before the next bypass IRQ can be issued.
-      val cooldownCount = Counter(REG_WIDTH bits)
-      val irqCooldown = UInt(REG_WIDTH bits)
-      val irqAcked = RegInit(False)
+      val issued = Counter(REG_WIDTH bits)
 
       // If the bypass queue is non empty, the host needs to be notified to drain it
       def bypassStalled = hostRx.isStall
@@ -589,11 +568,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         BypassStalled(bypassStalled),
       )
 
-      // Edge-triggered interrupt.
-      //
-      // VC12 SGI seems to have some kind of rate limit: if we send too fast, we get
-      // stuck and nothing gets through any more.  Hence we use edge-triggered
-      // semantics, even though NAPI in Linux prefers level-triggered interrupts.
+      // Edge-triggered interrupt. Linux masks the interrupt in the ISR and
+      // rearms it after NAPI drains the queue.
       val irqFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
@@ -612,30 +588,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             irqOut.intId   := 15  // use 15 for bypass interrupts
             when (irqOut.ready) {
               itrace("Issued")
-              goto(cooldown)
+              goto(waitMasked)
               issued.increment()
-              cooldownCount.clear()
-              irqAcked := False
-              irqAck := False
             }
           }
         }
-        val cooldown: State = new State {
+        val waitMasked: State = new State {
           whenIsActive {
-            cooldownCount.increment()
-            when (!irqAcked && irqAck) {
-              itrace("Acked")
-              irqAck := False
-              irqAcked := True
-              acked.increment()
-            }
-            when (cooldownCount.value >= irqCooldown) {
-              when (!irqAcked && !irqAck) {
-                itrace("Assumed")
-                assumed.increment()
-              }
-              irqAck := False
-              cooldownCount.clear()
+            when (!irqEn) {
               goto(idle)
             }
           }
