@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // XXX: can't automatically register with port mapper
+  // this registers with the portmapper as well
   err = lauberhorn_reg_srv(&ctx, add_handler, NULL, ADD_PROG, ADD_VERS, ADD,
                            12345, &add_schema);
   if (err < 0) {
