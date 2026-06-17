@@ -62,6 +62,8 @@ static void _sched_worker_thread(struct work_struct *ws)
 	struct sched_thread_work *w =
 		container_of(ws, struct sched_thread_work, work);
 	struct thr_def *thr = w->thr;
+	int affinity_ret;
+	int wake_ret;
 
 	u8 *parity_page = w->thr->parent->parity_page;
 	u8 rx_parity = parity_page[thr->idx * 2];
@@ -70,7 +72,10 @@ static void _sched_worker_thread(struct work_struct *ws)
 	int me = smp_processor_id();
 
 	// Update affinity to this core only
-	set_cpus_allowed_ptr(thr->task, cpumask_of(smp_processor_id()));
+	affinity_ret = set_cpus_allowed_ptr(thr->task,
+					     cpumask_of(smp_processor_id()));
+	pr_info("Worker CPU %d dispatching thread %d prefix %#x: affinity_ret=%d\n",
+		me, thr->task->pid, thr->prefix, affinity_ret);
 
 	// Allow next FPI handler to deschedule this thread
 	w->fpi_priv->thr = thr;
@@ -91,10 +96,15 @@ static void _sched_worker_thread(struct work_struct *ws)
 			  LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET);
 
 	// Wake up the task
-	wake_up_process(thr->task);
+	wake_ret = wake_up_process(thr->task);
+	pr_info("Worker CPU %d woke thread %d for prefix %#x: wake_ret=%d state=0x%x\n",
+		me, thr->task->pid, thr->prefix, wake_ret,
+		READ_ONCE(thr->task->__state));
 
 	// Ack interrupt
 	lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
+	pr_info("Worker CPU %d re-enabled preempt IRQ for thread %d\n", me,
+		thr->task->pid);
 }
 
 /**
@@ -111,8 +121,8 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
 	int me = smp_processor_id();
 	int err;
 
-	printk("Scheduling deferred work to dispatch thread %d on CPU %d",
-	       thr->task->pid, me);
+	pr_info("Scheduling deferred work to dispatch thread %d on CPU %d\n",
+		thr->task->pid, me);
 
 	BUG_ON(!thr->enabled);
 	BUG_ON(thr->worker_idx != -1);

@@ -212,6 +212,8 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   struct lauberhorn_oncrpc_schema *schema;
   struct lauberhorn_hw_handler *hw_handler;
+  bool logged_rx_entry = false;
+  bool logged_rx_return = false;
 
   sigset_t sigint_mask;
 
@@ -249,7 +251,19 @@ static void *lauberhorn_worker_loop(void *arg) {
   // Main loop
   while (is_running) {
     // Receive request from datapath
+    if (!logged_rx_entry) {
+      LOG("worker %d: entering core_eci_rx at datapath %p", w->worker_id,
+          dp_base);
+      fflush(stdout);
+      logged_rx_entry = true;
+    }
     bool got_req = core_eci_rx(dp_base, &w->dp, &desc);
+    if (!logged_rx_return) {
+      LOG("worker %d: core_eci_rx returned got_req=%d", w->worker_id,
+          got_req);
+      fflush(stdout);
+      logged_rx_return = true;
+    }
     if (!got_req)
       continue;
     assert(desc.type == TY_ONCRPC_CALL);
