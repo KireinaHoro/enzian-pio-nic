@@ -259,8 +259,7 @@ static void *lauberhorn_worker_loop(void *arg) {
     }
     bool got_req = core_eci_rx(dp_base, &w->dp, &desc);
     if (!logged_rx_return) {
-      LOG("worker %d: core_eci_rx returned got_req=%d", w->worker_id,
-          got_req);
+      LOG("worker %d: core_eci_rx returned got_req=%d", w->worker_id, got_req);
       fflush(stdout);
       logged_rx_return = true;
     }
@@ -274,7 +273,7 @@ static void *lauberhorn_worker_loop(void *arg) {
     // Unmarshal request
     err = lauberhorn_oncrpc_unmarshal(schema, msg, w->dp.rx_buf,
                                       desc.payload_len);
-    if (err) {
+    if (err != 1) {
       LOG("failed to unmarshal request, skipping");
       continue;
     }
@@ -284,7 +283,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     // Marshal response
     err = lauberhorn_oncrpc_marshal(schema, w->tx_buf, w->tx_buf_size, msg);
-    if (err < 0) {
+    if (err != 1) {
       LOG("failed to marshal request, skipping");
       continue;
     }
