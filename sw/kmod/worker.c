@@ -20,7 +20,7 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 	u32 next_pid;
 	bool killed;
 	lauberhorn_eci_preempt_sched_cmd_t ack_reg;
-	struct worker_fpi_data *priv = *(struct worker_fpi_data **)data;
+	struct worker_fpi_data *priv = data;
 
 	struct proc_def *next_proc;
 	struct thr_def *next_thr = NULL;
@@ -142,6 +142,7 @@ static void deinit_worker_fpi(void)
 		fpi_data = per_cpu_ptr(&fpi_percpu_data, cid);
 		lauberhorn_eci_preempt_irq_en_wr(&fpi_data->preempt_dev, 0);
 	}
+	synchronize_irq(irq_no);
 	free_percpu_irq(irq_no, &fpi_percpu_data);
 	irq_dispose_mapping(irq_no);
 }
