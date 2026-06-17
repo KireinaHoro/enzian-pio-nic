@@ -43,19 +43,25 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 	next_proc = find_proc(next_pid);
 	BUG_ON(!next_proc);
 
-	// Disable old thread, if one is actually running
-	if (priv->thr) {
-		desched_worker_thread(priv->thr);
-	}
-
-	// Select and enable new thread
+	// Select a registered thread that is not already running.
 	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-		if (!next_proc->thr_defs[i].enabled) {
+		if (next_proc->thr_defs[i].enabled &&
+		    next_proc->thr_defs[i].worker_idx == -1) {
 			next_thr = &next_proc->thr_defs[i];
 			break;
 		}
 	}
-	BUG_ON(!next_thr);
+	if (!next_thr) {
+		panic("No ready thread for TGID %u on CPU %u\n", next_pid,
+		      smp_processor_id());
+	}
+
+	// Disable old thread, if one is actually running
+	if (priv->thr) {
+		desched_worker_thread(priv->thr);
+		priv->thr = NULL;
+	}
+
 	sched_worker_thread(next_thr, priv);
 
 	// Interrupt will be unmasked when the new thread is scheduled
