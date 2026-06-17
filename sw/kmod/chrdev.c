@@ -477,8 +477,8 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	get_task_struct(current);
 	thr->task = current;
 
-	// Map base into userspace
-	pfn = virt_to_phys((void *)thr->dp_phys_base) >> PAGE_SHIFT;
+	// Map the FPGA memory backing this thread into userspace.
+	pfn = thr->dp_phys_base >> PAGE_SHIFT;
 	err = remap_pfn_range(vma, vma->vm_start, pfn,
 			      LAUBERHORN_ECI_CORE_OFFSET, vma->vm_page_prot);
 	if (err != 0) {
