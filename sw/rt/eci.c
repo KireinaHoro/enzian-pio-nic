@@ -143,8 +143,8 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t func, void *data,
   // Register this service with the local port mapper, so that the remote
   // client can find it automatically
   err = pmap_set(prog_num, prog_ver, IPPROTO_UDP, listen_port);
-  if (err) {
-    LOG("failed to register with portmapper");
+  if (err != 1) {
+    LOG("failed to register with portmapper: err=%d", err);
   }
 
   return cmd.id;
@@ -171,8 +171,8 @@ int lauberhorn_dereg_srv(lauberhorn_t *ctx, int srv_id) {
 
   // Deregister with the portmapper
   err = pmap_unset(sreg->prog_num, sreg->prog_ver);
-  if (err) {
-    LOG("failed to deregister with portmapper");
+  if (err != 1) {
+    LOG("failed to deregister with portmapper: err=%d", err);
   }
 
   err = ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &srv_id);
