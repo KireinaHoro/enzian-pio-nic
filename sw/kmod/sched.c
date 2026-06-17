@@ -72,6 +72,9 @@ static void _sched_worker_thread(struct work_struct *ws)
 	// Update affinity to this core only
 	set_cpus_allowed_ptr(thr->task, cpumask_of(smp_processor_id()));
 
+	// Allow next FPI handler to deschedule this thread
+	w->fpi_priv->thr = thr;
+
 	// Route CL
 	thr->worker_idx = me - worker_lo;
 	route_prefix_to_core(thr->prefix, thr->worker_idx + 1);
@@ -112,13 +115,14 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
 	       thr->task->pid, me);
 
 	BUG_ON(!thr->enabled);
+	BUG_ON(thr->worker_idx != -1);
 
 	w->thr = thr;
 	w->fpi_priv = fpi_priv;
 	INIT_WORK(&w->work, _sched_worker_thread);
 
 	err = schedule_work_on(me, &w->work);
-	BUG_ON(err);
+	BUG_ON(!err);
 }
 
 /**
