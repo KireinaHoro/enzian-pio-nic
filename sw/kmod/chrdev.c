@@ -169,6 +169,8 @@ static void update_proc_hw(struct worker_dev *dev, struct proc_def *proc)
 	lauberhorn_eci_sched_ctrl_proc_pid_wr(&dev->sched_dev, proc->tgid);
 	lauberhorn_eci_sched_ctrl_proc_max_threads_wr(&dev->sched_dev,
 						      proc->num_rdy_thrs);
+
+	BUG_ON(proc->idx == 0);
 	lauberhorn_eci_sched_ctrl_proc_idx_wr(&dev->sched_dev, proc->idx);
 }
 
@@ -177,7 +179,8 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 	int i;
 	struct proc_def *proc;
 
-	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
+	// procDb starts with 1 -- index 0 is the special IDLE process
+	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
 		if (!proc_defs[i].enabled) {
 			proc = &proc_defs[i];
 			proc->idx = i;
