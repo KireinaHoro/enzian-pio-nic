@@ -211,6 +211,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             } otherwise {
               // failed to find session: is the entry overridden?
               dropped.increment()
+              tp.trace("OncRpcReplyLookupMiss", RpcID(txR.userData.rpcId)) := True
               when (txR.userData.replyLen.bits > ONCRPC_INLINE_BYTES.get) {
                 // only need to consume payload, when there are overflow bytes
                 goto(dropPld)
