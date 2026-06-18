@@ -283,8 +283,8 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     // Marshal response
     err = lauberhorn_oncrpc_marshal(schema, w->tx_buf, w->tx_buf_size, msg);
-    if (err != 1) {
-      LOG("failed to marshal request, skipping");
+    if (err < 0) {
+      LOG("failed to marshal response, skipping");
       continue;
     }
     to_send = err;

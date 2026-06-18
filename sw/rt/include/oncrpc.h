@@ -18,6 +18,7 @@ lauberhorn_oncrpc_req_alloc(struct lauberhorn_oncrpc_schema *schema);
 void lauberhorn_oncrpc_req_free(struct lauberhorn_oncrpc_schema *schema,
                                 lauberhorn_msg_t msg);
 
+// Returns encoded byte length, or -1 on failure.
 int lauberhorn_oncrpc_marshal(struct lauberhorn_oncrpc_schema *schema,
                               uint8_t *out_buf, size_t out_buf_size,
                               lauberhorn_msg_t in_msg);
