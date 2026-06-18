@@ -302,15 +302,30 @@ class DmaControlPlugin extends FiberPlugin {
           assert(txReqBuffered.req.buffer.addr.bits >= PKT_BUF_TX_OFFSET.get,
             "packet buffer slot out of TX buffer range used")
 
-          // store DMA command
-          readDesc.payload.payload.addr := txReqBuffered.req.buffer.addr.bits.resized
-          readDesc.payload.payload.len := txReqBuffered.req.buffer.size.bits
-          readDesc.payload.payload.tag := 0
-          readDesc.valid := True
+          when (txReqBuffered.req.buffer.size.bits === 0) {
+            goto(sendDescNoDma)
+          } otherwise {
+            // store DMA command
+            readDesc.payload.payload.addr := txReqBuffered.req.buffer.addr.bits.resized
+            readDesc.payload.payload.len := txReqBuffered.req.buffer.size.bits
+            readDesc.payload.payload.tag := 0
+            readDesc.valid := True
 
-          // send descriptor first to set stream mux to correct direction
-          when (readDesc.ready) {
-            goto(sendDesc)
+            // send descriptor first to set stream mux to correct direction
+            when (readDesc.ready) {
+              goto(sendDesc)
+            }
+          }
+        }
+      }
+      val sendDescNoDma: State = new State {
+        whenIsActive {
+          outgoingDesc.payload := txPacketDesc
+          outgoingDesc.valid := True
+          when (outgoingDesc.ready) {
+            inc(_.txPacketCount)
+            txTp.trace("TxNoDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
+            goto(idle)
           }
         }
       }
