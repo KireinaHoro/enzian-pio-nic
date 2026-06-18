@@ -274,10 +274,16 @@ class DmaControlPlugin extends FiberPlugin {
         whenIsActive {
           txReqMuxed.ready := True
           when(txReqMuxed.valid) {
+            val txLogicalLen = UInt(PKT_BUF_LEN_WIDTH bits)
+            val txPacketDescTy = Bits(PKT_DESC_TY_WIDTH bits)
+            txLogicalLen := txReqMuxed.req.buffer.size.bits
+            txPacketDescTy.assignDontCare()
+
             // parse and save outgoing PacketDesc
             switch (txReqMuxed.req.ty) {
               is (HostReqType.bypass) {
                 txPacketDesc.fromHeaders(txReqMuxed.req.data.bypassMeta)
+                txPacketDescTy := txReqMuxed.req.data.bypassMeta.ty.asBits
               }
               is (HostReqType.oncRpcReply) {
                 txPacketDesc.ty := PacketDescType.oncRpcReply
@@ -287,11 +293,19 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.metadata.oncRpcReply.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
                 txPacketDesc.metadata.oncRpcReply.data := txReqMuxed.req.data.oncRpcReplyTx.data
                 txPacketDesc.metadata.oncRpcReply.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
+                txLogicalLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen.bits
+                txPacketDescTy := PacketDescType.oncRpcReply.asBits
               }
               default {
                 report("unsupported host request type", FAILURE)
               }
             }
+            txTp.trace("TxHostReqAccepted",
+              HostMsgID(txReqMuxed.hostMsgId),
+              HostReqTy(txReqMuxed.req.ty),
+              PacketDescTy(txPacketDescTy),
+              LogicalLength(txLogicalLen),
+              DmaLength(txReqMuxed.req.buffer.size.bits)) := True
             goto(sendDmaCmd)
           }
         }
