@@ -64,9 +64,6 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     0 until NUM_CORES foreach { cid =>
       csrMaster.write(ALLOC.readBack("preempt", cid)("irqEn"), 1.toBytesLE)
     }
-    // Keep bypass IRQ tests from spending most of their simulation time in the
-    // production cooldown.  Tests that care about rate limiting should override this.
-    csrMaster.write(ALLOC.readBack("worker", blockIdx = 0)("ctrl", "irqCooldown"), 1.toBytesLE)
     CSRSim.csrSanityChecks(csrMaster, rxBlockCycles)
 
     val bypassThread = ThreadDef(-1, 0) // kmod actually uses 0 for bypass

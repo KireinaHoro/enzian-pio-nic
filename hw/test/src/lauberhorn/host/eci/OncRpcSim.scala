@@ -2,6 +2,7 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.misc.sim.{IntRicherEndianAware, isSorted}
 import lauberhorn.Global._
+import lauberhorn.NicEngine
 import lauberhorn.sim._
 import org.pcap4j.packet.{EthernetPacket, IpV4Packet, UdpPacket}
 import org.scalatest.tagobjects.Slow
@@ -13,6 +14,113 @@ import scala.collection.mutable
 import scala.language.postfixOps
 
 class OncRpcSim extends NicSim with OncRpcSuiteFactory {
+  private def checkOncRpcReplyPacket(data: List[Byte],
+                                     request: EthernetPacket,
+                                     xid: Int,
+                                     expectedPayload: List[Byte]): Unit = {
+    val parsed = EthernetPacket.newPacket(data.toArray, 0, data.length)
+    val clientIp = request.get(classOf[IpV4Packet]).getHeader.getSrcAddr
+    val clientMac = request.getHeader.getSrcAddr
+    val (serverIp, _, serverMac) = enzianIpMacAddrs(1)
+
+    assert(parsed.getHeader.getDstAddr == clientMac, "received packet has wrong destination MAC address")
+    assert(parsed.getHeader.getSrcAddr == serverMac, "received packet has wrong source MAC address")
+    assert(parsed.get(classOf[IpV4Packet]).getHeader.getDstAddr == clientIp, "received packet has wrong destination IP address")
+    assert(parsed.get(classOf[IpV4Packet]).getHeader.getSrcAddr == serverIp, "received packet has wrong source IP address")
+    assert(parsed.get(classOf[UdpPacket]).getHeader.getSrcPort == request.get(classOf[UdpPacket]).getHeader.getDstPort, "received packet has wrong source port")
+    assert(parsed.get(classOf[UdpPacket]).getHeader.getDstPort == request.get(classOf[UdpPacket]).getHeader.getSrcPort, "received packet has wrong destination port")
+
+    val udpPayload = parsed.get(classOf[UdpPacket]).getPayload.getRawData.toList
+    val (rpcHdr, rpcPayload) = udpPayload.splitAt(24)
+    assert(rpcHdr.take(4) == xid.toBytesBE, "XID mismatch")
+    check(expectedPayload, rpcPayload)
+  }
+
+  private def runSingleOncRpcTx(replyData: List[Byte], testName: String)(implicit dut: NicEngine) = {
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(10000)
+    val trace = traceConsumer
+
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+
+    val (funcPtr, getPacket, _) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(mkRandomProc(1) -> Seq(RpcSrvDef.mkRandom)),
+      packetDumpWorkspace = Some(testName)).head
+
+    val (packet, pld, xid) = getPacket()
+    val clientIp = packet.get(classOf[IpV4Packet]).getHeader.getSrcAddr
+    val clientMac = packet.getHeader.getSrcAddr
+
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+
+    var replyReceived = false
+    fork {
+      val data = axisSlave.recv()
+      checkOncRpcReplyPacket(data, packet, xid, replyData)
+      replyReceived = true
+    }
+
+    axisMaster.send(packet.getRawData.toList)
+
+    val cs = workerCore(0)
+    cs.waitUser()
+    val tid = cs.currThread.get.tid
+
+    val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+    val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
+    val receivedXid = Integer.reverseBytes(info.xid.toInt)
+    assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
+    checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
+    exitCriticalSection(dcsMaster, tid)
+
+    val traceStart = trace.cursor
+    val (respInlineData, respTail) = replyData.splitAt(ONCRPC_INLINE_BYTES)
+    val txDesc = TxOncRpcReplySim(replyData.length, funcPtr, info.xid, respInlineData.bytesToBigInt)
+    txSendSingle(dcsMaster, txDesc, respTail, tid)
+
+    waitUntil(replyReceived)
+
+    (trace, traceStart)
+  }
+
+  testWithDB("tx-rpc-inline-only-skips-dma")(Rx, Tx) { implicit dut =>
+    val replyData = simRandom.nextBytes(16).toList
+    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-inline-only-skips-dma")
+
+    assert(trace.first("TxHostReqAccepted", Map(
+      "HostReqTy" -> BigInt(4),
+      "PacketDescTy" -> BigInt(4),
+      "LogicalLength" -> BigInt(replyData.length),
+      "DmaLength" -> BigInt(0),
+    ), traceStart).nonEmpty, s"missing inline-only TxHostReqAccepted; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxNoDmaRead", since = traceStart).nonEmpty,
+      s"inline-only ONC-RPC reply did not skip DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxAfterDmaRead", since = traceStart).isEmpty,
+      s"inline-only ONC-RPC reply unexpectedly issued DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("EciTxDataLciStart", since = traceStart).isEmpty,
+      s"inline-only ONC-RPC reply unexpectedly invalidated packet data CLs; saw ${trace.dump(traceStart)}")
+  }
+
+  testWithDB("tx-rpc-tail-without-overflow-does-not-invalidate-overflow")(Rx, Tx) { implicit dut =>
+    val replyData = simRandom.nextBytes(ONCRPC_INLINE_BYTES.get + 32).toList
+    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-tail-without-overflow-does-not-invalidate-overflow")
+
+    assert(trace.first("TxHostReqAccepted", Map(
+      "HostReqTy" -> BigInt(4),
+      "PacketDescTy" -> BigInt(4),
+      "LogicalLength" -> BigInt(replyData.length),
+      "DmaLength" -> BigInt(32),
+    ), traceStart).nonEmpty, s"missing tail TxHostReqAccepted; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxAfterDmaRead", since = traceStart).nonEmpty,
+      s"ONC-RPC reply tail did not complete DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxNoDmaRead", since = traceStart).isEmpty,
+      s"ONC-RPC reply with packet-buffer tail skipped DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("EciTxDataLciStart", since = traceStart).isEmpty,
+      s"ONC-RPC reply tail <= 64B unexpectedly invalidated overflow CLs; saw ${trace.dump(traceStart)}")
+  }
+
   testWithDB("rx-allcores")(Rx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
