@@ -4,7 +4,7 @@ import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn.Global.ECI_TX_BASE
 import lauberhorn.{Global, PacketAddr, PacketLength}
-import lauberhorn.host.HostReq
+import lauberhorn.host.{HostReq, HostReqType}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -84,7 +84,18 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val aliasedHostCtrl = EciHostCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl >> 1)
   currInvLen := aliasedHostCtrl.len
-  
+
+  // RPC requests repurposed len to INCLUDE inlined bytes
+  // (see sw/core/eci/core.h:310)
+  // adjust len to get the correct number of CLs to invalidate
+  when (aliasedHostCtrl.ty === HostReqType.oncRpcReply) {
+    when (aliasedHostCtrl.len.bits > Global.ONCRPC_INLINE_BYTES.get) {
+      currInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_INLINE_BYTES.get
+    } otherwise {
+      currInvLen.bits := 0
+    }
+  }
+
   when (doPreempt) {
     savedControl.clearAll()
   }
