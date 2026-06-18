@@ -1,0 +1,63 @@
+[   88.470231] EDAC DEVICE2: UE: thunderx-l2c instance: L2C-TAD20 block: L2C0 count: 1 'thunderx-l2c: L2C_TAD_INT: 0000000000020000, TIMEOUT: c008810000008080
+[   88.470231]  Uncorrected, LFB entry timeout'
+[   90.147261] Internal error: synchronous external abort: 0000000096000210 [#1] SMP
+[   90.154758] Modules linked in: lauberhorn(OE) qrtr thunderx_zip thunderx_edac uio_pdrv_genirq uio rpcsec_gss_krb5 auth_rpcgss nfsv4 nfs lockd grace netfs cfg80211 sunrpc binfmt_misc sch_fq_codel dm_multipath efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor xor_neon raid6_pq libcrc32c raid1 raid0 nicvf cavium_ptp rtc_ds1307 crct10dif_ce polyval_ce nicpf polyval_generic cavium_rng_vf ghash_ce sm4 sha2_ce sha256_arm64 sha1_ce thunder_bgx gpio_keys thunder_xcv i2c_thunderx mdio_thunder mdio_cavium thunderx_mmc ahci xhci_pci xhci_pci_renesas cavium_rng aes_neon_bs aes_neon_blk aes_ce_blk aes_ce_cipher
+[   90.221900] CPU: 0 PID: 0 Comm: swapper/0 Tainted: G           OE      6.8.0-64-generic #67-Ubuntu
+[   90.230868] Hardware name: www.cavium.com ThunderX CRB-2S/ThunderX CRB-2S, BIOS 0.3 Mar 27 2024
+[   90.239573] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[   90.246542] pc : netdev_xmit+0x140/0x270 [lauberhorn]
+[   90.251636] lr : netdev_xmit+0xfc/0x270 [lauberhorn]
+[   90.256624] sp : ffff800080003860
+[   90.259943] x29: ffff800080003860 x28: 0000000000000000 x27: ffff800080003924
+[   90.267096] x26: 000000000000002a x25: ffff800083264000 x24: ffff00010fb4da00
+[   90.274247] x23: ffff8000828e637a x22: 0000000000000000 x21: ffff00011cb18d00
+[   90.281399] x20: 0000000000000040 x19: ffff0007ff83c000 x18: ffff800080005090
+[   90.288551] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000
+[   90.295702] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[   90.302854] x11: 000000000000a181 x10: a8c0a1010331530c x9 : 00000000a181a8c0
+[   90.310006] x8 : a1010331530cc881 x7 : a8c0c8010331530c x6 : 0000000000000032
+[   90.317157] x5 : ffff800140008000 x4 : ffff0007ff1a3242 x3 : 0000000000000032
+[   90.324309] x2 : 0000000000000000 x1 : ffff0007ff83cc39 x0 : 0000000000000080
+[   90.331460] Call trace:
+[   90.333912]  netdev_xmit+0x140/0x270 [lauberhorn]
+[   90.338641]  dev_hard_start_xmit+0xa8/0x240
+[   90.342836]  sch_direct_xmit+0xdc/0x218
+[   90.346683]  __dev_xmit_skb+0x274/0x670
+[   90.350531]  __dev_queue_xmit+0x39c/0x7c8
+[   90.354549]  arp_xmit+0x50/0x108
+[   90.357787]  arp_send_dst+0xbc/0x130
+[   90.361371]  arp_process+0x73c/0x830
+[   90.364955]  arp_rcv+0xec/0x208
+[   90.368104]  __netif_receive_skb_list_core+0x21c/0x250
+[   90.373252]  netif_receive_skb_list_internal+0x1f4/0x308
+[   90.378574]  napi_complete_done+0x70/0x230
+[   90.382679]  napi_poll+0x51c/0x718 [lauberhorn]
+[   90.387233]  __napi_poll+0x44/0x298
+[   90.390730]  net_rx_action+0x1b8/0x438
+[   90.394487]  handle_softirqs+0x134/0x430
+[   90.398421]  __do_softirq+0x20/0x3c
+[   90.401918]  ____do_softirq+0x1c/0x40
+[   90.405590]  call_on_irq_stack+0x3c/0x50
+[   90.409521]  do_softirq_own_stack+0x28/0x50
+[   90.413714]  __irq_exit_rcu+0x138/0x180
+[   90.417558]  irq_exit_rcu+0x1c/0x40
+[   90.421055]  el1_interrupt+0x4c/0xf0
+[   90.424642]  el1h_64_irq_handler+0x1c/0x40
+[   90.428750]  el1h_64_irq+0x7c/0x80
+[   90.432160]  default_idle_call+0x68/0x1c0
+[   90.436179]  cpuidle_idle_call+0x1a0/0x210
+[   90.440288]  do_idle+0xb0/0x130
+[   90.443439]  cpu_startup_entry+0x40/0x50
+[   90.447373]  rest_init+0x10c/0x130
+[   90.450783]  arch_call_rest_init+0x1c/0x28
+[   90.454891]  start_kernel+0x348/0x438
+[   90.458562]  __primary_switched+0xc0/0xd0
+[   90.462585] Code: 710002df 1a9f17e0 39000020 53196000 (3860c8a0)
+[   90.468689] ---[ end trace 0000000000000000 ]---
+[   90.522261] pstore: backend (efi_pstore) writing error (-5)
+[   90.527845] Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt
+[   90.536640] SMP: stopping secondary CPUs
+[   90.540580] Kernel Offset: disabled
+[   90.544065] CPU features: 0x0,00e00000,14020008,21005203
+[   90.549375] Memory Limit: none
+[   90.598793] ---[ end Kernel panic - not syncing: synchronous external abort: Fatal exception in interrupt ]---
