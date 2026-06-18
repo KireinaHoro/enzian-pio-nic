@@ -3,6 +3,8 @@
 
 #include "oncrpc.h"
 
+#include <limits.h>
+
 lauberhorn_msg_t
 lauberhorn_oncrpc_req_alloc(struct lauberhorn_oncrpc_schema *schema) {
   return calloc(1, schema->call_size);
@@ -19,7 +21,18 @@ int lauberhorn_oncrpc_marshal(struct lauberhorn_oncrpc_schema *schema,
   XDR xdrs;
   xdrmem_create(&xdrs, (char *)out_buf, out_buf_size, XDR_ENCODE);
 
-  return schema->resp_func(&xdrs, in_msg);
+  if (!schema->resp_func(&xdrs, in_msg)) {
+    xdr_destroy(&xdrs);
+    return -1;
+  }
+
+  unsigned int pos = xdr_getpos(&xdrs);
+  xdr_destroy(&xdrs);
+
+  if (pos > INT_MAX)
+    return -1;
+
+  return (int)pos;
 }
 
 int lauberhorn_oncrpc_unmarshal(struct lauberhorn_oncrpc_schema *schema,
