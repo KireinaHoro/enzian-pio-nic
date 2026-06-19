@@ -146,9 +146,10 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
  * sure no spurious wake-ups can allow the task to read data from
  * another application (that is now running on the core).
  *
- * We need to use TASK_UNINTERRUPTIBLE -- a signal will circumvent
- * the interruptible sleep and eventually lead to the thread continuing
- * and thus hitting a SIGBUS, since the datapath CLs are still unrouted.
+ * Use TASK_IDLE, which is TASK_UNINTERRUPTIBLE | TASK_NOLOAD.  Signals
+ * must not wake a parked worker because the datapath CLs are unrouted,
+ * but these sleeps are intentional and should not be reported by the
+ * kernel hung-task detector as stuck D-state tasks.
  */
 void desched_worker_thread(struct thr_def *thr)
 {
@@ -157,8 +158,8 @@ void desched_worker_thread(struct thr_def *thr)
 	// We can only safely deschedule the current thread
 	BUG_ON(thr->task != current);
 
-	// Set to TASK_UNINTERRUPTIBLE and wait for ISR to wake us up
-	set_current_state(TASK_UNINTERRUPTIBLE);
+	// Wait for Lauberhorn to route and explicitly wake this worker.
+	set_current_state(TASK_IDLE);
 
 	// Set the "need resched" flag -- rescheduling happens when we
 	// return from either the interrupt handler or syscall
