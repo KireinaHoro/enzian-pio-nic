@@ -5,6 +5,7 @@ import csv
 import math
 import sys
 from collections import defaultdict
+from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -30,6 +31,48 @@ except ImportError as e:
     raise SystemExit(f"failed to import sys_trace helpers from {SYS_TRACE}: {e}")
 
 
+CLIENT_COLUMNS = [
+    "request_id",
+    "a",
+    "b",
+    "expected",
+    "result",
+    "response_request_id",
+    "rpc_status",
+    "ok",
+    "client_call_enter_ns",
+    "client_xdr_call_enter_ns",
+    "client_xdr_call_exit_ns",
+    "client_xdr_resp_enter_ns",
+    "client_xdr_resp_exit_ns",
+    "client_call_exit_ns",
+    "xdr_call_count",
+    "xdr_resp_count",
+    "timestamp_overhead_ns",
+]
+
+SERVER_COLUMNS = [
+    "request_id",
+    "xid",
+    "worker_id",
+    "ok",
+    "request_bytes",
+    "response_bytes",
+    "server_rx_enter_ns",
+    "server_rx_exit_ns",
+    "server_unmarshal_enter_ns",
+    "server_unmarshal_exit_ns",
+    "server_handler_enter_ns",
+    "server_handler_exit_ns",
+    "server_marshal_enter_ns",
+    "server_marshal_exit_ns",
+    "server_tx_enter_ns",
+    "server_tx_exit_ns",
+    "timestamp_overhead_ns",
+    "timestamp_call_count",
+]
+
+
 def int_field(row: Dict[str, str], name: str, default: int = 0) -> int:
     value = row.get(name, "")
     if value == "":
@@ -37,9 +80,32 @@ def int_field(row: Dict[str, str], name: str, default: int = 0) -> int:
     return int(value, 0)
 
 
-def load_csv_by_request_id(path: Path) -> Dict[int, Dict[str, str]]:
+def load_csv_by_request_id(path: Path, fallback_columns: List[str]) -> Dict[int, Dict[str, str]]:
     with path.open(newline="") as f:
-        return {int(row["request_id"], 0): row for row in csv.DictReader(f)}
+        reader = csv.reader(f)
+        try:
+            first = next(reader)
+        except StopIteration:
+            raise SystemExit(f"{path}: empty CSV")
+
+        if "request_id" in first:
+            rows = csv.DictReader(f, fieldnames=first)
+        elif len(first) == len(fallback_columns):
+            print(f"warning: {path} has no header; assuming {len(fallback_columns)}-column adder trace schema")
+            rows = (dict(zip(fallback_columns, values)) for values in chain([first], reader))
+        else:
+            raise SystemExit(
+                f"{path}: CSV header does not contain request_id and row has {len(first)} columns; "
+                f"expected {len(fallback_columns)} for headerless fallback"
+            )
+
+        ret: Dict[int, Dict[str, str]] = {}
+        for row in rows:
+            try:
+                ret[int(row["request_id"], 0)] = row
+            except KeyError:
+                raise SystemExit(f"{path}: CSV does not contain request_id column")
+        return ret
 
 
 def corrected_delta(start: int, end: int, overhead_ns: int, timestamp_calls: int = 1) -> float:
@@ -355,7 +421,7 @@ def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
     ax.set_title("Adder RPC E2E latency breakdown")
     ax.legend(loc="lower right", fontsize="small")
     fig.tight_layout()
-    fig.savefig(output_prefix.with_name(output_prefix.name + "_breakdown.png"), dpi=160)
+    fig.savefig(output_prefix.with_name(output_prefix.name + "_breakdown.pdf"), dpi=160)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -369,11 +435,11 @@ def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
     ax.set_ylabel("requests")
     ax.set_title("Adder RPC E2E latency distribution")
     fig.tight_layout()
-    fig.savefig(output_prefix.with_name(output_prefix.name + "_hist.png"), dpi=160)
+    fig.savefig(output_prefix.with_name(output_prefix.name + "_hist.pdf"), dpi=160)
     plt.close(fig)
 
     print(f"P50={p50 / 1000.0:.3f} us P90={p90 / 1000.0:.3f} us P99={p99 / 1000.0:.3f} us")
-    print(f"wrote {output_prefix.name}_breakdown.png, {output_prefix.name}_hist.png")
+    print(f"wrote {output_prefix.name}_breakdown.pdf, {output_prefix.name}_hist.pdf")
 
 
 def main() -> int:
@@ -387,8 +453,8 @@ def main() -> int:
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
     args = parser.parse_args()
 
-    client_rows = load_csv_by_request_id(args.client_csv)
-    server_rows = load_csv_by_request_id(args.server_csv)
+    client_rows = load_csv_by_request_id(args.client_csv, CLIENT_COLUMNS)
+    server_rows = load_csv_by_request_id(args.server_csv, SERVER_COLUMNS)
     rows = build_rows(client_rows, server_rows)
     if not rows:
         raise SystemExit("no matching request_id rows between client and server CSVs")

@@ -37,3 +37,5 @@ dev-hdrs
 *.pcap
 
 *.swp
+
+**/__pycache__/
