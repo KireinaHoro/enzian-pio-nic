@@ -134,7 +134,7 @@ active_controls has no duplicate colors
 active_controls intersects active_overflow == empty
 ```
 
-where each active QP contributes:
+where each active full-duplex QP contributes:
 
 ```text
 A = RX control CL 0
@@ -143,6 +143,12 @@ C = TX control CL 0
 D = TX control CL 1
 E = all RX/TX overflow CL colors
 ```
+
+For a single-thread RPC worker whose userspace path serializes RX and TX, the
+active contribution is direction-specific: RX contributes `{A, B} + Erx`, and TX
+contributes `{C, D} + Etx`. A scheduler that does not track the current
+direction must use a conservative compatibility relation that quantifies over
+all possible active direction combinations.
 
 ### Thread-Owned Routed QPs Under Coloring
 
@@ -172,6 +178,50 @@ Consequences:
 
 This preserves the stable-userspace-address benefit of `EciThreadClRouter`, but
 the cost is a dynamic color-aware scheduler.
+
+A different workaround keeps the scheduler color-unaware by moving the color
+check to thread creation. The kernel can allocate thread QPs only from a fixed
+pool of independently admissible signatures, including compatibility with
+always-active bypass. Once that pool is exhausted, new worker-thread creation or
+datapath `mmap` must fail instead of creating a color-conflicting QP. Then any
+runtime subset of created threads is safe, so routing a runnable thread does not
+need a color check.
+
+This is a capacity tradeoff. The total number of created threads, across all
+processes, is capped by the size of the precomputed independently admissible
+pool rather than by process slots or worker cores. For single-thread RPC worker
+QPs, the pool can use the weaker half-duplex compatibility relation from the DCU
+progress note: every possible active direction combination among created
+workers must be compatible, but RX and TX from the same worker do not need to be
+compatible with each other unless that worker can issue them concurrently.
+
+For the current `ECI_CORE_OFFSET = 0x20000` and current RX/TX CL layout, the DCU
+progress note computes a maximum independently admissible half-duplex set of
+eight masks:
+
+```text
+{0, 14, 16, 30, 32, 46, 48, 62}
+```
+
+If bypass occupies mask 0 and is treated as always active, this leaves room for
+seven additional single-thread RPC worker QPs in a color-unaware
+creation-capped scheme. New worker-thread/datapath creation beyond that cap
+must fail or use a different proven-compatible layout.
+
+Using the example permissive block layout from the DCU progress note improves
+the full-duplex story but not the total mask count under the current stride. For
+that layout, an exact search over the 64 masks gives a maximum active set of
+eight full-duplex QPs, for example:
+
+```text
+{0, 2, 4, 6, 24, 26, 28, 30}
+```
+
+The direction-unaware half-duplex capacity is also eight masks. So with
+`ECI_CORE_OFFSET = 0x20000`, a better common block layout does not raise the
+color-unaware creation cap above seven RPC worker QPs plus bypass; it makes that
+cap compatible with full-duplex QPs, avoiding the current layout's local bypass
+RX/TX hazard.
 
 ### Worker-Owned Fixed QPs Under Coloring
 
@@ -255,8 +305,12 @@ more worker slots are physically free.
 
 ## Answer To The Scheduling Question
 
-In the thread-router design, yes: the scheduler needs dynamic color-awareness
-because scheduling a thread changes the active QP signature set.
+In the thread-router design, dynamic color-awareness is needed if arbitrary
+created thread QPs can conflict, because scheduling a thread changes the active
+QP signature set. A color-unaware scheduler is still possible if thread creation
+is restricted to a precomputed independently admissible signature pool and new
+creation requests are rejected once that pool is exhausted. That makes every
+possible active subset safe by construction.
 
 In the no-router worker-owned design, not necessarily. If every worker-owned QP
 plus bypass is statically assigned a mutually compatible signature, then the
@@ -275,6 +329,8 @@ only switch to dynamic color-aware admission with a lower active degree, where
 some runnable threads wait despite available worker slots.
 
 The tradeoff is therefore clear: `EciThreadClRouter` preserves the logical
-thread abstraction but pushes progress coloring into scheduling. Removing the
-router can make progress coloring static, but only by changing the userspace
-execution model so worker identity and QP identity are fixed together.
+thread abstraction, but progress coloring must be handled either dynamically at
+schedule time or statically at thread creation time by capping the total number
+of QPs. Removing the router can also make progress coloring static, but only by
+changing the userspace execution model so worker identity and QP identity are
+fixed together.
