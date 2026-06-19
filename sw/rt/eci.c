@@ -222,7 +222,7 @@ static void *lauberhorn_worker_loop(void *arg) {
   LOG("worker %d: starting", w->worker_id);
 
   // Map datapath region
-  dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, w->ctx->fd,
+  dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_SHARED, w->ctx->fd,
                  dp_offset);
   if (dp_base == MAP_FAILED) {
     PERROR("map datapath page");
