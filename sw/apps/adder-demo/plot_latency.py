@@ -569,13 +569,12 @@ def attach_trace_segments(
                 max_delta_ns=1_000,
             )
 
+    add_segment(segments, "server_turnaround_to_tx_ctrl", delivered_ns, tx_invalidate["time_ns"] if tx_invalidate else None)
     add_segment(segments, "lh_tx_2f2f_ctrl", tx_invalidate["time_ns"] if tx_invalidate else None, tx_unlocked["time_ns"] if tx_unlocked else None)
     add_segment(segments, "lh_tx_host_submit", tx_unlocked["time_ns"] if tx_unlocked else None, tx_submit["time_ns"] if tx_submit else None)
-    add_segment(segments, "lh_tx_reply_encode", tx_dma_done["time_ns"] if tx_dma_done else None, reply_encode["time_ns"] if reply_encode else None)
-    add_segment(segments, "lh_tx_udp_encode", reply_encode["time_ns"] if reply_encode else None, udp_encoder["time_ns"] if udp_encoder else None)
+    add_segment(segments, "lh_tx_submit_to_udp_encode", tx_submit["time_ns"] if tx_submit else None, udp_encoder["time_ns"] if udp_encoder else None)
     add_segment(segments, "lh_tx_ip_encode", udp_encoder["time_ns"] if udp_encoder else None, ip_encoder["time_ns"] if ip_encoder else None)
     add_segment(segments, "lh_tx_eth_encode", ip_encoder["time_ns"] if ip_encoder else None, eth_encoder["time_ns"] if eth_encoder else None)
-    add_segment(segments, "lh_tx_dma_read", host_accept["time_ns"] if host_accept else None, tx_dma_done["time_ns"] if tx_dma_done else None)
 
     if eth_encoder is not None:
         if eth_decoder is not None:
@@ -728,27 +727,13 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) ->
 
 def breakdown(row: Dict[str, Any]) -> Dict[str, float]:
     sw_xdr_runtime = row["client_xdr_ns"] + row["server_unmarshal_ns"] + row["server_marshal_ns"]
-    server_rpc_runtime = (
-        row["server_rx_ns"]
-        + row["server_unmarshal_ns"]
-        + row["server_marshal_ns"]
-        + row["server_tx_ns"]
-    )
     kernel = row.get("kernel_wakeup_ns", 0.0)
 
     if row.get("trace_segments"):
         ret = dict(row["trace_segments"])
-        tx_eci_read = ret.pop("lh_tx_eci_read", 0.0)
-        ret["host_response_wait"] = max(0.0, tx_eci_read - server_rpc_runtime - row["handler_ns"])
         ret["client_xdr_runtime"] = row["client_xdr_ns"]
-        ret["sw_rpc_runtime"] = server_rpc_runtime
-        ret["handler"] = row["handler_ns"]
         known = sum(ret.values())
         outside = row["e2e_ns"] - known
-        if outside < 0.0 and ret["host_response_wait"] > 0.0:
-            trim = min(ret["host_response_wait"], -outside)
-            ret["host_response_wait"] -= trim
-            outside += trim
         ret["outside_lh_client_network"] = max(0.0, outside)
         return ret
 
@@ -781,7 +766,7 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "lh_scheduler_queue",
         "lh_rx_eci_delivery",
         "hw_dispatch",
-        "host_response_wait",
+        "server_turnaround_to_tx_ctrl",
         "client_xdr_runtime",
         "sw_rpc_runtime",
         "sw_xdr_runtime",
@@ -789,11 +774,9 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "lh_tx_eci_read",
         "lh_tx_2f2f_ctrl",
         "lh_tx_host_submit",
-        "lh_tx_reply_encode",
-        "lh_tx_udp_encode",
+        "lh_tx_submit_to_udp_encode",
         "lh_tx_ip_encode",
         "lh_tx_eth_encode",
-        "lh_tx_dma_read",
         "lh_tx_output_queue",
         "lh_tx_cdc_to_cmac",
     ]
