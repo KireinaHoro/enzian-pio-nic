@@ -390,6 +390,125 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
             writer.writerow([label, row["request_id"], f"{row['e2e_ns']:.0f}", *[f"{b[name]:.0f}" for name in names]])
 
 
+def histogram_break_threshold(sorted_values_us: List[float], p99_us: float) -> Optional[float]:
+    if len(sorted_values_us) < 8:
+        return None
+
+    q1 = percentile(sorted_values_us, 25)
+    q3 = percentile(sorted_values_us, 75)
+    iqr = q3 - q1
+    if iqr <= 0:
+        fence = p99_us * 3.0
+    else:
+        fence = q3 + 3.0 * iqr
+
+    threshold = max(fence, p99_us * 1.10)
+    if sorted_values_us[-1] <= threshold * 1.5:
+        return None
+    if not any(value > threshold for value in sorted_values_us):
+        return None
+    return threshold
+
+
+def annotate_percentile(ax: Any, label: str, value_us: float, color: str) -> None:
+    lo, hi = ax.get_xlim()
+    if value_us < lo or value_us > hi:
+        return
+    ax.axvline(value_us, color=color, linewidth=1.6)
+    ax.text(
+        value_us,
+        ax.get_ylim()[1] * 0.92,
+        f"{label} {value_us:.2f} us",
+        rotation=90,
+        va="top",
+        ha="right",
+        color=color,
+    )
+
+
+def plot_histogram(plt: Any, e2e_us: List[float], p50_us: float, p90_us: float, p99_us: float, output_path: Path) -> None:
+    threshold = histogram_break_threshold(e2e_us, p99_us)
+    percentile_lines = [("P50", p50_us, "#2d5f8b"), ("P90", p90_us, "#8a7a2f"), ("P99", p99_us, "#9b3d45")]
+    bins = min(80, max(10, int(math.sqrt(len(e2e_us)))))
+
+    if threshold is None:
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.hist(e2e_us, bins=bins, color="#6b8fb3", edgecolor="white")
+        for label, value, color in percentile_lines:
+            annotate_percentile(ax, label, value, color)
+        ax.set_xlabel("E2E latency (us)")
+        ax.set_ylabel("requests")
+        ax.set_title("Adder RPC E2E latency distribution")
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=160)
+        plt.close(fig)
+        return
+
+    outliers = [value for value in e2e_us if value > threshold]
+    right_min = min(outliers)
+    right_max = max(outliers)
+    right_pad = max((right_max - right_min) * 0.15, right_min * 0.02, 1.0)
+    left_min = min(e2e_us)
+    left_pad = max((threshold - left_min) * 0.02, 1.0)
+
+    fig, (ax_left, ax_right) = plt.subplots(
+        1,
+        2,
+        sharey=True,
+        figsize=(9.2, 4.5),
+        gridspec_kw={"width_ratios": [4.5, 1.2], "wspace": 0.06},
+    )
+    ax_left.hist(
+        e2e_us,
+        bins=bins,
+        range=(max(0.0, left_min - left_pad), threshold),
+        color="#6b8fb3",
+        edgecolor="white",
+    )
+    ax_right.hist(
+        e2e_us,
+        bins=min(20, max(3, int(math.sqrt(len(outliers))) + 1)),
+        range=(right_min - right_pad, right_max + right_pad),
+        color="#6b8fb3",
+        edgecolor="white",
+    )
+
+    ax_left.set_xlim(max(0.0, left_min - left_pad), threshold)
+    ax_right.set_xlim(right_min - right_pad, right_max + right_pad)
+    ymax = max(ax_left.get_ylim()[1], ax_right.get_ylim()[1])
+    ax_left.set_ylim(0, ymax)
+    ax_right.set_ylim(0, ymax)
+
+    for ax in (ax_left, ax_right):
+        for label, value, color in percentile_lines:
+            annotate_percentile(ax, label, value, color)
+
+    ax_left.spines["right"].set_visible(False)
+    ax_right.spines["left"].set_visible(False)
+    ax_right.tick_params(labelleft=False, left=False)
+    ax_left.set_ylabel("requests")
+    fig.supxlabel("E2E latency (us)")
+    ax_left.set_title("Adder RPC E2E latency distribution")
+    ax_right.set_title("tail")
+
+    marker_kwargs = dict(marker=[(-1, -0.5), (1, 0.5)], markersize=10, linestyle="none", color="k", mec="k", mew=1)
+    ax_left.plot([1, 1], [0, 1], transform=ax_left.transAxes, clip_on=False, **marker_kwargs)
+    ax_right.plot([0, 0], [0, 1], transform=ax_right.transAxes, clip_on=False, **marker_kwargs)
+    ax_right.text(
+        0.5,
+        0.95,
+        f"{len(outliers)} tail sample(s)",
+        transform=ax_right.transAxes,
+        ha="center",
+        va="top",
+        fontsize="small",
+    )
+
+    fig.subplots_adjust(left=0.10, right=0.98, bottom=0.16, top=0.86, wspace=0.06)
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
 def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
     try:
         import matplotlib.pyplot as plt
@@ -424,19 +543,15 @@ def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
     fig.savefig(output_prefix.with_name(output_prefix.name + "_breakdown.pdf"), dpi=160)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
     e2e_us = [value / 1000.0 for value in e2e]
-    ax.hist(e2e_us, bins=min(80, max(10, int(math.sqrt(len(e2e_us))))), color="#6b8fb3", edgecolor="white")
-    for label, value, color in [("P50", p50, "#2d5f8b"), ("P90", p90, "#8a7a2f"), ("P99", p99, "#9b3d45")]:
-        ax.axvline(value / 1000.0, color=color, linewidth=1.6)
-        ax.text(value / 1000.0, ax.get_ylim()[1] * 0.92, f"{label} {value / 1000.0:.2f} us",
-                rotation=90, va="top", ha="right", color=color)
-    ax.set_xlabel("E2E latency (us)")
-    ax.set_ylabel("requests")
-    ax.set_title("Adder RPC E2E latency distribution")
-    fig.tight_layout()
-    fig.savefig(output_prefix.with_name(output_prefix.name + "_hist.pdf"), dpi=160)
-    plt.close(fig)
+    plot_histogram(
+        plt,
+        e2e_us,
+        p50 / 1000.0,
+        p90 / 1000.0,
+        p99 / 1000.0,
+        output_prefix.with_name(output_prefix.name + "_hist.pdf"),
+    )
 
     print(f"P50={p50 / 1000.0:.3f} us P90={p90 / 1000.0:.3f} us P99={p99 / 1000.0:.3f} us")
     print(f"wrote {output_prefix.name}_breakdown.pdf, {output_prefix.name}_hist.pdf")
