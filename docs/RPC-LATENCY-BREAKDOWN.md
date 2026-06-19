@@ -13,14 +13,14 @@ from entering the ONC-RPC client stub call to returning from that call:
 client_call_enter_ns -> client_call_exit_ns
 ```
 
-This includes everything needed for one synchronous RPC from the client's point
-of view:
+This includes everything on the critical path of one synchronous RPC from the
+client's point of view:
 
 - client-side ONC-RPC/XDR work;
 - client kernel, NIC driver, interrupts, and network stack work;
 - Ethernet/network transit between client and Lauberhorn;
 - Lauberhorn RX parsing, scheduling, ECI delivery, and TX encode path;
-- server runtime work on the ThunderX core;
+- server runtime work on the ThunderX core after the request is delivered;
 - user handler execution;
 - response network transit and client receive processing.
 
@@ -144,27 +144,33 @@ Important correlation details:
 ## Breakdown Buckets
 
 The plotted bars are a partition of the client-observed E2E interval.  When a
-trace is available, hardware segments are split into named Lauberhorn events;
-otherwise the plotter falls back to coarser software-derived buckets.
+trace is available, request-service segments are split into named Lauberhorn
+events.  Blocking receive time before the request reaches `RxCmacEntry` is not
+stacked as a request-service component; if it overlaps the client-observed
+interval, it remains part of the outside/residual bucket unless more precise
+client/kernel instrumentation can attribute it.  Without a trace, the plotter
+falls back to coarser software-derived buckets.
 
 Common traced buckets:
 
 - `lh_rx_cmac_to_cdc`, `lh_rx_eth_decode`, `lh_rx_ip_decode`,
   `lh_rx_udp_decode`, `lh_rx_rpc_decode`: packet ingress and protocol decode.
-- `lh_rx_host_enqueue`, `lh_scheduler_enqueue`, `lh_scheduler_queue`,
-  `lh_rx_eci_delivery`: host enqueue, scheduler, and ECI delivery.
-- `kernel_wakeup`: estimated time from hardware wakeup-related trace points to
-  server runtime observation, when enough matching rows exist to estimate the
-  CPU/FPGA clock offset.
-- `sw_rpc_runtime`: server runtime work around `core_eci_rx()`, unmarshal,
-  marshal, and `core_eci_tx()`.
+- `lh_rx_host_enqueue`, `lh_scheduler_enqueue`, `lh_scheduler_preempt`,
+  `kernel_wakeup`, `lh_scheduler_queue`, `lh_rx_eci_delivery`: host enqueue,
+  scheduler/preemption, kernel wakeup, scheduler run queue, and ECI delivery.
+  These buckets may be absent or zero for a run that does not exercise the
+  deschedule/reschedule path, but they are intentionally kept in the breakdown
+  for benchmarks that hammer that path.
+- `server_turnaround_to_tx_ctrl`: time from request delivery to the worker side
+  until the response-side TX control path starts.  This includes server-side
+  request unmarshal, handler execution, response marshal, and the software part
+  of ringing the response doorbell.  It deliberately does not include blocking
+  receive wait before the request arrives.
 - `client_xdr_runtime`: client-side XDR encode/decode measured in the client
   process.
-- `handler`: application handler execution.
-- `lh_tx_2f2f_ctrl`, `lh_tx_host_submit`, `lh_tx_dma_read`,
-  `lh_tx_reply_encode`, `lh_tx_udp_encode`, `lh_tx_ip_encode`,
-  `lh_tx_eth_encode`, `lh_tx_output_queue`, `lh_tx_cdc_to_cmac`: response-side
-  Lauberhorn/encoder path, when correlated.
+- `lh_tx_2f2f_ctrl`, `lh_tx_host_submit`, `lh_tx_submit_to_udp_encode`,
+  `lh_tx_ip_encode`, `lh_tx_eth_encode`, `lh_tx_output_queue`,
+  `lh_tx_cdc_to_cmac`: response-side Lauberhorn/encoder path, when correlated.
 - `outside_lh_client_network`: everything in the client E2E interval not
   assigned to a more specific bucket.
 
@@ -184,27 +190,60 @@ P99 = 105.091 us
 ```
 
 The selected P50/P99 rows show that the application handler is not a meaningful
-cost: the handler is about 70 ns.  The large measured server-side cost is the
-runtime path around ECI receive/transmit and ONC-RPC marshal/unmarshal:
+cost: the handler is about 70 ns.
 
-- P50 server runtime is about 33.7 us, dominated by `core_eci_rx()` at about
-  30.3 us.
-- P99 server runtime is about 40.5 us, dominated by `core_eci_rx()` at about
-  37.0 us.
+The traced time spent inside Lauberhorn, measured from `RxCmacEntry` to
+`TxCmacExit`, is much smaller than the client-observed E2E latency:
+
+- P50 `RxCmacEntry -> TxCmacExit` is about 4.4 us.
+- P99 `RxCmacEntry -> TxCmacExit` is about 4.5 us.
+
+This is the best current "inside Lauberhorn" number for the selected requests:
+request arrival at the Lauberhorn RX CMAC trace point through response departure
+at the Lauberhorn TX CMAC trace point.  It must be interpreted separately from
+the software receive timestamps.  The `core_eci_rx()` timestamp pair measures
+the duration of a blocking receive call in the server worker.  In this run, the
+worker entered `core_eci_rx()` before the request arrived at `RxCmacEntry`, so
+most of that timestamp pair is pre-arrival wait time.  It is not time spent
+processing this request inside Lauberhorn.
+
+The selected rows show that distinction clearly:
+
+- P50 `core_eci_rx()` wall time is about 30.3 us, but this is mostly blocking
+  wait before the request is returned to software.
+- P99 `core_eci_rx()` wall time is about 37.0 us, with the same caveat.
+- The traced `server_turnaround_to_tx_ctrl` component, which covers request
+  delivery through the start of response TX control, is about 3.1 us for both
+  P50 and P99.  It includes unmarshal, handler, marshal, and the software part
+  of ringing the response doorbell.
+
+Therefore `RxCmacEntry -> TxCmacExit` can be about 4.4-4.5 us even though the
+`server_rx_enter_ns -> server_rx_exit_ns` timestamp pair is about 30-37 us.  The
+latter mostly measures the worker already waiting for the next request, not
+request service time after the packet entered Lauberhorn.
+
+The current traced breakdown therefore does not include the blocking
+`core_eci_rx()` interval as a stacked request-service component.  It keeps the
+request-service path non-overlapping: RX CMAC/decode/delivery, server
+turnaround to TX control, TX control/encoder/CMAC egress, plus client XDR and
+the remaining outside bucket.
 
 The client-observed residual is even larger in the current run:
 
-- P50 residual/outside bucket is about 51 us.
-- P99 residual/outside bucket is about 63 us.
+- P50 residual/outside bucket is about 82 us.
+- P99 residual/outside bucket is about 100 us.
 
-That residual includes client-side CPU/network-stack work and network transit,
-and may include un-attributed trace spans.  It should not be blamed on
-Lauberhorn without more client-side and network-side instrumentation.
+That residual includes client-side CPU/network-stack work, NIC DMA and interrupt
+handling, wire time, switch forwarding latency, QSFP/PHY latency outside the
+traced CMAC boundary, and may include un-attributed trace spans.  It should not
+be blamed on Lauberhorn without more client-side and network-side
+instrumentation.
 
 The traced FPGA datapath micro-stages that are currently attributable are small
 relative to the total E2E latency: protocol decode and encoder stages are
-generally tens of nanoseconds each, while the ECI control path and server runtime
-are much larger.
+generally tens of nanoseconds each.  The current request-service work visible on
+the Lauberhorn/server side is only a few microseconds after receive returns,
+while the largest overall bucket is still the client/network/residual bucket.
 
 ## Known Ambiguities
 
@@ -214,6 +253,10 @@ Several parts of the breakdown are still estimates or residuals:
   client XDR.  It does not split client userspace RPC library time, system calls,
   socket wait time, NIC driver work, interrupt handling, softirq/NAPI, or kernel
   UDP/IP processing.
+- Server `core_eci_rx()` wall time is a blocking receive duration.  It is useful
+  for worker occupancy and wakeup/reschedule benchmarks, but it is not a causal
+  request-service component unless the receive call is known to begin after the
+  request has arrived.
 - The network path is not independently timestamped at the client NIC, switch,
   or Lauberhorn external CMAC boundary with a shared clock.  It is therefore
   mixed into the residual bucket.
@@ -248,10 +291,14 @@ To split the residual further, useful next probes would be:
 
 Likely Lauberhorn-side targets:
 
-- reduce server runtime CPU overhead in the `core_eci_rx()`/`core_eci_tx()` path;
+- reduce the post-receive server turnaround path from ECI delivery to response
+  TX control;
+- reduce `core_eci_tx()`/doorbell overhead if it shows up in
+  `server_turnaround_to_tx_ctrl`;
 - reduce ONC-RPC/XDR marshal and unmarshal overhead if it becomes significant
   for larger messages;
-- reduce scheduler/ECI wakeup latency if future traces show it growing;
+- reduce scheduler/ECI wakeup latency if future deschedule/reschedule traces
+  show it growing;
 - keep the encoder/decoder trace IDs precise enough that hardware micro-stages
   can be attributed without falling into the residual bucket.
 
