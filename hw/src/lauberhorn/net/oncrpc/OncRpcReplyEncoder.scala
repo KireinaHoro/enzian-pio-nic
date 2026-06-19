@@ -196,7 +196,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
 
               // send header to encoder
               outHdr.xid        := txR.userData.xid
-              outHdr.msgType    := 1 // msg_type == REPLY
+              outHdr.msgType    := EndiannessSwap(B("32'x00000001")) // msg_type == REPLY
               outHdr.replyStat  := 0 // reply_stat == MSG_ACCEPTED
               outHdr.verifier   := 0
               outHdr.acceptStat := 0 // accept_stat == SUCCESS

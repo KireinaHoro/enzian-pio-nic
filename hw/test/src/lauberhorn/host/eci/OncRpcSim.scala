@@ -14,6 +14,11 @@ import scala.collection.mutable
 import scala.language.postfixOps
 
 class OncRpcSim extends NicSim with OncRpcSuiteFactory {
+  private def expectedOncRpcReplyHeader(xid: Int): List[Byte] =
+    xid.toBytesBE ++
+      1.toBytesBE ++              // msg_type == REPLY
+      List.fill(16)(0.toByte)     // reply_stat, verifier flavor/length, accept_stat
+
   private def checkOncRpcReplyPacket(data: List[Byte],
                                      request: EthernetPacket,
                                      xid: Int,
@@ -32,7 +37,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     val udpPayload = parsed.get(classOf[UdpPacket]).getPayload.getRawData.toList
     val (rpcHdr, rpcPayload) = udpPayload.splitAt(24)
-    assert(rpcHdr.take(4) == xid.toBytesBE, "XID mismatch")
+    assert(rpcHdr == expectedOncRpcReplyHeader(xid), "ONC-RPC reply header mismatch")
     check(expectedPayload, rpcPayload)
   }
 
@@ -337,7 +342,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
       val udpPayload = parsed.get(classOf[UdpPacket]).getPayload.getRawData.toList
       val (rpcHdr, rpcPayload) = udpPayload.splitAt(24) // XID + msgType + replyStat + verifier + acceptStat
-      assert(rpcHdr.take(4) == xid.toBytesBE, "XID mismatch")
+      assert(rpcHdr == expectedOncRpcReplyHeader(xid), "ONC-RPC reply header mismatch")
 
       check(respData, rpcPayload)
       println("Received and checked first response")
@@ -364,7 +369,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
       val udpPayload2 = parsed2.get(classOf[UdpPacket]).getPayload.getRawData.toList
       val (rpcHdr2, rpcPayload2) = udpPayload2.splitAt(24)
-      assert(rpcHdr2.take(4) == xid2.toBytesBE, "XID mismatch")
+      assert(rpcHdr2 == expectedOncRpcReplyHeader(xid2), "ONC-RPC reply header mismatch")
       check(respData2, rpcPayload2)
       println("Received and checked second response")
 
