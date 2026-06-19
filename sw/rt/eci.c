@@ -214,6 +214,8 @@ static void *lauberhorn_worker_loop(void *arg) {
   struct lauberhorn_hw_handler *hw_handler;
   bool logged_rx_entry = false;
   bool logged_rx_return = false;
+  bool logged_tx_entry = false;
+  bool logged_tx_return = false;
 
   sigset_t sigint_mask;
 
@@ -293,7 +295,18 @@ static void *lauberhorn_worker_loop(void *arg) {
     desc.type = TY_ONCRPC_REPLY;
     // xid and func_ptr stays the same
     desc.payload_len = to_send;
+    if (!logged_tx_entry) {
+      LOG("worker %d: entering core_eci_tx at datapath %p len=%d",
+          w->worker_id, dp_base, to_send);
+      fflush(stdout);
+      logged_tx_entry = true;
+    }
     core_eci_tx(dp_base, &w->dp, &desc);
+    if (!logged_tx_return) {
+      LOG("worker %d: core_eci_tx returned", w->worker_id);
+      fflush(stdout);
+      logged_tx_return = true;
+    }
   }
 
   LOG("worker %d: requested to exit, cleaning up", w->worker_id);
