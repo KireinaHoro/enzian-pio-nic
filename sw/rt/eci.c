@@ -109,6 +109,7 @@ static void server_trace_open(void) {
           "server_marshal_enter_ns,server_marshal_exit_ns,"
           "server_tx_enter_ns,server_tx_exit_ns,"
           "timestamp_overhead_ns,timestamp_call_count\n");
+  fflush(server_trace_csv);
 }
 
 static void server_trace_close(void) {
