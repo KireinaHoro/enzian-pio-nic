@@ -3,7 +3,7 @@ package lauberhorn.net.ip
 import jsteward.blocks.axi.AxiStreamInjectHeader
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global.{NUM_NEIGHBOR_ENTRIES, REG_WIDTH}
-import lauberhorn.{HostMsgID, MacInterfaceService}
+import lauberhorn.{HostMsgID, MacInterfaceService, PacketID}
 import lauberhorn.host.{BypassCmdSink, HostReqType}
 import spinal.core._
 import spinal.lib._
@@ -127,6 +127,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     nextIpHdr.csum := 0
 
     val savedIpHdr = Reg(IpHeader())
+    val savedPacketId = Reg(UInt(PacketID.width bits))
     val csumNext = nextIpHdr.calcCsum()
     val csumLat = LatencyAnalysis(nextIpHdr.ihl, csumNext)
 
@@ -138,6 +139,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     when (md.fire) {
       savedIpHdr := nextIpHdr
+      savedPacketId := md.packetId
     }
     when (Delay(md.fire, csumLat)) {
       savedIpHdr.csum := csumNext
@@ -215,7 +217,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
         val sendDownstreamMd: State = new State {
         whenIsActive {
           outMd.valid := True
-          outMd.packetId := md.packetId
+          outMd.packetId := savedPacketId
           outMd.etherType := EndiannessSwap(B("16'x0800"))
           outMd.dst := destMac
           when (outMd.ready) {

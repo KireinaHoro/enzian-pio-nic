@@ -550,15 +550,23 @@ def attach_trace_segments(
                 events_by_name,
                 "IpEncoder",
                 udp_encoder["time_ns"] if udp_encoder is not None else tx_submit["time_ns"],
-                {"PacketID": response_packet_id} if response_packet_id is not None else None,
-                max_delta_ns=100_000,
+                max_delta_ns=1_000,
             )
+            if udp_encoder is not None:
+                row["trace_tx_udp_packet_id"] = response_packet_id
+            if ip_encoder is not None:
+                ip_packet_id = ip_encoder["data"]["PacketID"]
+                row["trace_tx_ip_packet_id"] = ip_packet_id
+                if udp_encoder is not None:
+                    row["trace_tx_udp_to_ip_ns"] = float(ip_encoder["time_ns"] - udp_encoder["time_ns"])
+                    if ip_packet_id != response_packet_id:
+                        row["trace_tx_udp_ip_packet_id_mismatch"] = True
             eth_encoder = first_event_after(
                 events_by_name,
                 "EthernetEncoder",
                 ip_encoder["time_ns"] if ip_encoder is not None else tx_submit["time_ns"],
-                {"PacketID": response_packet_id} if response_packet_id is not None else None,
-                max_delta_ns=100_000,
+                {"PacketID": ip_encoder["data"]["PacketID"]} if ip_encoder is not None else None,
+                max_delta_ns=1_000,
             )
 
     add_segment(segments, "lh_tx_2f2f_ctrl", tx_invalidate["time_ns"] if tx_invalidate else None, tx_unlocked["time_ns"] if tx_unlocked else None)
@@ -809,6 +817,9 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
             "trace_eth_decoder_to_encoder_ns",
             "trace_core_rx_return_to_tx_submit_ns",
             "trace_core_tx_return_to_tx_submit_ns",
+            "trace_tx_udp_packet_id",
+            "trace_tx_ip_packet_id",
+            "trace_tx_udp_to_ip_ns",
             *names,
         ])
         for label, row in selected.items():
@@ -823,6 +834,9 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
                 f"{row.get('trace_eth_decoder_to_encoder_ns', 0.0):.0f}",
                 f"{row.get('trace_core_rx_return_to_tx_submit_ns', 0.0):.0f}",
                 f"{row.get('trace_core_tx_return_to_tx_submit_ns', 0.0):.0f}",
+                row.get("trace_tx_udp_packet_id", ""),
+                row.get("trace_tx_ip_packet_id", ""),
+                f"{row.get('trace_tx_udp_to_ip_ns', 0.0):.0f}",
                 *[f"{b.get(name, 0.0):.0f}" for name in names],
             ])
 
@@ -1168,6 +1182,17 @@ def main() -> int:
                 sample = ", ".join(str(row["request_id"]) for row in missing_tx_cmac[:8])
                 suffix = "" if len(missing_tx_cmac) <= 8 else ", ..."
                 print(f"warning: no matching TX CMAC exit found for trace-matched request_id(s): {sample}{suffix}")
+            packet_id_mismatch = [row for row in matched_rows if row.get("trace_tx_udp_ip_packet_id_mismatch")]
+            if packet_id_mismatch:
+                examples = ", ".join(
+                    f"{row['request_id']} UDP {row.get('trace_tx_udp_packet_id')} -> IP {row.get('trace_tx_ip_packet_id')}"
+                    for row in packet_id_mismatch[:6]
+                )
+                suffix = "" if len(packet_id_mismatch) <= 6 else ", ..."
+                print(
+                    "warning: immediate TX UdpEncoder->IpEncoder PacketID mismatch for "
+                    f"{len(packet_id_mismatch)} request(s): {examples}{suffix}"
+                )
         if matched == 1:
             print("warning: only one trace-matched request; kernel_wakeup cannot be baseline-estimated and will be 0")
 
