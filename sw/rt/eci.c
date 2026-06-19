@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <rpc/rpc.h>
 #include <signal.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ioctl.h"
@@ -22,12 +24,119 @@
 
 #define LAUBERHORN_DEV_PATH "/dev/lauberhorn"
 
-#define LOG(fmt, ...) printf("[lauberhorn rt] " fmt "\n", ##__VA_ARGS__)
+#define LOG(fmt, ...)                                                           \
+  do {                                                                          \
+    if (rt_verbose)                                                             \
+      fprintf(stderr, "[lauberhorn rt] " fmt "\n", ##__VA_ARGS__);             \
+  } while (0)
+#define STATUS(fmt, ...)                                                        \
+  fprintf(stderr, "[lauberhorn rt] " fmt "\n", ##__VA_ARGS__)
 #define PERROR(msg) perror("[lauberhorn rt] " msg)
 
 static int page_size;
 static volatile sig_atomic_t is_running;
 static int fd;
+static bool rt_verbose;
+
+static FILE *server_trace_csv;
+static pthread_mutex_t server_trace_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t server_trace_clock_overhead_ns;
+
+struct server_trace_row {
+  uint64_t request_id;
+  int xid;
+  int worker_id;
+  int ok;
+  size_t request_bytes;
+  size_t response_bytes;
+  uint64_t rx_enter_ns;
+  uint64_t rx_exit_ns;
+  uint64_t unmarshal_enter_ns;
+  uint64_t unmarshal_exit_ns;
+  uint64_t handler_enter_ns;
+  uint64_t handler_exit_ns;
+  uint64_t marshal_enter_ns;
+  uint64_t marshal_exit_ns;
+  uint64_t tx_enter_ns;
+  uint64_t tx_exit_ns;
+};
+
+static uint64_t trace_now_ns(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts) != 0) {
+    PERROR("clock_gettime");
+    abort();
+  }
+  return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static uint64_t calibrate_clock_overhead(void) {
+  uint64_t best = UINT64_MAX;
+  uint64_t prev = trace_now_ns();
+
+  for (int i = 0; i < 10000; ++i) {
+    uint64_t cur = trace_now_ns();
+    uint64_t delta = cur - prev;
+    if (delta != 0 && delta < best)
+      best = delta;
+    prev = cur;
+  }
+
+  return best == UINT64_MAX ? 0 : best;
+}
+
+static void server_trace_open(void) {
+  const char *path = getenv("LAUBERHORN_SERVER_TRACE_CSV");
+  if (!path || !path[0])
+    path = getenv("ADDER_SERVER_TRACE_CSV");
+  if (!path || !path[0])
+    return;
+
+  server_trace_csv = fopen(path, "w");
+  if (!server_trace_csv) {
+    fprintf(stderr, "[lauberhorn rt] failed to open server trace CSV %s: %s\n",
+            path, strerror(errno));
+    return;
+  }
+
+  setvbuf(server_trace_csv, NULL, _IOLBF, 0);
+  server_trace_clock_overhead_ns = calibrate_clock_overhead();
+  fprintf(server_trace_csv,
+          "request_id,xid,worker_id,ok,request_bytes,response_bytes,"
+          "server_rx_enter_ns,server_rx_exit_ns,"
+          "server_unmarshal_enter_ns,server_unmarshal_exit_ns,"
+          "server_handler_enter_ns,server_handler_exit_ns,"
+          "server_marshal_enter_ns,server_marshal_exit_ns,"
+          "server_tx_enter_ns,server_tx_exit_ns,"
+          "timestamp_overhead_ns,timestamp_call_count\n");
+}
+
+static void server_trace_close(void) {
+  if (!server_trace_csv)
+    return;
+
+  fclose(server_trace_csv);
+  server_trace_csv = NULL;
+}
+
+static void server_trace_write(const struct server_trace_row *row) {
+  if (!server_trace_csv)
+    return;
+
+  pthread_mutex_lock(&server_trace_lock);
+  fprintf(server_trace_csv,
+          "%" PRIu64 ",%d,%d,%d,%zu,%zu,"
+          "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
+          "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
+          "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%u\n",
+          row->request_id, row->xid, row->worker_id, row->ok,
+          row->request_bytes, row->response_bytes, row->rx_enter_ns,
+          row->rx_exit_ns, row->unmarshal_enter_ns, row->unmarshal_exit_ns,
+          row->handler_enter_ns, row->handler_exit_ns, row->marshal_enter_ns,
+          row->marshal_exit_ns, row->tx_enter_ns, row->tx_exit_ns,
+          server_trace_clock_overhead_ns, 10u);
+  pthread_mutex_unlock(&server_trace_lock);
+}
 
 static void sigint_handler(int signo) {
   int err;
@@ -52,8 +161,10 @@ int lauberhorn_init(lauberhorn_t *ctx) {
   int err;
 
   page_size = getpagesize();
+  rt_verbose = getenv("LAUBERHORN_RT_VERBOSE") != NULL;
 
-  LOG("initializing");
+  STATUS("initializing");
+  server_trace_open();
 
   fd = ctx->fd = open(LAUBERHORN_DEV_PATH, O_RDWR);
   if (ctx->fd < 0) {
@@ -76,18 +187,20 @@ int lauberhorn_init(lauberhorn_t *ctx) {
     goto out;
   }
 
-  LOG("app initialized");
+  STATUS("app initialized");
   return 0;
 
 close_fd:
   close(ctx->fd);
 out:
+  server_trace_close();
   return -1;
 }
 
 void lauberhorn_fini(lauberhorn_t *ctx) {
   munmap(ctx->parity_page, page_size);
   close(ctx->fd);
+  server_trace_close();
 }
 
 struct schema_reg {
@@ -212,14 +325,10 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   struct lauberhorn_oncrpc_schema *schema;
   struct lauberhorn_hw_handler *hw_handler;
-  bool logged_rx_entry = false;
-  bool logged_rx_return = false;
-  bool logged_tx_entry = false;
-  bool logged_tx_return = false;
 
   sigset_t sigint_mask;
 
-  LOG("worker %d: starting", w->worker_id);
+  STATUS("worker %d: starting", w->worker_id);
 
   // Map datapath region
   dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_SHARED, w->ctx->fd,
@@ -252,64 +361,80 @@ static void *lauberhorn_worker_loop(void *arg) {
 
   // Main loop
   while (is_running) {
+    struct server_trace_row trace_row = {
+        .request_id = UINT64_MAX,
+        .worker_id = w->worker_id,
+        .ok = -1,
+    };
+
     // Receive request from datapath
-    if (!logged_rx_entry) {
-      LOG("worker %d: entering core_eci_rx at datapath %p", w->worker_id,
-          dp_base);
-      fflush(stdout);
-      logged_rx_entry = true;
-    }
+    if (server_trace_csv)
+      trace_row.rx_enter_ns = trace_now_ns();
     bool got_req = core_eci_rx(dp_base, &w->dp, &desc);
-    if (!logged_rx_return) {
-      LOG("worker %d: core_eci_rx returned got_req=%d", w->worker_id, got_req);
-      fflush(stdout);
-      logged_rx_return = true;
-    }
+    if (server_trace_csv)
+      trace_row.rx_exit_ns = trace_now_ns();
     if (!got_req)
       continue;
     assert(desc.type == TY_ONCRPC_CALL);
     hw_handler = desc.oncrpc_server.func_ptr;
     schema = hw_handler->sreg->schema;
     msg = w->msg_bufs[hw_handler->sreg - registered_schemas];
+    trace_row.xid = desc.oncrpc_server.xid;
+    trace_row.request_bytes = desc.payload_len;
 
     // Unmarshal request
+    if (server_trace_csv)
+      trace_row.unmarshal_enter_ns = trace_now_ns();
     err = lauberhorn_oncrpc_unmarshal(schema, msg, w->dp.rx_buf,
                                       desc.payload_len);
+    if (server_trace_csv)
+      trace_row.unmarshal_exit_ns = trace_now_ns();
     if (err != 1) {
       LOG("failed to unmarshal request, skipping");
       continue;
     }
+    if (server_trace_csv && schema->trace_request_id)
+      trace_row.request_id = schema->trace_request_id(msg);
 
     // Call handler
+    if (server_trace_csv)
+      trace_row.handler_enter_ns = trace_now_ns();
     msg = hw_handler->func(hw_handler->data, msg, desc.oncrpc_server.xid);
+    if (server_trace_csv)
+      trace_row.handler_exit_ns = trace_now_ns();
+    if (server_trace_csv && schema->trace_check)
+      trace_row.ok = schema->trace_check(w->msg_bufs[hw_handler->sreg -
+                                                     registered_schemas],
+                                         msg)
+                         ? 1
+                         : 0;
 
     // Marshal response
+    if (server_trace_csv)
+      trace_row.marshal_enter_ns = trace_now_ns();
     err = lauberhorn_oncrpc_marshal(schema, w->tx_buf, w->tx_buf_size, msg);
+    if (server_trace_csv)
+      trace_row.marshal_exit_ns = trace_now_ns();
     if (err < 0) {
       LOG("failed to marshal response, skipping");
       continue;
     }
     to_send = err;
+    trace_row.response_bytes = to_send;
 
     // Send marshalled response
     desc.type = TY_ONCRPC_REPLY;
     // xid and func_ptr stays the same
     desc.payload_len = to_send;
-    if (!logged_tx_entry) {
-      LOG("worker %d: entering core_eci_tx at datapath %p len=%d",
-          w->worker_id, dp_base, to_send);
-      fflush(stdout);
-      logged_tx_entry = true;
-    }
+    if (server_trace_csv)
+      trace_row.tx_enter_ns = trace_now_ns();
     core_eci_tx(dp_base, &w->dp, &desc);
-    if (!logged_tx_return) {
-      LOG("worker %d: core_eci_tx returned", w->worker_id);
-      fflush(stdout);
-      logged_tx_return = true;
-    }
+    if (server_trace_csv)
+      trace_row.tx_exit_ns = trace_now_ns();
+    server_trace_write(&trace_row);
   }
 
-  LOG("worker %d: requested to exit, cleaning up", w->worker_id);
+  STATUS("worker %d: requested to exit, cleaning up", w->worker_id);
   w->fini(w->worker_id);
 
   // further cleanup happen in lauberhorn_join_worker on the
@@ -371,7 +496,7 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
     return;
   }
   if (res) {
-    LOG("worker thread returned %ld\n", (ssize_t)res);
+    STATUS("worker thread returned %ld", (ssize_t)res);
   }
 
   // Unmap the datapath base

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <threads.h>
 
 #include "lauberhorn.h"
@@ -8,14 +9,29 @@
 // handler will be executed multi-threaded!
 // can't just use a static variable
 thread_local add_resp resp;
+
 lauberhorn_msg_t add_handler(void *data, lauberhorn_msg_t req, int xid) {
   add_call *call = req;
+  (void)data;
+  (void)xid;
 
-  printf("server called with %d + %d\n", call->a, call->b);
+  resp.request_id = call->request_id;
   resp.sum = call->a + call->b;
-  printf("returning %d\n", resp.sum);
 
   return &resp;
+}
+
+static uint64_t add_request_id(void *req) {
+  add_call *call = req;
+  return call->request_id;
+}
+
+static bool add_check(void *req, void *resp_msg) {
+  add_call *call = req;
+  add_resp *result = resp_msg;
+
+  return result->request_id == call->request_id &&
+         result->sum == call->a + call->b;
 }
 
 // TODO: ideally the user app shouldn't need to write this,
@@ -28,10 +44,12 @@ int main(int argc, char *argv[]) {
       .call_size = sizeof(add_call),
       .call_func = (xdrproc_t)xdr_add_call,
       .resp_func = (xdrproc_t)xdr_add_resp,
+      .trace_request_id = add_request_id,
+      .trace_check = add_check,
   };
   lauberhorn_worker_t workers[4];
 
-  printf("Adder app init\n");
+  setenv("LAUBERHORN_SERVER_TRACE_CSV", "adder_server_timestamps.csv", 0);
 
   err = lauberhorn_init(&ctx);
   if (err) {
@@ -60,8 +78,6 @@ int main(int argc, char *argv[]) {
   for (i = 0; i < 4; ++i) {
     lauberhorn_join_worker(&ctx, workers[i]);
   }
-
-  printf("Done, cleaning up\n");
 
 dereg:
   lauberhorn_dereg_srv(&ctx, srv_id);

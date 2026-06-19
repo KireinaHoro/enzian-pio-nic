@@ -1,9 +1,11 @@
 struct add_call {
+    unsigned int request_id;
     int a;
     int b;
 };
 
 struct add_resp {
+    unsigned int request_id;
     int sum;
 };
 
