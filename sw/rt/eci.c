@@ -345,6 +345,7 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
   w->dp.rx_buf_size = w->tx_buf_size = LAUBERHORN_MTU;
   w->dp.rx_buf = malloc(LAUBERHORN_MTU);
   w->tx_buf = malloc(LAUBERHORN_MTU);
+  w->dp.tx_buf = w->tx_buf;
 
   // Create thread
   err = pthread_create(&w->thread, NULL, lauberhorn_worker_loop, w);
