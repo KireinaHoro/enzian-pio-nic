@@ -440,6 +440,12 @@ def add_segment(segments: Dict[str, float], name: str, start: Optional[int], end
     segments[name] = float(end - start)
 
 
+def add_duration(segments: Dict[str, float], name: str, value: float) -> None:
+    if value <= 0.0:
+        return
+    segments[name] = segments.get(name, 0.0) + value
+
+
 def attach_trace_segments(
     row: Dict[str, Any],
     rec: Dict[str, Any],
@@ -569,7 +575,36 @@ def attach_trace_segments(
                 max_delta_ns=1_000,
             )
 
-    add_segment(segments, "server_turnaround_to_tx_ctrl", delivered_ns, tx_invalidate["time_ns"] if tx_invalidate else None)
+    if delivered_ns is not None and tx_invalidate is not None:
+        turnaround_ns = max(0.0, float(tx_invalidate["time_ns"] - delivered_ns))
+        rx_return_ns = int(row["server_rx_exit_ns"] - cpu_trace_offset_ns)
+        tx_enter_ns = int(row["server_tx_enter_ns"] - cpu_trace_offset_ns)
+        timestamp_overhead = float(row.get("server_timestamp_overhead_ns", 0.0))
+
+        rx_2f2f_sw_ns = min(turnaround_ns, max(0.0, float(rx_return_ns - delivered_ns)))
+        tx_2f2f_sw_ns = min(
+            float(row.get("server_tx_ns", 0.0)),
+            max(0.0, float(tx_invalidate["time_ns"] - tx_enter_ns) - timestamp_overhead),
+        )
+        server_unmarshal_ns = float(row.get("server_unmarshal_ns", 0.0))
+        handler_ns = float(row.get("handler_ns", 0.0))
+        server_marshal_ns = float(row.get("server_marshal_ns", 0.0))
+        server_rt_ns = max(
+            0.0,
+            turnaround_ns
+            - rx_2f2f_sw_ns
+            - server_unmarshal_ns
+            - handler_ns
+            - server_marshal_ns
+            - tx_2f2f_sw_ns,
+        )
+
+        add_duration(segments, "server_2f2f_rx_sw", rx_2f2f_sw_ns)
+        add_duration(segments, "server_rt_overhead", server_rt_ns)
+        add_duration(segments, "server_xdr_unmarshal", server_unmarshal_ns)
+        add_duration(segments, "handler", handler_ns)
+        add_duration(segments, "server_xdr_marshal", server_marshal_ns)
+        add_duration(segments, "server_2f2f_tx_sw", tx_2f2f_sw_ns)
     add_segment(segments, "lh_tx_2f2f_ctrl", tx_invalidate["time_ns"] if tx_invalidate else None, tx_unlocked["time_ns"] if tx_unlocked else None)
     add_segment(segments, "lh_tx_host_submit", tx_unlocked["time_ns"] if tx_unlocked else None, tx_submit["time_ns"] if tx_submit else None)
     add_segment(segments, "lh_tx_submit_to_udp_encode", tx_submit["time_ns"] if tx_submit else None, udp_encoder["time_ns"] if udp_encoder else None)
@@ -754,6 +789,7 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
     preferred = [
         "network_or_residual",
         "outside_lh_client_network",
+        "client_xdr_runtime",
         "lh_rx_cmac_to_cdc",
         "lh_rx_eth_decode",
         "lh_rx_ip_decode",
@@ -765,12 +801,16 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "kernel_wakeup",
         "lh_scheduler_queue",
         "lh_rx_eci_delivery",
+        "server_2f2f_rx_sw",
+        "server_rt_overhead",
+        "server_xdr_unmarshal",
+        "handler",
+        "server_xdr_marshal",
+        "server_2f2f_tx_sw",
         "hw_dispatch",
         "server_turnaround_to_tx_ctrl",
-        "client_xdr_runtime",
         "sw_rpc_runtime",
         "sw_xdr_runtime",
-        "handler",
         "lh_tx_eci_read",
         "lh_tx_2f2f_ctrl",
         "lh_tx_host_submit",
@@ -822,6 +862,225 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
                 f"{row.get('trace_tx_udp_to_ip_ns', 0.0):.0f}",
                 *[f"{b.get(name, 0.0):.0f}" for name in names],
             ])
+
+
+BREAKDOWN_META_COLUMNS = {
+    "label",
+    "request_id",
+    "e2e_ns",
+    "trace_rx_host_msg_id",
+    "trace_tx_host_msg_id",
+    "trace_lh_cmac_to_cmac_ns",
+    "trace_eth_decoder_to_encoder_ns",
+    "trace_core_rx_return_to_tx_submit_ns",
+    "trace_core_tx_return_to_tx_submit_ns",
+    "trace_tx_udp_packet_id",
+    "trace_tx_ip_packet_id",
+    "trace_tx_udp_to_ip_ns",
+}
+
+
+def load_breakdown_csv(path: Path) -> Tuple[List[Dict[str, Any]], List[str]]:
+    with path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        rows = []
+        component_names = [name for name in (reader.fieldnames or []) if name not in BREAKDOWN_META_COLUMNS]
+        for row in reader:
+            parsed: Dict[str, Any] = dict(row)
+            for name in (reader.fieldnames or []):
+                if name in {"label"}:
+                    continue
+                value = row.get(name, "")
+                if value != "":
+                    parsed[name] = float(value)
+            rows.append(parsed)
+    return rows, component_names
+
+
+def component_label(name: str) -> str:
+    labels = {
+        "outside_lh_client_network": "client/network/residual",
+        "network_or_residual": "network/residual",
+        "client_xdr_runtime": "client XDR",
+        "server_turnaround_to_tx_ctrl": "server turnaround",
+        "server_2f2f_rx_sw": "2F2F RX SW",
+        "server_rt_overhead": "server RT",
+        "server_xdr_unmarshal": "server unmarshal",
+        "handler": "handler",
+        "server_xdr_marshal": "server marshal",
+        "server_2f2f_tx_sw": "2F2F TX SW",
+        "lh_tx_2f2f_ctrl": "2F2F ctrl",
+        "lh_tx_host_submit": "TX submit",
+        "lh_tx_submit_to_udp_encode": "TX submit -> UDP",
+        "lh_rx_cmac_to_cdc": "RX CMAC -> CDC",
+        "lh_rx_eth_decode": "Eth decode",
+        "lh_rx_ip_decode": "IP decode",
+        "lh_rx_udp_decode": "UDP decode",
+        "lh_rx_rpc_decode": "RPC decode",
+        "lh_rx_host_enqueue": "host enqueue",
+        "lh_scheduler_enqueue": "sched enqueue",
+        "lh_rx_eci_delivery": "ECI delivery",
+        "lh_tx_ip_encode": "IP encode",
+        "lh_tx_eth_encode": "Eth encode",
+        "lh_tx_output_queue": "output queue",
+        "lh_tx_cdc_to_cmac": "CDC -> TX CMAC",
+        "kernel_wakeup": "kernel wakeup",
+        "lh_scheduler_preempt": "preempt",
+        "lh_scheduler_queue": "sched queue",
+    }
+    return labels.get(name, name.replace("_", " "))
+
+
+def plot_breakdown_from_csv(plt: Any, csv_path: Path, output_path: Path) -> None:
+    csv_rows, component_names = load_breakdown_csv(csv_path)
+    if not csv_rows:
+        return
+
+    colors = [
+        "#6b8fb3",
+        "#aeb7c2",
+        "#4b9a8a",
+        "#8a9a5b",
+        "#c47f4b",
+        "#7c6fb0",
+        "#b45d6c",
+        "#a87545",
+        "#6c8f3d",
+        "#a35c8f",
+        "#4c6f91",
+        "#9a6b5b",
+        "#667c45",
+        "#b07a8f",
+        "#5f7f7b",
+        "#8b7355",
+        "#7d6f9e",
+        "#4f8c5f",
+        "#986c3f",
+        "#6e7894",
+        "#9f5f5f",
+        "#558b9a",
+        "#888a4c",
+        "#7b7b7b",
+    ]
+    color_by_name = {name: colors[idx % len(colors)] for idx, name in enumerate(component_names)}
+    labels = [str(row["label"]) for row in csv_rows]
+    y_positions = list(range(len(csv_rows)))
+    fig, ax = plt.subplots(figsize=(12.5, 5.4))
+    left = [0.0] * len(csv_rows)
+    segment_spans: Dict[Tuple[int, str], Tuple[float, float]] = {}
+
+    for name in component_names:
+        values = [float(row.get(name, 0.0) or 0.0) / 1000.0 for row in csv_rows]
+        if not any(values):
+            continue
+        ax.barh(
+            y_positions,
+            values,
+            left=left,
+            height=0.42,
+            color=color_by_name[name],
+            edgecolor="white",
+            linewidth=0.6,
+        )
+        for idx, value in enumerate(values):
+            if value > 0:
+                segment_spans[(idx, name)] = (left[idx], left[idx] + value)
+        left = [l + v for l, v in zip(left, values)]
+
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("latency (us)")
+    ax.set_title("Adder RPC E2E latency breakdown")
+    ax.grid(axis="x", color="#d7dde4", linewidth=0.6, alpha=0.8)
+    ax.set_axisbelow(True)
+
+    xmax = max(float(row["e2e_ns"]) / 1000.0 for row in csv_rows)
+    ax.set_xlim(0, xmax * 1.13)
+
+    label_min_us = max(0.25, xmax * 0.002)
+    max_lanes = 0
+    for row_idx, _row in enumerate(csv_rows):
+        lanes = 0
+        for name in component_names:
+            span = segment_spans.get((row_idx, name))
+            if span is None:
+                continue
+            start, end = span
+            value = end - start
+            if name in {"outside_lh_client_network", "network_or_residual"} and value >= 10.0:
+                continue
+            if value >= label_min_us:
+                lanes += 1
+        max_lanes = max(max_lanes, lanes)
+    y_margin = max(1.05, 0.58 + 0.18 * max(0, max_lanes - 1) + 0.40)
+    ax.set_ylim(-y_margin, len(csv_rows) - 1 + y_margin)
+
+    for row_idx, row in enumerate(csv_rows):
+        y = y_positions[row_idx]
+        direction = -1 if row_idx == 0 else 1
+        lane = 0
+        for name in component_names:
+            span = segment_spans.get((row_idx, name))
+            if span is None:
+                continue
+            start, end = span
+            value = end - start
+            center = (start + end) / 2.0
+            if name in {"outside_lh_client_network", "network_or_residual"} and value >= 10.0:
+                ax.text(
+                    center,
+                    y,
+                    f"{component_label(name)}\n{value:.1f} us",
+                    ha="center",
+                    va="center",
+                    fontsize="small",
+                    color="white",
+                    bbox={"facecolor": "#36546f", "edgecolor": "none", "alpha": 0.72, "pad": 2.0},
+                )
+                continue
+            if value < label_min_us:
+                continue
+            lane_y = y + direction * (0.58 + 0.18 * lane)
+            lane += 1
+            ax.annotate(
+                f"{component_label(name)} {value:.2f} us",
+                xy=(center, y),
+                xycoords="data",
+                xytext=(center, lane_y),
+                textcoords="data",
+                ha="center",
+                va="center",
+                fontsize="x-small",
+                bbox={"facecolor": "white", "edgecolor": "#9aa5b1", "alpha": 0.9, "pad": 2.0},
+                arrowprops={"arrowstyle": "->", "color": "#4c5560", "linewidth": 0.8},
+            )
+
+        outside = float(row.get("outside_lh_client_network", row.get("network_or_residual", 0.0)) or 0.0) / 1000.0
+        client_xdr = float(row.get("client_xdr_runtime", 0.0) or 0.0) / 1000.0
+        trace_start = outside + client_xdr
+        trace_end = float(row["e2e_ns"]) / 1000.0
+        trace_value = float(row.get("trace_lh_cmac_to_cmac_ns", 0.0) or 0.0) / 1000.0
+        if trace_value > 0.0 and trace_end > trace_start:
+            bracket_y = y + direction * 0.28
+            ax.annotate(
+                "",
+                xy=(trace_start, bracket_y),
+                xytext=(trace_end, bracket_y),
+                arrowprops={"arrowstyle": "<->", "color": "#222222", "linewidth": 0.9},
+            )
+            ax.text(
+                (trace_start + trace_end) / 2.0,
+                bracket_y + direction * 0.12,
+                f"RxCmacEntry -> TxCmacExit {trace_value:.2f} us",
+                ha="center",
+                va="center",
+                fontsize="x-small",
+                bbox={"facecolor": "white", "edgecolor": "#777777", "alpha": 0.92, "pad": 2.0},
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
 
 
 def histogram_break_threshold(sorted_values_us: List[float], p99_us: float) -> Optional[float]:
@@ -1068,52 +1327,13 @@ def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
         "P99": nearest_request(rows, p99),
     }
 
-    write_breakdown_csv(output_prefix.with_name(output_prefix.name + "_breakdown.csv"), selected)
-
-    labels = list(selected.keys())
-    component_names = breakdown_names(selected)
-    colors = [
-        "#5b8cc0",
-        "#8a9a5b",
-        "#c47f4b",
-        "#7c6fb0",
-        "#b45d6c",
-        "#4b9a8a",
-        "#a87545",
-        "#6c8f3d",
-        "#a35c8f",
-        "#4c6f91",
-        "#9a6b5b",
-        "#667c45",
-        "#b07a8f",
-        "#5f7f7b",
-        "#8b7355",
-        "#7d6f9e",
-        "#4f8c5f",
-        "#986c3f",
-        "#6e7894",
-        "#9f5f5f",
-        "#558b9a",
-        "#888a4c",
-        "#7b7b7b",
-    ]
-
-    fig, ax = plt.subplots(figsize=(12, 4.2))
-    left = [0.0] * len(labels)
-    row_breakdowns = {label: breakdown(row) for label, row in selected.items()}
-    for idx, name in enumerate(component_names):
-        values = [row_breakdowns[label].get(name, 0.0) / 1000.0 for label in labels]
-        if not any(values):
-            continue
-        color = colors[idx % len(colors)]
-        ax.barh(labels, values, left=left, label=name.replace("_", " "), color=color)
-        left = [l + v for l, v in zip(left, values)]
-    ax.set_xlabel("latency (us)")
-    ax.set_title("Adder RPC E2E latency breakdown")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize="x-small")
-    fig.tight_layout()
-    fig.savefig(output_prefix.with_name(output_prefix.name + "_breakdown.pdf"), dpi=160)
-    plt.close(fig)
+    breakdown_csv = output_prefix.with_name(output_prefix.name + "_breakdown.csv")
+    write_breakdown_csv(breakdown_csv, selected)
+    plot_breakdown_from_csv(
+        plt,
+        breakdown_csv,
+        output_prefix.with_name(output_prefix.name + "_breakdown.pdf"),
+    )
 
     e2e_us = [value / 1000.0 for value in e2e]
     plot_histogram(
@@ -1131,14 +1351,35 @@ def plot(rows: List[Dict[str, Any]], output_prefix: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("client_csv", type=Path)
-    parser.add_argument("server_csv", type=Path)
+    parser.add_argument("client_csv", type=Path, nargs="?")
+    parser.add_argument("server_csv", type=Path, nargs="?")
     parser.add_argument("-o", "--output-prefix", type=Path, default=Path("adder_latency"))
+    parser.add_argument(
+        "--breakdown-csv",
+        type=Path,
+        help="render the breakdown PDF directly from an existing breakdown CSV and exit",
+    )
     parser.add_argument("--trace-dump", type=Path, help="optional raw sys_trace dump, optionally .gz")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
     args = parser.parse_args()
+
+    if args.breakdown_csv:
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError as e:
+            raise SystemExit(f"matplotlib is required for plotting: {e}")
+        plot_breakdown_from_csv(
+            plt,
+            args.breakdown_csv,
+            args.output_prefix.with_name(args.output_prefix.name + "_breakdown.pdf"),
+        )
+        print(f"wrote {args.output_prefix.name}_breakdown.pdf")
+        return 0
+
+    if args.client_csv is None or args.server_csv is None:
+        parser.error("client_csv and server_csv are required unless --breakdown-csv is used")
 
     client_rows = load_csv_by_request_id(args.client_csv, CLIENT_COLUMNS)
     server_rows = load_csv_by_request_id(args.server_csv, SERVER_COLUMNS)
