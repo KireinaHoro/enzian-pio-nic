@@ -1,22 +1,29 @@
 # ECI 2F2F DCU Progress Model
 
 This note describes the cache-line coloring requirement needed to make 2F2F
-RX/TX progress independent of software mutual exclusion. It intentionally does
-not assume a particular thread-to-worker mapping design. The same model applies
-whether QPs are owned by logical threads, worker cores, bypass, or another
-runtime abstraction.
+RX/TX progress. It intentionally does not assume a particular thread-to-worker
+mapping design, but it does distinguish QPs whose RX and TX paths can issue
+2F2F transactions concurrently from QPs whose software path serializes RX and
+TX. The same model applies whether QPs are owned by logical threads, worker
+cores, bypass, or another runtime abstraction.
 
 The short version is:
 
 - The bypass RX/TX lock is masking an address placement problem.
-- The placement unit for progress analysis is an RX/TX queue pair (QP).
-- Each QP has a color signature: four control colors plus one overflow color
-  set.
-- A set of simultaneously active QPs is safe only if active control colors are
-  globally unique and do not intersect any active overflow color.
-- The current RX at `+0x0000` and TX at `+0x8000` layout is locally unsafe:
-  RX and TX control CLs land on the same DCU colors after ECI address
-  scrambling.
+- The placement unit for progress analysis is the set of 2F2F directions that
+  can be active at the same time.
+- A full-duplex or interrupt-driven QP contributes both RX and TX colors to its
+  active signature. A single-thread RPC worker contributes only its currently
+  executing direction, because userspace calls RX and TX sequentially.
+- A set of simultaneously active direction signatures is safe only if active
+  control colors are globally unique and do not intersect any active overflow
+  color.
+- The current RX at `+0x0000` and TX at `+0x8000` layout is locally unsafe for
+  a QP whose RX and TX paths can interleave: RX and TX control CLs land on the
+  same DCU colors after ECI address scrambling.
+- For a single-thread RPC worker, that same RX/TX overlap is not locally active,
+  but its long blocking RX still contributes RX control colors to the global
+  active set and can conflict with bypass or other active workers.
 - Feasible solutions are admissible active sets of QP signatures. How those
   signatures are assigned to threads or workers is a separate
   scheduling/runtime design question.
@@ -51,44 +58,68 @@ Terms under this simplified problem:
 
 ## Progress Requirement
 
-For each active QP, name the color groups:
+For each QP, name the color groups:
 
 ```text
 A = RX control CL 0
 B = RX control CL 1
 C = TX control CL 0
 D = TX control CL 1
-E = all RX/TX overflow CL colors
+Erx = RX overflow CL colors
+Etx = TX overflow CL colors
 ```
 
-`A`, `B`, `C`, and `D` are single colors. `E` is a set of colors.
+`A`, `B`, `C`, and `D` are single colors. `Erx` and `Etx` are sets of colors.
 
-The reason to treat all four control CLs symmetrically is parity. Over time both
-control CLs in each direction can act as doorbells, and the opposite control CL
-can be progress-critical while invalidations are pending. A static proof should
-therefore treat every active control CL as doorbell-capable and every other
-active control CL plus every active overflow CL as progress-critical.
+The reason to treat both control CLs within one direction symmetrically is
+parity. Over time both control CLs can act as doorbells, and the opposite
+control CL can be progress-critical while invalidations are pending. A static
+proof should therefore treat every active control CL as doorbell-capable and the
+other control CL plus every active overflow CL in that direction as
+progress-critical.
 
-The local rule for one QP is:
+The active signature depends on the QP execution class:
 
 ```text
-A, B, C, D are pairwise distinct
-{A, B, C, D} intersects E == empty
+full-duplex QP:
+  controls = {A, B, C, D}
+  overflow = Erx union Etx
+
+single-thread half-duplex RPC worker, while blocked in RX:
+  controls = {A, B}
+  overflow = Erx
+
+single-thread half-duplex RPC worker, while issuing TX:
+  controls = {C, D}
+  overflow = Etx
+```
+
+The full-duplex class covers paths whose RX and TX routines can issue 2F2F
+doorbells concurrently, for example bypass RX and TX in interrupt contexts. The
+single-thread half-duplex class covers the RPC worker runtime when one userspace
+thread calls `core_eci_rx` and `core_eci_tx` sequentially, so the same worker
+cannot have an RX doorbell and a TX doorbell outstanding at the same time.
+
+The local rule for one active signature is:
+
+```text
+controls has no duplicate colors
+controls intersects overflow == empty
 ```
 
 The global rule for any active set is:
 
 ```text
-active_controls = union(A, B, C, D for every active QP)
-active_overflow = union(E for every active QP)
+active_controls = union(controls for every active signature)
+active_overflow = union(overflow for every active signature)
 
 active_controls has no duplicate colors
 active_controls intersects active_overflow == empty
 ```
 
-Overflow sets from different QPs may overlap for progress. That can reduce
-throughput, but it does not by itself place a stalled doorbell transaction in
-front of a progress-critical invalidation.
+Overflow sets from different active signatures may overlap for progress. That
+can reduce throughput, but it does not by itself place a stalled doorbell
+transaction in front of a progress-critical invalidation.
 
 ## Address Scrambling
 
@@ -123,8 +154,8 @@ qp_signature(base, layout) = {
   B = color(base + RX_CTRL1_OFFSET(layout))
   C = color(base + TX_CTRL0_OFFSET(layout))
   D = color(base + TX_CTRL1_OFFSET(layout))
-  E = colors(base + RX_OVERFLOW_OFFSETS(layout))
-    union colors(base + TX_OVERFLOW_OFFSETS(layout))
+  Erx = colors(base + RX_OVERFLOW_OFFSETS(layout))
+  Etx = colors(base + TX_OVERFLOW_OFFSETS(layout))
 }
 ```
 
@@ -136,12 +167,14 @@ A signature universe may come from:
 - or any combination of those mechanisms.
 
 The progress problem is then purely combinatorial: construct the signature
-universe, then find an admissible active set with size equal to the number of
-QPs that must be active at the same time.
+universe, expand each QP into the active signatures allowed by its execution
+class, then find an admissible active set with size equal to the number of
+directions that must be active at the same time.
 
 If an admissible active set of size `K` exists, it is a valid static assignment
-for `K` concurrently active QPs. If no such set exists, no scheduler or mapping
-design can run `K` QPs concurrently while preserving this DCU progress invariant.
+for `K` concurrently active direction signatures. If no such set exists, no
+scheduler or mapping design can run those signatures concurrently while
+preserving this DCU progress invariant.
 
 ## Fixed-Block Signatures
 
@@ -204,7 +237,7 @@ The current `0x20000` already reaches all 64 masks. Increasing the block strides
 can make local layout easier, but once the stride reaches `0x200000` the mask
 space starts shrinking.
 
-## Current Layout Fails Locally
+## Current Layout Fails For Full-Duplex QPs
 
 The current layout in `sw/core/eci/core.h` is:
 
@@ -226,8 +259,76 @@ RX overflow colors == TX overflow colors
 ```
 
 Changing only the physical block index gives translated versions of the same
-bad local signature. None are locally valid, because `A/B/C/D` are not pairwise
-distinct.
+bad full-duplex signature. None are locally valid for a QP whose RX and TX
+directions can issue 2F2F transactions concurrently, because `A/B/C/D` are not
+pairwise distinct.
+
+For a single-thread RPC worker, this is not by itself a same-worker local
+deadlock: one userspace thread calls RX and TX sequentially, so the active
+signature is either `{A, B} + Erx` or `{C, D} + Etx`, not both at once. The
+current layout can still be globally unsafe when that worker is active together
+with bypass or other workers. Blocking RX is especially important because an RPC
+worker may hold an RX doorbell read outstanding for a long time, so its RX
+control colors remain part of the active set while other QPs try to make
+progress.
+
+## Current Layout Half-Duplex Capacity
+
+With the current layout, RX and TX have the same color signature after ECI
+address scrambling. For a single-thread half-duplex RPC worker, that means the
+active RX and TX direction signatures are identical for coloring purposes:
+
+```text
+controls(mask m) = {m, m ^ 1}
+overflow(mask m) = {2 ^ m, 3 ^ m, ..., 13 ^ m}
+```
+
+For the current `ECI_CORE_OFFSET = 0x20000`, all 64 masks are reachable. An
+exact compatibility search over those masks gives a maximum independently
+admissible half-duplex set of eight masks:
+
+```text
+{0, 14, 16, 30, 32, 46, 48, 62}
+```
+
+Expanded signatures:
+
+| mask | control colors | overflow colors |
+| - | - | - |
+| 0 | `0, 1` | `2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13` |
+| 14 | `14, 15` | `2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13` |
+| 16 | `16, 17` | `18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29` |
+| 30 | `30, 31` | `18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29` |
+| 32 | `32, 33` | `34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45` |
+| 46 | `46, 47` | `34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45` |
+| 48 | `48, 49` | `50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61` |
+| 62 | `62, 63` | `50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61` |
+
+Representative block indices for these masks are:
+
+| mask | block index `q` | physical base |
+| - | - | - |
+| 0 | 0 | `0x0000000` |
+| 14 | 112 | `0x0e00000` |
+| 16 | 128 | `0x1000000` |
+| 30 | 240 | `0x1e00000` |
+| 32 | 256 | `0x2000000` |
+| 46 | 368 | `0x2e00000` |
+| 48 | 384 | `0x3000000` |
+| 62 | 496 | `0x3e00000` |
+
+Each mask has eight equivalent block indices because
+`mask = (q >> 3) & 0x3f`, but only one QP per mask can be active in this
+independently admissible set. If bypass consumes mask 0 as an always-active QP,
+the current layout and stride can accommodate at most seven additional
+single-thread half-duplex RPC worker QPs in a color-unaware creation-capped
+scheme.
+
+This count assumes the worker QPs are truly half-duplex. If bypass RX and TX can
+interleave under the current layout, bypass itself remains locally invalid under
+the stricter full-duplex rule above; the eight-mask result should then be read
+only as the half-duplex worker capacity, not as proof that the current bypass
+layout is safe.
 
 ## Example Permissive Layout
 
@@ -260,9 +361,7 @@ E = {
 }
 ```
 
-The masks `{0, 2, 4, 6, 24}` come from a compatibility search over the 64
-reachable block masks for this local layout. Applying a mask XOR-translates
-every color in the local signature:
+Applying a mask XOR-translates every color in the local signature:
 
 ```text
 signature(mask m) = {
@@ -271,7 +370,15 @@ signature(mask m) = {
 }
 ```
 
-For this layout, the selected masks produce these control colors:
+For this layout, an exact compatibility search over the 64 reachable masks finds
+a maximum full-duplex active set of eight masks. One maximum set that includes
+mask 0 is:
+
+```text
+{0, 2, 4, 6, 24, 26, 28, 30}
+```
+
+These masks produce the following control colors:
 
 ```text
 mask 0:   6, 7, 47, 46
@@ -279,12 +386,21 @@ mask 2:   4, 5, 45, 44
 mask 4:   2, 3, 43, 42
 mask 6:   0, 1, 41, 40
 mask 24:  30, 31, 55, 54
+mask 26:  28, 29, 53, 52
+mask 28:  26, 27, 51, 50
+mask 30:  24, 25, 49, 48
 ```
 
-The 20 resulting control colors are pairwise distinct and have no intersection
-with the union of the five translated overflow sets. Thus these masks form one
-admissible active set of five QP signatures. This is evidence that fixed-offset
-block coloring is viable; it is not a claim that this layout is optimal.
+The 32 resulting control colors are pairwise distinct and have no intersection
+with the union of the eight translated overflow sets. Thus these masks form one
+admissible active set of eight full-duplex QP signatures for this layout.
+
+The same layout also has a maximum direction-unaware half-duplex capacity of
+eight masks. Therefore, under the current `0x20000` stride, this better layout
+does not increase the creation-capped half-duplex thread count above the current
+layout's eight-mask result. Its benefit is that the same count can be made safe
+for full-duplex QPs, including bypass, whereas the current `+0x0000/+0x8000`
+layout is locally invalid for full-duplex use.
 
 For `ECI_CORE_OFFSET = 0x20000`, the block mask is derived from the block
 index:
@@ -293,7 +409,7 @@ index:
 mask := (block_index >> 3) & 0x3f
 ```
 
-So one concrete five-QP assignment is:
+So one concrete eight-QP assignment is:
 
 | QP | mask | valid block index example | physical base |
 | - | - | - | - |
@@ -302,6 +418,9 @@ So one concrete five-QP assignment is:
 | QP2 | 4 | 32 | `0x0400000` |
 | QP3 | 6 | 48 | `0x0600000` |
 | QP4 | 24 | 192 | `0x1800000` |
+| QP5 | 26 | 208 | `0x1a00000` |
+| QP6 | 28 | 224 | `0x1c00000` |
+| QP7 | 30 | 240 | `0x1e00000` |
 
 These are only representative block indices. In general, any block index that
 derives the same mask through this equation gives the same translated signature
@@ -324,15 +443,18 @@ Expanding every selected QP signature:
 | QP2 | 4 | `2, 3, 43, 42` | `8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 32, 33, 34, 35, 36, 37, 38, 39, 60, 61, 62, 63` |
 | QP3 | 6 | `0, 1, 41, 40` | `8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 32, 33, 34, 35, 36, 37, 38, 39, 60, 61, 62, 63` |
 | QP4 | 24 | `30, 31, 55, 54` | `8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23, 32, 33, 34, 35, 56, 57, 58, 59, 60, 61, 62, 63` |
+| QP5 | 26 | `28, 29, 53, 52` | `8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23, 32, 33, 34, 35, 56, 57, 58, 59, 60, 61, 62, 63` |
+| QP6 | 28 | `26, 27, 51, 50` | `12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 36, 37, 38, 39, 56, 57, 58, 59, 60, 61, 62, 63` |
+| QP7 | 30 | `24, 25, 49, 48` | `12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 36, 37, 38, 39, 56, 57, 58, 59, 60, 61, 62, 63` |
 
 The aggregate check is:
 
 ```text
 active_controls = {
   0, 1, 2, 3, 4, 5, 6, 7,
-  30, 31,
+  24, 25, 26, 27, 28, 29, 30, 31,
   40, 41, 42, 43, 44, 45, 46, 47,
-  54, 55
+  48, 49, 50, 51, 52, 53, 54, 55
 }
 
 active_overflow = {
@@ -345,13 +467,8 @@ active_overflow = {
 active_controls intersects active_overflow = empty
 ```
 
-This consumes 20 distinct control colors and 32 overflow colors. The total
-number of colors touched is 52 because overflow colors are intentionally reused
-across QPs. The unused colors are:
-
-```text
-24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53
-```
+This consumes 32 distinct control colors and 32 overflow colors. Together they
+use all 64 colors, with overflow colors intentionally reused across QPs.
 
 If more simultaneous QPs are required, the right next step is an automated
 layout search:
@@ -598,8 +715,9 @@ one write per aliased DCU ID and separately limits slice-level in-flight reads.
 The disabled `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
 must not be placed on the same DCU.
 
-Under the model above, the current layout gives a concrete same-QP version of
-this hazard. As shown in [Current Layout Fails Locally](#current-layout-fails-locally),
+Under the full-duplex model above, the current layout gives a concrete same-QP
+version of this hazard. As shown in
+[Current Layout Fails For Full-Duplex QPs](#current-layout-fails-for-full-duplex-qps),
 the current RX and TX blocks have the same local signature:
 
 ```text
@@ -607,8 +725,12 @@ RX control CL 0 color == TX control CL 0 color
 RX control CL 1 color == TX control CL 1 color
 ```
 
-So the bypass RX/TX spinlock is currently preventing the two routines from
-exercising the locally invalid RX/TX signature at the same time.
+So the bypass RX/TX spinlock is currently preventing two interrupt-context
+routines from exercising the locally invalid RX/TX signature at the same time.
+The single-thread RPC worker runtime has a different local execution class:
+RX and TX are mutually exclusive because one userspace thread calls the two
+routines sequentially. For that class, the same-QP cycle below is not active
+unless another software path can overlap RX and TX for the same worker QP.
 
 A plausible concrete case without that lock is:
 
