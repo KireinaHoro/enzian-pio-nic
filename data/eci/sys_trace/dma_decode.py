@@ -386,6 +386,76 @@ def adjusted_chronological_samples(
     ]
 
 
+def filtered_adjusted_chronological_samples(
+    input_path: Path,
+    trace_map: Dict[str, Any],
+    offset: int,
+    sample_filter: Callable[[int], bool],
+    sample_limit: Optional[int] = None,
+    sample_window: Optional[SampleWindow] = None,
+    scan_progress_update: Optional[Callable[[int], None]] = None,
+    filter_progress_update: Optional[Callable[[int], None]] = None,
+    order_progress_update: Optional[Callable[[int], None]] = None,
+    cache_path: Optional[Path] = None,
+) -> List[Tuple[int, int, int, int, int]]:
+    """Like adjusted_chronological_samples, but materialize only matching samples.
+
+    The full trace still has to be scanned to find the circular-buffer wrap, but
+    callers that only need a sparse event subset can avoid appending, timestamp
+    correcting, and sorting millions of unrelated samples.
+    """
+    wrap_index, count = scan_samples(
+        input_path,
+        trace_map,
+        offset,
+        progress_update=scan_progress_update,
+        cache_path=cache_path,
+    )
+    modulus = timestamp_modulus(trace_map)
+    rows = []
+    raw_logical_index = 0
+    previous_ts: Optional[int] = None
+    timestamp_epoch = 0
+
+    for start, stop in chronological_ranges(wrap_index, count):
+        for physical_index, sample in iter_sample_range(
+            input_path,
+            trace_map,
+            offset,
+            start=start,
+            stop=stop,
+        ):
+            raw_ts = raw_sample_timestamp(sample, trace_map)
+            if previous_ts is not None and raw_ts < previous_ts:
+                timestamp_epoch += modulus
+            previous_ts = raw_ts
+
+            if sample_filter(sample):
+                raw_timestamp = timestamp_epoch + raw_ts
+                timestamp = adjust_timestamp(raw_timestamp, sample, trace_map)
+                rows.append((timestamp, raw_logical_index, physical_index, sample, raw_timestamp))
+                if order_progress_update is not None and len(rows) % 65536 == 0:
+                    order_progress_update(len(rows))
+            raw_logical_index += 1
+            if filter_progress_update is not None and raw_logical_index % 65536 == 0:
+                filter_progress_update(raw_logical_index)
+
+    if filter_progress_update is not None:
+        filter_progress_update(count)
+    if order_progress_update is not None:
+        order_progress_update(len(rows))
+
+    rows.sort(key=lambda row: (row[0], row[1]))
+    if sample_window is None and sample_limit is not None:
+        sample_window = last_samples_window(sample_limit)
+    rows = apply_sample_window(rows, sample_window)
+
+    return [
+        (logical_index, physical_index, sample, timestamp, raw_timestamp)
+        for logical_index, (timestamp, _raw_logical_index, physical_index, sample, raw_timestamp) in enumerate(rows)
+    ]
+
+
 def realign_samples_by_timestamp(
     samples: List[Tuple[int, int]],
     trace_map: Dict[str, Any],
