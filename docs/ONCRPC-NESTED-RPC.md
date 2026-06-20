@@ -39,8 +39,8 @@ The host-visible data model is also server-only today:
 - `HostReqType` has directional server names `oncRpcCallRx` and
   `oncRpcReplyTx`, and planned client names `oncRpcCallTx` and
   `oncRpcReplyRx`.
-- `EciHostCtrlInfo` has a shared server bundle for receiving calls and sending
-  replies, plus a TODO for client bundles.
+- `EciHostRxCtrlInfo` and `EciHostTxCtrlInfo` split ECI RX and TX descriptor
+  layouts, including nested call TX and nested reply RX descriptors.
 - `Scheduler` accepts schedulable server call RX and nested reply RX requests.
 
 ## Addressing Model
@@ -401,11 +401,25 @@ Changes:
   - RX: translate `OncRpcReplyRxMeta` into host reply-completion descriptor;
   - TX: translate host nested-call descriptor into `OncRpcCallTxMeta`;
   - apply inline/tail DMA length rules for call TX, analogous to reply TX.
-- `hw/src/lauberhorn/host/eci/EciHostCtrlInfo.scala`
-  - add client call and client reply bundles;
-  - add a generic TX status bundle for the doorbell-read response;
-  - update `packFrom` and `unpackTo`;
-  - generate mackerel datatypes.
+- `hw/src/lauberhorn/host/eci/EciHostRxCtrlInfo.scala`
+  - pack server call RX and nested reply RX descriptors;
+  - generate RX mackerel datatypes.
+- `hw/src/lauberhorn/host/eci/EciHostTxCtrlInfo.scala`
+  - unpack server reply TX and nested call TX descriptors;
+  - generate TX mackerel datatypes.
+
+ECI descriptor sizing note:
+
+- the existing ECI control half-cacheline is already effectively full for the
+  server ONC-RPC bundle: it carries descriptor type/length, XID, function
+  pointer, and `ONCRPC_INLINE_BYTES` of inline data;
+- with `ONCRPC_INLINE_BYTES = 48`, a nested call descriptor that also carries
+  `(pid, cookie, daddr, sport, dport, progNum, progVer, proc)` does not fit in
+  the same control format;
+- keep `ONCRPC_INLINE_BYTES` for call RX, reply TX, and reply RX, and add a
+  smaller `ONCRPC_NESTED_CALL_INLINE_BYTES` for nested call TX only;
+- with `ONCRPC_NESTED_CALL_INLINE_BYTES = 24`, the nested call TX descriptor
+  fits in the existing ECI control half-cacheline with its endpoint metadata.
 - `hw/src/lauberhorn/host/eci/DcsTxAxiRouter.scala`
   - adjust invalidation length for `oncRpcCallTx` because host-visible length
     includes inline bytes, while DMA tail length excludes them;

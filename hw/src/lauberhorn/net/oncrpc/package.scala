@@ -68,4 +68,19 @@ package object oncrpc {
     val serverPort = Bits(16 bits)
     val active = Bool()
   }
+
+  /** In-flight nested/client ONC-RPC request routing entry.  Filled by
+    * [[OncRpcCallEncoder]] before emitting a call and consumed by
+    * [[OncRpcReplyDecoder]] when the matching reply arrives.
+    */
+  case class OncRpcInFlightReqDef() extends Bundle {
+    val xid = Bits(32 bits)
+    val remoteAddr = Bits(32 bits)
+    val remotePort = Bits(16 bits)
+    val localPort = Bits(16 bits)
+
+    val pid = PID()
+    val cookie = Bits(32 bits)
+    val active = Bool()
+  }
 }

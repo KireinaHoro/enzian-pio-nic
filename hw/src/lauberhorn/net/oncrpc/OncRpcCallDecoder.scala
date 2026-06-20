@@ -28,9 +28,6 @@ case class OncRpcCallLookupUserData() extends Bundle {
 class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
   lazy val macIf = host[MacInterfaceService]
 
-  // FIXME: can we fit more?
-  ONCRPC_INLINE_BYTES.set(4 * 12)
-
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
     logic.decoder.io.statistics.elements.foreach { case (name, stat) =>

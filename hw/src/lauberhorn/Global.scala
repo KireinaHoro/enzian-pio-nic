@@ -35,6 +35,7 @@ object Global extends AreaRoot {
   val PKT_DESC_TY_WIDTH = blocking[Int]
   val BYPASS_HDR_WIDTH = value[Int]
   val ONCRPC_INLINE_BYTES = blocking[Int]
+  val ONCRPC_NESTED_CALL_INLINE_BYTES = blocking[Int]
   val THR_PREFIX_WIDTH = value[Int]
 
   val GIT_VERSION = value[BigInt]
@@ -131,6 +132,8 @@ object Global extends AreaRoot {
 
     BYPASS_PKTS.set(64)
     BYPASS_HDR_WIDTH.set(54 * 8) // ETH + IP + TCP
+    ONCRPC_INLINE_BYTES.set(4 * 12)
+    ONCRPC_NESTED_CALL_INLINE_BYTES.set(4 * 6)
 
     // maximum #worker threads per process (app)
     NUM_THREADS.set(NUM_PROCS * NUM_WORKER_CORES)

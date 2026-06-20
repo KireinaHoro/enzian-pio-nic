@@ -30,11 +30,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val txDesc = master(Stream(HostReq()))
   txDesc.assertPersistence()
 
-  /** Per-core AXI interface from DCS (demuxed; shared with [[DcsRxAxiRouter]]).
-    *
-    * Note that writes from the host still carries a "valid" lowest bit, to use
-    * the same datatype on the CPU.  This bit carries no meaning and will be discarded
-    */
+  /** Per-core AXI interface from DCS (demuxed; shared with [[DcsRxAxiRouter]]). */
   val dcsAxi = slave(Axi4(dcsConfig))
 
   /** Forwarded requests to global packet buffer (starts at 0) */
@@ -81,8 +77,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
   val savedControl = Reg(Bits(512 bits)) init 0
-  val aliasedHostCtrl = EciHostCtrlInfo()
-  aliasedHostCtrl.assignFromBits(savedControl >> 1)
+  val aliasedHostCtrl = EciHostTxCtrlInfo()
+  aliasedHostCtrl.assignFromBits(savedControl)
   currInvLen := aliasedHostCtrl.len
 
   // RPC requests repurposed len to INCLUDE inlined bytes
@@ -91,6 +87,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   when (aliasedHostCtrl.ty === HostReqType.oncRpcReplyTx) {
     when (aliasedHostCtrl.len.bits > Global.ONCRPC_INLINE_BYTES.get) {
       currInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_INLINE_BYTES.get
+    } otherwise {
+      currInvLen.bits := 0
+    }
+  }
+  when (aliasedHostCtrl.ty === HostReqType.oncRpcCallTx) {
+    when (aliasedHostCtrl.len.bits > Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
+      currInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get
     } otherwise {
       currInvLen.bits := 0
     }
@@ -290,9 +293,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         // the packet buffer has been fully written from invalidation
         txDesc.valid := True
 
-        // one bit reserved for valid in host side Mackerel file to allow reusing RX HostReq
-        val ctrl = EciHostCtrlInfo()
-        ctrl.assignFromBits(savedControl >> 1)
+        val ctrl = EciHostTxCtrlInfo()
+        ctrl.assignFromBits(savedControl)
         ctrl.unpackTo(txDesc.payload, txAddr)
 
         when (txDesc.ready) {

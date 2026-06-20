@@ -172,7 +172,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedControl.payload := EciHostCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
+          savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
 
           // when a packet is present, read from slot in packet buffer
           when (rxDesc.valid) {
