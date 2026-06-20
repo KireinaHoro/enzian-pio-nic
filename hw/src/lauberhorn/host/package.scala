@@ -11,17 +11,17 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, arpReq, oncRpcCall, oncRpcReply = newElement()
+    val error, bypass, arpReq, oncRpcCallRx, oncRpcReplyTx = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
         s"""
            |constants host_req_type width(${HOST_REQ_TY_WIDTH.get}) "Host Request Type" {
-           |  error         = 0b000 "Error";
-           |  bypass        = 0b001 "Bypass";
-           |  arp_req       = 0b010 "ARP Request";
-           |  onc_rpc_call  = 0b011 "ONC-RPC Call";
-           |  onc_rpc_reply = 0b100 "ONC-RPC Reply";
+           |  error            = 0b000 "Error";
+           |  bypass           = 0b001 "Bypass";
+           |  arp_req          = 0b010 "ARP Request";
+           |  onc_rpc_call_rx  = 0b011 "ONC-RPC Server Call RX";
+           |  onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
            |};""".stripMargin)
     }
   }

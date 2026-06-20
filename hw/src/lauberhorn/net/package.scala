@@ -29,7 +29,7 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[lauberhorn.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCall, oncRpcReply = newElement()
+    val ethernet, ip, udp, oncRpcCallRx, oncRpcReplyTx = newElement()
 
     /** Convert a [[PacketDescData]] (generated from a [[HostReqBypassHeaders]] by [[PacketDesc.fromHeaders]]) to
       * [[EncoderMetadata]], for sending to a specific encoder. */
@@ -47,11 +47,11 @@ package object net {
       ALLOC.addMackerelEpilogue(
         s"""
           |constants packet_desc_type width(${PKT_DESC_TY_WIDTH.get}) "Packet Descriptor Type" {
-          |  hdr_ethernet      = 0b000 "Ethernet";
-          |  hdr_ip            = 0b001 "IP";
-          |  hdr_udp           = 0b010 "UDP";
-          |  hdr_onc_rpc_call  = 0b011 "ONC-RPC Call (bypass)";
-          |  hdr_onc_rpc_reply = 0b100 "ONC-RPC Reply (bypass)";
+          |  hdr_ethernet         = 0b000 "Ethernet";
+          |  hdr_ip               = 0b001 "IP";
+          |  hdr_udp              = 0b010 "UDP";
+          |  hdr_onc_rpc_call_rx  = 0b011 "ONC-RPC Server Call RX";
+          |  hdr_onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
           |};""".stripMargin)
     }
   }
@@ -105,13 +105,13 @@ package object net {
     val ethernetRx = newElement(EthernetRxMeta())
     val ipRx = newElement(IpRxMeta())
     val udpRx = newElement(UdpRxMeta())
-    val oncRpcCall = newElement(OncRpcCallRxMeta())
+    val oncRpcCallRx = newElement(OncRpcCallRxMeta())
 
     // Used by encoder pipeline
     val ethernetTx = newElement(EthernetTxMeta())
     val ipTx = newElement(IpTxMeta())
     val udpTx = newElement(UdpTxMeta())
-    val oncRpcReply = newElement(OncRpcReplyTxMeta())
+    val oncRpcReplyTx = newElement(OncRpcReplyTxMeta())
   }
 
   /**
@@ -131,7 +131,7 @@ package object net {
         is (ethernet) { ret := metadata.ethernetRx.getPayloadSize }
         is (ip) { ret := metadata.ipRx.getPayloadSize }
         is (udp) { ret := metadata.udpRx.getPayloadSize }
-        is (oncRpcCall) { ret := metadata.oncRpcCall.getPayloadSize }
+        is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.getPayloadSize }
         default { report("packet desc type not supported yet", FAILURE) }
       }
     }.ret
@@ -144,7 +144,7 @@ package object net {
         is (ethernet) { ret := metadata.ethernetRx.packetId }
         is (ip) { ret := metadata.ipRx.packetId }
         is (udp) { ret := metadata.udpRx.packetId }
-        is (oncRpcCall) { ret := metadata.oncRpcCall.packetId }
+        is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.packetId }
       }
     }.ret
 
@@ -153,7 +153,8 @@ package object net {
       ret := invalidTraceId(RpcID.width)
       switch (ty) {
         import PacketDescType._
-        is (oncRpcCall) { ret := metadata.oncRpcCall.rpcId }
+        is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.rpcId }
+        is (oncRpcReplyTx) { ret := metadata.oncRpcReplyTx.rpcId }
       }
     }.ret
 

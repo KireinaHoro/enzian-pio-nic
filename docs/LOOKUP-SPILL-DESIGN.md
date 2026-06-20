@@ -204,7 +204,7 @@ steady slow path.
 ## New Host Request Types
 
 Rename direction-sensitive RPC request names as part of this work if convenient.
-The current `oncRpcCall`/`oncRpcReply` names blur RX/TX direction.
+The current ONC-RPC descriptor names use explicit RX/TX direction.
 
 Suggested `HostReqType` set:
 

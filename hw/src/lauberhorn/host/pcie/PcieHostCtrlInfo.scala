@@ -30,13 +30,13 @@ case class PcieHostCtrlInfo() extends Bundle {
     }
     val bypass = newElement(BypassBundle())
 
-    case class OncRpcCallBundle() extends Bundle {
+    case class OncRpcCallRxBundle() extends Bundle {
       val xb21 = Bits(21 bits)
       val xid = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
-    val oncRpcCall = newElement(OncRpcCallBundle())
+    val oncRpcCallRx = newElement(OncRpcCallRxBundle())
   }
 
   def unpackTo(desc: HostReq) = {
@@ -46,8 +46,8 @@ case class PcieHostCtrlInfo() extends Bundle {
       is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
       }
-      is (HostReqType.oncRpcCall) {
-        desc.data.oncRpcCallRx.assignSomeByName(data.oncRpcCall)
+      is (HostReqType.oncRpcCallRx) {
+        desc.data.oncRpcCallRx.assignSomeByName(data.oncRpcCallRx)
       }
     }
     desc.buffer := buffer
@@ -79,11 +79,11 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  // TODO: actually define args in the datatype.  Possible approach:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |};
-         |datatype host_ctrl_info_onc_rpc_call lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
+         |datatype host_ctrl_info_onc_rpc_call_rx lsbfirst(64) "PCIe Host Control Info (ONC-RPC Server Call RX)" {
          |  valid  1   "RX descriptor valid (rsvd for TX)";
          |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
+         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
          |  _      21  rsvd;
          |  xid    32  "XID of incoming request";
          |  func_ptr 64 "Function pointer for RPC call handler";
@@ -92,12 +92,12 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |  // - as an array, so Mackerel would emit access functions
          |};
-         |datatype host_ctrl_info_onc_rpc_reply lsbfirst(64) "PCIe Host Control Info (ONC-RPC Call)" {
+         |datatype host_ctrl_info_onc_rpc_reply_tx lsbfirst(64) "PCIe Host Control Info (ONC-RPC Server Reply TX)" {
          |  // TODO: this does not exist yet, use bypass with raw Ethernet frame for sending
          |  valid  1   "RX descriptor valid (rsvd for TX)";
          |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call)";
+         |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";
          |  _      21  rsvd;
          |  // buffer follows
          |  // TODO: for now, reply software-serialized data...
@@ -117,9 +117,9 @@ object PcieHostCtrlInfo {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
         ret.data.bypass.xb19 := 0
       }
-      is (HostReqType.oncRpcCall) {
-        ret.data.oncRpcCall.assignSomeByName(desc.data.oncRpcCallRx)
-        ret.data.oncRpcCall.xb21 := 0
+      is (HostReqType.oncRpcCallRx) {
+        ret.data.oncRpcCallRx.assignSomeByName(desc.data.oncRpcCallRx)
+        ret.data.oncRpcCallRx.xb21 := 0
       }
     }
     ret.buffer.addr := desc.buffer.addr

@@ -141,13 +141,13 @@ class DmaControlPlugin extends FiberPlugin {
               pktToEnqueue.data.bypassMeta.hdr := incomingDesc.desc.collectHeaders
             } otherwise {
               switch (incomingDesc.desc.ty) {
-                is (PacketDescType.oncRpcCall) {
-                  pktToEnqueue.ty := HostReqType.oncRpcCall
+                is (PacketDescType.oncRpcCallRx) {
+                  pktToEnqueue.ty := HostReqType.oncRpcCallRx
 
-                  pktToEnqueue.data.oncRpcCallRx.funcPtr := incomingDesc.desc.metadata.oncRpcCall.funcPtr
-                  pktToEnqueue.data.oncRpcCallRx.pid := incomingDesc.desc.metadata.oncRpcCall.pid
-                  pktToEnqueue.data.oncRpcCallRx.xid := incomingDesc.desc.metadata.oncRpcCall.hdr.xid
-                  pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCall.args
+                  pktToEnqueue.data.oncRpcCallRx.funcPtr := incomingDesc.desc.metadata.oncRpcCallRx.funcPtr
+                  pktToEnqueue.data.oncRpcCallRx.pid := incomingDesc.desc.metadata.oncRpcCallRx.pid
+                  pktToEnqueue.data.oncRpcCallRx.xid := incomingDesc.desc.metadata.oncRpcCallRx.hdr.xid
+                  pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCallRx.args
                 }
                 default {
                   pktToEnqueue.ty := HostReqType.error
@@ -285,16 +285,16 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.fromHeaders(txReqMuxed.req.data.bypassMeta)
                 txPacketDescTy := txReqMuxed.req.data.bypassMeta.ty.asBits
               }
-              is (HostReqType.oncRpcReply) {
-                txPacketDesc.ty := PacketDescType.oncRpcReply
+              is (HostReqType.oncRpcReplyTx) {
+                txPacketDesc.ty := PacketDescType.oncRpcReplyTx
                 txPacketDesc.metadata.assignDontCare()
-                txPacketDesc.metadata.oncRpcReply.rpcId := invalidTraceId(RpcID.width)
-                txPacketDesc.metadata.oncRpcReply.funcPtr := txReqMuxed.req.data.oncRpcReplyTx.funcPtr
-                txPacketDesc.metadata.oncRpcReply.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
-                txPacketDesc.metadata.oncRpcReply.data := txReqMuxed.req.data.oncRpcReplyTx.data
-                txPacketDesc.metadata.oncRpcReply.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
+                txPacketDesc.metadata.oncRpcReplyTx.rpcId := invalidTraceId(RpcID.width)
+                txPacketDesc.metadata.oncRpcReplyTx.funcPtr := txReqMuxed.req.data.oncRpcReplyTx.funcPtr
+                txPacketDesc.metadata.oncRpcReplyTx.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
+                txPacketDesc.metadata.oncRpcReplyTx.data := txReqMuxed.req.data.oncRpcReplyTx.data
+                txPacketDesc.metadata.oncRpcReplyTx.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
                 txLogicalLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen.bits
-                txPacketDescTy := PacketDescType.oncRpcReply.asBits
+                txPacketDescTy := PacketDescType.oncRpcReplyTx.asBits
               }
               default {
                 report("unsupported host request type", FAILURE)

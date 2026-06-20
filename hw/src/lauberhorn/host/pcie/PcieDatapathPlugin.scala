@@ -31,7 +31,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       size = hostDescSizeRound,
       desc = "RX packet descriptor",
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
-      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call")
+      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call_rx")
 
     val rxHostDesc = hostRx.map(hostReq => PcieHostCtrlInfo.packFrom(hostReq.req))
     // busCtrl.readStreamBlockCycles(rxHostDesc, rxAddr, csr.logic.ctrl.rxBlockCycles)
@@ -60,7 +60,7 @@ class PcieDatapathPlugin(coreID: Int) extends DatapathPlugin(coreID) {
       size = hostDescSizeRound,
       desc = "Full TX packet descriptor",
       // TODO: what's the syntax for allowing multiple aliases for datatype reg?
-      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call"))
+      ty = "host_ctrl_info_error | host_ctrl_info_bypass | host_ctrl_info_onc_rpc_call_rx"))
     hostTxAck.translateFrom(txHostDesc) { case (cc, h) =>
       h.unpackTo(cc.req)
       cc.hostMsgId := invalidTraceId(HostMsgID.width)

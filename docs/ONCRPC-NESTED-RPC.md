@@ -36,11 +36,12 @@ The mirrored files exist but are placeholders:
 
 The host-visible data model is also server-only today:
 
-- `HostReqType` has `oncRpcCall` and `oncRpcReply`, but those currently mean
-  incoming server call and outgoing server reply.
+- `HostReqType` has directional server names `oncRpcCallRx` and
+  `oncRpcReplyTx`, and planned client names `oncRpcCallTx` and
+  `oncRpcReplyRx`.
 - `EciHostCtrlInfo` has a shared server bundle for receiving calls and sending
   replies, plus a TODO for client bundles.
-- `Scheduler` asserts that every schedulable request is `oncRpcCall`.
+- `Scheduler` accepts schedulable server call RX and nested reply RX requests.
 
 ## Addressing Model
 

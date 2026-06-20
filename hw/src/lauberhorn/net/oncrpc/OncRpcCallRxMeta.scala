@@ -19,7 +19,7 @@ case class OncRpcCallRxMeta() extends Bundle with DecoderMetadata {
   val hdr = OncRpcCallHeader()
   val udpPayloadSize = UInt(PKT_BUF_LEN_WIDTH bits)
 
-  def getType = PacketDescType.oncRpcCall
+  def getType = PacketDescType.oncRpcCallRx
   override def traceData: Seq[TraceData] = Seq(PacketID(packetId), RpcID(rpcId))
 
   def getPayloadSize: UInt = {
@@ -32,7 +32,7 @@ case class OncRpcCallRxMeta() extends Bundle with DecoderMetadata {
 
   def asUnion: PacketDescData = {
     val ret = PacketDescData() setCompositeName(this, "union")
-    ret.oncRpcCall.get := this
+    ret.oncRpcCallRx.get := this
     ret
   }
 }

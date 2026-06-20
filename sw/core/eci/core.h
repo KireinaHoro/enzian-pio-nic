@@ -189,7 +189,7 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
-    case lauberhorn_eci_onc_rpc_call:
+    case lauberhorn_eci_onc_rpc_call_rx:
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_server.func_ptr =
           (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_extract(
@@ -311,7 +311,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 #else // ! __KERNEL__
   case TY_ONCRPC_REPLY:
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
-        tx_ctrl, lauberhorn_eci_onc_rpc_reply);
+        tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
     lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_insert(
         tx_ctrl, desc->oncrpc_server.xid);

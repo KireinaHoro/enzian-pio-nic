@@ -24,7 +24,7 @@ case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   /** Total length of the entire reply message, including inlined bits */
   val replyLen = PacketLength()
 
-  def getType = PacketDescType.oncRpcReply
+  def getType = PacketDescType.oncRpcReplyTx
   override def traceData: Seq[TraceData] = Seq(RpcID(rpcId))
 }
 
