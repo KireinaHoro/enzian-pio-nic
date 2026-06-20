@@ -77,7 +77,7 @@ case class EciHostCtrlInfo() extends Bundle {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
         desc.buffer.size := len
       }
-      is (HostReqType.oncRpcReply) {
+      is (HostReqType.oncRpcReplyTx) {
         desc.data.oncRpcReplyTx.assignSomeByName(data.oncRpcServer)
         desc.data.oncRpcReplyTx.replyLen := len
         when (len.bits > ONCRPC_INLINE_BYTES.get) {
@@ -126,7 +126,7 @@ case class EciHostCtrlInfo() extends Bundle {
          |
          |datatype host_ctrl_info_onc_rpc_server lsbfirst(64) "ECI Host Control Info (ONC-RPC Direct Call / Reply)" {
          |  valid     1 "RX descriptor valid (rsvd for TX)";
-         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call / onc_rpc_reply)";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx / onc_rpc_reply_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet (includes inlined bytes for TX, does not include inlined bytes for RX)";
          |  _         12 rsvd;
          |  xid       32 "XID of incoming request (big endian)";
@@ -162,7 +162,7 @@ object EciHostCtrlInfo {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
         ret.data.bypass.xb9 := 0
       }
-      is (HostReqType.oncRpcCall) {
+      is (HostReqType.oncRpcCallRx) {
         ret.data.oncRpcServer.assignSomeByName(desc.data.oncRpcCallRx)
         ret.data.oncRpcServer.xb12 := 0
       }

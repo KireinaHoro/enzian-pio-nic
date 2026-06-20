@@ -60,7 +60,7 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev,
       case pionic_pcie_hdr_udp:
         desc->bypass.header_type = HDR_UDP;
         break;
-      case pionic_pcie_hdr_onc_rpc_call:
+      case pionic_pcie_hdr_onc_rpc_call_rx:
         desc->bypass.header_type = HDR_ONCRPC_CALL;
         break;
       }
@@ -73,18 +73,18 @@ static bool core_pcie_rx(void *bar, pionic_pcie_core_t *core_dev,
 
       break;
 
-    case pionic_pcie_onc_rpc_call:
+    case pionic_pcie_onc_rpc_call_rx:
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_call.func_ptr =
-          (void *)pionic_pcie_host_ctrl_info_onc_rpc_call_func_ptr_extract(
+          (void *)pionic_pcie_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               host_rx);
       desc->oncrpc_call.xid =
-          pionic_pcie_host_ctrl_info_onc_rpc_call_xid_extract(host_rx);
+          pionic_pcie_host_ctrl_info_onc_rpc_call_rx_xid_extract(host_rx);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
       memcpy(desc->oncrpc_call.args,
-             host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_size,
+             host_rx + pionic_pcie_host_ctrl_info_onc_rpc_call_rx_size,
              sizeof(desc->oncrpc_call.args));
 
       break;
@@ -177,7 +177,7 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev,
       break;
     case HDR_ONCRPC_CALL:
       pionic_pcie_host_ctrl_info_bypass_hdr_ty_insert(
-          host_tx_ack, pionic_pcie_hdr_onc_rpc_call);
+          host_tx_ack, pionic_pcie_hdr_onc_rpc_call_rx);
       break;
     }
 
@@ -189,23 +189,23 @@ static void core_pcie_tx(void *bar, pionic_pcie_core_t *core_dev,
     break;
 
   case TY_ONCRPC_CALL:
-    pionic_pcie_host_ctrl_info_onc_rpc_call_ty_insert(host_tx_ack,
-                                                      pionic_pcie_onc_rpc_call);
-    pionic_pcie_host_ctrl_info_onc_rpc_call_func_ptr_insert(
+    pionic_pcie_host_ctrl_info_onc_rpc_call_rx_ty_insert(
+        host_tx_ack, pionic_pcie_onc_rpc_call_rx);
+    pionic_pcie_host_ctrl_info_onc_rpc_call_rx_func_ptr_insert(
         host_tx_ack, desc->oncrpc_call.func_ptr);
-    pionic_pcie_host_ctrl_info_onc_rpc_call_xid_insert(host_tx_ack,
-                                                       desc->oncrpc_call.xid);
+    pionic_pcie_host_ctrl_info_onc_rpc_call_rx_xid_insert(
+        host_tx_ack, desc->oncrpc_call.xid);
     // parsed oncrpc arguments are aligned after the descriptor header
     // XXX: we don't have the actual count of args, copy maximum
-    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_call_size,
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_call_rx_size,
            desc->oncrpc_call.args, sizeof(desc->oncrpc_call.args));
 
     break;
 
   case TY_ONCRPC_REPLY:
-    pionic_pcie_host_ctrl_info_onc_rpc_reply_ty_insert(
-        host_tx_ack, pionic_pcie_onc_rpc_reply);
-    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_reply_size,
+    pionic_pcie_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
+        host_tx_ack, pionic_pcie_onc_rpc_reply_tx);
+    memcpy(host_tx_ack + pionic_pcie_host_ctrl_info_onc_rpc_reply_tx_size,
            desc->oncrpc_reply.buf, sizeof(desc->oncrpc_reply.buf));
     break;
   default:
