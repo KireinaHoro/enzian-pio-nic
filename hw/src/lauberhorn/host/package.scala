@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, arpReq, oncRpcCallRx, oncRpcReplyTx = newElement()
+    val error, bypass, arpReq, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -22,6 +22,8 @@ package object host {
            |  arp_req          = 0b010 "ARP Request";
            |  onc_rpc_call_rx  = 0b011 "ONC-RPC Server Call RX";
            |  onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
+           |  onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
+           |  onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
            |};""".stripMargin)
     }
   }
@@ -48,7 +50,33 @@ package object host {
     val replyLen = PacketLength()
   }
 
-  // TODO: client bundles for sending a nested call and receiving a reply
+  /** Sent by host as a nested/client ONC-RPC call. */
+  case class HostReqOncRpcCallTx() extends Bundle {
+    val pid = PID()
+    val cookie = Bits(32 bits)
+    val xid = Bits(32 bits)
+    val daddr = Bits(32 bits)
+    val sport = Bits(16 bits)
+    val dport = Bits(16 bits)
+    val progNum = Bits(32 bits)
+    val progVer = Bits(32 bits)
+    val proc = Bits(32 bits)
+    val data = Bits(ONCRPC_NESTED_CALL_INLINE_BYTES * 8 bits)
+
+    /** Total length of the call argument payload, including inlined bytes. */
+    val callLen = PacketLength()
+  }
+
+  /** Passed to host on an incoming nested/client ONC-RPC reply completion. */
+  case class HostReqOncRpcReplyRx() extends Bundle {
+    val pid = PID()
+    val cookie = Bits(32 bits)
+    val xid = Bits(32 bits)
+    val saddr = Bits(32 bits)
+    val sport = Bits(16 bits)
+    val dport = Bits(16 bits)
+    val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
+  }
 
   /** Received by host for bypass packets.  Also used for sending bypass packets; when used
     * for sending, [[hdr]] encodes a command to the selected decoder that will get translated
@@ -69,6 +97,8 @@ package object host {
     val bypassMeta = newElement(HostReqBypassHeaders())
     val oncRpcCallRx = newElement(HostReqOncRpcCallRx())
     val oncRpcReplyTx = newElement(HostReqOncRpcReplyTx())
+    val oncRpcCallTx = newElement(HostReqOncRpcCallTx())
+    val oncRpcReplyRx = newElement(HostReqOncRpcReplyRx())
     val arpReq = newElement(HostReqArpRequest())
   }
 

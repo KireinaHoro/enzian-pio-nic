@@ -149,6 +149,17 @@ class DmaControlPlugin extends FiberPlugin {
                   pktToEnqueue.data.oncRpcCallRx.xid := incomingDesc.desc.metadata.oncRpcCallRx.hdr.xid
                   pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCallRx.args
                 }
+                is (PacketDescType.oncRpcReplyRx) {
+                  pktToEnqueue.ty := HostReqType.oncRpcReplyRx
+
+                  pktToEnqueue.data.oncRpcReplyRx.pid := incomingDesc.desc.metadata.oncRpcReplyRx.pid
+                  pktToEnqueue.data.oncRpcReplyRx.cookie := incomingDesc.desc.metadata.oncRpcReplyRx.cookie
+                  pktToEnqueue.data.oncRpcReplyRx.xid := incomingDesc.desc.metadata.oncRpcReplyRx.xid
+                  pktToEnqueue.data.oncRpcReplyRx.saddr := incomingDesc.desc.metadata.oncRpcReplyRx.saddr
+                  pktToEnqueue.data.oncRpcReplyRx.sport := incomingDesc.desc.metadata.oncRpcReplyRx.sport
+                  pktToEnqueue.data.oncRpcReplyRx.dport := incomingDesc.desc.metadata.oncRpcReplyRx.dport
+                  pktToEnqueue.data.oncRpcReplyRx.data := incomingDesc.desc.metadata.oncRpcReplyRx.data
+                }
                 default {
                   pktToEnqueue.ty := HostReqType.error
                   report("unsupported protocol metadata type on non-bypass packet", FAILURE)
@@ -295,6 +306,24 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.metadata.oncRpcReplyTx.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
                 txLogicalLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen.bits
                 txPacketDescTy := PacketDescType.oncRpcReplyTx.asBits
+              }
+              is (HostReqType.oncRpcCallTx) {
+                txPacketDesc.ty := PacketDescType.oncRpcCallTx
+                txPacketDesc.metadata.assignDontCare()
+                txPacketDesc.metadata.oncRpcCallTx.rpcId := invalidTraceId(RpcID.width)
+                txPacketDesc.metadata.oncRpcCallTx.pid := txReqMuxed.req.data.oncRpcCallTx.pid
+                txPacketDesc.metadata.oncRpcCallTx.cookie := txReqMuxed.req.data.oncRpcCallTx.cookie
+                txPacketDesc.metadata.oncRpcCallTx.xid := txReqMuxed.req.data.oncRpcCallTx.xid
+                txPacketDesc.metadata.oncRpcCallTx.daddr := txReqMuxed.req.data.oncRpcCallTx.daddr
+                txPacketDesc.metadata.oncRpcCallTx.sport := txReqMuxed.req.data.oncRpcCallTx.sport
+                txPacketDesc.metadata.oncRpcCallTx.dport := txReqMuxed.req.data.oncRpcCallTx.dport
+                txPacketDesc.metadata.oncRpcCallTx.progNum := txReqMuxed.req.data.oncRpcCallTx.progNum
+                txPacketDesc.metadata.oncRpcCallTx.progVer := txReqMuxed.req.data.oncRpcCallTx.progVer
+                txPacketDesc.metadata.oncRpcCallTx.proc := txReqMuxed.req.data.oncRpcCallTx.proc
+                txPacketDesc.metadata.oncRpcCallTx.data := txReqMuxed.req.data.oncRpcCallTx.data
+                txPacketDesc.metadata.oncRpcCallTx.callLen := txReqMuxed.req.data.oncRpcCallTx.callLen
+                txLogicalLen := txReqMuxed.req.data.oncRpcCallTx.callLen.bits
+                txPacketDescTy := PacketDescType.oncRpcCallTx.asBits
               }
               default {
                 report("unsupported host request type", FAILURE)

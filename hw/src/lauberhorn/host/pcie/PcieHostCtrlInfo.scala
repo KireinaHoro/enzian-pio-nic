@@ -12,7 +12,7 @@ import scala.language.postfixOps
 /**
   * Control info struct sent to the CPU in RX descriptor load through hostRx,
   * as well as struct received from the CPU for TX through hostTxAck.  Same
-  * principle as [[lauberhorn.host.eci.EciHostCtrlInfo]] to generate aligned memory
+  * principle as [[lauberhorn.host.eci.EciHostRxCtrlInfo]] to generate aligned memory
   * locations.
   */
 // TODO: reduce redundant code
@@ -62,14 +62,14 @@ case class PcieHostCtrlInfo() extends Bundle {
     ALLOC.addMackerelEpilogue(
       s"""
          |datatype host_ctrl_info_error lsbfirst(64) "PCIe Host Control Info (Error)" {
-         |  valid 1   "RX descriptor valid (rsvd for TX)";
+         |  valid 1   "RX descriptor valid";
          |  addr  ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size  ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
          |  _     21  rsvd;
          |};
          |datatype host_ctrl_info_bypass lsbfirst(64) "PCIe Host Control Info (Bypass)" {
-         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  valid  1   "RX descriptor valid";
          |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
@@ -80,7 +80,7 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |};
          |datatype host_ctrl_info_onc_rpc_call_rx lsbfirst(64) "PCIe Host Control Info (ONC-RPC Server Call RX)" {
-         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  valid  1   "RX descriptor valid";
          |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
@@ -94,7 +94,7 @@ case class PcieHostCtrlInfo() extends Bundle {
          |};
          |datatype host_ctrl_info_onc_rpc_reply_tx lsbfirst(64) "PCIe Host Control Info (ONC-RPC Server Reply TX)" {
          |  // TODO: this does not exist yet, use bypass with raw Ethernet frame for sending
-         |  valid  1   "RX descriptor valid (rsvd for TX)";
+         |  valid  1   "RX descriptor valid";
          |  addr   ${PKT_BUF_ADDR_WIDTH.get} "Address in packet buffer";
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";

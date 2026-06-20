@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
-import lauberhorn.host.{HostReq, HostReqOncRpcCallRx, HostReqType, HostReqWithTrace, PreemptionService}
+import lauberhorn.host.{HostReq, HostReqType, HostReqWithTrace, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.invalidTraceId
 import lauberhorn.net.oncrpc.OncRpcCallRxMeta
@@ -296,12 +296,25 @@ class Scheduler extends FiberPlugin {
       v.enabled && v.pid === q
     }
 
+    def requestPid(req: HostReq): PID = new Composite(req, "requestPid") {
+      val ret = PID()
+      ret.bits.assignDontCare()
+      switch (req.ty) {
+        import HostReqType._
+        is (oncRpcCallRx) { ret := req.data.oncRpcCallRx.pid }
+        is (oncRpcReplyRx) { ret := req.data.oncRpcReplyRx.pid }
+        default { report("scheduler does not support this req type yet", FAILURE) }
+      }
+    }.ret
+
     pushLookup.translateFrom(rxMeta) { case (lk, meta) =>
-      lk.query := meta.req.data.oncRpcCallRx.pid
+      lk.query := requestPid(meta.req)
       lk.userData := meta
     }
     when (rxMeta.valid) {
-      assert(rxMeta.req.ty === HostReqType.oncRpcCall, "scheduler does not support other req types yet")
+      assert(
+        rxMeta.req.ty === HostReqType.oncRpcCallRx || rxMeta.req.ty === HostReqType.oncRpcReplyRx,
+        "scheduler only supports ONC-RPC call RX and reply RX requests")
     }
 
     val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
@@ -539,7 +552,7 @@ class Scheduler extends FiberPlugin {
               inc(_.dispatched(idx))
               coreTp.trace("SchedulerRequestDispatched",
                 HostMsgID(savedPoppedReq.hostMsgId),
-                ProcessID(savedPoppedReq.req.data.oncRpcCallRx.pid.bits),
+                ProcessID(requestPid(savedPoppedReq.req).bits),
                 coreTd)
               goto(idle)
             }

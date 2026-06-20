@@ -607,7 +607,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
   during build {
     if (!emittedMackerel) {
-      EciHostCtrlInfo().addMackerel
+      EciHostRxCtrlInfo().addMackerel
+      EciHostTxCtrlInfo.addMackerel()
       emittedMackerel = true
     }
   }

@@ -153,7 +153,7 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->type = TY_BYPASS;
 
       // decode header type
-      switch (lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_extract(rx_ctrl)) {
+      switch (lauberhorn_eci_host_ctrl_info_bypass_rx_hdr_ty_extract(rx_ctrl)) {
       case lauberhorn_eci_hdr_ethernet:
         desc->bypass.header_type = HDR_ETHERNET;
         bypass_hdr_len = 14;
@@ -175,7 +175,7 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
 
       // parsed bypass header is aligned after the descriptor header (still
       // inside ctrl CL)
-      memcpy(ctx->rx_buf, rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_size,
+      memcpy(ctx->rx_buf, rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_rx_size,
              bypass_hdr_len);
       desc->payload_len = bypass_hdr_len;
 
@@ -192,15 +192,15 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
     case lauberhorn_eci_onc_rpc_call_rx:
       desc->type = TY_ONCRPC_CALL;
       desc->oncrpc_server.func_ptr =
-          (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_extract(
+          (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               rx_ctrl);
       desc->oncrpc_server.xid =
-          lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_extract(rx_ctrl);
+          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_xid_extract(rx_ctrl);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
       memcpy(ctx->rx_buf,
-             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
+             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size,
              LAUBERHORN_ONCRPC_INLINE_BYTES);
       desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
 
@@ -276,17 +276,17 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   switch (desc->type) {
 #ifdef __KERNEL__
   case TY_BYPASS:
-    uint8_t *tx_cmd = tx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_size;
+    uint8_t *tx_cmd = tx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_tx_size;
 
-    lauberhorn_eci_host_ctrl_info_error_ty_insert(tx_ctrl,
-                                                  lauberhorn_eci_bypass);
+    lauberhorn_eci_host_ctrl_info_bypass_tx_ty_insert(tx_ctrl,
+                                                      lauberhorn_eci_bypass);
     if (desc->bypass.header_type != HDR_ETHERNET) {
       pr_err("bypass TX only accepts Ethernet packets; trying to send %s\n",
              lauberhorn_eci_packet_desc_type_describe(desc->type));
       goto out;
     }
 
-    lauberhorn_eci_host_ctrl_info_bypass_hdr_ty_insert(
+    lauberhorn_eci_host_ctrl_info_bypass_tx_hdr_ty_insert(
         tx_ctrl, lauberhorn_eci_hdr_ethernet);
 
     // Ethernet bypass only takes destination mac and ethertype
@@ -305,22 +305,22 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     payload_len -= 14;
 
     // tx bypass len field does not include header
-    lauberhorn_eci_host_ctrl_info_bypass_len_insert(tx_ctrl, payload_len);
+    lauberhorn_eci_host_ctrl_info_bypass_tx_len_insert(tx_ctrl, payload_len);
     break;
 
 #else // ! __KERNEL__
   case TY_ONCRPC_REPLY:
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_ty_insert(
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_xid_insert(
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_xid_insert(
         tx_ctrl, desc->oncrpc_server.xid);
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_func_ptr_insert(
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_func_ptr_insert(
         tx_ctrl, (uint64_t)desc->oncrpc_server.func_ptr);
 
     // tx RPC len field INCLUDES inlined words
-    lauberhorn_eci_host_ctrl_info_onc_rpc_server_len_insert(tx_ctrl,
-                                                            payload_len);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,
+                                                              payload_len);
 
     if (payload_len > LAUBERHORN_ONCRPC_INLINE_BYTES) {
       oncrpc_inlined_bytes = LAUBERHORN_ONCRPC_INLINE_BYTES;
@@ -329,7 +329,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     }
 
     // inlined ONCRPC words
-    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_server_size,
+    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size,
            copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;
