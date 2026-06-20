@@ -270,6 +270,9 @@ TRACE_EVENT_NAMES = {
     "EciTxCommitRead",
     "EciTxCtrlInvalidate",
     "EciTxCtrlUnlocked",
+    "EciTxDataLciStart",
+    "EciTxDataLciDone",
+    "EciTxDataLciaUlDone",
     "TxHostReqAccepted",
     "EciTxSubmit",
     "OncRpcReplyEncode",
@@ -506,7 +509,7 @@ def attach_trace_segments(
     )
     tx_host_id = tx_submit["data"]["HostMsgID"] if tx_submit is not None else None
     reply_encode = udp_encoder = ip_encoder = eth_encoder = None
-    tx_commit = tx_invalidate = tx_unlocked = host_accept = tx_no_dma = tx_after_dma = tx_dma_done = None
+    tx_commit = tx_invalidate = tx_unlocked = tx_data_done = host_accept = tx_no_dma = tx_after_dma = tx_dma_done = None
     if tx_host_id is not None and tx_submit is not None:
         row["trace_tx_host_msg_id"] = tx_host_id
         row["trace_core_rx_return_to_tx_submit_ns"] = float(
@@ -527,6 +530,13 @@ def attach_trace_segments(
         tx_unlocked = first_event_after(
             events_by_name,
             "EciTxCtrlUnlocked",
+            tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
+            match,
+            max_delta_ns=100_000,
+        )
+        tx_data_done = first_event_after(
+            events_by_name,
+            "EciTxDataLciaUlDone",
             tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,
@@ -575,8 +585,9 @@ def attach_trace_segments(
                 max_delta_ns=1_000,
             )
 
-    if delivered_ns is not None and tx_invalidate is not None:
-        turnaround_ns = max(0.0, float(tx_invalidate["time_ns"] - delivered_ns))
+    tx_2f2f_done = tx_unlocked if tx_unlocked is not None else tx_data_done
+    if delivered_ns is not None and tx_commit is not None:
+        turnaround_ns = max(0.0, float(tx_commit["time_ns"] - delivered_ns))
         rx_return_ns = int(row["server_rx_exit_ns"] - cpu_trace_offset_ns)
         tx_enter_ns = int(row["server_tx_enter_ns"] - cpu_trace_offset_ns)
         timestamp_overhead = float(row.get("server_timestamp_overhead_ns", 0.0))
@@ -584,7 +595,7 @@ def attach_trace_segments(
         rx_2f2f_sw_ns = min(turnaround_ns, max(0.0, float(rx_return_ns - delivered_ns)))
         tx_2f2f_sw_ns = min(
             float(row.get("server_tx_ns", 0.0)),
-            max(0.0, float(tx_invalidate["time_ns"] - tx_enter_ns) - timestamp_overhead),
+            max(0.0, float(tx_commit["time_ns"] - tx_enter_ns) - timestamp_overhead),
         )
         server_unmarshal_ns = float(row.get("server_unmarshal_ns", 0.0))
         handler_ns = float(row.get("handler_ns", 0.0))
@@ -605,8 +616,8 @@ def attach_trace_segments(
         add_duration(segments, "handler", handler_ns)
         add_duration(segments, "server_xdr_marshal", server_marshal_ns)
         add_duration(segments, "server_2f2f_tx_sw", tx_2f2f_sw_ns)
-    add_segment(segments, "lh_tx_2f2f_ctrl", tx_invalidate["time_ns"] if tx_invalidate else None, tx_unlocked["time_ns"] if tx_unlocked else None)
-    add_segment(segments, "lh_tx_host_submit", tx_unlocked["time_ns"] if tx_unlocked else None, tx_submit["time_ns"] if tx_submit else None)
+    add_segment(segments, "lh_tx_2f2f_hw", tx_commit["time_ns"] if tx_commit else None, tx_2f2f_done["time_ns"] if tx_2f2f_done else None)
+    add_segment(segments, "lh_tx_host_submit", tx_2f2f_done["time_ns"] if tx_2f2f_done else None, tx_submit["time_ns"] if tx_submit else None)
     add_segment(segments, "lh_tx_submit_to_udp_encode", tx_submit["time_ns"] if tx_submit else None, udp_encoder["time_ns"] if udp_encoder else None)
     add_segment(segments, "lh_tx_ip_encode", udp_encoder["time_ns"] if udp_encoder else None, ip_encoder["time_ns"] if ip_encoder else None)
     add_segment(segments, "lh_tx_eth_encode", ip_encoder["time_ns"] if ip_encoder else None, eth_encoder["time_ns"] if eth_encoder else None)
@@ -653,8 +664,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) ->
             last_event_before(events_by_name, "SchedulerProcessRun", dispatch["time_ns"] + 1, core_match),
             dispatch,
         ]
-        for name in ("EciRxDescSent", "EciRxCtrlUnlocked", "EciRxDataLciaUlDone"):
-            rec_events.append(first_event_after(events_by_name, name, dispatch["time_ns"], core_match, max_delta_ns=1_000_000))
+        rec_events.append(first_event_after(events_by_name, "EciRxDescSent", dispatch["time_ns"], core_match, max_delta_ns=1_000_000))
 
         rec: Dict[str, Any] = {"host_msg_id": host_id, "events": []}
         seen = set()
@@ -673,13 +683,8 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) ->
         recs.sort(key=lambda ev: ev["time_ns"])
 
     def delivery_time(rec: Dict[str, Any]) -> Optional[int]:
-        delivery_events = [
-            ev["time_ns"]
-            for ev in rec["events"]
-            if ev["event"] in {"EciRxDescSent", "EciRxCtrlUnlocked", "EciRxDataLciaUlDone"}
-        ]
-        if delivery_events:
-            return max(delivery_events)
+        if "EciRxDescSent" in rec:
+            return rec["EciRxDescSent"]
         return rec.get("SchedulerRequestDispatched")
 
     rows_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
@@ -808,11 +813,10 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "server_xdr_marshal",
         "server_2f2f_tx_sw",
         "hw_dispatch",
-        "server_turnaround_to_tx_ctrl",
         "sw_rpc_runtime",
         "sw_xdr_runtime",
         "lh_tx_eci_read",
-        "lh_tx_2f2f_ctrl",
+        "lh_tx_2f2f_hw",
         "lh_tx_host_submit",
         "lh_tx_submit_to_udp_encode",
         "lh_tx_ip_encode",
@@ -902,14 +906,13 @@ def component_label(name: str) -> str:
         "outside_lh_client_network": "client/network/residual",
         "network_or_residual": "network/residual",
         "client_xdr_runtime": "client XDR",
-        "server_turnaround_to_tx_ctrl": "server turnaround",
         "server_2f2f_rx_sw": "2F2F RX SW",
         "server_rt_overhead": "server RT",
         "server_xdr_unmarshal": "server unmarshal",
         "handler": "handler",
         "server_xdr_marshal": "server marshal",
         "server_2f2f_tx_sw": "2F2F TX SW",
-        "lh_tx_2f2f_ctrl": "2F2F ctrl",
+        "lh_tx_2f2f_hw": "2F2F TX HW",
         "lh_tx_host_submit": "TX submit",
         "lh_tx_submit_to_udp_encode": "TX submit -> UDP",
         "lh_rx_cmac_to_cdc": "RX CMAC -> CDC",

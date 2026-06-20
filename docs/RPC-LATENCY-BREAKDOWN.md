@@ -110,10 +110,14 @@ RX-side Lauberhorn events currently used include:
 - `SchedulerRequestQueued`
 - `SchedulerProcessRun`
 - `SchedulerRequestDispatched`
-- `EciRxDescSent`, `EciRxCtrlUnlocked`, `EciRxDataLciaUlDone`
+- `EciRxDescSent`
 
 These provide the RX CMAC-to-decoder path, RPC enqueue, scheduler queueing, and
-delivery into the ECI/software boundary.
+delivery into the ECI/software boundary.  `EciRxDescSent` is the delivery marker
+used for the current request.  RX cleanup/invalidation events such as
+`EciRxDataLciaUlDone` and `EciRxCtrlUnlocked` are triggered by a later opposite
+control-CL read and must not be used as the delivery point for the request that
+just returned from `core_eci_rx()`.
 
 TX-side events currently used include:
 
@@ -161,16 +165,35 @@ Common traced buckets:
   These buckets may be absent or zero for a run that does not exercise the
   deschedule/reschedule path, but they are intentionally kept in the breakdown
   for benchmarks that hammer that path.
-- `server_turnaround_to_tx_ctrl`: time from request delivery to the worker side
-  until the response-side TX control path starts.  This includes server-side
-  request unmarshal, handler execution, response marshal, and the software part
-  of ringing the response doorbell.  It deliberately does not include blocking
-  receive wait before the request arrives.
+- `server_2f2f_rx_sw`: RX-side 2F2F software work after the request has been
+  delivered to the core-side receive path.  It is measured from the correlated
+  hardware RX delivery/return marker to `server_rx_exit_ns`, where
+  `core_eci_rx()` has returned to the runtime.  This avoids charging blocking
+  receive wait time to the request.  It should include post-unblock descriptor
+  extraction, payload copy-out from RX control/overflow cachelines into
+  `ctx->rx_buf`, parity/cleanup work, and return to the runtime.  The preceding
+  ECI/PEMD read-response latency that unblocks the control read is not split out
+  separately today; that would be a directional `2F2F RX HW` bucket if we add a
+  clear hardware trace boundary for it.
+- `server_rt_overhead`: runtime code between `core_eci_rx()` return and
+  `core_eci_tx()` entry that is not accounted to XDR or the handler.
+- `server_xdr_unmarshal`, `handler`, `server_xdr_marshal`: server-side request
+  unmarshal, application handler, and response marshal.
+- `server_2f2f_tx_sw`: TX-side 2F2F software work from `server_tx_enter_ns`
+  through the FPGA trace point `EciTxCommitRead`, minus the local timestamp
+  probe cost.  This includes the CPU work in `core_eci_tx()`: filling the TX
+  control cacheline, copying inline/overflow payload bytes into the TX 2F2F
+  cachelines, flipping the TX parity, and doing the doorbell read, up to the
+  point where hardware has observed the new TX control phase.
 - `client_xdr_runtime`: client-side XDR encode/decode measured in the client
   process.
-- `lh_tx_2f2f_ctrl`, `lh_tx_host_submit`, `lh_tx_submit_to_udp_encode`,
-  `lh_tx_ip_encode`, `lh_tx_eth_encode`, `lh_tx_output_queue`,
-  `lh_tx_cdc_to_cmac`: response-side Lauberhorn/encoder path, when correlated.
+- `lh_tx_2f2f_hw`: TX-side 2F2F hardware work after the TX doorbell is observed.
+  It is measured from `EciTxCommitRead` to the completion of the TX 2F2F
+  invalidation path: `EciTxCtrlUnlocked` for inline/no-overflow packets, or
+  `EciTxDataLciaUlDone` when overflow cachelines must also be invalidated.
+- `lh_tx_host_submit`, `lh_tx_submit_to_udp_encode`, `lh_tx_ip_encode`,
+  `lh_tx_eth_encode`, `lh_tx_output_queue`, `lh_tx_cdc_to_cmac`:
+  response-side post-2F2F Lauberhorn/encoder path, when correlated.
 - `outside_lh_client_network`: everything in the client E2E interval not
   assigned to a more specific bucket.
 
@@ -178,6 +201,47 @@ Common traced buckets:
 pure wire latency.  It can include client-side CPU time, client kernel/network
 stack time, NIC interrupt handling, response processing, uninstrumented
 Lauberhorn spans, or trace-correlation gaps.
+
+## Timestamp Correlation
+
+The server CSV uses the CPU `CLOCK_MONOTONIC_RAW` clock.  The hardware trace
+uses the FPGA trace timestamp domain.  These clocks do not share an epoch, so
+the plotter estimates a CPU/FPGA offset after it has matched request rows to
+trace records.
+
+The matching step is per worker core:
+
+- Hardware request records are built around `SchedulerRequestDispatched`, with
+  the matching `HostMsgID`, `CoreID`, preceding RPC enqueue/queue events, and
+  following ECI RX delivery/completion events.
+- Server CSV rows are grouped by `worker_id + 1` and sorted by
+  `server_rx_exit_ns`, because that timestamp is after `core_eci_rx()` returned
+  the request to software.
+- If the trace has extra records, the plotter chooses the per-core sequence
+  offset that makes the `server_rx_exit_ns - trace_delivery_ns` gaps most
+  stable over the first rows.
+
+After matching, the synchronization point is the lower envelope of request
+delivery to `core_eci_rx()` return:
+
+```text
+cpu_fpga_offset_ns =
+    min(server_rx_exit_ns - trace_core_delivery_ns) over matched rows
+```
+
+`trace_core_delivery_ns` is the `EciRxDescSent` trace point for that request,
+falling back to `SchedulerRequestDispatched` only if no descriptor-delivery
+marker is present.  The lower envelope is used because
+`server_rx_exit_ns` is after the hardware delivery point and includes a small
+amount of CPU-side RX software work.  The minimum observed gap is treated as the
+best available estimate of the cross-clock epoch offset; larger gaps are
+interpreted as real per-request software/wakeup delay rather than clock offset.
+
+This is accurate enough for microsecond-scale bucket attribution in the current
+adder-demo run, but it is still an inferred synchronization, not a hardware
+clock synchronization protocol.  In particular, it does not split the
+ECI/PEMD read-response latency that unblocks the RX control read from the
+software copy-out after that read returns.
 
 ## Current Adder-Demo Example
 
@@ -212,10 +276,6 @@ The selected rows show that distinction clearly:
 - P50 `core_eci_rx()` wall time is about 30.3 us, but this is mostly blocking
   wait before the request is returned to software.
 - P99 `core_eci_rx()` wall time is about 37.0 us, with the same caveat.
-- The traced `server_turnaround_to_tx_ctrl` component, which covers request
-  delivery through the start of response TX control, is about 3.1 us for both
-  P50 and P99.  It includes unmarshal, handler, marshal, and the software part
-  of ringing the response doorbell.
 
 Therefore `RxCmacEntry -> TxCmacExit` can be about 4.4-4.5 us even though the
 `server_rx_enter_ns -> server_rx_exit_ns` timestamp pair is about 30-37 us.  The
@@ -225,8 +285,30 @@ request service time after the packet entered Lauberhorn.
 The current traced breakdown therefore does not include the blocking
 `core_eci_rx()` interval as a stacked request-service component.  It keeps the
 request-service path non-overlapping: RX CMAC/decode/delivery, server
-turnaround to TX control, TX control/encoder/CMAC egress, plus client XDR and
-the remaining outside bucket.
+runtime/XDR/handler work, directional 2F2F software and hardware buckets, TX
+encoder/CMAC egress, plus client XDR and the remaining outside bucket.
+
+For the current selected rows, the server/2F2F split is:
+
+```text
+bucket             P50       P99
+2F2F RX SW         0.035 us  0.045 us
+server RT          0.520 us  0.560 us
+server unmarshal   0.580 us  0.600 us
+handler            0.070 us  0.070 us
+server marshal     0.270 us  0.260 us
+2F2F TX SW         1.570 us  1.585 us
+2F2F TX HW         0.980 us  0.980 us
+```
+
+`2F2F TX SW` is the CPU-side `core_eci_tx()` work through the FPGA observing the
+TX doorbell phase.  In this small adder response it is dominated by fixed
+control/cacheline work rather than payload size.  `2F2F TX HW` is the hardware
+invalidation/completion path after that doorbell is observed.  `2F2F RX SW` is
+the correlated hardware-delivery-to-`core_eci_rx()`-return interval.  It is the
+current RX software bucket for this run; what is not split out yet is a
+separate `2F2F RX HW` bucket for the ECI/PEMD response latency that unblocks the
+control read before the CPU executes the copy-out path.
 
 The client-observed residual is even larger in the current run:
 
@@ -291,10 +373,12 @@ To split the residual further, useful next probes would be:
 
 Likely Lauberhorn-side targets:
 
-- reduce the post-receive server turnaround path from ECI delivery to response
-  TX control;
-- reduce `core_eci_tx()`/doorbell overhead if it shows up in
-  `server_turnaround_to_tx_ctrl`;
+- reduce `server_rt_overhead` between receive return, XDR/handler execution,
+  and transmit entry;
+- reduce `server_2f2f_tx_sw` if `core_eci_tx()` cacheline copying, parity
+  update, or doorbell-read overhead dominates;
+- reduce `lh_tx_2f2f_hw` if TX-side 2F2F invalidation/completion latency
+  dominates;
 - reduce ONC-RPC/XDR marshal and unmarshal overhead if it becomes significant
   for larger messages;
 - reduce scheduler/ECI wakeup latency if future deschedule/reschedule traces
