@@ -118,7 +118,6 @@ def enum_value(enum: Mapping[str, str], text: str) -> int:
 
 def enrich_trace_map(trace_map: Dict[str, Any]) -> Dict[str, Any]:
     enriched = copy.deepcopy(trace_map)
-    enriched.pop("sources_by_id", None)
 
     payload_formats = enriched.setdefault("payload_formats", {})
     dcs_fields = payload_formats.setdefault("dcs_event", {}).setdefault("fields", {})
