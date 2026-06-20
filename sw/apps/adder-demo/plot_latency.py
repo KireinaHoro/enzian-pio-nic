@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -27,8 +27,15 @@ try:
         sample_source,
         source_info,
     )
+    from eci_state_output import (
+        _eci_event_values,
+        _field,
+        _is_accepted_eci_payload,
+        _is_sys_eci_source,
+    )
     from export_trace_pcap import ProgressBar, prepared_raw_input, raw_sample_count
     from sample_window import parse_sample_window
+    from trace_metadata import enrich_trace_map
 except ImportError as e:
     raise SystemExit(f"failed to import sys_trace helpers from {SYS_TRACE}: {e}")
 
@@ -61,6 +68,28 @@ SERVER_COLUMNS = [
     "request_bytes",
     "response_bytes",
     "server_rx_enter_ns",
+    "server_rx_unblock_ns",
+    "server_rx_exit_ns",
+    "server_unmarshal_enter_ns",
+    "server_unmarshal_exit_ns",
+    "server_handler_enter_ns",
+    "server_handler_exit_ns",
+    "server_marshal_enter_ns",
+    "server_marshal_exit_ns",
+    "server_tx_enter_ns",
+    "server_tx_exit_ns",
+    "timestamp_overhead_ns",
+    "timestamp_call_count",
+]
+
+SERVER_COLUMNS_LEGACY = [
+    "request_id",
+    "xid",
+    "worker_id",
+    "ok",
+    "request_bytes",
+    "response_bytes",
+    "server_rx_enter_ns",
     "server_rx_exit_ns",
     "server_unmarshal_enter_ns",
     "server_unmarshal_exit_ns",
@@ -82,7 +111,16 @@ def int_field(row: Dict[str, str], name: str, default: int = 0) -> int:
     return int(value, 0)
 
 
-def load_csv_by_request_id(path: Path, fallback_columns: List[str]) -> Dict[int, Dict[str, str]]:
+def fallback_schemas(fallback_columns: Sequence[str] | Sequence[Sequence[str]]) -> List[List[str]]:
+    if not fallback_columns:
+        return []
+    first = fallback_columns[0]  # type: ignore[index]
+    if isinstance(first, str):
+        return [list(fallback_columns)]  # type: ignore[arg-type]
+    return [list(schema) for schema in fallback_columns]  # type: ignore[arg-type]
+
+
+def load_csv_by_request_id(path: Path, fallback_columns: Sequence[str] | Sequence[Sequence[str]]) -> Dict[int, Dict[str, str]]:
     with path.open(newline="") as f:
         reader = csv.reader(f)
         try:
@@ -92,13 +130,15 @@ def load_csv_by_request_id(path: Path, fallback_columns: List[str]) -> Dict[int,
 
         if "request_id" in first:
             rows = csv.DictReader(f, fieldnames=first)
-        elif len(first) == len(fallback_columns):
-            print(f"warning: {path} has no header; assuming {len(fallback_columns)}-column adder trace schema")
-            rows = (dict(zip(fallback_columns, values)) for values in chain([first], reader))
+        elif any(len(first) == len(schema) for schema in fallback_schemas(fallback_columns)):
+            schema = next(schema for schema in fallback_schemas(fallback_columns) if len(first) == len(schema))
+            print(f"warning: {path} has no header; assuming {len(schema)}-column adder trace schema")
+            rows = (dict(zip(schema, values)) for values in chain([first], reader))
         else:
+            expected = ", ".join(str(len(schema)) for schema in fallback_schemas(fallback_columns))
             raise SystemExit(
                 f"{path}: CSV header does not contain request_id and row has {len(first)} columns; "
-                f"expected {len(fallback_columns)} for headerless fallback"
+                f"expected one of {expected} for headerless fallback"
             )
 
         ret: Dict[int, Dict[str, str]] = {}
@@ -213,6 +253,7 @@ def build_rows(
             "server_rx_ns": server_rx_ns,
             "server_tx_ns": server_tx_ns,
             "server_rx_enter_ns": int_field(s, "server_rx_enter_ns"),
+            "server_rx_unblock_ns": int_field(s, "server_rx_unblock_ns"),
             "server_rx_exit_ns": int_field(s, "server_rx_exit_ns"),
             "server_tx_enter_ns": int_field(s, "server_tx_enter_ns"),
             "server_tx_exit_ns": int_field(s, "server_tx_exit_ns"),
@@ -245,6 +286,54 @@ def event_decoder(trace_map: Dict[str, Any]):
         return event_names.get(event_id, f"event_{event_id}"), values
 
     return decode
+
+
+def decode_relevant_eci_event(trace_map: Dict[str, Any], sample: int, timestamp: int) -> Optional[Dict[str, Any]]:
+    src = sample_source(sample, trace_map)
+    info = source_info(trace_map, src)
+    if not _is_sys_eci_source(info):
+        return None
+    payload = sample_payload(sample, trace_map)
+    if not _is_accepted_eci_payload(payload, trace_map):
+        return None
+    try:
+        raw_header = _field(payload, trace_map, "eci_header")
+    except KeyError:
+        return None
+    address, values = _eci_event_values(trace_map, info, src, timestamp, raw_header)
+    name = str(values.get("opcode_name", ""))
+    if name not in {"ECI_CMD_MFWD_FLDX_EH", "ECI_CMD_MRSP_HAKD"}:
+        return None
+    if address is None:
+        return None
+    return {
+        "time_ns": int(timestamp),
+        "event": name,
+        "address": address,
+    }
+
+
+def estimate_eci_rtt_ns(eci_events: List[Dict[str, Any]]) -> Optional[float]:
+    pending: Dict[int, List[int]] = defaultdict(list)
+    deltas: List[int] = []
+    for ev in sorted(eci_events, key=lambda item: item["time_ns"]):
+        address = int(ev["address"])
+        if ev["event"] == "ECI_CMD_MFWD_FLDX_EH":
+            pending[address].append(int(ev["time_ns"]))
+            continue
+        if ev["event"] != "ECI_CMD_MRSP_HAKD":
+            continue
+        queue = pending.get(address)
+        if not queue:
+            continue
+        start = queue.pop(0)
+        delta = int(ev["time_ns"]) - start
+        if 0 < delta <= 10_000:
+            deltas.append(delta)
+    if not deltas:
+        return None
+    deltas.sort()
+    return percentile([float(delta) for delta in deltas], 50)
 
 
 TRACE_EVENT_NAMES = {
@@ -291,8 +380,8 @@ def decode_trace_events(
     trace_map_path: Path,
     cycle_ns: int,
     sample_window_text: Optional[str],
-) -> List[Dict[str, Any]]:
-    trace_map = load_map(trace_map_path)
+) -> Tuple[List[Dict[str, Any]], Optional[float]]:
+    trace_map = enrich_trace_map(load_map(trace_map_path))
     decode = event_decoder(trace_map)
     fmt = trace_map["payload_formats"]["lauberhorn_event"]
     id_field = fmt["fields"]["event_id"]
@@ -304,14 +393,23 @@ def decode_trace_events(
         for src in trace_map.get("sources", [])
         if src.get("type") == "lauberhorn_event"
     }
+    eci_sources = {
+        int(src["source"])
+        for src in trace_map.get("sources", [])
+        if src.get("type") == "eci" and src.get("clock_domain") == "sys"
+    }
     sample_window = parse_sample_window(sample_window_text)
     events: List[Dict[str, Any]] = []
+    eci_events: List[Dict[str, Any]] = []
 
     def keep_sample(sample: int) -> bool:
-        if sample_source(sample, trace_map) not in event_sources:
-            return False
-        event_id = bits(sample_payload(sample, trace_map), event_id_offset, event_id_width)
-        return event_id in event_ids
+        src = sample_source(sample, trace_map)
+        if src in event_sources:
+            event_id = bits(sample_payload(sample, trace_map), event_id_offset, event_id_width)
+            return event_id in event_ids
+        if src in eci_sources:
+            return decode_relevant_eci_event(trace_map, sample, 0) is not None
+        return False
 
     with prepared_raw_input(trace_dump) as (raw_input, cache_path):
         total_samples = raw_sample_count(raw_input, 0, sample_bytes(trace_map))
@@ -341,17 +439,21 @@ def decode_trace_events(
         for _logical, _physical, sample, timestamp, _raw_timestamp in samples:
             src = sample_source(sample, trace_map)
             info = source_info(trace_map, src)
-            if info.get("type") != "lauberhorn_event":
-                continue
-            name, values = decode(sample_payload(sample, trace_map))
-            events.append({
-                "time_ns": int(timestamp) * cycle_ns,
-                "source": src,
-                "source_name": info.get("name", ""),
-                "event": name,
-                "data": values,
-            })
-    return events
+            timestamp_ns = int(timestamp) * cycle_ns
+            if info.get("type") == "lauberhorn_event":
+                name, values = decode(sample_payload(sample, trace_map))
+                events.append({
+                    "time_ns": timestamp_ns,
+                    "source": src,
+                    "source_name": info.get("name", ""),
+                    "event": name,
+                    "data": values,
+                })
+            else:
+                eci_event = decode_relevant_eci_event(trace_map, sample, timestamp_ns)
+                if eci_event is not None:
+                    eci_events.append(eci_event)
+    return events, estimate_eci_rtt_ns(eci_events)
 
 
 def last_event_before(
@@ -455,6 +557,7 @@ def attach_trace_segments(
     events_by_name: Dict[str, Tuple[List[int], List[Dict[str, Any]]]],
     core: int,
     cpu_trace_offset_ns: int,
+    eci_half_rtt_ns: Optional[float],
 ) -> None:
     segments: Dict[str, float] = {}
     rx_enqueue = rec_event(rec, "RxRpcEnqueueToHost")
@@ -592,7 +695,18 @@ def attach_trace_segments(
         tx_enter_ns = int(row["server_tx_enter_ns"] - cpu_trace_offset_ns)
         timestamp_overhead = float(row.get("server_timestamp_overhead_ns", 0.0))
 
-        rx_2f2f_sw_ns = min(turnaround_ns, max(0.0, float(rx_return_ns - delivered_ns)))
+        rx_unblock = row.get("server_rx_unblock_ns", 0)
+        if rx_unblock:
+            rx_2f2f_sw_ns = min(
+                turnaround_ns,
+                corrected_delta(int(rx_unblock), int(row["server_rx_exit_ns"]), int(timestamp_overhead)),
+            )
+        else:
+            rx_2f2f_sw_ns = min(turnaround_ns, max(0.0, float(rx_return_ns - delivered_ns)))
+        rx_2f2f_hw_ns = min(
+            max(0.0, turnaround_ns - rx_2f2f_sw_ns),
+            float(eci_half_rtt_ns) if eci_half_rtt_ns is not None else 0.0,
+        )
         tx_2f2f_sw_ns = min(
             float(row.get("server_tx_ns", 0.0)),
             max(0.0, float(tx_commit["time_ns"] - tx_enter_ns) - timestamp_overhead),
@@ -604,12 +718,14 @@ def attach_trace_segments(
             0.0,
             turnaround_ns
             - rx_2f2f_sw_ns
+            - rx_2f2f_hw_ns
             - server_unmarshal_ns
             - handler_ns
             - server_marshal_ns
             - tx_2f2f_sw_ns,
         )
 
+        add_duration(segments, "lh_rx_2f2f_hw", rx_2f2f_hw_ns)
         add_duration(segments, "server_2f2f_rx_sw", rx_2f2f_sw_ns)
         add_duration(segments, "server_rt_overhead", server_rt_ns)
         add_duration(segments, "server_xdr_unmarshal", server_unmarshal_ns)
@@ -641,7 +757,7 @@ def attach_trace_segments(
         row["trace_segments"] = segments
 
 
-def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) -> None:
+def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float]) -> None:
     events_by_name = build_event_index(events)
     ipi_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -745,14 +861,26 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) ->
     if not matched:
         return
 
-    # The CPU monotonic clock and FPGA trace clock do not share an epoch.  Use
-    # the lower envelope at core_eci_rx() return as the clock offset.  The entry
-    # timestamp can be from an earlier polling attempt and is not a request
-    # delivery point.
-    offset = min(row["server_rx_exit_ns"] - row["trace_core_delivery_ns"] for row, _ in matched)
+    # The CPU monotonic clock and FPGA trace clock do not share an epoch.  With
+    # new traces, use the lower envelope at RX-control-read unblock: descriptor
+    # sent plus half an ECI FLDX_EH->HAKD RTT should be close to the CPU-side
+    # timestamp taken immediately after the read returns.  Legacy CSVs fall back
+    # to the lower envelope at core_eci_rx() return.
+    offset_candidates = []
+    for row, _rec in matched:
+        delivered = row["trace_core_delivery_ns"]
+        rx_unblock = row.get("server_rx_unblock_ns", 0)
+        if rx_unblock and eci_half_rtt_ns is not None:
+            offset_candidates.append(float(rx_unblock) - (float(delivered) + float(eci_half_rtt_ns)))
+        else:
+            offset_candidates.append(float(row["server_rx_exit_ns"] - delivered))
+    offset = int(min(offset_candidates))
     for row, rec in matched:
         core = row["worker_id"] + 1
         row["trace_cpu_offset_ns"] = offset
+        if eci_half_rtt_ns is not None:
+            row["trace_eci_half_rtt_ns"] = float(eci_half_rtt_ns)
+            row["trace_eci_rtt_ns"] = float(eci_half_rtt_ns) * 2.0
         enqueue = row.get("trace_rx_enqueue_ns")
         dispatched = row.get("trace_request_dispatched_ns")
         delivered = row.get("trace_core_delivery_ns")
@@ -762,7 +890,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]]) ->
             row["trace_hw_core_delivery_ns"] = max(0.0, delivered - dispatched)
         if delivered is not None:
             row["kernel_wakeup_ns"] = max(0.0, row["server_rx_enter_ns"] - (delivered + offset))
-        attach_trace_segments(row, rec, events_by_name, core, offset)
+        attach_trace_segments(row, rec, events_by_name, core, offset, eci_half_rtt_ns)
 
 
 def breakdown(row: Dict[str, Any]) -> Dict[str, float]:
@@ -806,6 +934,7 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "kernel_wakeup",
         "lh_scheduler_queue",
         "lh_rx_eci_delivery",
+        "lh_rx_2f2f_hw",
         "server_2f2f_rx_sw",
         "server_rt_overhead",
         "server_xdr_unmarshal",
@@ -847,6 +976,8 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
             "trace_tx_udp_packet_id",
             "trace_tx_ip_packet_id",
             "trace_tx_udp_to_ip_ns",
+            "trace_eci_rtt_ns",
+            "trace_eci_half_rtt_ns",
             *names,
         ])
         for label, row in selected.items():
@@ -864,6 +995,8 @@ def write_breakdown_csv(path: Path, selected: Dict[str, Dict[str, Any]]) -> None
                 row.get("trace_tx_udp_packet_id", ""),
                 row.get("trace_tx_ip_packet_id", ""),
                 f"{row.get('trace_tx_udp_to_ip_ns', 0.0):.0f}",
+                f"{row.get('trace_eci_rtt_ns', 0.0):.0f}",
+                f"{row.get('trace_eci_half_rtt_ns', 0.0):.0f}",
                 *[f"{b.get(name, 0.0):.0f}" for name in names],
             ])
 
@@ -881,6 +1014,8 @@ BREAKDOWN_META_COLUMNS = {
     "trace_tx_udp_packet_id",
     "trace_tx_ip_packet_id",
     "trace_tx_udp_to_ip_ns",
+    "trace_eci_rtt_ns",
+    "trace_eci_half_rtt_ns",
 }
 
 
@@ -923,6 +1058,7 @@ def component_label(name: str) -> str:
         "lh_rx_host_enqueue": "host enqueue",
         "lh_scheduler_enqueue": "sched enqueue",
         "lh_rx_eci_delivery": "ECI delivery",
+        "lh_rx_2f2f_hw": "2F2F RX HW",
         "lh_tx_ip_encode": "IP encode",
         "lh_tx_eth_encode": "Eth encode",
         "lh_tx_output_queue": "output queue",
@@ -1385,7 +1521,7 @@ def main() -> int:
         parser.error("client_csv and server_csv are required unless --breakdown-csv is used")
 
     client_rows = load_csv_by_request_id(args.client_csv, CLIENT_COLUMNS)
-    server_rows = load_csv_by_request_id(args.server_csv, SERVER_COLUMNS)
+    server_rows = load_csv_by_request_id(args.server_csv, [SERVER_COLUMNS, SERVER_COLUMNS_LEGACY])
     rows = build_rows(client_rows, server_rows)
     if not rows:
         raise SystemExit("no matching request_id rows between client and server CSVs")
@@ -1395,8 +1531,13 @@ def main() -> int:
         raise SystemExit(f"{len(failures)} request(s) failed correctness checks; refusing to plot")
 
     if args.trace_dump:
-        events = decode_trace_events(args.trace_dump, args.trace_map, args.trace_cycle_ns, args.trace_samples)
-        correlate_trace(rows, events)
+        events, eci_rtt_ns = decode_trace_events(args.trace_dump, args.trace_map, args.trace_cycle_ns, args.trace_samples)
+        eci_half_rtt_ns = eci_rtt_ns / 2.0 if eci_rtt_ns is not None else None
+        if eci_rtt_ns is not None:
+            print(f"estimated ECI FLDX_EH->HAKD RTT={eci_rtt_ns:.0f} ns; using half RTT={eci_half_rtt_ns:.0f} ns for 2F2F RX HW")
+        else:
+            print("warning: could not estimate ECI FLDX_EH->HAKD RTT from trace")
+        correlate_trace(rows, events, eci_half_rtt_ns)
         matched_rows = [row for row in rows if "trace_host_msg_id" in row]
         matched = len(matched_rows)
         print(f"matched {matched}/{len(rows)} rows with sys_trace HostMsgID/CoreID events")

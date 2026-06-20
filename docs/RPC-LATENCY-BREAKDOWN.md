@@ -80,6 +80,10 @@ important fields are:
   `server_rx_enter_ns` can include time spent polling/blocking before the
   request is returned to software.  `server_rx_exit_ns` is the point where
   `core_eci_rx()` has returned the request descriptor.
+- `server_rx_unblock_ns`: timestamp taken inside `core_eci_rx()` immediately
+  after the RX control-cacheline read has completed and the read result has
+  been ordered.  New traces use this to split RX-side 2F2F hardware/unblock
+  time from RX-side software copy-out work.
 - `server_unmarshal_enter_ns`, `server_unmarshal_exit_ns`: ONC-RPC/XDR request
   unmarshal.
 - `server_handler_enter_ns`, `server_handler_exit_ns`: application handler.
@@ -134,6 +138,16 @@ TX-side events currently used include:
 - `TxBeforeCdcQueue`
 - `TxCmacExit`
 
+The plotter also samples sys-clock ECI frames from the trace to estimate the
+ECI link roundtrip used by RX-side 2F2F attribution:
+
+- `ECI_CMD_MFWD_FLDX_EH`
+- `ECI_CMD_MRSP_HAKD`
+
+Those ECI frames are decoded with the shared `data/eci/sys_trace`
+`eci_state_output.py` helpers, so opcode naming and address unaliasing use the
+same implementation as the standalone ECI trace tools.
+
 Important correlation details:
 
 - RX `HostMsgID` and TX `HostMsgID` are independent 6-bit counters.
@@ -165,16 +179,18 @@ Common traced buckets:
   These buckets may be absent or zero for a run that does not exercise the
   deschedule/reschedule path, but they are intentionally kept in the breakdown
   for benchmarks that hammer that path.
-- `server_2f2f_rx_sw`: RX-side 2F2F software work after the request has been
-  delivered to the core-side receive path.  It is measured from the correlated
-  hardware RX delivery/return marker to `server_rx_exit_ns`, where
-  `core_eci_rx()` has returned to the runtime.  This avoids charging blocking
-  receive wait time to the request.  It should include post-unblock descriptor
-  extraction, payload copy-out from RX control/overflow cachelines into
-  `ctx->rx_buf`, parity/cleanup work, and return to the runtime.  The preceding
-  ECI/PEMD read-response latency that unblocks the control read is not split out
-  separately today; that would be a directional `2F2F RX HW` bucket if we add a
-  clear hardware trace boundary for it.
+- `lh_rx_2f2f_hw`: estimated RX-side 2F2F hardware/unblock time.  The plotter
+  measures same-address `ECI_CMD_MFWD_FLDX_EH -> ECI_CMD_MRSP_HAKD` latencies in
+  the sys-clock ECI trace and uses half of the median roundtrip as the RX HW
+  component for the control-read response path.
+- `server_2f2f_rx_sw`: RX-side 2F2F software work after the RX control read has
+  unblocked.  With new server CSVs this is measured directly as
+  `server_rx_unblock_ns -> server_rx_exit_ns`, minus one local timestamp probe
+  cost.  It should include post-unblock descriptor extraction, payload copy-out
+  from RX control/overflow cachelines into `ctx->rx_buf`, parity/cleanup work,
+  and return to the runtime.  Legacy CSVs without `server_rx_unblock_ns` fall
+  back to the older correlated hardware-delivery-to-`core_eci_rx()`-return
+  estimate.
 - `server_rt_overhead`: runtime code between `core_eci_rx()` return and
   `core_eci_tx()` entry that is not accounted to XDR or the handler.
 - `server_xdr_unmarshal`, `handler`, `server_xdr_marshal`: server-side request
@@ -221,27 +237,39 @@ The matching step is per worker core:
   offset that makes the `server_rx_exit_ns - trace_delivery_ns` gaps most
   stable over the first rows.
 
-After matching, the synchronization point is the lower envelope of request
-delivery to `core_eci_rx()` return:
+After matching, new captures synchronize at the RX control-read unblock point:
+
+```text
+cpu_fpga_offset_ns =
+    min(server_rx_unblock_ns - (trace_core_delivery_ns + eci_half_rtt_ns))
+    over matched rows
+```
+
+`trace_core_delivery_ns` is the `EciRxDescSent` trace point for that request,
+falling back to `SchedulerRequestDispatched` only if no descriptor-delivery
+marker is present.  `eci_half_rtt_ns` is half of the median same-address
+`ECI_CMD_MFWD_FLDX_EH -> ECI_CMD_MRSP_HAKD` latency observed in the sys-clock
+ECI trace.  This moves the estimated ECI/PEMD response latency into the
+directional `lh_rx_2f2f_hw` bucket instead of letting it inflate later
+software-derived buckets.
+
+The lower envelope is used because the timestamp is still taken after the
+hardware event that unblocks the read and can include a small amount of
+CPU-side timestamp/instruction delay.  The minimum observed gap is treated as
+the best available estimate of the cross-clock epoch offset; larger gaps are
+interpreted as real per-request software/wakeup delay rather than clock offset.
+
+Legacy server CSVs without `server_rx_unblock_ns` fall back to the previous
+lower-envelope synchronization point:
 
 ```text
 cpu_fpga_offset_ns =
     min(server_rx_exit_ns - trace_core_delivery_ns) over matched rows
 ```
 
-`trace_core_delivery_ns` is the `EciRxDescSent` trace point for that request,
-falling back to `SchedulerRequestDispatched` only if no descriptor-delivery
-marker is present.  The lower envelope is used because
-`server_rx_exit_ns` is after the hardware delivery point and includes a small
-amount of CPU-side RX software work.  The minimum observed gap is treated as the
-best available estimate of the cross-clock epoch offset; larger gaps are
-interpreted as real per-request software/wakeup delay rather than clock offset.
-
 This is accurate enough for microsecond-scale bucket attribution in the current
 adder-demo run, but it is still an inferred synchronization, not a hardware
-clock synchronization protocol.  In particular, it does not split the
-ECI/PEMD read-response latency that unblocks the RX control read from the
-software copy-out after that read returns.
+clock synchronization protocol.
 
 ## Current Adder-Demo Example
 
@@ -301,14 +329,19 @@ server marshal     0.270 us  0.260 us
 2F2F TX HW         0.980 us  0.980 us
 ```
 
+This table was generated from the existing adder-demo server CSV.  If that CSV
+predates `server_rx_unblock_ns`, the RX side is still shown using the legacy
+correlated delivery-to-return estimate.  New captures split this into
+`2F2F RX HW` from the ECI half-RTT estimate and `2F2F RX SW` from the internal
+post-unblock timestamp to `core_eci_rx()` return.
+
 `2F2F TX SW` is the CPU-side `core_eci_tx()` work through the FPGA observing the
 TX doorbell phase.  In this small adder response it is dominated by fixed
 control/cacheline work rather than payload size.  `2F2F TX HW` is the hardware
-invalidation/completion path after that doorbell is observed.  `2F2F RX SW` is
-the correlated hardware-delivery-to-`core_eci_rx()`-return interval.  It is the
-current RX software bucket for this run; what is not split out yet is a
-separate `2F2F RX HW` bucket for the ECI/PEMD response latency that unblocks the
-control read before the CPU executes the copy-out path.
+invalidation/completion path after that doorbell is observed.  On new captures,
+`2F2F RX HW` accounts for the estimated ECI/PEMD response latency that unblocks
+the RX control read, while `2F2F RX SW` accounts for the CPU copy-out/tail after
+that read returns.
 
 The client-observed residual is even larger in the current run:
 

@@ -50,6 +50,7 @@ struct server_trace_row {
   size_t request_bytes;
   size_t response_bytes;
   uint64_t rx_enter_ns;
+  uint64_t rx_unblock_ns;
   uint64_t rx_exit_ns;
   uint64_t unmarshal_enter_ns;
   uint64_t unmarshal_exit_ns;
@@ -103,7 +104,7 @@ static void server_trace_open(void) {
   server_trace_clock_overhead_ns = calibrate_clock_overhead();
   fprintf(server_trace_csv,
           "request_id,xid,worker_id,ok,request_bytes,response_bytes,"
-          "server_rx_enter_ns,server_rx_exit_ns,"
+          "server_rx_enter_ns,server_rx_unblock_ns,server_rx_exit_ns,"
           "server_unmarshal_enter_ns,server_unmarshal_exit_ns,"
           "server_handler_enter_ns,server_handler_exit_ns,"
           "server_marshal_enter_ns,server_marshal_exit_ns,"
@@ -129,13 +130,13 @@ static void server_trace_write(const struct server_trace_row *row) {
           "%" PRIu64 ",%d,%d,%d,%zu,%zu,"
           "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
           "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
-          "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%u\n",
+          "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%u\n",
           row->request_id, row->xid, row->worker_id, row->ok,
           row->request_bytes, row->response_bytes, row->rx_enter_ns,
-          row->rx_exit_ns, row->unmarshal_enter_ns, row->unmarshal_exit_ns,
-          row->handler_enter_ns, row->handler_exit_ns, row->marshal_enter_ns,
-          row->marshal_exit_ns, row->tx_enter_ns, row->tx_exit_ns,
-          server_trace_clock_overhead_ns, 10u);
+          row->rx_unblock_ns, row->rx_exit_ns, row->unmarshal_enter_ns,
+          row->unmarshal_exit_ns, row->handler_enter_ns, row->handler_exit_ns,
+          row->marshal_enter_ns, row->marshal_exit_ns, row->tx_enter_ns,
+          row->tx_exit_ns, server_trace_clock_overhead_ns, 11u);
   pthread_mutex_unlock(&server_trace_lock);
 }
 
@@ -371,7 +372,10 @@ static void *lauberhorn_worker_loop(void *arg) {
     // Receive request from datapath
     if (server_trace_csv)
       trace_row.rx_enter_ns = trace_now_ns();
-    bool got_req = core_eci_rx(dp_base, &w->dp, &desc);
+    bool got_req = core_eci_rx_traced(
+        dp_base, &w->dp, &desc,
+        server_trace_csv ? &trace_row.rx_unblock_ns : NULL,
+        server_trace_csv ? trace_now_ns : NULL);
     if (server_trace_csv)
       trace_row.rx_exit_ns = trace_now_ns();
     if (!got_req)

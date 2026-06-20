@@ -100,8 +100,12 @@ static_assert(
         LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET + LAUBERHORN_ECI_CL_SIZE,
     "preempt control CL should not overlap with RX control CL in next core");
 
-static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
-                               lauberhorn_pkt_desc_t *desc) {
+typedef uint64_t (*lauberhorn_trace_now_fn_t)(void);
+
+static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
+                                      lauberhorn_pkt_desc_t *desc,
+                                      uint64_t *rx_unblock_ns,
+                                      lauberhorn_trace_now_fn_t trace_now) {
 
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
@@ -116,6 +120,8 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   bool valid = lauberhorn_eci_host_ctrl_info_error_valid_extract(rx_ctrl);
   BARRIER; // make sure the CL is actually read
+  if (rx_unblock_ns && trace_now)
+    *rx_unblock_ns = trace_now();
 
   // always toggle CL
   *ctx->rx_next_cl = !rx_parity;
@@ -238,6 +244,11 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 
   // Done
   return valid;
+}
+
+static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
+                               lauberhorn_pkt_desc_t *desc) {
+  return core_eci_rx_traced(base, ctx, desc, NULL, NULL);
 }
 
 static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
