@@ -93,7 +93,10 @@ important fields are:
   `server_tx_exit_ns` is the software point after the response doorbell path has
   completed.
 - `timestamp_overhead_ns`, `timestamp_call_count`: local timestamp overhead
-  estimate and number of runtime probes in the row.
+  estimate and number of runtime probes in the row.  New server rows with
+  `server_rx_unblock_ns` use 11 timestamp probes; older 18-column captures
+  without this field used 10 probes and are still accepted by the plotter as a
+  legacy schema.
 - correctness fields: request/response byte counts and `ok`.
 
 ## Hardware Trace Events
