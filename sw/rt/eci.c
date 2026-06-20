@@ -380,11 +380,11 @@ static void *lauberhorn_worker_loop(void *arg) {
       trace_row.rx_exit_ns = trace_now_ns();
     if (!got_req)
       continue;
-    assert(desc.type == TY_ONCRPC_CALL);
-    hw_handler = desc.oncrpc_server.func_ptr;
+    assert(desc.type == TY_ONCRPC_CALL_RX);
+    hw_handler = desc.oncrpc_call_rx.func_ptr;
     schema = hw_handler->sreg->schema;
     msg = w->msg_bufs[hw_handler->sreg - registered_schemas];
-    trace_row.xid = desc.oncrpc_server.xid;
+    trace_row.xid = desc.oncrpc_call_rx.xid;
     trace_row.request_bytes = desc.payload_len;
 
     // Unmarshal request
@@ -404,7 +404,7 @@ static void *lauberhorn_worker_loop(void *arg) {
     // Call handler
     if (server_trace_csv)
       trace_row.handler_enter_ns = trace_now_ns();
-    msg = hw_handler->func(hw_handler->data, msg, desc.oncrpc_server.xid);
+    msg = hw_handler->func(hw_handler->data, msg, desc.oncrpc_call_rx.xid);
     if (server_trace_csv)
       trace_row.handler_exit_ns = trace_now_ns();
     if (server_trace_csv && schema->trace_check)
@@ -428,8 +428,11 @@ static void *lauberhorn_worker_loop(void *arg) {
     trace_row.response_bytes = to_send;
 
     // Send marshalled response
-    desc.type = TY_ONCRPC_REPLY;
-    // xid and func_ptr stays the same
+    void *reply_func_ptr = desc.oncrpc_call_rx.func_ptr;
+    int reply_xid = desc.oncrpc_call_rx.xid;
+    desc.type = TY_ONCRPC_REPLY_TX;
+    desc.oncrpc_reply_tx.func_ptr = reply_func_ptr;
+    desc.oncrpc_reply_tx.xid = reply_xid;
     desc.payload_len = to_send;
     if (server_trace_csv)
       trace_row.tx_enter_ns = trace_now_ns();

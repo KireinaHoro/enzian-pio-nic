@@ -20,8 +20,10 @@ typedef enum {
   TY_ERROR,
   TY_BYPASS,
   TY_ARP_REQ,
-  TY_ONCRPC_CALL,
-  TY_ONCRPC_REPLY,
+  TY_ONCRPC_CALL_RX,
+  TY_ONCRPC_REPLY_TX,
+  TY_ONCRPC_CALL_TX,
+  TY_ONCRPC_REPLY_RX,
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
@@ -44,7 +46,28 @@ typedef struct {
     struct {
       void *func_ptr;
       int xid;
-    } oncrpc_server;
+    } oncrpc_call_rx;
+    struct {
+      void *func_ptr;
+      int xid;
+    } oncrpc_reply_tx;
+    struct {
+      uint16_t pid;
+      uint32_t cookie;
+      // Network tuple and ONC-RPC header fields are already in wire byte order.
+      uint32_t xid;
+      uint32_t daddr;
+      uint16_t sport;
+      uint16_t dport;
+      uint32_t prog_num;
+      uint32_t prog_ver;
+      uint32_t proc_num;
+    } oncrpc_call_tx;
+    struct {
+      uint16_t pid;
+      uint32_t cookie;
+      uint32_t xid;
+    } oncrpc_reply_rx;
   };
 
   // payload buffer in lauberhorn_core_state_t
@@ -190,17 +213,32 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       break;
 #else // ! __KERNEL__
     case lauberhorn_eci_onc_rpc_call_rx:
-      desc->type = TY_ONCRPC_CALL;
-      desc->oncrpc_server.func_ptr =
+      desc->type = TY_ONCRPC_CALL_RX;
+      desc->oncrpc_call_rx.func_ptr =
           (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               rx_ctrl);
-      desc->oncrpc_server.xid =
+      desc->oncrpc_call_rx.xid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_xid_extract(rx_ctrl);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
       memcpy(ctx->rx_buf,
              rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size,
+             LAUBERHORN_ONCRPC_INLINE_BYTES);
+      desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
+
+      break;
+    case lauberhorn_eci_onc_rpc_reply_rx:
+      desc->type = TY_ONCRPC_REPLY_RX;
+      desc->oncrpc_reply_rx.pid =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_pid_extract(rx_ctrl);
+      desc->oncrpc_reply_rx.cookie =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_cookie_extract(rx_ctrl);
+      desc->oncrpc_reply_rx.xid =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_xid_extract(rx_ctrl);
+
+      memcpy(ctx->rx_buf,
+             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size,
              LAUBERHORN_ONCRPC_INLINE_BYTES);
       desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
 
@@ -309,14 +347,14 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
 #else // ! __KERNEL__
-  case TY_ONCRPC_REPLY:
+  case TY_ONCRPC_REPLY_TX:
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_xid_insert(
-        tx_ctrl, desc->oncrpc_server.xid);
+        tx_ctrl, desc->oncrpc_reply_tx.xid);
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_func_ptr_insert(
-        tx_ctrl, (uint64_t)desc->oncrpc_server.func_ptr);
+        tx_ctrl, (uint64_t)desc->oncrpc_reply_tx.func_ptr);
 
     // tx RPC len field INCLUDES inlined words
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,
@@ -330,6 +368,44 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
     // inlined ONCRPC words
     memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size,
+           copy_from, oncrpc_inlined_bytes);
+    copy_from += oncrpc_inlined_bytes;
+    payload_len -= oncrpc_inlined_bytes;
+    break;
+
+  case TY_ONCRPC_CALL_TX:
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_ty_insert(
+        tx_ctrl, lauberhorn_eci_onc_rpc_call_tx);
+
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_pid_insert(
+        tx_ctrl, desc->oncrpc_call_tx.pid);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_cookie_insert(
+        tx_ctrl, desc->oncrpc_call_tx.cookie);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_xid_insert(
+        tx_ctrl, desc->oncrpc_call_tx.xid);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_daddr_insert(
+        tx_ctrl, desc->oncrpc_call_tx.daddr);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_sport_insert(
+        tx_ctrl, desc->oncrpc_call_tx.sport);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_dport_insert(
+        tx_ctrl, desc->oncrpc_call_tx.dport);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_prog_num_insert(
+        tx_ctrl, desc->oncrpc_call_tx.prog_num);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_prog_ver_insert(
+        tx_ctrl, desc->oncrpc_call_tx.prog_ver);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_proc_insert(
+        tx_ctrl, desc->oncrpc_call_tx.proc_num);
+
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_len_insert(tx_ctrl,
+                                                             payload_len);
+
+    if (payload_len > LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES) {
+      oncrpc_inlined_bytes = LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES;
+    } else {
+      oncrpc_inlined_bytes = payload_len;
+    }
+
+    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size,
            copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;

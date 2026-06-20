@@ -8,7 +8,7 @@ import lauberhorn.host.pcie._
 import lauberhorn.net._
 import lauberhorn.net.ethernet.{EthernetDecoder, EthernetEncoder}
 import lauberhorn.net.ip.{IpDecoder, IpEncoder}
-import lauberhorn.net.oncrpc.{OncRpcCallDecoder, OncRpcReplyEncoder}
+import lauberhorn.net.oncrpc.{OncRpcCallDecoder, OncRpcCallEncoder, OncRpcReplyDecoder, OncRpcReplyEncoder}
 import lauberhorn.net.udp.{UdpDecoder, UdpEncoder}
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
@@ -31,6 +31,7 @@ object GenEngineVerilog {
       new IpDecoder,
       new UdpDecoder,
       new OncRpcCallDecoder,
+      new OncRpcReplyDecoder,
       new DecoderSink,
 
       // packet encoder pipeline
@@ -38,6 +39,7 @@ object GenEngineVerilog {
       new IpEncoder,
       new UdpEncoder,
       new OncRpcReplyEncoder,
+      new OncRpcCallEncoder,
       new EncoderSource,
 
       // scheduler

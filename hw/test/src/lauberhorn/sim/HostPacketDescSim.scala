@@ -44,3 +44,24 @@ trait OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
 trait OncRpcReplyTxPacketDescSim extends OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
   override final def ty = 4
 }
+
+trait OncRpcCallTxPacketDescSim { this: HostPacketDescSim =>
+  def pid: BigInt
+  def cookie: BigInt
+  def xid: BigInt
+  def daddr: BigInt
+  def sport: BigInt
+  def dport: BigInt
+  def progNum: BigInt
+  def progVer: BigInt
+  def proc: BigInt
+  override final def ty = 5
+}
+
+trait OncRpcReplyRxPacketDescSim { this: HostPacketDescSim =>
+  def pid: BigInt
+  def cookie: BigInt
+  def xid: BigInt
+  def args: BigInt
+  override final def ty = 6
+}
