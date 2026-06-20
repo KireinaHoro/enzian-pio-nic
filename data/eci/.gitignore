@@ -2,7 +2,8 @@
 
 # ignore parsed trace outputs
 *.pcapng
-*.csv
+addr_*.csv
+credits*.csv
 *.tar.gz
 
 # only track compressed trace
@@ -12,3 +13,7 @@
 # only track panic txt
 *.txt
 !panic.txt
+
+*.png
+*.pdf
+*_latency_breakdown.csv
