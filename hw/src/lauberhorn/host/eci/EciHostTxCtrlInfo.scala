@@ -57,7 +57,9 @@ case class EciHostTxCtrlInfo() extends Bundle {
         desc.buffer.size := len
       }
       is (HostReqType.oncRpcReplyTx) {
-        desc.data.oncRpcReplyTx.assignSomeByName(data.oncRpcReplyTx)
+        desc.data.oncRpcReplyTx.xid     := data.oncRpcReplyTx.xid
+        desc.data.oncRpcReplyTx.funcPtr := data.oncRpcReplyTx.funcPtr
+        desc.data.oncRpcReplyTx.data    := data.oncRpcReplyTx.data
         desc.data.oncRpcReplyTx.replyLen := len
         when (len.bits > ONCRPC_INLINE_BYTES.get) {
           desc.buffer.size.bits            := len.bits - ONCRPC_INLINE_BYTES.get
@@ -66,7 +68,16 @@ case class EciHostTxCtrlInfo() extends Bundle {
         }
       }
       is (HostReqType.oncRpcCallTx) {
-        desc.data.oncRpcCallTx.assignSomeByName(data.oncRpcCallTx)
+        desc.data.oncRpcCallTx.pid     := data.oncRpcCallTx.pid
+        desc.data.oncRpcCallTx.cookie  := data.oncRpcCallTx.cookie
+        desc.data.oncRpcCallTx.xid     := data.oncRpcCallTx.xid
+        desc.data.oncRpcCallTx.daddr   := data.oncRpcCallTx.daddr
+        desc.data.oncRpcCallTx.sport   := data.oncRpcCallTx.sport
+        desc.data.oncRpcCallTx.dport   := data.oncRpcCallTx.dport
+        desc.data.oncRpcCallTx.progNum := data.oncRpcCallTx.progNum
+        desc.data.oncRpcCallTx.progVer := data.oncRpcCallTx.progVer
+        desc.data.oncRpcCallTx.proc    := data.oncRpcCallTx.proc
+        desc.data.oncRpcCallTx.data    := data.oncRpcCallTx.data
         desc.data.oncRpcCallTx.callLen := len
         when (len.bits > ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
           desc.buffer.size.bits            := len.bits - ONCRPC_NESTED_CALL_INLINE_BYTES.get

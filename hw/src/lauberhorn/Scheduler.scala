@@ -303,7 +303,7 @@ class Scheduler extends FiberPlugin {
         import HostReqType._
         is (oncRpcCallRx) { ret := req.data.oncRpcCallRx.pid }
         is (oncRpcReplyRx) { ret := req.data.oncRpcReplyRx.pid }
-        default { report("scheduler does not support this req type yet", FAILURE) }
+        default { ret.bits := 0 }
       }
     }.ret
 
