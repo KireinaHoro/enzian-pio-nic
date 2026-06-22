@@ -77,7 +77,7 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PKT_DESC_TY_WIDTH, packetType)
-      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 9)
+      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 10)
       .toBigInt
   }
 
