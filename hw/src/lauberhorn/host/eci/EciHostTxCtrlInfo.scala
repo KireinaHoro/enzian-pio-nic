@@ -12,11 +12,11 @@ import scala.language.postfixOps
 case class EciHostTxCtrlInfo() extends Bundle {
   override def clone: EciHostTxCtrlInfo = EciHostTxCtrlInfo()
 
-  val ty = HostReqType()
-  val len = PacketLength()
+  val ty = HostReqType() // 3 bits
+  val len = PacketLength() // 16 bits
   val data = new Union {
     case class BypassBundle() extends Bundle {
-      val ty = PacketDescType()
+      val ty = PacketDescType() // 3 bits
       val xb10 = Bits(10 bits) /* make sure header is word aligned */
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
