@@ -214,9 +214,14 @@
     in pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
       storeContents = map buildLauberhornApp allApps ++ [ kmod commitMarker ];
     };
+
+    dummy-app-build-with-nix = pkgs.callPackage (import ./sw/apps/nix-build-demo/package.nix) {
+      lauberhorn-rt = runtime;
+    };
   in {
     packages = {
       inherit devHdrs kmod runtime deployFs genVerilog;
+      inherit dummy-app-build-with-nix;
     };
 
     # for interactive development
