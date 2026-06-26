@@ -1,0 +1,6 @@
+*.h
+*_clnt.c
+*_xdr.c
+add_client
+bench_client
+*.o

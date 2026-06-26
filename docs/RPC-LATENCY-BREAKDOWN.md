@@ -1,12 +1,12 @@
 # RPC Latency Breakdown
 
-This document describes how the adder-demo latency plot is built from client
+This document describes how the microbenchmarks add latency plot is built from client
 timestamps, server runtime timestamps, and Lauberhorn hardware trace events.  It
 also documents what the current breakdown can and cannot prove.
 
 ## E2E Definition
 
-For adder-demo, end-to-end latency means the elapsed time in the client process
+For the microbenchmarks add benchmark, end-to-end latency means the elapsed time in the client process
 from entering the ONC-RPC client stub call to returning from that call:
 
 ```text
@@ -271,12 +271,12 @@ cpu_fpga_offset_ns =
 ```
 
 This is accurate enough for microsecond-scale bucket attribution in the current
-adder-demo run, but it is still an inferred synchronization, not a hardware
+microbenchmarks add run, but it is still an inferred synchronization, not a hardware
 clock synchronization protocol.
 
 ## Current Adder-Demo Example
 
-For the current adder-demo run, the plotter reported approximately:
+For the current microbenchmarks add run, the plotter reported approximately:
 
 ```text
 P50 = 87.290 us
@@ -332,7 +332,7 @@ server marshal     0.270 us  0.260 us
 2F2F TX HW         0.980 us  0.980 us
 ```
 
-This table was generated from the existing adder-demo server CSV.  If that CSV
+This table was generated from the existing microbenchmarks add server CSV.  If that CSV
 predates `server_rx_unblock_ns`, the RX side is still shown using the legacy
 correlated delivery-to-return estimate.  New captures split this into
 `2F2F RX HW` from the ECI half-RTT estimate and `2F2F RX SW` from the internal

@@ -11,17 +11,17 @@ CFLAGS  := -O2 -g -pipe \
 		   -Iinclude/ -I../../include/
 LDFLAGS := -g -L$(LAUBERHORN_RT) -llauberhorn
 
-APP := adder-demo
+APP := microbenchmarks
 
 all: $(APP)
 
-ALL_SRCS := $(wildcard *.c) add_xdr.c
+ALL_SRCS := $(wildcard *.c) bench_xdr.c
 
-add_xdr.c: add.x add.h
+bench_xdr.c: bench.x bench.h
 	rpcgen -c $< -o $@
-add.h: add.x
+bench.h: bench.x
 	rpcgen -h $< -o $@
-main.c: add.h
+main.c: bench.h
 
 include ../../usr-common.mk
 
@@ -29,5 +29,5 @@ $(APP): $(ALL_OBJS)
 	$(LINK.c) $^ -o $@
 	
 clean:
-	rm -f *.o $(APP)
+	rm -f *.o $(APP) bench.h bench_xdr.c
 	rm -rf $(DEPDIR)
