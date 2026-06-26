@@ -210,7 +210,7 @@
     commitMarker = pkgs.writeText "git-hash" (gitRev + "\n");
 
     deployFs = let
-      allApps = [ "adder-demo" ];
+      allApps = [ "microbenchmarks" ];
     in pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
       storeContents = map buildLauberhornApp allApps ++ [ kmod commitMarker ];
     };

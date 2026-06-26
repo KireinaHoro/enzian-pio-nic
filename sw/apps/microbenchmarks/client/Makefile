@@ -1,24 +1,23 @@
-CLIENT = add_client
+CLIENT = bench_client
 
-SOURCES.x = add.x
-SOURCES_CLNT.c = add_client.c
+SOURCES.x = bench.x
+SOURCES_CLNT.c = bench_client.c
 SOURCES_CLNT.h =
-TARGETS_CLNT.c = add_clnt.c add_xdr.c
-TARGETS_CLNT.h = add.h
+TARGETS_CLNT.c = bench_xdr.c
+TARGETS_CLNT.h = bench.h
 OBJECTS_CLNT = $(SOURCES_CLNT.c:%.c=%.o) $(TARGETS_CLNT.c:%.c=%.o)
 
-CFLAGS += -g -I/usr/include/tirpc
+CFLAGS += -O2 -g -Wall -Wextra -I/usr/include/tirpc
 LDLIBS += -ltirpc -lnsl
 
 all: $(CLIENT)
 .PHONY: all
 
 $(TARGETS_CLNT.c): $(SOURCES.x)
-	rpcgen -l $^ -o add_clnt.c
-	rpcgen -c $^ -o add_xdr.c
+	rpcgen -c $^ -o bench_xdr.c
 
 $(TARGETS_CLNT.h): $(SOURCES.x)
-	rpcgen -h $^ -o add.h
+	rpcgen -h $^ -o bench.h
 
 $(OBJECTS_CLNT): $(SOURCES_CLNT.c) $(SOURCES_CLNT.h) $(TARGETS_CLNT.c) $(TARGETS_CLNT.h)
 
