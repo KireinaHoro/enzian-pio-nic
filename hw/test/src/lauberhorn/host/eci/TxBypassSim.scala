@@ -226,29 +226,6 @@ class TxBypassSim extends NicSim {
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000)
 
-    // serve ARP resolve request in kernel
-    var reqServed = false
-    setBypassCore(() => {
-      val (info, _) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = 1).result.get
-      val arpReq = info.asInstanceOf[TxArpReqSim]
-      val addr = InetAddress.getByAddress(arpReq.ipAddr.toBytesLE.toArray)
-      println(s"Received ARP request to $addr on table entry #${arpReq.neighTblIdx}")
-      assert(addr == ipDst, "received ARP request for wrong IP address")
-
-      // check if neighbor entry is in `incomplete`
-      csrMaster.write(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_idx"), arpReq.neighTblIdx.toBytesLE)
-      val addrInTbl = csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_ipAddr"), 4)
-      assert(addrInTbl.toArray sameElements addr.getAddress, "entry waiting for ARP does not have the same address")
-      assert(csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_state"), 1).bytesToBigInt == 1, "entry waiting for ARP is not in `incomplete` state")
-
-      // update entry and resend packet
-      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), ipDst.getAddress.toList)
-      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), macDst.getAddress.toList)
-      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
-      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), arpReq.neighTblIdx.toBytesLE)
-      reqServed = true
-    })
-
     // enable one thread on worker 0
     val thr = mkRandomProc(1).threads.head
     workerCore(0).switchToThread(thr, csrMaster)
@@ -257,9 +234,38 @@ class TxBypassSim extends NicSim {
     // send one IP packet without programming the neighbor table first
     val pld = ipPkt.getPayload.getRawData.toList
     val desc = TxIpCmdSim(pld.length, ipDst, ipPkt.getHeader.getProtocol.value.toInt)
-    txSendSingle(dcsMaster, desc, pld, tid)
 
-    waitUntil(reqServed)
+    // serve neighbor misses in kernel.  The first packet creates the incomplete
+    // entry; the second packet should still be delivered as a miss.
+    var reqsSeen = 0
+    setBypassCore(() => {
+      val (info, pldDesc) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = 1).result.get
+      val miss = info.asInstanceOf[TxNeighborMissSim]
+      val addr = InetAddress.getByAddress(miss.ipAddr.toBytesLE.toArray)
+      println(s"Received neighbor miss to $addr on table entry #${miss.neighTblIdx}")
+      assert(addr == ipDst, "received neighbor miss for wrong IP address")
+      assert(miss.len == pld.length, "neighbor miss payload length is wrong")
+      assert(readPayload(dcsMaster, pldDesc, miss.len) == pld, "neighbor miss did not carry raw IP payload")
+
+      // check if neighbor entry is in `incomplete`
+      csrMaster.write(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_idx"), miss.neighTblIdx.toBytesLE)
+      val addrInTbl = csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_ipAddr"), 4)
+      assert(addrInTbl.toArray sameElements addr.getAddress, "entry waiting for ARP does not have the same address")
+      assert(csrMaster.read(ALLOC.readBack("IpEncoder")("stat", "neigh_readback_state"), 1).bytesToBigInt == 1, "entry waiting for ARP is not in `incomplete` state")
+
+      reqsSeen += 1
+      if (reqsSeen == 2) {
+        // update entry and resend packet
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), ipDst.getAddress.toList)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), macDst.getAddress.toList)
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE) // reachable
+        csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), miss.neighTblIdx.toBytesLE)
+      }
+    })
+
+    txSendSingle(dcsMaster, desc, pld, tid)
+    txSendSingle(dcsMaster, desc, pld, tid)
+    waitUntil(reqsSeen == 2)
 
     var checked = false
     fork {

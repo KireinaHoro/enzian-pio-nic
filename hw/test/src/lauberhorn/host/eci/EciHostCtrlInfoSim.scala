@@ -42,10 +42,12 @@ object EciHostCtrlInfoSim {
           dp.pop(PKT_DESC_TY_WIDTH),
           dp.pop(BYPASS_HDR_WIDTH, skip = 9))
       case 2 =>
-        assert(len == 0, "ARP request should not carry extra data")
-        TxArpReqSim(
+        TxNeighborMissSim(
+          len.toInt,
           dp.pop(log2Up(NUM_NEIGHBOR_ENTRIES)).toInt,
-          dp.pop(32, skip = 9).toInt
+          dp.pop(32, skip = 9).toInt,
+          dp.pop(32).toInt,
+          dp.pop(8).toInt
         )
       case 3 =>
         val xid = dp.pop(32, skip = 12)
@@ -88,10 +90,13 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
 
 case class RxBypassCtrlInfoSim(len: Int, packetType: BigInt, packetHdr: BigInt) extends BypassCtrlInfoSim
 
-case class TxArpReqSim(neighTblIdx: Int, ipAddr: Int) extends EciHostCtrlInfoSim with ArpReqPacketDescSim {
-  /** not implemented due to ARP request descriptor never sent out */
+case class TxNeighborMissSim(len: Int,
+                             neighTblIdx: Int,
+                             ipAddr: Int,
+                             saddr: Int,
+                             proto: Int) extends EciHostCtrlInfoSim with NeighborMissPacketDescSim {
+  /** not implemented due to neighbor miss descriptor never sent out */
   def encode: BigInt = ???
-  def len = 0
 }
 
 case class TxEthernetCmdSim(len: Int, dst: MacAddress, proto: Short) extends BypassCtrlInfoSim {

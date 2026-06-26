@@ -8,7 +8,7 @@
 //   - expire ARP table entries and delete them
 // - run poll loop for bypass core to fetch (as part of NAPI)
 //   - bypass packets: feed into a network device
-//   - ARP resolve request from TX pipeline: send out ARP request
+//   - neighbor miss from TX pipeline: hand packet to Linux IP output
 //
 // The bypass core polling loop does not delay responses.  The FPI number
 // 15 to core 0 will be used to notify the CPU that the bypass queue is
@@ -18,11 +18,14 @@
 #include "common.h"
 
 #include <linux/etherdevice.h>
+#include <linux/ip.h>
 #include <linux/netdevice.h>
 #include <linux/inetdevice.h>
 #include <net/neighbour.h>
 #include <net/netevent.h>
 #include <net/arp.h>
+#include <net/ip.h>
+#include <net/route.h>
 
 #include "cmac_dev.h"
 #include "eci/core.h"
@@ -378,48 +381,109 @@ static void write_hw_neigh_tbl(struct netdev_priv *priv, __be32 dst,
 	lauberhorn_eci_IpEncoder_ctrl_neigh_idx_wr(&priv->IpEncoder_dev, idx);
 }
 
-static void rx_handle_arp(lauberhorn_pkt_desc_t *desc, struct netdev_priv *priv)
-{
-	struct neighbour *nei;
-	__be32 dst = desc->arp_req.ip_addr;
-	int idx = desc->arp_req.neigh_tbl_idx;
-	BUG_ON(desc->type != TY_ARP_REQ);
-
-	// update shadow ARP cache table
-	priv->arp_cache[idx] = dst;
-
-	nei = neigh_lookup(&arp_tbl, &dst, priv->dev);
-	if (nei) {
-		if (nei->nud_state & NUD_VALID) {
-			// we have a valid MAC address, program into hardware
-			dev_info(
-				&priv->dev->dev,
-				"ARP HW entry %d: programming existing entry %pI4 -> %pM\n",
-				idx, &dst, nei->ha);
-			write_hw_neigh_tbl(priv, dst, nei->ha, idx,
-					   lauberhorn_eci_neigh_reachable);
-		}
-		// if not connected, let trigger handle update
-		dev_info(
-			&priv->dev->dev,
-			"ARP HW entry %d: entry exists but not valid for %pI4, "
-			"waiting for ARP state change\n",
-			idx, &dst);
-	} else {
-		// trigger lookup
-		dev_info(&priv->dev->dev, "Triggering ARP lookup for %pI4\n",
-			 &dst);
-		nei = neigh_event_ns(&arp_tbl, NULL, &dst, priv->dev);
-	}
-
-	neigh_release(nei);
-}
-
 typedef enum {
 	POLL_NACK,
 	POLL_WORK_DONE,
 	POLL_ALLOC_FAIL,
 } poll_result_t;
+
+static poll_result_t rx_handle_neighbor_miss(lauberhorn_pkt_desc_t *desc,
+					     struct netdev_priv *priv)
+{
+	struct neighbour *nei;
+	struct net_device *dev = priv->dev;
+	struct sk_buff *skb;
+	struct iphdr *iph;
+	struct rtable *rt;
+	struct flowi4 fl4 = {};
+	__be32 dst = desc->neighbor_miss.ip_addr;
+	int idx = desc->neighbor_miss.neigh_tbl_idx;
+	u16 pld_len = desc->payload_len;
+	u16 ip_len = sizeof(struct iphdr) + pld_len;
+	int err;
+
+	BUG_ON(desc->type != TY_NEIGHBOR_MISS);
+
+	// update shadow ARP cache table
+	priv->arp_cache[idx] = dst;
+
+	nei = neigh_lookup(&arp_tbl, &dst, dev);
+	if (nei) {
+		if (nei->nud_state & NUD_VALID) {
+			// we have a valid MAC address, program into hardware
+			dev_info(
+				&dev->dev,
+				"ARP HW entry %d: programming existing entry %pI4 -> %pM\n",
+				idx, &dst, nei->ha);
+			write_hw_neigh_tbl(priv, dst, nei->ha, idx,
+					   lauberhorn_eci_neigh_reachable);
+		}
+		dev_info(
+			&dev->dev,
+			"ARP HW entry %d: entry exists but not valid for %pI4, "
+			"handing packet to Linux output path\n",
+			idx, &dst);
+		neigh_release(nei);
+	}
+
+	skb = alloc_skb(LL_RESERVED_SPACE(dev) + ip_len, GFP_ATOMIC);
+	if (!skb) {
+		dev_warn(&dev->dev, "failed to allocate neighbor miss skb\n");
+		dev->stats.tx_dropped++;
+		return POLL_ALLOC_FAIL;
+	}
+
+	skb_reserve(skb, LL_RESERVED_SPACE(dev));
+	iph = skb_put(skb, sizeof(*iph));
+	iph->version = 4;
+	iph->ihl = 5;
+	iph->tos = 0;
+	iph->tot_len = htons(ip_len);
+	iph->id = 0;
+	iph->frag_off = htons(IP_DF);
+	iph->ttl = 64;
+	iph->protocol = desc->neighbor_miss.proto;
+	iph->check = 0;
+	iph->saddr = desc->neighbor_miss.saddr;
+	iph->daddr = dst;
+	iph->check = ip_fast_csum((u8 *)iph, iph->ihl);
+	skb_put_data(skb, priv->ctx.rx_buf, pld_len);
+
+	skb->dev = dev;
+	skb->protocol = htons(ETH_P_IP);
+	skb->ip_summed = CHECKSUM_NONE;
+	skb_reset_network_header(skb);
+
+	fl4.flowi4_oif = dev->ifindex;
+	fl4.daddr = dst;
+	fl4.saddr = desc->neighbor_miss.saddr;
+	fl4.flowi4_proto = desc->neighbor_miss.proto;
+
+	rt = ip_route_output_key(dev_net(dev), &fl4);
+	if (IS_ERR(rt)) {
+		dev_warn(&dev->dev,
+			 "failed to route neighbor miss packet for %pI4: %ld\n",
+			 &dst, PTR_ERR(rt));
+		kfree_skb(skb);
+		dev->stats.tx_dropped++;
+		return POLL_WORK_DONE;
+	}
+
+	skb_dst_set(skb, &rt->dst);
+	err = ip_local_out(dev_net(dev), NULL, skb);
+	if (err) {
+		dev_warn(&dev->dev,
+			 "ip_local_out failed for neighbor miss %pI4: %d\n",
+			 &dst, err);
+		dev->stats.tx_dropped++;
+		return POLL_WORK_DONE;
+	}
+
+	dev_dbg(&dev->dev,
+		"handed neighbor miss IP payload len %u for %pI4 to Linux output\n",
+		pld_len, &dst);
+	return POLL_WORK_DONE;
+}
 
 static poll_result_t poll_once(struct napi_struct *n)
 {
@@ -439,9 +503,8 @@ static poll_result_t poll_once(struct napi_struct *n)
 		if (!rx_bypass_pkt(&desc, n, dev))
 			return POLL_ALLOC_FAIL;
 		break;
-	case TY_ARP_REQ:
-		rx_handle_arp(&desc, priv);
-		break;
+	case TY_NEIGHBOR_MISS:
+		return rx_handle_neighbor_miss(&desc, priv);
 	default:
 		dev_warn(&dev->dev, "unsupported host req type %d\n",
 			 desc.type);

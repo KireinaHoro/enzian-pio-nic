@@ -29,7 +29,7 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[lauberhorn.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
+    val ethernet, ip, udp, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, neighborMiss = newElement()
 
     /** Convert a [[PacketDescData]] (generated from a [[HostReqBypassHeaders]] by [[PacketDesc.fromHeaders]]) to
       * [[EncoderMetadata]], for sending to a specific encoder. */
@@ -54,6 +54,7 @@ package object net {
           |  hdr_onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
           |  hdr_onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
           |  hdr_onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
+          |  hdr_neighbor_miss    = 0b111 "Neighbor Miss";
           |};""".stripMargin)
     }
   }
@@ -102,6 +103,26 @@ package object net {
     def traceData: Seq[TraceData] = Seq.empty
   }
 
+  case class NeighborMissMeta() extends Bundle with DecoderMetadata {
+    override def clone = NeighborMissMeta()
+
+    val packetId = UInt(PacketID.width bits)
+    val ipAddr = Bits(32 bits)
+    val neighTblIdx = UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits)
+    val saddr = Bits(32 bits)
+    val proto = Bits(8 bits)
+    val payloadLen = PacketLength()
+
+    def getType = PacketDescType.neighborMiss
+    def getPayloadSize: UInt = payloadLen.bits
+    def collectHeaders: Bits = B(0, BYPASS_HDR_WIDTH bits)
+    def asUnion: PacketDescData = {
+      val ret = PacketDescData().assignDontCare()
+      ret.neighborMissRx.get := this
+      ret
+    }
+  }
+
   case class PacketDescData() extends Union {
     // Used by decoder pipeline
     val ethernetRx = newElement(EthernetRxMeta())
@@ -109,6 +130,7 @@ package object net {
     val udpRx = newElement(UdpRxMeta())
     val oncRpcCallRx = newElement(OncRpcCallRxMeta())
     val oncRpcReplyRx = newElement(OncRpcReplyRxMeta())
+    val neighborMissRx = newElement(NeighborMissMeta())
 
     // Used by encoder pipeline
     val ethernetTx = newElement(EthernetTxMeta())
@@ -137,6 +159,7 @@ package object net {
         is (udp) { ret := metadata.udpRx.getPayloadSize }
         is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.getPayloadSize }
         is (oncRpcReplyRx) { ret := metadata.oncRpcReplyRx.getPayloadSize }
+        is (neighborMiss) { ret := metadata.neighborMissRx.getPayloadSize }
         default { report("packet desc type not supported yet", FAILURE) }
       }
     }.ret
@@ -151,6 +174,7 @@ package object net {
         is (udp) { ret := metadata.udpRx.packetId }
         is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.packetId }
         is (oncRpcReplyRx) { ret := metadata.oncRpcReplyRx.packetId }
+        is (neighborMiss) { ret := metadata.neighborMissRx.packetId }
       }
     }.ret
 

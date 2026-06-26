@@ -61,13 +61,16 @@ case class EciHostRxCtrlInfo() extends Bundle {
     }
     val oncRpcReplyRx = newElement(OncRpcReplyRxBundle())
 
-    /** ECI-specific version of [[lauberhorn.host.HostReqArpRequest]]. */
-    case class ArpReqBundle() extends Bundle {
+    /** ECI-specific version of [[lauberhorn.host.HostReqNeighborMiss]]. */
+    case class NeighborMissBundle() extends Bundle {
       val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 23) = 3b
       val xb9 = Bits(9 bits) /* make sure IP addr is aligned */       // [23: 32) = 9b
       val ipAddr = Bits(32 bits)
+      val saddr = Bits(32 bits)
+      val proto = Bits(8 bits)
+      val xb24 = Bits(24 bits) /* keep mackerel datatype size conventional */
     }
-    val arpReq = newElement(ArpReqBundle())
+    val neighborMiss = newElement(NeighborMissBundle())
   }
 
   // plus one for readStreamBlockCycles
@@ -124,13 +127,16 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  // reply data follows -- need to calculate address manually
          |};
          |
-         |datatype host_ctrl_info_arp_req lsbfirst(64) "ECI Host Control Info (ARP Request for bypass core)" {
+         |datatype host_ctrl_info_neighbor_miss lsbfirst(64) "ECI Host Control Info (Neighbor Miss for bypass core)" {
          |  valid     1 "RX descriptor valid";
-         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be arp_req)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be neighbor_miss)";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of raw IP payload";
          |  tbl_idx   ${log2Up(NUM_NEIGHBOR_ENTRIES)} "Index of INCOMPLETE entry in neighbor table";
          |  _         9 rsvd;
          |  ip_addr   32 "IP address of the target host";
+         |  saddr     32 "Source IPv4 address";
+         |  proto     8  "IPv4 protocol";
+         |  _         24 rsvd;
          |};
          """.stripMargin)
   }
@@ -156,9 +162,10 @@ object EciHostRxCtrlInfo {
         ret.data.oncRpcReplyRx.xb12 := 0
         ret.data.oncRpcReplyRx.xb16 := 0
       }
-      is (HostReqType.arpReq) {
-        ret.data.arpReq.assignSomeByName(desc.data.arpReq)
-        ret.data.arpReq.xb9 := 0
+      is (HostReqType.neighborMiss) {
+        ret.data.neighborMiss.assignSomeByName(desc.data.neighborMiss)
+        ret.data.neighborMiss.xb9 := 0
+        ret.data.neighborMiss.xb24 := 0
       }
     }
     ret.len := desc.len

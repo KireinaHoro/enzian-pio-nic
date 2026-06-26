@@ -176,15 +176,24 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
 
     var reqServed = false
     setBypassCore(() => {
-      val (info, _) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = 1).result.get
-      val arpReq = info.asInstanceOf[TxArpReqSim]
-      val addr = InetAddress.getByAddress(arpReq.ipAddr.toBytesLE.toArray).asInstanceOf[Inet4Address]
+      val (info, pldDesc) = tryReadPacketDesc(dcsMaster, tid = -1, maxTries = 1).result.get
+      val miss = info.asInstanceOf[TxNeighborMissSim]
+      val addr = InetAddress.getByAddress(miss.ipAddr.toBytesLE.toArray).asInstanceOf[Inet4Address]
       assert(addr == remoteIp, s"nested call requested neighbor resolution for wrong IP: $addr")
+      val expectedIpPayload =
+        u16BytesBE(sport) ++
+          u16BytesBE(dport) ++
+          u16BytesBE(8 + 40 + callPayload.length) ++
+          u16BytesBE(0) ++
+          expectedOncRpcCallHeader(xid, prog, progVer, procNum) ++
+          callPayload
+      assert(readPayload(dcsMaster, pldDesc, miss.len) == expectedIpPayload,
+        "nested call neighbor miss did not carry raw IP payload")
 
       csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), remoteIp.getAddress.toList)
       csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), remoteMac.getAddress.toList)
       csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE)
-      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), arpReq.neighTblIdx.toBytesLE)
+      csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), miss.neighTblIdx.toBytesLE)
       reqServed = true
     })
 

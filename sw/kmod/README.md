@@ -6,7 +6,7 @@ The easiest way to compile is to use the Nix flake.  On a `linux-amd64` Nix inst
 (doesn't have to be NixOS!), execute:
 
 ```console
-$ nix build ".#lauberhorn-kmod" -L
+$ nix build ".#kmod" -L
 ```
 
 The result kernel module is in `result/lauberhorn.ko`, correctly cross-compiled and ready
