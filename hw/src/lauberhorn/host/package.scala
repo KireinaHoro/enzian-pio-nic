@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, arpReq, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
+    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -19,7 +19,7 @@ package object host {
            |constants host_req_type width(${HOST_REQ_TY_WIDTH.get}) "Host Request Type" {
            |  error            = 0b000 "Error";
            |  bypass           = 0b001 "Bypass";
-           |  arp_req          = 0b010 "ARP Request";
+           |  neighbor_miss    = 0b010 "Neighbor miss";
            |  onc_rpc_call_rx  = 0b011 "ONC-RPC Server Call RX";
            |  onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
            |  onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
@@ -88,9 +88,11 @@ package object host {
   }
 
   /** Passed to host when the encoder pipeline had a miss in neighbor cache lookup. */
-  case class HostReqArpRequest() extends Bundle {
+  case class HostReqNeighborMiss() extends Bundle {
     val ipAddr = Bits(32 bits)
     val neighTblIdx = UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits)
+    val saddr = Bits(32 bits)
+    val proto = Bits(8 bits)
   }
 
   case class HostReqData() extends Union {
@@ -99,7 +101,7 @@ package object host {
     val oncRpcReplyTx = newElement(HostReqOncRpcReplyTx())
     val oncRpcCallTx = newElement(HostReqOncRpcCallTx())
     val oncRpcReplyRx = newElement(HostReqOncRpcReplyRx())
-    val arpReq = newElement(HostReqArpRequest())
+    val neighborMiss = newElement(HostReqNeighborMiss())
   }
 
   /**

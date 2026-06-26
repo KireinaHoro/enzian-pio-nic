@@ -19,7 +19,7 @@
 typedef enum {
   TY_ERROR,
   TY_BYPASS,
-  TY_ARP_REQ,
+  TY_NEIGHBOR_MISS,
   TY_ONCRPC_CALL_RX,
   TY_ONCRPC_REPLY_TX,
   TY_ONCRPC_CALL_TX,
@@ -42,7 +42,9 @@ typedef struct {
     struct {
       int neigh_tbl_idx;
       uint32_t ip_addr;
-    } arp_req;
+      uint32_t saddr;
+      uint8_t proto;
+    } neighbor_miss;
     struct {
       void *func_ptr;
       int xid;
@@ -161,7 +163,7 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
         lauberhorn_eci_host_ctrl_info_error_ty_extract(rx_ctrl);
 
 #ifdef __KERNEL__
-    if (ty != lauberhorn_eci_bypass && ty != lauberhorn_eci_arp_req) {
+    if (ty != lauberhorn_eci_bypass && ty != lauberhorn_eci_neighbor_miss) {
       pr_err("unexpected RX request type in kernel: %s!\n",
              lauberhorn_eci_host_req_type_describe(ty));
       BUG();
@@ -198,24 +200,29 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
 
       // parsed bypass header is aligned after the descriptor header (still
       // inside ctrl CL)
-      memcpy(ctx->rx_buf, rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_rx_size,
+      memcpy(ctx->rx_buf,
+             rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_rx_size,
              bypass_hdr_len);
       desc->payload_len = bypass_hdr_len;
 
       break;
-    case lauberhorn_eci_arp_req:
-      desc->type = TY_ARP_REQ;
-      desc->arp_req.neigh_tbl_idx =
-          lauberhorn_eci_host_ctrl_info_arp_req_tbl_idx_extract(rx_ctrl);
-      desc->arp_req.ip_addr =
-          lauberhorn_eci_host_ctrl_info_arp_req_ip_addr_extract(rx_ctrl);
+    case lauberhorn_eci_neighbor_miss:
+      desc->type = TY_NEIGHBOR_MISS;
+      desc->neighbor_miss.neigh_tbl_idx =
+          lauberhorn_eci_host_ctrl_info_neighbor_miss_tbl_idx_extract(rx_ctrl);
+      desc->neighbor_miss.ip_addr =
+          lauberhorn_eci_host_ctrl_info_neighbor_miss_ip_addr_extract(rx_ctrl);
+      desc->neighbor_miss.saddr =
+          lauberhorn_eci_host_ctrl_info_neighbor_miss_saddr_extract(rx_ctrl);
+      desc->neighbor_miss.proto =
+          lauberhorn_eci_host_ctrl_info_neighbor_miss_proto_extract(rx_ctrl);
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
     case lauberhorn_eci_onc_rpc_call_rx:
       desc->type = TY_ONCRPC_CALL_RX;
-      desc->oncrpc_call_rx.func_ptr =
-          (void *)lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
+      desc->oncrpc_call_rx.func_ptr = (void *)
+          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               rx_ctrl);
       desc->oncrpc_call_rx.xid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_xid_extract(rx_ctrl);
@@ -233,7 +240,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->oncrpc_reply_rx.pid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_pid_extract(rx_ctrl);
       desc->oncrpc_reply_rx.cookie =
-          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_cookie_extract(rx_ctrl);
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_cookie_extract(
+              rx_ctrl);
       desc->oncrpc_reply_rx.xid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_xid_extract(rx_ctrl);
 

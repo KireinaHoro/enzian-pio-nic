@@ -30,7 +30,7 @@ trait BypassPacketDescSim { this: HostPacketDescSim =>
   override final def ty = 1
 }
 
-trait ArpReqPacketDescSim { this: HostPacketDescSim =>
+trait NeighborMissPacketDescSim { this: HostPacketDescSim =>
   override final def ty = 2
 }
 

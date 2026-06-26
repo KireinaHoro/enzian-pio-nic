@@ -3,12 +3,11 @@ package lauberhorn.net.ip
 import jsteward.blocks.axi.AxiStreamInjectHeader
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global.{NUM_NEIGHBOR_ENTRIES, REG_WIDTH}
-import lauberhorn.{HostMsgID, MacInterfaceService, PacketID}
-import lauberhorn.host.{BypassCmdSink, HostReqType}
+import lauberhorn.{MacInterfaceService, PacketID, RxPacketDescWithSource}
 import spinal.core._
 import spinal.lib._
-import lauberhorn.net.{Encoder, invalidTraceId}
-import lauberhorn.net.ethernet.{EthernetEncoder, EthernetRxMeta, EthernetTxMeta}
+import lauberhorn.net.{DecoderOutput, DecoderSinkService, Encoder}
+import lauberhorn.net.ethernet.{EthernetEncoder, EthernetTxMeta}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis.Axi4Stream
 import spinal.lib.bus.regif.AccessType
@@ -51,7 +50,6 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig
 
-  val bypassSink = during setup host[BypassCmdSink].getSink()
   val logic = during setup new Area {
     val md = Stream(IpTxMeta())
     val pld = Axi4Stream(axisConfig)
@@ -60,6 +58,22 @@ class IpEncoder extends Encoder[IpTxMeta] {
     val outPld = Axi4Stream(axisConfig)
     to[EthernetTxMeta, EthernetEncoder](outMd, outPld)
     outMd.setIdle()
+
+    val neighborMissDesc = Stream(RxPacketDescWithSource())
+    val neighborMissPld = Axi4Stream(axisConfig)
+    val neighborMissPayloadAck = Bool()
+    val neighborMissDropped = Bool()
+
+    host[DecoderSinkService].consume(DecoderOutput(
+      priority = 100,
+      name = "IpEncoderNeighborMiss",
+      desc = neighborMissDesc,
+      pld = neighborMissPld,
+      payloadAck = neighborMissPayloadAck,
+      dropped = neighborMissDropped,
+    ))
+
+    neighborMissPld.setIdle()
 
     // TODO: take ingress IP packet events from decoder and update counter/timer
     //       to allow bypass core to refresh its timer
@@ -77,6 +91,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     encoder.io.header.setIdle()
     encoder.io.output >> outPld
 
+
     // We look up the destination MAC address from our neighbor table.
     // Neighbor table entries are in Big Endian
     val neighborDb = LookupTable(IpNeighborDef(), NUM_NEIGHBOR_ENTRIES) { v =>
@@ -89,8 +104,8 @@ class IpEncoder extends Encoder[IpTxMeta] {
     }
     allocLookup.valid := True
     allocResult.ready := True
-    bypassSink.payload.setAsReg().initZero()
-    bypassSink.valid := False
+    neighborMissDesc.setIdle()
+    neighborMissDropped := False
 
     val (neighLookup, neighResult, neighLat) = neighborDb.makePort(Bits(32 bits), Bits(32 bits),
       "txLookup", singleMatch = true) { (v, q, _) =>
@@ -128,6 +143,9 @@ class IpEncoder extends Encoder[IpTxMeta] {
 
     val savedIpHdr = Reg(IpHeader())
     val savedPacketId = Reg(UInt(PacketID.width bits))
+    val savedPldLen = Reg(UInt(16 bits))
+    val missIpAddr = Reg(Bits(32 bits))
+    val missNeighTblIdx = Reg(UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits))
     val csumNext = nextIpHdr.calcCsum()
     val csumLat = LatencyAnalysis(nextIpHdr.ihl, csumNext)
 
@@ -140,6 +158,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     when (md.fire) {
       savedIpHdr := nextIpHdr
       savedPacketId := md.packetId
+      savedPldLen := md.pldLen
     }
     when (Delay(md.fire, csumLat)) {
       savedIpHdr.csum := csumNext
@@ -175,14 +194,9 @@ class IpEncoder extends Encoder[IpTxMeta] {
                 neighTblFull.increment()
               }
 
-              bypassSink.payload.hostMsgId := invalidTraceId(HostMsgID.width)
-              bypassSink.payload.req.buffer.size.bits := 0
-              bypassSink.payload.req.buffer.addr.bits := 0
-              bypassSink.payload.req.len.bits := 0
-              bypassSink.payload.req.ty := HostReqType.arpReq
-              bypassSink.payload.req.data.arpReq.ipAddr := neighResult.userData
-              bypassSink.payload.req.data.arpReq.neighTblIdx := allocResult.idx
-              goto(sendArpReq)
+              missIpAddr := neighResult.userData
+              missNeighTblIdx := allocResult.idx
+              goto(sendNeighborMissDesc)
             } elsewhen (neighResult.value.state === IpNeighborEntryState.reachable) {
               // IP address REACHABLE in neighbor table:
               // - send IP header to encoder
@@ -190,26 +204,40 @@ class IpEncoder extends Encoder[IpTxMeta] {
               destMac := neighResult.value.macAddr
               goto(sendDownstreamMd)
             } otherwise {
-              // IP address INCOMPLETE in neighbor table: drop packet payload
-              goto(dropPld)
+              // IP address INCOMPLETE in neighbor table: deliver every missed
+              // packet to the kernel slow path.
+              missIpAddr := neighResult.userData
+              missNeighTblIdx := neighResult.idx
+              goto(sendNeighborMissDesc)
             }
           }
         }
       }
-      val sendArpReq: State = new State {
+      val sendNeighborMissDesc: State = new State {
         whenIsActive {
-          // enqueue ARP request to bypass core, then drop packet payload
-          bypassSink.valid := True
-          when (bypassSink.ready) {
-            goto(dropPld)
+          neighborMissDesc.valid := True
+          neighborMissDesc.isBypass := True
+          neighborMissDesc.desc.ty := lauberhorn.net.PacketDescType.neighborMiss
+          neighborMissDesc.desc.metadata.assignDontCare()
+          neighborMissDesc.desc.metadata.neighborMissRx.packetId := savedPacketId
+          neighborMissDesc.desc.metadata.neighborMissRx.ipAddr := missIpAddr
+          neighborMissDesc.desc.metadata.neighborMissRx.neighTblIdx := missNeighTblIdx
+          neighborMissDesc.desc.metadata.neighborMissRx.saddr := savedIpHdr.saddr
+          neighborMissDesc.desc.metadata.neighborMissRx.proto := savedIpHdr.proto
+          neighborMissDesc.desc.metadata.neighborMissRx.payloadLen.bits := savedPldLen
+          when (neighborMissDesc.ready) {
+            when (savedPldLen === 0) {
+              goto(idle)
+            } otherwise {
+              goto(sendNeighborMissPld)
+            }
           }
         }
       }
-      val dropPld: State = new State {
+      val sendNeighborMissPld: State = new State {
         whenIsActive {
-          pld.ready := True
+          pld >> neighborMissPld
           when (pld.lastFire) {
-            dropped.increment()
             goto(idle)
           }
         }

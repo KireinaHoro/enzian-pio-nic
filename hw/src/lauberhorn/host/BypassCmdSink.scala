@@ -14,7 +14,7 @@ import scala.collection.mutable
 /** Collects different sources of commands for the bypass core and muxes them
   * to the bypass datapath service.  Currently the following sources exist:
   *  - [[lauberhorn.DmaControlPlugin]]: for bypass packets that do not go to [[lauberhorn.Scheduler]]
-  *  - [[lauberhorn.net.ip.IpEncoder]]: to signal a pending ARP request
+  *  - [[lauberhorn.net.ip.IpEncoder]]: to signal a pending neighbor miss
   * */
 class BypassCmdSink extends FiberPlugin {
   lazy val bypassDp = host.list[DatapathService].head

@@ -135,7 +135,13 @@ class DmaControlPlugin extends FiberPlugin {
             nextRxHostMsgId := nextRxHostMsgId + 1
             rxEnqueueTraceEmitted := False
 
-            when (incomingDesc.isBypass) {
+            when (incomingDesc.desc.ty === PacketDescType.neighborMiss) {
+              pktToEnqueue.ty := HostReqType.neighborMiss
+              pktToEnqueue.data.neighborMiss.ipAddr := incomingDesc.desc.metadata.neighborMissRx.ipAddr
+              pktToEnqueue.data.neighborMiss.neighTblIdx := incomingDesc.desc.metadata.neighborMissRx.neighTblIdx
+              pktToEnqueue.data.neighborMiss.saddr := incomingDesc.desc.metadata.neighborMissRx.saddr
+              pktToEnqueue.data.neighborMiss.proto := incomingDesc.desc.metadata.neighborMissRx.proto
+            } elsewhen (incomingDesc.isBypass) {
               pktToEnqueue.ty := HostReqType.bypass
               pktToEnqueue.data.bypassMeta.ty := incomingDesc.desc.ty
               pktToEnqueue.data.bypassMeta.hdr := incomingDesc.desc.collectHeaders
@@ -238,7 +244,7 @@ class DmaControlPlugin extends FiberPlugin {
             }
           }
 
-          when (pktToEnqueue.ty === HostReqType.bypass) {
+          when (pktToEnqueue.ty === HostReqType.bypass || pktToEnqueue.ty === HostReqType.neighborMiss) {
             val hostRx = bypassSink.get
             rxTp.trace(
               "RxBypassEnqueueToHost",
