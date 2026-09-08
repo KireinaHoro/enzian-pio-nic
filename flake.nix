@@ -43,6 +43,7 @@
 
     # get kernel tree for building module
     # unpack Noble linux headers deb to get Modules.symvers and config
+    kernelRelease = "6.8.0-64-generic";
     linux-noble-src = let
       genericDeb = pkgs.fetchurl {
         url = http://launchpadlibrarian.net/799672062/linux-headers-6.8.0-64-generic_6.8.0-64.67_arm64.deb;
@@ -66,13 +67,15 @@
         mkdir sysroot
         dpkg-deb -x ${genericDeb} sysroot/
         for a in .config Module.symvers; do
-          cp sysroot/usr/src/linux-headers-6.8.0-64-generic/$a .
+          cp sysroot/usr/src/linux-headers-${kernelRelease}/$a .
         done
         rm -rf sysroot
 
         cp .config .config.bak
-        make olddefconfig
-        make modules_prepare
+        # Ubuntu's ABI release differs from the upstream Makefile version.
+        # Generate matching utsrelease.h and kernel.release through Kbuild.
+        make KERNELRELEASE=${kernelRelease} olddefconfig
+        make KERNELRELEASE=${kernelRelease} modules_prepare
       '';
       installPhase = ''
         mkdir -p $out
@@ -145,9 +148,16 @@
         export CROSS_COMPILE=aarch64-unknown-linux-gnu-
         export KDIR=${linux-noble-src}
         cd sw/kmod
-        make V=1 \
+        make V=1 KERNELRELEASE=${kernelRelease} \
           MACKEREL_DEV_HDRS=${devHdrs} \
           HW_CFG_HDRS=${genVerilog.headers}
+      '';
+      doCheck = true;
+      checkPhase = ''
+        runHook preCheck
+        aarch64-unknown-linux-gnu-readelf -p .modinfo lauberhorn.ko \
+          | grep -F 'vermagic=${kernelRelease} '
+        runHook postCheck
       '';
       installPhase = ''
         mkdir -p $out

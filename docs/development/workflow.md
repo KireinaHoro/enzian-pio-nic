@@ -30,7 +30,9 @@ Do not invoke plain `make` after RTL generation and assume all prerequisites exi
 
 ## Deployment and debugging
 
+- For reservation, automated BDK hold, JTAG programming and RPC smoke testing, see [real hardware testing](hardware-test.md).
 - Keep FPGA image, generated headers, module and runtime from a matching revision/configuration. Generation embeds a shortened Git revision; dirty Nix builds use an unknown-version marker. Preserve provenance separately for experiments.
+- The module build must pass Ubuntu's `KERNELRELEASE=6.8.0-64-generic` during kernel preparation and module compilation; the source Makefile's upstream `6.8.12` version is not the boot kernel release. The flake checks the built module's vermagic. Verify it against `uname -r` before loading.
 - On the target, `insmod lauberhorn.ko` initializes `/dev/lauberhorn` and bypass netdev `lauberhorn0`. Follow [kernel module usage](../../sw/kmod/README.md) for interface setup; MAC addresses in examples are machine-specific. Hardware access and module loading require target access/privilege.
 - For trace acquisition/export, use [trace tool instructions](../../data/eci/sys_trace/README.md) and [trace architecture](tracing.md). Pair dumps with the trace-map JSON from the matching FPGA build. The Nix `genVerilog` default output currently does not retain this map.
 
