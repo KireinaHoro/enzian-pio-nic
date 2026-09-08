@@ -19,7 +19,10 @@ RPC workers use isolated cores and run tasks to finish; timeout/recovery policy
 and queue-pair/DCU coloring remain open. The planned evaluation uses Demikernel
 as its primary baseline, with Dandelion, an RPC server, userspace NFS, memcached,
 and a consensus service such as etcd/Raft. The [Dandelion student project](docs/research/dandelion.md)
-provides a mock-based port and nested-call runtime reference.
+provides a mock-based port and nested-call runtime reference. Finished external
+[TCP and Protobuf projects](docs/research/grpc-roadmap.md) are planned for
+integration after the higher-priority applications, with fully offloaded gRPC
+as a potential follow-on paper.
 
 ## Documentation
 

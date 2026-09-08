@@ -15,7 +15,7 @@ Inspected 2026-09-08. “Present” means source exists and is wired into the ge
 | DCU progress/concurrent QPs | [Progress analysis](coherence-progress.md), `host/eci/DcsTxAxiRouter.scala`, `EciDecoupledRxTxProtocol.scala`: current RX/TX layout aliases control colors. Bypass RX/TX serialization is a workaround; neither distinct physical blocks nor a thread router proves safe concurrent progress. |
 | Router ownership decision | [Thread-router tradeoffs](queue-pair-design.md) proposes alternatives; current generator still installs `EciThreadClRouter`. Fixed worker QPs are not the implemented design. |
 | Table scaling and spill | `Global.scala` explicitly attributes small tables to fully connected lookup routing/placement cost. [Lookup spill design](lookup-spill.md) is a proposal for hardware caches and typed software slow paths, not implemented general spill support. |
-| TCP/HTTP/gRPC | `hw/src/lauberhorn/net/{Tcp,Http,Grpc}.scala` are empty classes. The spill note references an **unmerged** TCP tree; do not describe its features as present here. |
+| TCP/HTTP/gRPC | `hw/src/lauberhorn/net/{Tcp,Http,Grpc}.scala` are empty classes. Finished external [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects exist; they are unmerged. Integration follows first-paper application work; see [gRPC roadmap](../research/grpc-roadmap.md). |
 | PCIe parity | Legacy bridge/datapath/test sources exist, but `host/pcie/PciePreemptionControlPlugin.scala::preemptReq` is `???`, and `PcieDatapathPlugin.scala` flags unreliable TX triggering in a shared register word. Current PCIe generation/runtime parity needs validation and implementation work. |
 | Coupled worker protocol | Generator TODO proposes coupled worker RX/TX; all current datapaths use `EciDecoupledRxTxProtocol`. |
 | Network completeness | IPv4 validation/options, default-gateway behavior, malformed call handling, and richer argument handling have TODOs in `net/ip/{IpDecoder,IpEncoder}.scala` and `net/oncrpc/OncRpcCallDecoder.scala`. Existing ONC-RPC inline fields are not a general serialization engine. |
@@ -35,5 +35,5 @@ The maintainer confirms QP ownership/DCU design remains open. Worker CPUs are is
 
 1. Keep stable thread-owned mappings and dynamic routing, or move to fixed worker-owned QPs? If keeping the router, who enforces compatible DCU colors for each scheduled active set?
 2. What concurrent worker/full-duplex bypass count should the new address layout guarantee, and is a creation cap acceptable or must admission be dynamic?
-3. Is PCIe a maintained target or historical comparison? Is merging the separate TCP work part of this paper's required scope?
+3. Is PCIe a maintained target or historical comparison? TCP/Protobuf integration is confirmed lower priority than first-paper applications; exact merge order remains open.
 4. Are coupled RPC worker protocols and memory-backed lookup/spill paths committed milestones, and which is first? Existing TODOs/proposals establish possibilities, not priority.
