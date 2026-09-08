@@ -1,0 +1,177 @@
+// Lauberhorn userspace runtime: init/fini and global state
+
+#include "lauberhorn.h"
+
+#include "config.h"
+#include "fiber/fiber_pool.h"
+#include "ioctl.h"
+#include "lauberhorn_state.h"
+#include "log.h"
+#include "pending_call_table.h"
+#include "srv_table.h"
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#define LAUBERHORN_DEV_PATH "/dev/lauberhorn"
+
+volatile sig_atomic_t lauberhorn_is_running;
+int lauberhorn_fd;
+struct pending_call_table pending_call_table;
+struct srv_table srv_table;
+
+static void sigint_handler(int signo) {
+    assert(signo == SIGINT);
+    lauberhorn_is_running = 0;
+
+    LOG("SIGINT received, shutting down...");
+    int err = ioctl(lauberhorn_fd, LAUBERHORN_IOCTL_WAKE_ALL_WORKERS, NULL);
+    if (err) {
+        PERROR("wake all workers");
+    }
+    exit(0);
+}
+
+int lauberhorn_init(lauberhorn_t *ctx) {
+    struct sigaction sa = {
+        .sa_handler = sigint_handler,
+        .sa_flags = SA_RESTART, // resume join in main
+    };
+    int err;
+
+    int page_size = getpagesize();
+
+    LOG("initializing");
+
+    ctx->fd = open(LAUBERHORN_DEV_PATH, O_RDWR);
+    lauberhorn_fd = ctx->fd;
+    if (ctx->fd < 0) {
+        PERROR("open device file");
+        return -1;
+    }
+
+    ctx->parity_page =
+        mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, ctx->fd, 0);
+    if (ctx->parity_page == MAP_FAILED) {
+        PERROR("map parity page");
+        close(ctx->fd);
+        return -1;
+    }
+
+    // register SIGINT handler
+    err = sigaction(SIGINT, &sa, NULL);
+    if (err) {
+        PERROR("handle SIGINT");
+        close(ctx->fd);
+        return -1;
+    }
+
+    // initialize global state
+    pending_call_table_init(&pending_call_table);
+    srv_table_init(&srv_table);
+
+    LOG("app initialized");
+    return 0;
+}
+
+void lauberhorn_fini(lauberhorn_t *ctx) { close(ctx->fd); }
+
+int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t handler,
+                       uint32_t prog_num, uint32_t prog_ver,
+                       uint32_t proc_num, uint16_t listen_port,
+                       rpc_codec_t *codec) {
+    int err;
+
+    // atomically acquire a slot in the service registry and populate it
+    struct srv *srv_reg = srv_table_acquire(&srv_table);
+    if (!srv_reg) {
+        PERROR("no more free srv slots");
+        return -1;
+    }
+    srv_reg->codec = *codec;
+    srv_reg->prog_num = prog_num;
+    srv_reg->prog_ver = prog_ver;
+
+    // Create hardware handler
+    struct lauberhorn_hw_handler *hw = calloc(1, sizeof(*hw));
+    if (!hw) {
+        PERROR("allocate hw handler");
+        return -1;
+    }
+
+    hw->handler = handler;
+    hw->srv = srv_reg;
+    srv_reg->hw = hw;
+
+    // Register with hardware
+    lauberhorn_reg_srv_t cmd = {.prog_num = prog_num,
+                                .prog_ver = prog_ver,
+                                .proc_num = proc_num,
+                                .port = listen_port,
+                                .func_ptr = hw};
+
+    err = ioctl(ctx->fd, LAUBERHORN_IOCTL_REG_SRV, &cmd);
+    if (err) {
+        PERROR("register service with hardware");
+        goto free_hw;
+    }
+
+    // Register this service with the local port mapper, so that the remote
+    // client can find it automatically
+    // pmap_set returns 1 on succes, 0 on failure
+    err = pmap_set(prog_num, prog_ver, IPPROTO_UDP, listen_port);
+    if (!err) {
+        LOG("failed to register with portmapper");
+        goto dereg_srv;
+    }
+    srv_reg->srv_id = cmd.id;
+    return srv_reg->idx;
+
+dereg_srv:
+    ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &cmd.id);
+
+free_hw:
+    free(hw);
+    return -1; 
+}
+
+// can only be called once after successful registration
+// anything else is undefined behavior
+int lauberhorn_dereg_srv(lauberhorn_t *ctx, int srv_id) {
+    int err;
+
+    struct srv *srv_reg = srv_table_get(&srv_table, srv_id);
+
+    if (!srv_reg) {
+        LOG("noregistered service for srv_id %d", srv_id);
+        return -1;
+    }
+
+    // Deregister with portmapper
+    // pmap_unset returns 1 on success, 0 on failure
+    err = pmap_unset(srv_reg->prog_num, srv_reg->prog_ver);
+    if (!err) {
+        LOG("failed to deregister with portmapper");
+    }
+
+    // Deregister with hardware
+    err = ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &srv_reg->srv_id);
+    if (err) {
+        PERROR("deregister service");
+    }
+
+    // unsafe !
+    if (srv_reg->hw) {
+        free(srv_reg->hw);
+        srv_reg->hw = NULL;
+    }
+    srv_table_release(&srv_table, srv_reg);
+
+    return err ? -1 : 0;
+}
