@@ -8,6 +8,7 @@
 #include <threads.h>
 
 #include "lauberhorn.h"
+#include "lauberhorn/oncrpc.h"
 
 #include "bench.h"
 
@@ -119,12 +120,13 @@ int main(int argc, char *argv[]) {
   int err, srv_id = -1, i;
   int workers_count = DEFAULT_WORKERS;
   lauberhorn_t ctx;
-  lauberhorn_schema_t schema = {
+  xdr_adapter_t adapter = {
       .call_size = sizeof(bench_call),
-      .call_func = (xdrproc_t)xdr_bench_call,
-      .resp_func = (xdrproc_t)xdr_bench_resp,
-      .trace_request_id = bench_request_id,
+      .resp_size = sizeof(bench_resp),
+      .call_xdrproc = (xdrproc_t)xdr_bench_call,
+      .resp_xdrproc = (xdrproc_t)xdr_bench_resp,
   };
+  rpc_codec_t codec = oncrpc_codec(&adapter);
   lauberhorn_worker_t *workers;
 
   if (argc < 2 || argc > 4) {
@@ -141,7 +143,15 @@ int main(int argc, char *argv[]) {
   if (argc >= 3)
     workers_count = parse_positive_int(argv[2], "workers");
 
-  schema.trace_check = def->trace_check;
+  lauberhorn_handler_t handler = {
+      .func = bench_handler,
+      .data = (void *)def,
+      .mode = EXEC_INLINE,
+      // The inline handler returns borrowed thread-local response storage.
+      .free = NULL,
+  };
+  // Runtime CSV trace integration is deferred until the hardware test stage.
+  (void)bench_request_id;
 
   if (argc >= 4)
     setenv("LAUBERHORN_SERVER_TRACE_CSV", argv[3], 1);
@@ -159,8 +169,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  err = lauberhorn_reg_srv(&ctx, bench_handler, (void *)def, def->prog,
-                           def->vers, def->proc, def->port, &schema);
+  err = lauberhorn_reg_srv(&ctx, handler, def->prog,
+                           def->vers, def->proc, def->port, &codec);
   if (err < 0) {
     fprintf(stderr, "Failed to register %s service! err=%d\n", def->name, err);
     goto fini;
@@ -171,7 +181,7 @@ int main(int argc, char *argv[]) {
           def->name, def->port, workers_count);
 
   for (i = 0; i < workers_count; ++i) {
-    workers[i] = lauberhorn_create_worker(&ctx, noop_cb, noop_cb);
+    workers[i] = lauberhorn_create_worker(&ctx, NULL, NULL);
     if (!workers[i])
       fprintf(stderr, "Failed to launch worker #%d!\n", i);
   }

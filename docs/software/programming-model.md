@@ -1,5 +1,9 @@
 # Application programming model
 
+**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
+for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
+Descriptions below of the synchronous master runtime are historical on this branch.
+
 Scope: source inspection, 2026-09-08. Follow the synchronous server model below for the current runtime. Async nested RPC is a planned extension.
 
 ## Current contract

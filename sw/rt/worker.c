@@ -122,10 +122,6 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
     *w->dp.rx_next_cl = *w->dp.tx_next_cl = 0;
     w->dp.rx_buf_size = LAUBERHORN_MTU;
 
-#ifdef LAUBERHORN_SIMULATION
-    w->dp.lauberhorn_fd = ctx->fd;
-#endif
-
     // TODO: check if allocation failed
     w->dp.rx_buf = malloc(LAUBERHORN_MTU);
     w->dp.tx_buf = malloc(LAUBERHORN_MTU);
