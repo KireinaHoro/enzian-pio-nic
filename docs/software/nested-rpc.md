@@ -1,5 +1,9 @@
 # Nested RPC: implemented hardware and runtime integration plan
 
+**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
+for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
+Descriptions below of the synchronous master runtime are historical on this branch.
+
 Source survey: 2026-09-08, `b86c68c`. Consolidates the former ONC-RPC nested-call plan. Remote call/reply RTL and descriptor transport exist; the current C runtime is still synchronous. The [Dandelion student project](../research/dandelion.md) demonstrates a richer runtime with a software kernel mock. Local short-circuit, generic TX acceptance status and a real-ECI fiber runtime remain proposals.
 
 ## Current source map

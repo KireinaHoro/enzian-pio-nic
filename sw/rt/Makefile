@@ -27,7 +27,7 @@ else ifeq ($(ARCH),x86_64)
 endif 
 
 ifdef LAUBERHORN_SIMULATION
-	CFLAGS += -DLAUBERHORN_SIMULATION
+$(error This runtime targets the real ECI transport; the kernel mock is not imported)
 endif
 
 all: liblauberhorn.so

@@ -1,5 +1,9 @@
 # Software runtime and datapath
 
+**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
+for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
+Descriptions below of the synchronous master runtime are historical on this branch.
+
 Scope: source inspection, 2026-09-08. Current usable implementation is the ECI/AArch64 stack; backend-neutral API naming is an intent, not evidence of PCIe support.
 
 ## Source map
