@@ -48,6 +48,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - [Packet processing](../hardware/packet-processing.md) and [tracing](../development/tracing.md): source-oriented mechanism detail.
 - [Nested RPC](../software/nested-rpc.md): implemented descriptor/RTL paths and remaining runtime integration plan.
 - [Dandelion](../research/dandelion.md): external student report, mock-based application/runtime and porting boundaries.
+- [TCP/Protobuf and gRPC roadmap](../research/grpc-roadmap.md): finished external projects and lower-priority integration scope.
 - [Latency measurement](../research/latency-measurement.md): measurement definitions, correlation and historical examples.
 - [Lookup spill](../hardware/lookup-spill.md): proposed software-backed table scaling.
 - [Coherence progress](../hardware/coherence-progress.md) and [queue-pair design](../hardware/queue-pair-design.md): unresolved DCU layout and ownership choices.

@@ -1,6 +1,6 @@
 # Lookup Table Scaling and Spill Design
 
-Status (2026-09-08): proposed scaling design, not implemented general spill support. Existing baseline paths were checked against the main source tree. The separate TCP tree described below is historical branch context; its implementation was not re-audited here and the main checkout still has TCP/HTTP/gRPC placeholders. New block/API names and staged implementation steps below are proposals. See [hardware status](implementation-status.md).
+Status (2026-09-08): proposed scaling design, not implemented general spill support. Existing baseline paths were checked against the main source tree. The separate TCP tree is `../flavian-tcp/platform`; its report, evidence and integration gaps are summarized in [TCP project](../research/tcp.md). The main checkout still has TCP/HTTP/gRPC placeholders. New block/API names and staged implementation steps below are proposals. See [hardware status](implementation-status.md).
 
 ## Motivation
 
@@ -66,52 +66,36 @@ that can actually resolve it.
 
 ## TCP Branch Reference
 
-Flavian's unmerged TCP tree is a useful precedent for how exception delivery
-should be split.
+Flavian's unmerged `../flavian-tcp/platform` provides typed exception descriptors
+and a software ownership model, but **does not implement the runtime exception
+routing attributed to it by the earlier version of this note**. See [TCP project](../research/tcp.md)
+for report/source revisions and integration gaps.
 
-The branch adds TCP-specific `HostReqType` values:
+TCP-specific `HostReqType` values include `tcpRxPayload`, `tcpException`,
+`tcpRecoverableException`, `tcpAckObserved`, `tcpTxPayload`, `tcpResync`,
+`tcpTcbInstall`, and `tcpPostRxReinject`.
 
-- `tcpRxPayload`
-- `tcpException`
-- `tcpRecoverableException`
-- `tcpAckObserved`
-- `tcpTxPayload`
-- `tcpResync`
-- `tcpTcbInstall`
+Current sibling routing (`host/package.scala`, `DmaControlPlugin.scala`):
 
-It does not send all TCP exceptions to the kernel bypass NAPI path. In
-`DmaControlPlugin`, only `HostReqType.bypass` is enqueued into `BypassCmdSink`;
-all other host requests, including TCP payloads and TCP exceptions, are enqueued
-to `sched.logic.rxMeta`. On the software side, the kernel `core_eci_rx` guard
-still accepts only `bypass` and `arpReq`, and `sw/kmod/bypass.c::poll_once`
-handles only `TY_BYPASS` and `TY_ARP_REQ`.
+- `routesToBypass` includes raw `bypass`, `neighborMiss`, `tcpException`,
+  `tcpRecoverableException`, and `tcpAckObserved`; those enter `BypassCmdSink`.
+- `tcpRxPayload` routes to a worker core. ONC-RPC calls/replies use process queues.
+- Generic TCP bypass still emits header/control descriptors while dropping its
+  payload fork; typed recoverable exceptions separately carry recoverable bytes.
+- The production kernel transport guard accepts only `bypass` and `neighborMiss`,
+  and NAPI handles `TY_BYPASS`/`TY_NEIGHBOR_MISS`. It does not consume the new TCP
+  exception ABI. The software TCP owner exists as test-model infrastructure.
 
-The TCP decoder still uses generic bypass, but only for packet-shaped TCP
-traffic that should be reconstructed as a normal network packet. The bypass TCP
-payload fork is explicitly dropped, and only header/control descriptors are
-emitted through `DecoderSink` as `HostReqType.bypass`. TCP offload exceptions
-that matter to the runtime are represented as typed host requests:
+The decoder buffers a frame while checksum/state decisions complete. The owner
+model reorders and trims payload, reinjects contiguous bytes, then resynchronizes
+ownership. This is useful evidence for explicit packet lifetime and handoff
+contracts, not evidence of a deployed per-application runtime spill path.
 
-- accepted in-order payload: `tcpRxPayload`;
-- recoverable payload exception: `tcpRecoverableException`;
-- non-recoverable or metadata exception: `tcpException`;
-- ACK/control observation: `tcpAckObserved`.
-
-This is the right shape for RPC spilling. "Bypass" should mean a slow-path
-escape hatch, not necessarily the kernel netdev bypass queue. Kernel bypass is
-appropriate for network-stack-owned work such as raw packets, ARP, and perhaps
-registry-control misses. Runtime/application-owned spills should use typed
-scheduler-visible host requests so they can be consumed by userspace or runtime
-workers without first pretending to be kernel network traffic.
-
-TCP segment aggregation also stays out of the hardware hot path. The decoder
-buffers at most a frame-aligned MTU payload while checksum and state decisions
-complete. It emits one host descriptor per TCP segment/event. The software owner
-model then buffers out-of-order ranges, merges overlapping ranges, reinjects
-contiguous recovered segments, and falls back to host ownership if software-side
-buffer limits are exceeded. RPC spilling should follow the same principle:
-hardware spills packet/request units, while software owns batching, aggregation,
-retry, and overflow policy.
+The two-plane RPC spill design below remains a proposal: global validation and
+resource control belong to kernel/control software; application-owned requests
+can use typed runtime delivery. Choosing that route requires implementing it;
+do not infer the final consumer solely from a typed descriptor name or from this
+TCP prototype.
 
 ## Two Slow-Path Planes
 
@@ -203,10 +187,11 @@ Examples:
   and promotion can happen later;
 - TCP-style recoverable exception with payload, if TCP is merged.
 
-Use this class when the eventual owner is userspace/runtime state. TCP's
-`tcpRecoverableException` path is the model: preserve enough metadata and bytes
-for software to continue correctly, but keep the kernel bypass queue out of the
-steady slow path.
+Use this proposed class when the eventual owner is userspace/runtime state.
+Preserve enough metadata and bytes for software to continue correctly. TCP's
+recoverable exception payload is a useful ownership example, but its current
+route is the bypass datapath; direct runtime delivery must be implemented
+separately for this RPC spill design.
 
 ## New Host Request Types
 

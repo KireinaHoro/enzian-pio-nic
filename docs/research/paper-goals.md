@@ -22,6 +22,10 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 These are planned applications, not claims that five ports run on the current FPGA. The Dandelion student report evaluates a software mock; its results do not establish real-ECI speedups.
 
+## Follow-on scope
+
+The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than Dandelion and the other applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](grpc-roadmap.md); do not expand the first paper into that agenda by default.
+
 ## Proposed evidence plan
 
 | Claim to test | Experiment and controls | Repository starting point |

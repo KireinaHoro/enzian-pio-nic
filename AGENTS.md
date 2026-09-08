@@ -13,6 +13,7 @@ relevant source and subsequent changes before relying on implementation details.
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md).
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
+- External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
 - Pending features and unresolved intent: [roadmap](docs/research/roadmap.md).
 
 ## Confirmed research and scheduling scope
@@ -24,6 +25,9 @@ consensus such as etcd/Raft. Read [Dandelion](docs/research/dandelion.md) before
 porting student runtime work from `../sven-dandelion`; its evaluation uses a
 software mock. Tasks run to finish on isolated RPC worker cores, never shared
 with ordinary tasks. Timeout/kill recovery and QP/DCU coloring remain open.
+Finished TCP/Protobuf student work lives in `../flavian-tcp` and
+`../elena-protobuf`; merge soon to limit drift, below first-paper application
+priority. Fully offloaded gRPC is a potential follow-on paper.
 
 ## Working rules
 
