@@ -1,7 +1,9 @@
 # Lauberhorn Tracing
 
-This document describes the current tracing infrastructure and the split of
-responsibilities between hardware, Python tooling, and the Wireshark dissector.
+Detailed reference, source-reviewed on 2026-09-08. Start with [validation](validation.md)
+for test selection or the [trace tools README](../../data/eci/sys_trace/README.md)
+for exporter commands. Commands below run from the repository root. Hardware defaults
+are deployment-specific; preserve the generated trace map alongside each capture.
 
 ## Overview
 
@@ -18,9 +20,11 @@ The tracing path has four layers:
    owns source-specific payload interpretation for DCS, ECI, returned-credit,
    and Lauberhorn event payloads.
 
-The important boundary is that Python does not decode inner trace payloads.
-Python preserves raw samples and emits metadata.  Lua uses the embedded trace map
-to decode payloads for visualization.
+In the pcapng export path, Python preserves raw payloads and emits metadata; Lua
+uses the embedded trace map for interactive decoding. Python also has a separate
+`eci-state` analysis mode that decodes ECI headers and reconstructs delivery/credit
+state, and the latency plotter decodes Lauberhorn events. Do not apply the pcapng
+transport boundary as a blanket restriction on Python analysis code.
 
 ## Hardware Collection
 
@@ -305,7 +309,7 @@ a DDR read.
 Example status query:
 
 ```sh
-sudo python3 data/eci/sys_trace/dump_trace_udp.py \
+python3 data/eci/sys_trace/dump_trace_udp.py \
   --bind-ip 129.132.102.8 \
   --status
 ```
@@ -313,11 +317,19 @@ sudo python3 data/eci/sys_trace/dump_trace_udp.py \
 Example dump:
 
 ```sh
-sudo python3 data/eci/sys_trace/dump_trace_udp.py \
+python3 data/eci/sys_trace/dump_trace_udp.py \
   --bind-ip 129.132.102.8 \
   --bytes 0x80000000 \
+  --chunk-bytes 1408 \
   --out trace-dram.bin
 ```
+
+Use `--chunk-bytes 1408` explicitly: the current Python default is 1440, which
+is not 64-byte aligned and is rejected by the hardware alignment check. This is
+a known tool/hardware mismatch, not a larger supported aligned transfer. UDP
+port 55555 uses an ordinary socket and does not itself require `sudo`; the bind
+address must be assigned to the capture machine and reachable in the configured
+network.
 
 Start the tool before toggling the VIO `dump over network` bit.  The tool uses a
 normal UDP socket and waits for the FPGA metadata packet; it does not need the
@@ -333,20 +345,20 @@ The intended offline flow is:
 4. Convert the raw dump to pcapng with `export_trace_pcap.py`.
 5. Open the pcapng in Wireshark or TShark with `lauberhorn_trace.lua`.
 
-The current tool flow starts from a raw dump file produced by that Vivado
-readout path.  See [the trace parser README](../data/eci/sys_trace/README.md) for the concrete exporter
+The exporter starts from a raw dump file produced by either UDP or JTAG AXI
+readout.  See [the trace parser README](../../data/eci/sys_trace/README.md) for the concrete exporter
 and Wireshark commands.
 
 ## Python Tooling
 
 The Python code under `data/eci/sys_trace` bridges the hardware recorder and
-the Wireshark dissector.  Its system role is to understand only the outer
+the Wireshark dissector.  For pcapng output, it handles the outer
 TraceBufferDMA stream: sample width, source ID, raw timestamp, marker records,
 circular-buffer ordering, timestamp wrap, and floorplan pipeline latency.
 
-That boundary is intentional.  Python produces a chronologically ordered pcapng
-view of the raw trace samples and embeds the trace map as metadata, but it does
-not decode DCS state, ECI headers, or Lauberhorn event payloads.  The adjusted
+The pcapng path produces a chronologically ordered view of raw trace samples
+and embeds the trace map as metadata, leaving interactive inner-payload decoding
+to Lua.  The adjusted
 timestamp is used for packet ordering and pcapng time; the raw hardware
 timestamp is preserved so the viewer can show both.
 
@@ -364,10 +376,10 @@ Lauberhorn event names and structured trace data.  Source types that do not yet
 have a rich Lua decoder still carry their typed payload layout in the trace map
 and remain available as raw samples.
 
-Because Lua owns payload interpretation, payload schema changes should normally
-be reflected in the trace map and Lua dissector.  Python should only need to
-change when the outer TraceBufferDMA envelope, timestamp model, or pcapng
-transport changes.  See [the trace parser README](../data/eci/sys_trace/README.md) for TShark,
+Payload schema changes must update the trace map and relevant consumers: the
+Lua dissector for interactive viewing, `eci_state_output.py` for ECI analysis,
+and `data/eci/apps/plot_latency.py` for latency correlation. Outer-envelope,
+timestamp, or transport changes additionally affect the generic Python exporter.  See [the trace parser README](../../data/eci/sys_trace/README.md) for TShark,
 Wireshark, and profile commands.
 
 ## End-To-End Flow
@@ -392,3 +404,9 @@ The complete data path is:
 This split keeps the hardware recorder generic, keeps Python focused on the
 outer sample stream and timestamp ordering, and keeps human-facing payload
 decode logic in the Lua dissector.
+
+## Source map
+
+- [Event declarations](../../hw/src/lauberhorn/TracePlugin.scala), [DMA/map generation](../../hw/src/lauberhorn/LauberhornTraceDma.scala), [UDP responder](../../hw/src/lauberhorn/LauberhornTraceDump.scala).
+- [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
+- [Latency measurement and attribution](../research/latency-measurement.md).

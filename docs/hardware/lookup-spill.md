@@ -1,5 +1,7 @@
 # Lookup Table Scaling and Spill Design
 
+Status (2026-09-08): proposed scaling design, not implemented general spill support. Existing baseline paths were checked against the main source tree. The separate TCP tree described below is historical branch context; its implementation was not re-audited here and the main checkout still has TCP/HTTP/gRPC placeholders. New block/API names and staged implementation steps below are proposals. See [hardware status](implementation-status.md).
+
 ## Motivation
 
 The current `LookupTable` implementation is a fully-connected associative
@@ -41,15 +43,20 @@ The existing kernel bypass slow path is `BypassCmdSink`.
 them, stores requests in a FIFO, and delivers them to the bypass datapath
 service. It is already used by:
 
-- `DmaControlPlugin` for normal bypass packets;
-- `IpEncoder` for ARP/neighbor-resolution requests.
+- `DmaControlPlugin` for normal bypass packets and packet-bearing `neighborMiss`
+  requests originating at `IpEncoder` and passing through `DecoderSink`.
 
 On the kernel side, `sw/core/eci/core.h` decodes bypass-core RX descriptors into
 `lauberhorn_pkt_desc_t`. `sw/kmod/bypass.c` polls the bypass datapath from NAPI
 and currently handles:
 
 - `TY_BYPASS`: inject packet into Linux netdev RX;
-- `TY_ARP_REQ`: trigger/track ARP resolution and program `IpEncoder.neighborDb`.
+- `TY_NEIGHBOR_MISS`: reconstruct IPv4 and submit the retained payload to Linux
+  routing/`ip_local_out`; neighbor handling also populates `IpEncoder.neighborDb`.
+
+This packet-bearing path replaced the older `arpReq` notification-only path.
+Source comments still mentioning drop-on-neighbor-miss or direct `IpEncoder`
+commands are stale; follow the `neighborMiss` descriptor/payload wiring.
 
 This is the right mechanism for kernel-owned exceptions, but not for every
 spill. Runtime-owned exceptions should use typed host requests routed through
@@ -206,13 +213,15 @@ steady slow path.
 Rename direction-sensitive RPC request names as part of this work if convenient.
 The current ONC-RPC descriptor names use explicit RX/TX direction.
 
-Suggested `HostReqType` set:
+Suggested `HostReqType` set (retain the existing nested-RPC directions as well):
 
 - `error`
 - `bypass`
-- `arpReq`
+- `neighborMiss`
 - `oncRpcCallRx`
 - `oncRpcReplyTx`
+- `oncRpcCallTx`
+- `oncRpcReplyRx`
 - `serviceMissRuntime`
 - `serviceMissValidate`
 - `processMiss`
@@ -507,7 +516,9 @@ Current use:
 
 Plan:
 
-- make `rxPush` miss produce a typed `processMiss` instead of dropping;
+- explicitly check `rxPush` match status and produce typed `processMiss`;
+  current code consumes `pushResult.idx` without a `matched` guard, so a miss
+  must not be assumed to have a safe drop behavior;
 - route `processMiss` to scheduler/runtime RX metadata by default;
 - split process registry from active process slots;
 - hardware `procDb` becomes the active process cache;
@@ -558,13 +569,27 @@ RAM implementation:
 - add generation bits so software can distinguish stale promoted sessions from
   current sessions.
 
+### Nested ONC-RPC Request Table
+
+The newer `OncRpcReplyDecoder.requestDb` is separate from server reply sessions.
+`OncRpcCallEncoder` records outbound nested requests; replies match
+`(xid, remoteAddr, remotePort, localPort)` and recover PID/cookie. It also uses
+`NUM_SESSIONS`, an always-active free-slot lookup, and increments `reqTblFull`
+while still writing the returned free index on full. Scaling/spill design must
+cover this table too, with explicit payload ownership, timeout/cancellation and
+late-reply behavior. The typed spill interfaces above do not yet implement it.
+
 ### IP Neighbor Table
 
 Current use:
 
 - `IpEncoder.neighborDb`;
-- miss creates an incomplete entry and emits `arpReq`;
-- software ARP handler programs reachable state later.
+- absent entry creates an incomplete slot; absent/incomplete neighbors emit
+  packet-bearing `neighborMiss` through the RX DMA/bypass path;
+- kernel reconstructs IPv4 and uses Linux output/neighbor resolution, and
+  programs reachable state later;
+- full-table insertion still uses allocation index 0 and increments a counter;
+  explicit safe replacement remains work.
 
 Plan:
 
@@ -710,7 +735,7 @@ Expected wins:
 
 ### Phase 3: Process Miss Spill
 
-- Change `Scheduler` PID miss/drop path to emit `processMiss`.
+- Add an explicit `Scheduler` PID-miss branch that emits `processMiss`.
 - Route request-bearing `processMiss` to scheduler/runtime RX metadata.
 - Add kernel/control events for `processSlotPressure`, eviction, and drain.
 - Define safe process slot eviction rules.

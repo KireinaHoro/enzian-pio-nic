@@ -2,7 +2,9 @@
 
 This document describes how the microbenchmarks add latency plot is built from client
 timestamps, server runtime timestamps, and Lauberhorn hardware trace events.  It
-also documents what the current breakdown can and cannot prove.
+also documents what the breakdown can and cannot prove. Source-reviewed on
+2026-09-08; the numeric example below is historical and was not rerun for this
+survey. See [paper goals](paper-goals.md) for the broader evaluation plan.
 
 ## E2E Definition
 
@@ -270,13 +272,18 @@ cpu_fpga_offset_ns =
     min(server_rx_exit_ns - trace_core_delivery_ns) over matched rows
 ```
 
-This is accurate enough for microsecond-scale bucket attribution in the current
-microbenchmarks add run, but it is still an inferred synchronization, not a hardware
-clock synchronization protocol.
+This is an inferred synchronization, not a hardware clock synchronization
+protocol. Its uncertainty must be established for each workload; the historical
+example does not establish nanosecond-level accuracy or generalize to loaded runs.
 
-## Current Adder-Demo Example
+## Historical Adder-Demo Example
 
-For the current microbenchmarks add run, the plotter reported approximately:
+The prior document recorded the following microbenchmarks add results. The exact
+run, bitstream/configuration, trace map, and plotting revision were not identified
+there; checked-in captures exist under `data/eci/apps/adder-demo/2026-06-{19,20}`.
+These numbers are retained as an attribution example, not current performance
+claims or a certified reproduction of either capture:
+
 
 ```text
 P50 = 87.290 us
@@ -293,7 +300,7 @@ The traced time spent inside Lauberhorn, measured from `RxCmacEntry` to
 - P50 `RxCmacEntry -> TxCmacExit` is about 4.4 us.
 - P99 `RxCmacEntry -> TxCmacExit` is about 4.5 us.
 
-This is the best current "inside Lauberhorn" number for the selected requests:
+This is the historical "inside Lauberhorn" interval for the selected requests:
 request arrival at the Lauberhorn RX CMAC trace point through response departure
 at the Lauberhorn TX CMAC trace point.  It must be interpreted separately from
 the software receive timestamps.  The `core_eci_rx()` timestamp pair measures
@@ -313,13 +320,13 @@ Therefore `RxCmacEntry -> TxCmacExit` can be about 4.4-4.5 us even though the
 latter mostly measures the worker already waiting for the next request, not
 request service time after the packet entered Lauberhorn.
 
-The current traced breakdown therefore does not include the blocking
+The illustrated traced breakdown therefore does not include the blocking
 `core_eci_rx()` interval as a stacked request-service component.  It keeps the
 request-service path non-overlapping: RX CMAC/decode/delivery, server
 runtime/XDR/handler work, directional 2F2F software and hardware buckets, TX
 encoder/CMAC egress, plus client XDR and the remaining outside bucket.
 
-For the current selected rows, the server/2F2F split is:
+For the historical selected rows, the server/2F2F split is:
 
 ```text
 bucket             P50       P99
@@ -346,7 +353,7 @@ invalidation/completion path after that doorbell is observed.  On new captures,
 the RX control read, while `2F2F RX SW` accounts for the CPU copy-out/tail after
 that read returns.
 
-The client-observed residual is even larger in the current run:
+The client-observed residual is even larger in the historical run:
 
 - P50 residual/outside bucket is about 82 us.
 - P99 residual/outside bucket is about 100 us.
@@ -359,7 +366,7 @@ instrumentation.
 
 The traced FPGA datapath micro-stages that are currently attributable are small
 relative to the total E2E latency: protocol decode and encoder stages are
-generally tens of nanoseconds each.  The current request-service work visible on
+generally tens of nanoseconds each.  The historical request-service work visible on
 the Lauberhorn/server side is only a few microseconds after receive returns,
 while the largest overall bucket is still the client/network/residual bucket.
 
@@ -379,8 +386,8 @@ Several parts of the breakdown are still estimates or residuals:
   or Lauberhorn external CMAC boundary with a shared clock.  It is therefore
   mixed into the residual bucket.
 - The CPU/FPGA clock offset is inferred from matched trace/CSV rows.  This is
-  good enough for relative segmentation but is not a hardware time
-  synchronization mechanism.
+  an attribution assumption whose error has not been independently bounded here,
+  rather than a hardware time synchronization mechanism.
 - Trace IDs such as `PacketID`, `RpcID`, and `HostMsgID` are narrow wrapping
   counters.  Correlation must use order, timing, core, and cross-event
   constraints, not ID equality alone.
@@ -433,3 +440,25 @@ Likely not Lauberhorn-owned targets:
 Those costs still matter to E2E latency because E2E is client-observed latency,
 but they should be optimized or blamed in the client/network stack, not in the
 Lauberhorn datapath.
+
+## Source and reproduction entry points
+
+- [Plotter](../../data/eci/apps/plot_latency.py): joins CSVs, estimates ECI RTT and clock offset, emits percentile breakdown CSV/PDF and histogram PDF. Requires Python and matplotlib for plotting.
+- [Client instrumentation](../../sw/apps/microbenchmarks/client/bench_client.c), [server probes](../../sw/rt/eci.c), [2F2F receive/transmit](../../sw/core/eci/core.h). Server CSV is enabled with `LAUBERHORN_SERVER_TRACE_CSV` (`ADDER_SERVER_TRACE_CSV` remains a compatibility fallback).
+- [Tracing reference](../development/tracing.md) and [trace tools](../../data/eci/sys_trace/README.md).
+
+Example (replace inputs with one matched capture; run from repository root):
+
+```sh
+python3 data/eci/apps/plot_latency.py client.csv server.csv \
+  --trace-dump trace-dram.bin \
+  --trace-map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
+  -o latency
+```
+
+Use the map and trace clock period for that capture, not whichever build happens
+to be in `out/`. The plotter defaults to `--trace-cycle-ns 5`. Preserve request
+counts, correctness filtering, seeds/workload parameters, CPU/core mapping,
+software/FPGA revisions, and correlation warnings with exported figures. Half of
+median ECI round-trip time assumes a directional split; it is an estimate, not an
+independently measured one-way latency. CSV tracing itself perturbs execution.

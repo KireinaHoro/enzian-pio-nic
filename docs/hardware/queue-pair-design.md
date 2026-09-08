@@ -1,5 +1,7 @@
 # ECI 2F2F Thread Router Tradeoffs
 
+Status (2026-09-08): open design alternatives, confirmed by the maintainer. Current `GenEngineVerilog.scala` installs `EciThreadClRouter`; worker-owned fixed QPs are a proposal. Worker CPU cores are isolated for Lauberhorn and do not run ordinary tasks; this does not settle QP ownership or cross-process coherence isolation. Read [the progress invariant](coherence-progress.md) with this note.
+
 This note compares two ways to expose 2F2F queue pairs (QPs) to RPC workers:
 
 1. **Thread-owned routed QPs:** keep `EciThreadClRouter`. Each application
@@ -127,7 +129,7 @@ Cons:
 
 ## With CC-Level Progress Coloring
 
-The progress invariant from `ECI-2F2F-DCU-PROGRESS.md` is:
+The progress invariant from [coherence progress](coherence-progress.md) is:
 
 ```text
 active_controls has no duplicate colors

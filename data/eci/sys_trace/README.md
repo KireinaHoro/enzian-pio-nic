@@ -2,7 +2,7 @@
 
 This directory contains the tools for turning a trace DDR dump into pcapng and
 viewing it in Wireshark/TShark.  For the architecture and role split between
-hardware, Python, and Lua, see `../../../docs/TRACING.md`.
+hardware, Python, and Lua, see `../../../docs/development/tracing.md`.
 
 `export_trace_pcap.py` exports selected TraceBufferDMA samples to pcapng for
 visualization with `lauberhorn_trace.lua`. It consumes a raw binary dump of the

@@ -1,5 +1,7 @@
 # ECI 2F2F DCU Progress Model
 
+Status (2026-09-08): unresolved progress analysis. The maintainer confirms that QP ownership and DCU-color placement remain open. Current offsets are source-verified; candidate layouts and maximum-set calculations below are preserved design analysis, not installed constants or newly reproduced proofs. Trace observations are historical evidence, not current test results. See [QP design alternatives](queue-pair-design.md) and [implementation status](implementation-status.md).
+
 This note describes the cache-line coloring requirement needed to make 2F2F
 RX/TX progress. It intentionally does not assume a particular thread-to-worker
 mapping design, but it does distinguish QPs whose RX and TX paths can issue
@@ -712,8 +714,10 @@ The DCU RTL supports the required blocking behavior:
 
 The test model encodes the same assumption. `DcsAppMaster` tracks one read and
 one write per aliased DCU ID and separately limits slice-level in-flight reads.
-The disabled `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
-must not be placed on the same DCU.
+The `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
+must not be placed on the same DCU. It remains registered with the `Slow` tag
+and a FIXME to rework the address map and re-enable CI coverage; excluding
+`Slow` omits it. The separate `rx-hol-blocking-free` test has a TODO-only body.
 
 Under the full-duplex model above, the current layout gives a concrete same-QP
 version of this hazard. As shown in
