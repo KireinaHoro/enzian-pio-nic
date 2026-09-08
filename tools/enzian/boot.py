@@ -6,6 +6,7 @@ output (not sent passwords). On failure leaves the CPU stopped when possible;
 never resumes boot after a failed programmer command.
 """
 import argparse
+import contextlib
 import getpass
 import pathlib
 import re
@@ -14,6 +15,7 @@ import sys
 import threading
 
 import pexpect
+from console import attach, require_reservation
 
 
 def main():
@@ -28,44 +30,37 @@ def main():
                    help='skip power_down when BMC inspection confirms all rails are off')
     p.add_argument('--resume-held', action='store_true',
                    help='verify existing BDK menu, program and boot without power cycling')
+    p.add_argument('--negative-no-bitstream', action='store_true',
+                   help='negative test: power cycle and boot with an unprogrammed FPGA')
     p.add_argument('program', nargs=argparse.REMAINDER,
                    help='command after --; must exit zero only after programming succeeds')
     args = p.parse_args()
     command = args.program
     if command[:1] == ['--']:
         command = command[1:]
-    if (not command and not args.hold_only) or not re.fullmatch(r'zuestoll\d{2}', args.machine):
+    if (not command and not args.hold_only and not args.negative_no_bitstream) or not re.fullmatch(r'zuestoll\d{2}', args.machine):
         p.error('valid machine and programming command required')
+    if args.negative_no_bitstream and (command or args.resume_held or args.hold_only or args.cold_start):
+        p.error('--negative-no-bitstream requires a full power cycle and no programmer')
     if args.resume_held and (args.hold_only or args.cold_start):
         p.error('--resume-held cannot be combined with --hold-only or --cold-start')
-    reservation = subprocess.check_output(
-        ['ssh', '-o', 'BatchMode=yes', args.gateway, 'emg list-machines'], text=True)
-    if not any(len(row := line.split()) >= 3 and row[1:3] == [args.machine, args.owner]
-               for line in reservation.splitlines()):
-        raise RuntimeError('Machine is not reserved by the requested owner')
+    require_reservation(args.gateway, args.machine, args.owner)
     args.logs.mkdir(parents=True, exist_ok=False)
-    sessions = []
-    files = []
+    stack = contextlib.ExitStack()
     def console(suffix):
-        log = (args.logs / (suffix + '.log')).open('w')
-        files.append(log)
-        child = pexpect.spawn('ssh', ['-tt', '-o', 'BatchMode=yes', args.gateway,
-                                      'console', args.machine + '-' + suffix],
-                               encoding='utf-8', codec_errors='replace', timeout=30)
-        child.logfile_read = log
-        sessions.append(child)
-        child.expect(r'Enter .* for help')
-        # Conserver emits attachment refusal immediately after its greeting.
-        if child.expect([r'\[no, .*attached\]', pexpect.TIMEOUT], timeout=1) == 0:
-            raise RuntimeError('Console already attached: ' + suffix)
+        log = stack.enter_context((args.logs / (suffix + '.log')).open('w'))
+        child = stack.enter_context(attach(args.gateway, args.machine, suffix, log))
         child.sendline('')
         return child
     try:
         cpu = console('console')
         def program_and_boot():
             with (args.logs / 'program.log').open('w') as log:
-                subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=600)
+                if args.negative_no_bitstream:
+                    log.write('NEGATIVE TEST: FPGA power-cycled; programming deliberately skipped\n')
+                else:
+                    subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
+                                   check=True, timeout=600)
             cpu.send('n')
             cpu.expect(r'login:', timeout=600)
             print('LINUX_LOGIN_READY', flush=True)
@@ -118,12 +113,7 @@ def main():
             return
         program_and_boot()
     finally:
-        for child in sessions:
-            if child.isalive():
-                child.send('\x05c.')
-                child.close()
-        for log in files:
-            log.close()
+        stack.close()
 
 if __name__ == '__main__':
     try:

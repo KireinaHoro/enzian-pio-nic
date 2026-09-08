@@ -108,8 +108,8 @@ If `print_voltage_all()` confirms all rails are off, use `--cold-start` to skip
 `common_power_up()` initializes them. After a successful hold, run with
 `--resume-held`, a fresh log directory, and the actual programmer command after
 `--`. This verifies the BDK menu before programming and sending `n`.
-Cold-start, normal power-cycle/hold and failure handling have been exercised; programming and Linux
-continuation are pending CI artifacts.
+Cold-start, normal power-cycle/hold, failure handling and Linux continuation
+have been exercised; programming is pending CI artifacts.
 
 ## Linux and RPC validation
 
@@ -130,17 +130,101 @@ A complete test requires successful module initialization, an operational
 bypass interface, workers accepting RPCs and zero client correctness failures.
 Boot or programming success alone is not an end-to-end RPC result.
 
-[linux-smoke.sh](../../tools/enzian/linux-smoke.sh) runs on the CPU as root and
-accepts image path, SHA-256, full revision, MAC, IP/prefix and a fresh log
-directory. It checks the kernel ABI and isolated CPUs, mounts the image,
-loads the module, compares the reported hardware version, configures the NIC
-and starts the add server. It deliberately reports only `SERVER_STARTED`;
-the separate client must still establish end-to-end correctness. Inspect the
-CPU's current routes before using the existing user-script addressing
-`0c:53:31:03:01:c8`, `192.168.129.200/18`; do not copy another machine's address.
-This Linux script has passed syntax checking but awaits execution on the CPU.
+The helpers compose independent operations:
+
+| Helper | Responsibility |
+| --- | --- |
+| `boot.py` | Power cycle, catch BDK, invoke the programmer, resume Linux |
+| `program_fpga.tcl` | Select the exact JTAG target and program or probe it |
+| `run.py` | Run a command or local shell script as root over the CPU console; capture output and optionally assert ordered regexes |
+| `cpu.sh mount IMAGE` | Mount a chosen SquashFS read-only at `/nix/store` |
+| `cpu.sh load` | Check module vermagic against the running kernel and run `insmod` |
+| `cpu.sh verify` | Compare the loaded hardware version with the closure's revision marker |
+| `cpu.sh configure MAC CIDR` | Configure the bypass interface |
+| `cpu.sh serve add/mul WORKERS NEW_LOG_DIR` | Start the packaged RPC server |
+| `linux-smoke.sh IMAGE MAC CIDR NEW_LOG_DIR` | Compose the CPU steps for the positive test |
+
+`boot.py` and `run.py` share reservation checks and console attachment code in
+`console.py`. `run.py` accepts a local script via `--script`, followed by `--`
+and script arguments, so `cpu.sh` need not be installed remotely:
+
+```sh
+python3 tools/enzian/run.py --logs /tmp/mount-run \
+  --script tools/enzian/cpu.sh -- mount /scratch/pengxu/deploy.img
+python3 tools/enzian/run.py --logs /tmp/load-run \
+  --script tools/enzian/cpu.sh -- load
+python3 tools/enzian/run.py --logs /tmp/verify-run \
+  --script tools/enzian/cpu.sh -- verify
+```
+
+Use fresh log directories. The runner handles an existing shell or the documented
+`enzian/enzian` console login; `ENZIAN_PASSWORD` overrides the password. Ordinary
+commands must exit zero. Repeated `--expect` expressions instead require those
+console messages in order, for tests where the command may oops or panic.
+The runner does not reset the machine or infer which test to run.
+
+To use `linux-smoke.sh` directly on the CPU, copy it and `cpu.sh` into the same
+directory. It starts four add workers and leaves the server running for the
+external client. CPU steps have no pinned image checksum, CI job or kernel
+release; the module ABI check uses `uname -r`, and hardware compatibility uses
+the mounted image's revision marker. Build/download hashes remain recorded
+provenance, not deployment requirements. SquashFS detects read/decompression
+errors, but its format does not provide a whole-image cryptographic integrity
+check; see the [kernel format documentation](https://www.kernel.org/doc/html/latest/filesystems/squashfs.html).
 
 ## Current execution evidence (2026-09-08)
+
+### Negative test without a bitstream
+
+Run `boot.py --negative-no-bitstream --logs NEW_BOOT_LOG_DIR` to perform a full
+power cycle, catch BDK, power the FPGA and continue boot without programming.
+Mount the image using the reusable `cpu.sh mount` step above. Prepare console
+logging with a normal command, then invoke the same load step used in positive
+tests, supplying the expected fault messages:
+
+```sh
+python3 tools/enzian/run.py --logs /tmp/negative-prepare -- \
+  bash -c 'sysctl -w kernel.panic=0; dmesg -n 8; sync'
+python3 tools/enzian/run.py --logs /tmp/negative-load \
+  --expect 'Internal error: synchronous external abort:' \
+  --expect 'pc : probe_versions\+' \
+  --script tools/enzian/cpu.sh -- load
+```
+
+The assertion intentionally avoids a compiled instruction offset. Inspect the
+captured trace and the matching module's disassembly to establish the exact
+read that failed. Reset after an oops before testing again.
+
+The live test booted Linux `6.8.0-64-generic` successfully, then reported:
+
+```text
+Internal error: synchronous external abort: 0000000096000210 [#1] SMP
+pc : probe_versions+0xa4/0x258 [lauberhorn]
+```
+
+Disassembly of the exact loaded module identifies offset `+0xa4` as
+`ldr w21, [x1]`, the first static-shell version read at physical address
+`0x97effffffff8` (`SHELL_REGS_BASE + 4 * SHELL_REGS_VERSION_ADDR`).
+The trace includes `mod_init` and `Comm: insmod`. No static-shell version was
+printed. This is the expected absent-register failure: the kernel emitted an
+oops and killed `insmod` with SIGSEGV; no full kernel panic was observed, and the
+shell remained available. Reset before further hardware testing.
+
+Evidence is under `out/hardware-tests/2811847/negative-no-bitstream-boot/` and
+`out/hardware-tests/2811847/negative-no-bitstream-console-2/console.log`.
+The initial one-off negative-test script has been replaced by the shared runner
+and CPU steps. A full repeat with the refactored helpers passed on 2026-09-08:
+`boot.py --negative-no-bitstream` power-cycled the board and reached Linux;
+`run.py --script cpu.sh -- mount ...` logged in and mounted the image;
+`run.py --expect ... --script cpu.sh -- load` returned
+`EXPECTED_OUTPUT_CONFIRMED`. The new trace again shows external abort
+`0000000096000210`, `probe_versions+0xa4/0x258`, faulting instruction
+`b9400035`, and `insmod` exiting 139. The shell survived the oops.
+No helper changes were needed during this repeat. Logs are under
+`out/hardware-tests/2811847/refactored-negative-{sync,boot,mount,prepare,load}/`.
+ShellCheck, Python compilation and `git diff --check` also passed.
+
+### Positive-test preparation
 
 - Reservation confirmed: `zuestoll14`, owner `pengxu`.
 - The initially powered-down machine exposed no JTAG devices. Scripted cold-start
