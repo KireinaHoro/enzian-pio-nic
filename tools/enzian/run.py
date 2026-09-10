@@ -61,7 +61,7 @@ def main():
                     cpu.expect(pexpect.TIMEOUT, timeout=3)
                     print('EXPECTED_OUTPUT_CONFIRMED')
                 else:
-                    cpu.expect(marker + r':(\d+)', timeout=args.timeout)
+                    cpu.expect(marker + r':(\d+)\r?\n', timeout=args.timeout)
                     status = int(cpu.match.group(1))
                     if status:
                         raise RuntimeError(f'Remote command exited {status}')

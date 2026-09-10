@@ -285,3 +285,65 @@ vivado -mode batch -nojournal -source program_fpga.tcl -tclargs \
 
 This capture operation was exercised with Vivado 2023.2 against the programmed
 board. It uses the same exact target/device selection as programming.
+
+## Build comparison and adder validation (2026-09-10)
+
+Job 2812450 (`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`) passed the
+program/reset/boot/mount/load/verify sequence. The static shell reported
+`2f19869`, and the NIC reported `aa32b1af04f2fcdd`. Build its own `deployFs`
+with the same recorded kernel-release packaging fix; its runtime differs from
+2811847. The mounted image was `/scratch/pengxu/deploy-2812450.img`.
+
+After disabling `cpu40g1` to remove the overlapping data-subnet route,
+`cpu.sh configure 0c:53:31:03:01:c8 192.168.129.200/18` succeeded, followed by
+`cpu.sh serve add 4 /scratch/pengxu/lauberhorn-e2e-2812450`. From enzian-gateway,
+three pings succeeded and the existing `bench_client` verified one call and then
+100 add calls with zero failures. Both arithmetic and request IDs were checked.
+The application in this revision does not implement server CSV tracing despite
+accepting the trace argument; client CSVs supply the correctness evidence.
+
+Evidence: `out/hardware-tests/2812450/{boot,mount,load,verify,network-inspect,configure,serve}/`
+and `rpc/client-{one,100}.csv`. The RPC server logs were also copied locally.
+
+Recent successful CI history was inspected, not just the newest jobs:
+
+| Job | Date | WNS (ns) | Evidence | Artifact availability |
+| --- | --- | ---: | --- | --- |
+| 2812450 | Sep 8 | -1.314 | Route estimate | CI download; 101 add calls passed |
+| 2811847 | Sep 8 | -2.073 | Route estimate | CI download; previous register-read oops |
+| 2660299 | Jun 19 | -0.620 | Route estimate | Expired; direct request returned 404 |
+| 2623585 | Jun 3 | -0.089 | Route estimate | Expired; direct request returned 404 |
+| 2622870 | Jun 3 | -0.009 | Route estimate | Expired; direct request returned 404 |
+| 2383312 | Mar 20 | -0.164 | Routed checkpoint report, Vivado 2025.1 | ba2 `Downloads/artifacts(21).zip` |
+
+Route estimates precede final physical optimization and are not final timing
+signoff. The March 20 checkpoint has TNS -165.535 ns and WHS +0.004 ns, with no
+hold violations; it still fails setup timing. CI traces and comparison metadata
+are in `out/hardware-tests/build-selection/`.
+
+The supplied `Downloads/artifacts(22).zip` corresponds by exact bitstream and
+checkpoint timestamps to June 12 job 2645398, commit `76c1ae40`. Its route
+selection reported WNS -1.484 ns, so the more favorable available March 20
+archive was selected for comparison. Archive identification used CI write times
+and bitstream headers, not filenames alone.
+
+The older job 2383312 was also programmed and tested with software built at
+`4fa10def1e7bb052eb7625fdbf1685308d885702`, plus the kernel-release packaging
+fix. It booted and mounted successfully, but `insmod` produced external abort
+`0000000096000210` at `probe_versions+0xa0/0x250`, before printing a shell version
+or creating `lauberhorn0`. No older-build RPC was possible. The matching legacy
+client was compiled from that commit's `add.x` schema but not run. Evidence is
+under `out/hardware-tests/2383312/{boot,mount,load}/`, with the final timing report
+in `timing.rpt`. Archive/commit association for this failed image remains based
+on exact CI generation timestamps; the runtime version read never completed.
+
+This run exposed a console-runner parsing race: matching digits without a line
+terminator could report only the first digit of a split exit status. The runner
+now waits for the complete status line. A local pexpect check splitting `139`
+after the first digit verifies this fix. The underlying older-module failure is
+independently established by the captured oops and shell's SIGSEGV message.
+
+The last programmed state is the older March 20 image after its oops; reset
+before further tests. Job 2812450 is the demonstrated functional adder build.
+Better WNS alone did not predict success in these two runs; neither establishes
+hardware reliability or timing closure.
