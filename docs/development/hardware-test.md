@@ -1,14 +1,16 @@
-# Real Enzian hardware test
+# Test on real Enzian hardware
 
-Use a reserved machine, matching CI bitstream and software closure, and retain
-job ID, commit, artifact checksums, console logs and client correctness CSV.
-The [quickstart](https://gitlab.inf.ethz.ch/project-openenzian/documentation/userguide/-/jobs/artifacts/main/raw/enzian_quickstart.pdf?job=build)
-describes power sequencing; the [cluster inventory](https://enzian.systems/generated/cluster-info.html)
-maps machines to JTAG cables.
+Run from the repository root. Use [test.py](../../tools/enzian/test.py) for the
+whole reset → program → Linux → module → gateway RPC test. **A passing test
+requires correct RPC replies through `lauberhorn0`, not just successful boot or
+`insmod`.** Keep bitstream, software closure and client protocol matched.
 
-## Reservation and prerequisites
+## 1. Check access and reserve
 
-On `enzian-gateway`, run `emg list-machines`. If zuestoll14 is unreserved:
+Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
+`enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
+assume the previous reservation persists. For an unreserved zuestoll14, run on
+the gateway:
 
 ```sh
 emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
@@ -16,334 +18,106 @@ emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
   -g 2025-07-28
 ```
 
-Use `console zuestoll14-console` and `console zuestoll14-bmc`; `console zuestoll14`
-is ambiguous on this gateway. Detach with Ctrl-E, c, period. Do not take over
-another attached console automatically.
+Tested setup: kernel `6.8.0-64-generic`; CPU credentials `enzian/enzian`
+(`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc`.
+The BMC helper prompts if login is needed. CPU console is `zuestoll14-console`,
+BMC console is `zuestoll14-bmc`; detach with Ctrl-E, c, period. Do not force
+another console user off. See the [quickstart](https://gitlab.inf.ethz.ch/project-openenzian/documentation/userguide/-/jobs/artifacts/main/raw/enzian_quickstart.pdf?job=build)
+and [machine/JTAG inventory](https://enzian.systems/generated/cluster-info.html).
 
-Build `nix build .#deployFs -L` at the CI hardware revision. Verify CI success
-and download `shell_lauberhorn-eci.bit` (and optionally `.ltx`); job artifacts
-may exist for failed builds, so availability alone is insufficient. Keep the
-hardware and software revision/configuration together; do not reuse an old
-`/scratch/pengxu/deploy.img` without verifying its provenance.
+## 2. Prepare matching artifacts once
 
-CI revision `93f4c1d` predates the Kbuild release fix: its unmodified deployment
-image builds successfully but embeds module vermagic `6.8.12`, incompatible with
-the golden image's `6.8.0-64-generic`. Apply the `flake.nix` kernel-release fix
-when preparing software for that hardware revision, and retain the patch with
-the provenance. Do not force-load the mismatched module.
-
-Pin the Git revision explicitly when the development worktree has newer commits
-or pending edits; the revision is embedded in the generated hardware metadata.
-For this older CI revision, review/export the packaging-only change and use the
-[build helper](../../tools/enzian/build_deploy.py), which records the patch hash
-and image checksum alongside the output link:
+Known working reference: job **2812450**, commit
+`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`. For another build, update the job,
+revision and paths together. Do not poll CI unless asked to wait for it.
+The project token at `../.gitlab_token` is for **read-only CI queries and HW
+artifact downloads only**; do not copy it to remote hosts.
 
 ```sh
-git diff 93f4c1da6d6dab2751ec26bc6985ebf275c0e6dd -- flake.nix > /tmp/kernel-release.patch
-python3 tools/enzian/build_deploy.py 93f4c1da6d6dab2751ec26bc6985ebf275c0e6dd \
-  --packaging-patch /tmp/kernel-release.patch --out-link /tmp/lauberhorn-deploy-ci-2811847
-rsync -L --checksum /tmp/lauberhorn-deploy-ci-2811847 \
-  enzian-gateway:/scratch/pengxu/deploy.img
+python3 tools/enzian/ci_artifacts.py 2812450 --token-file ../.gitlab_token \
+  --download /tmp/hw-2812450
+# This older commit needs only the already-tested kernel-release packaging fix.
+git show 7c9fb46 --format= -- flake.nix > /tmp/kernel-release.patch
+python3 tools/enzian/build_deploy.py aa32b1af04f2fcdd9191c94784eba5bbad1ea25f \
+  --packaging-patch /tmp/kernel-release.patch --out-link /tmp/deploy-2812450
+rsync -rlt /tmp/hw-2812450/ vivado/eci/program_fpga.tcl \
+  enzian-ba2:/tmp/lauberhorn-2812450/
+rsync -L /tmp/deploy-2812450 enzian-gateway:/scratch/pengxu/deploy-2812450.img
 ```
 
-The packaging patch must preserve hardware/ABI generation. The helper keeps CI
-source and revision metadata while applying the explicitly recorded packaging
-patch. For a later CI commit containing the fix, omit `--packaging-patch` to
-build the unmodified commit normally.
+For commits already containing the kernel-release fix, omit `--packaging-patch`.
+Review any patch: it must preserve HW/ABI generation. Never force-load a module
+with incorrect vermagic. Image hashes are recorded provenance, not pinned test
+requirements. `/scratch/pengxu` is shared between gateway and CPU.
 
-The read-only [CI helper](../../tools/enzian/ci_artifacts.py) accepts an explicit
-token file, queries only CI GET endpoints and refuses downloads until success:
+Build the matching client on the gateway (requires GCC, rpcgen and libtirpc):
 
 ```sh
-python3 tools/enzian/ci_artifacts.py 2811847 --token-file ../.gitlab_token
-# Wait up to three hours, then download only after success:
-python3 tools/enzian/ci_artifacts.py 2811847 --token-file ../.gitlab_token \
-  --wait-seconds 10800 --download /tmp/lauberhorn-artifacts-2811847
+mkdir -p /tmp/client-2812450
+for file in Makefile bench_client.c; do
+  git show aa32b1af:sw/apps/microbenchmarks/client/$file > /tmp/client-2812450/$file
+done
+git show aa32b1af:sw/apps/microbenchmarks/bench.x > /tmp/client-2812450/bench.x
+rsync -rlt /tmp/client-2812450/ enzian-gateway:/scratch/pengxu/lauberhorn-client-2812450/
+ssh enzian-gateway 'cd /scratch/pengxu/lauberhorn-client-2812450 && make'
 ```
 
-It records job metadata and SHA-256 checksums. The current GitLab project ID is
-30605; the release configuration's historical 47960 does not identify this job.
+Recheck tool versions: the tested gateway hardware server is 2023.2 on port
+3121, matching `/opt/Xilinx/Vivado/2023.2/bin/vivado` on ba2. For offline 2025.1
+checkpoint analysis, ba2 has `/opt/Xilinx/2025.1/Vivado/bin/vivado`.
 
-## Programming
+## 3. Run and read the summary
 
-On 2026-09-08 the gateway's server on port 3121 was
-`/opt/Xilinx/HWSRVR/2023.2/.../hw_server`. Matching Vivado is available on
-`enzian-ba2` at `/opt/Xilinx/Vivado/2023.2/bin/vivado`. Recheck the server process
-and installed tools before future runs. CI synthesis uses Vivado 2025.1.
-
-Copy [program_fpga.tcl](../../vivado/eci/program_fpga.tcl) and the artifacts to
-`enzian-ba2`. The Tcl script requires an exact cable ID and exactly one xcvu9p;
-it fails if selection or programming fails. For zuestoll14:
+Copy [adder.example.json](../../tools/enzian/adder.example.json) to your case
+file. Replace `UNIQUE_RUN` in its name with a fresh experiment label (also used
+for remote logs). Inspect current CPU routes before using its `cpu40g1 down`
+command: this removes the overlapping FPGA-subnet route; management/root storage
+must remain on `cpu40g0`. The example is specific to zuestoll14: JTAG
+`Digilent/210357B4B301A`, MAC `0c:53:31:03:01:c8`, IP `192.168.129.200/18`.
 
 ```sh
-/opt/Xilinx/Vivado/2023.2/bin/vivado -mode batch -nojournal \
-  -source program_fpga.tcl -tclargs \
-  enzian-gateway.ethz.ch:3121 Digilent/210357B4B301A \
-  shell_lauberhorn-eci.bit
+cp tools/enzian/adder.example.json /tmp/cases.json
+# Edit the unique case name and review the machine-specific settings.
+python3 tools/enzian/test.py /tmp/cases.json --logs /tmp/test-UNIQUE_RUN --repeats 2
+cat /tmp/test-UNIQUE_RUN/summary.json
 ```
 
-Replace the bitstream argument with `--probe` to check connectivity and device
-selection without programming. A powered-down FPGA may report no devices.
+The manifest is a list of cases: `name`, full `revision`, CPU-visible `image`,
+programmer argv `program`, post-verification shell commands `cpu`, and gateway
+shell command `client`. The `cpu` function exposes all `cpu.sh` steps. `{run}`
+expands to round/case name in CPU/client commands. Cases alternate each round;
+the gateway client must exit nonzero on incorrect replies. The example checks
+100 add calls per trial, including arithmetic and echoed request IDs.
 
-Before programming, halt Linux if running, then in `enzian-shell bringup` on
-the BMC use `power_down()`, `common_power_up()`, `cpu_power_up()`. Watch the CPU
-console concurrently: send `b` immediately at `Press 'B' for boot menu`, and
-verify `Boot Options` followed by `Choice:`. Then `fpga_power_up()`, run the
-programmer, and only after success send `n` on the CPU console.
+Launch once, wait for compact stage/results output, then read `summary.json`.
+Inspect only a failed stage's log; do not repeatedly dump boot transcripts or
+issue one tool call per setup step. Full logs, manifest and executed CPU script
+are retained; client CSVs are at the manifest's shared paths. Reset failures
+stop the campaign as infrastructure failures; CPU failures skip RPC. Timeouts
+interrupt/reap local child processes. The final successful server stays running.
 
-[boot.py](../../tools/enzian/boot.py) automates this sequence with pexpect,
-reservation verification, console transcripts and timeouts. It power-cycles
-the machine: halt a running OS beforehand. Supply a programming command after
-`--`, such as `ssh enzian-ba2` followed by the Vivado invocation above. Use a
-new `--logs` directory each run. It leaves boot stopped on programming failure.
-The script requires Python 3 with pexpect; the local workstation and
-`enzian-ba2` have pexpect 4.8.0. To prepare while waiting for CI:
+Each normal boot shuts down CPU/FPGA rails and main PSU, waits five seconds,
+restores common power to access monitors, and requires CPU/FPGA core readings
+≤0.2 V **before** enabling either core. It then catches BDK automatically,
+powers/programs the FPGA, and releases boot only after programming succeeds.
+The BMC remains powered. Use `boot.py --cold-start --hold-only` only for recovery
+from a confirmed already-off board; normal comparison trials require full resets.
 
-```sh
-python3 tools/enzian/boot.py --logs /tmp/lauberhorn-hold-JOB --hold-only
-```
+## Focused debugging
 
-If `print_voltage_all()` confirms all rails are off, use `--cold-start` to skip
-`power_down()`: the latter fails when BMC sequencers are uninitialized, whereas
-`common_power_up()` initializes them. After a successful hold, run with
-`--resume-held`, a fresh log directory, and the actual programmer command after
-`--`. This verifies the BDK menu before programming and sending `n`.
-Cold-start, normal power-cycle/hold, failure handling and Linux continuation
-have been exercised. Programming job 2811847 also succeeded; see the failed
-positive-test result below.
+- [run.py](../../tools/enzian/run.py): run a command or local shell script over
+  the CPU console; `--expect REGEX` asserts ordered output instead of exit zero.
+- [cpu.sh](../../tools/enzian/cpu.sh): independent `mount IMAGE`, `load`, `verify`,
+  `configure MAC CIDR`, `serve add/mul WORKERS NEW_LOG_DIR` steps.
+- [boot.py](../../tools/enzian/boot.py): `--hold-only`, `--resume-held` with a
+  programmer command, or `--negative-no-bitstream` for a deliberate absent-HW test.
+- [program_fpga.tcl](../../vivado/eci/program_fpga.tcl): exact-target programming,
+  `--probe`, or `--capture-ila LTX EXACT_CELL OUTPUT.csv` instead of the bitstream.
 
-## Linux and RPC validation
-
-After Linux login, verify `uname -r`, `/proc/cmdline`, the isolated CPUs, and
-`/scratch/pengxu` mount. Copy the built SquashFS to
-`enzian-gateway:/scratch/pengxu/deploy.img` (the same shared path on the CPU).
-The existing user deployment script mounts this image read-only at `/nix/store`;
-first inspect any existing mount there and avoid hiding an active Nix store.
-Follow the [module usage](../../sw/kmod/README.md)
-for `insmod`, dmesg checks and the correct machine-specific MAC address.
-
-The packaged application is `microbenchmarks add|mul [workers] [server_trace.csv]`.
-The client in `sw/apps/microbenchmarks/client` checks arithmetic and request IDs
-and exits nonzero on failure. Run from a host routed to the FPGA network, not
-through a local loopback path; verify rpcbind service discovery and network
-configuration before invoking `bench_client SERVER add 100 client.csv`.
-A complete test requires successful module initialization, an operational
-bypass interface, workers accepting RPCs and zero client correctness failures.
-Boot or programming success alone is not an end-to-end RPC result.
-
-The helpers compose independent operations:
-
-| Helper | Responsibility |
-| --- | --- |
-| `boot.py` | Power cycle, catch BDK, invoke the programmer, resume Linux |
-| `program_fpga.tcl` | Select the exact JTAG target and program or probe it |
-| `run.py` | Run a command or local shell script as root over the CPU console; capture output and optionally assert ordered regexes |
-| `cpu.sh mount IMAGE` | Mount a chosen SquashFS read-only at `/nix/store` |
-| `cpu.sh load` | Check module vermagic against the running kernel and run `insmod` |
-| `cpu.sh verify` | Compare the loaded hardware version with the closure's revision marker |
-| `cpu.sh configure MAC CIDR` | Configure the bypass interface |
-| `cpu.sh serve add/mul WORKERS NEW_LOG_DIR` | Start the packaged RPC server |
-| `linux-smoke.sh IMAGE MAC CIDR NEW_LOG_DIR` | Compose the CPU steps for the positive test |
-
-`boot.py` and `run.py` share reservation checks and console attachment code in
-`console.py`. `run.py` accepts a local script via `--script`, followed by `--`
-and script arguments, so `cpu.sh` need not be installed remotely:
-
-```sh
-python3 tools/enzian/run.py --logs /tmp/mount-run \
-  --script tools/enzian/cpu.sh -- mount /scratch/pengxu/deploy.img
-python3 tools/enzian/run.py --logs /tmp/load-run \
-  --script tools/enzian/cpu.sh -- load
-python3 tools/enzian/run.py --logs /tmp/verify-run \
-  --script tools/enzian/cpu.sh -- verify
-```
-
-Use fresh log directories. The runner handles an existing shell or the documented
-`enzian/enzian` console login; `ENZIAN_PASSWORD` overrides the password. Ordinary
-commands must exit zero. Repeated `--expect` expressions instead require those
-console messages in order, for tests where the command may oops or panic.
-The runner does not reset the machine or infer which test to run.
-
-To use `linux-smoke.sh` directly on the CPU, copy it and `cpu.sh` into the same
-directory. It starts four add workers and leaves the server running for the
-external client. CPU steps have no pinned image checksum, CI job or kernel
-release; the module ABI check uses `uname -r`, and hardware compatibility uses
-the mounted image's revision marker. Build/download hashes remain recorded
-provenance, not deployment requirements. SquashFS detects read/decompression
-errors, but its format does not provide a whole-image cryptographic integrity
-check; see the [kernel format documentation](https://www.kernel.org/doc/html/latest/filesystems/squashfs.html).
-
-## Current execution evidence (2026-09-08)
-
-### Negative test without a bitstream
-
-Run `boot.py --negative-no-bitstream --logs NEW_BOOT_LOG_DIR` to perform a full
-power cycle, catch BDK, power the FPGA and continue boot without programming.
-Mount the image using the reusable `cpu.sh mount` step above. Prepare console
-logging with a normal command, then invoke the same load step used in positive
-tests, supplying the expected fault messages:
-
-```sh
-python3 tools/enzian/run.py --logs /tmp/negative-prepare -- \
-  bash -c 'sysctl -w kernel.panic=0; dmesg -n 8; sync'
-python3 tools/enzian/run.py --logs /tmp/negative-load \
-  --expect 'Internal error: synchronous external abort:' \
-  --expect 'pc : probe_versions\+' \
-  --script tools/enzian/cpu.sh -- load
-```
-
-The assertion intentionally avoids a compiled instruction offset. Inspect the
-captured trace and the matching module's disassembly to establish the exact
-read that failed. Reset after an oops before testing again.
-
-The live test booted Linux `6.8.0-64-generic` successfully, then reported:
-
-```text
-Internal error: synchronous external abort: 0000000096000210 [#1] SMP
-pc : probe_versions+0xa4/0x258 [lauberhorn]
-```
-
-Disassembly of the exact loaded module identifies offset `+0xa4` as
-`ldr w21, [x1]`, the first static-shell version read at physical address
-`0x97effffffff8` (`SHELL_REGS_BASE + 4 * SHELL_REGS_VERSION_ADDR`).
-The trace includes `mod_init` and `Comm: insmod`. No static-shell version was
-printed. This is the expected absent-register failure: the kernel emitted an
-oops and killed `insmod` with SIGSEGV; no full kernel panic was observed, and the
-shell remained available. Reset before further hardware testing.
-
-Evidence is under `out/hardware-tests/2811847/negative-no-bitstream-boot/` and
-`out/hardware-tests/2811847/negative-no-bitstream-console-2/console.log`.
-The initial one-off negative-test script has been replaced by the shared runner
-and CPU steps. A full repeat with the refactored helpers passed on 2026-09-08:
-`boot.py --negative-no-bitstream` power-cycled the board and reached Linux;
-`run.py --script cpu.sh -- mount ...` logged in and mounted the image;
-`run.py --expect ... --script cpu.sh -- load` returned
-`EXPECTED_OUTPUT_CONFIRMED`. The new trace again shows external abort
-`0000000096000210`, `probe_versions+0xa4/0x258`, faulting instruction
-`b9400035`, and `insmod` exiting 139. The shell survived the oops.
-No helper changes were needed during this repeat. Logs are under
-`out/hardware-tests/2811847/refactored-negative-{sync,boot,mount,prepare,load}/`.
-ShellCheck, Python compilation and `git diff --check` also passed.
-
-### Positive-test preparation
-
-- Reservation confirmed: `zuestoll14`, owner `pengxu`.
-- The initially powered-down machine exposed no JTAG devices. Scripted cold-start
-  caught BDK and powered the FPGA; Vivado 2023.2 then reported `PROBE_SUCCESS`
-  for `Digilent/210357B4B301A`, device `xcvu9p_0`.
-- An intentionally failed programmer command exited nonzero without sending `n`.
-- A subsequent normal `power_down()` → power-up cycle also caught BDK and
-  powered the FPGA successfully, exercising both initial and repeated use.
-- Job 2811847 succeeded at commit `93f4c1da6d6dab2751ec26bc6985ebf275c0e6dd`.
-  The project-specific token authenticates successfully; no CI writes were made.
-- Exact-commit `deployFs` initially built and transferred successfully, but offline
-  inspection found the incompatible `6.8.12` vermagic. That original image has
-  SHA-256 `602129ebc4fb527cd998b51fb1934bb162fc8146a2ce7519545b8609358fc6f4`
-  and must not be loaded. The rebuild with the recorded kernel-release fix passed
-  its vermagic check (`6.8.0-64-generic`). Corrected image SHA-256:
-  `e97eac169a5af163ac9b44068f079c1030f46acd1881ea7222b78dd16f680266`.
-- Existing RPC client compiled on the gateway using its system libraries (two
-  rpcgen unused-variable warnings); hardware programming succeeded; RPC execution is blocked by module initialization.
-
-### Programmed-board test (2026-09-08)
-
-CI job 2811847 succeeded and its bitstream was programmed using the tracked Tcl
-helper, Vivado 2023.2, and cable `Digilent/210357B4B301A`. `PROGRAM_SUCCESS` and
-`LINUX_LOGIN_READY` were observed. The matching software closure mounted, but
-`cpu.sh load` failed with exit 139: synchronous external abort `0000000096000210`
-at `probe_versions+0xa4/0x258`, the same static-shell version read as the negative
-test. No `lauberhorn0` or `/dev/lauberhorn` was created. A separate
-`busybox devmem 0x97effffffff8 64` read also failed with SIGBUS (exit 135).
-
-An immediate capture from
-`i_eci_platform/i_eci_transport/gen_edge_ila.i_ila_eci_edge` showed both links
-up and in `RUN` for all 1024 samples. This establishes link state at capture
-time, not successful I/O transactions. The root cause of the register-access
-failure remains unresolved; timing violations alone do not establish causation.
-The CI trace reports unmet timing requirements. Its artifacts do not include
-the generated timing summary report (a direct request returned HTTP 404).
-
-The intended adder destination is `192.168.129.200` on `lauberhorn0`, with the
-client on enzian-gateway routing via `cluster0.102`, source `192.168.191.254`.
-No RPC was attempted because module initialization failed. Before configuring
-the FPGA interface on a subsequent successful boot, resolve the overlapping
-`192.168.128.0/18` route on CPU interface `cpu40g1` (`192.168.129.193/18`);
-management and root storage use `cpu40g0` on the other subnet.
-
-Logs: `out/hardware-tests/2811847/positive-{boot,mount,load,inspect,shell-read64}/`,
-`ci-final.log`, and `eci-edge.csv`. Reset the CPU after this oops before retrying.
-
-The existing Tcl helper also supports reusable immediate ILA capture without
-reprogramming. Pass an exact ILA cell name and a fresh CSV path:
-
-```sh
-vivado -mode batch -nojournal -source program_fpga.tcl -tclargs \
-  enzian-gateway.ethz.ch:3121 Digilent/210357B4B301A \
-  --capture-ila shell_lauberhorn-eci.ltx \
-  i_eci_platform/i_eci_transport/gen_edge_ila.i_ila_eci_edge eci-edge.csv
-```
-
-This capture operation was exercised with Vivado 2023.2 against the programmed
-board. It uses the same exact target/device selection as programming.
-
-## Build comparison and adder validation (2026-09-10)
-
-Job 2812450 (`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`) passed the
-program/reset/boot/mount/load/verify sequence. The static shell reported
-`2f19869`, and the NIC reported `aa32b1af04f2fcdd`. Build its own `deployFs`
-with the same recorded kernel-release packaging fix; its runtime differs from
-2811847. The mounted image was `/scratch/pengxu/deploy-2812450.img`.
-
-After disabling `cpu40g1` to remove the overlapping data-subnet route,
-`cpu.sh configure 0c:53:31:03:01:c8 192.168.129.200/18` succeeded, followed by
-`cpu.sh serve add 4 /scratch/pengxu/lauberhorn-e2e-2812450`. From enzian-gateway,
-three pings succeeded and the existing `bench_client` verified one call and then
-100 add calls with zero failures. Both arithmetic and request IDs were checked.
-The application in this revision does not implement server CSV tracing despite
-accepting the trace argument; client CSVs supply the correctness evidence.
-
-Evidence: `out/hardware-tests/2812450/{boot,mount,load,verify,network-inspect,configure,serve}/`
-and `rpc/client-{one,100}.csv`. The RPC server logs were also copied locally.
-
-Recent successful CI history was inspected, not just the newest jobs:
-
-| Job | Date | WNS (ns) | Evidence | Artifact availability |
-| --- | --- | ---: | --- | --- |
-| 2812450 | Sep 8 | -1.314 | Route estimate | CI download; 101 add calls passed |
-| 2811847 | Sep 8 | -2.073 | Route estimate | CI download; previous register-read oops |
-| 2660299 | Jun 19 | -0.620 | Route estimate | Expired; direct request returned 404 |
-| 2623585 | Jun 3 | -0.089 | Route estimate | Expired; direct request returned 404 |
-| 2622870 | Jun 3 | -0.009 | Route estimate | Expired; direct request returned 404 |
-| 2383312 | Mar 20 | -0.164 | Routed checkpoint report, Vivado 2025.1 | ba2 `Downloads/artifacts(21).zip` |
-
-Route estimates precede final physical optimization and are not final timing
-signoff. The March 20 checkpoint has TNS -165.535 ns and WHS +0.004 ns, with no
-hold violations; it still fails setup timing. CI traces and comparison metadata
-are in `out/hardware-tests/build-selection/`.
-
-The supplied `Downloads/artifacts(22).zip` corresponds by exact bitstream and
-checkpoint timestamps to June 12 job 2645398, commit `76c1ae40`. Its route
-selection reported WNS -1.484 ns, so the more favorable available March 20
-archive was selected for comparison. Archive identification used CI write times
-and bitstream headers, not filenames alone.
-
-The older job 2383312 was also programmed and tested with software built at
-`4fa10def1e7bb052eb7625fdbf1685308d885702`, plus the kernel-release packaging
-fix. It booted and mounted successfully, but `insmod` produced external abort
-`0000000096000210` at `probe_versions+0xa0/0x250`, before printing a shell version
-or creating `lauberhorn0`. No older-build RPC was possible. The matching legacy
-client was compiled from that commit's `add.x` schema but not run. Evidence is
-under `out/hardware-tests/2383312/{boot,mount,load}/`, with the final timing report
-in `timing.rpt`. Archive/commit association for this failed image remains based
-on exact CI generation timestamps; the runtime version read never completed.
-
-This run exposed a console-runner parsing race: matching digits without a line
-terminator could report only the first digit of a split exit status. The runner
-now waits for the complete status line. A local pexpect check splitting `139`
-after the first digit verifies this fix. The underlying older-module failure is
-independently established by the captured oops and shell's SIGSEGV message.
-
-The last programmed state is the older March 20 image after its oops; reset
-before further tests. Job 2812450 is the demonstrated functional adder build.
-Better WNS alone did not predict success in these two runs; neither establishes
-hardware reliability or timing closure.
+For a negative test, boot with `--negative-no-bitstream`, mount using `cpu.sh`,
+then run `cpu.sh load` through `run.py` with expectations
+`'Internal error: synchronous external abort:'` and `'pc : probe_versions\+'`.
+The observed failure was an oops at shell version register `0x97effffffff8`, not
+a full kernel panic. Reset after an oops. ECI links being up does not establish
+working register accesses or RPCs. See [recorded results](hardware-test-results.md)
+for known failures and repeatability limits; historical results are not a new test.
