@@ -1,0 +1,26 @@
+[
+  {
+    "name": "adder-UNIQUE_RUN",
+    "revision": "aa32b1af04f2fcdd9191c94784eba5bbad1ea25f",
+    "image": "/scratch/pengxu/deploy-2812450.img",
+    "program": [
+      "ssh",
+      "enzian-ba2",
+      "/opt/Xilinx/Vivado/2023.2/bin/vivado",
+      "-mode",
+      "batch",
+      "-nojournal",
+      "-log",
+      "/tmp/lauberhorn-2812450/repro-program.log",
+      "-source",
+      "/tmp/lauberhorn-2812450/program_fpga.tcl",
+      "-tclargs",
+      "enzian-gateway.ethz.ch:3121",
+      "Digilent/210357B4B301A",
+      "/tmp/lauberhorn-2812450/shell_lauberhorn-eci.bit",
+      "/tmp/lauberhorn-2812450/shell_lauberhorn-eci.ltx"
+    ],
+    "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\ncpu serve add 4 /scratch/pengxu/test-{run}\n",
+    "client": "timeout 90 /scratch/pengxu/lauberhorn-client-2812450/bench_client 192.168.129.200 add 100 /scratch/pengxu/test-{run}/client.csv"
+  }
+]

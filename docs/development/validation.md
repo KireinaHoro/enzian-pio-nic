@@ -1,6 +1,6 @@
 # Validation and simulation
 
-Real-machine setup and execution are covered by [real hardware testing](hardware-test.md).
+Real-machine setup and execution are covered by [automated hardware test quickstart](hardware-test.md).
 
 Scope: source-inspected test entry points and coverage limitations, 2026-09-08. No simulation or hardware build was run to create this document.
 

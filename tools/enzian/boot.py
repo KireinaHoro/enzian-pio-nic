@@ -6,6 +6,7 @@ output (not sent passwords). On failure leaves the CPU stopped when possible;
 never resumes boot after a failed programmer command.
 """
 import argparse
+import ast
 import contextlib
 import getpass
 import pathlib
@@ -13,6 +14,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 
 import pexpect
 from console import attach, require_reservation
@@ -99,7 +101,18 @@ def main():
                 caught.append(exc)
         if not args.cold_start:
             power('power_down')
+        time.sleep(5)
+        # Restore monitor access with core rails still disabled.
         power('common_power_up')
+        bmc.sendline("readings = read_voltage_all(); print({n: [r[2] for r in readings[n] if r is not None] for n in ('VDD_CORE', 'VCCINT_FPGA')})")
+        bmc.expect('>>> ', timeout=30)
+        matches = re.findall(r"\{'VDD_CORE': \[.*?\], 'VCCINT_FPGA': \[.*?\]\}", bmc.before)
+        if not matches:
+            raise RuntimeError('Missing power-off voltage evidence')
+        rails = ast.literal_eval(matches[-1])
+        if any(not values or any(abs(v) > 0.2 for v in values) for values in rails.values()):
+            raise RuntimeError('CPU/FPGA rails not verified off: ' + str(rails))
+        print('POWER_OFF_VERIFIED ' + str(rails), flush=True)
         watcher = threading.Thread(target=hold_cpu, daemon=True)
         watcher.start()
         power('cpu_power_up')

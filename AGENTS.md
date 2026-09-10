@@ -11,6 +11,7 @@ relevant source and subsequent changes before relying on implementation details.
 - Linux scheduling/preemption: [scheduler](docs/software/scheduler.md).
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md).
+- Real Enzian hardware / adder E2E: [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
 - External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
@@ -45,7 +46,9 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   barriers, preemption ordering or ownership. Local address arithmetic alone does
   not establish coherence progress or isolation.
 - Use `nix develop` and source-defined Mill targets. Choose targeted validation
-  from the validation guide; Vivado and deployment require platform prerequisites.
+  from the [validation guide](docs/development/validation.md); for real hardware use
+  the [automated test routine](docs/development/hardware-test.md). Vivado and
+  deployment require platform prerequisites.
   State which checks actually ran. Historical logs are not current test results.
 - Search first-party paths first (`hw`, `sw`, `docs`, `build.mill`, `flake.nix`,
   `vivado/eci/rtl`); inspect submodules when the task crosses those boundaries.
