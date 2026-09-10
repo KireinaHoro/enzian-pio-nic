@@ -1,0 +1,9 @@
+--- a/sw/apps/nested_adder-demo/main.c
++++ b/sw/apps/nested_adder-demo/main.c
+@@ -47,5 +47,5 @@
+     lauberhorn_rpc_endpoint_t ep = {
+-        .daddr = "10.0.0.5",
++        .daddr = getenv("NESTED_REMOTE_IP") ? getenv("NESTED_REMOTE_IP") : "10.0.0.5",
+         .dport = 12345,
+         .proc_num = 1,
+         .prog_num = ADD_PROG,

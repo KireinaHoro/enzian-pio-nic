@@ -1,8 +1,10 @@
 # Nested RPC runtime integration staging
 
 Branch: `feat/nested-rpc`, started from upstream `0cb3600` on 2026-09-08.
-The maintainer requested a build-only stopping point before jointly developing
-an agent-accessible Enzian hardware test routine.
+The initial build-only stopping point is complete. The maintainer subsequently
+authorized hardware validation using the upstream agent-accessible Enzian
+workflow, merged from `ed1b45b` in `5cb21f4`. See
+[recorded hardware results](../development/hardware-test-results.md).
 
 ## Imported scope
 
@@ -39,7 +41,7 @@ The student's outgoing-call setup is not yet reconciled with hardware PID,
 cookie, source-port configuration and byte-order requirements. A successful
 software build does not establish a nested hardware round trip.
 
-## Deferred work before hardware validation and merge
+## Deferred work before merge
 
 - Correct coalesced fiber wakeups and pending-slot/result ownership.
 - Initialize fiber callback handlers and define pool-exhaustion behavior.
@@ -52,10 +54,17 @@ software build does not establish a nested hardware round trip.
   its optional trace path for the later restoration.
 - Wire the hardware nested-call metadata and reply listen port, and address
   hardware in-flight-table capacity/acceptance and timeout retirement.
-- Establish the Enzian test routine, validate the baselines and nested calls,
-  then merge into master. Import and validate Dandelion on hardware afterward.
+- Repair generated accessors for the nested descriptor's unaligned 32-bit
+  fields. The matched header truncates the destination to 16 bits; the
+  [hardware results](../development/hardware-test-results.md) include a
+  host-side reproduction and the resulting bad ARP destination. Change the
+  generator or coordinate a layout change with RTL, then regenerate collateral.
+- Complete nested-call validation with the Enzian test routine, then merge into
+  master. Dandelion remains an external application snapshot; initial hardware
+  probes do not import it into this repository or establish composition support.
 
-This is an integration staging branch, not a merge-ready or hardware-validated
-runtime. Earlier master-runtime descriptions in the topic docs are historical
+This is an integration staging branch, not a merge-ready runtime. Hardware
+results apply only to the cases explicitly recorded. Earlier master-runtime
+descriptions in the topic docs are historical
 until these items are resolved. See [nested RPC design](nested-rpc.md) and
 [Dandelion provenance](../research/dandelion.md).
