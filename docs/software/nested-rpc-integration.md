@@ -43,25 +43,15 @@ software build does not establish a nested hardware round trip.
 
 ## Deferred work before merge
 
-- Correct coalesced fiber wakeups and pending-slot/result ownership.
-- Initialize fiber callback handlers and define pool-exhaustion behavior.
-- Handle codec allocation/serialization failures, bound TX lengths and repair
-  XDR object initialization and capacity handling.
-- Reconcile the real service-deregistration ioctl argument and service IDs,
-  worker shutdown/cleanup, cancellation and timeout progress on blocking RX.
-- Restore upstream per-request CSV tracing. The imported runtime currently
-  ignores `LAUBERHORN_SERVER_TRACE_CSV`; the existing microbenchmark CLI retains
-  its optional trace path for the later restoration.
-- Wire the hardware nested-call metadata and reply listen port, and address
-  hardware in-flight-table capacity/acceptance and timeout retirement.
-- Repair generated accessors for the nested descriptor's unaligned 32-bit
-  fields. The matched header truncates the destination to 16 bits; the
-  [hardware results](../development/hardware-test-results.md) include a
-  host-side reproduction and the resulting bad ARP destination. Change the
-  generator or coordinate a layout change with RTL, then regenerate collateral.
-- Complete nested-call validation with the Enzian test routine, then merge into
-  master. Dandelion remains an external application snapshot; initial hardware
-  probes do not import it into this repository or establish composition support.
+The [ordered blocker queue](nested-rpc-blockers.md) is the canonical tracker
+for one-at-a-time fixes. It distinguishes reproduced failures from source-review
+findings and defines closure checks for descriptor generation, nested transport,
+completion/codec ownership, shutdown, hardware startup and Dandelion placement.
+It also retains the CSV tracing and hardware capacity/timeout requirements.
+Update each item's status with fixing commits and validation evidence.
+
+Dandelion remains an external application snapshot; initial hardware probes do
+not import it into this repository or establish composition support.
 
 This is an integration staging branch, not a merge-ready runtime. Hardware
 results apply only to the cases explicitly recorded. Earlier master-runtime

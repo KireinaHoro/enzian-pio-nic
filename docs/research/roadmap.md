@@ -2,6 +2,10 @@
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
+For the current `feat/nested-rpc` integration, use the
+[ordered blocker queue](../software/nested-rpc-blockers.md), recorded after the
+September 10 Enzian campaign, to work through fixes one by one.
+
 ## Work supported by repository evidence
 
 | Work | Current evidence / gap | Completion evidence to seek |
