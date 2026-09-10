@@ -109,7 +109,8 @@ If `print_voltage_all()` confirms all rails are off, use `--cold-start` to skip
 `--resume-held`, a fresh log directory, and the actual programmer command after
 `--`. This verifies the BDK menu before programming and sending `n`.
 Cold-start, normal power-cycle/hold, failure handling and Linux continuation
-have been exercised; programming is pending CI artifacts.
+have been exercised. Programming job 2811847 also succeeded; see the failed
+positive-test result below.
 
 ## Linux and RPC validation
 
@@ -233,7 +234,7 @@ ShellCheck, Python compilation and `git diff --check` also passed.
 - An intentionally failed programmer command exited nonzero without sending `n`.
 - A subsequent normal `power_down()` → power-up cycle also caught BDK and
   powered the FPGA successfully, exercising both initial and repeated use.
-- Job 2811847 is running at commit `93f4c1da6d6dab2751ec26bc6985ebf275c0e6dd`.
+- Job 2811847 succeeded at commit `93f4c1da6d6dab2751ec26bc6985ebf275c0e6dd`.
   The project-specific token authenticates successfully; no CI writes were made.
 - Exact-commit `deployFs` initially built and transferred successfully, but offline
   inspection found the incompatible `6.8.12` vermagic. That original image has
@@ -242,4 +243,45 @@ ShellCheck, Python compilation and `git diff --check` also passed.
   its vermagic check (`6.8.0-64-generic`). Corrected image SHA-256:
   `e97eac169a5af163ac9b44068f079c1030f46acd1881ea7222b78dd16f680266`.
 - Existing RPC client compiled on the gateway using its system libraries (two
-  rpcgen unused-variable warnings); hardware programming and RPC execution pending.
+  rpcgen unused-variable warnings); hardware programming succeeded; RPC execution is blocked by module initialization.
+
+### Programmed-board test (2026-09-08)
+
+CI job 2811847 succeeded and its bitstream was programmed using the tracked Tcl
+helper, Vivado 2023.2, and cable `Digilent/210357B4B301A`. `PROGRAM_SUCCESS` and
+`LINUX_LOGIN_READY` were observed. The matching software closure mounted, but
+`cpu.sh load` failed with exit 139: synchronous external abort `0000000096000210`
+at `probe_versions+0xa4/0x258`, the same static-shell version read as the negative
+test. No `lauberhorn0` or `/dev/lauberhorn` was created. A separate
+`busybox devmem 0x97effffffff8 64` read also failed with SIGBUS (exit 135).
+
+An immediate capture from
+`i_eci_platform/i_eci_transport/gen_edge_ila.i_ila_eci_edge` showed both links
+up and in `RUN` for all 1024 samples. This establishes link state at capture
+time, not successful I/O transactions. The root cause of the register-access
+failure remains unresolved; timing violations alone do not establish causation.
+The CI trace reports unmet timing requirements. Its artifacts do not include
+the generated timing summary report (a direct request returned HTTP 404).
+
+The intended adder destination is `192.168.129.200` on `lauberhorn0`, with the
+client on enzian-gateway routing via `cluster0.102`, source `192.168.191.254`.
+No RPC was attempted because module initialization failed. Before configuring
+the FPGA interface on a subsequent successful boot, resolve the overlapping
+`192.168.128.0/18` route on CPU interface `cpu40g1` (`192.168.129.193/18`);
+management and root storage use `cpu40g0` on the other subnet.
+
+Logs: `out/hardware-tests/2811847/positive-{boot,mount,load,inspect,shell-read64}/`,
+`ci-final.log`, and `eci-edge.csv`. Reset the CPU after this oops before retrying.
+
+The existing Tcl helper also supports reusable immediate ILA capture without
+reprogramming. Pass an exact ILA cell name and a fresh CSV path:
+
+```sh
+vivado -mode batch -nojournal -source program_fpga.tcl -tclargs \
+  enzian-gateway.ethz.ch:3121 Digilent/210357B4B301A \
+  --capture-ila shell_lauberhorn-eci.ltx \
+  i_eci_platform/i_eci_transport/gen_edge_ila.i_ila_eci_edge eci-edge.csv
+```
+
+This capture operation was exercised with Vivado 2023.2 against the programmed
+board. It uses the same exact target/device selection as programming.

@@ -2,15 +2,20 @@
 # Use a Vivado version matching hw_server.
 # vivado -mode batch -source program_fpga.tcl -tclargs SERVER Digilent/SERIAL BIT [LTX]
 # BIT may be --probe to check target/device selection without programming.
+# Or: SERVER Digilent/SERIAL --capture-ila LTX EXACT_CELL OUTPUT.csv
 proc main {argv} {
-    if {[llength $argv] < 3 || [llength $argv] > 4} {
+    if {[llength $argv] < 3 || [llength $argv] > 6} {
         error "usage: server Digilent/serial bitstream|--probe ?probes.ltx?"
     }
-    lassign $argv server jtag bitstream probes
+    lassign $argv server jtag bitstream probes cell output
+    set capture [expr {$bitstream eq "--capture-ila"}]
+    if {($capture && [llength $argv] != 6) || (!$capture && [llength $argv] > 4)} {
+        error "capture requires LTX, exact ILA cell and CSV output"
+    }
     if {![regexp {^Digilent/[A-Za-z0-9]+$} $jtag]} {
         error "Expected an exact Digilent/serial JTAG ID"
     }
-    set probe [expr {$bitstream eq "--probe"}]
+    set probe [expr {$bitstream eq "--probe" || $capture}]
     if {!$probe} {
         if {![file isfile $bitstream] || ![file readable $bitstream]} {
             error "Unreadable bitstream: $bitstream"
@@ -40,7 +45,22 @@ proc main {argv} {
     set device [lindex $devices 0]
     current_hw_device $device
     puts "Selected target=[current_hw_target] device=$device Vivado=[version -short]"
-    if {!$probe} {
+    if {$capture} {
+        set_property PROBES.FILE [file normalize $probes] $device
+        set_property FULL_PROBES.FILE [file normalize $probes] $device
+        refresh_hw_device $device
+        set selected {}
+        foreach ila [get_hw_ilas -of_objects $device] {
+            if {[get_property CELL_NAME $ila] eq $cell} {lappend selected $ila}
+        }
+        if {[llength $selected] != 1} {error "Expected one ILA at $cell"}
+        set ila [lindex $selected 0]
+        run_hw_ila -trigger_now $ila
+        wait_on_hw_ila -timeout 30 $ila
+        set data [upload_hw_ila_data $ila]
+        write_hw_ila_data -csv_file $output $data
+        puts "CAPTURE_SUCCESS cell=$cell output=$output"
+    } elseif {!$probe} {
         set_property PROGRAM.FILE $bitstream $device
         set_property PROBES.FILE {} $device
         set_property FULL_PROBES.FILE {} $device
