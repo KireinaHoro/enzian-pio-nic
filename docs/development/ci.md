@@ -94,7 +94,7 @@ The image preserves the Nix store, database and build dependencies. A fresh
 container can reuse these without fetching them again. Changed derivations
 still build normally against the current checkout's lockfiles.
 
-Refresh by updating `LAUBERHORN_REV` in the image repository, building its main
+Refresh by updating `lauberhorn.rev` in the image repository, building its main
 pipeline, then using `lauberhorn-image.digest` from `lauberhorn-flakes-image`
 to update the shared `.nix.image.name` here. The image tag is the full
 image-repository commit, not the platform commit. Keep the platform switch on
