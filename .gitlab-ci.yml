@@ -1,89 +1,129 @@
-default:
-  hooks:
-    pre_get_sources_script:
-      - git config --global protocol.file.allow always
-
 stages:
   - test
+  - prepare
   - build-hw
+  - report
   - release
 
 variables:
   GIT_STRATEGY: clone
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    # Docker supplies isolation; this executor disallows nested namespaces.
+    sandbox = false
+    cores = 8
+    max-jobs = 1
 
-.docker-image-hw:
-  tags:
-    - enzian-docker
-    - vivado
-  image: "registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04"
+.nix:
+  tags: [enzian-docker]
+  # Nix 2.31.3; build tools themselves come from flake.lock/project-lock.nix.
+  image:
+    name: nixos/nix:2.31.3@sha256:d49538facc7757890eccfa5f57869ad18c823c24903e3b8ac6ca8a301d84a9b6
+    entrypoint: [""]
+  before_script:
+    # The runner helper owns checkout; Nix runs Git as the container user.
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - git submodule foreach --recursive 'git config --global --add safe.directory "$PWD"'
+    # Nix fetches submodules in its own cache, outside runner-local Git config.
+    # Store only an environment reference; never put the job token in a URL.
+    - |
+      git config --global credential."https://gitlab.inf.ethz.ch".helper '!f() { if test "$1" = get; then printf "%s\n" "username=gitlab-ci-token" "password=$CI_JOB_TOKEN"; fi; }; f'
+
+.test-nix:
+  extends: .nix
+  stage: test
+  script:
+    - nix run --no-update-lock-file .#ciBuild -- "$CI_JOB_NAME" ".#checks.x86_64-linux.$CI_JOB_NAME"
+  artifacts:
+    when: always
+    paths: [out/ci/]
+    reports:
+      junit: out/ci/**/test-report.xml
 
 fast-tests-eci:
-  extends: .docker-image-hw
-  stage: test
-  script:
-    - mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci
-  artifacts:
-    when: on_failure
-    paths:
-      - simWorkspace/**/sim_transcript.log.gz
-      - simWorkspace/**/wave.fst
+  extends: .test-nix
 
 blocks-tests:
-  extends: .docker-image-hw
-  stage: test
-  rules:
-    - changes:
-        - deps/blocks
-        - deps/blocks/**/*
-    - when: never
-  script:
-    - mill 'blocks[2.13.12].test'
-  artifacts:
-    when: on_failure
-    paths:
-      - simWorkspace/**/sim_transcript.log.gz
-      - simWorkspace/**/wave.fst
-      - deps/blocks/simWorkspace/**/sim_transcript.log.gz
-      - deps/blocks/simWorkspace/**/wave.fst
+  extends: .test-nix
 
-.build-hw:
-  extends: .docker-image-hw
-  stage: build-hw
+trace-tests:
+  extends: .test-nix
+
+trace-fifo-tests:
+  extends: .test-nix
+
+prepare-eci:
+  extends: .nix
+  stage: prepare
   needs:
-    - fast-tests-eci
-  before_script:
-    - source /opt/Xilinx/2025.1/Vivado/settings64.sh
+    - job: fast-tests-eci
+      artifacts: false
+    - job: blocks-tests
+      artifacts: false
+    - job: trace-tests
+      artifacts: false
+    - job: trace-fifo-tests
+      artifacts: false
   script:
-    - mill --no-server $PIONIC_DESIGN.generateBitstream
-
-# build-hw-pcie:
-#   extends: .build-hw
-#   variables:
-#     PIONIC_DESIGN: pcie
-#   artifacts:
-#     paths:
-#       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
-#       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
-#       - out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
-#       - hw/gen/*/*.h
-#       - sw/devices/pionic_*.dev
-
-build-hw-eci:
-  extends: .build-hw
-  variables:
-    PIONIC_DESIGN: eci
+    - nix run --no-update-lock-file .#prepareEci
   artifacts:
     when: always
     paths:
-      - out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json
+      - out/eci/vivado-inputs/
+      - out/eci/generateVerilog.dest/
+      - out/deploy.img
+      - out/ci/**/build.log
+
+build-hw-eci:
+  tags: [enzian-docker, vivado]
+  image: registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04@sha256:48b231ebda51a5891b8aea8f8df8d23a52d0e87e9a5df01099b17ef1b9fdcff8
+  stage: build-hw
+  # The preceding Nix job supplies every source. Do not re-fetch or regenerate.
+  variables:
+    GIT_STRATEGY: empty
+    GIT_SUBMODULE_STRATEGY: none
+    RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"
+  needs:
+    - job: prepare-eci
+      artifacts: true
+  before_script:
+    - source /opt/Xilinx/2025.1/Vivado/settings64.sh
+  script:
+    - /opt/Xilinx/2025.1/Vivado/bin/vivado -mode batch -nojournal -nolog -source out/eci/vivado-inputs/vivado/eci/ci_build.tcl -tclargs out/eci/vivado-inputs out/eci/vivadoProject.dest
+  after_script:
+    - /opt/Xilinx/2025.1/Vivado/bin/vivado -mode batch -nojournal -nolog -source out/eci/vivado-inputs/tools/physical/checkpoint.tcl -tclargs out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp out/physical > out/physical-vivado.log 2>&1
+  artifacts:
+    when: always
+    paths:
+      - out/eci/generateVerilog.dest/
+      - out/eci/vivado-inputs/git-revision
+      - out/eci/vivado-inputs/rtl-derivation
+      - out/eci/vivado-inputs/flake.lock
+      - out/physical/
+      - out/physical-vivado.log
+      - out/eci/vivadoProject.dest/*timing*.rpt
+      - out/eci/vivadoProject.dest/*utilization*.rpt
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
-      - hw/gen/*/*.h
-      - sw/devices/lauberhorn_*.dev
 
+report-hw-eci:
+  extends: .nix
+  stage: report
+  needs:
+    - job: build-hw-eci
+      artifacts: true
+  when: always
+  script:
+    - nix run --no-update-lock-file .#summarizePhysical -- out/physical
+    - test -f out/physical/COMPLETE
+  artifacts:
+    when: always
+    paths: [out/physical/]
+
+# Publication performs no compilation; keep the existing release service.
 publish:
   stage: release
   image: registry.ethz.ch/project-openenzian/ci-images/publish:ubuntu-22.04
@@ -91,21 +131,19 @@ publish:
   rules:
     - if: '$CI_COMMIT_TAG'
   needs:
-    # - job: build-hw-pcie
-    #   artifacts: true
     - job: build-hw-eci
       artifacts: true
+    - job: prepare-eci
+      artifacts: true
+    - job: report-hw-eci
+      artifacts: false
   variables:
     PROJECT_ID: 47960
     PACKAGE_NAME: release
     RELEASE_NAME: 'Release $CI_COMMIT_TAG'
     RELEASE_TAG: '$CI_COMMIT_TAG'
     ARTIFACT_PATHS: |
-      sw/pcie/pionic-test
-      sw/eci/pionic-test
-      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.bit
-      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/pio-nic-pcie.ltx
-      out/pcie/vivadoProject.dest/pio-nic-pcie/pio-nic-pcie.runs/impl_1/design_1_wrapper_postroute_physopt.dcp
+      out/deploy.img
       out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
       out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
       out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
