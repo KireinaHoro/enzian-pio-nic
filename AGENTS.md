@@ -7,10 +7,11 @@ relevant source and subsequent changes before relying on implementation details.
 
 ## Task routing
 
+- Routed timing / STA / pipelining / floorplanning: [physical implementation](docs/hardware/physical-implementation.md), [checkpoint findings](docs/hardware/physical-findings.md), [active CI experiments](docs/hardware/physical-experiments.md); run `tools/physical/checkpoint.tcl` on enzian-ba2, read the `tools/physical/summarize.py` digest first.
 - FPGA datapaths, ECI, buffers: [architecture](docs/hardware/architecture.md), [status](docs/hardware/implementation-status.md).
 - Linux scheduling/preemption: [scheduler](docs/software/scheduler.md).
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
-- Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md).
+- Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
 - Real Enzian hardware / adder E2E: [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
@@ -31,6 +32,14 @@ Finished TCP/Protobuf student work lives in `../flavian-tcp` and
 priority. Fully offloaded gRPC is a potential follow-on paper.
 
 ## Working rules
+
+- Keep work organized in goal-focused branches with coherent commits. When a goal
+  is complete, merge its branch into this worktree's `master` and push the branch
+  and `master` to the private GitLab remote. Keep independent experiments on
+  separate branches. Do not accumulate completed work as uncommitted changes or
+  untracked source/docs in the master worktree; track intended project files with
+  their goal and keep generated artifacts in ignored output directories. If work
+  must remain unfinished, state its branch and remaining changes explicitly.
 
 - Treat source as evidence of implementation, the workshop paper as design intent,
   and proposals as proposals. Do not claim full paper functionality is complete.
