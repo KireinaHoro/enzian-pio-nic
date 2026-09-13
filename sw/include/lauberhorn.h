@@ -22,6 +22,7 @@ typedef struct lauberhorn {
 
 typedef void* lauberhorn_msg_t;
 
+// Handler XIDs are host-order numbers; ECI performs network conversion.
 typedef lauberhorn_msg_t (*lauberhorn_handler_func_t)(void* priv, lauberhorn_msg_t data, int xid);
 typedef void (*lauberhorn_handler_free_t)(void* data);
 
@@ -101,7 +102,8 @@ LAUBERHORN_API void lauberhorn_join_worker(lauberhorn_t* ctx,
 										   lauberhorn_worker_t w);
 
 typedef struct {
-	const char *daddr;
+	const char *daddr; // IPv4 dotted-decimal address
+	// Port and RPC program/version/procedure numbers are in host byte order.
 	uint16_t dport; 
 	uint32_t prog_num;
 	uint32_t prog_ver;

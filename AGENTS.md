@@ -42,6 +42,11 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
 - Hardware descriptors, generated Mackerel/config headers, kernel mappings and
   runtime cache-line accesses must agree. Regenerate collateral after ABI changes;
   do not hand-edit generated output or use an unmatched bitstream/header pair.
+- Prefer hardware byte-order conversion for numeric ECI fields. Keep scalar
+  descriptor fields naturally aligned using padding; do not rely on generator
+  support for unaligned access. Preserve wire-native packet bytes and Linux
+  network-stack values where conversion would add software work. See the
+  [ECI boundary contract](docs/software/nested-rpc.md#endianness-at-the-host-boundary).
 - Read the ECI progress and routing notes before changing cache-line layouts,
   barriers, preemption ordering or ownership. Local address arithmetic alone does
   not establish coherence progress or isolation.

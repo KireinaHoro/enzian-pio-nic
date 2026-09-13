@@ -59,14 +59,14 @@ object EciHostCtrlInfoSim {
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
         val pid = dp.pop(PID_WIDTH, skip = 12)
-        val cookie = dp.pop(32)
+        val cookie = dp.pop(32, skip = 16)
         val xid = dp.pop(32)
         RxOncRpcReplySim(
           len.toInt,
           pid,
           cookie,
           xid,
-          dp.pop(ONCRPC_INLINE_BYTES * 8, skip = 16))
+          dp.pop(ONCRPC_INLINE_BYTES * 8))
       }
   }
 }
@@ -151,7 +151,7 @@ case class TxOncRpcCallSim(len: Int,
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PID_WIDTH, pid, skip = 13)
-      .push(32, cookie)
+      .push(32, cookie, skip = 16)
       .push(32, xid)
       .push(32, daddr)
       .push(16, sport)
@@ -159,7 +159,7 @@ case class TxOncRpcCallSim(len: Int,
       .push(32, progNum)
       .push(32, progVer)
       .push(32, proc)
-      .push(ONCRPC_NESTED_CALL_INLINE_BYTES * 8, args, skip = 48)
+      .push(ONCRPC_NESTED_CALL_INLINE_BYTES * 8, args, skip = 32)
       .toBigInt
   }
 

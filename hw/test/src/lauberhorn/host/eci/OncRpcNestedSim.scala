@@ -16,8 +16,6 @@ import scala.language.postfixOps
 
 class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
   private def u16BytesBE(v: Int): List[Byte] = List(((v >> 8) & 0xff).toByte, (v & 0xff).toByte)
-  private def u16be(v: Int): BigInt = u16BytesBE(v).bytesToBigInt
-  private def u32be(v: Int): BigInt = v.toBytesBE.bytesToBigInt
 
   private def expectedOncRpcCallHeader(xid: Int, prog: Int, progVer: Int, proc: Int): List[Byte] =
     xid.toBytesBE ++
@@ -107,8 +105,8 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     val info = desc.asInstanceOf[OncRpcReplyRxPacketDescSim]
     assert(info.pid == expectedPid, s"pid mismatch: got ${info.pid}, expected $expectedPid")
     assert(info.cookie == expectedCookie, f"cookie mismatch: got ${info.cookie}%x, expected $expectedCookie%x")
-    assert(Integer.reverseBytes(info.xid.toInt) == expectedXid,
-      f"xid mismatch: got ${Integer.reverseBytes(info.xid.toInt)}%x, expected $expectedXid%x")
+    assert(info.xid.toInt == expectedXid,
+      f"xid mismatch: got ${info.xid.toInt}%x, expected $expectedXid%x")
 
     val inlineLen = ONCRPC_INLINE_BYTES.get
     val overflowLen = Math.max(expectedPayload.length - inlineLen, 0)
@@ -137,7 +135,7 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
 
     val (initialDesc, initialPldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val initialInfo = initialDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    assert(Integer.reverseBytes(initialInfo.xid.toInt) == initialXid)
+    assert(initialInfo.xid.toInt == initialXid)
     checkOncRpcCall(initialDesc, initialDesc.len, funcPtr, initialPayload,
       readPayload(dcsMaster, initialPldDesc, initialDesc.len))
     exitCriticalSection(dcsMaster, tid)
@@ -163,16 +161,16 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
       len = callPayload.length,
       pid = pid,
       cookie = cookie,
-      xid = u32be(xid),
-      daddr = remoteIp.getAddress.toList.bytesToBigInt,
-      sport = u16be(sport),
-      dport = u16be(dport),
-      progNum = u32be(prog),
-      progVer = u32be(progVer),
-      proc = u32be(procNum),
+      xid = BigInt(xid & 0xffffffffL),
+      daddr = BigInt(1, remoteIp.getAddress),
+      sport = sport,
+      dport = dport,
+      progNum = BigInt(prog & 0xffffffffL),
+      progVer = BigInt(progVer & 0xffffffffL),
+      proc = BigInt(procNum & 0xffffffffL),
       args = callInline.bytesToBigInt)
-    assert(txDesc.toTxDesc.slice(14, 18).toArray.sameElements(remoteIp.getAddress),
-      s"nested call descriptor daddr bytes are ${txDesc.toTxDesc.slice(14, 18).map(b => f"$b%02x").mkString(":")}")
+    assert(txDesc.toTxDesc.slice(16, 20).toArray.sameElements(remoteIp.getAddress.reverse),
+      s"nested call descriptor daddr bytes are ${txDesc.toTxDesc.slice(16, 20).map(b => f"$b%02x").mkString(":")}")
 
     var reqServed = false
     setBypassCore(() => {
@@ -236,7 +234,7 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
 
     val (initialDesc, initialPldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val initialInfo = initialDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    assert(Integer.reverseBytes(initialInfo.xid.toInt) == initialXid)
+    assert(initialInfo.xid.toInt == initialXid)
     checkOncRpcCall(initialDesc, initialDesc.len, funcPtr, initialPayload,
       readPayload(dcsMaster, initialPldDesc, initialDesc.len))
     exitCriticalSection(dcsMaster, tid)
@@ -253,14 +251,25 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     csrMaster.write(ALLOC.readBack("UdpDecoder")("ctrl", "listen_nextProto"), 2.toBytesLE)
     csrMaster.write(ALLOC.readBack("UdpDecoder")("ctrl", "listen_idx"), 1.toBytesLE)
 
-    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_xid"), xid.toBytesBE)
-    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_remoteAddr"), remoteIp.getAddress.toList)
-    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_remotePort"), u16BytesBE(dport))
-    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_localPort"), u16BytesBE(sport))
+    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_xid"), xid.toBytesLE)
+    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_remoteAddr"), remoteIp.getAddress.reverse.toList)
+    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_remotePort"), dport.toBytesLE)
+    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_localPort"), sport.toBytesLE)
     csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_pid"), pid.toBytesLE)
     csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_cookie"), 0x55667788.toBytesLE)
     csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_active"), 1.toBytesLE)
     csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("ctrl", "req_idx"), 0.toBytesLE)
+
+    csrMaster.write(ALLOC.readBack("OncRpcReplyDecoder")("stat", "req_readback_idx"), 0.toBytesLE)
+    sleepCycles(10)
+    for ((field, expected) <- Seq(
+      "xid" -> BigInt(xid & 0xffffffffL),
+      "remoteAddr" -> BigInt(1, remoteIp.getAddress),
+      "remotePort" -> BigInt(dport), "localPort" -> BigInt(sport),
+      "pid" -> BigInt(pid), "cookie" -> cookie, "active" -> BigInt(1))) {
+      val actual = csrMaster.read(ALLOC.readBack("OncRpcReplyDecoder")("stat", s"req_readback_$field"), 8).bytesToBigInt
+      assert(actual == expected, s"in-flight CSR $field: $actual != $expected")
+    }
 
     sleepCycles(100)
     val replyPayload = simRandom.nextBytes(ONCRPC_INLINE_BYTES.get + 32).toList

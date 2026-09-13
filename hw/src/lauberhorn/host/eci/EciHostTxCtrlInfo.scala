@@ -5,10 +5,11 @@ import lauberhorn._
 import lauberhorn.host.{HostReq, HostReqType}
 import lauberhorn.net.PacketDescType
 import spinal.core._
+import spinal.lib.EndiannessSwap
 
 import scala.language.postfixOps
 
-/** TX-side ECI control info as written by the host. */
+/** TX-side ECI control info. RPC scalars are host-order; bypass headers are raw bytes. */
 case class EciHostTxCtrlInfo() extends Bundle {
   override def clone: EciHostTxCtrlInfo = EciHostTxCtrlInfo()
 
@@ -33,6 +34,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
     case class OncRpcCallTxBundle() extends Bundle {
       val xb13 = Bits(13 bits) /* make sure RPC fields are aligned */
       val pid = PID()
+      val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
       val cookie = Bits(32 bits)
       val xid = Bits(32 bits)
       val daddr = Bits(32 bits)
@@ -41,7 +43,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
       val progNum = Bits(32 bits)
       val progVer = Bits(32 bits)
       val proc = Bits(32 bits)
-      val xb48 = Bits(48 bits) /* align nested call data to 64-bit word */
+      val xb32 = Bits(32 bits) /* align nested call data to 64-bit word */
       val data = Bits(ONCRPC_NESTED_CALL_INLINE_BYTES * 8 bits)
     }
     val oncRpcCallTx = newElement(OncRpcCallTxBundle())
@@ -57,7 +59,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
         desc.buffer.size := len
       }
       is (HostReqType.oncRpcReplyTx) {
-        desc.data.oncRpcReplyTx.xid     := data.oncRpcReplyTx.xid
+        desc.data.oncRpcReplyTx.xid     := EndiannessSwap(data.oncRpcReplyTx.xid)
         desc.data.oncRpcReplyTx.funcPtr := data.oncRpcReplyTx.funcPtr
         desc.data.oncRpcReplyTx.data    := data.oncRpcReplyTx.data
         desc.data.oncRpcReplyTx.replyLen := len
@@ -70,13 +72,13 @@ case class EciHostTxCtrlInfo() extends Bundle {
       is (HostReqType.oncRpcCallTx) {
         desc.data.oncRpcCallTx.pid     := data.oncRpcCallTx.pid
         desc.data.oncRpcCallTx.cookie  := data.oncRpcCallTx.cookie
-        desc.data.oncRpcCallTx.xid     := data.oncRpcCallTx.xid
-        desc.data.oncRpcCallTx.daddr   := data.oncRpcCallTx.daddr
-        desc.data.oncRpcCallTx.sport   := data.oncRpcCallTx.sport
-        desc.data.oncRpcCallTx.dport   := data.oncRpcCallTx.dport
-        desc.data.oncRpcCallTx.progNum := data.oncRpcCallTx.progNum
-        desc.data.oncRpcCallTx.progVer := data.oncRpcCallTx.progVer
-        desc.data.oncRpcCallTx.proc    := data.oncRpcCallTx.proc
+        desc.data.oncRpcCallTx.xid     := EndiannessSwap(data.oncRpcCallTx.xid)
+        desc.data.oncRpcCallTx.daddr   := EndiannessSwap(data.oncRpcCallTx.daddr)
+        desc.data.oncRpcCallTx.sport   := EndiannessSwap(data.oncRpcCallTx.sport)
+        desc.data.oncRpcCallTx.dport   := EndiannessSwap(data.oncRpcCallTx.dport)
+        desc.data.oncRpcCallTx.progNum := EndiannessSwap(data.oncRpcCallTx.progNum)
+        desc.data.oncRpcCallTx.progVer := EndiannessSwap(data.oncRpcCallTx.progVer)
+        desc.data.oncRpcCallTx.proc    := EndiannessSwap(data.oncRpcCallTx.proc)
         desc.data.oncRpcCallTx.data    := data.oncRpcCallTx.data
         desc.data.oncRpcCallTx.callLen := len
         when (len.bits > ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
@@ -108,7 +110,7 @@ object EciHostTxCtrlInfo {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload, including inlined bytes";
          |  _         13 rsvd;
-         |  xid       32 "XID of request being replied to (big endian)";
+         |  xid       32 "XID of request being replied to (host order)";
          |  func_ptr  64 "Function pointer/session identifier for RPC reply";
          |  // reply data follows -- need to calculate address manually
          |};
@@ -118,15 +120,16 @@ object EciHostTxCtrlInfo {
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of call args, including inlined bytes";
          |  _         13 rsvd;
          |  pid       ${PID_WIDTH.get} "Destination process for eventual reply completion";
+         |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";
-         |  xid       32 "XID of outgoing request (big endian)";
-         |  daddr     32 "Destination IPv4 address";
-         |  sport     16 "Source UDP port";
-         |  dport     16 "Destination UDP port";
-         |  prog_num  32 "ONC-RPC program number";
-         |  prog_ver  32 "ONC-RPC program version";
-         |  proc      32 "ONC-RPC procedure number";
-         |  _         48 rsvd;
+         |  xid       32 "XID of outgoing request (host order)";
+         |  daddr     32 "Destination IPv4 address (host order)";
+         |  sport     16 "Source UDP port (host order)";
+         |  dport     16 "Destination UDP port (host order)";
+         |  prog_num  32 "ONC-RPC program number (host order)";
+         |  prog_ver  32 "ONC-RPC program version (host order)";
+         |  proc      32 "ONC-RPC procedure number (host order)";
+         |  _         32 rsvd;
          |  data0     64 "First 8 inline argument bytes";
          |  data1     64 "Second 8 inline argument bytes";
          |  data2     64 "Third 8 inline argument bytes";

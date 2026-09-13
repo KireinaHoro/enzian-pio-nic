@@ -5,6 +5,7 @@ import lauberhorn._
 import lauberhorn.host.{HostReq, HostReqType}
 import lauberhorn.net.PacketDescType
 import spinal.core._
+import spinal.lib.EndiannessSwap
 
 import scala.language.postfixOps
 
@@ -54,9 +55,9 @@ case class EciHostRxCtrlInfo() extends Bundle {
     case class OncRpcReplyRxBundle() extends Bundle {
       val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
       val pid = PID()
+      val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
       val cookie = Bits(32 bits)
       val xid = Bits(32 bits)
-      val xb16 = Bits(16 bits) /* align nested reply data to 64-bit word */
       val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
     val oncRpcReplyRx = newElement(OncRpcReplyRxBundle())
@@ -107,7 +108,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet overflow, not including inlined bytes";
          |  _         12 rsvd;
-         |  xid       32 "XID of incoming request (big endian)";
+         |  xid       32 "XID of incoming request (host order)";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:
@@ -121,9 +122,9 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload overflow, not including inlined bytes";
          |  _         12 rsvd;
          |  pid       ${PID_WIDTH.get} "Destination process for reply completion";
-         |  cookie    32 "Runtime completion cookie";
-         |  xid       32 "XID of incoming reply (big endian)";
          |  _         16 rsvd;
+         |  cookie    32 "Runtime completion cookie";
+         |  xid       32 "XID of incoming reply (host order)";
          |  // reply data follows -- need to calculate address manually
          |};
          |
@@ -154,11 +155,18 @@ object EciHostRxCtrlInfo {
         ret.data.bypass.xb9 := 0
       }
       is (HostReqType.oncRpcCallRx) {
-        ret.data.oncRpcCallRx.assignSomeByName(desc.data.oncRpcCallRx)
+        // XID is numeric at the ECI boundary; payload and opaque metadata are unchanged.
+        ret.data.oncRpcCallRx.funcPtr := desc.data.oncRpcCallRx.funcPtr
+        ret.data.oncRpcCallRx.data := desc.data.oncRpcCallRx.data
+        ret.data.oncRpcCallRx.xid := EndiannessSwap(desc.data.oncRpcCallRx.xid)
         ret.data.oncRpcCallRx.xb12 := 0
       }
       is (HostReqType.oncRpcReplyRx) {
-        ret.data.oncRpcReplyRx.assignSomeByName(desc.data.oncRpcReplyRx)
+        // XID is numeric at the ECI boundary; payload and opaque metadata are unchanged.
+        ret.data.oncRpcReplyRx.pid := desc.data.oncRpcReplyRx.pid
+        ret.data.oncRpcReplyRx.cookie := desc.data.oncRpcReplyRx.cookie
+        ret.data.oncRpcReplyRx.data := desc.data.oncRpcReplyRx.data
+        ret.data.oncRpcReplyRx.xid := EndiannessSwap(desc.data.oncRpcReplyRx.xid)
         ret.data.oncRpcReplyRx.xb12 := 0
         ret.data.oncRpcReplyRx.xb16 := 0
       }

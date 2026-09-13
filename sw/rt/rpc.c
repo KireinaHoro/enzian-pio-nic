@@ -222,7 +222,8 @@ static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
 // function invoked on incoming rpc reply
 static void rpc_handle_reply(lauberhorn_msg_t reply, lauberhorn_pkt_desc_t *desc) {
     
-    uint32_t xid = desc->oncrpc_reply_rx.xid; 
+    // ECI converts wire XIDs to host order before completion delivery.
+    uint32_t xid = desc->oncrpc_reply_rx.xid;
     struct pending_call *entry = pending_call_get_by_xid(&pending_call_table, xid);
     if (!entry) {
         LOG("no pending call found for xid %d\n", xid);
@@ -267,13 +268,13 @@ void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
 void rpc_send_call(uint32_t xid, lauberhorn_rpc_endpoint_t *ep, void *payload, 
     size_t payload_len) {
 
-    // assemble packet description
+    // ECI converts host-order RPC metadata to wire order in hardware.
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_CALL_TX,
         .oncrpc_call_tx = {.xid = xid,
                            .dport = ep->dport,
                            // sport currently not supported
-                           .daddr = ntohl(inet_addr(ep->daddr)),
+                           .daddr = inet_network(ep->daddr),
                            .prog_num = ep->prog_num,
                            .proc_num = ep->proc_num,
                            .prog_ver = ep->prog_ver},

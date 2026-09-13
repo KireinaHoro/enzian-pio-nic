@@ -2,7 +2,7 @@
 
 Working queue for `feat/nested-rpc`, recorded 2026-09-10 from the campaign
 documented in `e4eeaa7`. Work through B1–B4 in order; investigate B5 separately. B6 is an
-additional Dandelion integration gate. B1's compiler repair is software-verified
+additional Dandelion integration gate. B1 includes compiler, RTL alignment and byte-order repairs
 as of 2026-09-13; its hardware check remains pending. B2–B6 are **open**. Close an
 item with its fixing commit and validation evidence; retain failed trials.
 
@@ -14,13 +14,14 @@ mul and Sven's standalone adder each passed 100 calls from a second Enzian;
 one Dandelion 1×1 matmul invocation passed. These results do not establish
 nested completion, clean shutdown, startup reliability or composition support.
 
-## B1 — Generated nested descriptor accessors truncate fields
+## B1 — Nested descriptor truncation and wire byte order
 
-**Update, 2026-09-13: compiler repair implemented and software-verified.**
+**Update, 2026-09-13: compiler repair and ECI ABI cleanup implemented.**
 Mackerel commit `29f286545fc9b6e8292d6edd06ec02e1c13a8fab` on
 `fix/datatype-boundary-access` fixes C and Rust datatype accessors. Both the
-platform submodule and Nix input now select that revision. The dtype already
-matched RTL; no padding or RTL layout change was needed.
+platform submodule and Nix input now select that revision. The original dtype already
+matched RTL; the compiler repair did not require a layout change. A subsequent
+ABI cleanup aligns the nested scalar fields to avoid split accesses.
 
 The compiler selected an access width using `offset % 8`, but rounded the
 actual access address using `offset % access_width`. It now uses byte accesses
@@ -53,12 +54,45 @@ nix-probe,platform-build}.log`. No new Enzian test or bitstream build was run.
 The build was performed with a dirty-tree version marker; it is build evidence,
 not a deployment image paired with an existing checkpoint.
 
-**Hardware follow-up remains pending.** B1 now preserves `0xc0a88181` exactly;
-on little-endian CPUs its bytes are still `81 81 a8 c0`. The nested sender's
-extra `ntohl` is the separate B2 endianness defect. The wire-order
-representation is `0x8181a8c0`, whose bytes are `c0 a8 81 81`. Do not
-interpret correct bit preservation as a working runtime-driven nested round trip.
-See the [endianness contract](nested-rpc.md#endianness-at-the-host-boundary).
+**ECI ABI cleanup:** byte-order conversion now happens in hardware. All RPC
+XIDs, nested endpoint fields and RPC session/in-flight control-table numbers
+are host-order at the CPU boundary. The runtime passes numeric fields directly
+and parses the destination with `inet_network`. Wire-native bypass packets and
+Linux neighbor/address values retain their existing representation, avoiding
+unnecessary software conversions. See the complete
+[boundary audit](nested-rpc.md#endianness-at-the-host-boundary).
+
+Nested TX and completion RX place 16 bits of padding after PID so cookie and
+following 32-bit fields are naturally aligned. Existing trailing padding is
+reduced/moved; inline payload offsets and capacities are unchanged. RTL,
+Mackerel declarations and the simulation host model are updated together.
+
+Final-ABI software validation (2026-09-13):
+
+- `nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcNestedSim lauberhorn.host.eci.OncRpcSim -- -l org.scalatest.tags.Slow`
+  passed: 10 registered cases, including three pre-existing empty TODO bodies.
+  The substantive cases check nested wire packets/neighbor resolution, reply
+  completion fields, host-order in-flight CSR readback, normal server replies,
+  and receive/scheduling behavior.
+- After adding session CSR update/readback assertions, the two targeted server
+  TX cases passed with `nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim -- -z tx-rpc-`.
+  These install host-order session fields, read them back and check the emitted
+  reply packet independently.
+- `nix build .#devHdrs .#runtime .#deployFs --no-link --print-out-paths -L`
+  passed. Generated nested cookie/XID/address/port/program accessors use aligned
+  scalar accesses; cookie/XID are at bytes 8/12 on both TX and completion RX.
+  Header inspection is retained as local evidence, not a downstream Mackerel test.
+
+Logs: `out/b1/{eci-endian-rpc,eci-endian-session,eci-endian-build,eci-accessor-inspection}.log`.
+Build outputs: headers `/nix/store/0f23c99p3mib1bmr8v58nrlfjir1j256-lauberhorn-dev-hdrs`,
+runtime `/nix/store/n97nmjldzgr6mkp7lg6bklvkp3vbilxq-lauberhorn-rt`,
+closure `/nix/store/86vx7a3q4hx4jj3qjhkg5xs7mvlq6yi9-squashfs.img`.
+The build uses a dirty-tree marker and is software-build evidence only.
+
+B1 remains **open** pending matched-artifact
+Enzian validation. A new hardware checkpoint is required; the September 10
+checkpoint is incompatible with these headers and RPC XID semantics. B2 still
+supplies PID/cookie/source-port/reply-listener integration for a full round trip.
 
 **Evidence: hardware observation and host-side reproduction.** The peer saw
 three DUT ARP requests for `129.129.0.0` instead of the configured
@@ -74,15 +108,41 @@ For future changes, fix the generator or coordinate a layout change with RTL; ne
 generated headers. Read the ECI progress/routing notes before changing layouts
 or access ordering. Preserve 2F2F RX/TX: no userspace fast-path ioctls.
 
-**Remaining closure check:** verify correct destination resolution on hardware
-using matched artifacts, together with the B2 runtime corrections. Compiler
-regressions and the software closure build are covered above.
+### Pending bundled implementation / Enzian checks
+
+Per maintainer instruction on 2026-09-13, accumulate hardware changes and run
+one implementation/test campaign for the batch. Push intermediate commits with
+`ci.skip`; do not start a separate bitstream build for this B1 cleanup. Keep B1
+open until the relevant checks below pass and link their evidence here.
+
+- [ ] Build the final batch checkpoint and review implementation timing. Record
+  the exact commit, configuration, checkpoint job and bitstream hash.
+- [ ] Rebuild the software closure from that same batch revision; verify generated
+  headers, kernel vermagic and hardware version before deployment. Existing
+  checkpoint 2812450 is incompatible with this ABI.
+- [ ] Re-run basic add/mul and Sven's standalone adder from the second Enzian.
+  Check server call/reply XIDs and packet bytes with asymmetric values.
+- [ ] With B2 transport metadata in place, capture nested calls resolving the
+  intended peer IP, with correct UDP ports, XID and program/version/procedure.
+  Exercise inline and overflow payloads, ensuring cookie/PID/XID survive the
+  aligned TX/RX descriptors and route the completion correctly.
+- [ ] Run Sven's nested adder (two futures plus callback) to sum 10; compare
+  completion XIDs with the software pending calls. Track any B3 lifetime failure
+  separately rather than treating correct packet fields as full completion.
+- [ ] Check RPC session/in-flight CSR update and readback in host order against
+  the captured traffic; verify neighbor miss/ARP and bypass still use Linux's
+  wire-native addresses and packet bytes.
+- [ ] Re-run the initial Dandelion 1×1 matmul smoke test with the matched batch.
+  Broader composition/placement checks remain under B6.
+
+Retain manifests, reset/program logs, packet captures and failed trials with the
+[hardware test results](../development/hardware-test-results.md).
 
 ## B2 — Nested calls lack complete real-hardware transport metadata
 
 **Evidence: source review; round trip blocked by B1.** `sw/rt/rpc.c` does not
 populate the required PID, completion cookie and source port correctly, and
-outgoing endpoint/RPC fields need wire-order conversion. The real kernel also
+the byte-order repair is covered by B1. The real kernel also
 needs the nested-reply listening port configured. Do not conflate Linux CPU
 IDs, NIC datapaths, process identity and completion identity.
 

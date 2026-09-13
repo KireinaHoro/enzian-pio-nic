@@ -34,23 +34,34 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    // allow readback/update of session table to implement session timeouts
+    // Stage host-order numbers, then install a wire-order session on sess_idx.
+    val writePort = OncRpcSessionDef()
+    writePort.elements.foreach { case (name, field) =>
+      busCtrl.drive(field, alloc("ctrl", s"Session table update $name (host order)",
+        s"sess_$name", attr = AccessType.WO))
+    }
     val updateIdxAddr = alloc("ctrl", "Index of session table entry to update",
       "sess_idx", attr = AccessType.WO)
     busCtrl.write(logic.sessionDb.update.idx, updateIdxAddr)
     busCtrl.onWrite(updateIdxAddr) {
       logic.sessionDb.update.valid := True
-    }
-    logic.sessionDb.update.value.elements.foreach { case (name, field) =>
-      busCtrl.write(field, alloc("ctrl", s"Session table update $name",
-        s"sess_$name", attr = AccessType.WO))
+      logic.sessionDb.update.value.funcPtr := writePort.funcPtr
+      logic.sessionDb.update.value.xid := EndiannessSwap(writePort.xid)
+      logic.sessionDb.update.value.clientAddr := EndiannessSwap(writePort.clientAddr)
+      logic.sessionDb.update.value.clientPort := EndiannessSwap(writePort.clientPort)
+      logic.sessionDb.update.value.serverPort := EndiannessSwap(writePort.serverPort)
+      logic.sessionDb.update.value.active := writePort.active
     }
 
     val readbackIdxAddr = alloc("stat", "Index of session table entry to read back",
       "sess_readback_idx", attr = AccessType.WO)
     busCtrl.drive(logic.sessionDb.readbackIdx, readbackIdxAddr)
     logic.sessionDb.readback.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("stat", s"Session table readback $name",
+      val hostField = field match {
+        case bits: Bits if Seq("xid", "clientAddr", "clientPort", "serverPort").contains(name) => EndiannessSwap(bits)
+        case other => other
+      }
+      busCtrl.read(hostField, alloc("stat", s"Session table readback $name (host order)",
         s"sess_readback_$name", attr = AccessType.RO))
     }
 
