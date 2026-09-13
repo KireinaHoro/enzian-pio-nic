@@ -239,7 +239,17 @@
     };
     eciVivadoInputs = import ./nix/eci-vivado-inputs.nix {
       inherit pkgs genVerilog gitRev;
-      source = self;
+      # Keep recorded traces/data out of the portable bundle's build closure.
+      source = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./vivado/eci
+          ./deps/blocks/deps/verilog-axis
+          ./deps/blocks/deps/verilog-axi
+          ./tools/physical/checkpoint.tcl
+          ./flake.lock
+        ];
+      };
     };
     ciBuild = pkgs.writeShellApplication {
       name = "ci-build";
