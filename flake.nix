@@ -32,7 +32,19 @@
     crossGcc = aarch64Pkgs.buildPackages.gcc;
 
     # mackerel compiler
-    mackerel = inputs.mackerel.packages.${system}.mackerel2;
+    mackerel = inputs.mackerel.packages.${system}.mackerel2.overrideAttrs {
+      # Match crates.io's registry download endpoint; keep Cargo.lock checksums.
+      cargoDeps = (pkgs.rustPlatform.importCargoLock.override {
+        fetchurl = args: pkgs.fetchurl (args // {
+          url = replaceStrings
+            [ "https://crates.io/api/v1/crates/" ]
+            [ "https://static.crates.io/crates/" ]
+            args.url;
+        });
+      }) {
+        lockFile = inputs.mackerel + "/Cargo.lock";
+      };
+    };
 
     # common build tools for building kernel (modules)
     linuxTools = with pkgs; [
