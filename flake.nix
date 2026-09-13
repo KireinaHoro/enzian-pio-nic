@@ -9,7 +9,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mackerel = {
-      url = "git+https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2";
+      url = "git+https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2?ref=fix/datatype-boundary-access";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };

@@ -22,6 +22,28 @@ All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`, `on
 
 The hardware in-flight key is `(xid, remoteAddr, remotePort, localPort)` and its value includes `(pid, cookie, active)`. Never replace it with XID-only matching: different UDP/IP tuples may reuse XIDs. On a matching reply, completion metadata carries PID/cookie and the entry is retired. Inspect malformed-reply and miss handling before extending accepted ONC-RPC formats.
 
+## Endianness at the host boundary
+
+Checked 2026-09-13. Little-endian cache-line packing does not imply that every
+field is a host-order number, or that hardware swaps every host-supplied value.
+Mackerel describes bit positions; its accessors do not convert network fields.
+
+| Path / fields | Convention |
+| --- | --- |
+| Service-registration program/version/procedure/listen-port registers | Kernel supplies host-order numbers; `OncRpcCallDecoder.driveControl` swaps them when installing the service entry. PID and function pointer are excluded. |
+| Nested TX IP, UDP ports, XID, program/version/procedure | Already in wire order. `OncRpcCallEncoder`, `UdpEncoder` and `IpEncoder` copy these fields directly. |
+| Normal reply IP, ports and XID | Retained from received packets in wire order and reused by `OncRpcReplyEncoder`. |
+| IP-address and neighbor-address control registers | Kernel supplies `__be32`/`ifa_address` directly; these registers do not perform the service-table swap. |
+| Descriptor lengths, PID and completion cookie | Numeric/opaque host metadata; do not apply network conversion indiscriminately. Hardware swaps calculated packet lengths when constructing wire headers. |
+
+On our little-endian CPUs, `inet_addr("192.168.129.129")` gives the numeric
+representation `0x8181a8c0`, whose memory bytes are `c0 a8 81 81`. The imported
+sender's `ntohl(inet_addr(...))` changes this to `0xc0a88181`, yielding reversed
+wire bytes if packed correctly. That is B2, separate from B1's accessor
+truncation. Host-generated ports/program fields likewise need conversion at
+the nested descriptor boundary; an XID retained from RX must not be swapped a
+second time. See the [blocker queue](nested-rpc-blockers.md).
+
 ## Outstanding acceptance and resource contract
 
 Current behavior is not safe backpressure: `OncRpcCallEncoder` emits a `Flow` registration event with no reservation acknowledgment. `OncRpcReplyDecoder` asserts its table update even when its free lookup misses, incrementing `reqTblFull` without preventing the update. This source-level concern needs directed saturation testing; do not promise that a full table rejects a call before emission. `core_eci_tx` returns `void` and ignores its doorbell read response.

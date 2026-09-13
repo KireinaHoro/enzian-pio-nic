@@ -49,15 +49,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1757522847,
-        "narHash": "sha256-qCe7VJEnEuEybToz9T4MFhm5gh2PrFEwUkym2SDfr1g=",
-        "ref": "refs/heads/main",
-        "rev": "8c744d3c0e202ae0b4dd70e60d1410217db0dfbb",
-        "revCount": 145,
+        "lastModified": 1789290137,
+        "narHash": "sha256-FXWxljJr1yYNV/Y3vW3AcHPgDLQ2YXZ4AgR0n/u5Wc8=",
+        "ref": "fix/datatype-boundary-access",
+        "rev": "29f286545fc9b6e8292d6edd06ec02e1c13a8fab",
+        "revCount": 146,
         "type": "git",
         "url": "https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2"
       },
       "original": {
+        "ref": "fix/datatype-boundary-access",
         "type": "git",
         "url": "https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2"
       }
