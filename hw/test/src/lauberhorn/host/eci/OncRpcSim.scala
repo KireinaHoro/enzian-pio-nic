@@ -75,10 +75,30 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    val receivedXid = Integer.reverseBytes(info.xid.toInt)
+    val receivedXid = info.xid.toInt
     assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
     checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
     exitCriticalSection(dcsMaster, tid)
+
+    // Exercise host-order session CSR writes/readback before using the entry
+    // to encode a reply. Packet checks below independently verify wire order.
+    val udp = packet.get(classOf[UdpPacket]).getHeader
+    val sessionFields = Seq(
+      "funcPtr" -> BigInt(funcPtr), "xid" -> BigInt(xid & 0xffffffffL),
+      "clientAddr" -> BigInt(1, clientIp.getAddress),
+      "clientPort" -> BigInt(udp.getSrcPort.valueAsInt),
+      "serverPort" -> BigInt(udp.getDstPort.valueAsInt), "active" -> BigInt(1))
+    for ((field, value) <- sessionFields) {
+      csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", s"sess_$field"),
+        (0 until 8).map(i => ((value >> (8 * i)) & 255).toByte).toList)
+    }
+    csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", "sess_idx"), 0.toBytesLE)
+    csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("stat", "sess_readback_idx"), 0.toBytesLE)
+    sleepCycles(10)
+    for ((field, expected) <- sessionFields) {
+      val actual = csrMaster.read(ALLOC.readBack("OncRpcReplyEncoder")("stat", s"sess_readback_$field"), 8).bytesToBigInt
+      assert(actual == expected, s"session CSR $field: $actual != $expected")
+    }
 
     val traceStart = trace.cursor
     val (respInlineData, respTail) = replyData.splitAt(ONCRPC_INLINE_BYTES)
@@ -236,9 +256,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           randomSleep(100, 50)
           cs.log("Sleep finished, checking packet data...")
 
-          // packet generator return little endian xid but sends in big endian
-          // HW does not change (i.e. we get big endian back)
-          val xid = Integer.reverseBytes(info.xid.toInt)
+          // ECI presents numeric XIDs in host order.
+          val xid = info.xid.toInt
           cs.log(f"Received XID $xid%x")
 
           // find the payload that we sent
@@ -393,7 +412,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-      val receivedXid = Integer.reverseBytes(info.xid.toInt)
+      val receivedXid = info.xid.toInt
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
@@ -413,7 +432,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, /*afterRead, */curr))
       assert(readStart - entry >= delayed)
 
-      info.xid // host will see XID in big endian; should be sent back as is
+      info.xid // echo the host-order XID; ECI restores wire order
     }
 
     // send first response
@@ -434,7 +453,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     val secondXid = {
       val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-      val receivedXid = Integer.reverseBytes(info.xid.toInt)
+      val receivedXid = info.xid.toInt
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, readPayload(dcsMaster, pldDesc, desc.len))
@@ -663,7 +682,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
               procLog("finished receiving")
               randomSleep(100, 50)
 
-              val xid = Integer.reverseBytes(info.xid.toInt)
+              val xid = info.xid.toInt
               if (!pktsToReceive.contains((pid, xid))) {
                 procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
                 pktsToReceive.view.filterKeys(_._1 == pid).foreach { case ((_, x), _) =>

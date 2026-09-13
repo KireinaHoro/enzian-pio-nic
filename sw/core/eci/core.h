@@ -41,22 +41,23 @@ typedef struct {
     } bypass;
     struct {
       int neigh_tbl_idx;
+      // Wire-native IPv4 values consumed directly by the Linux network stack.
       uint32_t ip_addr;
       uint32_t saddr;
       uint8_t proto;
     } neighbor_miss;
     struct {
       void *func_ptr;
-      int xid;
+      int xid; // host-order numeric XID
     } oncrpc_call_rx;
     struct {
       void *func_ptr;
-      int xid;
+      int xid; // host-order numeric XID
     } oncrpc_reply_tx;
     struct {
       uint16_t pid;
       uint32_t cookie;
-      // Network tuple and ONC-RPC header fields are already in wire byte order.
+      // RPC numbers and IPv4 address are host-order; ECI performs wire conversion.
       uint32_t xid;
       uint32_t daddr;
       uint16_t sport;
@@ -68,6 +69,7 @@ typedef struct {
     struct {
       uint16_t pid;
       uint32_t cookie;
+      // Host-order XID, converted by ECI for pending-call lookup.
       uint32_t xid;
     } oncrpc_reply_rx;
   };

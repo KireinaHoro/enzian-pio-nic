@@ -66,7 +66,7 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
 
     val writePort = OncRpcInFlightReqDef()
     writePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"In-flight request update $name",
+      busCtrl.drive(field, alloc("ctrl", s"In-flight request update $name (host order)",
         s"req_$name", attr = AccessType.WO))
     }
 
@@ -78,14 +78,25 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     busCtrl.onWrite(updateIdxAddr) {
       logic.requestDb.update.valid := True
       logic.requestDb.update.idx := updateIdx
-      logic.requestDb.update.value := writePort
+      // CSR numbers are host-order; the packet lookup table is wire-order.
+      logic.requestDb.update.value.xid := EndiannessSwap(writePort.xid)
+      logic.requestDb.update.value.remoteAddr := EndiannessSwap(writePort.remoteAddr)
+      logic.requestDb.update.value.remotePort := EndiannessSwap(writePort.remotePort)
+      logic.requestDb.update.value.localPort := EndiannessSwap(writePort.localPort)
+      logic.requestDb.update.value.pid := writePort.pid
+      logic.requestDb.update.value.cookie := writePort.cookie
+      logic.requestDb.update.value.active := writePort.active
     }
 
     val readbackIdxAddr = alloc("stat", "Index of in-flight request entry to read back",
       "req_readback_idx", attr = AccessType.WO)
     busCtrl.drive(logic.requestDb.readbackIdx, readbackIdxAddr)
     logic.requestDb.readback.elements.foreach { case (name, field) =>
-      busCtrl.read(field, alloc("stat", s"In-flight request readback $name",
+      val hostField = field match {
+        case bits: Bits if Seq("xid", "remoteAddr", "remotePort", "localPort").contains(name) => EndiannessSwap(bits)
+        case other => other
+      }
+      busCtrl.read(hostField, alloc("stat", s"In-flight request readback $name (host order)",
         s"req_readback_$name", attr = AccessType.RO))
     }
 

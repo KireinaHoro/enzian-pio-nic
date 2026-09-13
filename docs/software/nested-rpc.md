@@ -24,25 +24,46 @@ The hardware in-flight key is `(xid, remoteAddr, remotePort, localPort)` and its
 
 ## Endianness at the host boundary
 
-Checked 2026-09-13. Little-endian cache-line packing does not imply that every
-field is a host-order number, or that hardware swaps every host-supplied value.
-Mackerel describes bit positions; its accessors do not convert network fields.
+Contract updated 2026-09-13. Prefer host-order numeric metadata and perform
+network conversion in hardware, where byte swaps are wiring. Keep scalar fields
+naturally aligned to avoid split accesses even though Mackerel supports them.
+Mackerel describes storage positions; the ECI pack/unpack RTL owns RPC byte-order
+conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 
-| Path / fields | Convention |
+| ECI boundary structure | Convention and alignment |
 | --- | --- |
-| Service-registration program/version/procedure/listen-port registers | Kernel supplies host-order numbers; `OncRpcCallDecoder.driveControl` swaps them when installing the service entry. PID and function pointer are excluded. |
-| Nested TX IP, UDP ports, XID, program/version/procedure | Already in wire order. `OncRpcCallEncoder`, `UdpEncoder` and `IpEncoder` copy these fields directly. |
-| Normal reply IP, ports and XID | Retained from received packets in wire order and reused by `OncRpcReplyEncoder`. |
-| IP-address and neighbor-address control registers | Kernel supplies `__be32`/`ifa_address` directly; these registers do not perform the service-table swap. |
-| Descriptor lengths, PID and completion cookie | Numeric/opaque host metadata; do not apply network conversion indiscriminately. Hardware swaps calculated packet lengths when constructing wire headers. |
+| Server call RX / reply TX | Host-order XID at byte 4, opaque function pointer at byte 8, raw inline payload at byte 16. ECI swaps XID on RX and TX. |
+| Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36, raw inline payload at 40. ECI swaps XID/address/ports/program/version/procedure. |
+| Nested reply RX | Host-order PID at byte 4, padding at 6, cookie at 8 and XID at 12, raw inline payload at 16. ECI swaps XID. |
+| Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; raw packet header starts at byte 4. Header/payload bytes are copied unchanged. |
+| Neighbor miss RX | Index shares the first word; IPv4 destination/source at bytes 4/8 are wire-native Linux `__be32` values, protocol at byte 12. Padding rounds metadata to 16 bytes. Kernel uses the addresses directly in IP headers, route lookup and ARP state. |
+| Error RX, common descriptor fields | Valid/type/length are packed host bitfields contained in one 32-bit access. No network conversion. |
+| Worker preemption control / IPI acknowledgment | Flags, PID and parity are host metadata; no network conversion. Control-line placement and READY/BUSY ordering are unchanged. |
 
-On our little-endian CPUs, `inet_addr("192.168.129.129")` gives the numeric
-representation `0x8181a8c0`, whose memory bytes are `c0 a8 81 81`. The imported
-sender's `ntohl(inet_addr(...))` changes this to `0xc0a88181`, yielding reversed
-wire bytes if packed correctly. That is B2, separate from B1's accessor
-truncation. Host-generated ports/program fields likewise need conversion at
-the nested descriptor boundary; an XID retained from RX must not be swapped a
-second time. See the [blocker queue](nested-rpc-blockers.md).
+The nested alignment repair moves existing padding after PID, retaining the
+64-byte descriptor bound, inline capacities (24-byte call, 48-byte reply),
+payload offsets, overflow addresses, ownership and barriers. Full-width 16/32/64
+bit scalar fields are naturally aligned; intentionally packed flags/lengths do
+not cross their scalar access boundary.
+
+| Control registers exposed through ECI | Convention |
+| --- | --- |
+| Service-registration program/version/procedure and UDP listen port | Host-order numbers, swapped in hardware on table installation. PID/function pointer/protocol selector are host metadata. |
+| RPC session and nested in-flight table update/readback | Host-order numeric XID, IPv4 address and ports; hardware swaps both directions. Opaque pointer/cookie, PID, index and active flag are unchanged. |
+| IP address, neighbor address and MAC address controls/readback | Wire-native values matching Linux network-stack types and byte arrays. Preserving them avoids adding software swaps or repacking. |
+| Scheduler, thread router, DMA, timeout, interrupt and statistics controls | Host-order numbers, addresses, flags and counters. No network conversion. |
+
+`rpc_send_call` parses its text IPv4 address with `inet_network`, which returns
+a host-order number (`0xc0a88181` for `192.168.129.129`), and supplies numeric
+endpoint fields and generated XID directly. Futures, pending-call lookup and
+server handler XIDs are host-order. XDR payload bytes remain the codec's concern;
+ECI does not interpret or swap application payloads. B2 must supply a host-order
+source port when source-port selection is implemented.
+
+This is an incompatible hardware/software ABI change, including RPC XID
+semantics and nested field offsets. Deploy regenerated headers, kernel/runtime
+and a new FPGA checkpoint together; checkpoint 2812450 predates this contract.
+B1 validation/status is tracked in the [blocker queue](nested-rpc-blockers.md).
 
 ## Outstanding acceptance and resource contract
 
