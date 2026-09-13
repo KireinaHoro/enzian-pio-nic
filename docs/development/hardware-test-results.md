@@ -125,8 +125,8 @@ the responder was on another physical machine.
 The exact generated `lauberhorn_eci_dev.h` destination accessor stores through
 `uint32_t *)(12 + ptr)` after shifting a 32-bit value by 16. It therefore loses
 the upper half of the field. RTL places the field at byte 14, following the
-16-bit PID, cookie and XID. `tools/enzian/descriptor-probe.c`, compiled in
-`nix develop` against that header, exits 1 and prints:
+16-bit PID, cookie and XID. The archived host-side `descriptor-probe.c`,
+compiled in `nix develop` against that header, exited 1 and printed:
 
 ```text
 input=c0a88181 rtl_daddr=00008181 bytes=81 81 00 00
