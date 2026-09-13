@@ -2,7 +2,8 @@
 
 Working queue for `feat/nested-rpc`, recorded 2026-09-10 from the campaign
 documented in `e4eeaa7`. Work through B1–B4 in order; investigate B5 separately. B6 is an
-additional Dandelion integration gate. All items below are **open**. Close an
+additional Dandelion integration gate. B1's compiler repair is software-verified
+as of 2026-09-13; its hardware check remains pending. B2–B6 are **open**. Close an
 item with its fixing commit and validation evidence; retain failed trials.
 
 The tested hardware/runtime revision is
@@ -15,6 +16,50 @@ nested completion, clean shutdown, startup reliability or composition support.
 
 ## B1 — Generated nested descriptor accessors truncate fields
 
+**Update, 2026-09-13: compiler repair implemented and software-verified.**
+Mackerel commit `29f286545fc9b6e8292d6edd06ec02e1c13a8fab` on
+`fix/datatype-boundary-access` fixes C and Rust datatype accessors. Both the
+platform submodule and Nix input now select that revision. The dtype already
+matched RTL; no padding or RTL layout change was needed.
+
+The compiler selected an access width using `offset % 8`, but rounded the
+actual access address using `offset % access_width`. It now uses byte accesses
+when a field crosses the chosen scalar boundary, and widens C operands before
+shifting into a 64-bit access. Existing scalar access locations remain intact
+where the field fits. Descriptor ownership and the 2F2F barrier/doorbell
+sequence are unchanged; byte accessors do not promise atomic updates.
+
+Verification:
+
+- The old runtime derivation explicitly used the generated header directory
+  reproduced by the failing probe; this was not inferred from a stale local
+  generation directory.
+- New Mackerel regressions execute generated C and Rust at two optimization
+  levels against independent bit-level reference operations. They cover 180
+  offset/width combinations, upper-bit patterns, adjacent-bit preservation,
+  and unaligned 64-bit fields. C runs include undefined-behavior sanitization.
+- The expanded platform probe checks 20 nested TX/RX fields with seven patterns.
+  Against old headers: 57 reported failures (including the original reproduction).
+  Against headers built by the fixed Nix input: **140 checks, zero failures**.
+- `nix build .#devHdrs .#runtime .#deployFs` passed, including the AArch64 runtime,
+  kernel-module vermagic check, microbenchmark and squashfs closure.
+- Ten Mackerel tests pass. The full suite still fails `module_system`; that
+  failure was reproduced on unmodified `8c744d3` and was already documented in
+  Mackerel's flake. It is not silently treated as a passing full suite.
+
+Evidence: `out/b1/{tested-runtime-inputs,old-probe,test-before-nested,
+original-module-system,mackerel-suite,mackerel-suite-filtered,old-full-probe,
+nix-probe,platform-build}.log`. No new Enzian test or bitstream build was run.
+The build was performed with a dirty-tree version marker; it is build evidence,
+not a deployment image paired with an existing checkpoint.
+
+**Hardware follow-up remains pending.** B1 now preserves `0xc0a88181` exactly;
+on little-endian CPUs its bytes are still `81 81 a8 c0`. The nested sender's
+extra `ntohl` is the separate B2 endianness defect. The probe also checks the
+wire-order representation `0x8181a8c0`, whose bytes are `c0 a8 81 81`. Do not
+interpret correct bit preservation as a working runtime-driven nested round trip.
+See the [endianness contract](nested-rpc.md#endianness-at-the-host-boundary).
+
 **Evidence: hardware observation and host-side reproduction.** The peer saw
 three DUT ARP requests for `129.129.0.0` instead of the configured
 `192.168.129.129`. The matched generated destination accessor shifts a 32-bit
@@ -25,15 +70,15 @@ problematic access pattern.
 
 Start at `hw/src/lauberhorn/host/eci/EciHostTxCtrlInfo.scala`, its Mackerel
 definitions/generator, and `sw/core/eci/core.h`. Audit RX completion fields too.
-Fix the generator or coordinate a layout change with RTL; never hand-edit
+For future changes, fix the generator or coordinate a layout change with RTL; never hand-edit
 generated headers. Read the ECI progress/routing notes before changing layouts
 or access ordering. Preserve 2F2F RX/TX: no userspace fast-path ioctls.
 
 **Closure checks:** verify every affected field against independently decoded
 RTL bit positions, including nonzero upper halves and adjacent-field
 preservation. Regenerate collateral and build the closure. Verify correct
-destination resolution on hardware using matched artifacts. The current
-single-field probe is a reproduction, not sufficient coverage of the repair.
+destination resolution on hardware using matched artifacts. The original
+single-field probe was a reproduction; it has now been expanded to the checks above.
 
 ## B2 — Nested calls lack complete real-hardware transport metadata
 
