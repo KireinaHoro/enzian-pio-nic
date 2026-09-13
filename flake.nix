@@ -24,6 +24,23 @@
       overlays = [
         inputs.mill-ivy-fetcher.overlays.default
         inputs.mill-ivy-fetcher.overlays.mill-overlay
+        # This Spinal revision uses WData, removed by Verilator 5.052.
+        (final: prev: {
+          verilator = prev.verilator.overrideAttrs {
+            version = "5.048";
+            # 5.048's gdb probe uses echo; newer packaging patches a sh probe.
+            postPatch = ''
+              patchShebangs .
+              substituteInPlace bin/verilator --replace-fail "/bin/echo" "${final.coreutils}/bin/echo"
+            '';
+            src = final.fetchFromGitHub {
+              owner = "verilator";
+              repo = "verilator";
+              tag = "v5.048";
+              hash = "sha256-xvqqgbW7L07+NBYzGN2KLhwir58ByShxo4VVPI3pgZk=";
+            };
+          };
+        })
       ];
     };
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
@@ -32,19 +49,7 @@
     crossGcc = aarch64Pkgs.buildPackages.gcc;
 
     # mackerel compiler
-    mackerel = inputs.mackerel.packages.${system}.mackerel2.overrideAttrs {
-      # Match crates.io's registry download endpoint; keep Cargo.lock checksums.
-      cargoDeps = (pkgs.rustPlatform.importCargoLock.override {
-        fetchurl = args: pkgs.fetchurl (args // {
-          url = replaceStrings
-            [ "https://crates.io/api/v1/crates/" ]
-            [ "https://static.crates.io/crates/" ]
-            args.url;
-        });
-      }) {
-        lockFile = inputs.mackerel + "/Cargo.lock";
-      };
-    };
+    mackerel = inputs.mackerel.packages.${system}.mackerel2;
 
     # common build tools for building kernel (modules)
     linuxTools = with pkgs; [
