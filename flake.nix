@@ -96,6 +96,7 @@
       "scala" "java" "xml" "conf" # spinalhdl
       "mill"                      # mill build files
       "v" "sv"                    # RTL dependencies
+      "h" "hpp" "cpp" "cxx" "i" "sh" # Spinal simulator JNI resources
     ];
     allSpinalIn = allSourcesIn isSpinal;
 
@@ -117,6 +118,7 @@
       installPhase = ''
         mkdir -p $out $devices $headers
         mv out/eci/generateVerilog.dest/*.{v,sv,xdc} $out/
+        mv out/eci/generateVerilog.dest/*.json      $out/
         mv out/eci/generateVerilog.dest/*.h          $headers/
         mv out/eci/generateVerilog.dest/*.dev        $devices/
       '';
@@ -228,10 +230,45 @@
     dummy-app-build-with-nix = pkgs.callPackage (import ./sw/apps/nix-build-demo/package.nix) {
       lauberhorn-rt = runtime;
     };
+
+    ciChecks = import ./nix/ci-checks.nix {
+      inherit pkgs;
+      src = allSpinalIn [ ./build.mill ./hw ./deps ];
+      ivyCache = pkgs.ivy-gather ./project-lock.nix;
+      replayPcaps = allSourcesIn (f: f.hasExt "pcap") [ ./data/eci/iladata ];
+    };
+    eciVivadoInputs = import ./nix/eci-vivado-inputs.nix {
+      inherit pkgs genVerilog gitRev;
+      source = self;
+    };
+    ciBuild = pkgs.writeShellApplication {
+      name = "ci-build";
+      runtimeInputs = with pkgs; [ nix bash coreutils findutils ];
+      text = ''exec bash ${./tools/ci/nix-build.sh} "$@"'';
+    };
   in {
+    checks = ciChecks;
     packages = {
-      inherit devHdrs kmod runtime deployFs genVerilog;
+      inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
       inherit dummy-app-build-with-nix;
+      prepareEci = pkgs.writeShellApplication {
+        name = "prepare-eci";
+        runtimeInputs = [ ciBuild pkgs.coreutils ];
+        text = ''
+          ci-build eci-inputs .#eciVivadoInputs
+          ci-build deploy .#deployFs
+          mkdir -p out/eci/generateVerilog.dest
+          mv out/ci/deploy/output out/deploy.img
+          mv out/ci/eci-inputs/output out/eci/vivado-inputs
+          cp -r out/eci/vivado-inputs/generated/. out/eci/generateVerilog.dest/
+          test "$(cat out/eci/vivado-inputs/git-revision)" = "$CI_COMMIT_SHA"
+        '';
+      };
+      summarizePhysical = pkgs.writeShellApplication {
+        name = "summarize-physical";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''exec python3 ${./tools/physical/summarize.py} "$@"'';
+      };
     };
 
     # for interactive development
