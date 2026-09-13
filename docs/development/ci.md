@@ -82,3 +82,8 @@ The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "2
 Hardware runs take hours; collect once after notification or a scheduled trigger.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
 and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
+
+Mackerel's Cargo vendoring uses the standard crates.io static download endpoint
+through a scoped `importCargoLock` fetcher override. The pinned Nixpkgs default uses the
+API endpoint, which returned HTTP 403 on the build host; the static endpoint
+returned 200. Cargo.lock versions and checksums remain unchanged.
