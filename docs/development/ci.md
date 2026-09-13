@@ -74,16 +74,39 @@ Omit `project-only` for implementation. Use a fresh output directory. Dirty loca
 flake builds deliberately retain the unknown Git marker; use a clean committed
 checkout for a board-testable image with matching revision checks.
 
-After adding Maven dependencies, resolve the relevant Mill targets with
-`nix develop`, then run `nix develop -c update-mill-lock` and review the lock diff.
-Re-run the Nix checks offline; a warm interactive cache is not proof of CI coverage.
+After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
+before generating the lock. `mif codegen` inventories everything in that cache,
+including obsolete versions; running it on a warmed development cache produces
+a misleadingly enlarged lock. Use a fresh Mill output directory as well so
+cached resolution tasks cannot bypass fetching the required artifacts:
+
+```sh
+nix develop -c bash -euc '
+  rm -rf "$XDG_CACHE_HOME" out/ivy-lock-mill
+  export MILL_OUTPUT_DIR="$PWD/out/ivy-lock-mill"
+  mill --no-daemon gen.test.compile "blocks[2.13.12].test.compile"
+  update-mill-lock
+'
+```
+
+Resolve additional source-defined targets here if their dependencies are needed.
+Do not run other Mill jobs against this cache during regeneration. Review added
+**and removed** versions in `project-lock.nix`; unexplained growth or retained
+old Mill versions is a signal to repeat from a clean cache. Then run the Nix
+checks offline; a warm interactive build is not evidence of lock completeness.
 `nix run .#ciBuild -- NAME INSTALLABLE` reproduces the CI logging wrapper.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; collect once after notification or a scheduled trigger.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
 and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
 
-Mackerel's Cargo vendoring uses the standard crates.io static download endpoint
-through a scoped `importCargoLock` fetcher override. The pinned Nixpkgs default uses the
-API endpoint, which returned HTTP 403 on the build host; the static endpoint
-returned 200. Cargo.lock versions and checksums remain unchanged.
+Mackerel uses the standard Nixpkgs Cargo vendoring implementation. The Nixpkgs
+pin includes the upstream switch from the rate-limited crates.io API to
+`static.crates.io`; no platform-specific crate-fetch override is needed.
+Cargo.lock versions and checksums remain unchanged. Mill is pinned to 1.1.8
+in `.mill-version`, matching the Nixpkgs package; regenerate `project-lock.nix`
+using the clean-cache procedure above.
+
+Verilator remains explicitly pinned to 5.048: the current Spinal simulation
+wrapper uses `WData`, which Verilator 5.052 removed. Remove this compatibility
+pin only after updating and validating the Spinal simulation backend.

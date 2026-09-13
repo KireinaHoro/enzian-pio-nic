@@ -6,9 +6,9 @@ Scope: commands and artifact contracts inspected in source on 2026-09-08; these 
 
 - Use `nix develop` (or `nix develop -c <command>`). `.envrc` enables the same flake through direnv. Recursive submodules are required; relevant local libraries are `deps/blocks` and `deps/spinalhdl`.
 - `flake.nix` exposes `x86_64-linux` and `aarch64-darwin` outputs; Linux is the documented kernel-module build host. Do not infer that every output builds on Darwin.
-- `.mill-version` pins Mill 1.1.2; `build.mill` pins Scala 2.13.12 and ECI static shell v0.1.5. The shell supplies JDK, Mill, Verilator, GHDL, GTKWave, formal tools, Mackerel, aarch64 cross GCC, and libpcap runtime lookup.
+- `.mill-version` pins Mill 1.1.8; `build.mill` pins Scala 2.13.12 and ECI static shell v0.1.5. The shell supplies JDK, Mill, Verilator, GHDL, GTKWave, formal tools, Mackerel, aarch64 cross GCC, and libpcap runtime lookup.
 - `build.mill` is the hardware build graph; `flake.nix` owns reproducible RTL/header/software packaging. `sw/*/Makefile` are lower-level builds. Vivado is separately installed/licensed; it is not supplied by the flake. CI sources Vivado 2025.1.
-- `nix develop` sets `XDG_CACHE_HOME=$PWD/out/xdg-cache-home/`. After changing Mill dependencies, run `nix develop -c update-mill-lock`; review `project-lock.nix`. Use `--no-daemon` when changed environment variables must reach Mill subprocesses.
+- `nix develop` sets `XDG_CACHE_HOME=$PWD/out/xdg-cache-home/`. After changing Mill dependencies, follow the [clean-cache lock regeneration procedure](ci.md#local-validation-and-maintenance): clear the XDG cache, resolve targets with fresh Mill outputs, then run `update-mill-lock`. The tool captures stale versions if the cache is not cleaned; review removals as well as additions in `project-lock.nix`. Use `--no-daemon` when changed environment variables must reach Mill subprocesses.
 
 ## Build commands and outputs
 
