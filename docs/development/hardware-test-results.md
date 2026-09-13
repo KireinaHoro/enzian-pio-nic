@@ -1,13 +1,14 @@
 # Recorded Enzian test results
 
-Historical evidence from zuestoll14, 2026-09-08–10. Use the
+Historical evidence from zuestoll14, 2026-09-08–10. Final checkpoint STA and
+source-level bottlenecks are in [physical findings](../hardware/physical-findings.md). Use the
 [execution guide](hardware-test.md) for a new test. Evidence under `out/` is local
 and ignored; recipes and helpers are tracked.
 
 | Build | Timing evidence | Observed result |
 | --- | --- | --- |
-| 2812450, `aa32b1af` | Route WNS −1.314 ns | Original 101 add calls passed; two verified-reset repeats each passed 100 calls |
-| 2811847, `93f4c1da` | Route WNS −2.073 ns | Static-shell read oops despite successful programming and both ECI links in RUN |
+| 2812450, `aa32b1af` | Final WNS −1.051 ns (route estimate −1.314) | Original 101 add calls passed; two verified-reset repeats each passed 100 calls |
+| 2811847, `93f4c1da` | Final WNS −1.813 ns (route estimate −2.073) | Static-shell read oops despite successful programming and both ECI links in RUN |
 | 2383312, `4fa10def` (Mar 20) | Final WNS −0.164 ns, TNS −165.535 ns, WHS +0.004 ns | Initial shell-read oops; two verified-reset repeats passed module/revision checks but failed RPC |
 
 The older repeats failed differently: first RPC timed out; second client

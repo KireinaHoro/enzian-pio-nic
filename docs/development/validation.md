@@ -8,10 +8,10 @@ Scope: source-inspected test entry points and coverage limitations, 2026-09-08. 
 
 ```sh
 # All untagged/fast Lauberhorn tests (broader than CI).
-nix develop -c mill gen.test -- -l org.scalatest.tags.Slow
+nix develop -c mill gen.test -l org.scalatest.tags.Slow
 
 # Exact CI scope: only ECI package, exclude Slow.
-nix develop -c mill gen.test -- -l org.scalatest.tags.Slow -m lauberhorn.host.eci
+nix develop -c mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci
 
 # One suite / one test.
 nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim
@@ -40,7 +40,7 @@ nix develop -c mill 'blocks[2.13.12].test'
 nix develop -c repeat-test rx-tx-interleaved lauberhorn.host.eci.OncRpcSim
 ```
 
-This loops until failure; bound/stop it deliberately. ScalaTest parallel execution is available with `mill gen.test -- -P8`; Mill module-level test parallelism is disabled to avoid repeat Verilator compilation. Start with one reproducer when investigating nondeterminism.
+This loops until failure; bound/stop it deliberately. ScalaTest parallel execution is available with `mill gen.test -P8`; Mill module-level test parallelism is disabled to avoid repeat Verilator compilation. Start with one reproducer when investigating nondeterminism.
 
 ## Evidence to retain from a failure
 
@@ -62,3 +62,6 @@ This loops until failure; bound/stop it deliberately. ScalaTest parallel executi
 After a behavioral change, run the relevant suite and elaborate the affected hardware; require real target validation for scheduler/ECI deployment claims. For docs-only changes, link/path and command-definition checks suffice.
 
 Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src/lauberhorn/Config.scala), [shared fixture](../../deps/blocks/tester/src/jsteward/blocks/DutSimFunSuite.scala), [ECI fixture](../../hw/test/src/lauberhorn/host/eci/NicSim.scala), [trace fixture](../../hw/test/src/lauberhorn/sim/DbFactory.scala), [RPC tests](../../hw/test/src/lauberhorn/host/eci/OncRpcSim.scala), [model](../../model/lauberhorn.tla), [small model config](../../model/lauberhorn.toolbox/lauberhorn_model_isolation/MC.cfg).
+
+For routed checkpoint analysis and source-level timing closure, use the
+[physical implementation guide](../hardware/physical-implementation.md).
