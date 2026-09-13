@@ -23,6 +23,9 @@ variables:
     name: nixos/nix:2.31.3@sha256:d49538facc7757890eccfa5f57869ad18c823c24903e3b8ac6ca8a301d84a9b6
     entrypoint: [""]
   before_script:
+    # FORCE_HTTPS config is runner-local; Nix fetches through a separate Git cache.
+    - git config --global --add url."https://gitlab.inf.ethz.ch/".insteadOf 'git@gitlab.inf.ethz.ch:'
+    - git config --global --add url."https://gitlab.inf.ethz.ch/".insteadOf 'ssh://git@gitlab.inf.ethz.ch/'
     # The runner helper owns checkout; Nix runs Git as the container user.
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - git submodule foreach --recursive 'git config --global --add safe.directory "$PWD"'

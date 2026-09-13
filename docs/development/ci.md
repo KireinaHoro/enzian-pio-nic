@@ -5,7 +5,9 @@ Nixpkgs/Mill/Mackerel, `project-lock.nix` pins Maven artifacts, gitlinks pin RTL
 dependencies, and the input bundle pins static shell v0.1.5 by content hash.
 The Nix job trusts the runner-owned checkout and uses a host-scoped Git credential
 helper backed by the ephemeral `CI_JOB_TOKEN` for private submodule fetches.
-Runner-local Git credentials alone do not cover Nix's separate Git cache.
+Runner-local Git credentials and `GIT_SUBMODULE_FORCE_HTTPS` alone do not cover
+Nix's separate Git cache. The job also globally rewrites both SCP-style and
+`ssh://git@` GitLab URLs to HTTPS, including nested static-shell submodules.
 The helper stores an environment reference, not the token; no personal token is
 passed to builds or included in artifacts.
 Both Nix and Vivado Docker images are pinned by digest. No lock updates occur in CI.
