@@ -24,6 +24,14 @@ All paths below are relative to `hw/src/lauberhorn/`:
 
 The RX pipeline serializes packet admission through acknowledgment. Metadata and payload travel separately: do not independently arbitrate them or remove acknowledgment gating without preserving their association. Inline bytes do not imply the whole packet lives in the descriptor. RX acknowledgment releases allocated residual payload; queue-full/drop paths need explicit ownership handling (see [status](implementation-status.md)).
 
+The shared `AxiStreamExtractHeader` requires `outputAck` for every emitted header,
+including header-only/partial packets with no residual payload. Consumers must
+acknowledge dispatch; leaving this input undriven stalls later headers. Packets
+shorter than `minHeaderLen` emit neither header nor payload and increment
+`incompleteHeader` in the discard path without waiting for acknowledgment.
+The standalone blocks tests model both kinds of accepted packet and check delayed
+acknowledgment plus deterministic short-packet boundaries.
+
 ## Current protocol limits
 
 ONC-RPC uses fixed protocol structures and inline byte arrays (48 bytes for normal RX inline data, 24 for nested-call inline data in `Global.scala`). This is not arbitrary IDL deserialization. The call decoder explicitly leaves argument bytes in network order and assumes a little-endian host when programming selected service fields. Follow the generated host descriptors and runtime serialization when changing formats.
