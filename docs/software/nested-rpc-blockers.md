@@ -38,9 +38,9 @@ Verification:
   levels against independent bit-level reference operations. They cover 180
   offset/width combinations, upper-bit patterns, adjacent-bit preservation,
   and unaligned 64-bit fields. C runs include undefined-behavior sanitization.
-- The expanded platform probe checks 20 nested TX/RX fields with seven patterns.
-  Against old headers: 57 reported failures (including the original reproduction).
-  Against headers built by the fixed Nix input: **140 checks, zero failures**.
+- A one-off probe against the old and fixed Nix-generated headers confirmed
+  the diagnosis and repair. Regression coverage lives in Mackerel
+  (`tests/datatype_access.rs`); the downstream probe has been removed.
 - `nix build .#devHdrs .#runtime .#deployFs` passed, including the AArch64 runtime,
   kernel-module vermagic check, microbenchmark and squashfs closure.
 - Ten Mackerel tests pass. The full suite still fails `module_system`; that
@@ -55,8 +55,8 @@ not a deployment image paired with an existing checkpoint.
 
 **Hardware follow-up remains pending.** B1 now preserves `0xc0a88181` exactly;
 on little-endian CPUs its bytes are still `81 81 a8 c0`. The nested sender's
-extra `ntohl` is the separate B2 endianness defect. The probe also checks the
-wire-order representation `0x8181a8c0`, whose bytes are `c0 a8 81 81`. Do not
+extra `ntohl` is the separate B2 endianness defect. The wire-order
+representation is `0x8181a8c0`, whose bytes are `c0 a8 81 81`. Do not
 interpret correct bit preservation as a working runtime-driven nested round trip.
 See the [endianness contract](nested-rpc.md#endianness-at-the-host-boundary).
 
@@ -64,7 +64,7 @@ See the [endianness contract](nested-rpc.md#endianness-at-the-host-boundary).
 three DUT ARP requests for `129.129.0.0` instead of the configured
 `192.168.129.129`. The matched generated destination accessor shifts a 32-bit
 value by 16 and stores through a 32-bit pointer, losing half the field.
-`tools/enzian/descriptor-probe.c` reproduces
+The archived host-side probe reproduced
 `input=c0a88181 rtl_daddr=00008181`. Cookie, XID and program fields use the same
 problematic access pattern.
 
@@ -74,11 +74,9 @@ For future changes, fix the generator or coordinate a layout change with RTL; ne
 generated headers. Read the ECI progress/routing notes before changing layouts
 or access ordering. Preserve 2F2F RX/TX: no userspace fast-path ioctls.
 
-**Closure checks:** verify every affected field against independently decoded
-RTL bit positions, including nonzero upper halves and adjacent-field
-preservation. Regenerate collateral and build the closure. Verify correct
-destination resolution on hardware using matched artifacts. The original
-single-field probe was a reproduction; it has now been expanded to the checks above.
+**Remaining closure check:** verify correct destination resolution on hardware
+using matched artifacts, together with the B2 runtime corrections. Compiler
+regressions and the software closure build are covered above.
 
 ## B2 — Nested calls lack complete real-hardware transport metadata
 
