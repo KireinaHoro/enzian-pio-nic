@@ -156,4 +156,18 @@ add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {
     NAME=~i_app/i_trace_dma/traceDma/*
 }]
 
-add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/*x_rst_sync"]
+# Main CMAC is in SLR0; the trace CMAC is in SLR2. A wildcard matching
+# *x_rst_sync also captured the trace reset synchronizers and forced a long
+# synchronous reset path across SLRs.
+foreach {region instances} [list \
+    $nic_decoders_pblock {i_app/rx_rst_sync i_app/tx_rst_sync} \
+    $dcs_even_pblock {i_app/trace_dump_rx_rst_sync i_app/trace_dump_tx_rst_sync i_app/i_trace_dma/traceDumpTxFifo}] {
+    foreach instance $instances {
+        set cells [get_cells -hierarchical -filter "NAME == $instance || NAME =~ $instance/*"]
+        if {[llength $cells] == 0} {
+            error "CMAC floorplan selector matched no cells: $instance"
+        }
+        puts "CMAC_FLOORPLAN $instance $region [llength $cells]"
+        add_cells_to_pblock $region $cells
+    }
+}

@@ -616,6 +616,8 @@ case class LauberhornTraceDma(
     traceDumpAxisConfig,
     frameFifo = true,
     depthBytes = LauberhornTraceDma.AxiBytes * 32,
+    // Decouple CMAC ready from the async FIFO RAM reader.
+    outputFifoEnable = true,
   )()(ClockDomain.current, traceDumpTxClock)
   traceDumpTxFifo.s_axis <-/< traceDumpTxAligner.io.output
   traceDumpTxFifo.m_axis >> traceDumpTxAxis
