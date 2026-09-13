@@ -33,6 +33,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 
 | Task | Read first |
 | --- | --- |
+| Routed timing, pipelining, floorplanning | [Physical implementation](../hardware/physical-implementation.md) |
 | FPGA modules, buffers, protocol ordering | [Hardware architecture](../hardware/architecture.md) |
 | Implemented hardware and gaps | [Hardware status](../hardware/implementation-status.md) |
 | Preemption, worker lifetime, Linux policy | [Scheduler integration](../software/scheduler.md) |
