@@ -10,8 +10,7 @@ Nix's separate Git cache. The job also globally rewrites both SCP-style and
 `ssh://git@` GitLab URLs to HTTPS, including nested static-shell submodules.
 The helper stores an environment reference, not the token; no personal token is
 passed to builds or included in artifacts.
-The prewarmed Nix image is selected by its image-repository commit tag; pin its
-published digest before merging this image switch. The Vivado image is pinned by digest. No lock updates occur in CI.
+Both Nix and Vivado Docker images are pinned by digest. No lock updates occur in CI.
 The hosted tools image receives Vivado through the runner's `/opt/Xilinx` mount;
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
 digest alone does not pin that separately maintained installation.
@@ -75,32 +74,63 @@ Omit `project-only` for implementation. Use a fresh output directory. Dirty loca
 flake builds deliberately retain the unknown Git marker; use a clean committed
 checkout for a board-testable image with matching revision checks.
 
-After adding Maven dependencies, resolve the relevant Mill targets with
-`nix develop`, then run `nix develop -c update-mill-lock` and review the lock diff.
-Re-run the Nix checks offline; a warm interactive cache is not proof of CI coverage.
+After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
+before generating the lock. `mif codegen` inventories everything in that cache,
+including obsolete versions; running it on a warmed development cache produces
+a misleadingly enlarged lock. Use a fresh Mill output directory as well so
+cached resolution tasks cannot bypass fetching the required artifacts:
+
+```sh
+nix develop -c bash -euc '
+  rm -rf "$XDG_CACHE_HOME" out/ivy-lock-mill
+  export MILL_OUTPUT_DIR="$PWD/out/ivy-lock-mill"
+  mill --no-daemon gen.test.compile "blocks[2.13.12].test.compile"
+  update-mill-lock
+'
+```
+
+Resolve additional source-defined targets here if their dependencies are needed.
+Do not run other Mill jobs against this cache during regeneration. Review added
+**and removed** versions in `project-lock.nix`; unexplained growth or retained
+old Mill versions is a signal to repeat from a clean cache. Then run the Nix
+checks offline; a warm interactive build is not evidence of lock completeness.
 `nix run .#ciBuild -- NAME INSTALLABLE` reproduces the CI logging wrapper.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; collect once after notification or a scheduled trigger.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
 and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
 
+Mackerel uses the standard Nixpkgs Cargo vendoring implementation. The Nixpkgs
+pin includes the upstream switch from the rate-limited crates.io API to
+`static.crates.io`; no platform-specific crate-fetch override is needed.
+Cargo.lock versions and checksums remain unchanged. Mill is pinned to 1.1.8
+in `.mill-version`, matching the Nixpkgs package; regenerate `project-lock.nix`
+using the clean-cache procedure above.
+
+Verilator remains explicitly pinned to 5.048: the current Spinal simulation
+wrapper uses `WData`, which Verilator 5.052 removed. Remove this compatibility
+pin only after updating and validating the Spinal simulation backend.
+
 ## Prewarmed Nix image
 
-The image is built in `project-openenzian/tools/ci-images` using
-`LauberhornFlakes.Dockerfile`. Its prepare job evaluates the pinned platform
-revision and exports a derivation/source closure; the Docker build realizes the
-four test targets, deployment filesystem, Vivado bundle and CI wrappers.
-The image preserves the Nix store, database and build dependencies. A fresh
-container can reuse these without fetching them again. Changed derivations
-still build normally against the current checkout's lockfiles.
+All jobs extending `.nix` use the digest-pinned `lauberhorn-flakes` image built
+in `project-openenzian/tools/ci-images` with `LauberhornFlakes.Dockerfile`.
+The current image was published by [job 2824055](https://gitlab.inf.ethz.ch/project-openenzian/tools/ci-images/-/jobs/2824055),
+with the environment from platform revision `2aaa537`.
 
-Refresh by updating `lauberhorn.rev` in the image repository, building its main
-pipeline, then using `lauberhorn-image.digest` from `lauberhorn-flakes-image`
-to update the shared `.nix.image.name` here. The image tag is the full
-image-repository commit, not the platform commit. Keep the platform switch on
-its branch until the image is published and its digest verified.
+The prewarmed image builds `packages.x86_64-linux.ciEnvironment`, a shell
+containing build tools and locked Maven dependencies. It does not realize test,
+RTL, or deployment targets. Tests run in the platform pipeline, not while
+publishing its CI image. Tool packages may run their own packaging checks.
 
-The official `nixos/nix` base avoids an additional APK-based Nix installation
-and channel update. Compilers and libraries still come from our flake.
-The Vivado input fileset excludes unrelated recorded data: the evaluated image
-input handoff was 49 MB instead of 3.0 GB after this change.
+The image preserves the Nix store, database and build dependencies. Jobs still
+build their own checkout against its lockfiles; missing or changed dependencies
+are fetched/built normally. Warming the environment does not cache project test
+results or replace the platform regression gates.
+
+To refresh, update `lauberhorn.rev` in the image repository and run its main
+pipeline. After successful publication, use `lauberhorn-image.digest` from
+`lauberhorn-flakes-image` to update `.nix.image.name` here. The tag is the full
+image-repository commit, not the platform commit. Keep an image switch on its
+branch until publication succeeds; then run the platform pipeline to validate
+all four regression jobs and the matching RTL/software handoff.
