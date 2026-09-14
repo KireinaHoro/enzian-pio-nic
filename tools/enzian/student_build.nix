@@ -10,6 +10,7 @@ let
  apps = pkgs.stdenv.mkDerivation {
    name = "sven-runtime-hw-tests";
    src = src;
+   patches = [ ./student-nested-remote.patch ];
    nativeBuildInputs = [cross.buildPackages.gcc pkgs.rpcsvc-proto pkgs.pkg-config];
    buildInputs = [cross.libtirpc];
    postUnpack = ''
@@ -42,7 +43,7 @@ let
    installPhase = ''mkdir -p $out/bin; cp bench_client $out/bin/'';
  };
  crane = builtins.getFlake "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
- dandelion = cross.callPackage (dandelionSource + "/package.nix") {inherit crane; runtimePkg = rt;};
+ dandelion = cross.callPackage ../../sw/apps/dandelion/package.nix {inherit crane; source = dandelionSource; runtimePkg = rt;};
  platform = ((import (platformRoot + "/flake.nix")).outputs (ci.inputs // {self=ci;})).packages.x86_64-linux;
  marker = pkgs.writeText "git-hash" "${runtimeRevision}\n";
  mkImage = extra: pkgs.callPackage "${ci.inputs.nixpkgs}/nixos/lib/make-squashfs.nix" {
