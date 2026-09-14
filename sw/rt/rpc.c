@@ -427,7 +427,8 @@ void rpc_call_process_timeout() {
 
 /* Retry deferred fiber callbacks without losing their result or running them
  * inline on a scheduler stack. A slot lock assigns one retry owner. */
-void rpc_call_process_ready(void) {
+bool rpc_call_process_ready(void) {
+    bool scheduled = false;
     struct pending_call *c;
     pending_call_table_for_each(&pending_call_table, c) {
         pthread_spin_lock(&c->lock);
@@ -435,7 +436,10 @@ void rpc_call_process_ready(void) {
         if (retry) atomic_store(&c->state, SLOT_FULFILLED);
         pthread_spin_unlock(&c->lock);
         if (!retry) continue;
-        if (rpc_callback_schedule_fiber(c)) pending_call_release(&pending_call_table, c);
-        else atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
+        if (rpc_callback_schedule_fiber(c)) {
+            pending_call_release(&pending_call_table, c);
+            scheduled = true;
+        } else atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
     }
+    return scheduled;
 }
