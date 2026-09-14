@@ -111,7 +111,26 @@ Verilator remains explicitly pinned to 5.048: the current Spinal simulation
 wrapper uses `WData`, which Verilator 5.052 removed. Remove this compatibility
 pin only after updating and validating the Spinal simulation backend.
 
+## Prewarmed Nix image
+
+All jobs extending `.nix` use the digest-pinned `lauberhorn-flakes` image built
+in `project-openenzian/tools/ci-images` with `LauberhornFlakes.Dockerfile`.
+The current image was published by [job 2824055](https://gitlab.inf.ethz.ch/project-openenzian/tools/ci-images/-/jobs/2824055),
+with the environment from platform revision `2aaa537`.
+
 The prewarmed image builds `packages.x86_64-linux.ciEnvironment`, a shell
 containing build tools and locked Maven dependencies. It does not realize test,
 RTL, or deployment targets. Tests run in the platform pipeline, not while
 publishing its CI image. Tool packages may run their own packaging checks.
+
+The image preserves the Nix store, database and build dependencies. Jobs still
+build their own checkout against its lockfiles; missing or changed dependencies
+are fetched/built normally. Warming the environment does not cache project test
+results or replace the platform regression gates.
+
+To refresh, update `lauberhorn.rev` in the image repository and run its main
+pipeline. After successful publication, use `lauberhorn-image.digest` from
+`lauberhorn-flakes-image` to update `.nix.image.name` here. The tag is the full
+image-repository commit, not the platform commit. Keep an image switch on its
+branch until publication succeeds; then run the platform pipeline to validate
+all four regression jobs and the matching RTL/software handoff.

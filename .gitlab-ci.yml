@@ -18,9 +18,9 @@ variables:
 
 .nix:
   tags: [enzian-docker]
-  # Nix 2.31.3; build tools themselves come from flake.lock/project-lock.nix.
+  # Environment warmed from platform 2aaa537; jobs build/test their locked checkout.
   image:
-    name: nixos/nix:2.31.3@sha256:d49538facc7757890eccfa5f57869ad18c823c24903e3b8ac6ca8a301d84a9b6
+    name: registry.ethz.ch/project-openenzian/ci-images/lauberhorn-flakes:980991e21d0b2a99efaf799e4b65c218b7ebbd85@sha256:15a065efb42dd3b40ecae14d6abaca6a64afa1b9541cff5e57d79c3d075efbea
     entrypoint: [""]
   before_script:
     # FORCE_HTTPS config is runner-local; Nix fetches through a separate Git cache.
