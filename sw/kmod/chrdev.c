@@ -20,9 +20,10 @@ static dev_t devt = 0;
 static struct class *dev_class;
 
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
-static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
+static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS + 1];
 static DEFINE_MUTEX(control_lock);
 static bool listen_occupied[LAUBERHORN_NUM_LISTEN_PORTS];
+static unsigned int listen_users[LAUBERHORN_NUM_LISTEN_PORTS];
 
 struct worker_dev {
 	struct cdev cdev;
@@ -46,7 +47,7 @@ struct file_priv {
 struct proc_def *find_proc(pid_t tgid)
 {
 	int i;
-	for (i = 0; i < LAUBERHORN_NUM_PROCS; ++i) {
+	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
 		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
 			return &proc_defs[i];
 		}
@@ -58,12 +59,11 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 			    u32 prog_ver, u32 proc_num, void __user *func_ptr,
 			    struct proc_def *proc)
 {
-	int i, proc_srv_idx, listen_idx, srv_idx = -1;
+	int i, proc_srv_idx, listen_idx = -1, srv_idx = -1;
 	struct srv_def *srv;
 
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (!srv_defs[i].enabled) {
-			srv = &srv_defs[i];
 			if (srv_idx < 0) srv_idx = i;
 		} else if (srv_defs[i].port == port &&
 			   srv_defs[i].prog_num == prog_num &&
@@ -83,16 +83,20 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 
 	if (endpoint_port_reserved(port)) return -EADDRINUSE;
 	srv = &srv_defs[srv_idx];
-	// find a free listen idx
-	for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i) {
-		if (!listen_occupied[i]) {
-			listen_occupied[i] = true;
-			listen_idx = i;
-			break;
-		}
-	}
+	/* Multiple RPC procedures on one UDP port share one classifier entry. */
+    for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i)
+        if (srv_defs[i].enabled && srv_defs[i].port == port) {
+            listen_idx = srv_defs[i].listen_idx;
+            break;
+        }
+    if (listen_idx < 0) {
+        for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
+            if (!listen_occupied[i]) { listen_idx = i; break; }
+        if (listen_idx < 0) return -ENOSPC;
+        listen_occupied[listen_idx] = true;
+    }
+    listen_users[listen_idx]++;
 
-	if (i == LAUBERHORN_NUM_LISTEN_PORTS) return -ENOSPC;
 	*srv = (struct srv_def){
 		.idx = srv_idx,
 		.port = port,
@@ -162,13 +166,14 @@ static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
 		&dev->OncRpcCallDecoder_dev, srv->idx);
 
-	// Unlisten port
-	lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(
-		&dev->UdpDecoder_dev, lauberhorn_eci_listen_disabled);
-	lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&dev->UdpDecoder_dev,
-						     srv->listen_idx);
-
-	listen_occupied[srv->listen_idx] = false;
+	// Keep shared call listeners enabled until their final service leaves.
+    if (--listen_users[srv->listen_idx] == 0) {
+        lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(
+            &dev->UdpDecoder_dev, lauberhorn_eci_listen_disabled);
+        lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(
+            &dev->UdpDecoder_dev, srv->listen_idx);
+        listen_occupied[srv->listen_idx] = false;
+    }
 	srv->enabled = false;
 	pr_info("Deregistered service #%d (was with TGID %d)\n", srv->idx,
 		tgid);
@@ -193,7 +198,7 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 
 	if (find_proc(tgid)) return ERR_PTR(-EALREADY);
 	// procDb starts with 1 -- index 0 is the special IDLE process
-	for (i = 1; i < LAUBERHORN_NUM_PROCS; ++i) {
+	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
 		if (!proc_defs[i].enabled) {
 			proc = &proc_defs[i];
 			proc->idx = i;
@@ -204,7 +209,7 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 		}
 	}
 
-	if (i == LAUBERHORN_NUM_PROCS) {
+	if (i > LAUBERHORN_NUM_PROCS) {
 		pr_err("No more free process slots in HW: %d already registered\n",
 		       i);
 		return ERR_PTR(-ENOMEM);
