@@ -1,5 +1,38 @@
 {
   "nodes": {
+    "crane": {
+      "locked": {
+        "lastModified": 1781825982,
+        "narHash": "sha256-SlXKwIRIhrOSAcTjCB3ftPLzJWZStQIPS7J1FlZPnKk=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "469fd08d0bcf6926321fa973c6777fbc87785dd7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "469fd08d0bcf6926321fa973c6777fbc87785dd7",
+        "type": "github"
+      }
+    },
+    "dandelion": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785345825,
+        "narHash": "sha256-cbdRWEN6sGxncm0UbX+m5d3O1C+LjJ2PDPV9G832g6s=",
+        "ref": "refs/heads/main",
+        "rev": "69c3088f8f5333eab653ed5c9bd2f6da8f7f944a",
+        "revCount": 283,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git"
+      },
+      "original": {
+        "rev": "69c3088f8f5333eab653ed5c9bd2f6da8f7f944a",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -102,6 +135,8 @@
     },
     "root": {
       "inputs": {
+        "crane": "crane",
+        "dandelion": "dandelion",
         "flake-utils": "flake-utils",
         "mackerel": "mackerel",
         "mill-ivy-fetcher": "mill-ivy-fetcher",

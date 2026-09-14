@@ -1,0 +1,428 @@
+--- a/dandelion_lauberhorn/config.toml
++++ b/dandelion_lauberhorn/config.toml
+@@ -4,7 +4,7 @@
+ #daddr = "192.168.129.222"
+ # NOTE: to run, pass DANDELION_LAUBERHRON_CONFIG="path_to_config" if not resolved automatically
+ 
+-daddr = "10.0.0.5" 
++daddr = "192.168.129.129" 
+ 
+ # port which listens for incoming RPC calls for dandelion
+ port = 12345
+--- a/dandelion_lauberhorn/src/lauberhorn/codec.rs
++++ b/dandelion_lauberhorn/src/lauberhorn/codec.rs
+@@ -1,4 +1,5 @@
+-use std::{ffi::{CString}, marker::PhantomData};
++use std::{cell::UnsafeCell, ffi::CString, marker::PhantomData};
++use super::ffi::{EndpointTransport, LauberhornCtx, lauberhorn_rpc_endpoint_init, lauberhorn_rpc_endpoint_destroy};
+ 
+ use crate::lauberhorn::{
+     ffi::{AllocProc, FreeProc, LauberhornRpcEndpointRaw, MarshalProc, RpcCodec, RpcOps, UnmarshalProc},
+@@ -6,7 +7,9 @@
+ };
+ 
+ pub struct LauberhornRpcEndpoint<Req: RpcEncode, Resp: RpcDecode> {
+-    pub(crate) inner: LauberhornRpcEndpointRaw,
++    pub(crate) inner: Box<UnsafeCell<LauberhornRpcEndpointRaw>>,
++    address: Option<CString>,
++    codec: Option<Box<RpcCodec>>,
+     pub(crate) _marker: PhantomData<(Req, Resp)>
+ }
+ 
+@@ -44,6 +47,10 @@
+ 
+ impl<Req: RpcEncode, Resp: RpcDecode> LauberhornRpcEndpoint<Req, Resp> {
+ 
++    pub fn init(&self, ctx: *const LauberhornCtx) -> i32 {
++        unsafe { lauberhorn_rpc_endpoint_init(ctx, self.inner.get()) }
++    }
++
+     pub fn new(
+         daddr: &str,
+         dport: u16,
+@@ -53,13 +60,14 @@
+         ops: *mut RpcOps,
+     ) -> Self {
+ 
+-        let daddr_ptr = CString::new(daddr).unwrap().into_raw();
++        let address = CString::new(daddr).unwrap();
++        let daddr_ptr = address.as_ptr();
+ 
+         // TODO(@Sven): memory leak ?
+-        let codec = Box::into_raw(Box::new(RpcCodec {
++        let mut codec = Box::new(RpcCodec {
+             ops, 
+             private: std::ptr::null()
+-        }));
++        });
+ 
+         let inner = LauberhornRpcEndpointRaw {
+             daddr: daddr_ptr,
+@@ -67,8 +75,24 @@
+             prog_num,
+             prog_ver,
+             proc_num,
+-            codec: codec
++            codec: &mut *codec,
++            transport: EndpointTransport::default(),
+         };
+-        LauberhornRpcEndpoint { inner, _marker: std::marker::PhantomData, }
++        LauberhornRpcEndpoint { inner: Box::new(UnsafeCell::new(inner)), address: Some(address), codec: Some(codec), _marker: std::marker::PhantomData, }
+     }
+ }
++
++impl<Req: RpcEncode, Resp: RpcDecode> Drop for LauberhornRpcEndpoint<Req, Resp> {
++    fn drop(&mut self) {
++        let raw = self.inner.get();
++        let owner = unsafe { (*raw).transport.owner };
++        if !owner.is_null() && unsafe { lauberhorn_rpc_endpoint_destroy(owner, raw) } != 0 {
++            // B4: timeout is not drain. Retain storage on failed destruction.
++            if let Some(address) = self.address.take() { std::mem::forget(address); }
++            if let Some(codec) = self.codec.take() { std::mem::forget(codec); }
++            let replacement = Box::new(UnsafeCell::new(unsafe { std::mem::zeroed() }));
++            std::mem::forget(std::mem::replace(&mut self.inner, replacement));
++            log::error!("nested endpoint remains quarantined until reset");
++        }
++    }
++}
+--- a/dandelion_lauberhorn/src/lauberhorn/ffi.rs
++++ b/dandelion_lauberhorn/src/lauberhorn/ffi.rs
+@@ -11,6 +11,8 @@
+ unsafe extern "C" {
+ 
+     pub fn lauberhorn_init(ctx: *const LauberhornCtx) -> i32;
++    pub fn lauberhorn_rpc_endpoint_init(ctx: *const LauberhornCtx, ep: *mut LauberhornRpcEndpointRaw) -> i32;
++    pub fn lauberhorn_rpc_endpoint_destroy(ctx: *const LauberhornCtx, ep: *mut LauberhornRpcEndpointRaw) -> i32;
+     pub fn lauberhorn_fini(ctx: *const LauberhornCtx);
+ 
+     pub fn lauberhorn_reg_srv(
+@@ -183,6 +185,18 @@
+     }
+ }
+ 
++#[repr(C)]
++#[derive(Default)]
++pub struct EndpointTransport {
++    pub self_ptr: *const c_void,
++    pub owner: *const LauberhornCtx,
++    pub unresolved: u64,
++    pub handle: u32,
++    pub daddr: u32,
++    pub pid: u16,
++    pub sport: u16,
++}
++
+ // lauberhorn_rpc_endpoint_t
+ #[repr(C)]
+ pub struct LauberhornRpcEndpointRaw {
+@@ -192,6 +206,7 @@
+     pub(crate) prog_ver: u32,
+     pub(crate) proc_num: u32,
+     pub(crate) codec: *mut RpcCodec,
++    pub(crate) transport: EndpointTransport,
+ }
+ 
+ /// Opaque context handle returned by lauberhorn_init.
+@@ -199,11 +214,12 @@
+ pub struct LauberhornCtx {
+     fd: i32,
+     parity_page: *mut u8,
++    workers: u32,
+ }
+ 
+ impl LauberhornCtx {
+     pub fn new() -> Self {
+-        LauberhornCtx { fd: 0, parity_page: std::ptr::null_mut() }
++        LauberhornCtx { fd: 0, parity_page: std::ptr::null_mut(), workers: 0 }
+     }
+ }
+ 
+@@ -238,6 +254,14 @@
+ /// called to free result
+ pub extern "C" fn dandelion_function_free(ptr: *mut c_void) {
+     unsafe {
+-        let _ = Box::from_raw(ptr);
+-    }
+-}
+\ No newline at end of file
++        if !ptr.is_null() { drop(Box::from_raw(ptr as *mut DandelionRPCResponse)); }
++    }
++}
++// Matched by sw/tests/endpoint.c on the supported 64-bit host ABI.
++const _: () = {
++    assert!(std::mem::size_of::<LauberhornCtx>() == 24);
++    assert!(std::mem::size_of::<EndpointTransport>() == 40);
++    assert!(std::mem::size_of::<LauberhornRpcEndpointRaw>() == 72);
++    assert!(std::mem::offset_of!(LauberhornRpcEndpointRaw, transport) == 32);
++    assert!(std::mem::offset_of!(EndpointTransport, pid) == 32);
++};
+--- a/dandelion_lauberhorn/src/lauberhorn/laub_async.rs
++++ b/dandelion_lauberhorn/src/lauberhorn/laub_async.rs
+@@ -87,7 +87,7 @@
+ 
+     let res = unsafe {
+         lauberhorn_call_async(
+-            &ep.inner as *const LauberhornRpcEndpointRaw,
++            ep.inner.get() as *const LauberhornRpcEndpointRaw,
+             payload as *const Req as *const c_void,
+             std::mem::size_of::<Req>(),
+             &mut *future as *mut LauberhornFuture,
+--- a/dandelion_lauberhorn/src/lauberhorn/lauberhorn.rs
++++ b/dandelion_lauberhorn/src/lauberhorn/lauberhorn.rs
+@@ -14,16 +14,16 @@
+ ///
+ pub struct Lauberhorn {
+     workers: Vec<*mut LauberhornWorker>,
+-    ctx: LauberhornCtx,
++    pub(crate) ctx: Box<std::cell::UnsafeCell<LauberhornCtx>>,
+ }  
+ 
+ impl Lauberhorn {
+     /// Initialize lauberhorn
+     pub fn init() -> DandelionResult<Self> {
+ 
+-        let mut ctx = LauberhornCtx::new();
++        let ctx = Box::new(std::cell::UnsafeCell::new(LauberhornCtx::new()));
+ 
+-        match unsafe { lauberhorn_init(&mut ctx) } {
++        match unsafe { lauberhorn_init(ctx.get()) } {
+             0 => Ok(Lauberhorn { ctx, workers: Vec::new() }),
+             // TODO(@Sven): create lauberhorn error separtely
+             _ => Err(DandelionError::LauberhornError("lauberhorn_init".into())),
+@@ -45,7 +45,7 @@
+ 
+         let id = unsafe {
+             lauberhorn_reg_srv(
+-                &self.ctx,
++                self.ctx.get(),
+                 handler,
+                 prog_num,
+                 prog_ver,
+@@ -68,7 +68,7 @@
+         &mut self,
+         srv_id: i32,
+     ) -> DandelionResult<i32> {
+-        let id = unsafe { lauberhorn_dereg_srv(&mut self.ctx, srv_id) };
++        let id = unsafe { lauberhorn_dereg_srv(self.ctx.get(), srv_id) };
+         if id < 0 {
+             Err(DandelionError::LauberhornError("lauberhorn_dereg_srv".into()))
+         } else {
+@@ -83,7 +83,7 @@
+         fini: Option<LauberhornUserCb>,
+     ) -> DandelionResult<*mut LauberhornWorker> {
+         let worker =
+-            unsafe { lauberhorn_create_worker(&mut self.ctx, init, fini) };
++            unsafe { lauberhorn_create_worker(self.ctx.get(), init, fini) };
+ 
+         if worker.is_null() {
+             return Err(DandelionError::LauberhornError("lauberhorn_create_worker".into()));
+@@ -94,8 +94,8 @@
+ 
+     /// Join all spawned worker threads, blocking until they finish.
+     pub fn join_workers(&mut self) {
+-        for &worker in &self.workers {
+-            unsafe { lauberhorn_join_worker(&mut self.ctx, worker) };
++        for worker in self.workers.drain(..) {
++            unsafe { lauberhorn_join_worker(self.ctx.get(), worker) };
+         }
+     }
+ }
+@@ -103,6 +103,6 @@
+ impl Drop for Lauberhorn {
+     fn drop(&mut self) {
+         self.join_workers();
+-        unsafe { lauberhorn_fini(&mut self.ctx) };
++        unsafe { lauberhorn_fini(self.ctx.get()) };
+     }
+ }
+\ No newline at end of file
+--- a/dandelion_lauberhorn/src/lauberhorn/marshal.rs
++++ b/dandelion_lauberhorn/src/lauberhorn/marshal.rs
+@@ -24,7 +24,7 @@
+     fn rpc_encode(&self, out_buf: &mut [u8]) -> Result<usize, ()>;
+ }
+ 
+-pub trait RpcDecode: Sized {
++pub trait RpcDecode: Sized + Default {
+     fn rpc_decode(in_buf: &[u8]) -> Result<Self, ()>; 
+ }
+ 
+@@ -43,7 +43,7 @@
+     }; 
+ 
+     unsafe {
+-        std::ptr::write(out_buf as *mut T, value);
++        *(out_buf as *mut T) = value;
+     }
+     return 0;
+ }
+@@ -65,9 +65,8 @@
+     }
+ }
+ 
+-pub extern "C" fn dandelion_alloc<T>(_kind: RpcAllocKind, _private: *mut c_void) -> *mut c_void {
+-    let layout = std::alloc::Layout::new::<T>();
+-    unsafe { std::alloc::alloc(layout) as *mut c_void }
++pub extern "C" fn dandelion_alloc<T: Default>(_kind: RpcAllocKind, _private: *mut c_void) -> *mut c_void {
++    Box::into_raw(Box::new(T::default())) as *mut c_void
+ }
+ 
+ 
+@@ -79,25 +78,23 @@
+     }
+ 
+     unsafe {
+-        std::ptr::drop_in_place(ptr as *mut T);
+-        let layout = std::alloc::Layout::new::<T>();
+-        std::alloc::dealloc(ptr as *mut u8, layout);
++        drop(Box::from_raw(ptr as *mut T));
+     }
+ }
+ 
+ /// ---- Implementation of concrete Serialization / Deserialzation Types ----
+ /// 
+-#[derive(serde::Deserialize, serde::Serialize, Debug)]
++#[derive(Default, serde::Deserialize, serde::Serialize, Debug)]
+ pub struct InputSets {
+     pub sets: Vec<InputSet>
+ }
+ 
+-#[derive(serde::Deserialize, serde::Serialize, Debug)]
++#[derive(Default, serde::Deserialize, serde::Serialize, Debug)]
+ pub struct DandelionRPCResponse {
+     pub sets: Vec<InputSet>, // TODO(@Sven). also wrap in inputSets
+ }
+ 
+-#[derive(serde::Deserialize, serde::Serialize, Debug)]
++#[derive(Default, serde::Deserialize, serde::Serialize, Debug)]
+ pub struct DandelionRPCRequest {
+     pub function_name: String,
+     pub data: InputSets
+--- a/dandelion_lauberhorn/src/runtime.rs
++++ b/dandelion_lauberhorn/src/runtime.rs
+@@ -95,6 +95,7 @@
+     ) -> DandelionResult<Self> {
+ 
+         let mut engines = Vec::with_capacity(config.num_cores);
++        // Engine array indices are logical slots, never Linux CPU IDs.
+         for i in 0..config.num_cores {
+             engines.push(std::sync::Mutex::new(E::init(i as u8)?));
+        }
+@@ -113,6 +114,10 @@
+             config.proc_num,
+             &DANDELION_RPC_OPS_CLIENT as *const RpcOps as *mut RpcOps
+         ));
++
++        if nested_ep.init(lauberhorn.ctx.get()) != 0 {
++            return Err(DandelionError::LauberhornError(format!("endpoint init: {}", std::io::Error::last_os_error())));
++        }
+ 
+         let rt_ctx = Arc::new(RuntimeContext{
+             engines: engines,
+--- a/dandelion_lauberhorn/tests/server_tests.rs
++++ b/dandelion_lauberhorn/tests/server_tests.rs
+@@ -301,14 +301,19 @@
+             vec![2, 12240, 16632, 16632, 22600],   // row 3
+     ];
+ 
++    let mut actual_outputs = Vec::new();
+     for set in &res.sets[0].items {
+         let output_data = set.data
+         .chunks(8)
+         .map(|chunk| i64::from_le_bytes(chunk.try_into().unwrap()))
+         .collect::<Vec<i64>>();
+         println!("Output data: {:?}", output_data);
+-        assert!(expected_options.contains(&output_data), "Unexpected output data");
+-    }
++        actual_outputs.push(output_data);
++    }
++    actual_outputs.sort();
++    let mut expected_options = expected_options;
++    expected_options.sort();
++    assert_eq!(actual_outputs, expected_options, "Missing, duplicate or incorrect shard result");
+ 
+     let dereg_url = config.server_url("/deregister");
+     assert_eq!(deregister(&dereg_url, "matmac_chain").unwrap().status(), 200, "Failed to deregister composition");
+@@ -503,6 +508,30 @@
+     println!("{:?}", res);
+     assert_eq!(bson::to_bson(&res_exp).unwrap(), bson::to_bson(&res).unwrap());
+ 
++    // Distinct results from concurrent invocations exercise the single shared
++    // nested endpoint and catch cross-composition completion mixups.
++    std::thread::scope(|scope| {
++        let handles: Vec<_> = (2i64..6).map(|value| {
++            let config = &config;
++            scope.spawn(move || {
++                let matrix: Vec<u8> = [2i64, value, 0, 0, value].iter()
++                    .flat_map(|v| v.to_le_bytes()).collect();
++                let input = vec![InputSet { identifier: String::new(), items: vec![InputItem {
++                    identifier: String::new(), key: 0, data: matrix,
++                }] }];
++                let response = invoke_service(chain_name_2, config.lauberhorn_prog_num,
++                    config.lauberhorn_prog_ver, config.lauberhorn_proc_num,
++                    &config.lauberhorn_ip, config.lauberhorn_port, input).unwrap();
++                assert_eq!(response.sets.len(), 1);
++                assert_eq!(response.sets[0].items.len(), 1);
++                let actual: Vec<i64> = response.sets[0].items[0].data.chunks_exact(8)
++                    .map(|v| i64::from_le_bytes(v.try_into().unwrap())).collect();
++                assert_eq!(actual, vec![2, value.pow(16), 0, 0, value.pow(16)]);
++            })
++        }).collect();
++        for handle in handles { handle.join().unwrap(); }
++    });
++
+     let dereg_url = config.server_url("/deregister");
+     assert_eq!(deregister(&dereg_url, chain_name_2).unwrap().status(), 200, "Failed to deregister composition");
+     assert_eq!(deregister(&dereg_url, chain_name).unwrap().status(), 200, "Failed to deregister composition");
+--- a/machine_interface/src/function_driver/compute_driver/mmu.rs
++++ b/machine_interface/src/function_driver/compute_driver/mmu.rs
+@@ -179,12 +179,12 @@
+ }
+ 
+ pub struct MmuLoop {
+-    cpu_slot: u8,
++    _engine_slot: u8,
+ }
+ 
+ impl Engine for MmuLoop {
+     fn init(core_id: u8) -> DandelionResult<Box<Self>> {
+-        return Ok(Box::new(MmuLoop { cpu_slot: core_id }));
++        return Ok(Box::new(MmuLoop { _engine_slot: core_id }));
+     }
+ 
+     fn get_engine_type(&self) -> crate::machine_config::EngineType {
+@@ -216,7 +216,10 @@
+         let offset = mmu_context.storage.offset();
+         let size = mmu_context.storage.size();
+         mmu_run_static(
+-            self.cpu_slot,
++            // Engine slots identify storage; execution follows the Linux CPU
++            // selected for the current RPC worker, including migrated fibers.
++            u8::try_from(unsafe { libc::sched_getcpu() })
++                .map_err(|_| DandelionError::EngineResourceError)?,
+             mmu_context.storage.filename().unwrap(),
+             offset,
+             size,
+--- a/package.nix
++++ b/package.nix
+@@ -32,17 +32,18 @@
+     inherit cargoArtifacts;
+     pname = "dandelion-lauberhorn-tests";
+     
+-    cargoBuildFlags = "--tests --no-run";
++    cargoExtraArgs = "--features mmu --package dandelion_lauberhorn --test server_tests";
+ 
+     installPhase = ''
+       mkdir -p $out/tests $out/binaries
+ 
+       # grab all compiled test binaries from the standard target directory 
+-      find target/aarch64-unknown-linux-gnu/release/deps -maxdepth 1 -type f -executable \
++      find target/aarch64-unknown-linux-gnu/release/deps -maxdepth 1 -type f -name 'server_tests-*' -executable \
+         | while read -r bin; do
+             cp "$bin" $out/tests/
+           done
+ 
++      test -n "$(ls -A $out/tests)"
+       cp ./dandelion_lauberhorn/tests/config.sh $out
+ 
+       # TODO: COPY SCIRPT THAT SETS UP ENV VARIABLES FOR TESTING AND LATENCY BINARY
