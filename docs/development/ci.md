@@ -11,7 +11,8 @@ Nix's separate Git cache. The job also globally rewrites both SCP-style and
 The helper stores an environment reference, not the token; no personal token is
 passed to builds or included in artifacts.
 Both Nix and Vivado Docker images are pinned by digest. No lock updates occur in CI.
-The hosted tools image receives Vivado through the runner's `/opt/Xilinx` mount;
+The minimal hosted `xilinx-tools` image supplies Vivado runtime dependencies
+and license configuration, without the Spinal/Verilator layer. It receives Vivado through the runner's `/opt/Xilinx` mount;
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
 digest alone does not pin that separately maintained installation.
 
