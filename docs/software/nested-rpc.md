@@ -91,12 +91,14 @@ API shape to adapt, not an API promised by this checkout: endpoint metadata `(da
 
 Remaining software work:
 
-- Adopt codecs for call marshaling/reply unmarshaling and a fiber/event loop while retaining synchronous handlers where appropriate.
-- Decode generic TX status and distinguish acceptance, completion, cancellation and timeout lifetimes.
-- Dispatch reply RX instead of asserting all received descriptors are calls.
-- Configure the nested reply listen port and relevant generated devices in kernel/runtime initialization.
-- Define exhaustion, stale completion, duplicate reply, XID/cookie reuse, process exit and fiber-stack failure behavior.
-- Reconcile planned tail calls with report/code evidence; do not equate ordinary nested calls with tail-call continuation transfer.
+- Decode generic TX status and distinguish acceptance, completion, cancellation
+  and timeout lifetimes. Hardware table backpressure is not a rejection API.
+- Complete handler admission, shutdown and abnormal-exit recovery. Endpoint
+  timeouts conservatively retain reservations until verified reset.
+- Extend resource/exhaustion and multi-process validation beyond the current
+  directed tests; preserve the quiescent service/endpoint lifecycle.
+- Reconcile planned tail calls with report/code evidence; ordinary nested calls
+  do not implement continuation transfer.
 
 ## Internal local RPC
 
@@ -115,7 +117,11 @@ multi-process saturation remain pending; see the [endpoint contract](nested-rpc-
 
 ## Validation and next steps
 
-`hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala` currently registers `nested-rpc-call-tx-descriptor` and `nested-rpc-reply-rx`. The latter seeds routing state through CSRs. Their presence does not establish a complete runtime-driven nested round trip, saturation behavior or local dispatch.
+`hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala` registers
+`nested-rpc-call-tx-descriptor`, `nested-rpc-reply-rx` and
+`nested-rpc-local-roundtrip`. The remote RX case seeds CSRs; the local case
+installs routing through the normal call encoder and reply-session decoder.
+These simulations do not establish actual Linux/ECI runtime progress.
 
 Retain these acceptance tests from the original plan when implementing missing work:
 
@@ -126,4 +132,7 @@ Retain these acceptance tests from the original plan when implementing missing w
 - Completion cleanup under timeout, duplicate replies, process exit and resource exhaustion.
 - Local call/reply with no external traffic after short-circuit is implemented.
 
-First reconcile the student runtime contract with the current ABI and implement acceptance/lifetime handling; then integrate fibers, nested-port setup and end-to-end tests. Local short-circuit is separate. The old matrix-multiplication proposal (multiply fanout, await, add reduction) remains an optional focused demo; the confirmed application portfolio centers on Dandelion and the other services in [paper goals](../research/paper-goals.md).
+Next run the bundled matched-artifact hardware campaign, keeping overload,
+shutdown and cancellation gaps explicit. Dandelion fixture builds and local RTL
+round trips do not establish composition support on Enzian. The confirmed
+application portfolio remains in [paper goals](../research/paper-goals.md).
