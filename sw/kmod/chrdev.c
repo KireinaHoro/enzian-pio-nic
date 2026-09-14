@@ -403,6 +403,7 @@ static void vma_close(struct vm_area_struct *vma)
 {
 	struct vma_priv_data *priv = vma->vm_private_data;
 	if (!priv->is_parity_page) {
+		mutex_lock(&control_lock);
 		// A worker thread unmapped its datapath VMA, disable the thread
 		clean_worker_thread(priv->thr);
 
@@ -413,6 +414,7 @@ static void vma_close(struct vm_area_struct *vma)
 		// Decrement the thread task ref count
 		put_task_struct(priv->thr->task);
 		priv->thr->task = NULL;
+		mutex_unlock(&control_lock);
 	}
 }
 
@@ -431,7 +433,7 @@ static const struct vm_operations_struct vm_ops = {
 	.name = vma_name,
 };
 
-static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
+static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
 {
 	pid_t tid = current->pid;
 	pid_t tgid = current->tgid;
@@ -535,6 +537,15 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 	prepare_worker_thread(thr);
 
 	return 0;
+}
+
+static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
+{
+    int ret;
+    mutex_lock(&control_lock);
+    ret = app_dev_mmap_locked(f, vma);
+    mutex_unlock(&control_lock);
+    return ret;
 }
 
 static const struct file_operations fops = {
