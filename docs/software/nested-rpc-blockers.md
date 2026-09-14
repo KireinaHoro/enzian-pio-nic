@@ -1,5 +1,7 @@
 # Nested RPC integration blockers
 
+See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
+
 Working queue for `feat/nested-rpc`, recorded 2026-09-10 from the campaign
 documented in `e4eeaa7`. Work through B1–B4 in order; investigate B5 separately. B6 is an
 additional Dandelion integration gate. B1 includes compiler, RTL alignment and byte-order repairs

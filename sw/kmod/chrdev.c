@@ -2,6 +2,11 @@
 // Copyright (c) 2025 Pengcheng Xu, Zikai Liu
 
 #include "common.h"
+#include <linux/net.h>
+#include <linux/nsproxy.h>
+#include <net/net_namespace.h>
+#include <net/inet_sock.h>
+#include "lauberhorn_eci_OncRpcReplyDecoder_dev.h"
 #include "ioctl.h"
 
 #include "lauberhorn_eci_sched_dev.h"
@@ -16,6 +21,7 @@ static struct class *dev_class;
 
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS];
+static DEFINE_MUTEX(control_lock);
 static bool listen_occupied[LAUBERHORN_NUM_LISTEN_PORTS];
 
 struct worker_dev {
@@ -27,12 +33,15 @@ struct worker_dev {
 	lauberhorn_eci_sched_t sched_dev;
 };
 
+struct endpoint_reservation;
 struct file_priv {
 	struct proc_def *pd;
 	struct worker_dev *dev;
+	struct endpoint_reservation *endpoints[LAUBERHORN_NUM_LISTEN_PORTS];
 };
 
 #include "stats/worker.h"
+#include "endpoints.h"
 
 struct proc_def *find_proc(pid_t tgid)
 {
@@ -49,14 +58,13 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 			    u32 prog_ver, u32 proc_num, void __user *func_ptr,
 			    struct proc_def *proc)
 {
-	int i, proc_srv_idx, listen_idx;
+	int i, proc_srv_idx, listen_idx, srv_idx = -1;
 	struct srv_def *srv;
 
 	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
 		if (!srv_defs[i].enabled) {
 			srv = &srv_defs[i];
-			srv->idx = i;
-			break;
+			if (srv_idx < 0) srv_idx = i;
 		} else if (srv_defs[i].port == port &&
 			   srv_defs[i].prog_num == prog_num &&
 			   srv_defs[i].prog_ver == prog_ver &&
@@ -67,12 +75,14 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 		}
 	}
 
-	if (i == LAUBERHORN_NUM_SERVICES) {
+	if (srv_idx < 0) {
 		pr_err("No more free service slots in HW: %d already registered\n",
 		       i);
 		return -1;
 	}
 
+	if (endpoint_port_reserved(port)) return -EADDRINUSE;
+	srv = &srv_defs[srv_idx];
 	// find a free listen idx
 	for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i) {
 		if (!listen_occupied[i]) {
@@ -82,7 +92,9 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 		}
 	}
 
+	if (i == LAUBERHORN_NUM_LISTEN_PORTS) return -ENOSPC;
 	*srv = (struct srv_def){
+		.idx = srv_idx,
 		.port = port,
 		.prog_num = prog_num,
 		.prog_ver = prog_ver,
@@ -179,8 +191,9 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 	int i;
 	struct proc_def *proc;
 
+	if (find_proc(tgid)) return ERR_PTR(-EALREADY);
 	// procDb starts with 1 -- index 0 is the special IDLE process
-	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
+	for (i = 1; i < LAUBERHORN_NUM_PROCS; ++i) {
 		if (!proc_defs[i].enabled) {
 			proc = &proc_defs[i];
 			proc->idx = i;
@@ -248,7 +261,7 @@ static void deregister_app(struct worker_dev *dev, pid_t tgid)
 	pr_info("Deregistered app #%d with TGID %d\n", proc->idx, proc->tgid);
 }
 
-static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
+static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	struct file_priv *fp = f->private_data;
 
@@ -262,11 +275,14 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	struct srv_def *srv;
 	void *dereg_ret;
 
-	pid_t tgid = current->pid;
-	struct proc_def *proc = find_proc(tgid);
-	BUG_ON(!proc);
+	struct proc_def *proc = fp->pd;
+	if (current->tgid != proc->tgid) return -EPERM;
 
 	switch (cmd) {
+	case LAUBERHORN_IOCTL_REG_ENDPOINT:
+		return register_endpoint(fp, (void __user *)arg);
+	case LAUBERHORN_IOCTL_DEREG_ENDPOINT:
+		return deregister_endpoint(fp, (void __user *)arg);
 	case LAUBERHORN_IOCTL_REG_SRV:
 		if (copy_from_user(&reg_cmd, reg_cmd_usr, sizeof(reg_cmd))) {
 			return -EFAULT;
@@ -277,11 +293,13 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 						reg_cmd.proc_num,
 						reg_cmd.func_ptr, proc);
 		if (proc_srv_idx < 0) {
-			return -EINVAL;
+			return proc_srv_idx;
 		}
 		reg_ret = proc_srv_idx;
 
 		if (copy_to_user(&reg_cmd_usr->id, &reg_ret, sizeof(reg_ret))) {
+			deregister_service(fp->dev, proc->srvs[proc_srv_idx]);
+			proc->srvs[proc_srv_idx] = NULL;
 			return -EFAULT;
 		}
 		break;
@@ -326,17 +344,30 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
+{
+    long ret;
+    mutex_lock(&control_lock);
+    ret = app_dev_ioctl_locked(f, cmd, arg);
+    mutex_unlock(&control_lock);
+    return ret;
+}
+
 static int app_dev_open(struct inode *i, struct file *f)
 {
-	pid_t tgid = current->pid;
+	pid_t tgid = current->tgid;
 	struct file_priv *fp;
 	int err;
 
-	fp = kmalloc(sizeof(struct file_priv), GFP_KERNEL);
+	if (tgid <= 0 || tgid >= (1UL << LAUBERHORN_PID_WIDTH)) return -EOVERFLOW;
+	fp = kzalloc(sizeof(struct file_priv), GFP_KERNEL);
+	if (!fp) return -ENOMEM;
 	fp->dev = container_of(i->i_cdev, struct worker_dev, cdev);
 
 	pr_info("Registering application TGID %d\n", tgid);
+	mutex_lock(&control_lock);
 	fp->pd = register_app(fp->dev, tgid);
+	mutex_unlock(&control_lock);
 	if (IS_ERR(fp->pd)) {
 		err = PTR_ERR(fp->pd);
 		pr_err("Failed to register app, err %d\n", err);
@@ -358,7 +389,10 @@ static int app_dev_release(struct inode *i, struct file *f)
 	BUG_ON(!fp->pd->enabled);
 
 	pr_info("Deregistering application TGID %d\n", tgid);
+	mutex_lock(&control_lock);
+	quarantine_endpoints(fp);
 	deregister_app(fp->dev, tgid);
+	mutex_unlock(&control_lock);
 
 	kfree(fp);
 
@@ -421,7 +455,8 @@ static int app_dev_mmap(struct file *f, struct vm_area_struct *vma)
 
 	vma->vm_page_prot = pgprot_nx(vma->vm_page_prot);
 
-	proc = find_proc(tgid);
+	proc = fp->pd;
+	if (proc->tgid != tgid) return -EPERM;
 	if (!proc) {
 		pr_err("Failed to find TGID %d for thread init, bug?\n", tgid);
 		return -EINVAL;

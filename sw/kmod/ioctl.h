@@ -61,4 +61,21 @@ typedef struct {
 // and unblocked to run to finish
 #define LAUBERHORN_IOCTL_WAKE_ALL_WORKERS _IO(LAUBERHORN_IOCTL_MAGIC, 3)
 
+/* Fixed-width control ABI. Reserved fields must be zero. Numeric fields
+ * are host order. Handles are scoped to the open device context. */
+typedef struct {
+    u32 handle;
+    u16 pid;
+    u16 port;
+    u64 reserved;
+} lauberhorn_reg_endpoint_t;
+typedef struct {
+    u32 handle;
+    u32 reserved;
+} lauberhorn_dereg_endpoint_t;
+#define LAUBERHORN_IOCTL_REG_ENDPOINT \
+    _IOWR(LAUBERHORN_IOCTL_MAGIC, 4, lauberhorn_reg_endpoint_t)
+#define LAUBERHORN_IOCTL_DEREG_ENDPOINT \
+    _IOW(LAUBERHORN_IOCTL_MAGIC, 5, lauberhorn_dereg_endpoint_t)
+
 #endif // LAUBERHORN_IOCTL_H

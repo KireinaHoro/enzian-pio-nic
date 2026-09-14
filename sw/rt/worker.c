@@ -128,8 +128,10 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
 
     lauberhorn_is_running = 1;
 
+    ctx->_workers++;
     err = pthread_create(&w->thread, NULL, lauberhorn_worker_loop, w);
     if (err != 0) {
+        ctx->_workers--;
         errno = err;
         PERROR("create thread");
         free(w->dp.tx_buf);
@@ -160,6 +162,7 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
         PERROR("unmap datapath");
     }
 
+    ctx->_workers--;
     free(w->dp.rx_buf);
     free(w->dp.tx_buf);
     free(w);
