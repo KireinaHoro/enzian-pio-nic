@@ -167,13 +167,16 @@ Prepare archived source directories from `../sven-dandelion/platform` and
 `../sven-dandelion/dandelion`. For the platform snapshot archive only
 `sw/apps/adder-demo` and `sw/apps/nested_adder-demo`; the recipe supplies the
 matched upstream includes and common Makefile. Archive the complete Dandelion
-tree. Apply `student-nested-remote.patch` to the platform snapshot to make only
-the nested demo's destination configurable. Pass their
+tree. The recipe applies `student-nested-remote.patch` itself to initialize one
+shared endpoint before workers, preserve request IDs and configure the nested
+destination through `NESTED_REMOTE_IP` (default: local NIC `192.168.129.129`).
+Use unpatched snapshots. The main flake now also exposes pinned `dandelion` and
+`dandelionDeployFs` outputs. Pass the archived snapshots'
 absolute paths as Nix path arguments:
 
 ```sh
 nix build --impure --file tools/enzian/student_build.nix \
-  --argstr runtimeRevision aa32b1af04f2fcdd9191c94784eba5bbad1ea25f \
+  --argstr runtimeRevision "$(git rev-parse HEAD)" \
   --arg studentSource /ABS/PREPARED-STUDENT-PLATFORM \
   --arg dandelionSource /ABS/DANDELION-SNAPSHOT \
   studentImage --out-link /tmp/student-image

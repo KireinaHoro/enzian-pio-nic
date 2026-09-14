@@ -64,8 +64,8 @@ def main():
                 raise ValueError('invalid nested-adder RPC reply')
             request_id, total = struct.unpack('!Ii', reply[24:])
             result.update(request_id=request_id, total=total)
-            if total != 10 or len(seen) != 3 or any('error' in r for r in seen):
-                raise ValueError('incorrect sum or missing two future calls / callback call')
+            if request_id != 7 or total != 10 or len(seen) != 3 or any('error' in r for r in seen):
+                raise ValueError('incorrect request ID/sum or missing two future calls / callback call')
             result['status'] = 'pass'
     except (OSError, ValueError) as error:
         result['error'] = str(error)
