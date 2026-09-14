@@ -39,6 +39,7 @@ static void sigint_handler(int signo) {
 }
 
 int lauberhorn_init(lauberhorn_t *ctx) {
+    ctx->_workers = 0;
     struct sigaction sa = {
         .sa_handler = sigint_handler,
         .sa_flags = SA_RESTART, // resume join in main

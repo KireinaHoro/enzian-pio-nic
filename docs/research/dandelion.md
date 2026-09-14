@@ -1,5 +1,7 @@
 # Dandelion student port
 
+See the [registered endpoint and internal-loopback contract](../software/nested-rpc-endpoints.md) for the B2/B6 batch.
+
 Surveyed 2026-09-08. External sibling workspace: `../sven-dandelion/` from the platform root; it is not vendored here. Report: **Sven Glinz, _Porting Dandelion to the Lauberhorn smart NIC_**, bachelor thesis, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected commits: report `ec49e8a`, platform `9e25181`, Dandelion `69c3088`. The report identifies upstream Dandelion `98c4968` (2026-03-09) as its port base; these are distinct revision identities.
 
 **Hardware update, 2026-09-10:** the external `69c3088` application builds for

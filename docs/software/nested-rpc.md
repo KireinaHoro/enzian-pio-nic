@@ -1,5 +1,7 @@
 # Nested RPC: implemented hardware and runtime integration plan
 
+See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
+
 **Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
 for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
 Descriptions below of the synchronous master runtime are historical on this branch.

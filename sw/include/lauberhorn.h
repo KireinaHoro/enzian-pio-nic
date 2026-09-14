@@ -18,6 +18,8 @@ typedef struct lauberhorn {
 	/* to /dev/lauberhorn */
 	int fd;
 	uint8_t* parity_page;
+	/* Private: control operations require external serialization. */
+	uint32_t _workers;
 } lauberhorn_t;
 
 typedef void* lauberhorn_msg_t;
@@ -109,7 +111,22 @@ typedef struct {
 	uint32_t prog_ver;
 	uint32_t proc_num;
 	rpc_codec_t *rpc_codec; // how to serialize, deserialize stuff from this endpoint
-} lauberhorn_rpc_endpoint_t; 
+    /* Zero initialize. Do not copy or mutate a registered endpoint. */
+    struct {
+        const void *self;
+        lauberhorn_t *owner;
+        uint64_t unresolved;
+        uint32_t handle, daddr;
+        uint16_t pid, sport;
+    } _transport;
+} lauberhorn_rpc_endpoint_t;
+
+/* Register before workers start; destroy after all workers have joined.
+ * Both return 0 or -1 with errno. Timeout does not release a reservation. */
+LAUBERHORN_API int lauberhorn_rpc_endpoint_init(lauberhorn_t *ctx,
+                                               lauberhorn_rpc_endpoint_t *ep);
+LAUBERHORN_API int lauberhorn_rpc_endpoint_destroy(lauberhorn_t *ctx,
+                                                  lauberhorn_rpc_endpoint_t *ep);
 
 
 LAUBERHORN_API int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
