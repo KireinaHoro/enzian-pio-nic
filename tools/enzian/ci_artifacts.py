@@ -25,9 +25,13 @@ def main():
     p.add_argument('--token-file', type=pathlib.Path, required=True)
     p.add_argument('--download', type=pathlib.Path)
     p.add_argument('--trace', type=pathlib.Path)
+    p.add_argument('--checkpoint', action='store_true',
+                   help='also download the routed DCP (requires --download)')
     p.add_argument('--wait-seconds', type=int, default=0,
                    help='maximum time to wait for job success; poll every 30 seconds')
     args = p.parse_args()
+    if args.checkpoint and not args.download:
+        p.error('--checkpoint requires --download')
     token = args.token_file.read_text().strip()
     # Refuse redirects: never forward the private token to an artifact CDN.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -64,7 +68,11 @@ def main():
         args.download.mkdir(parents=True, exist_ok=False)
         (args.download / 'job.json').write_text(json.dumps(job, indent=2) + '\n')
         hashes = []
-        for name, artifact in ARTIFACTS.items():
+        artifacts = dict(ARTIFACTS)
+        if args.checkpoint:
+            artifacts['shell_lauberhorn-eci_routed.dcp'] = (
+                'out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp')
+        for name, artifact in artifacts.items():
             dest = args.download / name
             partial = dest.with_suffix(dest.suffix + '.part')
             with get('/artifacts/' + artifact) as response, partial.open('wb') as output:
