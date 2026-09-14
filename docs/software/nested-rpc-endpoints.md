@@ -14,6 +14,8 @@ Duplicate initialization returns `EALREADY`; destruction of an uninitialized
 endpoint succeeds. Registered endpoints must not be copied or mutated. Keep the
 endpoint, context, address and codec storage alive until destruction succeeds.
 Control operations and worker creation/join require external serialization.
+Retain codec storage until all returned results using that codec are freed,
+even when the associated call has completed.
 
 Initialization validates/caches the IPv4 address and uses a fixed-width padded
 control ioctl to reserve a Linux UDP socket without reuse and an FPGA reply

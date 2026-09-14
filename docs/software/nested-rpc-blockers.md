@@ -178,7 +178,8 @@ with checkpoint 2812450. See the [endpoint contract](nested-rpc-endpoints.md).
 wakeups, initializes fiber callback handlers, retries callbacks when the fiber
 pool is full, checks codec/allocation errors, initializes XDR storage, retains
 callback endpoint ownership until execution and serializes timeout timestamp
-access. Generation wrap retires a software slot. Native tests exercise these
+access. `822f6b1` drains retried callbacks before blocking on receive.
+Generation wrap retires a software slot. Native tests exercise these
 paths, including immediate replies and exhaustion. The Dandelion patch also
 repairs typed Rust response freeing and initialized decode storage. B3 remains
 open for hardware completion acceptance and broader admission/error handling;
