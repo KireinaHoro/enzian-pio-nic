@@ -33,10 +33,12 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
 
 ## Working rules
 
-- Keep work organized in goal-focused branches with coherent commits. When a goal
-  is complete, merge its branch into this worktree's `master` and push the branch
-  and `master` to the private GitLab remote. Keep independent experiments on
-  separate branches. Do not accumulate completed work as uncommitted changes or
+- Keep work organized in coherent, goal-focused commits. Simple single-commit
+  changes may be committed directly on this worktree's `master`. Use separate
+  branches for larger goals and independent experiments; when complete, merge
+  into `master` and push to the private GitLab remote. Remove agent-created local
+  and private-remote branches once merged; preserve unmerged experiments and
+  branches belonging to others. Do not accumulate completed work as uncommitted changes or
   untracked source/docs in the master worktree; track intended project files with
   their goal and keep generated artifacts in ignored output directories. If work
   must remain unfinished, state its branch and remaining changes explicitly.
