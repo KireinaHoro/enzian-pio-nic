@@ -39,7 +39,8 @@ typedef enum {
     SLOT_RESERVED,
     SLOT_PENDING,
     SLOT_FULFILLED,
-    SLOT_READY
+    SLOT_READY,
+    SLOT_CALLBACK_READY
 } slot_state_t;
 
 struct pending_call {
@@ -89,7 +90,7 @@ void pending_call_release(struct pending_call_table *tbl,
 
 void pending_call_table_init(struct pending_call_table *tbl);
 
-/* check if a call has expired given current time */
+/* Check expiry with the slot lock held; sent_at is not atomic. */
 bool pending_call_has_expired(struct pending_call *entry, struct timespec *now);
 
 /* copy call result into result*/

@@ -30,6 +30,9 @@ static void *alloc(rpc_alloc_kind_t k, void *p) { return NULL; }
 static void release(void *p, rpc_free_kind_t k, void *c) {}
 int main(void)
 {
+    _Static_assert(sizeof(lauberhorn_t) == 24, "Rust context ABI");
+    _Static_assert(sizeof(lauberhorn_rpc_endpoint_t) == 72, "Rust endpoint ABI");
+    _Static_assert(offsetof(lauberhorn_rpc_endpoint_t, _transport) == 32, "Rust transport offset");
     _Static_assert(sizeof(lauberhorn_reg_endpoint_t) == 16, "registration ABI");
     _Static_assert(sizeof(lauberhorn_dereg_endpoint_t) == 8, "deregistration ABI");
     lauberhorn_t ctx = {.fd = 42}, other = {.fd = 43};

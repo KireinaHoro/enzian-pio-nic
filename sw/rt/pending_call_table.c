@@ -8,20 +8,19 @@
 // atomically acquire a free packet slot
 // must be released with pending_call_table_release
 struct pending_call * pending_call_acquire(struct pending_call_table *tbl) {
-    int idx = bitmap_acquire(&tbl->bitmap);
-    if (idx < 0) {
-        return NULL;
+    struct pending_call *c;
+    int idx;
+    for (;;) {
+        idx = bitmap_acquire(&tbl->bitmap);
+        if (idx < 0) return NULL;
+        c = &tbl->pkts[idx];
+        pthread_spin_lock(&c->lock);
+        if (c->gen != UINT16_MAX) break;
+        /* Never wrap into a cookie which an old packet could still carry.
+         * Retire this bitmap slot for the lifetime of the table. */
+        pthread_spin_unlock(&c->lock);
     }
-    struct pending_call* c = &tbl->pkts[idx];
-
-    pthread_spin_lock(&c->lock);
-    //  bump generation by 1 to generate new xid
-    //  under simu kmod, must restrict to 12 bits
-#ifdef LAUBERHORN_SIMULATION
-    c->gen = (c->gen + 1) & ((1 << 12) - 1);
-#else
-    c->gen = (c->gen + 1);
-#endif
+    ++c->gen;
 
     atomic_store_explicit(&c->state, SLOT_RESERVED, memory_order_relaxed);
     c->idx = idx;
@@ -78,7 +77,7 @@ void pending_call_release(struct pending_call_table *tbl,
 bool pending_call_try_cancel(struct pending_call *c, uint32_t xid) {
     // TODO: not implemented yet
     // should release the slot from the pending call bitmap
-    return true;
+    return false;
 }
 
 struct pending_call *pending_call_get_by_cookie(struct pending_call_table *table, uint32_t xid) {
@@ -90,8 +89,7 @@ struct pending_call *pending_call_get_by_cookie(struct pending_call_table *table
     return &table->pkts[slot];
 }
 
-// unlocked hint for the timeout sweep
-// result revalidated under lock if true
+// Called under the slot lock, including the timeout deadline timestamp.
 bool pending_call_has_expired(struct pending_call *entry,
                               struct timespec *now) {
 

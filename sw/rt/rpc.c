@@ -12,6 +12,7 @@
 struct rpc_callback_fiber_ctx {
     rpc_result_t result;
     lauberhorn_cb_handler_t handler;
+    lauberhorn_rpc_endpoint_t *endpoint;
 };
 
 struct rpc_call_fiber_ctx {
@@ -24,14 +25,22 @@ struct rpc_call_fiber_ctx {
 // return pointer to unmarshaled reply
 static void *unmarshal_reply(void *data, size_t len, rpc_codec_t *codec) {
     void *data_unmarshaled = codec->ops->alloc(RPC_ALLOC_RESP, codec->priv);
-    codec->ops->unmarshal_resp(data, data_unmarshaled, len, codec->priv);
+    if (!data_unmarshaled) return NULL;
+    if (codec->ops->unmarshal_resp(data, data_unmarshaled, len, codec->priv) < 0) {
+        codec->ops->free(data_unmarshaled, RPC_FREE_RESP, codec->priv);
+        return NULL;
+    }
     return data_unmarshaled;
 }
 
 // return pointer to unmarshaled call
 static void *unmarshal_call(void *data, size_t len, rpc_codec_t *codec) {
     void *data_unmarshaled = codec->ops->alloc(RPC_ALLOC_CALL, codec->priv);
-    codec->ops->unmarshal_call(data, data_unmarshaled, len, codec->priv);
+    if (!data_unmarshaled) return NULL;
+    if (codec->ops->unmarshal_call(data, data_unmarshaled, len, codec->priv) < 0) {
+        codec->ops->free(data_unmarshaled, RPC_FREE_CALL, codec->priv);
+        return NULL;
+    }
     return data_unmarshaled;
 }
 
@@ -42,6 +51,8 @@ static lauberhorn_msg_t rpc_call_exec_inline(lauberhorn_worker_t w, lauberhorn_p
 
     // unmarshal data
     void *unmarshaled_args = unmarshal_call(w->dp.rx_buf, desc->payload_len, codec);
+
+    if (!unmarshaled_args) return NULL;
 
     // call handler
     lauberhorn_msg_t resp =
@@ -68,7 +79,7 @@ static void rpc_reply_send(lauberhorn_msg_t msg, lauberhorn_pkt_desc_t *desc) {
     int len = codec->ops->marshal_resp(msg, w->dp.tx_buf, desc->payload_len,
                                        codec->priv);
 
-    if (len < 0) {
+    if (len < 0 || len > LAUBERHORN_MTU - 66) {
         LOG("marshal failed for reply");
         return;
     }
@@ -114,6 +125,7 @@ static void rpc_callback_fiber_start(void *ctx) {
     // invoke handler with result and free it after
     f_ctx->handler.cb(&f_ctx->result, f_ctx->handler.data);
     lauberhorn_free_result(&f_ctx->result);
+    __atomic_fetch_sub(&f_ctx->endpoint->_transport.unresolved, 1, __ATOMIC_RELEASE);
     free(ctx);
 }
 
@@ -122,14 +134,16 @@ static void rpc_call_schedule_fiber(lauberhorn_worker_t w, lauberhorn_pkt_desc_t
     struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
     rpc_codec_t *codec = &hw->srv->codec;
 
-    struct fiber *f = fiber_sched_acquire();
+    void *unmarshaled_args = unmarshal_call(w->dp.rx_buf, desc->payload_len, codec);
+    if (!unmarshaled_args) return;
+    struct rpc_call_fiber_ctx *ctx = malloc(sizeof(*ctx));
+    struct fiber *f = ctx ? fiber_sched_acquire() : NULL;
     if (!f) {
-        LOG("failed to acquire free fiber for nested RPC call");
+        free(ctx);
+        codec->ops->free(unmarshaled_args, RPC_FREE_CALL, codec->priv);
+        LOG("failed to allocate handler fiber");
         return;
     }
-    void *unmarshaled_args = unmarshal_call(w->dp.rx_buf, desc->payload_len, codec);
-
-    struct rpc_call_fiber_ctx *ctx = malloc(sizeof(struct rpc_call_fiber_ctx));
     ctx->pkt_desc = *desc;
     ctx->unmarshaled_data = unmarshaled_args;
 
@@ -158,21 +172,23 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
 
 // schedule callback handler to be executed in a new fiber
 // frees the pending call entry
-static void rpc_callback_schedule_fiber(struct pending_call *call) {
-
-    struct fiber *f = fiber_sched_acquire();
+static bool rpc_callback_schedule_fiber(struct pending_call *call) {
+    struct rpc_callback_fiber_ctx *ctx = malloc(sizeof(*ctx));
+    struct fiber *f = ctx ? fiber_sched_acquire() : NULL;
     if (!f) {
-        LOG("could not acquire a free fiber");
-        return;
+        free(ctx);
+        return false;
     }
-    struct rpc_callback_fiber_ctx *ctx = malloc(sizeof(struct rpc_callback_fiber_ctx));
-
+    ctx->handler = call->completion.callback;
+    ctx->endpoint = call->endpoint;
+    __atomic_fetch_add(&ctx->endpoint->_transport.unresolved, 1, __ATOMIC_RELAXED);
     // copy result into context and release pending call slot
     pending_call_extract_result(call, &ctx->result);
 
     // submit new fiber to scheduler
     fiber_prepare(f, rpc_callback_fiber_start, NULL, ctx);
     fiber_sched_submit(f);
+    return true;
 }
 
 // unconditionally deliver result via future / callback
@@ -188,15 +204,13 @@ static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
         case COMPLETION_FIBER: {
             //  wake up waiter. Do not free slot before
             // fiber has not taken the data out
+            struct fiber_handle waiter = c->completion.fiber_handle;
             atomic_store_explicit(&c->state, SLOT_READY, memory_order_release);
 
-            // woke up soccessfully, return without freeing data yet
-            if (fiber_wake(&c->completion.fiber_handle)) {
-                return;
-            }
-            // free slot if fiber is not around anymore or could not
-            // be woken up
-            break;
+            /* A coalesced notification still leaves the result owned by its
+             * future. Only future consumption releases this slot. */
+            fiber_wake(&waiter);
+            return;
         }
         // invoke callback
         case COMPLETION_CALLBACK: {
@@ -205,7 +219,10 @@ static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
             switch (handler.mode) {
                 case EXEC_FIBER: {
                     // schedules callback and frees entry
-                    rpc_callback_schedule_fiber(c);
+                    if (!rpc_callback_schedule_fiber(c)) {
+                        atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
+                        return;
+                    }
                     break;
                 }
                 case EXEC_INLINE: {
@@ -241,7 +258,7 @@ static void rpc_handle_reply(lauberhorn_msg_t reply, lauberhorn_pkt_desc_t *desc
     rpc_result_t result = {
         .data = unmarshaled,
         .codec = entry->codec,
-        .code = LAUBERHORN_RPC_SUCCESS
+        .code = unmarshaled ? LAUBERHORN_RPC_SUCCESS : LAUBERHORN_RPC_ERROR
     };
     pending_call_settle(entry, &result);
 }
@@ -289,6 +306,9 @@ static void rpc_send_call(uint32_t xid, lauberhorn_rpc_endpoint_t *ep, void *pay
 
 int lauberhorn_call_cb(lauberhorn_rpc_endpoint_t *ep, void *payload,
     size_t payload_len, lauberhorn_cb_handler_t cb) {
+    if (!cb.cb || (cb.mode != EXEC_INLINE && cb.mode != EXEC_FIBER)) {
+        errno = EINVAL; return -1;
+    }
 
     lauberhorn_worker_t w = worker_get_current();
     if (!ep || ep->_transport.self != ep || !w || ep->_transport.owner != w->ctx) {
@@ -323,6 +343,7 @@ int lauberhorn_call_cb(lauberhorn_rpc_endpoint_t *ep, void *payload,
 
 int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
                           size_t payload_len, lauberhorn_future_t *f) {
+    if (!f) { errno = EINVAL; return -1; }
 
 
     lauberhorn_worker_t w = worker_get_current();
@@ -376,7 +397,7 @@ static bool rpc_call_try_timeout(struct pending_call *c, struct timespec *now) {
     // revalidate timeout under lock
     pthread_spin_lock(&c->lock);
     // verify timeout again under lock
-    if (pending_call_has_expired(c, now) && atomic_load(&c->state) == SLOT_PENDING) {
+    if (atomic_load(&c->state) == SLOT_PENDING && pending_call_has_expired(c, now)) {
         // mark as fulfilled
         atomic_store_explicit(&c->state, SLOT_FULFILLED, memory_order_relaxed);
         pthread_spin_unlock(&c->lock);
@@ -400,8 +421,21 @@ void rpc_call_process_timeout() {
     struct pending_call *e;
 
     pending_call_table_for_each(&pending_call_table, e) {
-        if (pending_call_has_expired(e, &t_now)) {
-            rpc_call_try_timeout(e, &t_now);
-        }
+        rpc_call_try_timeout(e, &t_now);
+    }
+}
+
+/* Retry deferred fiber callbacks without losing their result or running them
+ * inline on a scheduler stack. A slot lock assigns one retry owner. */
+void rpc_call_process_ready(void) {
+    struct pending_call *c;
+    pending_call_table_for_each(&pending_call_table, c) {
+        pthread_spin_lock(&c->lock);
+        bool retry = atomic_load_explicit(&c->state, memory_order_acquire) == SLOT_CALLBACK_READY;
+        if (retry) atomic_store(&c->state, SLOT_FULFILLED);
+        pthread_spin_unlock(&c->lock);
+        if (!retry) continue;
+        if (rpc_callback_schedule_fiber(c)) pending_call_release(&pending_call_table, c);
+        else atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
     }
 }

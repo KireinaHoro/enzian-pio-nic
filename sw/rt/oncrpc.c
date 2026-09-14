@@ -68,9 +68,9 @@ void *xdr_alloc_func(rpc_alloc_kind_t kind, void *priv) {
     xdr_adapter_t *p = priv;
     switch (kind) {
     case RPC_ALLOC_CALL:
-        return malloc(p->call_size);
+        return calloc(1, p->call_size);
     case RPC_ALLOC_RESP:
-        return malloc(p->resp_size);
+        return calloc(1, p->resp_size);
     }
     return NULL;
 }
