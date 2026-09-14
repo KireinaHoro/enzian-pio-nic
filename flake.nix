@@ -24,6 +24,23 @@
       overlays = [
         inputs.mill-ivy-fetcher.overlays.default
         inputs.mill-ivy-fetcher.overlays.mill-overlay
+        # This Spinal revision uses WData, removed by Verilator 5.052.
+        (final: prev: {
+          verilator = prev.verilator.overrideAttrs {
+            version = "5.048";
+            # 5.048's gdb probe uses echo; newer packaging patches a sh probe.
+            postPatch = ''
+              patchShebangs .
+              substituteInPlace bin/verilator --replace-fail "/bin/echo" "${final.coreutils}/bin/echo"
+            '';
+            src = final.fetchFromGitHub {
+              owner = "verilator";
+              repo = "verilator";
+              tag = "v5.048";
+              hash = "sha256-xvqqgbW7L07+NBYzGN2KLhwir58ByShxo4VVPI3pgZk=";
+            };
+          };
+        })
       ];
     };
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
@@ -261,6 +278,17 @@
     packages = {
       inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
       inherit dummy-app-build-with-nix;
+      # Build tools and locked dependencies only: no application/test derivations.
+      ciEnvironment = pkgs.mkShell {
+        inputsFrom = [ self.devShells.${system}.default ];
+        packages = linuxTools ++ [
+          ciBuild
+          (pkgs.ivy-gather ./project-lock.nix)
+          pkgs.configure-mill-env-hook
+          pkgs.iverilog pkgs.libpcap pkgs.squashfsTools pkgs.pkg-config
+          aarch64Pkgs.libtirpc
+        ];
+      };
       prepareEci = pkgs.writeShellApplication {
         name = "prepare-eci";
         runtimeInputs = [ ciBuild pkgs.coreutils ];

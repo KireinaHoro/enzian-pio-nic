@@ -18,9 +18,9 @@ variables:
 
 .nix:
   tags: [enzian-docker]
-  # Prewarmed from platform da12856; jobs still build their own locked checkout.
+  # Environment warmed from platform 2aaa537; jobs build/test their locked checkout.
   image:
-    name: registry.ethz.ch/project-openenzian/ci-images/lauberhorn-flakes:a2d196a8a1c0b928713ae1bcec3735050ca186b1
+    name: registry.ethz.ch/project-openenzian/ci-images/lauberhorn-flakes:980991e21d0b2a99efaf799e4b65c218b7ebbd85@sha256:15a065efb42dd3b40ecae14d6abaca6a64afa1b9541cff5e57d79c3d075efbea
     entrypoint: [""]
   before_script:
     # FORCE_HTTPS config is runner-local; Nix fetches through a separate Git cache.
