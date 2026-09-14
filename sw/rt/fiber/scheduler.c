@@ -178,6 +178,8 @@ bool fiber_wake(struct fiber_handle *h) {
 			if (vstate_cas(&h->f->vstate, gen_handle, state_cur, FIBER_NOTIFY)) {
 				return true;
 			}
+		} else if (state_cur == FIBER_NOTIFY) {
+            return true; // another completion already notified this live fiber
 		} else {
 			// return without waking
 			return false; 

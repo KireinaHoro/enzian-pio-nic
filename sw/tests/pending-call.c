@@ -35,6 +35,9 @@ int main(void)
     q->hardware_done = true;
     pending_call_release(&table, q);
     assert(ep._transport.unresolved == 0);
-    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i) assert(pending_call_acquire(&table));
+    q = pending_call_acquire(&table);
+    q->gen = UINT16_MAX;
+    pending_call_release(&table, q);
+    for (int i = 0; i < PENDING_CALL_TABLE_SIZE - 1; ++i) assert(pending_call_acquire(&table));
     assert(!pending_call_acquire(&table));
 }
