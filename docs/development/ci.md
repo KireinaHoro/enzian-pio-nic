@@ -110,3 +110,8 @@ using the clean-cache procedure above.
 Verilator remains explicitly pinned to 5.048: the current Spinal simulation
 wrapper uses `WData`, which Verilator 5.052 removed. Remove this compatibility
 pin only after updating and validating the Spinal simulation backend.
+
+The prewarmed image builds `packages.x86_64-linux.ciEnvironment`, a shell
+containing build tools and locked Maven dependencies. It does not realize test,
+RTL, or deployment targets. Tests run in the platform pipeline, not while
+publishing its CI image. Tool packages may run their own packaging checks.
