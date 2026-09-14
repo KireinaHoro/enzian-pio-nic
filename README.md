@@ -93,7 +93,7 @@ target so the shell does not treat the cross-version brackets as a glob.
 $ nix develop -c mill 'blocks[2.13.12].test'
 ```
 
-CI runs this blocks suite only when the `deps/blocks` submodule is bumped.
+CI runs this blocks suite on every pipeline, alongside the ECI and trace checks.
 
 Run one named test inside a suite:
 
@@ -115,23 +115,28 @@ viewed directly with `less`, `vim`, or `zcat`.
 
 ## CI
 
-GitLab CI currently runs these jobs:
+GitLab CI uses locked Nix builds in a digest-pinned, prewarmed
+`lauberhorn-flakes` image. The image contains build tools and locked Maven
+dependencies; project tests run in this pipeline, not during image publication.
 
-- `fast-tests-eci`: fast ECI Scala/Verilator tests on every pipeline, using
-  `mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci`.
-- `blocks-tests`: the `deps/blocks` regression suite, using
-  `mill 'blocks[2.13.12].test'`; this job is only triggered when the
-  `deps/blocks` submodule path changes.
-- `build-hw-eci`: the ECI Vivado bitstream build, using
-  `mill --no-server eci.generateBitstream`; this runs after `fast-tests-eci`
-  and declares bitstream, probes, routed checkpoint, header, and device-description
-  artifacts. Some header/device artifact paths are stale; see the workflow guide.
-- `publish`: tag-only release job; its artifact list still includes obsolete
-  software and disabled PCIe outputs. Review paths before relying on a release.
+1. `fast-tests-eci`, `blocks-tests`, `trace-tests`, and `trace-fifo-tests` run on
+   every pipeline through `checks.x86_64-linux.<job>`. All four gate preparation.
+2. `prepare-eci` builds `eciVivadoInputs` and `deployFs`: a portable Vivado input
+   bundle and matching AArch64 kernel module/runtime/application SquashFS. RTL
+   and software share generated ABI headers and the checked commit marker.
+3. `build-hw-eci` consumes those artifacts using the minimal, digest-pinned
+   `xilinx-tools` image and the runner's Vivado 2025.1 installation. It runs only
+   Vivado, with no source checkout or Spinal/Mill regeneration, and saves the
+   bitstream, probes, routed checkpoint and STA reports.
+4. `report-hw-eci` summarizes STA through Nix and checks that collection completed.
+   Negative slack is reported rather than rejected automatically.
+5. `publish` releases the matching ECI hardware and software artifacts on tags.
 
-CI does not currently run software builds, the full slow suite, or TLA+ checks.
+The full slow simulation suite, TLA+ checks and real-board tests are not CI gates.
 Some registered simulation tests have empty TODO bodies; see the
-[coverage limits](docs/development/validation.md).
+[coverage limits](docs/development/validation.md). See the
+[CI handoff and image maintenance guide](docs/development/ci.md) for exact
+artifact paths, local reproduction commands and image refresh instructions.
 
 ## Build Products
 
@@ -211,11 +216,10 @@ Create an IntelliJ IDEA project:
 $ nix develop -c mill mill.idea.GenIdea/idea
 ```
 
-Update the Mill dependency lock after changing Mill dependencies:
-
-```console
-$ nix develop -c update-mill-lock
-```
+After changing Mill dependencies, follow the [clean-cache lock regeneration
+procedure](docs/development/ci.md#local-validation-and-maintenance). Clear the XDG
+cache and resolve targets with fresh Mill outputs before `update-mill-lock`;
+otherwise the generated lock also captures stale dependencies.
 
 If Mill keeps using stale environment variables, stop the daemon or run the
 command with `--no-daemon`.
