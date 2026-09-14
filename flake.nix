@@ -24,6 +24,23 @@
       overlays = [
         inputs.mill-ivy-fetcher.overlays.default
         inputs.mill-ivy-fetcher.overlays.mill-overlay
+        # This Spinal revision uses WData, removed by Verilator 5.052.
+        (final: prev: {
+          verilator = prev.verilator.overrideAttrs {
+            version = "5.048";
+            # 5.048's gdb probe uses echo; newer packaging patches a sh probe.
+            postPatch = ''
+              patchShebangs .
+              substituteInPlace bin/verilator --replace-fail "/bin/echo" "${final.coreutils}/bin/echo"
+            '';
+            src = final.fetchFromGitHub {
+              owner = "verilator";
+              repo = "verilator";
+              tag = "v5.048";
+              hash = "sha256-xvqqgbW7L07+NBYzGN2KLhwir58ByShxo4VVPI3pgZk=";
+            };
+          };
+        })
       ];
     };
     aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
@@ -96,6 +113,7 @@
       "scala" "java" "xml" "conf" # spinalhdl
       "mill"                      # mill build files
       "v" "sv"                    # RTL dependencies
+      "h" "hpp" "cpp" "cxx" "i" "sh" # Spinal simulator JNI resources
     ];
     allSpinalIn = allSourcesIn isSpinal;
 
@@ -117,6 +135,7 @@
       installPhase = ''
         mkdir -p $out $devices $headers
         mv out/eci/generateVerilog.dest/*.{v,sv,xdc} $out/
+        mv out/eci/generateVerilog.dest/*.json      $out/
         mv out/eci/generateVerilog.dest/*.h          $headers/
         mv out/eci/generateVerilog.dest/*.dev        $devices/
       '';
@@ -228,10 +247,66 @@
     dummy-app-build-with-nix = pkgs.callPackage (import ./sw/apps/nix-build-demo/package.nix) {
       lauberhorn-rt = runtime;
     };
+
+    ciChecks = import ./nix/ci-checks.nix {
+      inherit pkgs;
+      src = allSpinalIn [ ./build.mill ./hw ./deps ];
+      ivyCache = pkgs.ivy-gather ./project-lock.nix;
+      replayPcaps = allSourcesIn (f: f.hasExt "pcap") [ ./data/eci/iladata ];
+    };
+    eciVivadoInputs = import ./nix/eci-vivado-inputs.nix {
+      inherit pkgs genVerilog gitRev;
+      # Keep recorded traces/data out of the portable bundle's build closure.
+      source = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./vivado/eci
+          ./deps/blocks/deps/verilog-axis
+          ./deps/blocks/deps/verilog-axi
+          ./tools/physical/checkpoint.tcl
+          ./flake.lock
+        ];
+      };
+    };
+    ciBuild = pkgs.writeShellApplication {
+      name = "ci-build";
+      runtimeInputs = with pkgs; [ nix bash coreutils findutils ];
+      text = ''exec bash ${./tools/ci/nix-build.sh} "$@"'';
+    };
   in {
+    checks = ciChecks;
     packages = {
-      inherit devHdrs kmod runtime deployFs genVerilog;
+      inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
       inherit dummy-app-build-with-nix;
+      # Build tools and locked dependencies only: no application/test derivations.
+      ciEnvironment = pkgs.mkShell {
+        inputsFrom = [ self.devShells.${system}.default ];
+        packages = linuxTools ++ [
+          ciBuild
+          (pkgs.ivy-gather ./project-lock.nix)
+          pkgs.configure-mill-env-hook
+          pkgs.iverilog pkgs.libpcap pkgs.squashfsTools pkgs.pkg-config
+          aarch64Pkgs.libtirpc
+        ];
+      };
+      prepareEci = pkgs.writeShellApplication {
+        name = "prepare-eci";
+        runtimeInputs = [ ciBuild pkgs.coreutils ];
+        text = ''
+          ci-build eci-inputs .#eciVivadoInputs
+          ci-build deploy .#deployFs
+          mkdir -p out/eci/generateVerilog.dest
+          mv out/ci/deploy/output out/deploy.img
+          mv out/ci/eci-inputs/output out/eci/vivado-inputs
+          cp -r out/eci/vivado-inputs/generated/. out/eci/generateVerilog.dest/
+          test "$(cat out/eci/vivado-inputs/git-revision)" = "$CI_COMMIT_SHA"
+        '';
+      };
+      summarizePhysical = pkgs.writeShellApplication {
+        name = "summarize-physical";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''exec python3 ${./tools/physical/summarize.py} "$@"'';
+      };
     };
 
     # for interactive development

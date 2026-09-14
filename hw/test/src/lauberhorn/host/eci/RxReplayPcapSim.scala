@@ -153,8 +153,13 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
   }
 
   def loadPcapForRxTest(name: String) = {
-    val projRoot = os.call("git rev-parse --show-toplevel".split(" ")).out.text().stripLineEnd
-    val pcapPath = os.Path(projRoot) / "data" / "eci" / "iladata" / name
+    // Nix test sources have no .git directory. CI supplies the locked fixtures;
+    // interactive tests retain the repository-relative default.
+    val pcapDir = sys.env.get("LAUBERHORN_PCAP_DIR").map(os.Path(_)).getOrElse {
+      val root = os.call("git rev-parse --show-toplevel".split(" ")).out.text().stripLineEnd
+      os.Path(root) / "data" / "eci" / "iladata"
+    }
+    val pcapPath = pcapDir / name
     val pcapHandle = Pcaps.openOffline(pcapPath.toString)
     () => {
       val packet = pcapHandle.getNextPacket
