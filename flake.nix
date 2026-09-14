@@ -278,6 +278,17 @@
     packages = {
       inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
       inherit dummy-app-build-with-nix;
+      # Build tools and locked dependencies only: no application/test derivations.
+      ciEnvironment = pkgs.mkShell {
+        inputsFrom = [ self.devShells.${system}.default ];
+        packages = linuxTools ++ [
+          ciBuild
+          (pkgs.ivy-gather ./project-lock.nix)
+          pkgs.configure-mill-env-hook
+          pkgs.iverilog pkgs.libpcap pkgs.squashfsTools pkgs.pkg-config
+          aarch64Pkgs.libtirpc
+        ];
+      };
       prepareEci = pkgs.writeShellApplication {
         name = "prepare-eci";
         runtimeInputs = [ ciBuild pkgs.coreutils ];
