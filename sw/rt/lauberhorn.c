@@ -134,11 +134,18 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t handler,
     srv_reg->srv_id = cmd.id;
     return srv_reg->idx;
 
-dereg_srv:
-    ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &cmd.id);
+dereg_srv: {
+    lauberhorn_dereg_srv_t dereg = {.id = cmd.id};
+    if (ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &dereg)) {
+        /* Retain callable storage when hardware deregistration failed. */
+        srv_reg->srv_id = cmd.id;
+        return -1;
+    }
+}
 
 free_hw:
     free(hw);
+    srv_table_release(&srv_table, srv_reg);
     return -1; 
 }
 
@@ -162,9 +169,11 @@ int lauberhorn_dereg_srv(lauberhorn_t *ctx, int srv_id) {
     }
 
     // Deregister with hardware
-    err = ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &srv_reg->srv_id);
+    lauberhorn_dereg_srv_t cmd = {.id = srv_reg->srv_id};
+    err = ioctl(ctx->fd, LAUBERHORN_IOCTL_DEREG_SRV, &cmd);
     if (err) {
         PERROR("deregister service");
+        return -1;
     }
 
     // unsafe !
