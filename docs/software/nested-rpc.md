@@ -6,7 +6,7 @@ See the [registered endpoint and internal-loopback contract](nested-rpc-endpoint
 for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
 Descriptions below of the synchronous master runtime are historical on this branch.
 
-Source survey: 2026-09-08, `b86c68c`. Consolidates the former ONC-RPC nested-call plan. Remote call/reply RTL and descriptor transport exist; the current C runtime is still synchronous. The [Dandelion student project](../research/dandelion.md) demonstrates a richer runtime with a software kernel mock. Local short-circuit, generic TX acceptance status and a real-ECI fiber runtime remain proposals.
+Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RTL, registered endpoints and cookie-directed completion dispatch are implemented. The imported runtime uses cooperative fibers over real ECI. Software builds and RTL simulations are distinct from the pending bundled Enzian acceptance. Generic TX status and abnormal-exit recovery remain open.
 
 ## Current source map
 
@@ -18,7 +18,7 @@ Source survey: 2026-09-08, `b86c68c`. Consolidates the former ONC-RPC nested-cal
 | Descriptor ABI | `hw/src/lauberhorn/host/package.scala`, `net/package.scala`, `host/eci/EciHostRxCtrlInfo.scala`, `EciHostTxCtrlInfo.scala` |
 | DMA and scheduling | `DmaControlPlugin.scala` translates call/reply metadata; `Scheduler.scala` queues both call RX and reply RX using the corresponding PID |
 | C transport | `sw/core/eci/core.h` packs `TY_ONCRPC_CALL_TX` and unpacks `TY_ONCRPC_REPLY_RX` |
-| Missing runtime dispatch | `sw/rt/eci.c` expects `TY_ONCRPC_CALL_RX`; no nested-completion event loop |
+| Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures/callbacks |
 
 All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`, `oncRpcReplyRx`) exist. They are no longer suggested renames. `Global.scala` sets normal inline data to 48 bytes and nested-call TX inline data to 24 bytes because endpoint/PID/cookie metadata must also fit. Generated ABI, DMA tail length and ECI invalidation length must agree.
 
@@ -55,12 +55,11 @@ not cross their scalar access boundary.
 | IP address, neighbor address and MAC address controls/readback | Wire-native values matching Linux network-stack types and byte arrays. Preserving them avoids adding software swaps or repacking. |
 | Scheduler, thread router, DMA, timeout, interrupt and statistics controls | Host-order numbers, addresses, flags and counters. No network conversion. |
 
-`rpc_send_call` parses its text IPv4 address with `inet_network`, which returns
-a host-order number (`0xc0a88181` for `192.168.129.129`), and supplies numeric
-endpoint fields and generated XID directly. Futures, pending-call lookup and
-server handler XIDs are host-order. XDR payload bytes remain the codec's concern;
-ECI does not interpret or swap application payloads. B2 must supply a host-order
-source port when source-port selection is implemented.
+Endpoint initialization parses IPv4 with `inet_pton` and caches its host-order
+value using `ntohl`. `rpc_send_call` supplies cached PID/address/source port,
+numeric endpoint fields and cookie/XID directly. Futures and pending-call lookup
+remain host-order. XDR payload bytes remain the codec's concern; ECI does not
+interpret or swap application payloads.
 
 This is an incompatible hardware/software ABI change, including RPC XID
 semantics and nested field offsets. Deploy regenerated headers, kernel/runtime
@@ -69,7 +68,7 @@ B1 validation/status is tracked in the [blocker queue](nested-rpc-blockers.md).
 
 ## Outstanding acceptance and resource contract
 
-Current behavior is not safe backpressure: `OncRpcCallEncoder` emits a `Flow` registration event with no reservation acknowledgment. `OncRpcReplyDecoder` asserts its table update even when its free lookup misses, incrementing `reqTblFull` without preventing the update. This source-level concern needs directed saturation testing; do not promise that a full table rejects a call before emission. `core_eci_tx` returns `void` and ignores its doorbell read response.
+The call encoder now waits for a Stream registration handshake before exposing a call. The reply decoder serializes registration against retirement and stalls when no free entry exists, preserving existing entries. This is hardware backpressure, not a software rejection/status API: `core_eci_tx` still returns `void` and ignores its doorbell read response. Directed saturation and system-wide progress under overload remain acceptance gaps.
 
 Proposed contract retained from the original design:
 
@@ -99,9 +98,20 @@ Remaining software work:
 - Define exhaustion, stale completion, duplicate reply, XID/cookie reuse, process exit and fiber-stack failure behavior.
 - Reconcile planned tail calls with report/code evidence; do not equate ordinary nested calls with tail-call continuation transfer.
 
-## Local RPC proposal
+## Internal local RPC
 
-Keep UDP/IP endpoint fields in software even when services are local. A local short-circuit should detect a local service and pass ONC-RPC/UDP metadata and payload directly to the receive path, preserving tuple matching, without encoding and then decoding Ethernet/IP envelopes. A corresponding local reply path should feed completion lookup. This avoids making CMAC loopback or switch reflection the normal local transport; such reflection remains a possible test setup. No local short-circuit is established by the current remote encoder/decoder implementation.
+`RpcLocalRoute` intercepts encoded calls and replies before UDP/IP/Ethernet
+construction when the destination matches the NIC IPv4 address. Separate
+whole-packet call/reply buffers feed normal UDP listener classification with
+synthesized metadata. Round-robin ingress selection retains payload and dispatch
+acknowledgment association. `LocalDelivery` trace events on each RPC encoder
+distinguish this path from CMAC traffic. Unsupported services follow normal
+classification; there is no switch-reflection fallback.
+
+The local round-trip simulation covers inline/overflow packets, immediate replies,
+queued calls, mixed external/local ingress, reversed completions and receiver
+backpressure, and asserts that nested traffic does not reach CMAC. Hardware and
+multi-process saturation remain pending; see the [endpoint contract](nested-rpc-endpoints.md).
 
 ## Validation and next steps
 

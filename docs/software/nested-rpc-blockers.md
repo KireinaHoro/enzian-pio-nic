@@ -140,26 +140,49 @@ open until the relevant checks below pass and link their evidence here.
 Retain manifests, reset/program logs, packet captures and failed trials with the
 [hardware test results](../development/hardware-test-results.md).
 
-## B2 — Nested calls lack complete real-hardware transport metadata
+## B2 — Registered endpoint transport and internal loopback
 
-**Evidence: source review; round trip blocked by B1.** `sw/rt/rpc.c` does not
-populate the required PID, completion cookie and source port correctly, and
-the byte-order repair is covered by B1. The real kernel also
-needs the nested-reply listening port configured. Do not conflate Linux CPU
-IDs, NIC datapaths, process identity and completion identity.
+**Update, 2026-09-14: implementation and software/RTL checks complete; hardware
+gate remains open.** `9e0d568`, `11c9d24`, `4ccf721`, `c3af126` implement endpoint
+registration, Linux socket reservations, FPGA reply listeners, context/PID
+ownership, cookie lookup, cached descriptors and control rollback. `22639fd`
+adds internal loopback with separate whole-packet call/reply buffers,
+round-robin ingress selection, packet/ack association and a registration
+handshake before call visibility. No FPGA bitstream was built for this batch.
 
-**Closure checks:** capture valid nested UDP calls on the peer, verify endpoint
-and RPC fields, return replies through the FPGA and validate PID/cookie
-completion routing. Run Sven's nested adder with the external peer responder:
-two future calls plus one callback call, producing sum 10. Check the response
-request ID separately: Sven's current handler leaves it uninitialized, and the
-probe currently reports rather than validates it.
+`nix build .#runtimeTests` executes five native regressions covering the public
+API, control fault injection, pending slots, codecs and RPC dispatch. They cover
+invalid/duplicate initialization, ownership, namespace rejection, simulated
+Linux/FPGA port collisions, capacity and rollback, busy destruction, stale
+cookies/unexpected XIDs, immediate replies, callback pool exhaustion, coalesced
+futures and generation retirement before wraparound. Kernel socket/CSR tests
+use fault-injection shims; they do not establish behavior on the real NIC.
 
-Use two physical machines for this gate. Local short-circuit/loopback remains
-a TODO in [nested RPC](nested-rpc.md); switch self-reflection is unproven.
-Correcting B1 alone cannot establish this round trip.
+`nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcNestedSim lauberhorn.host.eci.OncRpcSim -- -l org.scalatest.tags.Slow`
+passed 11 registered cases, including three pre-existing empty TODO bodies.
+The new local case checks asymmetric fields, inline/overflow data, immediate
+replies, queued calls, reversed completions, mixed physical/local ingress,
+receiver backpressure and no nested CMAC output. Multi-process saturation and
+general overload progress remain unvalidated.
+
+**Hardware closure checks:** deploy matching final-batch artifacts; capture
+remote calls with valid endpoint/program fields and PID/cookie completion
+routing. Run the adapted nested adder against the second Enzian responder
+(two futures plus callback, sum 10 and request ID 7). Also verify internal local
+traces and absence of nested physical traffic. The new software cannot be used
+with checkpoint 2812450. See the [endpoint contract](nested-rpc-endpoints.md).
 
 ## B3 — Future/callback ownership and codec error paths are unsafe
+
+**Update, 2026-09-14:** `f9221dc` preserves future ownership through coalesced
+wakeups, initializes fiber callback handlers, retries callbacks when the fiber
+pool is full, checks codec/allocation errors, initializes XDR storage, retains
+callback endpoint ownership until execution and serializes timeout timestamp
+access. Generation wrap retires a software slot. Native tests exercise these
+paths, including immediate replies and exhaustion. The Dandelion patch also
+repairs typed Rust response freeing and initialized decode storage. B3 remains
+open for hardware completion acceptance and broader admission/error handling;
+handler-fiber exhaustion can still drop incoming requests.
 
 **Evidence: source review; affected completion paths not reached by the failed
 hardware nested test.** Coalesced fiber wakeups can prematurely release a live
@@ -213,6 +236,15 @@ separate from the deterministic descriptor failure.
 
 ## B6 — Dandelion process-engine placement and compositions need validation
 
+**Update, 2026-09-14:** the flake pins the Dandelion snapshot and builds the
+tracked endpoint/FFI/placement patch, `server_tests` harness and deployment
+squashfs. The original recipe silently built application binaries instead of
+`server_tests`; the integration fixes its Cargo target and checks that the
+harness is installed. Rust/C layout assertions compile. Fixture arithmetic is
+independently checked by `sw/apps/dandelion/check-fixture-results.py`; the nested
+fixture submits four concurrent, distinct invocations. No current-batch
+Dandelion service test has run on Enzian. B6 therefore remains open.
+
 **Evidence: source review and limited hardware smoke result.** The inspected
 port initializes engines with worker indices 0–3; `mmu_worker` treats those
 as Linux CPU IDs. This setup's isolated NIC RPC workers use CPUs 44–47. A
@@ -242,3 +274,13 @@ For each fix, record which software tests and real Enzian cases ran. Keep
 generated headers, kernel mappings, cache-line accesses and RTL in agreement.
 Push with `-o ci.skip` when no new checkpoint is needed; hardware changes need
 a normal CI push or an explicitly launched build on `enzian-ba2`.
+
+## B2/B3/B6 software batch evidence (2026-09-14)
+
+Local logs: `out/b2-b6/b2-loopback-regression.log`,
+`runtime-tests-complete.log`, `batch-build.log`. The latter built Dandelion,
+its actual `server_tests` harness, matching runtime/kernel/generated headers,
+and both deployment filesystems. These intermediate builds carry a dirty-tree
+marker; use the final batch revision for the later checkpoint/software pair.
+No timing, real socket namespace behavior, real worker placement, shutdown,
+B1 hardware acceptance or composition execution is claimed by these builds.
