@@ -27,7 +27,7 @@ packaged test harness from the peer with the environment described in its
 function/registry names:
 
 ```sh
-server_tests --test-threads=1
+/path/to/test-package/tests/server_tests-* --test-threads=1
 ```
 
 The harness contains matmul, matmac, the matmul/matmac DAG, keyed sharding and
