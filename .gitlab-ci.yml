@@ -81,7 +81,7 @@ prepare-eci:
 
 build-hw-eci:
   tags: [enzian-docker, vivado]
-  image: registry.ethz.ch/project-openenzian/ci-images/spinal-verilator:ubuntu-22.04@sha256:48b231ebda51a5891b8aea8f8df8d23a52d0e87e9a5df01099b17ef1b9fdcff8
+  image: registry.ethz.ch/project-openenzian/ci-images/xilinx-tools:ubuntu-22.04@sha256:2699ec6b6f4b3cf022edfcb73a6ab970579d4e1555f6f1fe798c7f395b49848e
   stage: build-hw
   # The preceding Nix job supplies every source. Do not re-fetch or regenerate.
   variables:
