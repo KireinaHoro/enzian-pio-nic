@@ -32,14 +32,16 @@ checked before installation, and partial registration failures are unwound.
 
 The cookie is a protocol-independent pending-slot/generation token. ONC-RPC XID
 initially has the same numeric value, but is separately checked after locating
-the slot by cookie. Numeric descriptor fields remain host-order; ECI converts
+the slot by cookie. A slot is retired before its 16-bit generation wraps;
+exhaustion returns `EAGAIN`. Numeric descriptor fields remain host-order; ECI converts
 wire fields as specified in the [boundary contract](nested-rpc.md#endianness-at-the-host-boundary).
 Sending uses cached PID, source port and address, without control ioctls.
 
 Destruction returns `EBUSY` while workers or unresolved calls remain. A software
 timeout does not prove hardware retirement and cannot allow port reuse. Device
 close disables affected listeners and quarantines reservations, pinning the
-module until system reset. There is no reset/reclaim ioctl in this batch. B4
+module until a full system/FPGA reset. A Linux reboot alone is not a verified
+FPGA reset. There is no reset/reclaim ioctl in this batch. B4
 must establish cancellation, draining and abnormal-exit recovery before those
 resources may be reclaimed more selectively.
 

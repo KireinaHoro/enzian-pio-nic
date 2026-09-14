@@ -14,6 +14,17 @@ The inspected port initializes process engines with logical worker indices
 use isolated CPUs 44–47 in this setup. Reconcile that mapping before claiming
 the intended isolated-core execution policy or measuring performance.
 
+**Integration update, 2026-09-14:** the main flake now pins `69c3088` and applies
+tracked patches from `sw/apps/dandelion/`. The shared endpoint is initialized
+before workers, with stable C/Rust storage and the local NIC address. Process
+execution samples the actual RPC worker CPU; engine indices remain logical
+slots. C/Rust layout assertions and application/test-harness builds pass.
+The fixture reference calculator independently checks the DAG, sharding and
+nested expected answers. The packaged nested test includes concurrent distinct
+inputs. These tests have **not** been executed against this batch on Enzian;
+composition support and actual isolated placement remain unvalidated. See the
+[build/run recipe](../../sw/apps/dandelion/README.md).
+
 ## What exists and where
 
 All following paths are relative to `../sven-dandelion/`, not this repository.

@@ -37,9 +37,11 @@ cookie and wire-order endpoint/RPC fields. The current import changes neither
 this transport/header code nor RTL, cache-line layout, barriers or kernel
 mappings. Future ABI changes must update both sides and regenerate collateral.
 
-The student's outgoing-call setup is not yet reconciled with hardware PID,
-cookie, source-port configuration and byte-order requirements. A successful
-software build does not establish a nested hardware round trip.
+The registered endpoint batch now supplies hardware PID, cookie, reserved
+source ports and FPGA reply listeners, with host-order descriptors. Internal
+loopback and cookie-directed completion tests pass in RTL/software. A successful
+build or simulation does not establish a nested hardware round trip. See the
+[endpoint contract](nested-rpc-endpoints.md).
 
 ## Deferred work before merge
 
@@ -50,8 +52,9 @@ completion/codec ownership, shutdown, hardware startup and Dandelion placement.
 It also retains the CSV tracing and hardware capacity/timeout requirements.
 Update each item's status with fixing commits and validation evidence.
 
-Dandelion remains an external application snapshot; initial hardware probes do
-not import it into this repository or establish composition support.
+Dandelion remains an external pinned snapshot with tracked integration patches
+and flake application/test/deployment outputs. Initial hardware probes and the
+new software builds do not establish composition support.
 
 This is an integration staging branch, not a merge-ready runtime. Hardware
 results apply only to the cases explicitly recorded. Earlier master-runtime
