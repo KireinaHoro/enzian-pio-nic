@@ -289,4 +289,88 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     checkNestedReplyRx(replyDesc, replyPldDesc, pid, cookie, xid, replyPayload, dcsMaster)
     exitCriticalSection(dcsMaster, tid)
   }
+  testWithDB("nested-rpc-local-roundtrip")(Tx) { implicit dut =>
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(30000)
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    val service = RpcSrvDef(23456, 0x12345678, 0x23456789, 0x3456789a, 0x123456789abcdefL)
+    val (funcPtr, getPacket, pid) = oncRpcCallPacketFactory(csrMaster,
+      procSrvMap = Seq(mkRandomProc(1) -> Seq(service))).head
+    val (initialPacket, _, _) = getPacket()
+    axisMaster.send(initialPacket.getRawData.toList)
+    val cs = workerCore(0)
+    cs.waitUser()
+    val tid = cs.currThread.get.tid
+    val (initialDesc, initialPld) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+    readPayload(dcsMaster, initialPld, initialDesc.len)
+    exitCriticalSection(dcsMaster, tid)
+    val sport = 54321
+    val (localIp, _, _) = enzianIpMacAddrs(1)
+    csrMaster.write(ALLOC.readBack("UdpDecoder")("ctrl", "listen_port"), sport.toBytesLE)
+    csrMaster.write(ALLOC.readBack("UdpDecoder")("ctrl", "listen_nextProto"), 2.toBytesLE)
+    csrMaster.write(ALLOC.readBack("UdpDecoder")("ctrl", "listen_idx"), 1.toBytesLE)
+    var physicalTx = false
+    fork { axisSlave.recv(); physicalTx = true }
+    for ((callLen, replyLen) <- Seq((4, 8), (80, 96), (24, 48))) {
+      val xid = 0x12345600 + callLen
+      val cookie = BigInt(0x76543200L + replyLen)
+      val call = simRandom.nextBytes(callLen).toList
+      val reply = simRandom.nextBytes(replyLen).toList
+      val tx = TxOncRpcCallSim(callLen, pid, cookie, BigInt(xid),
+        BigInt(1, localIp.getAddress), sport, service.dport,
+        BigInt(service.prog), BigInt(service.progVer), BigInt(service.procNum),
+        call.take(ONCRPC_NESTED_CALL_INLINE_BYTES.get).bytesToBigInt)
+      txSendSingle(dcsMaster, tx, call.drop(ONCRPC_NESTED_CALL_INLINE_BYTES.get), tid)
+      cs.waitUser()
+      val (desc, pld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+      assert(desc.asInstanceOf[OncRpcCallRxPacketDescSim].xid == BigInt(xid))
+      checkOncRpcCall(desc, desc.len, funcPtr, call, readPayload(dcsMaster, pld, desc.len))
+      exitCriticalSection(dcsMaster, tid)
+      // Reply immediately, using the session installed by normal call decoding.
+      txSendSingle(dcsMaster, TxOncRpcReplySim(replyLen, funcPtr, BigInt(xid),
+        reply.take(ONCRPC_INLINE_BYTES.get).bytesToBigInt), reply.drop(ONCRPC_INLINE_BYTES.get), tid)
+      cs.waitUser()
+      val (done, donePld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+      checkNestedReplyRx(done, donePld, pid, cookie, xid, reply, dcsMaster)
+      exitCriticalSection(dcsMaster, tid)
+    }
+    // Queue independent calls before servicing either, mix physical ingress,
+    // and return the local replies in reverse order under receiver backpressure.
+    val outstanding = (0 until 2).map { index =>
+      val xid = 0x45678910 + index
+      val cookie = BigInt(0x56789a20L + index)
+      val call = simRandom.nextBytes(64 + index).toList
+      txSendSingle(dcsMaster, TxOncRpcCallSim(call.length, pid, cookie, BigInt(xid),
+        BigInt(1, localIp.getAddress), sport, service.dport,
+        BigInt(service.prog), BigInt(service.progVer), BigInt(service.procNum),
+        call.take(ONCRPC_NESTED_CALL_INLINE_BYTES.get).bytesToBigInt),
+        call.drop(ONCRPC_NESTED_CALL_INLINE_BYTES.get), tid)
+      (xid, cookie, call)
+    }
+    val (mixedPacket, mixedPayload, mixedXid) = getPacket()
+    axisMaster.send(mixedPacket.getRawData.toList)
+    sleepCycles(200)
+    val expectedCalls = outstanding.map(x => x._1 -> x._3).toMap + (mixedXid -> mixedPayload)
+    val seen = scala.collection.mutable.Set[Int]()
+    for (_ <- 0 until 3) {
+      cs.waitUser()
+      val (desc, pld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+      val xid = desc.asInstanceOf[OncRpcCallRxPacketDescSim].xid.toInt
+      assert(!seen(xid))
+      seen += xid
+      checkOncRpcCall(desc, desc.len, funcPtr, expectedCalls(xid), readPayload(dcsMaster, pld, desc.len))
+      exitCriticalSection(dcsMaster, tid)
+    }
+    for ((xid, cookie, reply) <- outstanding.reverse) {
+      txSendSingle(dcsMaster, TxOncRpcReplySim(reply.length, funcPtr, BigInt(xid),
+        reply.take(ONCRPC_INLINE_BYTES.get).bytesToBigInt), reply.drop(ONCRPC_INLINE_BYTES.get), tid)
+      sleepCycles(100)
+      cs.waitUser()
+      val (desc, pld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+      checkNestedReplyRx(desc, pld, pid, cookie, xid, reply, dcsMaster)
+      exitCriticalSection(dcsMaster, tid)
+    }
+    sleepCycles(100)
+    assert(!physicalTx, "local nested call or reply escaped to CMAC")
+  }
+
 }

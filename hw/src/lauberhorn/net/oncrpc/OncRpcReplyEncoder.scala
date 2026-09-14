@@ -4,7 +4,8 @@ import jsteward.blocks.axi.AxiStreamInjectHeader
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.Global.{NUM_SESSIONS, ONCRPC_INLINE_BYTES, REG_WIDTH}
 import lauberhorn.{MacInterfaceService, PacketLength, RpcID, TraceData}
-import lauberhorn.net.udp.{UdpEncoder, UdpTxMeta}
+import lauberhorn.net.udp.{UdpDecoder, UdpEncoder, UdpTxMeta, RpcLocalRoute}
+import lauberhorn.net.ip.IpDecoder
 import lauberhorn.net.{Encoder, EncoderMetadata, PacketDescType}
 import spinal.core._
 import spinal.lib._
@@ -80,12 +81,18 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
 
     val outMd = Stream(UdpTxMeta())
     val outPld = Axi4Stream(axisConfig)
-    to[UdpTxMeta, UdpEncoder](outMd, outPld)
+    val remoteMd = Stream(UdpTxMeta())
+    val remotePld = Axi4Stream(axisConfig)
+    to[UdpTxMeta, UdpEncoder](remoteMd, remotePld)
 
     // accept events from RPC decoder to record in session DB
     val newSessionEvent = Flow(OncRpcSessionDef())
 
     awaitBuild()
+    val localRoute = new RpcLocalRoute(outMd, outPld, remoteMd, remotePld,
+      host[UdpDecoder].logic.localReplyMd, host[UdpDecoder].logic.localReplyPld,
+      host[IpDecoder].logic.ipAddress)
+    tp.trace("LocalDelivery", RpcID(outMd.rpcId)) := outMd.fire && localRoute.chooseLocal
 
     collectInto(md, pld, acceptHostPackets = true)
 

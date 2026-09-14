@@ -119,7 +119,8 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     }
     requestDb.update.setIdle()
 
-    val newRequestEvent = Flow(OncRpcInFlightReqDef())
+    val newRequestEvent = Stream(OncRpcInFlightReqDef())
+    newRequestEvent.ready := False
 
     val (rxExistQ, rxExistR, _) = requestDb.makePort(OncRpcInFlightReqDef(), OncRpcInFlightReqDef(),
       "rxLookupExisting") { (v, q, _) =>
@@ -137,22 +138,25 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     rxFreeQ.valid := True
     rxFreeR.ready := True
 
-    rxExistQ.translateFrom(newRequestEvent.toStream) { case (q, e) =>
-      q.query := e
-      q.userData := e
-    }
-    rxExistR.ready := True
-    when (rxExistR.valid) {
+    // One registration lookup at a time. The producer retains its request
+    // until the single table write port commits it. A full table backpressures
+    // TX, leaving replies free to retire entries instead of overwriting slot 0.
+    val registering = RegInit(False)
+    rxExistQ.valid := newRequestEvent.valid && !registering
+    rxExistQ.query := newRequestEvent.payload
+    rxExistQ.userData := newRequestEvent.payload
+    when(rxExistQ.fire) { registering := True }
+    val retirement = Bool()
+    rxExistR.ready := !retirement && (rxExistR.matched || (rxFreeR.valid && rxFreeR.matched))
+    when(rxExistR.fire) {
       requestDb.update.valid := True
       requestDb.update.value := rxExistR.userData
-      when (rxExistR.matched) {
-        requestDb.update.idx := rxExistR.idx
-      } otherwise {
-        requestDb.update.idx := rxFreeR.idx
-        when (!rxFreeR.matched) {
-          reqTblFull.increment()
-        }
-      }
+      requestDb.update.idx := rxExistR.matched ? rxExistR.idx | rxFreeR.idx
+      newRequestEvent.ready := True
+      registering := False
+    }
+    when(rxExistR.valid && !rxExistR.matched && rxFreeR.valid && !rxFreeR.matched) {
+      reqTblFull.increment()
     }
 
     awaitBuild()
@@ -238,6 +242,8 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
       md.data := lr.userData.data
       md.udpPayloadSize := lr.userData.udpPayloadSize
     }
+
+    retirement := dbResult.fire && dbResult.matched
 
     when (dbResult.fire) {
       when (dbResult.matched) {
