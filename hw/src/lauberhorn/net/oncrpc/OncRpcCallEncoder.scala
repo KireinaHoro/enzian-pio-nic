@@ -3,7 +3,8 @@ package lauberhorn.net.oncrpc
 import jsteward.blocks.axi.AxiStreamInjectHeader
 import lauberhorn.net._
 import lauberhorn.Global.ONCRPC_NESTED_CALL_INLINE_BYTES
-import lauberhorn.net.udp.{UdpEncoder, UdpTxMeta}
+import lauberhorn.net.udp.{UdpDecoder, UdpEncoder, UdpTxMeta, RpcLocalRoute}
+import lauberhorn.net.ip.IpDecoder
 import lauberhorn.{MacInterfaceService, PID, PacketLength, RpcID, TraceData}
 import spinal.core._
 import spinal.lib._
@@ -44,9 +45,15 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
 
     val outMd = Stream(UdpTxMeta())
     val outPld = Axi4Stream(axisConfig)
-    to[UdpTxMeta, UdpEncoder](outMd, outPld)
+    val remoteMd = Stream(UdpTxMeta())
+    val remotePld = Axi4Stream(axisConfig)
+    to[UdpTxMeta, UdpEncoder](remoteMd, remotePld)
 
     awaitBuild()
+    val localRoute = new RpcLocalRoute(outMd, outPld, remoteMd, remotePld,
+      host[UdpDecoder].logic.localCallMd, host[UdpDecoder].logic.localCallPld,
+      host[IpDecoder].logic.ipAddress)
+    tp.trace("LocalDelivery", RpcID(outMd.rpcId)) := outMd.fire && localRoute.chooseLocal
 
     collectInto(md, pld, acceptHostPackets = true)
 
@@ -79,8 +86,9 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
     pld.ready := False
     encoder.io.input.setIdle()
 
+    val pendingRequest = Reg(OncRpcInFlightReqDef())
     newRequestEvent.valid := False
-    newRequestEvent.payload.assignDontCare()
+    newRequestEvent.payload := pendingRequest
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -115,17 +123,23 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
             outMd.rpcId := nextRpcId
             outMd.pldLen := md.callLen.bits + OncRpcCallHeader().getBitsWidth / 8
 
-            newRequestEvent.valid := True
-            newRequestEvent.payload.xid := md.xid
-            newRequestEvent.payload.remoteAddr := md.daddr
-            newRequestEvent.payload.remotePort := md.dport
-            newRequestEvent.payload.localPort := md.sport
-            newRequestEvent.payload.pid := md.pid
-            newRequestEvent.payload.cookie := md.cookie
-            newRequestEvent.payload.active := True
+            pendingRequest.xid := md.xid
+            pendingRequest.remoteAddr := md.daddr
+            pendingRequest.remotePort := md.dport
+            pendingRequest.localPort := md.sport
+            pendingRequest.pid := md.pid
+            pendingRequest.cookie := md.cookie
+            pendingRequest.active := True
 
-            goto(sendDownstreamMd)
+            goto(installRequest)
           }
+        }
+      }
+
+      val installRequest: State = new State {
+        whenIsActive {
+          newRequestEvent.valid := True
+          when(newRequestEvent.fire) { goto(sendDownstreamMd) }
         }
       }
 
