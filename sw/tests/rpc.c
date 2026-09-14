@@ -91,7 +91,7 @@ int main(void) {
         sent.oncrpc_call_tx.cookie)->state) == SLOT_CALLBACK_READY);
     fiber_prepare(held[0], noop, NULL, NULL); fiber_sched_submit(held[0]);
     fiber_sched_run_ready();
-    rpc_call_process_ready();
+    assert(rpc_call_process_ready());
     fiber_sched_run_ready();
     assert(callbacks == 3 && !ep._transport.unresolved && !allocated);
     alloc_error = 1;

@@ -80,8 +80,9 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     while (lauberhorn_is_running) {
         // process ready fibers
-        fiber_sched_run_ready();
-        rpc_call_process_ready();
+        do {
+            fiber_sched_run_ready();
+        } while (rpc_call_process_ready());
 
         // timeout sweep
         rpc_timeout_tick(w);
