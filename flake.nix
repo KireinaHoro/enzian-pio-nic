@@ -2,6 +2,13 @@
   description = "devShell for Lauberhorn";
   inputs = {
     self.submodules = true;
+    dandelion = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git?rev=69c3088f8f5333eab653ed5c9bd2f6da8f7f944a";
+      flake = false;
+    };
+    crane = {
+      url = "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
+    };
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     mill-ivy-fetcher = {
@@ -236,6 +243,22 @@
       '';
     };
 
+    runtimeTests = import ./nix/runtime-tests.nix {
+      inherit pkgs;
+      source = allCIn [ ./sw/tests ./sw/rt ./sw/include ./sw/core ./sw/kmod/ioctl.h ./sw/kmod/endpoints.h ];
+      configHeaders = genVerilog.headers;
+      deviceHeaders = devHdrs;
+    };
+
+    dandelion = aarch64Pkgs.callPackage ./sw/apps/dandelion/package.nix {
+      crane = inputs.crane;
+      source = inputs.dandelion;
+      runtimePkg = runtime;
+    };
+    dandelionDeployFs = pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
+      storeContents = [ kmod runtime commitMarker dandelion dandelion.tests ];
+    };
+
     commitMarker = pkgs.writeText "git-hash" (gitRev + "\n");
 
     deployFs = let
@@ -276,7 +299,7 @@
   in {
     checks = ciChecks;
     packages = {
-      inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
+      inherit runtimeTests dandelion dandelionDeployFs devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
       inherit dummy-app-build-with-nix;
       # Build tools and locked dependencies only: no application/test derivations.
       ciEnvironment = pkgs.mkShell {
