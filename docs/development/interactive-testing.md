@@ -59,13 +59,13 @@ inputs.application = { url = "git+https://YOUR-SERVER/YOUR-APPLICATION"; flake =
 
 # Inside outputs, with a build-machine pkgs imported from the pinned nixpkgs:
 platform = inputs.platform.lib.mkPlatform { inherit pkgs; };
-application = (platform.callPackage (inputs.application + "/package.nix") {}).overrideAttrs {
-  passthru.sourceIdentity = {
+application = (platform.callPackage (inputs.application + "/package.nix") {}).overrideAttrs (old: {
+  passthru = (old.passthru or {}) // { sourceIdentity = {
     revision = inputs.application.rev or null;
     local = !(inputs.application ? rev);
     narHash = inputs.application.narHash or null;
-  };
-};
+  }; };
+});
 # Expose these in packages.${system}:
 service = application;
 image = platform.mkTestImage {

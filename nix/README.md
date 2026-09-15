@@ -9,7 +9,8 @@ packages. Leaf recipes use `callPackage`; composition returning package sets use
 - `hardware/`: native Mill RTL/config generation and native Mackerel header generation.
 - `software/`: Ubuntu kernel preparation, target module and installed runtime.
 - `applications/`: simple in-tree application recipes; external recipes live upstream.
-- `images/`: collision-checked target tools, environment/manifest and SquashFS constructors.
+- `images/`: environment/manifest and SquashFS constructors.
+- `interactive/`: shared helper and collision-checked target tools.
 - `checks/`, `ci-checks.nix`: portable helper checks and existing simulation gates.
 - `ci/`, `eci-vivado-inputs.nix`: stable CI command and artifact-bundle contracts.
 
