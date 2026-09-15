@@ -1,5 +1,44 @@
 # Physical implementation experiments — 2026-09-10
 
+## Resume point: PnR/QoR work deferred for Nix refactoring
+
+Updated 2026-09-15. The maintainer wants **Nix refactoring completed before any
+further timing implementation or CI experiments**. The refactoring scope has not
+yet been specified; do not infer it from the timing proposals. Start with the
+[existing Nix/CI contract](../development/ci.md) when that task is supplied.
+No new timing candidate has been implemented or launched since the review below.
+
+After that prerequisite is complete:
+
+1. Read [the September 15 results and ranked experiments](#september-15-completed-prewarmed-nix-master-builds).
+   Baselines are jobs 2824618, 2824636 and 2824643; reports are in
+   `out/physical/review-20260915/JOB/`. Start with `summary.json`, then inspect
+   one representative per family. DCPs remain in the linked CI artifacts.
+2. Keep **all proposed changes in the application/dynamic partition**:
+   TX placement in `vivado/eci/xdc/floorplan.xdc`; RX extractor/packetizer or
+   channel buffering in `vivado/eci/eci-toolkit/hdl/`; secondary NIC pipeline
+   work in `hw/` and application crossing logic in `vivado/eci/rtl/dcs_cdc.sv`.
+   The similarly named `vivado/eci/static-shell/eci-toolkit/` is a different copy:
+   do not edit it for these experiments. Preserve static-shell v0.1.5 and its DCP.
+3. TX paths end in the fixed static transport. First inspect legal dynamic sites
+   and try per-link output-buffer placement near that boundary. A static-shell
+   change is a separate future decision if application-side fixes are insufficient;
+   it is not part of the agreed first experiments.
+4. Test RX elastic pipelining independently, with focused VHDL handshake/credit
+   validation before expensive implementation. Keep TX placement and RX pipeline
+   on separate goal branches. Recheck the Nix handoff after refactoring so generated
+   RTL, dependency gitlinks, headers and deployment software still match.
+5. Run checkpoint analysis with Vivado 2025.1 on **enzian-ba2**. Use the documented
+   bounded queries and identical-input repeatability baseline. Submit CI only after
+   local checks; each implementation takes about 3–4 hours. Collect once after
+   notification or a one-shot timer, never poll. Board validation is a later step
+   using the verified-reset routine and matching software.
+
+The latest builds have positive trace TX slack but negative ECI setup slack;
+none establishes timing closure or board correctness. Preserve that distinction
+when resuming. The September 13 experiment status below is historical; those
+three replacement hardware jobs were ultimately skipped before implementation.
+
 **All four relaunched pipelines passed**, collected 2026-09-13. Bitstreams and
 routed checkpoints are retained locally. None meets setup timing; these are
 implementation results, not new board tests. See
