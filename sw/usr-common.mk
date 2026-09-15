@@ -7,8 +7,8 @@ CC = $(CROSS_COMPILE)gcc
 endif
 PKG_CONFIG ?= pkg-config
 
-CFLAGS += $(shell $(PKG_CONFIG) --cflags libtirpc)
-LDLIBS += $(shell $(PKG_CONFIG) --libs libtirpc)
+override CFLAGS += $(shell $(PKG_CONFIG) --cflags libtirpc)
+override LDLIBS += $(shell $(PKG_CONFIG) --libs libtirpc)
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 LINK.c = $(CC) $(LDFLAGS)

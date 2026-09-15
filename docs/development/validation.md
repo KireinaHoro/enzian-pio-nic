@@ -34,7 +34,7 @@ nix develop -c mill 'blocks[2.13.12].test'
 | Trace dump responder | `lauberhorn.LauberhornTraceDumpTests` |
 | Legacy PCIe | `lauberhorn.host.pcie.NicSim` |
 
-`lauberhorn.host.eci.NicSim` is a shared **trait**, not a runnable suite. The shell's `repeat-test` default incorrectly names that trait; always provide a concrete suite:
+`lauberhorn.host.eci.NicSim` is a shared **trait**, not a runnable suite. The shell's `repeat-test` defaults to `OncRpcSim`; use a concrete suite when overriding it:
 
 ```sh
 nix develop -c repeat-test rx-tx-interleaved lauberhorn.host.eci.OncRpcSim
