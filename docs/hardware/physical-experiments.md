@@ -2,13 +2,13 @@
 
 ## Resume point: PnR/QoR work deferred for Nix refactoring
 
-Updated 2026-09-15. The maintainer wants **Nix refactoring completed before any
-further timing implementation or CI experiments**. The refactoring scope has not
-yet been specified; do not infer it from the timing proposals. Start with the
-[existing Nix/CI contract](../development/ci.md) when that task is supplied.
-No new timing candidate has been implemented or launched since the review below.
+Updated 2026-09-15. The Nix packaging/shared interactive-test prerequisite is
+complete: see [the validation record](../development/nix-refactor-validation.md)
+and [the new workflow](../development/interactive-testing.md). Board tests used
+matched historical CI hardware; they do not validate final-master timing or
+hardware. No new timing candidate or PnR run was launched during the refactor.
 
-After that prerequisite is complete:
+When resuming timing work:
 
 1. Read [the September 15 results and ranked experiments](#september-15-completed-prewarmed-nix-master-builds).
    Baselines are jobs 2824618, 2824636 and 2824643; reports are in

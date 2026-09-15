@@ -20,12 +20,12 @@ relevant source and subsequent changes before relying on implementation details.
 
 ## Current handoff
 
-PnR/QoR experiments are deferred until the maintainer's next Nix refactoring task
-is complete (scope still to be specified). Before resuming timing work, read the
-[saved resume point](docs/hardware/physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring).
-It records the latest three measured baselines, application/dynamic-only scope,
-ranked next changes and validation requirements. Do not start more timing runs
-while this prerequisite remains outstanding.
+The Nix packaging/shared interactive-test refactor is complete; see its
+[validation record](docs/development/nix-refactor-validation.md). Board evidence
+uses a matched historical CI baseline, not final-master hardware. No timing/PnR
+runs were launched. When timing work resumes, read the
+[saved resume point](docs/hardware/physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
+for measured baselines, application/dynamic-only scope and ranked next changes.
 
 ## Confirmed research and scheduling scope
 
