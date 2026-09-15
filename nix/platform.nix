@@ -112,28 +112,22 @@ in
     name = "microbenchmarks";
     applications = { inherit (applications) microbenchmarks; };
   };
-  eciVivadoInputs = pkgs.callPackage ./eci-vivado-inputs.nix {
+  eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
     inherit genVerilog;
     source = sources.vivado;
     gitRev = identity.revision;
   };
-  checks =
-    (import ./ci-checks.nix {
-      inherit pkgs;
-      src = sources.spinal [
-        "build.mill"
-        "hw"
-        "deps"
-      ];
-      ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
-      replayPcaps = sources.pcaps;
-    })
-    // {
-      interactive = pkgs.callPackage ./checks/interactive.nix { };
-    }
-    // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-      runtime-interface = applications.nix-build-demo;
-    };
+  checks = import ./checks {
+    inherit pkgs;
+    src = sources.spinal [
+      "build.mill"
+      "hw"
+      "deps"
+    ];
+    ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
+    replayPcaps = sources.pcaps;
+    runtimeInterface = applications.nix-build-demo;
+  };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
   ciEnvironment = pkgs.callPackage ./ci/environment.nix {
     shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
