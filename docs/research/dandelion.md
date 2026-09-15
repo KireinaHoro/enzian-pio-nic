@@ -49,3 +49,19 @@ Port/evaluation checklist:
 - Extend transport/application support as needed: the report uses small UDP ONC RPC messages, without retransmission, multi-packet framing or ONC RPC authentication. HTTP communication functions were not ported; the wait API currently handles RPC completions. OS/process isolation alone does not establish network authentication or full-system security guarantees.
 - Rebase/adapt Dandelion interfaces deliberately; report says upstream changed after its selected base. Local composition edges currently incur serialization and loopback RPCs. Shared intermediate-result tables and a separate inline function endpoint are proposals, not established optimizations.
 - Reproduce on hardware, separate protocol/scheduler/engine contributions, exercise concurrent DAGs and failures, and compare with Demikernel under matching isolation and resource assumptions. See [paper goals](paper-goals.md) and [roadmap](roadmap.md).
+
+## Packaging interface (2026-09-15)
+
+The platform now supplies `lib.mkPlatform { pkgs; }`, target application
+`callPackage`, and installed runtime headers/library/pkg-config; see
+[interactive testing](../development/interactive-testing.md). Source inspection
+confirms the sibling's `dandelion_lauberhorn/build.rs` links `lauberhorn` and
+`tirpc`, while `src/config.rs` accepts `DANDELION_LAUBERHORN_CONFIG` and otherwise
+reads checkout-relative `config.toml`. Its eventual package should use the
+installed runtime's pkg-config metadata, install default config/assets under
+`$out/share`, and default that variable to the installed config while respecting
+user overrides. Keep writable function/state directories and logs external.
+The root recipe can expose the latency executable or runnable test packages
+separately. This establishes packaging requirements only: the sibling's nested
+RPC/fiber API changes remain unmerged and its application has not been built
+against this checkout's simpler runtime.

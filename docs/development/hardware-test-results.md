@@ -50,3 +50,10 @@ route estimates (−0.089/−0.009 ns), but direct artifact requests returned 40
 March's legacy `add.x` lacks request IDs; its matching client source/binary is
 retained in `out/hardware-tests/2383312/client/` and gateway
 `/scratch/pengxu/lauberhorn-e2e-2383312-client/`. Do not use the newer wire schema.
+
+## Nix packaging campaign — 2026-09-15
+
+Four verified-reset trials of the shared image passed on job 2812450 hardware:
+helper and direct paths twice each, 400 correct adder replies total. This was
+packaging validation using matching historical sources, not final-master hardware
+validation. See the [full provenance and checks](nix-refactor-validation.md).

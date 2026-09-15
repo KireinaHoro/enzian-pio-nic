@@ -147,3 +147,6 @@ unmerged. No Dandelion build or FPGA functionality is implied: see the
 Build checks and historical board results are separate evidence. The required
 board campaign programs compatible downloaded CI artifacts and tests two repeats,
 including helper and direct paths. A successful Nix build alone is insufficient.
+
+The [September 15 validation record](nix-refactor-validation.md) separates local
+builds, cached regression outputs, and matched-baseline board evidence.
