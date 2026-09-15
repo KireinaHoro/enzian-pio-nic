@@ -74,8 +74,8 @@ let
     nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
   };
   deployment = pkgs.callPackage ./images/default.nix {
+    target = import inputs.nixpkgs { system = "aarch64-linux"; };
     inherit
-      target
       kmod
       runtime
       genVerilog
@@ -107,7 +107,8 @@ in
     gitRev = identity.revision;
   };
   checks =
-    (pkgs.callPackage ./ci-checks.nix {
+    (import ./ci-checks.nix {
+      inherit pkgs;
       src = sources.spinal [
         "build.mill"
         "hw"

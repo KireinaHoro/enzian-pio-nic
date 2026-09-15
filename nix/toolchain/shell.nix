@@ -14,7 +14,7 @@ let
       if [[ $# == 2 ]]; then
         test_suite="$2"
       else
-        test_suite="lauberhorn.host.eci.NicSim"
+        test_suite="lauberhorn.host.eci.OncRpcSim"
       fi
       while mill gen.test.testOnly "$test_suite" -- -t "$test_name"; do
         echo "Test succeeded, retrying..."
@@ -50,7 +50,7 @@ mkShell {
     # quick script to repeat known failing test to find a good reproducer
     repeatTest
   ];
-  env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
+  env.LD_LIBRARY_PATH = lib.makeLibraryPath [ libpcap ];
   shellHook = ''
     export XDG_CACHE_HOME=$PWD/out/xdg-cache-home/
   '';

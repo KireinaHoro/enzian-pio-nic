@@ -7,7 +7,7 @@ Scope: commands and artifact contracts inspected in source on 2026-09-08; these 
 - Use `nix develop` (or `nix develop -c <command>`). `.envrc` enables the same flake through direnv. Recursive submodules are required; relevant local libraries are `deps/blocks` and `deps/spinalhdl`.
 - `flake.nix` exposes `x86_64-linux` and `aarch64-darwin` outputs; Linux is the documented kernel-module build host. Do not infer that every output builds on Darwin.
 - `.mill-version` pins Mill 1.1.8; `build.mill` pins Scala 2.13.12 and ECI static shell v0.1.5. The shell supplies JDK, Mill, Verilator, GHDL, GTKWave, formal tools, Mackerel, aarch64 cross GCC, and libpcap runtime lookup.
-- `build.mill` is the hardware build graph; `flake.nix` owns reproducible RTL/header/software packaging. `sw/*/Makefile` are lower-level builds. Vivado is separately installed/licensed; it is not supplied by the flake. CI sources Vivado 2025.1.
+- `build.mill` is the hardware build graph; `flake.nix` composes the functionality groups under `nix/` for reproducible RTL/header/software packaging. `sw/*/Makefile` are lower-level builds. Vivado is separately installed/licensed; it is not supplied by the flake. CI sources Vivado 2025.1.
 - `nix develop` sets `XDG_CACHE_HOME=$PWD/out/xdg-cache-home/`. After changing Mill dependencies, follow the [clean-cache lock regeneration procedure](ci.md#local-validation-and-maintenance): clear the XDG cache, resolve targets with fresh Mill outputs, then run `update-mill-lock`. The tool captures stale versions if the cache is not cleaned; review removals as well as additions in `project-lock.nix`. Use `--no-daemon` when changed environment variables must reach Mill subprocesses.
 
 ## Build commands and outputs
@@ -22,7 +22,7 @@ Scope: commands and artifact contracts inspected in source on 2026-09-08; these 
 | Create Vivado project | `nix develop -c mill --no-daemon eci.vivadoProject` | Requires `vivado` on PATH; project below `out/eci/vivadoProject.dest/`. |
 | Build ECI FPGA image | `nix develop -c mill --no-daemon eci.generateBitstream` | Downloads static-shell checkpoint from ETH GitLab. Tcl writes `shell_lauberhorn-eci.{bit,ltx}` and routed `.dcp` under `out/eci/vivadoProject.dest/`. |
 | Cross-build kernel module | `nix build .#kmod -L` | `result/lauberhorn.ko`; pinned Ubuntu arm64 kernel 6.8.0-64.67. Match the target kernel ABI. |
-| Cross-build runtime | `nix build .#runtime -L` | `result/liblauberhorn.so`; aarch64, ThunderX tuning, libtirpc. |
+| Cross-build runtime | `nix build .#runtime -L` | `result/lib/liblauberhorn.so`; public headers/pkg-config in `runtime.dev`; aarch64, ThunderX tuning, libtirpc. |
 | Build deployment filesystem | `nix build .#deployFs -L` | SquashFS containing microbenchmarks, kernel module, commit marker and closure dependencies. |
 
 `pcie.generateVerilog` and `pcie.generateBitstream` remain legacy targets; PCIe hardware CI is disabled. ECI bitstream task return paths in `build.mill` still describe the ordinary Vivado `impl_1/lauberhorn-eci.bit` layout, while the sourced static-shell Tcl emits the combined shell filenames above. Check this discrepancy when diagnosing task completion/caching; documentation cannot establish that the current task succeeds.
@@ -42,8 +42,8 @@ Do not invoke plain `make` after RTL generation and assume all prerequisites exi
 See [the CI handoff contract](ci.md): Nix runs regression checks, generates RTL and
 builds matching software in a pinned Nix container. A separate hosted Vivado job
 consumes the portable source/checkpoint bundle without a checkout or regeneration.
-Full slow suites and TLA+ are not CI gates. `sw/README.md` still names obsolete
-package attributes; use the package table above.
+Full slow suites and TLA+ are not CI gates. See [interactive testing](interactive-testing.md) for the installed application
+contract, shared images, local overrides and helper/manual commands.
 
 Evidence: [`build.mill`](../../build.mill), [`flake.nix`](../../flake.nix), [CI](../../.gitlab-ci.yml), [generator](../../hw/src/lauberhorn/GenEngineVerilog.scala), [static-shell bitstream writer](../../vivado/eci/static-shell/write_bitstream_app.tcl), [runtime Makefile](../../sw/rt/Makefile), [kernel Makefile](../../sw/kmod/Makefile).
 
