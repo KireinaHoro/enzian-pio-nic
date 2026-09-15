@@ -20,15 +20,7 @@ in
       ciBuild
       pkgs.coreutils
     ];
-    text = ''
-      ci-build eci-inputs .#eciVivadoInputs
-      ci-build deploy .#deployFs
-      mkdir -p out/eci/generateVerilog.dest
-      mv out/ci/deploy/output out/deploy.img
-      mv out/ci/eci-inputs/output out/eci/vivado-inputs
-      cp -r out/eci/vivado-inputs/generated/. out/eci/generateVerilog.dest/
-      test "$(cat out/eci/vivado-inputs/git-revision)" = "$CI_COMMIT_SHA"
-    '';
+    text = ''exec bash ${../../tools/ci/prepare-eci.sh} "$@"'';
   };
   summarizePhysical = pkgs.writeShellApplication {
     name = "summarize-physical";
