@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build deployFs at a CI revision, optionally applying a recorded flake-only fix."""
+"""Build deployFs at a CI revision, optionally applying a recorded packaging fix."""
 import argparse
 import hashlib
 import json
@@ -15,7 +15,7 @@ def main():
     parser.add_argument('revision')
     parser.add_argument('--out-link', type=pathlib.Path, required=True)
     parser.add_argument('--packaging-patch', type=pathlib.Path,
-                        help='reviewed flake.nix-only patch; must preserve HW/ABI generation')
+                        help='reviewed packaging-only patch; must preserve HW/ABI generation')
     args = parser.parse_args()
     if not re.fullmatch('[0-9a-f]{40}', args.revision):
         parser.error('full lowercase Git revision required')
@@ -30,8 +30,12 @@ def main():
         patch = args.packaging_patch.resolve()
         stats = subprocess.check_output(['git', 'apply', '--numstat', str(patch)], text=True)
         paths = [line.split('\t')[-1] for line in stats.splitlines()]
-        if paths != ['flake.nix']:
-            parser.error('packaging patch must modify only flake.nix')
+        allowed = lambda p: p == 'flake.nix' or (p.startswith('nix/') and p.endswith('.nix')) or p in {
+            'tools/enzian/lh-test.sh', 'sw/usr-common.mk', 'sw/rt/Makefile',
+            'sw/apps/microbenchmarks/Makefile', 'sw/apps/nix-build-demo/package.nix'
+        }
+        if not paths or not all(allowed(p) for p in paths):
+            parser.error('patch includes files outside the packaging allowlist; review hardware/ABI separately')
         provenance['packaging_patch_sha256'] = hashlib.sha256(patch.read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory(prefix='lauberhorn-deploy-') as directory:
             work = pathlib.Path(directory)
@@ -39,9 +43,11 @@ def main():
                 'nix', 'eval', '--impure', '--raw', '--expr',
                 f'(builtins.getFlake {json.dumps(ref)}).outPath'], text=True).strip())
             # Copy only the code inputs used by deployFs, excluding trace captures.
-            for name in ('hw', 'deps', 'sw'):
+            for name in ('hw', 'deps', 'sw', 'nix', 'tools', 'vivado'):
+                if not (source / name).exists():
+                    continue
                 shutil.copytree(source / name, work / name, symlinks=True)
-            for name in ('build.mill', 'project-lock.nix', 'flake.nix'):
+            for name in ('build.mill', 'project-lock.nix', 'flake.nix', 'flake.lock'):
                 shutil.copyfile(source / name, work / name)
             # Nix source directories are read-only; allow temporary-tree cleanup.
             for path in work.rglob('*'):

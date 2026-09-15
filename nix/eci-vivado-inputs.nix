@@ -1,11 +1,17 @@
-{ pkgs, source, genVerilog, gitRev }:
+{
+  pkgs,
+  source,
+  genVerilog,
+  gitRev,
+}:
 let
   # Same release as build.mill's interactive ECI flow, now content-addressed.
   staticShell = pkgs.fetchurl {
     url = "https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/v0.1.5/build_static_shell_routed.dcp";
     hash = "sha256-su5Siz64ptILrELlby5iV+tD2pU0FJH2u8IfrM4y+rE=";
   };
-in pkgs.runCommand "lauberhorn-eci-vivado-inputs" {} ''
+in
+pkgs.runCommand "lauberhorn-eci-vivado-inputs" { } ''
   mkdir -p $out/vivado $out/deps/blocks/deps $out/generated $out/static-shell $out/tools/physical
   cp -r ${pkgs.lib.cleanSource (source + "/vivado/eci")} $out/vivado/eci
   for dep in verilog-axis verilog-axi; do

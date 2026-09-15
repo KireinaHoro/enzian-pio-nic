@@ -1,30 +1,20 @@
 {
   stdenv,
-  pkgsCross,
-  lauberhorn-rt,
-  hello,
-  ...
+  lauberhornRuntime,
+  pkg-config,
 }:
-
-let
-  a64Pkgs = pkgsCross.aarch64-multiplatform;
-  crossGcc = a64Pkgs.buildPackages.gcc;
-  crossTirpc = a64Pkgs.libtirpc;
-in
-
 stdenv.mkDerivation {
-  name = "lauberhorn-demo-app-nix";
-  src = [ ./test.c ];
+  pname = "lauberhorn-demo-app-nix";
   version = "0.0.1";
-  phases = [ "buildPhase" "installPhase" ];
-  nativeBuildInputs = [ hello crossGcc ];
-  buildInputs = [ crossTirpc ];
+  src = ./.;
+  nativeBuildInputs = [ pkg-config ];
+  buildInputs = [ lauberhornRuntime ];
   buildPhase = ''
-    hello --version
-    hello
-    aarch64-unknown-linux-gnu-gcc $src -L${lauberhorn-rt} -llauberhorn -o test
+    $CC $CFLAGS $(pkg-config --cflags lauberhorn) test.c \
+      $LDFLAGS $(pkg-config --libs lauberhorn) -o runtime-demo
   '';
   installPhase = ''
-    install -Dm755 test $out/bin/test
+    install -Dm755 runtime-demo $out/bin/runtime-demo
   '';
+  meta.mainProgram = "runtime-demo";
 }
