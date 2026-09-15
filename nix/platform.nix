@@ -41,6 +41,7 @@ let
   };
   kernel = pkgs.callPackage ./software/kernel.nix { inherit linuxTools kernelRelease; };
   kmod = target.callPackage ./software/module.nix {
+    nukeReferences = pkgs.nukeReferences;
     inherit
       kernel
       linuxTools
@@ -63,16 +64,26 @@ let
       "sw/kmod/ioctl.h"
     ];
   };
-  callPackage = target.lib.callPackageWith (target // { lauberhornRuntime = runtime; });
-  applications = {
-    microbenchmarks = callPackage ./applications/microbenchmarks.nix {
-      src = sources.c [
-        "sw/apps/microbenchmarks"
-        "sw/usr-common.mk"
-      ];
-    };
-    nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
-  };
+  callPackage = recipe: args: target.callPackage recipe ({ lauberhornRuntime = runtime; } // args);
+  applications =
+    pkgs.lib.mapAttrs
+      (
+        _: app:
+        app.overrideAttrs (old: {
+          passthru = (old.passthru or { }) // {
+            sourceIdentity = identity;
+          };
+        })
+      )
+      {
+        microbenchmarks = callPackage ./applications/microbenchmarks.nix {
+          src = sources.c [
+            "sw/apps/microbenchmarks"
+            "sw/usr-common.mk"
+          ];
+        };
+        nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
+      };
   deployment = pkgs.callPackage ./images/default.nix {
     target = import inputs.nixpkgs { system = "aarch64-linux"; };
     inherit

@@ -3,12 +3,12 @@
 
 PKG_CONFIG ?= pkg-config
 
-CFLAGS  += -O2 -g -pipe \
+override CFLAGS += -O2 -g -pipe \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
 		   -Wall -Wno-unused-variable -Wno-unused-label \
 		   -Iinclude/ $(shell $(PKG_CONFIG) --cflags lauberhorn)
-LDFLAGS += -g
-LDLIBS += $(shell $(PKG_CONFIG) --libs lauberhorn)
+override LDFLAGS += -g
+override LDLIBS += $(shell $(PKG_CONFIG) --libs lauberhorn)
 
 APP := microbenchmarks
 

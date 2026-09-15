@@ -23,7 +23,7 @@ let
           app.passthru.sourceIdentity or {
             revision = null;
             local = null;
-            path = if app ? src then toString app.src else null;
+            path = if app ? src then builtins.unsafeDiscardStringContext (toString app.src) else null;
           };
       }) applications;
       manifest = pkgs.writeText "lauberhorn-manifest.json" (
