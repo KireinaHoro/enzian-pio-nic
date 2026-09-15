@@ -19,8 +19,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ pkg-config ];
   buildInputs = [ lauberhornRuntime ];
   buildPhase = ''
-    $CC $CFLAGS $(pkg-config --cflags lauberhorn) main.c \
-      $LDFLAGS $(pkg-config --libs lauberhorn) -o my-service
+    $CC $CFLAGS $( $PKG_CONFIG --cflags lauberhorn) main.c \
+      $LDFLAGS $( $PKG_CONFIG --libs lauberhorn) -o my-service
   '';
   installPhase = ''
     install -Dm755 my-service $out/bin/my-service

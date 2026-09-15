@@ -10,8 +10,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ pkg-config ];
   buildInputs = [ lauberhornRuntime ];
   buildPhase = ''
-    $CC $CFLAGS $(pkg-config --cflags lauberhorn) test.c \
-      $LDFLAGS $(pkg-config --libs lauberhorn) -o runtime-demo
+    $CC $CFLAGS $( $PKG_CONFIG --cflags lauberhorn) test.c \
+      $LDFLAGS $( $PKG_CONFIG --libs lauberhorn) -o runtime-demo
   '';
   installPhase = ''
     install -Dm755 runtime-demo $out/bin/runtime-demo
