@@ -44,38 +44,7 @@ let
           applications = appInfo;
         }
       );
-      helper = target.writeShellScriptBin "lh-test" ''
-        export LH_MANIFEST=${manifest}
-        export PATH=${
-          pkgs.lib.makeBinPath [
-            target.coreutils
-            target.jq
-            target.kmod
-            target.iproute2
-          ]
-        }:$PATH
-        ${builtins.readFile ../../tools/enzian/lh-test.sh}
-      '';
-      tools = pkgs.buildEnv {
-        name = "lauberhorn-interactive-tools";
-        paths = [
-          helper
-          target.bash
-          target.coreutils
-          target.jq
-          target.kmod
-          target.iproute2
-          target.util-linux
-          target.rpcbind
-          target.libtirpc
-        ]
-        ++ extraContents;
-        pathsToLink = [
-          "/bin"
-          "/sbin"
-        ];
-        ignoreCollisions = false;
-      };
+      tools = pkgs.callPackage ../interactive/tools.nix { inherit target manifest extraContents; };
     in
     assert pkgs.lib.all valid (builtins.attrNames applications);
     pkgs.runCommand "lauberhorn-deployment-environment" { } ''
