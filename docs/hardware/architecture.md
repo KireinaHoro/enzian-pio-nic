@@ -64,14 +64,13 @@ Mill targets in `build.mill`.
    separately elaborates `LauberhornTraceDma` as `lauberhorn_trace_dma.v`.
    The trace DMA elaboration uses the final `TracePlugin` port count and event
    list, then writes `lauberhorn_trace_dma_map.json`.
-6. `mill eci.vivadoProject` calls `vivado/eci/create_project.tcl` with the
+6. The Nix-built bundle's `vivado/eci/ci_build.tcl` calls `create_project.tcl` with the
    generated RTL and XDC.  The Tcl project adds ECI toolkit VHDL, DCS
    SystemVerilog, local VHDL/SystemVerilog/Verilog glue, third-party AXI/AXIS
    Verilog, generated SpinalHDL RTL, include directories, constraints, and
    Vivado IP/block-design products.
-7. `mill eci.generateBitstream` first builds the Vivado project, downloads the
-   configured ECI static-shell checkpoint, then runs
-   `vivado/eci/create_bitstream.tcl` to produce the routed checkpoint,
+7. In build mode, the same entry point uses the static-shell checkpoint pinned
+   and fetched by Nix, then runs `vivado/eci/create_bitstream.tcl` to produce the routed checkpoint,
    bitstream, and probes file.
 
 The Nix package `.#genVerilog` runs the same `eci.generateVerilog` flow offline

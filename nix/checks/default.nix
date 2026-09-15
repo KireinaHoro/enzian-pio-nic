@@ -19,6 +19,7 @@ let
     };
 in
 {
+  workflow-tools = pkgs.callPackage ./workflow-tools.nix { };
   interactive = pkgs.callPackage ./interactive.nix { };
   trace-fifo-tests = pkgs.callPackage ./trace-fifo.nix { inherit src; };
   fast-tests-eci = check "fast-tests-eci" ''

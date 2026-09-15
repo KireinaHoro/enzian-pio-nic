@@ -1,3 +1,6 @@
+include:
+  - local: vivado/eci/container.yml
+
 stages:
   - test
   - prepare
@@ -57,6 +60,9 @@ trace-tests:
 trace-fifo-tests:
   extends: .test-nix
 
+workflow-tools:
+  extends: .test-nix
+
 interactive:
   extends: .test-nix
 
@@ -75,6 +81,8 @@ prepare-eci:
       artifacts: false
     - job: trace-fifo-tests
       artifacts: false
+    - job: workflow-tools
+      artifacts: false
     - job: interactive
       artifacts: false
     - job: runtime-interface
@@ -91,7 +99,7 @@ prepare-eci:
 
 build-hw-eci:
   tags: [enzian-docker, vivado]
-  image: registry.ethz.ch/project-openenzian/ci-images/xilinx-tools:ubuntu-22.04@sha256:2699ec6b6f4b3cf022edfcb73a6ab970579d4e1555f6f1fe798c7f395b49848e
+  extends: .vivado-environment
   stage: build-hw
   # The preceding Nix job supplies every source. Do not re-fetch or regenerate.
   variables:
@@ -101,12 +109,10 @@ build-hw-eci:
   needs:
     - job: prepare-eci
       artifacts: true
-  before_script:
-    - source /opt/Xilinx/2025.1/Vivado/settings64.sh
   script:
-    - /opt/Xilinx/2025.1/Vivado/bin/vivado -mode batch -nojournal -nolog -source out/eci/vivado-inputs/vivado/eci/ci_build.tcl -tclargs out/eci/vivado-inputs out/eci/vivadoProject.dest
+    - bash out/eci/vivado-inputs/tools/hardware/run-vivado.sh out/eci/vivado-inputs out build
   after_script:
-    - /opt/Xilinx/2025.1/Vivado/bin/vivado -mode batch -nojournal -nolog -source out/eci/vivado-inputs/tools/physical/checkpoint.tcl -tclargs out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp out/physical > out/physical-vivado.log 2>&1
+    - bash out/eci/vivado-inputs/tools/hardware/run-vivado.sh out/eci/vivado-inputs out report
   artifacts:
     when: always
     paths:
@@ -116,6 +122,7 @@ build-hw-eci:
       - out/eci/vivado-inputs/flake.lock
       - out/physical/
       - out/physical-vivado.log
+      - out/vivado-build.log
       - out/eci/vivadoProject.dest/*timing*.rpt
       - out/eci/vivadoProject.dest/*utilization*.rpt
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp

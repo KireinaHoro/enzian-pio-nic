@@ -10,7 +10,10 @@ Nix's separate Git cache. The job also globally rewrites both SCP-style and
 `ssh://git@` GitLab URLs to HTTPS, including nested static-shell submodules.
 The helper stores an environment reference, not the token; no personal token is
 passed to builds or included in artifacts.
-Both Nix and Vivado Docker images are pinned by digest. No lock updates occur in CI.
+Both Nix and Vivado Docker images are pinned by digest.
+`vivado/eci/container.yml` owns the Vivado image pin, included by CI and read by
+the bundled Docker launcher. CI invokes `tools/hardware/run-vivado.sh` inside
+that image; local launches use the same runner, without Docker-in-Docker. No lock updates occur in CI.
 The minimal hosted `xilinx-tools` image supplies Vivado runtime dependencies
 and license configuration, without the Spinal/Verilator layer. It receives Vivado through the runner's `/opt/Xilinx` mount;
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
@@ -18,8 +21,9 @@ digest alone does not pin that separately maintained installation.
 
 ## Pipeline and handoff
 
-1. `fast-tests-eci`, `blocks-tests`, `trace-tests`, `trace-fifo-tests` run
-   `checks.x86_64-linux.<job>` in the Nix image. All four gate preparation.
+1. `fast-tests-eci`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
+   `interactive`, `runtime-interface`, and `workflow-tools` run
+   `checks.x86_64-linux.<job>` in the Nix image. All gate preparation.
    Mill runs offline against the locked Ivy cache. The FIFO test exercises both
    output-stage settings at the real trace width/depth under stalls and reset.
 2. `prepare-eci` builds `eciVivadoInputs` and `deployFs`. Both share `genVerilog`,
@@ -44,7 +48,7 @@ and fixed-output fetches prevent implicit dependency updates.
 | Producer | Artifact |
 | --- | --- |
 | prepare-eci | `out/eci/vivado-inputs/`: relocatable sources, generated RTL/XDC/headers/devices/trace map, Tcl, static-shell DCP, lockfile and revision/derivation metadata |
-| prepare-eci | `out/deploy.img`: matching aarch64 kernel module, runtime/application closure and commit marker |
+| prepare-eci | `out/deploy.img`: matching aarch64 kernel module, runtime/application closure and provenance manifest |
 | build-hw-eci | `out/eci/generateVerilog.dest/`: ABI/trace collateral at the existing downloader path |
 | build-hw-eci | `out/eci/vivadoProject.dest/shell_lauberhorn-eci.{bit,ltx}`, `shell_lauberhorn-eci_routed.dcp` |
 | build-hw-eci / report-hw-eci | `out/physical/` raw STA reports / `summary.json` |
@@ -63,17 +67,18 @@ nix build -L .#checks.x86_64-linux.blocks-tests .#checks.x86_64-linux.trace-test
 nix build -L .#checks.x86_64-linux.trace-fifo-tests
 nix build -L .#eciVivadoInputs --out-link out/vivado-inputs
 nix build -L .#deployFs --out-link out/deploy.img
-# Copy the bundle, not the result symlink, to a Vivado host:
-rsync -rLt out/vivado-inputs/ enzian-ba2:/tmp/eci-inputs-UNIQUE/
-ssh enzian-ba2 'source /opt/Xilinx/2025.1/Vivado/settings64.sh && \
-  /opt/Xilinx/2025.1/Vivado/bin/vivado -mode batch -nojournal -nolog \
-  -source /tmp/eci-inputs-UNIQUE/vivado/eci/ci_build.tcl \
-  -tclargs /tmp/eci-inputs-UNIQUE /tmp/eci-project-UNIQUE project-only'
+nix build -L .#checks.x86_64-linux.workflow-tools
 ```
 
-Omit `project-only` for implementation. Use a fresh output directory. Dirty local
-flake builds deliberately retain the unknown Git marker; use a clean committed
-checkout for a board-testable image with matching revision checks.
+Follow [the Docker hardware-build guide](hardware-build.md) to copy the bundle
+and run the same runner as CI on a Docker host. `project-only` creates the project
+without synthesis or implementation. Dirty local flake builds retain the unknown
+Git marker; use a clean committed checkout for board-testable matching artifacts.
+
+`ci-build NAME INSTALLABLE` requires a fresh `out/ci/NAME` directory. `prepare-eci`
+also refuses existing published artifacts before starting either build. Choose a
+new name/workspace or explicitly remove old outputs; failures retain diagnostics
+and never silently publish a previous result.
 
 After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
 before generating the lock. `mif codegen` inventories everything in that cache,
@@ -134,12 +139,13 @@ pipeline. After successful publication, use `lauberhorn-image.digest` from
 `lauberhorn-flakes-image` to update `.nix.image.name` here. The tag is the full
 image-repository commit, not the platform commit. Keep an image switch on its
 branch until publication succeeds; then run the platform pipeline to validate
-all four regression jobs and the matching RTL/software handoff.
+all regression and packaging checks and the matching RTL/software handoff.
 
 ## Packaging interface checks
 
 `interactive` checks helper JSON, arguments, executable selection and failure
 status without NIC access. `runtime-interface` cross-compiles the standalone demo
 against installed runtime headers and pkg-config. Both gate preparation alongside
-the existing regressions. `ciEnvironment` retains `ci-build` and native toolchain
+the existing regressions. `workflow-tools` checks shell scripts and tests artifact
+freshness and hardware-runner failure handling with fake tools. `ciEnvironment` retains `ci-build` and native toolchain
 dependencies for image warming. These checks do not replace board evidence.
