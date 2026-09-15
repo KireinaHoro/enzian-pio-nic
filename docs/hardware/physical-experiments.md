@@ -218,3 +218,77 @@ The obsolete collector timer was stopped. Replacement
 `lauberhorn-ci-nix-20260913-relaunch1.timer` collects once five hours after
 relaunch (approximately 15:49 CEST), without polling or automatic rescheduling.
 No new timing or hardware-test result is available yet.
+
+## September 15: completed prewarmed-Nix master builds
+
+Collected once after notification. All three hardware jobs succeeded and retained
+COMPLETE STA reports from Vivado 2025.1. These are not board-test results.
+
+| Job | Commit | WNS ns | TNS ns | Failing setup endpoints | Trace TX slack ns |
+| --- | --- | ---: | ---: | ---: | ---: |
+| [2824618](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2824618) | `c5373ce` | -0.174 | -190.802 | 3249 | +0.106 |
+| [2824636](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2824636) | `f6bf910` | -0.396 | -1543.965 | 11631 | +0.170 |
+| [2824643](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2824643) | `faf6790` | -0.205 | -306.122 | 4559 | +0.297 |
+
+All have zero failing hold/pulse endpoints and zero routing errors. Minimum hold
+slack is +0.002/+0.003/+0.002 ns. CDC counts are identical across these runs,
+including 288 CDC-1, 10 CDC-10 and 13 CDC-11 diagnostics; they are not CDC-clean.
+Trace TX values are the intra-clock `txoutclk_out[0]_1` representatives.
+
+The combined reset placement/output-FIFO changes have moved the observed critical
+paths away from trace TX. This is encouraging, but is not an isolated measurement
+of either change: toolchain and generated commit constants also changed since the
+September 10 experiments. Between these three revisions, tracked changes are only
+CI/docs; embedded commit CSRs still perturb synthesis. The 0.222 ns WNS spread
+and 3249–11631 failing endpoints prevent attributing timing differences to the
+minimal container or declaring reproducible closure.
+
+### Next experiments, in priority order
+
+1. **TX placement, before a protocol change.** Latest worst path is
+   `i_eci_gateway/link2_out_hi_buffer/i_buffer/gen_full.first_buf_reg_replica_9`
+   to static transport `tx_block_out_t_reg[Data][2][57]`, slack -0.205 ns.
+   Its 3.228 ns data path has only three LUT levels: 2.880 ns routing, including
+   a 1.393 ns application-to-static boundary net. The source is SLICE_X114Y530,
+   mux SLICE_X103Y537, destination SLICE_X149Y537. Inspect dynamic legal sites and
+   utilization near each fixed link transport, then test a small per-link region
+   for the output buffers/muxes in `vivado/eci/xdc/floorplan.xdc`. Do not move the
+   whole gateway into the DCS crossing pblock merely because its variable is named
+   `eci_gateway_pblock`. Check both links and high/low VCs, not just this endpoint.
+   `eci-toolkit/hdl/eci_gateway.vhd` already uses `FULL => true`; in
+   `bus_buffer.vhd` this still selects between two data registers at the output.
+   Another FULL buffer is not automatically a registered final output. If placement
+   is insufficient, test an output-registered elastic buffer with sustained traffic,
+   stalls and `s_hold` semantics, preserving all channel metadata.
+2. **RX FIFO-to-packetizer pipeline.** All runs expose high-VC RX FIFO BRAM to
+   packetizer data/CE paths; they reach -0.396 ns and eight logic levels in 2824636.
+   In `eci-toolkit/hdl/eci_rx_hi_vc_extractor.vhd`, the 417-bit FWFT FIFO feeds a
+   six-to-three-word phase mux directly into `eci_rx_hi_vc_packetizer.vhd`, whose
+   message-length/position logic drives buffer enables and data selection.
+   Test an elastic stage after the six-to-three-word split, carrying all three
+   words, size and length together. Advance the split phase only on acceptance;
+   preserve credit accounting and beat order. Do not blindly change the XPM read
+   latency while retaining FWFT/empty-based valid logic. Add focused VHDL tests
+   across message lengths, split phases, back-to-back packets and downstream stalls;
+   the current Spinal simulation gates do not establish toolkit correctness.
+3. **Keep secondary clocks/families visible.** Application-clock slack is
+   +0.002/-0.175/+0.001 ns. The failing run has AXI AW-valid to PacketBuffer BRAM
+   address; the first run still has the 22-level trace priority path at +0.002 ns.
+   Revisit Spinal AXI address/control pipelining only against a representative path,
+   preserving AW/W association and responses. The old priority-tree candidate is
+   not a proven global improvement. DCS FIFO-control to SLR slice CE also reaches
+   -0.174 ns; inspect `rtl/dcs_cdc.sv` and crossing placement before changing CDC.
+
+First compare narrow path families on the existing DCPs using ba2, then submit
+independent placement and RX-pipeline CI branches after their respective checks.
+Use the exact same Vivado input bundle for a repeatability baseline: rebuilding
+at another commit changes CSR constants even without datapath edits. Keep the
+bundle's real revision marker and matching software; do not disable deployment
+revision checks. Report WNS/TNS, endpoints, all clock representatives, hold and
+CDC alongside each candidate. No new implementation or board run was launched
+for this review.
+
+Local evidence: `out/physical/review-20260915/JOB/` contains timing, 200 setup/hold
+path samples, detailed setup paths, CDC, route, bus-skew and generated summary.
+The GitLab hardware artifacts retain the DCPs and bitstreams. Read each summary
+before requesting more paths; a global 200-path sample is not a family-wide TNS.
