@@ -89,7 +89,8 @@ def main():
                 # Each function invocation gets an isolated shell for set -e/args.
                 script = 'set -eu\ncpu() (\n' + cpu_source + '\n)\n'
                 script += 'cpu mount ' + shlex.quote(case['image']) + '\n'
-                script += 'test "$(cat /nix/store/*-git-hash)" = ' + shlex.quote(case['revision']) + '\n'
+                script += 'test "$(/nix/store/lauberhorn/bin/jq -er .platform.revision /nix/store/lauberhorn/manifest.json)" = ' + shlex.quote(case['revision']) + '\n'
+                script += "/nix/store/lauberhorn/bin/lh-test info --json\n"
                 script += "echo TEST_STAGE:mount\ndmesg -n 8\ncpu load\necho TEST_STAGE:load\ncpu verify\necho TEST_STAGE:verify\n"
                 script += case.get('cpu', '').replace('{run}', name) + '\n'
                 script += 'echo TEST_STAGE:ready\n'

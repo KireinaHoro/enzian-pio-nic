@@ -2,10 +2,13 @@
 # Copyright (c) 2025 Pengcheng Xu
 
 CROSS_COMPILE ?= aarch64-unknown-linux-gnu-
-CC := $(CROSS_COMPILE)gcc
+ifeq ($(origin CC),default)
+CC = $(CROSS_COMPILE)gcc
+endif
+PKG_CONFIG ?= pkg-config
 
-CFLAGS += $(shell pkg-config --cflags libtirpc)
-LDFLAGS += $(shell pkg-config --libs libtirpc)
+CFLAGS += $(shell $(PKG_CONFIG) --cflags libtirpc)
+LDLIBS += $(shell $(PKG_CONFIG) --libs libtirpc)
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c
 LINK.c = $(CC) $(LDFLAGS)

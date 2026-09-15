@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Pengcheng Xu
 
-ifndef LAUBERHORN_RT
-$(error LAUBERHORN_RT is not set, build with Nix)
-endif
+PKG_CONFIG ?= pkg-config
 
-CFLAGS  := -O2 -g -pipe \
+CFLAGS  += -O2 -g -pipe \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
 		   -Wall -Wno-unused-variable -Wno-unused-label \
-		   -Iinclude/ -I../../include/
-LDFLAGS := -g -L$(LAUBERHORN_RT) -llauberhorn
+		   -Iinclude/ $(shell $(PKG_CONFIG) --cflags lauberhorn)
+LDFLAGS += -g
+LDLIBS += $(shell $(PKG_CONFIG) --libs lauberhorn)
 
 APP := microbenchmarks
 
@@ -26,7 +25,7 @@ main.c: bench.h
 include ../../usr-common.mk
 
 $(APP): $(ALL_OBJS)
-	$(LINK.c) $^ -o $@
+	$(LINK.c) $^ -o $@ $(LDLIBS)
 	
 clean:
 	rm -f *.o $(APP) bench.h bench_xdr.c

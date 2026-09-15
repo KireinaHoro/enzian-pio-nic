@@ -15,338 +15,63 @@
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, flake-utils, ... }:
-  with builtins;
-  with nixpkgs.lib;
-  flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system: let
-    pkgs = import nixpkgs {
-      inherit system;
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-utils,
+      ...
+    }:
+    let
       overlays = [
         inputs.mill-ivy-fetcher.overlays.default
         inputs.mill-ivy-fetcher.overlays.mill-overlay
-        # This Spinal revision uses WData, removed by Verilator 5.052.
-        (final: prev: {
-          verilator = prev.verilator.overrideAttrs {
-            version = "5.048";
-            # 5.048's gdb probe uses echo; newer packaging patches a sh probe.
-            postPatch = ''
-              patchShebangs .
-              substituteInPlace bin/verilator --replace-fail "/bin/echo" "${final.coreutils}/bin/echo"
-            '';
-            src = final.fetchFromGitHub {
-              owner = "verilator";
-              repo = "verilator";
-              tag = "v5.048";
-              hash = "sha256-xvqqgbW7L07+NBYzGN2KLhwir58ByShxo4VVPI3pgZk=";
-            };
+        (import ./nix/toolchain/overlay.nix)
+      ];
+      mkPlatform =
+        { pkgs }:
+        import ./nix/platform.nix {
+          pkgs = pkgs.appendOverlays overlays;
+          inherit inputs;
+          source = ./.;
+          identity = {
+            revision = self.rev or "dirty";
+            local = !(self ? rev);
+            narHash = self.narHash or null;
           };
-        })
-      ];
-    };
-    aarch64Pkgs = pkgs.pkgsCross.aarch64-multiplatform;
-
-    # aarch64 cross compiler
-    crossGcc = aarch64Pkgs.buildPackages.gcc;
-
-    # mackerel compiler
-    mackerel = inputs.mackerel.packages.${system}.mackerel2;
-
-    # common build tools for building kernel (modules)
-    linuxTools = with pkgs; [
-      flex bison bc openssl elfutils.dev crossGcc
-      pahole python3 zlib.dev
-      rpcsvc-proto pkg-config
-    ];
-
-    # get kernel tree for building module
-    # unpack Noble linux headers deb to get Modules.symvers and config
-    kernelRelease = "6.8.0-64-generic";
-    linux-noble-src = let
-      genericDeb = pkgs.fetchurl {
-        url = http://launchpadlibrarian.net/799672062/linux-headers-6.8.0-64-generic_6.8.0-64.67_arm64.deb;
-        hash = "sha256-x375IU9XFmuVJEoocimnR5qRUS8ya6sWqs3jYPeaTKM=";
-      };
-    in pkgs.stdenv.mkDerivation {
-      name = "linux-noble-src";
-      version = "6.8.0-64.67";
-      src = pkgs.fetchgit {
-        url = https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/noble;
-        tag = "Ubuntu-6.8.0-64.67";
-        hash = "sha256-F2bcvzxlE2wzSj2kr+Fj9Ui6ht6GRv4p/hRSuSyglCc=";
-      };
-      nativeBuildInputs = linuxTools ++ [ pkgs.dpkg ];
-      buildPhase = ''
-        patchShebangs scripts/bpf_doc.py
-
-        export ARCH=arm64
-        export CROSS_COMPILE=aarch64-unknown-linux-gnu-
-
-        mkdir sysroot
-        dpkg-deb -x ${genericDeb} sysroot/
-        for a in .config Module.symvers; do
-          cp sysroot/usr/src/linux-headers-${kernelRelease}/$a .
-        done
-        rm -rf sysroot
-
-        cp .config .config.bak
-        # Ubuntu's ABI release differs from the upstream Makefile version.
-        # Generate matching utsrelease.h and kernel.release through Kbuild.
-        make KERNELRELEASE=${kernelRelease} olddefconfig
-        make KERNELRELEASE=${kernelRelease} modules_prepare
-      '';
-      installPhase = ''
-        mkdir -p $out
-        cp -a . $out/
-      '';
-      dontFixup = true;
-    };
-
-    allSourcesIn = ty: paths: with fileset; toSource {
-      root = ./.;
-      fileset = unions (map (p: fileFilter ty p) paths);
-    };
-
-    isC = f: f.name == "Makefile" || lists.any f.hasExt [ "mk" "c" "h" "x" ];
-    allCIn = allSourcesIn isC;
-
-    isSpinal = f: lists.any f.hasExt [
-      "scala" "java" "xml" "conf" # spinalhdl
-      "mill"                      # mill build files
-      "v" "sv"                    # RTL dependencies
-      "h" "hpp" "cpp" "cxx" "i" "sh" # Spinal simulator JNI resources
-    ];
-    allSpinalIn = allSourcesIn isSpinal;
-
-    gitRev = if self ? rev then self.rev else "dirty";
-
-    # generate RTL, mackerel devices, and C headers
-    genVerilog = with pkgs; let
-      ivyCache = ivy-gather ./project-lock.nix;
-    in stdenvNoCC.mkDerivation {
-      name = "lauberhorn-hw-rtl-config";
-      src = allSpinalIn [ ./build.mill ./hw ./deps ];
-      outputs = [ "out" "devices" "headers" ];
-      buildInputs = [ ivyCache ];
-      nativeBuildInputs = [ mill configure-mill-env-hook ];
-      buildPhase = ''
-        mill --no-daemon --offline \
-          -Dnix-git-hash=${gitRev} eci.generateVerilog
-      '';
-      installPhase = ''
-        mkdir -p $out $devices $headers
-        mv out/eci/generateVerilog.dest/*.{v,sv,xdc} $out/
-        mv out/eci/generateVerilog.dest/*.json      $out/
-        mv out/eci/generateVerilog.dest/*.h          $headers/
-        mv out/eci/generateVerilog.dest/*.dev        $devices/
-      '';
-    };
-
-    # generate mackerel device headers
-    devHdrs = pkgs.stdenvNoCC.mkDerivation {
-      name = "lauberhorn-dev-hdrs";
-      src = cleanSource ./sw/devices;
-      nativeBuildInputs = [ mackerel ];
-      buildPhase = ''
-        mkdir -p $out
-        for a in *.dev ${genVerilog.devices}/*; do
-          echo "Compiling $a..."
-          fn=$(basename $a)
-          mackerel2 -c $a -I$(dirname $a) -o $out/''${fn%.dev}_dev.h
-        done
-      '';
-    };
-
-    # cross-compile lauberhorn kernel module
-    kmod = pkgs.stdenv.mkDerivation {
-      name = "lauberhorn-kmod";
-      version = "0.0.1";
-      src = allCIn [ ./sw/kmod ./sw/core ];
-      nativeBuildInputs = linuxTools ++ [ pkgs.nukeReferences ];
-      buildPhase = ''
-        export ARCH=arm64
-        export CROSS_COMPILE=aarch64-unknown-linux-gnu-
-        export KDIR=${linux-noble-src}
-        cd sw/kmod
-        make V=1 KERNELRELEASE=${kernelRelease} \
-          MACKEREL_DEV_HDRS=${devHdrs} \
-          HW_CFG_HDRS=${genVerilog.headers}
-      '';
-      doCheck = true;
-      checkPhase = ''
-        runHook preCheck
-        aarch64-unknown-linux-gnu-readelf -p .modinfo lauberhorn.ko \
-          | grep -F 'vermagic=${kernelRelease} '
-        runHook postCheck
-      '';
-      installPhase = ''
-        mkdir -p $out
-        nuke-refs lauberhorn.ko
-        mv lauberhorn.ko $out/
-      '';
-      dontFixup = true;
-    };
-
-    runtime = pkgs.stdenvNoCC.mkDerivation {
-      name = "lauberhorn-rt";
-      version = "0.0.1";
-      src = allCIn [
-        ./sw/rt ./sw/include ./sw/core
-        ./sw/usr-common.mk ./sw/kmod/ioctl.h
-      ];
-      buildInputs = [ aarch64Pkgs.libtirpc ];
-      nativeBuildInputs = linuxTools;
-      buildPhase = ''
-        cd sw/rt
-        make MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers}
-      '';
-      dontStrip = true;
-      installPhase = ''
-        mkdir -p $out
-        mv liblauberhorn.so $out/
-      '';
-    };
-
-    rpcsvc-proto = with pkgs; stdenv.mkDerivation {
-      name = "rpcsvc-proto";
-      version = "1.4.4";
-      src = fetchFromGitHub {
-        owner = "thkukuk";
-        repo = "rpcsvc-proto";
-        rev = "v1.4.4";
-        hash = "sha256-DEXzSSmjMeMsr1PoU/ljaY+6b4COUU2Z8MJkGImsgzk=";
-      };
-      nativeBuildInputs = [ autoreconfHook ];
-    };
-
-    # can't use NoCC since rpcgen needs cpp
-    buildLauberhornApp = name: with pkgs; stdenv.mkDerivation {
-      name = "lauberhorn-app-${name}";
-      version = "0.0.1";
-      src = allCIn [ ./sw/apps/${name} ./sw/include ./sw/usr-common.mk ];
-      buildInputs = [ aarch64Pkgs.libtirpc ];
-      nativeBuildInputs = linuxTools;
-      buildPhase = ''
-        cd sw/apps/${name}
-        make LAUBERHORN_RT=${runtime}/
-      '';
-      dontStrip = true;
-      installPhase = ''
-        mkdir -p $out
-        mv ${name} $out/
-      '';
-    };
-
-    commitMarker = pkgs.writeText "git-hash" (gitRev + "\n");
-
-    deployFs = let
-      allApps = [ "microbenchmarks" ];
-    in pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
-      storeContents = map buildLauberhornApp allApps ++ [ kmod commitMarker ];
-    };
-
-    dummy-app-build-with-nix = pkgs.callPackage (import ./sw/apps/nix-build-demo/package.nix) {
-      lauberhorn-rt = runtime;
-    };
-
-    ciChecks = import ./nix/ci-checks.nix {
-      inherit pkgs;
-      src = allSpinalIn [ ./build.mill ./hw ./deps ];
-      ivyCache = pkgs.ivy-gather ./project-lock.nix;
-      replayPcaps = allSourcesIn (f: f.hasExt "pcap") [ ./data/eci/iladata ];
-    };
-    eciVivadoInputs = import ./nix/eci-vivado-inputs.nix {
-      inherit pkgs genVerilog gitRev;
-      # Keep recorded traces/data out of the portable bundle's build closure.
-      source = pkgs.lib.fileset.toSource {
-        root = ./.;
-        fileset = pkgs.lib.fileset.unions [
-          ./vivado/eci
-          ./deps/blocks/deps/verilog-axis
-          ./deps/blocks/deps/verilog-axi
-          ./tools/physical/checkpoint.tcl
-          ./flake.lock
-        ];
-      };
-    };
-    ciBuild = pkgs.writeShellApplication {
-      name = "ci-build";
-      runtimeInputs = with pkgs; [ nix bash coreutils findutils ];
-      text = ''exec bash ${./tools/ci/nix-build.sh} "$@"'';
-    };
-  in {
-    checks = ciChecks;
-    packages = {
-      inherit devHdrs kmod runtime deployFs genVerilog eciVivadoInputs ciBuild;
-      inherit dummy-app-build-with-nix;
-      # Build tools and locked dependencies only: no application/test derivations.
-      ciEnvironment = pkgs.mkShell {
-        inputsFrom = [ self.devShells.${system}.default ];
-        packages = linuxTools ++ [
-          ciBuild
-          (pkgs.ivy-gather ./project-lock.nix)
-          pkgs.configure-mill-env-hook
-          pkgs.iverilog pkgs.libpcap pkgs.squashfsTools pkgs.pkg-config
-          aarch64Pkgs.libtirpc
-        ];
-      };
-      prepareEci = pkgs.writeShellApplication {
-        name = "prepare-eci";
-        runtimeInputs = [ ciBuild pkgs.coreutils ];
-        text = ''
-          ci-build eci-inputs .#eciVivadoInputs
-          ci-build deploy .#deployFs
-          mkdir -p out/eci/generateVerilog.dest
-          mv out/ci/deploy/output out/deploy.img
-          mv out/ci/eci-inputs/output out/eci/vivado-inputs
-          cp -r out/eci/vivado-inputs/generated/. out/eci/generateVerilog.dest/
-          test "$(cat out/eci/vivado-inputs/git-revision)" = "$CI_COMMIT_SHA"
-        '';
-      };
-      summarizePhysical = pkgs.writeShellApplication {
-        name = "summarize-physical";
-        runtimeInputs = [ pkgs.python3 ];
-        text = ''exec python3 ${./tools/physical/summarize.py} "$@"'';
-      };
-    };
-
-    # for interactive development
-    devShells.default = with pkgs; let
-      # hammer a test that failed on CI but can't be easily reproduced locally
-      repeatTest = writeShellApplication {
-        name = "repeat-test";
-        runtimeInputs = [ mill ];
-        text = ''
-          test_name="$1"
-          if [[ $# == 2 ]]; then
-            test_suite="$2"
-          else
-            test_suite="lauberhorn.host.eci.NicSim"
-          fi
-          while mill gen.test.testOnly "$test_suite" -- -t "$test_name"; do
-            echo "Test succeeded, retrying..."
-          done
-        '';
-      };
-      updateMillLockFile = writeShellApplication {
-        name = "update-mill-lock";
-        runtimeInputs = [ mill-ivy-fetcher nixfmt ];
-        text = ''
-          mif codegen --cache "$XDG_CACHE_HOME" -o project-lock.nix
-        '';
-      };
-    in mkShell {
-      buildInputs = [
-        zlib.dev verilator clang cmake ghdl
-        gtkwave sby yices
-        jdk mill updateMillLockFile
-        crossGcc mackerel
-        # quick script to repeat known failing test to find a good reproducer
-        repeatTest
-      ];
-      env.LD_LIBRARY_PATH = makeLibraryPath [ libpcap ];
-      shellHook = ''
-        export XDG_CACHE_HOME=$PWD/out/xdg-cache-home/
-      '';
-    };
-  });
+        };
+    in
+    {
+      lib = { inherit mkPlatform; };
+    }
+    // flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (
+      system:
+      let
+        pkgs = import nixpkgs { inherit system overlays; };
+        platform = mkPlatform { pkgs = import nixpkgs { inherit system; }; };
+        ci = pkgs.callPackage ./nix/ci { };
+        linux = pkgs.stdenv.hostPlatform.isLinux;
+      in
+      {
+        formatter = pkgs.nixfmt;
+        checks = platform.checks;
+        packages = {
+          inherit (platform) genVerilog devHdrs;
+        }
+        // pkgs.lib.optionalAttrs linux (
+          {
+            inherit (platform)
+              runtime
+              kmod
+              deployFs
+              eciVivadoInputs
+              ciEnvironment
+              ;
+            dummy-app-build-with-nix = platform.applications.nix-build-demo;
+          }
+          // ci
+        );
+        devShells.default = platform.shell;
+      }
+    );
 }

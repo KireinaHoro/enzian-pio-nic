@@ -9,12 +9,12 @@ ifndef MACKEREL_DEV_HDRS
 $(error MACKEREL_DEV_HDRS is not set, build with Nix)
 endif
 
-CFLAGS  := -O2 -g -pipe -fpic \
+CFLAGS  += -O2 -g -pipe -fpic \
 		   -march=armv8-a+crc+lse -mtune=thunderxt88 \
 		   -Wall -Wno-maybe-uninitialized \
 		   -Iinclude/ -I../include/ -I../core/ \
 		   -I$(HW_CFG_HDRS) -I$(MACKEREL_DEV_HDRS)
-LDFLAGS := -g -shared -Wl,-z,defs
+LDFLAGS += -g -shared -Wl,-z,defs
 
 all: liblauberhorn.so
 ALL_SRCS := $(wildcard *.c)
@@ -22,7 +22,7 @@ ALL_SRCS := $(wildcard *.c)
 include ../usr-common.mk
 
 liblauberhorn.so: $(ALL_OBJS)
-	$(LINK.c) $^ -o $@
+	$(LINK.c) $^ -o $@ $(LDLIBS)
 
 clean:
 	rm -f *.o *.so
