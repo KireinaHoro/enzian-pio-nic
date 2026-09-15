@@ -45,6 +45,7 @@ in
         "deps/blocks/deps/verilog-axis"
         "deps/blocks/deps/verilog-axi"
         "tools/physical/checkpoint.tcl"
+        "tools/hardware"
         "flake.lock"
       ]
     );

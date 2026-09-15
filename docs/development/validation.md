@@ -48,7 +48,7 @@ This loops until failure; bound/stop it deliberately. ScalaTest parallel executi
 - The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Preserve both seeds, test name, revision/submodule revisions, and generated config.
 - ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
 - PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
-- For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. CI only runs blocks regression when its submodule path changes.
+- For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. Blocks regression gates every pipeline; see the [CI checks](ci.md#pipeline-and-handoff).
 
 ## Coverage limits that affect claims
 

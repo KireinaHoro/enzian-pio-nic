@@ -19,8 +19,9 @@ packages. Leaf recipes use `callPackage`; composition returning package sets use
 Authoritative tools: Nixpkgs supplies rpcsvc-proto/rpcgen, pkg-config, compilers and
 standard target tools. The unused private rpcsvc-proto derivation was removed.
 Mackerel comes from the pinned mackerel input; Mill dependencies come from the
-unchanged generated `project-lock.nix`. `build.mill` owns generator targets and
-static shell version; the portable bundle's content hash remains pinned. No
+unchanged generated `project-lock.nix`. `build.mill` owns generator targets; `hardware/vivado-inputs.nix` owns the
+static-shell version and content hash. `vivado/eci/container.yml` owns the Docker
+image pin shared by CI and interactive hardware builds. No
 hardware dependency or input pin was changed by this refactor. Native AArch64
 Nixpkgs binaries supply image utilities; applications/runtime use the platform's
 cross stdenv, and generators use build-machine tools.
