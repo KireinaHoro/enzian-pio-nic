@@ -49,7 +49,7 @@
       let
         pkgs = import nixpkgs { inherit system overlays; };
         platform = mkPlatform { pkgs = import nixpkgs { inherit system; }; };
-        ci = pkgs.callPackage ./nix/ci { };
+        ci = import ./nix/ci { inherit pkgs; };
         linux = pkgs.stdenv.hostPlatform.isLinux;
       in
       {

@@ -1,7 +1,7 @@
 # Test on real Enzian hardware
 
 Run from the repository root. Use [test.py](../../tools/enzian/test.py) for the
-whole reset → program → Linux → module → gateway RPC test. **A passing test
+shared [interactive commands](interactive-testing.md) and the whole reset → program → Linux → module → gateway RPC test. **A passing test
 requires correct RPC replies through `lauberhorn0`, not just successful boot or
 `insmod`.** Keep bitstream, software closure and client protocol matched.
 
@@ -46,6 +46,14 @@ rsync -L /tmp/deploy-2812450 enzian-gateway:/scratch/pengxu/deploy-2812450.img
 ```
 
 For commits already containing the kernel-release fix, omit `--packaging-patch`.
+The historical example above describes the old image layout: use the runner from
+that revision for an unchanged historical image. Current runners require the
+shared `lauberhorn` environment and JSON manifest. The patch builder now accepts
+reviewed `nix/*.nix` definitions (including subdirectories), the interactive helper
+and listed C Makefiles as well as `flake.nix`; it copies composition inputs too.
+Its file allowlist is not proof of ABI preservation. Compare generated RTL and
+ABI collateral before programming, and record baseline-specific packaging tests
+separately from final-master evidence.
 Review any patch: it must preserve HW/ABI generation. Never force-load a module
 with incorrect vermagic. Image hashes are recorded provenance, not pinned test
 requirements. `/scratch/pengxu` is shared between gateway and CPU.
