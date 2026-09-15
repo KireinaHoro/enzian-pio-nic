@@ -18,6 +18,15 @@ relevant source and subsequent changes before relying on implementation details.
 - External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
 - Pending features and unresolved intent: [roadmap](docs/research/roadmap.md).
 
+## Current handoff
+
+PnR/QoR experiments are deferred until the maintainer's next Nix refactoring task
+is complete (scope still to be specified). Before resuming timing work, read the
+[saved resume point](docs/hardware/physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring).
+It records the latest three measured baselines, application/dynamic-only scope,
+ranked next changes and validation requirements. Do not start more timing runs
+while this prerequisite remains outstanding.
+
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,

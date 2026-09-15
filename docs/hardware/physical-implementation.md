@@ -5,6 +5,15 @@ for reset/program/load/RPC tests. A successful CI job or RPC run does not establ
 setup/hold closure. The [checkpoint findings](physical-findings.md) distinguish
 measured paths from possible explanations of board failures.
 
+## Current work order and partition scope
+
+PnR/QoR implementation is deferred until the requested Nix refactoring is complete.
+Use the [resume point](physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
+for the saved baseline, ranked experiments and validation steps. The first changes
+are application/dynamic only: gateway TX placement, RX elastic pipelining and
+secondary NIC timing. Static transport endpoints remain fixed; rebuilding or
+editing the static shell is outside this first experiment scope.
+
 ## Small-context analysis loop
 
 1. Retain the exact routed DCP, hardware commit and submodule commits, generated
