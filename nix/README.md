@@ -6,13 +6,15 @@ packages. Leaf recipes use `callPackage`; composition returning package sets use
 `import`, so override functions do not leak into flake outputs.
 
 - `toolchain/`: development shell and the pinned Spinal-compatible Verilator overlay.
-- `hardware/`: native Mill RTL/config generation and native Mackerel header generation.
+- `hardware/`: native Mill RTL/config generation and native Mackerel header generation,
+  and portable Vivado input bundles.
 - `software/`: Ubuntu kernel preparation, target module and installed runtime.
 - `applications/`: simple in-tree application recipes; external recipes live upstream.
 - `images/`: environment/manifest and SquashFS constructors.
 - `interactive/`: shared helper and collision-checked target tools.
-- `checks/`, `ci-checks.nix`: portable helper checks and existing simulation gates.
-- `ci/`, `eci-vivado-inputs.nix`: stable CI command and artifact-bundle contracts.
+- `checks/`: check-set composition, a shared Mill simulation recipe, trace-FIFO
+  regression and portable helper checks.
+- `ci/`: stable CI commands and the CI development environment.
 
 Authoritative tools: Nixpkgs supplies rpcsvc-proto/rpcgen, pkg-config, compilers and
 standard target tools. The unused private rpcsvc-proto derivation was removed.
