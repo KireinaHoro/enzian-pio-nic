@@ -130,20 +130,16 @@ in
     })
     // {
       interactive = pkgs.callPackage ./checks/interactive.nix { };
+    }
+    // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+      runtime-interface = applications.nix-build-demo;
     };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
-  ciEnvironment = pkgs.mkShell {
-    inputsFrom = [ (pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; }) ];
-    packages =
-      linuxTools
-      ++ (with pkgs; [
-        (ivy-gather (source + "/project-lock.nix"))
-        configure-mill-env-hook
-        iverilog
-        libpcap
-        squashfsTools
-        pkg-config
-      ])
-      ++ [ target.libtirpc ];
+  ciEnvironment = pkgs.callPackage ./ci/environment.nix {
+    shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
+    inherit linuxTools;
+    ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
+    targetTirpc = target.libtirpc;
+    ciBuild = (import ./ci { inherit pkgs; }).ciBuild;
   };
 }

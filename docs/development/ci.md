@@ -135,3 +135,11 @@ pipeline. After successful publication, use `lauberhorn-image.digest` from
 image-repository commit, not the platform commit. Keep an image switch on its
 branch until publication succeeds; then run the platform pipeline to validate
 all four regression jobs and the matching RTL/software handoff.
+
+## Packaging interface checks
+
+`interactive` checks helper JSON, arguments, executable selection and failure
+status without NIC access. `runtime-interface` cross-compiles the standalone demo
+against installed runtime headers and pkg-config. Both gate preparation alongside
+the existing regressions. `ciEnvironment` retains `ci-build` and native toolchain
+dependencies for image warming. These checks do not replace board evidence.

@@ -57,6 +57,12 @@ trace-tests:
 trace-fifo-tests:
   extends: .test-nix
 
+interactive:
+  extends: .test-nix
+
+runtime-interface:
+  extends: .test-nix
+
 prepare-eci:
   extends: .nix
   stage: prepare
@@ -68,6 +74,10 @@ prepare-eci:
     - job: trace-tests
       artifacts: false
     - job: trace-fifo-tests
+      artifacts: false
+    - job: interactive
+      artifacts: false
+    - job: runtime-interface
       artifacts: false
   script:
     - nix run --no-update-lock-file .#prepareEci

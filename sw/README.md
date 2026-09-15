@@ -92,9 +92,9 @@ We implement cross-compiling with Nix.
 $ nix build ".#kmod" -L
 $ file result/lauberhorn.ko
 result/lauberhorn.ko: ELF 64-bit LSB relocatable, ARM aarch64, version 1 (SYSV), BuildID[sha1]=[...], with debug_info, not stripped
-$ nix build ".#lauberhorn-rt" -L
-$ file result/liblauberhorn_eci.so
-result/liblauberhorn.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, with debug_info, not stripped
+$ nix build ".#runtime" -L
+$ file result/lib/liblauberhorn.so
+result/lib/liblauberhorn.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, with debug_info, not stripped
 ```
 For installed runtime development and shared image deployment, use the
 [interactive testing workflow](../docs/development/interactive-testing.md).
