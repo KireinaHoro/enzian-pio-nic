@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 
@@ -17,7 +18,7 @@ class HelperTests(unittest.TestCase):
         bindir = self.root / 'app/bin'
         bindir.mkdir(parents=True)
         executable = bindir / 'default'
-        executable.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$@"\nexit 37\n')
+        executable.write_text('#!' + shutil.which('bash') + '\nprintf "%s\\n" "$@"\nexit 37\n')
         executable.chmod(0o755)
         (bindir / 'alternate').symlink_to(executable)
         manifest = self.root / 'manifest.json'
