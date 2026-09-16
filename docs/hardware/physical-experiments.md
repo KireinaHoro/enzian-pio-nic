@@ -9,8 +9,8 @@ attempt stopped during project/IP creation and supplies no timing evidence.
 
 | Candidate | Platform branch / commit | CI pipeline / hardware job |
 | --- | --- | --- |
-| TX placement | `timing/20260916-tx-placement` / `173c976` | [511715](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511715) / 2831913 |
-| RX elastic stage | `timing/20260916-rx-elastic` / `8585a0f` | [511716](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511716) / 2831924 |
+| TX placement | `timing/20260916-tx-placement` / `abe57e4` | [511729](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511729) / 2832030 |
+| RX elastic stage | `timing/20260916-rx-elastic` / `eeeabf4` | [511730](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511730) / 2832041 |
 
 Both candidates remain **unmerged**. The local TX run completed; RX is running.
 No new board result is available. Static-shell v0.1.5 and its DCP remain unchanged.
@@ -55,12 +55,34 @@ runtime packages, and asserts the builder architecture during evaluation. The
 full local image build and 3,497-link/ELF checks passed; the helper's x86_64
 builder and AArch64 Bash were inspected explicitly. See the [CI note](../development/ci.md#deployment-script-builder-architecture).
 
-The table above records replacement CI submissions with this packaging fix.
+The table above records the latest CI submissions with both packaging and license fixes.
 Local inputs remain their original candidate revisions; no local PnR was restarted.
 Consequently local and replacement-CI RTL are **not identical-input repeats**:
 the new commit changes embedded CSR constants despite unchanged timing source.
 Keep that limitation when assessing reproducibility. Exact original/replacement
 manifests and failed logs are under `out/physical/resume-20260916/`.
+
+### Second CI failure: license endpoint, now corrected
+
+Pipelines 511715/511716 passed every test and deployment preparation, confirming
+the packaging fix. Vivado synthesis then failed on ba1/ba4 in jobs 2831913/2831924
+with `Common 17-345` (no Synthesis/xcvu9p license); no routed checkpoint exists.
+The report-job failures are secondary, not additional timing failures.
+
+The pinned image's only license server, `2100@hacc-lic-01.inf.ethz.ch`, failed a
+read-only connection check. Local Docker inherited the host's longer license
+search path, including the working `8181@lic-xilinx.ethz.ch` server. Fix `98921da`
+sets a shared CI/local default with ETH first and HACC as fallback, while honoring
+explicit host overrides. It passed the Nix workflow check (ShellCheck and 12
+tests) and a real xcvu9p synthesis in a fresh bridge-network container using the
+pinned image, with `LICENSE_SYNTHESIS_PASS` and exit zero. See the
+[license recovery note](../development/ci.md#license-server-recovery-september-16).
+
+The table now lists the resubmissions with this fix. `cases-packaging-relaunch.json`
+preserves the previous revisions; the active `cases.json` drives the existing
+04:31 CEST one-shot collector. Local RX remains running and was not restarted.
+No RTL, toolkit, static shell, license files or runner configuration changed for
+this recovery. Toolkit-owner approval remains outstanding.
 
 ### TX candidate and completed checks
 
