@@ -5,7 +5,7 @@ test "$(cat "$inputs/revision")" = "$LAUBERHORN_REV"
 # This local cache was produced by the preceding job in this same pipeline.
 nix copy --all --no-check-sigs --from "file://$inputs/cache"
 mkdir -p /nix/var/nix/gcroots/lauberhorn /opt/lauberhorn
-# The plan contains only ciEnvironment, never project test/build targets.
+# The plan contains tools and reusable inputs, never project test/build targets.
 index=0
 while IFS= read -r drv; do
   [[ "$drv" == /nix/store/*.drv ]]

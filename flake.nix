@@ -66,6 +66,7 @@
               deployFs
               eciVivadoInputs
               ciEnvironment
+              ciDependencies
               ;
             dummy-app-build-with-nix = platform.applications.nix-build-demo;
           }

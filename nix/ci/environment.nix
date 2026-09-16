@@ -9,7 +9,6 @@
   libpcap,
   squashfsTools,
   pkg-config,
-  targetTirpc,
   nix,
   bash,
   coreutils,
@@ -25,7 +24,6 @@ mkShell {
     libpcap
     squashfsTools
     pkg-config
-    targetTirpc
     # Cache wrapper dependencies, but execute wrappers from each job checkout.
     (lib.getBin nix)
     bash

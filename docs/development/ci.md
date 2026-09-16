@@ -132,9 +132,21 @@ recipe, Nix configuration and warmup targets.
 The current image was published by [job 2824055](https://gitlab.inf.ethz.ch/project-openenzian/tools/ci-images/-/jobs/2824055),
 with the environment from platform revision `2aaa537`.
 
-The prewarmed image builds `packages.x86_64-linux.ciEnvironment`, a shell
-containing build tools and locked Maven dependencies. It does not realize test,
-RTL, or deployment targets. Tests run in the platform pipeline, not while
+The prewarmed image builds two targets:
+
+- `packages.x86_64-linux.ciEnvironment`: native build tools and locked Maven dependencies.
+- `packages.x86_64-linux.ciDependencies`: the prepared Ubuntu kernel build tree,
+  fixed static-shell checkpoint, exact cross-compilation tools/libraries, and
+  AArch64 deployment utilities.
+
+The kernel target runs `olddefconfig` and `modules_prepare` using the pinned
+Ubuntu `.config`, `Module.symvers` and ABI release. It does not compile the Linux
+kernel or Lauberhorn module. It is reused until its source/configuration/toolchain
+changes. The static shell is a pinned download, never synthesized during warmup.
+Cross and deployment packages are rooted as exact store paths in a link farm;
+putting a cross package in native `mkShell.packages` can select its host variant.
+
+Warmup does not realize project test, RTL, or deployment-image targets. Tests run in the platform pipeline, not while
 publishing its CI image. Tool packages may run their own packaging checks.
 
 The image/job boundary is deliberate:
@@ -142,7 +154,7 @@ The image/job boundary is deliberate:
 | Image build (pinned by `lauberhorn.rev`) | Each platform job (current checkout) |
 | --- | --- |
 | Nix bootstrap, flake support and Docker-compatible sandbox defaults | Runner CPU/job limits via `NIX_CONFIG` (also supports the older pinned image) |
-| Locked compilers, simulators, Maven cache and wrapper dependencies | `nix run .#ciBuild`, `.#prepareEci` and `.#summarizePhysical` from the current flake |
+| Locked tools, Maven cache, prepared kernel, static shell and target dependencies | `nix run .#ciBuild`, `.#prepareEci` and `.#summarizePhysical` from the current flake |
 | Store database, build inputs and GC roots | Tests, RTL/software generation, reports and artifact freshness checks |
 | No credentials or checkout trust settings | `tools/ci/setup-job.sh`: scoped checkout trust, Git URL rewrites and ephemeral credential helper |
 
@@ -179,6 +191,52 @@ docker build -f out/lauberhorn-context/Dockerfile \
 Preparation requires a fresh output directory and fetches the pinned remote
 flake, including submodules. `LAUBERHORN_FLAKE` may override that URL for local
 testing; use the same commit as `LAUBERHORN_REV` to keep provenance accurate.
+
+## Image dependency audit, September 16
+
+[prepare-eci job 2832057](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2832057)
+rebuilt the prepared kernel tree and cross-built libtirpc, fetched the static-shell
+checkpoint, and realized `nuke-refs` and the cross toolchain's `rpcgen` variant.
+The kernel source fetch took roughly eight minutes; it was not a full kernel
+compilation. The previous warmup's `targetTirpc` shell input had selected native
+libtirpc, leaving the actual cross-built dependency uncached.
+
+`ciDependencies` now shares the kernel derivation, static-shell pin and deployment
+package list with their consumers. It roots the exact cross stdenv, pkg-config,
+rpcgen (including its development output), libtirpc library/headers, `nuke-refs`,
+native jq headers, minimal ShellCheck, build-environment support and target
+deployment utilities. Deployment links only executable outputs, avoiding unused
+target manual downloads. Project-dependent generated headers, module/runtime/app builds,
+helper/manifest generation, tests and image assembly stay in platform jobs.
+Rebuilding and publishing the CI image is required to make this cache available;
+changing the warmup target alone does not alter an existing digest-pinned image.
+
+To check the exact outputs needed by all jobs against locally realized warmup
+closures (without executing any project tests or hardware builds):
+
+```sh
+nix build .#ciEnvironment .#ciDependencies --no-link
+mkdir -p out/ci-image-audit
+nix eval --raw .#checks.x86_64-linux --apply \
+  'checks: builtins.concatStringsSep "\n" (map (c: c.drvPath) (builtins.attrValues checks))' \
+  > out/ci-image-audit/check-drvs
+mapfile -t ci_checks < out/ci-image-audit/check-drvs
+nix derivation show --recursive .#ciEnvironment .#ciDependencies \
+  .#deployFs .#eciVivadoInputs .#ciBuild .#prepareEci .#summarizePhysical \
+  "${ci_checks[@]}" > out/ci-image-audit/graph.json
+python3 tools/ci/image/audit.py out/ci-image-audit/graph.json
+```
+
+The audit checks selected outputs (such as `dev` versus `out`) and distinguishes
+source-dependent Lauberhorn derivations from their external inputs. It counts
+runtime closures plus build inputs guaranteed by non-substitutable warmup
+builders, since the image retains those inputs. It does not assume that exporting
+a derivation, or substituting a package, realizes that package's build dependencies.
+Local validation passed with **48/48 external dependency outputs cached**, both
+warmup targets realized, and all 12 workflow tests passing. This is local cache
+coverage evidence; image publication and digest adoption are separate steps.
+The graph must include every CI target; new project-derived package names must
+follow the `lauberhorn-` prefix or be classified explicitly in the audit tool.
 
 ## Packaging interface checks
 
