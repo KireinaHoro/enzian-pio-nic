@@ -11,6 +11,10 @@ case $mode in build|project-only|report) ;; *) echo "Unknown mode: $mode" >&2; e
 }
 image=$(sed -n 's/^  image: //p' "$bundle/vivado/eci/container.yml")
 [[ $image =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]] || { echo 'Invalid pinned container image in bundle' >&2; exit 1; }
+license_default=$(sed -n 's/^    XILINXD_LICENSE_FILE: //p' "$bundle/vivado/eci/container.yml")
+[[ -n $license_default && $license_default != *[[:space:]]* ]] || {
+  echo 'Invalid default license servers in bundle' >&2; exit 1;
+}
 installation=$(realpath "${VIVADO_INSTALLATION:-/opt/Xilinx}")
 # Docker's --mount format cannot represent commas in these paths.
 [[ $bundle$output$installation != *,* ]] || { echo 'Docker mount paths must not contain commas' >&2; exit 2; }
@@ -25,7 +29,10 @@ args=(run --rm --init --user "$(id -u):$(id -g)" --network host
   --mount "type=bind,src=$output,dst=/work"
   --mount "type=bind,src=$installation,dst=/opt/Xilinx,readonly"
   --workdir /work --env HOME=/tmp --entrypoint /bin/bash)
-for variable in XILINXD_LICENSE_FILE LM_LICENSE_FILE VIVADO_ROOT; do
+# Match CI's shared defaults instead of inheriting the image's older server.
+# An explicitly configured host license path still takes precedence.
+args+=(--env "XILINXD_LICENSE_FILE=${XILINXD_LICENSE_FILE:-$license_default}")
+for variable in LM_LICENSE_FILE VIVADO_ROOT; do
   [[ ! -v $variable ]] || args+=(--env "$variable")
 done
 run() { docker "${args[@]}" "$image" /bundle/tools/hardware/run-vivado.sh /bundle /work "$1"; }
