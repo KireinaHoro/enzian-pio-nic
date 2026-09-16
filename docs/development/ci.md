@@ -15,7 +15,8 @@ Both Nix and Vivado Docker images are pinned by digest.
 the bundled Docker launcher. CI invokes `tools/hardware/run-vivado.sh` inside
 that image; local launches use the same runner, without Docker-in-Docker. No lock updates occur in CI.
 The minimal hosted `xilinx-tools` image supplies Vivado runtime dependencies
-and license configuration, without the Spinal/Verilator layer. It receives Vivado through the runner's `/opt/Xilinx` mount;
+without the Spinal/Verilator layer. `vivado/eci/container.yml` also supplies the
+license-server default shared with the local Docker launcher. It receives Vivado through the runner's `/opt/Xilinx` mount;
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
 digest alone does not pin that separately maintained installation.
 
@@ -166,3 +167,22 @@ the helper derivation confirmed as x86_64 and its packaged Bash interpreter as
 AArch64. The local attempt to disable extra platforms was ignored by the daemon;
 the architecture claim comes from inspecting the derivation and image, not that
 ignored option. CI remains the check under the runner's actual restrictions.
+
+
+## License-server recovery, September 16
+
+After the deployment-helper fix, pipelines 511715/511716 passed every regression
+and `prepare-eci`, then failed Vivado synthesis in jobs 2831913/2831924 on ba1/ba4:
+`Common 17-345`, no Synthesis/xcvu9p license. Their report-job errors were secondary.
+The pinned image points only at `2100@hacc-lic-01.inf.ethz.ch`, which a read-only
+license query could not reach. The working local build inherited host settings
+including `8181@lic-xilinx.ethz.ch`; that server reported available Synthesis
+licenses. This was a license-service/configuration failure, not an RTL failure.
+
+The shared container configuration now tries the ETH server first, then HACC.
+The local launcher explicitly passes the same default when the host has no
+override, rather than inheriting the image's stale single-server setting.
+A fresh bridge-network Docker container with the pinned image completed actual
+Vivado 2025.1 synthesis for xcvu9p using the ETH server (`LICENSE_SYNTHESIS_PASS`).
+Workflow tests cover both default inheritance and explicit host overrides.
+No license files or runner-wide configuration were changed.
