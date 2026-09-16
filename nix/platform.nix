@@ -134,6 +134,5 @@ in
     inherit linuxTools;
     ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
     targetTirpc = target.libtirpc;
-    ciBuild = (import ./ci { inherit pkgs; }).ciBuild;
   };
 }

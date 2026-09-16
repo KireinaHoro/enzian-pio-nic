@@ -25,7 +25,7 @@ runCommand "lauberhorn-workflow-tools-tests"
   }
   ''
     cp -r ${source}/. .
-    shellcheck -x tools/ci/*.sh tools/hardware/*.sh
+    shellcheck -x tools/ci/*.sh tools/ci/image/*.sh tools/hardware/*.sh
     python3 -m unittest discover -s tools/ci/tests -v
     touch $out
   ''

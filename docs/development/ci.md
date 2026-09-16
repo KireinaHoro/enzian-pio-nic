@@ -121,7 +121,14 @@ pin only after updating and validating the Spinal simulation backend.
 ## Prewarmed Nix image
 
 All jobs extending `.nix` use the digest-pinned `lauberhorn-flakes` image built
-in `project-openenzian/tools/ci-images` with `LauberhornFlakes.Dockerfile`.
+in `project-openenzian/tools/ci-images` using the platform-owned [`tools/ci/image/Dockerfile`](../../tools/ci/image/Dockerfile).
+The image repository reads `lauberhorn.rev`, checks out that exact platform
+commit, and runs its `tools/ci/image/prepare.sh`. That script exports the locked
+derivation/source closure and copies the Dockerfile and warmup script into a
+fresh `lauberhorn-context/` artifact. Kaniko uses only that context; credentials
+and the bootstrap checkout are not included. The image repository owns registry
+authentication, scheduling and publication, while this repository owns the build
+recipe, Nix configuration and warmup targets.
 The current image was published by [job 2824055](https://gitlab.inf.ethz.ch/project-openenzian/tools/ci-images/-/jobs/2824055),
 with the environment from platform revision `2aaa537`.
 
@@ -130,17 +137,48 @@ containing build tools and locked Maven dependencies. It does not realize test,
 RTL, or deployment targets. Tests run in the platform pipeline, not while
 publishing its CI image. Tool packages may run their own packaging checks.
 
+The image/job boundary is deliberate:
+
+| Image build (pinned by `lauberhorn.rev`) | Each platform job (current checkout) |
+| --- | --- |
+| Nix bootstrap, flake support and Docker-compatible sandbox defaults | Runner CPU/job limits via `NIX_CONFIG` (also supports the older pinned image) |
+| Locked compilers, simulators, Maven cache and wrapper dependencies | `nix run .#ciBuild`, `.#prepareEci` and `.#summarizePhysical` from the current flake |
+| Store database, build inputs and GC roots | Tests, RTL/software generation, reports and artifact freshness checks |
+| No credentials or checkout trust settings | `tools/ci/setup-job.sh`: scoped checkout trust, Git URL rewrites and ephemeral credential helper |
+
+Git transport setup stays with the current job's authentication policy, including
+the host-scoped URL rewrites needed by Nix's independent Git cache. Do not bake
+`safe.directory`, tokens, a project checkout, test results or generated hardware
+into the image. Prewarming does not install old platform wrappers onto PATH.
+The export job needs Git authentication to fetch private inputs; the Kaniko job
+needs registry authentication to publish, but receives no Git credentials.
+
 The image preserves the Nix store, database and build dependencies. Jobs still
 build their own checkout against its lockfiles; missing or changed dependencies
 are fetched/built normally. Warming the environment does not cache project test
 results or replace the platform regression gates.
 
-To refresh, update `lauberhorn.rev` in the image repository and run its main
+To refresh, first push the platform commit containing the image scripts, then
+update `lauberhorn.rev` in the image repository and run its main
 pipeline. After successful publication, use `lauberhorn-image.digest` from
 `lauberhorn-flakes-image` to update `.nix.image.name` here. The tag is the full
 image-repository commit, not the platform commit. Keep an image switch on its
 branch until publication succeeds; then run the platform pipeline to validate
 all regression and packaging checks and the matching RTL/software handoff.
+
+For local preparation from a clean committed platform checkout:
+
+```sh
+LAUBERHORN_REV=$(git rev-parse HEAD) \
+  bash tools/ci/image/prepare.sh out/lauberhorn-context
+docker build -f out/lauberhorn-context/Dockerfile \
+  --build-arg LAUBERHORN_REV=$(git rev-parse HEAD) \
+  -t lauberhorn-flakes out/lauberhorn-context
+```
+
+Preparation requires a fresh output directory and fetches the pinned remote
+flake, including submodules. `LAUBERHORN_FLAKE` may override that URL for local
+testing; use the same commit as `LAUBERHORN_REV` to keep provenance accurate.
 
 ## Packaging interface checks
 
@@ -148,8 +186,8 @@ all regression and packaging checks and the matching RTL/software handoff.
 status without NIC access. `runtime-interface` cross-compiles the standalone demo
 against installed runtime headers and pkg-config. Both gate preparation alongside
 the existing regressions. `workflow-tools` checks shell scripts and tests artifact
-freshness and hardware-runner failure handling with fake tools. `ciEnvironment` retains `ci-build` and native toolchain
-dependencies for image warming. These checks do not replace board evidence.
+freshness and hardware-runner failure handling with fake tools. `ciEnvironment` retains native toolchain and wrapper
+dependencies for image warming; wrappers themselves come from each job checkout. These checks do not replace board evidence.
 
 ## Deployment script builder architecture
 
