@@ -27,8 +27,10 @@ resumed September 16: independent TX placement and RX elastic-stage candidates
 are submitted to CI, with two sequential local Nix/Docker builds. Read the
 [active campaign](docs/hardware/physical-experiments.md#active-campaign-september-16-eci-txrx-candidates)
 for branches, validation and collection. Local TX completed at WNS −0.122 ns;
-RX is running. CI was resubmitted after fixing the script-only deployment helper
-to build on x86_64 while retaining AArch64 runtime packages. Keep toolkit
+RX is running. CI passed deployment after fixing the script-only helper to
+build on x86_64, then failed on the image's unreachable license endpoint. Both
+candidates were resubmitted with shared ETH/HACC license defaults, validated by
+a real xcvu9p synthesis probe. Keep toolkit
 changes on their feature branch until the owning colleague approves; neither
 candidate is merged. The static shell remains unchanged.
 
