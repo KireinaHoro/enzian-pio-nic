@@ -9,12 +9,58 @@ attempt stopped during project/IP creation and supplies no timing evidence.
 
 | Candidate | Platform branch / commit | CI pipeline / hardware job |
 | --- | --- | --- |
-| TX placement | `timing/20260916-tx-placement` / `c4174e5` | [511631](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511631) / 2831284 |
-| RX elastic stage | `timing/20260916-rx-elastic` / `720bd1b` | [511633](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511633) / 2831305 |
+| TX placement | `timing/20260916-tx-placement` / `173c976` | [511715](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511715) / 2831913 |
+| RX elastic stage | `timing/20260916-rx-elastic` / `8585a0f` | [511716](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511716) / 2831924 |
 
-Both candidates remain **unmerged**. No new routed or board result is available
-at this update. Static-shell v0.1.5 and its DCP remain unchanged. The September 15
-reports below remain the measured baseline.
+Both candidates remain **unmerged**. The local TX run completed; RX is running.
+No new board result is available. Static-shell v0.1.5 and its DCP remain unchanged.
+The September 15 reports below remain the historical comparison baseline.
+
+### First local result and CI packaging recovery
+
+The canonical Nix/Docker flow completed synthesis, implementation, bitstream/LTX
+creation and COMPLETE checkpoint reports for TX revision `c4174e5`, exiting zero.
+Its completion event started the local RX run at original revision `720bd1b`.
+
+| Local TX result | Value |
+| --- | ---: |
+| WNS / TNS | −0.122 / −75.192 ns |
+| Failing setup endpoints | 1,660 |
+| WHS / failing hold endpoints | +0.003 ns / 0 |
+| WPWS / failing pulse endpoints | +0.039 ns / 0 |
+| Routing errors | 0 |
+| Application-clock / trace TX slack | +0.042 / +0.344 ns |
+
+Compared with job 2824643, WNS improves 0.083 ns and |TNS| falls 75.4%, but this
+is a single implementation with different embedded commit constants. **Setup
+closure is not achieved.** Worst sampled paths are RX FIFO/control at −0.122 ns,
+TX crossbar input high/low classification to arbitration mask at −0.121 ns,
+and crossbar-to-credit-buffer data/enable paths at −0.119/−0.116 ns. RX pipelining
+alone may therefore leave TX arbitration/credit paths critical.
+
+A completed, bounded query of all four output-buffer-to-static-transport families
+confirms positive setup slack: link 1 high/low **+0.247/+0.109 ns**, link 2 high/low
+**+0.061/+0.131 ns**. This verifies that the targeted boundary paths pass in this
+implementation, rather than inferring it from their absence in the global sample.
+Reports: `out/physical/resume-20260916/local-tx/tx-boundary-results/`.
+CDC diagnostic counts exactly match job 2824643; they remain structural findings,
+not proof of CDC correctness.
+
+The first CI pipelines (511631/511633) passed every regression gate, including
+RX VHDL, but failed deployment preparation in jobs 2831283/2831304: the script-only
+`lh-test` derivation incorrectly required an AArch64 builder. Their hardware jobs
+were skipped; report-job missing-artifact errors were consequential. Fix
+`f98e23c` writes the script on x86_64 while retaining the AArch64 interpreter and
+runtime packages, and asserts the builder architecture during evaluation. The
+full local image build and 3,497-link/ELF checks passed; the helper's x86_64
+builder and AArch64 Bash were inspected explicitly. See the [CI note](../development/ci.md#deployment-script-builder-architecture).
+
+The table above records replacement CI submissions with this packaging fix.
+Local inputs remain their original candidate revisions; no local PnR was restarted.
+Consequently local and replacement-CI RTL are **not identical-input repeats**:
+the new commit changes embedded CSR constants despite unchanged timing source.
+Keep that limitation when assessing reproducibility. Exact original/replacement
+manifests and failed logs are under `out/physical/resume-20260916/`.
 
 ### TX candidate and completed checks
 
@@ -65,21 +111,22 @@ Both clean candidate bundles built through Nix. On ba2:
 
 - TX inputs `/tmp/lh-timing-inputs-20260916-tx`, output
   `/tmp/lh-timing-local-20260916-tx`, service `lh-timing-tx-20260916.service`;
-  the canonical Docker runner reached synthesis.
+  the canonical Docker runner completed and returned exit status zero.
 - RX inputs `/tmp/lh-timing-inputs-20260916-rx`, output
   `/tmp/lh-timing-local-20260916-rx`. The event-based
   `lh-timing-rx-20260916.path` starts its service when TX writes its exit-status
-  file. Local runs are sequential to limit memory contention with CI.
-- Each uses the same committed input revision as its CI candidate, the pinned
+  file; RX is now running. Local runs are sequential to limit memory contention with CI.
+- Each uses its original committed candidate input revision, the pinned
   Docker image and Vivado 2025.1. The local runner retains build exit status and
-  invokes checkpoint reporting after routing. Compare local versus CI results
-  for each real candidate; do not confuse these with baseline repeats.
+  invokes checkpoint reporting after routing. Compare local versus replacement CI results
+  with the revision/CSR caveat above; do not confuse these with baseline repeats.
 
 Evidence and exact CI manifest: `out/physical/resume-20260916/`. The initial
 snapshot found TX running and RX pending, without failed jobs; hardware jobs
 were still waiting on prerequisites. No CI polling loop was started.
-`lh-timing-collect-20260916.timer` on the development host collects once nine
-hours after submission, using `collect-once.sh` in that evidence directory.
+`lh-timing-collect-20260916.timer` was stopped after the CI failures. Replacement
+`lh-timing-collect-20260916-relaunch1.timer` on the development host collects once
+at **September 17, 04:31 CEST**, using `collect-once.sh` in that evidence directory.
 It fetches CI archives and local reports, then generates digests. A notification
 can justify an earlier manual collection. The timer does not wake an LLM session
 or submit another experiment; pending jobs are left pending.
