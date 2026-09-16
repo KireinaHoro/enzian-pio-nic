@@ -149,3 +149,20 @@ against installed runtime headers and pkg-config. Both gate preparation alongsid
 the existing regressions. `workflow-tools` checks shell scripts and tests artifact
 freshness and hardware-runner failure handling with fake tools. `ciEnvironment` retains `ci-build` and native toolchain
 dependencies for image warming. These checks do not replace board evidence.
+
+## Deployment script builder architecture
+
+`nix/interactive/tools.nix` writes `lh-test` with the native package set's
+`writeTextFile`, while its shebang and runtime PATH reference AArch64 packages.
+The helper derivation must use the build host's system; an evaluation assertion
+checks this even if outputs are cached. Using `target.writeShellScriptBin`
+incorrectly requires an AArch64 builder merely to write the script.
+
+This caused both September 16 timing pipelines to fail in `prepare-eci`
+(jobs 2831283/2831304), after all test gates passed. Hardware jobs were skipped;
+the report jobs then failed because no timing artifacts existed. The correction
+built a full local image and passed the image link/ELF checks (3,497 links), with
+the helper derivation confirmed as x86_64 and its packaged Bash interpreter as
+AArch64. The local attempt to disable extra platforms was ignored by the daemon;
+the architecture claim comes from inspecting the derivation and image, not that
+ignored option. CI remains the check under the runner's actual restrictions.
