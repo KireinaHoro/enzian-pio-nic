@@ -5,6 +5,15 @@ for reset/program/load/RPC tests. A successful CI job or RPC run does not establ
 setup/hold closure. The [checkpoint findings](physical-findings.md) distinguish
 measured paths from possible explanations of board failures.
 
+## Current work order and partition scope
+
+PnR/QoR implementation is deferred until the requested Nix refactoring is complete.
+Use the [resume point](physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
+for the saved baseline, ranked experiments and validation steps. The first changes
+are application/dynamic only: gateway TX placement, RX elastic pipelining and
+secondary NIC timing. Static transport endpoints remain fixed; rebuilding or
+editing the static shell is outside this first experiment scope.
+
 ## Small-context analysis loop
 
 1. Retain the exact routed DCP, hardware commit and submodule commits, generated
@@ -101,10 +110,11 @@ and selected crossing registers to source/destination regions. The name
 actual `add_cells_to_pblock` selectors. Check utilization, actual LOCs, pblock
 membership and fixed cells before tightening regions. Overconstraining a crowded
 region can turn a local improvement into routing congestion elsewhere.
-Check wildcard matches when adding ports: `i_app/*x_rst_sync` also captures
-`trace_dump_tx_rst_sync` and assigns it to SLR0, despite trace TX consumers near
-SLR2. The [four-run comparison](physical-experiments.md#completed-implementation-comparison)
-measures the resulting synchronous reset routing bottleneck.
+Check wildcard matches when adding ports. The old `i_app/*x_rst_sync` selector
+also captured `trace_dump_tx_rst_sync` into SLR0. Current constraints use exact
+main/trace instances and place trace resets with the TX FIFO in SLR2. The
+[latest comparison](physical-experiments.md#september-15-completed-prewarmed-nix-master-builds)
+shows positive trace TX slack and remaining ECI gateway/transport bottlenecks.
 
 For routed experiments, first copy the DCP and change a small placement hypothesis;
 never overwrite the baseline or the static-shell release. A path ending in fixed

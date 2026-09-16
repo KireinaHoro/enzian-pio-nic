@@ -43,7 +43,14 @@ let
    installPhase = ''mkdir -p $out/bin; cp bench_client $out/bin/'';
  };
  crane = builtins.getFlake "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
- dandelion = cross.callPackage ../../sw/apps/dandelion/package.nix {inherit crane; source = dandelionSource; runtimePkg = rt;};
+ # Historical ABI/flat runtime recipe, intentionally isolated from the current
+ # installed-runtime contract. This helper reproduces the September 10 campaign.
+ dandelionPatched = pkgs.applyPatches {
+   name = "historical-dandelion-source";
+   src = dandelionSource;
+   patches = [ ../../sw/apps/dandelion/0001-registered-endpoint-and-worker-placement.patch ];
+ };
+ dandelion = cross.callPackage (dandelionPatched + "/package.nix") { inherit crane; runtimePkg = rt; };
  platform = ((import (platformRoot + "/flake.nix")).outputs (ci.inputs // {self=ci;})).packages.x86_64-linux;
  marker = pkgs.writeText "git-hash" "${runtimeRevision}\n";
  mkImage = extra: pkgs.callPackage "${ci.inputs.nixpkgs}/nixos/lib/make-squashfs.nix" {

@@ -178,3 +178,10 @@ Dandelion PCAP SHA-256:
 Matmul fixture (`machine_interface/tests/data/test_elf_mmu_aarch64_matmul`
 from the Dandelion snapshot) SHA-256:
 `ab570741dcc23e098db3f71c4d686a4bd9e60edd9af66a49c876945f7b9060d0`.
+
+## Nix packaging campaign — 2026-09-15
+
+Four verified-reset trials of the shared image passed on job 2812450 hardware:
+helper and direct paths twice each, 400 correct adder replies total. This was
+packaging validation using matching historical sources, not final-master hardware
+validation. See the [full provenance and checks](nix-refactor-validation.md).

@@ -102,8 +102,7 @@ $ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim -- -t rx-t
 ```
 
 Repeat a flaky test until it fails.  `repeat-test` is provided by the dev shell
-but its default names the shared `NicSim` trait, not a runnable suite. Always
-supply a concrete suite:
+and defaults to `OncRpcSim`. Supply another concrete suite when needed:
 
 ```console
 $ nix develop -c repeat-test rx-tx-interleaved lauberhorn.host.eci.OncRpcSim
@@ -119,18 +118,11 @@ GitLab CI uses locked Nix builds in a digest-pinned, prewarmed
 `lauberhorn-flakes` image. The image contains build tools and locked Maven
 dependencies; project tests run in this pipeline, not during image publication.
 
-1. `fast-tests-eci`, `blocks-tests`, `trace-tests`, and `trace-fifo-tests` run on
-   every pipeline through `checks.x86_64-linux.<job>`. All four gate preparation.
-2. `prepare-eci` builds `eciVivadoInputs` and `deployFs`: a portable Vivado input
-   bundle and matching AArch64 kernel module/runtime/application SquashFS. RTL
-   and software share generated ABI headers and the checked commit marker.
-3. `build-hw-eci` consumes those artifacts using the minimal, digest-pinned
-   `xilinx-tools` image and the runner's Vivado 2025.1 installation. It runs only
-   Vivado, with no source checkout or Spinal/Mill regeneration, and saves the
-   bitstream, probes, routed checkpoint and STA reports.
-4. `report-hw-eci` summarizes STA through Nix and checks that collection completed.
-   Negative slack is reported rather than rejected automatically.
-5. `publish` releases the matching ECI hardware and software artifacts on tags.
+Regression and packaging checks gate a matching RTL bundle and deployment image.
+The hardware job consumes that bundle using the same pinned Docker environment
+and bundled runner as [interactive hardware builds](docs/development/hardware-build.md).
+It produces the bitstream, probes, routed checkpoint and STA reports; tag jobs
+publish the matching hardware and software artifacts.
 
 The full slow simulation suite, TLA+ checks and real-board tests are not CI gates.
 Some registered simulation tests have empty TODO bodies; see the
@@ -152,24 +144,18 @@ Build the same RTL/configuration output as a Nix package:
 $ nix build .#genVerilog -L
 ```
 
-Generate the ECI Vivado project or bitstream from inside the dev shell:
+Package the ECI Vivado inputs, including the pinned static-shell checkpoint:
 
 ```console
-$ nix develop -c mill --no-daemon eci.vivadoProject
-$ nix develop -c mill --no-daemon eci.generateBitstream
+$ nix build .#eciVivadoInputs --out-link out/vivado-inputs
 ```
 
-The ECI bitstream flow downloads the configured static shell checkpoint during
-the Mill task.  Use `--no-daemon` for Vivado-related tasks so a stale Mill
-server does not keep an old environment.
+Use the [Docker hardware-build workflow](docs/development/hardware-build.md) to
+create a project or build a bitstream on `enzian-ba2`. Mill owns compilation,
+simulation and RTL/ABI generation; Vivado runs through the bundled runner.
 
-PCIe generation tasks still exist for the legacy path, but contain unfinished
-preemption support and are not a supported equivalent of the ECI build:
-
-```console
-$ nix develop -c mill --no-daemon pcie.generateVerilog
-$ nix develop -c mill --no-daemon pcie.generateBitstream
-```
+`nix develop -c mill pcie.generateVerilog` remains a legacy RTL target with
+unfinished preemption support. PCIe has no supported bitstream build entry point.
 
 ## Software Builds
 
@@ -182,7 +168,7 @@ $ file result/lauberhorn.ko
 
 # Userspace runtime library.
 $ nix build .#runtime -L
-$ file result/liblauberhorn.so
+$ file result/lib/liblauberhorn.so
 
 # SquashFS deployment image containing the kernel module and demo apps.
 $ nix build .#deployFs -L
@@ -192,8 +178,7 @@ The Nix builds generate RTL-derived headers and Mackerel headers automatically.
 For manual development, RTL generation alone is insufficient: Makefiles require
 `HW_CFG_HDRS` and `MACKEREL_DEV_HDRS` pointing to generated C headers, plus target
 libtirpc or kernel build dependencies. Prefer the Nix packages; see the
-[workflow guide](docs/development/workflow.md) for artifact contracts and known
-Vivado output-path discrepancies.
+[workflow guide](docs/development/workflow.md) for artifact contracts.
 
 ## Trace Tools
 

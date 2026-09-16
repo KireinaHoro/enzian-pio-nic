@@ -2,11 +2,8 @@
 # Independent CPU-side steps. Run as root; mount the closure at /nix/store.
 set -euo pipefail
 [[ $EUID == 0 ]] || { echo 'Run as root' >&2; exit 1; }
-shopt -s nullglob
-one() {
-    [[ $# == 1 ]] || { echo 'Expected exactly one matching store path' >&2; return 1; }
-    printf '%s\n' "$1"
-}
+LH=/nix/store/lauberhorn
+export PATH="$LH/bin:$LH/sbin:$PATH"
 case ${1:-} in
 mount)
     [[ $# == 2 ]] || exit 2
@@ -20,17 +17,11 @@ mount)
 ;;
 load)
     [[ $# == 1 ]] || exit 2
-    module=$(one /nix/store/*-lauberhorn-kmod/lauberhorn.ko)
-    [[ $(modinfo -F vermagic "$module") == "$(uname -r) "* ]] || {
-        echo 'Module/kernel ABI mismatch' >&2; exit 1;
-    }
-    [[ ! -d /sys/module/lauberhorn ]] || { echo 'Module already loaded' >&2; exit 1; }
-    insmod "$module"
+    "$LH/bin/lh-test" load
 ;;
 verify)
     [[ $# == 1 ]] || exit 2
-    marker=$(one /nix/store/*-git-hash)
-    revision=$(cat "$marker")
+    revision=$(jq -er .platform.revision "$LH/manifest.json")
     [[ $revision =~ ^[0-9a-f]{40}$ ]] || exit 1
     expected_hw=$(printf '%08x' "0x${revision:0:16}")
     actual_hw=$(dmesg | awk '/Lauberhorn NIC version:/ {v=$NF} END {print v}')
@@ -39,18 +30,7 @@ verify)
 ;;
 configure)
     [[ $# == 3 ]] || exit 2
-    mac=$2
-    cidr=$3
-    ip link set lauberhorn0 address "$mac"
-    ip link set lauberhorn0 mtu 1500
-    ip addr add "$cidr" dev lauberhorn0
-    # CMAC initialization may need another attempt while the link settles.
-    for attempt in 1 2 3; do
-    if ip link set lauberhorn0 up; then break; fi
-    [[ $attempt != 3 ]] || exit 1
-    sleep 2
-    done
-    ip -br addr show dev lauberhorn0
+    "$LH/bin/lh-test" configure "$2" "$3"
 ;;
 serve)
     [[ $# == 4 ]] || exit 2
@@ -60,12 +40,14 @@ serve)
     [[ $operation == add || $operation == mul ]]
     [[ $workers =~ ^[1-9][0-9]*$ ]]
     mkdir "$logs"
-    app=$(one /nix/store/*-lauberhorn-app-microbenchmarks/microbenchmarks)
+    app="$LH/apps/microbenchmarks/bin/microbenchmarks"
     systemctl start rpcbind
     rpcinfo -p localhost
     # Keep the service running for a separate, externally routed correctness client.
     # Timeout/kill recovery is not certified; do not automatically kill RPC workers.
-    nohup "$app" "$operation" "$workers" "$logs/server.csv" > "$logs/server.log" 2>&1 < /dev/null &
+    launcher=("$LH/bin/lh-test" run microbenchmarks --)
+    [[ ${LH_DIRECT:-0} != 1 ]] || launcher=("$app")
+    nohup "${launcher[@]}" "$operation" "$workers" "$logs/server.csv" > "$logs/server.log" 2>&1 < /dev/null &
     server_pid=$!
     echo "$server_pid" > "$logs/server.pid"
     sleep 2

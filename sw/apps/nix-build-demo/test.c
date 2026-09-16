@@ -1,4 +1,12 @@
-#include <stddef.h>
+#include <lauberhorn.h>
+#include <stdio.h>
 
-int lauberhorn_init(void *);
-int main() { lauberhorn_init(NULL); }
+int main(void) {
+    lauberhorn_t context;
+    if (lauberhorn_init(&context)) {
+        perror("lauberhorn_init");
+        return 1;
+    }
+    lauberhorn_fini(&context);
+    return 0;
+}
