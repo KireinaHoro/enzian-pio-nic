@@ -1,5 +1,95 @@
 # Physical implementation experiments — 2026-09-10
 
+## Active campaign: September 16 ECI TX/RX candidates
+
+Timing work resumed from master `2890f3c` after the Nix refactor. The maintainer
+requested actual candidates through both local Nix/Docker builds and CI; the
+previously proposed identical-input baseline repeats were canceled. One baseline
+attempt stopped during project/IP creation and supplies no timing evidence.
+
+| Candidate | Platform branch / commit | CI pipeline / hardware job |
+| --- | --- | --- |
+| TX placement | `timing/20260916-tx-placement` / `c4174e5` | [511631](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511631) / 2831284 |
+| RX elastic stage | `timing/20260916-rx-elastic` / `720bd1b` | [511633](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511633) / 2831305 |
+
+Both candidates remain **unmerged**. No new routed or board result is available
+at this update. Static-shell v0.1.5 and its DCP remain unchanged. The September 15
+reports below remain the measured baseline.
+
+### TX candidate and completed checks
+
+Read-only Vivado 2025.1 analysis on ba2 of job 2824643 confirms link 1's fixed
+transport endpoints around SLICE_X148Y464 and link 2's around SLICE_X149Y537.
+Only the four application output buffers are constrained: link 1 to
+X120–141/Y450–509; link 2 to X120–141/Y510–539 plus X120–168/Y540–559.
+Vivado found 1320/1520 slice sites, **zero sites outside the dynamic partition and
+zero static cells** in either candidate region. The buffer resources require
+353/371 LUTs and 1320/1336 registers respectively. These checks establish legal
+placement scope, not QoR improvement; upstream credit/ready paths must also be
+checked after routing. TX does not modify eci-toolkit.
+
+### RX candidate and toolkit ownership
+
+Toolkit branch `timing/20260916-rx-elastic` contains prerequisite regression
+commit `c60ca71` and pipeline commit `c92f0d9`, based on `9dd94de`. Toolkit master
+is untouched. For CI access, the commits are retained only in the **private
+platform project**, branch `timing/20260916-eci-toolkit-rx-elastic`; the platform
+RX experiment temporarily points its toolkit submodule URL there. Nothing was
+pushed to the colleague-owned toolkit remote. **Owner approval is required before
+adopting these toolkit changes into platform master.** Preserve the branches for
+that review, regardless of timing outcome.
+
+The BRAM-mode extractor registers all three words, size, length and valid between
+the six-to-three split and packetizer. The split advances on elastic-stage
+acceptance; stalled records remain stable. Receive credits remain tied to
+downstream channel consumption. Low-latency mode keeps its existing bypass.
+
+The focused GHDL regression passed on both unpipelined and pipelined extractors:
+8 cases, VCs 2–5, two seeds, 288 messages per case, all nonempty normal-message
+masks, CAS traffic, sparse lanes, sustained arrivals, credit-window stalls,
+random/long backpressure, data/metadata order, stable outputs and exact credit
+counts. The Nix `eci-toolkit-rx` check also passed and gates this candidate's CI.
+The FIFO model validates protocol behavior, not vendor XPM timing/CDC; Vivado
+still elaborates the unchanged vendor FIFO.
+
+The prerequisite range correction allows `buf_copy_start=3` when count=0; it
+performs no indexed read and retains the same two-bit width. Tests separately
+reproduce a **pre-existing RSTP packetizer failure**, whose repair is deferred to
+the owner. Low-latency GHDL elaboration has a pre-existing unresolved-driver issue;
+that mode is not claimed as tested. Details and reproducers are in the toolkit
+feature branch's `tests/rx/README.md`.
+
+### Local Docker runs and collection
+
+Both clean candidate bundles built through Nix. On ba2:
+
+- TX inputs `/tmp/lh-timing-inputs-20260916-tx`, output
+  `/tmp/lh-timing-local-20260916-tx`, service `lh-timing-tx-20260916.service`;
+  the canonical Docker runner reached synthesis.
+- RX inputs `/tmp/lh-timing-inputs-20260916-rx`, output
+  `/tmp/lh-timing-local-20260916-rx`. The event-based
+  `lh-timing-rx-20260916.path` starts its service when TX writes its exit-status
+  file. Local runs are sequential to limit memory contention with CI.
+- Each uses the same committed input revision as its CI candidate, the pinned
+  Docker image and Vivado 2025.1. The local runner retains build exit status and
+  invokes checkpoint reporting after routing. Compare local versus CI results
+  for each real candidate; do not confuse these with baseline repeats.
+
+Evidence and exact CI manifest: `out/physical/resume-20260916/`. The initial
+snapshot found TX running and RX pending, without failed jobs; hardware jobs
+were still waiting on prerequisites. No CI polling loop was started.
+`lh-timing-collect-20260916.timer` on the development host collects once nine
+hours after submission, using `collect-once.sh` in that evidence directory.
+It fetches CI archives and local reports, then generates digests. A notification
+can justify an earlier manual collection. The timer does not wake an LLM session
+or submit another experiment; pending jobs are left pending.
+
+Next: read all four report digests, compare setup/hold/pulse width, routing,
+clock/path families and CDC. If each isolated change helps its intended family,
+prepare a combined experimental branch; keep toolkit-owner approval outstanding.
+Reliable closure requires clean routed results across the relevant runs, not a
+successful CI status or one improved global WNS. Board validation remains later.
+
 ## Resume point: PnR/QoR work deferred for Nix refactoring
 
 Updated 2026-09-15. The Nix packaging/shared interactive-test prerequisite is
