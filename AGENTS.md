@@ -18,6 +18,15 @@ relevant source and subsequent changes before relying on implementation details.
 - External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
 - Pending features and unresolved intent: [roadmap](docs/research/roadmap.md).
 
+## Current handoff
+
+The Nix packaging/shared interactive-test refactor is complete; see its
+[validation record](docs/development/nix-refactor-validation.md). Board evidence
+uses a matched historical CI baseline, not final-master hardware. No timing/PnR
+runs were launched. When timing work resumes, read the
+[saved resume point](docs/hardware/physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
+for measured baselines, application/dynamic-only scope and ranked next changes.
+
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,

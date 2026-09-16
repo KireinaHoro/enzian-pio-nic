@@ -2,7 +2,6 @@
 //| mill-allow-nested-build-mill: true
 //| mvnDeps:
 //| - com.typesafe:config:1.4.2
-//| - com.lihaoyi::requests:0.8.2
 package build
 
 import mill._, util._, scalalib._, api.BuildCtx
@@ -11,7 +10,6 @@ import build.deps.blocks.{Blocks, BlocksTester, BlocksModule}
 
 object Versions {
   val scala = Seq("2.13.12")
-  val eciStaticShell = "v0.1.5"
 }
 
 object MyStuff {
@@ -47,29 +45,19 @@ trait CommonModule extends ScalaModule {
 
 // find git hash; not used by Nix
 import sys.process._
-def localGitHash(dir: os.Path): Option[String] = try {
-    Some(s"git -C ${dir.toString} rev-parse HEAD"
-      .!!.linesIterator.next())
-  } catch {
-    case e: java.io.IOException => None
-  }
+def localGitHash(dir: os.Path): Option[String] = scala.util.Try {
+  Seq("git", "-C", dir.toString, "rev-parse", "HEAD").!!.trim
+}.toOption
 
-trait HwProjModule extends Module {
+// Mill owns Scala compilation, simulation and generated collateral only.
+// Vivado consumes the Nix bundle through tools/hardware/; it never runs here.
+trait RtlModule extends Module {
   def variant: String
-  def generatedFiles: Seq[String] = Seq(
-    "NicEngine.xdc",
-    "NicEngine_ips.sv",
-    "NicEngine.v",
-  ) ++ (if (variant == "eci") Seq(
-    "lauberhorn_trace_dma.v",
-    "lauberhorn_trace_dma.xdc",
-  ) else Seq())
-
   def gitHash = Task.Input {
-    (sys.props("nix-git-hash") match {
-      case null    => localGitHash(Task.dest)
-      case "dirty" => None
-      case s       => Some(s)
+    (sys.props.get("nix-git-hash") match {
+      case Some("dirty") => None
+      case Some(hash) => Some(hash)
+      case None => localGitHash(BuildCtx.workspaceRoot)
     }).map(_.take(16)) // 8 bytes
   }
 
@@ -87,48 +75,9 @@ trait HwProjModule extends Module {
       )),
     )()
 
-    generatedFiles.map(fn => PathRef(Task.dest/fn))
+    os.list(Task.dest).filter(os.isFile(_)).sortBy(_.toString).map(PathRef(_)).toSeq
   }
 
-  def callVivado(tcl: os.Path, args: Seq[String], cwd: os.Path, env: Map[String, String] = null): Unit = {
-    os.proc("vivado",
-      "-mode", "batch",
-      "-source", tcl,
-      "-tclargs",
-      args).call(
-        stdout = os.Inherit,
-        stderr = os.Inherit,
-        cwd = cwd,
-        env = env,
-      )
-  }
-
-  def vivadoRoot = BuildCtx.workspaceRoot / "vivado" / variant
-  def vivadoProjectName = s"lauberhorn-$variant"
-  def projectTcl = Task.Source(vivadoRoot / "create_project.tcl")
-  def projectTclDeps = Task.Source(vivadoRoot / "bd" / "design_1.tcl")
-  def vivadoProject = Task {
-    projectTclDeps()
-    val generated = generateVerilog().map(_.path)
-    val (xdcs, rtls) = generated.partition(_.ext == "xdc")
-
-    callVivado(projectTcl().path, Seq(
-      "--origin_dir", vivadoRoot.toString,
-      "--gen_rtls", rtls.mkString(":"),
-      "--gen_xdcs", xdcs.mkString(":"),
-    ), Task.dest)
-    PathRef(Task.dest / vivadoProjectName)
-  }
-
-  def bitstreamTcl = Task.Source(vivadoRoot / "create_bitstream.tcl")
-
-  def bitstreamEnv = Task { Map.empty[String, String] }
-  def generateBitstream = Task {
-    val proj = vivadoProject().path
-    generateVerilog()
-    callVivado(bitstreamTcl().path, Seq(), proj / os.up, env = bitstreamEnv())
-    Seq("bit", "ltx").map(ext => PathRef(proj / s"$vivadoProjectName.runs" / "impl_1" / s"$vivadoProjectName.$ext"))
-  }
 }
 
 object gen extends CommonModule { outer =>
@@ -146,18 +95,7 @@ object gen extends CommonModule { outer =>
   }
 }
 
-object pcie extends HwProjModule { def variant = "pcie" }
-object eci extends HwProjModule {
-  def variant = "eci"
-
-  override def bitstreamEnv = Task {
-    val sv = Versions.eciStaticShell
-
-    println(s"Downloading static shell $sv checkpoint...")
-    val staticShellCkptUrl = s"https://gitlab.ethz.ch/api/v4/projects/48046/packages/generic/release/$sv/build_static_shell_routed.dcp"
-    os.write(Task.dest / "static_shell_routed.dcp", requests.get.stream(staticShellCkptUrl))
-    Map("ENZIAN_SHELL_DIR" -> Task.dest.toString)
-  }
-}
+object pcie extends RtlModule { def variant = "pcie" }
+object eci extends RtlModule { def variant = "eci" }
 
 // vi: ft=scala

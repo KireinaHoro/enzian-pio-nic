@@ -1,4 +1,9 @@
-{ pkgs, source, configHeaders, deviceHeaders }:
+{
+  pkgs,
+  source,
+  configHeaders,
+  deviceHeaders,
+}:
 pkgs.stdenv.mkDerivation {
   name = "lauberhorn-runtime-tests";
   src = source;
@@ -19,5 +24,5 @@ pkgs.stdenv.mkDerivation {
     ./codec-test
     runHook postBuild
   '';
-  installPhase = ''mkdir -p $out; echo passed > $out/result'';
+  installPhase = "mkdir -p $out; echo passed > $out/result";
 }

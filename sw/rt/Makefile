@@ -12,17 +12,18 @@ endif
 ARCH ?= arm64
 
 # Base flags shared across all architectures
-CFLAGS  := -O2 -g -pipe -fpic \
+override CFLAGS += -O2 -g -pipe -fpic \
            -Wall -Wno-maybe-uninitialized \
            -Iinclude/ -I../include/ -I../core/ -I./ \
            -I$(HW_CFG_HDRS) -I$(MACKEREL_DEV_HDRS)
-LDFLAGS := -g -shared -Wl,-z,defs
+override LDFLAGS += -g -shared -Wl,-z,defs
+
 
 # architecture specific flags 
 ifeq ($(ARCH),arm64)
-	CFLAGS += -march=armv8-a+crc+lse -mtune=thunderxt88
+	override CFLAGS += -march=armv8-a+crc+lse -mtune=thunderxt88
 else ifeq ($(ARCH),x86_64)
-	CFLAGS += -march=native
+	override CFLAGS += -march=native
 	CROSS_COMPILE :=
 endif 
 
@@ -42,7 +43,7 @@ utils/%.o: utils/%.c | $(DEPDIR)
 	$(COMPILE.c) $(OUTPUT_OPTION) $< 
 
 liblauberhorn.so: $(ALL_OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS)
+	$(LINK.c) $^ -o $@ $(LDLIBS)
 
 clean:
 	rm -f *.o *.so
