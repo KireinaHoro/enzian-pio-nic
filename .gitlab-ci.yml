@@ -26,16 +26,7 @@ variables:
     name: registry.ethz.ch/project-openenzian/ci-images/lauberhorn-flakes:980991e21d0b2a99efaf799e4b65c218b7ebbd85@sha256:15a065efb42dd3b40ecae14d6abaca6a64afa1b9541cff5e57d79c3d075efbea
     entrypoint: [""]
   before_script:
-    # FORCE_HTTPS config is runner-local; Nix fetches through a separate Git cache.
-    - git config --global --add url."https://gitlab.inf.ethz.ch/".insteadOf 'git@gitlab.inf.ethz.ch:'
-    - git config --global --add url."https://gitlab.inf.ethz.ch/".insteadOf 'ssh://git@gitlab.inf.ethz.ch/'
-    # The runner helper owns checkout; Nix runs Git as the container user.
-    - git config --global --add safe.directory "$CI_PROJECT_DIR"
-    - git submodule foreach --recursive 'git config --global --add safe.directory "$PWD"'
-    # Nix fetches submodules in its own cache, outside runner-local Git config.
-    # Store only an environment reference; never put the job token in a URL.
-    - |
-      git config --global credential."https://gitlab.inf.ethz.ch".helper '!f() { if test "$1" = get; then printf "%s\n" "username=gitlab-ci-token" "password=$CI_JOB_TOKEN"; fi; }; f'
+    - bash tools/ci/setup-job.sh
 
 .test-nix:
   extends: .nix

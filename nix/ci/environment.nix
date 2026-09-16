@@ -1,4 +1,5 @@
 {
+  lib,
   mkShell,
   shell,
   linuxTools,
@@ -9,7 +10,11 @@
   squashfsTools,
   pkg-config,
   targetTirpc,
-  ciBuild,
+  nix,
+  bash,
+  coreutils,
+  findutils,
+  shellcheck,
 }:
 mkShell {
   inputsFrom = [ shell ];
@@ -21,6 +26,11 @@ mkShell {
     squashfsTools
     pkg-config
     targetTirpc
-    ciBuild
+    # Cache wrapper dependencies, but execute wrappers from each job checkout.
+    (lib.getBin nix)
+    bash
+    coreutils
+    findutils
+    shellcheck
   ];
 }
