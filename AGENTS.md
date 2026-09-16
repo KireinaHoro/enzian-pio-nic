@@ -26,7 +26,9 @@ uses a matched historical CI baseline, not final-master hardware. Timing work
 resumed September 16: independent TX placement and RX elastic-stage candidates
 are submitted to CI, with two sequential local Nix/Docker builds. Read the
 [active campaign](docs/hardware/physical-experiments.md#active-campaign-september-16-eci-txrx-candidates)
-for branches, validation and collection. Routed results are pending. Keep toolkit
+for branches, validation and collection. Local TX completed at WNS −0.122 ns;
+RX is running. CI was resubmitted after fixing the script-only deployment helper
+to build on x86_64 while retaining AArch64 runtime packages. Keep toolkit
 changes on their feature branch until the owning colleague approves; neither
 candidate is merged. The static shell remains unchanged.
 
