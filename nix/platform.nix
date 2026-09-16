@@ -127,6 +127,7 @@ in
     ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
     replayPcaps = sources.pcaps;
     runtimeInterface = applications.nix-build-demo;
+    eciToolkit = pkgs.lib.cleanSource (source + "/vivado/eci/eci-toolkit");
   };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
   ciEnvironment = pkgs.callPackage ./ci/environment.nix {
