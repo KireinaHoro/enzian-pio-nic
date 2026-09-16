@@ -76,12 +76,7 @@ let
         })
       )
       {
-        microbenchmarks = callPackage ./applications/microbenchmarks.nix {
-          src = sources.c [
-            "sw/apps/microbenchmarks"
-            "sw/usr-common.mk"
-          ];
-        };
+        microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
       };
   deployment = pkgs.callPackage ./images/default.nix {
