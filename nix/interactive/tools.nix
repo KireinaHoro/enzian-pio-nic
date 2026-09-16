@@ -5,6 +5,7 @@
   extraContents,
 }:
 let
+  dependencies = import ./dependencies.nix { inherit target; };
   # Write the script on the build host; only its interpreter/tools run on Enzian.
   # target.writeShellScriptBin would require an AArch64 builder even though this
   # derivation only writes text, which fails in the x86_64 CI container.
@@ -31,18 +32,8 @@ in
 assert helper.system == pkgs.stdenv.buildPlatform.system;
 pkgs.buildEnv {
   name = "lauberhorn-interactive-tools";
-  paths = [
-    helper
-    target.bash
-    target.coreutils
-    target.jq
-    target.kmod
-    target.iproute2
-    target.util-linux
-    target.rpcbind
-    target.libtirpc
-  ]
-  ++ extraContents;
+  # Only executables are linked below; avoid implicitly fetching target manuals.
+  paths = [ helper ] ++ map pkgs.lib.getBin (builtins.attrValues dependencies) ++ extraContents;
   pathsToLink = [
     "/bin"
     "/sbin"

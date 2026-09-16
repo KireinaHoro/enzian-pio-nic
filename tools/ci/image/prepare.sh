@@ -11,7 +11,10 @@ mkdir "$context"
 context=$(realpath "$context")
 output="$context/lauberhorn-inputs"
 mkdir "$output"
-targets=("$flake#packages.x86_64-linux.ciEnvironment")
+targets=(
+  "$flake#packages.x86_64-linux.ciEnvironment"
+  "$flake#packages.x86_64-linux.ciDependencies"
+)
 nix path-info --no-update-lock-file --derivation "${targets[@]}" > "$output/derivations"
 nix copy --no-update-lock-file --derivation --to "file://$output/cache?compression=zstd&parallel-compression=true" "${targets[@]}"
 printf '%s\n' "$LAUBERHORN_REV" > "$output/revision"
