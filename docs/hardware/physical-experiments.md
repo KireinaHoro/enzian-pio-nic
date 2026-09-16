@@ -331,3 +331,40 @@ Local evidence: `out/physical/review-20260915/JOB/` contains timing, 200 setup/h
 path samples, detailed setup paths, CDC, route, bus-skew and generated summary.
 The GitLab hardware artifacts retain the DCPs and bitstreams. Read each summary
 before requesting more paths; a global 200-path sample is not a family-wide TNS.
+
+## September 16: independent RX elastic-pipeline candidate
+
+Platform branch: `timing/20260916-rx-elastic`, based on `2890f3c`, without the
+independent TX placement constraints (`timing/20260916-tx-placement`, `c4174e5`).
+Toolkit branch: `timing/20260916-rx-elastic`, with prerequisite regression commit
+`c60ca71` and pipeline commit `c92f0d9`. Toolkit master is untouched. For CI only,
+the dependency commits are retained in the **private platform project** under
+`timing/20260916-eci-toolkit-rx-elastic`; this experiment's submodule URL points
+there. No changes were pushed to the colleague-owned toolkit remote. Adoption
+into platform master waits for the toolkit owner's approval.
+
+The BRAM-mode RX extractor now registers all three words, size, length and valid
+between the six-to-three-word split and packetizer. The splitter advances only
+when that elastic stage accepts a beat; a stalled beat remains stable. The
+low-latency mode keeps its original bypass. Receive credits are still returned
+at downstream channel consumption, so the new storage does not free credits early.
+
+Focused GHDL regression passed on both the unpipelined and pipelined extractor:
+8 cases (VCs 2–5, two seeds), 288 messages each, all nonempty normal-message masks,
+CAS traffic, sparse inputs, sustained arrivals, credit-window stalls, random/long
+backpressure, data/metadata ordering, output stability and exact credit totals.
+`eci-toolkit-rx` adds this test to Nix and gates CI hardware preparation. The FIFO
+is a functional FWFT model; Vivado still elaborates the unchanged vendor XPM.
+
+The prerequisite changes only a packetizer variable range from 0..2 to 0..3:
+an exactly consumed input has start=3/count=0 and performs no out-of-range read.
+Both subtypes use two bits. Tests also reproduce a **pre-existing RSTP failure**;
+that repair is deferred to the toolkit owner and retained as a separate known
+failure. Low-latency GHDL elaboration has a pre-existing unresolved-driver issue;
+that mode is not claimed as validated. See toolkit `tests/rx/README.md`.
+
+The maintainer requested two full local Nix/Docker candidate runs plus CI.
+Baseline repeats were canceled at their request; the first stopped in project
+creation. TX is running locally at `/tmp/lh-timing-local-20260916-tx` on ba2.
+RX will use a separate clean bundle/output. No new routed result is available
+at this commit. Static-shell v0.1.5 and its DCP remain unchanged.
