@@ -1,6 +1,7 @@
 #include "common.h"
 #include "trace.h"
 #include <linux/iopoll.h>
+#include <linux/file.h>
 #include <asm/irq_regs.h>
 #include <asm/ptrace.h>
 
@@ -13,11 +14,15 @@ extern int worker_lo, worker_hi;
 static void park_at_user_return(struct callback_head *cb)
 {
 	struct thr_def *thr = container_of(cb, struct thr_def, park_work);
+	struct file *file = thr->park_file;
 	atomic_set(&thr->park_queued, 0);
 	set_current_state(TASK_IDLE);
 	if (READ_ONCE(thr->enabled) && READ_ONCE(thr->park_requested))
 		schedule();
 	__set_current_state(TASK_RUNNING);
+	/* exit_files precedes exit_task_work: keep the slot and module alive
+	 * until this callback has made its last access to the thread record. */
+	fput(file);
 }
 
 int prepare_worker_thread(struct thr_def *thr)
@@ -231,11 +236,14 @@ void desched_worker_thread(struct thr_def *thr)
 		set_current_state(TASK_IDLE);
 		set_tsk_need_resched(current);
 	} else if (atomic_cmpxchg(&thr->park_queued, 0, 1) == 0) {
-		int ret = task_work_add(thr->task, &thr->park_work, TWA_RESUME);
+		int ret;
+		get_file(thr->park_file);
+		ret = task_work_add(thr->task, &thr->park_work, TWA_RESUME);
 		if (ret) {
 			/* An exiting task can no longer return to userspace. */
 			atomic_set(&thr->park_queued, 0);
 			WARN_ON_ONCE(ret != -ESRCH);
+			fput(thr->park_file);
 		}
 	}
 	// Retain worker_idx and routing until deferred dispatch observes HW drain.

@@ -115,6 +115,7 @@ struct thr_def {
 	bool park_requested;
 	atomic_t park_queued;
 	struct callback_head park_work;
+	struct file *park_file; /* borrowed while mapped; queued callback takes a ref */
 	u32 idx;
 
 	struct proc_def *parent;
