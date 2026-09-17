@@ -1,5 +1,32 @@
 # Physical implementation experiments — 2026-09-10
 
+## September 17: combined TX placement and RX pipeline
+
+Branch `timing/20260917-tx-rx-combined` starts from RX candidate `eeeabf4`
+and adds the exact TX floorplan from `abe57e4`. Both CI infrastructure fixes
+(native deployment-script construction and shared Vivado license defaults) are
+retained. No additional toolkit RTL changes are introduced: dependency `c92f0d9`
+remains on its separate private feature branch, pending toolkit-owner approval.
+The combined candidate remains unmerged and uses the unchanged static shell.
+
+Both original local Nix/Docker runs completed through bitstream generation with
+exit zero. TX (`c4174e5`) reports WNS/TNS −0.122/−75.192 ns and 1,660 failing
+setup endpoints. RX (`720bd1b`) reports −0.066/−16.698 ns and 585 failing setup
+endpoints. Both have zero hold/pulse failures and identical CDC diagnostic
+counts; RX's reported minimum hold slack is 0.000 ns. Neither closes setup.
+These are independent candidates with different embedded revision constants;
+their improvements cannot be assumed additive or reproducible.
+
+The combined CI run retains the RX VHDL prerequisite and existing regression
+checks. Collect its routed setup/hold/pulse, clock, CDC and routing reports before
+judging improvement. Local evidence is under
+`out/physical/resume-20260916/local-{tx,rx}/`; combined submission metadata is
+under `out/physical/combined-20260917/`. No board test is implied.
+
+
+Submitted revision `820da59`: [pipeline 511830](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511830), hardware job 2832742. Initial snapshot: regression checks running, hardware awaiting prerequisites; no failures. Nix RX regression check passed locally before submission.
+
+
 ## Active campaign: September 16 ECI TX/RX candidates
 
 Timing work resumed from master `2890f3c` after the Nix refactor. The maintainer
@@ -12,7 +39,7 @@ attempt stopped during project/IP creation and supplies no timing evidence.
 | TX placement | `timing/20260916-tx-placement` / `abe57e4` | [511729](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511729) / 2832030 |
 | RX elastic stage | `timing/20260916-rx-elastic` / `eeeabf4` | [511730](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511730) / 2832041 |
 
-Both candidates remain **unmerged**. The local TX run completed; RX is running.
+Both candidates remain **unmerged**. Both local runs completed; see the September 17 results above.
 No new board result is available. Static-shell v0.1.5 and its DCP remain unchanged.
 The September 15 reports below remain the historical comparison baseline.
 
