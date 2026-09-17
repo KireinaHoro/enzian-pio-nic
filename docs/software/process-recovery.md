@@ -197,3 +197,17 @@ queued/running. Linux exits files before running final task work; without that
 reference the process slot (and callback storage) could be reused before the old
 callback finished. Its final `fput` releases the reference, including the module
 lifetime, only after the callback's last access to the worker record.
+
+**Current build candidate:** `5fef25f23a32c9b55e03ce1bcb014388eae87299` includes
+the ILA and callback-lifetime fixes. Its clean `eciVivadoInputs`, `deployFs` and
+native `runtimeTests` builds passed. A fresh full Vivado run is launched at
+`enzian-ba2:/tmp/lh-b4-5fef25f-build`, with inputs
+`/tmp/lh-b4-5fef25f-inputs` and log `/tmp/lh-b4-5fef25f-launch.log`.
+Local links are `out/b4-20260917/matched-v3{,-1,-2}` (FPGA bundle, image, tests);
+`board-cases-v3.json` is the prepared baseline manifest. Gateway staging is
+`/tmp/b4-5fef25f-deploy.img` and `/tmp/b4-5fef25f-client/bench_client`.
+The CPU image still needs copying to `/var/tmp/b4-5fef25f-deploy.img`: the earlier
+encrypted SCP attempt to management address `192.168.192.14` returned “No route
+to host” while another session held the console. No board reset/programming or
+B4 hardware acceptance occurred in this preparation run. Confirm console access,
+finish/check Vivado, stage the image, then run the baseline and no-reset campaign.
