@@ -289,6 +289,12 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     val (replyDesc, replyPldDesc) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
     checkNestedReplyRx(replyDesc, replyPldDesc, pid, cookie, xid, replyPayload, dcsMaster)
     exitCriticalSection(dcsMaster, tid)
+    // The entry has retired. Late/duplicate replies must drain completely and
+    // allow the valid completions below to progress, including empty bodies.
+    for (length <- Seq(0, 4, 160)) {
+      axisMaster.send(rpcReplyPacket(remoteIp, serverIp, remoteMac, serverMac,
+        dport, sport, xid, List.fill(length)(42.toByte)).getRawData.toList)
+    }
     // Accepted errors have no success-codec body. Unknown 32-bit statuses
     // must never truncate to success when crossing the 8-bit host field.
     for ((status, offset) <- Seq((5, 1), (256, 2))) {
@@ -302,6 +308,32 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
       checkNestedReplyRx(errorDesc, errorPld, pid, cookie, xid + offset, Nil, dcsMaster, 5)
       exitCriticalSection(dcsMaster, tid)
     }
+    assert(csrMaster.read(ALLOC.readBack("OncRpcReplyDecoder")("stat", "lookupMiss"), 8).bytesToBigInt == 3)
+    val regs = ALLOC.readBack("OncRpcReplyDecoder")
+    // Explicit retirement must be acknowledged before resources are reusable.
+    csrMaster.write(regs("ctrl", "req_xid"), (xid + 3).toBytesLE)
+    csrMaster.write(regs("ctrl", "req_active"), 1.toBytesLE)
+    csrMaster.write(regs("ctrl", "req_idx"), 0.toBytesLE)
+    csrMaster.write(regs("ctrl", "retire_pid"), pid.toBytesLE)
+    csrMaster.write(regs("ctrl", "retire_cookie"), 0x55667788.toBytesLE)
+    csrMaster.write(regs("ctrl", "retire"), 1.toBytesLE)
+    while(csrMaster.read(regs("stat", "retire_busy"), 8).bytesToBigInt != 0) sleepCycles(5)
+    csrMaster.write(regs("stat", "req_readback_idx"), 0.toBytesLE)
+    assert(csrMaster.read(regs("stat", "req_readback_active"), 8).bytesToBigInt == 0)
+    axisMaster.send(rpcReplyPacket(remoteIp, serverIp, remoteMac, serverMac,
+      dport, sport, xid + 3, List.fill(160)(1.toByte)).getRawData.toList)
+    // Owner-wide retirement leaves unrelated process state intact.
+    csrMaster.write(regs("ctrl", "req_xid"), (xid + 5).toBytesLE)
+    csrMaster.write(regs("ctrl", "req_pid"), (pid ^ 1).toBytesLE)
+    csrMaster.write(regs("ctrl", "req_idx"), 1.toBytesLE)
+    csrMaster.write(regs("ctrl", "req_pid"), pid.toBytesLE)
+    csrMaster.write(regs("ctrl", "req_xid"), (xid + 4).toBytesLE)
+    csrMaster.write(regs("ctrl", "req_idx"), 0.toBytesLE)
+    csrMaster.write(regs("ctrl", "retire"), 2.toBytesLE)
+    while(csrMaster.read(regs("stat", "retire_busy"), 8).bytesToBigInt != 0) sleepCycles(5)
+    assert(csrMaster.read(regs("stat", "req_readback_active"), 8).bytesToBigInt == 0)
+    csrMaster.write(regs("stat", "req_readback_idx"), 1.toBytesLE)
+    assert(csrMaster.read(regs("stat", "req_readback_active"), 8).bytesToBigInt == 1)
 
   }
   testWithDB("nested-rpc-local-roundtrip")(Tx) { implicit dut =>

@@ -44,7 +44,16 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     * should not wait for valid as a trigger.
     */
   val rxDesc = slave(Stream(HostReq()))
-  rxDesc.assertPersistence()
+  // Only unaccepted descriptors may be cancelled. The scheduler retains their
+  // allocation and returns it through its discard path; accepted ones drain here.
+  val cancelRxDesc = in Bool()
+  val stalled = RegNext(rxDesc.isStall) init False
+  val previousDesc = RegNext(rxDesc.payload)
+  when(stalled && !cancelRxDesc) {
+    assert(rxDesc.valid && rxDesc.payload === previousDesc,
+      "RX descriptor changed without acceptance or explicit cancellation")
+  }
+  when(cancelRxDesc) { assert(!rxDesc.valid) }
 
   /** Number of cycles to block for before returning NACK. */
   val blockCycles = in UInt(REG_WIDTH bits)
@@ -62,6 +71,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     * the old request.
     */
   val doPreempt = in Bool()
+  val quiescent = out Bool()
 
   /** Pulse: host is reading the next CL and the protocol has just finished invalidating the current CL.
     * We can now unblock the read on the next CL.
@@ -273,6 +283,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
   }
   fsm.build()
+  quiescent := fsm.isActive(fsm.idle) && !dcsQ.ar.valid
 
   val stateOut = out(fsm.stateReg.clone)
   stateOut := fsm.stateReg

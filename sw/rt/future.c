@@ -5,6 +5,7 @@
 #include "pending_call_table.h"
 #include "fiber/scheduler.h"
 #include "lauberhorn_state.h"
+#include "rpc.h"
 
 lauberhorn_future_t *future_set_await_any(lauberhorn_future_set_t *s) {
     if (!s || s->n <= 0) {
@@ -108,9 +109,6 @@ int lauberhorn_future_join(lauberhorn_future_t **f, int n) {
 }
 
 bool lauberhorn_future_cancel(lauberhorn_future_t *f) {
-    /* No cancellation/retirement protocol yet. Do not inspect an untrusted or
-     * consumed future as though cancellation were implemented. */
-    (void)f;
-    errno = ENOTSUP;
-    return false;
+    if (validate_wait(&f, 1)) return false;
+    return rpc_call_cancel(f->c, f->xid);
 }

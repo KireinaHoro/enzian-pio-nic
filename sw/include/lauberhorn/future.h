@@ -69,7 +69,10 @@ LAUBERHORN_API int lauberhorn_future_select(lauberhorn_future_t **f, int n);
 // await all futures
 LAUBERHORN_API int lauberhorn_future_join(lauberhorn_future_t **f, int n);
 
-// TODO: not implemented yet
+/* Cancel local interest, retiring hardware routing state. Requires the owning
+ * fiber. Consume the resulting CANCELLED future with await/select/join as usual.
+ * Does not cancel execution at the remote peer. Already-settled returns false
+ * with EALREADY; retirement failure settles ERROR and returns false. */
 LAUBERHORN_API bool lauberhorn_future_cancel(lauberhorn_future_t *f);
 
 

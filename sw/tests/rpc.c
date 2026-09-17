@@ -4,6 +4,16 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+#include "../kmod/ioctl.h"
+static int retired_calls;
+static bool retirement_error;
+static int test_ioctl(int fd, unsigned long command, void *arg) {
+    if (command != LAUBERHORN_IOCTL_RETIRE_CALL || !arg) abort();
+    retired_calls++;
+    if (retirement_error) { errno = EIO; return -1; }
+    return 0;
+}
 static struct lauberhorn_worker worker;
 static lauberhorn_pkt_desc_t sent, child;
 static int sends, replies;
@@ -13,6 +23,7 @@ static bool reject_tx, dma_error;
 lauberhorn_worker_t worker_get_current(void) { return &worker; }
 static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_pkt_desc_t *desc) {
     sent = *desc; sends++;
+    if (!worker.ctx->_watchdog_enabled) assert(!desc->execution && desc->type != TY_EXECUTION_CONTROL);
     if (desc->type == TY_ONCRPC_REPLY_TX) { replies++; return CORE_TX_ACCEPTED; }
     if (reject_tx) return CORE_TX_RETRY;
     child = *desc;
@@ -26,7 +37,9 @@ static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_
     return dma_error ? CORE_TX_ERROR : CORE_TX_ACCEPTED;
 }
 #define core_eci_tx test_tx
+#define ioctl test_ioctl
 #include "../rt/rpc.c"
+#undef ioctl
 /* Keep test assertions and their side effects in the NDEBUG runtime build. */
 #undef assert
 #define assert(c) do { if (!(c)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #c); abort(); } } while (0)
@@ -51,6 +64,30 @@ static void destroy_defer(void *p) {
     destroy(p);
 }
 static lauberhorn_rpc_endpoint_t ep;
+static void cancel_pending(void *ctx) {
+    lauberhorn_future_t f = {0};
+    int value = 17;
+    immediate = false;
+    assert(!lauberhorn_call_async(&ep, &value, 4, &f));
+    assert(lauberhorn_future_cancel(&f));
+    assert(!lauberhorn_future_cancel(&f) && errno == EALREADY);
+    assert(!lauberhorn_future_await(&f));
+    assert(f.result.code == LAUBERHORN_RPC_CANCELLED && !ep._transport.unresolved);
+    assert(!lauberhorn_future_cancel(&f) && errno == EINVAL);
+    immediate = true;
+    assert(!lauberhorn_call_async(&ep, &value, 4, &f));
+    assert(!lauberhorn_future_cancel(&f) && errno == EALREADY);
+    assert(!lauberhorn_future_await(&f));
+    lauberhorn_free_result(&f.result);
+    immediate = false;
+    retirement_error = true;
+    assert(!lauberhorn_call_async(&ep, &value, 4, &f));
+    assert(!lauberhorn_future_cancel(&f) && errno == EIO);
+    assert(!lauberhorn_future_await(&f));
+    assert(f.result.code == LAUBERHORN_RPC_ERROR && ep._transport.unresolved == 1);
+    retirement_error = false;
+    ep._transport.unresolved = 0; /* failed retirement requires process cleanup */
+}
 static void future_pair(void *ctx) {
     lauberhorn_future_t a = {0}, b = {0};
     int av = 17, bv = 29;
@@ -124,6 +161,7 @@ int main(void) {
     assert(lauberhorn_future_await(&invalid) == -1 && errno == EPERM);
     assert(lauberhorn_future_join(set, 1) == -1 && errno == EPERM);
     assert(lauberhorn_future_select(set, 1) == -1 && errno == EPERM);
+    assert(!lauberhorn_future_cancel(&invalid) && errno == EPERM);
     assert(!memcmp(&invalid, &saved, sizeof(saved)) && !encoded_count && !sends && !ep._transport.unresolved);
     struct srv srv = {.codec = codec};
     struct lauberhorn_hw_handler hw = {.srv = &srv, .handler = {.func = handler}};
@@ -173,6 +211,9 @@ int main(void) {
         if (reply_status) assert(decoded_count == before);
     }
     reply_status = 0;
+    struct fiber *cancel_fiber = fiber_sched_acquire(); assert(cancel_fiber);
+    fiber_prepare(cancel_fiber, cancel_pending, NULL, NULL);
+    fiber_sched_submit(cancel_fiber); fiber_sched_run_ready();
     for (int delivery = 1; delivery >= 0; --delivery) {
         immediate = delivery;
         struct fiber *f = fiber_sched_acquire(); assert(f);
@@ -217,8 +258,17 @@ int main(void) {
     int before_timeout = replies;
     rpc_call_process_timeout();
     assert(replies == before_timeout + 1 && sent.oncrpc_reply_tx.status == 5);
-    assert(ep._transport.unresolved == 1 && !allocated);
+    assert(!ep._transport.unresolved && !allocated && retired_calls == 3);
     rpc_handle_packet(&worker, &completion);
     assert(replies == before_timeout + 1); /* late reply cannot resurrect parent */
+
+    /* Atomic replies end execution on their existing TX, with no control TX. */
+    ctx._watchdog_enabled = true;
+    mode = 0; marshal_error = alloc_error = 0; req.payload_len = 4;
+    int before = sends;
+    rpc_handle_packet(&worker, &req);
+    assert(sends == before + 1 && sent.type == TY_ONCRPC_REPLY_TX && sent.execution == 1);
+    assert(!worker.execution_active && !worker.execution_pending);
+    ctx._watchdog_enabled = false;
 
 }

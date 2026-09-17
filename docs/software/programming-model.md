@@ -86,7 +86,7 @@ unsupported contexts in debug and release builds, and require futures owned by
 the calling fiber. Await/join return 0 on consumption, or -1 with errno;
 select returns the selected index or -1. A consumed future cannot be waited
 again. Every successfully submitted future must be consumed before its owner
-exits. Cancellation and abandoned-future cleanup remain B4 work.
+exits. Cancellation leaves a result to consume; ordinary handler return does not clean up abandoned futures.
 
 Submission returning zero means local transport admission, not remote execution
 or application success. A full software table or a definite hardware capacity
@@ -95,8 +95,12 @@ cookies. Hardware capacity is independent and shared (16 entries per table by de
 Incoming request contexts are independently bounded: a full table rejects before
 host dispatch and attempts a hardware `SYSTEM_ERR` reply. Its bounded error queue
 may drop error replies under congestion; it never overwrites live contexts. A hardware rejection
-releases the unsubmitted operation; a timeout or indeterminate DMA error does
-not prove hardware retirement and keeps the endpoint quarantined. Indeterminate
+releases the unsubmitted operation. Timeout and explicit future cancellation now
+request acknowledged hardware retirement through a slow-path control ioctl;
+successful retirement allows reservation release when the result is consumed.
+`lauberhorn_future_cancel` requires the submitting fiber and leaves a CANCELLED
+result to consume with await/select/join; it does not cancel remote execution.
+Failed retirement or an indeterminate DMA error retains unresolved ownership. Indeterminate
 TX failure settles the admitted operation with an RPC error unless a reply has
 already won; it is not reported as a safe-to-retry admission failure. Inspect the
 future's RPC status before accessing its result and free successful results with
@@ -121,8 +125,18 @@ fibers can resume on another worker; do not retain worker-local state across a
 wait or rely on CPU affinity. Incoming inline handlers must not issue nested
 future calls. Long computation and blocking I/O still occupy their worker.
 
-Timeout sweeps precede ready-fiber draining before RX polling. Existing hardware
-RX NACK timeouts permit an assigned worker to regain control, but are not an
-application timer facility or a way to activate a parked service. General
-shutdown, timeout retirement, worker reclamation and module startup reliability
-remain explicit [blockers](nested-rpc-blockers.md).
+Timeout sweeps precede ready-fiber draining before RX polling. An internal
+housekeeping thread asks hardware to activate a service for expired calls,
+without requiring network traffic. Public application timers remain deferred.
+
+`lauberhorn_set_watchdog(ctx, limit_us)` must precede worker creation. Zero (the
+default) disables execution monitoring and watchdog-only TX. When enabled, actual
+fiber resumption starts a fresh approximate execution interval; an already-ready
+await does not refresh it. Limits beyond half the hardware's 32-bit cycle range
+return `ERANGE`. This is a debugging watchdog, not CPU billing.
+
+`lauberhorn_stop(ctx)` forcibly terminates the application's workers after
+hardware drain; callers should expect process termination. SIGINT/SIGTERM and
+fatal process exits also initiate cleanup, including parked workers. See the
+[recovery contract](process-recovery.md). Matching-bitstream recovery and module
+startup reliability remain explicit [acceptance gates](nested-rpc-blockers.md).

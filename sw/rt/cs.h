@@ -24,7 +24,11 @@ static inline void enter_cs(void *base) {
                 // BUSY is set, now inside critical section
                 return;
             }
-        } // otherwise wait for READY
+        } else {
+            // READY is changed by hardware while this thread is parked. A
+            // cached local copy would spin forever after the thread resumes.
+            busy_ready = atomic_load(wc_base);
+        }
     }
 }
 

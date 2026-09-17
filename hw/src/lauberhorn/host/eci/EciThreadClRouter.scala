@@ -83,7 +83,7 @@ class EciThreadClRouter extends FiberPlugin {
         prefixOnCores(idx).enabled := writePort.enabled
         prefixOnCores(idx).prefix := writePort.addrPrefix
 
-        assert(!prefixOnCores.sExist { rec =>
+        assert(!writePort.enabled || !prefixOnCores.sExist { rec =>
           rec.enabled && rec.prefix === writePort.addrPrefix
         }, "trying to enable thread prefix that is already active")
       }

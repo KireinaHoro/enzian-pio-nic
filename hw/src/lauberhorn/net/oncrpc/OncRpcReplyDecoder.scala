@@ -107,9 +107,23 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
       "lookupMiss", attr = AccessType.RO))
     busCtrl.read(logic.dropped.value, alloc("stat", "Number of malformed or dropped replies",
       "dropped", attr = AccessType.RO))
+    busCtrl.driveAndRead(logic.retirePid.bits, alloc("ctrl", "Owner PID to retire", "retire_pid")) init 0
+    busCtrl.driveAndRead(logic.retireCookie, alloc("ctrl", "Operation cookie to retire", "retire_cookie")) init 0
+    val mode = UInt(2 bits)
+    mode := 0
+    val command = alloc("ctrl", "Retire: 1=PID/cookie, 2=all PID operations", "retire", attr = AccessType.WO)
+    busCtrl.write(mode, command)
+    busCtrl.onWrite(command) {
+      assert(!logic.retirePending, "overlapping outgoing retirement commands")
+      assert(mode === 1 || mode === 2, "invalid outgoing retirement mode")
+      logic.retirePending := True
+      logic.retireAll := mode === 2
+    }
+    busCtrl.read(logic.retirePending, alloc("stat", "Outgoing retirement in progress", "retire_busy", attr = AccessType.RO))
   }
 
   val logic = during setup new Area {
+    val admission = Flow(PID())
     val udpHeader = Stream(UdpRxMeta())
     val udpPayload = Axi4Stream(macIf.axisConfig)
 
@@ -119,6 +133,20 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
       v.active init False
     }
     requestDb.update.setIdle()
+    val retirePid = PID()
+    val retireCookie = Bits(32 bits)
+    val retirePending, retireAll = RegInit(False)
+    // Revalidate pipelined lookup results against the current slot identity.
+    // Retirement must not let a late result clear a newly reused slot.
+    val identities = Vec.fill(NUM_SESSIONS)(Reg(new Bundle {
+      val active = Bool()
+      val pid = PID()
+      val cookie = Bits(32 bits)
+    }))
+    identities.foreach(_.active init False)
+    when(requestDb.update.valid) {
+      identities(requestDb.update.idx).assignSomeByName(requestDb.update.value)
+    }
 
     val newRequestEvent = Stream(OncRpcInFlightReqDef())
     newRequestEvent.ready := False
@@ -149,15 +177,17 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     rxExistQ.userData := newRequestEvent.payload
     when(rxExistQ.fire) { registering := True }
     val retirement = Bool()
-    rxExistR.ready := !retirement && rxFreeR.valid
+    rxExistR.ready := !retirement && !retirePending && rxFreeR.valid
     when(rxExistR.fire) {
       newRequestEvent.ready := True
       registering := False
       when (rxExistR.matched && rxExistR.value.pid === rxExistR.userData.pid &&
-            rxExistR.value.cookie === rxExistR.userData.cookie) {
+            rxExistR.value.cookie === rxExistR.userData.cookie && identities(rxExistR.idx).active &&
+            identities(rxExistR.idx).pid === rxExistR.value.pid &&
+            identities(rxExistR.idx).cookie === rxExistR.value.cookie) {
         // An exact retransmission retains its existing reservation.
         newRequestAccepted := True
-      } elsewhen (!rxExistR.matched && rxFreeR.matched) {
+      } elsewhen (!rxExistR.matched && rxFreeR.matched && !identities(rxFreeR.idx).active) {
         requestDb.update.valid := True
         requestDb.update.value := rxExistR.userData
         requestDb.update.idx := rxFreeR.idx
@@ -185,8 +215,13 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
 
     val payload = Axi4Stream(macIf.axisConfig)
     val metadata = Stream(OncRpcReplyRxMeta())
+    val droppedReply = Bool()
+    admission.valid := metadata.fire
+    admission.payload := metadata.pid
 
-    produceFinal(metadata, payload, outputAck)
+    // A late reply after timeout/cancellation has no host descriptor. Still
+    // acknowledge the decoder sink, or it can hold up subsequent completions.
+    produceFinal(metadata, payload, outputAck, droppedReply)
     produceDone()
 
     case class ReplyQuery() extends Bundle {
@@ -230,7 +265,11 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
 
     val lookupMiss = Counter(REG_WIDTH bits)
     val dropped = Counter(REG_WIDTH bits)
-    val drop = !dbResult.matched
+    val currentIdentity = identities(dbResult.idx)
+    val validReply = dbResult.matched && currentIdentity.active &&
+      currentIdentity.pid === dbResult.value.pid && currentIdentity.cookie === dbResult.value.cookie
+    val drop = !validReply
+    droppedReply := dbResult.fire && drop
 
     val pldFilter = AxiStreamFilter(macIf.axisConfig)
     pldFilter.io.input << decoder.io.output
@@ -253,10 +292,10 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
       md.udpPayloadSize := lr.userData.udpPayloadSize
     }
 
-    retirement := dbResult.fire && dbResult.matched
+    retirement := dbResult.fire && validReply
 
     when (dbResult.fire) {
-      when (dbResult.matched) {
+      when (validReply) {
         requestDb.update.valid := True
         requestDb.update.idx := dbResult.idx
         requestDb.update.value.xid := dbResult.value.xid
@@ -271,6 +310,18 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
         when (dbResult.userData.udpPayloadSize > maxLen) {
           dropped.increment()
         }
+      }
+    }
+    val retireMatches = identities.map { id =>
+      id.active && id.pid === retirePid && (retireAll || id.cookie === retireCookie)
+    }.asBits()
+    when(retirePending && !retirement) {
+      when(retireMatches.orR) {
+        requestDb.update.valid := True
+        requestDb.update.idx := OHToUInt(OHMasking.firstV2(retireMatches))
+        requestDb.update.value.clearAll()
+      } otherwise {
+        retirePending := False
       }
     }
   }

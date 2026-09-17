@@ -78,6 +78,7 @@ let
         })
       )
       {
+        recovery-test = callPackage (source + "/sw/apps/recovery-test/package.nix") { };
         microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
       }
@@ -93,6 +94,7 @@ let
       "sw/core"
       "sw/kmod/ioctl.h"
       "sw/kmod/endpoints.h"
+      "sw/kmod/recovery.h"
     ];
     configHeaders = genVerilog.headers;
     deviceHeaders = devHdrs;
@@ -129,7 +131,7 @@ in
   inherit (deployment) mkDeploymentEnvironment mkTestImage;
   deployFs = deployment.mkTestImage {
     name = "microbenchmarks";
-    applications = { inherit (applications) microbenchmarks; };
+    applications = { inherit (applications) microbenchmarks recovery-test; };
   };
   dandelionDeployFs = deployment.mkTestImage {
     name = "dandelion";

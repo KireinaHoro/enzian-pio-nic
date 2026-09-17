@@ -41,6 +41,7 @@ int init_worker(lauberhorn_worker_t w) {
     sigset_t signal_mask;
     sigemptyset(&signal_mask);
     sigaddset(&signal_mask, SIGINT);
+    sigaddset(&signal_mask, SIGTERM);
     int err = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
     if (err) {
         return -1;
@@ -65,6 +66,22 @@ static void rpc_timeout_tick(lauberhorn_worker_t w) {
     }
 }
 
+static void execution_flush(void) {
+    lauberhorn_worker_t w = worker_get_current();
+    uint8_t command = worker_execution_take(w, false);
+    if (!command) return;
+    lauberhorn_pkt_desc_t desc = {.type = TY_EXECUTION_CONTROL, .execution = command};
+    if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
+}
+static void execution_begin(void) {
+    lauberhorn_worker_t w = worker_get_current();
+    if (!w->ctx->_watchdog_enabled || w->execution_active) return;
+    w->execution_pending |= 2;
+    w->execution_active = true;
+    execution_flush();
+}
+static void execution_end(void) { worker_execution_end(worker_get_current()); }
+
 static void *lauberhorn_worker_loop(void *arg) {
     lauberhorn_worker_t w = arg;
     current_worker = w;
@@ -75,6 +92,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     // initialize scheduler context
     fiber_sched_init();
+    fiber_sched_set_execution_hooks(execution_begin, execution_end, execution_flush);
 
     lauberhorn_pkt_desc_t desc;
 

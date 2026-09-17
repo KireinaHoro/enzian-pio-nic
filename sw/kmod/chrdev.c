@@ -2,7 +2,10 @@
 // Copyright (c) 2025 Pengcheng Xu, Zikai Liu
 
 #include "common.h"
+#define CREATE_TRACE_POINTS
+#include "trace.h"
 #include <linux/net.h>
+#include <linux/sched/signal.h>
 #include <linux/nsproxy.h>
 #include <net/net_namespace.h>
 #include <net/inet_sock.h>
@@ -22,6 +25,7 @@ static struct class *dev_class;
 static struct srv_def srv_defs[LAUBERHORN_NUM_SERVICES];
 static struct proc_def proc_defs[LAUBERHORN_NUM_PROCS + 1];
 static DEFINE_MUTEX(control_lock);
+static u64 next_process_lifetime;
 static bool listen_occupied[LAUBERHORN_NUM_LISTEN_PORTS];
 static unsigned int listen_users[LAUBERHORN_NUM_LISTEN_PORTS];
 
@@ -35,20 +39,26 @@ struct worker_dev {
 };
 
 struct endpoint_reservation;
+static void recovery_monitor(struct work_struct *work);
+static DECLARE_DELAYED_WORK(recovery_work, recovery_monitor);
 struct file_priv {
 	struct proc_def *pd;
 	struct worker_dev *dev;
 	struct endpoint_reservation *endpoints[LAUBERHORN_NUM_LISTEN_PORTS];
 };
 
+static struct file_priv *app_files[LAUBERHORN_NUM_PROCS + 1];
+
 #include "stats/worker.h"
 #include "endpoints.h"
+#include <linux/iopoll.h>
+#include "recovery.h"
 
 struct proc_def *find_proc(pid_t tgid)
 {
 	int i;
 	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
-		if (proc_defs[i].enabled && proc_defs[i].tgid == tgid) {
+		if (READ_ONCE(proc_defs[i].enabled) && READ_ONCE(proc_defs[i].tgid) == tgid) {
 			return &proc_defs[i];
 		}
 	}
@@ -182,7 +192,7 @@ static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 static void update_proc_hw(struct worker_dev *dev, struct proc_def *proc)
 {
 	lauberhorn_eci_sched_ctrl_proc_enabled_wr(&dev->sched_dev,
-						  proc->enabled);
+						  proc->enabled && !proc->stopping && !atomic_read(&proc->stop_requested));
 	lauberhorn_eci_sched_ctrl_proc_pid_wr(&dev->sched_dev, proc->tgid);
 	lauberhorn_eci_sched_ctrl_proc_max_threads_wr(&dev->sched_dev,
 						      proc->num_rdy_thrs);
@@ -216,6 +226,10 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 	}
 
 	proc->tgid = tgid;
+	proc->lifetime = ++next_process_lifetime;
+	proc->stopping = proc->stopped = false;
+	atomic_set(&proc->stop_requested, 0);
+	memset(proc->parity_page, 0, PAGE_SIZE);
 
 	// All threads start disabled
 	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
@@ -229,6 +243,8 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 	}
 
 	proc->enabled = true;
+	lauberhorn_eci_sched_ctrl_watchdog_cycles_wr(&dev->sched_dev, 0);
+	lauberhorn_eci_sched_ctrl_watchdog_idx_wr(&dev->sched_dev, proc->idx);
 	update_proc_hw(dev, proc);
 
 	pr_info("Registered app #%d with TGID %d\n", proc->idx, tgid);
@@ -236,34 +252,92 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 	return proc;
 }
 
-static void deregister_app(struct worker_dev *dev, pid_t tgid)
+/* control_lock serializes the lifecycle; IRQs only set stop_requested.
+ * A disabled hardware process stays reserved in proc_defs until file release,
+ * so stale VMAs and deferred scheduling work cannot alias a new application. */
+void request_process_stop(struct proc_def *proc)
 {
-	int i;
-	struct proc_def *proc = find_proc(tgid);
-	if (!proc) {
-		pr_err("Process %d not registered, bug?\n", tgid);
-		return;
-	}
+	atomic_cmpxchg(&proc->stop_requested, 0, 2);
+	mod_delayed_work(system_wq, &recovery_work, 0);
+}
 
-	// Stop all threads under this app
+static unsigned long process_draining(struct file_priv *fp)
+{
+	lauberhorn_eci_sched_stat_readback_idx_wr(&fp->dev->sched_dev, fp->pd->idx);
+	return lauberhorn_eci_sched_stat_readback_draining_rd(&fp->dev->sched_dev);
+}
+
+static int stop_app(struct file_priv *fp, bool kill)
+{
+	struct proc_def *proc = fp->pd;
+	lauberhorn_eci_OncRpcReplyDecoder_t replies;
+	unsigned long busy;
+	int i, ret;
+	int reason = atomic_read(&proc->stop_requested) ?: (kill ? 1 : 0);
+	if (proc->stopped) return 0;
+	if (!proc->stopping) {
+		proc->stopping = true;
+		trace_process_recovery(proc->lifetime, proc->tgid, proc->idx, 0, reason);
+		update_proc_hw(fp->dev, proc);
+		for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i)
+			if (proc->srvs[i] && proc->srvs[i]->enabled)
+				deregister_service(fp->dev, proc->srvs[i]);
+		pr_info("Stopping TGID %d reason=%s\n", proc->tgid, kill ? "kill" : "close");
+	}
+	/* First drain every physical worker, including committed outgoing TX.
+	 * Table retirement then prevents further late completion admission. */
+	ret = read_poll_timeout(process_draining, busy, !busy, 10, 1000000, false, fp);
+	if (ret) return ret;
+	flush_worker_schedules();
+	trace_process_recovery(proc->lifetime, proc->tgid, proc->idx, 1, reason);
+	lauberhorn_eci_OncRpcReplyDecoder_initialize(&replies,
+		LAUBERHORN_ECI__ONC_RPC_REPLY_DECODER_BASE);
+	ret = read_poll_timeout(lauberhorn_eci_OncRpcReplyDecoder_stat_retire_busy_rd,
+		busy, !busy, 10, 1000000, false, &replies);
+	if (ret) return ret;
+	lauberhorn_eci_OncRpcReplyDecoder_ctrl_retire_pid_wr(&replies, proc->tgid);
+	lauberhorn_eci_OncRpcReplyDecoder_ctrl_retire_wr(&replies, 2);
+	ret = read_poll_timeout(lauberhorn_eci_OncRpcReplyDecoder_stat_retire_busy_rd,
+		busy, !busy, 10, 1000000, false, &replies);
+	if (ret) return ret;
+	/* A completion can have left the lookup before the retirement command. */
+	ret = read_poll_timeout(process_draining, busy, !busy, 10, 1000000, false, fp);
+	if (ret) return ret;
+	lauberhorn_eci_OncRpcReplyEncoder_ctrl_context_reclaim_pid_wr(
+		&fp->dev->OncRpcReplyEncoder_dev, proc->tgid);
+	for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
+		if (fp->endpoints[i]) release_endpoint(fp, i);
 	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-		if (proc->thr_defs[i].enabled) {
-			clean_worker_thread(&proc->thr_defs[i]);
-		}
+		struct thr_def *thr = &proc->thr_defs[i];
+		if (!thr->enabled) continue;
+		if (kill) send_sig(SIGKILL, thr->task, 1);
+		clean_worker_thread(thr);
 	}
+	proc->stopped = true;
+	trace_process_recovery(proc->lifetime, proc->tgid, proc->idx, 2, reason);
+	pr_info("Retired hardware ownership for TGID %d\n", proc->tgid);
+	return 0;
+}
 
-	// Deregister all services under this app
-	for (i = 0; i < LAUBERHORN_NUM_SERVICES; ++i) {
-		if (proc->srvs[i] && proc->srvs[i]->enabled) {
-			deregister_service(dev, proc->srvs[i]);
+static void recovery_monitor(struct work_struct *work)
+{
+	int i, j;
+	bool active = false;
+	mutex_lock(&control_lock);
+	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
+		struct file_priv *fp = app_files[i];
+		if (!fp || fp->pd->stopped) continue;
+		active = true;
+		for (j = 0; j < LAUBERHORN_NUM_WORKER_CORES; ++j) {
+			struct thr_def *thr = &fp->pd->thr_defs[j];
+			if (thr->task && fatal_signal_pending(thr->task))
+				atomic_cmpxchg(&fp->pd->stop_requested, 0, 3);
 		}
+		if (atomic_read(&fp->pd->stop_requested) && stop_app(fp, true))
+			pr_err_ratelimited("TGID %d recovery still waiting for hardware drain\n", fp->pd->tgid);
 	}
-
-	// Program into HW
-	proc->enabled = false;
-	update_proc_hw(dev, proc);
-
-	pr_info("Deregistered app #%d with TGID %d\n", proc->idx, proc->tgid);
+	mutex_unlock(&control_lock);
+	if (active) schedule_delayed_work(&recovery_work, msecs_to_jiffies(10));
 }
 
 static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long arg)
@@ -273,7 +347,7 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 	lauberhorn_reg_srv_t reg_cmd;
 	lauberhorn_reg_srv_t __user *reg_cmd_usr = (void __user *)arg;
 	lauberhorn_srv_id_t reg_ret;
-	int proc_srv_idx, i;
+	int proc_srv_idx;
 
 	lauberhorn_dereg_srv_t dereg_cmd;
 	lauberhorn_dereg_srv_t __user *dereg_cmd_usr = (void __user *)arg;
@@ -282,8 +356,29 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 
 	struct proc_def *proc = fp->pd;
 	if (current->tgid != proc->tgid) return -EPERM;
+	if (cmd == LAUBERHORN_IOCTL_STOP_PROCESS || cmd == LAUBERHORN_IOCTL_WAKE_ALL_WORKERS)
+		return stop_app(fp, true);
+	if (proc->stopping) return -ESHUTDOWN;
 
 	switch (cmd) {
+	case LAUBERHORN_IOCTL_KICK_PROCESS:
+		if (!proc->num_rdy_thrs) return -EAGAIN;
+		lauberhorn_eci_sched_ctrl_wake_idx_wr(&fp->dev->sched_dev, proc->idx);
+		return 0;
+	case LAUBERHORN_IOCTL_WATCHDOG: {
+		lauberhorn_watchdog_t cfg;
+		u64 cycles;
+		if (proc->num_rdy_thrs) return -EBUSY;
+		if (copy_from_user(&cfg, (void __user *)arg, sizeof(cfg))) return -EFAULT;
+		if (cfg.reserved) return -EINVAL;
+		cycles = DIV_ROUND_UP_ULL((u64)cfg.limit_us * LAUBERHORN_CLOCK_FREQ, 1000000);
+		if (cycles >= (1ULL << 31)) return -ERANGE;
+		lauberhorn_eci_sched_ctrl_watchdog_cycles_wr(&fp->dev->sched_dev, cycles);
+		lauberhorn_eci_sched_ctrl_watchdog_idx_wr(&fp->dev->sched_dev, proc->idx);
+		return 0;
+	}
+	case LAUBERHORN_IOCTL_RETIRE_CALL:
+		return retire_call(fp, (void __user *)arg);
 	case LAUBERHORN_IOCTL_REG_ENDPOINT:
 		return register_endpoint(fp, (void __user *)arg);
 	case LAUBERHORN_IOCTL_DEREG_ENDPOINT:
@@ -332,15 +427,6 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 
 		break;
 
-	case LAUBERHORN_IOCTL_WAKE_ALL_WORKERS:
-		// Find all unscheduled threads of this app
-		for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-			struct thr_def *thr = &proc->thr_defs[i];
-			if (thr->enabled && thr->worker_idx == -1) {
-				clean_worker_thread(thr);
-			}
-		}
-		break;
 
 	default:
 		pr_err("Unknown ioctl command %u\n", cmd);
@@ -372,6 +458,7 @@ static int app_dev_open(struct inode *i, struct file *f)
 	pr_info("Registering application TGID %d\n", tgid);
 	mutex_lock(&control_lock);
 	fp->pd = register_app(fp->dev, tgid);
+	if (!IS_ERR(fp->pd)) app_files[fp->pd->idx] = fp;
 	mutex_unlock(&control_lock);
 	if (IS_ERR(fp->pd)) {
 		err = PTR_ERR(fp->pd);
@@ -380,6 +467,7 @@ static int app_dev_open(struct inode *i, struct file *f)
 	}
 
 	f->private_data = fp;
+	mod_delayed_work(system_wq, &recovery_work, msecs_to_jiffies(10));
 	return 0;
 
 free_fp:
@@ -395,8 +483,13 @@ static int app_dev_release(struct inode *i, struct file *f)
 
 	pr_info("Deregistering application TGID %d\n", tgid);
 	mutex_lock(&control_lock);
-	quarantine_endpoints(fp);
-	deregister_app(fp->dev, tgid);
+	/* Never release a slot or mapping while a transaction still owns it.
+	 * Failure to drain is a hardware bug: retain ownership and keep reporting
+	 * it, rather than pretending teardown succeeded or requiring reset. */
+	while (stop_app(fp, false))
+		pr_err_ratelimited("TGID %d close waiting for hardware drain\n", tgid);
+	app_files[fp->pd->idx] = NULL;
+	fp->pd->enabled = false;
 	mutex_unlock(&control_lock);
 
 	kfree(fp);
@@ -409,8 +502,10 @@ static void vma_close(struct vm_area_struct *vma)
 	struct vma_priv_data *priv = vma->vm_private_data;
 	if (!priv->is_parity_page) {
 		mutex_lock(&control_lock);
-		// A worker thread unmapped its datapath VMA, disable the thread
-		clean_worker_thread(priv->thr);
+		/* Unmapping any worker ends the application's hardware lifetime. */
+		while (stop_app(app_files[priv->thr->parent->idx], true))
+			pr_err_ratelimited("TGID %d unmap waiting for hardware drain\n",
+				priv->thr->parent->tgid);
 
 		// Decrement the parallelism count
 		--priv->thr->parent->num_rdy_thrs;
@@ -464,6 +559,7 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
 
 	proc = fp->pd;
 	if (proc->tgid != tgid) return -EPERM;
+	if (proc->stopping) return -ESHUTDOWN;
 	if (!proc) {
 		pr_err("Failed to find TGID %d for thread init, bug?\n", tgid);
 		return -EINVAL;
@@ -525,6 +621,8 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
 			      LAUBERHORN_ECI_CORE_OFFSET, vma->vm_page_prot);
 	if (err != 0) {
 		pr_info("Failed to map datapath address into thread\n");
+		put_task_struct(thr->task);
+		thr->task = NULL;
 		return err;
 	}
 	thr->vma_data_datapath.is_parity_page = false;
@@ -534,12 +632,11 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
 		 "Lauberhorn thread#%d datapath page", thr_idx);
 	vma->vm_private_data = &thr->vma_data_datapath;
 
-	// Increment the parallelism count
+	/* Publish hardware parallelism only after the thread can be claimed by an
+	 * IRQ. A queued request can activate it immediately after this update. */
+	prepare_worker_thread(thr);
 	++proc->num_rdy_thrs;
 	update_proc_hw(fp->dev, proc);
-
-	// Thread will be blocked until HW wakes it up
-	prepare_worker_thread(thr);
 
 	return 0;
 }
@@ -622,6 +719,7 @@ int create_devices(void)
 
 void remove_devices(void)
 {
+	cancel_delayed_work_sync(&recovery_work);
 	// free our private data
 	struct worker_dev *dev =
 		dev_get_drvdata(class_find_device_by_devt(dev_class, devt));

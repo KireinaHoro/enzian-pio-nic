@@ -16,11 +16,13 @@ pkgs.stdenv.mkDerivation {
     $CC $flags sw/tests/pending-call.c sw/rt/pending_call_table.c sw/rt/utils/bitmap.c -o pending-call-test
     $CC $flags sw/tests/codec.c sw/rt/oncrpc.c $(pkg-config --libs libtirpc) -o codec-test
     $CC $flags sw/tests/endpoint-control.c -o endpoint-control-test
+    $CC $flags sw/tests/critical-section.c -o critical-section-test
     $CC $flags sw/tests/rpc.c sw/rt/future.c sw/rt/pending_call_table.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o rpc-test
     $CC $flags -DNDEBUG sw/tests/rpc.c sw/rt/future.c sw/rt/pending_call_table.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o rpc-release-test
     ./rpc-release-test
     ./rpc-test
     ./endpoint-control-test
+    ./critical-section-test
     ./endpoint-test
     ./pending-call-test
     ./codec-test

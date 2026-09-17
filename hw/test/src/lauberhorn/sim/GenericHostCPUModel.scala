@@ -82,6 +82,12 @@ trait WorkerCoreState extends CoreState {
 
   def canInterrupt: Boolean
 
+  var allowKill = false
+  var killCount = 0
+  def recordKill(): Unit = {
+    assert(allowKill, "unexpected forced process termination")
+    killCount += 1
+  }
   var currThread: Option[ThreadDef] = None
   override def log(msg: String) = {
     currThread match {
@@ -208,11 +214,23 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       val pidToSched = ipiAck.pop(PID_WIDTH)
       val killed     = ipiAck.pop(1) != 0
 
-      // TODO: how to handle killing a process?
-      assert(!killed, "kill preemption not implemented yet and should not happen")
+      if(killed) wcs.recordKill()
 
-      // select thread in process
-      processes(pidToSched.toInt).threads.find(_.runningOn.isEmpty) match {
+      // IRQ acknowledgement stops userspace, but the old mapping must remain
+      // until RX/TX invalidations and packet retirement have completed.
+      while(asMaster.read(bus, preemptRegBlock("datapathDrained"), 8).bytesToBigInt == 0) {
+        spinal.core.sim.sleep(10)
+      }
+
+      // PID zero returns the physical worker to idle with no routed prefix.
+      if(pidToSched == 0) {
+        threadDbMtx.lock()
+        asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "enabled"), 0.toBytesLE)
+        asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "coreIdx"), cid.toBytesLE)
+        wcs.currThread.foreach(_.runningOn = None)
+        wcs.currThread = None
+        threadDbMtx.unlock()
+      } else processes(pidToSched.toInt).threads.find(_.runningOn.isEmpty) match {
         case Some(thr) =>
           wcs.switchToThread(thr, bus)
         case None =>

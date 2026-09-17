@@ -42,6 +42,13 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     }
     busCtrl.read(logic.contexts.io.readActive, alloc("stat", "Reply context active", "context_active", attr = AccessType.RO))
     busCtrl.read(logic.contexts.io.readToken, alloc("stat", "Reply context token", "context_token", attr = AccessType.RO))
+    busCtrl.read(logic.contexts.io.readOwner, alloc("stat", "Reply context owner PID",
+      "context_owner", attr = AccessType.RO))
+    logic.contexts.io.reclaim.valid := False
+    logic.contexts.io.reclaim.payload := 0
+    val reclaimAddr = alloc("ctrl", "Reclaim owner PID after process drain", "context_reclaim_pid", attr = AccessType.WO)
+    busCtrl.write(logic.contexts.io.reclaim.payload, reclaimAddr)
+    busCtrl.onWrite(reclaimAddr) { logic.contexts.io.reclaim.valid := True }
     busCtrl.read(logic.sessTblFull.value, alloc("stat", "Requests rejected: reply context table full",
       "sessTblFull", attr = AccessType.RO))
     busCtrl.read(logic.rejectionDropped.value, alloc("stat", "Rejection queue full: error reply dropped",
@@ -64,7 +71,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     to[UdpTxMeta, UdpEncoder](remoteMd, remotePld)
 
     // Admission is decided before host dispatch, with no allocation round trip.
-    val contexts = new RpcReplyContexts(NUM_SESSIONS)
+    val contexts = new RpcReplyContexts(NUM_SESSIONS, lauberhorn.Global.PID_WIDTH.get)
     val reject = Flow(UdpReplyContext())
     val rejected = StreamFifo(UdpReplyContext(), NUM_SESSIONS.get)
     rejected.io.push.valid := reject.valid

@@ -118,10 +118,11 @@ case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtr
       .toBigInt
 }
 
-case class TxOncRpcReplySim(len: Int, requestToken: BigInt, args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
+case class TxOncRpcReplySim(len: Int, requestToken: BigInt, args: BigInt, status: Int = 0, execution: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(8, status, skip = 5)
+      .push(2, execution)
+      .push(8, status, skip = 3)
       .push(32, requestToken)
       .push(64, 0)
       .push(ONCRPC_INLINE_BYTES * 8, args)
@@ -178,4 +179,10 @@ case class RxOncRpcReplySim(len: Int,
                             args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyRxPacketDescSim {
   /** not implemented due to reply Rx descriptor never sent out */
   override def encode = ???
+}
+
+case class TxExecutionSim(command: Int) extends EciHostCtrlInfoSim {
+  def ty = 7
+  def len = 0
+  def encode = BigInt(command)
 }

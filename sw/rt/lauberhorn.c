@@ -26,22 +26,33 @@ int lauberhorn_fd;
 struct pending_call_table pending_call_table;
 struct srv_table srv_table;
 
-static void sigint_handler(int signo) {
-    assert(signo == SIGINT);
-    lauberhorn_is_running = 0;
-
-    LOG("SIGINT received, shutting down...");
-    int err = ioctl(lauberhorn_fd, LAUBERHORN_IOCTL_WAKE_ALL_WORKERS, NULL);
-    if (err) {
-        PERROR("wake all workers");
+static pthread_t deadline_thread;
+static atomic_bool deadline_running;
+static void *deadline_loop(void *unused) {
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT); sigaddset(&mask, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &mask, NULL);
+    while (atomic_load(&deadline_running)) {
+        if (pending_call_table_has_expired(&pending_call_table))
+            ioctl(lauberhorn_fd, LAUBERHORN_IOCTL_KICK_PROCESS);
+        struct timespec delay = {.tv_nsec = 10000000};
+        nanosleep(&delay, NULL);
     }
-    exit(0);
+    return NULL;
+}
+
+static void shutdown_signal(int signo) {
+    /* exit_group requests fatal termination of workers too. The kernel's
+     * recovery monitor handles TASK_IDLE workers before releasing mappings. */
+    _exit(128 + signo);
 }
 
 int lauberhorn_init(lauberhorn_t *ctx) {
     ctx->_workers = 0;
+    ctx->_watchdog_enabled = false;
     struct sigaction sa = {
-        .sa_handler = sigint_handler,
+        .sa_handler = shutdown_signal,
         .sa_flags = SA_RESTART, // resume join in main
     };
     int err;
@@ -67,6 +78,7 @@ int lauberhorn_init(lauberhorn_t *ctx) {
 
     // register SIGINT handler
     err = sigaction(SIGINT, &sa, NULL);
+    if (!err) err = sigaction(SIGTERM, &sa, NULL);
     if (err) {
         PERROR("handle SIGINT");
         close(ctx->fd);
@@ -77,11 +89,40 @@ int lauberhorn_init(lauberhorn_t *ctx) {
     pending_call_table_init(&pending_call_table);
     srv_table_init(&srv_table);
 
+    atomic_store(&deadline_running, true);
+    err = pthread_create(&deadline_thread, NULL, deadline_loop, NULL);
+    if (err) {
+        atomic_store(&deadline_running, false);
+        munmap(ctx->parity_page, page_size);
+        close(ctx->fd);
+        errno = err;
+        return -1;
+    }
     LOG("app initialized");
     return 0;
 }
 
-void lauberhorn_fini(lauberhorn_t *ctx) { close(ctx->fd); }
+int lauberhorn_set_watchdog(lauberhorn_t *ctx, uint32_t limit_us) {
+    if (!ctx) { errno = EINVAL; return -1; }
+    if (ctx->_workers) { errno = EBUSY; return -1; }
+    lauberhorn_watchdog_t cfg = {.limit_us = limit_us};
+    if (ioctl(ctx->fd, LAUBERHORN_IOCTL_WATCHDOG, &cfg)) return -1;
+    ctx->_watchdog_enabled = limit_us != 0;
+    return 0;
+}
+int lauberhorn_stop(lauberhorn_t *ctx) {
+    if (!ctx) { errno = EINVAL; return -1; }
+    return ioctl(ctx->fd, LAUBERHORN_IOCTL_STOP_PROCESS);
+}
+
+void lauberhorn_fini(lauberhorn_t *ctx) {
+    atomic_store(&deadline_running, false);
+    pthread_join(deadline_thread, NULL);
+    munmap(ctx->parity_page, getpagesize());
+    ctx->parity_page = NULL;
+    close(ctx->fd);
+    ctx->fd = -1;
+}
 
 int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t handler,
                        uint32_t prog_num, uint32_t prog_ver,

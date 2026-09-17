@@ -61,7 +61,18 @@ static void lauberhorn_eci_OncRpcReplyDecoder_initialize(int *d, int b) {}
 static void lauberhorn_eci_OncRpcReplyDecoder_stat_req_readback_idx_wr(int *d, int i) {}
 static int lauberhorn_eci_OncRpcReplyDecoder_stat_req_readback_active_rd(int *d) { return hw_active; }
 static int lauberhorn_eci_OncRpcReplyDecoder_stat_req_readback_local_port_rd(int *d) { return 49154; }
+static u32 retire_pid, retire_cookie, retire_count;
+static bool retire_busy, retire_stuck;
+static void lauberhorn_eci_OncRpcReplyDecoder_ctrl_retire_pid_wr(int *d, u32 pid) { retire_pid = pid; }
+static void lauberhorn_eci_OncRpcReplyDecoder_ctrl_retire_cookie_wr(int *d, u32 cookie) { retire_cookie = cookie; }
+static void lauberhorn_eci_OncRpcReplyDecoder_ctrl_retire_wr(int *d, u32 mode) {
+    assert(mode == 1); retire_count++; retire_busy = retire_stuck;
+}
+static int lauberhorn_eci_OncRpcReplyDecoder_stat_retire_busy_rd(int *d) { return retire_busy; }
+#define read_poll_timeout(op, value, condition, sleep, timeout, before, ...) \
+    ({ (value) = op(__VA_ARGS__); (condition) ? 0 : -ETIMEDOUT; })
 #include "../kmod/endpoints.h"
+#include "../kmod/recovery.h"
 int main(void) {
     struct proc proc = {.tgid = 123};
     struct worker_dev dev = {0};
@@ -84,6 +95,14 @@ int main(void) {
     srv_defs[0].enabled = true; srv_defs[0].port = 49153;
     assert(!register_endpoint(&fp, &cmd));
     assert(cmd.pid == 123 && cmd.port == 49154 && sockets == 1);
+    lauberhorn_retire_call_t retire = {.endpoint_handle = cmd.handle, .cookie = 0x12345678};
+    assert(retire_call(&other, &retire) == -ENOENT && !retire_count);
+    assert(!retire_call(&fp, &retire) && retire_count == 1);
+    assert(retire_pid == 123 && retire_cookie == 0x12345678 && sockets == 1);
+    retire_stuck = true;
+    assert(retire_call(&fp, &retire) == -ETIMEDOUT);
+    assert(retire_call(&fp, &retire) == -EBUSY && retire_count == 2);
+    retire_stuck = retire_busy = false;
     lauberhorn_dereg_endpoint_t dereg = {.handle = cmd.handle};
     assert(deregister_endpoint(&other, &dereg) == -ENOENT);
     hw_active = 1;
@@ -94,6 +113,7 @@ int main(void) {
     cmd = (lauberhorn_reg_endpoint_t){0};
     assert(register_endpoint(&fp, &cmd) == -ENOSPC && sockets == 2);
     assert(!deregister_endpoint(&fp, &dereg) && sockets == 1);
-    quarantine_endpoints(&fp);
-    assert(sockets == 1 && pins == 1 && endpoint_port_reserved(49155));
+    for (int i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
+        if (fp.endpoints[i]) release_endpoint(&fp, i);
+    assert(!sockets && !pins && !endpoint_port_reserved(49155));
 }

@@ -10,6 +10,11 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     SimTimeout(1000000)
     dut.clockDomain.forkStimulus(4)
     dut.io.allocate.valid #= false
+    dut.io.allocateOwner #= 42
+    dut.io.reclaim.valid #= false
+    dut.io.reclaim.payload #= 0
+    dut.io.discard.valid #= false
+    dut.io.discard.payload #= 0
     dut.io.retire #= false
     dut.io.replyToken #= 0
     dut.io.readIndex #= 0
@@ -71,5 +76,51 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     check(tokens(1), false)
     check(next, true)
     check(tokens(2), true)
+    // Reclaim one process without losing other owners, even when another
+    // process allocates in the reclaim cycle. Reused slots reject old tokens.
+    dut.io.allocateOwner #= 99
+    val other = allocate(4567)
+    check(tokens(2), true)
+    dut.io.retire #= true
+    dut.clockDomain.waitSampling()
+    dut.io.retire #= false
+    sleep(1)
+    val concurrent = dut.io.token.toBigInt
+    dut.io.allocate.valid #= true
+    dut.io.reclaim.payload #= 42
+    dut.io.reclaim.valid #= true
+    dut.clockDomain.waitSampling()
+    dut.io.allocate.valid #= false
+    dut.io.reclaim.valid #= false
+    check(previous, false)
+    check(next, false)
+    check(other, true)
+    check(concurrent, true)
+    dut.io.readIndex #= (other & 15).toInt
+    sleep(1)
+    assert(dut.io.readOwner.toInt == 99)
+    dut.io.allocateOwner #= 42
+    val reused = allocate(7654)
+    assert(reused != next)
+    check(next, false)
+    check(reused, true)
+    dut.io.reclaim.payload #= 99
+    dut.io.reclaim.valid #= true
+    dut.clockDomain.waitSampling()
+    dut.io.reclaim.valid #= false
+    check(other, false)
+    check(concurrent, false)
+    check(reused, true)
+    // A late discard must not invalidate a new generation in the same slot.
+    dut.io.discard.payload #= next
+    dut.io.discard.valid #= true
+    dut.clockDomain.waitSampling()
+    dut.io.discard.valid #= false
+    check(reused, true)
+    dut.io.discard.payload #= reused
+    dut.io.discard.valid #= true
+    dut.clockDomain.waitSampling()
+    dut.io.discard.valid #= false
+    check(reused, false)
   }
 }

@@ -4,10 +4,11 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
+import lauberhorn.host.eci.EciDecoupledRxTxProtocol
 import lauberhorn.host.{HostReq, HostReqType, HostReqWithTrace, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.invalidTraceId
-import lauberhorn.net.oncrpc.OncRpcCallRxMeta
+import lauberhorn.net.oncrpc.{OncRpcCallRxMeta, OncRpcCallDecoder, OncRpcReplyDecoder}
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.misc.database.Element.toValue
 import spinal.lib.bus.regif.AccessType
@@ -80,6 +81,27 @@ class Scheduler extends FiberPlugin {
 
   def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.procDb.update.setIdle()
+    val wakeIndex = ProcTblIdx
+    wakeIndex := 0
+    val wakeAddr = alloc("ctrl", "Request a worker for internal deadline progress", "wake_idx", attr = AccessType.WO)
+    busCtrl.write(wakeIndex, wakeAddr)
+    busCtrl.onWrite(wakeAddr) {
+      when(logic.processEnabled(wakeIndex)) { logic.softwarePending(wakeIndex) := True }
+    }
+    val watchdogLimit = UInt(32 bits)
+    busCtrl.driveAndRead(watchdogLimit, alloc("ctrl", "Execution limit in cycles; zero disables",
+      "watchdog_cycles")) init 0
+    val watchdogIndex = ProcTblIdx
+    watchdogIndex := 0
+    val watchdogAddr = alloc("ctrl", "Configure watchdog before process workers start", "watchdog_idx", attr = AccessType.WO)
+    busCtrl.write(watchdogIndex, watchdogAddr)
+    busCtrl.onWrite(watchdogAddr) {
+      assert(watchdogIndex =/= 0 && !watchdogLimit.msb)
+      assert(!logic.corePidMap.map(_ === watchdogIndex).asBits.orR,
+        "watchdog configuration changed after workers started")
+      logic.watchdogLimits(watchdogIndex) := watchdogLimit
+      logic.watchdogKilled(watchdogIndex) := False
+    }
 
     // max number of threads per process (degree of parallelism)
     logic.procDb.update.value.elements.foreach { case (name, field) =>
@@ -107,6 +129,7 @@ class Scheduler extends FiberPlugin {
     // read-back port for SW to inspect programmed procs
     val readbackPort = Reg(new ProcessDef {
       val queueFill = UInt(REG_WIDTH bits)
+      val draining = Bool()
     })
     readbackPort.elements.foreach { case (name, field) =>
       busCtrl.read(field, alloc("stat", s"Process table readback $name",
@@ -120,6 +143,7 @@ class Scheduler extends FiberPlugin {
     busCtrl.onWrite(readbackIdxAddr) {
       readbackPort.assignSomeByName(logic.procDb.readback)
       readbackPort.queueFill := logic.queueMetas(logic.procDb.readbackIdx).fill.resized
+      readbackPort.draining := logic.processDraining(logic.procDb.readbackIdx)
     }
 
     logic.statistics.elements.foreach {
@@ -136,6 +160,8 @@ class Scheduler extends FiberPlugin {
   val logic = during setup new Area {
     /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallRxMeta]] */
     val rxMeta = Stream(HostReqWithTrace())
+    // Rejected descriptors still own their packet allocation and reply context.
+    val discarded = Stream(HostReqWithTrace())
 
     val queueTp = host[TracePlugin].makePort("scheduler_queue", LauberhornTraceDma.NicHostInterfaceSlr)
     val coreTps = Seq.tabulate(NUM_WORKER_CORES)(idx =>
@@ -147,6 +173,8 @@ class Scheduler extends FiberPlugin {
       * on a core is requested through the [[corePreempt]] interfaces.
       */
     val coreMeta = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
+    // Explicit withdrawal of an unaccepted descriptor during process stop.
+    val coreCancel = Vec.fill(NUM_WORKER_CORES)(Bool())
 
     awaitBuild()
 
@@ -173,9 +201,25 @@ class Scheduler extends FiberPlugin {
       v.maxThreads init U(NUM_WORKER_CORES)
       v.pid.bits init U(0xffff)
     }
+    // The pipelined lookup can still contain a result from before disable.
+    // Gate admission/pop with the current control state as well.
+    val softwarePending = Vec.fill(NUM_PROCS + 1)(RegInit(False))
+    val watchdogLimits = Vec.fill(NUM_PROCS + 1)(Reg(UInt(32 bits)) init 0)
+    val watchdogKilled = Vec.fill(NUM_PROCS + 1)(RegInit(False))
+    val watchdogNow = Counter(32 bits)
+    watchdogNow.increment()
+    val processEnabled = Vec.fill(NUM_PROCS + 1)(RegInit(False))
+    val processPids = Vec.fill(NUM_PROCS + 1)(Reg(PID()))
+    processPids.foreach(_.bits init U(0xffff))
+    when(procDb.update.valid) {
+      processEnabled(procDb.update.idx) := procDb.update.value.enabled && !watchdogKilled(procDb.update.idx)
+      processPids(procDb.update.idx) := procDb.update.value.pid
+      when(!procDb.update.value.enabled) { softwarePending(procDb.update.idx) := False }
+    }
 
     val statistics = new Bundle {
       val pushed, dropped = Reg(UInt(REG_WIDTH bits)) init 0
+      val watchdogControls, watchdogExpirations = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
       val popped, preempted, dispatched = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
     }
     def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
@@ -276,11 +320,13 @@ class Scheduler extends FiberPlugin {
 
     val (drainLookup, drainResult, _) = procDb.makePort(DrainQuery(), NoData(), "drain") { (v, q, idx) =>
       val coreMap = q.corePidMap.map(_ === idx).asBits()
-      v.enabled && !q.procEmptyMap(idx) && coreMap === 0
+      v.enabled && v.maxThreads =/= 0 && !q.procEmptyMap(idx) && coreMap === 0
     }
 
     // always valid to select a process to drain
-    drainLookup.query.procEmptyMap := queueMetas.map(_.empty).asBits()
+    drainLookup.query.procEmptyMap := queueMetas.zipWithIndex.map { case (q, i) =>
+      q.empty && !softwarePending(i)
+    }.asBits()
     drainLookup.query.corePidMap := corePidMap
     drainLookup.valid := True
     drainResult.ready := True
@@ -326,17 +372,24 @@ class Scheduler extends FiberPlugin {
     rxPreemptReq.hostMsgId := invalidTraceId(HostMsgID.width)
 
     pushResult.ready := False
+    val pushDiscard, queueDiscard = Stream(HostReqWithTrace())
+    val coreDiscards = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
+    discarded << StreamArbiterFactory().roundRobin.on(Seq(pushDiscard, queueDiscard) ++ coreDiscards)
+    when(discarded.fire) { inc(_.dropped) }
+    queueTp.trace("SchedulerRequestDropped",
+      HostMsgID(discarded.hostMsgId),
+      ProcessID(requestPid(discarded.req).bits)) := discarded.fire
+    pushDiscard.valid := False
+    pushDiscard.payload := pushResult.userData
     when (pushResult.valid) {
       // received packet: push into memory
-      when (queueMetas(pushResult.idx).full) {
+      when (!pushResult.matched || !processEnabled(pushResult.idx) || queueMetas(pushResult.idx).full) {
         // the destination proc queue is full
         // since we don't have any queuing anywhere outside the scheduler, we have to drop the packet
-        // FIXME: free the buffer by sending back a hostRxAck (normally sent by host module)
-        inc(_.dropped)
-        queueTp.trace("SchedulerRequestDropped",
-          HostMsgID(pushResult.userData.hostMsgId),
-          ProcessID(pushResult.value.pid.bits))
+        pushDiscard.valid := True
+        pushResult.ready := pushDiscard.ready
       } otherwise {
+        pushResult.ready := True
         // store at where the tail was
         queueMem.write(queueMetas(pushResult.idx).tail, pushResult.userData)
 
@@ -350,7 +403,8 @@ class Scheduler extends FiberPlugin {
       }
 
       // A new packet arrived, try to select a core to preempt, but do not block the RX process.
-      when (pushResultThrCount < pushResult.value.maxThreads) {
+      when (pushResult.fire && pushResult.matched && processEnabled(pushResult.idx) && !queueMetas(pushResult.idx).full &&
+            pushResultThrCount < pushResult.value.maxThreads) {
         rxPreemptReq.pid := pushResult.value.pid
         rxPreemptReq.idx := pushResult.idx
         rxPreemptReq.hostMsgId := pushResult.userData.hostMsgId
@@ -368,8 +422,6 @@ class Scheduler extends FiberPlugin {
         }
       }
 
-      // we either pushed the packet or dropped it, ack
-      pushResult.ready := True
     }
 
     // each core can raise a pop request, to remove one packet from the queues.
@@ -378,7 +430,10 @@ class Scheduler extends FiberPlugin {
       val req, grant = Bool()
       val queueIdx = ProcTblIdx
     }
-    val popReqs = Seq.fill(NUM_WORKER_CORES)(PopReq())
+    // One extra reader drains disabled process queues through the same allocator
+    // return path as rejected incoming packets. Never reset queue pointers and
+    // lose the packet allocations that they own.
+    val popReqs = Seq.fill(NUM_WORKER_CORES + 1)(PopReq())
     popReqs.foreach { _.grant := False }
     val popReqPresent = popReqs.map(_.req).asBits()
     val grantedIdx = OHToUInt(OHMasking.firstV2(popReqPresent))
@@ -389,6 +444,69 @@ class Scheduler extends FiberPlugin {
     val poppedReq = queueMem.readSync(toPopReqAddr)
 
     popQ(grantedPopReq) := popReqPresent.orR
+
+    val reclaimPop = popReqs.last
+    reclaimPop.req := False
+    reclaimPop.queueIdx := 0
+    queueDiscard.setIdle()
+    val reclaimCandidates = queueMetas.zipWithIndex.map { case (q, i) =>
+      !processEnabled(i) && !q.empty && Bool(i != 0)
+    }.asBits()
+    val reclaimIdx = OHToUInt(OHMasking.firstV2(reclaimCandidates))
+    val reclaimSaved = Reg(HostReqWithTrace())
+    val reclaimOwner = Reg(ProcTblIdx) init 0
+    val reclaimFsm = new StateMachine {
+      val idle: State = new State with EntryPoint {
+        whenIsActive {
+          reclaimPop.req := reclaimCandidates.orR
+          reclaimPop.queueIdx := reclaimIdx
+          when(reclaimPop.req && reclaimPop.grant) { reclaimOwner := reclaimIdx; goto(capture) }
+        }
+      }
+      val capture: State = new State {
+        whenIsActive {
+          reclaimSaved := poppedReq
+          goto(discard)
+        }
+      }
+      val discard: State = new State {
+        whenIsActive {
+          queueDiscard.valid := True
+          queueDiscard.payload := reclaimSaved
+          when(queueDiscard.fire) { reclaimOwner := 0; goto(idle) }
+        }
+      }
+    }
+    reclaimFsm.build()
+
+    // Ownership starts when decoding admits a descriptor, before DMA/payload
+    // storage. Retain it through the pipelined process lookup even after disable.
+    val admissions = Seq(host[OncRpcCallDecoder].logic.admission,
+      host[OncRpcReplyDecoder].logic.admission)
+    val inTransit = Vec.fill(NUM_PROCS + 1)(Reg(UInt(32 bits)) init 0)
+    inTransit(0) := 0
+    for(i <- 1 to NUM_PROCS.get) {
+      val arrivals = CountOne(admissions.map(a => a.valid && a.payload === processPids(i)).asBits)
+      val departure = pushResult.fire && requestPid(pushResult.userData.req) === processPids(i)
+      when(arrivals =/= 0 || departure) {
+        assert(!departure || inTransit(i) =/= 0 || arrivals =/= 0,
+          "process descriptor ownership underflow")
+        inTransit(i) := inTransit(i) + arrivals.resize(32) - departure.asUInt.resize(32)
+      }
+    }
+
+    // Actual old owner is retained through the entire preemption handshake;
+    // corePidMap reserves the next owner earlier to bound parallelism.
+    val coreResident = Vec.fill(NUM_WORKER_CORES)(Reg(ProcTblIdx) init 0)
+    for(i <- 1 to NUM_PROCS.get) {
+      when((0 until NUM_WORKER_CORES).map(c => coreResident(c) === i && !corePreempt(c).valid).asBits.orR) {
+        softwarePending(i) := False
+      }
+    }
+    val processDraining = Vec.tabulate(NUM_PROCS + 1) { pid =>
+      inTransit(pid) =/= 0 || !queueMetas(pid).empty || reclaimOwner === pid ||
+        coreResident.map(_ === pid).asBits.orR || corePidMap.map(_ === pid).asBits.orR
+    }
 
     // victim core selection, based on preemption type
     val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
@@ -418,6 +536,9 @@ class Scheduler extends FiberPlugin {
       val coreTp = coreTps(idx)
       val toCore = coreMeta(idx)
       toCore.setIdle()
+      coreCancel(idx) := False
+      val coreDiscard = coreDiscards(idx)
+      coreDiscard.setIdle()
 
       val popReq = popReqs(idx)
       popReq.req := False
@@ -425,6 +546,32 @@ class Scheduler extends FiberPlugin {
       val savedPoppedReq = Reg(HostReqWithTrace())
 
       val corePopQueueIdx = corePidMap(idx)
+      val execution = host.list[EciDecoupledRxTxProtocol].find(_.coreID == idx + 1)
+      val watchdog = new ExecutionWatchdog()
+      watchdog.io.now := watchdogNow.value
+      watchdog.io.limit := watchdogLimits(coreResident(idx))
+      watchdog.io.enabled := watchdog.io.limit =/= 0 && coreResident(idx) =/= 0
+      watchdog.io.clear := corePreempt(idx).valid
+      watchdog.io.begin := toCore.fire && toCore.req.ty === HostReqType.oncRpcCallRx
+      watchdog.io.end := False
+      execution.foreach { proto =>
+        when(proto.logic.execution.valid) {
+          when(proto.logic.execution.payload(1)) { watchdog.io.begin := True }
+          watchdog.io.end := proto.logic.execution.payload(0)
+        }
+        when(proto.logic.execution.valid && proto.logic.executionOnly) {
+          inc(_.watchdogControls(idx))
+        }
+      }
+      when(watchdog.io.expired.rise()) {
+        inc(_.watchdogExpirations(idx))
+        coreTp.trace("SchedulerWatchdogExpired", CoreID(B(idx + 1, CoreID.width bits)),
+          ProcessID(processPids(coreResident(idx)).bits))
+      }
+      when(watchdog.io.expired && coreResident(idx) =/= 0) {
+        processEnabled(coreResident(idx)) := False
+        watchdogKilled(coreResident(idx)) := True
+      }
 
       corePreempt(idx).valid := False
       // save the requested preemption target until preemption is actually done
@@ -437,28 +584,45 @@ class Scheduler extends FiberPlugin {
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
-            when (rxPreemptReq.valid && victimCoreMapSel(idx)) {
+            when (corePopQueueIdx =/= 0 && !processEnabled(corePopQueueIdx)) {
+              corePreempt(idx).kill := watchdogKilled(corePopQueueIdx)
+              corePreempt(idx).pid.bits := 0
+              corePreempt(idx).outOfIdle := False
+              savedPreemptIdx := 0
+              savedPreemptPid.bits := 0
+              savedPreemptHostMsgId := invalidTraceId(HostMsgID.width)
+              coreTp.trace("SchedulerPreemptCore",
+                HostMsgID(invalidTraceId(HostMsgID.width)), ProcessID(U(0, PID_WIDTH bits)),
+                PreviousProcessID(processPids(coreResident(idx)).bits),
+                coreTd, PreemptCommand(PreemptCmdType.force.asBits),
+                PreemptOutOfIdle(False), QueueIndex(corePopQueueIdx),
+                QueueFill(queueMetas(corePopQueueIdx).fill))
+              goto(preempt)
+            } elsewhen (rxPreemptReq.valid && processEnabled(rxPreemptReq.idx) && victimCoreMapSel(idx)) {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
+              corePreempt(idx).kill := False
               corePreempt(idx).pid := rxPreemptReq.pid
 
               // are we previously in idle?  if yes, the preemption control cannot
               // try to unset ready (thread router not set up yet)
               corePreempt(idx).outOfIdle := coreIdleMap(idx)
 
+              corePidMap(idx) := rxPreemptReq.idx
               savedPreemptIdx := rxPreemptReq.idx
               savedPreemptPid := rxPreemptReq.pid
               savedPreemptHostMsgId := rxPreemptReq.hostMsgId
               coreTp.trace("SchedulerPreemptCore",
                 HostMsgID(rxPreemptReq.hostMsgId),
                 ProcessID(rxPreemptReq.pid.bits),
+                PreviousProcessID(processPids(coreResident(idx)).bits),
                 coreTd,
                 PreemptCommand(rxPreemptReq.ty.asBits),
                 PreemptOutOfIdle(coreIdleMap(idx)),
                 QueueIndex(rxPreemptReq.idx),
                 QueueFill(queueMetas(rxPreemptReq.idx).fill))
               goto(preempt)
-            } elsewhen (toCore.ready && !queueMetas(corePopQueueIdx).empty) {
+            } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
               // XXX: this goes against the Stream semantics (https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Libraries/stream.html#semantics):
               //      "It is recommended that valid does not depend on ready at all":
@@ -472,7 +636,9 @@ class Scheduler extends FiberPlugin {
               when (popReq.grant) {
                 goto(popReqGranted)
               }
-            } elsewhen (toCore.ready && drainResult.idx =/= 0 && drainResult.valid && drainResult.matched) {
+            } elsewhen (!rxPreemptReq.valid && (toCore.ready || coreIdleMap(idx)) &&
+                        drainResult.idx =/= 0 && drainResult.valid && drainResult.matched &&
+                        processEnabled(drainResult.idx) && !corePidMap.map(_ === drainResult.idx).asBits.orR) {
               // FIXME: can we simplify and merge this case with the RX preemption case?
 
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
@@ -485,21 +651,23 @@ class Scheduler extends FiberPlugin {
 
               // we are not popping from the queue here, only preempting;
               // so no need to check again if queue is empty
+              corePreempt(idx).kill := False
               corePreempt(idx).pid := drainResult.value.pid
-              // since the core is already ready, it can't be still in idle
-              corePreempt(idx).outOfIdle := False
+              corePreempt(idx).outOfIdle := coreIdleMap(idx)
               savedPreemptIdx := drainResult.idx
               savedPreemptPid := drainResult.value.pid
               savedPreemptHostMsgId := invalidTraceId(HostMsgID.width)
               drainProcCoreReq(idx) := True
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
+                corePidMap(idx) := drainResult.idx
                 drainProcInProgress(drainResult.idx) := True
                 coreTp.trace("SchedulerPreemptCore",
                   HostMsgID(invalidTraceId(HostMsgID.width)), // invalid in the drain case
                   ProcessID(drainResult.value.pid.bits),
+                  PreviousProcessID(processPids(coreResident(idx)).bits),
                   coreTd,
                   PreemptCommand(PreemptCmdType.ready.asBits),
-                  PreemptOutOfIdle(False),
+                  PreemptOutOfIdle(coreIdleMap(idx)),
                   QueueIndex(drainResult.idx),
                   QueueFill(queueMetas(drainResult.idx).fill))
                 goto(preempt)
@@ -515,6 +683,7 @@ class Scheduler extends FiberPlugin {
             corePidMap(idx) := savedPreemptIdx
 
             when (corePreempt(idx).ready) {
+              coreResident(idx) := savedPreemptIdx
               drainProcInProgress(savedPreemptIdx) := False
               inc(_.preempted(idx))
               coreTp.trace("SchedulerProcessRun",
@@ -542,9 +711,15 @@ class Scheduler extends FiberPlugin {
           whenIsActive {
             // issue the popped request to core
             toCore.payload := savedPoppedReq
-            toCore.valid := True
+            toCore.valid := processEnabled(corePopQueueIdx)
+            when(!processEnabled(corePopQueueIdx)) {
+              coreCancel(idx) := True
+              coreDiscard.payload := savedPoppedReq
+              coreDiscard.valid := True
+              when(coreDiscard.fire) { goto(idle) }
+            }
 
-            when (toCore.ready) {
+            when (toCore.fire) {
               // no guarantee that worker must accept request: they might de-assert ready due to a read timeout
               // have to wait until they try again (and re-assert ready)
               // TODO: what happens if the core went amok and never retried? Kill proc?

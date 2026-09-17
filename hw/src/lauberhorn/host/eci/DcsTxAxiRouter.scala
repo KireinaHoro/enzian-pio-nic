@@ -53,6 +53,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * old thread.
     */
   val doPreempt = in Bool()
+  val quiescent = out Bool()
 
   /** Address to put the outgoing packet payload in the packet buffer.  Captured
     * from [[lauberhorn.host.DatapathPlugin.hostTx]] */
@@ -84,9 +85,18 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
   val savedControl = Reg(Bits(512 bits)) init 0
+  val execution = master(Flow(Bits(2 bits)))
+  val executionOnly = out Bool()
+  executionOnly := txDesc.ty === HostReqType.executionControl
+  val executionType = txDesc.ty === HostReqType.oncRpcReplyTx ||
+    txDesc.ty === HostReqType.oncRpcCallTx || executionOnly
+  execution.valid := txDesc.fire && executionType
+  execution.payload := executionType ? savedControl(20 downto 19) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
   currInvLen := aliasedHostCtrl.len
+
+  when(aliasedHostCtrl.ty === HostReqType.executionControl) { currInvLen.bits := 0 }
 
   // RPC requests repurposed len to INCLUDE inlined bytes
   // (see sw/core/eci/core.h:310)
@@ -322,6 +332,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
   }
   readFsm.build()
+  quiescent := readFsm.isActive(readFsm.idle) && writeFsm.isActive(writeFsm.idle) &&
+    !dcsQ.ar.valid && !dcsQ.aw.valid
 
   val readStateOut = out(readFsm.stateReg.clone)
   readStateOut := readFsm.stateReg
