@@ -183,3 +183,11 @@ The manifest expects the image copied to the CPU's persistent
 ownership: another pengxu session attached to zuestoll14 during preparation, so
 this run has not programmed or reset the board. The no-reset runner itself has
 only passed Python compilation/CLI checks, not a board campaign.
+
+The first matching Vivado run subsequently failed synthesis at the handwritten
+VHDL boundary: TX router read-state debug widened from three to four bits when
+adding dirty-TX draining, while the ILA wrapper retained three. The follow-up
+widens each of the five packed core-state probes from 19 to 20 bits and updates
+both VHDL slices and block-design ports/probes. A generated-RTL width/coverage
+check passed for all five cores. This requires a fresh matching revision build;
+the failed `b11c85a` output is retained for diagnosis and is not board-ready.
