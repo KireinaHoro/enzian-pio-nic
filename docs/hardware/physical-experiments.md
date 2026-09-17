@@ -1,5 +1,74 @@
 # Physical implementation experiments — 2026-09-10
 
+## Completed TX/RX comparison — September 17
+
+Collected once on maintainer request. Individual TX/RX pipelines 511729/511730
+and combined retry 511864 all succeeded, including their regression gates.
+The three local Docker builds exited zero through bitstream generation and
+retained COMPLETE physical reports. The first combined pipeline 511830 remains
+failed before hardware; its test-startup fix is recorded below.
+
+| Candidate | Revision | Flow / hardware job | WNS ns | TNS ns | Failing setup endpoints |
+| --- | --- | --- | ---: | ---: | ---: |
+| TX placement | `c4174e5` | local ba2 | -0.122 | -75.192 | 1660 |
+| TX placement | `abe57e4` | CI 2832030 | -0.222 | -381.286 | 4600 |
+| RX pipeline | `720bd1b` | local ba2 | -0.066 | -16.698 | 585 |
+| RX pipeline | `eeeabf4` | CI 2832041 | -0.220 | -169.050 | 2590 |
+| Combined | `f6516f4` | local ba2 | -0.011 | -0.104 | 16 |
+| Combined | `f6516f4` | CI 2833087 | -0.057 | -7.584 | 426 |
+
+All six have zero failing hold/pulse endpoints and zero routing errors, and
+identical CDC diagnostic counts (not CDC-clean). Combined minimum hold slack is
++0.002 ns and pulse slack +0.039 ns in both flows. Application-clock setup is
++0.006 ns local / 0.000 ns CI; trace TX is +0.083 / +0.062 ns. These margins
+are small. **No candidate achieves setup closure.**
+
+The combined CI archive's `git-revision`, `rtl-derivation`, and `flake.lock`
+match the local Nix bundle byte-for-byte. The RTL derivation is
+`2k90ml72h7d3ckwgpwzfg52nrbmckk0n-lauberhorn-hw-rtl-config.drv`.
+Both reports use Vivado 2025.1 and have identical endpoint totals. This supports
+comparing the same revision/generated-RTL recipe across flows; the CI archive
+retains only those three input metadata files, not the entire input bundle.
+The 0.046 ns WNS difference shows the local 11 ps miss is insufficient margin
+for a robust result; the cause of implementation variation is not isolated.
+Earlier individual local/CI pairs also differ in embedded revision constants.
+
+### Remaining work, based on combined routed paths
+
+- **DCS response crossing control:** odd `i_cross_rsp_wd_slave` FIFO full flag to
+  SLR register-slice FIFO CE is -0.011 ns local / -0.052 ns CI, with one logic
+  level. Inspect placement/fanout and the existing CDC/register-slice structure
+  before altering protocol or CDC. Eight of the sixteen local failing endpoints
+  are in this family; 75 of the worst 200 sampled CI paths are in it.
+- **Low-VC RX:** FIFO BRAM to extractor data is -0.011 / -0.052 ns; valid-to-CE
+  paths between extractors and static ingress-to-low-FIFO controls also remain.
+  The local sample contains seven failing low-VC endpoints. The new elastic
+  stage targets high-VC RX; its old FIFO-to-packetizer path is absent from the
+  combined worst-200 samples, which does not establish a family-wide margin.
+- **TX still needs margin:** CI link2 high output buffer to static transport is
+  -0.057 ns (the same representative endpoint is +0.002 ns locally). TX
+  crossbar-to-credit paths reach -0.054 ns with nine logic levels. The original
+  TX placement run's positive boundary margins do not generalize to every run.
+  Inspect the combined endpoint placement and arbitration/credit path before
+  choosing further placement changes versus an elastic stage.
+- **Static/debug residual:** one local endpoint is static RX transport to its
+  edge ILA at -0.005 ns. Keep it visible in global closure reporting; changing
+  the static shell remains outside this campaign's application-only scope.
+
+The local bounded sample contains all 16 failing endpoints (8 DCS, 7 low-VC RX,
+1 static debug). CI's 200-path sample covers only part of its 426 failing
+endpoints; sample counts are not total family counts or family TNS. Preserve
+hold/secondary-clock margins while addressing the recurring families, then
+validate the next actual candidate in both flows. No new PnR or board run was
+launched for this review. Toolkit-owner approval is still required before
+adopting the unmerged RX dependency.
+
+Evidence: `out/physical/resume-20260916/ci/{2832030,2832041}/reports/`,
+`out/physical/combined-20260917/relaunch1/2833087/reports/`, and
+`out/physical/combined-20260917/local/physical/`. Earlier local reports remain
+under `out/physical/resume-20260916/local-{tx,rx}/physical/`.
+
+
 ## Combined CI failure and recovery — September 17
 
 Initial combined revision `820da59`, pipeline 511830, never reached hardware:
