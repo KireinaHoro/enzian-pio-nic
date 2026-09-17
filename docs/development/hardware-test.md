@@ -217,3 +217,21 @@ through FPGA UDP RPC, then validate the returned matrix. It needs pymongo's
 `--nic`, `--bind` and `--binary` arguments. Set `PROCESS_WORKER_PATH` to the
 packaged `mmu_worker` and `DANDELION_LAUBERHORN_CONFIG` to the DUT configuration.
 Composition tests remain separate because local nested transport has not landed.
+
+## B4 no-reset process recovery
+
+After `test.py` verifies the matching image and starts a persistent **mul** service,
+run `python3 tools/enzian/recovery.py --revision FULL_REV --client GATEWAY_CLIENT
+--logs NEW_DIR --repeats 2`. The image must include `recovery-test`. The runner
+creates only its own add-service fixtures, exercises idle/active signals,
+explicit stop, abandoned dirty TX, stuck BUSY and watchdog expiry, and checks
+that the unrelated mul service still answers correctly. It requires kernel
+trace evidence of dispatch for active cases and completed retirement before
+reusing the service. It never resets, unloads the module or takes over a console.
+
+Read its local `summary.json`; detailed kernel traces, trace-buffer statistics,
+server output and dmesg snapshots remain in the reported CPU `/var/tmp` directory.
+Archive those files and inspect loss/faults before declaring acceptance. This
+runner covers incoming-request/process recovery only: nested timeout/cancel,
+late-reply and outgoing-table capacity tests remain separate B4 acceptance gates.
+The runner has not yet been exercised on the B4 bitstream.
