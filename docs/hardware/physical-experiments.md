@@ -1,5 +1,24 @@
 # Physical implementation experiments — 2026-09-10
 
+## Combined CI failure and recovery — September 17
+
+Initial combined revision `820da59`, pipeline 511830, never reached hardware:
+`blocks-tests` job 2832734 failed the trace DMA “writes events to DRAM” test.
+All other regression gates, including toolkit RX, passed. The missing physical
+metadata error in report job 2832743 was consequential.
+
+The recorded seed reproduces a test-startup overflow: stimulus accumulates during
+synchronous reset. Blocks fix `cc4b0a5` waits for reset-qualified sampling before
+producers start, retaining traffic generation and all loss/data assertions.
+It changes no RTL and is published only on private dependency branch
+`fix/20260917-blocks-trace-dma-test`. The complete five-test DMA suite passed with
+the failing seed and three additional seeds (20 cases total). See the
+[validation note](../development/validation.md#trace-dma-reset-startup-regression-september-17).
+Failure, instrumented reproduction and fixed-run logs are retained under
+`out/physical/combined-20260917/dma-fix/`. The replacement run retains the same
+TX placement, RX pipeline and static shell; revision CSR constants still change.
+
+
 ## September 17: combined TX placement and RX pipeline
 
 Branch `timing/20260917-tx-rx-combined` starts from RX candidate `eeeabf4`
