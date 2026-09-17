@@ -1,5 +1,28 @@
 # Physical implementation experiments — 2026-09-10
 
+## Round 2 checkpoint follow-up — September 17
+
+Pulled and analyzed all three finished CI checkpoints on ba2 with pinned
+Vivado 2025.1. Full failing-endpoint scans match 993/262/3437; see the
+[exact paths, targeted comparison and congestion findings](physical-findings.md#round-2-checkpoint-review--september-17).
+DCS placement fixes its target (+0.549/+0.584 ns). Low-VC staging fixes FIFO
+readout (+0.085/+0.107 ns), but output-queue control remains negative.
+Combined TX output boundaries all pass, yet its broad application regression
+prevents promotion. Low-VC-only remains the best of these three globally.
+Initial congestion is materially different: no listed windows for low-VC-only,
+level 5 for DCS, and a level-6 southbound region for combined. Later router
+hotspots are small in all three; do not conflate those reporting stages.
+
+Next: evaluate the already launched TX-only/local results, shorten ECI TX
+arbitration-to-credit and RX queue-control cones, and independently address
+trace priority/event selection and ILA trigger depth. Keep toolkit work on
+owner-reviewable feature branches. A static-only edge ILA failure (-0.005 ns)
+also remains in low-VC-only and is outside application scope. No new PnR run,
+CI retry, source candidate or board deployment was launched for this analysis.
+Evidence: `out/physical/round2-20260917/{checkpoints,deep}/`; analysis script
+`deep-checkpoint.tcl` and ba2 `/tmp/lh-round2-analysis-20260917/`. All three
+read-only analyses exited zero; full reports have `DEEP_COMPLETE` markers.
+
 ## Round 2 first CI collection — September 17
 
 One collection after the maintainer requested pipelines 511987–511990:
