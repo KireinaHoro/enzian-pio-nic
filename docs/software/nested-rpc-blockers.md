@@ -289,6 +289,11 @@ rerun the passing add/mul baselines.
 
 ## B4 — Worker shutdown and service cleanup do not complete reliably
 
+The approved [process recovery and watchdog design](process-recovery.md) includes
+whole-process forced termination, explicit-kill reclamation with the execution
+watchdog disabled, and a matching-bitstream Enzian campaign. Implementation is
+in progress; ownership metadata and a reclaim primitive alone do not close B4.
+
 **Evidence: hardware observation plus source-review gaps.** After SIGTERM the
 standalone adder leader remained `Zl`; three workers remained `Il` in
 `do_notify_resume`. Logging stopped, but the process did not fully exit. The
