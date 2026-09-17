@@ -305,6 +305,10 @@ address with its self MAC, so the local gateway can discover the FPGA when it
 needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
 ARP client for the gateway.
 
+ARP occupies the 42-byte extracted Ethernet/ARP header. Any trailing Ethernet
+padding is discarded before the UDP command aligner. Retaining that padding
+would associate it with the next UDP header and reject a valid read command.
+
 The software request format requires 64-byte-aligned offsets and lengths.  A
 single hardware response carries at most 1440 bytes of trace data: 1500-byte
 Ethernet MTU minus IPv4, UDP, and 32 bytes of trace response metadata.  The host
