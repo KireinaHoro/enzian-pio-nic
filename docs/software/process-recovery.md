@@ -158,3 +158,28 @@ fixture passed before the final sticky-latch change; the matching deployment
 build rechecks the final source. Logs are under `out/b4-20260917/`. These are
 simulation/build results, not Enzian acceptance. Synthesis, timing and the no-reset
 board recovery campaign remain required.
+
+### Matching-build handoff
+
+Implementation revision: `b11c85a6b338ea252b2645c59a19c7a842d87087`, pushed on
+`feat/nested-rpc`. Its clean `eciVivadoInputs`, `deployFs` and `runtimeTests` Nix
+builds passed. The prepared no-reset campaign runner is a subsequent tools-only
+commit; use the implementation revision in the board manifest.
+
+The authorized full Vivado build was launched on `enzian-ba2` September 17:
+inputs `/tmp/lh-b4-b11c85a-inputs`, outputs `/tmp/lh-b4-b11c85a-build`, launch log
+`/tmp/lh-b4-b11c85a-launch.log`. At this handoff it was still synthesizing IP;
+no timing or bitstream success is claimed. The canonical runner automatically
+collects checkpoint reports after implementation. Read the physical summary
+before reporting timing acceptance.
+
+Local matching links, hashes, build logs and the prepared two-boot mul baseline
+manifest are under `out/b4-20260917/`. The gateway client is
+`/tmp/b4-b11c85a-client/bench_client`; the matching image is staged at
+`/tmp/b4-b11c85a-deploy.img`. Shared `/scratch/pengxu` rejected new writes with
+`Disk quota exceeded`; do not delete existing artifacts to work around it.
+The manifest expects the image copied to the CPU's persistent
+`/var/tmp/b4-b11c85a-deploy.img` before reset. Recheck reservations and console
+ownership: another pengxu session attached to zuestoll14 during preparation, so
+this run has not programmed or reset the board. The no-reset runner itself has
+only passed Python compilation/CLI checks, not a board campaign.
