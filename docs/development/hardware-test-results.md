@@ -1,6 +1,6 @@
 # Recorded Enzian test results
 
-Historical evidence from zuestoll14, 2026-09-08–10. Final checkpoint STA and
+Historical evidence from zuestoll14, September 2026. Final checkpoint STA and
 source-level bottlenecks are in [physical findings](../hardware/physical-findings.md). Use the
 [execution guide](hardware-test.md) for a new test. Evidence under `out/` is local
 and ignored; recipes and helpers are tracked.
@@ -57,3 +57,53 @@ Four verified-reset trials of the shared image passed on job 2812450 hardware:
 helper and direct paths twice each, 400 correct adder replies total. This was
 packaging validation using matching historical sources, not final-master hardware
 validation. See the [full provenance and checks](nix-refactor-validation.md).
+
+## CMAC trace capture investigation — 2026-09-17
+
+The job 2812450 trace CMAC on F_MAC3 used F_MAC0's RX/TX polarity mask
+`0011`; the engineer's interfaces-stub specifies `1100` for F_MAC3. The
+[source correction and capture setup](tracing.md#udp-readout) parameterize
+the shared CMAC control constructor. RX/TX RS-FEC enable, RX correction,
+RX indication and IEEE indication mode were already high in the routed
+checkpoint, with transcoder bypass low. A comparison of 559 normalized
+CMAC primitive control/clock/reset inputs found no differences between
+the traffic and trace instances.
+
+The capture host was reserved zuestoll12, `cpu40g1`, IP `192.168.129.129/18`,
+MAC `0c:53:31:03:01:81`. LLDP identified switch `leaf1`, chassis
+`00:90:fb:73:e4:a1`, and port `ZS12-CPU2`; the working zuestoll14 traffic
+CMAC reported the same switch and port `ZS14-FPGA1`. These are observed
+port identities; the F_MAC3 switch port still needs direct confirmation.
+
+The original trace port had no RX alignment and asserted local fault;
+internal PMA loopback aligned with both faults clear. An eight-pin polarity
+ECO followed by `route_design -preserve` restored external RX alignment
+and cleared local fault, but remote fault remained asserted. No trace
+metadata reached zuestoll12. Both the regenerated full image and the
+original full image plus the ECO partial image failed the driver's first
+version read with an external abort. Restoring the original full image
+passed driver/revision checks and 100 adder RPCs with zero failures.
+The ECO therefore is not a validated deployment artifact, and network
+dumping is not yet verified.
+
+The first ECO preserved all 1,096,490 primitive placements. Of 1,177,789
+nonconstant route descriptions, six changed; detailed node/PIP comparison
+found five were only reordered descriptions. The actual change was on `clk`,
+driven by `i_eci_platform/i_eci_transport/i_clk_gt_link1`: seven PIPs added,
+three removed. A second ECO explicitly locked all 892,250 completed signal
+routes before routing the constant nets. Those six networks then matched the
+original nodes/PIPs, and driver version/initialization checks passed, but
+network setup triggered an asynchronous SError panic. The trace remote fault
+alternated between zero and one. One metadata datagram reached zuestoll12;
+the first read timed out with an empty output file. A subsequent attempt with
+a static neighbor entry received no metadata; the temporary entry was removed.
+
+The corrected Python receiver passed three UDP loopback regression tests;
+the original RTL trace-responder suite passed all seven tests. A new realistic
+ARP-padding regression exposed a separate parser bug: padding was treated as
+the next UDP command. Discarding ARP bodies before the command aligner passed
+all eight tests, including header-only, minimum-size and multi-beat padded ARP
+followed by UDP. This RTL correction requires a fresh hardware build; the
+polarity-only ECO images do not contain it. These checks do not establish
+operation of the physical link. Local evidence is under
+`out/hardware-tests/cmac-trace-20260917/`, with status in `summary.json`.

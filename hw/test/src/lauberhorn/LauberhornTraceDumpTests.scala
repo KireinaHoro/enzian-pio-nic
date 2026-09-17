@@ -169,6 +169,23 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     assert(response.slice(62, 64) == be16(0))
   }
 
+  test("accepts UDP commands after an Ethernet-padded ARP request") { dut =>
+    val (rx, tx, _dma) = setup(dut)
+
+    for (frameBytes <- Seq(42, 60, 128)) {
+      rx.send(arpRequest().padTo(frameBytes, 0xa5.toByte))
+      val arpReply = tx.recv()
+      assert(arpReply.slice(12, 14) == bytes("0806"))
+      assert(arpReply.slice(20, 22) == bytes("0002"))
+
+      rx.send(request(frameBytes, 0, 0))
+      val response = tx.recv()
+      assert(response.slice(42, 46) == bytes("4c485444"))
+      assert(response(47) == LauberhornTraceDump.StatusOk.toByte)
+      assert(response.slice(50, 54) == be32(frameBytes))
+    }
+  }
+
   test("sends metadata to dump server on dump-over-network rising edge") { dut =>
     val (_rx, tx, _dma) = setup(dut)
 
