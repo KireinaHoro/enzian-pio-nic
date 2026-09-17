@@ -191,3 +191,9 @@ widens each of the five packed core-state probes from 19 to 20 bits and updates
 both VHDL slices and block-design ports/probes. A generated-RTL width/coverage
 check passed for all five cores. This requires a fresh matching revision build;
 the failed `b11c85a` output is retained for diagnosis and is not board-ready.
+
+The return-to-user parking callback also retains a device-file reference while
+queued/running. Linux exits files before running final task work; without that
+reference the process slot (and callback storage) could be reused before the old
+callback finished. Its final `fput` releases the reference, including the module
+lifetime, only after the callback's last access to the worker record.

@@ -609,6 +609,7 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
 		mem_node1_off_to_phys(thr->prefix * LAUBERHORN_ECI_CORE_OFFSET);
 
 	thr->parent = proc;
+	thr->park_file = f;
 	thr->worker_idx = -1;
 
 	// Store a reference to the current thread task
