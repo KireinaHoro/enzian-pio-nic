@@ -179,7 +179,7 @@ foreach {region instances} [list \
 # whole gateway: its RX crossbar and DCS crossings have different consumers.
 foreach {link ranges} {
     1 {SLICE_X120Y450:SLICE_X141Y509}
-    2 {SLICE_X120Y510:SLICE_X141Y539 SLICE_X120Y540:SLICE_X168Y559}
+    2 {SLICE_X128Y480:SLICE_X141Y539}
 } {
     set region [create_pblock pblock_eci_tx_link${link}]
     resize_pblock $region -add $ranges
@@ -193,3 +193,8 @@ foreach {link ranges} {
         add_cells_to_pblock $region $cells
     }
 }
+
+# The combined CI's worst link2 path enters static size decode at X145Y498,
+# south of the previous region. Keep the link2 buffers west of that decode;
+# constrain the whole payload/size/valid set together, leaving the static shell.
+set_property IS_SOFT false [get_pblocks pblock_eci_tx_link2]
