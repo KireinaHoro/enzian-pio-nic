@@ -126,7 +126,9 @@ report-hw-eci:
   needs:
     - job: build-hw-eci
       artifacts: true
-  when: always
+  # Stay skipped after a failed build; a successful retry can then unblock us.
+  # needs downloads artifacts from the hardware job in this pipeline.
+  when: on_success
   script:
     - nix run --no-update-lock-file .#summarizePhysical -- out/physical
     - test -f out/physical/COMPLETE
