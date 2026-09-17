@@ -34,9 +34,14 @@ digest alone does not pin that separately maintained installation.
    submodule checkout disabled. It consumes the previous job's artifacts and
    runs only Vivado 2025.1: project/IP creation, implementation, bitstream and STA.
    It does not run Mill/Nix, compile Scala/C, or download a checkpoint.
-4. `report-hw-eci` runs the pinned Python summarizer through Nix. Missing COMPLETE
-   fails this job, exposing an interrupted STA hook even if bitstream creation
-   succeeded. Negative slack remains a reported experimental result, not a gate.
+4. `report-hw-eci` runs only after `build-hw-eci` succeeds (`when: on_success`).
+   Its `needs: artifacts: true` dependency downloads that pipeline's hardware
+   artifacts, including those from a successful retry. A failed hardware attempt
+   leaves reporting skipped rather than failing on absent metadata; retrying the
+   hardware job can unblock the skipped report. The pinned Python summarizer runs
+   through Nix. Missing COMPLETE still fails reporting after a successful build,
+   exposing an interrupted STA hook. Negative slack remains a reported
+   experimental result, not a gate.
 5. Tag publication uses the existing release service; it performs no compilation.
 
 Nix build environments supply the compiler/JVM/simulator/JNI tools independently
@@ -282,3 +287,21 @@ A fresh bridge-network Docker container with the pinned image completed actual
 Vivado 2025.1 synthesis for xcvu9p using the ETH server (`LICENSE_SYNTHESIS_PASS`).
 Workflow tests cover both default inheritance and explicit host overrides.
 No license files or runner-wide configuration were changed.
+
+### Report scheduling after hardware retries
+
+Job 2832753 (pipeline 511831) demonstrated the old `when: always` behavior:
+hardware attempt 2832752 was runner-interrupted, so reporting started without
+`out/physical/metadata.txt` and failed. Retried hardware 2833057 later succeeded,
+but the already-failed report was not automatically retried. Reporting now uses
+`on_success`, preserving the explicit same-pipeline artifact dependency. Hardware
+and report artifact uploads still use `artifacts: when: always` to retain useful
+failure diagnostics; artifact-upload policy does not control job scheduling.
+
+GitLab snapshots CI configuration when creating a pipeline. This change applies
+to new pipelines; existing pipelines retain their original configuration, and an
+already-failed report still needs its own retry after hardware succeeds. Do not
+restart an expensive hardware build solely to apply this scheduling change.
+See GitLab's [job run conditions](https://docs.gitlab.com/ci/yaml/#when),
+[artifact dependencies](https://docs.gitlab.com/ci/yaml/#needsartifacts), and
+[job retries](https://docs.gitlab.com/ci/jobs/#retry-jobs).
