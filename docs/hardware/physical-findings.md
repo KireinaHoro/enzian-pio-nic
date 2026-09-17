@@ -6,6 +6,105 @@ Read-only analysis on **enzian-ba2, Vivado 2025.1**, using implemented
 [recorded separately](../development/hardware-test-results.md); no new board
 experiment was performed during this analysis.
 
+## Round 2 checkpoint review — September 17
+
+Read-only Vivado 2025.1 analysis on ba2 of hardware jobs 2833774 (DCS),
+2833785 (low-VC RX), and 2833796 (combined). The checkpoints are the completed
+CI artifacts, not new implementations. Detailed evidence is in
+`out/physical/round2-20260917/deep/JOB/`: `failing-paths.tsv` enumerates one
+worst setup path per failing endpoint, `family-paths.tsv` compares targeted
+cones, and `congestion.rpt` / `slr-utilization.rpt` retain physical diagnostics.
+
+All three analyses exited zero and their complete negative-path enumerations
+match the timing-summary endpoint totals exactly (993/262/3437). Summing
+rounded TSV slacks differs slightly from Vivado TNS; retain the timing summary
+as authoritative. All have zero routing errors and zero hold/pulse violations;
+CDC diagnostics remain, as recorded in the experiment ledger.
+
+| Targeted worst slack, ns | DCS 2833774 | Low VC 2833785 | Combined 2833796 |
+| --- | ---: | ---: | ---: |
+| Odd DCS full flag → destination slice | +0.549 | +0.394 | +0.584 |
+| Low-VC FIFO → extractor/stage | -0.101 | +0.085 | +0.107 |
+| Within/between low-VC extractor/queue hierarchies | -0.016 | -0.031 | -0.043 |
+| TX crossbar → credit buffers | -0.101 | -0.035 | -0.055 |
+| Link2 high output → static transport | -0.039 | -0.039 | +0.025 |
+| Trace DMA internal | +0.017 | +0.012 | -0.460 |
+| Application ILAs, all clocks | +0.016 | -0.052 | -0.459 |
+
+Low-VC-only has 262 failing endpoints: 255 clk_sys and seven RX-clock.
+The worst is the `ila_cmac_rx` match-unit-3 comparator, `probeDelay1_reg[5]`
+to termination register, -0.052 ns, 33 CARRY8 plus SRLC32E. The TX link2
+size-bit-576 path to static transport is -0.039 ns. 129 endpoints run from
+static RX ingress to low-VC FIFOs (worst -0.038 ns); ten are internal low-VC
+paths (worst -0.031 ns at the new queue occupancy register). Eleven are TX
+crossbar-to-credit paths, and 34 are odd DCS response-master upsizer reset
+paths (worst -0.032 ns). A static-shell-only edge ILA path remains -0.005 ns,
+outside application-only scope. The original odd-slave DCS target happens to
+pass +0.394 ns despite its destination still being in SLR1; the dedicated
+placement candidate improves margin and controls that placement explicitly.
+
+DCS-only has 993 failing endpoints, all on clk_sys. Of these, 596 run from
+TX crossbar input buffers into link credit buffers (361 link2, 235 link1).
+The representative path is input channel 4 `data_buf1_reg[583]` to link2
+high-credit `data_buf2_reg[318]/CE`, -0.101 ns, eight LUT levels and 85.7%
+routing. The unmodified low-VC path also reaches -0.101 ns: link2 VC12 FIFO
+BRAM to extractor `output_reg[data][0][1]/CE`. Meanwhile the DCS target passes
++0.549 ns with all 2243 placed destination primitives in SLR0. Thus its global
+regression does not invalidate the targeted placement fix.
+
+The combined build has 3437 failing endpoints: 2927 on the application clock
+and 510 on clk_sys. By destination hierarchy, 1518 are NIC logic, 568 ILAs,
+359 trace logic, 437 ECI gateway and 555 elsewhere. This is a broad regression,
+not a build that will close by fixing only its worst trace path.
+
+Specific combined paths:
+
+- **DCS target passes +0.584 ns:** odd response-with-data FIFO `ram_full_i_reg`
+  to `slr_auto_dest/.../mesg_reg_reg/CE`. All 2242 placed destination primitives
+  are now in SLR0 and the explicit destination pblock. This confirms the intended
+  placement effect; it does not clear other DCS families.
+- **Low-VC FIFO ingress passes +0.107 ns:** link2 VC10 FIFO BRAM to
+  `frame_data_reg[210]/D`. The remaining queue-control path is link1 VC7
+  `count_reg[1]` to link2 VC7 `front_reg[16]/CE`, **-0.043 ns**, seven LUT
+  levels, 2.531 ns routing out of 2.984 ns. The stage isolates the extractor,
+  but cross-link arbitration still reaches the output queue's enable.
+- **TX output boundaries pass:** link1 high/low +0.196/+0.071 ns; link2
+  high/low +0.025/+0.270 ns. Upstream TX crossbar-to-credit logic still fails
+  at -0.055 ns. Tightening output placement does not pipeline that cone.
+- **Trace DMA -0.460 ns:** `savedPorts_6_valid_reg` to frame FIFO BRAM
+  `DINADIN[21]`, 25 levels (15 CARRY8), 5.041 ns data delay, 80.4% routing.
+  `TraceBufferDMA.scala` computes priority selection and indexed event mux into
+  the FIFO in one cycle. Most trace DMA cells remain in SLR2; clock-path SLR
+  labels alone must not be mistaken for a data-path SLR crossing.
+- **Application ILA -0.459 ns:** `ila_app` match unit 150, `probeDelay1_reg[4]`
+  to match termination register, 33 CARRY8 plus SRLC32E, 85.8% routing.
+  Extra input pipeline stages alone would not split this internal comparator.
+  NIC failures also reach -0.433 ns in the ONC RPC call decoder.
+
+Congestion reports describe different implementation stages. In the combined
+checkpoint, placer-final congestion is south/long level 5 at
+`CLEL_R_X36Y388:DSP_X51Y415`; router-initial congestion is south/long level 6
+at `CLEL_R_X43Y383:LAG_LAG_X57Y542`, attributed mainly to NIC (42%), app ILA
+(15%) and ECI gateway (11%). DCS-only has level-5 initial hotspots, including
+ECI RX near Y511–542 and NIC/ILA near Y156–195. The later global-router log
+reports only 1x1 or 2x2 tile hotspots, with effective levels at most 2 in all
+three builds. Low-VC-only lists no placer-final or router-initial congestion
+windows at the report threshold; its SLR1 CLB occupancy is 72.34%. These are not the same metric or stage as checkpoint congestion
+history. Combined SLR1 CLB occupancy is 71.04%, versus DCS-only 75.16%; SLL
+usage is similar (SLR1–2 45.28%/45.53%, SLR0–1 51.34%/51.03%). The evidence
+supports placement/routing interaction as a hypothesis, not a proved causal
+link or a claim that local congestion is absent.
+
+Do not promote the combined candidate. Retain the DCS placement and low-VC
+stage as targeted candidates, subject to the complete comparison and toolkit
+owner approval. Next RTL experiments should shorten TX crossbar-to-credit
+arbitration and RX output-queue control while preserving stalls, channel
+metadata, packet locks and credits. Separately split trace selection/event mux
+across cycles while preserving timestamps, loss reporting and acceptance;
+review ILA trigger comparisons without silently discarding debug capability.
+The pending TX-only and existing local runs are needed before blaming a
+particular increment for the combined application-clock regression.
+
 ## Comparable final timing
 
 | CI job / commit | Final WNS / TNS (ns) | Failing setup endpoints | WHS / THS (ns) |
