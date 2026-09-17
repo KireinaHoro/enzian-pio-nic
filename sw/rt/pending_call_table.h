@@ -39,8 +39,7 @@ typedef enum {
     SLOT_RESERVED,
     SLOT_PENDING,
     SLOT_FULFILLED,
-    SLOT_READY,
-    SLOT_CALLBACK_READY
+    SLOT_READY
 } slot_state_t;
 
 struct pending_call {
@@ -59,12 +58,12 @@ struct pending_call {
     // all other transitions have a single owner and can be made with atomic stores
     pthread_spinlock_t lock;
 
-    completion_kind_t kind;
+    enum { COMPLETION_FIBER, COMPLETION_FORWARD } kind;
     union {
         // COMPLETION_FUTURE
         struct fiber_handle fiber_handle;
-        // COMPLETION_CALLBACK
-        lauberhorn_cb_handler_t callback;
+        // COMPLETION_FORWARD: independent of the parent handler stack.
+        lauberhorn_pkt_desc_t parent;
     } completion;
 
     rpc_codec_t *codec;

@@ -272,7 +272,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false)(implicit dut: NicEngine): Unit = {
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false, expectedStatus: Int = 1)(implicit dut: NicEngine): Unit = {
     val etd = getEciThreadData(tid)
     val coreBase = etd.baseAddr
     def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
@@ -297,7 +297,8 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     etd.log(f"sent packet at $clAddr%#x")
 
     etd.flipTx()
-    dcsMaster.read(clAddr, 1)
+    val status = dcsMaster.read(clAddr, 1).head & 0xff
+    assert(status == expectedStatus, s"TX admission status $status, expected $expectedStatus")
 
     if (!skipCS) {
       exitCriticalSection(dcsMaster, tid)

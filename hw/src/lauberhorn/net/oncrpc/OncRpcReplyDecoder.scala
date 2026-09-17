@@ -24,6 +24,7 @@ case class OncRpcReplyRxMeta() extends Bundle with DecoderMetadata {
   val pid = PID()
   val cookie = Bits(32 bits)
   val xid = Bits(32 bits)
+  val status = Bits(8 bits)
   val saddr = Bits(32 bits)
   val sport = Bits(16 bits)
   val dport = Bits(16 bits)
@@ -121,6 +122,8 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
 
     val newRequestEvent = Stream(OncRpcInFlightReqDef())
     newRequestEvent.ready := False
+    val newRequestAccepted = Bool()
+    newRequestAccepted := False
 
     val (rxExistQ, rxExistR, _) = requestDb.makePort(OncRpcInFlightReqDef(), OncRpcInFlightReqDef(),
       "rxLookupExisting") { (v, q, _) =>
@@ -138,25 +141,31 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     rxFreeQ.valid := True
     rxFreeR.ready := True
 
-    // One registration lookup at a time. The producer retains its request
-    // until the single table write port commits it. A full table backpressures
-    // TX, leaving replies free to retire entries instead of overwriting slot 0.
+    // Complete every admission lookup, including capacity rejection. Reserving
+    // here precedes DMA/encoding, so a full table never stalls the TX pipeline.
     val registering = RegInit(False)
     rxExistQ.valid := newRequestEvent.valid && !registering
     rxExistQ.query := newRequestEvent.payload
     rxExistQ.userData := newRequestEvent.payload
     when(rxExistQ.fire) { registering := True }
     val retirement = Bool()
-    rxExistR.ready := !retirement && (rxExistR.matched || (rxFreeR.valid && rxFreeR.matched))
+    rxExistR.ready := !retirement && rxFreeR.valid
     when(rxExistR.fire) {
-      requestDb.update.valid := True
-      requestDb.update.value := rxExistR.userData
-      requestDb.update.idx := rxExistR.matched ? rxExistR.idx | rxFreeR.idx
       newRequestEvent.ready := True
       registering := False
-    }
-    when(rxExistR.valid && !rxExistR.matched && rxFreeR.valid && !rxFreeR.matched) {
-      reqTblFull.increment()
+      when (rxExistR.matched && rxExistR.value.pid === rxExistR.userData.pid &&
+            rxExistR.value.cookie === rxExistR.userData.cookie) {
+        // An exact retransmission retains its existing reservation.
+        newRequestAccepted := True
+      } elsewhen (!rxExistR.matched && rxFreeR.matched) {
+        requestDb.update.valid := True
+        requestDb.update.value := rxExistR.userData
+        requestDb.update.idx := rxFreeR.idx
+        newRequestAccepted := True
+      } otherwise {
+        // Duplicate identities cannot replace an existing operation either.
+        reqTblFull.increment()
+      }
     }
 
     awaitBuild()
@@ -216,7 +225,6 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
     when (decoder.io.header.fire) {
       assert(hdrParsed.msgType === EndiannessSwap(B("32'x00000001")), "msg_type must be 1 for REPLY")
       assert(hdrParsed.replyStat === 0, "only MSG_ACCEPTED replies are supported")
-      assert(hdrParsed.acceptStat === 0, "only SUCCESS replies are supported")
       assert(currentUdpHeader.nextProto === UdpNextProto.oncRpcReply, "no valid UDP reply header stored")
     }
 
@@ -236,6 +244,8 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
       md.pid := lr.value.pid
       md.cookie := lr.value.cookie
       md.xid := lr.userData.hdr.xid
+      val acceptStatus = EndiannessSwap(lr.userData.hdr.acceptStat)
+      md.status := (acceptStatus.asUInt <= 5) ? acceptStatus.resize(8) | B(5, 8 bits)
       md.saddr := lr.userData.saddr
       md.sport := lr.userData.sport
       md.dport := lr.userData.dport

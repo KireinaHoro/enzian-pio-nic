@@ -73,7 +73,7 @@ static const struct bench_def benches[] = {
     },
 };
 
-static lauberhorn_msg_t bench_handler(void *data, lauberhorn_msg_t req,
+static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
                                       int xid) {
   const struct bench_def *def = data;
   bench_call *call = req;
@@ -82,7 +82,7 @@ static lauberhorn_msg_t bench_handler(void *data, lauberhorn_msg_t req,
   resp.request_id = call->request_id;
   resp.result = def->compute(call->a, call->b);
 
-  return &resp;
+  return lauberhorn_reply(&resp, sizeof(resp), NULL);
 }
 
 static const struct bench_def *find_bench(const char *name) {
@@ -146,9 +146,7 @@ int main(int argc, char *argv[]) {
   lauberhorn_handler_t handler = {
       .func = bench_handler,
       .data = (void *)def,
-      .mode = EXEC_INLINE,
       // The inline handler returns borrowed thread-local response storage.
-      .free = NULL,
   };
   // Runtime CSV trace integration is deferred until the hardware test stage.
   (void)bench_request_id;

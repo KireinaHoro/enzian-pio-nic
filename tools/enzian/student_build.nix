@@ -10,7 +10,9 @@ let
  apps = pkgs.stdenv.mkDerivation {
    name = "sven-runtime-hw-tests";
    src = src;
-   patches = [ ./student-nested-remote.patch ];
+   patches = [ ./student-nested-remote.patch ] ++ pkgs.lib.optional
+     (pkgs.lib.hasInfix "lauberhorn_outcome_t" (builtins.readFile (ci.outPath + "/sw/include/lauberhorn.h")))
+     ./student-request-outcomes.patch;
    nativeBuildInputs = [cross.buildPackages.gcc pkgs.rpcsvc-proto pkgs.pkg-config];
    buildInputs = [cross.libtirpc];
    postUnpack = ''

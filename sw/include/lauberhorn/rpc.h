@@ -20,12 +20,13 @@ typedef struct rpc_ops {
      * 
      * @in_buf: data to be serialized 
      * @out_buf: data buffer to serialize into
+     * @out_capacity: writable bytes in out_buf; never write beyond this bound
      * @in_buf_len: length of in_buf
      * @priv: filled by the runtime with `rpc_codec_t->priv`
      * returns: bytes written or -1 on error
      */
-	int (*marshal_call)(void *in_buf, void *out_buf, size_t in_buf_len, void *priv);
-    int (*marshal_resp)(void *in_buf, void *out_buf, size_t in_buf_len, void *priv);
+	int (*marshal_call)(void *in_buf, void *out_buf, size_t in_buf_len, size_t out_capacity, void *priv);
+    int (*marshal_resp)(void *in_buf, void *out_buf, size_t in_buf_len, size_t out_capacity, void *priv);
 
 	/**
      * Deserializers called to deserialize incoming calls / replies

@@ -59,6 +59,7 @@ trait OncRpcCallTxPacketDescSim { this: HostPacketDescSim =>
 }
 
 trait OncRpcReplyRxPacketDescSim { this: HostPacketDescSim =>
+  def status: Int
   def pid: BigInt
   def cookie: BigInt
   def xid: BigInt

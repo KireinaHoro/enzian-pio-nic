@@ -1,109 +1,222 @@
-/* Actual runtime dispatch with an injected descriptor transport. This tests C
- * ownership and metadata; it is not an ECI or FPGA simulation. */
+/* Runtime ownership tests with an injected transport; not FPGA/ECI evidence. */
 #include "worker.h"
 #include "rpc.h"
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 static struct lauberhorn_worker worker;
-static lauberhorn_pkt_desc_t sent;
+static lauberhorn_pkt_desc_t sent, child;
+static int sends, replies;
 static bool immediate;
+static unsigned reply_status;
+static bool reject_tx, dma_error;
 lauberhorn_worker_t worker_get_current(void) { return &worker; }
-static void test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_pkt_desc_t *desc) {
-    sent = *desc;
+static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_pkt_desc_t *desc) {
+    sent = *desc; sends++;
+    if (desc->type == TY_ONCRPC_REPLY_TX) { replies++; return CORE_TX_ACCEPTED; }
+    if (reject_tx) return CORE_TX_RETRY;
+    child = *desc;
     if (immediate) {
         memcpy(worker.dp.rx_buf, worker.dp.tx_buf, 4);
         lauberhorn_pkt_desc_t reply = {.type = TY_ONCRPC_REPLY_RX, .payload_len = 4,
-            .oncrpc_reply_rx = {.pid = desc->oncrpc_call_tx.pid,
+            .oncrpc_reply_rx = {.pid = desc->oncrpc_call_tx.pid, .status = reply_status,
                 .cookie = desc->oncrpc_call_tx.cookie, .xid = desc->oncrpc_call_tx.xid}};
         rpc_handle_packet(&worker, &reply);
     }
+    return dma_error ? CORE_TX_ERROR : CORE_TX_ACCEPTED;
 }
 #define core_eci_tx test_tx
 #include "../rt/rpc.c"
+/* Keep test assertions and their side effects in the NDEBUG runtime build. */
+#undef assert
+#define assert(c) do { if (!(c)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #c); abort(); } } while (0)
 struct pending_call_table pending_call_table;
 void lauberhorn_free_result(rpc_result_t *r) {
     if (r->data) { r->codec->ops->free(r->data, RPC_FREE_RESP, r->codec->priv); r->data = NULL; }
 }
-static int allocated, callbacks, marshal_error, alloc_error;
+static int allocated, destroyed, encoded_count, decoded_count, marshal_error, alloc_error, ran;
 static void *allocate(rpc_alloc_kind_t kind, void *priv) { if (alloc_error) return NULL; allocated++; return calloc(1, 4); }
-static void release(void *p, rpc_free_kind_t kind, void *priv) { allocated--; free(p); }
-static int encode(void *in, void *out, size_t len, void *priv) {
-    if (marshal_error) return -1;
+static void release(void *p, rpc_free_kind_t kind, void *priv) { assert(p); allocated--; free(p); }
+static int encode(void *in, void *out, size_t len, size_t capacity, void *priv) {
+    encoded_count++;
+    if (marshal_error || capacity < 4 || !in) return -1;
     memcpy(out, in, 4); return 4;
 }
-static int decode(void *in, void *out, size_t len, void *priv) { memcpy(out, in, 4); return 0; }
-static void callback(rpc_result_t *r, void *priv) {
-    assert(r->code == LAUBERHORN_RPC_SUCCESS && *(int *)r->data == 123456);
-    assert(priv == &callbacks); callbacks++;
+static int decode_int(void *in, void *out, size_t len, void *priv) {
+    decoded_count++; if (len < 4) return -1; memcpy(out, in, 4); return 0;
 }
-static void noop(void *ctx) {}
-static void error_callback(rpc_result_t *r, void *priv) {
-    assert(r->code == LAUBERHORN_RPC_ERROR && !r->data);
+static void destroy(void *p) { destroyed++; free(p); }
+static void destroy_defer(void *p) {
+    assert(allocated == 1); /* decoded request outlives deferred cleanup */
+    destroy(p);
 }
 static lauberhorn_rpc_endpoint_t ep;
 static void future_pair(void *ctx) {
     lauberhorn_future_t a = {0}, b = {0};
     int av = 17, bv = 29;
+    reject_tx = true;
+    assert(lauberhorn_call_async(&ep, &av, 4, &a) == -1 && errno == EAGAIN);
+    assert(!a.c && !ep._transport.unresolved);
+    reject_tx = false;
     assert(!lauberhorn_call_async(&ep, &av, 4, &a));
     assert(!lauberhorn_call_async(&ep, &bv, 4, &b));
+    lauberhorn_future_t *duplicate[] = {&a, &a};
+    assert(lauberhorn_future_join(duplicate, 2) == -1 && errno == EINVAL);
     lauberhorn_future_t *all[] = {&a, &b};
-    lauberhorn_future_join(all, 2);
-    assert(*(int *)a.result.data == av && *(int *)b.result.data == bv);
+    assert(!lauberhorn_future_join(all, 2));
+    if (!reply_status) assert(*(int *)a.result.data == av && *(int *)b.result.data == bv);
+    else assert(a.result.code == LAUBERHORN_RPC_ERROR && !a.result.data);
     lauberhorn_free_result(&a.result); lauberhorn_free_result(&b.result);
+    assert(lauberhorn_future_await(&a) == -1 && errno == EINVAL);
 }
+static void indeterminate_send(void *ctx) {
+    lauberhorn_future_t f = {0};
+    int value = 42;
+    dma_error = true;
+    assert(!lauberhorn_call_async(&ep, &value, sizeof(value), &f));
+    assert(!lauberhorn_future_await(&f));
+    if (immediate) {
+        assert(f.result.code == LAUBERHORN_RPC_SUCCESS);
+        assert(!ep._transport.unresolved);
+    } else {
+        assert(f.result.code == LAUBERHORN_RPC_ERROR);
+        assert(ep._transport.unresolved == 1);
+    }
+    lauberhorn_free_result(&f.result);
+    dma_error = false;
+}
+static lauberhorn_outcome_t deferred(void *data, void *req, int xid) {
+    assert(fiber_in_context()); ran++;
+    return lauberhorn_reply(req, 4, NULL); /* args survive serialization */
+}
+static int mode;
+static lauberhorn_outcome_t handler(void *data, void *req, int xid) {
+    assert(!fiber_in_context());
+    if (mode == 1) return lauberhorn_defer(deferred, malloc(1), destroy_defer);
+    if (mode == 2) return lauberhorn_forward(&ep, req, 4, NULL);
+    if (mode == 4) {
+        int *reply = malloc(sizeof(*reply)); *reply = *(int *)req;
+        return lauberhorn_reply(reply, sizeof(*reply), destroy);
+    }
+    if (mode == 3) return lauberhorn_fail(LAUBERHORN_RPC_PROC_UNAVAIL);
+    return lauberhorn_reply(req, 4, NULL);
+}
+static void noop(void *p) {}
 int main(void) {
     pending_call_table_init(&pending_call_table);
     fiber_sched_init();
     lauberhorn_t ctx = {0};
     char tx[LAUBERHORN_MTU], rx[LAUBERHORN_MTU];
     worker.ctx = &ctx; worker.dp.tx_buf = tx; worker.dp.rx_buf = rx;
-    rpc_ops_t ops = {.marshal_call = encode, .unmarshal_resp = decode, .alloc = allocate, .free = release};
+    rpc_ops_t ops = {.marshal_call = encode, .marshal_resp = encode,
+        .unmarshal_call = decode_int, .unmarshal_resp = decode_int, .alloc = allocate, .free = release};
     rpc_codec_t codec = {.ops = &ops};
-    ep = (lauberhorn_rpc_endpoint_t){.daddr = "invalid-but-already-cached", .dport = 23456,
+    ep = (lauberhorn_rpc_endpoint_t){.daddr = "cached", .dport = 23456,
         .prog_num = 0x12345678, .prog_ver = 0x23456789, .proc_num = 0x3456789a, .rpc_codec = &codec};
-    int input = 123456;
-    lauberhorn_cb_handler_t cb = {.cb = callback, .data = &callbacks, .mode = EXEC_INLINE};
-    assert(lauberhorn_call_cb(&ep, &input, 4, cb) == -1 && errno == EINVAL);
     ep._transport.self = &ep; ep._transport.owner = &ctx;
     ep._transport.pid = 4321; ep._transport.sport = 54321; ep._transport.daddr = 0xc0a88183;
-    marshal_error = 1;
-    assert(lauberhorn_call_cb(&ep, &input, 4, cb) == -1 && !ep._transport.unresolved);
-    marshal_error = 0; immediate = true;
-    assert(!lauberhorn_call_cb(&ep, &input, 4, cb) && callbacks == 1);
-    assert(sent.oncrpc_call_tx.pid == 4321 && sent.oncrpc_call_tx.sport == 54321);
-    assert(sent.oncrpc_call_tx.daddr == 0xc0a88183 && sent.oncrpc_call_tx.dport == 23456);
-    assert(sent.oncrpc_call_tx.cookie == sent.oncrpc_call_tx.xid);
-    assert(sent.oncrpc_call_tx.prog_num == 0x12345678 && sent.oncrpc_call_tx.proc_num == 0x3456789a);
-    cb.mode = EXEC_FIBER;
-    assert(!lauberhorn_call_cb(&ep, &input, 4, cb) && callbacks == 1);
-    assert(ep._transport.unresolved == 1);
+    int input = 123456;
+    lauberhorn_future_t invalid = {0}, saved = invalid;
+    assert(lauberhorn_call_async(&ep, &input, 4, &invalid) == -1 && errno == EPERM);
+    lauberhorn_future_t *set[] = {&invalid};
+    assert(lauberhorn_future_await(&invalid) == -1 && errno == EPERM);
+    assert(lauberhorn_future_join(set, 1) == -1 && errno == EPERM);
+    assert(lauberhorn_future_select(set, 1) == -1 && errno == EPERM);
+    assert(!memcmp(&invalid, &saved, sizeof(saved)) && !encoded_count && !sends && !ep._transport.unresolved);
+    struct srv srv = {.codec = codec};
+    struct lauberhorn_hw_handler hw = {.srv = &srv, .handler = {.func = handler}};
+    lauberhorn_pkt_desc_t req = {.type = TY_ONCRPC_CALL_RX, .payload_len = 4,
+        .oncrpc_call_rx = {.func_ptr = &hw, .xid = 0x1234}};
+    memcpy(rx, &input, 4);
+    rpc_handle_packet(&worker, &req);
+    assert(replies == 1 && !allocated && !sent.oncrpc_reply_tx.status && *(int *)tx == input);
+    mode = 1;
+    rpc_handle_packet(&worker, &req);
+    assert(allocated == 1 && !ran && !destroyed && replies == 1);
     fiber_sched_run_ready();
-    assert(callbacks == 2 && !allocated);
+    assert(!allocated && ran == 1 && destroyed == 1 && replies == 2);
     struct fiber *held[NUM_FIBERS];
-    int count = 0;
-    while ((held[count] = fiber_sched_acquire())) {
-        if (++count == NUM_FIBERS) break;
+    for (int i = 0; i < NUM_FIBERS; ++i) { held[i] = fiber_sched_acquire(); assert(held[i]); }
+    assert(!fiber_sched_acquire());
+    rpc_handle_packet(&worker, &req); /* rejection destroys both args and context */
+    assert(!allocated && destroyed == 2 && replies == 3 && sent.oncrpc_reply_tx.status == 5);
+    mode = 0;
+    rpc_handle_packet(&worker, &req); /* inline unaffected by exhaustion */
+    assert(!allocated && replies == 4 && !sent.oncrpc_reply_tx.status);
+    mode = 2;
+    rpc_handle_packet(&worker, &req); /* forward also works without a fiber */
+    assert(!allocated && ep._transport.unresolved == 1 && replies == 4);
+    assert(child.oncrpc_call_tx.pid == 4321 && child.oncrpc_call_tx.sport == 54321);
+    assert(child.oncrpc_call_tx.prog_num == 0x12345678);
+    lauberhorn_pkt_desc_t completion = {.type = TY_ONCRPC_REPLY_RX, .payload_len = 4,
+        .oncrpc_reply_rx = {.cookie = child.oncrpc_call_tx.cookie, .xid = child.oncrpc_call_tx.xid}};
+    rpc_handle_packet(&worker, &completion);
+    assert(replies == 5 && sent.oncrpc_reply_tx.xid == 0x1234 && !ep._transport.unresolved);
+    rpc_handle_packet(&worker, &completion); /* duplicate does not reply twice */
+    assert(replies == 5);
+    rpc_handle_packet(&worker, &req);
+    completion.oncrpc_reply_rx.cookie = child.oncrpc_call_tx.cookie;
+    completion.oncrpc_reply_rx.xid = child.oncrpc_call_tx.xid;
+    completion.oncrpc_reply_rx.status = 3;
+    rpc_handle_packet(&worker, &completion);
+    assert(replies == 6 && sent.oncrpc_reply_tx.status == 3 && !ep._transport.unresolved);
+    for (int i = 0; i < NUM_FIBERS; ++i) { fiber_prepare(held[i], noop, NULL, NULL); fiber_sched_submit(held[i]); }
+    fiber_sched_run_ready();
+    immediate = true;
+    for (reply_status = 0; reply_status <= 5; reply_status += 5) {
+        struct fiber *f = fiber_sched_acquire(); assert(f);
+        int before = decoded_count;
+        fiber_prepare(f, future_pair, NULL, NULL); fiber_sched_submit(f); fiber_sched_run_ready();
+        assert(!allocated && !ep._transport.unresolved);
+        if (reply_status) assert(decoded_count == before);
     }
-    assert(count == NUM_FIBERS && !fiber_sched_acquire());
-    assert(!lauberhorn_call_cb(&ep, &input, 4, cb));
-    assert(callbacks == 2 && ep._transport.unresolved == 1);
-    assert(atomic_load(&pending_call_get_by_cookie(&pending_call_table,
-        sent.oncrpc_call_tx.cookie)->state) == SLOT_CALLBACK_READY);
-    fiber_prepare(held[0], noop, NULL, NULL); fiber_sched_submit(held[0]);
-    fiber_sched_run_ready();
-    assert(rpc_call_process_ready());
-    fiber_sched_run_ready();
-    assert(callbacks == 3 && !ep._transport.unresolved && !allocated);
-    alloc_error = 1;
-    cb.cb = error_callback; cb.mode = EXEC_INLINE;
-    assert(!lauberhorn_call_cb(&ep, &input, 4, cb));
-    assert(!ep._transport.unresolved && !allocated);
-    alloc_error = 0;
-    assert(lauberhorn_call_async(&ep, &input, 4, NULL) == -1 && errno == EINVAL);
-    cb.cb = NULL;
-    assert(lauberhorn_call_cb(&ep, &input, 4, cb) == -1 && errno == EINVAL);
-    struct fiber *f = fiber_sched_acquire();
-    assert(f); fiber_prepare(f, future_pair, NULL, NULL); fiber_sched_submit(f);
-    fiber_sched_run_ready();
-    assert(!allocated && !ep._transport.unresolved);
+    reply_status = 0;
+    for (int delivery = 1; delivery >= 0; --delivery) {
+        immediate = delivery;
+        struct fiber *f = fiber_sched_acquire(); assert(f);
+        fiber_prepare(f, indeterminate_send, NULL, NULL); fiber_sched_submit(f); fiber_sched_run_ready();
+    }
+    // Only the fixture resets this quarantine. Production requires B4 retirement.
+    ep._transport.unresolved = 0;
+    struct pending_call *held_calls[PENDING_CALL_TABLE_SIZE];
+    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i) {
+        held_calls[i] = pending_call_acquire(&pending_call_table); assert(held_calls[i]);
+    }
+    mode = 2; rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 5 && !ep._transport.unresolved && !allocated);
+    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i)
+        pending_call_release(&pending_call_table, held_calls[i]);
+    int before_destroy = destroyed;
+    mode = 4; rpc_handle_packet(&worker, &req);
+    assert(destroyed == before_destroy + 1 && !allocated);
+    marshal_error = 1; rpc_handle_packet(&worker, &req);
+    assert(destroyed == before_destroy + 2 && !allocated && sent.oncrpc_reply_tx.status == 5);
+    marshal_error = 0;
+    mode = 3; rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 3 && !allocated);
+    mode = 0; marshal_error = 1; rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 5 && !allocated);
+    marshal_error = 0; alloc_error = 1; rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 5 && !allocated);
+    alloc_error = 0; req.payload_len = 1; rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 4 && !allocated);
+    req.payload_len = 4; mode = 2; immediate = false; reject_tx = true;
+    rpc_handle_packet(&worker, &req);
+    assert(sent.oncrpc_reply_tx.status == 5 && !ep._transport.unresolved && !allocated);
+    reject_tx = false;
+    rpc_handle_packet(&worker, &req);
+    struct pending_call *timed = pending_call_get_by_cookie(&pending_call_table, child.oncrpc_call_tx.cookie);
+    completion.oncrpc_reply_rx.cookie = child.oncrpc_call_tx.cookie;
+    completion.oncrpc_reply_rx.xid = child.oncrpc_call_tx.xid;
+    completion.oncrpc_reply_rx.status = 0;
+    pthread_spin_lock(&timed->lock);
+    timed->sent_at = (struct timespec){0};
+    pthread_spin_unlock(&timed->lock);
+    int before_timeout = replies;
+    rpc_call_process_timeout();
+    assert(replies == before_timeout + 1 && sent.oncrpc_reply_tx.status == 5);
+    assert(ep._transport.unresolved == 1 && !allocated);
+    rpc_handle_packet(&worker, &completion);
+    assert(replies == before_timeout + 1); /* late reply cannot resurrect parent */
+
 }

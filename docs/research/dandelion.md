@@ -25,6 +25,24 @@ inputs. These tests have **not** been executed against this batch on Enzian;
 composition support and actual isolated placement remain unvalidated. See the
 [build/run recipe](../../sw/apps/dandelion/README.md).
 
+## September 17 managed request integration
+
+The platform adapter now uses the generic outcome API. Its single incoming
+handler resolves and retains the registry entry once: atomic functions execute
+inline, compositions return `DEFER` with owned execution context. Clients retain
+the same procedure and BJSON/XDR envelope and need no atomic/composition metadata.
+Codec output capacity is explicit across the Rust/C boundary. The pinned student
+source descriptions below remain historical; its `EXEC_FIBER` and callback API
+are not the current platform contract.
+
+`FORWARD` implements local reply relay without a parent fiber for compatible
+response encodings. It is available to applications but is not automatically
+selected by Dandelion's composition optimizer. Direct replies from downstream
+to the original client remain unimplemented. The earlier report search below
+records that no student tail-call design was recovered, not a claim that the
+new outcome design is absent. See [programming model](../software/programming-model.md)
+and [blockers](../software/nested-rpc-blockers.md).
+
 ## What exists and where
 
 All following paths are relative to `../sven-dandelion/`, not this repository.

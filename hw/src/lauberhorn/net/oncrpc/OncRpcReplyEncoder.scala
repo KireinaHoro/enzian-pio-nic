@@ -20,6 +20,7 @@ case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   val rpcId = UInt(RpcID.width bits)
   val funcPtr = Bits(64 bits)
   val xid = Bits(32 bits)
+  val status = Bits(8 bits)
   val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
   /** Total length of the entire reply message, including inlined bits */
@@ -97,7 +98,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     collectInto(md, pld, acceptHostPackets = true)
 
     // encoder only handles the actual header as header (unlike in the Call decoder);
-    val encoder = AxiStreamInjectHeader(axisConfig, OncRpcReplyHeader().getBitsWidth / 8)
+    val encoder = RpcHeaderInjector(axisConfig, OncRpcReplyHeader().getBitsWidth / 8)
     encoder.io.output >> outPld
 
     val sessionDb = LookupTable(OncRpcSessionDef(), NUM_SESSIONS) { v =>
@@ -172,6 +173,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
       q.userData.rpcId := nextRpcId
       q.userData.funcPtr := md.funcPtr
       q.userData.xid := md.xid
+      q.userData.status := md.status
       q.userData.data := md.data
       q.userData.replyLen := md.replyLen
     }
@@ -181,6 +183,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     txR.ready := False
 
     val outHdr = Reg(OncRpcReplyHeader())
+    encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
     encoder.io.header.payload := outHdr.asBits
     encoder.io.header.valid := False
 
@@ -217,7 +220,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
               outHdr.msgType    := EndiannessSwap(B("32'x00000001")) // msg_type == REPLY
               outHdr.replyStat  := 0 // reply_stat == MSG_ACCEPTED
               outHdr.verifier   := 0
-              outHdr.acceptStat := 0 // accept_stat == SUCCESS
+              outHdr.acceptStat := EndiannessSwap(txR.userData.status.resize(32))
 
               outMd.daddr       := txR.value.clientAddr
               outMd.rpcId       := txR.userData.rpcId
@@ -259,7 +262,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
           encoder.io.header.valid := True
           when (encoder.io.header.ready) {
             // send first beats (inlined beats) of payload to encoder
-            goto(sendInlinedWords)
+            when(encoder.io.empty) { goto(idle) } otherwise { goto(sendInlinedWords) }
           }
         }
       }

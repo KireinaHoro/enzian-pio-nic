@@ -14,6 +14,10 @@ extern __thread struct fiber* current_fiber;
 /* per thread pointer to the main fiber (scheduler context) */
 extern __thread struct fiber* main_fiber;
 
+static inline bool fiber_in_context(void) {
+    return current_fiber && current_fiber != main_fiber;
+}
+
 /* per thread queue of ready fibers */
 extern __thread struct fiber_queue ready_fiber_queue;
 

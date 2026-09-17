@@ -2,6 +2,7 @@ package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType, HostReqWithTrace}
+import lauberhorn.net.oncrpc.OncRpcReplyDecoder
 import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType, invalidTraceId}
 import spinal.core._
 import spinal.lib._
@@ -160,6 +161,7 @@ class DmaControlPlugin extends FiberPlugin {
 
                   pktToEnqueue.data.oncRpcReplyRx.pid := incomingDesc.desc.metadata.oncRpcReplyRx.pid
                   pktToEnqueue.data.oncRpcReplyRx.cookie := incomingDesc.desc.metadata.oncRpcReplyRx.cookie
+                  pktToEnqueue.data.oncRpcReplyRx.status := incomingDesc.desc.metadata.oncRpcReplyRx.status
                   pktToEnqueue.data.oncRpcReplyRx.xid := incomingDesc.desc.metadata.oncRpcReplyRx.xid
                   pktToEnqueue.data.oncRpcReplyRx.saddr := incomingDesc.desc.metadata.oncRpcReplyRx.saddr
                   pktToEnqueue.data.oncRpcReplyRx.sport := incomingDesc.desc.metadata.oncRpcReplyRx.sport
@@ -286,6 +288,28 @@ class DmaControlPlugin extends FiberPlugin {
     val txReqBuffered = txReqMuxed.asFlow.toReg
     val txPacketDesc = Reg(PacketDesc())
 
+    // A TX result also releases ownership of the per-core TX packet buffer.
+    // Do not let the host overwrite it while DMA is still reading.
+    dps.foreach(_.hostTxResult.setIdle())
+    def completeTx(status: Int): Unit = {
+      dps.foreach { dp =>
+        when (txReqBuffered.req.buffer.addr.bits === PKT_BUF_TX_OFFSET + dp.coreID * ROUNDED_MTU) {
+          dp.hostTxResult.valid := True
+          dp.hostTxResult.payload := status
+        }
+      }
+    }
+    val reserve = host[OncRpcReplyDecoder].logic.newRequestEvent
+    reserve.valid := False
+    val call = txReqBuffered.req.data.oncRpcCallTx
+    reserve.xid := call.xid
+    reserve.remoteAddr := call.daddr
+    reserve.remotePort := call.dport
+    reserve.localPort := call.sport
+    reserve.pid := call.pid
+    reserve.cookie := call.cookie
+    reserve.active := True
+
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -307,6 +331,7 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.metadata.assignDontCare()
                 txPacketDesc.metadata.oncRpcReplyTx.rpcId := invalidTraceId(RpcID.width)
                 txPacketDesc.metadata.oncRpcReplyTx.funcPtr := txReqMuxed.req.data.oncRpcReplyTx.funcPtr
+                txPacketDesc.metadata.oncRpcReplyTx.status := txReqMuxed.req.data.oncRpcReplyTx.status
                 txPacketDesc.metadata.oncRpcReplyTx.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
                 txPacketDesc.metadata.oncRpcReplyTx.data := txReqMuxed.req.data.oncRpcReplyTx.data
                 txPacketDesc.metadata.oncRpcReplyTx.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
@@ -341,7 +366,22 @@ class DmaControlPlugin extends FiberPlugin {
               PacketDescTy(txPacketDescTy),
               LogicalLength(txLogicalLen),
               DmaLength(txReqMuxed.req.buffer.size.bits)) := True
-            goto(sendDmaCmd)
+            when (txReqMuxed.req.ty === HostReqType.oncRpcCallTx) {
+              goto(reserveNested)
+            } otherwise { goto(sendDmaCmd) }
+          }
+        }
+      }
+      val reserveNested: State = new State {
+        whenIsActive {
+          reserve.valid := True
+          when (reserve.fire) {
+            when (host[OncRpcReplyDecoder].logic.newRequestAccepted) {
+              goto(sendDmaCmd)
+            } otherwise {
+              completeTx(2)
+              goto(idle)
+            }
           }
         }
       }
@@ -374,6 +414,7 @@ class DmaControlPlugin extends FiberPlugin {
           when (outgoingDesc.ready) {
             inc(_.txPacketCount)
             txTp.trace("TxNoDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
+            completeTx(1)
             goto(idle)
           }
         }
@@ -385,8 +426,10 @@ class DmaControlPlugin extends FiberPlugin {
               inc(_.txPacketCount)
 
               txTp.trace("TxAfterDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
+              completeTx(1)
             } otherwise {
               inc(_.txDmaErrorCount)
+              completeTx(3)
             }
             goto(idle)
           }

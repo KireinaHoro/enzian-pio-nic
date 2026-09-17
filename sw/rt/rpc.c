@@ -1,398 +1,237 @@
 #include <errno.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #include "lauberhorn.h"
 #include "fiber/scheduler.h"
 #include "lauberhorn_state.h"
 #include "log.h"
-#include "oncrpc.h"
 #include "pending_call_table.h"
 
-// go into . h public version
-struct rpc_callback_fiber_ctx {
-    rpc_result_t result;
-    lauberhorn_cb_handler_t handler;
-    lauberhorn_rpc_endpoint_t *endpoint;
+#define CALL_CAPACITY (LAUBERHORN_MTU - 82)
+#define REPLY_CAPACITY (LAUBERHORN_MTU - 66)
+
+struct request {
+    lauberhorn_pkt_desc_t desc;
+    rpc_codec_t *codec;
+    void *args;
+};
+struct deferred_request {
+    struct request request;
+    lauberhorn_outcome_t defer, result;
 };
 
-struct rpc_call_fiber_ctx {
-    lauberhorn_pkt_desc_t pkt_desc;
-    void *unmarshaled_data;
-    // filled on return and sent out in on_fiber_done
-    void *result;
-};
-
-// return pointer to unmarshaled reply
-static void *unmarshal_reply(void *data, size_t len, rpc_codec_t *codec) {
-    void *data_unmarshaled = codec->ops->alloc(RPC_ALLOC_RESP, codec->priv);
-    if (!data_unmarshaled) return NULL;
-    if (codec->ops->unmarshal_resp(data, data_unmarshaled, len, codec->priv) < 0) {
-        codec->ops->free(data_unmarshaled, RPC_FREE_RESP, codec->priv);
-        return NULL;
-    }
-    return data_unmarshaled;
+static void destroy_outcome(lauberhorn_outcome_t *o) {
+    if (o->destroy) o->destroy(o->data);
 }
-
-// return pointer to unmarshaled call
-static void *unmarshal_call(void *data, size_t len, rpc_codec_t *codec) {
-    void *data_unmarshaled = codec->ops->alloc(RPC_ALLOC_CALL, codec->priv);
-    if (!data_unmarshaled) return NULL;
-    if (codec->ops->unmarshal_call(data, data_unmarshaled, len, codec->priv) < 0) {
-        codec->ops->free(data_unmarshaled, RPC_FREE_CALL, codec->priv);
-        return NULL;
-    }
-    return data_unmarshaled;
+static void release_request(struct request *r) {
+    r->codec->ops->free(r->args, RPC_FREE_CALL, r->codec->priv);
 }
-
-// execute rpc handler inline and return result
-static lauberhorn_msg_t rpc_call_exec_inline(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
-    struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
-    rpc_codec_t *codec = &hw->srv->codec;
-
-    // unmarshal data
-    void *unmarshaled_args = unmarshal_call(w->dp.rx_buf, desc->payload_len, codec);
-
-    if (!unmarshaled_args) return NULL;
-
-    // call handler
-    lauberhorn_msg_t resp =
-        hw->handler.func(hw->handler.data, unmarshaled_args, desc->oncrpc_call_rx.xid);
-
-    // free unmarshaled call
-    codec->ops->free(unmarshaled_args, RPC_FREE_CALL, codec->priv);
-    return resp;
-}
-
-// send out reply via core_eci_tx on the given worker
-static void rpc_reply_send(lauberhorn_msg_t msg, lauberhorn_pkt_desc_t *desc) {
-
+static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t len) {
     lauberhorn_worker_t w = worker_get_current();
-
-    if (!msg) {
-        LOG("no reply message to send for RPC call");
-        return;
-    }
-    struct lauberhorn_hw_handler *hw = desc->oncrpc_reply_tx.func_ptr;
-    rpc_codec_t *codec = &hw->srv->codec;
-
-    // marshal reply into worker tx buffer
-    int len = codec->ops->marshal_resp(msg, w->dp.tx_buf, desc->payload_len,
-                                       codec->priv);
-
-    if (len < 0 || len > LAUBERHORN_MTU - 66) {
-        LOG("marshal failed for reply");
-        return;
-    }
-    desc->type = TY_ONCRPC_REPLY_TX;
-    desc->payload_len = len;
-
-    core_eci_tx(w->dp_base, &w->dp, desc);
-}
-
-// function invoked when rpc call handler fiber exits
-static void rpc_call_fiber_done(void *ctx) {
-
-    struct rpc_call_fiber_ctx *f_ctx = ctx;
-    rpc_reply_send(f_ctx->result, &f_ctx->pkt_desc);
-    struct lauberhorn_hw_handler *hw =
-            f_ctx->pkt_desc.oncrpc_call_rx.func_ptr;
-
-    // free returned result
-    hw->handler.free(f_ctx->result);
-    rpc_codec_t *codec = &hw->srv->codec;
-
-    // free args (unmarshaled call)
-    codec->ops->free(f_ctx->unmarshaled_data, RPC_FREE_CALL, codec->priv);
-
-    // ctx was allocated via malloc() on creation of fiber
-    free(ctx);
-}
-
-// function invoked when rpc call is scheduled on fiber
-static void rpc_call_fiber_start(void *ctx) {
-    struct rpc_call_fiber_ctx *f_ctx = ctx;
-    struct lauberhorn_hw_handler *hw = f_ctx->pkt_desc.oncrpc_call_rx.func_ptr;
-    assert(hw && hw->handler.func && "no handler function for RPC Call");
-
-    f_ctx->result = hw->handler.func(hw->handler.data, f_ctx->unmarshaled_data,
-                                       f_ctx->pkt_desc.oncrpc_call_rx.xid);
-}
-
-// function invoked when callback is scheduled on fiber
-static void rpc_callback_fiber_start(void *ctx) {
-    struct rpc_callback_fiber_ctx *f_ctx = ctx;
-
-    // invoke handler with result and free it after
-    f_ctx->handler.cb(&f_ctx->result, f_ctx->handler.data);
-    lauberhorn_free_result(&f_ctx->result);
-    __atomic_fetch_sub(&f_ctx->endpoint->_transport.unresolved, 1, __ATOMIC_RELEASE);
-    free(ctx);
-}
-
-// schedule rpc call handler to be executed in a new fiber
-static void rpc_call_schedule_fiber(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
-    struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
-    rpc_codec_t *codec = &hw->srv->codec;
-
-    void *unmarshaled_args = unmarshal_call(w->dp.rx_buf, desc->payload_len, codec);
-    if (!unmarshaled_args) return;
-    struct rpc_call_fiber_ctx *ctx = malloc(sizeof(*ctx));
-    struct fiber *f = ctx ? fiber_sched_acquire() : NULL;
-    if (!f) {
-        free(ctx);
-        codec->ops->free(unmarshaled_args, RPC_FREE_CALL, codec->priv);
-        LOG("failed to allocate handler fiber");
-        return;
-    }
-    ctx->pkt_desc = *desc;
-    ctx->unmarshaled_data = unmarshaled_args;
-
-    // will be filled by rpc_call_fiber_start that runs in fiber and execs the handler
-    ctx->result = NULL;
-    fiber_prepare(f, rpc_call_fiber_start, rpc_call_fiber_done, ctx);
-    fiber_sched_submit(f);
-}
-
-// function invoked on incoming rpc call
-static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
-    struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
-
-    switch (hw->handler.mode) {
-        case EXEC_FIBER: {
-            rpc_call_schedule_fiber(w, desc);
-            break;
-        }
-        case EXEC_INLINE: {
-            lauberhorn_msg_t resp = rpc_call_exec_inline(w, desc);
-            rpc_reply_send(resp, desc);
-            break;
-        }
-    }
-}
-
-// schedule callback handler to be executed in a new fiber
-// frees the pending call entry
-static bool rpc_callback_schedule_fiber(struct pending_call *call) {
-    struct rpc_callback_fiber_ctx *ctx = malloc(sizeof(*ctx));
-    struct fiber *f = ctx ? fiber_sched_acquire() : NULL;
-    if (!f) {
-        free(ctx);
-        return false;
-    }
-    ctx->handler = call->completion.callback;
-    ctx->endpoint = call->endpoint;
-    __atomic_fetch_add(&ctx->endpoint->_transport.unresolved, 1, __ATOMIC_RELAXED);
-    // copy result into context and release pending call slot
-    pending_call_extract_result(call, &ctx->result);
-
-    // submit new fiber to scheduler
-    fiber_prepare(f, rpc_callback_fiber_start, NULL, ctx);
-    fiber_sched_submit(f);
-    return true;
-}
-
-// unconditionally deliver result via future / callback
-// only call this if we set the call's state successfully to SLOT_FULFILLED
-static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
-
-    // store result
-    c->result = *reply;
-
-    // wake fiber or invoke callback
-    switch (c->kind) {
-        // settle future
-        case COMPLETION_FIBER: {
-            //  wake up waiter. Do not free slot before
-            // fiber has not taken the data out
-            struct fiber_handle waiter = c->completion.fiber_handle;
-            atomic_store_explicit(&c->state, SLOT_READY, memory_order_release);
-
-            /* A coalesced notification still leaves the result owned by its
-             * future. Only future consumption releases this slot. */
-            fiber_wake(&waiter);
-            return;
-        }
-        // invoke callback
-        case COMPLETION_CALLBACK: {
-            lauberhorn_cb_handler_t handler = c->completion.callback;
-
-            switch (handler.mode) {
-                case EXEC_FIBER: {
-                    // schedules callback and frees entry
-                    if (!rpc_callback_schedule_fiber(c)) {
-                        atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
-                        return;
-                    }
-                    break;
-                }
-                case EXEC_INLINE: {
-                    // execute inline and then release slot
-                    handler.cb(&c->result, handler.data);
-                    break;
-                }
-            }
-        }
-    }
-    pending_call_release(&pending_call_table, c);
-}
-
-// function invoked on incoming rpc reply
-static void rpc_handle_reply(lauberhorn_msg_t reply, lauberhorn_pkt_desc_t *desc) {
-
-    // ECI converts wire XIDs to host order before completion delivery.
-    uint32_t xid = desc->oncrpc_reply_rx.xid;
-    struct pending_call *entry = pending_call_get_by_cookie(&pending_call_table, desc->oncrpc_reply_rx.cookie);
-    if (!entry) {
-        LOG("no pending call found for xid %d\n", xid);
-        return;
-    }
-
-    // try to set call from PENGING -> FULFILLED
-    // ensures that timer cannot time us out anymore
-    if (!pending_call_try_claim_reply(entry, desc->oncrpc_reply_rx.cookie, xid)) {
-        LOG("reply with xid: %d could not be fulfilled", xid);
-        return;
-    }
-
-    void *unmarshaled = unmarshal_reply(reply, desc->payload_len, entry->codec);
-    rpc_result_t result = {
-        .data = unmarshaled,
-        .codec = entry->codec,
-        .code = unmarshaled ? LAUBERHORN_RPC_SUCCESS : LAUBERHORN_RPC_ERROR
-    };
-    pending_call_settle(entry, &result);
-}
-
-// handle incoming rpc message (call or reply)
-void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
-    switch (desc->type) {
-        case TY_ONCRPC_CALL_RX: {
-            rpc_handle_call(w, desc);
-            break;
-        }
-        case TY_ONCRPC_REPLY_RX: {
-            rpc_handle_reply(w->dp.rx_buf, desc);
-            break;
-        }
-        default:
-            LOG("cannot handle packet of type %d\n", desc->type);
-            return;
-    }
-}
-
-
-// marshal and send out a call via curernt worker
-static void rpc_send_call(uint32_t xid, lauberhorn_rpc_endpoint_t *ep, void *payload,
-    size_t payload_len) {
-
-    // ECI converts host-order RPC metadata to wire order in hardware.
     lauberhorn_pkt_desc_t desc = {
-        .type = TY_ONCRPC_CALL_TX,
-        .oncrpc_call_tx = {.xid = xid,
-                           .cookie = xid,
-                           .pid = ep->_transport.pid,
-                           .dport = ep->dport,
-                           .sport = ep->_transport.sport,
-                           .daddr = ep->_transport.daddr,
-                           .prog_num = ep->prog_num,
-                           .proc_num = ep->proc_num,
-                           .prog_ver = ep->prog_ver},
-        .payload_len = payload_len};
-
-    lauberhorn_worker_t w = worker_get_current();
-
-    core_eci_tx(w->dp_base, &w->dp, &desc);
+        .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
+        .oncrpc_reply_tx = {.func_ptr = parent->oncrpc_call_rx.func_ptr,
+                           .xid = parent->oncrpc_call_rx.xid, .status = status}
+    };
+    if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED)
+        LOG("RPC reply transport failure; delivery is indeterminate");
+}
+static void fail_request(lauberhorn_pkt_desc_t *desc, unsigned status) {
+    /* These accepted-error variants have no extra ONC-RPC body. */
+    if (status != 3 && status != 4 && status != 5) status = 5;
+    send_reply(desc, status, 0);
+}
+static void *decode(void *data, size_t len, rpc_codec_t *codec, bool call) {
+    void *out = codec->ops->alloc(call ? RPC_ALLOC_CALL : RPC_ALLOC_RESP, codec->priv);
+    if (!out) { errno = ENOMEM; return NULL; }
+    int ret = call ? codec->ops->unmarshal_call(data, out, len, codec->priv)
+                   : codec->ops->unmarshal_resp(data, out, len, codec->priv);
+    if (ret < 0) {
+        codec->ops->free(out, call ? RPC_FREE_CALL : RPC_FREE_RESP, codec->priv);
+        errno = EINVAL;
+        return NULL;
+    }
+    return out;
 }
 
-int lauberhorn_call_cb(lauberhorn_rpc_endpoint_t *ep, void *payload,
-    size_t payload_len, lauberhorn_cb_handler_t cb) {
-    if (!cb.cb || (cb.mode != EXEC_INLINE && cb.mode != EXEC_FIBER)) {
-        errno = EINVAL; return -1;
-    }
-
+/* Submission owns a generation-tagged transport operation, independent of how
+ * it is consumed. The caller publishes its consumer before making it visible. */
+static struct pending_call *prepare_call(lauberhorn_rpc_endpoint_t *ep,
+                                         void *payload, size_t len, int *encoded) {
     lauberhorn_worker_t w = worker_get_current();
     if (!ep || ep->_transport.self != ep || !w || ep->_transport.owner != w->ctx) {
-        errno = EINVAL;
-        return -1;
+        errno = EINVAL; return NULL;
     }
-    int enc_len = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf,
-                                                  payload_len, ep->rpc_codec->priv);
-    if (enc_len < 0 || enc_len > LAUBERHORN_MTU - 82) {
-        errno = EMSGSIZE;
-        return -1;
-    }
+    *encoded = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf, len,
+                                               CALL_CAPACITY, ep->rpc_codec->priv);
+    if (*encoded < 0 || *encoded > CALL_CAPACITY) { errno = EMSGSIZE; return NULL; }
     struct pending_call *pc = pending_call_acquire(&pending_call_table);
-    if (!pc) {
-        errno = EAGAIN;
-        LOG("async call failed");
-        return -1;
-    }
-
-    pc->kind = COMPLETION_CALLBACK;
+    if (!pc) { errno = EAGAIN; return NULL; }
     pc->codec = ep->rpc_codec;
     pc->endpoint = ep;
+    pc->result = (rpc_result_t){0};
     __atomic_fetch_add(&ep->_transport.unresolved, 1, __ATOMIC_RELAXED);
-    pc->completion.callback = cb;
-
+    return pc;
+}
+static void pending_call_settle(struct pending_call *, rpc_result_t *);
+static int submit_call(struct pending_call *pc, int len) {
+    lauberhorn_rpc_endpoint_t *ep = pc->endpoint;
     uint32_t cookie = pending_call_generate_xid(pc);
+    lauberhorn_pkt_desc_t desc = {
+        .type = TY_ONCRPC_CALL_TX, .payload_len = len,
+        .oncrpc_call_tx = {.xid = cookie, .cookie = cookie,
+            .pid = ep->_transport.pid, .dport = ep->dport,
+            .sport = ep->_transport.sport, .daddr = ep->_transport.daddr,
+            .prog_num = ep->prog_num, .proc_num = ep->proc_num, .prog_ver = ep->prog_ver}
+    };
     pending_call_arm_timeout(pc, 0);
-    rpc_send_call(cookie, ep, payload, enc_len);
+    lauberhorn_worker_t w = worker_get_current();
+    int result = core_eci_tx(w->dp_base, &w->dp, &desc);
+    if (result == CORE_TX_RETRY) {
+        /* This proves no hardware reservation/packet exists. */
+        pc->hardware_done = true;
+        pending_call_release(&pending_call_table, pc);
+        errno = EAGAIN;
+        return -1;
+    }
+    if (result != CORE_TX_ACCEPTED) {
+        /* An indeterminate failure can race a reply. Settle only if this
+         * generation is still pending; never free another consumer's state. */
+        if (pending_call_try_claim(pc, cookie)) {
+            rpc_result_t error = {.code = LAUBERHORN_RPC_ERROR};
+            pending_call_settle(pc, &error);
+        }
+        return 0;
+    }
     pending_call_start_timeout(pc, cookie, 1000);
     return 0;
 }
-
 int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
-                          size_t payload_len, lauberhorn_future_t *f) {
+                          size_t len, lauberhorn_future_t *f) {
     if (!f) { errno = EINVAL; return -1; }
-
-
-    lauberhorn_worker_t w = worker_get_current();
-    if (!ep || ep->_transport.self != ep || !w || ep->_transport.owner != w->ctx) {
-        errno = EINVAL;
-        return -1;
-    }
-    int enc_len = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf,
-                                                  payload_len, ep->rpc_codec->priv);
-    if (enc_len < 0 || enc_len > LAUBERHORN_MTU - 82) {
-        errno = EMSGSIZE;
-        return -1;
-    }
-    struct pending_call *pc = pending_call_acquire(&pending_call_table);
-
-    if (!pc) {
-        errno = EAGAIN;
-        LOG("async call failed");
-        return -1;
-    }
-
-    pc->codec = ep->rpc_codec;
-    pc->endpoint = ep;
-    __atomic_fetch_add(&ep->_transport.unresolved, 1, __ATOMIC_RELAXED);
+    /* This guard precedes encoding, allocation and endpoint accounting. */
+    if (!fiber_in_context()) { errno = EPERM; return -1; }
+    int encoded;
+    struct pending_call *pc = prepare_call(ep, payload, len, &encoded);
+    if (!pc) return -1;
     pc->kind = COMPLETION_FIBER;
     pc->completion.fiber_handle = fiber_sched_current_handle();
-
-    // bind future to pending call
-    f->c = pc;
-    f->xid = pending_call_generate_xid(pc);
-
-    uint32_t cookie = f->xid;
-    pending_call_arm_timeout(pc, 0);
-    rpc_send_call(cookie, ep, payload, enc_len);
-    pending_call_start_timeout(pc, cookie, 1000);
-
+    *f = (lauberhorn_future_t){.owner = pc->completion.fiber_handle,
+         .c = pc, .xid = pending_call_generate_xid(pc)};
+    if (submit_call(pc, encoded)) { f->c = NULL; return -1; }
     return 0;
+}
+
+/* Returns true only when request ownership moved into a deferred fiber. */
+static bool consume_outcome(struct request *, lauberhorn_outcome_t, bool);
+static void deferred_start(void *arg) {
+    struct deferred_request *d = arg;
+    d->result = d->defer.run(d->defer.data, d->request.args,
+                            d->request.desc.oncrpc_call_rx.xid);
+}
+static void deferred_done(void *arg) {
+    struct deferred_request *d = arg;
+    consume_outcome(&d->request, d->result, false);
+    destroy_outcome(&d->defer);
+    release_request(&d->request);
+    free(d);
+}
+static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_defer) {
+    lauberhorn_worker_t w = worker_get_current();
+    switch (o.kind) {
+    case LAUBERHORN_REPLY: {
+        int len = r->codec->ops->marshal_resp(o.data, w->dp.tx_buf, o.len,
+                                             REPLY_CAPACITY, r->codec->priv);
+        if (len < 0 || len > REPLY_CAPACITY) fail_request(&r->desc, 5);
+        else send_reply(&r->desc, 0, len);
+        break;
+    }
+    case LAUBERHORN_FAIL:
+        fail_request(&r->desc, o.error);
+        break;
+    case LAUBERHORN_DEFER: {
+        struct deferred_request *d = may_defer && o.run ? malloc(sizeof(*d)) : NULL;
+        struct fiber *f = d ? fiber_sched_acquire() : NULL;
+        if (!f) { free(d); fail_request(&r->desc, 5); break; }
+        *d = (struct deferred_request){.request = *r, .defer = o};
+        fiber_prepare(f, deferred_start, deferred_done, d);
+        fiber_sched_submit(f);
+        return true; /* request and context have moved into d */
+    }
+    case LAUBERHORN_FORWARD: {
+        /* v1 conservatively requires the same response encoder and its context.
+         * No transformation is performed: successful child bytes are relayed. */
+        if (!o.endpoint || !o.endpoint->rpc_codec || !o.endpoint->rpc_codec->ops ||
+            o.endpoint->rpc_codec->ops->marshal_resp != r->codec->ops->marshal_resp ||
+            o.endpoint->rpc_codec->priv != r->codec->priv) {
+            fail_request(&r->desc, 5); break;
+        }
+        int encoded;
+        struct pending_call *pc = prepare_call(o.endpoint, o.data, o.len, &encoded);
+        if (!pc) { fail_request(&r->desc, 5); break; }
+        pc->kind = COMPLETION_FORWARD;
+        pc->completion.parent = r->desc;
+        if (submit_call(pc, encoded)) fail_request(&r->desc, 5);
+        break;
+    }
+    default:
+        fail_request(&r->desc, 5);
+    }
+    destroy_outcome(&o);
+    return false;
+}
+static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+    struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
+    struct request r = {.desc = *desc, .codec = &hw->srv->codec};
+    r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
+    if (!r.args) { fail_request(desc, errno == ENOMEM ? 5 : 4); return; }
+    if (!consume_outcome(&r, hw->handler.func(hw->handler.data, r.args,
+                                             desc->oncrpc_call_rx.xid), true))
+        release_request(&r);
+}
+static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
+    c->result = *reply;
+    if (c->kind == COMPLETION_FORWARD) {
+        /* Only timeout/error settlement uses this path. Success is raw relay. */
+        fail_request(&c->completion.parent, 5);
+        pending_call_release(&pending_call_table, c);
+    } else {
+        struct fiber_handle waiter = c->completion.fiber_handle;
+        atomic_store_explicit(&c->state, SLOT_READY, memory_order_release);
+        fiber_wake(&waiter);
+    }
+}
+static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+    struct pending_call *c = pending_call_get_by_cookie(&pending_call_table,
+                                                       desc->oncrpc_reply_rx.cookie);
+    if (!c || !pending_call_try_claim_reply(c, desc->oncrpc_reply_rx.cookie,
+                                             desc->oncrpc_reply_rx.xid)) return;
+    if (c->kind == COMPLETION_FORWARD) {
+        if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status);
+        else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, 5);
+        else {
+            memcpy(w->dp.tx_buf, w->dp.rx_buf, desc->payload_len);
+            send_reply(&c->completion.parent, 0, desc->payload_len);
+        }
+        pending_call_release(&pending_call_table, c);
+        return;
+    }
+    void *data = desc->oncrpc_reply_rx.status ? NULL :
+        decode(w->dp.rx_buf, desc->payload_len, c->codec, false);
+    rpc_result_t result = {.data = data, .codec = c->codec,
+        .code = data ? LAUBERHORN_RPC_SUCCESS : LAUBERHORN_RPC_ERROR};
+    pending_call_settle(c, &result);
+}
+void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+    switch (desc->type) {
+    case TY_ONCRPC_CALL_RX: rpc_handle_call(w, desc); break;
+    case TY_ONCRPC_REPLY_RX: rpc_handle_reply(w, desc); break;
+    default: LOG("cannot handle packet of type %d", desc->type);
+    }
 }
 
 static bool rpc_call_try_timeout(struct pending_call *c, struct timespec *now) {
-
-    /* if fibers exit without awaiting calls: check
-    for now not implemented
-    if (c->kind == COMPLETION_FIBER) {
-        if (fiber_handle_is_stale(c->completion.fiber_handle)) {
-        // try to set to SLOT_FREE
-        }
-    }
-    */
 
     // revalidate timeout under lock
     pthread_spin_lock(&c->lock);
@@ -423,23 +262,4 @@ void rpc_call_process_timeout() {
     pending_call_table_for_each(&pending_call_table, e) {
         rpc_call_try_timeout(e, &t_now);
     }
-}
-
-/* Retry deferred fiber callbacks without losing their result or running them
- * inline on a scheduler stack. A slot lock assigns one retry owner. */
-bool rpc_call_process_ready(void) {
-    bool scheduled = false;
-    struct pending_call *c;
-    pending_call_table_for_each(&pending_call_table, c) {
-        pthread_spin_lock(&c->lock);
-        bool retry = atomic_load_explicit(&c->state, memory_order_acquire) == SLOT_CALLBACK_READY;
-        if (retry) atomic_store(&c->state, SLOT_FULFILLED);
-        pthread_spin_unlock(&c->lock);
-        if (!retry) continue;
-        if (rpc_callback_schedule_fiber(c)) {
-            pending_call_release(&pending_call_table, c);
-            scheduled = true;
-        } else atomic_store_explicit(&c->state, SLOT_CALLBACK_READY, memory_order_release);
-    }
-    return scheduled;
 }

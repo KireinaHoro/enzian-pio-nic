@@ -17,11 +17,16 @@ pkgs.stdenv.mkDerivation {
     $CC $flags sw/tests/codec.c sw/rt/oncrpc.c $(pkg-config --libs libtirpc) -o codec-test
     $CC $flags sw/tests/endpoint-control.c -o endpoint-control-test
     $CC $flags sw/tests/rpc.c sw/rt/future.c sw/rt/pending_call_table.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o rpc-test
+    $CC $flags -DNDEBUG sw/tests/rpc.c sw/rt/future.c sw/rt/pending_call_table.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o rpc-release-test
+    ./rpc-release-test
     ./rpc-test
     ./endpoint-control-test
     ./endpoint-test
     ./pending-call-test
     ./codec-test
+    $CC $flags -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer sw/tests/codec.c sw/rt/oncrpc.c $(pkg-config --libs libtirpc) -o codec-sanitized-test
+    # LeakSanitizer cannot attach inside the Nix sandbox; keep bounds/UB checks.
+    ASAN_OPTIONS=detect_leaks=0 ./codec-sanitized-test
     runHook postBuild
   '';
   installPhase = "mkdir -p $out; echo passed > $out/result";

@@ -17,6 +17,7 @@ let
     patches = [
       ./0001-registered-endpoint-and-worker-placement.patch
       ./0002-configurable-state-directory.patch
+      ./0003-explicit-request-outcomes.patch
     ];
   };
   target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
@@ -44,6 +45,22 @@ let
     PKG_CONFIG_ALLOW_CROSS = "1";
   };
   cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+  codecTests = craneLib.mkCargoDerivation (
+    commonArgs
+    // {
+      inherit cargoArtifacts;
+      pname = "dandelion-codec-tests";
+      # Cross stdenv disables checkPhase even with a runner. Execute this
+      # bounded codec-only test explicitly, never the hardware integration suite.
+      buildPhaseCargoCommand = "cargoWithProfile test --features mmu --package dandelion_lauberhorn --lib capacity_tests";
+      doCheck = false;
+      installPhase = "mkdir -p $out; echo passed > $out/result";
+    }
+    // lib.optionalAttrs (!(pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform)) {
+      "CARGO_TARGET_${lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target)}_RUNNER" =
+        pkgs.stdenv.hostPlatform.emulator pkgs.buildPackages;
+    }
+  );
   tests = craneLib.cargoBuild (
     commonArgs
     // {
@@ -92,7 +109,7 @@ craneLib.buildPackage (
     '';
     meta.mainProgram = "dandelion_lauberhorn";
     passthru = {
-      inherit sourceIdentity;
+      inherit sourceIdentity codecTests;
       interactiveTests.smoke = tests;
     };
   }

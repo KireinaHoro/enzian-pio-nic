@@ -6,19 +6,19 @@ See the [registered endpoint and internal-loopback contract](nested-rpc-endpoint
 for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
 Descriptions below of the synchronous master runtime are historical on this branch.
 
-Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RTL, registered endpoints and cookie-directed completion dispatch are implemented. The imported runtime uses cooperative fibers over real ECI. Software builds and RTL simulations are distinct from the pending bundled Enzian acceptance. Generic TX status and abnormal-exit recovery remain open.
+Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RTL, registered endpoints and cookie-directed completion dispatch are implemented. The imported runtime uses cooperative fibers over real ECI. Software builds and RTL simulations are distinct from the pending bundled Enzian acceptance. The September 17 B3 batch adds explicit TX admission status and request outcomes; abnormal-exit recovery and matched-board acceptance remain open. See the [current API](programming-model.md).
 
 ## Current source map
 
 | Mechanism | Implemented entry points |
 | --- | --- |
 | Server calls and replies | `hw/src/lauberhorn/net/oncrpc/OncRpcCallDecoder.scala`, `OncRpcReplyEncoder.scala`: service match and reply sessions |
-| Nested/client call TX | `OncRpcCallEncoder.scala`: ONC-RPC CALL header, inline/tail data, UDP metadata and `newRequestEvent` |
+| Nested/client call TX | `OncRpcCallEncoder.scala`: ONC-RPC CALL header, inline/tail data, UDP metadata (admission now precedes encoding in `DmaControlPlugin`) |
 | Nested/client reply RX | `OncRpcReplyDecoder.scala`: tuple lookup, PID/cookie completion, entry retirement and counters/CSR access |
 | Descriptor ABI | `hw/src/lauberhorn/host/package.scala`, `net/package.scala`, `host/eci/EciHostRxCtrlInfo.scala`, `EciHostTxCtrlInfo.scala` |
 | DMA and scheduling | `DmaControlPlugin.scala` translates call/reply metadata; `Scheduler.scala` queues both call RX and reply RX using the corresponding PID |
 | C transport | `sw/core/eci/core.h` packs `TY_ONCRPC_CALL_TX` and unpacks `TY_ONCRPC_REPLY_RX` |
-| Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures/callbacks |
+| Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures and fiber-free reply forwarding |
 
 All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`, `oncRpcReplyRx`) exist. They are no longer suggested renames. `Global.scala` sets normal inline data to 48 bytes and nested-call TX inline data to 24 bytes because endpoint/PID/cookie metadata must also fit. Generated ABI, DMA tail length and ECI invalidation length must agree.
 
@@ -68,16 +68,30 @@ B1 validation/status is tracked in the [blocker queue](nested-rpc-blockers.md).
 
 ## Outstanding acceptance and resource contract
 
-The call encoder now waits for a Stream registration handshake before exposing a call. The reply decoder serializes registration against retirement and stalls when no free entry exists, preserving existing entries. This is hardware backpressure, not a software rejection/status API: `core_eci_tx` still returns `void` and ignores its doorbell read response. Directed saturation and system-wide progress under overload remain acceptance gaps.
+See [TX completion extension uses and boundaries](tx-completion-design.md) for
+TCP command results, software spill/retry, a future protobuf encoder, and the
+distinction between local consumption and downstream completion.
 
-Proposed contract retained from the original design:
+The September 17 implementation reserves nested routing state in
+`DmaControlPlugin` before DMA/encoding. `OncRpcReplyDecoder` serializes admission
+against retirement and rejects a new call when no free slot exists. Exact
+retransmissions preserve their reservation; a different owner/cookie cannot
+replace it. The TX doorbell returns accepted/consumed (1), rejected before
+reservation (2), or DMA error (3). `core_eci_tx` returns this result to the
+runtime. Rejection releases the software operation; DMA uncertainty does not
+prove retirement. Acknowledgements survive voluntary cache eviction/reload.
 
-1. Runtime reserves a software completion slot containing codec, endpoint, XID and continuation state.
-2. Hardware reserves in-flight routing state before accepting a nested call into TX.
-3. TX reports accepted, retry/full, invalid, unsupported or dropped. On rejection, release the software slot and any hardware reservation.
-4. The application collects completions and retries or batches fanout when capacity is exhausted. Do not block the only context able to drain completions indefinitely.
+Incoming server-session overflow is a different path: `OncRpcReplyEncoder`
+still overwrites slot 0 when full. End-to-end overload safety therefore remains
+open, even though outgoing saturation/retry and fiber exhaustion now have
+explicit behavior. General shutdown/timeout retirement remains B4 work.
 
-A proposed generic status response uses the TX doorbell read control line, with validity, code, optional detail and cookie fields. Acceptance means routing state reserved and TX accepted, not necessarily wire transmission. Immediate neighbor/route failure needs explicit ownership and cleanup. Plumb status through encoder/DMA, `EciDecoupledRxTxProtocol`, `DcsTxAxiRouter` and C transport together. This is an ABI proposal, not a generated status format today.
+The broader original proposal remains useful for future extensions: validity,
+code, optional detail/cookie and results for invalid, unsupported, route or
+neighbor failures. The implemented three-code acknowledgement does not provide
+all those results. Acceptance/source-buffer consumption is distinct from wire
+transmission, downstream success and peer receipt. Never hold the only worker
+able to make progress while synchronously waiting for a remote response.
 
 ## Runtime integration model
 
@@ -87,18 +101,19 @@ The intended two scheduling layers are NIC/Linux placement of worker threads and
 
 Run-to-finish is the confirmed task policy. A nested await is a cooperative fiber suspension, not arbitrary timer preemption of handler computation. If every permitted worker is running non-yielding computation, completions queue. Worker CPUs remain isolated from ordinary Linux tasks. Receive-critical-section kill timing versus whole-application timeout, and safe recovery, are open.
 
-API shape to adapt, not an API promised by this checkout: endpoint metadata `(daddr, dport, progNum, progVer, procNum, codec)`, async submission returning a completion handle, and await-any/await-all or callback consumption. Use a cookie for software continuation identity; XID encoding can accelerate lookup but must not replace hardware tuple routing. The student mock uses a fixed nested UDP port and XID routing; map this deliberately onto generated hardware tables.
+The current [public API](programming-model.md) uses registered endpoints,
+futures and explicit `REPLY/FAIL/DEFER/FORWARD` outcomes. Incoming dispatch starts
+inline; only an explicit handoff reserves a fiber. A cookie identifies the
+software operation; XID is separately verified and does not replace hardware
+tuple routing. Public arbitrary nested callbacks are removed. Forwarding relays
+replies locally without retaining the parent fiber; direct downstream-to-client
+reply routing is not implemented.
 
-Remaining software work:
-
-- Decode generic TX status and distinguish acceptance, completion, cancellation
-  and timeout lifetimes. Hardware table backpressure is not a rejection API.
-- Complete handler admission, shutdown and abnormal-exit recovery. Endpoint
-  timeouts conservatively retain reservations until verified reset.
-- Extend resource/exhaustion and multi-process validation beyond the current
-  directed tests; preserve the quiescent service/endpoint lifecycle.
-- Reconcile planned tail calls with report/code evidence; ordinary nested calls
-  do not implement continuation transfer.
+Remaining work includes incoming server-session admission, cancellation,
+shutdown, abnormal-exit recovery and multi-process overload validation. Endpoint
+timeouts conservatively retain reservations until verified retirement/reset.
+[Service-owned events/timers and resident applications](service-execution-design.md)
+are documented follow-ons only, intentionally not implemented in this batch.
 
 ## Internal local RPC
 

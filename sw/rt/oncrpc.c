@@ -4,10 +4,10 @@
 #include <stdatomic.h>
 
 int xdr_marshal_call(void *in_buf, void *out_buf, size_t in_buf_len,
-                     void *priv) {
+                     size_t out_capacity, void *priv) {
     xdr_adapter_t *p = priv;
     XDR xdr;
-    xdrmem_create(&xdr, out_buf, p->call_size, XDR_ENCODE);
+    xdrmem_create(&xdr, out_buf, out_capacity, XDR_ENCODE);
     if (!p->call_xdrproc(&xdr, in_buf)) {
         return -1;
     }
@@ -15,10 +15,10 @@ int xdr_marshal_call(void *in_buf, void *out_buf, size_t in_buf_len,
 }
 
 int xdr_marshal_resp(void *in_buf, void *out_buf, size_t in_buf_len,
-                     void *priv) {
+                     size_t out_capacity, void *priv) {
     xdr_adapter_t *p = priv;
     XDR xdr;
-    xdrmem_create(&xdr, out_buf, p->resp_size, XDR_ENCODE);
+    xdrmem_create(&xdr, out_buf, out_capacity, XDR_ENCODE);
     if (!p->resp_xdrproc(&xdr, in_buf)) {
         return -1;
     }

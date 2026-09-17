@@ -24,36 +24,60 @@ typedef struct lauberhorn {
 
 typedef void* lauberhorn_msg_t;
 
-// Handler XIDs are host-order numbers; ECI performs network conversion.
-typedef lauberhorn_msg_t (*lauberhorn_handler_func_t)(void* priv, lauberhorn_msg_t data, int xid);
-typedef void (*lauberhorn_handler_free_t)(void* data);
+typedef struct lauberhorn_rpc_endpoint lauberhorn_rpc_endpoint_t;
+typedef struct lauberhorn_outcome lauberhorn_outcome_t;
+/* Both entry handlers and deferred functions return an explicit ownership
+ * decision. XIDs are host order. The decoded request is borrowed until the
+ * runtime completes this request, including deferred execution. */
+typedef lauberhorn_outcome_t (*lauberhorn_handler_func_t)(void *, void *, int);
+typedef void (*lauberhorn_handler_free_t)(void *);
+typedef enum {
+    LAUBERHORN_REPLY, LAUBERHORN_FAIL, LAUBERHORN_DEFER, LAUBERHORN_FORWARD
+} lauberhorn_outcome_kind_t;
+/* ONC-RPC accepted reply statuses with no additional protocol body. */
+typedef enum {
+    LAUBERHORN_RPC_SYSTEM_ERR = 5,
+    LAUBERHORN_RPC_GARBAGE_ARGS = 4,
+    LAUBERHORN_RPC_PROC_UNAVAIL = 3
+} lauberhorn_rpc_error_t;
+struct lauberhorn_outcome {
+    lauberhorn_outcome_kind_t kind;
+    lauberhorn_rpc_error_t error;
+    void *data;
+    size_t len;
+    lauberhorn_handler_free_t destroy;
+    lauberhorn_handler_func_t run;
+    lauberhorn_rpc_endpoint_t *endpoint;
+};
+/* destroy(data), when non-NULL, runs exactly once, including rejection.
+ * REPLY/FORWARD data must survive until serialization after handler return.
+ * DEFER data is owned context; run(data, request, xid) executes on a fiber.
+ * Its destructor runs after the returned outcome has been consumed.
+ * A deferred function returns REPLY, FAIL or FORWARD, never another DEFER. */
+static inline lauberhorn_outcome_t lauberhorn_reply(void *data, size_t len,
+                                                   lauberhorn_handler_free_t destroy) {
+    return (lauberhorn_outcome_t){.kind=LAUBERHORN_REPLY, .data=data, .len=len, .destroy=destroy};
+}
+static inline lauberhorn_outcome_t lauberhorn_fail(lauberhorn_rpc_error_t error) {
+    return (lauberhorn_outcome_t){.kind=LAUBERHORN_FAIL, .error=error};
+}
+static inline lauberhorn_outcome_t lauberhorn_defer(lauberhorn_handler_func_t run,
+                                                   void *data, lauberhorn_handler_free_t destroy) {
+    return (lauberhorn_outcome_t){.kind=LAUBERHORN_DEFER, .run=run, .data=data, .destroy=destroy};
+}
+static inline lauberhorn_outcome_t lauberhorn_forward(lauberhorn_rpc_endpoint_t *ep,
+                                                     void *data, size_t len,
+                                                     lauberhorn_handler_free_t destroy) {
+    return (lauberhorn_outcome_t){.kind=LAUBERHORN_FORWARD, .endpoint=ep,
+                                .data=data, .len=len, .destroy=destroy};
+}
+typedef struct {
+    void *data;
+    lauberhorn_handler_func_t func;
+} lauberhorn_handler_t;
 
 LAUBERHORN_API int lauberhorn_init(lauberhorn_t* ctx);
 LAUBERHORN_API void lauberhorn_fini(lauberhorn_t* ctx);
-
-typedef enum {
-	EXEC_FIBER = 0,
-	EXEC_INLINE
-} lauberhorn_exec_ctx_t; 
-
-typedef struct {
-	void(*cb)(rpc_result_t *reply, void*data); 
-	void *data; 
-	lauberhorn_exec_ctx_t mode;
-} lauberhorn_cb_handler_t; 
-
-typedef struct {
-	void *data; 
-	lauberhorn_handler_func_t func; 
-	lauberhorn_handler_free_t free;
-	lauberhorn_exec_ctx_t mode; 
-} lauberhorn_handler_t; 
-
-typedef enum {
-    COMPLETION_FIBER,
-    COMPLETION_CALLBACK
-} completion_kind_t; 
-
 
 LAUBERHORN_API int lauberhorn_reg_srv(lauberhorn_t* ctx,
 									  // convert these two to a struct
@@ -103,7 +127,7 @@ LAUBERHORN_API lauberhorn_worker_t lauberhorn_create_worker(
 LAUBERHORN_API void lauberhorn_join_worker(lauberhorn_t* ctx,
 										   lauberhorn_worker_t w);
 
-typedef struct {
+struct lauberhorn_rpc_endpoint {
 	const char *daddr; // IPv4 dotted-decimal address
 	// Port and RPC program/version/procedure numbers are in host byte order.
 	uint16_t dport; 
@@ -119,7 +143,7 @@ typedef struct {
         uint32_t handle, daddr;
         uint16_t pid, sport;
     } _transport;
-} lauberhorn_rpc_endpoint_t;
+};
 
 /* Register before workers start; destroy after all workers have joined.
  * Both return 0 or -1 with errno. Timeout does not release a reservation. */
@@ -131,13 +155,6 @@ LAUBERHORN_API int lauberhorn_rpc_endpoint_destroy(lauberhorn_t *ctx,
 
 LAUBERHORN_API int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
                           size_t payload_len, lauberhorn_future_t *f);
-
-LAUBERHORN_API int lauberhorn_call_cb(
-			lauberhorn_rpc_endpoint_t *ep, 
-			void *payload, 
-			size_t payload_len, 
-			lauberhorn_cb_handler_t cb
-);
 
 // Helper to free a completion's data using the stored free callback
 void lauberhorn_free_result(rpc_result_t *c);

@@ -53,6 +53,7 @@ typedef struct {
     struct {
       void *func_ptr;
       int xid; // host-order numeric XID
+      uint8_t status; // ONC-RPC accept_stat, 0 for success
     } oncrpc_reply_tx;
     struct {
       uint16_t pid;
@@ -71,6 +72,7 @@ typedef struct {
       uint32_t cookie;
       // Host-order XID, converted by ECI for pending-call lookup.
       uint32_t xid;
+      uint8_t status; // nonzero replies bypass success deserialization
     } oncrpc_reply_rx;
   };
 
@@ -239,6 +241,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       break;
     case lauberhorn_eci_onc_rpc_reply_rx:
       desc->type = TY_ONCRPC_REPLY_RX;
+      desc->oncrpc_reply_rx.status =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_status_extract(rx_ctrl);
       desc->oncrpc_reply_rx.pid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_pid_extract(rx_ctrl);
       desc->oncrpc_reply_rx.cookie =
@@ -299,8 +303,12 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
   return core_eci_rx_traced(base, ctx, desc, NULL, NULL);
 }
 
-static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
+/* Doorbell acknowledgement: accepted/consumed, rejected before reservation,
+ * or indeterminate DMA failure. This is not remote/application success. */
+enum { CORE_TX_ACCEPTED = 1, CORE_TX_RETRY = 2, CORE_TX_ERROR = 3 };
+static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
                                lauberhorn_pkt_desc_t *desc) {
+  int tx_result = CORE_TX_ERROR;
   // ECI backend: do not release payload_buf
 
   // make sure previous RX/TX actually took effect before we attempt to RX
@@ -361,6 +369,8 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_status_insert(
+        tx_ctrl, desc->oncrpc_reply_tx.status);
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_xid_insert(
         tx_ctrl, desc->oncrpc_reply_tx.xid);
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_func_ptr_insert(
@@ -452,7 +462,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   // Ring the doorbell: read next CL to trigger send
   volatile uint8_t *tx_next_ctrl =
       tx_base + !tx_parity * LAUBERHORN_ECI_CL_SIZE;
-  (void)*tx_next_ctrl;
+  tx_result = *tx_next_ctrl;
 
   pr_debug("eci_tx: finished tx\n");
 
@@ -462,6 +472,7 @@ out:
   BARRIER; // make sure !BUSY comes after
 
   exit_cs(base);
+  return tx_result;
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H
