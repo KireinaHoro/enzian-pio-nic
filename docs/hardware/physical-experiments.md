@@ -1,5 +1,73 @@
 # Physical implementation experiments — 2026-09-10
 
+## Paused after consolidation — September 17
+
+The maintainer requested an end to this timing iteration and consolidation on
+platform master. Selected **TX refinement over the TX/high-VC RX baseline**,
+revision `1c72ea0`, pipeline **511990**, hardware **2833807**. Pipeline and all
+gates succeeded: WNS **-0.007 ns**, TNS **-0.079 ns**, **17** failing setup
+endpoints, WHS **+0.005 ns**, zero hold/pulse violations and routing errors.
+CDC diagnostics are unchanged from the high-VC baseline, not CDC-clean.
+This is the best completed CI configuration, not demonstrated timing closure.
+
+Master now includes per-link TX output placement (refined link2 region), the
+high-VC RX elastic stage, and its Nix/CI GHDL gate. The toolkit pin is
+`c92f0d9`, retained on feature branch `timing/20260916-rx-elastic` and published
+only as private-platform ref `timing/20260916-eci-toolkit-rx-elastic`.
+The platform consumes that private pin under the maintainer's merge instruction;
+the colleague's toolkit master is untouched and upstream approval is still
+outstanding. Low-VC `a194f3a` remains a separate, unadopted feature branch.
+
+Do **not** combine all round-2 increments: local Nix/Docker combined `759a9ab`
+also regressed (WNS -0.345 ns, TNS -192.544 ns, 2218 failing endpoints;
+application trace priority path -0.345 ns, clk_sys -0.076 ns). It completed
+through bitstream and physical reporting with zero hold/pulse violations and
+routing errors. This independently supports retaining the narrower candidate;
+CI combined was -0.460 ns / 3437 endpoints. These are same-revision local/CI
+runs, not proof of identical implementation outcomes.
+
+### Remaining work when timing resumes
+
+The final CI's 200-path sample contains all 17 failing endpoints:
+
+- Eight wholly static-shell paths: seven link1 RX block-to-FIFO enables at
+  -0.007 to -0.006 ns, and one edge ILA input at -0.005 ns. Static-shell changes
+  remain outside this application-only campaign.
+- Four low-VC RX endpoints: two VC7 valid-to-data enables at -0.007 ns and
+  two VC12 FIFO-to-extractor paths at -0.003/-0.001 ns.
+- One link2 high TX size-decode boundary at -0.006 ns.
+- Two high-VC packetizer enables and two TX crossbar-to-credit endpoints,
+  each -0.001 ns.
+
+Retain DCS placement, low-VC staging and combined branches as unmerged
+experiments; their measured targeted benefits and congestion are documented
+[here](physical-findings.md#round-2-checkpoint-review--september-17). Trace DMA
+selection/event-mux depth and internal ILA trigger depth remain margin risks,
+not current worst failures in the selected build. Do not broaden RTL work
+until timing is explicitly resumed. Final master has a new revision CSR and
+has not been physically implemented or board-tested; measured numbers belong
+to the exact experiment revisions. Deployment still needs matched hardware,
+software and verified-reset board testing.
+
+At closeout the previously authorized ba2 local batch remains active: combined
+finished, DCS running, low-VC and TX refinement queued. No additional builds
+were submitted and this merge was pushed with CI skipped. Let that existing
+batch finish; collect its retained statuses/reports on the next requested
+review rather than polling. Service and paths are in the round-2 local-flow
+section below. Local/CI portability has already been exercised repeatedly;
+local TX refinement confirmation is outstanding.
+
+Merge validation: Nix `eci-toolkit-rx` and `workflow-tools` checks resolve
+successfully using retained build results. A fresh structural YAML check
+confirms the RX gate is required by preparation and reporting still uses
+`on_success`; `git diff --check` passes. No fresh simulation, physical build
+or board test was performed on the final merge.
+
+Evidence: `out/physical/round2-20260917/ci/2833807/reports/` and
+`out/physical/round2-20260917/local/all/physical/`. The two earlier failed
+report jobs remain registry-startup failures; their hardware reports were
+recovered, and no retry is needed to establish the measurements above.
+
 ## Round 2 checkpoint follow-up — September 17
 
 Pulled and analyzed all three finished CI checkpoints on ba2 with pinned

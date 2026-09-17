@@ -20,15 +20,15 @@ relevant source and subsequent changes before relying on implementation details.
 
 ## Current handoff
 
-Timing optimization is active. The combined TX/high-VC RX design completed
-locally (WNS -0.011 ns, 16 failing setup endpoints) and in CI (-0.057 ns, 426);
-setup is not closed. DCS control, low-VC RX and TX margin remain. The maintainer
-requested individual next changes plus their combination in the same batch;
-see [round 2](docs/hardware/physical-experiments.md#round-2-ablations-and-combination--september-17)
-for four unmerged branches, CI jobs, local Nix/Docker runs and validation.
-Keep toolkit changes on their separate feature branches pending owner approval.
-The static shell is unchanged. Collect results once on notification, not by
-polling; do not infer timing closure from successful hardware builds.
+Timing optimization is paused at the maintainer's request. Platform master
+adopts TX placement/refinement plus high-VC RX staging; selected CI revision
+`1c72ea0` reached WNS -0.007 ns with 17 failing endpoints, not closure.
+See the [closeout and remaining work](docs/hardware/physical-experiments.md#paused-after-consolidation--september-17).
+DCS/low-VC/combined experiments remain unmerged. Toolkit commits stay on
+separate feature branches/private refs pending colleague upstream approval;
+never merge or push them to toolkit master. The existing ba2 local batch can
+finish; no new timing work or CI polling until requested. Final master has no
+new routed or board result, and the static shell remains unchanged.
 
 ## Confirmed research and scheduling scope
 
