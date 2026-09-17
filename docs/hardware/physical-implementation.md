@@ -7,9 +7,11 @@ measured paths from possible explanations of board failures.
 
 ## Current work order and partition scope
 
-PnR/QoR implementation is deferred until the requested Nix refactoring is complete.
-Use the [resume point](physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
-for the saved baseline, ranked experiments and validation steps. The first changes
+PnR/QoR work resumed September 16 after the Nix refactor. See the
+[active TX/RX campaign](physical-experiments.md#active-campaign-september-16-eci-txrx-candidates)
+for branches, local Docker/CI runs and pending toolkit-owner approval. The
+[saved resume point](physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
+retains the measured baseline and ranked experiments. The first changes
 are application/dynamic only: gateway TX placement, RX elastic pipelining and
 secondary NIC timing. Static transport endpoints remain fixed; rebuilding or
 editing the static shell is outside this first experiment scope.

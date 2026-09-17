@@ -1,3 +1,6 @@
 # Shared by GitLab CI and the bundled Docker launcher. Keep image on one line.
 .vivado-environment:
   image: registry.ethz.ch/project-openenzian/ci-images/xilinx-tools:ubuntu-22.04@sha256:2699ec6b6f4b3cf022edfcb73a6ab970579d4e1555f6f1fe798c7f395b49848e
+  variables:
+    # The image's HACC-only default is not reachable on the CI runners.
+    XILINXD_LICENSE_FILE: 8181@lic-xilinx.ethz.ch:2100@hacc-lic-01.inf.ethz.ch

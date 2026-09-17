@@ -50,8 +50,10 @@ failed results before explicitly removing them or choosing a new destination.
 The launcher mounts inputs and `/opt/Xilinx` read-only, writes outputs as the
 invoking UID/GID, and streams build logs. Set `VIVADO_INSTALLATION` to change the
 host installation mount; set `VIVADO_ROOT` to its path **inside the container**.
-Host `XILINXD_LICENSE_FILE` and `LM_LICENSE_FILE` are passed when set; otherwise
-the image's configuration applies. Mount paths containing commas are rejected.
+Host `XILINXD_LICENSE_FILE` and `LM_LICENSE_FILE` are passed when set. Without
+a host override, the launcher uses the `XILINXD_LICENSE_FILE` default from
+`vivado/eci/container.yml`, also inherited by CI. This includes the ETH license
+server before HACC; the pinned image itself has an older HACC-only default. Mount paths containing commas are rejected.
 
 ## Outputs and CI correspondence
 

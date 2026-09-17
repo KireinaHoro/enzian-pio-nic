@@ -79,11 +79,28 @@ sys.exit(31)
         args = json.loads((self.work / 'calls').read_text())
         self.assertIn(f'type=bind,src={self.bundle},dst=/bundle,readonly', args)
         self.assertIn(f'type=bind,src={self.output},dst=/work', args)
-        self.assertIn('XILINXD_LICENSE_FILE', args)
+        self.assertIn('XILINXD_LICENSE_FILE=2100@example', args)
         self.assertEqual(args[-1], 'project-only')
         self.assertTrue(any('@sha256:' in arg for arg in args))
         self.assertNotIn('--privileged', args)
         self.assertNotEqual(self.run_script('docker-vivado.sh', 'project-only').returncode, 0)
+
+    def test_docker_uses_shared_license_default_without_host_override(self):
+        bindir = self.work / 'bin'
+        bindir.mkdir()
+        self.executable(bindir / 'docker', '''import os, sys, json
+with open(os.environ['CALLS'], 'w') as f: json.dump(sys.argv[1:], f)
+''', 'python3')
+        self.env['PATH'] = str(bindir) + ':' + self.env['PATH']
+        self.env.pop('XILINXD_LICENSE_FILE', None)
+        result = self.run_script('docker-vivado.sh', 'project-only')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.bundle / 'vivado/eci/container.yml').read_text()
+        default = next(line.split(': ', 1)[1] for line in config.splitlines()
+                       if line.startswith('    XILINXD_LICENSE_FILE: '))
+        args = json.loads((self.work / 'calls').read_text())
+        self.assertIn('XILINXD_LICENSE_FILE=' + default, args)
+        self.assertTrue(default.startswith('8181@lic-xilinx.ethz.ch'))
 
     def test_build_report_status_precedence(self):
         bindir = self.work / 'bin'

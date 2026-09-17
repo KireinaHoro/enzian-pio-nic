@@ -38,6 +38,10 @@ the public interface; libtirpc is propagated and declared in pkg-config. Generat
 headers are private runtime/module inputs from the same RTL generation. The
 [in-tree demo](../../sw/apps/nix-build-demo/package.nix) compiles and links against
 the installed public interface, without handwritten ABI declarations.
+The [microbenchmarks recipe](../../sw/apps/microbenchmarks/package.nix) also lives
+beside its sources and owns source selection, including the shared
+`sw/usr-common.mk`. `nix/platform.nix` supplies the matching runtime and composes
+the applications into deployment images.
 
 Return one derivation. Install executables in `$out/bin`, immutable assets in
 `$out/share/<application>`, and set `meta.mainProgram` for the default executable.
