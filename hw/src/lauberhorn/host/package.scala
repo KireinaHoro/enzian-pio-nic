@@ -44,6 +44,7 @@ package object host {
   case class HostReqOncRpcReplyTx() extends Bundle {
     val funcPtr = Bits(64 bits)
     val xid = Bits(32 bits)
+    val status = Bits(8 bits) // host-order ONC-RPC accept_stat
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
     /** Total length of the entire reply message, including inlined bits. */
@@ -72,6 +73,7 @@ package object host {
     val pid = PID()
     val cookie = Bits(32 bits)
     val xid = Bits(32 bits)
+    val status = Bits(8 bits) // host-order ONC-RPC accept_stat
     val saddr = Bits(32 bits)
     val sport = Bits(16 bits)
     val dport = Bits(16 bits)

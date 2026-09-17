@@ -58,14 +58,16 @@ typedef struct {
 
 LAUBERHORN_API lauberhorn_future_t *future_set_await_any(lauberhorn_future_set_t *s);
 
+/* Waiting requires the submitting fiber. Returns -1 with errno on misuse,
+ * without touching the future. Await/join return 0 on successful consumption. */
 // await a single future
-LAUBERHORN_API void lauberhorn_future_await(lauberhorn_future_t *f);
+LAUBERHORN_API int lauberhorn_future_await(lauberhorn_future_t *f);
 
 // await any future and return its position in the array
 LAUBERHORN_API int lauberhorn_future_select(lauberhorn_future_t **f, int n);
 
 // await all futures
-LAUBERHORN_API void lauberhorn_future_join(lauberhorn_future_t **f, int n);
+LAUBERHORN_API int lauberhorn_future_join(lauberhorn_future_t **f, int n);
 
 // TODO: not implemented yet
 LAUBERHORN_API bool lauberhorn_future_cancel(lauberhorn_future_t *f);

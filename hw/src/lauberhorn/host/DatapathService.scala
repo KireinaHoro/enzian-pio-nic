@@ -22,4 +22,6 @@ trait DatapathService {
   def hostTx: Stream[PacketBufDesc]
   /** Packet descriptor from the host core to send */
   def hostTxAck: Stream[HostReqWithTrace]
+  /** 1: consumed/accepted, 2: no nested capacity, 3: DMA error. */
+  def hostTxResult: Flow[Bits]
 }

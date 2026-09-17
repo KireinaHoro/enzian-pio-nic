@@ -53,7 +53,8 @@ case class EciHostRxCtrlInfo() extends Bundle {
       * metadata, but not the full network tuple.
       */
     case class OncRpcReplyRxBundle() extends Bundle {
-      val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
+      val xb4 = Bits(4 bits)
+      val status = Bits(8 bits) // byte aligned, no payload offset change
       val pid = PID()
       val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
       val cookie = Bits(32 bits)
@@ -120,7 +121,8 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  valid     1 "RX descriptor valid";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_rx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload overflow, not including inlined bytes";
-         |  _         12 rsvd;
+         |  _         4 rsvd;
+         |  status    8 "ONC-RPC accept status (host order)";
          |  pid       ${PID_WIDTH.get} "Destination process for reply completion";
          |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";
@@ -167,7 +169,8 @@ object EciHostRxCtrlInfo {
         ret.data.oncRpcReplyRx.cookie := desc.data.oncRpcReplyRx.cookie
         ret.data.oncRpcReplyRx.data := desc.data.oncRpcReplyRx.data
         ret.data.oncRpcReplyRx.xid := EndiannessSwap(desc.data.oncRpcReplyRx.xid)
-        ret.data.oncRpcReplyRx.xb12 := 0
+        ret.data.oncRpcReplyRx.xb4 := 0
+        ret.data.oncRpcReplyRx.status := desc.data.oncRpcReplyRx.status
         ret.data.oncRpcReplyRx.xb16 := 0
       }
       is (HostReqType.neighborMiss) {

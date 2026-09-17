@@ -29,6 +29,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   /** Outgoing TX descriptors to the encoder pipeline. */
   val txDesc = master(Stream(HostReq()))
   txDesc.assertPersistence()
+  val txResult = slave(Flow(Bits(2 bits)))
+  val resultPending = RegInit(False)
+  val resultStatus = Reg(Bits(2 bits)) init 0
+  when (txResult.valid) {
+    resultPending := True
+    resultStatus := txResult.payload
+  }
 
   /** Per-core AXI interface from DCS (demuxed; shared with [[DcsRxAxiRouter]]). */
   val dcsAxi = slave(Axi4(dcsConfig))
@@ -299,6 +306,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
         when (txDesc.ready) {
           // we are in the middle of a read for next CL -- serve read
+          goto(waitResult)
+        }
+      }
+    }
+    val waitResult: State = new State {
+      whenIsActive {
+        when (resultPending) {
+          resultPending := False
+          // Preserve the acknowledgement across voluntary eviction/reload.
+          savedControl := resultStatus.resize(512)
           goto(sendDesc)
         }
       }

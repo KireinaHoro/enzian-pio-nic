@@ -153,6 +153,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       hostReq.req := txDesc
       hostReq.hostMsgId := logic.txHostMsgId
     }
+    txRouter.txResult := hostTxResult
     txRouter.currCl := logic.txCurrClIdx.asUInt
     txRouter.txAddr := logic.savedTxAddr.addr
     txRouter.invDone := logic.txInvDone

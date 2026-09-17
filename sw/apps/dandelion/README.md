@@ -62,3 +62,26 @@ identities were inspected. The fixture reference calculation passed. Logs and
 extracted-image reports are under ignored `out/nix-contract-validation/`.
 These were dirty-tree packaging builds, not deployable revision evidence; no
 Vivado implementation or board campaign ran.
+
+
+September 17 API migration: patch `0003-explicit-request-outcomes.patch` makes
+registry resolution precede fiber admission. Atomic functions return a reply
+inline; compositions return a deferred function plus owned, resolved registry
+state. The wire procedure/envelope is unchanged. C/Rust outcome layout assertions
+and explicit codec output capacities accompany the migration. `dandelion.codecTests`
+runs the bounded encoder regression under the target emulator; it is separate
+from the board-dependent interactive suite.
+
+The student fixture adapter `tools/enzian/student-request-outcomes.patch` replaces
+the printing callback with a third future. Its response now waits for all three
+children, and partial submission failure drains those already admitted. The sum
+still uses only the first two children. Historical runtime revisions continue to
+use the historical fixture API through `student_build.nix`.
+
+September 17 validation: the bounded Rust codec test executed under target
+emulation and passed. The application, smoke harness, runtime/kernel and both
+deployment images built; extracted image closure/ELF checks passed (3,892 links
+and four ELF entries for Dandelion). Native runtime tests and three nested RTL
+simulations passed, as did the server/bypass simulation suites. Logs are under
+ignored `out/b3-20260917/`. These dirty-tree builds do not establish a deployable
+checkpoint pair; no board campaign or composition execution on hardware ran.

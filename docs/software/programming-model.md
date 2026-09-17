@@ -1,43 +1,110 @@
 # Application programming model
 
-**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
-for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
-Descriptions below of the synchronous master runtime are historical on this branch.
+Branch contract: `feat/nested-rpc`, September 17, 2026. Managed requests use
+explicit outcomes; the API is intentionally incompatible with the earlier
+incoming execution-mode and nested-callback declarations. Real ECI deployment
+requires matching regenerated hardware, device headers, kernel and runtime.
+See [blockers and validation status](nested-rpc-blockers.md).
 
-Scope: source inspection, 2026-09-08. Follow the synchronous server model below for the current runtime. Async nested RPC is a planned extension.
+## Registration and execution
 
-## Current contract
+Initialize a context, register services and nested endpoints before creating
+workers, then join workers before deregistering endpoints/services. Registered
+endpoints must remain at a stable address and must not be copied. Codec and
+service-private state must outlive their users. A service supplies `{data, func}`;
+there is no service-level inline/fiber declaration. See
+[`lauberhorn.h`](../../sw/include/lauberhorn.h) and the
+[microbenchmark](../../sw/apps/microbenchmarks/main.c).
 
-An application is a Linux process registering ONC-RPC services with `(UDP port, program, version, procedure)`. A service supplies an opaque data pointer, a handler, and an XDR schema. The NIC performs network/protocol/service demultiplexing; userspace decodes argument objects and runs ordinary C code. Linux/FPGA schedule the process's registered pthread workers.
+Every incoming handler starts on the worker's default stack. It borrows decoded
+request storage and returns one of these outcomes:
 
-Canonical example: [`sw/apps/microbenchmarks/main.c`](../../sw/apps/microbenchmarks/main.c); wire types/XDR are in [`client/bench.h`](../../sw/apps/microbenchmarks/client/bench.h) and [`client/bench_xdr.c`](../../sw/apps/microbenchmarks/client/bench_xdr.c). The executable accepts `add|mul [workers=4] [server_trace.csv]`; services use UDP 12345 and 12346 respectively. Match worker count to the generated hardware capacity.
+| Outcome | Meaning and ownership |
+| --- | --- |
+| `lauberhorn_reply(data, len, destroy)` | Serialize the response, then call optional `destroy(data)`. |
+| `lauberhorn_fail(error)` | Send an ONC-RPC accepted error with no application payload. |
+| `lauberhorn_defer(run, context, destroy)` | Reserve a fiber and transfer the decoded request and context to `run(context, request, xid)`. |
+| `lauberhorn_forward(endpoint, data, len, destroy)` | Encode a child call, retain parent reply metadata and relay the child's response without keeping a parent fiber. |
 
-## Lifecycle
+`len` describes the input object passed to the codec; serializers also receive
+an independent writable output capacity. Responses and forward arguments must
+remain valid until serialization after handler return: stack-local objects are
+invalid. Borrowing the decoded request as response/forward input is permitted;
+it remains alive until serialization finishes. Do not also destroy that borrowed
+request through an outcome destructor. Owned outcome data is destroyed exactly
+once, including failed admission. Application state shared across workers needs
+normal synchronization.
 
-1. Initialize `lauberhorn_t` on the main/process-leader thread with `lauberhorn_init`.
-2. Construct `lauberhorn_schema_t` with `call_size`, `call_func`, and `resp_func`; keep it alive through worker termination. Optional trace callbacks extract request IDs and check responses.
-3. Register services with `lauberhorn_reg_srv`. Finish registration before starting workers: request buffers are allocated once from the registered schema list.
-4. Create workers with `lauberhorn_create_worker(ctx, init, fini)`; supply callbacks (`noop_cb` is available), not NULL. Callbacks receive a worker ID, not a CPU ID. Initialization happens after the datapath `mmap` is scheduled by hardware, potentially only when traffic arrives.
-5. Join workers. The demonstrated termination mechanism is SIGINT. Deregister services after joins, then call `lauberhorn_fini`.
+Deferral is a normal function return followed by starting another function on a
+fiber. It neither migrates a live stack nor reinjects a packet. Runtime-owned
+request storage survives the handoff; retained pointers into the worker's raw RX
+buffer do not. The deferred function returns `REPLY`, `FAIL` or `FORWARD`.
+A second `DEFER` is rejected as a system error: the function already has the
+fiber needed for nested waits. Its context destructor runs after the returned
+outcome is consumed, including response serialization, and before the decoded
+request is freed. It may not transfer the
+same owned context again through a second destructor.
 
-Public declarations: [`lauberhorn.h`](../../sw/include/lauberhorn.h), [`lauberhorn/oncrpc.h`](../../sw/include/lauberhorn/oncrpc.h). Implementation limitations: [runtime.md](runtime.md).
+The shared pool has 320 fibers with 64 KiB stacks. Only accepted deferrals consume
+incoming-handler fibers. When unavailable, the runtime destroys the context and
+request and replies with `SYSTEM_ERR`; there is no additional deferral queue.
+Atomic inline calls continue to run. Application errors use normal encoded
+responses where appropriate; `FAIL` supports `PROC_UNAVAIL`, `GARBAGE_ARGS` and
+`SYSTEM_ERR`, rather than a custom application error wire format.
 
-## Handler semantics
+Forwarding initially requires identical response-encoder function and codec
+private pointer. The application must ensure this implies compatible response
+wire encodings. Successful child bytes are relayed locally with the original
+parent XID/session; supported accepted errors propagate, and other failures
+become `SYSTEM_ERR`. No application callback or result
+transformation occurs. This is a supported tail-call ownership pattern, not
+direct downstream-to-original-client routing.
 
-```c
-lauberhorn_msg_t handler(void *app_data, lauberhorn_msg_t request, int xid);
-```
+## Nested calls and waiting
 
-The request points to a per-worker decoded object reused on subsequent calls. The returned response pointer must remain valid until the runtime immediately serializes it. A stack-local response is invalid after return. The example uses `thread_local` response storage. Do not retain request pointers without copying/owning their data.
+`lauberhorn_call_async` submits a request and binds a future to the current
+managed fiber. Default-stack use returns `-1/EPERM` before encoding, transport
+allocation or endpoint accounting. `await`, `select` and `join` also reject
+unsupported contexts in debug and release builds, and require futures owned by
+the calling fiber. Await/join return 0 on consumption, or -1 with errno;
+select returns the selected index or -1. A consumed future cannot be waited
+again. Every successfully submitted future must be consumed before its owner
+exits. Cancellation and abandoned-future cleanup remain B4 work.
 
-Multiple workers can call the same handler concurrently and share `app_data`; synchronize shared mutable state. Worker IDs are stable runtime indices, while CPU placement can change through hardware/Linux dispatch. There is no public request yield, continuation, async call, explicit response-send, or worker-stop API today. Blocking or long computation occupies that worker; do not assume fairness or forced recovery is complete.
+Submission returning zero means local transport admission, not remote execution
+or application success. A full software table or a definite hardware capacity
+rejection returns `EAGAIN`. The software table has 640 slots with generation-tagged
+cookies. Hardware capacity is independent and shared (16 entries per table by default).
+Incoming server-session overflow remains unsafe and separately tracked; the
+outgoing admission fix is not a claim of end-to-end overload safety. A hardware rejection
+releases the unsubmitted operation; a timeout or indeterminate DMA error does
+not prove hardware retirement and keeps the endpoint quarantined. Indeterminate
+TX failure settles the admitted operation with an RPC error unless a reply has
+already won; it is not reported as a safe-to-retry admission failure. Inspect the
+future's RPC status before accessing its result and free successful results with
+`lauberhorn_free_result`.
 
-The runtime handles RPC argument/result serialization, not arbitrary transport selection. Existing clients use UDP ONC-RPC; adding a new wire protocol requires hardware decoder/encoder and host/runtime changes. Variable-length XDR objects need explicit ownership review because current runtime cleanup only frees the outer request allocation.
+The ECI TX doorbell now returns 1 for accepted/consumed, 2 for rejection before
+reservation, and 3 for DMA error. Accepted indicates the per-worker TX buffer
+may be reused. These values require the new matching bitstream; old bitstreams
+returning arbitrary saved descriptor bytes are incompatible. The runtime does
+not promise bounded latency under every downstream network/coherence stall.
 
-## Intended extension: nested RPC and fibers
+Public arbitrary nested callbacks have been removed. Futures do not depend on
+that API. Service-owned async work and transport-only resident applications are
+specified in the [follow-on design](service-execution-design.md); neither
+interface is implemented in this run. This does not remove application-internal
+callbacks or registration/init/cleanup function pointers.
 
-[`software/nested-rpc.md`](../software/nested-rpc.md) describes the not-yet-integrated student runtime in `../sven-dandelion/platform` and the intended `call_async` / `await_any` model. Handler fibers yield while waiting, allowing worker threads to continue dispatching other calls/completions. Hardware should route replies by owning PID plus cookie; userspace locates the continuation, potentially on another worker. No hardware fiber ID or original-core affinity is required by that plan.
+## Scheduling and remaining limits
 
-The plan also specifies finite in-flight capacity with retryable submission failure, hardware TX acceptance status, a configured nested source port, and local RPC short-circuiting at metadata level. Descriptor support alone does not implement this API. Do not copy paths to the standalone sibling repository into portable build instructions.
+RPC workers run on isolated cores, never alongside ordinary tasks. Deferred
+fibers can resume on another worker; do not retain worker-local state across a
+wait or rely on CPU affinity. Incoming inline handlers must not issue nested
+future calls. Long computation and blocking I/O still occupy their worker.
 
-Questions to settle before expanding the API: supported blocking/syscall behavior in handlers; whether yielding fibers may migrate and use thread-local state; timeout/cancellation/retry semantics; and the desired ownership model for variable-length requests and responses.
+Timeout sweeps precede ready-fiber draining before RX polling. Existing hardware
+RX NACK timeouts permit an assigned worker to regain control, but are not an
+application timer facility or a way to activate a parked service. General
+shutdown, timeout retirement, worker reclamation and module startup reliability
+remain explicit [blockers](nested-rpc-blockers.md).

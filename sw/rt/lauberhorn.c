@@ -87,6 +87,12 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t handler,
                        uint32_t prog_num, uint32_t prog_ver,
                        uint32_t proc_num, uint16_t listen_port,
                        rpc_codec_t *codec) {
+    if (!ctx || !handler.func || !codec || !codec->ops ||
+        !codec->ops->unmarshal_call || !codec->ops->marshal_resp ||
+        !codec->ops->alloc || !codec->ops->free) {
+        errno = EINVAL;
+        return -1;
+    }
     int err;
 
     // atomically acquire a slot in the service registry and populate it
@@ -103,6 +109,7 @@ int lauberhorn_reg_srv(lauberhorn_t *ctx, lauberhorn_handler_t handler,
     struct lauberhorn_hw_handler *hw = calloc(1, sizeof(*hw));
     if (!hw) {
         PERROR("allocate hw handler");
+        srv_table_release(&srv_table, srv_reg);
         return -1;
     }
 

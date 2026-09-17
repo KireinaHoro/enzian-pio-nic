@@ -79,13 +79,9 @@ static void *lauberhorn_worker_loop(void *arg) {
     lauberhorn_pkt_desc_t desc;
 
     while (lauberhorn_is_running) {
-        // process ready fibers
-        do {
-            fiber_sched_run_ready();
-        } while (rpc_call_process_ready());
-
-        // timeout sweep
+        // Sweep before draining: timeout wakeups run before another RX poll.
         rpc_timeout_tick(w);
+        fiber_sched_run_ready();
 
         // wait for data
         if (core_eci_rx(w->dp_base, &w->dp, &desc)) {

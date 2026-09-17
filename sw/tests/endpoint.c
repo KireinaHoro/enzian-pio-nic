@@ -26,17 +26,21 @@ int ioctl(int fd, unsigned long cmd, ...)
     return 0;
 }
 static int marshal(void *a, void *b, size_t n, void *p) { return 0; }
+static int encode(void *a, void *b, size_t n, size_t cap, void *p) { return 0; }
 static void *alloc(rpc_alloc_kind_t k, void *p) { return NULL; }
 static void release(void *p, rpc_free_kind_t k, void *c) {}
 int main(void)
 {
+    _Static_assert(sizeof(lauberhorn_outcome_t) == 48, "Rust outcome ABI");
+    _Static_assert(offsetof(lauberhorn_outcome_t, endpoint) == 40, "Rust outcome endpoint");
+    _Static_assert(sizeof(lauberhorn_handler_t) == 16, "Rust handler ABI");
     _Static_assert(sizeof(lauberhorn_t) == 24, "Rust context ABI");
     _Static_assert(sizeof(lauberhorn_rpc_endpoint_t) == 72, "Rust endpoint ABI");
     _Static_assert(offsetof(lauberhorn_rpc_endpoint_t, _transport) == 32, "Rust transport offset");
     _Static_assert(sizeof(lauberhorn_reg_endpoint_t) == 16, "registration ABI");
     _Static_assert(sizeof(lauberhorn_dereg_endpoint_t) == 8, "deregistration ABI");
     lauberhorn_t ctx = {.fd = 42}, other = {.fd = 43};
-    rpc_ops_t ops = {.marshal_call = marshal, .unmarshal_resp = marshal,
+    rpc_ops_t ops = {.marshal_call = encode, .unmarshal_resp = marshal,
                     .alloc = alloc, .free = release};
     rpc_codec_t codec = {.ops = &ops};
     lauberhorn_rpc_endpoint_t ep = {.daddr = "192.168.129.131", .dport = 1234,

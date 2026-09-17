@@ -57,10 +57,9 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
 
     collectInto(md, pld, acceptHostPackets = true)
 
-    val encoder = AxiStreamInjectHeader(axisConfig, OncRpcCallHeader().getBitsWidth / 8)
+    val encoder = RpcHeaderInjector(axisConfig, OncRpcCallHeader().getBitsWidth / 8)
     encoder.io.output >> outPld
 
-    val newRequestEvent = host[OncRpcReplyDecoder].logic.newRequestEvent
 
     assert(ONCRPC_NESTED_CALL_INLINE_BYTES <= axisConfig.dataWidth,
       "we assumed the nested call inline bytes fit inside one AXIS beat")
@@ -77,6 +76,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
 
     val outHdr = Reg(OncRpcCallHeader())
 
+    encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
     encoder.io.header.payload := outHdr.asBits
     encoder.io.header.valid := False
 
@@ -85,10 +85,6 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
     md.ready := False
     pld.ready := False
     encoder.io.input.setIdle()
-
-    val pendingRequest = Reg(OncRpcInFlightReqDef())
-    newRequestEvent.valid := False
-    newRequestEvent.payload := pendingRequest
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -123,23 +119,9 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
             outMd.rpcId := nextRpcId
             outMd.pldLen := md.callLen.bits + OncRpcCallHeader().getBitsWidth / 8
 
-            pendingRequest.xid := md.xid
-            pendingRequest.remoteAddr := md.daddr
-            pendingRequest.remotePort := md.dport
-            pendingRequest.localPort := md.sport
-            pendingRequest.pid := md.pid
-            pendingRequest.cookie := md.cookie
-            pendingRequest.active := True
-
-            goto(installRequest)
+            // DmaControlPlugin reserved completion routing before admission.
+            goto(sendDownstreamMd)
           }
-        }
-      }
-
-      val installRequest: State = new State {
-        whenIsActive {
-          newRequestEvent.valid := True
-          when(newRequestEvent.fire) { goto(sendDownstreamMd) }
         }
       }
 
@@ -156,7 +138,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
         whenIsActive {
           encoder.io.header.valid := True
           when (encoder.io.header.ready) {
-            goto(sendInlinedWords)
+            when(encoder.io.empty) { goto(idle) } otherwise { goto(sendInlinedWords) }
           }
         }
       }

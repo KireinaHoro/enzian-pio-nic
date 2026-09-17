@@ -1,42 +1,81 @@
 # Software runtime and datapath
 
-**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
-for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
-Descriptions below of the synchronous master runtime are historical on this branch.
-
-Scope: source inspection, 2026-09-08. Current usable implementation is the ECI/AArch64 stack; backend-neutral API naming is an intent, not evidence of PCIe support.
+Current branch: `feat/nested-rpc`, September 17, 2026. The runtime dispatches
+managed request outcomes over ECI, with cooperative fibers for explicitly
+deferred work. See the [programming contract](programming-model.md),
+[blocker ledger](nested-rpc-blockers.md) and
+[endpoint contract](nested-rpc-endpoints.md). Implementation is not evidence of
+successful deployment on the real coherent FPGA datapath.
 
 ## Source map
 
 | Layer | Entry points | Responsibility |
-|---|---|---|
-| Public API | [`lauberhorn.h`](../../sw/include/lauberhorn.h), [`oncrpc.h`](../../sw/include/lauberhorn/oncrpc.h) | Context, service registration, pthread workers, XDR schemas |
-| Runtime | [`eci.c`](../../sw/rt/eci.c), [`oncrpc.c`](../../sw/rt/oncrpc.c) | Control syscalls, worker lifecycle, synchronous RPC dispatch, serialization, CSV tracing |
-| Shared transport | [`core.h`](../../sw/core/eci/core.h), [`core-common.h`](../../sw/core/core-common.h) | ECI RX/TX descriptor and payload transfers, parity, barriers |
-| Kernel control | [`chrdev.c`](../../sw/kmod/chrdev.c), [`ioctl.h`](../../sw/kmod/ioctl.h) | Process/service registration and memory mappings |
-| Kernel fallback | [`bypass.c`](../../sw/kmod/bypass.c), [`cmac.c`](../../sw/kmod/cmac.c) | Linux netdev/NAPI bypass, neighbor handling, MAC control |
+| --- | --- | --- |
+| Public API | `sw/include/lauberhorn.h`, `lauberhorn/{rpc,future}.h` | Managed outcomes, endpoint registration, bounded codecs, futures |
+| Dispatch | `sw/rt/{rpc,future,worker}.c` | Inline dispatch, deferral ownership, forwarding, completion and timeout processing |
+| Pending operations | `sw/rt/pending_call_table.*`, `fiber/` | Generation-tagged operations, cooperative fiber scheduling |
+| ECI transport | `sw/core/eci/core.h` | Descriptor/payload transfer, parity/barriers and TX acknowledgement |
+| Kernel control | `sw/kmod/chrdev.c`, `ioctl.h`, `endpoints.h` | Service/endpoint registration, protected resources and mappings |
+| Hardware | `DmaControlPlugin`, `OncRpcReplyDecoder`, ECI routers | Admission, descriptor translation, completion retirement, host protocol |
 
-`sw/rt/Makefile` builds `liblauberhorn.so` with ThunderX/AArch64 flags and generated hardware/register headers. The older `sw/README.md` contains planned API/library naming; use source and current flake outputs to establish exact artifacts. `sw/core/pcie/core.h` contains legacy `pionic` names and a literal unfinished TX doorbell expression.
+Applications use the installed runtime Nix package. PCIe remains unfinished;
+backend-neutral naming does not establish support there. Device headers and
+configuration are regenerated from the matching hardware, not edited by hand.
 
-## Runtime control and hot path
+## Request and transport ownership
 
-`lauberhorn_init` opens `/dev/lauberhorn`, maps a shared parity page and installs SIGINT handling. Registering a service installs an opaque userspace handler-record pointer in hardware and attempts UDP portmapper registration. Each pthread maps its own datapath region, allocates one request object per registered schema, and invokes its initialization callback after hardware first schedules it.
+RX copies into reusable worker storage. Decoding allocates an independently
+owned request; inline handlers borrow it. `REPLY`/`FAIL` consume that request.
+`DEFER` reserves a fiber and moves it into an owned context on the existing
+ready queue. `FORWARD` serializes the child and keeps only parent reply metadata
+in a pending operation, so the handler's fiber can finish. All outcome cleanup
+runs exactly once, including rejected deferrals. Codec failure produces an RPC
+error rather than silently dropping a request.
 
-The worker loop is synchronous: `core_eci_rx_traced` → XDR decode → handler → XDR encode → `core_eci_tx`. Hardware returns the opaque pointer and XID; the runtime dereferences the pointer to select the handler and schema. The reply descriptor echoes pointer/XID so hardware can recover the client session/address. Malformed serialization is logged/skipped; there is no automatic application error reply.
+Futures and forwards share transport submission and generation-tagged matching,
+with different completion consumers. Arbitrary nested callbacks and callback
+retry states have been removed. Replies with nonzero accepted status bypass
+success decoding. Deferred handlers remain responsible for consuming every
+submitted future before returning; cancellation/abandoned future retirement is
+still B4 work.
 
-RX/TX each use two alternating 128-byte control cachelines plus overflow lines. Payload bytes are copied into runtime buffers; this is not a general application zero-copy API. The control line also has payload space at offset `0x40`. Keep generated descriptor layout and software inline-byte constants synchronized.
+Both encoders receive explicit output capacities. XDR encoding uses this bound
+rather than the in-memory object size. Rust encoders receive a slice of exactly
+the supplied capacity. Decode allocations remain safely freeable on failure.
 
-Userspace enters a READY/BUSY critical section around each transport operation, uses ARM `dmb sy` barriers, and shares the next RX/TX parity bytes with Linux. TX writes the current line then reads the opposite line as a doorbell. `core_eci_tx` returns `void` and discards the read value: generic accepted/retry/error status is not implemented. Kernel bypass uses the same transport code with critical-section operations disabled.
+Before passing nested TX to encoding/DMA, hardware reserves in-flight routing
+state. Full capacity returns a rejection. The ECI TX doorbell acknowledges only
+after the per-worker packet buffer has been consumed, or the request rejected.
+The acknowledgement survives cache eviction/reload. Values 1/2/3 distinguish
+accepted/consumed, definite rejection and DMA error. The protocol preserves
+existing parity, sequential per-worker RX/TX access and cache-line addresses.
+An accepted local send is not application success or proof of network delivery.
 
-## Tracing and shutdown
+## Limits and lifecycle
 
-- `LAUBERHORN_SERVER_TRACE_CSV` enables per-request monotonic timestamps around RX, unmarshal, handler, marshal and TX. `ADDER_SERVER_TRACE_CSV` is a legacy fallback. Schemas can supply request-ID and correctness callbacks. `LAUBERHORN_RT_VERBOSE` enables runtime diagnostics.
-- CSV output is line-buffered and serialized by a global mutex, so enabled tracing changes execution cost. See [`development/tracing.md`](../development/tracing.md) and [`research/latency-measurement.md`](../research/latency-measurement.md) before interpreting timestamps.
-- SIGINT clears a global run flag and requests wakeup of parked workers. Main joins workers, unmaps their datapaths, deregisters services and closes the context. This is the demonstrated lifecycle, not a generalized cancellation API.
+There are 320 shared fibers (64 KiB each), 640 software pending slots and a
+separate generated hardware in-flight limit (16 by default). Incoming server
+session overflow still overwrites slot 0 and remains a separate admission
+blocker; outgoing reservation rejection does not fix that path. Exhausted fibers affect deferrals,
+not atomic inline handlers. Software admission errors and hardware rejection
+are explicit; downstream/coherence stalls are not universally time bounded.
+Timeout settlement does not prove hardware retirement and does not make an
+endpoint safe to destroy. Cookie generations never wrap into a still-valid
+identity. Shutdown, cancellation, abnormal exit and endpoint quarantine remain
+tracked in B4.
 
-## Pending work and review hazards
+Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
+NACK timing lets an assigned worker regain control, but cannot activate a parked
+service or replace an application timer API. Runtime-managed Raft services and
+resident memcached workers are [documented follow-on designs](service-execution-design.md)
+only. Neither is implemented by this batch.
 
-- Nested/client descriptor packing and reply unpacking already exist in `core.h`; the worker loop still asserts every received request is `TY_ONCRPC_CALL_RX`. Fiber scheduling, public async/await APIs, acceptance status, and completion dispatch remain planned; see [`software/nested-rpc.md`](../software/nested-rpc.md).
-- Runtime globals (`fd`, run flag, monotonically increasing schema/worker indices) mean independent contexts, reinitialization, dynamic registration and concurrent control operations are not established supported behavior.
-- Source-review concern: runtime deregistration passes `int *`, while the kernel ioctl expects `lauberhorn_dereg_srv_t` and writes back `func_ptr`. Repair/validate this ABI before relying on teardown robustness.
-- Allocation failure paths, service capacity checks, and XDR-owned variable-length allocation cleanup need hardening. Request free currently performs only `free(msg)`; the loop does not perform an XDR free pass.
+Per-request CSV tracing from the old synchronous runtime has not been restored
+in this branch. Do not infer current tracing support from historical logs.
+Hardware module-load reliability, worker placement and matched-checkpoint
+acceptance remain separate tracked gates.
+
+Independent contexts, reinitialization and dynamic registration while workers
+run are not established supported behavior; runtime service/worker state still
+includes process-global tables and counters. Keep registration externally
+serialized and follow the endpoint lifetime rules.

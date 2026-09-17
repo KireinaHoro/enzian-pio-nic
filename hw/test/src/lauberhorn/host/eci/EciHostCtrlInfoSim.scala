@@ -58,7 +58,8 @@ object EciHostCtrlInfoSim {
           dp.pop(ONCRPC_INLINE_BYTES*8))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
-        val pid = dp.pop(PID_WIDTH, skip = 12)
+        val status = dp.pop(8, skip = 4).toInt
+        val pid = dp.pop(PID_WIDTH)
         val cookie = dp.pop(32, skip = 16)
         val xid = dp.pop(32)
         RxOncRpcReplySim(
@@ -66,7 +67,7 @@ object EciHostCtrlInfoSim {
           pid,
           cookie,
           xid,
-          dp.pop(ONCRPC_INLINE_BYTES * 8))
+          dp.pop(ONCRPC_INLINE_BYTES * 8), status)
       }
   }
 }
@@ -117,10 +118,11 @@ case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtr
       .toBigInt
 }
 
-case class TxOncRpcReplySim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
+case class TxOncRpcReplySim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(32, xid, skip = 13)
+      .push(8, status, skip = 5)
+      .push(32, xid)
       .push(64, funcPtr)
       .push(ONCRPC_INLINE_BYTES * 8, args)
       .toBigInt
@@ -173,7 +175,7 @@ case class RxOncRpcReplySim(len: Int,
                             pid: BigInt,
                             cookie: BigInt,
                             xid: BigInt,
-                            args: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyRxPacketDescSim {
+                            args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyRxPacketDescSim {
   /** not implemented due to reply Rx descriptor never sent out */
   override def encode = ???
 }

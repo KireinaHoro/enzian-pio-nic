@@ -36,8 +36,8 @@ This is not current-batch board evidence.
 | --- | --- |
 | B1 | Validate repaired/aligned descriptors and host/wire byte order on a matching new checkpoint. |
 | B2 | Validate registered remote endpoints, completion routing and internal loopback on hardware; overload progress remains unvalidated. |
-| B3 | Close admission/error handling, including dropped requests on handler-fiber exhaustion; accept both futures and callbacks on hardware. |
-| B4 | Implement and verify reliable shutdown, cancellation and resource reuse; timeout progress while blocked in RX remains unresolved. |
+| B3 | Validate explicit reply/fail/defer/forward, fiber and transport admission, errors and forwarding on matching hardware; callbacks are removed. |
+| B4 | Implement and verify reliable shutdown, cancellation and resource reuse; parked-service activation and timeout retirement remain unresolved. |
 | B5 | Diagnose intermittent module-load external aborts and demonstrate repeated reliable startup. |
 | B6 | Verify actual isolated-worker CPU placement and run single functions, DAGs, sharding and concurrent nested compositions. |
 
@@ -166,7 +166,7 @@ open until the relevant checks below pass and link their evidence here.
   intended peer IP, with correct UDP ports, XID and program/version/procedure.
   Exercise inline and overflow payloads, ensuring cookie/PID/XID survive the
   aligned TX/RX descriptors and route the completion correctly.
-- [ ] Run Sven's nested adder (two futures plus callback) to sum 10; compare
+- [ ] Run Sven's migrated nested adder (three futures, first two summed) to sum 10; compare
   completion XIDs with the software pending calls. Track any B3 lifetime failure
   separately rather than treating correct packet fields as full completion.
 - [ ] Check RPC session/in-flight CSR update and readback in host order against
@@ -206,11 +206,49 @@ general overload progress remain unvalidated.
 **Hardware closure checks:** deploy matching final-batch artifacts; capture
 remote calls with valid endpoint/program fields and PID/cookie completion
 routing. Run the adapted nested adder against the second Enzian responder
-(two futures plus callback, sum 10 and request ID 7). Also verify internal local
+(three futures, sum 10 from the first two and request ID 7). Also verify internal local
 traces and absence of nested physical traffic. The new software cannot be used
 with checkpoint 2812450. See the [endpoint contract](nested-rpc-endpoints.md).
 
-## B3 — Future/callback ownership and codec error paths are unsafe
+## B3 — Bounded execution, request ownership and error delivery
+
+**Implementation batch, 2026-09-17 (hardware acceptance pending):** incoming
+handlers now start inline and return `REPLY`, `FAIL`, `DEFER` or `FORWARD`.
+Service execution modes and the public nested-callback API are removed. The
+320-fiber pool (64 KiB stacks, shared across workers) only limits deferrals;
+exhaustion destroys owned context/request and emits `SYSTEM_ERR`, without a
+separate waiting-request queue. No stack migration or hardware reinjection is
+involved. The separate pending-operation table has 640 slots.
+
+Future submission/await/select/join reject default-stack use before side effects
+in debug and release builds. Serializers receive output capacities. Forwarding
+retains parent reply metadata in a tagged child operation and relays completion
+without a parent fiber. Dandelion classifies once in its existing handler:
+atomic functions run inline, compositions retain the resolved entry and defer;
+clients and envelopes are unchanged.
+
+Hardware reserves nested routing state before TX admission and returns a definite
+capacity rejection. Accepted/error status crosses generated ECI descriptors and
+ONC-RPC encoder/decoder paths; rejected calls do not wait behind a full table.
+The TX acknowledgement remains stable across voluntary cache-line reloads and
+releases buffer ownership only after consumption. New runtime/header/kernel and
+bitstream must be deployed together. Timeout/DMA uncertainty still quarantines
+endpoint state; no claim of B4 closure is made.
+
+See the [API contract](programming-model.md). Raft service events/timers and
+resident memcached transport integration are [design-only follow-ons](service-execution-design.md).
+Their implementations and harnesses are intentionally excluded from this run.
+
+**Remaining hardware admission limit:** `NUM_SESSIONS` defaults to 16 for each
+hardware table. This batch bounds outgoing nested-call admission, not incoming
+server-session admission. `OncRpcReplyEncoder` still increments `sessTblFull` and
+overwrites slot 0 on incoming session overflow. That pre-existing behavior must
+be replaced by an admission/error policy before claiming arbitrary end-to-end
+overload safety. The 320-fiber exhaustion regression uses an injected transport;
+it does not prove the real server-session table can sustain that many parents.
+
+The entries below preserve historical findings and fixes; callback acceptance
+is superseded by future/forward validation for this batch.
 
 **Update, 2026-09-14:** `f9221dc` preserves future ownership through coalesced
 wakeups, initializes fiber callback handlers, retries callbacks when the fiber
@@ -233,9 +271,10 @@ Start at `sw/rt/{rpc,pending_call_table,future,oncrpc}.c` and `sw/rt/fiber/`.
 Define ownership of pending slots, futures and results through completion,
 timeout and reuse. Define bounded behavior when pending/fiber pools exhaust.
 
-**Closure checks:** targeted software tests for coalesced wakeups, callback
-execution, slot reuse, allocation/codec failure and pool exhaustion; then
-hardware tests of both future and callback completion with B1/B2 fixed.
+**Closure checks:** targeted software tests for coalesced wakeups, deferred
+execution, forwarding, slot reuse, allocation/codec failure and pool exhaustion;
+then hardware tests of futures, forwarding, explicit errors and overload with
+B1/B2 fixed. Confirm atomic dispatch still works at full fiber occupancy.
 Verify that failures cannot send an invalid length or free live state, and
 rerun the passing add/mul baselines.
 
@@ -323,3 +362,28 @@ and both deployment filesystems. These intermediate builds carry a dirty-tree
 marker; use the final batch revision for the later checkpoint/software pair.
 No timing, real socket namespace behavior, real worker placement, shutdown,
 B1 hardware acceptance or composition execution is claimed by these builds.
+
+## B3 outcome/admission validation (2026-09-17)
+
+The native runtime suite passed, including default-stack rejection before side
+effects, fiber/pending exhaustion, owned outcome cleanup, forwarding, timeout
+and immediate-completion races. Dispatch tests ran with and without assertions;
+codec tests ran with AddressSanitizer and UndefinedBehaviorSanitizer (leak
+tracing disabled because the Nix sandbox prevents its process attachment).
+The Rust bounded-encoder regression executed under target emulation and passed.
+The migrated student fixtures passed compilation against the new interface.
+
+All three nested ECI simulation tests passed. The server/bypass suites passed
+13 registered tests; existing TODO cases without test bodies are not coverage.
+Matching generated interfaces, runtime, kernel, Dandelion application and smoke
+harness, and both deployment images built. Extracted image checks passed for
+3,892 links/four ELF entries (Dandelion) and 3,497 links/three ELF entries
+(microbenchmarks). Logs and image reports are in ignored `out/b3-20260917/`.
+
+These are dirty-tree source validation builds, not a deployable checkpoint pair.
+No Vivado implementation or board campaign ran. B3 remains open for matched
+hardware acceptance and the incoming server-session table's overflow behavior;
+the outgoing nested admission fix does not fix that separate table. B4/B5 remain
+open. Service-owned Raft work and resident memcached adoption are documented in
+[the service execution design](service-execution-design.md), without runtime
+implementation or application harnesses in this batch.
