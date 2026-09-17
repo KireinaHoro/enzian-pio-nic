@@ -1,5 +1,87 @@
 # Physical implementation experiments — 2026-09-10
 
+## Round 2 ablations and combination — September 17
+
+The maintainer requested individual next changes and their combination in the
+same batch. All four start from combined TX/high-VC RX revision `f6516f4` (local
+WNS -0.011 ns, CI -0.057 ns); there is no new unchanged-baseline run.
+
+| Increment over `f6516f4` | Branch | Revision | CI pipeline / hardware job |
+| --- | --- | --- | --- |
+| DCS destination placement | `timing/20260917-dcs-placement` | `b5c38a1` | 511987 / 2833774 |
+| Low-VC RX isolation | `timing/20260917-low-vc-stage` | `c44887b` | 511988 / 2833785 |
+| TX link2 placement refinement | `timing/20260917-tx-refine` | `1c72ea0` | 511990 / 2833807 |
+| All three increments | `timing/20260917-round2-combined` | `759a9ab` | 511989 / 2833796 |
+
+Initial one-shot snapshot: all pipelines created, checks running or pending,
+hardware waiting on prerequisites. No timing result exists yet. Preserve these
+unmerged experiment branches. The static shell and ECI protocol remain unchanged.
+
+### Candidate scope and validation
+
+DCS: the odd response-with-data FIFO full flag was at X76Y275 in SLR0, while its
+SLR-slice destination was at X114Y360 in SLR1. Read-only routed inspection found
+all 2268 destination primitives assigned only to `pblock_dynamic`, despite the
+intended broad SLR constraints. The candidate explicitly confines this
+`i_cross_rsp_wd_slave/i_pipe/*slr_auto_dest*` hierarchy to
+`SLICE_X60Y240:SLICE_X118Y299`, using a hard pblock and a nonempty-selector check.
+Vivado validated 3300 legal slice sites, zero sites outside dynamic and zero
+static cells. A second read-only check of the linked pre-optimization checkpoint
+confirmed the destination selector is present when implementation constraints
+load (2245 primitives at that stage). No CDC logic, clocks or timing exceptions
+were changed.
+
+Low VC: toolkit feature `timing/20260917-low-vc-stage`, commit `a194f3a`, adds
+`eci_rx_lo_vc_pipeline` between each VC6–12 FIFO and its downstream channel in
+`eci_link_rx`. A 455-bit elastic input stage separates FIFO output from word
+selection; a two-entry output queue with registered occupancy removes downstream
+crossbar ready from extractor control. Data, lane mask and VC remain aligned;
+credits still return only when the downstream channel consumes a word. The
+existing extractor, lite link variant and high-VC pipeline are unchanged. The
+new stages use initialization consistent with the existing resetless datapath;
+link-down flushing is not newly provided. No interface/cache-line ABI changes.
+The toolkit commit is published only in the private platform repository as
+`timing/20260917-eci-toolkit-low-vc-stage`, not the owner colleague's upstream.
+Owner approval remains required before adoption on master.
+
+The committed Nix RX gate passed: 8 existing high-VC cases plus 28 low-VC
+baseline/candidate cases. Each low case covers 508 frames / 1792 words, every
+nonempty seven-lane mask, VC6–12, two seeds, long/random downstream stalls,
+back-to-back inputs, stable stalled output, exact data/VC/size and returned
+credits. Production `eci_link_rx` integration also compiled with GHDL. These
+are functional tests, not physical timing/CDC proof.
+
+TX: the combined CI's worst output-buffer path enters static size decode at
+X145Y498, south of the previous region. The candidate moves/narrows the entire
+link2 high/low buffer region to `SLICE_X128Y480:SLICE_X141Y539`, keeping payload,
+size and valid together and leaving link1 unchanged. Vivado validated 840 legal
+slice sites, zero sites outside dynamic and zero static cells for 1993 existing
+buffer primitives. It does not pipeline crossbar arbitration; those paths must
+remain visible when judging the result.
+
+### Local flow and collection
+
+Portable bundles are built with explicit immutable Git revisions, matching the
+CI candidates. The ba2 local batch is ordered **all, DCS, low-VC, TX refinement**,
+with sequential full Nix/Docker builds to limit resource contention. Each runs
+through synthesis, implementation, bitstream and physical reports, with its own
+console log and exit status. All four bundles built and were verified against
+their exact revisions. The local queue launched as
+`lh-round2-20260917.service` on ba2. Inputs are
+`/tmp/lh-round2-inputs-20260917-{all,dcs,low-vc,tx-refine}`; outputs are
+`/tmp/lh-round2-20260917-{all,dcs,low-vc,tx-refine}`, with `.console.log` and
+`.exit-status` appended for each run. The queue continues to the next candidate
+if a build fails and retains each status. No board is programmed.
+Manifest and evidence: `out/physical/round2-20260917/` (`cases.json`, `ci/`,
+`bundle-build.log`, `bundles.json`, placement inspection and functional logs).
+Collect CI once on completion notification; no polling or new board run.
+Different candidate revisions change embedded CSR constants, so treat the
+single-factor comparisons as practical ablations, not perfectly controlled
+placement-seed comparisons. Within each candidate, local and CI use the same
+revision and Nix RTL recipe. Require setup/hold/pulse, all clocks, CDC and routing
+checks before any closure claim.
+
+
 ## Completed TX/RX comparison — September 17
 
 Collected once on maintainer request. Individual TX/RX pipelines 511729/511730
