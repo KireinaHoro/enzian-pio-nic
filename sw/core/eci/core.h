@@ -48,11 +48,10 @@ typedef struct {
     } neighbor_miss;
     struct {
       void *func_ptr;
-      int xid; // host-order numeric XID
+      uint32_t request_token;
     } oncrpc_call_rx;
     struct {
-      void *func_ptr;
-      int xid; // host-order numeric XID
+      uint32_t request_token;
       uint8_t status; // ONC-RPC accept_stat, 0 for success
     } oncrpc_reply_tx;
     struct {
@@ -228,8 +227,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->oncrpc_call_rx.func_ptr = (void *)
           lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               rx_ctrl);
-      desc->oncrpc_call_rx.xid =
-          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_xid_extract(rx_ctrl);
+      desc->oncrpc_call_rx.request_token =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_request_token_extract(rx_ctrl);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
@@ -371,10 +370,8 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_status_insert(
         tx_ctrl, desc->oncrpc_reply_tx.status);
-    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_xid_insert(
-        tx_ctrl, desc->oncrpc_reply_tx.xid);
-    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_func_ptr_insert(
-        tx_ctrl, (uint64_t)desc->oncrpc_reply_tx.func_ptr);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_request_token_insert(
+        tx_ctrl, desc->oncrpc_reply_tx.request_token);
 
     // tx RPC len field INCLUDES inlined words
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,

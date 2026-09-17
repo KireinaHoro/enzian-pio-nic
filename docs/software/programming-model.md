@@ -23,7 +23,7 @@ request storage and returns one of these outcomes:
 | --- | --- |
 | `lauberhorn_reply(data, len, destroy)` | Serialize the response, then call optional `destroy(data)`. |
 | `lauberhorn_fail(error)` | Send an ONC-RPC accepted error with no application payload. |
-| `lauberhorn_defer(run, context, destroy)` | Reserve a fiber and transfer the decoded request and context to `run(context, request, xid)`. |
+| `lauberhorn_defer(run, context, destroy)` | Reserve a fiber and transfer the decoded request and context to `run(context, request, request_context)`. |
 | `lauberhorn_forward(endpoint, data, len, destroy)` | Encode a child call, retain parent reply metadata and relay the child's response without keeping a parent fiber. |
 
 `len` describes the input object passed to the codec; serializers also receive
@@ -55,10 +55,27 @@ responses where appropriate; `FAIL` supports `PROC_UNAVAIL`, `GARBAGE_ARGS` and
 Forwarding initially requires identical response-encoder function and codec
 private pointer. The application must ensure this implies compatible response
 wire encodings. Successful child bytes are relayed locally with the original
-parent XID/session; supported accepted errors propagate, and other failures
+parent reply context (hardware retains the wire XID); supported accepted errors propagate, and other failures
 become `SYSTEM_ERR`. No application callback or result
 transformation occurs. This is a supported tail-call ownership pattern, not
 direct downstream-to-original-client routing.
+
+## Opaque request context
+
+Entry and deferred handlers receive `lauberhorn_request_context_t` as their third
+argument. This 32-bit opaque value identifies the live incoming request; it is
+not the wire XID, a client identity, or an application-managed reply handle.
+The runtime preserves it across `DEFER` and `FORWARD`, and uses it for the terminal
+reply. Hardware stores the original wire XID and UDP routing tuple and releases
+the context after capturing a valid reply's routing metadata. Applications must
+not interpret its bits or retain it beyond the managed request's lifetime.
+
+Possible future query APIs could accept this token and return the client's IP
+address/port, local endpoint, original XID, or transport/connection information.
+No such application query API is implemented. A UDP peer address or a TCP
+connection reference would identify a transport peer, not a persistent logical
+client; applications needing persistent client identity can carry it in their
+own request protocol. See [reply-context layout and lifecycle](reply-contexts.md).
 
 ## Nested calls and waiting
 
@@ -75,8 +92,9 @@ Submission returning zero means local transport admission, not remote execution
 or application success. A full software table or a definite hardware capacity
 rejection returns `EAGAIN`. The software table has 640 slots with generation-tagged
 cookies. Hardware capacity is independent and shared (16 entries per table by default).
-Incoming server-session overflow remains unsafe and separately tracked; the
-outgoing admission fix is not a claim of end-to-end overload safety. A hardware rejection
+Incoming request contexts are independently bounded: a full table rejects before
+host dispatch and attempts a hardware `SYSTEM_ERR` reply. Its bounded error queue
+may drop error replies under congestion; it never overwrites live contexts. A hardware rejection
 releases the unsubmitted operation; a timeout or indeterminate DMA error does
 not prove hardware retirement and keeps the endpoint quarantined. Indeterminate
 TX failure settles the admitted operation with an RPC error unless a reply has

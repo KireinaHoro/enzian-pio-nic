@@ -36,12 +36,14 @@ trait NeighborMissPacketDescSim { this: HostPacketDescSim =>
 
 trait OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
   def funcPtr: BigInt
-  def xid: BigInt
+  def requestToken: BigInt
   def args: BigInt
   override def ty = 3
 }
 
-trait OncRpcReplyTxPacketDescSim extends OncRpcCallRxPacketDescSim { this: HostPacketDescSim =>
+trait OncRpcReplyTxPacketDescSim { this: HostPacketDescSim =>
+  def requestToken: BigInt
+  def args: BigInt
   override final def ty = 4
 }
 

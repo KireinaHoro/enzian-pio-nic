@@ -26,10 +26,13 @@ typedef void* lauberhorn_msg_t;
 
 typedef struct lauberhorn_rpc_endpoint lauberhorn_rpc_endpoint_t;
 typedef struct lauberhorn_outcome lauberhorn_outcome_t;
+/* Opaque request identity, valid only while its managed request is live.
+ * Not a wire XID or a persistent client identity. No metadata query API yet. */
+typedef uint32_t lauberhorn_request_context_t;
 /* Both entry handlers and deferred functions return an explicit ownership
- * decision. XIDs are host order. The decoded request is borrowed until the
- * runtime completes this request, including deferred execution. */
-typedef lauberhorn_outcome_t (*lauberhorn_handler_func_t)(void *, void *, int);
+ * decision. The context token is opaque to applications. The decoded request
+ * is borrowed until completion, including deferred execution. */
+typedef lauberhorn_outcome_t (*lauberhorn_handler_func_t)(void *, void *, lauberhorn_request_context_t);
 typedef void (*lauberhorn_handler_free_t)(void *);
 typedef enum {
     LAUBERHORN_REPLY, LAUBERHORN_FAIL, LAUBERHORN_DEFER, LAUBERHORN_FORWARD
@@ -51,7 +54,7 @@ struct lauberhorn_outcome {
 };
 /* destroy(data), when non-NULL, runs exactly once, including rejection.
  * REPLY/FORWARD data must survive until serialization after handler return.
- * DEFER data is owned context; run(data, request, xid) executes on a fiber.
+ * DEFER data is owned context; run(data, request, context) executes on a fiber.
  * Its destructor runs after the returned outcome has been consumed.
  * A deferred function returns REPLY, FAIL or FORWARD, never another DEFER. */
 static inline lauberhorn_outcome_t lauberhorn_reply(void *data, size_t len,

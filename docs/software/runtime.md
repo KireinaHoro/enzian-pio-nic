@@ -54,14 +54,16 @@ An accepted local send is not application success or proof of network delivery.
 ## Limits and lifecycle
 
 There are 320 shared fibers (64 KiB each), 640 software pending slots and a
-separate generated hardware in-flight limit (16 by default). Incoming server
-session overflow still overwrites slot 0 and remains a separate admission
-blocker; outgoing reservation rejection does not fix that path. Exhausted fibers affect deferrals,
+separate generated hardware limits (16 outgoing operations and 16 incoming
+reply contexts by default). Incoming admission rejects before host dispatch
+when full, with best-effort hardware error replies and no live-entry overwrite.
+Contexts retire when valid replies capture their routing metadata. See
+[reply contexts](reply-contexts.md). Exhausted fibers affect deferrals,
 not atomic inline handlers. Software admission errors and hardware rejection
 are explicit; downstream/coherence stalls are not universally time bounded.
 Timeout settlement does not prove hardware retirement and does not make an
-endpoint safe to destroy. Cookie generations never wrap into a still-valid
-identity. Shutdown, cancellation, abnormal exit and endpoint quarantine remain
+endpoint safe to destroy. Software completion-cookie generations retire before wrap; hardware incoming
+context generations wrap and are not an authentication mechanism. Shutdown, cancellation, abnormal exit and endpoint quarantine remain
 tracked in B4.
 
 Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX

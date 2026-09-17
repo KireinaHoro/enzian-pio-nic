@@ -40,7 +40,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
     /** ECI descriptor for server call RX. */
     case class OncRpcCallRxBundle() extends Bundle {
       val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
-      val xid = Bits(32 bits)
+      val requestToken = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
@@ -109,7 +109,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet overflow, not including inlined bytes";
          |  _         12 rsvd;
-         |  xid       32 "XID of incoming request (host order)";
+         |  request_token 32 "Opaque incoming request context token";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:
@@ -157,10 +157,10 @@ object EciHostRxCtrlInfo {
         ret.data.bypass.xb9 := 0
       }
       is (HostReqType.oncRpcCallRx) {
-        // XID is numeric at the ECI boundary; payload and opaque metadata are unchanged.
+        // Request token and handler pointer are opaque; payload bytes are unchanged.
         ret.data.oncRpcCallRx.funcPtr := desc.data.oncRpcCallRx.funcPtr
         ret.data.oncRpcCallRx.data := desc.data.oncRpcCallRx.data
-        ret.data.oncRpcCallRx.xid := EndiannessSwap(desc.data.oncRpcCallRx.xid)
+        ret.data.oncRpcCallRx.requestToken := desc.data.oncRpcCallRx.requestToken
         ret.data.oncRpcCallRx.xb12 := 0
       }
       is (HostReqType.oncRpcReplyRx) {

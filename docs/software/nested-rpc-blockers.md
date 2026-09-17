@@ -239,13 +239,22 @@ See the [API contract](programming-model.md). Raft service events/timers and
 resident memcached transport integration are [design-only follow-ons](service-execution-design.md).
 Their implementations and harnesses are intentionally excluded from this run.
 
-**Remaining hardware admission limit:** `NUM_SESSIONS` defaults to 16 for each
-hardware table. This batch bounds outgoing nested-call admission, not incoming
-server-session admission. `OncRpcReplyEncoder` still increments `sessTblFull` and
-overwrites slot 0 on incoming session overflow. That pre-existing behavior must
-be replaced by an admission/error policy before claiming arbitrary end-to-end
-overload safety. The 320-fiber exhaustion regression uses an injected transport;
-it does not prove the real server-session table can sustain that many parents.
+**Incoming admission follow-up, September 17:** the old session table is now a
+per-request UDP reply-context table. Hardware allocates before host dispatch,
+retains the original XID/return tuple, and retires a slot once its terminal reply
+has captured the routing metadata. Host RX/reply TX carry an opaque 32-bit
+slot/generation token in the former XID field; descriptor sizes and 48-byte inline
+payloads are unchanged. Different clients using the same XID no longer collide.
+Full capacity rejects without allocating or dispatching, with a hardware
+`SYSTEM_ERR` reply. The bounded rejection queue drops excess error replies under
+congestion, counted separately, so it cannot block completion ingress. Token
+generations wrap; authentication and reset/abnormal-exit cleanup are not added.
+See [layout, lifecycle and deferred metadata queries](reply-contexts.md).
+
+The default incoming and outgoing hardware tables each hold 16 entries. The
+320-fiber exhaustion regression remains an injected-transport test, not evidence
+that hardware can retain 320 parent requests. B3 still needs matched-hardware
+acceptance; requests abandoned without replies remain B4 lifecycle work.
 
 The entries below preserve historical findings and fixes; callback acceptance
 is superseded by future/forward validation for this batch.
@@ -382,8 +391,45 @@ harness, and both deployment images built. Extracted image checks passed for
 
 These are dirty-tree source validation builds, not a deployable checkpoint pair.
 No Vivado implementation or board campaign ran. B3 remains open for matched
-hardware acceptance and the incoming server-session table's overflow behavior;
-the outgoing nested admission fix does not fix that separate table. B4/B5 remain
+hardware acceptance. At that validation point incoming server-session overflow
+was still unresolved; the reply-context follow-up above supersedes that finding. B4/B5 remain
 open. Service-owned Raft work and resident memcached adoption are documented in
 [the service execution design](service-execution-design.md), without runtime
 implementation or application harnesses in this batch.
+
+## Incoming reply-context follow-up validation (2026-09-17)
+
+Native runtime tests passed, including opaque-token preservation through deferred
+execution and forwarding, release-build checks, and sanitized codec/accessor
+checks. Generated call RX/reply TX headers remain 16 bytes with the token at
+byte 4 and the inline payload at byte 16. Dandelion and its emulated bounded-codec
+regression passed; the migrated student fixtures compiled against the new API.
+
+The context-table simulation passed 1,024 reuse cycles, stale-token rejection,
+full capacity, identical XIDs across peers and simultaneous allocation/retirement.
+The server suite passed nine registered cases (three existing TODO-only bodies),
+including remote full-table rejection for empty/inline/overflow calls, unchanged
+wire XIDs, different clients sharing XIDs, slot reuse and draining stale overflow
+replies. Its receive stress cases now send terminal replies and bound outstanding
+requests instead of relying on session overwrite. The extended local-loopback
+case passed rejection at full incoming capacity and successful admission after
+retirement; earlier remote nested descriptor/completion cases also passed.
+
+Evidence is under ignored `out/reply-context-20260917/`: `build.log`,
+`student-fixed.log`, `rtl.log`, `server-fixed.log`, and `local-final.log`.
+Initial fixture failures are retained: randomly addressed clients needed configured
+reply neighbors, and the temporary student compile tree initially omitted its
+RPC schemas. A combined follow-up simulation lost its Mill worker connection
+(`nested-final.log`); the extended local test passed on an isolated rerun.
+
+All five bypass TX regressions passed (`bypass-final.log`), including the
+multi-core cache-invalidation case.
+
+The matching kernel module, application smoke harness and both deployment
+images built successfully (`images.log`). These dirty-tree build checks do not
+establish a deployable bitstream/software pair.
+
+No new bitstream or Enzian campaign ran. The incoming overwrite implementation
+gap is addressed; B3 remains open for matched-hardware acceptance, while abandoned
+requests, reset recovery and shutdown remain B4 work. Metadata query APIs and
+TCP reply-context variants are documented only.

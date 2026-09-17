@@ -34,7 +34,7 @@ package object host {
   case class HostReqOncRpcCallRx() extends Bundle {
     val funcPtr = Bits(64 bits)
     val pid = PID()
-    val xid = Bits(32 bits)
+    val requestToken = Bits(32 bits)
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   }
 
@@ -42,8 +42,7 @@ package object host {
     * modules and must not be encoded in host-visible descriptors.
     */
   case class HostReqOncRpcReplyTx() extends Bundle {
-    val funcPtr = Bits(64 bits)
-    val xid = Bits(32 bits)
+    val requestToken = Bits(32 bits)
     val status = Bits(8 bits) // host-order ONC-RPC accept_stat
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 

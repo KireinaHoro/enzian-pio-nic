@@ -85,12 +85,14 @@ static void indeterminate_send(void *ctx) {
     lauberhorn_free_result(&f.result);
     dma_error = false;
 }
-static lauberhorn_outcome_t deferred(void *data, void *req, int xid) {
+static lauberhorn_outcome_t deferred(void *data, void *req, lauberhorn_request_context_t context) {
+    assert(context == 0x1234);
     assert(fiber_in_context()); ran++;
     return lauberhorn_reply(req, 4, NULL); /* args survive serialization */
 }
 static int mode;
-static lauberhorn_outcome_t handler(void *data, void *req, int xid) {
+static lauberhorn_outcome_t handler(void *data, void *req, lauberhorn_request_context_t context) {
+    assert(context == 0x1234);
     assert(!fiber_in_context());
     if (mode == 1) return lauberhorn_defer(deferred, malloc(1), destroy_defer);
     if (mode == 2) return lauberhorn_forward(&ep, req, 4, NULL);
@@ -126,7 +128,7 @@ int main(void) {
     struct srv srv = {.codec = codec};
     struct lauberhorn_hw_handler hw = {.srv = &srv, .handler = {.func = handler}};
     lauberhorn_pkt_desc_t req = {.type = TY_ONCRPC_CALL_RX, .payload_len = 4,
-        .oncrpc_call_rx = {.func_ptr = &hw, .xid = 0x1234}};
+        .oncrpc_call_rx = {.func_ptr = &hw, .request_token = 0x1234}};
     memcpy(rx, &input, 4);
     rpc_handle_packet(&worker, &req);
     assert(replies == 1 && !allocated && !sent.oncrpc_reply_tx.status && *(int *)tx == input);
@@ -151,7 +153,7 @@ int main(void) {
     lauberhorn_pkt_desc_t completion = {.type = TY_ONCRPC_REPLY_RX, .payload_len = 4,
         .oncrpc_reply_rx = {.cookie = child.oncrpc_call_tx.cookie, .xid = child.oncrpc_call_tx.xid}};
     rpc_handle_packet(&worker, &completion);
-    assert(replies == 5 && sent.oncrpc_reply_tx.xid == 0x1234 && !ep._transport.unresolved);
+    assert(replies == 5 && sent.oncrpc_reply_tx.request_token == 0x1234 && !ep._transport.unresolved);
     rpc_handle_packet(&worker, &completion); /* duplicate does not reply twice */
     assert(replies == 5);
     rpc_handle_packet(&worker, &req);

@@ -153,7 +153,7 @@ class DmaControlPlugin extends FiberPlugin {
 
                   pktToEnqueue.data.oncRpcCallRx.funcPtr := incomingDesc.desc.metadata.oncRpcCallRx.funcPtr
                   pktToEnqueue.data.oncRpcCallRx.pid := incomingDesc.desc.metadata.oncRpcCallRx.pid
-                  pktToEnqueue.data.oncRpcCallRx.xid := incomingDesc.desc.metadata.oncRpcCallRx.hdr.xid
+                  pktToEnqueue.data.oncRpcCallRx.requestToken := incomingDesc.desc.metadata.oncRpcCallRx.requestToken
                   pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCallRx.args
                 }
                 is (PacketDescType.oncRpcReplyRx) {
@@ -330,9 +330,8 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.ty := PacketDescType.oncRpcReplyTx
                 txPacketDesc.metadata.assignDontCare()
                 txPacketDesc.metadata.oncRpcReplyTx.rpcId := invalidTraceId(RpcID.width)
-                txPacketDesc.metadata.oncRpcReplyTx.funcPtr := txReqMuxed.req.data.oncRpcReplyTx.funcPtr
+                txPacketDesc.metadata.oncRpcReplyTx.requestToken := txReqMuxed.req.data.oncRpcReplyTx.requestToken
                 txPacketDesc.metadata.oncRpcReplyTx.status := txReqMuxed.req.data.oncRpcReplyTx.status
-                txPacketDesc.metadata.oncRpcReplyTx.xid := txReqMuxed.req.data.oncRpcReplyTx.xid
                 txPacketDesc.metadata.oncRpcReplyTx.data := txReqMuxed.req.data.oncRpcReplyTx.data
                 txPacketDesc.metadata.oncRpcReplyTx.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
                 txLogicalLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen.bits

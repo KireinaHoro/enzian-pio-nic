@@ -35,6 +35,11 @@ Codec output capacity is explicit across the Rust/C boundary. The pinned student
 source descriptions below remain historical; its `EXEC_FIBER` and callback API
 are not the current platform contract.
 
+The handler's former XID argument is now an opaque request-context token; the
+adapter does not inspect it. Hardware preserves the original XID for wire replies.
+Possible token-based peer-information queries remain documentation-only; see
+[reply contexts](../software/reply-contexts.md).
+
 `FORWARD` implements local reply relay without a parent fiber for compatible
 response encodings. It is available to applications but is not automatically
 selected by Dandelion's composition optimizer. Direct replies from downstream

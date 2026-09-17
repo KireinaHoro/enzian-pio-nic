@@ -26,8 +26,8 @@ case class EciHostTxCtrlInfo() extends Bundle {
     case class OncRpcReplyTxBundle() extends Bundle {
       val xb5 = Bits(5 bits)
       val status = Bits(8 bits) // byte aligned, no payload offset change
-      val xid = Bits(32 bits)
-      val funcPtr = Bits(64 bits)
+      val requestToken = Bits(32 bits)
+      val xb64 = Bits(64 bits)
       val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
     val oncRpcReplyTx = newElement(OncRpcReplyTxBundle())
@@ -61,8 +61,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
       }
       is (HostReqType.oncRpcReplyTx) {
         desc.data.oncRpcReplyTx.status := data.oncRpcReplyTx.status
-        desc.data.oncRpcReplyTx.xid     := EndiannessSwap(data.oncRpcReplyTx.xid)
-        desc.data.oncRpcReplyTx.funcPtr := data.oncRpcReplyTx.funcPtr
+        desc.data.oncRpcReplyTx.requestToken := data.oncRpcReplyTx.requestToken
         desc.data.oncRpcReplyTx.data    := data.oncRpcReplyTx.data
         desc.data.oncRpcReplyTx.replyLen := len
         when (len.bits > ONCRPC_INLINE_BYTES.get) {
@@ -113,8 +112,8 @@ object EciHostTxCtrlInfo {
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload, including inlined bytes";
          |  _         5 rsvd;
          |  status    8 "ONC-RPC accept status (host order)";
-         |  xid       32 "XID of request being replied to (host order)";
-         |  func_ptr  64 "Function pointer/session identifier for RPC reply";
+         |  request_token 32 "Opaque incoming request context token";
+         |  _         64 rsvd;
          |  // reply data follows -- need to calculate address manually
          |};
          |

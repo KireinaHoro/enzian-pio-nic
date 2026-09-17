@@ -12,7 +12,7 @@ Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RT
 
 | Mechanism | Implemented entry points |
 | --- | --- |
-| Server calls and replies | `hw/src/lauberhorn/net/oncrpc/OncRpcCallDecoder.scala`, `OncRpcReplyEncoder.scala`: service match and reply sessions |
+| Server calls and replies | `hw/src/lauberhorn/net/oncrpc/OncRpcCallDecoder.scala`, `OncRpcReplyEncoder.scala`: service match and bounded per-request reply contexts |
 | Nested/client call TX | `OncRpcCallEncoder.scala`: ONC-RPC CALL header, inline/tail data, UDP metadata (admission now precedes encoding in `DmaControlPlugin`) |
 | Nested/client reply RX | `OncRpcReplyDecoder.scala`: tuple lookup, PID/cookie completion, entry retirement and counters/CSR access |
 | Descriptor ABI | `hw/src/lauberhorn/host/package.scala`, `net/package.scala`, `host/eci/EciHostRxCtrlInfo.scala`, `EciHostTxCtrlInfo.scala` |
@@ -34,7 +34,7 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 
 | ECI boundary structure | Convention and alignment |
 | --- | --- |
-| Server call RX / reply TX | Host-order XID at byte 4, opaque function pointer at byte 8, raw inline payload at byte 16. ECI swaps XID on RX and TX. |
+| Server call RX / reply TX | Opaque request token at byte 4; RX handler pointer / TX reserved field at byte 8; raw inline payload at byte 16. Original XID stays wire-native in the hardware reply context. |
 | Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36, raw inline payload at 40. ECI swaps XID/address/ports/program/version/procedure. |
 | Nested reply RX | Host-order PID at byte 4, padding at 6, cookie at 8 and XID at 12, raw inline payload at 16. ECI swaps XID. |
 | Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; raw packet header starts at byte 4. Header/payload bytes are copied unchanged. |
@@ -51,7 +51,7 @@ not cross their scalar access boundary.
 | Control registers exposed through ECI | Convention |
 | --- | --- |
 | Service-registration program/version/procedure and UDP listen port | Host-order numbers, swapped in hardware on table installation. PID/function pointer/protocol selector are host metadata. |
-| RPC session and nested in-flight table update/readback | Host-order numeric XID, IPv4 address and ports; hardware swaps both directions. Opaque pointer/cookie, PID, index and active flag are unchanged. |
+| Reply context readback / nested in-flight table control | Host-order numeric XID, IPv4 address and ports; hardware swaps at the CSR boundary. Incoming contexts have debug readback only, not arbitrary indexed writes. Nested in-flight table control is unchanged. |
 | IP address, neighbor address and MAC address controls/readback | Wire-native values matching Linux network-stack types and byte arrays. Preserving them avoids adding software swaps or repacking. |
 | Scheduler, thread router, DMA, timeout, interrupt and statistics controls | Host-order numbers, addresses, flags and counters. No network conversion. |
 
@@ -81,10 +81,12 @@ reservation (2), or DMA error (3). `core_eci_tx` returns this result to the
 runtime. Rejection releases the software operation; DMA uncertainty does not
 prove retirement. Acknowledgements survive voluntary cache eviction/reload.
 
-Incoming server-session overflow is a different path: `OncRpcReplyEncoder`
-still overwrites slot 0 when full. End-to-end overload safety therefore remains
-open, even though outgoing saturation/retry and fiber exhaustion now have
-explicit behavior. General shutdown/timeout retirement remains B4 work.
+Incoming admission now uses [opaque reply contexts](reply-contexts.md), reserving
+a slot before host dispatch. Full capacity generates a best-effort hardware
+`SYSTEM_ERR`, never an overwrite; replies retire their contexts. A bounded
+rejection queue drops excess error replies rather than blocking RX progress.
+Matched-hardware overload validation and general shutdown/timeout retirement
+remain open.
 
 The broader original proposal remains useful for future extensions: validity,
 code, optional detail/cookie and results for invalid, unsupported, route or
@@ -109,7 +111,7 @@ tuple routing. Public arbitrary nested callbacks are removed. Forwarding relays
 replies locally without retaining the parent fiber; direct downstream-to-client
 reply routing is not implemented.
 
-Remaining work includes incoming server-session admission, cancellation,
+Remaining work includes matched-hardware admission validation, cancellation,
 shutdown, abnormal-exit recovery and multi-process overload validation. Endpoint
 timeouts conservatively retain reservations until verified retirement/reset.
 [Service-owned events/timers and resident applications](service-execution-design.md)

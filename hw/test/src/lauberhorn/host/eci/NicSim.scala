@@ -2,7 +2,7 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
-import jsteward.blocks.misc.sim.IntRicherEndianAware
+import jsteward.blocks.misc.sim.{IntRicherEndianAware, BigIntRicher}
 import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.sim._
@@ -45,6 +45,20 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName(getClass.getSimpleName)
     .compile(lauberhorn.GenEngineVerilog.engine(numWorkerCores, "eci"))
+
+  private val contextReadMutex = SimMutex()
+  // Test/debug readback only: the managed application has no metadata query API.
+  def requestXid(csr: AxiLite4Master, token: BigInt): Int = {
+    contextReadMutex.lock()
+    val regs = ALLOC.readBack("OncRpcReplyEncoder")
+    csr.write(regs("stat", "context_read_idx"), (token.toInt & (NUM_SESSIONS.get - 1)).toBytesLE)
+    val active = csr.read(regs("stat", "context_active"), 8).bytesToBigInt
+    val actual = csr.read(regs("stat", "context_token"), 8).bytesToBigInt
+    assert(active == 1 && actual == token, s"invalid live context $token: $active/$actual")
+    val xid = csr.read(regs("stat", "context_xid"), 8).bytesToBigInt.toInt
+    contextReadMutex.unlock()
+    xid
+  }
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val eciIf = dut.host[EciInterfacePlugin].logic.get

@@ -85,3 +85,9 @@ and four ELF entries for Dandelion). Native runtime tests and three nested RTL
 simulations passed, as did the server/bypass simulation suites. Logs are under
 ignored `out/b3-20260917/`. These dirty-tree builds do not establish a deployable
 checkpoint pair; no board campaign or composition execution on hardware ran.
+
+The request-context follow-up changes the handler's third argument from a wire
+XID to an opaque 32-bit context token. Dandelion ignores it; client messages and
+BJSON envelopes are unchanged. Hardware retains the wire XID and UDP reply
+address. Possible client-metadata query APIs are documented in
+[reply contexts](../../../docs/software/reply-contexts.md), not implemented.
