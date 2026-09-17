@@ -11,6 +11,8 @@ let
   };
   target = pkgs.pkgsCross.aarch64-multiplatform;
   crossGcc = target.buildPackages.gcc;
+  deploymentTarget = import inputs.nixpkgs { system = "aarch64-linux"; };
+  staticShell = pkgs.callPackage ./hardware/static-shell.nix { };
   mackerel = inputs.mackerel.packages.${pkgs.stdenv.buildPlatform.system}.mackerel2;
   kernelRelease = "6.8.0-64-generic";
   linuxTools = with pkgs; [
@@ -76,12 +78,7 @@ let
         })
       )
       {
-        microbenchmarks = callPackage ./applications/microbenchmarks.nix {
-          src = sources.c [
-            "sw/apps/microbenchmarks"
-            "sw/usr-common.mk"
-          ];
-        };
+        microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
       }
     // {
@@ -105,7 +102,7 @@ let
     source = inputs.dandelion;
   };
   deployment = pkgs.callPackage ./images/default.nix {
-    target = import inputs.nixpkgs { system = "aarch64-linux"; };
+    target = deploymentTarget;
     inherit
       kmod
       runtime
@@ -142,7 +139,7 @@ in
     };
   };
   eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
-    inherit genVerilog;
+    inherit genVerilog staticShell;
     source = sources.vivado;
     gitRev = identity.revision;
   };
@@ -158,11 +155,14 @@ in
     runtimeInterface = applications.nix-build-demo;
   };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
+  ciDependencies = import ./ci/dependencies.nix {
+    inherit pkgs kernel staticShell;
+    crossPkgs = target;
+    deploymentPackages = import ./interactive/dependencies.nix { target = deploymentTarget; };
+  };
   ciEnvironment = pkgs.callPackage ./ci/environment.nix {
     shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
     inherit linuxTools;
     ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
-    targetTirpc = target.libtirpc;
-    ciBuild = (import ./ci { inherit pkgs; }).ciBuild;
   };
 }

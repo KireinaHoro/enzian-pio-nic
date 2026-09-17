@@ -16,6 +16,44 @@ mul and Sven's standalone adder each passed 100 calls from a second Enzian;
 one Dandelion 1×1 matmul invocation passed. These results do not establish
 nested completion, clean shutdown, startup reliability or composition support.
 
+## Status after master refresh — 2026-09-17
+
+Master `685b1f4` adds CI image/dependency maintenance, native-host deployment
+helper construction, shared reachable Vivado license defaults, application recipe
+placement and the blocks trace-DMA reset-startup test fix. It does not change
+this branch's nested runtime, kernel endpoint implementation or datapath RTL;
+none of B1–B6 is closed by this merge. Timing candidates remain on their separate
+branches, as recorded in the [physical experiment ledger](../hardware/physical-experiments.md).
+
+The September 16 integration `f827a73` removed the app-contract packaging gap:
+Dandelion and its explicitly selected interactive test harness use installed
+assets, wrapped entry points, configurable writable state, and shared deployment
+images. Both images and their extracted closures passed packaging validation;
+see the [package validation record](../../sw/apps/dandelion/README.md).
+This is not current-batch board evidence.
+
+| Blocker | Remaining work |
+| --- | --- |
+| B1 | Validate repaired/aligned descriptors and host/wire byte order on a matching new checkpoint. |
+| B2 | Validate registered remote endpoints, completion routing and internal loopback on hardware; overload progress remains unvalidated. |
+| B3 | Close admission/error handling, including dropped requests on handler-fiber exhaustion; accept both futures and callbacks on hardware. |
+| B4 | Implement and verify reliable shutdown, cancellation and resource reuse; timeout progress while blocked in RX remains unresolved. |
+| B5 | Diagnose intermittent module-load external aborts and demonstrate repeated reliable startup. |
+| B6 | Verify actual isolated-worker CPU placement and run single functions, DAGs, sharding and concurrent nested compositions. |
+
+Per-request CSV tracing and hardware in-flight capacity/backpressure/timeout
+retirement remain pre-merge requirements. Prioritize B3 admission and B4 lifecycle
+work before the bundled checkpoint campaign; investigate B5 separately. The old
+checkpoint 2812450 still cannot validate this branch's new ABI.
+
+Merge validation: `runtimeTests`, `checks.x86_64-linux.runtime-interface` and
+`checks.x86_64-linux.trace-tests` built successfully (five DMA plus seven dump
+cases). Interactive/workflow helper checks were satisfied from the Nix cache.
+Dandelion, both deployment images and `ciDependencies` evaluated successfully;
+images were not rebuilt in this refresh. Evidence: ignored
+`out/master-refresh-20260917/{checks.log,outputs.json}`. No implementation or
+board run was launched; the merge is pushed with `ci.skip`.
+
 ## B1 — Nested descriptor truncation and wire byte order
 
 **Update, 2026-09-13: compiler repair and ECI ABI cleanup implemented.**

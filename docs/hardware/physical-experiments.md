@@ -1,5 +1,224 @@
 # Physical implementation experiments — 2026-09-10
 
+## Combined CI failure and recovery — September 17
+
+Initial combined revision `820da59`, pipeline 511830, never reached hardware:
+`blocks-tests` job 2832734 failed the trace DMA “writes events to DRAM” test.
+All other regression gates, including toolkit RX, passed. The missing physical
+metadata error in report job 2832743 was consequential.
+
+The recorded seed reproduces a test-startup overflow: stimulus accumulates during
+synchronous reset. Blocks fix `cc4b0a5` waits for reset-qualified sampling before
+producers start, retaining traffic generation and all loss/data assertions.
+It changes no RTL and is published only on private dependency branch
+`fix/20260917-blocks-trace-dma-test`. The complete five-test DMA suite passed with
+the failing seed and three additional seeds (20 cases total). See the
+[validation note](../development/validation.md#trace-dma-reset-startup-regression-september-17).
+Failure, instrumented reproduction and fixed-run logs are retained under
+`out/physical/combined-20260917/dma-fix/`. The replacement run retains the same
+TX placement, RX pipeline and static shell; revision CSR constants still change.
+
+
+The full committed Nix blocks gate also passed (17 tests). Replacement revision
+`f6516f4` was submitted as [pipeline 511864](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511864), hardware job 2833087.
+Initial snapshot: prerequisite checks running, hardware awaiting prerequisites.
+The exact same revision's Nix bundle was staged and launched on ba2 via
+`lh-timing-combined-20260917.service`. Inputs:
+`/tmp/lh-timing-inputs-20260917-combined`; outputs:
+`/tmp/lh-timing-local-20260917-combined`; console and exit status use that output
+prefix with `.console.log` and `.exit-status`. No timing result exists yet.
+The new manifest is `out/physical/combined-20260917/cases.json`; the failed
+submission is preserved in `cases-first-submission.json`. Collect once on
+completion notification; no CI polling loop was launched. The test-only fix
+was adopted on master; the TX/RX experiment and toolkit feature remain unmerged.
+
+
+## September 17: combined TX placement and RX pipeline
+
+Branch `timing/20260917-tx-rx-combined` starts from RX candidate `eeeabf4`
+and adds the exact TX floorplan from `abe57e4`. Both CI infrastructure fixes
+(native deployment-script construction and shared Vivado license defaults) are
+retained. No additional toolkit RTL changes are introduced: dependency `c92f0d9`
+remains on its separate private feature branch, pending toolkit-owner approval.
+The combined candidate remains unmerged and uses the unchanged static shell.
+
+Both original local Nix/Docker runs completed through bitstream generation with
+exit zero. TX (`c4174e5`) reports WNS/TNS −0.122/−75.192 ns and 1,660 failing
+setup endpoints. RX (`720bd1b`) reports −0.066/−16.698 ns and 585 failing setup
+endpoints. Both have zero hold/pulse failures and identical CDC diagnostic
+counts; RX's reported minimum hold slack is 0.000 ns. Neither closes setup.
+These are independent candidates with different embedded revision constants;
+their improvements cannot be assumed additive or reproducible.
+
+The combined CI run retains the RX VHDL prerequisite and existing regression
+checks. Collect its routed setup/hold/pulse, clock, CDC and routing reports before
+judging improvement. Local evidence is under
+`out/physical/resume-20260916/local-{tx,rx}/`; combined submission metadata is
+under `out/physical/combined-20260917/`. No board test is implied.
+
+
+Submitted revision `820da59`: [pipeline 511830](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511830), hardware job 2832742. Initial snapshot: regression checks running, hardware awaiting prerequisites; no failures. Nix RX regression check passed locally before submission.
+
+
+## Active campaign: September 16 ECI TX/RX candidates
+
+Timing work resumed from master `2890f3c` after the Nix refactor. The maintainer
+requested actual candidates through both local Nix/Docker builds and CI; the
+previously proposed identical-input baseline repeats were canceled. One baseline
+attempt stopped during project/IP creation and supplies no timing evidence.
+
+| Candidate | Platform branch / commit | CI pipeline / hardware job |
+| --- | --- | --- |
+| TX placement | `timing/20260916-tx-placement` / `abe57e4` | [511729](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511729) / 2832030 |
+| RX elastic stage | `timing/20260916-rx-elastic` / `eeeabf4` | [511730](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511730) / 2832041 |
+
+Both candidates remain **unmerged**. Both local runs completed; see the September 17 results above.
+No new board result is available. Static-shell v0.1.5 and its DCP remain unchanged.
+The September 15 reports below remain the historical comparison baseline.
+
+### First local result and CI packaging recovery
+
+The canonical Nix/Docker flow completed synthesis, implementation, bitstream/LTX
+creation and COMPLETE checkpoint reports for TX revision `c4174e5`, exiting zero.
+Its completion event started the local RX run at original revision `720bd1b`.
+
+| Local TX result | Value |
+| --- | ---: |
+| WNS / TNS | −0.122 / −75.192 ns |
+| Failing setup endpoints | 1,660 |
+| WHS / failing hold endpoints | +0.003 ns / 0 |
+| WPWS / failing pulse endpoints | +0.039 ns / 0 |
+| Routing errors | 0 |
+| Application-clock / trace TX slack | +0.042 / +0.344 ns |
+
+Compared with job 2824643, WNS improves 0.083 ns and |TNS| falls 75.4%, but this
+is a single implementation with different embedded commit constants. **Setup
+closure is not achieved.** Worst sampled paths are RX FIFO/control at −0.122 ns,
+TX crossbar input high/low classification to arbitration mask at −0.121 ns,
+and crossbar-to-credit-buffer data/enable paths at −0.119/−0.116 ns. RX pipelining
+alone may therefore leave TX arbitration/credit paths critical.
+
+A completed, bounded query of all four output-buffer-to-static-transport families
+confirms positive setup slack: link 1 high/low **+0.247/+0.109 ns**, link 2 high/low
+**+0.061/+0.131 ns**. This verifies that the targeted boundary paths pass in this
+implementation, rather than inferring it from their absence in the global sample.
+Reports: `out/physical/resume-20260916/local-tx/tx-boundary-results/`.
+CDC diagnostic counts exactly match job 2824643; they remain structural findings,
+not proof of CDC correctness.
+
+The first CI pipelines (511631/511633) passed every regression gate, including
+RX VHDL, but failed deployment preparation in jobs 2831283/2831304: the script-only
+`lh-test` derivation incorrectly required an AArch64 builder. Their hardware jobs
+were skipped; report-job missing-artifact errors were consequential. Fix
+`f98e23c` writes the script on x86_64 while retaining the AArch64 interpreter and
+runtime packages, and asserts the builder architecture during evaluation. The
+full local image build and 3,497-link/ELF checks passed; the helper's x86_64
+builder and AArch64 Bash were inspected explicitly. See the [CI note](../development/ci.md#deployment-script-builder-architecture).
+
+The table above records the latest CI submissions with both packaging and license fixes.
+Local inputs remain their original candidate revisions; no local PnR was restarted.
+Consequently local and replacement-CI RTL are **not identical-input repeats**:
+the new commit changes embedded CSR constants despite unchanged timing source.
+Keep that limitation when assessing reproducibility. Exact original/replacement
+manifests and failed logs are under `out/physical/resume-20260916/`.
+
+### Second CI failure: license endpoint, now corrected
+
+Pipelines 511715/511716 passed every test and deployment preparation, confirming
+the packaging fix. Vivado synthesis then failed on ba1/ba4 in jobs 2831913/2831924
+with `Common 17-345` (no Synthesis/xcvu9p license); no routed checkpoint exists.
+The report-job failures are secondary, not additional timing failures.
+
+The pinned image's only license server, `2100@hacc-lic-01.inf.ethz.ch`, failed a
+read-only connection check. Local Docker inherited the host's longer license
+search path, including the working `8181@lic-xilinx.ethz.ch` server. Fix `98921da`
+sets a shared CI/local default with ETH first and HACC as fallback, while honoring
+explicit host overrides. It passed the Nix workflow check (ShellCheck and 12
+tests) and a real xcvu9p synthesis in a fresh bridge-network container using the
+pinned image, with `LICENSE_SYNTHESIS_PASS` and exit zero. See the
+[license recovery note](../development/ci.md#license-server-recovery-september-16).
+
+The table now lists the resubmissions with this fix. `cases-packaging-relaunch.json`
+preserves the previous revisions; the active `cases.json` drives the existing
+04:31 CEST one-shot collector. Local RX remains running and was not restarted.
+No RTL, toolkit, static shell, license files or runner configuration changed for
+this recovery. Toolkit-owner approval remains outstanding.
+
+### TX candidate and completed checks
+
+Read-only Vivado 2025.1 analysis on ba2 of job 2824643 confirms link 1's fixed
+transport endpoints around SLICE_X148Y464 and link 2's around SLICE_X149Y537.
+Only the four application output buffers are constrained: link 1 to
+X120–141/Y450–509; link 2 to X120–141/Y510–539 plus X120–168/Y540–559.
+Vivado found 1320/1520 slice sites, **zero sites outside the dynamic partition and
+zero static cells** in either candidate region. The buffer resources require
+353/371 LUTs and 1320/1336 registers respectively. These checks establish legal
+placement scope, not QoR improvement; upstream credit/ready paths must also be
+checked after routing. TX does not modify eci-toolkit.
+
+### RX candidate and toolkit ownership
+
+Toolkit branch `timing/20260916-rx-elastic` contains prerequisite regression
+commit `c60ca71` and pipeline commit `c92f0d9`, based on `9dd94de`. Toolkit master
+is untouched. For CI access, the commits are retained only in the **private
+platform project**, branch `timing/20260916-eci-toolkit-rx-elastic`; the platform
+RX experiment temporarily points its toolkit submodule URL there. Nothing was
+pushed to the colleague-owned toolkit remote. **Owner approval is required before
+adopting these toolkit changes into platform master.** Preserve the branches for
+that review, regardless of timing outcome.
+
+The BRAM-mode extractor registers all three words, size, length and valid between
+the six-to-three split and packetizer. The split advances on elastic-stage
+acceptance; stalled records remain stable. Receive credits remain tied to
+downstream channel consumption. Low-latency mode keeps its existing bypass.
+
+The focused GHDL regression passed on both unpipelined and pipelined extractors:
+8 cases, VCs 2–5, two seeds, 288 messages per case, all nonempty normal-message
+masks, CAS traffic, sparse lanes, sustained arrivals, credit-window stalls,
+random/long backpressure, data/metadata order, stable outputs and exact credit
+counts. The Nix `eci-toolkit-rx` check also passed and gates this candidate's CI.
+The FIFO model validates protocol behavior, not vendor XPM timing/CDC; Vivado
+still elaborates the unchanged vendor FIFO.
+
+The prerequisite range correction allows `buf_copy_start=3` when count=0; it
+performs no indexed read and retains the same two-bit width. Tests separately
+reproduce a **pre-existing RSTP packetizer failure**, whose repair is deferred to
+the owner. Low-latency GHDL elaboration has a pre-existing unresolved-driver issue;
+that mode is not claimed as tested. Details and reproducers are in the toolkit
+feature branch's `tests/rx/README.md`.
+
+### Local Docker runs and collection
+
+Both clean candidate bundles built through Nix. On ba2:
+
+- TX inputs `/tmp/lh-timing-inputs-20260916-tx`, output
+  `/tmp/lh-timing-local-20260916-tx`, service `lh-timing-tx-20260916.service`;
+  the canonical Docker runner completed and returned exit status zero.
+- RX inputs `/tmp/lh-timing-inputs-20260916-rx`, output
+  `/tmp/lh-timing-local-20260916-rx`. The event-based
+  `lh-timing-rx-20260916.path` starts its service when TX writes its exit-status
+  file; RX is now running. Local runs are sequential to limit memory contention with CI.
+- Each uses its original committed candidate input revision, the pinned
+  Docker image and Vivado 2025.1. The local runner retains build exit status and
+  invokes checkpoint reporting after routing. Compare local versus replacement CI results
+  with the revision/CSR caveat above; do not confuse these with baseline repeats.
+
+Evidence and exact CI manifest: `out/physical/resume-20260916/`. The initial
+snapshot found TX running and RX pending, without failed jobs; hardware jobs
+were still waiting on prerequisites. No CI polling loop was started.
+`lh-timing-collect-20260916.timer` was stopped after the CI failures. Replacement
+`lh-timing-collect-20260916-relaunch1.timer` on the development host collects once
+at **September 17, 04:31 CEST**, using `collect-once.sh` in that evidence directory.
+It fetches CI archives and local reports, then generates digests. A notification
+can justify an earlier manual collection. The timer does not wake an LLM session
+or submit another experiment; pending jobs are left pending.
+
+Next: read all four report digests, compare setup/hold/pulse width, routing,
+clock/path families and CDC. If each isolated change helps its intended family,
+prepare a combined experimental branch; keep toolkit-owner approval outstanding.
+Reliable closure requires clean routed results across the relevant runs, not a
+successful CI status or one improved global WNS. Board validation remains later.
+
 ## Resume point: PnR/QoR work deferred for Nix refactoring
 
 Updated 2026-09-15. The Nix packaging/shared interactive-test prerequisite is

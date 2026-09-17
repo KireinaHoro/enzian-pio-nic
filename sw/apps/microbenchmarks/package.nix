@@ -1,6 +1,6 @@
 {
   stdenv,
-  src,
+  lib,
   lauberhornRuntime,
   pkg-config,
   rpcsvc-proto,
@@ -8,7 +8,14 @@
 stdenv.mkDerivation {
   pname = "lauberhorn-app-microbenchmarks";
   version = "0.0.1";
-  inherit src;
+  # Keep the shared Makefile at its expected relative path, excluding outputs.
+  src = (import ../../../nix/sources.nix {
+    inherit lib;
+    root = ../../..;
+  }).c [
+    "sw/apps/microbenchmarks"
+    "sw/usr-common.mk"
+  ];
   nativeBuildInputs = [
     pkg-config
     rpcsvc-proto
