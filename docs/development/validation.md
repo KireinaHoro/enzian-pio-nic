@@ -65,3 +65,18 @@ Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src
 
 For routed checkpoint analysis and source-level timing closure, use the
 [physical implementation guide](../hardware/physical-implementation.md).
+
+### Trace DMA reset-startup regression (September 17)
+
+Combined timing pipeline 511830 failed `TraceBufferDMATests`'s “writes events to
+DRAM” case with setup seed −383376567 and simulation seed −348068956.
+The shared `sleepCycles` waits for clock edges, including synchronous-reset
+edges. Setup returned after ten edges while the stimulus reset lasts sixteen
+cycles; producers accumulated batches before the FlowDrivers began sampling.
+A local instrumented reproduction observed capture occupancy 4 and overflow.
+The blocks test fix waits for ten reset-qualified sampling cycles instead,
+leaving RTL, traffic generation and all data/loss assertions unchanged.
+
+The fixture seeds Scala's RNG; Spinal derives its default simulator seed from
+that RNG (1193543006 for this reproducer). The printed fixture seed is therefore
+not the simulator's displayed seed. No seed-handling change was required.
