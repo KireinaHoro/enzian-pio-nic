@@ -171,3 +171,25 @@ foreach {region instances} [list \
         add_cells_to_pblock $region $cells
     }
 }
+
+# Keep each link's final application TX buffers beside its fixed static TLK.
+# Link 1 ends near X148:Y464; link 2 near X149:Y537 (routed job 2824643).
+# Stay west of static CLOCKREGION_X5Y6:Y8 / link2 TLK X142:Y510..539.
+# The upper link2 extension is dynamic CLOCKREGION_Y9. Do not constrain the
+# whole gateway: its RX crossbar and DCS crossings have different consumers.
+foreach {link ranges} {
+    1 {SLICE_X120Y450:SLICE_X141Y509}
+    2 {SLICE_X120Y510:SLICE_X141Y539 SLICE_X120Y540:SLICE_X168Y559}
+} {
+    set region [create_pblock pblock_eci_tx_link${link}]
+    resize_pblock $region -add $ranges
+    foreach vc {hi lo} {
+        set instance i_app/i_eci_gateway/link${link}_out_${vc}_buffer
+        set cells [get_cells -hierarchical -filter "NAME == $instance || NAME =~ $instance/*"]
+        if {[llength $cells] == 0} {
+            error "ECI TX floorplan selector matched no cells: $instance"
+        }
+        puts "ECI_TX_FLOORPLAN $instance $region [llength $cells]"
+        add_cells_to_pblock $region $cells
+    }
+}
