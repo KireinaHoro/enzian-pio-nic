@@ -1,5 +1,41 @@
 # Physical implementation experiments — 2026-09-10
 
+## Round 2 first CI collection — September 17
+
+One collection after the maintainer requested pipelines 511987–511990:
+
+| Pipeline | Candidate | Hardware / reporting status | WNS ns | TNS ns | Failing setup endpoints |
+| --- | --- | --- | ---: | ---: | ---: |
+| 511987 | DCS placement | hardware 2833774 success; report 2833775 failed | -0.101 | -38.321 | 993 |
+| 511988 | Low-VC RX | hardware 2833785 success; report 2833786 failed | -0.052 | -4.166 | 262 |
+| 511989 | All increments | hardware 2833796 and pipeline success | -0.460 | -360.504 | 3437 |
+| 511990 | TX refinement | hardware 2833807 still running | pending | pending | pending |
+
+Both failed report jobs stopped before their scripts on ba7: registry connection
+refused / authentication endpoint HTTP 502 while pulling the pinned Nix image.
+These are registry availability failures, not missing hardware reports or the
+previous `when: always` scheduling problem. Hardware artifacts contain COMPLETE
+physical reports; the collector successfully generated their summaries locally.
+Only report-job retries are needed to repair those pipeline statuses.
+
+Previous combined CI `f6516f4` was WNS -0.057 ns, TNS -7.584 ns, 426 failing
+endpoints. Low-VC-only is the most promising completed increment: clk_sys is
+-0.039 ns, while a 34-level RX-clock ILA path sets global WNS -0.052 ns. DCS-only
+regresses global timing, dominated by TX crossbar-to-credit logic at -0.101 ns.
+All increments together regress substantially: trace DMA valid-to-frame-FIFO
+BRAM is -0.460 ns (25 logic levels), with ILA and NIC decode paths also failing
+on the application clock; clk_sys is -0.059 ns. Do not promote this combination
+or attribute the regression to one increment before the pending TX result and
+local comparisons. These are single implementations with distinct revision CSRs.
+
+All three completed candidates have zero failing hold/pulse endpoints and zero
+routing errors. WHS is +0.001 / 0.000 / 0.000 ns respectively. CDC diagnostic
+counts match the previous baseline except CDC-26 drops 1971→1966 in candidates
+with low-VC isolation; this is not a CDC correctness claim. Reports and failed
+job logs are under `out/physical/round2-20260917/ci/`. No new hardware runs or
+retries were launched by this status check.
+
+
 ## Round 2 ablations and combination — September 17
 
 The maintainer requested individual next changes and their combination in the
