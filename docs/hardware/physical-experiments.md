@@ -1,5 +1,38 @@
 # Physical implementation experiments — 2026-09-10
 
+## Combined CI failure and recovery — September 17
+
+Initial combined revision `820da59`, pipeline 511830, never reached hardware:
+`blocks-tests` job 2832734 failed the trace DMA “writes events to DRAM” test.
+All other regression gates, including toolkit RX, passed. The missing physical
+metadata error in report job 2832743 was consequential.
+
+The recorded seed reproduces a test-startup overflow: stimulus accumulates during
+synchronous reset. Blocks fix `cc4b0a5` waits for reset-qualified sampling before
+producers start, retaining traffic generation and all loss/data assertions.
+It changes no RTL and is published only on private dependency branch
+`fix/20260917-blocks-trace-dma-test`. The complete five-test DMA suite passed with
+the failing seed and three additional seeds (20 cases total). See the
+[validation note](../development/validation.md#trace-dma-reset-startup-regression-september-17).
+Failure, instrumented reproduction and fixed-run logs are retained under
+`out/physical/combined-20260917/dma-fix/`. The replacement run retains the same
+TX placement, RX pipeline and static shell; revision CSR constants still change.
+
+
+The full committed Nix blocks gate also passed (17 tests). Replacement revision
+`f6516f4` was submitted as [pipeline 511864](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/511864), hardware job 2833087.
+Initial snapshot: prerequisite checks running, hardware awaiting prerequisites.
+The exact same revision's Nix bundle was staged and launched on ba2 via
+`lh-timing-combined-20260917.service`. Inputs:
+`/tmp/lh-timing-inputs-20260917-combined`; outputs:
+`/tmp/lh-timing-local-20260917-combined`; console and exit status use that output
+prefix with `.console.log` and `.exit-status`. No timing result exists yet.
+The new manifest is `out/physical/combined-20260917/cases.json`; the failed
+submission is preserved in `cases-first-submission.json`. Collect once on
+completion notification; no CI polling loop was launched. The test-only fix
+was adopted on master; the TX/RX experiment and toolkit feature remain unmerged.
+
+
 ## September 17: combined TX placement and RX pipeline
 
 Branch `timing/20260917-tx-rx-combined` starts from RX candidate `eeeabf4`
