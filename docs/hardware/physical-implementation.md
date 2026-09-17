@@ -7,14 +7,12 @@ measured paths from possible explanations of board failures.
 
 ## Current work order and partition scope
 
-PnR/QoR work resumed September 16 after the Nix refactor. See the
-[active TX/RX campaign](physical-experiments.md#active-campaign-september-16-eci-txrx-candidates)
-for branches, local Docker/CI runs and pending toolkit-owner approval. The
-[saved resume point](physical-experiments.md#resume-point-pnrqor-work-deferred-for-nix-refactoring)
-retains the measured baseline and ranked experiments. The first changes
-are application/dynamic only: gateway TX placement, RX elastic pipelining and
-secondary NIC timing. Static transport endpoints remain fixed; rebuilding or
-editing the static shell is outside this first experiment scope.
+PnR/QoR work is paused after the September 17 consolidation. See the
+[closeout](physical-experiments.md#paused-after-consolidation--september-17)
+for the selected TX/high-VC RX configuration, exact measured revision,
+remaining 17 failing endpoints and unmerged experiments. The application-only
+scope still excludes static-shell changes. Resume only when requested; the
+existing local batch may finish without extending the campaign.
 
 ## Small-context analysis loop
 

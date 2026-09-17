@@ -305,3 +305,12 @@ restart an expensive hardware build solely to apply this scheduling change.
 See GitLab's [job run conditions](https://docs.gitlab.com/ci/yaml/#when),
 [artifact dependencies](https://docs.gitlab.com/ci/yaml/#needsartifacts), and
 [job retries](https://docs.gitlab.com/ci/jobs/#retry-jobs).
+
+### ECI toolkit RX regression gate
+
+`eci-toolkit-rx` is a Nix/GHDL check and a prerequisite of `prepare-eci`.
+It runs the high-VC pipeline's eight directed/random-stall comparison cases
+from the pinned private toolkit feature commit. This does not validate physical
+timing or board behavior. Low-VC staging and its additional tests remain on the
+unmerged experiment branch. See the [timing closeout](../hardware/physical-experiments.md#paused-after-consolidation--september-17)
+for the private pin and outstanding upstream owner review.

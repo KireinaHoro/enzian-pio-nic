@@ -4,6 +4,7 @@
   ivyCache,
   replayPcaps,
   runtimeInterface,
+  eciToolkit,
 }:
 let
   check =
@@ -21,6 +22,7 @@ in
 {
   workflow-tools = pkgs.callPackage ./workflow-tools.nix { };
   interactive = pkgs.callPackage ./interactive.nix { };
+  eci-toolkit-rx = pkgs.callPackage ./eci-toolkit-rx.nix { inherit eciToolkit; };
   trace-fifo-tests = pkgs.callPackage ./trace-fifo.nix { inherit src; };
   fast-tests-eci = check "fast-tests-eci" ''
     mill --no-daemon --offline gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci

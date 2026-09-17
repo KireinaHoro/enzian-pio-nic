@@ -51,6 +51,9 @@ trace-tests:
 trace-fifo-tests:
   extends: .test-nix
 
+eci-toolkit-rx:
+  extends: .test-nix
+
 workflow-tools:
   extends: .test-nix
 
@@ -71,6 +74,8 @@ prepare-eci:
     - job: trace-tests
       artifacts: false
     - job: trace-fifo-tests
+      artifacts: false
+    - job: eci-toolkit-rx
       artifacts: false
     - job: workflow-tools
       artifacts: false

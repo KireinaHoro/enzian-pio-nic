@@ -171,3 +171,30 @@ foreach {region instances} [list \
         add_cells_to_pblock $region $cells
     }
 }
+
+# Keep each link's final application TX buffers beside its fixed static TLK.
+# Link 1 ends near X148:Y464; link 2 near X149:Y537 (routed job 2824643).
+# Stay west of static CLOCKREGION_X5Y6:Y8 / link2 TLK X142:Y510..539.
+# The refined link2 region also reaches south toward the static size decode.
+# Do not constrain the whole gateway: RX and DCS have different consumers.
+foreach {link ranges} {
+    1 {SLICE_X120Y450:SLICE_X141Y509}
+    2 {SLICE_X128Y480:SLICE_X141Y539}
+} {
+    set region [create_pblock pblock_eci_tx_link${link}]
+    resize_pblock $region -add $ranges
+    foreach vc {hi lo} {
+        set instance i_app/i_eci_gateway/link${link}_out_${vc}_buffer
+        set cells [get_cells -hierarchical -filter "NAME == $instance || NAME =~ $instance/*"]
+        if {[llength $cells] == 0} {
+            error "ECI TX floorplan selector matched no cells: $instance"
+        }
+        puts "ECI_TX_FLOORPLAN $instance $region [llength $cells]"
+        add_cells_to_pblock $region $cells
+    }
+}
+
+# The combined CI's worst link2 path enters static size decode at X145Y498,
+# south of the previous region. Keep the link2 buffers west of that decode;
+# constrain the whole payload/size/valid set together, leaving the static shell.
+set_property IS_SOFT false [get_pblocks pblock_eci_tx_link2]
