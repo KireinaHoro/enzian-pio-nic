@@ -36,8 +36,9 @@ Futures and forwards share transport submission and generation-tagged matching,
 with different completion consumers. Arbitrary nested callbacks and callback
 retry states have been removed. Replies with nonzero accepted status bypass
 success decoding. Deferred handlers remain responsible for consuming every
-submitted future before returning; cancellation/abandoned future retirement is
-still B4 work.
+submitted future before returning. Explicit cancellation and timeout settlement
+now acknowledge outgoing hardware retirement. Ordinary handler return does not
+automatically consume abandoned futures; whole-process teardown reclaims transport ownership. Cancellation produces a result that must still be consumed.
 
 Both encoders receive explicit output capacities. XDR encoding uses this bound
 rather than the in-memory object size. Rust encoders receive a slice of exactly
@@ -61,14 +62,18 @@ Contexts retire when valid replies capture their routing metadata. See
 [reply contexts](reply-contexts.md). Exhausted fibers affect deferrals,
 not atomic inline handlers. Software admission errors and hardware rejection
 are explicit; downstream/coherence stalls are not universally time bounded.
-Timeout settlement does not prove hardware retirement and does not make an
-endpoint safe to destroy. Software completion-cookie generations retire before wrap; hardware incoming
-context generations wrap and are not an authentication mechanism. Shutdown, cancellation, abnormal exit and endpoint quarantine remain
-tracked in B4.
+Timeout/cancellation now request acknowledged hardware retirement before releasing
+endpoint ownership. Failed retirement and indeterminate submission still retain
+unresolved ownership. Software completion-cookie generations retire before wrap;
+hardware incoming context generations wrap and are not an authentication
+mechanism. Whole-process shutdown and abnormal-exit reclamation are implemented
+in source; matching-board acceptance remains tracked in B4.
 
 Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
-NACK timing lets an assigned worker regain control, but cannot activate a parked
-service or replace an application timer API. Runtime-managed Raft services and
+NACK timing lets an assigned worker regain control. An internal housekeeping
+thread requests hardware activation for expired calls even when the service is
+parked. It does not replace an application timer API. The optional execution
+watchdog and stop lifecycle are described in [process recovery](process-recovery.md). Runtime-managed Raft services and
 resident memcached workers are [documented follow-on designs](service-execution-design.md)
 only. Neither is implemented by this batch.
 

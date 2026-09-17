@@ -24,7 +24,8 @@ case class EciHostTxCtrlInfo() extends Bundle {
     val bypass = newElement(BypassBundle())
 
     case class OncRpcReplyTxBundle() extends Bundle {
-      val xb5 = Bits(5 bits)
+      val execution = Bits(2 bits) // end=1, begin=2, end/begin=3
+      val xb3 = Bits(3 bits)
       val status = Bits(8 bits) // byte aligned, no payload offset change
       val requestToken = Bits(32 bits)
       val xb64 = Bits(64 bits)
@@ -33,7 +34,8 @@ case class EciHostTxCtrlInfo() extends Bundle {
     val oncRpcReplyTx = newElement(OncRpcReplyTxBundle())
 
     case class OncRpcCallTxBundle() extends Bundle {
-      val xb13 = Bits(13 bits) /* make sure RPC fields are aligned */
+      val execution = Bits(2 bits)
+      val xb11 = Bits(11 bits) /* make sure RPC fields are aligned */
       val pid = PID()
       val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
       val cookie = Bits(32 bits)
@@ -55,6 +57,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
+      is (HostReqType.executionControl) { desc.buffer.size.bits := 0 }
       is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
         desc.buffer.size := len
@@ -107,10 +110,18 @@ object EciHostTxCtrlInfo {
          |  // hdr follows -- need to calculate address manually
          |};
          |
+         |datatype host_ctrl_info_execution_tx lsbfirst(64) "Local execution notification" {
+         |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "execution_control";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Must be zero";
+         |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
+         |  _         43 rsvd;
+         |};
+         |
          |datatype host_ctrl_info_onc_rpc_reply_tx lsbfirst(64) "ECI Host Control Info (ONC-RPC Server Reply TX)" {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload, including inlined bytes";
-         |  _         5 rsvd;
+         |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
+         |  _         3 rsvd;
          |  status    8 "ONC-RPC accept status (host order)";
          |  request_token 32 "Opaque incoming request context token";
          |  _         64 rsvd;
@@ -120,7 +131,8 @@ object EciHostTxCtrlInfo {
          |datatype host_ctrl_info_onc_rpc_call_tx lsbfirst(64) "ECI Host Control Info (ONC-RPC Nested Call TX)" {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of call args, including inlined bytes";
-         |  _         13 rsvd;
+         |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
+         |  _         11 rsvd;
          |  pid       ${PID_WIDTH.get} "Destination process for eventual reply completion";
          |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";

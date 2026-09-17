@@ -63,6 +63,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
   }
 
   val logic = during setup new Area {
+    val admission = Flow(PID())
     val udpHeader = Stream(UdpRxMeta())
     val udpPayload = Axi4Stream(macIf.axisConfig)
 
@@ -72,6 +73,11 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     // XXX: contents are in BIG ENDIAN (network)
     val serviceDb = LookupTable(OncRpcCallServiceDef(), NUM_SERVICES) { v =>
       v.enabled init False
+    }
+
+    val serviceEnabled = Vec.fill(NUM_SERVICES)(RegInit(False))
+    when(serviceDb.update.valid) {
+      serviceEnabled(serviceDb.update.idx) := serviceDb.update.value.enabled
     }
 
     val (dbLookup, dbResult, dbLat) = serviceDb.makePort(OncRpcCallServiceQuery(), OncRpcCallLookupUserData(),
@@ -108,7 +114,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
 
     // TODO: also drop malformed packets (e.g. payload too short)
     val replyEncoder = host[OncRpcReplyEncoder].logic
-    val drop = !dbResult.matched || !replyEncoder.contexts.io.available
+    val drop = !dbResult.matched || !serviceEnabled(dbResult.idx) || !replyEncoder.contexts.io.available
     dropped := dbResult.fire && drop
     val pldFilter = AxiStreamFilter(macIf.axisConfig)
 
@@ -152,6 +158,8 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       md.funcPtr := lr.value.funcPtr
       md.pid := lr.value.pid
     }
+    admission.valid := metadata.fire
+    admission.payload := metadata.pid
     when (metadata.fire) {
       nextRpcId := nextRpcId + 1
     }
@@ -163,6 +171,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     route.xid := dbResult.userData.hdr.xid
     replyEncoder.contexts.io.allocate.valid := dbResult.fire && !drop
     replyEncoder.contexts.io.allocate.payload := route
+    replyEncoder.contexts.io.allocateOwner := dbResult.value.pid.bits
     replyEncoder.reject.valid := dbResult.fire && dbResult.matched && !replyEncoder.contexts.io.available
     replyEncoder.reject.payload := route
   }

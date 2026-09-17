@@ -125,6 +125,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     var inCriticalRegion = false
 
     var canInterrupt = true
+    override def recordKill(): Unit = { super.recordKill(); inCriticalRegion = false }
 
     def switchToThreadImpl(threadDef: ThreadDef): Unit = {
       assert(!inCriticalRegion, s"core $cid in critical region of thread ${currThread.get.tid}, cannot switch!")

@@ -24,11 +24,13 @@ typedef enum {
   TY_ONCRPC_REPLY_TX,
   TY_ONCRPC_CALL_TX,
   TY_ONCRPC_REPLY_RX,
+  TY_EXECUTION_CONTROL,
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
 typedef struct {
   lauberhorn_pkt_desc_type_t type;
+  uint8_t execution; /* local interval end=1, begin=2, combined=3 */
   // transaction metadata (packet header, RPC session data, etc.)
   union {
     struct {
@@ -364,7 +366,15 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
 #else // ! __KERNEL__
+  case TY_EXECUTION_CONTROL:
+    lauberhorn_eci_host_ctrl_info_execution_tx_ty_insert(tx_ctrl, lauberhorn_eci_execution_control);
+    lauberhorn_eci_host_ctrl_info_execution_tx_len_insert(tx_ctrl, 0);
+    lauberhorn_eci_host_ctrl_info_execution_tx_execution_insert(tx_ctrl, desc->execution);
+    payload_len = 0;
+    break;
+
   case TY_ONCRPC_REPLY_TX:
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_execution_insert(tx_ctrl, desc->execution);
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
@@ -391,6 +401,7 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
   case TY_ONCRPC_CALL_TX:
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_insert(tx_ctrl, desc->execution);
     lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_call_tx);
 

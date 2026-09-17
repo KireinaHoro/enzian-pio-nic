@@ -112,18 +112,3 @@ static long deregister_endpoint(struct file_priv *fp, void __user *arg)
     release_endpoint(fp, i);
     return 0;
 }
-
-static void quarantine_endpoints(struct file_priv *fp)
-{
-    int i;
-    for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i) {
-        if (!fp->endpoints[i]) continue;
-        endpoint_listener(fp, fp->endpoints[i], false);
-        /* No proof of drain on close. Keep both Linux socket and FPGA slot
-         * reserved. Pin module so reload cannot discard the quarantine.
-         * B4 must provide verified reset/drain before reclamation. */
-        __module_get(THIS_MODULE);
-        pr_warn("Quarantined nested RPC port %u until system reset\n", fp->endpoints[i]->port);
-        fp->endpoints[i] = NULL;
-    }
-}

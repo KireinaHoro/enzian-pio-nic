@@ -7,6 +7,7 @@
 #include "lauberhorn_state.h"
 #include "log.h"
 #include "pending_call_table.h"
+#include "ioctl.h"
 
 #define CALL_CAPACITY (LAUBERHORN_MTU - 82)
 #define REPLY_CAPACITY (LAUBERHORN_MTU - 66)
@@ -31,6 +32,7 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     lauberhorn_worker_t w = worker_get_current();
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
+        .execution = worker_execution_take(w, true),
         .oncrpc_reply_tx = {.request_token = parent->oncrpc_call_rx.request_token,
                            .status = status}
     };
@@ -75,18 +77,32 @@ static struct pending_call *prepare_call(lauberhorn_rpc_endpoint_t *ep,
     return pc;
 }
 static void pending_call_settle(struct pending_call *, rpc_result_t *);
+/* The caller exclusively owns a FULFILLED slot while control retirement runs.
+ * A late completion cannot settle it again. Failure retains unresolved ownership
+ * for process cleanup rather than claiming hardware has released the operation. */
+static bool retire_call_hardware(struct pending_call *c) {
+    lauberhorn_retire_call_t cmd = {
+        .endpoint_handle = c->endpoint->_transport.handle,
+        .cookie = pending_call_generate_xid(c)
+    };
+    if (ioctl(c->endpoint->_transport.owner->fd, LAUBERHORN_IOCTL_RETIRE_CALL, &cmd))
+        return false;
+    c->hardware_done = true;
+    return true;
+}
 static int submit_call(struct pending_call *pc, int len) {
+    lauberhorn_worker_t w = worker_get_current();
     lauberhorn_rpc_endpoint_t *ep = pc->endpoint;
     uint32_t cookie = pending_call_generate_xid(pc);
     lauberhorn_pkt_desc_t desc = {
-        .type = TY_ONCRPC_CALL_TX, .payload_len = len,
+        .type = TY_ONCRPC_CALL_TX,
+        .execution = worker_execution_take(w, pc->kind == COMPLETION_FORWARD), .payload_len = len,
         .oncrpc_call_tx = {.xid = cookie, .cookie = cookie,
             .pid = ep->_transport.pid, .dport = ep->dport,
             .sport = ep->_transport.sport, .daddr = ep->_transport.daddr,
             .prog_num = ep->prog_num, .proc_num = ep->proc_num, .prog_ver = ep->prog_ver}
     };
     pending_call_arm_timeout(pc, 0);
-    lauberhorn_worker_t w = worker_get_current();
     int result = core_eci_tx(w->dp_base, &w->dp, &desc);
     if (result == CORE_TX_RETRY) {
         /* This proves no hardware reservation/packet exists. */
@@ -182,6 +198,9 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     return false;
 }
 static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+    // Hardware begins on incoming call delivery; completion RX alone does not
+    // imply a fiber resumed. Immediate inline-to-fiber deferral keeps this interval.
+    w->execution_active = w->ctx->_watchdog_enabled;
     struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
     struct request r = {.desc = *desc, .codec = &hw->srv->codec};
     r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
@@ -241,6 +260,8 @@ static bool rpc_call_try_timeout(struct pending_call *c, struct timespec *now) {
         atomic_store_explicit(&c->state, SLOT_FULFILLED, memory_order_relaxed);
         pthread_spin_unlock(&c->lock);
 
+        retire_call_hardware(c);
+
         rpc_result_t result = {
             .codec = NULL,
             .data = NULL,
@@ -252,6 +273,14 @@ static bool rpc_call_try_timeout(struct pending_call *c, struct timespec *now) {
     }
     pthread_spin_unlock(&c->lock);
     return false;
+}
+
+bool rpc_call_cancel(struct pending_call *c, uint32_t cookie) {
+    if (!pending_call_try_claim(c, cookie)) { errno = EALREADY; return false; }
+    bool retired = retire_call_hardware(c);
+    rpc_result_t result = {.code = retired ? LAUBERHORN_RPC_CANCELLED : LAUBERHORN_RPC_ERROR};
+    pending_call_settle(c, &result);
+    return retired;
 }
 
 void rpc_call_process_timeout() {

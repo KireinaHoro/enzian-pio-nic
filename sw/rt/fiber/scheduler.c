@@ -13,6 +13,11 @@ __thread struct fiber* current_fiber;
 __thread struct fiber* main_fiber;
 __thread struct fiber_queue ready_fiber_queue;
 
+static __thread void (*execution_begin)(void), (*execution_end)(void), (*execution_flush)(void);
+void fiber_sched_set_execution_hooks(void (*begin)(void), void (*end)(void), void (*flush)(void)) {
+    execution_begin = begin; execution_end = end; execution_flush = flush;
+}
+
 // global fiber pool
 static struct fiber_pool fiber_pool;
 static pthread_once_t fiber_pool_once = PTHREAD_ONCE_INIT;
@@ -70,7 +75,9 @@ static void sched_trampoline() {
 
 static void run_fiber(struct fiber *f) {
     vstate_set(&f->vstate, FIBER_RUNNING);
+    if (execution_begin) execution_begin();
     switch_to(f);
+    if (execution_end) execution_end();
 
     // check return state of fiber after it yields back
     switch (vstate_state(&f->vstate)) {
@@ -110,6 +117,7 @@ void fiber_sched_run_ready() {
   	while ((f = fiber_queue_pop(&ready_fiber_queue))) {
             run_fiber(f);
         }
+    if (execution_flush) execution_flush();
 }
 
 void fiber_prepare(struct fiber* f, void(*on_start)(void *ctx), void(*on_done)(void* ctx), void *ctx) {

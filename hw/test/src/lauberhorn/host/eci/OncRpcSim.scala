@@ -170,6 +170,65 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     assert(replies.size == 6)
   }
 
+  testWithDB("disabled-process-discards-free-reply-contexts")(Rx, Tx) { implicit dut =>
+    val (csr, input, _, _) = commonDutSetup(100000)
+    val occupancyRegs = PKT_BUF_ALLOC_SIZES.get.map { case (size, _) =>
+      val aligned = ((size - 64 + 127) / 128) * 128 + 64
+      ALLOC.readBack("dma")("stat", s"rxAllocOccupancy_upTo$aligned")
+    }
+    val initialFree = occupancyRegs.map(csr.read(_, 8).bytesToBigInt)
+    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    val service = RpcSrvDef.mkRandom
+    val process = mkRandomProc(1)
+    oncRpcCallPacketFactory(csr, Seq(process -> Seq(service)))
+    val sched = ALLOC.readBack("sched")
+    // Queue work without assigning a worker, then disable the process.
+    // The queued allocations must be returned, not just forgotten.
+    csr.write(sched("ctrl", "proc_maxThreads"), 0.toBytesLE)
+    csr.write(sched("ctrl", "proc_idx"), 1.toBytesLE)
+    for (i <- 1 to 8) {
+      val packet = fixedPeer(oncRpcCallPacket(30000, service.dport, service.prog,
+        service.progVer, service.procNum, List.fill(160)(i.toByte), i))
+      input.send(packet.getRawData.toList)
+    }
+    var pushed = BigInt(0)
+    while(pushed < 8) {
+      sleepCycles(20)
+      pushed = csr.read(sched("stat", "pushed"), 8).bytesToBigInt
+    }
+    csr.write(sched("ctrl", "proc_enabled"), 0.toBytesLE)
+    csr.write(sched("ctrl", "proc_idx"), 1.toBytesLE)
+    var reclaimed = BigInt(0)
+    while(reclaimed < 8) {
+      sleepCycles(20)
+      reclaimed = csr.read(sched("stat", "dropped"), 8).bytesToBigInt
+    }
+    // Service lookup can race process deregistration. The service still admits
+    // packets here, but the disabled process must never receive them.
+    for (i <- 1 to NUM_SESSIONS.get * 3) {
+      val payload = if (i % 2 == 0) List.fill(160)(i.toByte) else Nil
+      val packet = fixedPeer(oncRpcCallPacket(30000, service.dport, service.prog,
+        service.progVer, service.procNum, payload, i))
+      input.send(packet.getRawData.toList)
+      var dropped = BigInt(0)
+      while (dropped < i + 8) {
+        sleepCycles(20)
+        dropped = csr.read(sched("stat", "dropped"), 8).bytesToBigInt
+      }
+      assert(dropped == i + 8)
+    }
+    val contexts = ALLOC.readBack("OncRpcReplyEncoder")
+    for (i <- 0 until NUM_SESSIONS.get) {
+      csr.write(contexts("stat", "context_read_idx"), i.toBytesLE)
+      assert(csr.read(contexts("stat", "context_active"), 8).bytesToBigInt == 0)
+    }
+    assert(csr.read(contexts("stat", "sessTblFull"), 8).bytesToBigInt == 0)
+    assert(csr.read(sched("stat", "pushed"), 8).bytesToBigInt == 8)
+    sleepCycles(100)
+    assert(occupancyRegs.map(csr.read(_, 8).bytesToBigInt) == initialFree,
+      "disabled-process traffic leaked packet allocations")
+  }
+
   testWithDB("tx-rpc-inline-only-skips-dma")(Rx, Tx) { implicit dut =>
     val replyData = simRandom.nextBytes(16).toList
     val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-inline-only-skips-dma")
@@ -553,14 +612,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(allDone)
   }
 
-  testWithDB("rx-hol-blocking-free")(Rx) { implicit dut =>
+  ignore("rx-hol-blocking-free") { _ =>
     // This test checks that no HOL-blocking happens between RX of different worker
     // cores.  This is important since if HOL-blocking happens, the 2F2F state machine
     // won't even see a read that's blocked by another stall(-to-NACK) read, triggering
     // timeout for the blocked read easily.
 
     // Same requirements for wait-freedom apply as in rx-tx-interleave.
-    // TODO
+    pending // Unimplemented historical coverage, not a passing regression.
   }
 
   // FIXME: rework the address map (from Jasmin) and re-enable this for CI!
@@ -791,17 +850,114 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(pktsExpecting.sum == pktsReceived.sum)
   }
 
+  testWithDB("watchdog-suspend-resume-and-kill")(Rx) { implicit dut =>
+    SimTimeout(5000000000L)
+    val (csr, ingress, egress, dcs) = commonDutSetup(10000)
+    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    fork { egress.recv(); fail("execution control emitted a network packet") }
+    val process = mkRandomProc(1)
+    val (_, packet, _) = oncRpcCallPacketFactory(csr,
+      procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom))).head
+    val sched = ALLOC.readBack("sched")
+    csr.write(sched("ctrl", "watchdog_cycles"), 10000.toBytesLE)
+    csr.write(sched("ctrl", "watchdog_idx"), 1.toBytesLE)
+    val (request, _, _) = packet()
+    ingress.send(request.getRawData.toList)
+    val worker = workerCore(0)
+    worker.allowKill = true
+    worker.waitUser()
+    val tid = worker.currThread.get.tid
+    assert(tryReadPacketDesc(dcs, tid, exitCS = true).result.nonEmpty)
+    // No network packet is emitted by either notification. The normal ECI TX
+    // acknowledgement still proves that hardware applied the transition.
+    txSendSingle(dcs, TxExecutionSim(1), Nil, tid)
+    sleepCycles(20000)
+    assert(worker.killCount == 0 && worker.currThread.nonEmpty)
+    txSendSingle(dcs, TxExecutionSim(3), Nil, tid)
+    waitUntil(worker.currThread.isEmpty && !worker.inISR)
+    assert(worker.killCount == 1)
+    assert(csr.read(sched("stat", "watchdogControls_core1"), 8).bytesToBigInt == 2)
+    assert(csr.read(sched("stat", "watchdogExpirations_core1"), 8).bytesToBigInt == 1)
+    // A concurrent maxThreads/enable publication must not resurrect a killed
+    // lifetime before the kernel observes and completes whole-process recovery.
+    process.enableAt(1, csr)
+    csr.write(sched("ctrl", "wake_idx"), 1.toBytesLE)
+    val (lateRequest, _, _) = packet()
+    ingress.send(lateRequest.getRawData.toList)
+    sleepCycles(20000)
+    assert(worker.currThread.isEmpty && worker.killCount == 1)
+    // Only explicit configuration for a new, drained lifetime clears the latch.
+    csr.write(sched("ctrl", "watchdog_cycles"), 0.toBytesLE)
+    csr.write(sched("ctrl", "watchdog_idx"), 1.toBytesLE)
+    process.enableAt(1, csr)
+    csr.write(sched("ctrl", "wake_idx"), 1.toBytesLE)
+    worker.waitUser()
+    assert(worker.currThread.get.proc.pid == process.pid)
+  }
+
+  testWithDB("deadline-wake-without-network-traffic")(Rx) { implicit dut =>
+    SimTimeout(5000000000L)
+    val (csr, _, _, _) = commonDutSetup(10000)
+    val process = mkRandomProc(1)
+    oncRpcCallPacketFactory(csr, procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom)))
+    csr.write(ALLOC.readBack("sched")("ctrl", "wake_idx"), 1.toBytesLE)
+    val worker = workerCore(0)
+    worker.waitUser()
+    assert(worker.currThread.get.proc.pid == process.pid)
+  }
+
+  testWithDB("stop-active-process-and-reuse-worker")(Rx) { implicit dut =>
+    SimTimeout(5000000000L)
+    val (csr, ingress, egress, dcs) = commonDutSetup(10000)
+    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    fork { egress.recv(); fail("uncommitted TX emitted a network packet") }
+    val process = mkRandomProc(1)
+    val (_, packet, _) = oncRpcCallPacketFactory(csr,
+      procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom))).head
+    val worker = workerCore(0)
+    for(round <- 0 until 3) {
+      if(round != 0) process.enableAt(1, csr)
+      val (request, _, _) = packet()
+      ingress.send(request.getRawData.toList)
+      worker.waitUser()
+      val tid = worker.currThread.get.tid
+      worker.allowKill = round == 1
+      assert(tryReadPacketDesc(dcs, tid, exitCS = round != 1).result.nonEmpty)
+      // Round 1 also leaves BUSY high: independent critical-section timeout
+      // must report killed and drain while execution monitoring is disabled.
+      if(round == 2) {
+        assert(enterCriticalSection(dcs, tid))
+        val td = getEciThreadData(tid)
+        val txBase = td.baseAddr + ECI_TX_BASE.get
+        dcs.write(txBase + td.txNextCl * 0x80, List.fill(64)(0xff.toByte))
+        dcs.write(txBase + ECI_OVERFLOW_OFFSET, List.fill(128)(0xa5.toByte))
+        exitCriticalSection(dcs, tid)
+      }
+      // Handler has consumed RX but never replied and does not poll again.
+      // Stop must run without new traffic or RX-ready and retain mapping until drain.
+      csr.write(ALLOC.readBack("sched")("ctrl", "proc_enabled"), 0.toBytesLE)
+      csr.write(ALLOC.readBack("sched")("ctrl", "proc_idx"), 1.toBytesLE)
+      waitUntil(worker.currThread.isEmpty && !worker.inISR)
+      assert(worker.killCount == (if(round == 0) 0 else 1))
+      assert(csr.read(ALLOC.readBack("sched")("stat", "watchdogControls_core1"), 8).bytesToBigInt == 0)
+      assert(csr.read(ALLOC.readBack("sched")("stat", "watchdogExpirations_core1"), 8).bytesToBigInt == 0)
+      var draining = true
+      while(draining) {
+        csr.write(ALLOC.readBack("sched")("stat", "readback_idx"), 1.toBytesLE)
+        draining = csr.read(ALLOC.readBack("sched")("stat", "readback_draining"), 8).bytesToBigInt != 0
+      }
+      csr.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", "context_reclaim_pid"), process.pid.toBytesLE)
+    }
+  }
+
   /** After preemption, no CLs should be Shared -- otherwise we leak a descriptor from the previous
    * application on this core */
-  testWithDB("rx-preempt-no-leaking")(Rx) { implicit dut =>
+  ignore("rx-preempt-no-leaking") { _ =>
     // Spawn two services.  Send a few requests for the first one, drain all of them, then
     // send a request to the second service.  After the core finishes preemption, check if
     // no info is leaked (the new process only sees a NACK in the opposite CL)
-    // TODO
+    pending // Unimplemented historical coverage, not a passing regression.
   }
 
-  /* Test killing a process that did not unset BUSY */
-  testWithDB("rx-sched-crit-timeout")(Rx) { implicit dut =>
-    // TODO
-  }
+
 }

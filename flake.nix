@@ -78,6 +78,7 @@
               ciEnvironment
               ciDependencies
               ;
+            recovery-test = platform.applications.recovery-test;
             dummy-app-build-with-nix = platform.applications.nix-build-demo;
           }
           // ci

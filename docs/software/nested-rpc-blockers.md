@@ -37,7 +37,7 @@ This is not current-batch board evidence.
 | B1 | Validate repaired/aligned descriptors and host/wire byte order on a matching new checkpoint. |
 | B2 | Validate registered remote endpoints, completion routing and internal loopback on hardware; overload progress remains unvalidated. |
 | B3 | Validate explicit reply/fail/defer/forward, fiber and transport admission, errors and forwarding on matching hardware; callbacks are removed. |
-| B4 | Implement and verify reliable shutdown, cancellation and resource reuse; parked-service activation and timeout retirement remain unresolved. |
+| B4 | Recovery, watchdog controls and deadline activation are implemented in source; verify matching-board shutdown, cancellation and resource reuse. |
 | B5 | Diagnose intermittent module-load external aborts and demonstrate repeated reliable startup. |
 | B6 | Verify actual isolated-worker CPU placement and run single functions, DAGs, sharding and concurrent nested compositions. |
 
@@ -292,7 +292,10 @@ rerun the passing add/mul baselines.
 The approved [process recovery and watchdog design](process-recovery.md) includes
 whole-process forced termination, explicit-kill reclamation with the execution
 watchdog disabled, and a matching-bitstream Enzian campaign. Implementation is
-in progress; ownership metadata and a reclaim primitive alone do not close B4.
+in progress. The source now contains stop-to-idle worker drain, PID-wide table
+retirement, signal recovery, internal deadline activation, optional execution
+monitoring and trace hooks. Ownership metadata or passing RTL tests alone do
+not close B4; the matching-board campaign below remains required.
 
 **Evidence: hardware observation plus source-review gaps.** After SIGTERM the
 standalone adder leader remained `Zl`; three workers remained `Il` in

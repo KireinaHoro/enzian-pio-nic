@@ -410,3 +410,36 @@ decode logic in the Lua dissector.
 - [Event declarations](../../hw/src/lauberhorn/TracePlugin.scala), [DMA/map generation](../../hw/src/lauberhorn/LauberhornTraceDma.scala), [UDP responder](../../hw/src/lauberhorn/LauberhornTraceDump.scala).
 - [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
 - [Latency measurement and attribution](../research/latency-measurement.md).
+
+## B4 scheduling and recovery events
+
+The B4 source extends `SchedulerPreemptCore` with `PreviousProcessID` and
+`EciTxSubmit` with `ExecutionCommand` (0 unchanged, 1 end, 2 begin, 3 end/begin).
+Incoming `SchedulerRequestDispatched` begins an inline interval; completion RX
+does not imply a resumed fiber. `SchedulerWatchdogExpired` marks expiry once,
+while the existing preemption events describe READY/BUSY, interrupt and drain.
+The DMA acceptance/completion events also carry the physical `CoreID`, since
+per-core `HostMsgID` counters are not globally unique. Per-core scheduler CSRs
+count watchdog-only TX and watchdog expirations. Preserve
+these counters with captures to verify the disabled-monitoring case.
+
+Two kernel trace events cover variable software waits:
+
+| Event | Fields and phases |
+|---|---|
+| `lauberhorn:worker_switch` | CPU, old/next process lifetime, TGID/TID, killed; phase 0 interrupt acknowledgement, 1 hardware drained, 2 dispatch/idle ready |
+| `lauberhorn:process_recovery` | Lifetime, TGID, process slot, reason; phase 0 stopping, 1 workers/queues drained, 2 outgoing/incoming ownership and endpoints retired |
+
+Recovery reason values are 0 close, 1 explicit stop/unmap, 2 hardware kill and
+3 fatal signal. Hardware traces distinguish budget expiry from BUSY timeout.
+The kernel assigns a monotonically increasing lifetime at registration so PID
+or process-slot reuse does not silently merge separate applications.
+
+Enable `events/lauberhorn/enable` in tracefs for a recovery campaign, and preserve
+its trace, per-CPU loss/overrun statistics, kernel log, hardware raw capture and
+matching generated trace map. Kernel timestamps and NIC cycles are separate
+clock domains: correlate the worker/PID switch sequence before fitting offsets;
+do not subtract raw timestamps across domains. Reconstruct queue residence,
+active execution, suspended waits, coherence drain and kernel routing/dispatch
+separately. Report incomplete intervals and trace loss. These events support the
+analysis; they are not themselves measured scheduling results.

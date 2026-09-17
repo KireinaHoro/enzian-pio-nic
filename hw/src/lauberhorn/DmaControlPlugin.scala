@@ -2,7 +2,7 @@ package lauberhorn
 
 import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.host.{BypassCmdSink, DatapathService, HostReq, HostReqData, HostReqType, HostReqWithTrace}
-import lauberhorn.net.oncrpc.OncRpcReplyDecoder
+import lauberhorn.net.oncrpc.{OncRpcReplyDecoder, OncRpcReplyEncoder}
 import lauberhorn.net.{DecoderSink, PacketDesc, PacketDescType, invalidTraceId}
 import spinal.core._
 import spinal.lib._
@@ -98,7 +98,16 @@ class DmaControlPlugin extends FiberPlugin {
     debug.postDebug("alloc_req", rxAlloc.io.allocReq)
     debug.postDebug("alloc_resp", rxAlloc.io.allocResp)
 
-    rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(dps.map(_.hostRxAck.pipelined(FULL)))
+    val discarded = sched.logic.discarded
+    val discardBuffer = Stream(PacketBufDesc())
+    discardBuffer.valid := discarded.valid && discarded.req.buffer.size.bits =/= 0
+    discardBuffer.payload := discarded.req.buffer
+    discarded.ready := discarded.req.buffer.size.bits === 0 || discardBuffer.ready
+    val discardContext = host[OncRpcReplyEncoder].logic.contexts.io.discard
+    discardContext.valid := discarded.fire && discarded.req.ty === HostReqType.oncRpcCallRx
+    discardContext.payload := discarded.req.data.oncRpcCallRx.requestToken
+    rxAlloc.io.freeReq <-/< StreamArbiterFactory(s"${getName()}_freeReqMux").roundRobin.on(
+      dps.map(_.hostRxAck.pipelined(FULL)) :+ discardBuffer.pipelined(FULL))
 
     rxAlloc.io.allocReq.setIdle()
     rxAlloc.io.allocResp.setBlocked()
@@ -285,8 +294,24 @@ class DmaControlPlugin extends FiberPlugin {
     }
 
     val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
-    val txReqBuffered = txReqMuxed.asFlow.toReg
+    // A waiting sender may remain valid while another transaction owns DMA.
+    // Capture only acceptance, or its buffer address/cookie can replace the
+    // in-flight identity and send the acknowledgement to the wrong worker.
+    val txReqBuffered = txReqMuxed.toFlowFire.toReg
     val txPacketDesc = Reg(PacketDesc())
+
+    def txCoreId(req: HostReq): UInt = {
+      val result = UInt(CoreID.width bits)
+      result := 0
+      dps.foreach { dp =>
+        when(req.buffer.addr.bits === PKT_BUF_TX_OFFSET + dp.coreID * ROUNDED_MTU) {
+          result := dp.coreID
+        }
+      }
+      result
+    }
+    val acceptedTxCore = txCoreId(txReqMuxed.req)
+    val bufferedTxCore = txCoreId(txReqBuffered.req)
 
     // A TX result also releases ownership of the per-core TX packet buffer.
     // Do not let the host overwrite it while DMA is still reading.
@@ -355,21 +380,31 @@ class DmaControlPlugin extends FiberPlugin {
                 txLogicalLen := txReqMuxed.req.data.oncRpcCallTx.callLen.bits
                 txPacketDescTy := PacketDescType.oncRpcCallTx.asBits
               }
+              is(HostReqType.executionControl) {
+                txLogicalLen := 0
+                txPacketDescTy := 0
+              }
               default {
                 report("unsupported host request type", FAILURE)
               }
             }
             txTp.trace("TxHostReqAccepted",
+              CoreID(acceptedTxCore),
               HostMsgID(txReqMuxed.hostMsgId),
               HostReqTy(txReqMuxed.req.ty),
               PacketDescTy(txPacketDescTy),
               LogicalLength(txLogicalLen),
               DmaLength(txReqMuxed.req.buffer.size.bits)) := True
-            when (txReqMuxed.req.ty === HostReqType.oncRpcCallTx) {
+            when (txReqMuxed.req.ty === HostReqType.executionControl) {
+              goto(completeControl)
+            } elsewhen (txReqMuxed.req.ty === HostReqType.oncRpcCallTx) {
               goto(reserveNested)
             } otherwise { goto(sendDmaCmd) }
           }
         }
+      }
+      val completeControl: State = new State {
+        whenIsActive { completeTx(1); goto(idle) }
       }
       val reserveNested: State = new State {
         whenIsActive {
@@ -412,7 +447,7 @@ class DmaControlPlugin extends FiberPlugin {
           outgoingDesc.valid := True
           when (outgoingDesc.ready) {
             inc(_.txPacketCount)
-            txTp.trace("TxNoDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
+            txTp.trace("TxNoDmaRead", CoreID(bufferedTxCore), HostMsgID(txReqBuffered.hostMsgId)) := True
             completeTx(1)
             goto(idle)
           }
@@ -424,7 +459,7 @@ class DmaControlPlugin extends FiberPlugin {
             when(readDescStatus.payload.error === 0) {
               inc(_.txPacketCount)
 
-              txTp.trace("TxAfterDmaRead", HostMsgID(txReqBuffered.hostMsgId)) := True
+              txTp.trace("TxAfterDmaRead", CoreID(bufferedTxCore), HostMsgID(txReqBuffered.hostMsgId)) := True
               completeTx(1)
             } otherwise {
               inc(_.txDmaErrorCount)

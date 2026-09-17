@@ -28,6 +28,22 @@ struct lauberhorn_worker {
 
     void *dp_base;
     pthread_t thread;
+    bool execution_active;
+    uint8_t execution_pending;
 };
+
+static inline void worker_execution_end(lauberhorn_worker_t w) {
+    if (w->ctx->_watchdog_enabled && w->execution_active) {
+        w->execution_pending |= 1;
+        w->execution_active = false;
+    }
+}
+static inline uint8_t worker_execution_take(lauberhorn_worker_t w, bool end) {
+    if (!w->ctx->_watchdog_enabled) return 0;
+    if (end) worker_execution_end(w);
+    uint8_t command = w->execution_pending;
+    w->execution_pending = 0;
+    return command;
+}
 
 #endif // LAUBERHORN_RT_WORKER_H

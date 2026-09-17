@@ -20,7 +20,14 @@ typedef struct lauberhorn {
 	uint8_t* parity_page;
 	/* Private: control operations require external serialization. */
 	uint32_t _workers;
+	bool _watchdog_enabled;
 } lauberhorn_t;
+
+/* Configure before creating workers. Zero disables the debugging watchdog.
+ * Limits are approximate elapsed execution time, refreshed only after suspension. */
+int lauberhorn_set_watchdog(lauberhorn_t *ctx, uint32_t limit_us);
+/* Force whole-process termination and hardware reclamation. */
+int lauberhorn_stop(lauberhorn_t *ctx);
 
 typedef void* lauberhorn_msg_t;
 

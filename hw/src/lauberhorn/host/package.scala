@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
+    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -24,6 +24,7 @@ package object host {
            |  onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
            |  onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
            |  onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
+           |  execution_control = 0b111 "Local execution interval notification";
            |};""".stripMargin)
     }
   }

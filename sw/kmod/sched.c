@@ -1,7 +1,24 @@
 #include "common.h"
+#include "trace.h"
+#include <linux/iopoll.h>
+#include <asm/irq_regs.h>
+#include <asm/ptrace.h>
 
 // defined in worker.c
 extern int worker_lo, worker_hi;
+
+/* IRQs may interrupt an ioctl or housekeeping task on the worker CPU.
+ * Never sleep a service in the middle of kernel code: task work runs before
+ * its next return to userspace (and before exit tears down its mappings). */
+static void park_at_user_return(struct callback_head *cb)
+{
+	struct thr_def *thr = container_of(cb, struct thr_def, park_work);
+	atomic_set(&thr->park_queued, 0);
+	set_current_state(TASK_IDLE);
+	if (READ_ONCE(thr->enabled) && READ_ONCE(thr->park_requested))
+		schedule();
+	__set_current_state(TASK_RUNNING);
+}
 
 int prepare_worker_thread(struct thr_def *thr)
 {
@@ -10,6 +27,9 @@ int prepare_worker_thread(struct thr_def *thr)
 	// Change scheduler class to SCHED_FIFO with priority 1
 	sched_set_fifo_low(thr->task);
 	thr->enabled = true;
+	thr->park_requested = false;
+	atomic_set(&thr->park_queued, 0);
+	init_task_work(&thr->park_work, park_at_user_return);
 
 	// Wait for HW to wake us up
 	desched_worker_thread(thr);
@@ -35,6 +55,7 @@ void clean_worker_thread(struct thr_def *thr)
 	pr_info("Deregistering thread %d from Lauberhorn\n", thr->task->pid);
 
 	thr->enabled = false;
+	WRITE_ONCE(thr->park_requested, false);
 
 	// Reset scheduler class to SCHED_NORMAL
 	sched_set_normal(thr->task, 0);
@@ -49,9 +70,19 @@ void clean_worker_thread(struct thr_def *thr)
 struct sched_thread_work {
 	struct work_struct work;
 	struct thr_def *thr;
+	struct thr_def *previous;
 	struct worker_fpi_data *fpi_priv;
 };
 static DEFINE_PER_CPU(struct sched_thread_work, sched_work_percpu);
+
+static void trace_switch(struct sched_thread_work *w, int phase)
+{
+	struct thr_def *old = w->previous, *next = w->thr;
+	trace_worker_switch(smp_processor_id(), old ? old->parent->lifetime : 0,
+		old ? old->parent->tgid : 0, old ? old->task->pid : 0,
+		next ? next->parent->lifetime : 0, next ? next->parent->tgid : 0,
+		next ? next->task->pid : 0, phase, w->fpi_priv->killed);
+}
 
 /**
  * The deferred function that does the actual job of scheduling the new
@@ -64,6 +95,29 @@ static void _sched_worker_thread(struct work_struct *ws)
 	struct thr_def *thr = w->thr;
 	int affinity_ret;
 	int wake_ret;
+	unsigned long drained;
+	int ret;
+
+	/* Keep the old prefix routed until its RX/TX invalidations and responses
+	 * have completed. IRQ acknowledgement only establishes CPU quiescence. */
+	ret = read_poll_timeout(lauberhorn_eci_preempt_datapath_drained_rd,
+		drained, drained, 10, 100000, false, &w->fpi_priv->preempt_dev);
+	if (ret) {
+		pr_err("ECI datapath failed to drain on CPU %d: %d\n", smp_processor_id(), ret);
+		return;
+	}
+	trace_switch(w, 1);
+	if (w->previous) {
+		unroute_prefix_on_core(w->previous->worker_idx + 1);
+		w->previous->worker_idx = -1;
+	}
+
+	w->fpi_priv->thr = NULL;
+	if (!thr) {
+		trace_switch(w, 2);
+		lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
+		return;
+	}
 
 	u8 *parity_page = w->thr->parent->parity_page;
 	u8 rx_parity = parity_page[thr->idx * 2];
@@ -95,16 +149,31 @@ static void _sched_worker_thread(struct work_struct *ws)
 	cl_fetch_and_lock(thr->dp_phys_base +
 			  LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET);
 
+	// A pending return-to-user callback must not park a newly dispatched thread.
+	WRITE_ONCE(thr->park_requested, false);
 	// Wake up the task
 	wake_ret = wake_up_process(thr->task);
 	pr_info("Worker CPU %d woke thread %d for prefix %#x: wake_ret=%d state=0x%x\n",
 		me, thr->task->pid, thr->prefix, wake_ret,
 		READ_ONCE(thr->task->__state));
 
+	trace_switch(w, 2);
 	// Ack interrupt
 	lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
 	pr_info("Worker CPU %d re-enabled preempt IRQ for thread %d\n", me,
 		thr->task->pid);
+}
+
+void init_worker_schedule(int cpu)
+{
+	INIT_WORK(&per_cpu(sched_work_percpu, cpu).work, _sched_worker_thread);
+}
+
+void flush_worker_schedules(void)
+{
+	int cpu;
+	for (cpu = worker_lo; cpu < worker_hi; ++cpu)
+		flush_work(&per_cpu(sched_work_percpu, cpu).work);
 }
 
 /**
@@ -122,14 +191,16 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
 	int err;
 
 	pr_info("Scheduling deferred work to dispatch thread %d on CPU %d\n",
-		thr->task->pid, me);
+		thr ? thr->task->pid : 0, me);
 
-	BUG_ON(!thr->enabled);
-	BUG_ON(thr->worker_idx != -1);
+	if (thr) {
+		BUG_ON(!thr->enabled);
+		BUG_ON(thr->worker_idx != me - worker_lo);
+	}
 
 	w->thr = thr;
+	w->previous = fpi_priv->thr;
 	w->fpi_priv = fpi_priv;
-	INIT_WORK(&w->work, _sched_worker_thread);
 
 	err = schedule_work_on(me, &w->work);
 	BUG_ON(!err);
@@ -142,9 +213,8 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
  * - we are running in interrupt context (called by FPI handler)
  *
  * In any case, we mark the current task as not runnable and set the
- * "resched needed" flag.  We also unroute the datapath CLs to make
- * sure no spurious wake-ups can allow the task to read data from
- * another application (that is now running on the core).
+ * "resched needed" flag. Deferred dispatch work retains the old mapping until
+ * the hardware confirms drain, then unroutes it before assigning the next task.
  *
  * Use TASK_IDLE, which is TASK_UNINTERRUPTIBLE | TASK_NOLOAD.  Signals
  * must not wake a parked worker because the datapath CLs are unrouted,
@@ -155,19 +225,18 @@ void desched_worker_thread(struct thr_def *thr)
 {
 	BUG_ON(!thr->enabled);
 
-	// We can only safely deschedule the current thread
-	BUG_ON(thr->task != current);
-
-	// Wait for Lauberhorn to route and explicitly wake this worker.
-	set_current_state(TASK_IDLE);
-
-	// Set the "need resched" flag -- rescheduling happens when we
-	// return from either the interrupt handler or syscall
-	set_tsk_need_resched(current);
-
-	// Unroute CL: find entry and disable
-	if (thr->worker_idx >= 0) {
-		unroute_prefix_on_core(thr->worker_idx + 1);
-		thr->worker_idx = -1;
+	WRITE_ONCE(thr->park_requested, true);
+	if (!in_interrupt() || (thr->task == current && get_irq_regs() && user_mode(get_irq_regs()))) {
+		BUG_ON(thr->task != current);
+		set_current_state(TASK_IDLE);
+		set_tsk_need_resched(current);
+	} else if (atomic_cmpxchg(&thr->park_queued, 0, 1) == 0) {
+		int ret = task_work_add(thr->task, &thr->park_work, TWA_RESUME);
+		if (ret) {
+			/* An exiting task can no longer return to userspace. */
+			atomic_set(&thr->park_queued, 0);
+			WARN_ON_ONCE(ret != -ESRCH);
+		}
 	}
+	// Retain worker_idx and routing until deferred dispatch observes HW drain.
 }

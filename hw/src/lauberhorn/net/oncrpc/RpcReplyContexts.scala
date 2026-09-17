@@ -16,12 +16,16 @@ case class UdpReplyContext() extends Bundle {
 /** Bounded per-request routing state, not a connection or duplicate-request cache.
   * Allocation and retirement may run together, but a retiring slot is not offered
   * until the next cycle. Generations wrap; this is not an authentication boundary. */
-class RpcReplyContexts(count: Int) extends Component {
+class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
   require(count >= 2 && isPow2(count))
   val slotBits = log2Up(count)
   val generationBits = 32 - slotBits
   val io = new Bundle {
     val allocate = slave(Flow(UdpReplyContext()))
+    val allocateOwner = in UInt(ownerWidth bits)
+    // Privileged reclamation, only after admission/worker/datapath drain.
+    val reclaim = slave(Flow(UInt(ownerWidth bits)))
+    val discard = slave(Flow(Bits(32 bits)))
     val available = out Bool()
     val token = out Bits(32 bits)
     val replyToken = in Bits(32 bits)
@@ -32,10 +36,12 @@ class RpcReplyContexts(count: Int) extends Component {
     val readContext = out(UdpReplyContext())
     val readActive = out Bool()
     val readToken = out Bits(32 bits)
+    val readOwner = out UInt(ownerWidth bits)
   }
   val active = Vec.fill(count)(RegInit(False))
   val generations = Vec.fill(count)(Reg(UInt(generationBits bits)) init 0)
   val contexts = Vec.fill(count)(Reg(UdpReplyContext()))
+  val owners = Vec.fill(count)(Reg(UInt(ownerWidth bits)))
   val free = Bits(count bits)
   for (i <- 0 until count) free(i) := !active(i)
   val slot = OHToUInt(OHMasking.first(free))
@@ -47,6 +53,7 @@ class RpcReplyContexts(count: Int) extends Component {
     active(slot) := True
     generations(slot) := nextGeneration
     contexts(slot) := io.allocate.payload
+    owners(slot) := io.allocateOwner
   }
   val replySlot = io.replyToken(slotBits - 1 downto 0).asUInt
   io.replyValid := active(replySlot) &&
@@ -56,7 +63,22 @@ class RpcReplyContexts(count: Int) extends Component {
     assert(io.replyValid, "invalid reply context retired")
     active(replySlot) := False
   }
+  val discardSlot = io.discard.payload(slotBits - 1 downto 0).asUInt
+  when(io.discard.valid && active(discardSlot) &&
+       generations(discardSlot).asBits === io.discard.payload(31 downto slotBits)) {
+    active(discardSlot) := False
+  }
+  for (i <- 0 until count) {
+    when(io.reclaim.valid && active(i) && owners(i) === io.reclaim.payload) {
+      active(i) := False
+    }
+  }
+  when(io.reclaim.valid && io.allocate.valid) {
+    assert(io.allocateOwner =/= io.reclaim.payload,
+      "process admission must stop before reply contexts are reclaimed")
+  }
   io.readContext := contexts(io.readIndex)
   io.readActive := active(io.readIndex)
   io.readToken := generations(io.readIndex).asBits ## io.readIndex.asBits
+  io.readOwner := owners(io.readIndex)
 }

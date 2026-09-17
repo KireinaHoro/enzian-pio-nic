@@ -25,6 +25,7 @@ extern __thread struct fiber_queue ready_fiber_queue;
 #define current (current_fiber)
 
 void fiber_sched_init();
+void fiber_sched_set_execution_hooks(void (*begin)(void), void (*end)(void), void (*flush)(void));
 
 void fiber_sched_fini();
 

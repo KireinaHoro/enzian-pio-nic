@@ -56,9 +56,8 @@ typedef struct {
 // Start / stop handling requests on an application thread
 // These are implemented as mmap / destroy VMA
 
-// Wake up all (unsecheduled) worker threads for clean-up
-// Unscheduled threads will be restored to normal affinity/priority
-// and unblocked to run to finish
+// Legacy shutdown command, now an alias for whole-process STOP_PROCESS.
+// Never wake parked workers against an unrouted datapath.
 #define LAUBERHORN_IOCTL_WAKE_ALL_WORKERS _IO(LAUBERHORN_IOCTL_MAGIC, 3)
 
 /* Fixed-width control ABI. Reserved fields must be zero. Numeric fields
@@ -77,5 +76,22 @@ typedef struct {
     _IOWR(LAUBERHORN_IOCTL_MAGIC, 4, lauberhorn_reg_endpoint_t)
 #define LAUBERHORN_IOCTL_DEREG_ENDPOINT \
     _IOW(LAUBERHORN_IOCTL_MAGIC, 5, lauberhorn_dereg_endpoint_t)
+
+/* Slow-path cancellation/timeout control; never used to submit or receive RPCs. */
+typedef struct {
+    u32 endpoint_handle;
+    u32 cookie;
+} lauberhorn_retire_call_t;
+#define LAUBERHORN_IOCTL_RETIRE_CALL \
+    _IOW(LAUBERHORN_IOCTL_MAGIC, 6, lauberhorn_retire_call_t)
+
+/* Terminate this application's workers and reclaim hardware ownership. */
+#define LAUBERHORN_IOCTL_STOP_PROCESS _IO(LAUBERHORN_IOCTL_MAGIC, 7)
+
+typedef struct { u32 limit_us; u32 reserved; } lauberhorn_watchdog_t;
+#define LAUBERHORN_IOCTL_WATCHDOG _IOW(LAUBERHORN_IOCTL_MAGIC, 8, lauberhorn_watchdog_t)
+
+/* Internal runtime deadline wakeup, not a public service/timer API. */
+#define LAUBERHORN_IOCTL_KICK_PROCESS _IO(LAUBERHORN_IOCTL_MAGIC, 9)
 
 #endif // LAUBERHORN_IOCTL_H

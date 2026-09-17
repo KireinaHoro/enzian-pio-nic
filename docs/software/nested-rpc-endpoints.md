@@ -26,7 +26,7 @@ open file context; another process cannot use its control operations.
 
 The current NIC is restricted to the initial network namespace. Registration
 from another namespace returns `EXDEV`. Endpoint source ports are selected from
-49152–65535, skipping Linux bindings, registered FPGA services and quarantined
+49152–65535, skipping Linux bindings, registered FPGA services and reserved
 reservations. Service and endpoint table writes are serialized, capacity is
 checked before installation, and partial registration failures are unwound.
 
@@ -40,12 +40,13 @@ wire fields as specified in the [boundary contract](nested-rpc.md#endianness-at-
 Sending uses cached PID, source port and address, without control ioctls.
 
 Destruction returns `EBUSY` while workers or unresolved calls remain. A software
-timeout does not prove hardware retirement and cannot allow port reuse. Device
-close disables affected listeners and quarantines reservations, pinning the
-module until a full system/FPGA reset. A Linux reboot alone is not a verified
-FPGA reset. There is no reset/reclaim ioctl in this batch. B4
-must establish cancellation, draining and abnormal-exit recovery before those
-resources may be reclaimed more selectively.
+timeout alone does not prove hardware retirement: runtime timeout/cancellation
+now uses an acknowledged PID/cookie retirement command before releasing its
+reservation. Failed retirement retains unresolved ownership. Device close now
+uses the [whole-process drain protocol](process-recovery.md) before releasing
+listeners, sockets and table ownership. The previous permanent endpoint quarantine
+has been removed. Reclamation does not report success while drain is unresolved;
+matching-board recovery acceptance remains B4's closure gate.
 
 ## Internal loopback design and acceptance
 

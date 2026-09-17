@@ -74,12 +74,6 @@ void pending_call_release(struct pending_call_table *tbl,
     bitmap_release(&tbl->bitmap, p->idx);
 }
 
-bool pending_call_try_cancel(struct pending_call *c, uint32_t xid) {
-    // TODO: not implemented yet
-    // should release the slot from the pending call bitmap
-    return false;
-}
-
 struct pending_call *pending_call_get_by_cookie(struct pending_call_table *table, uint32_t xid) {
     uint32_t slot = XID_IDX(xid);
 
@@ -176,4 +170,18 @@ void pending_call_start_timeout(struct pending_call *c, uint32_t cookie, uint32_
         atomic_store(&c->timeout_ms, timeout_ms);
     }
     pthread_spin_unlock(&c->lock);
+}
+
+/* Housekeeping only observes deadlines. Settlement and fiber execution remain
+ * on runtime workers, where forwarding can use the mapped datapath. */
+bool pending_call_table_has_expired(struct pending_call_table *tbl) {
+    struct timespec t = now();
+    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i) {
+        struct pending_call *c = &tbl->pkts[i];
+        pthread_spin_lock(&c->lock);
+        bool expired = atomic_load(&c->state) == SLOT_PENDING && pending_call_has_expired(c, &t);
+        pthread_spin_unlock(&c->lock);
+        if (expired) return true;
+    }
+    return false;
 }
