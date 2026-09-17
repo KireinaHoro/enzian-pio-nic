@@ -136,7 +136,7 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
 
     val (initialDesc, initialPldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val initialInfo = initialDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    assert(initialInfo.xid.toInt == initialXid)
+    assert(requestXid(csrMaster, initialInfo.requestToken) == initialXid)
     checkOncRpcCall(initialDesc, initialDesc.len, funcPtr, initialPayload,
       readPayload(dcsMaster, initialPldDesc, initialDesc.len))
     exitCriticalSection(dcsMaster, tid)
@@ -235,7 +235,7 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
 
     val (initialDesc, initialPldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val initialInfo = initialDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    assert(initialInfo.xid.toInt == initialXid)
+    assert(requestXid(csrMaster, initialInfo.requestToken) == initialXid)
     checkOncRpcCall(initialDesc, initialDesc.len, funcPtr, initialPayload,
       readPayload(dcsMaster, initialPldDesc, initialDesc.len))
     exitCriticalSection(dcsMaster, tid)
@@ -337,11 +337,12 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
       txSendSingle(dcsMaster, tx, call.drop(ONCRPC_NESTED_CALL_INLINE_BYTES.get), tid)
       cs.waitUser()
       val (desc, pld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
-      assert(desc.asInstanceOf[OncRpcCallRxPacketDescSim].xid == BigInt(xid))
+      val token = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+      assert(requestXid(csrMaster, token) == xid)
       checkOncRpcCall(desc, desc.len, funcPtr, call, readPayload(dcsMaster, pld, desc.len))
       exitCriticalSection(dcsMaster, tid)
       // Reply immediately, using the session installed by normal call decoding.
-      txSendSingle(dcsMaster, TxOncRpcReplySim(replyLen, funcPtr, BigInt(xid),
+      txSendSingle(dcsMaster, TxOncRpcReplySim(replyLen, token,
         (if (reply.isEmpty) BigInt(0) else reply.take(ONCRPC_INLINE_BYTES.get).bytesToBigInt), status), reply.drop(ONCRPC_INLINE_BYTES.get), tid)
       cs.waitUser()
       val (done, donePld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
@@ -365,18 +366,19 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     axisMaster.send(mixedPacket.getRawData.toList)
     sleepCycles(200)
     val expectedCalls = outstanding.map(x => x._1 -> x._3).toMap + (mixedXid -> mixedPayload)
-    val seen = scala.collection.mutable.Set[Int]()
+    val seen = scala.collection.mutable.Map[Int, BigInt]()
     for (_ <- 0 until 3) {
       cs.waitUser()
       val (desc, pld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
-      val xid = desc.asInstanceOf[OncRpcCallRxPacketDescSim].xid.toInt
-      assert(!seen(xid))
-      seen += xid
+      val token = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+      val xid = requestXid(csrMaster, token)
+      assert(!seen.contains(xid))
+      seen(xid) = token
       checkOncRpcCall(desc, desc.len, funcPtr, expectedCalls(xid), readPayload(dcsMaster, pld, desc.len))
       exitCriticalSection(dcsMaster, tid)
     }
     for ((xid, cookie, reply) <- outstanding.reverse) {
-      txSendSingle(dcsMaster, TxOncRpcReplySim(reply.length, funcPtr, BigInt(xid),
+      txSendSingle(dcsMaster, TxOncRpcReplySim(reply.length, seen(xid),
         reply.take(ONCRPC_INLINE_BYTES.get).bytesToBigInt), reply.drop(ONCRPC_INLINE_BYTES.get), tid)
       sleepCycles(100)
       cs.waitUser()
@@ -409,13 +411,65 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     txSendSingle(dcsMaster, retryCall, Nil, tid)
     cs.waitUser()
     val (retryDesc, retryPld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
-    assert(retryDesc.asInstanceOf[OncRpcCallRxPacketDescSim].xid == BigInt(retryXid))
+    val retryToken = retryDesc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+    assert(requestXid(csrMaster, retryToken) == retryXid)
     readPayload(dcsMaster, retryPld, retryDesc.len)
     exitCriticalSection(dcsMaster, tid)
-    txSendSingle(dcsMaster, TxOncRpcReplySim(0, funcPtr, BigInt(retryXid), BigInt(0), 5), Nil, tid)
+    txSendSingle(dcsMaster, TxOncRpcReplySim(0, retryToken, BigInt(0), 5), Nil, tid)
     cs.waitUser()
     val (retryDone, retryDonePld) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
     checkNestedReplyRx(retryDone, retryDonePld, pid, retryCookie, retryXid, Nil, dcsMaster, 5)
+    exitCriticalSection(dcsMaster, tid)
+    // Clear the synthetic outgoing reservations from the preceding test, then
+    // fill all remaining incoming contexts with real local calls.
+    csrMaster.write(reqCtrl("ctrl", "req_active"), 0.toBytesLE)
+    for (idx <- 0 until NUM_SESSIONS.get)
+      csrMaster.write(reqCtrl("ctrl", "req_idx"), idx.toBytesLE)
+    val contextRegs = ALLOC.readBack("OncRpcReplyEncoder")
+    val freeContexts = (0 until NUM_SESSIONS.get).count { idx =>
+      csrMaster.write(contextRegs("stat", "context_read_idx"), idx.toBytesLE)
+      csrMaster.read(contextRegs("stat", "context_active"), 8).bytesToBigInt == 0
+    }
+    assert(freeContexts > 0 && freeContexts < NUM_SESSIONS.get)
+    def localCall(xid: Int, cookie: Int) = TxOncRpcCallSim(0, pid, BigInt(cookie), BigInt(xid),
+      BigInt(1, localIp.getAddress), sport, service.dport,
+      BigInt(service.prog), BigInt(service.progVer), BigInt(service.procNum), BigInt(0))
+    val held = (0 until freeContexts).map { idx =>
+      val xid = 0x65000000 + idx
+      val cookie = 0x45000000 + idx
+      txSendSingle(dcsMaster, localCall(xid, cookie), Nil, tid)
+      cs.waitUser()
+      val (call, tail) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+      val token = call.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+      assert(requestXid(csrMaster, token) == xid)
+      readPayload(dcsMaster, tail, call.len)
+      exitCriticalSection(dcsMaster, tid)
+      (xid, cookie, token)
+    }
+    // Full incoming capacity produces a local error completion, not a host call.
+    txSendSingle(dcsMaster, localCall(0x66000000, 0x46000000), Nil, tid)
+    cs.waitUser()
+    val (rejected, rejectedTail) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+    checkNestedReplyRx(rejected, rejectedTail, pid, BigInt(0x46000000), 0x66000000, Nil, dcsMaster, 5)
+    exitCriticalSection(dcsMaster, tid)
+    val (heldXid, heldCookie, heldToken) = held.head
+    txSendSingle(dcsMaster, TxOncRpcReplySim(0, heldToken, BigInt(0)), Nil, tid)
+    cs.waitUser()
+    val (released, releasedTail) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+    checkNestedReplyRx(released, releasedTail, pid, BigInt(heldCookie), heldXid, Nil, dcsMaster)
+    exitCriticalSection(dcsMaster, tid)
+    txSendSingle(dcsMaster, localCall(0x67000000, 0x47000000), Nil, tid)
+    cs.waitUser()
+    val (afterFull, afterFullTail) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+    val afterFullToken = afterFull.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+    assert(afterFullToken != heldToken)
+    assert(requestXid(csrMaster, afterFullToken) == 0x67000000)
+    readPayload(dcsMaster, afterFullTail, afterFull.len)
+    exitCriticalSection(dcsMaster, tid)
+    txSendSingle(dcsMaster, TxOncRpcReplySim(0, afterFullToken, BigInt(0)), Nil, tid)
+    cs.waitUser()
+    val (afterReply, afterReplyTail) = tryReadPacketDesc(dcsMaster, tid, maxTries = 100, exitCS = false).result.get
+    checkNestedReplyRx(afterReply, afterReplyTail, pid, BigInt(0x47000000), 0x67000000, Nil, dcsMaster)
     exitCriticalSection(dcsMaster, tid)
     sleepCycles(100)
     assert(!physicalTx, "local nested call or reply escaped to CMAC")

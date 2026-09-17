@@ -2,6 +2,13 @@
 
 Status (2026-09-08): proposed scaling design, not implemented general spill support. Existing baseline paths were checked against the main source tree. The separate TCP tree is `../flavian-tcp/platform`; its report, evidence and integration gaps are summarized in [TCP project](../research/tcp.md). The main checkout still has TCP/HTTP/gRPC placeholders. New block/API names and staged implementation steps below are proposals. See [hardware status](implementation-status.md).
 
+September 17 branch update: incoming ONC-RPC reply routing now uses bounded
+[per-request contexts](../software/reply-contexts.md) with opaque slot/generation
+tokens, retirement on reply and hardware rejection when full. The `(funcPtr,
+xid)` session baseline and its overwrite behavior described below are historical;
+the spill mechanisms remain proposals and must be reconciled with the new token
+lifetime before implementation.
+
 ## Motivation
 
 The current `LookupTable` implementation is a fully-connected associative

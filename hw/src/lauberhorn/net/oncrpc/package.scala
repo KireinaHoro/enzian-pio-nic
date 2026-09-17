@@ -57,18 +57,6 @@ package object oncrpc {
       listenPort.asBits === q.port
   }
 
-  /** Definition for a session with a specific client.  Filled in by [[OncRpcCallDecoder]] and used by
-    * [[OncRpcReplyEncoder]] to complete the (funcPtr, xid) -> (dest IP, dest port) lookup.
-    */
-  case class OncRpcSessionDef() extends Bundle {
-    val funcPtr = Bits(64 bits)
-    val xid = Bits(32 bits)
-    val clientAddr = Bits(32 bits)
-    val clientPort = Bits(16 bits)
-    val serverPort = Bits(16 bits)
-    val active = Bool()
-  }
-
   /** In-flight nested/client ONC-RPC request routing entry.  Filled by
     * [[OncRpcCallEncoder]] before emitting a call and consumed by
     * [[OncRpcReplyDecoder]] when the matching reply arrives.

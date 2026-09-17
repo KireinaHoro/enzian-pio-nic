@@ -88,7 +88,8 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
 
     // we do not invoke produce: there should be no downstream decoders
     val outputAck = Bool()
-    produceFinal(metadata, payload, outputAck)
+    val dropped = Bool()
+    produceFinal(metadata.m2sPipe(), payload, outputAck, dropped)
     produceDone()
 
     awaitBuild()
@@ -106,7 +107,9 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     udpPayload >> decoder.io.input
 
     // TODO: also drop malformed packets (e.g. payload too short)
-    val drop = !dbResult.matched
+    val replyEncoder = host[OncRpcReplyEncoder].logic
+    val drop = !dbResult.matched || !replyEncoder.contexts.io.available
+    dropped := dbResult.fire && drop
     val pldFilter = AxiStreamFilter(macIf.axisConfig)
 
     pldFilter.io.input << decoder.io.output
@@ -140,6 +143,7 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
     }
 
     metadata.translateFrom(dbResult.throwWhen(drop)) { case (md, lr) =>
+      md.requestToken := replyEncoder.contexts.io.token
       md.packetId := lr.userData.packetId
       md.rpcId := nextRpcId
       md.hdr := lr.userData.hdr
@@ -152,15 +156,14 @@ class OncRpcCallDecoder extends Decoder[OncRpcCallRxMeta] {
       nextRpcId := nextRpcId + 1
     }
 
-    // record (pid, funcPtr, xid) -> (saddr, sport) mapping to allow construction of response
-    val encoderPort = host[OncRpcReplyEncoder].logic.newSessionEvent
-    encoderPort.translateFrom(dbResult.asFlow.throwWhen(drop)) { case (ep, lr) =>
-      ep.clientPort := lr.userData.port
-      ep.clientAddr := lr.userData.addr
-      ep.serverPort := lr.value.listenPort.asBits
-      ep.funcPtr    := lr.value.funcPtr
-      ep.xid        := lr.userData.hdr.xid
-      ep.active     := True
-    }
+    val route = UdpReplyContext()
+    route.clientPort := dbResult.userData.port
+    route.clientAddr := dbResult.userData.addr
+    route.serverPort := dbResult.value.listenPort.asBits
+    route.xid := dbResult.userData.hdr.xid
+    replyEncoder.contexts.io.allocate.valid := dbResult.fire && !drop
+    replyEncoder.contexts.io.allocate.payload := route
+    replyEncoder.reject.valid := dbResult.fire && dbResult.matched && !replyEncoder.contexts.io.available
+    replyEncoder.reject.payload := route
   }
 }

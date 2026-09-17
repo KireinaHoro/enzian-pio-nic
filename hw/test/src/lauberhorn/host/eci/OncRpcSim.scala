@@ -14,6 +14,16 @@ import scala.collection.mutable
 import scala.language.postfixOps
 
 class OncRpcSim extends NicSim with OncRpcSuiteFactory {
+  private def fixedPeer(packet: EthernetPacket): EthernetPacket = {
+    val (clientIp, _, clientMac) = enzianIpMacAddrs(0)
+    val (serverIp, _, serverMac) = enzianIpMacAddrs(1)
+    val udp = packet.get(classOf[UdpPacket]).getBuilder
+      .srcAddr(clientIp).dstAddr(serverIp).correctChecksumAtBuild(true)
+    val ip = packet.get(classOf[IpV4Packet]).getBuilder
+      .srcAddr(clientIp).dstAddr(serverIp).correctChecksumAtBuild(true).payloadBuilder(udp)
+    packet.getBuilder.srcAddr(clientMac).dstAddr(serverMac).payloadBuilder(ip).build()
+  }
+
   private def expectedOncRpcReplyHeader(xid: Int): List[Byte] =
     xid.toBytesBE ++
       1.toBytesBE ++              // msg_type == REPLY
@@ -75,39 +85,89 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
     val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-    val receivedXid = info.xid.toInt
+    val receivedXid = requestXid(csrMaster, info.requestToken)
     assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
     checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
     exitCriticalSection(dcsMaster, tid)
 
-    // Exercise host-order session CSR writes/readback before using the entry
-    // to encode a reply. Packet checks below independently verify wire order.
-    val udp = packet.get(classOf[UdpPacket]).getHeader
-    val sessionFields = Seq(
-      "funcPtr" -> BigInt(funcPtr), "xid" -> BigInt(xid & 0xffffffffL),
-      "clientAddr" -> BigInt(1, clientIp.getAddress),
-      "clientPort" -> BigInt(udp.getSrcPort.valueAsInt),
-      "serverPort" -> BigInt(udp.getDstPort.valueAsInt), "active" -> BigInt(1))
-    for ((field, value) <- sessionFields) {
-      csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", s"sess_$field"),
-        (0 until 8).map(i => ((value >> (8 * i)) & 255).toByte).toList)
-    }
-    csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", "sess_idx"), 0.toBytesLE)
-    csrMaster.write(ALLOC.readBack("OncRpcReplyEncoder")("stat", "sess_readback_idx"), 0.toBytesLE)
-    sleepCycles(10)
-    for ((field, expected) <- sessionFields) {
-      val actual = csrMaster.read(ALLOC.readBack("OncRpcReplyEncoder")("stat", s"sess_readback_$field"), 8).bytesToBigInt
-      assert(actual == expected, s"session CSR $field: $actual != $expected")
-    }
-
     val traceStart = trace.cursor
     val (respInlineData, respTail) = replyData.splitAt(ONCRPC_INLINE_BYTES)
-    val txDesc = TxOncRpcReplySim(replyData.length, funcPtr, info.xid, respInlineData.bytesToBigInt)
+    val txDesc = TxOncRpcReplySim(replyData.length, info.requestToken, respInlineData.bytesToBigInt)
     txSendSingle(dcsMaster, txDesc, respTail, tid)
 
     waitUntil(replyReceived)
 
     (trace, traceStart)
+  }
+
+  testWithDB("reply-context-admission-retirement-and-client-collisions")(Rx, Tx) { implicit dut =>
+    val (csr, input, output, dcs) = commonDutSetup(1000)
+    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    val service = RpcSrvDef(23456, 123, 1, 2, 0x123456789L)
+    val (funcPtr, _, _) = oncRpcCallPacketFactory(csr,
+      Seq(mkRandomProc(1) -> Seq(service))).head
+    val (clientIp, _, clientMac) = enzianIpMacAddrs(0)
+    csr.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
+    csr.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
+    csr.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE)
+    csr.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+    val wireXid = 0x1234abcd
+    val replies = mutable.ArrayBuffer[List[Byte]]()
+    fork { while (true) replies += output.recv() }
+    val worker = workerCore(0)
+    def packet(port: Int, payload: List[Byte]) = fixedPeer(oncRpcCallPacket(port, service.dport,
+      service.prog, service.progVer, service.procNum, payload, wireXid))
+    val tokens = (0 until NUM_SESSIONS.get).map { i =>
+      val args = List.fill(if (i % 2 == 0) 80 else 4)(i.toByte)
+      input.send(packet(30000 + i, args).getRawData.toList)
+      worker.waitUser()
+      val tid = worker.currThread.get.tid
+      val (desc, pld) = tryReadPacketDesc(dcs, tid, exitCS = false).result.get
+      val token = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+      assert(requestXid(csr, token) == wireXid)
+      checkOncRpcCall(desc, desc.len, funcPtr, args, readPayload(dcs, pld, desc.len))
+      exitCriticalSection(dcs, tid)
+      token
+    }
+    assert(tokens.distinct.size == NUM_SESSIONS.get)
+    val tid = worker.currThread.get.tid
+    // Rejections cover empty, inline and overflow bodies; none reaches software.
+    for ((size, i) <- Seq(0, 4, 160).zipWithIndex) {
+      input.send(packet(40000 + i, List.fill(size)(42.toByte)).getRawData.toList)
+      waitUntil(replies.size == i + 1)
+      val udp = EthernetPacket.newPacket(replies(i).toArray, 0, replies(i).length).get(classOf[UdpPacket])
+      assert(udp.getHeader.getDstPort.valueAsInt == 40000 + i)
+      assert(udp.getPayload.getRawData.toList ==
+        wireXid.toBytesBE ++ 1.toBytesBE ++ List.fill(12)(0.toByte) ++ 5.toBytesBE)
+    }
+    assert(tryReadPacketDesc(dcs, tid, maxTries = 1).result.isEmpty,
+      "rejected request reached host")
+    // Retire one live request, then reuse its slot without changing another peer.
+    txSendSingle(dcs, TxOncRpcReplySim(0, tokens.head, BigInt(0)), Nil, tid)
+    waitUntil(replies.size == 4)
+    checkOncRpcReplyPacket(replies(3), packet(30000, Nil), wireXid, Nil)
+    input.send(packet(50000, List(9.toByte)).getRawData.toList)
+    worker.waitUser()
+    val (desc, pld) = tryReadPacketDesc(dcs, tid, exitCS = false).result.get
+    val replacement = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
+    assert(replacement != tokens.head && (replacement & 15) == (tokens.head & 15))
+    readPayload(dcs, pld, desc.len)
+    exitCriticalSection(dcs, tid)
+    // A stale reply with overflow must drain without consuming the replacement.
+    val stale = List.fill(160)(77.toByte)
+    txSendSingle(dcs, TxOncRpcReplySim(stale.length, tokens.head,
+      stale.take(ONCRPC_INLINE_BYTES.get).bytesToBigInt), stale.drop(ONCRPC_INLINE_BYTES.get), tid)
+    txSendSingle(dcs, TxOncRpcReplySim(0, replacement, BigInt(0)), Nil, tid)
+    waitUntil(replies.size == 5)
+    checkOncRpcReplyPacket(replies(4), packet(50000, Nil), wireXid, Nil)
+    txSendSingle(dcs, TxOncRpcReplySim(0, tokens.last, BigInt(0)), Nil, tid)
+    waitUntil(replies.size == 6)
+    checkOncRpcReplyPacket(replies(5), packet(30000 + NUM_SESSIONS.get - 1, Nil), wireXid, Nil)
+    val regs = ALLOC.readBack("OncRpcReplyEncoder")
+    assert(csr.read(regs("stat", "sessTblFull"), 8).bytesToBigInt == 3)
+    assert(csr.read(regs("stat", "dropped"), 8).bytesToBigInt == 1)
+    sleepCycles(100)
+    assert(replies.size == 6)
   }
 
   testWithDB("tx-rpc-inline-only-skips-dma")(Rx, Tx) { implicit dut =>
@@ -146,7 +206,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       s"ONC-RPC reply tail <= 64B unexpectedly invalidated overflow CLs; saw ${trace.dump(traceStart)}")
   }
 
-  testWithDB("rx-allcores")(Rx) { implicit dut =>
+  testWithDB("rx-allcores")(Rx, Tx) { implicit dut =>
     // test routine:
     // - all cores start in PID 0 (IDLE)
     // - enable one RPC process with one service that can run on all cores,
@@ -157,7 +217,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     val totalToSend = 50 * NUM_WORKER_CORES
 
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(1000)
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    val (clientIp, _, clientMac) = enzianIpMacAddrs(0)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+    fork { while (true) axisSlave.recv() }
     def macRxStat(name: String) = csrMaster.read(ALLOC.readBack("macIf")("stat", name), 8).bytesToBigInt
     val initialRxMacOverflow = macRxStat("rxMacOverflowCount")
 
@@ -195,7 +262,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       // send all packets
       0 until totalToSend foreach { idx =>
         // flow control: make sure we don't have more than RX_PKTS_PER_PROC packets in flight
-        while (inflightPackets.size >= RX_PKTS_PER_PROC) {
+        while (inflightPackets.size >= scala.math.min(RX_PKTS_PER_PROC.get, NUM_SESSIONS.get / 2)) {
           println(s"Already ${RX_PKTS_PER_PROC.get} packets in flight, waiting...")
           // sleep a little bit longer to allow bursts
           sleepCycles(1000)
@@ -206,7 +273,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
         // scheduler/ECI delivery, so keep the MAC CDC boundary lossless.
         waitMacRxCdcDrained()
 
-        val (packet, payload, xid) = getPacket()
+        val (rawPacket, payload, xid) = getPacket()
+        val packet = fixedPeer(rawPacket)
         println(f"Sending packet with XID $xid%#x")
         // record packet in map before driving the stream: the RX path can complete
         // quickly enough that workers observe the packet before send() returns.
@@ -256,8 +324,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           randomSleep(100, 50)
           cs.log("Sleep finished, checking packet data...")
 
-          // ECI presents numeric XIDs in host order.
-          val xid = info.xid.toInt
+          // Debug readback checks the wire XID retained behind the token.
+          val xid = requestXid(csrMaster, info.requestToken)
           cs.log(f"Received XID $xid%x")
 
           // find the payload that we sent
@@ -269,9 +337,9 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           packetsReceived += 1
           lastReceiveProgress = simTime()
 
-          inflightPackets.remove(xid)
-
           exitCriticalSection(dcsMaster, tid)
+          txSendSingle(dcsMaster, TxOncRpcReplySim(0, info.requestToken, BigInt(0)), Nil, tid)
+          inflightPackets.remove(xid)
         }
 
         while (packetsReceived != totalToSend) {
@@ -408,11 +476,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     sleepCycles(delayed)
 
     // read first request
-    val firstXid = {
+    val firstToken = {
       val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-      val receivedXid = info.xid.toInt
+      val receivedXid = requestXid(csrMaster, info.requestToken)
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
@@ -432,14 +500,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       assert(isSorted(entry, afterRxQueue, enqueueToHost, readStart, /*afterRead, */curr))
       assert(readStart - entry >= delayed)
 
-      info.xid // echo the host-order XID; ECI restores wire order
+      info.requestToken // the wire XID stays in hardware
     }
 
     // send first response
     {
       val (respInlineData, respTail) = respData.splitAt(ONCRPC_INLINE_BYTES)
       // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
-      val desc = TxOncRpcReplySim(respData.length, funcPtr, firstXid, respInlineData.bytesToBigInt)
+      val desc = TxOncRpcReplySim(respData.length, firstToken, respInlineData.bytesToBigInt)
 
       txSendSingle(dcsMaster, desc, respTail, tid)
       println("Written response")
@@ -450,10 +518,10 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // we can now read second packet
     readingSecond = true
 
-    val secondXid = {
+    val secondToken = {
       val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
-      val receivedXid = info.xid.toInt
+      val receivedXid = requestXid(csrMaster, info.requestToken)
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, readPayload(dcsMaster, pldDesc, desc.len))
@@ -467,7 +535,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       assert(isSorted(readPending, readStart/*, afterRead*/))
       assert(entry - readPending >= delayed * 4 / 5)
 
-      info.xid
+      info.requestToken
     }
 
     // send second response
@@ -476,7 +544,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       assert(respTail.isEmpty, "should not have any tail data")
 
       // XXX: Reply TX descriptor length is the entire response message length (INCLUDES inlined bytes)
-      val desc = TxOncRpcReplySim(respData2.length, funcPtr, secondXid, respInlineData.bytesToBigInt)
+      val desc = TxOncRpcReplySim(respData2.length, secondToken, respInlineData.bytesToBigInt)
 
       txSendSingle(dcsMaster, desc, respTail, tid)
       println("Written response")
@@ -543,7 +611,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     val tid = cs.currThread.get.tid
     cs.log("Entered user thread")
 
-    val _ = tryReadPacketDesc(dcsMaster, tid).result.get
+    val firstRequest = tryReadPacketDesc(dcsMaster, tid).result.get._1.asInstanceOf[OncRpcCallRxPacketDescSim]
 
     // start reading second packet
     var done = false
@@ -557,7 +625,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // try sending a packet and see if we can get through
     {
       val resp1 = simRandom.nextBytes(16).toList
-      val desc = TxOncRpcReplySim(resp1.length, funcPtr, xid, resp1.bytesToBigInt)
+      val desc = TxOncRpcReplySim(resp1.length, firstRequest.requestToken, resp1.bytesToBigInt)
 
       sleepCycles(1000)
 
@@ -579,7 +647,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
 
   /* Test that Lauberhorn can scale up to multiple services */
-  testWithDB("rx-sched-idle-scale-many")(Rx) { implicit dut =>
+  testWithDB("rx-sched-idle-scale-many")(Rx, Tx) { implicit dut =>
     // do not use every core for every service
     // three procs: A (2 thr); B (3 thr); C (3 thr)
 
@@ -588,7 +656,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       mkRandomProc(3) -> Seq(RpcSrvDef.mkRandom),
       mkRandomProc(3) -> Seq.fill(2)(RpcSrvDef.mkRandom),
     )
-    val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(1000)
+    val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(1000)
+    csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    val (clientIp, _, clientMac) = enzianIpMacAddrs(0)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_ipAddr"), clientIp.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_macAddr"), clientMac.getAddress.toList)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_state"), 2.toBytesLE)
+    csrMaster.write(ALLOC.readBack("IpEncoder")("ctrl", "neigh_idx"), 0.toBytesLE)
+    fork { while (true) axisSlave.recv() }
 
     val srvs = oncRpcCallPacketFactory(csrMaster, srvDefs,
       Some("rx-sched-idle-scale-many"))
@@ -631,17 +706,17 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           println(f"PID $pid%#x has $queueFill elements queued in scheduler")
 
           // XXX: heuristic!  more packets can be pending in decoder pipeline and not yet pushed to queue
-          if (queueFill >= RX_PKTS_PER_PROC.get - 8) {
+          if (queueFill >= RX_PKTS_PER_PROC.get - 8 || pktsToReceive.size >= NUM_SESSIONS.get / 2) {
             println(f"Trying to send for srvId $srvToSend: PID $pid%#x's queue is almost full, skipping sending and throttling")
             sleepCycles(200)
           } else {
-            val (pkt, pld, xid) = getPacket()
+            val (rawPacket, pld, xid) = getPacket()
+            val pkt = fixedPeer(rawPacket)
             println(f"Sending packet for PID $pid%#x with XID $xid%#x")
             val toSend = pkt.getRawData.toList
-            axisMaster.send(toSend)
-
             assert(!pktsToReceive.contains((pid, xid)), "random packet generation collision")
             pktsToReceive((pid, xid)) = (pkt, pld, funcPtr)
+            axisMaster.send(toSend)
             pktsSent(srvToSend) += 1
           }
         }
@@ -682,7 +757,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
               procLog("finished receiving")
               randomSleep(100, 50)
 
-              val xid = info.xid.toInt
+              val xid = requestXid(csrMaster, info.requestToken)
               if (!pktsToReceive.contains((pid, xid))) {
                 procLog(f"!!! XID $xid%#x not found!  Following XIDs have been sent for us:")
                 pktsToReceive.view.filterKeys(_._1 == pid).foreach { case ((_, x), _) =>
@@ -694,6 +769,8 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
               procLog(f"received xid $xid%#x, expecting packet $pkt")
               checkOncRpcCall(desc, desc.len, funcPtr, pld, tail)
 
+              txSendSingle(dcsMaster, TxOncRpcReplySim(0, info.requestToken, BigInt(0)), Nil, tid)
+              pktsToReceive.remove((pid, xid))
               procLog(s"finished (simulated) processing packet #${pktsReceived.sum}")
               pktsReceived(currIdx) += 1
             } else {

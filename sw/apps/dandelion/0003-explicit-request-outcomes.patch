@@ -44,7 +44,7 @@
  
  // lauberhorn_handler_func_t, lauberhorn_handler_free_t
 -pub type LauberhornHandlerFunc = extern "C" fn(private: *mut c_void, msg: *mut c_void, xid: u32) -> *mut c_void;
-+pub type LauberhornHandlerFunc = extern "C" fn(private: *mut c_void, msg: *mut c_void, xid: u32) -> LauberhornOutcome;
++pub type LauberhornHandlerFunc = extern "C" fn(private: *mut c_void, msg: *mut c_void, context: u32) -> LauberhornOutcome;
  pub type LauberhornHandlerFree = extern "C" fn(msg: *mut c_void);
  
  #[repr(C)]
@@ -115,7 +115,7 @@
 +    }
 +}
 +extern "C" fn run_invocation<E: Engine>(data: *mut c_void, req: *mut c_void,
-+                                      _xid: u32) -> LauberhornOutcome {
++                                      _context: u32) -> LauberhornOutcome {
 +    let invocation = unsafe { &mut *(data as *mut DeferredInvocation<E>) };
 +    let Some(function) = invocation.function.take() else { return LauberhornOutcome::fail(5); };
 +    invoke(invocation.ctx.clone(), function, unsafe { &mut *(req as *mut DandelionRPCRequest) })
@@ -127,7 +127,7 @@
 -) -> *mut c_void {
 -    
 -    // get reference to the runtiem context
-+    data: *mut c_void, req: *mut c_void, _xid: u32,
++    data: *mut c_void, req: *mut c_void, _context: u32,
 +) -> LauberhornOutcome {
      let ctx = unsafe {
          Arc::increment_strong_count(data as *const RuntimeContext<E>);

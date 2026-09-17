@@ -31,8 +31,8 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     lauberhorn_worker_t w = worker_get_current();
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
-        .oncrpc_reply_tx = {.func_ptr = parent->oncrpc_call_rx.func_ptr,
-                           .xid = parent->oncrpc_call_rx.xid, .status = status}
+        .oncrpc_reply_tx = {.request_token = parent->oncrpc_call_rx.request_token,
+                           .status = status}
     };
     if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED)
         LOG("RPC reply transport failure; delivery is indeterminate");
@@ -128,7 +128,7 @@ static bool consume_outcome(struct request *, lauberhorn_outcome_t, bool);
 static void deferred_start(void *arg) {
     struct deferred_request *d = arg;
     d->result = d->defer.run(d->defer.data, d->request.args,
-                            d->request.desc.oncrpc_call_rx.xid);
+                            d->request.desc.oncrpc_call_rx.request_token);
 }
 static void deferred_done(void *arg) {
     struct deferred_request *d = arg;
@@ -187,7 +187,7 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
     if (!r.args) { fail_request(desc, errno == ENOMEM ? 5 : 4); return; }
     if (!consume_outcome(&r, hw->handler.func(hw->handler.data, r.args,
-                                             desc->oncrpc_call_rx.xid), true))
+                                             desc->oncrpc_call_rx.request_token), true))
         release_request(&r);
 }
 static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {

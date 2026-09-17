@@ -8,6 +8,7 @@ int main(void)
 {
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size == 16, "reply inline offset");
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size == 16, "completion inline offset");
+    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size == 16, "call inline offset");
     unsigned char descriptor[16];
     memset(descriptor, 0xa5, sizeof(descriptor));
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_status_insert(descriptor, 5);
@@ -15,6 +16,10 @@ int main(void)
     assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_status_extract(descriptor) == 5);
     for (int i = 0; i < sizeof(descriptor); ++i)
         if (i != 3) assert(descriptor[i] == 0xa5);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_request_token_insert(descriptor, 0x1234abcd);
+    assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_request_token_extract(descriptor) == 0x1234abcd);
+    assert(descriptor[4] == 0xcd && descriptor[7] == 0x12);
+    assert(descriptor[3] == 5 && descriptor[8] == 0xa5);
     xdr_adapter_t adapter = {.call_size = 64, .resp_size = 64,
         .call_xdrproc = (xdrproc_t)string_xdr, .resp_xdrproc = (xdrproc_t)string_xdr};
     rpc_codec_t codec = oncrpc_codec(&adapter);

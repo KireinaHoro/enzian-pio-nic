@@ -1,7 +1,6 @@
 package lauberhorn.net.oncrpc
 
-import jsteward.blocks.axi.AxiStreamInjectHeader
-import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
+import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn.Global.{NUM_SESSIONS, ONCRPC_INLINE_BYTES, REG_WIDTH}
 import lauberhorn.{MacInterfaceService, PacketLength, RpcID, TraceData}
 import lauberhorn.net.udp.{UdpDecoder, UdpEncoder, UdpTxMeta, RpcLocalRoute}
@@ -18,8 +17,7 @@ import scala.language.postfixOps
 
 case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   val rpcId = UInt(RpcID.width bits)
-  val funcPtr = Bits(64 bits)
-  val xid = Bits(32 bits)
+  val requestToken = Bits(32 bits)
   val status = Bits(8 bits)
   val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
@@ -36,40 +34,19 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    // Stage host-order numbers, then install a wire-order session on sess_idx.
-    val writePort = OncRpcSessionDef()
-    writePort.elements.foreach { case (name, field) =>
-      busCtrl.drive(field, alloc("ctrl", s"Session table update $name (host order)",
-        s"sess_$name", attr = AccessType.WO))
+    val readIdx = alloc("stat", "Reply context readback index", "context_read_idx", attr = AccessType.WO)
+    busCtrl.drive(logic.contexts.io.readIndex, readIdx)
+    logic.contexts.io.readContext.elements.foreach { case (name, field) =>
+      busCtrl.read(EndiannessSwap(field.asBits), alloc("stat", s"UDP reply context $name (host order)",
+        s"context_$name", attr = AccessType.RO))
     }
-    val updateIdxAddr = alloc("ctrl", "Index of session table entry to update",
-      "sess_idx", attr = AccessType.WO)
-    busCtrl.write(logic.sessionDb.update.idx, updateIdxAddr)
-    busCtrl.onWrite(updateIdxAddr) {
-      logic.sessionDb.update.valid := True
-      logic.sessionDb.update.value.funcPtr := writePort.funcPtr
-      logic.sessionDb.update.value.xid := EndiannessSwap(writePort.xid)
-      logic.sessionDb.update.value.clientAddr := EndiannessSwap(writePort.clientAddr)
-      logic.sessionDb.update.value.clientPort := EndiannessSwap(writePort.clientPort)
-      logic.sessionDb.update.value.serverPort := EndiannessSwap(writePort.serverPort)
-      logic.sessionDb.update.value.active := writePort.active
-    }
-
-    val readbackIdxAddr = alloc("stat", "Index of session table entry to read back",
-      "sess_readback_idx", attr = AccessType.WO)
-    busCtrl.drive(logic.sessionDb.readbackIdx, readbackIdxAddr)
-    logic.sessionDb.readback.elements.foreach { case (name, field) =>
-      val hostField = field match {
-        case bits: Bits if Seq("xid", "clientAddr", "clientPort", "serverPort").contains(name) => EndiannessSwap(bits)
-        case other => other
-      }
-      busCtrl.read(hostField, alloc("stat", s"Session table readback $name (host order)",
-        s"sess_readback_$name", attr = AccessType.RO))
-    }
-
-    busCtrl.read(logic.sessTblFull.value, alloc("stat", "Number of times session table became full and entry 0 was overridden",
+    busCtrl.read(logic.contexts.io.readActive, alloc("stat", "Reply context active", "context_active", attr = AccessType.RO))
+    busCtrl.read(logic.contexts.io.readToken, alloc("stat", "Reply context token", "context_token", attr = AccessType.RO))
+    busCtrl.read(logic.sessTblFull.value, alloc("stat", "Requests rejected: reply context table full",
       "sessTblFull", attr = AccessType.RO))
-    busCtrl.read(logic.dropped.value, alloc("stat", "Number of dropped requests due to missing session",
+    busCtrl.read(logic.rejectionDropped.value, alloc("stat", "Rejection queue full: error reply dropped",
+      "rejectionDropped", attr = AccessType.RO))
+    busCtrl.read(logic.dropped.value, alloc("stat", "Replies dropped: stale or invalid context token",
       "dropped", attr = AccessType.RO))
   }
 
@@ -86,8 +63,18 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     val remotePld = Axi4Stream(axisConfig)
     to[UdpTxMeta, UdpEncoder](remoteMd, remotePld)
 
-    // accept events from RPC decoder to record in session DB
-    val newSessionEvent = Flow(OncRpcSessionDef())
+    // Admission is decided before host dispatch, with no allocation round trip.
+    val contexts = new RpcReplyContexts(NUM_SESSIONS)
+    val reject = Flow(UdpReplyContext())
+    val rejected = StreamFifo(UdpReplyContext(), NUM_SESSIONS.get)
+    rejected.io.push.valid := reject.valid
+    rejected.io.push.payload := reject.payload
+    rejected.io.pop.ready := False
+    val sessTblFull, rejectionDropped = Counter(REG_WIDTH bits)
+    when(reject.valid) { sessTblFull.increment() }
+    // Never block RX behind a congested rejection output: local replies needed
+    // to release capacity may be behind that request. UDP errors are best effort.
+    when(reject.valid && !rejected.io.push.ready) { rejectionDropped.increment() }
 
     awaitBuild()
     val localRoute = new RpcLocalRoute(outMd, outPld, remoteMd, remotePld,
@@ -100,45 +87,6 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     // encoder only handles the actual header as header (unlike in the Call decoder);
     val encoder = RpcHeaderInjector(axisConfig, OncRpcReplyHeader().getBitsWidth / 8)
     encoder.io.output >> outPld
-
-    val sessionDb = LookupTable(OncRpcSessionDef(), NUM_SESSIONS) { v =>
-      v.active init False
-    }
-    sessionDb.update.setIdle()
-
-    // find a slot to record the incoming session
-    val (rxExistQ, rxExistR, _) = sessionDb.makePort(OncRpcSessionDef(), OncRpcSessionDef(), "rxLookupExisting") { (v, q, _) =>
-      v.funcPtr === q.funcPtr && v.xid === q.xid && v.active
-    }
-
-    val sessTblFull = Counter(REG_WIDTH bits)
-    val (rxFreeQ, rxFreeR, _) = sessionDb.makePort(NoData(), NoData(), "rxLookupFree") { (v, _, _) =>
-      !v.active
-    }
-    rxFreeQ.valid := True
-    rxFreeR.ready := True
-
-    rxExistQ.translateFrom(newSessionEvent.toStream) { case (q, e) =>
-      q.query := e
-      q.userData := e
-    }
-    rxExistR.ready := True
-    when (rxExistR.valid) {
-      sessionDb.update.valid := True
-      sessionDb.update.value := rxExistR.userData
-      when (rxExistR.matched) {
-        // an entry already exists, update that one
-        sessionDb.update.idx := rxExistR.idx
-      } otherwise {
-        // no entry currently exists, place in free slot
-        sessionDb.update.idx := rxFreeR.idx
-        when (!rxFreeR.matched) {
-          // no more free entries, this will override the 0th entry;
-          // increment counter
-          sessTblFull.increment()
-        }
-      }
-    }
 
     // Convert data words to AXI Stream and concatenate with the actual payload
     // from the packet buffer.  We will only have payload data from the packet
@@ -157,30 +105,10 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     val inlinedData = Reg(Bits(axisConfig.dataWidth * 8 bits)) // already shifted!
     val overflowPldPresent = Reg(Bool())
 
-    // find reply destination
-    case class TxQuery() extends Bundle {
-      val funcPtr = Bits(64 bits)
-      val xid = Bits(32 bits)
-    }
-
-    val (txQ, txR, _) = sessionDb.makePort(TxQuery(), OncRpcReplyTxMeta(),
-      "txLookup", singleMatch = true) { (v, q, _) =>
-      v.funcPtr === q.funcPtr && v.xid === q.xid && v.active
-    }
-    txQ.translateFrom(md) { case (q, md) =>
-      q.query.funcPtr := md.funcPtr
-      q.query.xid     := md.xid
-      q.userData.rpcId := nextRpcId
-      q.userData.funcPtr := md.funcPtr
-      q.userData.xid := md.xid
-      q.userData.status := md.status
-      q.userData.data := md.data
-      q.userData.replyLen := md.replyLen
-    }
-    when (txQ.fire) {
-      nextRpcId := nextRpcId + 1
-    }
-    txR.ready := False
+    contexts.io.replyToken := md.requestToken
+    contexts.io.retire := False
+    md.ready := False
+    val lastWasReject = RegInit(False)
 
     val outHdr = Reg(OncRpcReplyHeader())
     encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
@@ -196,47 +124,60 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          txR.ready := True
-          when (txR.valid) {
-            // calculate shift for beat to inject into payload
+          // Alternate under contention, so normal replies can release contexts.
+          when(rejected.io.pop.valid && (!md.valid || !lastWasReject)) {
+            rejected.io.pop.ready := True
+            val route = rejected.io.pop.payload
+            outHdr.xid := route.xid
+            outHdr.msgType := EndiannessSwap(B(1, 32 bits))
+            outHdr.replyStat := 0
+            outHdr.verifier := 0
+            outHdr.acceptStat := EndiannessSwap(B(5, 32 bits))
+            outMd.daddr := route.clientAddr
+            outMd.dport := route.clientPort
+            outMd.sport := route.serverPort
+            outMd.rpcId := nextRpcId
+            outMd.pldLen := outHdr.getBitsWidth / 8
+            inlinedMask := 0
+            overflowPldPresent := False
+            nextRpcId := nextRpcId + 1
+            lastWasReject := True
+            goto(sendDownstreamMd)
+          } elsewhen(md.valid) {
+            md.ready := True
+            lastWasReject := False
+            nextRpcId := nextRpcId + 1
             inlinedShift := inlinedShiftNext
-            inlinedMask  := inlinedMaskNext
-            when (txR.userData.replyLen.bits > ONCRPC_INLINE_BYTES.get) {
-              inlinedLen         := ONCRPC_INLINE_BYTES.get
+            inlinedMask := inlinedMaskNext
+            when(md.replyLen.bits > ONCRPC_INLINE_BYTES.get) {
+              inlinedLen := ONCRPC_INLINE_BYTES.get
               overflowPldPresent := True
             } otherwise {
-              inlinedLen         := txR.userData.replyLen.bits.resized
+              inlinedLen := md.replyLen.bits.resized
               overflowPldPresent := False
             }
-
-            // store inlined bytes.  We shift it here already to shorten critical path
-            inlinedData := (txR.userData.data.asBits << (inlinedShiftNext * 8)).resized
-
-            when (txR.matched) {
-              tp.trace("OncRpcReplyEncode", RpcID(txR.userData.rpcId)) := True
-
-              // send header to encoder
-              outHdr.xid        := txR.userData.xid
-              outHdr.msgType    := EndiannessSwap(B("32'x00000001")) // msg_type == REPLY
-              outHdr.replyStat  := 0 // reply_stat == MSG_ACCEPTED
-              outHdr.verifier   := 0
-              outHdr.acceptStat := EndiannessSwap(txR.userData.status.resize(32))
-
-              outMd.daddr       := txR.value.clientAddr
-              outMd.rpcId       := txR.userData.rpcId
-              outMd.dport       := txR.value.clientPort
-              outMd.sport       := txR.value.serverPort
-              outMd.pldLen      := txR.userData.replyLen.bits + outHdr.getBitsWidth / 8
-
+            inlinedData := (md.data << (inlinedShiftNext * 8)).resized
+            when(contexts.io.replyValid) {
+              // Capture all routing state before releasing the slot. The output
+              // registers own it through any subsequent transport backpressure.
+              contexts.io.retire := True
+              val route = contexts.io.replyContext
+              tp.trace("OncRpcReplyEncode", RpcID(nextRpcId)) := True
+              outHdr.xid := route.xid
+              outHdr.msgType := EndiannessSwap(B(1, 32 bits))
+              outHdr.replyStat := 0
+              outHdr.verifier := 0
+              outHdr.acceptStat := EndiannessSwap(md.status.resize(32))
+              outMd.daddr := route.clientAddr
+              outMd.rpcId := nextRpcId
+              outMd.dport := route.clientPort
+              outMd.sport := route.serverPort
+              outMd.pldLen := md.replyLen.bits + outHdr.getBitsWidth / 8
               goto(sendDownstreamMd)
             } otherwise {
-              // failed to find session: is the entry overridden?
               dropped.increment()
-              tp.trace("OncRpcReplyLookupMiss", RpcID(txR.userData.rpcId)) := True
-              when (txR.userData.replyLen.bits > ONCRPC_INLINE_BYTES.get) {
-                // only need to consume payload, when there are overflow bytes
-                goto(dropPld)
-              }
+              tp.trace("OncRpcReplyLookupMiss", RpcID(nextRpcId)) := True
+              when(md.replyLen.bits > ONCRPC_INLINE_BYTES.get) { goto(dropPld) }
             }
           }
         }

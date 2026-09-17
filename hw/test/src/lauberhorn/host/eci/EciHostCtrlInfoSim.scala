@@ -50,11 +50,11 @@ object EciHostCtrlInfoSim {
           dp.pop(8).toInt
         )
       case 3 =>
-        val xid = dp.pop(32, skip = 12)
+        val token = dp.pop(32, skip = 12)
         RxOncRpcCallSim(
           len.toInt,
           dp.pop(64),
-          xid,
+          token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
@@ -118,23 +118,23 @@ case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtr
       .toBigInt
 }
 
-case class TxOncRpcReplySim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
+case class TxOncRpcReplySim(len: Int, requestToken: BigInt, args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(8, status, skip = 5)
-      .push(32, xid)
-      .push(64, funcPtr)
+      .push(32, requestToken)
+      .push(64, 0)
       .push(ONCRPC_INLINE_BYTES * 8, args)
       .toBigInt
   }
 
   override def toString = {
     val argsMask = (BigInt(1) << (ONCRPC_INLINE_BYTES * 8)) - 1
-    f"OncRpcReply (xid $xid%x), $len bytes total, inlined args: ${args & argsMask}%x"
+    f"OncRpcReply (context $requestToken%x), $len bytes total, inlined args: ${args & argsMask}%x"
   }
 }
 
-case class RxOncRpcCallSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallRxPacketDescSim {
+case class RxOncRpcCallSim(len: Int, funcPtr: BigInt, requestToken: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallRxPacketDescSim {
   /** not implemented due to call Rx descriptor never sent out */
   override def encode = ???
 }

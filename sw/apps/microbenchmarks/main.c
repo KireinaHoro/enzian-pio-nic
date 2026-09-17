@@ -74,10 +74,10 @@ static const struct bench_def benches[] = {
 };
 
 static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
-                                      int xid) {
+                                      lauberhorn_request_context_t context) {
   const struct bench_def *def = data;
   bench_call *call = req;
-  (void)xid;
+  (void)context;
 
   resp.request_id = call->request_id;
   resp.result = def->compute(call->a, call->b);
