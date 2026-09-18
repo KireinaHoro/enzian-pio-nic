@@ -107,3 +107,51 @@ followed by UDP. This RTL correction requires a fresh hardware build; the
 polarity-only ECO images do not contain it. These checks do not establish
 operation of the physical link. Local evidence is under
 `out/hardware-tests/cmac-trace-20260917/`, with status in `summary.json`.
+
+
+## Fresh trace CI and BDK initialization gate — 2026-09-18
+
+[Pipeline 512110](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/512110)
+passed all jobs at `4c898645cde1484d2fb5435a42e045a3c1f15068`.
+Hardware job 2834758 and deployment image from prepare job 2834757 were
+staged together. This is a fresh CI implementation, not either polarity ECO.
+
+The first verified cold boot reached Linux but loading the matching driver
+aborted at `probe_versions+0xa4`, the static-shell read at `0x97effffffff8`.
+Its post-menu BDK log reported QLM8..13 CDR lock but **omitted the CCPI lane
+initialization line**. The second cold boot of the identical artifacts printed
+all lanes `[0]` through `[23]`, passed version/driver initialization, and checked
+100 adder RPC replies with zero failures. This separates incomplete BDK ECI
+bring-up from a reproducible failure of the new RTL; it does not establish why
+lane initialization intermittently fails.
+
+The successful boot's static ECI edge ILA captured the shell-version request
+on link 1 at sample 0 (`0010cfdffffffffc`), its response header at sample 9,
+and version `02f19869` at sample 12. Both links reported RUN. The first failed
+boot's DDR trace had been stopped for the earlier network experiment, before
+module load; its 1,280-byte JTAG snapshot is **not** a capture of the abort.
+The successful comparison retains the ILA, a partial DDR prefix, and a 1 MiB
+tail at byte offset `0x7c208c0`; the full 125.13 MiB JTAG dump was stopped
+because this attempt succeeded. Do not treat those partial windows as a full,
+lossless ECI credit reconstruction.
+
+The trace CMAC aligns with local fault clear but intermittent remote fault.
+On the RPC-passing boot, zuestoll12 received metadata from `192.168.129.201`,
+then timed out on the first data read (zero trace bytes). Metadata reported
+writeSlot=2050083, wrapped=0, sampleLost=1, dmaError=0. A separate reset trial's
+receiver could not bind because the original receiver still owned the port;
+that trial is not a valid UDP-read result. Switch-side port/FEC diagnosis is
+still needed; the successful metadata packet does not certify network dumping.
+
+The expect-based boot helper now rejects missing/unlocked QLM8..13 or missing/
+incomplete CCPI lanes 0..23 before accepting boot. It retains each failed log
+and performs a full verified reset and reprogramming, up to three attempts.
+Only ECI initialization failures trigger these retries; programming/access
+failures still stop. The explicit no-bitstream negative test remains exempt.
+Seven boot regressions and all twelve existing workflow tests pass through
+`checks.x86_64-linux.workflow-tools`, including an actual expect-stream gate,
+retry exhaustion and reset recovery from a resumed boot.
+
+Evidence is under `out/hardware-tests/cmac-trace-512110/`. Two obsolete agent
+server logs were truncated, reclaiming about 45 GiB of shared scratch while
+preserving result CSVs and recovery/deployment images.

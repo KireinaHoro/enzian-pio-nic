@@ -76,8 +76,11 @@ def main():
             started = time.monotonic()
             rc = run_step([sys.executable, str(HERE/'boot.py'), *shared,
                        '--logs', str(root/'boot'), '--', *case['program']],
-                      root/'boot-output.log', 1100)
+                      root/'boot-output.log', 3300)
             result['boot_exit'] = rc
+            boot_summary = root / 'boot' / 'summary.json'
+            if boot_summary.exists():
+                result['boot_attempts'] = json.loads(boot_summary.read_text())
             boot_output = (root/'boot-output.log').read_text(errors='replace')
             result['reset_evidence'] = re.findall(r'POWER_OFF_VERIFIED [^\r\n]*', boot_output)
             if rc:
