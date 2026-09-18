@@ -337,7 +337,7 @@ class Scheduler extends FiberPlugin {
     drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
     val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
 
-    val (pushLookup, pushResult, _) = procDb.makePort(PID(), HostReqWithTrace(),
+    val (pushLookup, pushResult, pushLookupCapacity) = procDb.makePort(PID(), HostReqWithTrace(),
       "rxPush", singleMatch = true) { (v, q, _) =>
       v.enabled && v.pid === q
     }
@@ -374,7 +374,11 @@ class Scheduler extends FiberPlugin {
     pushResult.ready := False
     val pushDiscard, queueDiscard = Stream(HostReqWithTrace())
     val coreDiscards = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
-    discarded << StreamArbiterFactory().roundRobin.on(Seq(pushDiscard, queueDiscard) ++ coreDiscards)
+    val selectedDiscard = StreamArbiterFactory().roundRobin.on(Seq(pushDiscard, queueDiscard) ++ coreDiscards)
+    val discardStage = new RecoveryStreamBuffer(HostReqWithTrace(), PID_WIDTH.get)
+    discardStage.io.push << selectedDiscard
+    discardStage.io.pushOwner := requestPid(selectedDiscard.req).bits
+    discarded << discardStage.io.pop
     when(discarded.fire) { inc(_.dropped) }
     queueTp.trace("SchedulerRequestDropped",
       HostMsgID(discarded.hostMsgId),
@@ -483,16 +487,17 @@ class Scheduler extends FiberPlugin {
     // storage. Retain it through the pipelined process lookup even after disable.
     val admissions = Seq(host[OncRpcCallDecoder].logic.admission,
       host[OncRpcReplyDecoder].logic.admission)
-    val inTransit = Vec.fill(NUM_PROCS + 1)(Reg(UInt(32 bits)) init 0)
-    inTransit(0) := 0
+    // DecoderSink has one FULL (two-record) stage for each RPC decoder,
+    // DmaControl has one active record, and LookupTable exports its stage count.
+    // One additional record covers a departure waiting in the accounting stage.
+    val inTransitCapacity = 2 * admissions.size + 1 + pushLookupCapacity + 1
+    val inTransitBusy = Vec.fill(NUM_PROCS + 1)(Bool())
+    inTransitBusy(0) := False
     for(i <- 1 to NUM_PROCS.get) {
-      val arrivals = CountOne(admissions.map(a => a.valid && a.payload === processPids(i)).asBits)
-      val departure = pushResult.fire && requestPid(pushResult.userData.req) === processPids(i)
-      when(arrivals =/= 0 || departure) {
-        assert(!departure || inTransit(i) =/= 0 || arrivals =/= 0,
-          "process descriptor ownership underflow")
-        inTransit(i) := inTransit(i) + arrivals.resize(32) - departure.asUInt.resize(32)
-      }
+      val accounting = new RecoveryInFlight(inTransitCapacity, admissions.size)
+      accounting.io.arrivals := admissions.map(a => a.valid && a.payload === processPids(i)).asBits
+      accounting.io.departure := pushResult.fire && requestPid(pushResult.userData.req) === processPids(i)
+      inTransitBusy(i) := accounting.io.busy
     }
 
     // Actual old owner is retained through the entire preemption handshake;
@@ -504,7 +509,8 @@ class Scheduler extends FiberPlugin {
       }
     }
     val processDraining = Vec.tabulate(NUM_PROCS + 1) { pid =>
-      inTransit(pid) =/= 0 || !queueMetas(pid).empty || reclaimOwner === pid ||
+      inTransitBusy(pid) || !queueMetas(pid).empty || reclaimOwner === pid ||
+        discardStage.io.owners.map(o => o.valid && o.payload === processPids(pid).bits).asBits.orR ||
         coreResident.map(_ === pid).asBits.orR || corePidMap.map(_ === pid).asBits.orR
     }
 

@@ -221,3 +221,10 @@ discard arbitration/backpressure and B4 in-flight accounting/context retirement
 in one cycle. See the [checkpoint diagnosis](../hardware/physical-findings.md#b4-recovery-regression--pipeline-512109-september-18).
 B4 remains open. Restructure and reroute this cone before treating the image as
 a timing-qualified recovery candidate; bitstream-generation success is not closure.
+
+The B4 timing correction adds registered discard storage with per-slot owners
+included in drain readback, and pipelines bounded per-process accounting events.
+The new owner-retention/backpressure and accounting tests plus the existing B4
+RTL suites passed (17 tests). See the [experiment record](../hardware/physical-experiments.md#september-18-b4-discardaccounting-timing-correction).
+The corrected source still requires its new routed CI result; no ECI timing
+changes or constraints are included in this correction.
