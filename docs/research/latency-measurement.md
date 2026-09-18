@@ -73,6 +73,33 @@ The plotter refuses to plot rows that fail the local correctness checks.
 
 ## Server CSV
 
+Restored in the nested runtime on 2026-09-18. Set
+`LAUBERHORN_SERVER_TRACE_CSV=/path/server.csv` before starting the service
+(`ADDER_SERVER_TRACE_CSV` is a compatibility fallback). With neither variable
+set, receive uses the uninstrumented path and no trace clocks or CSV writes run.
+Applications annotate their decoded request with
+`lauberhorn_trace_request_id(id)` and optionally `lauberhorn_trace_result(ok)`
+from `<lauberhorn/trace.h>`; the runtime is independent of application encoding.
+The microbenchmarks do this automatically. Wire XID is unavailable under the
+opaque request-context ABI, so its legacy CSV column is empty.
+
+A trace row follows request ownership through defer and forward, and is written
+once at terminal reply/failure submission. `execution_kind` is a bitmask
+(deferred=1, forwarded=2); defer enqueue and forward submit/completion have
+separate timestamps. Deferred handler active time sums scheduled fiber execution
+intervals; wait time is the remaining handler wall time. This is instrumentation
+of runtime scheduling, not exact CPU accounting across OS preemption. Errors
+record reply and transport status. A process killed before replying has no
+terminal row. CSV output itself is outside the measured TX interval and perturbs
+throughput.
+
+The existing latency plotter accepts inline rows only, requires application IDs,
+and rejects duplicate IDs. It does not interpret nested waiting as inline handler
+work. New rows include RX/TX runtime worker IDs and Linux CPU IDs; hardware
+correlation requires `--worker-cpu-base` (44 for the current Enzian setup) and
+rejects requests whose RX and TX CPUs differ. Do not equate a runtime worker ID
+with a hardware datapath ID.
+
 The server runtime CSV records one completed server-side request row.  The
 important fields are:
 
@@ -235,7 +262,8 @@ The matching step is per worker core:
 - Hardware request records are built around `SchedulerRequestDispatched`, with
   the matching `HostMsgID`, `CoreID`, preceding RPC enqueue/queue events, and
   following ECI RX delivery/completion events.
-- Server CSV rows are grouped by `worker_id + 1` and sorted by
+- New server CSV rows are grouped by `rx_cpu_id - worker_cpu_base + 1`
+  (legacy rows use `worker_id + 1`) and sorted by
   `server_rx_exit_ns`, because that timestamp is after `core_eci_rx()` returned
   the request to software.
 - If the trace has extra records, the plotter chooses the per-core sequence
@@ -444,14 +472,14 @@ Lauberhorn datapath.
 ## Source and reproduction entry points
 
 - [Plotter](../../data/eci/apps/plot_latency.py): joins CSVs, estimates ECI RTT and clock offset, emits percentile breakdown CSV/PDF and histogram PDF. Requires Python and matplotlib for plotting.
-- [Client instrumentation](../../sw/apps/microbenchmarks/client/bench_client.c), [server probes](../../sw/rt/eci.c), [2F2F receive/transmit](../../sw/core/eci/core.h). Server CSV is enabled with `LAUBERHORN_SERVER_TRACE_CSV` (`ADDER_SERVER_TRACE_CSV` remains a compatibility fallback).
+- [Client instrumentation](../../sw/apps/microbenchmarks/client/bench_client.c), [server probes](../../sw/rt/server_trace.c), [2F2F receive/transmit](../../sw/core/eci/core.h). Server CSV is enabled with `LAUBERHORN_SERVER_TRACE_CSV` (`ADDER_SERVER_TRACE_CSV` remains a compatibility fallback).
 - [Tracing reference](../development/tracing.md) and [trace tools](../../data/eci/sys_trace/README.md).
 
 Example (replace inputs with one matched capture; run from repository root):
 
 ```sh
 python3 data/eci/apps/plot_latency.py client.csv server.csv \
-  --trace-dump trace-dram.bin \
+  --worker-cpu-base 44 --trace-dump trace-dram.bin \
   --trace-map out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json \
   -o latency
 ```

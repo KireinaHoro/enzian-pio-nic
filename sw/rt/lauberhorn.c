@@ -49,6 +49,7 @@ static void shutdown_signal(int signo) {
 }
 
 int lauberhorn_init(lauberhorn_t *ctx) {
+    server_trace_init();
     ctx->_workers = 0;
     ctx->_watchdog_enabled = false;
     struct sigaction sa = {
@@ -116,6 +117,7 @@ int lauberhorn_stop(lauberhorn_t *ctx) {
 }
 
 void lauberhorn_fini(lauberhorn_t *ctx) {
+    server_trace_fini();
     atomic_store(&deadline_running, false);
     pthread_join(deadline_thread, NULL);
     munmap(ctx->parity_page, getpagesize());

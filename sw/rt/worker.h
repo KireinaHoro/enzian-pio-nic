@@ -9,6 +9,7 @@
 #include "config.h"
 #include "eci/core.h"
 #include "lauberhorn.h"
+#include "server_trace.h"
 
 lauberhorn_worker_t worker_get_current(); 
 
@@ -28,6 +29,7 @@ struct lauberhorn_worker {
 
     void *dp_base;
     pthread_t thread;
+    struct server_trace_row rx_trace;
     bool execution_active;
     uint8_t execution_pending;
 };
