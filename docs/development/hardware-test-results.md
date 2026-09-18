@@ -232,3 +232,55 @@ retry exhaustion and reset recovery from a resumed boot.
 Evidence is under `out/hardware-tests/cmac-trace-512110/`. Two obsolete agent
 server logs were truncated, reclaiming about 45 GiB of shared scratch while
 preserving result CSVs and recovery/deployment images.
+
+## B4 pipeline 512199 functional probe — 2026-09-18
+
+Hardware job **2835579**, revision `754ecb4f19746ac62ade3ccaa301b33ee7905762`,
+was tested on reserved zuestoll14 with an exact-revision deployment image.
+This image still fails routed setup timing (WNS −0.382 ns); functional results
+below do not establish timing closure. Bitstream SHA-256:
+`d16ddf408ba4d749036c319df6533753b1cb03444d25ede3be84fe7a25b0f481`.
+Deployment SHA-256:
+`3eac2c22eb4a3f42ffdfa361344c881ad37c98394b44781410f95ce8db424448`.
+
+Two verified-reset boots passed module/revision verification and **100 correct
+multiplication RPCs each**. Between these successes, two boots using the old
+helper aborted in `probe_versions` at the static-shell version read. Applying
+the new ECI validator to their saved transcripts found missing CCPI lane
+initialization in both failures; the successful boots reported QLM8..13 lock and
+all 24 lanes. The last successful run used the updated gated helper directly.
+The second abort's JTAG snapshot retained 23 DDR slots (1472 bytes), with
+wrapped/sampleLost/dmaError all zero. No static edge ILA was armed for that abort,
+so the application trace does not establish the shell-read failure mechanism.
+
+Master `2a614d9` was merged, and boot-flow commits `01e8454` and `ff506d2` were
+imported separately from `fix/cmac-trace-capture`, where they had not yet reached
+master. The imported flow passed its seven tests and the Nix `workflow-tools`
+check. These host-tool updates did not change the deployed artifacts.
+
+The first recovery attempts exposed serial harness truncation: the fixture
+registered and reached `RECOVERY_READY`, but the completion-marker command sent
+after the heredoc was truncated. The marker now shares the initial shell command
+line, so it arrives before worker startup/kernel logging. Local shell checks
+verified preservation of success and nonzero statuses. The two interrupted
+fixtures were retired explicitly; their attempts remain recorded as harness
+failures, not passing campaigns.
+
+With corrected framing, **six no-reset signal cases passed**: INT/TERM/KILL
+before traffic and after verified dispatch. Each checked process retirement,
+service reuse, and unrelated multiplication RPCs. The next case,
+`01-hang-explicit-active`, failed its unrelated RPC check. Its startup transcript
+records `L2C_TAD_INT: 0000000000020000, TIMEOUT: c0088100000a0080`, an
+uncorrected LFB entry timeout. A later RPC check also failed, and console login
+could not collect kernel state. The fixture's timed explicit-stop completion is
+therefore unverified. Dirty-TX, stuck-BUSY, watchdog and the second campaign round
+were not reached. This is an open failure, not B4 acceptance or proof of a
+particular hardware cause.
+
+The FPGA trace was frozen before any reset. Status was writeSlot=84456073,
+wrapped=0, sampleLost=0, dmaError=0; only bounded prefix/tail windows are retained,
+not a full trace or lossless reconstruction. The board was left in the failed
+state for diagnosis. Local evidence: `out/enzian/b4-512199/`, including exact
+manifests/provenance, `smoke*/summary.json`, `legacy-boot-validation.json`,
+`recovery-512199-framed/summary.json`, and JTAG captures. Preserve the original
+failure when testing a later timing-corrected image.
