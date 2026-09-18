@@ -2,7 +2,8 @@
 
 Status: September 18, 2026. Trace-localized stall plus reproduced crossbar bug;
 software entry-order violation strongly indicated, exact wakeup not captured.
-The board remains unchanged. No implementation fix is claimed here.
+The board remains unchanged. The subsequent kernel parking correction below
+is implemented in source; corrected hardware acceptance remains outstanding.
 
 ## Evidence and chronology
 
@@ -110,3 +111,22 @@ contains decoded events; `hang-capture/timeout-app-ila.csv` is the new failed-st
 capture. `analysis/` contains `decerr_repro.sv`, `crossbar_repro.sv`, the positive
 control, Verilator build logs and result logs. None of these observations required
 resetting, unfreezing the DDR trace, changing software, or programming the FPGA.
+
+## Subsequent kernel correction
+
+`sw/kmod/sched.c` now queues return-to-user task work for initial registration
+and every preemption path. The callback sets TASK_IDLE before checking the
+enabled/park-requested condition and repeats that check after every wakeup.
+This prevents intervening syscall sleeps or unrelated wakeups from granting
+userspace access before routing. Waiting takes place after mmap/control locks
+are released. Dispatch still clears the condition after routing and preemption
+cacheline setup; teardown clears it after hardware retirement. Callback file
+references and requeueing during an active callback are retained.
+
+A local deterministic C harness exercising the actual parking functions passed
+initial deferred parking, unrelated wakeup, teardown, callback requeue, dispatch
+before callback execution, exiting-task queue rejection, and dispatch between
+sleep-state publication and the condition check. This uses kernel-boundary shims
+(`out/worker-park-test/`), not a running Linux scheduler or coherence model.
+The original board wakeup interleaving remains unobserved, and the independent
+crossbar DECERR defect still requires its own fix.

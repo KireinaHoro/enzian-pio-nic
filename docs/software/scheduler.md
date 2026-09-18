@@ -15,11 +15,11 @@ Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cor
 
 ## Dispatch protocol
 
-1. `prepare_worker_thread` changes a mapped worker to `SCHED_FIFO` priority 1 and parks it in `TASK_IDLE`. Its `mmap` can therefore remain blocked until hardware schedules it.
+1. `prepare_worker_thread` changes a mapped worker to `SCHED_FIFO` priority 1 and queues return-to-user task work. After `mmap` releases its locks, that callback waits in `TASK_IDLE` until dispatch clears the parking condition. Every wakeup rechecks the condition; setting task state inside `mmap` alone does not prevent premature userspace access.
 2. FPGA preemption control clears READY, coordinates BUSY and RX/TX cacheline retirement, then sends SGI 8. Bootstrap from IDLE skips fetching an unmapped old thread's control line.
 3. `worker_fpi_handler` masks the interrupt, reads the next PID, atomically claims an enabled thread with `worker_idx == -1`, parks the old worker while retaining its mapping, and schedules deferred work on that CPU.
 4. `_sched_worker_thread` waits for hardware drain, unroutes the old thread, pins the new thread, routes its prefix, restores RX/TX parity from its shared parity page, fetches/locks the preemption cacheline in L2, wakes the thread, and reenables the FPGA interrupt. Reenabling is the hardware completion handshake.
-5. Whole-process teardown first drains hardware, then restores `SCHED_NORMAL`, housekeeping affinity and wakefulness. A kernel monitor detects fatal signals on parked workers. IRQs interrupting kernel code park the old thread through return-to-user task work, after its syscall releases locks.
+5. Whole-process teardown first drains hardware, then restores `SCHED_NORMAL`, housekeeping affinity and wakefulness. A kernel monitor detects fatal signals on parked workers. All preemption IRQ paths use the same return-to-user parking callback, including interrupts from userspace. Each queued callback retains the application file until its last access to the thread record.
 
 Sources: [`sched.c`](../../sw/kmod/sched.c), [`worker.c`](../../sw/kmod/worker.c), [`EciPreemptionControlPlugin.scala`](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala), [`cs.h`](../../sw/rt/cs.h).
 

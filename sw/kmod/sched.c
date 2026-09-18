@@ -2,23 +2,29 @@
 #include "trace.h"
 #include <linux/iopoll.h>
 #include <linux/file.h>
-#include <asm/irq_regs.h>
-#include <asm/ptrace.h>
 
 // defined in worker.c
 extern int worker_lo, worker_hi;
 
-/* IRQs may interrupt an ioctl or housekeeping task on the worker CPU.
- * Never sleep a service in the middle of kernel code: task work runs before
- * its next return to userspace (and before exit tears down its mappings). */
+/* Registration holds mmap/control locks, and IRQs may interrupt kernel code.
+ * Park only at return to userspace, after those locks have been released. */
 static void park_at_user_return(struct callback_head *cb)
 {
 	struct thr_def *thr = container_of(cb, struct thr_def, park_work);
 	struct file *file = thr->park_file;
+	/* task_work_run has detached this callback. A new preemption may queue
+	 * it again while we sleep or after our final condition check. Each
+	 * queued invocation owns its own file reference. */
 	atomic_set(&thr->park_queued, 0);
-	set_current_state(TASK_IDLE);
-	if (READ_ONCE(thr->enabled) && READ_ONCE(thr->park_requested))
+	for (;;) {
+		/* Publish sleep state before testing the condition so dispatch or
+		 * teardown cannot lose a wakeup. Other wakeups confer no permission
+		 * to access an unrouted datapath: always recheck after scheduling. */
+		set_current_state(TASK_IDLE);
+		if (!READ_ONCE(thr->enabled) || !READ_ONCE(thr->park_requested))
+			break;
 		schedule();
+	}
 	__set_current_state(TASK_RUNNING);
 	/* exit_files precedes exit_task_work: keep the slot and module alive
 	 * until this callback has made its last access to the thread record. */
@@ -59,7 +65,7 @@ void clean_worker_thread(struct thr_def *thr)
 
 	pr_info("Deregistering thread %d from Lauberhorn\n", thr->task->pid);
 
-	thr->enabled = false;
+	WRITE_ONCE(thr->enabled, false);
 	WRITE_ONCE(thr->park_requested, false);
 
 	// Reset scheduler class to SCHED_NORMAL
@@ -217,8 +223,9 @@ void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
  *   to enter Lauberhorn control)
  * - we are running in interrupt context (called by FPI handler)
  *
- * In any case, we mark the current task as not runnable and set the
- * "resched needed" flag. Deferred dispatch work retains the old mapping until
+ * In both cases, queue a checked wait at return to userspace. Setting task
+ * state inside mmap is insufficient: intervening kernel sleeps can overwrite
+ * it before syscall exit. Deferred dispatch work retains the old mapping until
  * the hardware confirms drain, then unroutes it before assigning the next task.
  *
  * Use TASK_IDLE, which is TASK_UNINTERRUPTIBLE | TASK_NOLOAD.  Signals
@@ -231,11 +238,7 @@ void desched_worker_thread(struct thr_def *thr)
 	BUG_ON(!thr->enabled);
 
 	WRITE_ONCE(thr->park_requested, true);
-	if (!in_interrupt() || (thr->task == current && get_irq_regs() && user_mode(get_irq_regs()))) {
-		BUG_ON(thr->task != current);
-		set_current_state(TASK_IDLE);
-		set_tsk_need_resched(current);
-	} else if (atomic_cmpxchg(&thr->park_queued, 0, 1) == 0) {
+	if (atomic_cmpxchg(&thr->park_queued, 0, 1) == 0) {
 		int ret;
 		get_file(thr->park_file);
 		ret = task_work_add(thr->task, &thr->park_work, TWA_RESUME);
