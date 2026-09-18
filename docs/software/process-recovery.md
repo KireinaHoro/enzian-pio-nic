@@ -241,4 +241,7 @@ recovery cases on Enzian. The hung-handler case then encountered an uncorrected
 L2 fill timeout and unrelated RPC failure; explicit-stop completion was not
 verified and later cases were not reached. See the [recorded evidence and
 boot/harness distinctions](../development/hardware-test-results.md#b4-pipeline-512199-functional-probe--2026-09-18).
-B4 acceptance remains open.
+B4 acceptance remains open. The [timeout investigation](../hardware/b4-l2-timeout-512199.md)
+now narrows the failure to premature worker access and a reproduced crossbar
+decode-error accounting defect. Worker parking and crossbar error recovery need
+correction and validation; these findings do not constitute implementation fixes.
