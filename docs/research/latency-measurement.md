@@ -126,7 +126,9 @@ important fields are:
   `server_rx_unblock_ns` use 11 timestamp probes; older 18-column captures
   without this field used 10 probes and are still accepted by the plotter as a
   legacy schema.
-- correctness fields: request/response byte counts and `ok`.
+- correctness fields: receive buffer extent, encoded response byte count and `ok`.
+  `request_bytes` includes the full 48-byte inline area even for shorter wire
+  payloads; it is not an exact UDP application-payload length.
 
 ## Hardware Trace Events
 

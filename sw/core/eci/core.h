@@ -16,6 +16,13 @@
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)
 
+/* The nested datatype includes its inline data fields, unlike reply TX. */
+static inline void core_eci_copy_nested_inline(void *control, const void *payload,
+                                               size_t len) {
+  memcpy((uint8_t *)control + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size
+         - LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES, payload, len);
+}
+
 typedef enum {
   TY_ERROR,
   TY_BYPASS,
@@ -433,8 +440,7 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
       oncrpc_inlined_bytes = payload_len;
     }
 
-    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size,
-           copy_from, oncrpc_inlined_bytes);
+    core_eci_copy_nested_inline(tx_ctrl, copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;
     break;
