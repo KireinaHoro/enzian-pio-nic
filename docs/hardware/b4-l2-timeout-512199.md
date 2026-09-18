@@ -2,8 +2,9 @@
 
 Status: September 18, 2026. Trace-localized stall plus reproduced crossbar bug;
 software entry-order violation strongly indicated, exact wakeup not captured.
-The board remains unchanged. The subsequent kernel parking correction below
-is implemented in source; corrected hardware acceptance remains outstanding.
+The failure was preserved during diagnosis. The subsequent kernel parking
+correction below has now passed the incoming/process recovery campaign on the
+same 512199 bitstream; crossbar correction and broader B4 acceptance remain open.
 
 ## Evidence and chronology
 
@@ -130,3 +131,12 @@ sleep-state publication and the condition check. This uses kernel-boundary shims
 (`out/worker-park-test/`), not a running Linux scheduler or coherence model.
 The original board wakeup interleaving remains unobserved, and the independent
 crossbar DECERR defect still requires its own fix.
+
+Kernel fix `5ec614c` was then applied alone to the original `754ecb4` module
+source, retaining the original RTL/ABI collateral, runtime and applications.
+The module cross-build and seven local parking scenarios passed. On Enzian,
+100 RPCs and all **20 no-reset process-recovery cases** passed; both repetitions
+of the previously failing hung-handler case completed. Archived kernel traces
+show every fixture retiring, with no trace loss or L2 timeout. This supports the
+kernel-side repair without waiting for the independent crossbar fix. See the
+[full board result and setup caveats](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).

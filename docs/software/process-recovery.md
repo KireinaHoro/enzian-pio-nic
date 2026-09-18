@@ -244,5 +244,9 @@ boot/harness distinctions](../development/hardware-test-results.md#b4-pipeline-5
 B4 acceptance remains open. The [timeout investigation](../hardware/b4-l2-timeout-512199.md)
 now narrows the failure to premature worker access and a reproduced crossbar
 decode-error accounting defect. Worker parking now uses a checked return-to-user
-wait for registration and all preemption paths; board validation remains open.
-Crossbar error recovery still needs correction and validation.
+wait for registration and all preemption paths. With that kernel-only change,
+the same 512199 bitstream passed 100 RPCs and all 20 incoming/process recovery
+cases across two no-reset rounds, without L2 faults or kernel trace loss. See
+the [follow-up result](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
+Crossbar error recovery still needs correction and validation; this campaign
+does not close nested deadline/cancellation, late-reply or outgoing-capacity gates.

@@ -290,3 +290,58 @@ identifies a preemption-control read before service dispatch and reproduces an
 AXI DECERR completion-accounting bug that blocks subsequent mapped reads. The
 board's RRESP and exact software wakeup were not captured; implementation fixes
 and corrected board validation remain outstanding.
+
+## B4 kernel parking fix on 512199 — 2026-09-18
+
+Kernel fix `5ec614c` enforces initial registration and preemption parking through
+checked return-to-user task work. The callback rechecks after every wakeup,
+instead of relying on TASK_IDLE set inside mmap or a single sleep. See the
+[diagnosis](../hardware/b4-l2-timeout-512199.md).
+
+On reserved zuestoll14, the original **512199 / `754ecb4` bitstream** was retained.
+Only `sw/kmod/sched.c` was patched in the original module source; RTL, generated
+headers, runtime and applications remained from `754ecb4`. The deployment
+manifest separately records this local module modification and patch hash.
+Image SHA-256: `be1f319b2d802dd1c161cea505aa9855f5e91ea5a4fbe6f5cfbb26ed95ec1ca2`.
+Patch SHA-256: `aa7a2475d2b47b2d5ba79fe30d0e78a8cf5fe5bc3726641d4f302be599eff3be`.
+
+**100 multiplication RPCs passed with zero failures**, followed by **20/20
+recovery cases across two no-reset rounds**: INT/TERM/KILL before traffic and
+after dispatch, explicit stop of a hung handler, dirty uncommitted TX, stuck
+BUSY, and watchdog expiry. The persistent multiplication service passed every
+interleaved correctness check. Both repetitions of the previously failing
+hung-handler case completed. Kernel traces record retirement phase 2 for all
+20 fixtures and all three dispatch phases for active cases. Both watchdog cases
+record hardware kill and recovery reason 2. Stuck-BUSY cases also record the
+hardware kill path, with explicit-stop recovery reason 1. No L2 timeout, checked
+kernel fault, ftrace overrun, commit overrun or dropped event was found in the
+archived evidence. This validates this incoming/process recovery campaign; it
+is not closure of nested cancellation/deadline/late-reply/outgoing-capacity work
+or of the independently reproduced crossbar DECERR bug.
+
+Setup and interrupted attempts are retained separately:
+
+- First boot lacked the BDK CCPI report; the automated second boot passed all
+  QLM and 24-lane checks and loaded the module without fault.
+- Initial RPC failed ARP resolution. The worker was correctly parked in
+  `park_at_user_return`; hardware MAC ingress was zero, bypass was empty, and
+  the main CMAC reported alignment plus remote fault. A transmitter-only VIO
+  reset restored traffic without resetting application/ECI state. Its immediate
+  status sample still showed remote fault; the subsequent 100-call RPC result
+  is the evidence of recovered traffic. A bounded DDR capture has no loss flags.
+- An early campaign passed two cases, then serial input stalled in an unfinished
+  heredoc before the third kill executed. The owned fixture was subsequently
+  retired. Runner fix `7fec944` waits for a unique shell continuation prompt
+  after each 128-character payload line. All 21 Nix workflow tests passed,
+  including two actual-shell framing regressions.
+- The next start found the 4.4 GiB root filesystem full before creating its log
+  directory. A previous-boot test-owned server log was archived to shared scratch
+  and removed. The final 20-case campaign then completed on the same boot.
+
+Local evidence: `out/worker-park-test/`, especially `provenance.json`,
+`recovery-512199-worker-park-final/summary.json`, `recovery-audit.json` and
+`recovery-evidence/`. Shared archive:
+`/scratch/pengxu/lh-worker-park-recovery-evidence/`. The verbose persistent
+benchmark is stopped and its log archived after validation to avoid filling
+root again; the patched module remains loaded. Kernel cross-build and seven
+shim-based parking scenarios also passed; these are separate from board results.

@@ -261,6 +261,7 @@ server output and dmesg snapshots remain in the reported CPU `/var/tmp` director
 Archive those files and inspect loss/faults before declaring acceptance. This
 runner covers incoming-request/process recovery only: nested timeout/cancel,
 late-reply and outgoing-table capacity tests remain separate B4 acceptance gates.
-The runner has been exercised on pipeline 512199: six signal cases passed,
-then the hung-handler case encountered an L2 fill timeout and unrelated RPC
-failure. See the [board results](hardware-test-results.md#b4-pipeline-512199-functional-probe--2026-09-18).
+The original pipeline 512199 campaign stopped after six signal cases at an L2
+fill timeout. Applying only the kernel parking fix subsequently passed all 20
+cases over two no-reset rounds on that bitstream. See the
+[follow-up board results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
