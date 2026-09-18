@@ -155,3 +155,19 @@ retry exhaustion and reset recovery from a resumed boot.
 Evidence is under `out/hardware-tests/cmac-trace-512110/`. Two obsolete agent
 server logs were truncated, reclaiming about 45 GiB of shared scratch while
 preserving result CSVs and recovery/deployment images.
+
+The updated expect flow was then exercised on a third cold boot: QLM and lane
+validation passed on attempt one, the matching driver loaded, and another 100
+adder RPC replies passed. No retry was needed in this live trial; retry behavior
+is covered by the automated tests. Two temporary server-setup mistakes (missing
+log parent, then redundant IP assignment) were corrected before the final RPC
+check. The board remains on the CI image, with capture overrides restored.
+
+A final bounded UDP trial bypassed ARP with a temporary static neighbor entry.
+The packet capture contains six FPGA metadata packets and 31 outgoing UDP
+requests to the configured FPGA MAC/IP, but no trace data; the read timed out.
+The neighbor entry was removed afterward. This rules out unresolved host ARP
+as the sole cause of that trial's failure. Remote-fault flapping persists;
+network trace dumping remains unverified even though JTAG readout and normal
+RPCs work. The third boot's JTAG head (64 KiB), tail (1 MiB at byte offset
+131140160), static ILA, and BDK gate summary are retained under `gated/`.
