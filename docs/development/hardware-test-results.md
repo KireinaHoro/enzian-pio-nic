@@ -345,3 +345,93 @@ Local evidence: `out/worker-park-test/`, especially `provenance.json`,
 benchmark is stopped and its log archived after validation to avoid filling
 root again; the patched module remains loaded. Kernel cross-build and seven
 shim-based parking scenarios also passed; these are separate from board results.
+
+## Bundled nested RPC and restored server tracing — 2026-09-18
+
+DUT zuestoll14, peer zuestoll12 (`192.168.129.129`), unchanged FPGA from
+pipeline **512199**, revision `754ecb4f19746ac62ade3ccaa301b33ee7905762`.
+Bitstream SHA256 `d16ddf408ba4d749036c319df6533753b1cb03444d25ede3be84fe7a25b0f481`.
+The deployment deliberately retains that revision's generated RTL, configuration
+and Mackerel headers, plus the previously tested `5ec614c` kernel parking patch.
+Runtime tracing is `dac2450`; the board-discovered inline TX copy repair is
+`a4600bc`; the final validation fixture is `006cce4`. This is software validation
+on matched ABI collateral, not evidence for later RTL timing candidates.
+
+The initial image SHA256 was
+`66eea06cb412c3355ce4fdcd4a15a7c2145aef902dd64ad34abf084314187da4`; the repaired software image is
+`3d6a2578764b637eff9da44ea61e557ba34ea72749b4c80be62cd96309e57114`
+(`/scratch/pengxu/lh-512199-bundled-fixed.img`). The final fixture executable
+was staged separately against that mounted runtime; SHA256
+`80109e3777434c0f24ce92e75f602c49c7de34e5ff6cbd8a6abd601291711237`.
+Manifests preserve the exact store paths and original hardware revision.
+
+Results:
+
+- Restored server tracing: gateway multiplication smoke passed **100/100**;
+  exactly 100 CSV rows matched client IDs, had ordered RX/decode/handler/encode/TX
+  timestamps, and recorded CPU 44 for RX and TX. The existing latency plotter
+  successfully produced software breakdown and histogram PDFs. No new FPGA/CPU
+  clock correlation or full hardware latency figure is claimed.
+- The bundled peer campaign passed **88/88** checks, observing 396 nested packets
+  with checked asymmetric program/version/procedure fields, source/destination
+  addresses and ports, XIDs, and complete application bytes. Remote calls, local
+  calls, remote forwards and local forwards passed at 48, 512 and 1024 bytes.
+  Local cases produced no packets at the peer responder; this is not a CMAC
+  trace proof of absence of all physical traffic. Eight parallel futures received
+  deliberately reordered replies correctly.
+- Default-stack nested calls rejected; explicit errors, oversized encoding,
+  exhausted fiber and software pending pools returned the expected error, and
+  subsequent calls progressed. Twenty cycles each confirmed cancel completion,
+  exactly 16 outgoing admissions out of 32 attempts, retirement and capacity reuse.
+  Incoming saturation returned 16 successful deadline completions and 16 hardware
+  errors; subsequent requests progressed.
+- A deadline expired during a quiet interval, with the outer response in about
+  1.99 s (the 1 s deadline plus sweep granularity). Deliberately late replies did
+  not corrupt subsequent calls. The final campaign emitted 109 terminal server
+  rows: 89 deferred, six forwarded and 14 inline, including four expected errors.
+  Local child requests have their own rows; hardware admission rejections do not.
+  Deferred active/wait arithmetic and forward timestamp ordering were checked.
+- Killing a service with **16 confirmed outgoing requests** (fixture deadlines
+  extended to 60 s) completed kernel recovery phases 0/1/2. Its replacement passed
+  **31/31** checks including restored 16-slot capacity, after receiving the 16 old
+  replies. No reset, module reload or FPGA programming occurred between this kill
+  and replacement. These late replies were sent before fresh nested submissions;
+  a late response racing an identical port/XID after process-lifetime reuse is
+  not established by this test.
+- Four-worker add and mul baselines from the second Enzian each passed **100/100**
+  independently decoded wire replies with checked arithmetic and asymmetric XIDs.
+  These serial calls were handled on CPU 44; registering four workers is not
+  evidence of simultaneous work on all four CPUs. Both services fully retired.
+  Final audit found no new kernel faults, no kernel trace overruns/drops and no
+  remaining campaign processes. The module/bitstream remain loaded; no other
+  reservation or process was changed.
+
+The initial raw-echo fixture incorrectly treated the 48-byte inline receive
+extent as an exact short wire length; its 16-byte trial is retained as a fixture
+failure. The corrected 48-byte remote trial then exposed a real runtime bug:
+`core_eci_tx` copied 24 nested inline bytes after the 64-byte generated datatype,
+but that datatype already contains those bytes at offsets 40–63. The peer saw
+zeros in those positions and intact overflow bytes. `a4600bc` places the copy
+inside the descriptor, with native and sanitizer regression checks for every
+length 1–24 and adjacent-byte preservation. The full campaign passed after this
+software-only repair.
+
+The first pending-kill trial retired according to dmesg but failed its trace
+assertion: module reload had reset the event enables. It is retained as an
+incomplete trial, not counted as a pass. With trace events explicitly re-enabled,
+the second trial captured phase-2 retirement and passed replacement checks.
+
+Evidence: ignored `out/bundled-validation/` contains build recipes/logs, image and
+fixture hashes, run.py transcripts, scripts, CSV checks/plots and downloaded
+evidence. Shared evidence is `/scratch/pengxu/lh-bundled-validation/`, including
+`nested-results-final.json`, `kill2/{kill-result,after-kill-results}.json`, captured
+packet hex, all failed trials, manifests and kernel traces. The checked-in peer
+runner is [nested_validation_client.py](../../tools/enzian/nested_validation_client.py).
+No DECERR board investigation was performed; its RTL repair is accepted by the
+[separate simulation regression](../hardware/b4-l2-timeout-512199.md#decerr-repair-accepted-by-simulation-2026-09-18).
+
+This substantially covers the generic B1–B4 transport/runtime checks, but does
+not close final-batch timing acceptance, the historical Sven-specific application
+fixtures, explicit CSR readback, full local hardware trace correlation, or the
+separate B5 startup and B6 Dandelion/application gates. The 512199 setup timing
+failure is unchanged; no later pipeline was queried in this campaign.

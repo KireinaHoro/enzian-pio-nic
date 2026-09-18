@@ -16,6 +16,31 @@ mul and Sven's standalone adder each passed 100 calls from a second Enzian;
 one Dandelion 1×1 matmul invocation passed. These results do not establish
 nested completion, clean shutdown, startup reliability or composition support.
 
+## Bundled board follow-up — 2026-09-18
+
+[Detailed evidence](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18)
+now covers 88 generic nested/runtime cases, a full-outgoing-table process kill
+with 31 replacement-service checks, and 100 add plus 100 mul calls from the
+second Enzian. Server tracing (`dac2450`) is restored and board-validated,
+including deferred and forwarded ownership. The campaign found and fixed an
+additional B1 software defect: nested inline data was copied after, rather than
+inside, the generated descriptor (`a4600bc`). Native/sanitizer regression checks
+and the subsequent board campaign pass. No new FPGA build was needed for it.
+
+| Area | Covered now | Still not established by this campaign |
+| --- | --- | --- |
+| B1 | Asymmetric remote endpoint/program fields and checked inline/overflow nested payloads/completions; peer add/mul baselines | Final-batch timing/artifact acceptance, historical Sven-specific fixtures, explicit in-flight CSR readback and Dandelion baseline |
+| B2 | Remote endpoints, reordered completions, local round trips/forwarding, no local packets at peer, incoming/outgoing saturation and reuse | Full local hardware-trace correlation and broader mixed/multiprocess overload |
+| B3 | Reply/fail/defer/forward, default-stack guard, fiber/pending/transport exhaustion and subsequent progress | Application-specific Dandelion acceptance remains B6 |
+| B4 | Prior 20 incoming/process cases plus cancellation, quiet deadline, late replies, full outgoing-table kill, complete retirement and replacement capacity | Late replies racing identical endpoint-port/XID reuse across process lifetimes were not tested |
+
+DECERR is fixed in the pinned RTL dependency and accepted by read/write simulation
+regressions (`d8a5a27`); per maintainer direction it has no further board gate.
+512199 does not contain that fix and still has its previously recorded setup
+failure. The later timing candidate was not queried here. This is substantial
+functional progress, not blanket closure of B1–B4 or approval to merge. B5/B6
+remain separate. Historical status sections below describe their original dates.
+
 ## Merge assessment after kernel parking validation — 2026-09-18
 
 The [512199 kernel-only follow-up](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
@@ -32,11 +57,10 @@ and no trace loss. This closes that campaign, **not B1–B4 as a group**.
 | B4 | Incoming shutdown, explicit stop, dirty TX, stuck BUSY and watchdog recovery passed. Nested cancellation races, deadlines without traffic, late replies and outgoing-capacity restoration remain open. |
 
 Do not merge on the strength of this campaign alone. The independently reproduced
-AXI DECERR accounting bug is still unfixed; the kernel repair avoids its observed
-trigger. The tested 512199 image still fails setup timing, and the later timing
-candidate has not yet been assessed here. Server per-request CSV tracing also
-remains a recorded pre-merge requirement: the application sets
-`LAUBERHORN_SERVER_TRACE_CSV`, but the runtime has no consumer. B5/B6 are separate
+AXI DECERR accounting bug was still unfixed at that point; it is now closed
+by the simulation repair described above. The tested 512199 image still fails setup timing, and the later timing
+candidate has not yet been assessed here. Server per-request CSV tracing was also outstanding then; the bundled
+follow-up above restores and validates its runtime consumer. B5/B6 are separate
 open gates. Historical sections below retain their original evidence and scope.
 
 ## Status after master refresh — 2026-09-17
@@ -385,11 +409,11 @@ concurrent DAGs and failure recovery remain unvalidated.
 
 ## Remaining integration requirements
 
-Before merging, also restore per-request CSV tracing
-(`LAUBERHORN_SERVER_TRACE_CSV` is currently ignored), and resolve/test hardware
-in-flight-table capacity, acceptance/backpressure and timeout retirement.
-These are retained requirements from the earlier review, not failures newly
-isolated by this campaign. See [integration scope](nested-rpc-integration.md)
+The earlier review also required per-request CSV tracing and hardware
+in-flight capacity, admission/backpressure and timeout retirement checks.
+Tracing is now restored (`dac2450`), and the bundled board campaign above covers
+the bounded admission, timeout and reuse cases; its remaining evidence limits
+are listed there. These requirements are not new failures. See [integration scope](nested-rpc-integration.md)
 and [Dandelion provenance](../research/dandelion.md).
 
 For each fix, record which software tests and real Enzian cases ran. Keep
