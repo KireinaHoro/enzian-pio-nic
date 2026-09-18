@@ -64,11 +64,14 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
     active(replySlot) := False
   }
   val discardSlot = io.discard.payload(slotBits - 1 downto 0).asUInt
-  when(io.discard.valid && active(discardSlot) &&
-       generations(discardSlot).asBits === io.discard.payload(31 downto slotBits)) {
-    active(discardSlot) := False
-  }
+  // Validate retirement against each local slot, rather than muxing a
+  // generation out and broadcasting the result back to the active-bit bank.
+  // Only the B4 discard path changes; ordinary reply/allocate timing is intact.
   for (i <- 0 until count) {
+    when(io.discard.valid && discardSlot === i && active(i) &&
+         generations(i).asBits === io.discard.payload(31 downto slotBits)) {
+      active(i) := False
+    }
     when(io.reclaim.valid && active(i) && owners(i) === io.reclaim.payload) {
       active(i) := False
     }
