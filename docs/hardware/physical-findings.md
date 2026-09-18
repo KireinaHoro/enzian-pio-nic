@@ -165,3 +165,68 @@ interrupted by a corrected report-option error and are superseded.
 CI experiments and the scheduled artifact collector are tracked in
 [the experiment ledger](physical-experiments.md). Source interventions above are
 hypotheses under test, not measured improvements.
+
+## B4 recovery regression — pipeline 512109, September 18
+
+[Pipeline 512109](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/512109)
+built `cdf2121` (hardware job 2834747, report job 2834748). The complete canonical
+checkpoint reports describe **Physopt postRoute**, Vivado 2025.1. Successful CI
+and bitstream generation do not establish timing closure.
+
+| Clock/domain | WNS (ns) | TNS (ns) | Failing setup endpoints |
+| --- | ---: | ---: | ---: |
+| Whole design | −1.441 | −8939.668 | 28222 |
+| NIC application, 200 MHz | −1.441 | −6433.588 | 13269 |
+| ECI `clk_sys` | −0.494 | −2492.498 | 14839 |
+| Main CMAC RX | −0.272 | −13.581 | 114 |
+
+Hold and pulse-width failure counts are zero (minimum slack +0.001 ns and
++0.039 ns respectively). All routable nets are routed, with zero routing errors;
+the timing report reports zero unconstrained internal endpoints. These facts do
+not cancel the setup violations. CDC diagnostics remain separately recorded.
+
+The worst path starts at
+`Scheduler_logic_procDb/rxPush_pip_node_3_calcIdx_IDX_reg[0]_replica_1` and ends at
+`Scheduler_logic_inTransit_1_reg[23]`. It has **18 logic levels, 6.190 ns data
+delay: 1.478 ns logic and 4.712 ns routing**, against a 5 ns requirement.
+The routed cone passes through scheduler rejection selection, the new six-input
+discard round-robin arbiter (`streamArbiter_13`), selected buffer-size/ready
+logic, and per-process counter update arithmetic. The report includes a 1.319 ns
+net into the counter-update cone. The parallel context-retirement path ends at
+`OncRpcReplyEncoder_logic_contexts/active_13_reg`: −1.441 ns, 18 levels,
+6.256 ns, including a 1.945 ns, fanout-132 discard-token net.
+
+Source correspondence:
+
+- `Scheduler.scala`: `pushResult` reject decision directly drives `pushDiscard`;
+  `discarded` directly receives the arbiter output. `pushResult.fire` also drives
+  departure accounting for every process. The newly added `inTransit` registers
+  are 32 bits, with same-cycle arrival/departure arithmetic.
+- `DmaControlPlugin.scala`: selected buffer size controls `discarded.ready`;
+  `discarded.fire` and selected request token directly drive context retirement.
+  Pipelining **only the packet-buffer return** does not cut these earlier
+  selected-data-to-ready or token-retirement paths.
+- `RpcReplyContexts.scala`: token lookup/generation validation and active-bit
+  updates consume the new combinational discard path.
+
+Of the bounded 200 worst setup paths (one per endpoint), **180 end at inTransit
+counters and 11 at reply-context active bits**. This is sample evidence, not a
+partition of all failing endpoints/TNS. It identifies B4 reclamation/accounting
+as the dominant new cone; the watchdog deadline comparator is not the dominant
+endpoint in this sample. Existing ECI/RX violations also remain; fixing this cone
+alone cannot be called whole-design closure.
+
+The first correction should split discard selection, descriptor/token handling,
+and retirement/accounting across real handshake/register boundaries, breaking
+both forward data and backward ready paths. Register accounting events before
+counter arithmetic; derive counter widths from a proved bound on outstanding
+admitted descriptors rather than leaving them at 32 bits. Any added stage must
+remain visible to `processDraining` until both packet/context ownership are
+retired, so pipelining does not reintroduce premature PID/context reuse. Preserve
+one-record-per-cycle throughput under stalls. Then rerun stop/reuse, late-discard
+and backpressure tests and compare a new routed checkpoint. Do not use timing
+exceptions or placement-only tweaks to conceal this dependency chain.
+
+Evidence: `out/physical/b4-512109/out/physical/{summary.json,paths.tsv,
+max-detail.rpt,timing.rpt,route.rpt}` from the completed report job. No hardware
+programming or board test is part of this timing inspection.

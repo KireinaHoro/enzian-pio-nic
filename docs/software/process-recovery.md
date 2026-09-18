@@ -211,3 +211,13 @@ encrypted SCP attempt to management address `192.168.192.14` returned “No rout
 to host” while another session held the console. No board reset/programming or
 B4 hardware acceptance occurred in this preparation run. Confirm console access,
 finish/check Vivado, stage the image, then run the baseline and no-reset campaign.
+
+### September 18: routed timing gate failed
+
+CI pipeline 512109 (`cdf2121`, build job 2834747, report job 2834748) completed
+bitstream generation but failed setup timing: WNS −1.441 ns, TNS −8939.668 ns,
+28222 failing endpoints. The dominant new paths connect scheduler rejection,
+discard arbitration/backpressure and B4 in-flight accounting/context retirement
+in one cycle. See the [checkpoint diagnosis](../hardware/physical-findings.md#b4-recovery-regression--pipeline-512109-september-18).
+B4 remains open. Restructure and reroute this cone before treating the image as
+a timing-qualified recovery candidate; bitstream-generation success is not closure.
