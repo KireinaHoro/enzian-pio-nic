@@ -21,7 +21,7 @@
 /* Wire words: application ID, operation, count, value, optional echo bytes. */
 enum { ECHO, REMOTE, LOCAL, FORWARD_REMOTE, FORWARD_LOCAL, CANCEL, TIMEOUT,
        CAPACITY, INLINE_GUARD, FAIL, OVERSIZE, FIBERS_FULL, PENDING_FULL,
-       REMOTE_ERROR, JOIN, HOLD=100, DELAY=101, PEER_ERROR=102 };
+       REMOTE_ERROR, JOIN, KILL_PENDING, HOLD=100, DELAY=101, PEER_ERROR=102 };
 struct message { size_t len; unsigned char data[MAX_BYTES]; };
 static rpc_codec_t codec;
 static lauberhorn_rpc_endpoint_t remote, local;
@@ -60,8 +60,8 @@ static lauberhorn_outcome_t nested(void *p, void *arg, lauberhorn_request_contex
     lauberhorn_future_t *set[32];
     unsigned accepted=0,rejected=0;
     struct message child=*m;
-    put(&child,1,(op==CANCEL || op==CAPACITY)?HOLD:op==TIMEOUT?DELAY:op==REMOTE_ERROR?PEER_ERROR:ECHO);
-    if(op!=CAPACITY && op!=JOIN) n=1;
+    put(&child,1,(op==CANCEL || op==CAPACITY || op==KILL_PENDING)?HOLD:op==TIMEOUT?DELAY:op==REMOTE_ERROR?PEER_ERROR:ECHO);
+    if(op!=CAPACITY && op!=JOIN && op!=KILL_PENDING) n=1;
     if(!n || n>32) return bad();
     for(unsigned i=0;i<n;i++) {
         if(op==JOIN) put(&child,3,get(m,3)+i);
@@ -69,6 +69,8 @@ static lauberhorn_outcome_t nested(void *p, void *arg, lauberhorn_request_contex
             if(errno!=EAGAIN) return bad();
             rejected++; continue;
         }
+        if (op==KILL_PENDING)
+            pending_call_start_timeout(futures[accepted].c,futures[accepted].xid,60000);
         set[accepted]=&futures[accepted]; accepted++;
     }
     if(!accepted) return bad();
@@ -89,7 +91,7 @@ static lauberhorn_outcome_t nested(void *p, void *arg, lauberhorn_request_contex
         }
         lauberhorn_free_result(&futures[i].result);
     }
-    if(ep->_transport.unresolved) ok=false;
+    if((op==CANCEL || op==CAPACITY) && ep->_transport.unresolved) ok=false;
     if(op==CAPACITY) { put(m,2,accepted); put(m,3,rejected); }
     lauberhorn_trace_result(ok);
     return ok?lauberhorn_reply(m,sizeof(*m),NULL):bad();
@@ -100,7 +102,7 @@ static lauberhorn_outcome_t handle(void *p, void *arg, lauberhorn_request_contex
     lauberhorn_trace_request_id(get(m,0));
     switch(op) {
     case ECHO: case OVERSIZE: return lauberhorn_reply(m,sizeof(*m),NULL);
-    case REMOTE: case LOCAL: case CANCEL: case TIMEOUT: case CAPACITY: case REMOTE_ERROR: case JOIN:
+    case REMOTE: case LOCAL: case CANCEL: case TIMEOUT: case CAPACITY: case REMOTE_ERROR: case JOIN: case KILL_PENDING:
         return lauberhorn_defer(nested,NULL,NULL);
     case FORWARD_REMOTE: case FORWARD_LOCAL:
         put(m,1,ECHO);
