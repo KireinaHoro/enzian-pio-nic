@@ -78,6 +78,18 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   the [automated test routine](docs/development/hardware-test.md). Vivado and
   deployment require platform prerequisites.
   State which checks actually ran. Historical logs are not current test results.
+- If a hardware test fails in `probe_versions`, preserve the failure before
+  resetting or restoring another image: freeze tracing, record VIO status, and
+  dump trace DDR over JTAG with the matching trace map and bitstream provenance.
+  Investigate the captured ECI traffic to pinpoint the failure; this recurring,
+  hard-to-catch issue warrants capture without asking again. Keep tracing active
+  through module load. If it was already stopped or the window was lost, record
+  that limitation and reproduce with tracing armed before drawing conclusions.
+- After releasing the BDK menu, require QLM8..13 CDR lock and the complete
+  initialized CCPI/ECI lane list 0..23 before loading the driver. If either is
+  missing or incomplete, preserve the boot log, perform a full verified cold
+  reset, reprogram, and retry; do not treat Linux login alone as successful
+  ECI bring-up. Use the boot helper's bounded retries and report exhaustion.
 - Search first-party paths first (`hw`, `sw`, `docs`, `build.mill`, `flake.nix`,
   `vivado/eci/rtl`); inspect submodules when the task crosses those boundaries.
   Avoid broad recursive reads of `out`, `result`, trace captures and dependencies.
