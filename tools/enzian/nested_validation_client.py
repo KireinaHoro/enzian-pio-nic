@@ -59,7 +59,7 @@ def main():
     counter=0
     client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     client.bind((args.bind,0));client.settimeout(8)
-    def call(name,op,size=16,count=1,status=0):
+    def call(name,op,size=48,count=1,status=0):
         nonlocal counter
         counter+=1;ident=0x1A2B0000+counter;xid=0xC3D40000+counter
         payload=words(ident,op,count,0x13579BDF)+bytes((i*37+19)&255 for i in range(size-16))
@@ -69,6 +69,7 @@ def main():
         before=len(observations);start=time.monotonic()
         client.sendto(words(xid,0,2,PROGRAM,VERSION,PROCEDURE,0,0,0,0)+payload,(args.nic,PORT))
         reply,peer=client.recvfrom(65536)
+        row.update(reply_hex=reply.hex(),reply_peer=list(peer))
         if peer!=(args.nic,PORT) or reply[:24]!=words(xid,1,0,0,0,status):
             raise ValueError(f'{name}: wrong reply header/source: {peer} {reply.hex()}')
         if not status:
@@ -88,7 +89,7 @@ def main():
         pending={}; accepted=0; rejected=0
         for i in range(32):
             counter+=1; ident=0x1A2B0000+counter; xid=0xC3D40000+counter
-            payload=words(ident,6,1,0x13579BDF)
+            payload=words(ident,6,1,0x13579BDF)+bytes(32)
             pending[xid]=payload
             client.sendto(words(xid,0,2,PROGRAM,VERSION,PROCEDURE,0,0,0,0)+payload,(args.nic,PORT))
         while pending:
@@ -107,7 +108,9 @@ def main():
         call('after-incoming-capacity',1)
     result={'status':'fail','cases':cases,'nested_packets':observations,'peer_errors':errors}
     try:
-        for size in (16,512,1024):
+        # RX reports at least the full 48-byte inline area; this raw echo
+        # codec has no embedded length, unlike XDR/application codecs.
+        for size in (48,512,1024):
             for name,op in [('inline',0),('remote',1),('local',2),('forward-remote',3),('forward-local',4)]:
                 call(f'{name}-{size}',op,size)
         call('parallel-reordered-futures',14,512,count=8)
