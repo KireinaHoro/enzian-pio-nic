@@ -78,6 +78,7 @@ let
         })
       )
       {
+        nested-validation = callPackage (source + "/sw/apps/nested-validation/package.nix") { };
         recovery-test = callPackage (source + "/sw/apps/recovery-test/package.nix") { };
         microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
@@ -131,7 +132,7 @@ in
   inherit (deployment) mkDeploymentEnvironment mkTestImage;
   deployFs = deployment.mkTestImage {
     name = "microbenchmarks";
-    applications = { inherit (applications) microbenchmarks recovery-test; };
+    applications = { inherit (applications) microbenchmarks recovery-test nested-validation; };
   };
   dandelionDeployFs = deployment.mkTestImage {
     name = "dandelion";

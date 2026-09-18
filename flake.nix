@@ -79,6 +79,7 @@
               ciDependencies
               ;
             recovery-test = platform.applications.recovery-test;
+            nested-validation = platform.applications.nested-validation;
             dummy-app-build-with-nix = platform.applications.nix-build-demo;
           }
           // ci
