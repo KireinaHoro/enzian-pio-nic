@@ -41,9 +41,12 @@ def main():
     marker = 'ENZIAN_DONE_' + uuid.uuid4().hex
     # Short base64 lines avoid the serial terminal's canonical input limit.
     encoded = base64.b64encode(body.encode()).decode()
-    payload = "base64 -d <<'ENZIAN_PAYLOAD' | bash\n"
+    # Receive the completion command before executing the script. Sending it
+    # after the heredoc races kernel/serial activity during module or worker
+    # startup; a truncated command can hide a successful test behind a timeout.
+    payload = "base64 -d <<'ENZIAN_PAYLOAD' | bash; printf '\\n" + marker + ":%s\\n' \"$?\"\n"
     payload += '\n'.join(encoded[i:i+512] for i in range(0, len(encoded), 512))
-    payload += "\nENZIAN_PAYLOAD\nprintf '\\n" + marker + ":%s\\n' \"$?\"\n"
+    payload += "\nENZIAN_PAYLOAD\n"
     require_reservation(args.gateway, args.machine)
     args.logs.mkdir(parents=True, exist_ok=False)
     with (args.logs / 'console.log').open('w') as log:

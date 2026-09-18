@@ -235,3 +235,10 @@ admission is enabled and conservatively delays completion after disable.
 The same 17 tests pass. See the [second experiment](../hardware/physical-experiments.md#september-18-b4-second-timing-correction).
 Its routed result and board acceptance remain pending; no ECI timing changes or
 constraints are included.
+
+Pipeline 512199 has now passed two 100-call RPC trials and six no-reset signal
+recovery cases on Enzian. The hung-handler case then encountered an uncorrected
+L2 fill timeout and unrelated RPC failure; explicit-stop completion was not
+verified and later cases were not reached. See the [recorded evidence and
+boot/harness distinctions](../development/hardware-test-results.md#b4-pipeline-512199-functional-probe--2026-09-18).
+B4 acceptance remains open.
