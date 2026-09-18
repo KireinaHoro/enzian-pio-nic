@@ -86,3 +86,13 @@ Independent contexts, reinitialization and dynamic registration while workers
 run are not established supported behavior; runtime service/worker state still
 includes process-global tables and counters. Keep registration externally
 serialized and follow the endpoint lifetime rules.
+
+## Optional per-request latency tracing
+
+`LAUBERHORN_SERVER_TRACE_CSV` enables runtime-owned receive/decode/handler/encode/TX
+probes. Application code supplies its correlation ID through
+`<lauberhorn/trace.h>`; no wire XID or client-address ABI is added. Rows follow
+deferred/forwarded ownership and record actual Linux RX/TX CPUs. See
+[latency measurement](../research/latency-measurement.md#server-csv) for the
+schema, nested timing semantics and plotting restrictions. Tracing is disabled
+by default.
