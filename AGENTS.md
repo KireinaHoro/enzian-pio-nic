@@ -85,6 +85,13 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   missing or incomplete, preserve the boot log, perform a full verified cold
   reset, reprogram, and retry; do not treat Linux login alone as successful
   ECI bring-up. Use the boot helper's bounded retries and report exhaustion.
+- For Enzian boot/test runs, the agent reads only compact stage/results output
+  and `summary.json` by default. Do not open, tail, or search raw console, BMC,
+  programmer, or CPU logs during normal progress or after success. Read raw
+  logs only when a reported error needs diagnosis, and then only the relevant
+  failed stage and a bounded excerpt. Let the expect-based flow validate boot
+  markers and perform retries; retain raw logs on disk without loading them
+  into the conversation. This keeps routine testing within a small token budget.
 - Search first-party paths first (`hw`, `sw`, `docs`, `build.mill`, `flake.nix`,
   `vivado/eci/rtl`); inspect submodules when the task crosses those boundaries.
   Avoid broad recursive reads of `out`, `result`, trace captures and dependencies.
