@@ -1,5 +1,283 @@
 # Physical implementation experiments — 2026-09-10
 
+## Paused after consolidation — September 17
+
+The maintainer requested an end to this timing iteration and consolidation on
+platform master. Selected **TX refinement over the TX/high-VC RX baseline**,
+revision `1c72ea0`, pipeline **511990**, hardware **2833807**. Pipeline and all
+gates succeeded: WNS **-0.007 ns**, TNS **-0.079 ns**, **17** failing setup
+endpoints, WHS **+0.005 ns**, zero hold/pulse violations and routing errors.
+CDC diagnostics are unchanged from the high-VC baseline, not CDC-clean.
+This is the best completed CI configuration, not demonstrated timing closure.
+
+Master now includes per-link TX output placement (refined link2 region), the
+high-VC RX elastic stage, and its Nix/CI GHDL gate. The toolkit pin is
+`c92f0d9`, retained on feature branch `timing/20260916-rx-elastic` and published
+only as private-platform ref `timing/20260916-eci-toolkit-rx-elastic`.
+The platform consumes that private pin under the maintainer's merge instruction;
+the colleague's toolkit master is untouched and upstream approval is still
+outstanding. Low-VC `a194f3a` remains a separate, unadopted feature branch.
+
+Do **not** combine all round-2 increments: local Nix/Docker combined `759a9ab`
+also regressed (WNS -0.345 ns, TNS -192.544 ns, 2218 failing endpoints;
+application trace priority path -0.345 ns, clk_sys -0.076 ns). It completed
+through bitstream and physical reporting with zero hold/pulse violations and
+routing errors. This independently supports retaining the narrower candidate;
+CI combined was -0.460 ns / 3437 endpoints. These are same-revision local/CI
+runs, not proof of identical implementation outcomes.
+
+### Remaining work when timing resumes
+
+The final CI's 200-path sample contains all 17 failing endpoints:
+
+- Eight wholly static-shell paths: seven link1 RX block-to-FIFO enables at
+  -0.007 to -0.006 ns, and one edge ILA input at -0.005 ns. Static-shell changes
+  remain outside this application-only campaign.
+- Four low-VC RX endpoints: two VC7 valid-to-data enables at -0.007 ns and
+  two VC12 FIFO-to-extractor paths at -0.003/-0.001 ns.
+- One link2 high TX size-decode boundary at -0.006 ns.
+- Two high-VC packetizer enables and two TX crossbar-to-credit endpoints,
+  each -0.001 ns.
+
+Retain DCS placement, low-VC staging and combined branches as unmerged
+experiments; their measured targeted benefits and congestion are documented
+[here](physical-findings.md#round-2-checkpoint-review--september-17). Trace DMA
+selection/event-mux depth and internal ILA trigger depth remain margin risks,
+not current worst failures in the selected build. Do not broaden RTL work
+until timing is explicitly resumed. Final master has a new revision CSR and
+has not been physically implemented or board-tested; measured numbers belong
+to the exact experiment revisions. Deployment still needs matched hardware,
+software and verified-reset board testing.
+
+At closeout the previously authorized ba2 local batch remains active: combined
+finished, DCS running, low-VC and TX refinement queued. No additional builds
+were submitted and this merge was pushed with CI skipped. Let that existing
+batch finish; collect its retained statuses/reports on the next requested
+review rather than polling. Service and paths are in the round-2 local-flow
+section below. Local/CI portability has already been exercised repeatedly;
+local TX refinement confirmation is outstanding.
+
+Merge validation: Nix `eci-toolkit-rx` and `workflow-tools` checks resolve
+successfully using retained build results. A fresh structural YAML check
+confirms the RX gate is required by preparation and reporting still uses
+`on_success`; `git diff --check` passes. No fresh simulation, physical build
+or board test was performed on the final merge.
+
+Evidence: `out/physical/round2-20260917/ci/2833807/reports/` and
+`out/physical/round2-20260917/local/all/physical/`. The two earlier failed
+report jobs remain registry-startup failures; their hardware reports were
+recovered, and no retry is needed to establish the measurements above.
+
+## Round 2 checkpoint follow-up — September 17
+
+Pulled and analyzed all three finished CI checkpoints on ba2 with pinned
+Vivado 2025.1. Full failing-endpoint scans match 993/262/3437; see the
+[exact paths, targeted comparison and congestion findings](physical-findings.md#round-2-checkpoint-review--september-17).
+DCS placement fixes its target (+0.549/+0.584 ns). Low-VC staging fixes FIFO
+readout (+0.085/+0.107 ns), but output-queue control remains negative.
+Combined TX output boundaries all pass, yet its broad application regression
+prevents promotion. Low-VC-only remains the best of these three globally.
+Initial congestion is materially different: no listed windows for low-VC-only,
+level 5 for DCS, and a level-6 southbound region for combined. Later router
+hotspots are small in all three; do not conflate those reporting stages.
+
+Next: evaluate the already launched TX-only/local results, shorten ECI TX
+arbitration-to-credit and RX queue-control cones, and independently address
+trace priority/event selection and ILA trigger depth. Keep toolkit work on
+owner-reviewable feature branches. A static-only edge ILA failure (-0.005 ns)
+also remains in low-VC-only and is outside application scope. No new PnR run,
+CI retry, source candidate or board deployment was launched for this analysis.
+Evidence: `out/physical/round2-20260917/{checkpoints,deep}/`; analysis script
+`deep-checkpoint.tcl` and ba2 `/tmp/lh-round2-analysis-20260917/`. All three
+read-only analyses exited zero; full reports have `DEEP_COMPLETE` markers.
+
+## Round 2 first CI collection — September 17
+
+One collection after the maintainer requested pipelines 511987–511990:
+
+| Pipeline | Candidate | Hardware / reporting status | WNS ns | TNS ns | Failing setup endpoints |
+| --- | --- | --- | ---: | ---: | ---: |
+| 511987 | DCS placement | hardware 2833774 success; report 2833775 failed | -0.101 | -38.321 | 993 |
+| 511988 | Low-VC RX | hardware 2833785 success; report 2833786 failed | -0.052 | -4.166 | 262 |
+| 511989 | All increments | hardware 2833796 and pipeline success | -0.460 | -360.504 | 3437 |
+| 511990 | TX refinement | hardware 2833807 still running | pending | pending | pending |
+
+Both failed report jobs stopped before their scripts on ba7: registry connection
+refused / authentication endpoint HTTP 502 while pulling the pinned Nix image.
+These are registry availability failures, not missing hardware reports or the
+previous `when: always` scheduling problem. Hardware artifacts contain COMPLETE
+physical reports; the collector successfully generated their summaries locally.
+Only report-job retries are needed to repair those pipeline statuses.
+
+Previous combined CI `f6516f4` was WNS -0.057 ns, TNS -7.584 ns, 426 failing
+endpoints. Low-VC-only is the most promising completed increment: clk_sys is
+-0.039 ns, while a 34-level RX-clock ILA path sets global WNS -0.052 ns. DCS-only
+regresses global timing, dominated by TX crossbar-to-credit logic at -0.101 ns.
+All increments together regress substantially: trace DMA valid-to-frame-FIFO
+BRAM is -0.460 ns (25 logic levels), with ILA and NIC decode paths also failing
+on the application clock; clk_sys is -0.059 ns. Do not promote this combination
+or attribute the regression to one increment before the pending TX result and
+local comparisons. These are single implementations with distinct revision CSRs.
+
+All three completed candidates have zero failing hold/pulse endpoints and zero
+routing errors. WHS is +0.001 / 0.000 / 0.000 ns respectively. CDC diagnostic
+counts match the previous baseline except CDC-26 drops 1971→1966 in candidates
+with low-VC isolation; this is not a CDC correctness claim. Reports and failed
+job logs are under `out/physical/round2-20260917/ci/`. No new hardware runs or
+retries were launched by this status check.
+
+
+## Round 2 ablations and combination — September 17
+
+The maintainer requested individual next changes and their combination in the
+same batch. All four start from combined TX/high-VC RX revision `f6516f4` (local
+WNS -0.011 ns, CI -0.057 ns); there is no new unchanged-baseline run.
+
+| Increment over `f6516f4` | Branch | Revision | CI pipeline / hardware job |
+| --- | --- | --- | --- |
+| DCS destination placement | `timing/20260917-dcs-placement` | `b5c38a1` | 511987 / 2833774 |
+| Low-VC RX isolation | `timing/20260917-low-vc-stage` | `c44887b` | 511988 / 2833785 |
+| TX link2 placement refinement | `timing/20260917-tx-refine` | `1c72ea0` | 511990 / 2833807 |
+| All three increments | `timing/20260917-round2-combined` | `759a9ab` | 511989 / 2833796 |
+
+Initial one-shot snapshot: all pipelines created, checks running or pending,
+hardware waiting on prerequisites. No timing result exists yet. Preserve these
+unmerged experiment branches. The static shell and ECI protocol remain unchanged.
+
+### Candidate scope and validation
+
+DCS: the odd response-with-data FIFO full flag was at X76Y275 in SLR0, while its
+SLR-slice destination was at X114Y360 in SLR1. Read-only routed inspection found
+all 2268 destination primitives assigned only to `pblock_dynamic`, despite the
+intended broad SLR constraints. The candidate explicitly confines this
+`i_cross_rsp_wd_slave/i_pipe/*slr_auto_dest*` hierarchy to
+`SLICE_X60Y240:SLICE_X118Y299`, using a hard pblock and a nonempty-selector check.
+Vivado validated 3300 legal slice sites, zero sites outside dynamic and zero
+static cells. A second read-only check of the linked pre-optimization checkpoint
+confirmed the destination selector is present when implementation constraints
+load (2245 primitives at that stage). No CDC logic, clocks or timing exceptions
+were changed.
+
+Low VC: toolkit feature `timing/20260917-low-vc-stage`, commit `a194f3a`, adds
+`eci_rx_lo_vc_pipeline` between each VC6–12 FIFO and its downstream channel in
+`eci_link_rx`. A 455-bit elastic input stage separates FIFO output from word
+selection; a two-entry output queue with registered occupancy removes downstream
+crossbar ready from extractor control. Data, lane mask and VC remain aligned;
+credits still return only when the downstream channel consumes a word. The
+existing extractor, lite link variant and high-VC pipeline are unchanged. The
+new stages use initialization consistent with the existing resetless datapath;
+link-down flushing is not newly provided. No interface/cache-line ABI changes.
+The toolkit commit is published only in the private platform repository as
+`timing/20260917-eci-toolkit-low-vc-stage`, not the owner colleague's upstream.
+Owner approval remains required before adoption on master.
+
+The committed Nix RX gate passed: 8 existing high-VC cases plus 28 low-VC
+baseline/candidate cases. Each low case covers 508 frames / 1792 words, every
+nonempty seven-lane mask, VC6–12, two seeds, long/random downstream stalls,
+back-to-back inputs, stable stalled output, exact data/VC/size and returned
+credits. Production `eci_link_rx` integration also compiled with GHDL. These
+are functional tests, not physical timing/CDC proof.
+
+TX: the combined CI's worst output-buffer path enters static size decode at
+X145Y498, south of the previous region. The candidate moves/narrows the entire
+link2 high/low buffer region to `SLICE_X128Y480:SLICE_X141Y539`, keeping payload,
+size and valid together and leaving link1 unchanged. Vivado validated 840 legal
+slice sites, zero sites outside dynamic and zero static cells for 1993 existing
+buffer primitives. It does not pipeline crossbar arbitration; those paths must
+remain visible when judging the result.
+
+### Local flow and collection
+
+Portable bundles are built with explicit immutable Git revisions, matching the
+CI candidates. The ba2 local batch is ordered **all, DCS, low-VC, TX refinement**,
+with sequential full Nix/Docker builds to limit resource contention. Each runs
+through synthesis, implementation, bitstream and physical reports, with its own
+console log and exit status. All four bundles built and were verified against
+their exact revisions. The local queue launched as
+`lh-round2-20260917.service` on ba2. Inputs are
+`/tmp/lh-round2-inputs-20260917-{all,dcs,low-vc,tx-refine}`; outputs are
+`/tmp/lh-round2-20260917-{all,dcs,low-vc,tx-refine}`, with `.console.log` and
+`.exit-status` appended for each run. The queue continues to the next candidate
+if a build fails and retains each status. No board is programmed.
+Manifest and evidence: `out/physical/round2-20260917/` (`cases.json`, `ci/`,
+`bundle-build.log`, `bundles.json`, placement inspection and functional logs).
+Collect CI once on completion notification; no polling or new board run.
+Different candidate revisions change embedded CSR constants, so treat the
+single-factor comparisons as practical ablations, not perfectly controlled
+placement-seed comparisons. Within each candidate, local and CI use the same
+revision and Nix RTL recipe. Require setup/hold/pulse, all clocks, CDC and routing
+checks before any closure claim.
+
+
+## Completed TX/RX comparison — September 17
+
+Collected once on maintainer request. Individual TX/RX pipelines 511729/511730
+and combined retry 511864 all succeeded, including their regression gates.
+The three local Docker builds exited zero through bitstream generation and
+retained COMPLETE physical reports. The first combined pipeline 511830 remains
+failed before hardware; its test-startup fix is recorded below.
+
+| Candidate | Revision | Flow / hardware job | WNS ns | TNS ns | Failing setup endpoints |
+| --- | --- | --- | ---: | ---: | ---: |
+| TX placement | `c4174e5` | local ba2 | -0.122 | -75.192 | 1660 |
+| TX placement | `abe57e4` | CI 2832030 | -0.222 | -381.286 | 4600 |
+| RX pipeline | `720bd1b` | local ba2 | -0.066 | -16.698 | 585 |
+| RX pipeline | `eeeabf4` | CI 2832041 | -0.220 | -169.050 | 2590 |
+| Combined | `f6516f4` | local ba2 | -0.011 | -0.104 | 16 |
+| Combined | `f6516f4` | CI 2833087 | -0.057 | -7.584 | 426 |
+
+All six have zero failing hold/pulse endpoints and zero routing errors, and
+identical CDC diagnostic counts (not CDC-clean). Combined minimum hold slack is
++0.002 ns and pulse slack +0.039 ns in both flows. Application-clock setup is
++0.006 ns local / 0.000 ns CI; trace TX is +0.083 / +0.062 ns. These margins
+are small. **No candidate achieves setup closure.**
+
+The combined CI archive's `git-revision`, `rtl-derivation`, and `flake.lock`
+match the local Nix bundle byte-for-byte. The RTL derivation is
+`2k90ml72h7d3ckwgpwzfg52nrbmckk0n-lauberhorn-hw-rtl-config.drv`.
+Both reports use Vivado 2025.1 and have identical endpoint totals. This supports
+comparing the same revision/generated-RTL recipe across flows; the CI archive
+retains only those three input metadata files, not the entire input bundle.
+The 0.046 ns WNS difference shows the local 11 ps miss is insufficient margin
+for a robust result; the cause of implementation variation is not isolated.
+Earlier individual local/CI pairs also differ in embedded revision constants.
+
+### Remaining work, based on combined routed paths
+
+- **DCS response crossing control:** odd `i_cross_rsp_wd_slave` FIFO full flag to
+  SLR register-slice FIFO CE is -0.011 ns local / -0.052 ns CI, with one logic
+  level. Inspect placement/fanout and the existing CDC/register-slice structure
+  before altering protocol or CDC. Eight of the sixteen local failing endpoints
+  are in this family; 75 of the worst 200 sampled CI paths are in it.
+- **Low-VC RX:** FIFO BRAM to extractor data is -0.011 / -0.052 ns; valid-to-CE
+  paths between extractors and static ingress-to-low-FIFO controls also remain.
+  The local sample contains seven failing low-VC endpoints. The new elastic
+  stage targets high-VC RX; its old FIFO-to-packetizer path is absent from the
+  combined worst-200 samples, which does not establish a family-wide margin.
+- **TX still needs margin:** CI link2 high output buffer to static transport is
+  -0.057 ns (the same representative endpoint is +0.002 ns locally). TX
+  crossbar-to-credit paths reach -0.054 ns with nine logic levels. The original
+  TX placement run's positive boundary margins do not generalize to every run.
+  Inspect the combined endpoint placement and arbitration/credit path before
+  choosing further placement changes versus an elastic stage.
+- **Static/debug residual:** one local endpoint is static RX transport to its
+  edge ILA at -0.005 ns. Keep it visible in global closure reporting; changing
+  the static shell remains outside this campaign's application-only scope.
+
+The local bounded sample contains all 16 failing endpoints (8 DCS, 7 low-VC RX,
+1 static debug). CI's 200-path sample covers only part of its 426 failing
+endpoints; sample counts are not total family counts or family TNS. Preserve
+hold/secondary-clock margins while addressing the recurring families, then
+validate the next actual candidate in both flows. No new PnR or board run was
+launched for this review. Toolkit-owner approval is still required before
+adopting the unmerged RX dependency.
+
+Evidence: `out/physical/resume-20260916/ci/{2832030,2832041}/reports/`,
+`out/physical/combined-20260917/relaunch1/2833087/reports/`, and
+`out/physical/combined-20260917/local/physical/`. Earlier local reports remain
+under `out/physical/resume-20260916/local-{tx,rx}/physical/`.
+
+
 ## Combined CI failure and recovery — September 17
 
 Initial combined revision `820da59`, pipeline 511830, never reached hardware:

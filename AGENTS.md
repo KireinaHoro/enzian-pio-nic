@@ -20,19 +20,15 @@ relevant source and subsequent changes before relying on implementation details.
 
 ## Current handoff
 
-The Nix packaging/shared interactive-test refactor is complete; see its
-[validation record](docs/development/nix-refactor-validation.md). Board evidence
-uses a matched historical CI baseline, not final-master hardware. Timing work
-resumed September 16: independent TX placement and RX elastic-stage candidates
-are submitted to CI, with two sequential local Nix/Docker builds. Read the
-[active campaign](docs/hardware/physical-experiments.md#active-campaign-september-16-eci-txrx-candidates)
-for branches, validation and collection. Local TX completed at WNS −0.122 ns;
-RX is running. CI passed deployment after fixing the script-only helper to
-build on x86_64, then failed on the image's unreachable license endpoint. Both
-candidates were resubmitted with shared ETH/HACC license defaults, validated by
-a real xcvu9p synthesis probe. Keep toolkit
-changes on their feature branch until the owning colleague approves; neither
-candidate is merged. The static shell remains unchanged.
+Timing optimization is paused at the maintainer's request. Platform master
+adopts TX placement/refinement plus high-VC RX staging; selected CI revision
+`1c72ea0` reached WNS -0.007 ns with 17 failing endpoints, not closure.
+See the [closeout and remaining work](docs/hardware/physical-experiments.md#paused-after-consolidation--september-17).
+DCS/low-VC/combined experiments remain unmerged. Toolkit commits stay on
+separate feature branches/private refs pending colleague upstream approval;
+never merge or push them to toolkit master. The existing ba2 local batch can
+finish; no new timing work or CI polling until requested. Final master has no
+new routed or board result, and the static shell remains unchanged.
 
 ## Confirmed research and scheduling scope
 
