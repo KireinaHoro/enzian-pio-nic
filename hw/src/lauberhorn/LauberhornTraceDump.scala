@@ -151,7 +151,13 @@ case class LauberhornTraceDump(
   val extractor = AxiStreamExtractHeader(axisConfig, HeaderBytes)()
   extractor.io.input << rx
   val requestAligner = AxiStreamAligner(axisConfig)
-  extractor.io.output >> requestAligner.io.input
+  // ARP fits in the extracted header, but Ethernet padding remains in the body.
+  // Discard it before the aligner so it cannot become the next UDP command.
+  // The extractor sends each header before its body, including header-only ARP.
+  val discardArpBody = RegInit(False)
+  requestAligner.io.input.valid := extractor.io.output.valid && !discardArpBody
+  requestAligner.io.input.payload := extractor.io.output.payload
+  extractor.io.output.ready := discardArpBody || requestAligner.io.input.ready
 
   val injector = AxiStreamInjectHeader(axisConfig, HeaderBytes)
   val arpTx = Axi4Stream(axisConfig)
@@ -246,6 +252,7 @@ case class LauberhornTraceDump(
   }
 
   when(extractor.io.header.fire) {
+    discardArpBody := headerIsArpRequest
     rxHeader := extractor.io.header.payload
     haveRxHeader := True
   }

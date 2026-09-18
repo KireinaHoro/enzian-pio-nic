@@ -20,6 +20,7 @@ OP_READ = 1
 STATUS_OK = 0
 TRACE_SLOT_BYTES = 64
 MAX_CHUNK_BYTES = 1440
+DEFAULT_CHUNK_BYTES = MAX_CHUNK_BYTES // TRACE_SLOT_BYTES * TRACE_SLOT_BYTES
 DEFAULT_BIND_IP = "129.132.102.8"
 DEFAULT_BIND_PORT = 55555
 
@@ -128,6 +129,8 @@ def request_chunk(
 
 
 def aligned(value: int, name: str) -> int:
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"{name} must be nonnegative")
     if value % TRACE_SLOT_BYTES != 0:
         raise argparse.ArgumentTypeError(f"{name} must be {TRACE_SLOT_BYTES}-byte aligned")
     return value
@@ -138,7 +141,7 @@ def main() -> int:
     parser.add_argument("-o", "--out", type=Path, help="output raw trace dump")
     parser.add_argument("--offset", type=lambda v: aligned(int(v, 0), "offset"), default=0)
     parser.add_argument("--bytes", type=lambda v: aligned(int(v, 0), "bytes"))
-    parser.add_argument("--chunk-bytes", type=lambda v: aligned(int(v, 0), "chunk-bytes"), default=MAX_CHUNK_BYTES)
+    parser.add_argument("--chunk-bytes", type=lambda v: aligned(int(v, 0), "chunk-bytes"), default=DEFAULT_CHUNK_BYTES)
     parser.add_argument("--bind-ip", default=DEFAULT_BIND_IP, help="local IP address for the dump server")
     parser.add_argument("--port", type=int, default=DEFAULT_BIND_PORT, help="local UDP port for the dump server")
     parser.add_argument("--wait-timeout", type=float, help="timeout while waiting for FPGA metadata")
@@ -169,6 +172,8 @@ def main() -> int:
         response = request_chunk(sock, payload, seq, args.timeout, args.retries)
         if response.status != STATUS_OK:
             raise RuntimeError(f"trace responder returned status {response.status} at offset 0x{offset:x}")
+        if response.read_status_error or response.trace_status.dma_error:
+            raise RuntimeError(f"trace DMA error at offset 0x{offset:x}")
         if response.offset != offset:
             raise RuntimeError(f"response offset mismatch: got 0x{response.offset:x}, expected 0x{offset:x}")
         if len(response.data) != length:
@@ -187,7 +192,7 @@ def main() -> int:
     if total is None:
         if ts.wrapped:
             raise RuntimeError("--bytes is required when the trace buffer has wrapped")
-        total = ts.write_slot * TRACE_SLOT_BYTES
+        total = max(0, ts.write_slot * TRACE_SLOT_BYTES - args.offset)
 
     written = 0
     start = time.monotonic()
