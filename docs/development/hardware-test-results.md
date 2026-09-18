@@ -284,3 +284,9 @@ state for diagnosis. Local evidence: `out/enzian/b4-512199/`, including exact
 manifests/provenance, `smoke*/summary.json`, `legacy-boot-validation.json`,
 `recovery-512199-framed/summary.json`, and JTAG captures. Preserve the original
 failure when testing a later timing-corrected image.
+
+The subsequent [trace and crossbar investigation](../hardware/b4-l2-timeout-512199.md)
+identifies a preemption-control read before service dispatch and reproduces an
+AXI DECERR completion-accounting bug that blocks subsequent mapped reads. The
+board's RRESP and exact software wakeup were not captured; implementation fixes
+and corrected board validation remain outstanding.
