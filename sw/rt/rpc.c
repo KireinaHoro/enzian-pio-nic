@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <sched.h>
 #include <errno.h>
 #include <stdatomic.h>
 #include <string.h>
@@ -16,6 +18,7 @@ struct request {
     lauberhorn_pkt_desc_t desc;
     rpc_codec_t *codec;
     void *args;
+    struct server_trace_row trace;
 };
 struct deferred_request {
     struct request request;
@@ -28,7 +31,8 @@ static void destroy_outcome(lauberhorn_outcome_t *o) {
 static void release_request(struct request *r) {
     r->codec->ops->free(r->args, RPC_FREE_CALL, r->codec->priv);
 }
-static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t len) {
+static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t len,
+                       struct server_trace_row *trace) {
     lauberhorn_worker_t w = worker_get_current();
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
@@ -36,13 +40,24 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
         .oncrpc_reply_tx = {.request_token = parent->oncrpc_call_rx.request_token,
                            .status = status}
     };
-    if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED)
+    if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
+    trace->tx_enter_ns = server_trace_stamp(trace);
+    int result = core_eci_tx(w->dp_base, &w->dp, &desc);
+    trace->tx_exit_ns = server_trace_stamp(trace);
+    trace->tx_worker_id = w->worker_id;
+    trace->response_bytes = len;
+    trace->status = status;
+    trace->transport_status = result;
+    trace->ok &= status == 0 && result == CORE_TX_ACCEPTED;
+    server_trace_write(trace);
+    if (result != CORE_TX_ACCEPTED)
         LOG("RPC reply transport failure; delivery is indeterminate");
 }
-static void fail_request(lauberhorn_pkt_desc_t *desc, unsigned status) {
+static void fail_request(lauberhorn_pkt_desc_t *desc, unsigned status,
+                         struct server_trace_row *trace) {
     /* These accepted-error variants have no extra ONC-RPC body. */
     if (status != 3 && status != 4 && status != 5) status = 5;
-    send_reply(desc, status, 0);
+    send_reply(desc, status, 0, trace);
 }
 static void *decode(void *data, size_t len, rpc_codec_t *codec, bool call) {
     void *out = codec->ops->alloc(call ? RPC_ALLOC_CALL : RPC_ALLOC_RESP, codec->priv);
@@ -143,8 +158,10 @@ int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
 static bool consume_outcome(struct request *, lauberhorn_outcome_t, bool);
 static void deferred_start(void *arg) {
     struct deferred_request *d = arg;
+    d->request.trace.handler_enter_ns = server_trace_stamp(&d->request.trace);
     d->result = d->defer.run(d->defer.data, d->request.args,
                             d->request.desc.oncrpc_call_rx.request_token);
+    d->request.trace.handler_exit_ns = server_trace_stamp(&d->request.trace);
 }
 static void deferred_done(void *arg) {
     struct deferred_request *d = arg;
@@ -157,21 +174,27 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     lauberhorn_worker_t w = worker_get_current();
     switch (o.kind) {
     case LAUBERHORN_REPLY: {
+        r->trace.marshal_enter_ns = server_trace_stamp(&r->trace);
         int len = r->codec->ops->marshal_resp(o.data, w->dp.tx_buf, o.len,
                                              REPLY_CAPACITY, r->codec->priv);
-        if (len < 0 || len > REPLY_CAPACITY) fail_request(&r->desc, 5);
-        else send_reply(&r->desc, 0, len);
+        r->trace.marshal_exit_ns = server_trace_stamp(&r->trace);
+        if (len < 0 || len > REPLY_CAPACITY) fail_request(&r->desc, 5, &r->trace);
+        else send_reply(&r->desc, 0, len, &r->trace);
         break;
     }
     case LAUBERHORN_FAIL:
-        fail_request(&r->desc, o.error);
+        fail_request(&r->desc, o.error, &r->trace);
         break;
     case LAUBERHORN_DEFER: {
         struct deferred_request *d = may_defer && o.run ? malloc(sizeof(*d)) : NULL;
         struct fiber *f = d ? fiber_sched_acquire() : NULL;
-        if (!f) { free(d); fail_request(&r->desc, 5); break; }
+        if (!f) { free(d); fail_request(&r->desc, 5, &r->trace); break; }
+        r->trace.kind |= 1;
+        r->trace.defer_enqueue_ns = server_trace_stamp(&r->trace);
+        r->trace.handler_active_ns = 0;
         *d = (struct deferred_request){.request = *r, .defer = o};
         fiber_prepare(f, deferred_start, deferred_done, d);
+        f->trace = &d->request.trace;
         fiber_sched_submit(f);
         return true; /* request and context have moved into d */
     }
@@ -181,18 +204,21 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
         if (!o.endpoint || !o.endpoint->rpc_codec || !o.endpoint->rpc_codec->ops ||
             o.endpoint->rpc_codec->ops->marshal_resp != r->codec->ops->marshal_resp ||
             o.endpoint->rpc_codec->priv != r->codec->priv) {
-            fail_request(&r->desc, 5); break;
+            fail_request(&r->desc, 5, &r->trace); break;
         }
         int encoded;
         struct pending_call *pc = prepare_call(o.endpoint, o.data, o.len, &encoded);
-        if (!pc) { fail_request(&r->desc, 5); break; }
+        if (!pc) { fail_request(&r->desc, 5, &r->trace); break; }
         pc->kind = COMPLETION_FORWARD;
         pc->completion.parent = r->desc;
-        if (submit_call(pc, encoded)) fail_request(&r->desc, 5);
+        r->trace.kind |= 2;
+        r->trace.forward_submit_ns = server_trace_stamp(&r->trace);
+        pc->parent_trace = r->trace;
+        if (submit_call(pc, encoded)) fail_request(&r->desc, 5, &r->trace);
         break;
     }
     default:
-        fail_request(&r->desc, 5);
+        fail_request(&r->desc, 5, &r->trace);
     }
     destroy_outcome(&o);
     return false;
@@ -202,18 +228,29 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     // imply a fiber resumed. Immediate inline-to-fiber deferral keeps this interval.
     w->execution_active = w->ctx->_watchdog_enabled;
     struct lauberhorn_hw_handler *hw = desc->oncrpc_call_rx.func_ptr;
-    struct request r = {.desc = *desc, .codec = &hw->srv->codec};
+    struct request r = {.desc = *desc, .codec = &hw->srv->codec, .trace = w->rx_trace};
+    r.trace.request_context = desc->oncrpc_call_rx.request_token;
+    r.trace.request_bytes = desc->payload_len;
+    r.trace.unmarshal_enter_ns = server_trace_stamp(&r.trace);
     r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
-    if (!r.args) { fail_request(desc, errno == ENOMEM ? 5 : 4); return; }
-    if (!consume_outcome(&r, hw->handler.func(hw->handler.data, r.args,
-                                             desc->oncrpc_call_rx.request_token), true))
-        release_request(&r);
+    r.trace.unmarshal_exit_ns = server_trace_stamp(&r.trace);
+    if (!r.args) { fail_request(desc, errno == ENOMEM ? 5 : 4, &r.trace); return; }
+    struct server_trace_row *previous = server_trace_inline;
+    server_trace_inline = &r.trace;
+    r.trace.handler_enter_ns = server_trace_stamp(&r.trace);
+    lauberhorn_outcome_t outcome = hw->handler.func(hw->handler.data, r.args,
+                                                 desc->oncrpc_call_rx.request_token);
+    r.trace.handler_exit_ns = server_trace_stamp(&r.trace);
+    r.trace.handler_active_ns = r.trace.handler_exit_ns - r.trace.handler_enter_ns;
+    server_trace_inline = previous;
+    if (!consume_outcome(&r, outcome, true)) release_request(&r);
 }
 static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
     c->result = *reply;
     if (c->kind == COMPLETION_FORWARD) {
         /* Only timeout/error settlement uses this path. Success is raw relay. */
-        fail_request(&c->completion.parent, 5);
+        c->parent_trace.forward_complete_ns = server_trace_stamp(&c->parent_trace);
+        fail_request(&c->completion.parent, 5, &c->parent_trace);
         pending_call_release(&pending_call_table, c);
     } else {
         struct fiber_handle waiter = c->completion.fiber_handle;
@@ -227,11 +264,12 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
     if (!c || !pending_call_try_claim_reply(c, desc->oncrpc_reply_rx.cookie,
                                              desc->oncrpc_reply_rx.xid)) return;
     if (c->kind == COMPLETION_FORWARD) {
-        if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status);
-        else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, 5);
+        c->parent_trace.forward_complete_ns = server_trace_stamp(&c->parent_trace);
+        if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status, &c->parent_trace);
+        else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, 5, &c->parent_trace);
         else {
             memcpy(w->dp.tx_buf, w->dp.rx_buf, desc->payload_len);
-            send_reply(&c->completion.parent, 0, desc->payload_len);
+            send_reply(&c->completion.parent, 0, desc->payload_len, &c->parent_trace);
         }
         pending_call_release(&pending_call_table, c);
         return;

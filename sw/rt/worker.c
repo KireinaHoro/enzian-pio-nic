@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <sched.h>
 #include <assert.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -102,7 +104,18 @@ static void *lauberhorn_worker_loop(void *arg) {
         fiber_sched_run_ready();
 
         // wait for data
-        if (core_eci_rx(w->dp_base, &w->dp, &desc)) {
+        bool received;
+        if (server_trace_enabled) {
+            server_trace_rx_begin(&w->rx_trace, w->worker_id);
+            received = core_eci_rx_traced(w->dp_base, &w->dp, &desc,
+                &w->rx_trace.rx_unblock_ns, server_trace_clock);
+            w->rx_trace.timestamp_calls++; /* RX-unblock probe */
+            w->rx_trace.rx_exit_ns = server_trace_stamp(&w->rx_trace);
+            w->rx_trace.rx_cpu_id = sched_getcpu();
+        } else {
+            received = core_eci_rx(w->dp_base, &w->dp, &desc);
+        }
+        if (received) {
             rpc_handle_packet(w, &desc);
         }
     }

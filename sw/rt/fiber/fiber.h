@@ -28,7 +28,9 @@ typedef enum {
 typedef uint32_t fiber_gen_t; 
 
 
+struct server_trace_row;
 struct fiber {
+    struct server_trace_row *trace;
 	vstate_t vstate; 
 
 	ucontext_t ctx;

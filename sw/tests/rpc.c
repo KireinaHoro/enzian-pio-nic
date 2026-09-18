@@ -1,6 +1,8 @@
+#define _GNU_SOURCE
 /* Runtime ownership tests with an injected transport; not FPGA/ECI evidence. */
 #include "worker.h"
 #include "rpc.h"
+#include "lauberhorn/trace.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -125,12 +127,14 @@ static void indeterminate_send(void *ctx) {
 static lauberhorn_outcome_t deferred(void *data, void *req, lauberhorn_request_context_t context) {
     assert(context == 0x1234);
     assert(fiber_in_context()); ran++;
+    lauberhorn_trace_request_id((unsigned)*(int *)req);
     return lauberhorn_reply(req, 4, NULL); /* args survive serialization */
 }
 static int mode;
 static lauberhorn_outcome_t handler(void *data, void *req, lauberhorn_request_context_t context) {
     assert(context == 0x1234);
     assert(!fiber_in_context());
+    lauberhorn_trace_request_id((unsigned)*(int *)req);
     if (mode == 1) return lauberhorn_defer(deferred, malloc(1), destroy_defer);
     if (mode == 2) return lauberhorn_forward(&ep, req, 4, NULL);
     if (mode == 4) {
@@ -270,5 +274,42 @@ int main(void) {
     assert(sends == before + 1 && sent.type == TY_ONCRPC_REPLY_TX && sent.execution == 1);
     assert(!worker.execution_active && !worker.execution_pending);
     ctx._watchdog_enabled = false;
+
+    /* Trace ownership survives deferred scheduling and forwarded completions.
+     * Reusing the worker RX scratch must not overwrite either parent's row. */
+    char path[] = "/tmp/lauberhorn-trace-XXXXXX";
+    int fd = mkstemp(path); assert(fd >= 0); close(fd);
+    assert(!setenv("LAUBERHORN_SERVER_TRACE_CSV", path, 1));
+    server_trace_init(); assert(server_trace_enabled);
+    for (mode = 0; mode < 3; ++mode) {
+        input = 100 + mode; memcpy(rx, &input, 4);
+        server_trace_rx_begin(&worker.rx_trace, 2);
+        worker.rx_trace.rx_unblock_ns = server_trace_stamp(&worker.rx_trace);
+        worker.rx_trace.rx_exit_ns = server_trace_stamp(&worker.rx_trace);
+        worker.worker_id = 2;
+        rpc_handle_packet(&worker, &req);
+        memset(&worker.rx_trace, 0, sizeof(worker.rx_trace));
+        worker.worker_id = 3;
+        if (mode == 1) fiber_sched_run_ready();
+        if (mode == 2) {
+            completion.oncrpc_reply_rx.cookie = child.oncrpc_call_tx.cookie;
+            completion.oncrpc_reply_rx.xid = child.oncrpc_call_tx.xid;
+            rpc_handle_packet(&worker, &completion);
+            rpc_handle_packet(&worker, &completion); /* one terminal CSV row */
+        }
+    }
+    server_trace_fini();
+    FILE *csv = fopen(path, "r"); assert(csv);
+    char line[4096]; assert(fgets(line, sizeof(line), csv));
+    assert(strstr(line, "request_context") && strstr(line, "server_rx_unblock_ns"));
+    for (int i = 0; i < 3; ++i) {
+        assert(fgets(line, sizeof(line), csv));
+        char expected[64]; snprintf(expected, sizeof(expected), "%d,,2,1,4,4,", 100+i);
+        assert(!strncmp(line, expected, strlen(expected)));
+        /* RX worker is retained; deferred/forwarded TX uses the completing worker. */
+        snprintf(expected, sizeof(expected), ",1,4660,%d,%d,0,", i ? 3 : 2, i);
+        assert(strstr(line, expected));
+    }
+    assert(!fgets(line, sizeof(line), csv)); fclose(csv); unlink(path);
 
 }

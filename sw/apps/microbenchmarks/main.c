@@ -1,3 +1,4 @@
+#include "lauberhorn/trace.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -78,10 +79,12 @@ static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
   const struct bench_def *def = data;
   bench_call *call = req;
   (void)context;
+  lauberhorn_trace_request_id(bench_request_id(req));
 
   resp.request_id = call->request_id;
   resp.result = def->compute(call->a, call->b);
 
+  lauberhorn_trace_result(def->trace_check(req, &resp));
   return lauberhorn_reply(&resp, sizeof(resp), NULL);
 }
 
@@ -148,8 +151,6 @@ int main(int argc, char *argv[]) {
       .data = (void *)def,
       // The inline handler returns borrowed thread-local response storage.
   };
-  // Runtime CSV trace integration is deferred until the hardware test stage.
-  (void)bench_request_id;
 
   if (argc >= 4)
     setenv("LAUBERHORN_SERVER_TRACE_CSV", argv[3], 1);
