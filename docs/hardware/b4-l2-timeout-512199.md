@@ -130,7 +130,7 @@ before callback execution, exiting-task queue rejection, and dispatch between
 sleep-state publication and the condition check. This uses kernel-boundary shims
 (`out/worker-park-test/`), not a running Linux scheduler or coherence model.
 The original board wakeup interleaving remains unobserved, and the independent
-crossbar DECERR defect still requires its own fix.
+crossbar DECERR defect is fixed separately as recorded below.
 
 Kernel fix `5ec614c` was then applied alone to the original `754ecb4` module
 source, retaining the original RTL/ABI collateral, runtime and applications.
@@ -140,3 +140,16 @@ of the previously failing hung-handler case completed. Archived kernel traces
 show every fixture retiring, with no trace loss or L2 timeout. This supports the
 kernel-side repair without waiting for the independent crossbar fix. See the
 [full board result and setup caveats](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
+
+## DECERR repair accepted by simulation (2026-09-18)
+
+The pinned verilog-axi dependency now excludes the internal DECERR responder
+from read and write transaction completion accounting. Both paths have a
+regression that completes an unmapped transaction and then requires a mapped
+transaction to progress. `nix build .#checks.x86_64-linux.axi-decerr` passed.
+The dependency commits are verilog-axi `5de055e` and blocks `b527f9c`.
+
+Per maintainer direction, this closes the DECERR repair on simulation evidence;
+further board reproduction is not a merge gate. Bitstream 512199 does not contain
+this RTL repair. The kernel parking fix remains the independently board-tested
+prevention of the premature access described above.
