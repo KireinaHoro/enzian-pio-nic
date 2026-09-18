@@ -172,14 +172,22 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
   test("accepts UDP commands after an Ethernet-padded ARP request") { dut =>
     val (rx, tx, _dma) = setup(dut)
 
+    def exchange(frame: List[Byte]): List[Byte] = {
+      var reply: Option[List[Byte]] = None
+      // ARP can reply before its trailing padding has finished arriving.
+      // The slave drops unqueued responses, so arm it before sending.
+      tx.recvCB() { data => reply = Some(data) }
+      rx.send(frame)
+      waitUntil(reply.nonEmpty)
+      reply.get
+    }
+
     for (frameBytes <- Seq(42, 60, 128)) {
-      rx.send(arpRequest().padTo(frameBytes, 0xa5.toByte))
-      val arpReply = tx.recv()
+      val arpReply = exchange(arpRequest().padTo(frameBytes, 0xa5.toByte))
       assert(arpReply.slice(12, 14) == bytes("0806"))
       assert(arpReply.slice(20, 22) == bytes("0002"))
 
-      rx.send(request(frameBytes, 0, 0))
-      val response = tx.recv()
+      val response = exchange(request(frameBytes, 0, 0))
       assert(response.slice(42, 46) == bytes("4c485444"))
       assert(response(47) == LauberhornTraceDump.StatusOk.toByte)
       assert(response.slice(50, 54) == be32(frameBytes))
