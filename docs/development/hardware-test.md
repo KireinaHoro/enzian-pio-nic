@@ -111,6 +111,21 @@ powers/programs the FPGA, and releases boot only after programming succeeds.
 The BMC remains powered. Use `boot.py --cold-start --hold-only` only for recovery
 from a confirmed already-off board; normal comparison trials require full resets.
 
+After releasing BDK, `boot.py` requires CDR lock on QLM8..13 and the complete
+`N0.CCPI Lanes([] is good):[0]...[23]` report before accepting Linux boot.
+Missing or incomplete initialization triggers another full verified cold reset
+and reprogramming, up to three attempts (`--boot-attempts` overrides the limit).
+The first attempt keeps the usual log paths; retries use `retry-02/`, etc., and
+`boot/summary.json` records each outcome. Exhaustion is an infrastructure
+failure; do not load the driver anyway. The explicit `--negative-no-bitstream`
+test bypasses this gate because absent ECI initialization is intentional.
+
+If `probe_versions` still fails after validated bring-up, freeze and dump trace
+DDR over JTAG before resetting; retain the matching map, VIO status, and image
+provenance. Keep tracing active through module load. The shell-version read is
+handled inside the static shell, so arm the static ECI edge ILA before the
+attempt when possible; the application DDR trace alone may not show that read.
+
 ## Focused debugging
 
 - [run.py](../../tools/enzian/run.py): run a command or local shell script over
