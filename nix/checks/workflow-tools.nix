@@ -13,7 +13,9 @@ let
       ../../tools/hardware
       ../../tools/enzian/boot.py
       ../../tools/enzian/console.py
+      ../../tools/enzian/run.py
       ../../tools/enzian/tests/test_boot.py
+      ../../tools/enzian/tests/test_run.py
       ../../vivado/eci/container.yml
     ];
   };
@@ -31,5 +33,6 @@ runCommand "lauberhorn-workflow-tools-tests"
     shellcheck -x tools/ci/*.sh tools/ci/image/*.sh tools/hardware/*.sh
     python3 -m unittest discover -s tools/ci/tests -v
     python3 -m unittest discover -s tools/enzian/tests -p test_boot.py -v
+    python3 -m unittest discover -s tools/enzian/tests -p test_run.py -v
     touch $out
   ''

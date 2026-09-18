@@ -143,6 +143,8 @@ attempt when possible; the application DDR trace alone may not show that read.
 
 - [run.py](../../tools/enzian/run.py): run a command or local shell script over
   the CPU console; `--expect REGEX` asserts ordered output instead of exit zero.
+  Script transfer uses short base64 lines and waits for the shell's continuation
+  prompt after each line; fixed pacing alone lost input during kernel logging.
 - [cpu.sh](../../tools/enzian/cpu.sh): independent `mount IMAGE`, `load`, `verify`,
   `configure MAC CIDR`, `serve add/mul WORKERS NEW_LOG_DIR` steps.
 - [boot.py](../../tools/enzian/boot.py): `--hold-only`, `--resume-held` with a
