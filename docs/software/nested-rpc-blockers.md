@@ -16,6 +16,29 @@ mul and Sven's standalone adder each passed 100 calls from a second Enzian;
 one Dandelion 1×1 matmul invocation passed. These results do not establish
 nested completion, clean shutdown, startup reliability or composition support.
 
+## Merge assessment after kernel parking validation — 2026-09-18
+
+The [512199 kernel-only follow-up](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
+passed 100 multiplication RPCs and all 20 incoming/process recovery cases across
+two no-reset rounds. Fix `5ec614c` prevents workers returning to userspace before
+routing. Archived kernel traces show complete fixture retirement, no L2 faults
+and no trace loss. This closes that campaign, **not B1–B4 as a group**.
+
+| Blocker | Current merge gate |
+| --- | --- |
+| B1 | Nested descriptor and byte-order validation on the board, including asymmetric fields and inline/overflow completions, remains outstanding. Ordinary multiplication RPCs do not exercise nested descriptors. |
+| B2 | Registered remote endpoints, cookie-directed completions, internal loopback and overload progress still need matched-board validation. |
+| B3 | Deferred/future/forward/error paths and fiber/pending/transport exhaustion still need matched-board validation. The normal reply and process-recovery tests do not cover them. |
+| B4 | Incoming shutdown, explicit stop, dirty TX, stuck BUSY and watchdog recovery passed. Nested cancellation races, deadlines without traffic, late replies and outgoing-capacity restoration remain open. |
+
+Do not merge on the strength of this campaign alone. The independently reproduced
+AXI DECERR accounting bug is still unfixed; the kernel repair avoids its observed
+trigger. The tested 512199 image still fails setup timing, and the later timing
+candidate has not yet been assessed here. Server per-request CSV tracing also
+remains a recorded pre-merge requirement: the application sets
+`LAUBERHORN_SERVER_TRACE_CSV`, but the runtime has no consumer. B5/B6 are separate
+open gates. Historical sections below retain their original evidence and scope.
+
 ## Status after master refresh — 2026-09-17
 
 Master `685b1f4` adds CI image/dependency maintenance, native-host deployment
@@ -288,6 +311,10 @@ Verify that failures cannot send an invalid length or free live state, and
 rerun the passing add/mul baselines.
 
 ## B4 — Worker shutdown and service cleanup do not complete reliably
+
+**September 18 follow-up:** the incoming/process-recovery campaign now passes
+with kernel fix `5ec614c` on 512199, as summarized above. Nested timeout,
+cancellation and outgoing-state recovery checks still prevent full closure.
 
 The approved [process recovery and watchdog design](process-recovery.md) includes
 whole-process forced termination, explicit-kill reclamation with the execution
