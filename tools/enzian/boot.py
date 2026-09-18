@@ -9,6 +9,8 @@ import argparse
 import ast
 import contextlib
 import getpass
+import json
+import copy
 import pathlib
 import re
 import subprocess
@@ -26,6 +28,8 @@ def main():
     p.add_argument('--machine', default='zuestoll14')
     p.add_argument('--owner', default=getpass.getuser())
     p.add_argument('--logs', type=pathlib.Path, required=True)
+    p.add_argument('--boot-attempts', type=int, default=3,
+                   help='maximum cold-boot attempts after BDK ECI initialization failure (default: 3)')
     p.add_argument('--hold-only', action='store_true',
                    help='stop after powering FPGA with CPU held at BDK')
     p.add_argument('--cold-start', action='store_true',
@@ -46,31 +50,101 @@ def main():
         p.error('--negative-no-bitstream requires a full power cycle and no programmer')
     if args.resume_held and (args.hold_only or args.cold_start):
         p.error('--resume-held cannot be combined with --hold-only or --cold-start')
-    require_reservation(args.gateway, args.machine, args.owner)
+    if args.boot_attempts < 1:
+        p.error('--boot-attempts must be positive')
+    run_attempts(args, command)
+
+
+class EciBringupError(RuntimeError):
+    """BDK did not establish all CPU-FPGA lanes; a cold reset may recover."""
+
+
+def validate_eci_bringup(transcript):
+    qlm_lines = re.findall(r'CDR lock[^\r\n]*', transcript)
+    lane_lines = re.findall(r'N0\.CCPI Lanes\(\[\] is good\):([^\r\n]*)', transcript)
+    if not qlm_lines:
+        raise EciBringupError('Missing BDK QLM CDR lock report')
+    locks = dict(re.findall(r'QLM(\d+):(\d+)', qlm_lines[-1]))
+    if any(locks.get(str(qlm)) != '1' for qlm in range(8, 14)):
+        raise EciBringupError('BDK QLM8..13 not all locked: ' + qlm_lines[-1])
+    if not lane_lines:
+        raise EciBringupError('Missing BDK CCPI lane initialization report')
+    if lane_lines[-1].strip() != ''.join(f'[{lane}]' for lane in range(24)):
+        raise EciBringupError('BDK CCPI lanes 0..23 not all initialized: ' + lane_lines[-1])
+    return {'qlm_cdr_lock': qlm_lines[-1], 'ccpi_lanes': lane_lines[-1]}
+
+
+def expect_eci_bringup(cpu):
+    """Gate the actual expect stream at the end of BDK's ECI initialization."""
+    try:
+        cpu.expect(r'Initialize BGX|Initialize USB|Initialize PCIe|EDK2 version:|EFI stub:|login:', timeout=180)
+    except pexpect.TIMEOUT as exc:
+        raise EciBringupError('Timed out waiting for BDK ECI initialization') from exc
+    return validate_eci_bringup(cpu.before), cpu.after == 'login:'
+
+
+def run_attempts(args, command):
     args.logs.mkdir(parents=True, exist_ok=False)
+    results = []
+    for number in range(1, args.boot_attempts + 1):
+        attempt = copy.copy(args)
+        if number > 1:
+            # A failed resume/cold-start must recover with a full verified reset.
+            attempt.resume_held = False
+            attempt.cold_start = False
+        logs = args.logs if number == 1 else args.logs / f'retry-{number:02d}'
+        logs.mkdir(exist_ok=True)
+        result = {'attempt': number, 'logs': str(logs), 'status': 'running'}
+        results.append(result)
+        try:
+            result['eci'] = boot_once(attempt, command, logs)
+            result['status'] = 'pass'
+            return
+        except EciBringupError as exc:
+            result.update(status='eci_bringup_failed', error=str(exc))
+            print(f'ECI_BRINGUP_FAILED attempt={number}: {exc}', flush=True)
+            if number == args.boot_attempts:
+                raise
+            print('RETRYING_FULL_COLD_RESET', flush=True)
+        except Exception as exc:
+            result.update(status='failed', error=str(exc))
+            raise
+        finally:
+            (args.logs / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
+
+
+def boot_once(args, command, logs):
+    require_reservation(args.gateway, args.machine, args.owner)
     stack = contextlib.ExitStack()
     def console(suffix):
-        log = stack.enter_context((args.logs / (suffix + '.log')).open('w'))
+        log = stack.enter_context((logs / (suffix + '.log')).open('w'))
         child = stack.enter_context(attach(args.gateway, args.machine, suffix, log))
         child.sendline('')
         return child
     try:
         cpu = console('console')
         def program_and_boot():
-            with (args.logs / 'program.log').open('w') as log:
+            with (logs / 'program.log').open('w') as log:
                 if args.negative_no_bitstream:
                     log.write('NEGATIVE TEST: FPGA power-cycled; programming deliberately skipped\n')
                 else:
                     subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
                                    check=True, timeout=600)
             cpu.send('n')
-            cpu.expect(r'login:', timeout=600)
+            evidence = None
+            if not args.negative_no_bitstream:
+                evidence, login_ready = expect_eci_bringup(cpu)
+                print('ECI_BRINGUP_VERIFIED ' + json.dumps(evidence), flush=True)
+            else:
+                login_ready = False
+            if not login_ready:
+                cpu.expect(r'login:', timeout=600)
             print('LINUX_LOGIN_READY', flush=True)
+            return evidence
         if args.resume_held:
             cpu.expect('Boot Options')
             cpu.expect('Choice:')
-            program_and_boot()
-            return
+            return program_and_boot()
         bmc = console('bmc')
         state = bmc.expect([r'login:', r'>>> ', r'(?m)[^\r\n]*[#] ', r'\[no, .*attached\]'])
         if state == 3:
@@ -124,7 +198,7 @@ def main():
         if args.hold_only:
             print('FPGA_POWERED_CPU_HELD: send n only after successful programming', flush=True)
             return
-        program_and_boot()
+        return program_and_boot()
     finally:
         stack.close()
 
