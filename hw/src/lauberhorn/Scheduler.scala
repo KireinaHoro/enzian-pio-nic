@@ -374,7 +374,10 @@ class Scheduler extends FiberPlugin {
     pushResult.ready := False
     val pushDiscard, queueDiscard = Stream(HostReqWithTrace())
     val coreDiscards = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
-    val selectedDiscard = StreamArbiterFactory().roundRobin.on(Seq(pushDiscard, queueDiscard) ++ coreDiscards)
+    // Register each producer before arbitration as well: cancellation/queue
+    // selection must not share a cycle with arbitration and owner capture.
+    val discardInputs = (Seq(pushDiscard, queueDiscard) ++ coreDiscards).map(_.m2sPipe())
+    val selectedDiscard = StreamArbiterFactory().roundRobin.on(discardInputs)
     val discardStage = new RecoveryStreamBuffer(HostReqWithTrace(), PID_WIDTH.get)
     discardStage.io.push << selectedDiscard
     discardStage.io.pushOwner := requestPid(selectedDiscard.req).bits
@@ -509,9 +512,15 @@ class Scheduler extends FiberPlugin {
       }
     }
     val processDraining = Vec.tabulate(NUM_PROCS + 1) { pid =>
-      inTransitBusy(pid) || !queueMetas(pid).empty || reclaimOwner === pid ||
+      val busy = inTransitBusy(pid) || !queueMetas(pid).empty || reclaimOwner === pid ||
         discardStage.io.owners.map(o => o.valid && o.payload === processPids(pid).bits).asBits.orR ||
+        discardInputs.map(d => d.valid && requestPid(d.req) === processPids(pid)).asBits.orR ||
         coreResident.map(_ === pid).asBits.orR || corePidMap.map(_ === pid).asBits.orR
+      // Drain completion is meaningful only after admission is disabled. Keep
+      // enabled processes busy so the status pipeline cannot expose an old idle
+      // sample on the disable edge. Subsequent samples include immediate arrivals.
+      // This cuts reply validation/admission out of the CSR selection cycle.
+      RegNext(busy || processEnabled(pid)) init True
     }
 
     // victim core selection, based on preemption type
@@ -555,15 +564,21 @@ class Scheduler extends FiberPlugin {
       val execution = host.list[EciDecoupledRxTxProtocol].find(_.coreID == idx + 1)
       val watchdog = new ExecutionWatchdog()
       watchdog.io.now := watchdogNow.value
-      watchdog.io.limit := watchdogLimits(coreResident(idx))
-      watchdog.io.enabled := watchdog.io.limit =/= 0 && coreResident(idx) =/= 0
-      watchdog.io.clear := corePreempt(idx).valid
-      watchdog.io.begin := toCore.fire && toCore.req.ty === HostReqType.oncRpcCallRx
-      watchdog.io.end := False
+      watchdog.io.limit := RegNext(watchdogLimits(coreResident(idx))) init 0
+      watchdog.io.enabled := RegNext(watchdogLimits(coreResident(idx)) =/= 0 && coreResident(idx) =/= 0) init False
+      // Register scheduler/TX events before the deadline register's enable.
+      // Clear both immediately and for the following cycle, discarding events
+      // from the previous owner rather than starting them on a new process.
+      watchdog.io.clear := corePreempt(idx).valid || (RegNext(corePreempt(idx).valid) init False)
+      val executionBegin = toCore.fire && toCore.req.ty === HostReqType.oncRpcCallRx
+      val executionEnd = Bool()
+      executionEnd := False
+      watchdog.io.begin := RegNext(executionBegin) init False
+      watchdog.io.end := RegNext(executionEnd) init False
       execution.foreach { proto =>
         when(proto.logic.execution.valid) {
-          when(proto.logic.execution.payload(1)) { watchdog.io.begin := True }
-          watchdog.io.end := proto.logic.execution.payload(0)
+          when(proto.logic.execution.payload(1)) { executionBegin := True }
+          executionEnd := proto.logic.execution.payload(0)
         }
         when(proto.logic.execution.valid && proto.logic.executionOnly) {
           inc(_.watchdogControls(idx))

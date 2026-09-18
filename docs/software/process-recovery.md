@@ -226,5 +226,12 @@ The B4 timing correction adds registered discard storage with per-slot owners
 included in drain readback, and pipelines bounded per-process accounting events.
 The new owner-retention/backpressure and accounting tests plus the existing B4
 RTL suites passed (17 tests). See the [experiment record](../hardware/physical-experiments.md#september-18-b4-discardaccounting-timing-correction).
-The corrected source still requires its new routed CI result; no ECI timing
-changes or constraints are included in this correction.
+Pipeline 512199 (`754ecb4`) improved WNS/TNS to −0.382/−111.505 ns with 1400
+failing setup endpoints, but did not close timing. A second correction removes
+the discard-output mux, validates retirement locally per context slot, registers
+discard producers with ownership accounting, stages watchdog samples, and
+registers drain readback before CSR selection. Drain status remains busy while
+admission is enabled and conservatively delays completion after disable.
+The same 17 tests pass. See the [second experiment](../hardware/physical-experiments.md#september-18-b4-second-timing-correction).
+Its routed result and board acceptance remain pending; no ECI timing changes or
+constraints are included.

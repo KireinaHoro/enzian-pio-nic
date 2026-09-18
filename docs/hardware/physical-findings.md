@@ -230,3 +230,46 @@ exceptions or placement-only tweaks to conceal this dependency chain.
 Evidence: `out/physical/b4-512109/out/physical/{summary.json,paths.tsv,
 max-detail.rpt,timing.rpt,route.rpt}` from the completed report job. No hardware
 programming or board test is part of this timing inspection.
+
+## B4 first correction — pipeline 512199, September 18
+
+Pipeline 512199 (`754ecb4`, hardware job 2835579, report job 2835580) passed
+all CI jobs. Complete final post-route reports show:
+
+| Metric | 512109 | 512199 |
+| --- | ---: | ---: |
+| Whole-design WNS (ns) | −1.441 | −0.382 |
+| Whole-design TNS (ns) | −8939.668 | −111.505 |
+| Failing setup endpoints | 28222 | 1400 |
+| NIC 200 MHz WNS (ns) | −1.441 | −0.382 |
+| NIC 200 MHz TNS (ns) | −6433.588 | −108.749 |
+| NIC failing setup endpoints | 13269 | 1274 |
+
+Hold/pulse violations remain zero; minimum slacks are +0.003/+0.039 ns.
+CDC diagnostic counts are unchanged. The long in-flight-counter chains no longer
+appear in the bounded 200 worst-path sample; this alone does not prove every
+counter endpoint has positive slack. ECI moved to −0.050 ns / −2.757 ns with
+126 failing endpoints despite unchanged ECI sources/constraints; do not confuse
+placement/routing variation with an ECI source fix.
+
+The new worst path is `Scheduler_logic_discardStage/head_reg[0]_replica` to
+`OncRpcReplyEncoder_logic_contexts/active_10_reg`: **−0.382 ns**, five levels,
+5.164 ns data delay, **4.831 ns routing**. The ring-head selection feeds context
+validation logic placed alternately under host-interface and decoder hierarchies;
+the detailed path contains several approximately 0.9–1.1 ns nets crossing between
+these regions. All 16 context active bits occur in the sample. Additional B4
+paths include producer selection to discard owner capture (−0.241 ns, 11 levels)
+and core PID selection to watchdog deadline enable (−0.205 ns, eight levels).
+
+A separate cookie-register → AXI CSR response path has −0.375 ns and 18 levels.
+Targeted inspection of the exact DCP on ba2 resolves it as reply validation →
+admission → `RecoveryInFlight.busy` → process-drain CSR selection, not the older
+indexed request-table diagnostic readback. It includes an SLR0→SLR1 crossing.
+The second correction registers per-process drain status before CSR selection,
+holding it busy while admission is enabled to prevent an old idle sample from
+escaping on disable. Immediate arrivals remain included in each status sample.
+Other sampled paths include existing trace and DCS logic, outside the B4 fix.
+
+Reports: `out/physical/b4-512199/out/physical/`. No board test or timing-closure
+claim follows from this improvement.
+Targeted evidence: `out/physical/b4-512199/ba2-targeted/`.

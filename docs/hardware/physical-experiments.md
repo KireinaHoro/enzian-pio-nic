@@ -591,3 +591,34 @@ packet/context reclamation, stop/reuse with stuck BUSY and dirty TX, watchdog
 suspension/resumption, and multi-core dispatch. Logs:
 `out/physical/b4-timing-fix/regression.log`. The independent baseline reports
 are under `out/physical/b4-512109/ba2-reports/` and reproduce CI exactly.
+
+## September 18: B4 second timing correction
+
+The first correction (`754ecb4`, pipeline **512199**) reduced whole-design
+WNS/TNS to −0.382/−111.505 ns, with 1400 failing setup endpoints. See the
+[measured findings](physical-findings.md#b4-first-correction--pipeline-512199-september-18).
+This is an improvement, not timing closure.
+
+The next candidate addresses the remaining measured B4 cones:
+
+- Keep the discard buffer's output in a fixed register bank, removing its
+  ring-head payload mux. Capacity, registered backpressure and flowing throughput
+  remain unchanged.
+- Validate discard generations locally at each reply-context slot, avoiding a
+  selected-generation mux followed by a broadcast retirement decision.
+- Register all discard producers before arbitration. Every staged descriptor
+  retains its PID in process-drain accounting until downstream acceptance.
+- Register watchdog limit/enable and begin/end samples before deadline updates.
+  Immediate and delayed preemption clear flush old-owner events. The one-cycle
+  sampling delay is consistent with the best-effort watchdog contract; it does
+  not generate additional control TX transactions.
+- Register per-process drain status before indexed CSR selection. Enabled
+  processes report busy; after disable, status includes all owners and immediate
+  arrivals, with a conservative extra cycle before completion. This cuts the
+  checkpoint-confirmed reply-validation → admission → drain-readback path.
+
+No ECI gateway, static-shell, constraint or unrelated trace/DCS changes are
+included. Local validation passed **17 tests across six suites**, with two
+existing empty tests ignored, including stop/reuse and watchdog suspend/resume.
+Log: `out/physical/b4-timing-fix-2/regression-final.log`. Routed improvement remains
+unmeasured until the next CI result; board acceptance is still open.

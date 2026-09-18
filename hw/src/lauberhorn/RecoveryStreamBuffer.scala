@@ -18,19 +18,28 @@ class RecoveryStreamBuffer[T <: Data](payloadType: HardType[T], ownerWidth: Int)
   val records = Vec.fill(2)(Reg(payloadType()))
   val owners = Vec.fill(2)(Reg(UInt(ownerWidth bits)))
   val occupied = Vec.fill(2)(RegInit(False))
-  val head, tail = Reg(UInt(1 bits)) init 0
-  io.push.ready := !occupied(tail)
-  io.pop.valid := occupied(head)
-  io.pop.payload := records(head)
-  when(io.push.fire) {
-    records(tail) := io.push.payload
-    owners(tail) := io.pushOwner
-    occupied(tail) := True
-    tail := tail + 1
-  }
+  // Keep the output record in a fixed register bank. A ring-head mux here
+  // made context validation pull mux/comparison logic across the host/decoder
+  // floorplan boundary even though the earlier arbitration was registered.
+  io.push.ready := !occupied(1)
+  io.pop.valid := occupied(0)
+  io.pop.payload := records(0)
   when(io.pop.fire) {
-    occupied(head) := False
-    head := head + 1
+    records(0) := records(1)
+    owners(0) := owners(1)
+    occupied(0) := occupied(1)
+    occupied(1) := False
+  }
+  when(io.push.fire) {
+    when(!occupied(0) || io.pop.fire) {
+      records(0) := io.push.payload
+      owners(0) := io.pushOwner
+      occupied(0) := True
+    } otherwise {
+      records(1) := io.push.payload
+      owners(1) := io.pushOwner
+      occupied(1) := True
+    }
   }
   for(i <- 0 until 2) {
     io.owners(i).valid := occupied(i)
