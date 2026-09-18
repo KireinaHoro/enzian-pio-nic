@@ -31,7 +31,9 @@ also waits for router quiescence and queued unlock traffic. Thread selection
 claims `worker_idx` atomically before deferred dispatch. The generated IPI killed
 field now follows `PID_WIDTH` rather than a hard-coded 32-bit PID, and runtime
 critical-section entry reloads READY while waiting. Whole-process termination is now implemented in source;
-board acceptance remains open; see [the B4 design](process-recovery.md).
+with the September 18 return-to-user parking fix it passed the two-round
+incoming/process recovery campaign on pipeline 512199. Broader B4 acceptance
+remains open; see [the B4 design](process-recovery.md).
 
 ## Actual policy and limits
 
