@@ -78,9 +78,32 @@ let
         })
       )
       {
+        nested-validation = callPackage (source + "/sw/apps/nested-validation/package.nix") { };
+        recovery-test = callPackage (source + "/sw/apps/recovery-test/package.nix") { };
         microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
-      };
+      }
+    // {
+      inherit dandelion;
+    };
+  runtimeTests = import ./checks/runtime.nix {
+    inherit pkgs;
+    source = sources.c [
+      "sw/tests"
+      "sw/rt"
+      "sw/include"
+      "sw/core"
+      "sw/kmod/ioctl.h"
+      "sw/kmod/endpoints.h"
+      "sw/kmod/recovery.h"
+    ];
+    configHeaders = genVerilog.headers;
+    deviceHeaders = devHdrs;
+  };
+  dandelion = callPackage (source + "/sw/apps/dandelion/package.nix") {
+    crane = inputs.crane;
+    source = inputs.dandelion;
+  };
   deployment = pkgs.callPackage ./images/default.nix {
     target = deploymentTarget;
     inherit
@@ -95,6 +118,8 @@ let
 in
 {
   inherit
+    runtimeTests
+    dandelion
     target
     callPackage
     applications
@@ -107,7 +132,14 @@ in
   inherit (deployment) mkDeploymentEnvironment mkTestImage;
   deployFs = deployment.mkTestImage {
     name = "microbenchmarks";
-    applications = { inherit (applications) microbenchmarks; };
+    applications = { inherit (applications) microbenchmarks recovery-test nested-validation; };
+  };
+  dandelionDeployFs = deployment.mkTestImage {
+    name = "dandelion";
+    applications = {
+      inherit dandelion;
+      dandelion-tests = dandelion.interactiveTests.smoke;
+    };
   };
   eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
     inherit genVerilog staticShell;

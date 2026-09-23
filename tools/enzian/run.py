@@ -16,6 +16,25 @@ import pexpect
 from console import attach, login_root, require_reservation
 
 
+def make_payload(body, marker):
+    encoded = base64.b64encode(body.encode()).decode()
+    # Receive the completion command before starting the script. Keep serial
+    # input bursts short, and wait for the shell to consume each line below.
+    payload = "base64 -d <<'ENZIAN_PAYLOAD' | bash; printf '\\n" + marker + ":%s\\n' \"$?\"\n"
+    payload += '\n'.join(encoded[i:i+128] for i in range(0, len(encoded), 128))
+    return payload + "\nENZIAN_PAYLOAD\n"
+
+
+def send_payload(cpu, payload, prompt):
+    lines = payload.splitlines()
+    for index, line in enumerate(lines):
+        cpu.sendline(line)
+        if index != len(lines) - 1:
+            # Kernel printk can stall serial input. A fixed delay between
+            # writes does not establish that the shell received the last line.
+            cpu.expect_exact(prompt)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--gateway', default='enzian-gateway')
@@ -39,22 +58,18 @@ def main():
     else:
         body = shlex.join(command)
     marker = 'ENZIAN_DONE_' + uuid.uuid4().hex
-    # Short base64 lines avoid the serial terminal's canonical input limit.
-    encoded = base64.b64encode(body.encode()).decode()
-    payload = "base64 -d <<'ENZIAN_PAYLOAD' | bash\n"
-    payload += '\n'.join(encoded[i:i+512] for i in range(0, len(encoded), 512))
-    payload += "\nENZIAN_PAYLOAD\nprintf '\\n" + marker + ":%s\\n' \"$?\"\n"
+    payload = make_payload(body, marker)
+    input_prompt = 'ENZIAN_INPUT_' + uuid.uuid4().hex + '> '
     require_reservation(args.gateway, args.machine)
     args.logs.mkdir(parents=True, exist_ok=False)
     with (args.logs / 'console.log').open('w') as log:
         with attach(args.gateway, args.machine, 'console', log) as cpu:
             login_root(cpu, args.user, os.environ.get(args.password_env, 'enzian'))
             # Suppress command echo so assertions can only match actual output.
-            cpu.sendline('stty -echo')
+            cpu.sendline('stty -echo; PS2=' + shlex.quote(input_prompt))
             cpu.expect(r'[^\r\n]+# ')
             try:
-                for line in payload.splitlines():
-                    cpu.sendline(line)
+                send_payload(cpu, payload, input_prompt)
                 if args.expect:
                     for expression in args.expect:
                         cpu.expect(expression, timeout=args.timeout)
@@ -67,7 +82,7 @@ def main():
                         raise RuntimeError(f'Remote command exited {status}')
                     print('COMMAND_SUCCEEDED')
             finally:
-                cpu.sendline('stty echo')
+                cpu.sendline("PS2='> '; stty echo")
 
 
 if __name__ == '__main__':

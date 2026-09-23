@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Pengcheng Xu
 
 #include "common.h"
+#include "trace.h"
 
 #include "regblock_bases.h"
 
@@ -39,27 +40,35 @@ static irqreturn_t worker_fpi_handler(int irq, void *data)
 	next_pid = lauberhorn_eci_preempt_sched_cmd_next_pid_extract(ack_reg);
 	killed = lauberhorn_eci_preempt_sched_cmd_killed_extract(ack_reg);
 
-	BUG_ON(killed);
-	next_proc = find_proc(next_pid);
-	BUG_ON(!next_proc);
+	if (killed && priv->thr)
+		request_process_stop(priv->thr->parent);
+	next_proc = next_pid ? find_proc(next_pid) : NULL;
+	BUG_ON(next_pid && !next_proc);
 
 	// Select a registered thread that is not already running.
-	for (i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-		if (next_proc->thr_defs[i].enabled &&
-		    next_proc->thr_defs[i].worker_idx == -1) {
+	for (i = 0; next_proc && i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
+		if (READ_ONCE(next_proc->thr_defs[i].enabled) &&
+		    cmpxchg(&next_proc->thr_defs[i].worker_idx, -1,
+		            smp_processor_id() - worker_lo) == -1) {
 			next_thr = &next_proc->thr_defs[i];
 			break;
 		}
 	}
-	if (!next_thr) {
+	if (next_pid && !next_thr) {
 		panic("No ready thread for TGID %u on CPU %u\n", next_pid,
 		      smp_processor_id());
 	}
 
+	priv->killed = killed;
+	trace_worker_switch(smp_processor_id(),
+		priv->thr ? priv->thr->parent->lifetime : 0,
+		priv->thr ? priv->thr->parent->tgid : 0, priv->thr ? priv->thr->task->pid : 0,
+		next_thr ? next_thr->parent->lifetime : 0, next_pid,
+		next_thr ? next_thr->task->pid : 0, 0, killed);
+
 	// Disable old thread, if one is actually running
 	if (priv->thr) {
 		desched_worker_thread(priv->thr);
-		priv->thr = NULL;
 	}
 
 	sched_worker_thread(next_thr, priv);
@@ -196,6 +205,7 @@ int init_workers()
 		}
 
 		fpi_data = per_cpu_ptr(&fpi_percpu_data, cpu);
+		init_worker_schedule(cpu);
 
 		lauberhorn_eci_preempt_initialize(
 			&fpi_data->preempt_dev,

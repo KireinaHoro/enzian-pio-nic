@@ -1,0 +1,62 @@
+--- a/sw/apps/nested_adder-demo/main.c
++++ b/sw/apps/nested_adder-demo/main.c
+@@ -19,6 +19,10 @@
+ };
+ 
+ static rpc_codec_t add_codec;
++static lauberhorn_rpc_endpoint_t ep = {
++    .dport = 12345, .proc_num = ADD, .prog_num = ADD_PROG,
++    .prog_ver = ADD_VERS, .rpc_codec = &add_codec
++};
+ rpc_codec_t nested_add_codec;
+ 
+ void adder_free(void *data) {
+@@ -34,6 +38,7 @@
+   printf("server called with %d + %d\n", call->a, call->b);
+ 
+   add_resp *resp = malloc(sizeof(add_resp));
++  resp->request_id = call->request_id;
+   resp->sum = call->a + call->b;
+   return resp; 
+ }
+@@ -44,17 +49,9 @@
+ 
+ void *nested_adder_handler(void *data, lauberhorn_msg_t req, int xid) {
+ 
+-    lauberhorn_rpc_endpoint_t ep = {
+-        .daddr = "10.0.0.5",
+-        .dport = 12345,
+-        .proc_num = 1,
+-        .prog_num = ADD_PROG,
+-        .prog_ver = ADD_VERS, 
+-        .rpc_codec = &add_codec
+-    };
+-
+     nested_add_call *call = req; 
+     nested_add_resp *resp = malloc(sizeof(nested_add_resp));
++    resp->request_id = call->request_id;
+     resp->e = 0; 
+     
+     add_call c1 = { .a = call->a, .b = call->b };
+@@ -130,6 +127,13 @@
+   }
+   srv_id = err;
+ 
++  ep.daddr = getenv("NESTED_REMOTE_IP");
++  if (!ep.daddr) ep.daddr = "192.168.129.129";
++  if (lauberhorn_rpc_endpoint_init(&ctx, &ep)) {
++    perror("register nested endpoint");
++    goto dereg;
++  }
++
+   // run 4 threads
+   for (i = 0; i < 4; ++i) {
+     workers[i] = lauberhorn_create_worker(&ctx, NULL, NULL);
+@@ -146,6 +150,7 @@
+   printf("Done, cleaning up\n");
+ 
+ dereg:
++  if (lauberhorn_rpc_endpoint_destroy(&ctx, &ep)) perror("destroy nested endpoint");
+   lauberhorn_dereg_srv(&ctx, srv_id);
+ fini:
+   lauberhorn_fini(&ctx);

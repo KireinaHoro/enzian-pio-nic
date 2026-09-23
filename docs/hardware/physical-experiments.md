@@ -828,3 +828,75 @@ Local evidence: `out/physical/review-20260915/JOB/` contains timing, 200 setup/h
 path samples, detailed setup paths, CDC, route, bus-skew and generated summary.
 The GitLab hardware artifacts retain the DCPs and bitstreams. Read each summary
 before requesting more paths; a global 200-path sample is not a family-wide TNS.
+
+## September 18: B4 discard/accounting timing correction
+
+This correction is confined to the B4 scheduler additions on `feat/nested-rpc`.
+It leaves the ECI gateway, static shell, constraints and separate ECI timing
+experiments unchanged. The routed reference is pipeline **512109**, `cdf2121`:
+NIC application-clock WNS/TNS −1.441/−6433.588 ns, 13269 failing setup endpoints.
+An independent ba2 inspection of the exact CI DCP reproduced the report's
+whole-design WNS/TNS −1.441/−8939.668 ns and endpoint counts.
+
+The scheduler now inserts a two-record registered buffer after discard
+arbitration. Neither selected payload nor downstream ready bypasses this buffer.
+Each occupied slot retains its PID until downstream acceptance and participates
+in process-drain readback. The buffer sustains one record per cycle when flowing;
+a full buffer reopens one cycle after a pop. This cuts the original lookup →
+arbiter → selected size/ready → counter/context retirement dependency.
+
+Admission and departure events are registered before per-process arithmetic.
+The counter bound is two records per RPC decoder's `FULL` descriptor stage,
+one active DMA record, the lookup's exported pipeline capacity, and one allowance
+for a delayed departure: **9 records / 4 bits** with current configuration.
+Immediate and staged arrivals also make drain readback busy, preventing a zero
+count from hiding newly admitted work. Counter overflow/underflow is asserted.
+
+New tests cover sustained throughput, full-buffer/random backpressure, every
+buffered owner's lifetime, simultaneous arrivals/departures, capacity boundaries
+and early-drain exclusion. These and the existing watchdog/context unit suites
+are added to the CI `fast-tests-eci` gate alongside the existing ECI suites.
+Local results and the submitted revision are recorded with the completed patch.
+The new routed result remains pending; compare the NIC clock and the corrected
+cones, separately from the pre-existing ECI paths. No timing improvement is
+claimed from simulation alone. Per maintainer instruction, push to CI and wait
+for notification before checking its completed hardware results.
+
+Local validation passed **17 tests across six suites**, with the two existing
+empty tests explicitly ignored: recovery buffer/accounting, execution watchdog,
+reply contexts, nested RPC and ordinary RPC. This includes disabled-process
+packet/context reclamation, stop/reuse with stuck BUSY and dirty TX, watchdog
+suspension/resumption, and multi-core dispatch. Logs:
+`out/physical/b4-timing-fix/regression.log`. The independent baseline reports
+are under `out/physical/b4-512109/ba2-reports/` and reproduce CI exactly.
+
+## September 18: B4 second timing correction
+
+The first correction (`754ecb4`, pipeline **512199**) reduced whole-design
+WNS/TNS to −0.382/−111.505 ns, with 1400 failing setup endpoints. See the
+[measured findings](physical-findings.md#b4-first-correction--pipeline-512199-september-18).
+This is an improvement, not timing closure.
+
+The next candidate addresses the remaining measured B4 cones:
+
+- Keep the discard buffer's output in a fixed register bank, removing its
+  ring-head payload mux. Capacity, registered backpressure and flowing throughput
+  remain unchanged.
+- Validate discard generations locally at each reply-context slot, avoiding a
+  selected-generation mux followed by a broadcast retirement decision.
+- Register all discard producers before arbitration. Every staged descriptor
+  retains its PID in process-drain accounting until downstream acceptance.
+- Register watchdog limit/enable and begin/end samples before deadline updates.
+  Immediate and delayed preemption clear flush old-owner events. The one-cycle
+  sampling delay is consistent with the best-effort watchdog contract; it does
+  not generate additional control TX transactions.
+- Register per-process drain status before indexed CSR selection. Enabled
+  processes report busy; after disable, status includes all owners and immediate
+  arrivals, with a conservative extra cycle before completion. This cuts the
+  checkpoint-confirmed reply-validation → admission → drain-readback path.
+
+No ECI gateway, static-shell, constraint or unrelated trace/DCS changes are
+included. Local validation passed **17 tests across six suites**, with two
+existing empty tests ignored, including stop/reuse and watchdog suspend/resume.
+Log: `out/physical/b4-timing-fix-2/regression-final.log`. Routed improvement remains
+unmeasured until the next CI result; board acceptance is still open.

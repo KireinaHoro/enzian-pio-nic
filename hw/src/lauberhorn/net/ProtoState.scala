@@ -10,7 +10,7 @@ import spinal.lib.misc.plugin.FiberPlugin
   *
   * - Statistics (packet count, etc.)
   * - ARP cache: mappings between IP and Ethernet addresses (used by IP decoders and encoders)
-  * - ONCRPC sessions: mappings between (funcPtr, xid) and (IP addr, UDP port num) (used by non-nested ONCRPC call/replies)
+  * - ONC-RPC reply contexts: opaque request tokens select the original XID and UDP return tuple
   */
 trait ProtoState extends FiberPlugin {
   /**

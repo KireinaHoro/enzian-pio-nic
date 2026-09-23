@@ -61,6 +61,19 @@ def main():
             files.append(resolve(app['entryPoint']))
     elf = {}
     for file in files:
+        # makeWrapper entry points are scripts; inspect their target interpreter
+        # and the hidden wrapped ELF rather than passing a script to readelf.
+        seen = set()
+        while file.read_bytes()[:4] != b'\x7fELF':
+            assert file not in seen, f'wrapper loop: {file}'
+            seen.add(file)
+            first_line = file.read_text().splitlines()[0]
+            assert first_line.startswith('#!'), f'unknown executable format: {file}'
+            interpreter = resolve(first_line[2:].split()[0])
+            assert interpreter.read_bytes()[:4] == b'\x7fELF', str(interpreter)
+            wrapped = file.with_name('.' + file.name + '-wrapped')
+            assert wrapped.is_file(), f'missing wrapped executable: {wrapped}'
+            file = wrapped
         header = subprocess.check_output(['readelf', '-h', str(file)], text=True)
         assert 'AArch64' in header, str(file)
         dynamic = subprocess.check_output(['readelf', '-d', str(file)], text=True)

@@ -26,8 +26,8 @@ case class PreemptionControlCl() extends Bundle {
     ALLOC.addMackerelEpilogue(
       s"""
          |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
-         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
          |  busy      1 "the thread is in the critical section";
+         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
          |  _         6 rsvd;
          |};
          """.stripMargin)
@@ -74,6 +74,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     when (logic.irqEn.rise()) {
       logic.kernelFinished := True
     }
+    busCtrl.read(logic.datapathDrained, alloc("datapathDrained",
+      desc = "Old RX/TX and coherence traffic drained; safe to change thread mapping"))
   }
 
   val requiredAddrSpace = 0x80
@@ -133,8 +135,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
     awaitBuild()
 
-    // TODO: drive killed with counter output
-    schedCmd.killed := False
+    // Retain the reason through IPI delivery and the kernel acknowledgement.
+    schedCmd.killed init False
     schedCmd.pid := preemptReq.pid
 
     ipiToIntc.cmd := 0
@@ -157,6 +159,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // - update thread CL routing
     // - pin the preemption control of the new thread
     val kernelFinished = Reg(Bool()) init False
+    val datapathDrained = RegInit(False)
 
     // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
     // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
@@ -183,6 +186,8 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           preemptTimer.clear()
           // only start preemption when IRQ is enabled
           when (preemptReq.valid && irqEn) {
+            schedCmd.killed := preemptReq.kill
+            datapathDrained := preemptReq.outOfIdle
             when (preemptReq.outOfIdle) {
               // if we are kicking a core out of idle, no thread mapping
               // will be present yet -- directly send interrupt
@@ -280,6 +285,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           // can still properly retire the current packet (that is being repeated).
           rxProtoPreemptReq.valid := True
           when (rxProtoPreemptReq.ready) {
+            datapathDrained := True
             // Before re-enabling IRQ, the kernel will:
             // - update mapping in [[EciThreadClRouter]] to route the new thread, and
             // - update rx/tx parity to new thread in the data path.
@@ -296,9 +302,19 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
           // Did the kernel finish updating the thread CL routing?
           when (kernelFinished) {
+            when(preemptReq.pid.bits === 0) {
+              // No next mapping exists when stopping to idle. Do not send an
+              // invalidation through the now-unrouted thread prefix.
+              preemptCtrlCl.ready := True
+              preemptCtrlCl.busy := False
+              ptrace("Done")
+              preemptReq.ready := True
+              goto(idle)
+            } otherwise {
             lci.valid := True
             when (lci.ready) {
               goto(setReady)
+            }
             }
           }
         }

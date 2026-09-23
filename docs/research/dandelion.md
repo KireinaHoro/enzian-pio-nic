@@ -1,6 +1,52 @@
 # Dandelion student port
 
+See the [registered endpoint and internal-loopback contract](../software/nested-rpc-endpoints.md) for the B2/B6 batch.
+
 Surveyed 2026-09-08. External sibling workspace: `../sven-dandelion/` from the platform root; it is not vendored here. Report: **Sven Glinz, _Porting Dandelion to the Lauberhorn smart NIC_**, bachelor thesis, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected commits: report `ec49e8a`, platform `9e25181`, Dandelion `69c3088`. The report identifies upstream Dandelion `98c4968` (2026-03-09) as its port base; these are distinct revision identities.
+
+**Hardware update, 2026-09-10:** the external `69c3088` application builds for
+AArch64 against this branch's real imported runtime. A peer-driven 1×1 matmul
+smoke test passed on Enzian, including HTTP registration and an FPGA UDP RPC
+reply. This is separate from the thesis's mock evaluation; compositions and
+performance remain unvalidated. See [recorded hardware results](../development/hardware-test-results.md).
+The inspected port initializes process engines with logical worker indices
+0–3, which `mmu_worker` treats as Linux CPU IDs, whereas the NIC RPC workers
+use isolated CPUs 44–47 in this setup. Reconcile that mapping before claiming
+the intended isolated-core execution policy or measuring performance.
+
+**Integration update, 2026-09-14:** the main flake now pins `69c3088` and applies
+tracked patches from `sw/apps/dandelion/`. The shared endpoint is initialized
+before workers, with stable C/Rust storage and the local NIC address. Process
+execution samples the actual RPC worker CPU; engine indices remain logical
+slots. C/Rust layout assertions and application/test-harness builds pass.
+The fixture reference calculator independently checks the DAG, sharding and
+nested expected answers. The packaged nested test includes concurrent distinct
+inputs. These tests have **not** been executed against this batch on Enzian;
+composition support and actual isolated placement remain unvalidated. See the
+[build/run recipe](../../sw/apps/dandelion/README.md).
+
+## September 17 managed request integration
+
+The platform adapter now uses the generic outcome API. Its single incoming
+handler resolves and retains the registry entry once: atomic functions execute
+inline, compositions return `DEFER` with owned execution context. Clients retain
+the same procedure and BJSON/XDR envelope and need no atomic/composition metadata.
+Codec output capacity is explicit across the Rust/C boundary. The pinned student
+source descriptions below remain historical; its `EXEC_FIBER` and callback API
+are not the current platform contract.
+
+The handler's former XID argument is now an opaque request-context token; the
+adapter does not inspect it. Hardware preserves the original XID for wire replies.
+Possible token-based peer-information queries remain documentation-only; see
+[reply contexts](../software/reply-contexts.md).
+
+`FORWARD` implements local reply relay without a parent fiber for compatible
+response encodings. It is available to applications but is not automatically
+selected by Dandelion's composition optimizer. Direct replies from downstream
+to the original client remain unimplemented. The earlier report search below
+records that no student tail-call design was recovered, not a claim that the
+new outcome design is absent. See [programming model](../software/programming-model.md)
+and [blockers](../software/nested-rpc-blockers.md).
 
 ## What exists and where
 
@@ -43,7 +89,10 @@ Report results: approximately 120–140 kRPS for one adder service across four i
 
 Port/evaluation checklist:
 
-- Reconcile the sibling's rewritten ABI, descriptors, generated headers, packet ownership and core mappings with this tree's simpler `sw/rt/{eci,oncrpc}.c` and hardware nested-RPC path. The student extensions are not already integrated here merely because they exist in the sibling.
+- Complete reconciliation of the imported runtime with the real descriptors,
+  generated headers, packet ownership and core mappings. The import and
+  successful single-function probe do not establish nested-path support; see
+  [integration staging](../software/nested-rpc-integration.md).
 - Validate actual 2F2F progress and receive-critical-section release across fiber suspension, nested replies, timeout and shutdown. Mock scheduling fidelity cannot establish DCU/queue-pair safety.
 - Define bounded admission/backpressure: fixed fiber/pending-call pools exhaust, some incoming requests are silently dropped, fiber stacks are fixed at 64 KiB without overflow detection, and cancellation remains unfinished. Service deregistration with in-flight work has undefined semantics; registration operations require external serialization.
 - Extend transport/application support as needed: the report uses small UDP ONC RPC messages, without retransmission, multi-packet framing or ONC RPC authentication. HTTP communication functions were not ported; the wait API currently handles RPC completions. OS/process isolation alone does not establish network authentication or full-system security guarantees.

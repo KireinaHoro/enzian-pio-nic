@@ -116,6 +116,11 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       ipHeader, ipPayload
     )
 
+    val localCallMd = Stream(UdpTxMeta())
+    val localCallPld = Axi4Stream(macIf.axisConfig)
+    val localReplyMd = Stream(UdpTxMeta())
+    val localReplyPld = Axi4Stream(macIf.axisConfig)
+
     awaitBuild()
 
     val payload = Axi4Stream(macIf.axisConfig)
@@ -124,7 +129,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     val decoder = AxiStreamExtractHeader(macIf.axisConfig, UdpHeader().getBitsWidth / 8)()
     ipPayload >> decoder.io.input
 
-    produce(metadata, payload, decoder.io.outputAck, priority = 200)
+    val outputAck = Bool()
+    produce(metadata, payload, outputAck, priority = 200)
     produceDone()
 
     val currentIpHeader = ipHeader.toFlowFire.toReg()
@@ -132,15 +138,85 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       .clearWhen(ipHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    payload << decoder.io.output
+    // Select one ingress until its payload and dispatch acknowledgment finish.
+    // Round-robin service prevents either physical RX or local calls starving.
+    val selected = Reg(UInt(2 bits)) init 0
+    val active = RegInit(False)
+    val queried = RegInit(False)
+    val bodyDone = RegInit(False)
+    val acknowledged = RegInit(False)
+    val localPacketId = Reg(UInt(PacketID.width bits)) init 0
+    val nextIngress = Reg(UInt(2 bits)) init 0
+    val available = Seq(decoder.io.header.valid, localCallMd.valid, localReplyMd.valid)
+    when(!active) {
+      for (start <- 0 until 3) {
+        when(nextIngress === start) {
+          // Later assignments have priority: first available in rotated order.
+          for (offset <- (0 until 3).reverse) {
+            val index = (start + offset) % 3
+            when(available(index)) { selected := index; active := True }
+          }
+        }
+      }
+    }
+    dbLookup.valid := False
+    dbLookup.payload.assignFromBits(B(0, dbLookup.payload.getBitsWidth bits))
+    decoder.io.header.ready := False
+    decoder.io.output.ready := False
+    decoder.io.outputAck := outputAck && active && selected === 0
+    localCallMd.ready := False
+    localReplyMd.ready := False
+    localCallPld.ready := False
+    localReplyPld.ready := False
+    payload.setIdle()
 
-    val hdrParsed = UdpHeader()
-    dbLookup.translateFrom(decoder.io.header) { case (lk, hdr) =>
-      hdrParsed.assignFromBits(hdr)
-
-      lk.query := hdrParsed.dport
-      lk.userData.hdr := hdrParsed
-      lk.userData.ipMeta := currentIpHeader
+    when(active && selected === 0) {
+      dbLookup.valid := decoder.io.header.valid && !queried
+      val hdr = UdpHeader()
+      hdr.assignFromBits(decoder.io.header.payload)
+      dbLookup.query := hdr.dport
+      dbLookup.userData.hdr := hdr
+      dbLookup.userData.ipMeta := currentIpHeader
+      decoder.io.header.ready := dbLookup.ready && !queried
+      payload.valid := decoder.io.output.valid && queried
+      payload.payload := decoder.io.output.payload
+      decoder.io.output.ready := payload.ready && queried
+      when(dbLookup.fire && currentIpHeader.getPayloadSize === 8) { bodyDone := True }
+    }
+    for ((md, pld, index) <- Seq((localCallMd, localCallPld, 1), (localReplyMd, localReplyPld, 2))) {
+      when(active && selected === index) {
+        dbLookup.valid := md.valid && !queried
+        md.ready := dbLookup.ready && !queried
+        dbLookup.query := md.dport
+        val data = dbLookup.userData
+        data.hdr.sport := md.sport
+        data.hdr.dport := md.dport
+        data.hdr.len := EndiannessSwap(md.pldLen + 8).asBits
+        data.ipMeta.hdr.version := 4
+        data.ipMeta.hdr.ihl := 5
+        data.ipMeta.hdr.ttl := 64
+        data.ipMeta.hdr.proto := 17
+        data.ipMeta.hdr.len := EndiannessSwap(md.pldLen + 28).asBits
+        data.ipMeta.hdr.saddr := host[IpDecoder].logic.ipAddress
+        data.ipMeta.hdr.daddr := md.daddr
+        data.ipMeta.ethMeta.packetId := localPacketId
+        data.ipMeta.ethMeta.frameLen.bits := (md.pldLen + 42).resized
+        data.ipMeta.ethMeta.hdr.etherType := EndiannessSwap(B(0x0800, 16 bits))
+        payload.valid := pld.valid && queried
+        payload.payload := pld.payload
+        pld.ready := payload.ready && queried
+        when(dbLookup.fire) { localPacketId := localPacketId + 1 }
+      }
+    }
+    when(dbLookup.fire) { queried := True }
+    when(payload.fire && payload.last) { bodyDone := True }
+    when(outputAck && active) { acknowledged := True }
+    when(active && bodyDone && acknowledged) {
+      active := False
+      nextIngress := (selected === 2) ? U(0) | (selected + 1)
+      queried := False
+      bodyDone := False
+      acknowledged := False
     }
 
     metadata.translateFrom(dbResult) { case (md, lr) =>

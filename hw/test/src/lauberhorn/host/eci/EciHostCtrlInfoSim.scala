@@ -50,23 +50,24 @@ object EciHostCtrlInfoSim {
           dp.pop(8).toInt
         )
       case 3 =>
-        val xid = dp.pop(32, skip = 12)
+        val token = dp.pop(32, skip = 12)
         RxOncRpcCallSim(
           len.toInt,
           dp.pop(64),
-          xid,
+          token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
-        val pid = dp.pop(PID_WIDTH, skip = 12)
-        val cookie = dp.pop(32)
+        val status = dp.pop(8, skip = 4).toInt
+        val pid = dp.pop(PID_WIDTH)
+        val cookie = dp.pop(32, skip = 16)
         val xid = dp.pop(32)
         RxOncRpcReplySim(
           len.toInt,
           pid,
           cookie,
           xid,
-          dp.pop(ONCRPC_INLINE_BYTES * 8, skip = 16))
+          dp.pop(ONCRPC_INLINE_BYTES * 8), status)
       }
   }
 }
@@ -117,22 +118,24 @@ case class TxIpCmdSim(len: Int, dst: Inet4Address, proto: Int) extends BypassCtr
       .toBigInt
 }
 
-case class TxOncRpcReplySim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
+case class TxOncRpcReplySim(len: Int, requestToken: BigInt, args: BigInt, status: Int = 0, execution: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyTxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(32, xid, skip = 13)
-      .push(64, funcPtr)
+      .push(2, execution)
+      .push(8, status, skip = 3)
+      .push(32, requestToken)
+      .push(64, 0)
       .push(ONCRPC_INLINE_BYTES * 8, args)
       .toBigInt
   }
 
   override def toString = {
     val argsMask = (BigInt(1) << (ONCRPC_INLINE_BYTES * 8)) - 1
-    f"OncRpcReply (xid $xid%x), $len bytes total, inlined args: ${args & argsMask}%x"
+    f"OncRpcReply (context $requestToken%x), $len bytes total, inlined args: ${args & argsMask}%x"
   }
 }
 
-case class RxOncRpcCallSim(len: Int, funcPtr: BigInt, xid: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallRxPacketDescSim {
+case class RxOncRpcCallSim(len: Int, funcPtr: BigInt, requestToken: BigInt, args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallRxPacketDescSim {
   /** not implemented due to call Rx descriptor never sent out */
   override def encode = ???
 }
@@ -151,7 +154,7 @@ case class TxOncRpcCallSim(len: Int,
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PID_WIDTH, pid, skip = 13)
-      .push(32, cookie)
+      .push(32, cookie, skip = 16)
       .push(32, xid)
       .push(32, daddr)
       .push(16, sport)
@@ -159,7 +162,7 @@ case class TxOncRpcCallSim(len: Int,
       .push(32, progNum)
       .push(32, progVer)
       .push(32, proc)
-      .push(ONCRPC_NESTED_CALL_INLINE_BYTES * 8, args, skip = 48)
+      .push(ONCRPC_NESTED_CALL_INLINE_BYTES * 8, args, skip = 32)
       .toBigInt
   }
 
@@ -173,7 +176,13 @@ case class RxOncRpcReplySim(len: Int,
                             pid: BigInt,
                             cookie: BigInt,
                             xid: BigInt,
-                            args: BigInt) extends EciHostCtrlInfoSim with OncRpcReplyRxPacketDescSim {
+                            args: BigInt, status: Int = 0) extends EciHostCtrlInfoSim with OncRpcReplyRxPacketDescSim {
   /** not implemented due to reply Rx descriptor never sent out */
   override def encode = ???
+}
+
+case class TxExecutionSim(command: Int) extends EciHostCtrlInfoSim {
+  def ty = 7
+  def len = 0
+  def encode = BigInt(command)
 }

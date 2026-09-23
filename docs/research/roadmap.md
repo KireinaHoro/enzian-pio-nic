@@ -2,6 +2,12 @@
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
+The nested RPC integration is approved for master as of 2026-09-23. Its
+[merge disposition and remaining tests](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23)
+record accepted timing limitations, the cross-process late-reply race to test,
+and the startup workflow explanation. Dandelion validation is reserved until
+the maintainer's scheduler/critical-section design changes are integrated.
+
 ## Work supported by repository evidence
 
 | Work | Current evidence / gap | Completion evidence to seek |
@@ -30,8 +36,8 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 
 1. Select QP ownership, DCU layout/coloring and admission rules; define guaranteed concurrency.
 2. Specify receive-critical-section versus whole-application timeout, timer start/reset points, kill granularity and safe resource/reply cleanup. Define service allocation fairness if a guarantee is needed; run-to-finish alone does not define it.
-3. Tail calls were proposed at the end of the student project; do not presume implementation. Follow the report review in [Dandelion](dandelion.md); unwritten design is deferred to later maintainer work. Decide which student runtime interfaces to adopt and how fibers/continuations interact with real ECI, migration and finite hardware tables.
-4. Select NFS and consensus implementations, Demikernel backend/version and comparison platform, target venue/cycle, and ordered feature milestones.
+3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../software/service-execution-design.md) in later runs.
+4. Consensus targets a runtime-managed raft-rs embedding; memcached uses resident transport-only adoption. Select NFS implementation, Demikernel backend/version and comparison platform, target venue/cycle, and ordered feature milestones.
 5. Choose the TCP/Protobuf merge order and follow-on gRPC scope without displacing first-paper applications. Any separate Linux/full-paper source trees still need identification if required; student reports are not the full-system paper source.
 
 Keep maintainer intent separate from source-backed implementation status. Do not silently turn these remaining choices into requirements or reopen the settled isolated-worker policy.

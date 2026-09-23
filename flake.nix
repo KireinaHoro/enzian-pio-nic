@@ -2,6 +2,13 @@
   description = "devShell for Lauberhorn";
   inputs = {
     self.submodules = true;
+    dandelion = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git?rev=69c3088f8f5333eab653ed5c9bd2f6da8f7f944a";
+      flake = false;
+    };
+    crane = {
+      url = "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
+    };
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     mill-ivy-fetcher = {
@@ -9,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mackerel = {
-      url = "git+https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2";
+      url = "git+https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2?ref=fix/datatype-boundary-access";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
@@ -62,12 +69,17 @@
           {
             inherit (platform)
               runtime
+              runtimeTests
+              dandelion
+              dandelionDeployFs
               kmod
               deployFs
               eciVivadoInputs
               ciEnvironment
               ciDependencies
               ;
+            recovery-test = platform.applications.recovery-test;
+            nested-validation = platform.applications.nested-validation;
             dummy-app-build-with-nix = platform.applications.nix-build-demo;
           }
           // ci

@@ -3,7 +3,8 @@ package lauberhorn.net.oncrpc
 import jsteward.blocks.axi.AxiStreamInjectHeader
 import lauberhorn.net._
 import lauberhorn.Global.ONCRPC_NESTED_CALL_INLINE_BYTES
-import lauberhorn.net.udp.{UdpEncoder, UdpTxMeta}
+import lauberhorn.net.udp.{UdpDecoder, UdpEncoder, UdpTxMeta, RpcLocalRoute}
+import lauberhorn.net.ip.IpDecoder
 import lauberhorn.{MacInterfaceService, PID, PacketLength, RpcID, TraceData}
 import spinal.core._
 import spinal.lib._
@@ -44,16 +45,21 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
 
     val outMd = Stream(UdpTxMeta())
     val outPld = Axi4Stream(axisConfig)
-    to[UdpTxMeta, UdpEncoder](outMd, outPld)
+    val remoteMd = Stream(UdpTxMeta())
+    val remotePld = Axi4Stream(axisConfig)
+    to[UdpTxMeta, UdpEncoder](remoteMd, remotePld)
 
     awaitBuild()
+    val localRoute = new RpcLocalRoute(outMd, outPld, remoteMd, remotePld,
+      host[UdpDecoder].logic.localCallMd, host[UdpDecoder].logic.localCallPld,
+      host[IpDecoder].logic.ipAddress)
+    tp.trace("LocalDelivery", RpcID(outMd.rpcId)) := outMd.fire && localRoute.chooseLocal
 
     collectInto(md, pld, acceptHostPackets = true)
 
-    val encoder = AxiStreamInjectHeader(axisConfig, OncRpcCallHeader().getBitsWidth / 8)
+    val encoder = RpcHeaderInjector(axisConfig, OncRpcCallHeader().getBitsWidth / 8)
     encoder.io.output >> outPld
 
-    val newRequestEvent = host[OncRpcReplyDecoder].logic.newRequestEvent
 
     assert(ONCRPC_NESTED_CALL_INLINE_BYTES <= axisConfig.dataWidth,
       "we assumed the nested call inline bytes fit inside one AXIS beat")
@@ -70,6 +76,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
 
     val outHdr = Reg(OncRpcCallHeader())
 
+    encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
     encoder.io.header.payload := outHdr.asBits
     encoder.io.header.valid := False
 
@@ -78,9 +85,6 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
     md.ready := False
     pld.ready := False
     encoder.io.input.setIdle()
-
-    newRequestEvent.valid := False
-    newRequestEvent.payload.assignDontCare()
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -115,15 +119,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
             outMd.rpcId := nextRpcId
             outMd.pldLen := md.callLen.bits + OncRpcCallHeader().getBitsWidth / 8
 
-            newRequestEvent.valid := True
-            newRequestEvent.payload.xid := md.xid
-            newRequestEvent.payload.remoteAddr := md.daddr
-            newRequestEvent.payload.remotePort := md.dport
-            newRequestEvent.payload.localPort := md.sport
-            newRequestEvent.payload.pid := md.pid
-            newRequestEvent.payload.cookie := md.cookie
-            newRequestEvent.payload.active := True
-
+            // DmaControlPlugin reserved completion routing before admission.
             goto(sendDownstreamMd)
           }
         }
@@ -142,7 +138,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
         whenIsActive {
           encoder.io.header.valid := True
           when (encoder.io.header.ready) {
-            goto(sendInlinedWords)
+            when(encoder.io.empty) { goto(idle) } otherwise { goto(sendInlinedWords) }
           }
         }
       }

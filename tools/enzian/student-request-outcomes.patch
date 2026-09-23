@@ -1,0 +1,134 @@
+--- a/sw/apps/adder-demo/main.c
++++ b/sw/apps/adder-demo/main.c
+@@ -15,14 +15,15 @@
+   free(data);
+ }
+ 
+-void *adder_handler(void *data, lauberhorn_msg_t req, int xid) {
++lauberhorn_outcome_t adder_handler(void *data, lauberhorn_msg_t req, lauberhorn_request_context_t context) {
+   add_call *call = req; 
+   // printf("server called with %d + %d\n", call->a, call->b);
+ 
+   add_resp *resp = malloc(sizeof(add_resp));
++  if (!resp) return lauberhorn_fail(LAUBERHORN_RPC_SYSTEM_ERR);
+   resp->sum = call->a + call->b;
+   resp->time_sent = call->time_sent; 
+-  return resp; 
++  return lauberhorn_reply(resp, sizeof(*resp), free); 
+ }
+ 
+ int main(int argc, char *argv[]) {
+@@ -31,9 +32,7 @@
+ 
+   lauberhorn_handler_t add_handler = {
+     .func = adder_handler, 
+-    .free = adder_free,
+     .data = NULL,
+-    .mode = EXEC_INLINE
+   };
+ 
+   int err, srv_id, i;
+--- a/sw/apps/nested_adder-demo/main.c
++++ b/sw/apps/nested_adder-demo/main.c
+@@ -33,54 +33,45 @@
+     free(data);
+ }
+ 
+-void *adder_handler(void *data, lauberhorn_msg_t req, int xid) {
++lauberhorn_outcome_t adder_handler(void *data, lauberhorn_msg_t req, lauberhorn_request_context_t context) {
+   add_call *call = req; 
+   printf("server called with %d + %d\n", call->a, call->b);
+ 
+   add_resp *resp = malloc(sizeof(add_resp));
++  if (!resp) return lauberhorn_fail(LAUBERHORN_RPC_SYSTEM_ERR);
+   resp->request_id = call->request_id;
+   resp->sum = call->a + call->b;
+-  return resp; 
++  return lauberhorn_reply(resp, sizeof(*resp), free); 
+ }
+ 
+-void print_msg(rpc_result_t *result, void *ctx) {
+-  printf("called cb_handler\n");
++static lauberhorn_outcome_t run_nested(void *data, void *req, lauberhorn_request_context_t context) {
++    nested_add_call *call = req;
++    nested_add_resp *resp = calloc(1, sizeof(*resp));
++    if (!resp) return lauberhorn_fail(LAUBERHORN_RPC_SYSTEM_ERR);
++    resp->request_id = call->request_id;
++    add_call args[3] = {{.a=call->a, .b=call->b},
++                        {.a=call->c, .b=call->d},
++                        {.a=call->a, .b=call->b}};
++    lauberhorn_future_t futures[3] = {0};
++    int admitted = 0;
++    bool failed = false;
++    for (; admitted < 3; ++admitted) {
++        if (lauberhorn_call_async(&ep, &args[admitted], sizeof(add_call), &futures[admitted])) {
++            failed = true; break;
++        }
++    }
++    // Even a partial submission must drain already admitted futures.
++    for (int i = 0; i < admitted; ++i) {
++        if (lauberhorn_future_await(&futures[i]) || !LAUBERHORN_FUTURE_OK(&futures[i])) failed = true;
++        else if (i < 2) resp->e += ((add_resp *)futures[i].result.data)->sum;
++        else printf("third nested call completed\n");
++        lauberhorn_free_result(&futures[i].result);
++    }
++    if (failed) { free(resp); return lauberhorn_fail(LAUBERHORN_RPC_SYSTEM_ERR); }
++    return lauberhorn_reply(resp, sizeof(*resp), free);
+ }
+-
+-void *nested_adder_handler(void *data, lauberhorn_msg_t req, int xid) {
+-
+-    nested_add_call *call = req; 
+-    nested_add_resp *resp = malloc(sizeof(nested_add_resp));
+-    resp->request_id = call->request_id;
+-    resp->e = 0; 
+-    
+-    add_call c1 = { .a = call->a, .b = call->b };
+-    add_call c2 = { .a = call->c, .b = call->d };
+-    
+-    lauberhorn_future_t f1; 
+-    lauberhorn_future_t f2; 
+-    lauberhorn_call_async(&ep, &c1, sizeof(add_call), &f1);
+-    lauberhorn_call_async(&ep, &c2, sizeof(add_call), &f2);
+-
+-
+-    lauberhorn_cb_handler_t cb_handler = {
+-      .cb = print_msg, 
+-      .data = NULL, 
+-      .mode = EXEC_INLINE
+-    };
+-
+-    lauberhorn_call_cb(&ep, &c1, sizeof(add_call), cb_handler); 
+-
+-    FUTURE_SET(set, 2);    
+-    future_set_add(&set, &f1, &f2);
+-
+-    lauberhorn_future_t *res; 
+-    while ((res = future_set_await_any(&set))) {
+-        add_resp *async_res = res->result.data;
+-        resp->e += async_res->sum; 
+-        lauberhorn_free_result(&res->result);
+-    }
+-    return resp;
++static lauberhorn_outcome_t nested_adder_handler(void *data, void *req, lauberhorn_request_context_t context) {
++    return lauberhorn_defer(run_nested, NULL, NULL);
+ }
+ 
+ 
+@@ -91,16 +82,12 @@
+ 
+   lauberhorn_handler_t add_handler = {
+     .func = adder_handler, 
+-    .free = adder_free,
+     .data = NULL,
+-    .mode = EXEC_INLINE
+   };
+ 
+     lauberhorn_handler_t nested_add_handler = {
+     .func = nested_adder_handler, 
+-    .free = nested_adder_free,
+     .data = NULL,
+-    .mode = EXEC_FIBER
+   };
+ 
+   int err, srv_id, i;

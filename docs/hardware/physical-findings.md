@@ -264,3 +264,111 @@ interrupted by a corrected report-option error and are superseded.
 CI experiments and the scheduled artifact collector are tracked in
 [the experiment ledger](physical-experiments.md). Source interventions above are
 hypotheses under test, not measured improvements.
+
+## B4 recovery regression — pipeline 512109, September 18
+
+[Pipeline 512109](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/512109)
+built `cdf2121` (hardware job 2834747, report job 2834748). The complete canonical
+checkpoint reports describe **Physopt postRoute**, Vivado 2025.1. Successful CI
+and bitstream generation do not establish timing closure.
+
+| Clock/domain | WNS (ns) | TNS (ns) | Failing setup endpoints |
+| --- | ---: | ---: | ---: |
+| Whole design | −1.441 | −8939.668 | 28222 |
+| NIC application, 200 MHz | −1.441 | −6433.588 | 13269 |
+| ECI `clk_sys` | −0.494 | −2492.498 | 14839 |
+| Main CMAC RX | −0.272 | −13.581 | 114 |
+
+Hold and pulse-width failure counts are zero (minimum slack +0.001 ns and
++0.039 ns respectively). All routable nets are routed, with zero routing errors;
+the timing report reports zero unconstrained internal endpoints. These facts do
+not cancel the setup violations. CDC diagnostics remain separately recorded.
+
+The worst path starts at
+`Scheduler_logic_procDb/rxPush_pip_node_3_calcIdx_IDX_reg[0]_replica_1` and ends at
+`Scheduler_logic_inTransit_1_reg[23]`. It has **18 logic levels, 6.190 ns data
+delay: 1.478 ns logic and 4.712 ns routing**, against a 5 ns requirement.
+The routed cone passes through scheduler rejection selection, the new six-input
+discard round-robin arbiter (`streamArbiter_13`), selected buffer-size/ready
+logic, and per-process counter update arithmetic. The report includes a 1.319 ns
+net into the counter-update cone. The parallel context-retirement path ends at
+`OncRpcReplyEncoder_logic_contexts/active_13_reg`: −1.441 ns, 18 levels,
+6.256 ns, including a 1.945 ns, fanout-132 discard-token net.
+
+Source correspondence:
+
+- `Scheduler.scala`: `pushResult` reject decision directly drives `pushDiscard`;
+  `discarded` directly receives the arbiter output. `pushResult.fire` also drives
+  departure accounting for every process. The newly added `inTransit` registers
+  are 32 bits, with same-cycle arrival/departure arithmetic.
+- `DmaControlPlugin.scala`: selected buffer size controls `discarded.ready`;
+  `discarded.fire` and selected request token directly drive context retirement.
+  Pipelining **only the packet-buffer return** does not cut these earlier
+  selected-data-to-ready or token-retirement paths.
+- `RpcReplyContexts.scala`: token lookup/generation validation and active-bit
+  updates consume the new combinational discard path.
+
+Of the bounded 200 worst setup paths (one per endpoint), **180 end at inTransit
+counters and 11 at reply-context active bits**. This is sample evidence, not a
+partition of all failing endpoints/TNS. It identifies B4 reclamation/accounting
+as the dominant new cone; the watchdog deadline comparator is not the dominant
+endpoint in this sample. Existing ECI/RX violations also remain; fixing this cone
+alone cannot be called whole-design closure.
+
+The first correction should split discard selection, descriptor/token handling,
+and retirement/accounting across real handshake/register boundaries, breaking
+both forward data and backward ready paths. Register accounting events before
+counter arithmetic; derive counter widths from a proved bound on outstanding
+admitted descriptors rather than leaving them at 32 bits. Any added stage must
+remain visible to `processDraining` until both packet/context ownership are
+retired, so pipelining does not reintroduce premature PID/context reuse. Preserve
+one-record-per-cycle throughput under stalls. Then rerun stop/reuse, late-discard
+and backpressure tests and compare a new routed checkpoint. Do not use timing
+exceptions or placement-only tweaks to conceal this dependency chain.
+
+Evidence: `out/physical/b4-512109/out/physical/{summary.json,paths.tsv,
+max-detail.rpt,timing.rpt,route.rpt}` from the completed report job. No hardware
+programming or board test is part of this timing inspection.
+
+## B4 first correction — pipeline 512199, September 18
+
+Pipeline 512199 (`754ecb4`, hardware job 2835579, report job 2835580) passed
+all CI jobs. Complete final post-route reports show:
+
+| Metric | 512109 | 512199 |
+| --- | ---: | ---: |
+| Whole-design WNS (ns) | −1.441 | −0.382 |
+| Whole-design TNS (ns) | −8939.668 | −111.505 |
+| Failing setup endpoints | 28222 | 1400 |
+| NIC 200 MHz WNS (ns) | −1.441 | −0.382 |
+| NIC 200 MHz TNS (ns) | −6433.588 | −108.749 |
+| NIC failing setup endpoints | 13269 | 1274 |
+
+Hold/pulse violations remain zero; minimum slacks are +0.003/+0.039 ns.
+CDC diagnostic counts are unchanged. The long in-flight-counter chains no longer
+appear in the bounded 200 worst-path sample; this alone does not prove every
+counter endpoint has positive slack. ECI moved to −0.050 ns / −2.757 ns with
+126 failing endpoints despite unchanged ECI sources/constraints; do not confuse
+placement/routing variation with an ECI source fix.
+
+The new worst path is `Scheduler_logic_discardStage/head_reg[0]_replica` to
+`OncRpcReplyEncoder_logic_contexts/active_10_reg`: **−0.382 ns**, five levels,
+5.164 ns data delay, **4.831 ns routing**. The ring-head selection feeds context
+validation logic placed alternately under host-interface and decoder hierarchies;
+the detailed path contains several approximately 0.9–1.1 ns nets crossing between
+these regions. All 16 context active bits occur in the sample. Additional B4
+paths include producer selection to discard owner capture (−0.241 ns, 11 levels)
+and core PID selection to watchdog deadline enable (−0.205 ns, eight levels).
+
+A separate cookie-register → AXI CSR response path has −0.375 ns and 18 levels.
+Targeted inspection of the exact DCP on ba2 resolves it as reply validation →
+admission → `RecoveryInFlight.busy` → process-drain CSR selection, not the older
+indexed request-table diagnostic readback. It includes an SLR0→SLR1 crossing.
+The second correction registers per-process drain status before CSR selection,
+holding it busy while admission is enabled to prevent an old idle sample from
+escaping on disable. Immediate arrivals remain included in each status sample.
+Other sampled paths include existing trace and DCS logic, outside the B4 fix.
+
+Reports: `out/physical/b4-512199/out/physical/`. No board test or timing-closure
+claim follows from this improvement.
+Targeted evidence: `out/physical/b4-512199/ba2-targeted/`.

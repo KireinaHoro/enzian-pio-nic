@@ -651,6 +651,7 @@ static struct notifier_block inetaddr_notifier = {
 static void init_netdev(struct net_device *dev)
 {
 	ether_setup(dev);
+	dev->features |= NETIF_F_NETNS_LOCAL;
 	dev->netdev_ops = &netdev_ops;
 	dev->mtu = LAUBERHORN_MTU;
 }

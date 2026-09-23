@@ -32,7 +32,7 @@ case class PcieHostCtrlInfo() extends Bundle {
 
     case class OncRpcCallRxBundle() extends Bundle {
       val xb21 = Bits(21 bits)
-      val xid = Bits(32 bits)
+      val requestToken = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val args = Bits(ONCRPC_INLINE_BYTES * 8 bits)
     }
@@ -85,7 +85,7 @@ case class PcieHostCtrlInfo() extends Bundle {
          |  size   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  ty     ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
          |  _      21  rsvd;
-         |  xid    32  "XID of incoming request";
+         |  request_token 32 "Opaque incoming request context token";
          |  func_ptr 64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Two possible approaches:
