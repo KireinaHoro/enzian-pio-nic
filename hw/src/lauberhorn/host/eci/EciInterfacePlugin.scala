@@ -97,12 +97,12 @@ class EciInterfacePlugin extends FiberPlugin {
     var ctrlBlockStart = 0
     val ctrlBlockSize = 0x100
     val ctrlAxiLiteNodes = mutable.ListBuffer[(AxiLite4, SizeMapping)]()
-    def drive(func: (AxiLite4, RegBlockAlloc) => Unit, blockName: String, idx: Int = 0) = {
-      val alloc = ALLOC.get(blockName, idx)(ctrlBlockStart, ctrlBlockSize, REG_WIDTH / 8)()
+    def drive(func: (AxiLite4, RegBlockAlloc) => Unit, blockName: String, idx: Int = 0, blockSize: Int = ctrlBlockSize) = {
+      val alloc = ALLOC.get(blockName, idx)(ctrlBlockStart, blockSize, REG_WIDTH / 8)()
 
       val node = AxiLite4(s_axil_ctrl.config)
-      ctrlAxiLiteNodes += node -> SizeMapping(ctrlBlockStart, ctrlBlockSize)
-      ctrlBlockStart += ctrlBlockSize
+      ctrlAxiLiteNodes += node -> SizeMapping(ctrlBlockStart, blockSize)
+      ctrlBlockStart += blockSize
 
       func(node, alloc)
     }
@@ -117,7 +117,7 @@ class EciInterfacePlugin extends FiberPlugin {
     drive(host[IpEncoder].driveControl, "IpEncoder")
     drive(host[OncRpcReplyEncoder].driveControl, "OncRpcReplyEncoder")
 
-    drive(host[Scheduler].driveControl, "sched")
+    drive(host[Scheduler].driveControl, "sched", blockSize = 0x200)
     drive(host[DmaControlPlugin].logic.driveControl, "dma")
     drive(host[EciThreadClRouter].driveControl, "threadRouter")
     drive(host[BypassCmdSink].driveControl, "bypassSink")

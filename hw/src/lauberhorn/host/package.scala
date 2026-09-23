@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx = newElement()
+    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -24,6 +24,7 @@ package object host {
            |  onc_rpc_reply_tx = 0b100 "ONC-RPC Server Reply TX";
            |  onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
            |  onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
+           |  execution_control = 0b111 "Local execution interval notification";
            |};""".stripMargin)
     }
   }
@@ -34,7 +35,7 @@ package object host {
   case class HostReqOncRpcCallRx() extends Bundle {
     val funcPtr = Bits(64 bits)
     val pid = PID()
-    val xid = Bits(32 bits)
+    val requestToken = Bits(32 bits)
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
   }
 
@@ -42,8 +43,8 @@ package object host {
     * modules and must not be encoded in host-visible descriptors.
     */
   case class HostReqOncRpcReplyTx() extends Bundle {
-    val funcPtr = Bits(64 bits)
-    val xid = Bits(32 bits)
+    val requestToken = Bits(32 bits)
+    val status = Bits(8 bits) // host-order ONC-RPC accept_stat
     val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
     /** Total length of the entire reply message, including inlined bits. */
@@ -72,6 +73,7 @@ package object host {
     val pid = PID()
     val cookie = Bits(32 bits)
     val xid = Bits(32 bits)
+    val status = Bits(8 bits) // host-order ONC-RPC accept_stat
     val saddr = Bits(32 bits)
     val sport = Bits(16 bits)
     val dport = Bits(16 bits)

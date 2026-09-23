@@ -1,45 +1,87 @@
-/* SPDX-License-Identifier: BSD-3-Clause */
-/* Copyright (c) 2025 Pengcheng Xu */
-
 #include "oncrpc.h"
+#include "lauberhorn/rpc.h"
+#include "lauberhorn/xdr_rpc.h"
+#include <stdatomic.h>
 
-#include <limits.h>
-
-lauberhorn_msg_t
-lauberhorn_oncrpc_req_alloc(struct lauberhorn_oncrpc_schema *schema) {
-  return calloc(1, schema->call_size);
+int xdr_marshal_call(void *in_buf, void *out_buf, size_t in_buf_len,
+                     size_t out_capacity, void *priv) {
+    xdr_adapter_t *p = priv;
+    XDR xdr;
+    xdrmem_create(&xdr, out_buf, out_capacity, XDR_ENCODE);
+    if (!p->call_xdrproc(&xdr, in_buf)) {
+        return -1;
+    }
+    return xdr_getpos(&xdr);
 }
 
-void lauberhorn_oncrpc_req_free(struct lauberhorn_oncrpc_schema *schema,
-                                lauberhorn_msg_t msg) {
-  free(msg);
+int xdr_marshal_resp(void *in_buf, void *out_buf, size_t in_buf_len,
+                     size_t out_capacity, void *priv) {
+    xdr_adapter_t *p = priv;
+    XDR xdr;
+    xdrmem_create(&xdr, out_buf, out_capacity, XDR_ENCODE);
+    if (!p->resp_xdrproc(&xdr, in_buf)) {
+        return -1;
+    }
+    return xdr_getpos(&xdr);
 }
 
-int lauberhorn_oncrpc_marshal(struct lauberhorn_oncrpc_schema *schema,
-                              uint8_t *out_buf, size_t out_buf_size,
-                              lauberhorn_msg_t in_msg) {
-  XDR xdrs;
-  xdrmem_create(&xdrs, (char *)out_buf, out_buf_size, XDR_ENCODE);
-
-  if (!schema->resp_func(&xdrs, in_msg)) {
-    xdr_destroy(&xdrs);
-    return -1;
-  }
-
-  unsigned int pos = xdr_getpos(&xdrs);
-  xdr_destroy(&xdrs);
-
-  if (pos > INT_MAX)
-    return -1;
-
-  return (int)pos;
+int xdr_unmarshal_call(void *in_buf, void *out_buf, size_t in_buf_len,
+                       void *priv) {
+    xdr_adapter_t *p = priv;
+    XDR xdr;
+    xdrmem_create(&xdr, in_buf, in_buf_len, XDR_DECODE);
+    if (!p->call_xdrproc(&xdr, out_buf)) {
+        return -1;
+    }
+    return 0;
 }
 
-int lauberhorn_oncrpc_unmarshal(struct lauberhorn_oncrpc_schema *schema,
-                                lauberhorn_msg_t out_msg, uint8_t *in_buf,
-                                size_t in_bytes) {
-  XDR xdrs;
-  xdrmem_create(&xdrs, (char *)in_buf, in_bytes, XDR_DECODE);
+int xdr_unmarshal_resp(void *in_buf, void *out_buf, size_t in_buf_len,
+                       void *priv) {
+    xdr_adapter_t *p = priv;
+    XDR xdr;
+    xdrmem_create(&xdr, in_buf, in_buf_len, XDR_DECODE);
+    if (!p->resp_xdrproc(&xdr, out_buf)) {
+        return -1;
+    }
+    return 0;
+}
 
-  return schema->call_func(&xdrs, out_msg);
+void xdr_free_func(void *ptr, rpc_free_kind_t kind, void *priv) {
+    xdr_adapter_t *p = priv;
+    switch (kind) {
+    // free xdr_unmarshal_call
+    case RPC_FREE_CALL:
+        // free potentially allocated nested structures
+        xdr_free(p->call_xdrproc, ptr);
+        // free root
+        free(ptr);
+        break;
+    case RPC_FREE_RESP:
+        xdr_free(p->resp_xdrproc, ptr);
+        free(ptr);
+        break;
+    }
+}
+
+void *xdr_alloc_func(rpc_alloc_kind_t kind, void *priv) {
+    xdr_adapter_t *p = priv;
+    switch (kind) {
+    case RPC_ALLOC_CALL:
+        return calloc(1, p->call_size);
+    case RPC_ALLOC_RESP:
+        return calloc(1, p->resp_size);
+    }
+    return NULL;
+}
+
+rpc_codec_t oncrpc_codec(xdr_adapter_t *adapter) {
+    static rpc_ops_t xdr_ops = {.marshal_call = xdr_marshal_call,
+                                .unmarshal_call = xdr_unmarshal_call,
+                                .marshal_resp = xdr_marshal_resp,
+                                .unmarshal_resp = xdr_unmarshal_resp,
+                                .free = xdr_free_func,
+                                .alloc = xdr_alloc_func};
+
+    return (rpc_codec_t){.ops = &xdr_ops, .priv = adapter};
 }

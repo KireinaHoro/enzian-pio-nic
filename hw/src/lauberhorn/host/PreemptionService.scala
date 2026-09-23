@@ -17,6 +17,7 @@ trait PreemptionService extends FiberPlugin {
   case class PreemptReq() extends Bundle {
     val pid = PID()
     val outOfIdle = Bool()
+    val kill = Bool()
   }
 
   /** Driven by [[Scheduler]] to deliver a preemption request.

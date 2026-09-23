@@ -12,6 +12,7 @@ case class OncRpcCallRxMeta() extends Bundle with DecoderMetadata {
 
   val packetId = UInt(PacketID.width bits)
   val rpcId = UInt(RpcID.width bits)
+  val requestToken = Bits(32 bits)
   val funcPtr = Bits(64 bits)
   val pid = PID()
   // first fields in the XDR payload

@@ -4,7 +4,7 @@ Scope: source inspection, 2026-09-08. Implemented mechanisms are not evidence of
 
 ## Confirmed execution policy
 
-Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cores; these cores are not shared with ordinary Linux tasks. Cooperative nested-call waits may yield a fiber. A timer should kill a task that cannot clear the 2F2F receive critical section, or an application timeout should apply; timer scope and recovery semantics remain open. Current kernel `BUG_ON(killed)` does not implement graceful task-kill recovery.
+Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cores; these cores are not shared with ordinary Linux tasks. Cooperative nested-call waits may yield a fiber. An independent preemption critical-section timeout and an optional execution watchdog terminate the whole application through the [B4 recovery path](process-recovery.md). Execution monitoring defaults to disabled; hardware acceptance remains pending.
 
 ## Division of responsibility
 
@@ -15,29 +15,41 @@ Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cor
 
 ## Dispatch protocol
 
-1. `prepare_worker_thread` changes a mapped worker to `SCHED_FIFO` priority 1 and parks it in `TASK_IDLE`. Its `mmap` can therefore remain blocked until hardware schedules it.
+1. `prepare_worker_thread` changes a mapped worker to `SCHED_FIFO` priority 1 and queues return-to-user task work. After `mmap` releases its locks, that callback waits in `TASK_IDLE` until dispatch clears the parking condition. Every wakeup rechecks the condition; setting task state inside `mmap` alone does not prevent premature userspace access.
 2. FPGA preemption control clears READY, coordinates BUSY and RX/TX cacheline retirement, then sends SGI 8. Bootstrap from IDLE skips fetching an unmapped old thread's control line.
-3. `worker_fpi_handler` masks the interrupt, reads the next PID, chooses the first enabled thread with `worker_idx == -1`, parks/unroutes the old worker, and schedules deferred work on that CPU.
-4. `_sched_worker_thread` pins the new thread, routes its prefix, restores RX/TX parity from its shared parity page, fetches/locks the preemption cacheline in L2, wakes the thread, and reenables the FPGA interrupt. Reenabling is the hardware completion handshake.
-5. Teardown restores `SCHED_NORMAL`, housekeeping affinity, and wakefulness. A parked worker is deliberately not signal-wakeable; runtime SIGINT uses a cleanup ioctl.
+3. `worker_fpi_handler` masks the interrupt, reads the next PID, atomically claims an enabled thread with `worker_idx == -1`, parks the old worker while retaining its mapping, and schedules deferred work on that CPU.
+4. `_sched_worker_thread` waits for hardware drain, unroutes the old thread, pins the new thread, routes its prefix, restores RX/TX parity from its shared parity page, fetches/locks the preemption cacheline in L2, wakes the thread, and reenables the FPGA interrupt. Reenabling is the hardware completion handshake.
+5. Whole-process teardown first drains hardware, then restores `SCHED_NORMAL`, housekeeping affinity and wakefulness. A kernel monitor detects fatal signals on parked workers. All preemption IRQ paths use the same return-to-user parking callback, including interrupts from userspace. Each queued callback retains the application file until its last access to the thread record.
 
-Sources: [`sched.c`](../../sw/kmod/sched.c), [`worker.c`](../../sw/kmod/worker.c), [`EciPreemptionControlPlugin.scala`](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala), [`cs.h`](../../sw/rt/include/cs.h).
+Sources: [`sched.c`](../../sw/kmod/sched.c), [`worker.c`](../../sw/kmod/worker.c), [`EciPreemptionControlPlugin.scala`](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala), [`cs.h`](../../sw/rt/cs.h).
+
+September 17 B4 implementation update: deferred dispatch now waits for the
+`datapathDrained` acknowledgement before unmapping the old thread prefix. RX
+retires its retained packet and invalidates its cachelines; TX finishes traffic
+or flushes an uncommitted buffer without transmitting it. The acknowledgement
+also waits for router quiescence and queued unlock traffic. Thread selection
+claims `worker_idx` atomically before deferred dispatch. The generated IPI killed
+field now follows `PID_WIDTH` rather than a hard-coded 32-bit PID, and runtime
+critical-section entry reloads READY while waiting. Whole-process termination is now implemented in source;
+with the September 18 return-to-user parking fix it passed the two-round
+incoming/process recovery campaign on pipeline 512199. Broader B4 acceptance
+remains open; see [the B4 design](process-recovery.md).
 
 ## Actual policy and limits
 
 - On arrival, a process without a core can claim an idle core; a queue at least half full can also claim a ready core, subject to `maxThreads`. Ready means able to receive a request, not arbitrary involuntary interruption of a running handler. The pop path also searches pending processes when a worker has no work.
 - Selection uses first-set choices; fairness is explicitly TODO. Do not describe this as a completed fair-share or latency-SLO scheduler.
-- `force` victim selection is TODO. The preemption-control FSM has a critical-section timeout/`killed` path, but the Linux handler executes `BUG_ON(killed)`. Safe termination of a misbehaving process is unfinished.
+- Process disable and watchdog expiry force every assigned core through stop-to-idle without requiring RX readiness. The kernel handles `killed` by requesting whole-process recovery. Ordinary preemption, explicit stop and critical-section timeouts remain enabled when execution monitoring is off.
 - No available target thread causes a kernel panic. Thread selection and shared registration state deserve concurrency review before claiming robust multi-process operation.
-- Source-review concerns, not reproduced failures: `register_app` uses inclusive array indexing against `proc_defs[LAUBERHORN_NUM_PROCS]`; open records `current->pid` while later operations find `current->tgid`. The supported lifecycle assumes initialization on the process leader.
+- Process storage includes the reserved IDLE slot and registration uses TGID. Reuse waits for final file/VMA release and verified hardware retirement.
 
 ## Where to change things
 
 | Change | Read first |
 |---|---|
 | Core allocation, queue fairness, readiness | `hw/src/lauberhorn/Scheduler.scala` |
-| Coherent preemption handshake | `hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala`, `sw/rt/include/cs.h` |
+| Coherent preemption handshake | `hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala`, `sw/rt/cs.h` |
 | Linux migration, parking, wakeup | `sw/kmod/sched.c`, `sw/kmod/worker.c` |
 | Process/thread ownership and lifetime | `sw/kmod/chrdev.c`, `sw/kmod/common.h` |
 
-Open design decisions: allocation fairness/SLOs within the RPC worker pool; receive-critical-section versus whole-application timeout and safe cleanup/recovery. Run-to-finish and isolation from ordinary Linux work are settled intent, not open alternatives.
+Open work: allocation fairness/SLOs and matched-hardware recovery acceptance. Run-to-finish and isolation from ordinary Linux work are settled intent, not open alternatives.

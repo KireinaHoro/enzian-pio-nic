@@ -19,6 +19,7 @@
 #include <linux/uaccess.h> // copy_to/from_user
 #include <linux/wait.h>
 #include <linux/smp.h>
+#include <linux/task_work.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/irqreturn.h>
@@ -111,6 +112,10 @@ struct srv_def {
 // Defines a thread for an RPC application
 struct thr_def {
 	bool enabled;
+	bool park_requested;
+	atomic_t park_queued;
+	struct callback_head park_work;
+	struct file *park_file; /* borrowed while mapped; queued callback takes a ref */
 	u32 idx;
 
 	struct proc_def *parent;
@@ -130,7 +135,10 @@ struct thr_def {
 
 // Defines the process of an RPC application
 struct proc_def {
-	bool enabled;
+	bool enabled; /* slot reserved until final device release */
+	bool stopping, stopped;
+	atomic_t stop_requested;
+	u64 lifetime;
 	u32 idx;
 
 	// This is the PID actually programmed into the process table
@@ -157,8 +165,12 @@ struct worker_fpi_data {
 
 	// Thread running on this core (if any)
 	struct thr_def *thr;
+	bool killed;
 };
 
+void request_process_stop(struct proc_def *proc);
+void init_worker_schedule(int cpu);
+void flush_worker_schedules(void);
 int prepare_worker_thread(struct thr_def *thr);
 void clean_worker_thread(struct thr_def *thr);
 void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv);

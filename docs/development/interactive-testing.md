@@ -144,8 +144,11 @@ with host-side rsync, along with image hashes and the manifest.
 Dandelion needs Rust/C linkage, installed assets/function registries, configuration
 and external writable state. This package contract supports those packaging needs;
 its recipe can accept `rustPlatform`, native bindgen tools and target libraries as
-named dependencies. Runtime nested-call/fiber APIs in the student port remain
-unmerged. No Dandelion build or FPGA functionality is implied: see the
+named dependencies. On this branch, the pinned Dandelion adapter and
+nested-call/fiber runtime are integrated for validation. `dandelionDeployFs` uses this image contract and
+explicitly selects `dandelion.interactiveTests.smoke`; see the
+[package instructions](../../sw/apps/dandelion/README.md). Builds do not establish
+FPGA functionality or resolve the remaining runtime blockers: see the
 [Dandelion integration notes](../research/dandelion.md).
 
 Build checks and historical board results are separate evidence. The required

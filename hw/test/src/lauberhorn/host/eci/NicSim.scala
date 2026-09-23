@@ -2,7 +2,7 @@ package lauberhorn.host.eci
 
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.eci.sim.{DcsAppMaster, IpiSlave}
-import jsteward.blocks.misc.sim.IntRicherEndianAware
+import jsteward.blocks.misc.sim.{IntRicherEndianAware, BigIntRicher}
 import lauberhorn.Global._
 import lauberhorn._
 import lauberhorn.sim._
@@ -45,6 +45,20 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     .addSimulatorFlag("-Wno-SIDEEFFECT")
     .workspaceName(getClass.getSimpleName)
     .compile(lauberhorn.GenEngineVerilog.engine(numWorkerCores, "eci"))
+
+  private val contextReadMutex = SimMutex()
+  // Test/debug readback only: the managed application has no metadata query API.
+  def requestXid(csr: AxiLite4Master, token: BigInt): Int = {
+    contextReadMutex.lock()
+    val regs = ALLOC.readBack("OncRpcReplyEncoder")
+    csr.write(regs("stat", "context_read_idx"), (token.toInt & (NUM_SESSIONS.get - 1)).toBytesLE)
+    val active = csr.read(regs("stat", "context_active"), 8).bytesToBigInt
+    val actual = csr.read(regs("stat", "context_token"), 8).bytesToBigInt
+    assert(active == 1 && actual == token, s"invalid live context $token: $active/$actual")
+    val xid = csr.read(regs("stat", "context_xid"), 8).bytesToBigInt.toInt
+    contextReadMutex.unlock()
+    xid
+  }
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val eciIf = dut.host[EciInterfacePlugin].logic.get
@@ -111,6 +125,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     var inCriticalRegion = false
 
     var canInterrupt = true
+    override def recordKill(): Unit = { super.recordKill(); inCriticalRegion = false }
 
     def switchToThreadImpl(threadDef: ThreadDef): Unit = {
       assert(!inCriticalRegion, s"core $cid in critical region of thread ${currThread.get.tid}, cannot switch!")
@@ -272,7 +287,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
   }
 
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false)(implicit dut: NicEngine): Unit = {
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, skipCS: Boolean = false, expectedStatus: Int = 1)(implicit dut: NicEngine): Unit = {
     val etd = getEciThreadData(tid)
     val coreBase = etd.baseAddr
     def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
@@ -297,7 +312,8 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     etd.log(f"sent packet at $clAddr%#x")
 
     etd.flipTx()
-    dcsMaster.read(clAddr, 1)
+    val status = dcsMaster.read(clAddr, 1).head & 0xff
+    assert(status == expectedStatus, s"TX admission status $status, expected $expectedStatus")
 
     if (!skipCS) {
       exitCriticalSection(dcsMaster, tid)

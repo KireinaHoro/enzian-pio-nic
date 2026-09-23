@@ -1,5 +1,10 @@
 # System map
 
+**Integration status (2026-09-23):** the nested RPC runtime is approved for
+master after the recorded Enzian functional campaign. See
+[integration scope and follow-up work](../software/nested-rpc-integration.md).
+Descriptions below of the former synchronous runtime are historical.
+
 Repository survey: 2026-09-08, base commit `b86c68c`. Read this once, then use the topic documents. Source paths are relative to the repository root. Implementation statements describe this checkout, not all Lauberhorn branches.
 
 ## Intent and boundary

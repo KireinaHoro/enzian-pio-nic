@@ -16,6 +16,13 @@
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)
 
+/* The nested datatype includes its inline data fields, unlike reply TX. */
+static inline void core_eci_copy_nested_inline(void *control, const void *payload,
+                                               size_t len) {
+  memcpy((uint8_t *)control + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size
+         - LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES, payload, len);
+}
+
 typedef enum {
   TY_ERROR,
   TY_BYPASS,
@@ -24,11 +31,13 @@ typedef enum {
   TY_ONCRPC_REPLY_TX,
   TY_ONCRPC_CALL_TX,
   TY_ONCRPC_REPLY_RX,
+  TY_EXECUTION_CONTROL,
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
 typedef struct {
   lauberhorn_pkt_desc_type_t type;
+  uint8_t execution; /* local interval end=1, begin=2, combined=3 */
   // transaction metadata (packet header, RPC session data, etc.)
   union {
     struct {
@@ -41,22 +50,23 @@ typedef struct {
     } bypass;
     struct {
       int neigh_tbl_idx;
+      // Wire-native IPv4 values consumed directly by the Linux network stack.
       uint32_t ip_addr;
       uint32_t saddr;
       uint8_t proto;
     } neighbor_miss;
     struct {
       void *func_ptr;
-      int xid;
+      uint32_t request_token;
     } oncrpc_call_rx;
     struct {
-      void *func_ptr;
-      int xid;
+      uint32_t request_token;
+      uint8_t status; // ONC-RPC accept_stat, 0 for success
     } oncrpc_reply_tx;
     struct {
       uint16_t pid;
       uint32_t cookie;
-      // Network tuple and ONC-RPC header fields are already in wire byte order.
+      // RPC numbers and IPv4 address are host-order; ECI performs wire conversion.
       uint32_t xid;
       uint32_t daddr;
       uint16_t sport;
@@ -68,7 +78,9 @@ typedef struct {
     struct {
       uint16_t pid;
       uint32_t cookie;
+      // Host-order XID, converted by ECI for pending-call lookup.
       uint32_t xid;
+      uint8_t status; // nonzero replies bypass success deserialization
     } oncrpc_reply_rx;
   };
 
@@ -224,8 +236,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->oncrpc_call_rx.func_ptr = (void *)
           lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_func_ptr_extract(
               rx_ctrl);
-      desc->oncrpc_call_rx.xid =
-          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_xid_extract(rx_ctrl);
+      desc->oncrpc_call_rx.request_token =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_request_token_extract(rx_ctrl);
 
       // parsed oncrpc arguments are aligned after the descriptor header
       // XXX: we don't have the actual count of args, copy maximum
@@ -237,6 +249,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       break;
     case lauberhorn_eci_onc_rpc_reply_rx:
       desc->type = TY_ONCRPC_REPLY_RX;
+      desc->oncrpc_reply_rx.status =
+          lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_status_extract(rx_ctrl);
       desc->oncrpc_reply_rx.pid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_pid_extract(rx_ctrl);
       desc->oncrpc_reply_rx.cookie =
@@ -297,8 +311,12 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
   return core_eci_rx_traced(base, ctx, desc, NULL, NULL);
 }
 
-static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
+/* Doorbell acknowledgement: accepted/consumed, rejected before reservation,
+ * or indeterminate DMA failure. This is not remote/application success. */
+enum { CORE_TX_ACCEPTED = 1, CORE_TX_RETRY = 2, CORE_TX_ERROR = 3 };
+static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
                                lauberhorn_pkt_desc_t *desc) {
+  int tx_result = CORE_TX_ERROR;
   // ECI backend: do not release payload_buf
 
   // make sure previous RX/TX actually took effect before we attempt to RX
@@ -355,14 +373,22 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
 #else // ! __KERNEL__
+  case TY_EXECUTION_CONTROL:
+    lauberhorn_eci_host_ctrl_info_execution_tx_ty_insert(tx_ctrl, lauberhorn_eci_execution_control);
+    lauberhorn_eci_host_ctrl_info_execution_tx_len_insert(tx_ctrl, 0);
+    lauberhorn_eci_host_ctrl_info_execution_tx_execution_insert(tx_ctrl, desc->execution);
+    payload_len = 0;
+    break;
+
   case TY_ONCRPC_REPLY_TX:
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_execution_insert(tx_ctrl, desc->execution);
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_reply_tx);
 
-    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_xid_insert(
-        tx_ctrl, desc->oncrpc_reply_tx.xid);
-    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_func_ptr_insert(
-        tx_ctrl, (uint64_t)desc->oncrpc_reply_tx.func_ptr);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_status_insert(
+        tx_ctrl, desc->oncrpc_reply_tx.status);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_request_token_insert(
+        tx_ctrl, desc->oncrpc_reply_tx.request_token);
 
     // tx RPC len field INCLUDES inlined words
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,
@@ -382,6 +408,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
   case TY_ONCRPC_CALL_TX:
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_insert(tx_ctrl, desc->execution);
     lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_ty_insert(
         tx_ctrl, lauberhorn_eci_onc_rpc_call_tx);
 
@@ -413,8 +440,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
       oncrpc_inlined_bytes = payload_len;
     }
 
-    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size,
-           copy_from, oncrpc_inlined_bytes);
+    core_eci_copy_nested_inline(tx_ctrl, copy_from, oncrpc_inlined_bytes);
     copy_from += oncrpc_inlined_bytes;
     payload_len -= oncrpc_inlined_bytes;
     break;
@@ -450,7 +476,7 @@ static inline void core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   // Ring the doorbell: read next CL to trigger send
   volatile uint8_t *tx_next_ctrl =
       tx_base + !tx_parity * LAUBERHORN_ECI_CL_SIZE;
-  (void)*tx_next_ctrl;
+  tx_result = *tx_next_ctrl;
 
   pr_debug("eci_tx: finished tx\n");
 
@@ -460,6 +486,7 @@ out:
   BARRIER; // make sure !BUSY comes after
 
   exit_cs(base);
+  return tx_result;
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H

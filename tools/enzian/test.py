@@ -2,8 +2,9 @@
 """Repeat manifest-defined hardware tests; retain logs and emit compact JSON results.
 
 Manifest: list of cases with name, image, revision, program (argv), cpu (shell
-commands after mount/load/verify), and client (gateway shell command). Cases run
-in listed order each round, always with a full power cycle. No CI polling.
+commands after mount/load/verify), and client (shell command; gateway by default,
+or client_machine CPU console). Cases run in listed order each round, always
+with a full power cycle. No CI polling.
 """
 import argparse
 import json
@@ -107,8 +108,16 @@ def main():
                 result['faults'] = re.findall(r'(?:Internal error:[^\r\n]*|pc : [^\r\n]*|Kernel panic[^\r\n]*)', transcript)
             if not rc and case.get('client'):
                 print(json.dumps({'case': name, 'stage': 'rpc'}), flush=True)
-                rc = run_step(['ssh', '-o', 'BatchMode=yes', args.gateway,
-                           case['client'].replace('{run}', name)], root/'client.log', 120)
+                client_command = case['client'].replace('{run}', name)
+                if case.get('client_machine'):
+                    result['client_machine'] = case['client_machine']
+                    client_argv = [sys.executable, str(HERE/'run.py'),
+                        '--gateway', args.gateway, '--machine', case['client_machine'],
+                        '--logs', str(root/'client-cpu'), '--timeout', '100',
+                        '--', 'bash', '-c', client_command]
+                else:
+                    client_argv = ['ssh', '-o', 'BatchMode=yes', args.gateway, client_command]
+                rc = run_step(client_argv, root/'client.log', 120)
                 result['client_exit'] = rc
             result['status'] = 'pass' if not rc else 'fail'
             result['seconds'] = round(time.monotonic()-started, 1)

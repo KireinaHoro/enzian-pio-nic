@@ -128,13 +128,14 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     * @param metadata metadata stream produced by this stage
     * @param payload payload data stream produced by this stage
     */
-  protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool): Unit = {
+  protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool,
+                             dropped: Bool = null): Unit = {
     host[DecoderSink].tp.trace(decoderName, metadata.payload.traceData: _*) := metadata.fire
 
     host[DecoderSinkService].consume(DecoderOutput(
       Int.MaxValue, decoderName,
       metadata.map(_.toRxTaggedDesc(false)),
-      payload, payloadAck, False)).setCompositeName(this, "dispatch")
+      payload, payloadAck, if (dropped == null) False else dropped)).setCompositeName(this, "dispatch")
   }
 
   /** Release retainer from packet dispatcher to allow it to continue elaborating */

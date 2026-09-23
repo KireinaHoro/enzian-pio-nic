@@ -144,7 +144,11 @@ def load_csv_by_request_id(path: Path, fallback_columns: Sequence[str] | Sequenc
         ret: Dict[int, Dict[str, str]] = {}
         for row in rows:
             try:
-                ret[int(row["request_id"], 0)] = row
+                request_id = int(row["request_id"], 0)
+                if request_id in ret:
+                    raise SystemExit(f"{path}: duplicate application request ID {request_id}; "
+                                     "select one service/request layer before plotting")
+                ret[request_id] = row
             except KeyError:
                 raise SystemExit(f"{path}: CSV does not contain request_id column")
         return ret
@@ -191,6 +195,11 @@ def build_rows(
     for request_id in sorted(set(client_rows) & set(server_rows)):
         c = client_rows[request_id]
         s = server_rows[request_id]
+        if "request_id_valid" in s and not int_field(s, "request_id_valid"):
+            raise SystemExit("server CSV lacks an application request-ID annotation")
+        if int_field(s, "execution_kind"):
+            raise SystemExit("inline latency plot cannot attribute deferred/forwarded rows; "
+                             "use their explicit fiber/wait/forward intervals")
         c_oh = int_field(c, "timestamp_overhead_ns")
         s_oh = int_field(s, "timestamp_overhead_ns")
         e2e_ns = corrected_delta(
@@ -243,6 +252,8 @@ def build_rows(
         rows.append({
             "request_id": request_id,
             "worker_id": int_field(s, "worker_id"),
+            "rx_cpu_id": int_field(s, "rx_cpu_id", -1),
+            "tx_cpu_id": int_field(s, "tx_cpu_id", -1),
             "client_ok": int_field(c, "ok"),
             "server_ok": int_field(s, "ok", 1),
             "e2e_ns": e2e_ns,
@@ -805,7 +816,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
 
     rows_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
     for row in sorted(rows, key=lambda r: r["server_rx_exit_ns"]):
-        rows_by_core[row["worker_id"] + 1].append(row)
+        rows_by_core[row.get("datapath_core", row["worker_id"] + 1)].append(row)
 
     core_offsets: Dict[int, int] = {}
     for core, core_rows in rows_by_core.items():
@@ -834,7 +845,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
     matched: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
     row_order: Dict[int, int] = defaultdict(int)
     for row in sorted(rows, key=lambda r: r["server_rx_exit_ns"]):
-        core = row["worker_id"] + 1
+        core = row.get("datapath_core", row["worker_id"] + 1)
         idx = row_order[core] + core_offsets.get(core, 0)
         row_order[core] += 1
         recs = dispatches_by_core.get(core, [])
@@ -876,7 +887,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
             offset_candidates.append(float(row["server_rx_exit_ns"] - delivered))
     offset = int(min(offset_candidates))
     for row, rec in matched:
-        core = row["worker_id"] + 1
+        core = row.get("datapath_core", row["worker_id"] + 1)
         row["trace_cpu_offset_ns"] = offset
         if eci_half_rtt_ns is not None:
             row["trace_eci_half_rtt_ns"] = float(eci_half_rtt_ns)
@@ -1499,6 +1510,7 @@ def main() -> int:
         help="render the breakdown PDF directly from an existing breakdown CSV and exit",
     )
     parser.add_argument("--trace-dump", type=Path, help="optional raw sys_trace dump, optionally .gz")
+    parser.add_argument("--worker-cpu-base", type=int, help="first isolated Linux worker CPU (required for new CSV/hardware correlation)")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
@@ -1531,6 +1543,15 @@ def main() -> int:
         raise SystemExit(f"{len(failures)} request(s) failed correctness checks; refusing to plot")
 
     if args.trace_dump:
+        for row in rows:
+            if row["rx_cpu_id"] >= 0:
+                if args.worker_cpu_base is None:
+                    parser.error("new server CSV requires --worker-cpu-base for hardware correlation")
+                if row["rx_cpu_id"] != row["tx_cpu_id"]:
+                    parser.error("legacy hardware correlator cannot attribute a request spanning CPUs")
+                row["datapath_core"] = row["rx_cpu_id"] - args.worker_cpu_base + 1
+                if row["datapath_core"] <= 0:
+                    parser.error("RX CPU is below --worker-cpu-base")
         events, eci_rtt_ns = decode_trace_events(args.trace_dump, args.trace_map, args.trace_cycle_ns, args.trace_samples)
         eci_half_rtt_ns = eci_rtt_ns / 2.0 if eci_rtt_ns is not None else None
         if eci_rtt_ns is not None:

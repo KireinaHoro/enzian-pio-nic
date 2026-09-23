@@ -46,10 +46,10 @@ object PcieHostPacketDescSim {
           dp.pop(PKT_DESC_TY_WIDTH),
           dp.pop(BYPASS_HDR_WIDTH, skip = 19))
       case 2 =>
-        val xid = dp.pop(32, skip = 21)
+        val requestToken = dp.pop(32, skip = 21)
         OncRpcCallRxPacketDescSimPcie(addr, size,
           dp.pop(64),
-          xid,
+          requestToken,
           dp.pop(ONCRPC_INLINE_BYTES*8))
       case 3 => ???
     }
@@ -68,10 +68,10 @@ case class BypassPacketDescSimPcie(addr: BigInt, size: BigInt, packetType: BigIn
       .toBigInt
   }
 }
-case class OncRpcCallRxPacketDescSimPcie(addr: BigInt, size: BigInt, funcPtr: BigInt, xid: BigInt, args: BigInt) extends PcieHostPacketDescSim with OncRpcCallRxPacketDescSim {
+case class OncRpcCallRxPacketDescSimPcie(addr: BigInt, size: BigInt, funcPtr: BigInt, requestToken: BigInt, args: BigInt) extends PcieHostPacketDescSim with OncRpcCallRxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(32, xid, skip = 21)
+      .push(32, requestToken, skip = 21)
       .push(64, funcPtr)
       .push(BYPASS_HDR_WIDTH, args)
       .toBigInt

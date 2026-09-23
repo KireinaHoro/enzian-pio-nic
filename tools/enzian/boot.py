@@ -9,6 +9,7 @@ import argparse
 import ast
 import contextlib
 import getpass
+import os
 import json
 import copy
 import pathlib
@@ -152,7 +153,8 @@ def boot_once(args, command, logs):
         if state == 0:
             bmc.sendline('root')
             bmc.expect('Password:')
-            bmc.sendline(getpass.getpass('BMC root password: '))
+            bmc.sendline(os.environ.get('ENZIAN_BMC_PASSWORD')
+                         or getpass.getpass('BMC root password: '))
             bmc.expect(r'(?m)[^\r\n]*[#] ')
         if state != 1:
             bmc.sendline('enzian-shell bringup')

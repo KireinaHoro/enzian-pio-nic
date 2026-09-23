@@ -29,6 +29,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   /** Outgoing TX descriptors to the encoder pipeline. */
   val txDesc = master(Stream(HostReq()))
   txDesc.assertPersistence()
+  val txResult = slave(Flow(Bits(2 bits)))
+  val resultPending = RegInit(False)
+  val resultStatus = Reg(Bits(2 bits)) init 0
+  when (txResult.valid) {
+    resultPending := True
+    resultStatus := txResult.payload
+  }
 
   /** Per-core AXI interface from DCS (demuxed; shared with [[DcsRxAxiRouter]]). */
   val dcsAxi = slave(Axi4(dcsConfig))
@@ -46,6 +53,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * old thread.
     */
   val doPreempt = in Bool()
+  val quiescent = out Bool()
 
   /** Address to put the outgoing packet payload in the packet buffer.  Captured
     * from [[lauberhorn.host.DatapathPlugin.hostTx]] */
@@ -77,9 +85,18 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
   val savedControl = Reg(Bits(512 bits)) init 0
+  val execution = master(Flow(Bits(2 bits)))
+  val executionOnly = out Bool()
+  executionOnly := txDesc.ty === HostReqType.executionControl
+  val executionType = txDesc.ty === HostReqType.oncRpcReplyTx ||
+    txDesc.ty === HostReqType.oncRpcCallTx || executionOnly
+  execution.valid := txDesc.fire && executionType
+  execution.payload := executionType ? savedControl(20 downto 19) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
   currInvLen := aliasedHostCtrl.len
+
+  when(aliasedHostCtrl.ty === HostReqType.executionControl) { currInvLen.bits := 0 }
 
   // RPC requests repurposed len to INCLUDE inlined bytes
   // (see sw/core/eci/core.h:310)
@@ -299,12 +316,24 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
         when (txDesc.ready) {
           // we are in the middle of a read for next CL -- serve read
+          goto(waitResult)
+        }
+      }
+    }
+    val waitResult: State = new State {
+      whenIsActive {
+        when (resultPending) {
+          resultPending := False
+          // Preserve the acknowledgement across voluntary eviction/reload.
+          savedControl := resultStatus.resize(512)
           goto(sendDesc)
         }
       }
     }
   }
   readFsm.build()
+  quiescent := readFsm.isActive(readFsm.idle) && writeFsm.isActive(writeFsm.idle) &&
+    !dcsQ.ar.valid && !dcsQ.aw.valid
 
   val readStateOut = out(readFsm.stateReg.clone)
   readStateOut := readFsm.stateReg
