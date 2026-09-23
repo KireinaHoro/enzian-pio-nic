@@ -617,7 +617,7 @@ proc create_hier_cell_hier_clk_rst { parentCell nameHier } {
 }
 
 # Hierarchical cell: hier_cmac_ctrl_stat
-proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
+proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier {gtPolarity 0b0011} } {
 
   variable script_folder
 
@@ -701,7 +701,7 @@ proc create_hier_cell_hier_cmac_ctrl_stat { parentCell nameHier } {
   # Create instance: ilconstant_0, and set properties
   set ilconstant_0 [ create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilconstant:1.0 ilconstant_0 ]
   set_property -dict [list \
-    CONFIG.CONST_VAL {0b0011} \
+    CONFIG.CONST_VAL $gtPolarity \
     CONFIG.CONST_WIDTH {4} \
   ] $ilconstant_0
 
@@ -1052,7 +1052,8 @@ proc create_root_design { parentCell } {
   create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_cmac_ctrl_stat
 
   # Create instance: hier_trace_cmac_ctrl_stat
-  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat
+  # F_MAC3 reverses lanes 2/3, unlike F_MAC0's lanes 0/1. Match interfaces-stub.
+  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat 0b1100
 
   # Create instance: hier_clk_rst
   create_hier_cell_hier_clk_rst [current_bd_instance .] hier_clk_rst
