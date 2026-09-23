@@ -270,6 +270,12 @@ With all override-valid bits left at zero, the hardware defaults are:
 - dump server IPv4 address: `129.132.102.8`
 - dump server UDP port: `55555`
 
+The ports require different GT RX/TX polarity masks: `0011` for F_MAC0 and
+`1100` for F_MAC3. The shared CMAC control constructor takes the polarity
+mask as a parameter; copying F_MAC0's mask onto F_MAC3 prevents external
+alignment even though internal PMA loopback succeeds. This matches the
+engineer's [interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L297).
+
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:
 
@@ -299,6 +305,10 @@ address with its self MAC, so the local gateway can discover the FPGA when it
 needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
 ARP client for the gateway.
 
+ARP occupies the 42-byte extracted Ethernet/ARP header. Any trailing Ethernet
+padding is discarded before the UDP command aligner. Retaining that padding
+would associate it with the next UDP header and reject a valid read command.
+
 The software request format requires 64-byte-aligned offsets and lengths.  A
 single hardware response carries at most 1440 bytes of trace data: 1500-byte
 Ethernet MTU minus IPv4, UDP, and 32 bytes of trace response metadata.  The host
@@ -324,9 +334,9 @@ python3 data/eci/sys_trace/dump_trace_udp.py \
   --out trace-dram.bin
 ```
 
-Use `--chunk-bytes 1408` explicitly: the current Python default is 1440, which
-is not 64-byte aligned and is rejected by the hardware alignment check. This is
-a known tool/hardware mismatch, not a larger supported aligned transfer. UDP
+The Python default is 1408 bytes, the largest 64-byte-aligned payload within
+the hardware's 1440-byte limit. Older tools defaulted to 1440 and need an
+explicit `--chunk-bytes 1408` to avoid hardware alignment errors. UDP
 port 55555 uses an ordinary socket and does not itself require `sudo`; the bind
 address must be assigned to the capture machine and reachable in the configured
 network.
@@ -334,6 +344,22 @@ network.
 Start the tool before toggling the VIO `dump over network` bit.  The tool uses a
 normal UDP socket and waits for the FPGA metadata packet; it does not need the
 FPGA MAC address or private FPGA IP address.
+
+For capture on another Enzian's FPGA-facing CPU interface, bind to that
+interface's IPv4 address. Set VIO override bits 3 and 4 (`0x18`) and supply
+the capture interface's MAC as `trace_dump_gateway_mac` and its IPv4 address
+as `trace_dump_server_ip`. On the same subnet the next hop is the capture
+host itself. Check reservations and current interface addresses first.
+Assert `trace_stop`, wait for `writeSlot` to stabilize, start the receiver,
+then toggle `trace_dump_over_network` from zero to one. Preserve the original
+VIO values for restoration after the experiment.
+
+Before debugging UDP, check the VIO at `hier_trace_cmac_ctrl_stat/vio_0`:
+`stat_rx_aligned` and `stat_rx_status` must be one, with local/remote faults
+clear. The trace CMAC includes RS-FEC and ties RX/TX FEC enable, RX correction,
+and indication high, with no AXI register interface. The external peer must
+use compatible FEC. Internal PMA loopback can check the local CMAC/GT path;
+restore `loopback=0` before trying network capture.
 
 The intended offline flow is:
 

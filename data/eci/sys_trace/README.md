@@ -166,7 +166,22 @@ frames, `LHES` for sys-clock ECI frames, and `LHCR` for returned-credit
 samples.
 
 The input path is usually a raw binary DRAM dump, or the same dump compressed as
-`*.gz`. To capture one from Vivado Hardware Manager through the JTAG AXI master,
+`*.gz`. For network capture, configure the trace VIO with the capture host's
+IPv4 address and next-hop MAC, freeze collection, then start the receiver before
+toggling `trace_dump_over_network`:
+
+```sh
+python3 data/eci/sys_trace/dump_trace_udp.py \
+  --bind-ip CAPTURE_INTERFACE_IP --wait-timeout 60 \
+  --bytes 0x10000 --out trace-dram.bin
+```
+
+The default chunk is 1408 bytes. The initial 64 KiB read above is useful for
+checking connectivity; increase `--bytes` for a larger dump. Pair the result
+with the FPGA's matching trace map. See [UDP readout](../../../docs/development/tracing.md#udp-readout)
+for same-subnet Enzian capture and CMAC link checks.
+
+To capture through Vivado Hardware Manager's JTAG AXI master,
 source the Tcl dumper inside the Vivado Tcl console after connecting to the
 target:
 

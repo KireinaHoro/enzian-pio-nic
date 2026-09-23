@@ -22,7 +22,7 @@ The mock kernel, student demos/benchmarks, Dandelion submodule, build scripts,
 and dependency/deployment changes are excluded. Upstream `deployFs` still
 packages the microbenchmark and real kernel module with the runtime closure.
 Build with `nix build .#deployFs -L`; the application-contract example is
-`nix build .#nix-build-demo -L`.
+`nix build .#dummy-app-build-with-nix -L`.
 
 ## Hardware/software boundary
 
