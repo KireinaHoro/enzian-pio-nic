@@ -501,3 +501,42 @@ as the sole cause of that trial's failure. Remote-fault flapping persists;
 network trace dumping remains unverified even though JTAG readout and normal
 RPCs work. The third boot's JTAG head (64 KiB), tail (1 MiB at byte offset
 131140160), static ILA, and BDK gate summary are retained under `gated/`.
+
+## CMAC trace retest after workspace consolidation — 2026-09-23
+
+Work resumed on `platform/master` at `9786470`; the obsolete `plat-master`
+worktree was removed after preserving its hardware-test evidence. The board
+trial used the matched artifacts from successful pipeline **512381**, revision
+`5adb1e7` (hardware job **2837292**, software job **2837291**). This tests the
+trace polarity/ARP fixes, not the later merged nested-RPC hardware.
+
+- The first boot lacked the BDK CCPI lane report. The current expect flow
+  automatically cold-reset and reprogrammed; attempt two passed QLM8..13 and
+  lanes 0..23, loaded the matching driver, and passed **100/100 add RPCs**.
+- The trace CMAC aligned with RX status good and local fault clear, but remote
+  fault continued alternating. Resetting only its TX core and GT TX datapath
+  did not resolve this. All reset outputs were deasserted afterward.
+- zuestoll12 received trace metadata, but the requested 64 KiB dump timed out
+  on its first read and produced **zero bytes**. A separate zero-length command
+  (sequence 35, 21 attempts) also timed out while a temporary static neighbor
+  bypassed ARP. The neighbor was removed afterward.
+- Retriggering unsolicited metadata after those failures succeeded, reporting
+  write slot 2393017, sample loss set and DMA error clear. Thus the responder
+  could still emit metadata; a DDR read stall alone does not explain the failed
+  command round trip. This does not establish whether requests reached the
+  FPGA or whether command replies were transmitted and lost.
+
+Network trace dumping remains unresolved. Switch-side link/FEC counters and
+port configuration are the next requested evidence; leaf1 access details were
+requested from the maintainer. RS-FEC was already enabled in the existing CMAC
+configuration; this trial does not justify changing it. No new RTL build or
+CI polling was started.
+
+Compact evidence is `out/hardware-tests/cmac-20260923/summary.json`; packet
+capture and receiver files remain on zuestoll12 under
+`/dev/shm/cmac-20260923/` (volatile storage). Copying them to shared storage was
+rejected by automatic approval review and was not performed. The original pipeline 512199 bitstream and matching prior software image
+`/scratch/pengxu/lh-512199-bundled-fixed.img` were restored: boot passed on the
+first attempt, driver load/version verification passed, and the original network
+configuration was restored. No application was running before this trial; none
+was started after restoration.
