@@ -2,19 +2,38 @@
 
 See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
 
-Working queue for `feat/nested-rpc`, recorded 2026-09-10 from the campaign
-documented in `e4eeaa7`. Work through B1–B4 in order; investigate B5 separately. B6 is an
-additional Dandelion integration gate. B1 includes compiler, RTL alignment and byte-order repairs
-as of 2026-09-13; its hardware check remains pending. B2–B6 are **open**. Close an
-item with its fixing commit and validation evidence; retain failed trials.
+## Merge disposition — 2026-09-23
 
-The tested hardware/runtime revision is
-`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`, checkpoint job 2812450.
-[Hardware results](../development/hardware-test-results.md) retain exact source
-revisions, image hashes, manifests, captures and machine state. Upstream add,
-mul and Sven's standalone adder each passed 100 calls from a second Enzian;
-one Dandelion 1×1 matmul invocation passed. These results do not establish
-nested completion, clean shutdown, startup reliability or composition support.
+The maintainer approved merging `feat/nested-rpc` into `master` on the strength
+of the recorded functional campaign. No remaining item below blocks this merge.
+This decision accepts the prototype's scope; it does not turn untested cases
+into passing results.
+
+- **B1–B3:** the generic descriptor, transport, outcome/admission and tracing
+  checks passed. Historical demo reruns, CSR readback and broader overload/trace
+  coverage remain follow-up validation rather than merge gates.
+- **Timing:** continue improving timing separately. The tested 512199 setup
+  violation is accepted for this merge, not claimed fixed. Review later candidates
+  through the normal physical-implementation workflow.
+- **B4:** retain a test for an old reply racing a replacement process that reuses
+  the same endpoint port and XID. This untested corner case is follow-up work;
+  the recorded cancellation, deadline, kill and capacity-reuse checks stand.
+- **B5:** the maintainer considers the historical module-load failures most
+  likely failed ECI link bring-ups missed by the old agent workflow. The current
+  workflow requires QLM8–13 CDR lock and all CCPI/ECI lanes 0–23, with bounded
+  cold-reset retries. Retire B5 as a merge blocker on that basis; the historical
+  root cause is not conclusively proven. A failure after verified link bring-up
+  should be captured and investigated under the current workflow.
+- **B6:** defer Dandelion placement/composition validation until the maintainer's
+  planned scheduler and critical-section design changes are integrated. Reserve
+  that work; do not begin it as part of this merge.
+
+DECERR is closed by the pinned RTL repair and simulation regression. Server
+per-request CSV tracing is implemented and board-validated. See
+[hardware results](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18)
+for exact revisions, artifacts and evidence. The dated sections below preserve
+historical findings and acceptance checklists; their old merge-gate language is
+superseded by this disposition.
 
 ## Bundled board follow-up — 2026-09-18
 
@@ -364,7 +383,7 @@ verify all threads exit, resources/registrations are released, and a new
 service can operate without a power cycle. Exercise timeout/cancellation and
 retain kernel logs. A zombie leader or parked remaining workers is a failure.
 
-## B5 — Hardware initialization is intermittent
+## B5 — Historical hardware initialization failures (retired as merge blocker)
 
 **Evidence: hardware observation; cause unresolved.** A verified full reset
 and successful programming were followed by a synchronous external abort
@@ -380,7 +399,7 @@ the proposed correction across repeated trials; one passing retry is not
 evidence that the reliability issue is resolved. Keep this investigation
 separate from the deterministic descriptor failure.
 
-## B6 — Dandelion process-engine placement and compositions need validation
+## B6 — Dandelion validation deferred until scheduler/critical-section changes
 
 **Update, 2026-09-14:** the flake pins the Dandelion snapshot and builds the
 tracked endpoint/FFI/placement patch, `server_tests` harness and deployment
