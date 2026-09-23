@@ -35,6 +35,14 @@ for exact revisions, artifacts and evidence. The dated sections below preserve
 historical findings and acceptance checklists; their old merge-gate language is
 superseded by this disposition.
 
+Merge validation: integrated master `5adb1e7` in `c7140b2`, preserving both
+current ECI bring-up gating and paced serial-script transfer. The following Nix
+checks passed: `runtimeTests`, `runtime-interface`, `workflow-tools`, `axi-decerr`
+and `trace-tests` (five trace-DMA and eight trace-dump simulations). Workflow
+checks were satisfied from cache; runtime/contract, DECERR and trace checks built
+successfully. Logs and tested submodule revisions are retained in ignored
+`out/merge-20260923/`. No new board run or timing claim accompanies this merge.
+
 ## Bundled board follow-up — 2026-09-18
 
 [Detailed evidence](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18)
