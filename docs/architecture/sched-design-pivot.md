@@ -84,7 +84,7 @@ Coalesce only with a persistent pending indication or an equivalent flag on
 another delivered RX item. Saturation, registration, rearm and consumption must
 not lose notifications. Host work must activate even a domain with no core.
 
-Candidate kernel integration: register an epoll FD and subscribe through its
+Candidate kernel integration: register the domain's epoll FD(s) and subscribe through their
 `.poll` waitqueue interface, notifying the NIC through a kernel control register.
 Linux 6.8's `ep->poll_wait` supports notification without a sleeping epoll thread.
 Check existing readiness at registration and handle teardown. Generic scheduler
@@ -92,12 +92,24 @@ wake hooks miss events without sleeping tasks; probes are investigative, not an
 established correctness mechanism. Other event sources need subscriptions too;
 the source callback must itself be able to run.
 
-Application deadlines use Linux-backed timers and the appropriate event
-subscription or task wakeup path. There is **no separate per-domain NIC deadline**
-in this candidate: mirrored clock events below allow the timer ISR to run, then
-normal completion handling either publishes HOST_WAKE or wakes a syscall-blocked
-thread on its retained core. Userspace-only timer bookkeeping still needs to arm
-a Linux wake source; early NACK does not create an application timer event.
+Application deadlines use a nonblocking monotonic timerfd watched by a registered
+epoll instance. The runtime can maintain its timer collection in userspace and
+arm the timerfd for its earliest expiry. The proposed notification path is:
+
+```text
+Linux timer expiry -> timerfd readable -> epoll poll-wait notification
+                  -> module writes NIC control register -> HOST_WAKE
+                  -> runtime epoll_wait(0), reads timerfd, runs due timers/rearms
+```
+
+Mirrored clock events below allow the timer ISR to execute promptly if its CPU
+is stalled in RX. The timerfd/epoll subscription then supplies domain activation,
+including when the domain is parked. Serialize timer collection/rearm if multiple
+workers service it. Event loops using only an epoll wait timeout need to arm a
+timerfd before switching their idle wait to RX. Ordinary timed blocking syscalls
+instead wake their specific Linux thread on its retained core. Registered epoll
+subscriptions are the concrete HOST_WAKE source in this candidate; additional
+sources require an explicit notification adapter.
 
 ## Early NACK: core-local interrupt service
 
@@ -163,6 +175,7 @@ its effect on competing domains before deciding whether generic reclaim is neede
 No implementation or new simulation/board acceptance is implied by this note.
 
 Linux 6.8 references: [eventpoll](https://github.com/torvalds/linux/blob/v6.8/fs/eventpoll.c),
+[timerfd](https://github.com/torvalds/linux/blob/v6.8/fs/timerfd.c),
 [scheduler](https://github.com/torvalds/linux/blob/v6.8/kernel/sched/core.c),
 [hrtimer](https://github.com/torvalds/linux/blob/v6.8/kernel/time/hrtimer.c),
 [arm timer](https://github.com/torvalds/linux/blob/v6.8/drivers/clocksource/arm_arch_timer.c),
