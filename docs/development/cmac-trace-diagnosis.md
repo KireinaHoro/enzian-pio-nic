@@ -116,3 +116,21 @@ by ARP and a valid untagged status command. Full ECI RTL generation succeeds.
 Vivado integration validation and one diagnostic CI build are the next gates;
 this is instrumentation, not a claimed fix. The matched pipeline-512381 board
 and test-owned add service remain available for switch-side diagnosis.
+
+Local integration validation at `e312046` built `eciVivadoInputs` from a clean
+commit and passed the pinned Vivado 2025.1 Docker `project-only` flow on ba2
+(`VIVADO_PROJECT_READY`, no reported errors or critical warnings). Inputs are
+`/tmp/cmac-diag-e312046-inputs`, project output is
+`/tmp/cmac-diag-e312046-project`, and the local log is
+`out/hardware-tests/cmac-live-20260924/vivado-project.log`. This checks the
+expanded block design and portable inputs; synthesis, routing and board
+validation of the instrumentation remain pending.
+
+The next single push of this branch launches the diagnostic pipeline. The
+prepared one-shot collector under `out/ci/cmac-followup/` will be scheduled
+five hours after that push, fetch GET-only status and matching hardware/software
+artifacts, and queue a follow-up in the originating thread. Its launch record
+will include the exact SHA, timer unit and earliest query time. No CI status
+requests were made during this diagnosis. Leaf1 did not resolve from the
+gateway; LLDP advertises 240.127.1.1/fd00::1, which has not established an SSH
+endpoint. Await the maintainer's hostname rather than guessing port settings.
