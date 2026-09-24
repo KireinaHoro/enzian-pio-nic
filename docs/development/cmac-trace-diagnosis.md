@@ -134,3 +134,38 @@ will include the exact SHA, timer unit and earliest query time. No CI status
 requests were made during this diagnosis. Leaf1 did not resolve from the
 gateway; LLDP advertises 240.127.1.1/fd00::1, which has not established an SSH
 endpoint. Await the maintainer's hostname rather than guessing port settings.
+
+## First diagnostic CI result, September 24
+
+The scheduled five-hour collection found pipeline **513584** at `c398803`
+failed before hardware preparation. `trace-tests`, `trace-fifo-tests`,
+`blocks-tests`, `eci-toolkit-rx`, workflow and interface gates all passed.
+`fast-tests-eci` job **2846456** failed with `no_updates_running` after
+5350 seconds. The collected trace records 31 passing cases and two ignored
+cases, ending with
+`TxBypassSim`'s `all-cores-no-inv`, without an assertion failure or subsequent
+case result. The underlying cause is not established by that failure reason.
+No diagnostic bitstream or deployment image was produced. Collected evidence
+is `out/ci/cmac-c398803-5h/`; an exact local Nix fast-test gate run is retained
+under `out/ci/cmac-c398803-local-check/`.
+
+The exact local gate, `nix build .#checks.x86_64-linux.fast-tests-eci`,
+passed: 32 ECI tests (two existing ignored cases) and all four recovery,
+watchdog and reply-context tests. `TxBypassSim` completed both all-core
+cases. This does not establish why the CI run stopped reporting; it supports
+one replacement pipeline with unchanged RTL, without weakening the gate.
+The successful output is linked at `out/cmac-fast-tests`. The next branch
+push will launch that replacement, with another one-shot collection scheduled
+five hours later; retain its exact revision and timer in `out/ci/cmac-followup/`.
+
+Once an instrumented image is available, also use a controlled internal PMA
+loopback probe if the external path still fails. Save trace CMAC controls as
+well as trace-status VIO outputs, enable only the trace port's loopback, wait
+for alignment and clear faults, then trigger one unsolicited metadata frame.
+Keep its destination IP different from the trace local IP so the looped frame
+is discarded rather than generating an error-response loop. After settling,
+expect one additional TX-queued/TX-CMAC/RX-CMAC/RX-after-CDC/header event, one
+responder output frame, no accepted command, no overflow, and an idle parser.
+Inspect the last-header bytes and restore all controls afterward. This tests
+the local stream path independently of switch forwarding; it does not certify
+external signal integrity, ARP/status requests or DDR readout.
