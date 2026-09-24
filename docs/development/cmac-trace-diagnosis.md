@@ -54,3 +54,27 @@ provenance. Capture a probe_versions failure before any reset. Keep generated
 artifacts under ignored `out/`; read compact summaries rather than routine boot
 transcripts. Merge only after validated completion; retain this branch while
 work is unfinished.
+
+## Initial evidence review, September 24
+
+The old peer files were preserved from zuestoll12 `/dev/shm/cmac-20260923/`
+to `/scratch/pengxu/cmac-evidence-20260924/` and retrieved into this worktree's
+`out/hardware-tests/cmac-diagnosis-20260924/prior-capture/`. The PCAP contains
+19 frames: one FPGA metadata packet, followed by nine pairs of 42/60-byte
+ARP request observations for `192.168.129.201`. There is no ARP reply and no
+UDP read command in that capture. Tcpdump reported no kernel capture drops.
+Do not interpret the paired observations as proof of duplicate FPGA delivery.
+
+This localizes the captured 64 KiB attempt to failed neighbor resolution,
+before an observable UDP command transmission. The separate static-neighbor
+status timeout has no corresponding PCAP here, so it does not yet identify
+which FPGA boundary failed. The next board trial should capture both automatic
+ARP and a temporary static-neighbor status query, restoring the neighbor state
+afterward. Existing metadata retrigger evidence still argues against a
+permanent complete TX stall.
+
+Both zuestoll12 and zuestoll14 remain reserved to pengxu. Direct peer SSH
+reported a changed host key; the existing serial-console helper was used
+without changing SSH trust. Switch access details have been requested. No new
+board programming, RTL changes or CI launch occurred in this initial review.
+Dependencies are initialized in the sibling worktree for targeted simulation.
