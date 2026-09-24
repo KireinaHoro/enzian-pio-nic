@@ -135,6 +135,33 @@ per-core interrupt-service request, not domain HOST_WAKE. Hook placement and
 coverage remain to validate. Other unmirrored interrupts retain bounded NACK as
 the fallback. Interrupt-cancelable loads would address the underlying limitation.
 
+## Kernel-module integration candidate
+
+Keep the hooks and NIC-control callbacks in the existing C module:
+
+| Path | Mechanism |
+| --- | --- |
+| Epoll readiness | Retain registered files with `fget`; subscribe through `vfs_poll` and a persistent waitqueue callback |
+| Cooperative yield | Blocking device ioctl behind `lauberhorn_yield()`, returning assignment state on resume |
+| IPI early NACK | Subscribe directly to arm64's sender-side `ipi_raise` tracepoint |
+| Timer mirror/disable | Native fprobe entry/exit callbacks on timer programming/shutdown functions; consider kprobes where ftrace attachment is unavailable |
+
+Linux 6.8 [fprobe](https://docs.kernel.org/6.8/trace/fprobe.html) is a C API based
+on ftrace: `struct fprobe`, `register_fprobe()`/`register_fprobe_syms()` and
+`unregister_fprobe()`. Module callbacks call NIC-control code directly. BPF
+fentry/fexit is a separate attachment option; native fprobe fits the existing
+module. An unexported function can be a probe target if instrumentable.
+
+Verify configuration and attachability on the deployed kernel, including timer
+driver/erratum variants and already-armed deadlines at installation. Audit IPI
+paths bypassing `ipi_raise`. Callbacks must tolerate their IRQ/locking context;
+NIC writes must be bounded and independent of the stalled target's progress.
+Handle module/device lifetime and unregister synchronization. Fprobe recursion
+protection or exhausted return-hook capacity can skip callbacks (`nmissed`);
+measure this and retain bounded NACK as fallback. If coverage or reliability is
+insufficient, add a small explicit kernel hook. This is source-level feasibility,
+pending an attachment and notification test on the actual Enzian kernel.
+
 ## Deferred alternative: generic syscall reclaim
 
 Reclaiming syscall-blocked cores could recover stranded capacity, at additional
