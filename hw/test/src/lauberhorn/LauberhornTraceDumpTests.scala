@@ -219,6 +219,38 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     }
   }
 
+  test("diagnostics distinguish tagged traffic from ARP and accepted commands") { dut =>
+    val (rx, tx, _dma) = setup(dut)
+    val command = request(123, 0, 0)
+    // Tagged commands are currently unsupported; count the header without
+    // mistaking it for an accepted command or issuing a DMA read.
+    val tagged = command.take(12) ++ bytes("81000005") ++ command.drop(12)
+    rx.send(tagged)
+    dut.clockDomain.waitSampling(40)
+    assert(dut.debug.headers.toLong == 1)
+    assert(dut.debug.taggedHeaders.toLong == 1)
+    assert(dut.debug.commands.toLong == 0)
+    assert(dut.debug.responses.toLong == 0)
+
+    def exchange(frame: List[Byte]): List[Byte] = {
+      var reply: Option[List[Byte]] = None
+      tx.recvCB() { data => reply = Some(data) }
+      rx.send(frame)
+      waitUntil(reply.nonEmpty)
+      reply.get
+    }
+    assert(exchange(arpRequest().padTo(60, 0.toByte)).slice(12, 14) == bytes("0806"))
+    assert(exchange(command).slice(50, 54) == be32(123))
+    dut.clockDomain.waitSampling(10)
+    assert(dut.debug.headers.toLong == 3)
+    assert(dut.debug.arpRequests.toLong == 1)
+    assert(dut.debug.commands.toLong == 1)
+    assert(dut.debug.responses.toLong == 2)
+    assert(dut.debug.taggedHeaders.toLong == 1)
+    assert(dut.debug.lastHeader.toBigInt == BigInt(1, command.take(32).reverse.toArray))
+    assert((dut.debug.state.toInt & 0xff) == 1) // idle, with no saved header
+  }
+
   test("sends metadata to dump server on dump-over-network rising edge") { dut =>
     val (_rx, tx, _dma) = setup(dut)
 

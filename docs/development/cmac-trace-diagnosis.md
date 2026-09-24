@@ -95,3 +95,24 @@ sample loss or DMA error; the trace CMAC aligned with local fault clear and
 intermittent remote fault. Evidence is under
 `out/hardware-tests/cmac-live-20260924/` in this worktree. Packet-level trace
 readout results remain pending at this point.
+
+
+The metadata-trigger attempt subsequently timed out after 90 seconds. Its raw
+socket saw 52 frames, retained three LLDP frames, and reported zero socket
+drops. A separate direct probe captured correctly addressed, untagged 66-byte
+UDP status requests after installing a temporary static neighbor (sequence
+1001, five attempts), with no reply. Queued sequence-1000 requests also left
+once that neighbor was installed. Broadcast/unicast ARP probes received no
+reply. The static neighbor was removed and all nine original trace VIO outputs
+were restored. The raw broadcast UDP probe was sent but excluded by this
+capture's MAC filter; do not claim its transmission was captured. LLDP confirms
+leaf1, peer port ZS12-CPU2, SONiC 202305.344993.
+
+The current image has no trace RX/parser/TX packet counters. The branch now
+adds counters, a 32-byte last-header snapshot, and explicit parser/handshake
+state through the existing trace VIO to locate that missing boundary. All ten
+responder tests pass, including a diagnostic check for tagged headers followed
+by ARP and a valid untagged status command. Full ECI RTL generation succeeds.
+Vivado integration validation and one diagnostic CI build are the next gates;
+this is instrumentation, not a claimed fix. The matched pipeline-512381 board
+and test-owned add service remain available for switch-side diagnosis.
