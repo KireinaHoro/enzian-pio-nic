@@ -52,6 +52,17 @@ case class LauberhornTraceDumpStatus(writeSlotWidth: Int) extends Bundle {
   val dmaError = Bool()
 }
 
+/** Read-only counters and state for locating network readout failures. */
+case class TraceDumpDiagnostics() extends Bundle {
+  val headers = UInt(32 bits)
+  val arpRequests = UInt(32 bits)
+  val commands = UInt(32 bits)
+  val responses = UInt(32 bits)
+  val taggedHeaders = UInt(32 bits)
+  val lastHeader = Bits(256 bits)
+  val state = Bits(16 bits)
+}
+
 case class LauberhornTraceDump(
                                 axisConfig: Axi4StreamConfig,
                                 dmaConfig: AxiDmaConfig,
@@ -65,6 +76,7 @@ case class LauberhornTraceDump(
   require(dmaConfig.axiConfig.dataWidth / 8 == axisConfig.dataWidth,
     "trace dump DMA stream width must match the CMAC stream width")
 
+  val debug = out(TraceDumpDiagnostics())
   val rx = slave(Axi4Stream(axisConfig))
   val tx = master(Axi4Stream(axisConfig))
   val cfg = in(LauberhornTraceDumpConfig())
@@ -180,6 +192,19 @@ case class LauberhornTraceDump(
   readDesc.payload.clearAll()
   readData.ready := False
 
+  val headerCount = Counter(32 bits, extractor.io.header.fire)
+  val arpRequestCount = Counter(32 bits)
+  val commandCount = Counter(32 bits)
+  val responseCount = Counter(32 bits, tx.lastFire)
+  val taggedHeaderCount = Counter(32 bits)
+  val lastHeader = Reg(Bits(256 bits)) init 0
+  debug.headers := headerCount.value
+  debug.arpRequests := arpRequestCount.value
+  debug.commands := commandCount.value
+  debug.responses := responseCount.value
+  debug.taggedHeaders := taggedHeaderCount.value
+  debug.lastHeader := lastHeader
+
   val rxHeader = Reg(Bits(HeaderBytes * 8 bits)) init 0
   val haveRxHeader = RegInit(False)
   val reqSeq = Reg(UInt(32 bits)) init 0
@@ -252,6 +277,12 @@ case class LauberhornTraceDump(
   }
 
   when(extractor.io.header.fire) {
+    lastHeader := extractor.io.header.payload(255 downto 0)
+    when(headerIsArpRequest) { arpRequestCount.increment() }
+    when(be16(extractor.io.header.payload, 12) === 0x8100 ||
+      be16(extractor.io.header.payload, 12) === 0x88a8) {
+      taggedHeaderCount.increment()
+    }
     discardArpBody := headerIsArpRequest
     rxHeader := extractor.io.header.payload
     haveRxHeader := True
@@ -365,6 +396,7 @@ case class LauberhornTraceDump(
             val goodVersion = byte(body, 4).asUInt === Version
             val goodOpcode = byte(body, 5).asUInt === OpcodeRead
             when(rxHeaderIsUdpCommand && goodMagic && goodVersion && goodOpcode) {
+              commandCount.increment()
               when(be32(body, 20) === 0) {
                 respStatus := StatusOk
               } elsewhen(be32(body, 20) <= MaxPayloadBytes &&
@@ -463,4 +495,12 @@ case class LauberhornTraceDump(
       }
     }
   }
+  // Explicit state bits keep the diagnostic interface independent of FSM encoding.
+  fsm.build()
+  debug.state := tx.ready ## readData.valid ## readDesc.ready ## readDesc.valid ##
+    requestAligner.io.output.valid ## extractor.io.header.valid ## rxHeaderIsUdpCommand ##
+    discardArpBody ## haveRxHeader ## fsm.isActive(fsm.sendData) ##
+    fsm.isActive(fsm.sendTraceHeader) ## fsm.isActive(fsm.sendNetHeader) ##
+    fsm.isActive(fsm.sendArpReply) ## fsm.isActive(fsm.issueRead) ##
+    fsm.isActive(fsm.drainRequest) ## fsm.isActive(fsm.idle)
 }

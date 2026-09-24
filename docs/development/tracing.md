@@ -361,6 +361,42 @@ and indication high, with no AXI register interface. The external peer must
 use compatible FEC. Internal PMA loopback can check the local CMAC/GT path;
 restore `loopback=0` before trying network capture.
 
+### Command-path diagnostics (CMAC investigation branch)
+
+The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
+They have local simulation/elaboration coverage; hardware validation is pending.
+Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
+when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
+VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
+clock using registered Gray code and synchronizers.
+
+| Probe suffix (`trace_dump_`) | Meaning |
+| --- | --- |
+| `rx_frames` | CMAC RX valid/TLAST frames, including frames subsequently dropped |
+| `rx_overflow` | RX asynchronous FIFO overflow events |
+| `rx_after_cdc` | Complete frames accepted by the responder from the RX FIFO |
+| `tx_queued` | Complete aligned frames accepted by the TX FIFO |
+| `tx_frames` | Complete frames accepted by CMAC TX; not proof of wire delivery |
+| `headers` | Extracted headers accepted by the responder |
+| `arp_requests` | Recognized ARP requests for the configured trace IP |
+| `commands` | Matching UDP destination and command magic/version/opcode; alignment errors also count |
+| `responses` | Complete frames handed off by the responder, including ARP and unsolicited metadata |
+| `tagged_headers` | Extracted headers with outer EtherType 0x8100 or 0x88a8 |
+| `last_header` | First 32 bytes of the last accepted header; byte 0 occupies bits 7:0 |
+| `state` | Parser state and handshake levels, described below |
+
+`state` bits 0..6 indicate idle, drainRequest, issueRead, sendArpReply,
+sendNetHeader, sendTraceHeader and sendData respectively. Bits 7..15 are
+haveRxHeader, discardArpBody, rxHeaderIsUdpCommand, extractor header valid,
+aligned request valid, DMA read descriptor valid, descriptor ready, read data
+valid and responder TX ready. This mapping does not depend on FSM encoding.
+
+No tagged command support is added by these probes. RX frame counts also do
+not certify FCS validity. A frame count that advances without parser progress
+localizes a different failure from a generated response that fails to reach
+CMAC TX or the peer. Switch counters and packet capture remain necessary for
+link and forwarding diagnosis.
+
 The intended offline flow is:
 
 1. Program and run the design.
