@@ -194,6 +194,31 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     }
   }
 
+  test("accepts status commands after unrelated Ethernet traffic") { dut =>
+    val (rx, tx, _dma) = setup(dut)
+    val broadcast = bytes("ffffffffffff")
+    val otherIp = bytes("c0a88101")
+    val unrelatedArp = arpRequest().dropRight(4) ++ otherIp
+    val lldp = bytes("0180c200000e") ++ hostMac ++ bytes("88cc") ++ List.fill(46)(0.toByte)
+    val ipv6 = bytes("333300000001") ++ hostMac ++ bytes("86dd") ++ List.fill(114)(0.toByte)
+    val otherPort = request(99, 0, 0, dstPort + 1)
+    val largeBroadcast = broadcast ++ hostMac ++ bytes("0800") ++ List.fill(1486)(0.toByte)
+
+    // The trace port sees broadcast/multicast traffic even before a capture
+    // session starts. None of it may strand the header/body association.
+    for ((frame, index) <- Seq(unrelatedArp.padTo(60, 0.toByte), lldp,
+      ipv6, otherPort, largeBroadcast).zipWithIndex) {
+      var response: Option[List[Byte]] = None
+      tx.recvCB() { data => response = Some(data) }
+      rx.send(frame)
+      rx.send(request(100 + index, 0, 0))
+      waitUntil(response.nonEmpty)
+      assert(response.get.slice(42, 46) == bytes("4c485444"))
+      assert(response.get(47) == LauberhornTraceDump.StatusOk.toByte)
+      assert(response.get.slice(50, 54) == be32(100 + index))
+    }
+  }
+
   test("sends metadata to dump server on dump-over-network rising edge") { dut =>
     val (_rx, tx, _dma) = setup(dut)
 

@@ -78,3 +78,20 @@ reported a changed host key; the existing serial-console helper was used
 without changing SSH trust. Switch access details have been requested. No new
 board programming, RTL changes or CI launch occurred in this initial review.
 Dependencies are initialized in the sibling worktree for targeted simulation.
+
+## Fresh reproduction in progress, September 24
+
+The unchanged responder passed all eight tests locally. An additional test
+sends unrelated padded ARP, LLDP, IPv6, wrong-port UDP and long broadcast frames
+before valid status queries; all nine tests pass. This checks recovery from
+those traffic classes, not the physical link or VLAN-tagged command support.
+
+The pipeline-512381 matched artifacts passed checksum verification. The board
+runner rejected the first boot's missing CCPI report, cold-reset and retried.
+Attempt two passed QLM8..13 and lanes 0..23, driver version verification and
+100 add RPCs. The static ECI edge ILA was armed before releasing BDK. No
+probe_versions failure occurred. Before trace freezing, VIO reported no trace
+sample loss or DMA error; the trace CMAC aligned with local fault clear and
+intermittent remote fault. Evidence is under
+`out/hardware-tests/cmac-live-20260924/` in this worktree. Packet-level trace
+readout results remain pending at this point.
