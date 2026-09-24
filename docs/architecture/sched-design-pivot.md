@@ -20,8 +20,20 @@ memcached A through its event loop. These are directions, not completed ports.
 
 RX means **this worker has no runnable work**, not that the whole domain is idle.
 It stalls awaiting work or receives PREEMPT and yields; siblings may keep running.
-Handlers remain run-to-finish. Ordinary blocking syscalls should not require
-universal runtime interposition.
+Handlers remain run-to-finish. **The candidate reclaims/migrates workers only at
+explicit Lauberhorn yield points**, apart from termination/recovery. Ordinary
+blocking syscalls retain the core/QP assignment and onehot affinity; Linux may
+sleep and resume the thread without changing its mailbox. No universal syscall
+interposition is required. Assigned parallelism includes these sleeping threads;
+the NIC cannot allocate their reserved capacity to another domain.
+
+Strongly recommend nonblocking sockets with epoll, asynchronous storage and
+cooperative runtime waits. Blocking is permitted but can strand capacity for an
+unbounded interval. Assume applications do not hold locks across blocking RX or
+Lauberhorn yield, or block waiting for a continuation that requires the same
+worker to progress. **Futex integration and its application-specific contention/
+progress implications are deferred, alongside signals**; this is not a claim of
+compatibility with arbitrary synchronization patterns.
 
 ## Cooperative handoff and transport exposure
 
@@ -38,23 +50,16 @@ to kill IRQ; execution watchdog policy is separate. Bootstrap/activation without
 a userspace RX waiter still needs a kernel wake mechanism: “IRQ only for kill”
 is not a complete idle-core protocol.
 
-Yield could return mailbox identity plus RX/TX parity (an index suffices).
-The more flexible candidate is an **immutable kernel-exposed transport stub**
-with per-thread mailbox/parity/assignment state, updated before userspace resumes
-after reassignment. This supports migration after ordinary blocking syscalls too,
-without a yield return or executable-code patching.
-
-Reject reclaim if the saved userspace PC is within the stub's protected range,
-including helpers retaining mailbox state. The stub should neither syscall nor
-fault; an ordinary interrupt there does not itself justify reclaim. Updating
-state cannot repair saved registers inside an interrupted operation; replaying
-TX can duplicate it. Fault handling, parity ownership, state publication and the
-final return-to-user ownership gate remain to design. **Signals are deferred.**
+On return, `lauberhorn_yield()` supplies mailbox identity plus RX/TX parity
+(an index suffices). The runtime retains that identity until the next yield;
+ordinary syscall returns need no mailbox refresh. This avoids requiring a shared
+mailbox-state lookup on every transport entry. Bootstrap must supply equivalent
+initial state. Parity restoration and ownership ordering remain to specify.
 
 ## Static coloring and protection
 
 Worker-owned QP signatures permit static coloring of workers plus bypass, while
-logical threads migrate through the stub. No thread per physical worker or
+logical threads migrate at yield boundaries. No thread per physical worker or
 per-migration page-table rewrite is required. This enables removal/simplification
 of the general thread router; it does not itself prove DCU progress.
 
@@ -111,53 +116,42 @@ timers sufficient, leaving the app NIC deadline as a syscall-saving option.
 Unpredictable interrupts/IPIs still need bounded NACK or another release path.
 Interrupt-cancelable loads would address the underlying limitation.
 
-## Reclaim during blocking syscalls
+## Deferred alternative: generic syscall reclaim
 
-Current onehot affinity preserves the worker across a syscall sleep. Reclaiming
-it requires distinguishing Linux-runnable from authorized to resume with a QP.
-The stub/state design allows resumption on another core; kernel thread selection
-can keep TIDs out of the NIC. Same-core-only resumption would instead require
-core-constrained domain demand.
+Reclaiming syscall-blocked cores could recover stranded capacity, at additional
+kernel/runtime and NIC-scheduler complexity. Possible approaches:
 
-Suggested counters (T is thread capacity, not a separate policy cap):
+- Preserve same-core resumption and mailbox identity, but publish core-constrained
+  domain demand when the blocked thread wakes; restore its QP state before reuse.
+- Allow migration via an immutable kernel-exposed transport stub and per-thread
+  shared mailbox/parity state updated before userspace resumes. This adds a
+  mailbox-state load/dependency to the transport fast path.
+- Patch a thread-specific transport stub on migration to embed mailbox selection,
+  paying code-update/instruction-cache synchronization costs then. Shared page
+  tables, stub selection, concurrency and changing parity complicate this option;
+  mailbox-address patching alone does not solve parity bookkeeping.
 
-| Counter | Meaning |
-| --- | --- |
-| T | Registered schedulable threads, currently maxThreads |
-| A | Assigned threads, including dispatch reservations |
-| B | Syscall-blocked threads whose cores were reclaimed |
-| W | Awakened syscall continuations awaiting assignment |
+Migratable variants need a return-to-user ownership gate. Reject reclaim when the
+saved PC is inside the transport stub or helpers retaining mailbox state; the
+stub should neither syscall nor fault. Updating state/code does not repair saved
+registers mid-operation, and replaying TX can duplicate it. Fault handling and
+safe patch/state publication remain open; signals are deferred.
 
-Available threads = `T - A - B`; invariant `0 <= W <= T - A - B`.
-W is a subset of availability, not another subtraction.
-
-| Transition | Update |
-| --- | --- |
-| RX yield completes | A-- |
-| Blocked thread's core is reclaimed | A--, B++ |
-| Reclaimed thread's wait resolves | B--, W++ |
-| Reserve for an awakened continuation | A++, W-- |
-| Reserve for a parked RX thread | A++ |
-
-Eligibility requires available capacity AND (network/host work OR W > 0).
-Policy still decides scaling/fairness. W creates demand even with an empty RX
-queue or a running sibling. The kernel owns thread lists and claims an eligible
-thread when accepting a grant. A sibling consuming HOST_WAKE cannot satisfy
-another thread's continuation demand.
-
-Serialize wake-versus-reclaim and grant cancellation; count B after reclaim,
-not syscall entry. Prevent premature Linux execution and preserve physical drain
-separately from accounting. Existing `corePidMap` early reservations are useful.
-Current `softwarePending` clears on any resident worker and fallback allocation
-targets zero-core domains: both need stronger semantics. Kernel selection
-(`enabled && worker_idx == -1`) needs blocked/ready/parked eligibility. A ready
-count versus an acknowledged kernel-backed pending flag remains open.
+The NIC could remain domain-aware while the kernel owns eligible-thread lists,
+but needs blocked-capacity accounting and persistent awakened-continuation demand,
+even with an empty RX queue or running sibling. Reclaim/wake/grant races and
+Linux-runnable versus permitted-to-resume state need synchronization. Existing
+`softwarePending` clearing on any resident worker, zero-core fallback allocation,
+and `enabled && worker_idx == -1` kernel selection are insufficient. These
+additions are **not required by the current yield-only candidate**.
 
 ## Remaining validation
 
-Exercise wake/reclaim/grant races, completion-only activation with a running
-sibling, notification saturation/rearm, timer reprogramming during RX, migration
-and parity restoration, and stale-alias/coherence isolation across domains.
+Exercise cooperative handoff and HOST_WAKE/grant races, notification saturation/
+rearm, timer reprogramming during RX, yield migration/parity restoration, and
+stale-alias/coherence isolation across domains. Verify that ordinary syscall sleep
+retains assignment and resumes on the same core; measure stranded capacity and
+its effect on competing domains before deciding whether generic reclaim is needed.
 No implementation or new simulation/board acceptance is implied by this note.
 
 Linux 6.8 references: [eventpoll](https://github.com/torvalds/linux/blob/v6.8/fs/eventpoll.c),
