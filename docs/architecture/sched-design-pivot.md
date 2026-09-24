@@ -92,11 +92,12 @@ wake hooks miss events without sleeping tasks; probes are investigative, not an
 established correctness mechanism. Other event sources need subscriptions too;
 the source callback must itself be able to run.
 
-Optional app deadline: **one per domain**, programmed through a TX control
-message, typically for the runtime's earliest timer expiry. NIC expiry injects
-HOST_WAKE; the NIC does not maintain individual application timers. Define
-replacement/cancellation and stale expiry semantics. Userspace timer bookkeeping
-cannot wake a stalled/parked worker without Linux, this deadline, or polling/NACK.
+Application deadlines use Linux-backed timers and the appropriate event
+subscription or task wakeup path. There is **no separate per-domain NIC deadline**
+in this candidate: mirrored clock events below allow the timer ISR to run, then
+normal completion handling either publishes HOST_WAKE or wakes a syscall-blocked
+thread on its retained core. Userspace-only timer bookkeeping still needs to arm
+a Linux wake source; early NACK does not create an application timer event.
 
 ## Early NACK: core-local interrupt service
 
@@ -111,10 +112,16 @@ conversion, write latency and actual driver/erratum paths. The ISR cannot initia
 its own release from a stalled load.
 
 Arm64 timer interrupts are per-CPU; Linux 6.8 timer migration and `nohz_full` do
-not remove all local hrtimers. Mirroring could make kernel-backed application
-timers sufficient, leaving the app NIC deadline as a syscall-saving option.
-Unpredictable interrupts/IPIs still need bounded NACK or another release path.
-Interrupt-cancelable loads would address the underlying limitation.
+not remove all local hrtimers. Mirroring supports kernel-backed application
+timers without moving every timer to a housekeeping CPU.
+
+For IPIs, **hook the IPI sender** to request early NACK on each targeted worker
+that may be stalled in RX. Define ordering with IPI delivery so an early release
+cannot be followed by another long RX stall before the interrupt becomes pending;
+also cover target masks, coalescing and release/rearm acknowledgment. This is a
+per-core interrupt-service request, not domain HOST_WAKE. Hook placement and
+coverage remain to validate. Other unmirrored interrupts retain bounded NACK as
+the fallback. Interrupt-cancelable loads would address the underlying limitation.
 
 ## Deferred alternative: generic syscall reclaim
 
@@ -148,7 +155,8 @@ additions are **not required by the current yield-only candidate**.
 ## Remaining validation
 
 Exercise cooperative handoff and HOST_WAKE/grant races, notification saturation/
-rearm, timer reprogramming during RX, yield migration/parity restoration, and
+rearm, timer reprogramming and IPI send/release races during RX, yield
+migration/parity restoration, and
 stale-alias/coherence isolation across domains. Verify that ordinary syscall sleep
 retains assignment and resumes on the same core; measure stranded capacity and
 its effect on competing domains before deciding whether generic reclaim is needed.
