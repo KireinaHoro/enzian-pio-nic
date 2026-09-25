@@ -364,10 +364,13 @@ restore `loopback=0` before trying network capture.
 ### Command-path diagnostics (CMAC investigation branch)
 
 The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
-They have local simulation/elaboration coverage and diagnostic board validation
-on pipeline 513714 (`cb2aedf`): internal metadata loopback and one external
-metadata delivery passed, but external commands did not reach CMAC RX. See
-[the CMAC diagnosis](cmac-trace-diagnosis.md#diagnostic-bitstream-and-board-result-september-25).
+They have local simulation/elaboration coverage and board validation. Pipeline
+514053 (`c5be158`) captured one MiB using normal ARP and UDP after fixing short
+ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
+independent frozen JTAG reads. External link operation is still intermittent;
+FPGA RX alignment alone does not establish a usable link. Check leaf1's
+Ethernet108 / ZS14-FPGA4 status through `python3 tools/enzian/leaf1.py` before
+capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
 VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
