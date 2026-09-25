@@ -354,8 +354,8 @@ core resets, and one switch receiver initial DFE calibration
 (`port-sd-dfe-ical 28/0 all`). Port configuration returned to admin up,
 100G/RS-FEC, autoneg off, MTU 9100; no persistent speed/FEC/VLAN or equalization
 setting was changed. Do not repeat resets blindly. A known-good cable/port or
-further lane-level investigation is needed before the corrected frames can be
-validated externally.
+further lane-level investigation is still needed to establish dependable
+external operation, despite the successful capture below.
 
 Internal near-end PMA loopback on the new image aligned without faults. One
 metadata trigger advanced TX queued, CMAC TX, CMAC RX, RX-after-CDC, headers
