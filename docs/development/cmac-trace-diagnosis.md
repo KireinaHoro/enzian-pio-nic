@@ -258,3 +258,54 @@ constructs the gateway → agg0 → leaf1 SSH chain and leaves password prompts
 and host-key verification to SSH. It does not store credentials. For one command:
 `python3 tools/enzian/leaf1.py -- show interfaces status`.
 `--print-command` displays the quoted chain without connecting.
+
+## Correlated switch probes and framing fixes, September 25
+
+Using the SSH helper, a fresh read-only switch/FPGA comparison found the external
+link receiving background traffic with no fault reported. Sixteen broadcast and
+sixteen unicast UDP status probes from zuestoll12 advanced FPGA commands and
+responses by exactly 32. Leaf1 Ethernet108 good RX unicast packets increased
+by 32 with no new errors; its egress counts also included the 16 unicast and
+16 broadcast requests (plus background broadcast traffic). Thus the earlier
+zero-RX condition is intermittent, not a persistent VLAN or RS-FEC mismatch.
+No switch configuration or counters were changed.
+
+The normal UDP dumper then received metadata but could not resolve ARP.
+The FPGA recognized three ARP requests and generated replies, while leaf1 RX
+errors/discards increased. Source inspection found replies with only 42 valid
+bytes, below the 60-byte Ethernet minimum excluding FCS. They now include 18
+zero-padding bytes, covered by assertions on both length and padding content.
+This outbound padding fix is distinct from the earlier inbound ARP-padding fix.
+
+A temporary static neighbor allowed a zero-length status request to succeed,
+but the first 1408-byte DDR read and its retries timed out. The FPGA completed
+responses and returned idle; leaf1 RX errors and discards increased by four.
+Adding the actual TX aligner to the responder test harness reproduced the bug:
+both existing DDR response tests failed with `KEEP not fully set in the middle
+of stream` (eight other tests passed). The old byte-list sink silently removed
+invalid bytes and missed the illegal mid-packet gap. The response header had
+occupied the low 32 bytes of a nonfinal 64-byte beat, leaving a hole before DMA
+data. It now occupies the high 32 bytes, providing the leading gap supported
+by the header injector/aligner. Tests now exercise the actual aligner, including
+64-, 128- and 1408-byte data responses and byte-exact payload checks.
+
+Evidence is in `out/hardware-tests/cmac-switch-20260925/summary.json`,
+`switch-counters.json`, `vio-snapshots.json`, and the validation logs.
+Switch and peer CPU wall clocks differ; use ordered counter deltas rather than
+absolute timestamps. The failed capture produced no DDR data, so no UDP/JTAG
+byte comparison was performed. The temporary neighbor was removed, saved trace
+controls restored, and tracing resumed. No board reset or reprogramming occurred.
+The first post-fix validation attempt stopped before simulation on a full disk;
+the maintainer ran GC and validation was restarted. The fixes still need a new
+matched bitstream/software build and board verification.
+
+After GC, `nix develop --command mill --no-daemon gen.test.testOnly
+lauberhorn.LauberhornTraceDumpTests` passed all 11 cases, and
+`nix develop --command mill --no-daemon eci.generateVerilog` completed full
+ECI generation and clock-domain checks. Logs are `aligned-after-gc.log` and
+`generate-after-fix.log` in the evidence directory above. The next single
+branch push builds these framing fixes; its one-shot 30-minute check starts
+the five-hour collection only if hardware is running. On the new matched
+image, retry normal ARP plus a bounded UDP DDR dump, then compare frozen data
+against JTAG before claiming working capture. Preserve the intermittent link
+observation separately from the now-reproduced deterministic framing bugs.
