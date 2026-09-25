@@ -364,7 +364,10 @@ restore `loopback=0` before trying network capture.
 ### Command-path diagnostics (CMAC investigation branch)
 
 The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
-They have local simulation/elaboration coverage; hardware validation is pending.
+They have local simulation/elaboration coverage and diagnostic board validation
+on pipeline 513714 (`cb2aedf`): internal metadata loopback and one external
+metadata delivery passed, but external commands did not reach CMAC RX. See
+[the CMAC diagnosis](cmac-trace-diagnosis.md#diagnostic-bitstream-and-board-result-september-25).
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
 VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
