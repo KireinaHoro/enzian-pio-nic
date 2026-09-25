@@ -252,3 +252,9 @@ probe correlated with switch TX counters and FPGA CMAC RX counters is the
 next discriminating check; these cumulative switch counters alone do not
 explain the absent FPGA receive frames. No switch configuration or counters
 were changed or cleared.
+
+Use `python3 tools/enzian/leaf1.py` for an interactive leaf1 shell. The helper
+constructs the gateway → agg0 → leaf1 SSH chain and leaves password prompts
+and host-key verification to SSH. It does not store credentials. For one command:
+`python3 tools/enzian/leaf1.py -- show interfaces status`.
+`--print-command` displays the quoted chain without connecting.
