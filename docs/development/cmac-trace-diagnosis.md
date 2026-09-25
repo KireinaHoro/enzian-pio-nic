@@ -218,3 +218,37 @@ Both temporary peer neighbor entries were removed. All nine trace VIO outputs
 and six link outputs were restored; loopback is off and tracing resumed.
 The matched diagnostic image and test-owned add service remain on the DUT.
 Work remains on `fix/cmac-trace-readout`; CMAC DDR capture is not yet working.
+
+## Leaf1 access and read-only port inspection, September 25
+
+SSH access is confirmed through `enzian-gateway` to agg0 as
+`admin@fe80::290:fbff:fe73:e4b6%cluster0.103`, then from agg0 to leaf1 as
+`admin@fe80::290:fbff:fe73:e4a1%eth0`. Credentials are supplied separately;
+do not store them in this repository. Agg0 LLDP identifies both leaves on its
+management `eth0`; gateway `cluster0.103` is not their management link.
+Leaf1 identifies itself as `centner-leaf1.in.barrelfish.org`.
+
+Read-only SONiC inspection found:
+
+| Interface | Alias | Status | Speed / FEC | VLAN |
+| --- | --- | --- | --- | --- |
+| Ethernet96 | ZS14-FPGA1 (main CMAC) | admin/oper up | 100G / RS | 102 untagged |
+| Ethernet108 | ZS14-FPGA4 (expected F_MAC3 trace port) | admin/oper up | 100G / RS | 102 untagged |
+| Ethernet164 | ZS12-CPU2 (peer cpu40g1) | admin/oper up | 40G / RS | 102 untagged |
+
+ZS14-FPGA2/3 (Ethernet100/104) are admin up, oper down. Ethernet108 has
+MTU 9100, autoneg off, and no reported RX loss of signal on any of four lanes.
+Its cumulative counters show 12 good unicast RX packets, 12 RX errors,
+10 RX discards, two undersize packets, and no TX errors or drops. The RX
+error/drop totals did not change across the two inspection snapshots;
+they do not establish an active fault. FEC corrected/uncorrected/symbol-error
+counters report N/A, not zero. Main Ethernet96 and peer Ethernet164 show zero
+RX errors/drops. The peer and main MACs were learned in VLAN 102 on their
+expected ports; trace MAC `0c:53:31:03:01:d4` was absent at this snapshot.
+An aged-out trace MAC is not proof of a forwarding failure.
+
+The configured VLAN and RS-FEC agree with the intended path. A fresh bounded
+probe correlated with switch TX counters and FPGA CMAC RX counters is the
+next discriminating check; these cumulative switch counters alone do not
+explain the absent FPGA receive frames. No switch configuration or counters
+were changed or cleared.
