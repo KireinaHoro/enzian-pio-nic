@@ -309,3 +309,84 @@ the five-hour collection only if hardware is running. On the new matched
 image, retry normal ARP plus a bounded UDP DDR dump, then compare frozen data
 against JTAG before claiming working capture. Preserve the intermittent link
 observation separately from the now-reproduced deterministic framing bugs.
+
+## Framing-fix image: UDP capture validated, link intermittent
+
+The scheduled five-hour collector found pipeline **514053** at
+`c5be158ae796ad7f8387ac834d47f2c36b80b392` successful. Hardware job **2849377**,
+software job **2849376**, matching LTX and trace map were checksum-verified
+locally and after staging. Timing remains open: WNS -0.005 ns, TNS -0.007 ns,
+three failing setup endpoints, no hold violations. This is not timing closure.
+
+On reserved zuestoll14, the image passed the first verified cold boot,
+QLM8..13 CDR and CCPI lanes 0..23, driver verification and 100 add RPCs.
+The static ECI edge ILA was armed and tracing stayed active through driver
+load. No `probe_versions` failure occurred.
+
+The first normal-ARP capture attempt timed out waiting for metadata. Peer
+capture retained no trace/ARP frames and reported zero socket drops. The FPGA
+accepted one transmitted metadata frame but saw no incoming frames. Leaf1
+reported Ethernet108 (ZS14-FPGA4) admin up, oper down, with no packet-counter
+advance. CMAC RX alignment/status were one, local fault zero, but remote fault
+was intermittent. Those FPGA bits alone are insufficient to establish an
+externally usable link.
+
+Leaf1 vendor diagnostics are available inside the `syncd` container:
+`docker exec -it syncd /opt/bfn/install/bin/bfshell`, then `ucli`, `pm`.
+The trace port maps to front-panel **28/0**, device port **44**, MAC **4/0**.
+Use `show -p 28/0`, `port-pcs 28/0`, `port-ctrs 28/0 fec`, and
+`port-error-get 28/0` for bounded diagnosis. The ordinary SONiC FEC table's N/A
+values do not mean the ASIC lacks diagnostics. Do not clear counters or use
+wildcards for recovery operations.
+
+The cable identifies as a two-metre FS Q28-PC02 passive 100GBASE-CR4 DAC
+(serial F2034354605-1). No RX loss of signal was reported on any lane. Vendor
+samples showed transient FEC alignment, then loss of alignment and increasing
+corrected blocks: 2,604,734 then 2,934,603; uncorrected blocks read zero.
+The latter sample reported symbol-error totals 2,480 / 1,656,625 / 1,237,068 /
+66,197 across lanes 0..3, concentrated on lanes 1 and 2. These snapshots locate
+a receive-side link-quality/initialization problem on the switch; they do not
+prove which cable, FPGA transmitter or receiver setting is responsible.
+
+Bounded recovery attempts did not restore external link-up: trace-only GT TX
+datapath reset, an admin down/up cycle of **only Ethernet108**, trace CMAC TX/RX
+core resets, and one switch receiver initial DFE calibration
+(`port-sd-dfe-ical 28/0 all`). Port configuration returned to admin up,
+100G/RS-FEC, autoneg off, MTU 9100; no persistent speed/FEC/VLAN or equalization
+setting was changed. Do not repeat resets blindly. A known-good cable/port or
+further lane-level investigation is needed before the corrected frames can be
+validated externally.
+
+Internal near-end PMA loopback on the new image aligned without faults. One
+metadata trigger advanced TX queued, CMAC TX, CMAC RX, RX-after-CDC, headers
+and responder output counters by exactly one; the parser returned idle
+(`0xa001`) with no overflow. This confirms the local metadata stream path.
+After returning to external mode, counters caught 16 external receive frames
+before the switch port went down again, establishing intermittent link windows.
+
+One bounded retry with ten metadata announcements then captured **1,048,576
+bytes** over normal ARP and UDP; no static neighbor was installed. Packet
+capture contains one correctly zero-padded 60-byte ARP reply, 745 unique read
+requests, 744 data responses of 1482 bytes and one of 1098 bytes, with no
+retransmitted requests, invalid IPv4 checksums or capture socket drops. Every
+captured response payload matches the assembled dump. The dump SHA256 is
+`e3337009c43e7e5589ab41193540857f3bd10d81cf65deab0c42287891810596`.
+Independent JTAG reads of 4096 bytes at offset 0 and 4096 bytes at offset
+`0xff000` matched the frozen UDP dump byte-for-byte. The rest of the one-MiB
+range was not independently read over JTAG. Leaf1 RX error/discard totals
+remained 18/15 across the trial; the corrected frames introduced no new MAC
+errors. Metadata still reports sample-lost, so this validates readout integrity,
+not a lossless ECI trace or full-buffer throughput.
+
+The port was down again afterward. The framing fixes are hardware-validated,
+but reliable link initialization/operation remains unresolved. Do not infer
+that the resets, recalibration or loopback transition cured it. A known-good
+physical path or further lane-level diagnosis remains the next step.
+
+Evidence is `out/hardware-tests/cmac-fixed-514053/`, including the failed first
+attempt, successful `retry/` PCAP/dump/packet summary, `jtag-comparison.json`,
+and vendor PHY snapshots. CI provenance is in `out/ci/cmac-c5be158-hw-5h/`.
+All trace controls were restored, loopback disabled and tracing resumed.
+The matched c5be158 image and test-owned add service remain on the DUT.
+Work stays on `fix/cmac-trace-readout` pending link-reliability diagnosis;
+no additional CI was launched.
