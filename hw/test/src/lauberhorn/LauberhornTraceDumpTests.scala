@@ -1,15 +1,42 @@
 package lauberhorn
 
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.axi.AxiDmaConfig
+import jsteward.blocks.axi.{AxiDmaConfig, AxiStreamAligner}
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib.bus.amba4.axi.Axi4Config
 import spinal.lib.bus.amba4.axis.Axi4StreamConfig
 import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 import spinal.lib.sim._
+import spinal.lib._
 
-class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
+// Include the actual TX aligner: a byte-list sink alone hides illegal holes in TKEEP.
+case class TraceDumpAlignedHarness(axisConfig: Axi4StreamConfig, dmaConfig: AxiDmaConfig,
+                                   axiBase: BigInt) extends Component {
+  val responder = LauberhornTraceDump(axisConfig, dmaConfig, axiBase)
+  val aligner = AxiStreamAligner(axisConfig)
+  val rx = slave(cloneOf(responder.rx))
+  val tx = master(cloneOf(responder.tx))
+  val cfg = in(cloneOf(responder.cfg))
+  val dumpOverNetwork = in(Bool())
+  val status = in(cloneOf(responder.status))
+  val readDesc = master(cloneOf(responder.readDesc))
+  val readData = slave(cloneOf(responder.readData))
+  val readDescStatus = slave(cloneOf(responder.readDescStatus))
+  val debug = out(cloneOf(responder.debug))
+  responder.rx << rx
+  responder.tx >> aligner.io.input
+  aligner.io.output >> tx
+  responder.cfg := cfg
+  responder.dumpOverNetwork := dumpOverNetwork
+  responder.status := status
+  readDesc << responder.readDesc
+  responder.readData << readData
+  responder.readDescStatus << readDescStatus
+  debug := responder.debug
+}
+
+class LauberhornTraceDumpTests extends DutSimFunSuite[TraceDumpAlignedHarness] {
   val axisConfig = Axi4StreamConfig(dataWidth = 64, useKeep = true, useLast = true)
   val axiConfig = Axi4Config(
     addressWidth = 35,
@@ -32,7 +59,7 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     .withFstWave
     .withVerilator
     .allOptimisation
-    .compile(LauberhornTraceDump(axisConfig, dmaConfig, axiBase))
+    .compile(TraceDumpAlignedHarness(axisConfig, dmaConfig, axiBase))
 
   def be16(value: Int): List[Byte] =
     List(((value >> 8) & 0xff).toByte, (value & 0xff).toByte)
@@ -72,7 +99,7 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
       bytes("0001080006040001") ++ hostMac ++ hostIp ++
       bytes("000000000000") ++ fpgaIp
 
-  def setup(dut: LauberhornTraceDump) = {
+  def setup(dut: TraceDumpAlignedHarness) = {
     SimTimeout(40000)
     dut.clockDomain.forkStimulus(period = 4)
 
@@ -137,13 +164,30 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     assert(response.drop(42 + LauberhornTraceDump.ResponseHeaderBytes) == payload)
   }
 
+  test("aligned TX preserves data across short and maximum DDR replies") { dut =>
+    val (rx, tx, dma) = setup(dut)
+    for ((length, index) <- Seq(64, 128, 1408).zipWithIndex) {
+      val payload = (0 until length).map(i => ((i * 29 + index) & 0xff).toByte).toList
+      fork {
+        waitUntil(dut.readDesc.valid.toBoolean)
+        assert(dut.readDesc.payload.payload.len.toBigInt == length)
+        dma.send(payload)
+      }
+      rx.send(request(100 + index, 0, length))
+      val response = tx.recv()
+      assert(response.length == 42 + LauberhornTraceDump.ResponseHeaderBytes + length)
+      assert(response.drop(42 + LauberhornTraceDump.ResponseHeaderBytes) == payload)
+    }
+  }
+
   test("answers ARP requests for the trace responder IP") { dut =>
     val (rx, tx, _dma) = setup(dut)
 
     rx.send(arpRequest())
     val response = tx.recv()
 
-    assert(response.length == LauberhornTraceDump.HeaderBytes)
+    assert(response.length == 60)
+    assert(response.drop(42) == List.fill(18)(0.toByte))
     assert(response.slice(0, 6) == hostMac)
     assert(response.slice(6, 12) == fpgaMac)
     assert(response.slice(12, 14) == bytes("0806"))
@@ -184,6 +228,8 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
 
     for (frameBytes <- Seq(42, 60, 128)) {
       val arpReply = exchange(arpRequest().padTo(frameBytes, 0xa5.toByte))
+      assert(arpReply.length == 60)
+      assert(arpReply.drop(42) == List.fill(18)(0.toByte))
       assert(arpReply.slice(12, 14) == bytes("0806"))
       assert(arpReply.slice(20, 22) == bytes("0002"))
 

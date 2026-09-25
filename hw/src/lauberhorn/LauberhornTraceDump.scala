@@ -11,6 +11,7 @@ import scala.language.postfixOps
 object LauberhornTraceDump {
   val HeaderBytes = 14 + 20 + 8
   val ResponseHeaderBytes = 32
+  val MinEthernetFrameBytes = 60 // excluding CMAC-generated FCS
   val MaxPayloadBytes = 1440
   val EtherTypeIpv4 = 0x0800
   val EtherTypeArp = 0x0806
@@ -452,7 +453,8 @@ case class LauberhornTraceDump(
       whenIsActive {
         arpTx.valid := True
         arpTx.data := arpReply
-        arpTx.keep := ((U(1, axisConfig.dataWidth bits) |<< HeaderBytes) - 1).asBits
+        // CMAC does not pad short AXIS frames; zero-fill to the Ethernet minimum.
+        arpTx.keep := ((U(1, axisConfig.dataWidth bits) |<< MinEthernetFrameBytes) - 1).asBits
         arpTx.last := True
         when(arpTx.fire) {
           goto(idle)
@@ -473,8 +475,12 @@ case class LauberhornTraceDump(
     val sendTraceHeader: State = new State {
       whenIsActive {
         injector.io.input.valid := True
-        injector.io.input.data := traceHeader
-        injector.io.input.keep := ((U(1, axisConfig.dataWidth bits) |<< ResponseHeaderBytes) - 1).asBits
+        // InjectHeader/Aligner permit a leading gap, never holes between beats.
+        // Put the trace header at the high end so following DMA data is contiguous.
+        val leadingBytes = axisConfig.dataWidth - ResponseHeaderBytes
+        injector.io.input.data := traceHeader |<< (leadingBytes * 8)
+        injector.io.input.keep := B((BigInt(1) << ResponseHeaderBytes) - 1,
+          axisConfig.dataWidth bits) |<< leadingBytes
         injector.io.input.last := respDataBytes === 0
         when(injector.io.input.fire) {
           when(respDataBytes === 0) {
