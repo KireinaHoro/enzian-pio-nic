@@ -1,209 +1,209 @@
 # Scheduler design pivot (September 2026)
 
-Status: **proposal**, consolidated 2026-09-24; not an implemented contract.
-See the [current scheduler](../software/scheduler.md),
+Status: **proposal**, consolidated 2026-09-25. Mechanisms below are implementation
+candidates. See the [current scheduler](../software/scheduler.md),
 [QP alternatives](../hardware/queue-pair-design.md), and
 [DCU progress model](../hardware/coherence-progress.md).
 
-## Capabilities and execution contract
+## Existing issues
 
-- **A:** allocate isolated worker cores to protection domains: Linux processes,
-  with multiple threads sharing a page table, driven by network and host work.
-- **B:** offload L7 decode/encode, including handler selection and arguments.
-- **C:** invoke the selected handler with minimal software dispatch.
+- **Handoff overhead:** READY/BUSY CAS protects transport operations while the
+  NIC coordinates IRQ-driven switching. The intended scheduling boundary is
+  already cooperative: a worker asks for RX when it has exhausted runnable work.
+- **Host-event integration:** blocking in 2F2F RX or parking a domain must still
+  permit progress on normal network I/O, storage completions and application
+  timers. These sources need a notification path into NIC-controlled execution.
+- **Interrupt latency:** an outstanding RX load can delay local interrupt service.
+  The coherence timeout/NACK bounds the stall, but that bound can be too long for
+  timely timer/IPI service.
+- **Endpoint placement:** stable per-thread mailbox addresses motivate the thread
+  router, while coherence progress calls for statically compatible DCU colors
+  across concurrently active worker endpoints and bypass.
+
+A domain is a Linux process with one page table and multiple registered workers.
+The NIC allocates cores among domains; Linux selects and parks their threads.
+Application execution is run-to-finish on the reserved worker pool. Core isolation
+keeps important housekeeping away from potentially stalled CPUs; measurement
+stability is an additional benefit. Retain the current isolation setup for this
+proposal.
+
+## Proposed mechanisms
+
+### PREEMPT and `lh_yield()`
+
+**RX means this worker has no runnable work.** Siblings may continue running.
+The runtime drains finite network-derived local work, then enters RX; handlers
+and their local continuations eventually finish or wait for external events.
+Self-sustaining batch work belongs outside this execution contract. Applications
+release locks before blocking RX/yield and use cooperative waits for continuations
+that require the worker to progress.
+
+At idle RX, the NIC either supplies work, stalls the load, or serves PREEMPT.
+After choosing PREEMPT it keeps requesting handoff until userspace calls
+`lh_yield()`. The kernel acknowledges entry through a register read (the current
+IpiAckReg role), completes transport drain, parks the old thread and installs the
+next assignment. Explicit HW/SW synchronization events authorize state changes;
+2F2F replay and parity mechanics implement the transport side of that contract.
+Normal TX preserves the assignment. This replaces CAS on the cooperative path.
+
+On resumption, yield returns mailbox identity and RX/TX parity; an index into
+pre-mapped regions suffices. The runtime retains the identity until its next
+yield. Implement the syscall interface as a blocking device ioctl behind the
+runtime wrapper; bootstrap supplies equivalent initial state. Reserve destination
+parallelism while dispatch is in flight and handle an unavailable target thread
+without panicking. Activation without an outstanding userspace RX needs a kernel
+wake path.
+
+Ordinary blocking syscalls retain the core/QP assignment and onehot affinity,
+including their contribution to assigned parallelism. Strongly recommend
+nonblocking sockets with epoll, asynchronous storage and cooperative runtime
+waits: a sleeping syscall may strand reserved capacity for an unbounded interval.
+This candidate targets cooperative allocation; fairness under load and general
+work-conserving multiplexing are separate policies.
+
+Start the cooperation timeout at the committed idle-preemption decision; account
+for transport delivery and kernel scheduling delay before diagnosing failure to
+yield. Timeout escalates to kill IRQ; execution watchdog policy is separate.
+**Signals and futex integration are deferred.** Termination/recovery is lower
+priority: fence new access, complete in-flight reads and retire CPU cache state
+before resetting/reusing FPGA 2F2F state. Validate that ordering when implementing
+recovery; see the [existing recovery design](../software/process-recovery.md).
+
+### HOST_WAKE
+
+HOST_WAKE indicates host work is ready; event details remain in Linux/runtime
+queues. Maintain a pending wake indication. **When serving RX with a wake pending,
+serve HOST_WAKE directly instead of popping the network request queue.** The
+queue remains untouched, so even a full queue cannot prevent wake delivery.
+Serialize consuming/clearing the indication with new notifications; coalesce
+notifications while preserving pending work. Pending wake also requests execution
+capacity when its recipient is parked.
+
+**Open for the next design discussion:** whether the recipient is a domain or a
+specific worker thread. Any-worker delivery requires that worker to service or
+dispatch the event; thread-owned event loops may need targeted activation. Settle
+this before choosing wake-state indexing and kernel/NIC selection semantics.
+
+Register the application's epoll FD(s) with the module. It retains the files with
+`fget` and subscribes via `vfs_poll` and persistent waitqueue callbacks, checking
+initial readiness. Callbacks notify the NIC through a kernel control register.
+Linux's epoll poll-wait notification works even without a sleeping epoll thread;
+a generic scheduler-wakeup hook alone misses that case.
+
+On HOST_WAKE, the runtime calls nonblocking `epoll_wait`, harvests/services ready
+FDs and retains unfinished work before RX. This keeps epoll off ordinary network
+iterations. Application deadlines use a nonblocking monotonic timerfd watched by
+registered epoll; the runtime may arm it for its earliest userspace timer expiry:
+
+```text
+Linux timer expiry -> timerfd readable -> epoll notification -> NIC HOST_WAKE
+                   -> runtime harvests events, reads timerfd, runs timers/rearms
+```
+
+Serialize timer collection/rearm where shared. Event loops using epoll wait
+timeouts adapt by arming timerfd before RX. Ordinary timed blocking syscalls wake
+their Linux thread on its retained core. Other host sources need an explicit
+notification adapter. Registration lifetime, rearm races and eventual teardown
+remain implementation checks.
+
+### Early NACK
+
+Early NACK releases **a particular worker CPU** to service interrupts; HOST_WAKE
+requests application execution. Mirror Linux architectural clock-event arming
+into a NIC deadline for that CPU. On expiry, complete outstanding RX and prevent
+another long stall until the event is serviced/reprogrammed. Cover replacement,
+disable, clock conversion and register-write latency. Timerfd's subsequent epoll
+notification supplies application activation, including for parked recipients.
+
+For IPIs, hook the sender and request early NACK for targeted worker CPUs. Order
+release and delivery so the target cannot reblock before the IPI becomes pending;
+define coalescing and release/rearm acknowledgment. The architectural timer is
+per-CPU, and timer migration/`nohz_full` does not remove every local timer.
+
+Implement in the C module using native fprobe entry/exit callbacks on timer
+programming/shutdown functions and a direct subscription to arm64 `ipi_raise`.
+Linux 6.8 [fprobe](https://docs.kernel.org/6.8/trace/fprobe.html) exposes
+`register_fprobe()`/`register_fprobe_syms()` for module callbacks; consider kprobes
+where ftrace attachment is unavailable. Verify deployed-kernel configuration,
+actual driver/erratum paths, already-armed deadlines and IPI paths bypassing the
+tracepoint. Monitor missed callbacks and synchronize hook/device lifetime.
+
+The **coherence timeout/NACK catchall remains** for missed hooks and unmirrored
+interrupts. Hook callbacks must tolerate IRQ/locking context; NIC-control accesses
+must make bounded progress independently of the stalled target. An explicit
+kernel hook is the fallback if probe coverage/reliability is insufficient.
+Interrupt-cancelable loads would address the underlying microarchitecture issue.
+
+### Replace the thread router with prefixed PA and fixed VA mappings
+
+Give each physical worker a statically colored QP signature, chosen together with
+bypass. Encode domain identity in PA prefixes while preserving that worker's
+**scrambled** colors across domains. Map the domain's worker aliases at fixed VAs
+once; yield selects the appropriate mapping on migration. Thread count remains
+the application's degree of parallelism. This replaces general thread routing
+with worker decoding, owner checking and domain-qualified coherence addresses.
+
+Kernel parking and controlled affinity/TASK_IDLE transitions ensure descheduled
+registered workers do not execute. Hardware rejects access inconsistent with the
+current owner; optional generic return-path assertions can diagnose accidental
+kernel violations. Keep these defensive checks distinct from the scheduling
+invariant.
+
+Implementation reminders:
+
+- Reject submissions impersonating another domain: compare descriptor PID and
+  reply-context ownership against trusted endpoint assignment identity.
+- Choose a feasible prefix encoding/address capacity; arbitrary high PA bits are
+  not automatically color-neutral. Prove static progress including bypass and
+  retiring traffic.
+- Retain old ownership through drain, preserve full addresses for coherence
+  responses/invalidation, and define safe rejected-access and prefix-reuse rules.
+  Cache hits bypass FPGA checks, so cache-state retirement is part of handoff.
+
+### Deferred alternative: reclaim during arbitrary blocking syscalls
+
+If stranded capacity becomes significant, consider same-core resumption with
+core-constrained wake demand, or migration through a transport stub. An immutable
+stub loading shared mailbox state adds a recurring fast-path dependency; patching
+a thread-specific stub pays instruction-cache synchronization on migration but
+complicates stub selection, concurrent execution and parity bookkeeping.
+
+Generic reclaim needs blocked/ready-thread accounting, persistent continuation
+demand, a return-to-user ownership gate and wake/reclaim/grant synchronization.
+Reject reclaim inside the transport operation: changing code/state does not repair
+saved registers, and replaying TX can duplicate it. These remain follow-on options.
+
+## Adoption route: A / AB / ABC
+
+| Capability | Meaning |
+| --- | --- |
+| A | NIC/OS allocation and activation driven by network and host work |
+| B | L7 decode/encode offload, including handler selection and arguments |
+| C | Minimal software dispatch into the selected handler |
 
 ONC-RPC handler selection already exists; runtime payload unmarshaling remains.
 Restricted argument formats could permit direct invocation. General full
-marshal/unmarshal is not complete. Intended adoption: microbenchmarks/NFS/Raft
-ABC; Dandelion A/AB (outer ONC-RPC envelope; sandbox setup still required);
-memcached A through its event loop. These are directions, not completed ports.
+marshal/unmarshal remains an extension.
 
-RX means **this worker has no runnable work**, not that the whole domain is idle.
-It stalls awaiting work or receives PREEMPT and yields; siblings may keep running.
-Handlers remain run-to-finish. **The candidate reclaims/migrates workers only at
-explicit Lauberhorn yield points**, apart from termination/recovery. Ordinary
-blocking syscalls retain the core/QP assignment and onehot affinity; Linux may
-sleep and resume the thread without changing its mailbox. No universal syscall
-interposition is required. Assigned parallelism includes these sleeping threads;
-the NIC cannot allocate their reserved capacity to another domain.
-
-Strongly recommend nonblocking sockets with epoll, asynchronous storage and
-cooperative runtime waits. Blocking is permitted but can strand capacity for an
-unbounded interval. Assume applications do not hold locks across blocking RX or
-Lauberhorn yield, or block waiting for a continuation that requires the same
-worker to progress. **Futex integration and its application-specific contention/
-progress implications are deferred, alongside signals**; this is not a claim of
-compatibility with arbitrary synchronization patterns.
-
-## Cooperative handoff and transport exposure
-
-At idle RX, return PREEMPT instead of a request/NACK; further RX reads remain
-PREEMPT until handoff. Userspace calls `lauberhorn_yield()`. Retain the kernel-entry
-acknowledgment currently provided by reading IpiAckReg (rename it), then drain
-RX/TX/coherence state before reassignment. Normal TX does not trigger descheduling.
-These boundaries replace CAS on the cooperative path; ordering and forced-kill
-retirement still need specification.
-
-Start the cooperation timeout at the committed idle-preemption decision;
-distinguish delivery failure from failure to enter the syscall. Timeout escalates
-to kill IRQ; execution watchdog policy is separate. Bootstrap/activation without
-a userspace RX waiter still needs a kernel wake mechanism: “IRQ only for kill”
-is not a complete idle-core protocol.
-
-On return, `lauberhorn_yield()` supplies mailbox identity plus RX/TX parity
-(an index suffices). The runtime retains that identity until the next yield;
-ordinary syscall returns need no mailbox refresh. This avoids requiring a shared
-mailbox-state lookup on every transport entry. Bootstrap must supply equivalent
-initial state. Parity restoration and ownership ordering remain to specify.
-
-## Static coloring and protection
-
-Worker-owned QP signatures permit static coloring of workers plus bypass, while
-logical threads migrate at yield boundaries. No thread per physical worker or
-per-migration page-table rewrite is required. This enables removal/simplification
-of the general thread router; it does not itself prove DCU progress.
-
-Candidate isolation: domain-qualified PA aliases preserving each worker's
-**scrambled** DCU colors. Page tables expose only the domain's aliases; hardware
-checks the prefix against the worker's current owner. Open: prefix encoding and
-capacity, reverse coherence addressing, safe unauthorized-access rejection,
-cached-state retirement and prefix reuse. Hardware cannot check cache hits;
-arbitrary high PA bits are not automatically color-neutral. Drain old ownership
-before reuse and include retiring traffic in the progress argument.
-
-## HOST_WAKE: domain work
-
-HOST_WAKE is a non-network RX control item asking an eligible domain worker to
-reap host events; results remain in their event/completion sources. For epoll,
-receive HOST_WAKE, call nonblocking `epoll_wait`, then service ready FDs. Epoll
-is not a universal I/O completion API. Retain unfinished local work before RX.
-This avoids an epoll syscall on every network iteration.
-
-Do **not** suppress HOST_WAKE just because the network queue is nonempty.
-Coalesce only with a persistent pending indication or an equivalent flag on
-another delivered RX item. Saturation, registration, rearm and consumption must
-not lose notifications. Host work must activate even a domain with no core.
-
-Candidate kernel integration: register the domain's epoll FD(s) and subscribe through their
-`.poll` waitqueue interface, notifying the NIC through a kernel control register.
-Linux 6.8's `ep->poll_wait` supports notification without a sleeping epoll thread.
-Check existing readiness at registration and handle teardown. Generic scheduler
-wake hooks miss events without sleeping tasks; probes are investigative, not an
-established correctness mechanism. Other event sources need subscriptions too;
-the source callback must itself be able to run.
-
-Application deadlines use a nonblocking monotonic timerfd watched by a registered
-epoll instance. The runtime can maintain its timer collection in userspace and
-arm the timerfd for its earliest expiry. The proposed notification path is:
-
-```text
-Linux timer expiry -> timerfd readable -> epoll poll-wait notification
-                  -> module writes NIC control register -> HOST_WAKE
-                  -> runtime epoll_wait(0), reads timerfd, runs due timers/rearms
-```
-
-Mirrored clock events below allow the timer ISR to execute promptly if its CPU
-is stalled in RX. The timerfd/epoll subscription then supplies domain activation,
-including when the domain is parked. Serialize timer collection/rearm if multiple
-workers service it. Event loops using only an epoll wait timeout need to arm a
-timerfd before switching their idle wait to RX. Ordinary timed blocking syscalls
-instead wake their specific Linux thread on its retained core. Registered epoll
-subscriptions are the concrete HOST_WAKE source in this candidate; additional
-sources require an explicit notification adapter.
-
-## Early NACK: core-local interrupt service
-
-RX already has a configurable NACK bound for coherence progress, but long bounds
-add interrupt latency. Separate **per-worker early NACK** from HOST_WAKE: a
-domain notification may reach a sibling instead of the CPU needing an interrupt.
-
-Candidate: mirror Linux architectural clock-event programming into a NIC deadline
-for that CPU. At expiry, complete outstanding RX and prevent another long stall
-until the event is serviced/reprogrammed. Cover replacement/shutdown, clock
-conversion, write latency and actual driver/erratum paths. The ISR cannot initiate
-its own release from a stalled load.
-
-Arm64 timer interrupts are per-CPU; Linux 6.8 timer migration and `nohz_full` do
-not remove all local hrtimers. Mirroring supports kernel-backed application
-timers without moving every timer to a housekeeping CPU.
-
-For IPIs, **hook the IPI sender** to request early NACK on each targeted worker
-that may be stalled in RX. Define ordering with IPI delivery so an early release
-cannot be followed by another long RX stall before the interrupt becomes pending;
-also cover target masks, coalescing and release/rearm acknowledgment. This is a
-per-core interrupt-service request, not domain HOST_WAKE. Hook placement and
-coverage remain to validate. Other unmirrored interrupts retain bounded NACK as
-the fallback. Interrupt-cancelable loads would address the underlying limitation.
-
-## Kernel-module integration candidate
-
-Keep the hooks and NIC-control callbacks in the existing C module:
-
-| Path | Mechanism |
+| Application | Intended adoption and adaptation |
 | --- | --- |
-| Epoll readiness | Retain registered files with `fget`; subscribe through `vfs_poll` and a persistent waitqueue callback |
-| Cooperative yield | Blocking device ioctl behind `lauberhorn_yield()`, returning assignment state on resume |
-| IPI early NACK | Subscribe directly to arm64's sender-side `ipi_raise` tracepoint |
-| Timer mirror/disable | Native fprobe entry/exit callbacks on timer programming/shutdown functions; consider kprobes where ftrace attachment is unavailable |
+| RPC microbenchmarks, NFS, Raft | ABC where the supported call format permits it |
+| Dandelion | A or AB: outer ONC-RPC envelope offload; dispatch still establishes the sandbox |
+| memcached | A: retain its event loop and connect host/NIC readiness through the adapter |
 
-Linux 6.8 [fprobe](https://docs.kernel.org/6.8/trace/fprobe.html) is a C API based
-on ftrace: `struct fprobe`, `register_fprobe()`/`register_fprobe_syms()` and
-`unregister_fprobe()`. Module callbacks call NIC-control code directly. BPF
-fentry/fexit is a separate attachment option; native fprobe fits the existing
-module. An unexported function can be a probe target if instrumentable.
+These are porting directions. HOST_WAKE ownership remains central to event-loop
+compatibility. Measure syscall-blocked capacity and contention in actual ports
+before expanding the scheduling model.
 
-Verify configuration and attachability on the deployed kernel, including timer
-driver/erratum variants and already-armed deadlines at installation. Audit IPI
-paths bypassing `ipi_raise`. Callbacks must tolerate their IRQ/locking context;
-NIC writes must be bounded and independent of the stalled target's progress.
-Handle module/device lifetime and unregister synchronization. Fprobe recursion
-protection or exhausted return-hook capacity can skip callbacks (`nmissed`);
-measure this and retain bounded NACK as fallback. If coverage or reliability is
-insufficient, add a small explicit kernel hook. This is source-level feasibility,
-pending an attachment and notification test on the actual Enzian kernel.
-
-## Deferred alternative: generic syscall reclaim
-
-Reclaiming syscall-blocked cores could recover stranded capacity, at additional
-kernel/runtime and NIC-scheduler complexity. Possible approaches:
-
-- Preserve same-core resumption and mailbox identity, but publish core-constrained
-  domain demand when the blocked thread wakes; restore its QP state before reuse.
-- Allow migration via an immutable kernel-exposed transport stub and per-thread
-  shared mailbox/parity state updated before userspace resumes. This adds a
-  mailbox-state load/dependency to the transport fast path.
-- Patch a thread-specific transport stub on migration to embed mailbox selection,
-  paying code-update/instruction-cache synchronization costs then. Shared page
-  tables, stub selection, concurrency and changing parity complicate this option;
-  mailbox-address patching alone does not solve parity bookkeeping.
-
-Migratable variants need a return-to-user ownership gate. Reject reclaim when the
-saved PC is inside the transport stub or helpers retaining mailbox state; the
-stub should neither syscall nor fault. Updating state/code does not repair saved
-registers mid-operation, and replaying TX can duplicate it. Fault handling and
-safe patch/state publication remain open; signals are deferred.
-
-The NIC could remain domain-aware while the kernel owns eligible-thread lists,
-but needs blocked-capacity accounting and persistent awakened-continuation demand,
-even with an empty RX queue or running sibling. Reclaim/wake/grant races and
-Linux-runnable versus permitted-to-resume state need synchronization. Existing
-`softwarePending` clearing on any resident worker, zero-core fallback allocation,
-and `enabled && worker_idx == -1` kernel selection are insufficient. These
-additions are **not required by the current yield-only candidate**.
-
-## Remaining validation
-
-Exercise cooperative handoff and HOST_WAKE/grant races, notification saturation/
-rearm, timer reprogramming and IPI send/release races during RX, yield
-migration/parity restoration, and
-stale-alias/coherence isolation across domains. Verify that ordinary syscall sleep
-retains assignment and resumes on the same core; measure stranded capacity and
-its effect on competing domains before deciding whether generic reclaim is needed.
-No implementation or new simulation/board acceptance is implied by this note.
+Validate handoff/yield migration and parity restoration, direct HOST_WAKE delivery
+with a full queue, wake-clear races, epoll/timerfd activation, timer/IPI early-NACK
+ordering, submission authorization and cross-domain cache-state isolation. Retain
+same-core resumption across ordinary syscall sleeps. Hook attachment and matched
+hardware acceptance remain outstanding.
 
 Linux 6.8 references: [eventpoll](https://github.com/torvalds/linux/blob/v6.8/fs/eventpoll.c),
 [timerfd](https://github.com/torvalds/linux/blob/v6.8/fs/timerfd.c),
 [scheduler](https://github.com/torvalds/linux/blob/v6.8/kernel/sched/core.c),
 [hrtimer](https://github.com/torvalds/linux/blob/v6.8/kernel/time/hrtimer.c),
 [arm timer](https://github.com/torvalds/linux/blob/v6.8/drivers/clocksource/arm_arch_timer.c),
-[arm64 user return](https://github.com/torvalds/linux/blob/v6.8/arch/arm64/kernel/entry-common.c).
+[arm64 IPI](https://github.com/torvalds/linux/blob/v6.8/arch/arm64/kernel/smp.c).
