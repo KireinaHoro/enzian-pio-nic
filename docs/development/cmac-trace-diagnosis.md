@@ -169,3 +169,52 @@ responder output frame, no accepted command, no overflow, and an idle parser.
 Inspect the last-header bytes and restore all controls afterward. This tests
 the local stream path independently of switch forwarding; it does not certify
 external signal integrity, ARP/status requests or DDR readout.
+
+## Diagnostic bitstream and board result, September 25
+
+Replacement pipeline **513714**, revision `cb2aedf4e52c5468a485c28142a10d6dc441a233`,
+passed every gate and produced hardware job **2847212** plus software job
+**2847211**. The scheduled collectors observed hardware still running at the
+first five-hour check, then success at the next delayed collection; no direct
+CI polling was used. The bitstream, LTX, trace map and deployment image were
+checksum-verified locally and after staging. Artifact provenance is retained
+in `out/ci/cmac-cb2aedf-hw-10h/summary.json`. Routed timing remains open:
+WNS -0.152 ns, TNS -14.033 ns, 423 failing setup endpoints, no hold violations.
+This is diagnostic hardware evidence, not timing closure.
+
+On reserved zuestoll14, the matched image passed its first verified cold boot,
+all QLM8..13 locks and CCPI lanes 0..23, driver verification, and 100 add RPCs.
+The static ECI edge ILA was armed before BDK release and tracing stayed active
+through module load. No `probe_versions` failure occurred.
+
+The new counters localize the remaining failure:
+
+- Peer zuestoll12 captured untagged ARP and correctly addressed UDP status
+  requests, including a broadcast status probe. No frame reached trace CMAC RX;
+  RX-after-CDC, parsed headers, ARP requests and commands remained zero.
+- Internal near-end PMA loopback cleared remote fault and stayed aligned.
+  One metadata trigger incremented responder frames, TX queued, CMAC TX,
+  CMAC RX, RX-after-CDC and parsed headers by exactly one. The saved header
+  matched the transmitted Ethernet/IPv4 bytes; the parser returned to idle
+  (`0xa001`), with no overflow and no accepted command. This tests the metadata
+  stream path, not UDP command execution or DDR reads.
+- After restoring external mode, the peer received one 74-byte metadata frame
+  from `192.168.129.201:55555`. Its status reported write slot 6,517,091,
+  sample-lost set and no DMA error. Subsequent ARP and UDP status requests
+  still timed out. Final counters showed two transmitted frames (loopback plus
+  external metadata), but only the one looped receive frame. Remote fault was
+  intermittent on the external link.
+
+Thus external trace TX works for the captured metadata packet, and local
+loopback traverses the stream/FIFO/parser path. External inbound delivery
+remains unverified at the CMAC boundary; there is no evidence yet for fixing
+UDP parsing or DDR reads. Obtain leaf1 SSH access, identify the trace-facing
+port, and inspect forwarding/VLAN, FEC and physical/error counters before
+choosing another RTL experiment. No new CI build was launched for this result.
+
+Full compact evidence is `out/hardware-tests/cmac-diag-20260925/summary.json`,
+with `vio-snapshots.json` and the `direct/` and `metadata/` packet captures.
+Both temporary peer neighbor entries were removed. All nine trace VIO outputs
+and six link outputs were restored; loopback is off and tracing resumed.
+The matched diagnostic image and test-owned add service remain on the DUT.
+Work remains on `fix/cmac-trace-readout`; CMAC DDR capture is not yet working.
