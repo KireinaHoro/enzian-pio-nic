@@ -1,6 +1,6 @@
 # Scheduler design pivot (September 2026)
 
-Status: **proposal**, consolidated 2026-09-25. Mechanisms below are implementation
+Status: **proposal**, consolidated 2026-09-28. Mechanisms below are implementation
 candidates. See the [current scheduler](../software/scheduler.md),
 [QP alternatives](../hardware/queue-pair-design.md), and
 [DCU progress model](../hardware/coherence-progress.md).
@@ -69,42 +69,72 @@ priority: fence new access, complete in-flight reads and retire CPU cache state
 before resetting/reusing FPGA 2F2F state. Validate that ordering when implementing
 recovery; see the [existing recovery design](../software/process-recovery.md).
 
-### HOST_WAKE
+### HOST_WAKE: epoll subscriptions and two delivery paths
 
-HOST_WAKE indicates host work is ready; event details remain in Linux/runtime
-queues. Maintain a pending wake indication. **When serving RX with a wake pending,
-serve HOST_WAKE directly instead of popping the network request queue.** The
-queue remains untouched, so even a full queue cannot prevent wake delivery.
-Serialize consuming/clearing the indication with new notifications; coalesce
-notifications while preserving pending work. Pending wake also requests execution
-capacity when its recipient is parked.
+Workers subscribe to epoll instances through the RT API during initialization.
+Multiple workers may subscribe to the same instance. **The domain's first
+`lh_yield()` seals all subscriptions**; later subscribe calls fail. Complete
+registration across workers before any yields. The kernel retains file references
+and stable per-source cookies through domain lifetime; application unsubscribe is
+deferred to teardown. The cookie identifies the registered epoll object, rather
+than a reusable integer FD, and is opaque to the NIC.
 
-**Open for the next design discussion:** whether the recipient is a domain or a
-specific worker thread. Any-worker delivery requires that worker to service or
-dispatch the event; thread-owned event loops may need targeted activation. Settle
-this before choosing wake-state indexing and kernel/NIC selection semantics.
+The module subscribes with `fget`, `vfs_poll` and persistent waitqueue callbacks,
+checking initial readiness. On readiness it records the source as pending and
+resolves the subscriber set:
 
-Register the application's epoll FD(s) with the module. It retains the files with
-`fget` and subscribes via `vfs_poll` and persistent waitqueue callbacks, checking
-initial readiness. Callbacks notify the NIC through a kernel control register.
-Linux's epoll poll-wait notification works even without a sleeping epoll thread;
-a generic scheduler-wakeup hook alone misses that case.
+- If an eligible subscriber has an assigned worker core, submit a targeted
+  HOST_WAKE request for that core and domain, carrying the source cookie.
+- Otherwise request a core allocation for the domain with that cookie. The NIC
+  selects a victim, delivers PREEMPT and reports `next_pid`, `reason=HOST_WAKE`
+  and the cookie in the new core's preempt information. The kernel resolves the
+  source, claims a parked subscriber and resumes it through `lh_yield()` with
+  mailbox/parity details and `has_host_work=1`.
 
-On HOST_WAKE, the runtime calls nonblocking `epoll_wait`, harvests/services ready
-FDs and retains unfinished work before RX. This keeps epoll off ordinary network
-iterations. Application deadlines use a nonblocking monotonic timerfd watched by
-registered epoll; the runtime may arm it for its earliest userspace timer expiry:
+For targeted delivery, **serve HOST_WAKE directly on RX instead of popping the
+network request queue**. The queue stays untouched even when full. The source
+cookie associates kernel/NIC requests and allocation results; the NIC still
+schedules domains and physical workers, while Linux selects threads. A direct
+RX pseudo packet and the yield return flag enter the same runtime servicing path.
+The userspace indication can remain a boolean: the recipient checks its subscribed
+epoll FDs, unless a later API chooses to identify the ready source explicitly.
+
+Maintain pending state per source; independent epoll instances may have disjoint
+subscriber sets. Coalesce repeated notifications for a source while preserving
+notifications arriving during service. Kernel/NIC acceptance, delivery and clearing
+acknowledgments remain to specify; a cookie supplies identity, not those ordering
+guarantees. A subscriber assigned to a core but blocked in an ordinary syscall
+retains that assignment; eligibility/retarget policy for this case remains open.
+
+On indication, the runtime calls nonblocking `epoll_wait`, harvests/services ready
+FDs and retains unfinished work before RX. Other consumers may already have taken
+the events, so an empty result is valid. Application deadlines use a nonblocking
+monotonic timerfd watched by registered epoll, armed for the earliest runtime expiry:
 
 ```text
-Linux timer expiry -> timerfd readable -> epoll notification -> NIC HOST_WAKE
+Linux timer expiry -> timerfd readable -> epoll notification -> kernel/NIC wake
+                   -> RX HOST_WAKE or yield(has_host_work=1)
                    -> runtime harvests events, reads timerfd, runs timers/rearms
 ```
 
-Serialize timer collection/rearm where shared. Event loops using epoll wait
-timeouts adapt by arming timerfd before RX. Ordinary timed blocking syscalls wake
-their Linux thread on its retained core. Other host sources need an explicit
-notification adapter. Registration lifetime, rearm races and eventual teardown
-remain implementation checks.
+Serialize shared timer collection/rearm. Event loops using epoll wait timeouts
+adapt by arming timerfd before RX. Ordinary timed blocking syscalls wake their
+Linux thread on its retained core. Other event sources need an explicit adapter.
+
+#### Significant races to resolve
+
+| Race | Required invariant / candidate resolution |
+| --- | --- |
+| Registration versus first yield and initial readiness | Atomically seal registration against subscribe; publish cookie/subscribers before callbacks can refer to them, and retain readiness observed before activation. |
+| Targeted wake versus PREEMPT/reassignment | Validate the expected assignment, including the selected subscriber (or an assignment generation). On mismatch, retain/retry or convert to allocation demand. Domain identity alone is insufficient when another thread of the same domain takes the core. |
+| Readiness versus consume/clear | Acknowledge a particular pending generation or use equivalent atomic ordering; clearing an old indication must not erase a newer one. Retain the obligation to harvest remaining events before RX. |
+| Multiple source requests versus simultaneous grants | Reserve both domain capacity and eligible subscriber claims. Two cookies sharing one parked subscriber must not cause two grants that require that same thread. Serialize outstanding allocation per domain initially, coordinating subscriber claims with network-driven dispatch too, or supply equivalent eligibility reservations. |
+| Allocation request versus subscriber becoming assigned | Revalidate on grant. Use the assigned eligible subscriber and cancel/redirect a redundant grant, or retain the original reservation until acknowledged completion. Stale demand must not force dispatch of an unrelated thread. |
+| Concurrent kernel notifications versus NIC control-register staging | Publish domain/cookie/target as one command, with interrupt-safe serialization and explicit acceptance/backpressure. Full wake-command storage must preserve kernel pending state. |
+
+Stable subscriptions remove normal unsubscribe races. Hold file references and
+require registered userspace FDs to remain usable through the execution lifetime.
+Domain teardown/cookie reuse and general signals/futex integration remain deferred.
 
 ### Early NACK
 
@@ -191,8 +221,7 @@ marshal/unmarshal remains an extension.
 | Dandelion | A or AB: outer ONC-RPC envelope offload; dispatch still establishes the sandbox |
 | memcached | A: retain its event loop and connect host/NIC readiness through the adapter |
 
-These are porting directions. HOST_WAKE ownership remains central to event-loop
-compatibility. Measure syscall-blocked capacity and contention in actual ports
+These are porting directions. Epoll subscriber sets express which workers can service each event source. Measure syscall-blocked capacity and contention in actual ports
 before expanding the scheduling model.
 
 Validate handoff/yield migration and parity restoration, direct HOST_WAKE delivery
