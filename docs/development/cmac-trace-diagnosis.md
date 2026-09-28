@@ -390,3 +390,54 @@ All trace controls were restored, loopback disabled and tracing resumed.
 The matched c5be158 image and test-owned add service remain on the DUT.
 Work stays on `fix/cmac-trace-readout` pending link-reliability diagnosis;
 no additional CI was launched.
+
+## Full-buffer RPC trial, September 28
+
+Matched pipeline 514053 (`c5be158`) passed a fresh verified cold boot, driver
+revision verification, and three batches of 100 add RPCs. All 300 arithmetic
+results and echoed IDs passed; client XDR counters recorded no RPC retries.
+The bitstream, LTX, trace map and software image hashes matched the archived
+artifacts. No new CI was launched or polled.
+
+Tracing stayed active through module load and all RPCs. Freezing afterward
+left write slot 3,298,221: **211,086,144 bytes**, unwrapped, DMA error clear.
+The unchanged UDP client was instrumented externally to count its sends,
+timeouts and accepted responses, alongside an AF_PACKET PCAP:
+
+- 6,607 reads succeeded, saving **9,302,656 bytes**. The next read received
+  no reply despite five automatic retransmissions (six sends/timeouts).
+  The tool failed explicitly and left its partial output file.
+- Wire counts independently agree: 6,613 requests, 6,608 unique requests,
+  6,607 data responses. No capture-socket drops, bad IPv4 checksums or
+  discrepancies between response payloads and saved bytes were observed.
+  All accepted responses reported the same frozen status. This validates
+  assembly of the received prefix, not the unread remainder.
+- A bounded resume from offset 9,302,656 waited 90 seconds but received no
+  metadata, so it never issued a read. The extended 120-retry setting was
+  therefore not exercised. Trace VIO showed RX alignment/status asserted
+  and remote fault asserted; the precise point of packet loss is unresolved.
+- JTAG independently matched the first 4 KiB. The final 1 MiB was preserved
+  from offset 210,037,568. Neither that tail nor the UDP prefix contains a
+  positive lost-sample marker. The middle was not downloaded, so full trace
+  completeness and RPC-event coverage remain **unverified**.
+
+The sticky `sampleLost` bit was set, but it alone cannot establish loss before
+freeze: `traceStop` gates new DDR descriptors while trace inputs continue,
+which can overflow the recorder after freezing. Count positive reserved-source
+loss markers inside the saved buffer; zero-count markers are padding bubbles.
+Loss before DDR recording cannot be repaired by network retransmission.
+
+Evidence: `out/hardware-tests/cmac-full-20260928/summary.json`, `received/`,
+`resume/received/`, `jtag-rpc-validation.json`, three client CSVs, and the
+retained instrumentation/analysis scripts. Three existing UDP loopback tests
+passed. Separate local fault injection verified successful identical-request
+retry after dropping one response, and failure after six sends when all
+responses were dropped.
+
+The **full CMAC dump remains incomplete**. Temporary network overrides were
+restored, but `trace_stop=1` is deliberately retained on zuestoll14 to preserve
+the frozen buffer. Do not reset/reprogram/resume tracing before recovering or
+explicitly abandoning it. Saved original controls are on ba2 at
+`/tmp/cmac-full-20260928/original-vio.tcl`; the corresponding `trace-vio.tcl`
+`restore` mode restores all of them, including restarting tracing. Branch
+`fix/cmac-trace-readout` remains unmerged pending reliable external readout.
