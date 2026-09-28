@@ -519,3 +519,21 @@ The old 211,086,144-byte F_MAC3 capture is still intentionally frozen on
 zuestoll14. Preparing/launching this build does not reprogram the board.
 Preserve/recover that trace before any later reset or programming; match the
 new bitstream, software, LTX and trace map for the F_MAC1 board test.
+
+### F_MAC1 CI result
+
+Revision `5cda9017fdae1177c002ad0ba51ec3176019c917` completed pipeline
+[514561](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/514561)
+successfully. All eleven CI jobs passed, including hardware build 2852730
+and software preparation 2852729. The scheduled five-hour collector saved
+matching bitstream, LTX, trace map and `deploy.img` under
+`out/ci/cmac-5cda901-hw-5h/`; all five collected artifact SHA-256 hashes
+(including the physical summary) were independently verified locally.
+
+The routed report is complete but does **not** establish timing closure:
+WNS -0.062 ns, TNS -4.622 ns, 184 failing setup endpoints; hold and pulse-width
+failures are zero. The bounded failing-path sample concerns ECI logic.
+This image is available for experimental F_MAC1 board validation, not a
+validated link fix. No replacement build or further CI timer is needed.
+The existing frozen F_MAC3 trace remains untouched; recover/preserve it
+before programming this image. No board result for F_MAC1 is claimed.
