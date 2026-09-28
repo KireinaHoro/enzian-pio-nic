@@ -71,20 +71,33 @@ recovery; see the [existing recovery design](../software/process-recovery.md).
 
 ### HOST_WAKE: epoll subscriptions and two delivery paths
 
-Workers subscribe to epoll instances through the RT API during initialization.
-Multiple workers may subscribe to the same instance. **The domain's first
-`lh_yield()` seals all subscriptions**; later subscribe calls fail. Complete
-registration across workers before any yields. The kernel retains file references
-and stable per-source cookies through domain lifetime; application unsubscribe is
-deferred to teardown. The cookie identifies the registered epoll object, rather
-than a reusable integer FD, and is opaque to the NIC.
+Workers subscribe through the RT API during initialization. **Each thread may
+subscribe to at most one epoll instance**; multiple threads may share that instance.
+Seal each thread's subscription at its first Lauberhorn registration/parking
+boundary, before publishing it as dispatchable. In the current kmod this is the
+worker datapath `mmap`: it queues return-to-user task work which parks the thread
+after mmap locks are released. Seal even if an immediate grant avoids an actual
+sleep. Later subscribe calls for that thread fail; other threads can complete
+their own initialization independently.
+
+The runtime's current worker init callback runs after datapath `mmap` returns, so
+subscription setup needs a pre-registration API/hook. Publish the cookie and
+subscription before activation; retain initial readiness until the thread becomes
+dispatchable. The kernel keeps file references and stable per-source cookies for
+the domain lifetime. Application unsubscribe is deferred to teardown. A cookie
+identifies the registered epoll object rather than a reusable integer FD, and is
+opaque to the NIC.
 
 The module subscribes with `fget`, `vfs_poll` and persistent waitqueue callbacks,
 checking initial readiness. On readiness it records the source as pending and
 resolves the subscriber set:
 
-- If an eligible subscriber has an assigned worker core, submit a targeted
-  HOST_WAKE request for that core and domain, carrying the source cookie.
+- If any subscriber is hot (running or ready on an assigned worker), submit a
+  targeted HOST_WAKE for that worker and domain, carrying the source cookie.
+  Treat an unrelated syscall-blocked subscriber as actively running a handler:
+  retain its assignment and pending wake until its next RX. **Host readiness does
+  not scale up while a subscriber is hot.** A reserved/in-flight activation also
+  suppresses duplicate allocation requests for that source.
 - Otherwise request a core allocation for the domain with that cookie. The NIC
   selects a victim, delivers PREEMPT and reports `next_pid`, `reason=HOST_WAKE`
   and the cookie in the new core's preempt information. The kernel resolves the
@@ -96,15 +109,16 @@ network request queue**. The queue stays untouched even when full. The source
 cookie associates kernel/NIC requests and allocation results; the NIC still
 schedules domains and physical workers, while Linux selects threads. A direct
 RX pseudo packet and the yield return flag enter the same runtime servicing path.
-The userspace indication can remain a boolean: the recipient checks its subscribed
-epoll FDs, unless a later API chooses to identify the ready source explicitly.
+The userspace indication is a boolean: the recipient services its sole subscribed
+epoll FD. First activation through registration must expose the same pending-work
+indication as a later yield return.
 
 Maintain pending state per source; independent epoll instances may have disjoint
 subscriber sets. Coalesce repeated notifications for a source while preserving
 notifications arriving during service. Kernel/NIC acceptance, delivery and clearing
 acknowledgments remain to specify; a cookie supplies identity, not those ordering
-guarantees. A subscriber assigned to a core but blocked in an ordinary syscall
-retains that assignment; eligibility/retarget policy for this case remains open.
+guarantees. Syscall blocking may delay host-event service; this follows the
+retained-core execution policy rather than triggering host-driven scale-up.
 
 On indication, the runtime calls nonblocking `epoll_wait`, harvests/services ready
 FDs and retains unfinished work before RX. Other consumers may already have taken
@@ -125,11 +139,11 @@ Linux thread on its retained core. Other event sources need an explicit adapter.
 
 | Race | Required invariant / candidate resolution |
 | --- | --- |
-| Registration versus first yield and initial readiness | Atomically seal registration against subscribe; publish cookie/subscribers before callbacks can refer to them, and retain readiness observed before activation. |
+| Registration versus initial readiness | Seal each thread at registration before dispatch publication; serialize adding subscribers with callback selection, publish valid cookie/subscription state before callbacks use it, and retain pre-activation readiness. |
 | Targeted wake versus PREEMPT/reassignment | Validate the expected assignment, including the selected subscriber (or an assignment generation). On mismatch, retain/retry or convert to allocation demand. Domain identity alone is insufficient when another thread of the same domain takes the core. |
 | Readiness versus consume/clear | Acknowledge a particular pending generation or use equivalent atomic ordering; clearing an old indication must not erase a newer one. Retain the obligation to harvest remaining events before RX. |
-| Multiple source requests versus simultaneous grants | Reserve both domain capacity and eligible subscriber claims. Two cookies sharing one parked subscriber must not cause two grants that require that same thread. Serialize outstanding allocation per domain initially, coordinating subscriber claims with network-driven dispatch too, or supply equivalent eligibility reservations. |
-| Allocation request versus subscriber becoming assigned | Revalidate on grant. Use the assigned eligible subscriber and cancel/redirect a redundant grant, or retain the original reservation until acknowledged completion. Stale demand must not force dispatch of an unrelated thread. |
+| Repeated source notifications versus simultaneous grants | One epoll subscription per thread makes different source subscriber sets disjoint. Still reserve domain capacity and a subscriber against duplicate source requests and network-driven dispatch; an in-flight activation suppresses another HOST_WAKE allocation for that source. |
+| Allocation request versus subscriber becoming assigned | Revalidate on grant and enforce the hot-subscriber rule. Target an already-assigned subscriber and cancel/redirect a redundant grant, or retain an exclusive reservation until acknowledged completion. Stale demand must not force dispatch of an unrelated thread. |
 | Concurrent kernel notifications versus NIC control-register staging | Publish domain/cookie/target as one command, with interrupt-safe serialization and explicit acceptance/backpressure. Full wake-command storage must preserve kernel pending state. |
 
 Stable subscriptions remove normal unsubscribe races. Hold file references and
