@@ -5,6 +5,11 @@ for test selection or the [trace tools README](../../data/eci/sys_trace/README.m
 for exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
+The F_MAC1 comparison image `5cda901` passed a matched board test with 300 RPCs
+and three identical full 322,322,624-byte UDP trace reads without retransmission.
+See the [board evidence and limits](cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
+This is a single-boot validation; routed timing remains open.
+
 ## Overview
 
 The tracing path has four layers:

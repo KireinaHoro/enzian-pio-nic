@@ -3,7 +3,8 @@
 Started 2026-09-24 from platform `7fbbaa6`, branch `fix/cmac-trace-readout`,
 in the sibling `platform-cmac-trace` worktree. This effort is authorized to
 run new RTL CI sparingly. After launching a pipeline, schedule a result fetch
-five hours later; do not poll CI in the meantime. Timing optimization remains
+once after 30 minutes, then start the five-hour collector only after hardware
+is observed running; do not poll CI in the meantime. Timing optimization remains
 outside this effort.
 
 ## Evidence and open questions
@@ -537,3 +538,58 @@ This image is available for experimental F_MAC1 board validation, not a
 validated link fix. No replacement build or further CI timer is needed.
 The existing frozen F_MAC3 trace remains untouched; recover/preserve it
 before programming this image. No board result for F_MAC1 is claimed.
+
+## F_MAC1 board validation, September 28
+
+Tested revision `5cda9017fdae1177c002ad0ba51ec3176019c917`, pipeline 514561,
+with matching hardware job 2852730, software job 2852729, LTX and trace map.
+Both zuestoll14 and peer zuestoll12 were rechecked as reserved to pengxu.
+Before resetting, the old F_MAC3 link had recovered: a bounded read with the
+peer overrides restored recovered the entire 211,086,144-byte frozen buffer
+with zero retransmissions, zero loss markers and zero packet-recorder drops.
+Its head and tail matched the earlier JTAG samples. The old archive SHA-256 is
+`671ee92e64b5d03fabca4e97fc5efbf6ddb5fa0df1eae4af23a408a488cede5e`.
+The redundant slow full JTAG read was then stopped. Thus the previous capture
+is preserved, and F_MAC3's fault is intermittent rather than an inability to
+transfer a full buffer under all conditions.
+
+F_MAC1 results:
+
+- One verified cold boot passed on the first attempt: QLM8..13 locked and
+  CCPI/ECI lanes 0..23 initialized. Matched module load and version verification
+  passed without a `probe_versions` failure. Static edge ILA was armed before
+  releasing boot; DDR tracing remained active through module load.
+- Three batches of 100 add RPCs passed: 300/300 correct, zero RPC retransmissions.
+- Before freeze: writeSlot 5,036,291, unwrapped, sampleLost=0, DMAerror=0.
+  The sticky sampleLost bit became 1 only after freeze, while sources continued;
+  the archived buffer has zero loss markers/reported lost samples.
+- Three full UDP reads each returned **322,322,624 bytes**, each using 228,923
+  accepted data responses, zero retransmissions/timeouts and stable status.
+  All three SHA-256 hashes match:
+  `b7532515fae2e5d4b500c302eb55d4bd75f2a80312130d9e18dc7532cb951c68`.
+  Independent JTAG reads of the first and final 4 KiB match the UDP data.
+- The first two auxiliary PCAP recordings dropped 155 and 356 packets locally;
+  their UDP output files were nevertheless complete and identical. The final
+  recording used temporary RAM storage and 200-us request pacing, giving zero
+  socket drops, complete byte coverage, zero payload mismatches, zero invalid
+  IPv4 checksums and a response for every request. Its actual receive buffer
+  remained 212,992 bytes; do not attribute success to receive-buffer enlargement.
+- ARP learned `.204` as `0c:53:31:03:01:cc` without a permanent neighbor.
+  Leaf1 Ethernet100 / front-panel 26/0 stayed up at 100G/RS-FEC. Corrected and
+  uncorrectable FEC counts and all four lane-error counters stayed zero before
+  and after the reads; RX errors/drops were also zero. Main Ethernet96 was up
+  with zero FEC corrections, uncorrectables, RX errors and drops after boot.
+- Temporary VIO controls were restored: override_valid=0, network trigger=0,
+  trace_stop=0, loopback=0, all CMAC/GT resets=0. The new image and RPC server
+  remain running, with tracing resumed. Switch configuration was unchanged.
+
+Evidence: `out/hardware-tests/cmac-fmac1-20260928/summary.json`, `board/`,
+`received/`, `repeat/received/`, `final-capture/received/`, independent JTAG
+samples, switch snapshots and `restore.log`. The old recovered capture is in
+`recover-old/received/` under the same directory.
+
+This validates F_MAC1 full-buffer readout in this run. It is one cold boot and
+three reads of one frozen capture, not a long-duration reliability result or
+proof that CMAC-to-GT distance caused F_MAC3's intermittent faults. Routed
+WNS remains -0.062 ns with 184 failing setup endpoints; no timing gates were
+changed and no further CI build was launched for this board test.
