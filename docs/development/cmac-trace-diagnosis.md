@@ -441,3 +441,52 @@ explicitly abandoning it. Saved original controls are on ba2 at
 `/tmp/cmac-full-20260928/original-vio.tcl`; the corresponding `trace-vio.tcl`
 `restore` mode restores all of them, including restarting tracing. Branch
 `fix/cmac-trace-readout` remains unmerged pending reliable external readout.
+
+## CMAC, GT and pad placement audit, September 28
+
+Read the exact pipeline-514053/job-2849377 routed checkpoint with Vivado
+2025.1, using `tools/physical/checkpoint.tcl` followed by bounded hard-block
+and package-pin queries. This is an offline audit, not a new implementation
+or board run. The checkpoint was fetched directly as a known completed
+artifact; no CI status polling or launch occurred.
+
+| Path | CMAC site / clock region | GT channels / clock region | SLR / pad bank |
+| --- | --- | --- | --- |
+| Main F_MAC0 | CMACE4_X0Y1 / X0Y2 | X0Y8–11 / X0Y2 | SLR0 / 121 |
+| Trace F_MAC3 | CMACE4_X0Y8 / X0Y14 | X1Y56–59 / X5Y14 | SLR2 / 233 |
+
+**The trace CMAC-to-GT connection crosses the device horizontally.** The main
+CMAC is in the same clock region as its GTs. Do not describe the two physical
+topologies as identical, or dismiss this distinction using fabric STA alone.
+However, the trace configuration satisfies AMD's CAUI-4
+[transceiver selection rules](https://docs.amd.com/r/en-US/pg203-cmac-usplus/Transceiver-Selection-Rules):
+all four GTs belong to one quad, share the CMAC's horizontal clock-region row,
+and remain in the same SLR. Actual GT properties have `RXBUF_EN=TRUE` and
+`TXBUF_EN=TRUE`; this is not the unsupported opposite-column RX-buffer-bypass
+case. The CMAC/GT selections, 322.265625 MHz reference and polarity masks
+match Enzian `interfaces-stub` revision `331c57c`.
+
+Every F_MAC0/F_MAC3 package pin was checked against its actual connected hard
+primitive. Trace TX positive pads E9/D7/C9/A9 are bank-233 channels 0/1/2/3,
+connected respectively to GTYE4_CHANNEL_X1Y56/57/58/59. Their negative pads
+and all RX pairs also match. Reference D11/D10 enters the same quad at
+GTYE4_COMMON_X1Y14. Main pads and reference likewise match bank 121 and
+GTYE4_COMMON_X0Y2. No GT-to-wrong-pad-bank or lane-index mismatch was found.
+GT parameter-property comparison between main lane 0 and trace lane 0 found
+only object identity/location differences; it does not inspect live DRP state
+or establish electrical settings appropriate for the cable.
+
+The checkpoint has zero routing errors and no CMAC/GT/pad placement violation
+in default DRC; other design warnings remain. Fabric setup representatives
+are main RX/TX +0.072/+0.026 ns and trace RX/TX +0.051/+0.276 ns. **Direct
+CMAC↔GT setup/hold queries return no timing paths in either direction.**
+Those positive fabric margins therefore must not be presented as timing
+validation of the CMAC-to-GT or analog GT-to-pad connection. The three
+remaining global setup failures are ECI paths (worst -0.005 ns).
+
+Conclusion: a real cross-device placement difference exists, but no unsupported
+pairing or misplaced pad was found. Supported placement and matching reference
+design are evidence of legality, not proof of a healthy serial link or a
+root-cause exclusion. The frozen trace was untouched. Evidence and a compact
+per-pad mapping are in `out/physical/cmac-placement-514053/summary.json`, with
+the complete reports and query script beside it.
