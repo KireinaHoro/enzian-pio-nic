@@ -316,6 +316,23 @@ tool loops over chunks for multi-GB dumps.  A zero-length read is a status query
 and returns `writeSlot`, `wrapped`, `sampleLost`, and `dmaError` without issuing
 a DDR read.
 
+The host uses one outstanding numbered read at a time. Missing or malformed
+responses time out; by default it retries the identical request five times
+after one-second waits, then fails. It validates sequence, offset, returned
+length and DMA status before appending data. Retries are not individually
+reported by the current CLI; a failed dump leaves a partial file. Initial
+metadata reception is separate and requires another VIO announcement if lost.
+These retries recover transport loss, not samples lost before DDR recording.
+The protocol has no application payload checksum and FPGA UDP responses use
+a zero UDP checksum; sequence/length checks alone are not an independent
+content-integrity check.
+
+For completeness, freeze and verify a stable write pointer, read the entire
+valid range (and handle wrapping), then inspect recorded loss markers with the
+matching map. `sampleLost` is sticky and can become asserted after freezing
+because trace inputs continue while DDR writes stop. A set flag alone cannot
+date the loss relative to freeze.
+
 Example status query:
 
 ```sh
