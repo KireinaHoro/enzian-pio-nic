@@ -23,8 +23,8 @@ object LauberhornTraceDump {
   val StatusOk = 0
   val StatusBadCommand = 1
   val StatusBadAlignment = 2
-  val DefaultLocalMac = BigInt("0c53310301d4", 16)
-  val DefaultLocalIp = BigInt("c0a881c9", 16) // 192.168.129.201
+  val DefaultLocalMac = BigInt("0c53310301cc", 16)
+  val DefaultLocalIp = BigInt("c0a881cc", 16) // 192.168.129.204
   val DefaultListenUdpPort = 55555
   val DefaultGatewayMac = BigInt("f4521463a091", 16)
   val DefaultDumpServerIp = BigInt("81846608", 16) // 129.132.102.8

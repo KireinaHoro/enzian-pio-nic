@@ -257,24 +257,31 @@ issues one aligned DMA read, then injects one combined Ethernet/IPv4/UDP
 response header.  An AXI stream aligner is placed before the trace CMAC TX path
 so partial `TKEEP` beats are only presented at packet end.
 
-The trace CMAC is wired to `F_MAC3`, whose package pins are GTY quad 233 in SLR2
-(`X1Y56` through `X1Y59`) and use CMAC site `CMACE4_X0Y8`.  This is separate
+The trace CMAC is wired to `F_MAC1`, whose package pins are GTY quad 124 in SLR1
+(`X0Y20` through `X0Y23`) and use CMAC site `CMACE4_X0Y3`.  This is separate
 from the normal `NicEngine` CMAC on `F_MAC0`.  The trace-status VIO controls
 the responder's local identity, next-hop MAC, and dump-capture server address.
 With all override-valid bits left at zero, the hardware defaults are:
 
-- self MAC: `0c:53:31:03:01:d4`
-- self IPv4 address: `192.168.129.201`
+- self MAC: `0c:53:31:03:01:cc`
+- self IPv4 address: `192.168.129.204`
 - listen UDP port: `55555`
 - gateway/next-hop MAC: `f4:52:14:63:a0:91`
 - dump server IPv4 address: `129.132.102.8`
 - dump server UDP port: `55555`
 
-The ports require different GT RX/TX polarity masks: `0011` for F_MAC0 and
-`1100` for F_MAC3. The shared CMAC control constructor takes the polarity
-mask as a parameter; copying F_MAC0's mask onto F_MAC3 prevents external
-alignment even though internal PMA loopback succeeds. This matches the
-engineer's [interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L297).
+Both active ports use GT RX/TX polarity mask `0011`: F_MAC0 for RPC and
+F_MAC1 for trace. This matches the engineer's
+[interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L549).
+On zuestoll14, F_MAC1 is leaf1 Ethernet100 (ZS14-FPGA2). The main RPC
+interface remains `0c:53:31:03:01:c8` / `192.168.129.200`; the capture peer
+remains zuestoll12 `cpu40g1`, `192.168.129.129`.
+
+Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
+polarity `1100`. Use the address and port for the actual bitstream; do not
+apply old F_MAC3 capture filters or neighbor overrides to an F_MAC1 image.
+The F_MAC1 move is awaiting routed and board validation; earlier successful
+captures in this document were on F_MAC3.
 
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:

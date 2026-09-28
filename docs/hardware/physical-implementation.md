@@ -112,7 +112,8 @@ membership and fixed cells before tightening regions. Overconstraining a crowded
 region can turn a local improvement into routing congestion elsewhere.
 Check wildcard matches when adding ports. The old `i_app/*x_rst_sync` selector
 also captured `trace_dump_tx_rst_sync` into SLR0. Current constraints use exact
-main/trace instances and place trace resets with the TX FIFO in SLR2. The
+main/trace instances and place trace resets with the TX FIFO in the trace CMAC SLR (now SLR1 for
+F_MAC1 on the CMAC-readout branch; historical F_MAC3 trials used SLR2). The
 [latest comparison](physical-experiments.md#september-15-completed-prewarmed-nix-master-builds)
 shows positive trace TX slack and remaining ECI gateway/transport bottlenecks.
 

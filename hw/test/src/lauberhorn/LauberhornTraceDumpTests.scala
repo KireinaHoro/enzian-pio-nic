@@ -73,9 +73,9 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[TraceDumpAlignedHarness] {
   def bytes(hex: String): List[Byte] =
     hex.grouped(2).map(Integer.parseInt(_, 16).toByte).toList
 
-  val fpgaMac = bytes("0c53310301d4")
+  val fpgaMac = bytes("0c53310301cc")
   val hostMac = bytes("001122334455")
-  val fpgaIp = bytes("c0a881c9")
+  val fpgaIp = bytes("c0a881cc")
   val hostIp = bytes("c0a88164")
   val srcPort = 44444
   val dstPort = 55555
