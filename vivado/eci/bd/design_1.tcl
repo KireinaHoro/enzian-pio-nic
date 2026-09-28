@@ -1035,15 +1035,15 @@ proc create_root_design { parentCell } {
     CONFIG.USER_INTERFACE {AXIS} \
   ] $cmac_usplus_0
 
-  # Create instance: cmac_usplus_1, trace dump CMAC on F_MAC3 / GTY quad 233 in SLR2
+  # Create instance: cmac_usplus_1, trace dump CMAC on F_MAC1 / GTY quad 124 in SLR1
   set cmac_usplus_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_1 ]
   set_property -dict [list \
     CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
     CONFIG.CMAC_CAUI4_MODE {1} \
-    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y8} \
+    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y3} \
     CONFIG.ENABLE_AXI_INTERFACE {0} \
     CONFIG.GT_DRP_CLK {100} \
-    CONFIG.GT_GROUP_SELECT {X1Y56~X1Y59} \
+    CONFIG.GT_GROUP_SELECT {X0Y20~X0Y23} \
     CONFIG.GT_REF_CLK_FREQ {322.265625} \
     CONFIG.INCLUDE_AUTO_NEG_LT_LOGIC {0} \
     CONFIG.INCLUDE_RS_FEC {1} \
@@ -1064,8 +1064,8 @@ proc create_root_design { parentCell } {
   create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_cmac_ctrl_stat
 
   # Create instance: hier_trace_cmac_ctrl_stat
-  # F_MAC3 reverses lanes 2/3, unlike F_MAC0's lanes 0/1. Match interfaces-stub.
-  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat 0b1100
+  # F_MAC1 reverses lanes 0/1, like F_MAC0. Match interfaces-stub.
+  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat 0b0011
 
   # Create instance: hier_clk_rst
   create_hier_cell_hier_clk_rst [current_bd_instance .] hier_clk_rst

@@ -2019,12 +2019,12 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     gt_gtx_p => F_MAC0_TX_P,
     gt_ref_clk_clk_n => F_MAC0C_CLK_N,
     gt_ref_clk_clk_p => F_MAC0C_CLK_P,
-    trace_gt_grx_n => F_MAC3_RX_N,
-    trace_gt_grx_p => F_MAC3_RX_P,
-    trace_gt_gtx_n => F_MAC3_TX_N,
-    trace_gt_gtx_p => F_MAC3_TX_P,
-    trace_gt_ref_clk_clk_n => F_MAC3C_CLK_N,
-    trace_gt_ref_clk_clk_p => F_MAC3C_CLK_P,
+    trace_gt_grx_n => F_MAC1_RX_N,
+    trace_gt_grx_p => F_MAC1_RX_P,
+    trace_gt_gtx_n => F_MAC1_TX_N,
+    trace_gt_gtx_p => F_MAC1_TX_P,
+    trace_gt_ref_clk_clk_n => F_MAC1C_CLK_N,
+    trace_gt_ref_clk_clk_p => F_MAC1C_CLK_P,
 
     -- clocking & reset
     clk_io => clk_io,

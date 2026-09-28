@@ -490,3 +490,32 @@ design are evidence of legality, not proof of a healthy serial link or a
 root-cause exclusion. The frozen trace was untouched. Evidence and a compact
 per-pad mapping are in `out/physical/cmac-placement-514053/summary.json`, with
 the complete reports and query script beside it.
+
+## F_MAC1 comparison build, September 28
+
+The maintainer requested a comparison bitstream using the physically local
+F_MAC1 CMAC/GT pairing. The trace instance now selects CMACE4_X0Y3 and
+GTYE4_CHANNEL_X0Y20..23 in SLR1, uses F_MAC1's serial/reference-clock ports,
+and applies RX/TX polarity `0011`. Its reset synchronizers and TX FIFO
+floorplan move to SLR1; trace DDR and its writer remain in SLR2. RS-FEC and
+other CMAC link parameters are unchanged. This is a controlled port-migration
+experiment, not a claim that horizontal CMAC-to-GT distance caused the faults.
+
+New zuestoll14 defaults: trace MAC `0c:53:31:03:01:cc`, static IP
+`192.168.129.204`, UDP 55555, switch leaf1 Ethernet100 (ZS14-FPGA2).
+Main F_MAC0 remains `0c:53:31:03:01:c8` / `192.168.129.200`. Capture peer
+zuestoll12 remains `0c:53:31:03:01:81` / `192.168.129.129`; the existing VIO
+next-hop/server overrides still apply. These are bitstream defaults, not a
+change to switch or DHCP configuration. F_MAC3 historical addresses and
+captures above refer to their original images.
+
+The focused `LauberhornTraceDumpTests` suite passed all 11 tests with the new
+MAC/IP expectations. Generated project and implementation results belong to
+this new build and must be checked before deployment. After push, perform a
+one-shot check after 30 minutes; start the five-hour wait only if hardware
+is running. No test gate is weakened or skipped.
+
+The old 211,086,144-byte F_MAC3 capture is still intentionally frozen on
+zuestoll14. Preparing/launching this build does not reprogram the board.
+Preserve/recover that trace before any later reset or programming; match the
+new bitstream, software, LTX and trace map for the F_MAC1 board test.
