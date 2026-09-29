@@ -1,15 +1,42 @@
 package lauberhorn
 
 import jsteward.blocks.DutSimFunSuite
-import jsteward.blocks.axi.AxiDmaConfig
+import jsteward.blocks.axi.{AxiDmaConfig, AxiStreamAligner}
 import spinal.core._
 import spinal.core.sim._
 import spinal.lib.bus.amba4.axi.Axi4Config
 import spinal.lib.bus.amba4.axis.Axi4StreamConfig
 import spinal.lib.bus.amba4.axis.sim.{Axi4StreamMaster, Axi4StreamSlave}
 import spinal.lib.sim._
+import spinal.lib._
 
-class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
+// Include the actual TX aligner: a byte-list sink alone hides illegal holes in TKEEP.
+case class TraceDumpAlignedHarness(axisConfig: Axi4StreamConfig, dmaConfig: AxiDmaConfig,
+                                   axiBase: BigInt) extends Component {
+  val responder = LauberhornTraceDump(axisConfig, dmaConfig, axiBase)
+  val aligner = AxiStreamAligner(axisConfig)
+  val rx = slave(cloneOf(responder.rx))
+  val tx = master(cloneOf(responder.tx))
+  val cfg = in(cloneOf(responder.cfg))
+  val dumpOverNetwork = in(Bool())
+  val status = in(cloneOf(responder.status))
+  val readDesc = master(cloneOf(responder.readDesc))
+  val readData = slave(cloneOf(responder.readData))
+  val readDescStatus = slave(cloneOf(responder.readDescStatus))
+  val debug = out(cloneOf(responder.debug))
+  responder.rx << rx
+  responder.tx >> aligner.io.input
+  aligner.io.output >> tx
+  responder.cfg := cfg
+  responder.dumpOverNetwork := dumpOverNetwork
+  responder.status := status
+  readDesc << responder.readDesc
+  responder.readData << readData
+  responder.readDescStatus << readDescStatus
+  debug := responder.debug
+}
+
+class LauberhornTraceDumpTests extends DutSimFunSuite[TraceDumpAlignedHarness] {
   val axisConfig = Axi4StreamConfig(dataWidth = 64, useKeep = true, useLast = true)
   val axiConfig = Axi4Config(
     addressWidth = 35,
@@ -32,7 +59,7 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     .withFstWave
     .withVerilator
     .allOptimisation
-    .compile(LauberhornTraceDump(axisConfig, dmaConfig, axiBase))
+    .compile(TraceDumpAlignedHarness(axisConfig, dmaConfig, axiBase))
 
   def be16(value: Int): List[Byte] =
     List(((value >> 8) & 0xff).toByte, (value & 0xff).toByte)
@@ -46,9 +73,9 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
   def bytes(hex: String): List[Byte] =
     hex.grouped(2).map(Integer.parseInt(_, 16).toByte).toList
 
-  val fpgaMac = bytes("0c53310301d4")
+  val fpgaMac = bytes("0c53310301cc")
   val hostMac = bytes("001122334455")
-  val fpgaIp = bytes("c0a881c9")
+  val fpgaIp = bytes("c0a881cc")
   val hostIp = bytes("c0a88164")
   val srcPort = 44444
   val dstPort = 55555
@@ -72,7 +99,7 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
       bytes("0001080006040001") ++ hostMac ++ hostIp ++
       bytes("000000000000") ++ fpgaIp
 
-  def setup(dut: LauberhornTraceDump) = {
+  def setup(dut: TraceDumpAlignedHarness) = {
     SimTimeout(40000)
     dut.clockDomain.forkStimulus(period = 4)
 
@@ -137,13 +164,30 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
     assert(response.drop(42 + LauberhornTraceDump.ResponseHeaderBytes) == payload)
   }
 
+  test("aligned TX preserves data across short and maximum DDR replies") { dut =>
+    val (rx, tx, dma) = setup(dut)
+    for ((length, index) <- Seq(64, 128, 1408).zipWithIndex) {
+      val payload = (0 until length).map(i => ((i * 29 + index) & 0xff).toByte).toList
+      fork {
+        waitUntil(dut.readDesc.valid.toBoolean)
+        assert(dut.readDesc.payload.payload.len.toBigInt == length)
+        dma.send(payload)
+      }
+      rx.send(request(100 + index, 0, length))
+      val response = tx.recv()
+      assert(response.length == 42 + LauberhornTraceDump.ResponseHeaderBytes + length)
+      assert(response.drop(42 + LauberhornTraceDump.ResponseHeaderBytes) == payload)
+    }
+  }
+
   test("answers ARP requests for the trace responder IP") { dut =>
     val (rx, tx, _dma) = setup(dut)
 
     rx.send(arpRequest())
     val response = tx.recv()
 
-    assert(response.length == LauberhornTraceDump.HeaderBytes)
+    assert(response.length == 60)
+    assert(response.drop(42) == List.fill(18)(0.toByte))
     assert(response.slice(0, 6) == hostMac)
     assert(response.slice(6, 12) == fpgaMac)
     assert(response.slice(12, 14) == bytes("0806"))
@@ -184,6 +228,8 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
 
     for (frameBytes <- Seq(42, 60, 128)) {
       val arpReply = exchange(arpRequest().padTo(frameBytes, 0xa5.toByte))
+      assert(arpReply.length == 60)
+      assert(arpReply.drop(42) == List.fill(18)(0.toByte))
       assert(arpReply.slice(12, 14) == bytes("0806"))
       assert(arpReply.slice(20, 22) == bytes("0002"))
 
@@ -192,6 +238,63 @@ class LauberhornTraceDumpTests extends DutSimFunSuite[LauberhornTraceDump] {
       assert(response(47) == LauberhornTraceDump.StatusOk.toByte)
       assert(response.slice(50, 54) == be32(frameBytes))
     }
+  }
+
+  test("accepts status commands after unrelated Ethernet traffic") { dut =>
+    val (rx, tx, _dma) = setup(dut)
+    val broadcast = bytes("ffffffffffff")
+    val otherIp = bytes("c0a88101")
+    val unrelatedArp = arpRequest().dropRight(4) ++ otherIp
+    val lldp = bytes("0180c200000e") ++ hostMac ++ bytes("88cc") ++ List.fill(46)(0.toByte)
+    val ipv6 = bytes("333300000001") ++ hostMac ++ bytes("86dd") ++ List.fill(114)(0.toByte)
+    val otherPort = request(99, 0, 0, dstPort + 1)
+    val largeBroadcast = broadcast ++ hostMac ++ bytes("0800") ++ List.fill(1486)(0.toByte)
+
+    // The trace port sees broadcast/multicast traffic even before a capture
+    // session starts. None of it may strand the header/body association.
+    for ((frame, index) <- Seq(unrelatedArp.padTo(60, 0.toByte), lldp,
+      ipv6, otherPort, largeBroadcast).zipWithIndex) {
+      var response: Option[List[Byte]] = None
+      tx.recvCB() { data => response = Some(data) }
+      rx.send(frame)
+      rx.send(request(100 + index, 0, 0))
+      waitUntil(response.nonEmpty)
+      assert(response.get.slice(42, 46) == bytes("4c485444"))
+      assert(response.get(47) == LauberhornTraceDump.StatusOk.toByte)
+      assert(response.get.slice(50, 54) == be32(100 + index))
+    }
+  }
+
+  test("diagnostics distinguish tagged traffic from ARP and accepted commands") { dut =>
+    val (rx, tx, _dma) = setup(dut)
+    val command = request(123, 0, 0)
+    // Tagged commands are currently unsupported; count the header without
+    // mistaking it for an accepted command or issuing a DMA read.
+    val tagged = command.take(12) ++ bytes("81000005") ++ command.drop(12)
+    rx.send(tagged)
+    dut.clockDomain.waitSampling(40)
+    assert(dut.debug.headers.toLong == 1)
+    assert(dut.debug.taggedHeaders.toLong == 1)
+    assert(dut.debug.commands.toLong == 0)
+    assert(dut.debug.responses.toLong == 0)
+
+    def exchange(frame: List[Byte]): List[Byte] = {
+      var reply: Option[List[Byte]] = None
+      tx.recvCB() { data => reply = Some(data) }
+      rx.send(frame)
+      waitUntil(reply.nonEmpty)
+      reply.get
+    }
+    assert(exchange(arpRequest().padTo(60, 0.toByte)).slice(12, 14) == bytes("0806"))
+    assert(exchange(command).slice(50, 54) == be32(123))
+    dut.clockDomain.waitSampling(10)
+    assert(dut.debug.headers.toLong == 3)
+    assert(dut.debug.arpRequests.toLong == 1)
+    assert(dut.debug.commands.toLong == 1)
+    assert(dut.debug.responses.toLong == 2)
+    assert(dut.debug.taggedHeaders.toLong == 1)
+    assert(dut.debug.lastHeader.toBigInt == BigInt(1, command.take(32).reverse.toArray))
+    assert((dut.debug.state.toInt & 0xff) == 1) // idle, with no saved header
   }
 
   test("sends metadata to dump server on dump-over-network rising edge") { dut =>

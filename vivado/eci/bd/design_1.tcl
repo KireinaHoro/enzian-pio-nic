@@ -989,6 +989,18 @@ proc create_root_design { parentCell } {
   set trace_wrapped [ create_bd_port -dir I -type data trace_wrapped ]
   set trace_sample_lost [ create_bd_port -dir I -type data trace_sample_lost ]
   set trace_dma_error [ create_bd_port -dir I -type data trace_dma_error ]
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_rx_frames
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_rx_overflow
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_rx_after_cdc
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_tx_queued
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_tx_frames
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_headers
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_arp_requests
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_commands
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_responses
+  create_bd_port -dir I -from 31 -to 0 -type data trace_dump_tagged_headers
+  create_bd_port -dir I -from 255 -to 0 -type data trace_dump_last_header
+  create_bd_port -dir I -from 15 -to 0 -type data trace_dump_state
   set trace_dump_override_valid [ create_bd_port -dir O -from 5 -to 0 -type data trace_dump_override_valid ]
   set trace_dump_local_mac [ create_bd_port -dir O -from 47 -to 0 -type data trace_dump_local_mac ]
   set trace_dump_local_ip [ create_bd_port -dir O -from 31 -to 0 -type data trace_dump_local_ip ]
@@ -1023,15 +1035,15 @@ proc create_root_design { parentCell } {
     CONFIG.USER_INTERFACE {AXIS} \
   ] $cmac_usplus_0
 
-  # Create instance: cmac_usplus_1, trace dump CMAC on F_MAC3 / GTY quad 233 in SLR2
+  # Create instance: cmac_usplus_1, trace dump CMAC on F_MAC1 / GTY quad 124 in SLR1
   set cmac_usplus_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cmac_usplus:3.1 cmac_usplus_1 ]
   set_property -dict [list \
     CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
     CONFIG.CMAC_CAUI4_MODE {1} \
-    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y8} \
+    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y3} \
     CONFIG.ENABLE_AXI_INTERFACE {0} \
     CONFIG.GT_DRP_CLK {100} \
-    CONFIG.GT_GROUP_SELECT {X1Y56~X1Y59} \
+    CONFIG.GT_GROUP_SELECT {X0Y20~X0Y23} \
     CONFIG.GT_REF_CLK_FREQ {322.265625} \
     CONFIG.INCLUDE_AUTO_NEG_LT_LOGIC {0} \
     CONFIG.INCLUDE_RS_FEC {1} \
@@ -1052,8 +1064,8 @@ proc create_root_design { parentCell } {
   create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_cmac_ctrl_stat
 
   # Create instance: hier_trace_cmac_ctrl_stat
-  # F_MAC3 reverses lanes 2/3, unlike F_MAC0's lanes 0/1. Match interfaces-stub.
-  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat 0b1100
+  # F_MAC1 reverses lanes 0/1, like F_MAC0. Match interfaces-stub.
+  create_hier_cell_hier_cmac_ctrl_stat [current_bd_instance .] hier_trace_cmac_ctrl_stat 0b0011
 
   # Create instance: hier_clk_rst
   create_hier_cell_hier_clk_rst [current_bd_instance .] hier_clk_rst
@@ -1126,7 +1138,7 @@ proc create_root_design { parentCell } {
   # Create instance: vio_trace_status, and set properties
   set vio_trace_status [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_trace_status ]
   set_property -dict [list \
-    CONFIG.C_NUM_PROBE_IN {4} \
+    CONFIG.C_NUM_PROBE_IN {16} \
     CONFIG.C_NUM_PROBE_OUT {9} \
     CONFIG.C_PROBE_IN0_WIDTH {29} \
     CONFIG.C_PROBE_IN1_WIDTH {1} \
@@ -1141,6 +1153,18 @@ proc create_root_design { parentCell } {
     CONFIG.C_PROBE_OUT6_WIDTH {16} \
     CONFIG.C_PROBE_OUT7_WIDTH {1} \
     CONFIG.C_PROBE_OUT8_WIDTH {1} \
+    CONFIG.C_PROBE_IN4_WIDTH {32} \
+    CONFIG.C_PROBE_IN5_WIDTH {32} \
+    CONFIG.C_PROBE_IN6_WIDTH {32} \
+    CONFIG.C_PROBE_IN7_WIDTH {32} \
+    CONFIG.C_PROBE_IN8_WIDTH {32} \
+    CONFIG.C_PROBE_IN9_WIDTH {32} \
+    CONFIG.C_PROBE_IN10_WIDTH {32} \
+    CONFIG.C_PROBE_IN11_WIDTH {32} \
+    CONFIG.C_PROBE_IN12_WIDTH {32} \
+    CONFIG.C_PROBE_IN13_WIDTH {32} \
+    CONFIG.C_PROBE_IN14_WIDTH {256} \
+    CONFIG.C_PROBE_IN15_WIDTH {16} \
   ] $vio_trace_status
 
   # Create interface connections
@@ -1312,6 +1336,18 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_pins vio_trace_status/probe_in1]
   connect_bd_net -net trace_write_slot_1  [get_bd_ports trace_write_slot] \
   [get_bd_pins vio_trace_status/probe_in0]
+  connect_bd_net -net trace_dump_rx_frames_1 [get_bd_ports trace_dump_rx_frames] [get_bd_pins vio_trace_status/probe_in4]
+  connect_bd_net -net trace_dump_rx_overflow_1 [get_bd_ports trace_dump_rx_overflow] [get_bd_pins vio_trace_status/probe_in5]
+  connect_bd_net -net trace_dump_rx_after_cdc_1 [get_bd_ports trace_dump_rx_after_cdc] [get_bd_pins vio_trace_status/probe_in6]
+  connect_bd_net -net trace_dump_tx_queued_1 [get_bd_ports trace_dump_tx_queued] [get_bd_pins vio_trace_status/probe_in7]
+  connect_bd_net -net trace_dump_tx_frames_1 [get_bd_ports trace_dump_tx_frames] [get_bd_pins vio_trace_status/probe_in8]
+  connect_bd_net -net trace_dump_headers_1 [get_bd_ports trace_dump_headers] [get_bd_pins vio_trace_status/probe_in9]
+  connect_bd_net -net trace_dump_arp_requests_1 [get_bd_ports trace_dump_arp_requests] [get_bd_pins vio_trace_status/probe_in10]
+  connect_bd_net -net trace_dump_commands_1 [get_bd_ports trace_dump_commands] [get_bd_pins vio_trace_status/probe_in11]
+  connect_bd_net -net trace_dump_responses_1 [get_bd_ports trace_dump_responses] [get_bd_pins vio_trace_status/probe_in12]
+  connect_bd_net -net trace_dump_tagged_headers_1 [get_bd_ports trace_dump_tagged_headers] [get_bd_pins vio_trace_status/probe_in13]
+  connect_bd_net -net trace_dump_last_header_1 [get_bd_ports trace_dump_last_header] [get_bd_pins vio_trace_status/probe_in14]
+  connect_bd_net -net trace_dump_state_1 [get_bd_ports trace_dump_state] [get_bd_pins vio_trace_status/probe_in15]
   connect_bd_net -net trace_dump_override_valid_1  [get_bd_pins vio_trace_status/probe_out0] \
   [get_bd_ports trace_dump_override_valid]
   connect_bd_net -net trace_dump_local_mac_1  [get_bd_pins vio_trace_status/probe_out1] \

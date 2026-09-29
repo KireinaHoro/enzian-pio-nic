@@ -134,7 +134,9 @@ failure; do not load the driver anyway. The explicit `--negative-no-bitstream`
 test bypasses this gate because absent ECI initialization is intentional.
 
 If `probe_versions` still fails after validated bring-up, freeze and dump trace
-DDR over JTAG before resetting; retain the matching map, VIO status, and image
+DDR using the [CMAC-first capture procedure](tracing.md#default-agent-capture-pipeline)
+before resetting; fall back to JTAG if Ethernet fails. Retain partial captures
+and the matching map, VIO status, and image
 provenance. Keep tracing active through module load. The shell-version read is
 handled inside the static shell, so arm the static ECI edge ILA before the
 attempt when possible; the application DDR trace alone may not show that read.

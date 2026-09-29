@@ -13,6 +13,7 @@ relevant source and subsequent changes before relying on implementation details.
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
 - Real Enzian hardware / adder E2E: [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
+- Trace capture: use the [CMAC-first agent procedure](docs/development/tracing.md#default-agent-capture-pipeline) on F_MAC1; JTAG is the fallback for unavailable Ethernet and independent spot checks.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
 - External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
@@ -28,7 +29,10 @@ DCS/low-VC/combined experiments remain unmerged. Toolkit commits stay on
 separate feature branches/private refs pending colleague upstream approval;
 never merge or push them to toolkit master. The existing ba2 local batch can
 finish; no new timing work or CI polling until requested. Final master has no
-new routed or board result, and the static shell remains unchanged.
+new timing-closure result, and the static shell remains unchanged. The merged
+CMAC trace path uses F_MAC1; revision `5cda901` passed 300 RPCs and three full
+322 MB dumps, with WNS -0.062 ns (not closure). See the
+[CMAC board evidence](docs/development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
 
 ## Confirmed research and scheduling scope
 
@@ -80,7 +84,10 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   State which checks actually ran. Historical logs are not current test results.
 - If a hardware test fails in `probe_versions`, preserve the failure before
   resetting or restoring another image: freeze tracing, record VIO status, and
-  dump trace DDR over JTAG with the matching trace map and bitstream provenance.
+  dump trace DDR over the dedicated F_MAC1 CMAC with the matching trace map
+  and bitstream provenance; follow the [capture procedure](docs/development/tracing.md#default-agent-capture-pipeline).
+  If Ethernet is unavailable or a bounded dump fails, preserve the partial output
+  and use JTAG before reset. Never reset merely to recover the capture link.
   Investigate the captured ECI traffic to pinpoint the failure; this recurring,
   hard-to-catch issue warrants capture without asking again. Keep tracing active
   through module load. If it was already stopped or the window was lost, record

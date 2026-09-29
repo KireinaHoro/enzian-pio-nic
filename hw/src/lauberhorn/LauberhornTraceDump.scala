@@ -11,6 +11,7 @@ import scala.language.postfixOps
 object LauberhornTraceDump {
   val HeaderBytes = 14 + 20 + 8
   val ResponseHeaderBytes = 32
+  val MinEthernetFrameBytes = 60 // excluding CMAC-generated FCS
   val MaxPayloadBytes = 1440
   val EtherTypeIpv4 = 0x0800
   val EtherTypeArp = 0x0806
@@ -22,8 +23,8 @@ object LauberhornTraceDump {
   val StatusOk = 0
   val StatusBadCommand = 1
   val StatusBadAlignment = 2
-  val DefaultLocalMac = BigInt("0c53310301d4", 16)
-  val DefaultLocalIp = BigInt("c0a881c9", 16) // 192.168.129.201
+  val DefaultLocalMac = BigInt("0c53310301cc", 16)
+  val DefaultLocalIp = BigInt("c0a881cc", 16) // 192.168.129.204
   val DefaultListenUdpPort = 55555
   val DefaultGatewayMac = BigInt("f4521463a091", 16)
   val DefaultDumpServerIp = BigInt("81846608", 16) // 129.132.102.8
@@ -52,6 +53,17 @@ case class LauberhornTraceDumpStatus(writeSlotWidth: Int) extends Bundle {
   val dmaError = Bool()
 }
 
+/** Read-only counters and state for locating network readout failures. */
+case class TraceDumpDiagnostics() extends Bundle {
+  val headers = UInt(32 bits)
+  val arpRequests = UInt(32 bits)
+  val commands = UInt(32 bits)
+  val responses = UInt(32 bits)
+  val taggedHeaders = UInt(32 bits)
+  val lastHeader = Bits(256 bits)
+  val state = Bits(16 bits)
+}
+
 case class LauberhornTraceDump(
                                 axisConfig: Axi4StreamConfig,
                                 dmaConfig: AxiDmaConfig,
@@ -65,6 +77,7 @@ case class LauberhornTraceDump(
   require(dmaConfig.axiConfig.dataWidth / 8 == axisConfig.dataWidth,
     "trace dump DMA stream width must match the CMAC stream width")
 
+  val debug = out(TraceDumpDiagnostics())
   val rx = slave(Axi4Stream(axisConfig))
   val tx = master(Axi4Stream(axisConfig))
   val cfg = in(LauberhornTraceDumpConfig())
@@ -180,6 +193,19 @@ case class LauberhornTraceDump(
   readDesc.payload.clearAll()
   readData.ready := False
 
+  val headerCount = Counter(32 bits, extractor.io.header.fire)
+  val arpRequestCount = Counter(32 bits)
+  val commandCount = Counter(32 bits)
+  val responseCount = Counter(32 bits, tx.lastFire)
+  val taggedHeaderCount = Counter(32 bits)
+  val lastHeader = Reg(Bits(256 bits)) init 0
+  debug.headers := headerCount.value
+  debug.arpRequests := arpRequestCount.value
+  debug.commands := commandCount.value
+  debug.responses := responseCount.value
+  debug.taggedHeaders := taggedHeaderCount.value
+  debug.lastHeader := lastHeader
+
   val rxHeader = Reg(Bits(HeaderBytes * 8 bits)) init 0
   val haveRxHeader = RegInit(False)
   val reqSeq = Reg(UInt(32 bits)) init 0
@@ -252,6 +278,12 @@ case class LauberhornTraceDump(
   }
 
   when(extractor.io.header.fire) {
+    lastHeader := extractor.io.header.payload(255 downto 0)
+    when(headerIsArpRequest) { arpRequestCount.increment() }
+    when(be16(extractor.io.header.payload, 12) === 0x8100 ||
+      be16(extractor.io.header.payload, 12) === 0x88a8) {
+      taggedHeaderCount.increment()
+    }
     discardArpBody := headerIsArpRequest
     rxHeader := extractor.io.header.payload
     haveRxHeader := True
@@ -365,6 +397,7 @@ case class LauberhornTraceDump(
             val goodVersion = byte(body, 4).asUInt === Version
             val goodOpcode = byte(body, 5).asUInt === OpcodeRead
             when(rxHeaderIsUdpCommand && goodMagic && goodVersion && goodOpcode) {
+              commandCount.increment()
               when(be32(body, 20) === 0) {
                 respStatus := StatusOk
               } elsewhen(be32(body, 20) <= MaxPayloadBytes &&
@@ -420,7 +453,8 @@ case class LauberhornTraceDump(
       whenIsActive {
         arpTx.valid := True
         arpTx.data := arpReply
-        arpTx.keep := ((U(1, axisConfig.dataWidth bits) |<< HeaderBytes) - 1).asBits
+        // CMAC does not pad short AXIS frames; zero-fill to the Ethernet minimum.
+        arpTx.keep := ((U(1, axisConfig.dataWidth bits) |<< MinEthernetFrameBytes) - 1).asBits
         arpTx.last := True
         when(arpTx.fire) {
           goto(idle)
@@ -441,8 +475,12 @@ case class LauberhornTraceDump(
     val sendTraceHeader: State = new State {
       whenIsActive {
         injector.io.input.valid := True
-        injector.io.input.data := traceHeader
-        injector.io.input.keep := ((U(1, axisConfig.dataWidth bits) |<< ResponseHeaderBytes) - 1).asBits
+        // InjectHeader/Aligner permit a leading gap, never holes between beats.
+        // Put the trace header at the high end so following DMA data is contiguous.
+        val leadingBytes = axisConfig.dataWidth - ResponseHeaderBytes
+        injector.io.input.data := traceHeader |<< (leadingBytes * 8)
+        injector.io.input.keep := B((BigInt(1) << ResponseHeaderBytes) - 1,
+          axisConfig.dataWidth bits) |<< leadingBytes
         injector.io.input.last := respDataBytes === 0
         when(injector.io.input.fire) {
           when(respDataBytes === 0) {
@@ -463,4 +501,12 @@ case class LauberhornTraceDump(
       }
     }
   }
+  // Explicit state bits keep the diagnostic interface independent of FSM encoding.
+  fsm.build()
+  debug.state := tx.ready ## readData.valid ## readDesc.ready ## readDesc.valid ##
+    requestAligner.io.output.valid ## extractor.io.header.valid ## rxHeaderIsUdpCommand ##
+    discardArpBody ## haveRxHeader ## fsm.isActive(fsm.sendData) ##
+    fsm.isActive(fsm.sendTraceHeader) ## fsm.isActive(fsm.sendNetHeader) ##
+    fsm.isActive(fsm.sendArpReply) ## fsm.isActive(fsm.issueRead) ##
+    fsm.isActive(fsm.drainRequest) ## fsm.isActive(fsm.idle)
 }
