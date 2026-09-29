@@ -551,6 +551,13 @@ case class LauberhornTraceDma(
   val wrapped = out(Bool())
   val writeSlot = out(UInt(LauberhornTraceDma.WriteSlotWidth bits))
 
+  val traceDumpRxFrames = out(UInt(32 bits))
+  val traceDumpRxOverflow = out(UInt(32 bits))
+  val traceDumpRxAfterCdc = out(UInt(32 bits))
+  val traceDumpTxQueued = out(UInt(32 bits))
+  val traceDumpTxFrames = out(UInt(32 bits))
+  val traceDumpDebug = out(TraceDumpDiagnostics())
+
   val traceDumpRxClock = ClockDomain.external("traceDumpRxClock")
   val traceDumpTxClock = ClockDomain.external("traceDumpTxClock")
   val traceDumpAxisConfig = Axi4StreamConfig(
@@ -607,9 +614,17 @@ case class LauberhornTraceDma(
     dropWhenFull = true,
     depthBytes = LauberhornTraceDma.AxiBytes * 32,
   )()(traceDumpRxClock, ClockDomain.current)
-  new ClockingArea(traceDumpRxClock) {
+  val traceRxMonitor = new ClockingArea(traceDumpRxClock) {
     traceDumpRxFifo.s_axis << traceDumpRxAxis
+    // CMAC RX cannot be backpressured; count presented frames even on overflow.
+    val frames = Counter(32 bits, traceDumpRxAxis.valid && traceDumpRxAxis.last)
+    val overflow = Counter(32 bits, traceDumpRxFifo.io.s_status.overflow)
+    val framesGray = RegNext(toGray(frames.value)) init 0
+    val overflowGray = RegNext(toGray(overflow.value)) init 0
   }
+  traceDumpRxFrames := fromGray(BufferCC.withTag(traceRxMonitor.framesGray, 0))
+  traceDumpRxOverflow := fromGray(BufferCC.withTag(traceRxMonitor.overflowGray, 0))
+  traceDumpRxAfterCdc := Counter(32 bits, traceDumpRxFifo.m_axis.get.lastFire).value
 
   val traceDumpTxAligner = AxiStreamAligner(traceDumpAxisConfig)
   val traceDumpTxFifo = AxiStreamAsyncFifo(
@@ -621,12 +636,19 @@ case class LauberhornTraceDma(
   )()(ClockDomain.current, traceDumpTxClock)
   traceDumpTxFifo.s_axis <-/< traceDumpTxAligner.io.output
   traceDumpTxFifo.m_axis >> traceDumpTxAxis
+  traceDumpTxQueued := Counter(32 bits, traceDumpTxFifo.s_axis.get.lastFire).value
+  val traceTxMonitor = new ClockingArea(traceDumpTxClock) {
+    val frames = Counter(32 bits, traceDumpTxAxis.lastFire)
+    val framesGray = RegNext(toGray(frames.value)) init 0
+  }
+  traceDumpTxFrames := fromGray(BufferCC.withTag(traceTxMonitor.framesGray, 0))
 
   val traceDump = LauberhornTraceDump(
     axisConfig = traceDumpAxisConfig,
     dmaConfig = traceDma.dmaConfig,
     axiBufferBase = axiBufferBase,
   )
+  traceDumpDebug := traceDump.debug
   traceDump.rx << traceDumpRxFifo.m_axis
   traceDump.tx >> traceDumpTxAligner.io.input
   traceDump.cfg.localMacOverrideValid := traceDumpLocalMacOverrideValid

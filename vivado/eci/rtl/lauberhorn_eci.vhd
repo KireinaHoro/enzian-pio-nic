@@ -767,6 +767,19 @@ signal trace_dump_gateway_mac : std_logic_vector(47 downto 0);
 signal trace_dump_server_ip : std_logic_vector(31 downto 0);
 signal trace_dump_server_udp_port : std_logic_vector(15 downto 0);
 signal trace_dump_over_network : std_logic;
+signal trace_dump_rx_frames : std_logic_vector(31 downto 0);
+signal trace_dump_rx_overflow : std_logic_vector(31 downto 0);
+signal trace_dump_rx_after_cdc : std_logic_vector(31 downto 0);
+signal trace_dump_tx_queued : std_logic_vector(31 downto 0);
+signal trace_dump_tx_frames : std_logic_vector(31 downto 0);
+signal trace_dump_headers : std_logic_vector(31 downto 0);
+signal trace_dump_arp_requests : std_logic_vector(31 downto 0);
+signal trace_dump_commands : std_logic_vector(31 downto 0);
+signal trace_dump_responses : std_logic_vector(31 downto 0);
+signal trace_dump_tagged_headers : std_logic_vector(31 downto 0);
+signal trace_dump_last_header : std_logic_vector(255 downto 0);
+signal trace_dump_state : std_logic_vector(15 downto 0);
+
 signal trace_stop : std_logic;
 signal lauberhorn_trace_valid : std_logic_vector(65 downto 0);
 signal lauberhorn_trace_payload : trace_payload_array(65 downto 0);
@@ -1972,6 +1985,18 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     traceDumpServerIpOverride => trace_dump_server_ip,
     traceDumpServerUdpPortOverrideValid => trace_dump_override_valid(5),
     traceDumpServerUdpPortOverride => trace_dump_server_udp_port,
+    traceDumpRxFrames => trace_dump_rx_frames,
+    traceDumpRxOverflow => trace_dump_rx_overflow,
+    traceDumpRxAfterCdc => trace_dump_rx_after_cdc,
+    traceDumpTxQueued => trace_dump_tx_queued,
+    traceDumpTxFrames => trace_dump_tx_frames,
+    traceDumpDebug_headers => trace_dump_headers,
+    traceDumpDebug_arpRequests => trace_dump_arp_requests,
+    traceDumpDebug_commands => trace_dump_commands,
+    traceDumpDebug_responses => trace_dump_responses,
+    traceDumpDebug_taggedHeaders => trace_dump_tagged_headers,
+    traceDumpDebug_lastHeader => trace_dump_last_header,
+    traceDumpDebug_state => trace_dump_state,
     traceDumpOverNetwork => trace_dump_over_network,
     traceStop => trace_stop,
 
@@ -1994,12 +2019,12 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     gt_gtx_p => F_MAC0_TX_P,
     gt_ref_clk_clk_n => F_MAC0C_CLK_N,
     gt_ref_clk_clk_p => F_MAC0C_CLK_P,
-    trace_gt_grx_n => F_MAC3_RX_N,
-    trace_gt_grx_p => F_MAC3_RX_P,
-    trace_gt_gtx_n => F_MAC3_TX_N,
-    trace_gt_gtx_p => F_MAC3_TX_P,
-    trace_gt_ref_clk_clk_n => F_MAC3C_CLK_N,
-    trace_gt_ref_clk_clk_p => F_MAC3C_CLK_P,
+    trace_gt_grx_n => F_MAC1_RX_N,
+    trace_gt_grx_p => F_MAC1_RX_P,
+    trace_gt_gtx_n => F_MAC1_TX_N,
+    trace_gt_gtx_p => F_MAC1_TX_P,
+    trace_gt_ref_clk_clk_n => F_MAC1C_CLK_N,
+    trace_gt_ref_clk_clk_p => F_MAC1C_CLK_P,
 
     -- clocking & reset
     clk_io => clk_io,
@@ -2154,6 +2179,18 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     trace_dump_gateway_mac => trace_dump_gateway_mac,
     trace_dump_server_ip => trace_dump_server_ip,
     trace_dump_server_udp_port => trace_dump_server_udp_port,
+    trace_dump_rx_frames => trace_dump_rx_frames,
+    trace_dump_rx_overflow => trace_dump_rx_overflow,
+    trace_dump_rx_after_cdc => trace_dump_rx_after_cdc,
+    trace_dump_tx_queued => trace_dump_tx_queued,
+    trace_dump_tx_frames => trace_dump_tx_frames,
+    trace_dump_headers => trace_dump_headers,
+    trace_dump_arp_requests => trace_dump_arp_requests,
+    trace_dump_commands => trace_dump_commands,
+    trace_dump_responses => trace_dump_responses,
+    trace_dump_tagged_headers => trace_dump_tagged_headers,
+    trace_dump_last_header => trace_dump_last_header,
+    trace_dump_state => trace_dump_state,
     trace_dump_over_network(0) => trace_dump_over_network,
     trace_stop(0) => trace_stop,
 

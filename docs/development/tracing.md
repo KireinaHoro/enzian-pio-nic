@@ -5,6 +5,69 @@ for test selection or the [trace tools README](../../data/eci/sys_trace/README.m
 for exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
+The F_MAC1 comparison image `5cda901` passed a matched board test with 300 RPCs
+and three identical full 322,322,624-byte UDP trace reads without retransmission.
+See the [board evidence and limits](cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
+This is a single-boot validation; routed timing remains open.
+
+## Default agent capture pipeline
+
+Use the dedicated **F_MAC1 CMAC/UDP path by default** for full trace captures,
+including `probe_versions` failure preservation. JTAG remains the fallback when
+Ethernet is unavailable and an independent content spot-check mechanism. A
+working Linux driver on the DUT is not required for the hardware trace responder.
+Do not reset the board to fix the capture link before preserving failure evidence.
+
+1. Check board/peer reservations and record the programmed revision, bitstream,
+   LTX, software and generated trace map. Keep tracing active through module load
+   and the workload; arm the static ECI edge ILA before boot when investigating
+   version-register failures. Do not substitute artifacts from current master
+   for those belonging to the image actually programmed.
+2. Record pre-freeze VIO loss/error status, assert `trace_stop`, and wait for a
+   stable `writeSlot`. Save the pointer, wrap flag, DMA error and sticky loss flag.
+   A loss bit first asserted after freeze does not prove pre-freeze loss.
+3. Use a reserved peer on the FPGA VLAN. For the tested zuestoll14 deployment:
+   trace F_MAC1 is `192.168.129.204`, MAC `0c:53:31:03:01:cc`, UDP 55555,
+   leaf1 Ethernet100 / front-panel 26/0 at 100G with RS-FEC. The capture peer
+   zuestoll12 uses `cpu40g1`, `192.168.129.129`, MAC `0c:53:31:03:01:81`.
+   Main RPC F_MAC0 remains `.200` / `0c:53:31:03:01:c8`. These are board-specific
+   defaults, not addresses to reuse blindly on another board. Check routing and
+   actual link/FEC counters; keep management/storage on `cpu40g0`.
+4. Save VIO outputs before any temporary override. Configure the capture server
+   IP and next-hop MAC if required; the FPGA does not ARP for its next hop. Start
+   the receiver on the peer **before** toggling `trace_dump_over_network` 0→1:
+
+   ```sh
+   python3 data/eci/sys_trace/dump_trace_udp.py \
+     --bind-ip 192.168.129.129 --wait-timeout 90 \
+     --timeout 1 --retries 5 --chunk-bytes 1408 --out NEW_RUN/trace-dram.bin
+   ```
+
+   Create `NEW_RUN` first. For an unwrapped buffer, omit `--bytes` to capture
+   the entire valid range. For a wrapped buffer, supply its actual configured
+   capacity and preserve the write pointer for chronological reconstruction.
+   Do not present a prefix or the example's historical fixed-size read as a
+   complete capture. The receiver's metadata wait and data retries are bounded;
+   preserve partial output and diagnostics on failure, then fall back to JTAG.
+5. Verify exit status and exact expected byte count (`writeSlot * 64` when
+   unwrapped), save a SHA-256 hash, and inspect trace loss markers with the
+   matching map. Sequence/length checks do not supply payload integrity; use
+   JTAG head/tail checks or a repeated frozen-buffer read when validating a new
+   image/link. The CLI does not report individual retransmissions: instrument
+   or record packets if a retry count is needed. Separate recorder socket drops
+   from missing UDP responses. RAM-backed packet recording avoided local drops
+   in the board test; raw packet capture requires root, ordinary UDP does not.
+6. Save a compact summary and retain captures, map, provenance, VIO status and
+   link counters under an ignored output directory. For `probe_versions`
+   failures, also preserve the armed static ILA and investigate the captured
+   ECI traffic before reset. Restore temporary controls only after preservation;
+   record whether tracing remains frozen or has resumed.
+
+Measured payload throughput was **6.9 MiB/s** with the current single-outstanding
+1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for the observed
+Vivado/Tcl JTAG dumper. This is implementation throughput, not CMAC line rate.
+The board validation does not establish long-duration reliability or timing closure.
+
 ## Overview
 
 The tracing path has four layers:
@@ -257,24 +320,31 @@ issues one aligned DMA read, then injects one combined Ethernet/IPv4/UDP
 response header.  An AXI stream aligner is placed before the trace CMAC TX path
 so partial `TKEEP` beats are only presented at packet end.
 
-The trace CMAC is wired to `F_MAC3`, whose package pins are GTY quad 233 in SLR2
-(`X1Y56` through `X1Y59`) and use CMAC site `CMACE4_X0Y8`.  This is separate
+The trace CMAC is wired to `F_MAC1`, whose package pins are GTY quad 124 in SLR1
+(`X0Y20` through `X0Y23`) and use CMAC site `CMACE4_X0Y3`.  This is separate
 from the normal `NicEngine` CMAC on `F_MAC0`.  The trace-status VIO controls
 the responder's local identity, next-hop MAC, and dump-capture server address.
 With all override-valid bits left at zero, the hardware defaults are:
 
-- self MAC: `0c:53:31:03:01:d4`
-- self IPv4 address: `192.168.129.201`
+- self MAC: `0c:53:31:03:01:cc`
+- self IPv4 address: `192.168.129.204`
 - listen UDP port: `55555`
 - gateway/next-hop MAC: `f4:52:14:63:a0:91`
 - dump server IPv4 address: `129.132.102.8`
 - dump server UDP port: `55555`
 
-The ports require different GT RX/TX polarity masks: `0011` for F_MAC0 and
-`1100` for F_MAC3. The shared CMAC control constructor takes the polarity
-mask as a parameter; copying F_MAC0's mask onto F_MAC3 prevents external
-alignment even though internal PMA loopback succeeds. This matches the
-engineer's [interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L297).
+Both active ports use GT RX/TX polarity mask `0011`: F_MAC0 for RPC and
+F_MAC1 for trace. This matches the engineer's
+[interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L549).
+On zuestoll14, F_MAC1 is leaf1 Ethernet100 (ZS14-FPGA2). The main RPC
+interface remains `0c:53:31:03:01:c8` / `192.168.129.200`; the capture peer
+remains zuestoll12 `cpu40g1`, `192.168.129.129`.
+
+Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
+polarity `1100`. Use the address and port for the actual bitstream; do not
+apply old F_MAC3 capture filters or neighbor overrides to an F_MAC1 image.
+The F_MAC1 move is awaiting routed and board validation; earlier successful
+captures in this document were on F_MAC3.
 
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:
@@ -315,6 +385,23 @@ Ethernet MTU minus IPv4, UDP, and 32 bytes of trace response metadata.  The host
 tool loops over chunks for multi-GB dumps.  A zero-length read is a status query
 and returns `writeSlot`, `wrapped`, `sampleLost`, and `dmaError` without issuing
 a DDR read.
+
+The host uses one outstanding numbered read at a time. Missing or malformed
+responses time out; by default it retries the identical request five times
+after one-second waits, then fails. It validates sequence, offset, returned
+length and DMA status before appending data. Retries are not individually
+reported by the current CLI; a failed dump leaves a partial file. Initial
+metadata reception is separate and requires another VIO announcement if lost.
+These retries recover transport loss, not samples lost before DDR recording.
+The protocol has no application payload checksum and FPGA UDP responses use
+a zero UDP checksum; sequence/length checks alone are not an independent
+content-integrity check.
+
+For completeness, freeze and verify a stable write pointer, read the entire
+valid range (and handle wrapping), then inspect recorded loss markers with the
+matching map. `sampleLost` is sticky and can become asserted after freezing
+because trace inputs continue while DDR writes stop. A set flag alone cannot
+date the loss relative to freeze.
 
 Example status query:
 
@@ -360,6 +447,48 @@ clear. The trace CMAC includes RS-FEC and ties RX/TX FEC enable, RX correction,
 and indication high, with no AXI register interface. The external peer must
 use compatible FEC. Internal PMA loopback can check the local CMAC/GT path;
 restore `loopback=0` before trying network capture.
+
+### Command-path diagnostics (CMAC investigation branch)
+
+The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
+They have local simulation/elaboration coverage and board validation. Pipeline
+514053 (`c5be158`) captured one MiB using normal ARP and UDP after fixing short
+ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
+independent frozen JTAG reads. External link operation is still intermittent;
+FPGA RX alignment alone does not establish a usable link. Check leaf1's
+Ethernet108 / ZS14-FPGA4 status through `python3 tools/enzian/leaf1.py` before
+capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
+Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
+when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
+VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
+clock using registered Gray code and synchronizers.
+
+| Probe suffix (`trace_dump_`) | Meaning |
+| --- | --- |
+| `rx_frames` | CMAC RX valid/TLAST frames, including frames subsequently dropped |
+| `rx_overflow` | RX asynchronous FIFO overflow events |
+| `rx_after_cdc` | Complete frames accepted by the responder from the RX FIFO |
+| `tx_queued` | Complete aligned frames accepted by the TX FIFO |
+| `tx_frames` | Complete frames accepted by CMAC TX; not proof of wire delivery |
+| `headers` | Extracted headers accepted by the responder |
+| `arp_requests` | Recognized ARP requests for the configured trace IP |
+| `commands` | Matching UDP destination and command magic/version/opcode; alignment errors also count |
+| `responses` | Complete frames handed off by the responder, including ARP and unsolicited metadata |
+| `tagged_headers` | Extracted headers with outer EtherType 0x8100 or 0x88a8 |
+| `last_header` | First 32 bytes of the last accepted header; byte 0 occupies bits 7:0 |
+| `state` | Parser state and handshake levels, described below |
+
+`state` bits 0..6 indicate idle, drainRequest, issueRead, sendArpReply,
+sendNetHeader, sendTraceHeader and sendData respectively. Bits 7..15 are
+haveRxHeader, discardArpBody, rxHeaderIsUdpCommand, extractor header valid,
+aligned request valid, DMA read descriptor valid, descriptor ready, read data
+valid and responder TX ready. This mapping does not depend on FSM encoding.
+
+No tagged command support is added by these probes. RX frame counts also do
+not certify FCS validity. A frame count that advances without parser progress
+localizes a different failure from a generated response that fails to reach
+CMAC TX or the peer. Switch counters and packet capture remain necessary for
+link and forwarding diagnosis.
 
 The intended offline flow is:
 
