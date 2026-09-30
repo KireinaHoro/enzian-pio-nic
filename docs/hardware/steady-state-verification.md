@@ -87,6 +87,14 @@ justify this fairness; priority RTL alone does not prove it.
 
 ## Replacement address configurations and capacity
 
+The concrete solution is documented in the [checked block layout](coherence-progress.md#example-permissive-layout)
+and [domain-qualified PA encoding](coherence-progress.md#concrete-domain-qualified-pa-encoding):
+RX controls at `+0x300/+0x380`, TX controls at `+0x1300/+0x1380`, twelve
+contiguous overflow lines after each pair, and a 128 KiB block stride. For the
+default 64-color/38-bit geometry, PA fields are domain `[37:26]`, worker mask
+`[25:20]`, domain `[19:17]`, then block offset `[16:0]`. These describe the checked
+candidate for the router-free design, not installed production constants.
+
 `tools/progress/capacity.py` emits `lauberhorn.fixed-worker-domain-map.v1`
 configurations, **not thread-router register programming**. A configuration carries
 worker bases, shared direction offsets, full-duplex bypass, allocated domain
