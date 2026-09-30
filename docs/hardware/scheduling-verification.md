@@ -61,8 +61,9 @@ and all retained resources. A separate old-cache retirement acknowledgment is
 required before parking and prefix release.
 
 `Handoff` uses actual control addresses generated from
-[`selected-8k.json`](../../model/steady/selected-8k.json), with both directions and
-control parities for the changing worker. Its dependency footprint is **control
+[`selected-8k.json`](../../model/steady/selected-8k.json), with both RX/TX parity bits for the changing worker. The routine handoff
+regression executes RX; `handoff-rx-tx` additionally allows repeated RX/TX direction
+changes. Both cases explore both values of the returned TX parity. Its dependency footprint is **control
 lines only**, deliberately smaller than Goal 1's twelve-overflow-line witnesses.
 The stable peer executes repeated RX operations. An optional third physical
 worker holds RX indefinitely. Old and new domains share physical-worker colors
@@ -145,11 +146,12 @@ Tools come from the existing Nix lock, including nixpkgs `tlaplus18`:
 nix build .#checks.x86_64-linux.scheduling-progress --out-link out/scheduling/nix-check
 nix develop -c python3 tools/scheduling/addresses.py --check
 nix develop -c python3 tools/scheduling/check_models.py --workers 4 --timeout 900 --output out/scheduling/run
-# Larger optional resource composition: a third worker holds RX indefinitely.
+# Extended operation directions and a separate stalled-third-worker bound.
+nix develop -c python3 tools/scheduling/check_models.py --case handoff-rx-tx --workers 4 --timeout 1200 --output out/scheduling/rx-tx
 nix develop -c python3 tools/scheduling/check_models.py --case handoff-stalled-peer --workers 4 --timeout 1200 --output out/scheduling/stalled-peer
 ```
 
-The runner records exact source/jar/config/log hashes, commands, time bounds and
+The default suite excludes those two extended cases. The runner records exact source/jar/config/log hashes, commands, time bounds and
 outcomes. Expected negatives must violate their named invariant/property;
 parse failures and timeouts cannot pass. Generated graphs, logs and counterexample
 traces stay under ignored output directories. Use a fresh tmpfs output directory

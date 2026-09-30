@@ -1,6 +1,6 @@
 ------------------------------ MODULE Handoff ------------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS WithStall, FailSelection, BadDrain, BadCache, BadPark, BadReuse, BadParity
+CONSTANTS WorkerTx, WithStall, FailSelection, BadDrain, BadCache, BadPark, BadReuse, BadParity
 Workers == IF WithStall THEN 1..3 ELSE 1..2
 Clients == IF WithStall THEN 1..4 ELSE 1..3
 Moving == {1}
@@ -45,7 +45,8 @@ OldMessagesGone == /\ \A col \in Colors: \A i \in 1..Len(reads[col]): A!DomainOf
                    /\ \A q \in Queues: \A i \in 1..Len(invQ[q]): A!DomainOf[invQ[q][i].address] # 0
                    /\ \A i \in 1..Len(unlockQ): A!DomainOf[unlockQ[i].address] # 0
 \* The dormant destination has no independent transport history before installation.
-Init == /\ S!Init /\ P!Init /\ parity[3] = parity[1] /\ direction[3] = 0 /\ oldCache = TRUE /\ prefixFree = FALSE /\ reused = FALSE
+Init == /\ S!Init /\ P!Init /\ parity[3] = parity[1] /\ direction[3] = 0
+        /\ (WorkerTx \/ direction[1] = 0) /\ oldCache = TRUE /\ prefixFree = FALSE /\ reused = FALSE
         /\ mailbox = -1 /\ returnedParity = [d \in Directions |-> 0]
 Request == /\ phase[1] = "Held" /\ direction[1] = 0 /\ S!Request(1) /\ UNCHANGED <<transport,meta>>
 Yield == /\ phase[1] = "Submit" /\ S!Yield(1) /\ UNCHANGED <<transport,meta>>
@@ -82,7 +83,7 @@ Work(c) == /\ P!Work(c) /\ UNCHANGED <<assignment,meta>>
 Inv(c) == /\ P!Inv(c) /\ UNCHANGED <<assignment,meta>>
 ReceiveAck(c) == /\ P!Ack(c) /\ UNCHANGED <<assignment,meta>>
 Unlock(c) == /\ P!Unlock(c) /\ UNCHANGED <<assignment,meta>>
-Return(c,d) == /\ P!Return(c,d) /\ UNCHANGED <<assignment,meta>>
+Return(c,d) == /\ (WorkerTx \/ d = 0) /\ P!Return(c,d) /\ UNCHANGED <<assignment,meta>>
 Process(q) == /\ P!Process(q) /\ UNCHANGED <<assignment,meta>>
 DeliverUnlock == /\ P!DeliverUnlock /\ UNCHANGED <<assignment,meta>>
 Next == \/ Request \/ Yield \/ Ack \/ Drain \/ RetireCache \/ Park \/ Select \/ Activate
@@ -90,20 +91,25 @@ Next == \/ Request \/ Yield \/ Ack \/ Drain \/ RetireCache \/ Park \/ Select \/ 
         \/ \E c \in Clients: Admit(c) \/ Work(c) \/ Inv(c) \/ ReceiveAck(c) \/ Unlock(c)
         \/ \E c \in Clients, d \in Directions: Return(c,d)
         \/ \E q \in Queues: Process(q)
+UsedDirections(c) == IF WorkerTx THEN AllowedDirections[c] ELSE {0}
+UsedQueues == UNION {UNION {UNION {
+    {QueueOf[ColorOf[Dependencies[c][d][p][i]]]: i \in 1..Len(Dependencies[c][d][p])}
+    : p \in 0..1}: d \in UsedDirections(c)}: c \in Clients \ Stalled}
+UnusedEmpty == \A q \in Queues \ UsedQueues: invQ[q] = <<>>
 Spec == Init /\ [][Next]_v
         /\ WF_v(Yield) /\ WF_v(Ack) /\ WF_v(Drain) /\ WF_v(RetireCache)
         /\ WF_v(Park) /\ WF_v(Select) /\ WF_v(Activate) /\ WF_v(Resume)
         /\ WF_v(FreePrefix) /\ WF_v(Reuse) /\ WF_v(DeliverUnlock)
         /\ (\A c \in Clients \ Stalled:
             SF_v(Admit(c)) /\ WF_v(Work(c)) /\ SF_v(Inv(c)) /\ SF_v(ReceiveAck(c)) /\ WF_v(Unlock(c)))
-        /\ (\A c \in Clients \ Stalled: \A d \in AllowedDirections[c]: WF_v(Return(c,d)))
-        /\ (\A q \in P!ServiceQueues: WF_v(Process(q)))
+        /\ (\A c \in Clients \ Stalled: \A d \in UsedDirections(c): WF_v(Return(c,d)))
+        /\ (\A q \in UsedQueues: WF_v(Process(q)))
 CurrentCompatible == \A c,e \in ActiveClients, d,f \in Directions, p \in 0..1:
     /\ ColorOf[Control[c][d][p]] # ColorOf[Control[c][d][1-p]]
     /\ (c # e => (\A a \in P!Footprint(e,f): ColorOf[Control[c][d][p]] # ColorOf[a]))
 \* Goal 1's resource predicate projected onto the currently installed endpoints.
 \* Old/new endpoints share one physical QP, but are never admitted concurrently.
-CurrentSettled == P!TypeOK /\ P!Tracking /\ P!Conservation /\ P!UnusedQueuesEmpty /\ CurrentCompatible
+CurrentSettled == P!TypeOK /\ P!Tracking /\ P!Conservation /\ P!UnusedQueuesEmpty /\ UnusedEmpty /\ CurrentCompatible
 Safety == /\ S!TypeOK /\ S!CapacitySafe /\ S!Ordering /\ CurrentSettled /\ P!NoReadDependencyCycle
           /\ oldCache \in BOOLEAN /\ prefixFree \in BOOLEAN /\ reused \in BOOLEAN
 DrainBeforeInstall == assignment[1].stage \in {"Drained","Retired","Park","Installed"} => Quiet(1)
