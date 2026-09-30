@@ -156,6 +156,22 @@ fault configurations disable unrelated callback/close actions for claim,
 reservation and early-info diagnostics to keep their counterexamples focused;
 positive configurations include those actors.
 
+## Implementation checks carried by the composition
+
+| Boundary | Required serialization or local check |
+| --- | --- |
+| NIC reservation | Atomically count installed owners and outstanding destination reservations against the initialized thread pool; close fencing shares this commit order. |
+| Kernel claim | Recheck/claim a selected thread atomically, retry stale candidates, and serialize local activation with domain close. No individual thread withdrawal is assumed. |
+| Info response | Check internal transaction/UL readiness before ownership changes; hold the offered domain, parity and wake snapshot immutable until consumption. Keep its lifetime reference across close. |
+| Wake transfer | Transfer responsibility once at acceptance or snapshot capture; retain command/ACK references until reconciled. Dispose closed work explicitly. Repeated notification generations additionally need the separate ACK-generation contract. |
+| Directory accounting | Charge queued victims and invalidated entries until their release event, forbid duplicate allocation, and serialize invalidation against an already queued eviction of the same address. |
+| Replacement progress | A stalled color must not indefinitely suppress another worker's eligible downgrade/writeback. A per-color abstract queue is one sufficient contract, not a required literal microarchitecture. |
+| Prefix retirement | Join callbacks, reconcile responses and command references, fence all resumes, then obtain the endpoint certificate. Ordinary handoff neither releases a prefix nor waits for all old-domain cache residency to disappear. |
+
+These are implementation obligations, not assertions already added to the kmod or
+RTL. The resource conservation checks can become handshake monitors; control
+commit ordering needs tests against the actual MMIO framing and arbitration.
+
 ## Reproduction
 
 ```sh
@@ -163,6 +179,7 @@ nix develop -c python3 -m unittest discover -s tools/progress -v
 nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
 nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix
 nix develop -c python3 tools/scheduling/check_models.py --composed-only --output out/scheduling/composed-run --timeout 1200 --workers 4 --heap-mib 4096
+nix develop -c python3 tools/scheduling/check_models.py --case combined-scheduling --case combined-one-slot --safety-only --output out/scheduling/composed-safety --timeout 1200 --workers 2 --heap-mib 1024
 ```
 
 The original scheduling baseline remains separately runnable; use the new composed
@@ -170,3 +187,6 @@ check explicitly. Parse failures and timeouts are not passing results. Generated
 state graphs and raw traces belong under ignored output directories; tools and
 source/configuration hashes are recorded by the runner. Use the documented tmpfs
 workflow for large liveness graphs and archive both success and incomplete runs.
+The explicit `--safety-only` run checks state invariants on the full transition
+graph but omits temporal properties, including the response-stability action
+property. It cannot establish eventual handoff, retirement or worker progress.
