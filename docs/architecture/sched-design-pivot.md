@@ -193,6 +193,12 @@ full-duplex bypass and 32768 domain codes at the color/address level. Resource
 progress and hardware-refinement limits remain as recorded in the
 [verification report](../hardware/steady-state-verification.md).
 
+The 128 KiB stride is an inherited regression choice. With no preemption control
+CL, the 2F2F footprint is 3584 bytes. [Smaller-block checks](../hardware/coherence-progress.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
+find three workers plus bypass with 4 KiB blocks, or seven with 8 KiB blocks,
+under the same coloring contract. Stable mappings do not require the old spacing;
+select the stride jointly with the layout and domain encoding.
+
 Kernel parking and controlled affinity/TASK_IDLE transitions ensure descheduled
 registered workers do not execute. Hardware rejects access inconsistent with the
 current owner; optional generic return-path assertions can diagnose accidental

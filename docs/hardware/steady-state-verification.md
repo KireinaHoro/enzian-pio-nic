@@ -95,6 +95,22 @@ default 64-color/38-bit geometry, PA fields are domain `[37:26]`, worker mask
 `[25:20]`, domain `[19:17]`, then block offset `[16:0]`. These describe the checked
 candidate for the router-free design, not installed production constants.
 
+The 128 KiB stride is inherited, not necessary. The [smaller-block check](coherence-progress.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
+finds three workers plus bypass in 4 KiB blocks, and seven plus bypass in 8 KiB
+blocks, with respectively 1048576 and 524288 domain codes per worker. These are
+color/address results only. Reproduce the 4 KiB placement sweep in `nix develop`:
+
+```sh
+PYTHONPATH=tools/progress python3 - <<'PYTHON'
+from capacity import Layout, frontier
+for rx in range(5):
+    for tx in range(rx + 14, 19):
+        rows = frontier(Layout(rx, tx), stride=12)['frontier']
+        print(rx, tx, [(r['workers'], r['domains']) for r in rows])
+PYTHON
+python3 tools/progress/capacity.py --stride-bits 13
+```
+
 `tools/progress/capacity.py` emits `lauberhorn.fixed-worker-domain-map.v1`
 configurations, **not thread-router register programming**. A configuration carries
 worker bases, shared direction offsets, full-duplex bypass, allocated domain

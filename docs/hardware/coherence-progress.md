@@ -499,6 +499,41 @@ active_controls intersects active_overflow = empty
 This consumes 32 distinct control colors and 32 overflow colors. Together they
 use all 64 colors, with overflow colors intentionally reused across QPs.
 
+### Block size is a search parameter, not a 2F2F requirement
+
+The 17-bit offset above inherits the current `EciInterfacePlugin.coreOffset`
+(`0x20000`); it is **not required by the router-free design**. The replacement
+footprint excludes the removed preemption control CL. Two directions, each with
+two control and twelve overflow lines, need only `2 * 14 * 128 = 3584` bytes.
+They fit in a 4 KiB block. Stable mappings do not require preserving the old
+128 KiB spacing. Page isolation/alignment and color compatibility remain separate
+constraints; address-space allocation size is not physical payload storage size.
+
+A September 30 check with the existing searcher gives the following smaller-block
+results (64 colors, 38-bit aperture, no reservations, full-duplex bypass):
+
+| Block size | RX / TX first control CL | Worker/domain capacity, excluding bypass |
+| --- | --- | --- |
+| 4 KiB | 0 / 16 | 1..3 workers, each with 1048576 domain codes |
+| 8 KiB | 6 / 38 | 1..7 workers, each with 524288 domain codes |
+| 128 KiB (inherited default) | 6 / 38 | 1..7 workers, each with 32768 domain codes |
+
+For 4 KiB, all 15 disjoint ordered placements modulo RX/TX exchange were checked:
+`rx=0..4`, `tx=rx+14..18`. Three workers is the maximum in this shared-offset,
+adjacent-control/contiguous-overflow family. The witness has RX controls
+`0x000/0x080`, RX overflow `0x100..0x6ff`, TX controls `0x800/0x880`, and TX
+overflow `0x900..0xeff`. This is a coloring limitation under the selected contract,
+not a claim that a fourth worker cannot use any possible 4 KiB design.
+
+The existing compact offsets already fit in 8 KiB and retain seven workers.
+These checks concern color/address capacity, not a new resource-progress proof.
+The CLI still defaults to the inherited 128 KiB regression; select `--stride-bits
+12 --rx 0 --tx 16` or `--stride-bits 13` to emit the smaller replacement-design
+configurations. Their domain encoding uses the emitted XOR kernel basis; the
+simple 17-bit-offset bit-field formula below applies **only to the old default**.
+A broader joint stride/layout search and mapping-granularity audit should precede
+selection of production constants.
+
 ### Concrete domain-qualified PA encoding
 
 For this default geometry, let `d` be the allocated 15-bit domain code, `m` the
