@@ -103,3 +103,15 @@ Read the result's `summary.json` first. Expected negatives count as passing only
 when TLC reports the intended property failure; parser errors and timeouts do not.
 The extended cases are opt-in finite bounds, not a proof for all worker counts or
 undocumented THX resource behavior. See the report for current results.
+
+The [Goal 2 scheduling contract checks](../hardware/scheduling-verification.md)
+are separate from the steady-state regression:
+
+```sh
+nix build .#checks.x86_64-linux.scheduling-progress --out-link out/scheduling/nix-check
+```
+
+They model the proposed cooperative handoff, pending wake ownership and interrupt
+ordering. They do not test the current kernel scheduler or instantiate DCS RTL.
+The optional stalled-third-worker case and remaining composition work are
+listed in the report.
