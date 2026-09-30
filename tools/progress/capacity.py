@@ -110,9 +110,20 @@ def frontier(layout, bits=6, width=38, stride=17, reserved=()):
                            bypass_base=reps[bypass],
                            domain_indices=None if domains is None else
                            [i for i in range(all_domains) if domains >> i & 1])
-        # If the upper bound cannot improve any remaining frontier point, prune.
+        if count == 0:
+            return  # intersections cannot regain excluded domain prefixes
+        # A proper greedy coloring of the compatibility graph bounds its clique
+        # size. This is an upper bound, not a heuristic maximum-clique claim.
+        buckets = []
+        for m in sorted(candidates, key=lambda v: -len(edges[v])):
+            for bucket in buckets:
+                if not edges[m].intersection(bucket):
+                    bucket.add(m)
+                    break
+            else:
+                buckets.append({m})
         if all(j in best and best[j]['domains'] >= count
-               for j in range(k + 1, k + len(candidates) + 1)):
+               for j in range(k + 1, k + len(buckets) + 1)):
             return
         for i, m in enumerate(candidates):
             ds = domains if domains is None else domains & valid[m]
