@@ -52,7 +52,7 @@ DEFAULTS = {
     'WakeHandoff': {},
 }
 INVARIANTS = {
-    'Handoff': ['Safety','DrainBeforeInstall','CacheBeforeInstall','PrefixSafe'],
+    'Handoff': ['Safety','DrainBeforeInstall','CacheBeforeInstall','PrefixSafe','SteadyEntry'],
     'Reservation': ['Safety','NoLeakedReservation'],
     'HostWake': ['TypeOK','Responsibility','EligibleDelivery','HotReservation'],
     'InterruptGate': ['TypeOK','NoPrematureReblock'],
@@ -102,7 +102,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx', 'wake-handoff'}]:
+    for name in args.case or [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]:
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()

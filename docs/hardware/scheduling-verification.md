@@ -93,8 +93,12 @@ physical parity is transferred to the newly installed endpoint.
 installed endpoints: typing, accepted-transaction tracking, conservation, unused
 queues empty, and compatible current footprints. Keeping dormant old/new aliases
 in a single global placement predicate would incorrectly require different
-colors for two successive owners of the same worker. `ActivationSafe` checks the
-projection, mailbox/parity return and retirement at the activation boundary.
+colors for two successive owners of the same worker. `New` directly instantiates the unchanged Goal 1 `ProgressSystem` on the
+post-handoff clients and projects their state from the shared transport.
+`ActivationSafe` checks **that instance's `Settled` predicate**, mailbox/parity
+return and retirement at activation. `SteadyEntry` checks it throughout subsequent
+execution. The transition-time `CurrentSettled` predicate is not being substituted
+for this direct entry check.
 Assignments subsequently remain fixed in this one-handoff harness. The ordinary
 peer's admission and completion liveness is checked throughout the transition,
 including while drain or dispatch is pending.
@@ -173,9 +177,8 @@ nix develop -c python3 tools/scheduling/check_models.py --case handoff-rx-tx --w
 nix develop -c python3 tools/scheduling/check_models.py --case handoff-stalled-peer --workers 4 --timeout 1200 --output out/scheduling/stalled-peer
 ```
 
-The default suite excludes those two extended cases and `wake-handoff`; run the
-joined case with `--case wake-handoff --workers 4 --timeout 600` and a fresh output
-directory. Terminal component states legitimately stutter, so TLC deadlock
+The default suite includes the joined `wake-handoff` case and excludes the two
+extended cases. Terminal component states legitimately stutter, so TLC deadlock
 checking is disabled; explicit liveness properties check unfinished obligations
 and unaffected-worker progress. The runner records exact source/jar/config/log hashes, commands, time bounds and
 outcomes. Expected negatives must violate their named invariant/property;

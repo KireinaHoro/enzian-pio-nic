@@ -35,6 +35,19 @@ Control == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |->
     A!ControlTable[ClientDomain(c)+1][ClientWorker(c)][d+1][p+1]]]]
 Dependencies == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |-> <<Control[c][d][1-p]>>]]]
 P == INSTANCE ProgressSystem
+\* Instantiate Goal 1 itself on the post-handoff clients, not a copied predicate.
+NewClients == Clients \ {1}
+New == INSTANCE ProgressSystem WITH
+    Clients <- NewClients,
+    Control <- [c \in NewClients |-> Control[c]],
+    Dependencies <- [c \in NewClients |-> Dependencies[c]],
+    AllowedDirections <- [c \in NewClients |-> AllowedDirections[c]],
+    PoolOf <- [c \in NewClients |-> PoolOf[c]],
+    phase <- [c \in NewClients |-> phase[c]],
+    parity <- [c \in NewClients |-> parity[c]],
+    direction <- [c \in NewClients |-> direction[c]],
+    remaining <- [c \in NewClients |-> remaining[c]],
+    completed <- [c \in NewClients |-> completed[c]]
 transport == <<reads,invQ,held,acknowledgments,phase,parity,direction,remaining,completed,unlockQ>>
 meta == <<oldCache,prefixFree,reused,mailbox,returnedParity>>
 v == <<assignment,transport,meta>>
@@ -116,8 +129,9 @@ DrainBeforeInstall == assignment[1].stage \in {"Drained","Retired","Park","Insta
 CacheBeforeInstall == assignment[1].stage \in {"Retired","Park","Installed","Active","Cancelled"} => ~oldCache
 PrefixSafe == (prefixFree \/ reused) => (~oldCache /\ OldMessagesGone /\ assignment[1].owner # 0)
 \* Check the actual return boundary; later operations legitimately change parity.
-ActivationContract == Activate => (CurrentSettled' /\ mailbox' = 1 /\ returnedParity' = parity'[3]
+ActivationContract == Activate => (New!Settled' /\ mailbox' = 1 /\ returnedParity' = parity'[3]
                                    /\ Quiet(1) /\ ~oldCache)
+SteadyEntry == assignment[1].stage = "Active" => New!Settled
 ActivationSafe == [][ActivationContract]_v
 SleepRetainsAssignment == [][(Sleep \/ Resume) => assignment'[1].owner = assignment[1].owner]_v
 HandoffFinishes == (assignment[1].stage = "Preempt") ~> (assignment[1].stage \in {"Active","Cancelled"})
