@@ -31,6 +31,17 @@ runCommand "lauberhorn-steady-progress"
     python3 -m unittest discover -s tools/progress -v
     python3 tools/progress/verify_config.py model/steady/selected-8k.json
     python3 tools/progress/audit_resources.py model/steady/selected-8k.json > rtg-bound.json
-    python3 tools/progress/check_models.py --output "$out" --timeout 300
+    python3 tools/progress/check_models.py --output results --timeout 300
+    mkdir -p "$out"
     cp rtg-bound.json "$out/rtg-bound.json"
+    python3 - <<'PYTHON'
+    import json
+    import os
+    from pathlib import Path
+    result = json.loads(Path("results/summary.json").read_text())
+    for case in result["cases"].values():
+        for field in ("elapsed_seconds", "command", "log_sha256", "statistics"):
+            case.pop(field)
+    Path(os.environ["out"], "summary.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    PYTHON
   ''
