@@ -1,0 +1,127 @@
+{
+  "date": "2026-09-30",
+  "status": "conditional bounded progress checked; hardware-wide HoL freedom and Goal 1 acceptance remain open",
+  "source_sha256": {
+    "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+    "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+    "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+    "model/steady/ProgressSystem.tla": "ea87d6303dd5b59ac95b8c8b79fa2fdf050a300c1119aa3149113f4cbdf31a02",
+    "model/steady/Steady.tla": "70d9cc96d31d9a72f46dab29f68e4341e457975632d460a5e6869bf6d8549596",
+    "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+    "model/steady/TwoFClient.tla": "7ba7f3169bb7fe8f745d9755eb49031d704f88f862a453d75310cb1009de34e1",
+    "model/steady/bad-ack.cfg": "5ca71134c744a4aed06da82935b8fa69f68b04e75e54b963e6326d7b3cf64ed2",
+    "model/steady/bad-color.cfg": "78115630ab3dc016339f1e43a2c93a918c70baf4ba30501fc17475275b234017",
+    "model/steady/bad-credits.cfg": "436a6aa53a813b1287eee2a981b4ce6886302db211788c73e6a0d77e5ebe7556",
+    "model/steady/bad-cycle.cfg": "0ab411f2c36482a527a64ca5d0dff7aaa7990f1707f2f12545444b2a4d74e5ce",
+    "model/steady/bad-hol.cfg": "615d2fa4140d8548a22bb222025ba0ab465a5eac5e4cf13a18beb343e93e4728",
+    "model/steady/bad-slice.cfg": "4d917db351977464de562295c1dea346acd5ac8b0244e87d7d1cf0a8eba80a3c",
+    "model/steady/bypass-overflow.cfg": "69109130fbc61bc19ccf11434f32325acf0fc9c5af578c2b5a51adb9ee1018cf",
+    "model/steady/bypass.cfg": "8ca418b7de9c0df96846e5af95c81f8b0235a663e4303e930f9968190618c732",
+    "model/steady/minimal.cfg": "62fc38c28a4ca5efac2759bb7d134f3f137b07ebce34b73aeabf244f0ca71a5d",
+    "model/steady/no-stalls.cfg": "bda869c76283c53946c90026bf1527edcb4d35fafca2020e48af05c09ed73589",
+    "model/steady/positive.cfg": "d94d7af84104b298ffb3a5d64891eda5e13d2ecc82dc0039b0edb755cd15c153",
+    "model/steady/probe.cfg": "e462ad52c130be1268d3a7b758c97d6708fda4563d80b5f7ec0d59c8df6cc298",
+    "model/steady/separate-ack.cfg": "245139a0df9c0525bbbf96544c7757cbb81c624f6301da0be8b6d87b4d245ebe",
+    "model/steady/two-stalls.cfg": "dd9742c6ba631e16c3cf797621cfdab723cb15cd431b1e92eacd083125c7b2e5",
+    "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+    "tools/progress/verify_config.py": "a14ec52f8546b5a233fff74474eacbbf733303c67e3fe699d019321c97210f29",
+    "tools/progress/witness_model.py": "29b9725b8a2c037392f56b223f9dd9b1def06c3f033c91f9efbb1d504f54d398",
+    "tools/progress/test_capacity.py": "00aa4c041e563f0c01daf7928dc90bdff536dcfb55dc9b488f367f00f2e1eea7",
+    "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf"
+  },
+  "tlc_sha256": "ab4694601923fd5ac06452abbf847c366a5054a3d739552085edd6ed986c29ec",
+  "configuration": "model/steady/selected-8k.json",
+  "capacity_tests_passed": 9,
+  "independently_checked_worker_domain_blocks": 112,
+  "address_formula_check": {
+    "worker_domain_bases_checked": 3670016,
+    "domain_codes": 524288,
+    "workers": 7,
+    "basis_and_color_invariance": true,
+    "documented_formula_matches_encoder": true,
+    "selected_config_matches_generator": true
+  },
+  "witness": {
+    "selected_workers": [
+      0,
+      1
+    ],
+    "selected_domains": [
+      0,
+      15
+    ],
+    "stalled_workers": [
+      0
+    ],
+    "include_bypass": false,
+    "generated_states": 45632,
+    "distinct_states": 25088,
+    "depth": 141,
+    "returncode": 0,
+    "invariants": [
+      "Settled",
+      "NoReadDependencyCycle"
+    ],
+    "properties": [
+      "Progress",
+      "Admission"
+    ],
+    "generated_module_sha256": "d7d0d766843bc2806d09724e5a68808ac492f64f7d562f21b82028aff4f5b0bd",
+    "generated_config_sha256": "72720ac0163a81f19b5b56aad18d72dc00b2071e9b9978d24d2e67dfc2338d9e",
+    "log_sha256": "967f7a590f9918dd99c959ee75d4a56dde7e54fe4bb26791d228c56b94a94cda"
+  },
+  "negative_cases": {
+    "bad-hol": {
+      "expected_counterexample": true,
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(4) at 2026-09-30 14:01:10: 4 states generated, 4 distinct states found, 0 states left on queue.",
+        "4 states generated, 4 distinct states found, 0 states left on queue."
+      ]
+    },
+    "bad-color": {
+      "expected_counterexample": true,
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(31) at 2026-09-30 14:01:11: 6,272 states generated, 3,712 distinct states found, 0 states left on queue.",
+        "6272 states generated, 3712 distinct states found, 0 states left on queue."
+      ]
+    },
+    "bad-credits": {
+      "expected_counterexample": true,
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(5) at 2026-09-30 14:01:12: 384 states generated, 384 distinct states found, 0 states left on queue.",
+        "384 states generated, 384 distinct states found, 0 states left on queue."
+      ]
+    },
+    "bad-slice": {
+      "expected_counterexample": true,
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(31) at 2026-09-30 14:01:14: 6,400 states generated, 3,712 distinct states found, 0 states left on queue.",
+        "6400 states generated, 3712 distinct states found, 0 states left on queue."
+      ]
+    },
+    "bad-ack": {
+      "expected_counterexample": true,
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(30) at 2026-09-30 14:01:16: 5,888 states generated, 3,712 distinct states found, 0 states left on queue.",
+        "5888 states generated, 3712 distinct states found, 0 states left on queue."
+      ]
+    }
+  },
+  "limitations": [
+    "Assumed per-color invalidation queues, finite credits, and eligible-service fairness",
+    "No selected-layout full-duplex bypass liveness instance checked",
+    "No selected-layout seven-concurrent-worker or all-stall-subset progress proof",
+    "DCS write/RTG/VC/CDC/crossbar and THX shared-resource refinement unresolved",
+    "No selected-layout production RTL or board validation"
+  ]
+}

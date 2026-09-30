@@ -185,19 +185,19 @@ once; yield selects the appropriate mapping on migration. Thread count remains
 the application's degree of parallelism. This replaces general thread routing
 with worker decoding, owner checking and domain-qualified coherence addresses.
 
-A [checked layout and concrete PA encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding)
-now exists for the 64-color, 38-bit, 128 KiB-block family: worker masks
-`[2,4,6,24,26,28,30]`, bypass mask 0, and domain bits in PA `[37:26]` and
-`[19:17]` around the worker-mask field `[25:20]`. It supports seven workers plus
-full-duplex bypass and 32768 domain codes at the color/address level. Resource
-progress and hardware-refinement limits remain as recorded in the
-[verification report](../hardware/steady-state-verification.md).
+The **selected replacement layout** uses [8 KiB blocks and a color-neutral XOR
+PA encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding),
+with RX controls at `+0x300/+0x380`, TX controls at `+0x1300/+0x1380`, twelve
+overflow CLs after each pair, and no preemption control CL. For 64 colors and a
+38-bit slice-relative aperture, worker masks `[2,4,6,24,26,28,30]` plus fixed bypass
+mask 0 support seven workers and 524288 domain codes at the color/address level.
+The 13-bit offset leaves 19 color-neutral domain bits; some require compensating
+XORs, so the old 128 KiB PA bit-field formula no longer applies.
 
-The 128 KiB stride is an inherited regression choice. With no preemption control
-CL, the 2F2F footprint is 3584 bytes. [Smaller-block checks](../hardware/coherence-progress.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
-find three workers plus bypass with 4 KiB blocks, or seven with 8 KiB blocks,
-under the same coloring contract. Stable mappings do not require the old spacing;
-select the stride jointly with the layout and domain encoding.
+The [selected-layout model and evidence](../hardware/steady-state-verification.md#selected-8-kib-layout-evidence-and-goal-1-status)
+record conditional finite-instance progress and the remaining hardware HoL gaps.
+Selection does not install new production constants or establish whole-system
+HoL freedom. Goal 1's outstanding acceptance obligations remain explicit there.
 
 Kernel parking and controlled affinity/TASK_IDLE transitions ensure descheduled
 registered workers do not execute. Hardware rejects access inconsistent with the
