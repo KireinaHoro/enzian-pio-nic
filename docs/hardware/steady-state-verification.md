@@ -1,8 +1,11 @@
 # Settled progress verification
 
-Status: Goal 1 verification infrastructure and bounded evidence, September 30,
-2026. **Not a whole-system progress proof or production scheduling pivot.**
-Goal 2 remains a subsequent extension. No timing work or board run is involved.
+Status (2026-09-30): **Goal 1 complete as a bounded modeling/layout milestone**,
+accepted by the maintainer to proceed with Goal 2 modeling and implementation.
+This is not full hardware verification, a whole-system progress proof or an
+implemented production scheduling pivot. Remaining validation is tracked in the
+[roadmap](../research/roadmap.md#scheduling-verification-milestones-maintainer-2026-09-30).
+No timing work or board run is involved.
 The source audit started at platform `fcbb6aa`; blocks `b527f9c`, DCS `7b5cc87`,
 and THX FSMs `a137b82`. These are evidence revisions, not verification results.
 
@@ -292,9 +295,9 @@ prevents a positive production full-duplex bypass test without changing the desi
 
 ## Selected 8 KiB layout evidence and Goal 1 status
 
-**Layout selected; conditional bounded progress checked; Goal 1 acceptance is
-not yet complete.** Selecting this layout does not close the shared-resource
-and hardware-correspondence gaps below. In particular, no result here establishes
+**Goal 1 milestone complete: layout selected and conditional bounded progress
+checked; accepted for subsequent modeling and implementation.** This scope of
+completion does not close the shared-resource and hardware-correspondence gaps below. In particular, no result here establishes
 hardware-wide HoL freedom for seven active workers plus full-duplex bypass.
 
 The exact [selected configuration](../../model/steady/selected-8k.json) is generated
@@ -348,15 +351,18 @@ Reproduce the current selected address-bound run in a fresh output directory:
 nix develop -c python3 tools/progress/check_models.py --case selected-workers --output out/progress/selected-recheck
 ```
 
-Goal 1 still requires broader concurrent worker/stall-subset progress coverage
+Remaining hardware-verification work requires broader concurrent worker/stall-subset progress coverage
 and sufficient shared-resource fidelity for DCS write/RTG/VC/CDC/crossbar paths
 and THX contention. The new selected-bypass run below closes the one-stalled-worker
 plus full-duplex bypass/overflow instance, not all worker/bypass combinations.
 Earlier incomplete runs remain historical, not proofs. Existing RTL tests exercise the
 current production layout with finite stalls, not this replacement mapping;
 no new RTL or board result is claimed. The [entry contract](#entry-and-environment-contracts)
-is unchanged and remains the contract Goal 2 must establish. Goal 2 should not be
-used to defer these steady-state resource-progress obligations.
+is unchanged and remains the contract Goal 2 must establish. These steady-state
+resource-progress obligations remain tracked independently of Goal 2 in the
+[targeted DCS RTL validation roadmap](../research/roadmap.md#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available).
+The main ECI suites use Scala `DcsAppMaster` in place of DCS RTL; the planned
+targeted tests must instantiate the actual DCS RTL once the replacement RTL is available.
 
 ## Nix-pinned reruns and expanded bounds
 
