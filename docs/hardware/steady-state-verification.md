@@ -13,8 +13,10 @@ and THX FSMs `a137b82`. These are evidence revisions, not verification results.
 
 `ProgressSystem!Settled` names resource typing, tracking, conservation and static
 color compatibility in the abstract execution (`Steady` exports it). Its interpretation additionally requires fixed physical worker/domain
-assignments, consistent mappings and owner checks, retirement of old-owner cache
-state and messages, and legal concrete transport/cache state. Those environmental clauses
+assignments, consistent mappings and owner checks, completion or safe tracking of old-owner transactions, and legal concrete
+transport/cache state. Ordinary cache residency need not be empty;
+[retained-cache accounting](retained-cache-composition.md) supplies the additional
+replacement/directory contract. Prefix reuse still requires endpoint retirement. Those environmental clauses
 are **assumptions**, not consequences of the predicate. Goal 2 must establish all
 of them at a handoff and maintain unaffected workers' progress during transitions.
 The model cannot represent stale old-domain cache hits or owner changes.
@@ -70,18 +72,14 @@ unlocks is assumed; extending backpressure to those omitted paths is still neede
 
 ### Additional source-backed resource bounds
 
-The [reproducible RTG audit](../../tools/progress/audit_resources.py) counts every
-selected RX and TX line as resident simultaneously, even though worker software
-is half-duplex. At seven workers plus bypass, 32 DCUs each receive one control
-line and the other 32 each receive six overflow lines. Domain-prefix invariance
-makes this independent of the currently assigned domain codes. A set within a
-DCU cannot contain more distinct footprint lines than that DCU's total, so the
-six-line bound is below `DS_NUM_WAYS_PER_SET=16` in
-[`eci_dcs_defs.sv`](../../vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv).
-Thus **this footprint alone cannot fill an RTG set**, assuming one current domain
-per worker, retired old-owner cache state, no additional coherent regions, and
-one RTG entry per line. This is an occupancy bound, not a proof of RTG transition
-correctness or progress. Extra resident generations/traffic invalidate that bound.
+The [reproducible RTG audit](../../tools/progress/audit_resources.py) now counts
+potential tags from **all configured domain aliases** using the full set index.
+It does not assume old-owner lines have vanished, nor infer available ways from
+the active footprint. Full dirty sets and conflict replacement are modeled in
+[the retained-cache composition](retained-cache-composition.md). DCS does not
+induce eviction on a full-set miss: CPU downgrade/writeback service must provide
+progress. The earlier six-line active-footprint statistic is not a clean-cache
+entry condition or a proof that a set cannot fill.
 
 The same source declares a per-slice data buffer sized as two 512-bit words per
 DCU index. [`dp_data_store.sv`](../../vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_data_store/rtl/dp_data_store.sv)
@@ -561,8 +559,9 @@ The [single-read control interface](../software/scheduling-control-interface.md)
 does not require kernel cache-line accesses or an old-domain cache flush on every
 handoff. Domains have distinct PAs; the revised handoff model waits only for its
 modeled NIC-internal obligations before returning the new snapshot. Cached old
-generations are not represented by this model. Thus the concrete entry assumption
-and six-line RTG occupancy bound above remain conditional: retained generations
-require additional accounting or a hardware reclamation guarantee. Whole-domain
+generations are now accounted for by the separate retained-cache composition.
+The six-line active-assignment statistic is not a residency or progress bound;
+full sets, dirty entries and conflict replacement are allowed. Concrete CPU
+replacement/downgrade correspondence remains to be established. Whole-domain
 prefix reuse still requires a separate coherence retirement certificate. This
 clarification does not extend the existing Goal 1 proof to those omitted states.

@@ -120,3 +120,8 @@ For the focused concurrent-race subset, run
 `nix build .#checks.x86_64-linux.scheduling-races --out-link out/scheduling/races-nix`.
 See the [implementation checklist](../software/scheduling-implementation-checks.md)
 for bounds, negative controls and required serialization points.
+
+For retained-cache pressure and the combined scheduling race model, run
+`nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix`.
+See [bounds and assumptions](../hardware/retained-cache-composition.md); this is
+separate from the original component baseline.

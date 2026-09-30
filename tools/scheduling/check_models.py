@@ -39,6 +39,18 @@ CASES.update({
     'bad-timer-order': ('TimerMirror', {'BadOrder': True}, 'MirrorOrder'),
 })
 RACE_CASES = {
+    'combined-scheduling': ('CombinedScheduling', {}, None),
+    'combined-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1}, None),
+    'bad-combined-reservation': ('CombinedScheduling', {'DestinationCapacity': 1, 'BadReserve': True}, 'CapacitySafe'),
+    'bad-combined-claim': ('CombinedScheduling', {'BadClaim': True}, 'UniqueClaim'),
+    'bad-combined-info': ('CombinedScheduling', {'BadInfo': True}, 'InfoReady'),
+    'bad-combined-retire': ('CombinedScheduling', {'BadRetire': True}, 'RetirementSafe'),
+    'bad-combined-wake': ('CombinedScheduling', {'BadWake': True}, 'Responsibility'),
+    'bad-combined-snapshot': ('CombinedScheduling', {'BadSnapshot': True}, 'SnapshotStable'),
+    'retained-cache': ('CachedProgress', {}, None),
+    'retained-cache-independent-queues': ('CachedProgress', {'BlockDowngrade': True}, None),
+    'bad-retained-cache-hol': ('CachedProgress', {'BlockDowngrade': True, 'SharedEvictions': True}, 'Progress'),
+    'bad-retained-cache-no-replacement': ('CachedProgress', {'DisableReplacement': True}, 'Progress'),
     'control-retirement': ('ControlRetirement', {}, None),
     'bad-control-retire': ('ControlRetirement', {'BadRetire': True}, 'RetirementSafe'),
     'bad-control-snapshot': ('ControlRetirement', {'BadSnapshot': True}, 'SnapshotStable'),
@@ -57,7 +69,10 @@ RACE_CASES = {
     'bad-wake-retirement': CASES['bad-wake-retirement'],
 }
 CASES.update(RACE_CASES)
+COMPOSED_CASES = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
 DEFAULTS = {
+    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2},
+    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement'), False),
     'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
     'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
     'Reservation': {'BadReservation': False},
@@ -71,6 +86,8 @@ DEFAULTS = {
     'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
+    'CombinedScheduling': ['Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
+    'CachedProgress': ['Safety'],
     'ControlRetirement': ['TypeOK','RetirementSafe'],
     'Handoff': ['Safety','DrainBeforeInstall','PrefixSafe','SteadyEntry'],
     'Reservation': ['Safety','NoLeakedReservation'],
@@ -84,6 +101,8 @@ INVARIANTS = {
     'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
+    'CombinedScheduling': ['SnapshotStable','HandoffFinishes','Retires','StableProgress'],
+    'CachedProgress': ['Progress'],
     'ControlRetirement': ['SnapshotStable','NoResumeAfterClose','ReadCompletes','Retires'],
     'Handoff': ['ActivationSafe','SleepRetainsAssignment','HandoffFinishes','PeerProgress','PrefixRetires'],
     'Reservation': ['ReservationFinishes'],
@@ -114,6 +133,7 @@ def main():
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--case', action='append', choices=CASES)
     selection.add_argument('--races-only', action='store_true')
+    selection.add_argument('--composed-only', action='store_true')
     p.add_argument('--timeout', type=int, default=300)
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
@@ -129,7 +149,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]):
+    for name in args.case or (COMPOSED_CASES if args.composed_only else RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_CASES]):
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()

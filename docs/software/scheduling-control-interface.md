@@ -176,9 +176,9 @@ responsibility at the response and only services it after local activation.
 The `oldCache` ghost in Handoff now concerns **whole-domain prefix retirement**;
 it no longer gates handoff or Goal 1's abstract Settled predicate. Its retirement
 action is an assumed endpoint certificate for this one-domain harness. Resident
-old-domain lines and later re-entry are not modeled: the prior RTG occupancy bound
-and concrete Goal 1 entry interpretation must not be applied to arbitrary retained
-generations. Accounting for those lines or proving hardware reclamation remains open.
+old-domain lines were not represented in this original harness. The new
+retained-cache composition below accounts for their finite residency and queued
+release; repeated later re-entry and concrete THX correspondence remain open.
 
 `ControlRetirement` checks one pre-reserved dispatch and callback racing close,
 with separate response offer/consumption, local activation and retirement. It
@@ -192,3 +192,9 @@ ownership and quiescence certificate above, together with reservations and fixed
 thread claims. Do not interpret the standalone historical WakeRetirement test as
 proof of this whole-domain interface. Actual register framing, independent control
 progress, cached-generation resource bounds and kill recovery remain obligations.
+
+The [retained-cache composition](../hardware/retained-cache-composition.md) now
+accounts for nonempty dirty sets, conflict eviction and delayed directory release,
+and combines those resources with the control/close races. It supersedes the
+ordinary clean-cache entry assumption; actual THX replacement topology and the
+teardown-only endpoint certificate remain refinement obligations.

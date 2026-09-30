@@ -36,6 +36,7 @@ in
         bash ${src}/deps/blocks/deps/verilog-axi/tb/axi_crossbar/run_decerr.sh
         touch $out
       '';
+  scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };
   scheduling-races = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; racesOnly = true; };
   scheduling-progress = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; };
   steady-progress = pkgs.callPackage ./steady-progress.nix { inherit tlc; };
