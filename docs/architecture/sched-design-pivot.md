@@ -197,7 +197,9 @@ XORs, so the old 128 KiB PA bit-field formula no longer applies.
 The [selected-layout model and evidence](../hardware/steady-state-verification.md#selected-8-kib-layout-evidence-and-goal-1-status)
 record conditional finite-instance progress and the remaining hardware HoL gaps.
 Selection does not install new production constants or establish whole-system
-HoL freedom. Goal 1's outstanding acceptance obligations remain explicit there.
+HoL freedom. Goal 1 is accepted as a completed bounded modeling/layout milestone;
+remaining hardware-verification obligations stay explicit in the report and
+[targeted DCS RTL roadmap](../research/roadmap.md#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available).
 
 Kernel parking and controlled affinity/TASK_IDLE transitions ensure descheduled
 registered workers do not execute. Hardware rejects access inconsistent with the
@@ -253,8 +255,10 @@ Linux 6.8 references: [eventpoll](https://github.com/torvalds/linux/blob/v6.8/fs
 
 ## Verification boundary
 
-Implement the verification work in two stages: first fixed assignments after a
-settled handoff, then scheduling transitions. The [Goal 1 infrastructure and
+Verification proceeds in two stages: fixed assignments after a settled handoff,
+then scheduling transitions. The first milestone is accepted as complete for
+proceeding with Goal 2 modeling and implementation, without claiming full hardware
+verification. The [Goal 1 infrastructure and
 evidence](../hardware/steady-state-verification.md) emits configurations for the
 proposed direct physical-worker/domain decoder, without implementing this pivot.
 Color-compatible capacity is separate from resource-model progress and hardware

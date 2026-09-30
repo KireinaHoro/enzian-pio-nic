@@ -5,6 +5,9 @@ Status (2026-09-30): progress remains conditional on resource and hardware-refin
 The independently runnable [settled verification work](steady-state-verification.md)
 now supplies a capacity searcher for the proposed router-free worker/domain map,
 small positive/negative resource models and directed stalled-worker simulations.
+Goal 1 is accepted as a completed bounded modeling/layout milestone, allowing
+Goal 2 modeling and implementation; [targeted DCS RTL simulation](../research/roadmap.md#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available)
+is planned once the replacement RTL is available.
 Its color frontier, finite model bounds, assumptions and remaining refinement gaps
 are separate; it does not establish whole-system progress.
 
