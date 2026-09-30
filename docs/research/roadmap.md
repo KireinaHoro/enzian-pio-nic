@@ -96,8 +96,8 @@ The [control/retirement interface](../software/scheduling-control-interface.md)
 now specifies one blocking PreemptInfo read per handoff, local userspace activation
 and separate whole-domain close/quiescence/retirement. Combined race checking must
 preserve response lifetime and pending wake ownership across close. Retained
-old-domain cache generations require additional resource accounting; no ordinary
-kernel CL flush is specified.
+old-domain cache generations now have explicit resource accounting in the
+composition below; no ordinary kernel CL flush is specified.
 
 [Retained cache and composed scheduling](../hardware/retained-cache-composition.md)
 now models full dirty sets, conflict replacement and delayed directory release,

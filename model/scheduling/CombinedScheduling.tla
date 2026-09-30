@@ -151,8 +151,8 @@ KernelQuiet(d) ==
         /\ ~(d = 1 /\ ctl.w[w].stage \in {"Offered","Claim","Chosen","Ready"})
         /\ d \notin ctl.w[w].snapshot \cup ctl.w[w].runtime
 EndpointQuiet(d) ==
-    /\ \A a \in directory: DomainOf(a) # d
-                    /\ \A w \in Workers: Quiet(Client(w,d))
+    /\ (\A a \in directory: DomainOf(a) # d)
+    /\ (\A w \in Workers: Quiet(Client(w,d)))
 Retire(d) ==
     /\ d \in ctl.fenced \ ctl.retired
     /\ (BadRetire \/ (KernelQuiet(d) /\ EndpointQuiet(d)))

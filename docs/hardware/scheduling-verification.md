@@ -167,11 +167,13 @@ with successful selection, no ordinary syscall sleep and no interrupt. InfoRespo
 changes ownership and transfers the host indication to a kernel-held return
 snapshot; local activation makes it serviceable without another NIC command.
 
-The complete transport/assignment cross-product still needs whole-domain teardown/dispatch
-reconciliation, old-domain notifications racing this joined handoff, concurrent
-thread claims, and actual RX gating during early NACK. It must connect the checked
-wake-retirement guard to transport/cache retirement in one domain teardown. Prefix reuse must satisfy both contracts together. Accordingly these bounded checks do not discharge
-all Goal 2 acceptance obligations. Repeated handoffs, migration between physical
+The new [combined model](retained-cache-composition.md) connects whole-domain
+teardown/dispatch reconciliation, old-domain notifications, concurrent thread
+claims and transport/cache retirement. Its checked bounds and run status are
+reported separately there; the historical results below do not cover it.
+Actual RX gating during kill-related early NACK remains separate. Accordingly
+these bounded checks do not discharge all Goal 2 acceptance obligations.
+Repeated handoffs, migration between physical
 workers, broader worker/domain bounds, overflow retirement and full-duplex bypass
 during transitions also remain to be checked. Hardware refinement inherits Goal
 1's DCS shared-path and undocumented THX resource assumptions.
