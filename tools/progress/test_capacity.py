@@ -66,6 +66,22 @@ class CapacityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             encode(c, 0, 16)
 
+    def test_sweep_equivalence_and_large_geometry(self):
+        # Independently check the period used to exhaust 1024-CL placements.
+        for line in range(1024):
+            self.assertEqual(color(line * 128, 6), color((line % 256) * 128, 6))
+        for rx, tx in ((6, 38), (6, 294), (250, 512)):
+            layout = Layout(rx, tx, 12)
+            for mask_a, mask_b in itertools.product((0, 2, 14, 30, 63), repeat=2):
+                a = [layout.signature(mask_a << 20, d, 6) for d in (0, 1)]
+                b = [layout.signature(mask_b << 20, d, 6) for d in (0, 1)]
+                expanded = compatible(a) and compatible(b) and all(
+                    compatible([x, y]) for x in a for y in b)
+                self.assertEqual(compatible(a + b), expanded)
+        r = frontier(Layout(), bits=7, width=27)
+        self.assertEqual(r['frontier'][-1]['workers'], 15)
+        self.assertTrue(verify(r))
+
     def test_invalid_layout(self):
         for layout in (Layout(0, 1, 1), Layout(-1, 10, 0), Layout(0, 2, -1)):
             with self.assertRaises(ValueError):
