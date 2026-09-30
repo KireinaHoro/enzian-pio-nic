@@ -554,3 +554,15 @@ these resources for bounded handoff and wake-activation checks, including a
 direct instance of this model's settled predicate at activation. Goal 2 remains
 in progress; its component results do not change the hardware-refinement scope
 of Goal 1.
+
+## Clarification: retained cache state at ordinary handoff
+
+The [single-read control interface](../software/scheduling-control-interface.md)
+does not require kernel cache-line accesses or an old-domain cache flush on every
+handoff. Domains have distinct PAs; the revised handoff model waits only for its
+modeled NIC-internal obligations before returning the new snapshot. Cached old
+generations are not represented by this model. Thus the concrete entry assumption
+and six-line RTG occupancy bound above remain conditional: retained generations
+require additional accounting or a hardware reclamation guarantee. Whole-domain
+prefix reuse still requires a separate coherence retirement certificate. This
+clarification does not extend the existing Goal 1 proof to those omitted states.

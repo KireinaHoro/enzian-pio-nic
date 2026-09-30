@@ -5,8 +5,7 @@ CONSTANTS Workers, Moving, Domains, InitialOwner, Destination, Capacity,
 VARIABLE assignment
 vars == <<assignment>>
 Idle == -1
-Stages == {"Run", "Preempt", "Yield", "Ack", "Drained", "Retired",
-           "Park", "Installed", "Active", "Cancelled"}
+Stages == {"Run", "Preempt", "Yield", "InfoPending", "Installed", "Selected", "Active"}
 Init == assignment = [w \in Workers |->
     [owner |-> InitialOwner[w], stage |-> "Run", reserved |-> Idle,
      parked |-> FALSE, acked |-> FALSE, sleeping |-> FALSE]]
@@ -23,31 +22,26 @@ Request(w) == /\ w \in Moving /\ assignment[w].stage = "Run"
                                                    ![w].reserved = Destination[w]]
 Yield(w) == /\ assignment[w].stage = "Preempt"
             /\ assignment' = [assignment EXCEPT ![w].stage = "Yield"]
-Acknowledge(w) == /\ assignment[w].stage = "Yield"
-                  /\ assignment' = [assignment EXCEPT ![w].stage = "Ack", ![w].acked = TRUE]
-Drain(w) == /\ assignment[w].stage = "Ack"
-            /\ assignment' = [assignment EXCEPT ![w].stage = "Drained"]
-RetireCache(w) == /\ assignment[w].stage = "Drained"
-                  /\ assignment' = [assignment EXCEPT ![w].stage = "Retired"]
-Park(w) == /\ assignment[w].stage = "Retired"
-           /\ assignment' = [assignment EXCEPT ![w].stage = "Park", ![w].owner = Idle,
-                                                ![w].parked = ~BadPark]
-Install(w) == /\ assignment[w].stage = "Park"
-              /\ assignment' = [assignment EXCEPT ![w].stage = "Installed",
-                  ![w].owner = assignment[w].reserved, ![w].reserved = Idle]
-\* No available thread is a completed failed dispatch, not a panic or a leaked reservation.
-Unavailable(w) == /\ assignment[w].stage = "Park"
-                  /\ assignment' = [assignment EXCEPT ![w].stage = "Cancelled", ![w].reserved = Idle]
-Activate(w) == /\ assignment[w].stage = "Installed"
-               /\ assignment' = [assignment EXCEPT ![w].stage = "Active", ![w].parked = FALSE]
+\* Read acceptance certifies the kernel's no-return fence for the old task.
+InfoAccept(w) == /\ assignment[w].stage = "Yield"
+                 /\ assignment' = [assignment EXCEPT ![w].stage = "InfoPending",
+                      ![w].acked = TRUE, ![w].parked = ~BadPark]
+\* Response commits destination ownership; internal readiness is a harness guard.
+InfoRespond(w) == /\ assignment[w].stage = "InfoPending"
+                  /\ assignment' = [assignment EXCEPT ![w].stage = "Installed",
+                       ![w].owner = assignment[w].reserved, ![w].reserved = Idle]
+\* These are CPU-local actions, not MMIO writes or NIC acknowledgments.
+Select(w) == /\ assignment[w].stage = "Installed"
+             /\ assignment' = [assignment EXCEPT ![w].stage = "Selected"]
+Activate(w) == /\ assignment[w].stage = "Selected"
+               /\ assignment' = [assignment EXCEPT ![w].stage = "Active"]
 Sleep(w) == /\ assignment[w].stage = "Run" /\ ~assignment[w].sleeping
             /\ assignment' = [assignment EXCEPT ![w].sleeping = TRUE]
 Resume(w) == /\ assignment[w].sleeping
              /\ assignment' = [assignment EXCEPT ![w].sleeping = FALSE]
 Ordering == \A w \in Workers:
-    /\ (assignment[w].stage \in {"Ack", "Drained", "Retired", "Park", "Installed", "Active", "Cancelled"}
-        => assignment[w].acked)
-    /\ (assignment[w].stage \in {"Park", "Installed", "Cancelled"} => assignment[w].parked)
-    /\ (assignment[w].stage \in {"Run", "Preempt", "Yield", "Ack", "Drained", "Retired"}
+    /\ (assignment[w].stage \in {"InfoPending","Installed","Selected","Active"}
+        => assignment[w].acked /\ assignment[w].parked)
+    /\ (assignment[w].stage \in {"Run","Preempt","Yield","InfoPending"}
         => assignment[w].owner = InitialOwner[w])
 =============================================================================

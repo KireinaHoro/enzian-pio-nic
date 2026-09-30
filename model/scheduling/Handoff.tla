@@ -1,6 +1,6 @@
 ------------------------------ MODULE Handoff ------------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS WorkerTx, WithStall, FailSelection, BadDrain, BadCache, BadPark, BadReuse, BadParity
+CONSTANTS WorkerTx, WithStall, BadDrain, BadPark, BadReuse, BadParity
 Workers == IF WithStall THEN 1..3 ELSE 1..2
 Clients == IF WithStall THEN 1..4 ELSE 1..3
 Moving == {1}
@@ -63,22 +63,24 @@ Init == /\ S!Init /\ P!Init /\ parity[3] = parity[1] /\ direction[3] = 0
         /\ mailbox = -1 /\ returnedParity = [d \in Directions |-> 0]
 Request == /\ phase[1] = "Held" /\ direction[1] = 0 /\ S!Request(1) /\ UNCHANGED <<transport,meta>>
 Yield == /\ phase[1] = "Submit" /\ S!Yield(1) /\ UNCHANGED <<transport,meta>>
-Ack == /\ S!Acknowledge(1) /\ UNCHANGED <<transport,meta>>
-Drain == /\ (IF BadDrain THEN phase[1] = "Submit" ELSE Quiet(1))
-         /\ S!Drain(1) /\ UNCHANGED <<transport,meta>>
-RetireCache == /\ S!RetireCache(1) /\ oldCache' = IF BadCache THEN oldCache ELSE FALSE
-               /\ UNCHANGED <<transport,prefixFree,reused,mailbox,returnedParity>>
-Park == /\ S!Park(1) /\ UNCHANGED <<transport,meta>>
-\* After retirement, discard old endpoint bookkeeping while transferring physical parity.
-Select == /\ (IF FailSelection THEN S!Unavailable(1) ELSE S!Install(1))
-          /\ parity' = [parity EXCEPT ![3] = parity[1], ![1] = [d \in Directions |-> 0]]
-          /\ direction' = [direction EXCEPT ![1] = 0]
-          /\ remaining' = [remaining EXCEPT ![1] = 0]
-          /\ completed' = [completed EXCEPT ![1] = FALSE]
-          /\ UNCHANGED <<reads,invQ,held,acknowledgments,phase,unlockQ,meta>>
-Activate == /\ S!Activate(1) /\ mailbox' = 1
-            /\ returnedParity' = IF BadParity THEN [parity[3] EXCEPT ![0] = 1-@] ELSE parity[3]
-            /\ UNCHANGED <<transport,oldCache,prefixFree,reused>>
+InfoAccept == /\ S!InfoAccept(1) /\ UNCHANGED <<transport,meta>>
+\* NIC-internal obligations only; the CPU does not access any 2F2F CL here.
+InfoRespond == /\ (IF BadDrain THEN phase[1] = "Submit" ELSE Quiet(1))
+               /\ S!InfoRespond(1)
+               /\ parity' = [parity EXCEPT ![3] = parity[1], ![1] = [d \in Directions |-> 0]]
+               /\ direction' = [direction EXCEPT ![1] = 0]
+               /\ remaining' = [remaining EXCEPT ![1] = 0]
+               /\ completed' = [completed EXCEPT ![1] = FALSE]
+               /\ mailbox' = 1
+               /\ returnedParity' = (IF BadParity THEN [parity[1] EXCEPT ![0] = 1-@] ELSE parity[1])
+               /\ UNCHANGED <<reads,invQ,held,acknowledgments,phase,unlockQ,oldCache,prefixFree,reused>>
+Select == /\ S!Select(1) /\ UNCHANGED <<transport,meta>>
+\* Whole-domain retirement is separate from ordinary handoff. This abstract
+\* endpoint certificate still needs concrete implementation/refinement.
+RetireDomain == /\ assignment[1].owner # 0 /\ OldMessagesGone /\ oldCache
+                /\ oldCache' = FALSE
+                /\ UNCHANGED <<assignment,transport,prefixFree,reused,mailbox,returnedParity>>
+Activate == /\ S!Activate(1) /\ UNCHANGED <<transport,meta>>
 FreePrefix == /\ ~prefixFree
               /\ (BadReuse \/ (assignment[1].owner # 0 /\ ~oldCache /\ OldMessagesGone))
               /\ prefixFree' = TRUE /\ UNCHANGED <<assignment,transport,oldCache,reused,mailbox,returnedParity>>
@@ -99,7 +101,7 @@ Unlock(c) == /\ P!Unlock(c) /\ UNCHANGED <<assignment,meta>>
 Return(c,d) == /\ (WorkerTx \/ d = 0) /\ P!Return(c,d) /\ UNCHANGED <<assignment,meta>>
 Process(q) == /\ P!Process(q) /\ UNCHANGED <<assignment,meta>>
 DeliverUnlock == /\ P!DeliverUnlock /\ UNCHANGED <<assignment,meta>>
-Next == \/ Request \/ Yield \/ Ack \/ Drain \/ RetireCache \/ Park \/ Select \/ Activate
+Next == \/ Request \/ Yield \/ InfoAccept \/ InfoRespond \/ Select \/ Activate \/ RetireDomain
         \/ FreePrefix \/ Reuse \/ Sleep \/ Resume \/ DeliverUnlock
         \/ \E c \in Clients: Admit(c) \/ Work(c) \/ Inv(c) \/ ReceiveAck(c) \/ Unlock(c)
         \/ \E c \in Clients, d \in Directions: Return(c,d)
@@ -110,8 +112,8 @@ UsedQueues == UNION {UNION {UNION {
     : p \in 0..1}: d \in UsedDirections(c)}: c \in Clients \ Stalled}
 UnusedEmpty == \A q \in Queues \ UsedQueues: invQ[q] = <<>>
 Spec == Init /\ [][Next]_v
-        /\ WF_v(Yield) /\ WF_v(Ack) /\ WF_v(Drain) /\ WF_v(RetireCache)
-        /\ WF_v(Park) /\ WF_v(Select) /\ WF_v(Activate) /\ WF_v(Resume)
+        /\ WF_v(Yield) /\ WF_v(InfoAccept) /\ WF_v(InfoRespond) /\ WF_v(RetireDomain)
+        /\ WF_v(Select) /\ WF_v(Activate) /\ WF_v(Resume)
         /\ WF_v(FreePrefix) /\ WF_v(Reuse) /\ WF_v(DeliverUnlock)
         /\ (\A c \in Clients \ Stalled:
             SF_v(Admit(c)) /\ WF_v(Work(c)) /\ SF_v(Inv(c)) /\ SF_v(ReceiveAck(c)) /\ WF_v(Unlock(c)))
@@ -125,16 +127,15 @@ CurrentCompatible == \A c,e \in ActiveClients, d,f \in Directions, p \in 0..1:
 CurrentSettled == P!TypeOK /\ P!Tracking /\ P!Conservation /\ P!UnusedQueuesEmpty /\ UnusedEmpty /\ CurrentCompatible
 Safety == /\ S!TypeOK /\ S!CapacitySafe /\ S!Ordering /\ CurrentSettled /\ P!NoReadDependencyCycle
           /\ oldCache \in BOOLEAN /\ prefixFree \in BOOLEAN /\ reused \in BOOLEAN
-DrainBeforeInstall == assignment[1].stage \in {"Drained","Retired","Park","Installed"} => Quiet(1)
-CacheBeforeInstall == assignment[1].stage \in {"Retired","Park","Installed","Active","Cancelled"} => ~oldCache
+DrainBeforeInstall == assignment[1].stage \in {"Installed","Selected","Active"} => Quiet(1)
 PrefixSafe == (prefixFree \/ reused) => (~oldCache /\ OldMessagesGone /\ assignment[1].owner # 0)
 \* Check the actual return boundary; later operations legitimately change parity.
 ActivationContract == Activate => (New!Settled' /\ mailbox' = 1 /\ returnedParity' = parity'[3]
-                                   /\ Quiet(1) /\ ~oldCache)
+                                   /\ Quiet(1))
 SteadyEntry == assignment[1].stage = "Active" => New!Settled
 ActivationSafe == [][ActivationContract]_v
 SleepRetainsAssignment == [][(Sleep \/ Resume) => assignment'[1].owner = assignment[1].owner]_v
-HandoffFinishes == (assignment[1].stage = "Preempt") ~> (assignment[1].stage \in {"Active","Cancelled"})
+HandoffFinishes == (assignment[1].stage = "Preempt") ~> (assignment[1].stage \in {"Active"})
 PeerProgress == ([]<>completed[2]) /\ ([]<>~completed[2]) /\ []<>(phase[2] = "Held")
-PrefixRetires == (assignment[1].stage \in {"Active","Cancelled"}) ~> reused
+PrefixRetires == (assignment[1].stage \in {"Active"}) ~> reused
 =============================================================================

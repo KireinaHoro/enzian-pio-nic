@@ -21,7 +21,8 @@ BeginCallback(e) == /\ ~closing /\ callback = {} /\ e \in W!Events \ issued /\ e
 FinishCallback == /\ callback # {} /\ W!Notify(CHOOSE e \in callback: TRUE) /\ callback' = {}
                   /\ UNCHANGED <<closing,prefixFree>>
 Close == /\ ~closing /\ closing' = TRUE /\ UNCHANGED <<wakeVars,callback,prefixFree>>
-\* The transport/cache retirement acknowledgment is supplied by the Assignment contract.
+\* Historical standalone harness: endpoint retirement is assumed here, not supplied
+\* by the revised Assignment info read. See ControlRetirement for close ordering.
 Detach == /\ closing /\ PendingRefs = {} /\ callback = {} /\ owner = 2 /\ ~sleeping
           /\ owner' = 0 /\ UNCHANGED <<issued,kernel,nic,runtime,serviced,reserved,rtOwner,sleeping,control>>
 Free == /\ closing /\ ~prefixFree /\ ~SourceAssigned

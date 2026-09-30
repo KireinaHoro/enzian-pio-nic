@@ -25,14 +25,14 @@ checking. Assertions diagnose violations; they do not replace synchronization.
 | Real race | Two kernel dispatchers selecting the same thread from a fixed initialized pool | Atomically validate-and-claim under lifetime protection; a losing selection retries within its guaranteed reservation. NIC serialization prevents over-reservation. |
 | Real race | Callback already in flight vs unsubscribe/domain teardown | Fence new callbacks, wait for references, then retire accepted/pending work before cookie/prefix reuse. |
 | Shared serialization | Network allocation, host allocation and per-domain capacity reservations | One NIC scheduling commit point and accounting rule. Simultaneous inputs need defined priority; do not let two pipelines independently observe the last free slot. |
-| Local sequencing | Yield, kernel acknowledgment, transport drain, cache retirement, parking, installation and activation | Encode legal predecessors in the worker FSM. Do not expand every impossible permutation into a separate scheduling-race model. |
+| Local sequencing | Yield fence, info-read acceptance/response and local activation | Encode legal predecessors in the worker FSM. Do not expand every impossible permutation into a separate scheduling-race model. |
 | Local sequencing | Mailbox/parity return, ordinary syscall sleep, sequential timer-register updates | Use one committed snapshot / owner and an ordered command path, with assertions. CPU timer expiry concurrent with programming remains a separate CPU-service concern. |
 | Structural/progress | DCU coloring, overflow/UL traffic, shared credits, DCS/VC backpressure and independent bypass | Not merely a race or local ordering assertion. Retain resource modeling and the planned actual-DCS RTL tests. |
 
 The [focused race suite](../../tools/scheduling/check_models.py) deliberately
 abstracts the locally sequenced handoff stages. It does not replace the existing
-transport-composed tests; those establish the contract imported at its park/
-install boundary. Keep the two levels separate rather than multiplying every
+transport-composed tests; those check the NIC readiness guard at the info-read
+response boundary. Keep the two levels separate rather than multiplying every
 cache-line interleaving into each control-plane race.
 
 ## Modeled independent actors
@@ -80,8 +80,8 @@ closure separately. No production concurrency primitive is verified by these tes
 | K3 | Bound outstanding commands and retain the source reference until acceptance/ACK is accounted for. Serialize writers of a multi-field MMIO command; publish one complete command. | Common control submission helper, shared by callbacks and dispatch. A blocking process-context mutex cannot simply be reused inside an atomic callback. |
 | K4 | Validate enabled/not-stopping, subscription eligibility and unclaimed status atomically with claim, under a stable thread/domain lifetime reference. | Initialize the entire pool before advertising NIC capacity; serialize claims between dispatchers. Losing a candidate means reselection, not failed dispatch. Whole-domain teardown is separate. |
 | K5 | Define one lock order for domain lifetime, thread claims and per-source pending state. Do not wait for drain, callback synchronization or another CPU while holding a lock it needs. | Before implementing callback/dispatch/teardown paths. Exact locks remain an implementation choice. |
-| K6 | Retain the old owner/mapping until drain and cache retirement; ensure the old task cannot return to userspace before enabling the new owner. | Blocking yield and return-to-user parking. Recheck the parking predicate after every wake. |
-| K7 | Return mailbox, RX parity, TX parity and host-work flag from one committed activation snapshot. Assert affinity names the physical worker represented by that snapshot. | Yield ioctl/bootstrap completion. Ordinary syscall sleep preserves this assignment. |
+| K6 | Establish the old task no-return fence before InfoAccept; retain old transaction addresses while NIC-internal obligations remain. No kernel CL access or ordinary cache flush. | Blocking yield and return-to-user parking. Recheck the parking predicate after every wake. |
+| K7 | Return mailbox, RX parity, TX parity and host-work flag from the immutable info-response snapshot. Assert affinity names the physical worker represented by that snapshot. | Yield ioctl/bootstrap completion. Ordinary syscall sleep preserves this assignment. |
 | K8 | Fence new callback/claim acquisition during teardown; unregister and synchronize callbacks, retain object references through deferred work and wait for pending command/wake ownership to retire. | Domain/cookie teardown. Only then release/reuse cookie and prefix IDs. |
 
 Source-inspected starting points: `sched.c` already uses a checked return-to-user
@@ -100,8 +100,8 @@ being present elsewhere in the file.
 | H3 | Accepted wake responsibility persists until runtime transfer or an explicit teardown disposition. Same-cycle notification and clearing use set-dominant semantics, preserving the new event. | Pending-cookie storage and HOST_WAKE/activation arbitration. |
 | H4 | Reserve capacity before dispatch starts, count assignments plus reservations consistently, and consume/release a reservation exactly once. Assert limits after every commit. | Network/host allocation arbitration; fixed initialized thread pool backs every reservation. |
 | H5 | At most one handoff is in flight per worker. PREEMPT stays latched until yield acknowledgment. Require legal predecessor state for every control command/ACK. | Worker handoff FSM. Prefer waiting for cancellation acknowledgment before slot reuse; if overlapping generations are introduced, validate reply identity explicitly. |
-| H6 | Install implies old owner parked, transport quiet and cache retirement acknowledged. Quiet includes queued responses/invalidations/UL obligations, not just software completion. | Handoff FSM and 2F2F drain interface. Keep full old addresses until release. |
-| H7 | Activate only after owner installation; return physical-worker identity and both parities from that same commit. Assert no old-owner admission after fencing. | Worker decoder and activation return path. |
+| H6 | InfoRespond implies old-task no-return fence and NIC-internal readiness. The resource harness includes queued responses/invalidations/UL obligations; distinct cached old PAs need not be flushed. | Handoff FSM and 2F2F drain interface. Keep full old addresses until release. |
+| H7 | Local activation follows InfoRespond; return physical-worker identity and both parities from that response, with no NIC commit write. Assert no old-owner admission after fencing. | Worker decoder and activation return path. |
 | H8 | HOST_WAKE delivery does not pop the network queue, even when full. Ordinary TX and syscall sleep do not alter assignment. | RX pseudo-packet selection and worker ownership logic. |
 | H9 | Check accepted/resource counts, no double release, full-address preservation and transaction beat framing at actual interfaces. Control MMIO must progress independently of a stalled worker. | DCS/AXI/ECI integration; these require RTL/resource validation, not just scheduler assertions. |
 
@@ -164,3 +164,7 @@ negatives) through `nix develop` and pinned TLC. The
 the earlier withdrawal case. The full transport suite was not rerun; transport
 models are unchanged. Historical unavailable scenarios remain explicit-only
 reproduction cases and are excluded from the default regression.
+
+Current MMIO boundaries and whole-domain retirement are specified in the
+[control interface](scheduling-control-interface.md); they supersede older
+cache-retirement and unavailable-dispatch descriptions in historical results.
