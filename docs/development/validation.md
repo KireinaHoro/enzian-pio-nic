@@ -122,6 +122,9 @@ See the [implementation checklist](../software/scheduling-implementation-checks.
 for bounds, negative controls and required serialization points.
 
 For retained-cache pressure and the combined scheduling race model, run
-`nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix`.
+`nix build .#checks.x86_64-linux.scheduling-composed-invariants --out-link out/scheduling/composed-invariants-nix`.
+This checks combined state invariants, cache liveness and expected faults. The
+larger `scheduling-composed` target additionally checks combined temporal
+properties; its result must be reported separately.
 See [bounds and assumptions](../hardware/retained-cache-composition.md); this is
 separate from the original component baseline.

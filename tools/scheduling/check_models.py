@@ -141,12 +141,13 @@ def main():
     selection.add_argument('--case', action='append', choices=CASES)
     selection.add_argument('--races-only', action='store_true')
     selection.add_argument('--composed-only', action='store_true')
+    selection.add_argument('--composed-invariants', action='store_true', help='composed state invariants plus cache progress and all fault diagnostics; omit positive combined temporal properties')
     p.add_argument('--safety-only', action='store_true', help='positive cases only; omit temporal properties (including response stability)')
     p.add_argument('--timeout', type=int, default=300)
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    selected = args.case or (COMPOSED_CASES if args.composed_only else
+    selected = args.case or (COMPOSED_CASES if args.composed_only or args.composed_invariants else
         [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
         [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL])
     if args.safety_only and any(CASES[name][2] for name in selected):
@@ -162,15 +163,17 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    summary['verification_kind'] = 'state invariants only' if args.safety_only else 'state invariants and temporal properties'
+    summary['verification_kind'] = ('combined state invariants; cache progress and fault diagnostics' if args.composed_invariants else
+        'state invariants only' if args.safety_only else 'state invariants and temporal properties')
     for name in selected:
         module, options, negative = CASES[name]
+        state_only = args.safety_only or (args.composed_invariants and module == 'CombinedScheduling' and not negative)
         work = args.output/name
         work.mkdir()
         for path in sources:
             if path.suffix == '.tla': (work/path.name).write_bytes(snapshot[path])
         cfg = work/(module+'.cfg')
-        cfg.write_text(config(module,options,negative,args.safety_only))
+        cfg.write_text(config(module,options,negative,state_only))
         cmd = ['java',f'-Xmx{args.heap_mib}m','-XX:+UseParallelGC','-cp',jar,'tlc2.TLC',
                '-workers',str(args.workers),'-lncheck','final','-metadir',str((work/'states').resolve()),
                '-teSpecOutDir',str(work.resolve()),'-config',str(cfg.resolve()),str((work/(module+'.tla')).resolve())]
@@ -187,6 +190,7 @@ def main():
                     or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or f'Action property {negative} is violated' in output)))
         passed = expected if negative else code == 0 and 'No error has been found' in output
         result = dict(passed=passed, expected_violation=negative, returncode=code,
+                      verification_kind='state invariants only' if state_only else 'configured invariants and temporal properties',
                       config_sha256=sha(cfg), log_sha256=sha(log), command=cmd,
                       elapsed_seconds=round(time.monotonic()-start,3),
                       statistics=[line for line in output.splitlines() if any(x in line for x in ('distinct states found','depth of the complete'))])
