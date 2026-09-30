@@ -130,6 +130,23 @@ A direct HOST_WAKE RX result enters the same epoll-service routine without yield
 
 ## Whole-domain close and retirement
 
+Stopping an application and certifying its PA prefix for reuse are separate
+milestones. A domain that is no longer executing needs no kill IRQ or cache flush:
+fence pending dispatches/claims so it cannot resume, then reconcile callbacks and
+control references before reclaiming their metadata. Cached lines at distinct old
+PAs may remain accounted for after the application has stopped. The coherence
+certificate below is for reusing those PAs, not an extra prerequisite for killing
+an inactive application.
+
+For a running application, latch the kill request and gate new blocking RX before
+allowing another RX to stall. IRQ assertion and release of the outstanding RX may
+then occur in either order or concurrently; do not wait for handler entry before
+releasing a load that can prevent interrupt service. Keep the RX gate asserted
+until the kernel certifies that the task cannot resume. The existing timer/IPI
+model's release-before-IPI-delivery ordering is a separate interface contract,
+not a requirement that the new kill path delay IRQ assertion. Concrete kill IRQ
+framing, RX release and acknowledgment still need their own composed check.
+
 Cached lines at distinct PAs need not be flushed merely to switch domains. Prefix
 reuse is different: a new lifetime must not inherit stale cache state, messages,
 callbacks or dispatch responses. Ordinary handoff never releases the domain prefix.

@@ -172,17 +172,31 @@ The retirement endpoint may initiate evictions only after kernel quiescence;
 this abstracts the existing undischarged prefix-retirement certificate. It does
 not add a kernel CL operation or ordinary handoff flush. Establishing a concrete
 mechanism for that teardown-only certificate remains necessary.
+`ApplicationStopped` names the earlier kernel no-resume condition; it does not
+require an empty cache or completed callbacks. `PrefixReusable` names the later
+PA-reuse certificate, and `StopBeforeReuse` checks their ordering. The existing
+`Retires` liveness property is about that later certificate under assumed endpoint
+reclamation, not about killing the application. Actual kill IRQ assertion/release
+ordering is specified in the [control interface](../software/scheduling-control-interface.md)
+and is not yet implemented by this model's abstract stop action.
 
 This is a **combined bounded race model**, not an arbitrary-size theorem. Repeated
 migrations, simultaneous notifications from both domains in the default bound,
 multiple cookies per domain, repeated same-cookie generations, TX/
 overflow/bypass during transitions, a permanently stalled third worker alongside
-these combined races, and concrete bus framing remain separate bounds
+these combined races, prefix reclamation while a successor on the same worker remains
+stalled in RX, and concrete bus framing remain separate bounds
 or component obligations. The existing notification/ACK generation model remains
 necessary; one notification per cookie cannot prove its coalescing case. The
 fault configurations disable unrelated callback/close actions for claim,
 reservation and early-info diagnostics to keep their counterexamples focused;
 positive configurations include those actors.
+
+In particular, the combined prefix-reclamation property assumes finite work on the live
+successor. It does not establish that an old prefix can become reusable independently of
+a successor's indefinitely held RX at a reused physical-worker color. That case
+must be checked with retained RX/TX footprints and the concrete endpoint service
+contract; it is not justification for an ordinary kernel cache flush.
 
 ## Implementation checks carried by the composition
 
@@ -200,6 +214,22 @@ positive configurations include those actors.
 These are implementation obligations, not assertions already added to the kmod or
 RTL. The resource conservation checks can become handshake monitors; control
 commit ordering needs tests against the actual MMIO framing and arbitration.
+
+## Diagnostic counterexamples
+
+The fault configurations require the named violation, not merely a nonzero TLC
+exit. Current-source traces are preserved with the development-shell results.
+
+| Deliberate fault | Observed failure |
+| --- | --- |
+| Shared replacement FIFO | A dirty victim at the stalled read's color blocks the head; a peer's victim waits behind it, preventing the peer's fill and admission. |
+| No CPU victim selection | Full initial sets prevent the peer's first fill; completing unrelated traffic does not create a way in its set. |
+| No NIC capacity check | Two workers reserve the single destination slot. |
+| No atomic claim recheck | Both dispatchers select and claim the same destination thread. |
+| No info-read readiness guard | Ownership/response is offered while old transport obligations remain. |
+| No retirement guard | Prefix retirement precedes kernel/endpoint quiescence. |
+| Drop accepted wake on close | Issued work loses its owner instead of receiving a closed disposition. |
+| Rewrite an offered response on close | A committed NEXT response changes to CLOSED before consumption. |
 
 ## Reproduction
 

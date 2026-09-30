@@ -223,13 +223,25 @@ Responsibility ==
         Cardinality(ctl.w[1].runtime)+Cardinality(ctl.w[2].runtime)
 Routing == \A w \in Workers: ctl.w[w].runtime \cup ctl.w[w].snapshot \subseteq {ctl.w[w].owner}
 InfoReady == \A w \in Workers: ctl.w[w].stage \in {"Offered","Claim","Chosen","Ready","Active"} => Quiet(w)
+\* Kernel close fences future activation. InfoAccept is the old-task no-return
+\* boundary; pending NIC responses, callbacks and cache tags may outlive it.
+\* Stop abstracts a kernel stop certificate, not an implemented kill IRQ path.
+ApplicationStopped(d) ==
+    /\ d \in ctl.closing
+    /\ \A w \in Workers: ~(ctl.w[w].owner = d /\
+          ctl.w[w].stage \in {"Run","Active","Preempt","Yield"})
+\* This is a PA-reuse certificate, not the application's kill completion.
+PrefixReusable(d) == d \in ctl.retired
+StopBeforeReuse == \A d \in Domains: PrefixReusable(d) => ApplicationStopped(d)
 RetirementSafe == \A d \in ctl.retired: KernelQuiet(d) /\ EndpointQuiet(d)
 Safety == P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
-          /\ CapacitySafe /\ UniqueClaim /\ Responsibility /\ Routing /\ InfoReady /\ RetirementSafe
+          /\ CapacitySafe /\ UniqueClaim /\ Responsibility /\ Routing /\ InfoReady /\ RetirementSafe /\ StopBeforeReuse
           /\ P!NoReadDependencyCycle
 SnapshotStable == [][\A w \in Workers: (ctl.w[w].stage = "Offered" /\ ctl'.w[w].stage = "Offered")
                     => ctl'.w[w] = ctl.w[w]]_v
 HandoffFinishes == \A w \in Workers: (ctl.w[w].stage = "Preempt") ~> (ctl.w[w].stage \in {"Active","Idle"})
+\* Conditional on the fair endpoint reclamation assumption in Spec; this says
+\* nothing about the ordering of kill IRQ assertion versus RX release.
 Retires == \A d \in Domains: (d \in ctl.closing) ~> (d \in ctl.retired)
 StableProgress == \A w \in Workers, d \in Domains:
     (<>[](ctl.w[w].owner = d /\ ctl.w[w].stage \in {"Run","Active"} /\ d \notin ctl.closing))
