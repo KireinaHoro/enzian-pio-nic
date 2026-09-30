@@ -63,7 +63,7 @@
         formatter = pkgs.nixfmt;
         checks = platform.checks;
         packages = {
-          inherit (platform) genVerilog devHdrs;
+          inherit (platform) genVerilog devHdrs tlc;
         }
         // pkgs.lib.optionalAttrs linux (
           {

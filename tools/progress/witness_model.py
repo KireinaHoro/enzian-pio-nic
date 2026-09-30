@@ -29,8 +29,10 @@ def generate(config, domains, stalls, bypass, output):
     if bypass:
         clients += [(config['bypass']['base_bytes'], direction) for direction in ('rx', 'tx')]
     controls, dependencies, colors = [], [], {}
+    allowed = []
     for c, (base, fixed_direction) in enumerate(clients, 1):
         dirs, deps = [], []
+        allowed.append((c, '{0}' if c <= stalls or fixed_direction else 'Directions'))
         for d, direction in enumerate(('rx', 'tx')):
             offsets = config['directions'][fixed_direction or direction]
             ctrl = [base + offset for offset in offsets['control_offsets_bytes']]
@@ -50,6 +52,7 @@ Colors == 0..%d
 ColorOf == [a \in Addresses |-> %s]
 Directions == {0,1}
 Stalled == 1..%d
+AllowedDirections == [c \in Clients |-> %s]
 Control == [c \in Clients |-> %s]
 Dependencies == [c \in Clients |-> %s]
 Queues == Colors
@@ -74,7 +77,7 @@ Progress == System!Progress
 Admission == System!Admission
 =============================================================================
 ''' % (len(clients), ', '.join('"0x%x"' % a for a in colors), (1 << config['color_bits'])-1,
-       case_function('a', [('"0x%x"' % a, c) for a, c in colors.items()]), stalls,
+       case_function('a', [('"0x%x"' % a, c) for a, c in colors.items()]), stalls, case_function('c', allowed),
        case_function('c', controls), case_function('c', dependencies), len(clients)+1, len(clients)+1)
     output.mkdir(parents=True, exist_ok=False)
     for module in ('ProgressSystem', 'DcsResources', 'ThxResources', 'TwoFClient', 'Coherence'):

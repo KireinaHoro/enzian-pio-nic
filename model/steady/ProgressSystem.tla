@@ -1,7 +1,7 @@
 -------------------------- MODULE ProgressSystem --------------------------
 EXTENDS Naturals, Sequences, FiniteSets
 CONSTANTS Clients, Addresses, Colors, ColorOf, Directions, Stalled, Control,
-          Dependencies, Queues, QueueOf, QueueDepth, Pools, PoolOf, Slots,
+          Dependencies, AllowedDirections, Queues, QueueOf, QueueDepth, Pools, PoolOf, Slots,
           SharedAck, Slices, SliceOf, ReadSlots
 N == Cardinality(Clients)
 VARIABLES reads, invQ, held, acknowledgments, phase, parity, direction, remaining, completed, unlockQ
@@ -31,10 +31,17 @@ Next == \/ DeliverUnlock
         \/ \E c \in Clients: Admit(c) \/ Work(c) \/ Inv(c) \/ Ack(c) \/ Unlock(c)
         \/ \E c \in Clients, d \in Directions: Return(c,d)
         \/ \E q \in Queues: Process(q)
+\* Only non-stalled clients enqueue invalidations, at their declared dependency
+\* addresses. Queues outside this set stay empty (checked by UnusedQueuesEmpty).
+\* Omitting their WF(FALSE) clauses changes neither executions nor fairness.
+ServiceQueues == UNION {UNION {UNION {
+    {QueueOf[ColorOf[Dependencies[c][d][p][i]]]: i \in 1..Len(Dependencies[c][d][p])}
+    : p \in 0..1}: d \in AllowedDirections[c]}: c \in Clients \ Stalled}
+UnusedQueuesEmpty == \A q \in Queues \ ServiceQueues: invQ[q] = <<>>
 Spec == Init /\ [][Next]_v /\ WF_v(DeliverUnlock)
         /\ (\A c \in Clients \ Stalled: SF_v(Admit(c)) /\ WF_v(Work(c)) /\ SF_v(Inv(c)) /\ SF_v(Ack(c)) /\ WF_v(Unlock(c)))
-        /\ (\A c \in Clients \ Stalled, d \in Directions: WF_v(Return(c,d)))
-        /\ (\A q \in Queues: WF_v(Process(q)))
+        /\ (\A c \in Clients \ Stalled: \A d \in AllowedDirections[c]: WF_v(Return(c,d)))
+        /\ (\A q \in ServiceQueues: WF_v(Process(q)))
 TypeOK == /\ D!TypeOK /\ T!TypeOK /\ C!TypeOK
           /\ unlockQ \in Seq([type : {"Unlock"}, txn : Clients, address : Addresses])
           /\ Len(unlockQ) <= N
@@ -63,7 +70,7 @@ CompatiblePlacement ==
             ColorOf[Control[c][d][p]] # ColorOf[Dependencies[c][d][p][i]]
     /\ \A c,e \in Clients, d,f \in Directions, p \in 0..1:
         c # e => (\A a \in Footprint(e,f): ColorOf[Control[c][d][p]] # ColorOf[a])
-Settled == TypeOK /\ Tracking /\ Conservation /\ CompatiblePlacement
+Settled == TypeOK /\ Tracking /\ Conservation /\ CompatiblePlacement /\ UnusedQueuesEmpty
 \* Diagnostic for cycles of retained doorbells blocking invalidations.
 \* Shared-credit starvation and queue HoL need liveness, not this diagnostic.
 ReadHolders(c) == LET r == reads[ColorOf[C!Target(c)]] IN {r[i].txn: i \in 1..Len(r)}

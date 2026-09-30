@@ -2,6 +2,7 @@
   pkgs,
   crossGcc,
   mackerel,
+  tlc,
 }:
 with pkgs;
 let
@@ -43,6 +44,8 @@ mkShell {
     sby
     yices
     jdk
+    python3
+    tlc
     mill
     updateMillLockFile
     crossGcc
@@ -50,6 +53,7 @@ mkShell {
     # quick script to repeat known failing test to find a good reproducer
     repeatTest
   ];
+  env.TLA2TOOLS_JAR = "${tlc}/share/java/tla2tools.jar";
   env.LD_LIBRARY_PATH = lib.makeLibraryPath [ libpcap ];
   shellHook = ''
     export XDG_CACHE_HOME=$PWD/out/xdg-cache-home/

@@ -7,6 +7,7 @@ Addresses == 0..(4*N-1)
 Colors == 0..(ColorCount-1)
 Directions == IF Minimal THEN {0} ELSE 0..1
 Stalled == 1..StallCount
+AllowedDirections == [c \in Clients |-> IF c \in Stalled THEN {0} ELSE Directions]
 Control == [c \in Clients |-> [d \in Directions |->
     [p \in 0..1 |-> 4*(c-1)+p]]]
 Dependencies == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |->
