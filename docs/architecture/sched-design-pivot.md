@@ -264,3 +264,8 @@ proposed direct physical-worker/domain decoder, without implementing this pivot.
 Color-compatible capacity is separate from resource-model progress and hardware
 refinement. Goal 2 must establish the settled entry contract and preserve progress
 during transitions using the same resources.
+
+The [Goal 2 scheduling models](../hardware/scheduling-verification.md) make these
+ordering contracts executable and reuse the Goal 1 resources. Their bounded
+component results are separate from production implementation and from full
+control/transport composition.

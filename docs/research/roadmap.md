@@ -39,7 +39,9 @@ proceed with Goal 2 modeling and implementation. The [verification report](../ha
 and [reproducible evidence](../../model/steady/nix-progress-evidence.json) record
 what passed, the incomplete four-client run, and the remaining assumptions.
 This disposition does not claim full hardware verification or whole-system HoL
-freedom. Goal 2 must establish the settled entry contract and preserve unaffected
+freedom. [Goal 2 modeling](../hardware/scheduling-verification.md) now has modular
+handoff/resource, reservation, thread-claim, host-wake, retirement and interrupt
+contracts; full composition and implementation remain in progress. Goal 2 must establish the settled entry contract and preserve unaffected
 workers' progress during scheduling transitions, reusing the resource model.
 
 ### Targeted DCS RTL simulation after replacement RTL is available
