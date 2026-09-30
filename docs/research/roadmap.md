@@ -41,7 +41,10 @@ what passed, the incomplete four-client run, and the remaining assumptions.
 This disposition does not claim full hardware verification or whole-system HoL
 freedom. [Goal 2 modeling](../hardware/scheduling-verification.md) now has modular
 handoff/resource, reservation, thread-claim, host-wake, retirement and interrupt
-contracts; full composition and implementation remain in progress. Goal 2 must establish the settled entry contract and preserve unaffected
+contracts, with 26 baseline outcomes and the stalled-worker extension checked.
+A joined host-driven handoff checks the exact Goal 1 entry predicate; early-NACK
+transport integration, broader wake/selection races and implementation remain
+in progress on `goal2-scheduling-model`. Goal 2 must establish the settled entry contract and preserve unaffected
 workers' progress during scheduling transitions, reusing the resource model.
 
 ### Targeted DCS RTL simulation after replacement RTL is available

@@ -144,7 +144,11 @@ finite abstractions. The coherence-timeout fallback remains necessary.
 Fairness applies to eligible resource service and arbitration, using the Goal 1
 credit assumptions. No action forces the designated stalled worker to complete.
 A progressing CPU executes its finite work; wake callbacks/commands are eventually
-accepted and runnable runtime work is serviced. Ordinary syscall sleeps retain
+accepted and runnable runtime work is serviced. Control-register command delivery
+and cache-retirement acknowledgment are abstract ports: their ability to progress
+independently of a stalled CPU is an implementation assumption, not a consequence
+of these checks. Multi-word MMIO publication, response framing and a full network
+queue remaining untouched by HOST_WAKE need implementation-level checks. Ordinary syscall sleeps retain
 assignment; the positive liveness environments assume eventual return. An
 indefinitely sleeping application may retain capacity without violating safety,
 but cannot be promised application progress. No policy fairness for allocation of
@@ -164,6 +168,54 @@ workers, broader worker/domain bounds, overflow retirement and full-duplex bypas
 during transitions also remain to be checked. Hardware refinement inherits Goal
 1's DCS shared-path and undocumented THX resource assumptions.
 
+## Checked results (2026-09-30)
+
+The final source at `2117f92` passed **26 expected baseline outcomes** through
+Nix and an independent development-shell run: eleven positive cases and fifteen
+intentional counterexamples. Their normalized results and provenance agree
+exactly. The larger stalled-worker RX case also passed. The unchanged Goal 1
+Nix check remains independently runnable and passed (cached result).
+
+The [tracked evidence manifest](../../model/scheduling/evidence.json) records
+source, checker, configuration and log hashes, bounds and timings. Full current
+logs/counterexamples are local ignored artifacts in `out/scheduling/entry-baseline/`
+and `out/scheduling/entry-stalled/`. No new RTL simulation or board result is claimed.
+
+| Positive case | Distinct states | Checked scope |
+| --- | ---: | --- |
+| handoff | 16176 | RX handoff, both initial RX/TX parity values, direct Goal 1 entry, old-prefix retirement and peer admission/completion |
+| unavailable | 8688 | No target thread: idle cancellation, released reservation, peer progress |
+| reservation | 17 | Two dispatches compete for one destination slot |
+| reservation-unavailable | 28 | Failed selections release destination capacity |
+| thread-claim | 73 | Concurrent selection/claim and withdrawal races |
+| host-wake | 1867 | Two cookies, four notifications, hot subscriber, reassignment and delivery races |
+| host-wake-parked-shared | 2795 | Initially parked activation; two threads share one subscription |
+| wake-handoff | 23488 | Joined host-driven transport handoff, atomic activation/delivery, direct Goal 1 entry and unaffected peer progress |
+| wake-retirement | 190 | In-flight callback and pending wake ownership delay prefix release |
+| interrupt | 54 | Timer/IPI release, pending, service and rearm ordering |
+| timer-mirror | 10 | Ordered arm/replacement/shutdown commands |
+| handoff-stalled-peer (extended) | 67968 | RX handoff and peer progress while a third worker holds RX indefinitely; direct Goal 1 entry |
+
+Expected negatives remove drain, cache retirement or parking protection; corrupt
+returned parity; release a prefix early; over-reserve destination capacity;
+lose a concurrent notification or accepted wake at reassignment; deliver to the
+wrong subscriber; rearm or release the interrupt gate early; double-claim a
+thread; ignore callback/wake references at retirement; or reorder timer commands.
+The interrupt fault is checked both as an invariant failure and a liveness failure.
+
+Full RX/TX operation-switching remains a larger bound. An earlier two-worker
+snapshot completed an 84464-state safety graph but timed out in liveness at
+600 seconds. The `eec6277` snapshot with a third stalled worker completed a
+366400-state graph but timed out in liveness at 1200 seconds. These are
+**incomplete**, not passing progress results or verification of the final source's
+new entry assertion. Their historical logs remain archived; the latter has its
+own provenance in the manifest. Parser/initialization debugging runs and
+interrupted development Nix runs are not acceptance evidence.
+
+Goal 2 remains in progress on `goal2-scheduling-model`. This checked increment
+establishes reusable contracts and bounded compositions; the integration and
+hardware-refinement obligations above remain open.
+
 ## Reproduction
 
 Tools come from the existing Nix lock, including nixpkgs `tlaplus18`:
@@ -177,6 +229,7 @@ nix develop -c python3 tools/scheduling/check_models.py --case handoff-rx-tx --w
 nix develop -c python3 tools/scheduling/check_models.py --case handoff-stalled-peer --workers 4 --timeout 1200 --output out/scheduling/stalled-peer
 ```
 
+`--workers` selects TLC checker threads, not physical workers in the model.
 The default suite includes the joined `wake-handoff` case and excludes the two
 extended cases. Terminal component states legitimately stutter, so TLC deadlock
 checking is disabled; explicit liveness properties check unfinished obligations

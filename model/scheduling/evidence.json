@@ -1,0 +1,561 @@
+{
+  "baseline": {
+    "cases": {
+      "bad-cache": {
+        "config_sha256": "e7a37ff2a7ed45d739513a1da88d27b98b735bf7724c3725218ccbf9687e8f1a",
+        "elapsed_seconds": 1.847,
+        "expected_violation": "CacheBeforeInstall",
+        "last_reported_counts": {
+          "distinct": 1732,
+          "generated": 3406,
+          "queued": 274
+        },
+        "log_sha256": "eed83461d3bffaf5c9db9c9c0b90a7a064982d165b10b55e1b9c0b2d6d15dc32",
+        "passed": true,
+        "reported_depth": 14,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-drain": {
+        "config_sha256": "ec6746b7992e279700406136692724bff2ec09385f02b13838116b81c5b48e42",
+        "elapsed_seconds": 2.161,
+        "expected_violation": "DrainBeforeInstall",
+        "last_reported_counts": {
+          "distinct": 1228,
+          "generated": 2353,
+          "queued": 234
+        },
+        "log_sha256": "fcfda1965ff05cc1cf1804bd9deb6b1636516b7f42b74936af195c7fd570d672",
+        "passed": true,
+        "reported_depth": 12,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-interrupt-progress": {
+        "config_sha256": "d760dbbfd2db5a9f7245ca1af96225de2c4a3e9947aaa559c5ddfb59a0d7d38b",
+        "elapsed_seconds": 1.131,
+        "expected_violation": "InterruptProgress",
+        "last_reported_counts": {
+          "distinct": 116,
+          "generated": 264,
+          "queued": 0
+        },
+        "log_sha256": "0fb7d417c697c75c0f7a98d88116f286d3fa978b3381639376916a196deda7e4",
+        "passed": true,
+        "reported_depth": 11,
+        "returncode": 13,
+        "status": "expected counterexample"
+      },
+      "bad-parity": {
+        "config_sha256": "2b311b033859df2cd0415ddd79c45c8fb73d55d1881ff0b626fb8131a26f043b",
+        "elapsed_seconds": 2.048,
+        "expected_violation": "ActivationSafe",
+        "last_reported_counts": {
+          "distinct": 2823,
+          "generated": 5584,
+          "queued": 422
+        },
+        "log_sha256": "5081855245f566a0b78213c758aa0e2cb308df029d97eebd4cf175ab117ad78a",
+        "passed": true,
+        "reported_depth": 17,
+        "returncode": 13,
+        "status": "expected counterexample"
+      },
+      "bad-park": {
+        "config_sha256": "e45f814282bb076d6f17b8fd2e406d0a0cf82ded3277a76d0fed9cb9622f344b",
+        "elapsed_seconds": 2.29,
+        "expected_violation": "Safety",
+        "last_reported_counts": {
+          "distinct": 2060,
+          "generated": 4048,
+          "queued": 316
+        },
+        "log_sha256": "20f936b3fbdbc4d72757e93c08852187f385f561eb137a4d00c76e6d7bbaf0f9",
+        "passed": true,
+        "reported_depth": 15,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-prefix-reuse": {
+        "config_sha256": "c565d9ba68828b17cf15a67e88272c8c349cafae66252ec64b6d015972b7a3dc",
+        "elapsed_seconds": 1.168,
+        "expected_violation": "PrefixSafe",
+        "last_reported_counts": {
+          "distinct": 12,
+          "generated": 12,
+          "queued": 4
+        },
+        "log_sha256": "b54490db20eb27ecc0e6e242dbe7aa2797d9eff674f66c4244da3d6c5f73f5f1",
+        "passed": true,
+        "reported_depth": 2,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-rearm": {
+        "config_sha256": "628438115a497ee82707523a81a01fd33c5e97f42f529d96e845c6f771f56f2c",
+        "elapsed_seconds": 1.239,
+        "expected_violation": "NoPrematureReblock",
+        "last_reported_counts": {
+          "distinct": 18,
+          "generated": 27,
+          "queued": 6
+        },
+        "log_sha256": "8be53e6563dfdb1cb3acbbc99ce9ce3f080ff31d47f91846b26b98a8e23afec9",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-release": {
+        "config_sha256": "35a2e168adcc35ef60fd61cfb3026e13160e78f8821490a4563772f48c9a6a93",
+        "elapsed_seconds": 1.329,
+        "expected_violation": "NoPrematureReblock",
+        "last_reported_counts": {
+          "distinct": 8,
+          "generated": 10,
+          "queued": 3
+        },
+        "log_sha256": "3ef0531be7f14b7e44207109ea3d32b3209e45bb4229a3467e52e11d21325585",
+        "passed": true,
+        "reported_depth": 3,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-reservation": {
+        "config_sha256": "327a41d503abf1bb2e65d0ff9c6b9f2be4720b442aa1f1bf554d423dcdbe1856",
+        "elapsed_seconds": 1.067,
+        "expected_violation": "Safety",
+        "last_reported_counts": {
+          "distinct": 11,
+          "generated": 14,
+          "queued": 1
+        },
+        "log_sha256": "35c79fae306483f15269cca28e8fda2f0998159d2c1fea8c126b3f0e51fcab1b",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-thread-claim": {
+        "config_sha256": "24887fcb38028404690ae2e2f7d8c01e9f50826819caf984f518ee5658601d08",
+        "elapsed_seconds": 1.267,
+        "expected_violation": "UniqueClaim",
+        "last_reported_counts": {
+          "distinct": 67,
+          "generated": 134,
+          "queued": 19
+        },
+        "log_sha256": "2fa8b5119c7a540917624b98e4933cf793d65747da437acc39f9f3e529419a5c",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-timer-order": {
+        "config_sha256": "4ca4f11350333d57d65ab0e01fa74976e6e21a2903cfa65753b166b32548b2a7",
+        "elapsed_seconds": 0.715,
+        "expected_violation": "MirrorOrder",
+        "last_reported_counts": {
+          "distinct": 13,
+          "generated": 13,
+          "queued": 0
+        },
+        "log_sha256": "fa7f50cb1de0759274eee27bbb627c7771d931e99b7844a7762d8576ed38cd3b",
+        "passed": true,
+        "reported_depth": 7,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-wake-clear": {
+        "config_sha256": "671d7be49b44b35673f2e19ca6960daea0d2f0fe1782d52a3ec8cf77c39baf18",
+        "elapsed_seconds": 0.869,
+        "expected_violation": "Responsibility",
+        "last_reported_counts": {
+          "distinct": 75,
+          "generated": 143,
+          "queued": 43
+        },
+        "log_sha256": "90944726aa6d080795cd66eeafb8991904bed462c3bec112ba5f82e283f61c24",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-wake-reassign": {
+        "config_sha256": "dba869c013fab79ec127a55829dd580c39c3ac1f9830d2e9c08f0db59da505d9",
+        "elapsed_seconds": 0.922,
+        "expected_violation": "Responsibility",
+        "last_reported_counts": {
+          "distinct": 183,
+          "generated": 426,
+          "queued": 93
+        },
+        "log_sha256": "574cd27d7531d2338b8110e39c36d666187bd856e9d9f94d8b281db150857391",
+        "passed": true,
+        "reported_depth": 6,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-wake-retirement": {
+        "config_sha256": "a21c9764dcbede36998cde397e3edbc92526ff0d6d3fbb5747c92083cbb2d108",
+        "elapsed_seconds": 0.716,
+        "expected_violation": "PrefixSafe",
+        "last_reported_counts": {
+          "distinct": 34,
+          "generated": 53,
+          "queued": 12
+        },
+        "log_sha256": "569dbe4c497073e36077b9736f2f103f7f67070e19053bfa19e57b4af8410abd",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "bad-wake-subscriber": {
+        "config_sha256": "f721d78b070b1c5f6d9a73c77598f435cd1172a5fe764eedb1d274ca9f157d11",
+        "elapsed_seconds": 0.923,
+        "expected_violation": "EligibleDelivery",
+        "last_reported_counts": {
+          "distinct": 107,
+          "generated": 237,
+          "queued": 59
+        },
+        "log_sha256": "134020fe6a2a292f132661353b1923a6f9e7a50e05c42c17d6d089b56286a02a",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 12,
+        "status": "expected counterexample"
+      },
+      "handoff": {
+        "config_sha256": "48dc370e38e3699de9abac0a4bff84a9b8daeacb8f2625ba943cfba7c2265bf2",
+        "elapsed_seconds": 74.008,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 16176,
+          "generated": 41144,
+          "queued": 0
+        },
+        "log_sha256": "d9ee729bcd8137ed1bc6cae31e9e2ad51d225d48aac224a7abb6c8ae27002d65",
+        "passed": true,
+        "reported_depth": 49,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "host-wake": {
+        "config_sha256": "b64934c7913c0df3f7c2824046cdc5e62c73ab53b917adb94951803610629176",
+        "elapsed_seconds": 5.857,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 1867,
+          "generated": 6139,
+          "queued": 0
+        },
+        "log_sha256": "9ae9f2458533d5c6858b05201b7081f72f65bcb0fb98aec62b349a3d28dfbc7a",
+        "passed": true,
+        "reported_depth": 20,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "host-wake-parked-shared": {
+        "config_sha256": "b6bae46f2a99e7ced9a43cfe99eaa5310b58cf6a6bdde9395e76da540412106d",
+        "elapsed_seconds": 12.511,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 2795,
+          "generated": 8942,
+          "queued": 0
+        },
+        "log_sha256": "5c12e336124bacda1923794105525be7a6d083a3667ec9e53c7a13dfaa6f94f9",
+        "passed": true,
+        "reported_depth": 19,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "interrupt": {
+        "config_sha256": "8bd12d78065380f45ce0de24a2a8886aaee7929c5790e76888df0f28961fc7ce",
+        "elapsed_seconds": 1.117,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 54,
+          "generated": 99,
+          "queued": 0
+        },
+        "log_sha256": "a1e331f7381706a6a32a65a23e8911725fab319f41eae1267755b40d2590fddf",
+        "passed": true,
+        "reported_depth": 11,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "reservation": {
+        "config_sha256": "db363f9de6eaa75797d71b1b8f94b2afef49c0c0aa49c9fc1e1f5caaab6224e6",
+        "elapsed_seconds": 1.446,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 17,
+          "generated": 17,
+          "queued": 0
+        },
+        "log_sha256": "ba79446072a0d74458a29b3164361717dbe322aff28e13a75d302c6a3074bb2e",
+        "passed": true,
+        "reported_depth": 9,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "reservation-unavailable": {
+        "config_sha256": "b8a9c25f15353c9abf6d48abd877455718677ebe954bcb88a2fdbe52aa921768",
+        "elapsed_seconds": 1.178,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 28,
+          "generated": 29,
+          "queued": 0
+        },
+        "log_sha256": "ad4b677118c0fbc88327802fa7709fd1bcde4bbcb8476438c717b0b668ae7ef8",
+        "passed": true,
+        "reported_depth": 15,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "thread-claim": {
+        "config_sha256": "21234a58a413e56a106f428a58a380854c0b3e63b4ffffda9649f0ce6d79e729",
+        "elapsed_seconds": 1.179,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 73,
+          "generated": 160,
+          "queued": 0
+        },
+        "log_sha256": "8111fc5018049ffe99ed3b2327f52b9d048a7000867c8c1f50971be90a9eb134",
+        "passed": true,
+        "reported_depth": 5,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "timer-mirror": {
+        "config_sha256": "bb70b5a795e6a14e5419022c7e3bd257ad19f3318899985ac395c361ea64758a",
+        "elapsed_seconds": 0.715,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 10,
+          "generated": 13,
+          "queued": 0
+        },
+        "log_sha256": "58b338b891452333be6ff5ccdd78ebe7a16d98ab81621551ab1c79186be7f4ef",
+        "passed": true,
+        "reported_depth": 7,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "unavailable": {
+        "config_sha256": "816aa0ee9acee2a864c18750dcf8b1b4a495d2ab7f92f7ba6502193ef9a74a9a",
+        "elapsed_seconds": 29.759,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 8688,
+          "generated": 20168,
+          "queued": 0
+        },
+        "log_sha256": "448899daa0e82288633ce3775bd8b869ced889150838bc8138fb38a3413f0cf7",
+        "passed": true,
+        "reported_depth": 40,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "wake-handoff": {
+        "config_sha256": "3fd0a4b7bf406efdc7171fbb8b4fda72c9f4a678125e99b6a17db88cf9e27b62",
+        "elapsed_seconds": 268.116,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 23488,
+          "generated": 67064,
+          "queued": 0
+        },
+        "log_sha256": "508c1550f5e197332e3a098f5335791d039a6b90c7f62d541c34d6172abed605",
+        "passed": true,
+        "reported_depth": 53,
+        "returncode": 0,
+        "status": "pass"
+      },
+      "wake-retirement": {
+        "config_sha256": "1ff0856cae6776c654bfe45303e6b187f51d41108f8bd5fccd76b3e19b197983",
+        "elapsed_seconds": 1.216,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 190,
+          "generated": 496,
+          "queued": 0
+        },
+        "log_sha256": "9517030adc11d6d064c43d0bf4f1662ef6c2f86eab56e8d9d7fa9d4007858648",
+        "passed": true,
+        "reported_depth": 15,
+        "returncode": 0,
+        "status": "pass"
+      }
+    },
+    "heap_mib": 2048,
+    "output": "out/scheduling/entry-baseline",
+    "source_revision": "2117f92",
+    "source_sha256": {
+      "model/scheduling/Assignment.tla": "008801e01cda561278e639737697461126151101e35c6b4599b9c476b2e107c4",
+      "model/scheduling/Handoff.tla": "10549e7c8d9c974357adf0a3994ac052792bb2c8dca32bf97c3421e47ee78e0d",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "3de805245a46dba842a158bcbdab8c3e0d2887654eaa68d1dd0f355708722876",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "63b6cf1ee970882a52d4d2a173cd0c1a2d0d71dacf69c8b1c55a2922728e11e6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeHandoff.tla": "0b2291651eef5fc5cd0211925ee642761d668843a766d2b457dcff5a87ac90ca",
+      "model/scheduling/WakeRetirement.tla": "b65c703c9811b1759bb626dd4a5c9a1c8d461c1d808b7e2178360b00085718a1",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "b5e6b1b90edf112c240b021f873afb5393a47e68d45b431722413d6c22792bd1"
+    },
+    "summary_sha256": "0fcf007a792c997ba6fa330a45d874c242c23a82bf501d3600472d1a7defa5ea",
+    "timeout_seconds_per_case": 900,
+    "workers": 4
+  },
+  "checker": {
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+    "nixpkgs_attribute": "tlaplus18",
+    "nixpkgs_lock": {
+      "lastModified": 1789338537,
+      "narHash": "sha256-D/3YFE4g5tt07BunRikBP8zGSX0uWCBHN6FPl88S47s=",
+      "owner": "NixOS",
+      "repo": "nixpkgs",
+      "rev": "9fb87d6858d2cb6ab95d61691a1cbde6bb6a7c72",
+      "type": "github"
+    }
+  },
+  "date": "2026-09-30",
+  "historical_full_rx_tx_stalled": {
+    "cases": {
+      "handoff-stalled-peer": {
+        "config_sha256": "eff1275f8f0557064358b3b2d297290de0cc928464bb8319e6adcb6ca73c6474",
+        "elapsed_seconds": 1200.058,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 366400,
+          "generated": 1217984,
+          "queued": 0
+        },
+        "log_sha256": "96c832ff9079c34a1dec81d80f5d9c945a010256d7916bac7ddb370344d8e9e3",
+        "passed": false,
+        "returncode": 124,
+        "status": "incomplete"
+      }
+    },
+    "heap_mib": 2048,
+    "note": "Older pre-entry-projection source, with both worker directions enabled. Complete 366400-state safety graph; final liveness timed out. Not verification of the current source.",
+    "output": "out/scheduling/extended-final",
+    "source_revision": "eec6277",
+    "source_sha256": {
+      "model/scheduling/Assignment.tla": "008801e01cda561278e639737697461126151101e35c6b4599b9c476b2e107c4",
+      "model/scheduling/Handoff.tla": "84ddaee7b1335ab49396047a959c73d4be53d15df5bd4a6c8e6506fb464a176e",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "3de805245a46dba842a158bcbdab8c3e0d2887654eaa68d1dd0f355708722876",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "63b6cf1ee970882a52d4d2a173cd0c1a2d0d71dacf69c8b1c55a2922728e11e6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeRetirement.tla": "b65c703c9811b1759bb626dd4a5c9a1c8d461c1d808b7e2178360b00085718a1",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "5a2e3530cac8d3c12d85f29fce1c7414e89fa0945d3de32ae79a4ff735649564"
+    },
+    "summary_sha256": "1f9ba918e020eb8aba877552069fe8b5f6ef663a7bf302bc7e24a5cbcdd248b4",
+    "timeout_seconds_per_case": 1200,
+    "workers": 4
+  },
+  "nix_check": {
+    "attribute": "checks.x86_64-linux.scheduling-progress",
+    "baseline_expected_outcomes": 26,
+    "independent_development_run_normalizes_identically": true,
+    "result": "/nix/store/y30xxslxwn46f2yv8cwhvpq6bgd8rygb-lauberhorn-scheduling-progress",
+    "summary_sha256": "a1c4efa0f6941a00faa9f51a1dce9f09201f42425f239bf68ded03a1fd3e93cf"
+  },
+  "nix_source_sha256": {
+    "flake.lock": "aa42354e58cafc58e34ebcc5935d327e514ad7cb0d5a24c5d253a9a3c05b648a",
+    "flake.nix": "cb4d075efb7dc6e199f027c2942bbd2e88a31833451293ac79ac7e8236b10445",
+    "nix/checks/default.nix": "892d77eea159f12729268b86e69aec8b9cf068e0fd1462983b79c5ee4e4731d3",
+    "nix/checks/scheduling-progress.nix": "6c728cf5edc9b3e40f9be4e3cf19b63f7b6fa23ad298c2614c8620ddc2f458df",
+    "nix/platform.nix": "d6367b941861eefa39d3c7701033733619eb4d64ebfa3cdfc28aba615184d52f",
+    "nix/toolchain/shell.nix": "587018279dfc97c281e395bf7f71e452a3adb329b3d430745e3b9057cf80c7b3"
+  },
+  "remaining": [
+    "Join early-NACK gating to actual modeled RX admission/completion.",
+    "Reconcile old-domain wakes and unavailable thread selection in the joined handoff.",
+    "Compose pending-wake/callback retirement with transport/cache retirement before prefix reuse.",
+    "Repeated handoffs, migration, full overflow and bypass during transitions, and larger bounds.",
+    "Concrete cache-retirement/control-register delivery contracts, DCS shared paths and THX resource fidelity.",
+    "Production scheduler/kernel/runtime implementation and targeted DCS RTL/board validation."
+  ],
+  "stalled_worker": {
+    "cases": {
+      "handoff-stalled-peer": {
+        "config_sha256": "213923c00873e6e3c74de80ae59ab90f29570dd6f03343b69ee27d0cc1429075",
+        "elapsed_seconds": 359.439,
+        "expected_violation": null,
+        "last_reported_counts": {
+          "distinct": 67968,
+          "generated": 208496,
+          "queued": 0
+        },
+        "log_sha256": "90f84259362198d7d7d862afb030a3ac5c2cb8986022e67b9a118a7419eb01fd",
+        "passed": true,
+        "reported_depth": 50,
+        "returncode": 0,
+        "status": "pass"
+      }
+    },
+    "heap_mib": 2048,
+    "output": "out/scheduling/entry-stalled",
+    "source_revision": "2117f92",
+    "source_sha256": {
+      "model/scheduling/Assignment.tla": "008801e01cda561278e639737697461126151101e35c6b4599b9c476b2e107c4",
+      "model/scheduling/Handoff.tla": "10549e7c8d9c974357adf0a3994ac052792bb2c8dca32bf97c3421e47ee78e0d",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "3de805245a46dba842a158bcbdab8c3e0d2887654eaa68d1dd0f355708722876",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "63b6cf1ee970882a52d4d2a173cd0c1a2d0d71dacf69c8b1c55a2922728e11e6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeHandoff.tla": "0b2291651eef5fc5cd0211925ee642761d668843a766d2b457dcff5a87ac90ca",
+      "model/scheduling/WakeRetirement.tla": "b65c703c9811b1759bb626dd4a5c9a1c8d461c1d808b7e2178360b00085718a1",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "b5e6b1b90edf112c240b021f873afb5393a47e68d45b431722413d6c22792bd1"
+    },
+    "summary_sha256": "68fc21e85e1df0d42115215ab2c2c790aebf6d2abf776565c6187b0dfb708f29",
+    "timeout_seconds_per_case": 900,
+    "workers": 4
+  },
+  "status": "Goal 2 in progress: bounded contracts and one joined wake handoff checked; remaining composition and hardware refinement explicit"
+}

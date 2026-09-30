@@ -548,3 +548,9 @@ Goal 2 must use these same resource interfaces for drain, owner installation,
 activation, wake ownership, early NACK and retirement. It must establish the full
 entry contract above and preserve unaffected workers' progress during transitions,
 not merely prove a final settled snapshot. Keep Goal 1 independently runnable.
+
+The [Goal 2 scheduling contract suite](scheduling-verification.md) now reuses
+these resources for bounded handoff and wake-activation checks, including a
+direct instance of this model's settled predicate at activation. Goal 2 remains
+in progress; its component results do not change the hardware-refinement scope
+of Goal 1.
