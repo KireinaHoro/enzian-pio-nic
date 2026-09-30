@@ -185,6 +185,14 @@ once; yield selects the appropriate mapping on migration. Thread count remains
 the application's degree of parallelism. This replaces general thread routing
 with worker decoding, owner checking and domain-qualified coherence addresses.
 
+A [checked layout and concrete PA encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding)
+now exists for the 64-color, 38-bit, 128 KiB-block family: worker masks
+`[2,4,6,24,26,28,30]`, bypass mask 0, and domain bits in PA `[37:26]` and
+`[19:17]` around the worker-mask field `[25:20]`. It supports seven workers plus
+full-duplex bypass and 32768 domain codes at the color/address level. Resource
+progress and hardware-refinement limits remain as recorded in the
+[verification report](../hardware/steady-state-verification.md).
+
 Kernel parking and controlled affinity/TASK_IDLE transitions ensure descheduled
 registered workers do not execute. Hardware rejects access inconsistent with the
 current owner; optional generic return-path assertions can diagnose accidental
@@ -195,9 +203,9 @@ Implementation reminders:
 
 - Reject submissions impersonating another domain: compare descriptor PID and
   reply-context ownership against trusted endpoint assignment identity.
-- Choose a feasible prefix encoding/address capacity; arbitrary high PA bits are
-  not automatically color-neutral. Prove static progress including bypass and
-  retiring traffic.
+- Use the checked prefix/layout candidate or re-run capacity verification for
+  another geometry; arbitrary high PA bits are not automatically color-neutral.
+  Complete resource-progress verification including bypass and retiring traffic.
 - Retain old ownership through drain, preserve full addresses for coherence
   responses/invalidation, and define safe rejected-access and prefix-reuse rules.
   Cache hits bypass FPGA checks, so cache-state retirement is part of handoff.
