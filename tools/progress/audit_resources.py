@@ -34,6 +34,9 @@ def main():
     verify_config(config)
     bound, histogram = resident_line_bound(config)
     source = (ROOT / DEFS).read_text()
+    sets = int(re.search(r'parameter\s+DS_NUM_SETS_PER_DCU\s*=\s*(\d+)', source).group(1))
+    assert sets > 0 and sets & (sets - 1) == 0
+    assert config['color_bits'] == 13 - (sets.bit_length() - 1), 'configuration must match audited DCS geometry'
     ways = int(re.search(r'parameter\s+DS_NUM_WAYS_PER_SET\s*=\s*(\d+)', source).group(1))
     print(json.dumps(dict(
         max_resident_lines_per_dcu=bound, dcus_by_resident_line_count=histogram,
