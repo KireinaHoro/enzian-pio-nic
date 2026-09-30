@@ -41,15 +41,31 @@ CASES.update({
     'timer-mirror': ('TimerMirror', {}, None),
     'bad-timer-order': ('TimerMirror', {'BadOrder': True}, 'MirrorOrder'),
 })
+RACE_CASES = {
+    'wake-reassignment': ('WakeReassignment', {}, None),
+    'bad-wake-stale-drop': ('WakeReassignment', {'BadDrop': True}, 'Responsibility'),
+    'bad-wake-stale-delivery': ('WakeReassignment', {'BadDelivery': True}, 'RightSubscriber'),
+    'wake-ack-race': ('WakeAckRace', {}, None),
+    'bad-wake-ack-clear': ('WakeAckRace', {'BadClear': True}, 'NoLostNotification'),
+    'bad-wake-ack-progress': ('WakeAckRace', {'BadClear': True}, 'WakeProgress'),
+    'thread-claim': CASES['thread-claim'],
+    'bad-thread-claim': CASES['bad-thread-claim'],
+    'bad-thread-withdrawal': ('ThreadClaim', {'BadAvailability': True}, 'ClaimAvailable'),
+    'wake-retirement': CASES['wake-retirement'],
+    'bad-wake-retirement': CASES['bad-wake-retirement'],
+}
+CASES.update(RACE_CASES)
 DEFAULTS = {
     'Handoff': dict.fromkeys(('WorkerTx','WithStall','FailSelection','BadDrain','BadCache','BadPark','BadReuse','BadParity'), False),
     'Reservation': {'BadReservation': False, 'FailSelection': False},
     'HostWake': dict.fromkeys(('BadClear','BadReassign','BadSubscriber','SharedSubscription','InitiallyParked'), False),
     'InterruptGate': {'BadRearm': False, 'BadRelease': False},
     'TimerMirror': {'BadOrder': False},
-    'ThreadClaim': {'BadClaim': False},
+    'ThreadClaim': {'BadClaim': False, 'BadAvailability': False},
     'WakeRetirement': {'BadRetirement': False},
     'WakeHandoff': {},
+    'WakeReassignment': {'BadDrop': False, 'BadDelivery': False},
+    'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
     'Handoff': ['Safety','DrainBeforeInstall','CacheBeforeInstall','PrefixSafe','SteadyEntry'],
@@ -60,6 +76,8 @@ INVARIANTS = {
     'ThreadClaim': ['TypeOK','UniqueClaim','ClaimAvailable'],
     'WakeRetirement': ['Safety','PrefixSafe'],
     'WakeHandoff': ['Safety'],
+    'WakeReassignment': ['TypeOK','Responsibility','RightSubscriber'],
+    'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
     'Handoff': ['ActivationSafe','SleepRetainsAssignment','HandoffFinishes','PeerProgress','PrefixRetires'],
@@ -70,6 +88,8 @@ PROPERTIES = {
     'ThreadClaim': ['SelectionFinishes'],
     'WakeRetirement': ['Retires'],
     'WakeHandoff': ['ActivationSafe','WakeCompletes','PeerProgress'],
+    'WakeReassignment': ['WakeProgress','Acknowledged'],
+    'WakeAckRace': ['WakeProgress'],
 }
 
 def config(module, options, negative):
@@ -86,7 +106,9 @@ def config(module, options, negative):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', type=Path, required=True)
-    p.add_argument('--case', action='append', choices=CASES)
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument('--case', action='append', choices=CASES)
+    selection.add_argument('--races-only', action='store_true')
     p.add_argument('--timeout', type=int, default=300)
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
@@ -102,7 +124,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]:
+    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]):
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()

@@ -1,6 +1,6 @@
 ----------------------------- MODULE ThreadClaim -----------------------------
 EXTENDS Naturals, FiniteSets
-CONSTANT BadClaim
+CONSTANTS BadClaim, BadAvailability
 Workers == {1,2}
 Threads == {1,2}
 VARIABLES stage, candidate, claim, available, result
@@ -13,7 +13,7 @@ Choose(w,t) == /\ stage[w] = "Select" /\ t \in available
                /\ candidate' = [candidate EXCEPT ![w] = t]
                /\ stage' = [stage EXCEPT ![w] = "Claim"]
                /\ UNCHANGED <<claim,available,result>>
-Claim(w) == /\ stage[w] = "Claim" /\ candidate[w] \in available
+Claim(w) == /\ stage[w] = "Claim" /\ (BadAvailability \/ candidate[w] \in available)
             /\ BadClaim \/ candidate[w] \notin {claim[x]: x \in Workers}
             /\ claim' = [claim EXCEPT ![w] = candidate[w]]
             /\ stage' = [stage EXCEPT ![w] = "Done"]
