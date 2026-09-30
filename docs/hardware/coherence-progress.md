@@ -340,9 +340,9 @@ layout is safe.
 
 ## Example Permissive Layout
 
-**Checked candidate for the proposed fixed-worker design (September 30):**
+**Selected layout for the proposed fixed-worker design (September 30):**
 `tools/progress/capacity.py` emits the compact layout below by default. It uses
-64 colors, a 38-bit slice-relative aperture, a `0x20000` (128 KiB) block stride,
+64 colors, a 38-bit slice-relative aperture, a `0x2000` (8 KiB) block stride,
 and 12 overflow CLs per direction. This is a color-compatible solution; the
 production RTL/ABI still uses the old offsets. See the
 [verification evidence and remaining resource assumptions](steady-state-verification.md).
@@ -362,10 +362,12 @@ uses two 128-byte control lines and twelve 128-byte overflow lines. Remaining
 block bytes are outside the analyzed transport footprint; adding other
 progress-critical accesses there requires another compatibility check.
 
-The exhaustive sweep's first maximum witness uses RX CL 6 and TX CL 294
+The historical 128 KiB exhaustive sweep's first maximum witness uses RX CL 6 and TX CL 294
 (`+0x9300`), whereas the default uses TX CL 38 (`+0x1300`). These have identical
 64-color signatures: the `0x8000` displacement does not change the relevant
-scrambled color bits inside this block. The default keeps the footprint compact.
+scrambled color bits. That sweep witness does not fit in 8 KiB; the selected
+compact layout does. Its identical signatures preserve the color compatibility
+result, not automatically the resource-progress result.
 
 For block mask 0:
 
@@ -428,33 +430,26 @@ layout's eight-mask result. Its benefit is that the same count can be made safe
 for full-duplex QPs, including bypass, whereas the current `+0x0000/+0x8000`
 layout is locally invalid for full-duplex use.
 
-For `ECI_CORE_OFFSET = 0x20000`, the block mask is derived from the block
-index:
-
-```text
-mask := (block_index >> 3) & 0x3f
-```
-
-The emitted seven-worker configuration assigns QP0 to bypass and QP1..7 to
+The selected seven-worker configuration assigns QP0 to bypass and QP1..7 to
 zero-based physical-worker indices 0..6. These indices are not Linux CPU IDs or
 thread IDs. The four-worker regression uses the first four worker rows below.
 All bases here are **unaliased, slice-relative addresses for domain code 0**:
 
-| Endpoint | mask | block index at domain 0 | slice-relative base at domain 0 |
-| - | - | - | - |
-| QP0 / bypass | 0 | 0 | `0x0000000` |
-| QP1 / worker 0 | 2 | 16 | `0x0200000` |
-| QP2 / worker 1 | 4 | 32 | `0x0400000` |
-| QP3 / worker 2 | 6 | 48 | `0x0600000` |
-| QP4 / worker 3 | 24 | 192 | `0x1800000` |
-| QP5 / worker 4 | 26 | 208 | `0x1a00000` |
-| QP6 / worker 5 | 28 | 224 | `0x1c00000` |
-| QP7 / worker 6 | 30 | 240 | `0x1e00000` |
+| Endpoint | mask | 8 KiB block index at domain 0 | slice-relative base at domain 0 |
+| --- | --- | --- | --- |
+| QP0 / bypass | 0 | 0 | `0x00000000` |
+| QP1 / worker 0 | 2 | 256 | `0x00200000` |
+| QP2 / worker 1 | 4 | 2 | `0x00004000` |
+| QP3 / worker 2 | 6 | 258 | `0x00204000` |
+| QP4 / worker 3 | 24 | 1281 | `0x00a02000` |
+| QP5 / worker 4 | 26 | 1025 | `0x00802000` |
+| QP6 / worker 5 | 28 | 1283 | `0x00a06000` |
+| QP7 / worker 6 | 30 | 1027 | `0x00806000` |
 
-These are only representative block indices. In general, any block index that
-derives the same mask through this equation gives the same translated signature
-for this analysis. The mask is derived from the block index; it is not an
-independent property to check against the block index.
+The mask is `color(block_base)` using the ECI alias equations, not a contiguous
+worker-ID field in the unaliased PA. These are the canonical representatives
+emitted for the selected 8 KiB stride. The inherited 128 KiB stride used different
+representatives; do not combine its base table or PA encoding with this map.
 
 Distinct masks are not equivalent to admissibility. Distinct masks only produce
 different translated signatures. Two distinct masks are admissible together only
@@ -501,7 +496,7 @@ use all 64 colors, with overflow colors intentionally reused across QPs.
 
 ### Block size is a search parameter, not a 2F2F requirement
 
-The 17-bit offset above inherits the current `EciInterfacePlugin.coreOffset`
+The previous 17-bit offset inherited the current `EciInterfacePlugin.coreOffset`
 (`0x20000`); it is **not required by the router-free design**. The replacement
 footprint excludes the removed preemption control CL. Two directions, each with
 two control and twelve overflow lines, need only `2 * 14 * 128 = 3584` bytes.
@@ -515,8 +510,8 @@ results (64 colors, 38-bit aperture, no reservations, full-duplex bypass):
 | Block size | RX / TX first control CL | Worker/domain capacity, excluding bypass |
 | --- | --- | --- |
 | 4 KiB | 0 / 16 | 1..3 workers, each with 1048576 domain codes |
-| 8 KiB | 6 / 38 | 1..7 workers, each with 524288 domain codes |
-| 128 KiB (inherited default) | 6 / 38 | 1..7 workers, each with 32768 domain codes |
+| **8 KiB (selected)** | 6 / 38 | 1..7 workers, each with 524288 domain codes |
+| 128 KiB (historical regression) | 6 / 38 | 1..7 workers, each with 32768 domain codes |
 
 For 4 KiB, all 15 disjoint ordered placements modulo RX/TX exchange were checked:
 `rx=0..4`, `tx=rx+14..18`. Three workers is the maximum in this shared-offset,
@@ -525,100 +520,92 @@ adjacent-control/contiguous-overflow family. The witness has RX controls
 overflow `0x900..0xeff`. This is a coloring limitation under the selected contract,
 not a claim that a fourth worker cannot use any possible 4 KiB design.
 
-The existing compact offsets already fit in 8 KiB and retain seven workers.
-These checks concern color/address capacity, not a new resource-progress proof.
-The CLI still defaults to the inherited 128 KiB regression; select `--stride-bits
-12 --rx 0 --tx 16` or `--stride-bits 13` to emit the smaller replacement-design
-configurations. Their domain encoding uses the emitted XOR kernel basis; the
-simple 17-bit-offset bit-field formula below applies **only to the old default**.
-A broader joint stride/layout search and mapping-granularity audit should precede
-selection of production constants.
+The selected compact offsets fit in 8 KiB and retain seven workers. The CLI
+now defaults to this stride. Select `--stride-bits 17` for the historical 128 KiB
+regression, or `--stride-bits 12 --rx 0 --tx 16` for the 4 KiB alternative.
+These capacities are color/address results. The [selected-layout evidence](steady-state-verification.md#selected-8-kib-layout-evidence-and-goal-1-status)
+separately records the resource-model bounds and unresolved HoL obligations.
 
 ### Concrete domain-qualified PA encoding
 
-For this default geometry, let `d` be the allocated 15-bit domain code, `m` the
-worker mask from the table, and `o` the byte offset within its 128 KiB block:
+For the **selected 8 KiB geometry**, `d` is an allocated 19-bit domain code,
+`B[worker]` is the domain-zero base in the table above, and `o` is the 13-bit
+byte offset. All addresses here are unaliased and relative to the DCS slice:
 
 ```text
-unaliased slice-relative address A (38 bits)
+K(d) = ((d & 31) << 15)
+     XOR (((d >> 5) & 1) * 0x00404000)
+     XOR (((d >> 6) & 1) * 0x01202000)
+     XOR ((d >> 7) << 26)
 
- 37                 26 25          20 19       17 16                   0
-+---------------------+--------------+-----------+----------------------+
-| domain d[14:3]       | worker mask m| d[2:0]    | block byte offset o  |
-| 12 bits             | 6 bits       | 3 bits    | 17 bits              |
-+---------------------+--------------+-----------+----------------------+
-
-A = ((d >> 3) << 26) | (m << 20) | ((d & 7) << 17) | o
-0 <= d < 32768;  0 <= o < 0x20000
+A = (B[worker] XOR K(d)) | o
+0 <= d < 524288;  0 <= o < 0x2000
 ```
 
-`d` is an allocator-assigned domain/address-space code, not a Linux PID or a
-thread ID. For the emitted four-worker/16-domain regression, `d=0..15` and the
-worker-mask lookup is `[2, 4, 6, 24]`. The seven-worker lookup adds `[26, 28, 30]`.
-A mask identifies the worker's signature translation, not a particular control
-line's color. Only these selected masks are compatible; arbitrary distinct masks
-cannot be substituted.
-
-In this geometry, each domain bit is individually color-neutral. The emitted
-kernel basis is `1<<17`, `1<<18`, `1<<19`, then `1<<26` through `1<<37`.
-Consequently the generic XOR encoder reduces to the disjoint bit fields above,
-and for every line within a block:
+The emitted color-neutral kernel vectors, in domain-bit order, are:
 
 ```text
-color(A) = color(o) XOR m
+d[0..4]:  1<<15, 1<<16, 1<<17, 1<<18, 1<<19
+d[5]:     (1<<22) XOR (1<<14)             = 0x00404000
+d[6]:     (1<<24) XOR (1<<21) XOR (1<<13) = 0x01202000
+d[7..18]: 1<<26 through 1<<37
 ```
 
-Changing domains changes physical addresses but preserves both control parities
-and all overflow colors. The 15 available domain bits yield 32768 domain codes
-for **each** selected worker simultaneously. This assumes the full 38-bit aperture
-is preserved and no regions are reserved. A configuration with reserved regions
-may provide a `prefix_indices` list; then use that list's entry for the logical
-domain index in place of `d`. The general kernel encoder remains necessary for
-other geometries; this bit split is specific to the default one.
+The compensating low bits make the two middle vectors color-neutral. This is why
+simply concatenating domain, worker and offset fields does not describe this
+canonical encoding. Every vector is 8 KiB aligned and preserves the signature:
+`color(A) = color(o) XOR worker_mask`. The 19 independent domain vectors and six
+independent color-representative bits partition the 25 block-address bits.
 
-For worker 0 (`m=2`), examples from the executable reference encoder are:
+`d` is an address-space allocation code, not a Linux PID, thread ID or CPU ID.
+With no reservations, all 524288 domain codes coexist for each of the seven
+selected workers at the address/color level. Configurations with reservations
+may supply `prefix_indices`; apply that mapping to the logical domain index before
+encoding. The checked-in [selected configuration](../../model/steady/selected-8k.json)
+allocates 16 domains to seven workers for reproducible finite checks; the
+19-bit architectural capacity does not imply that many model-checked clients.
+
+Examples for worker 0 (`B=0x00200000`, mask 2):
 
 | Domain code | Block base | RX control 0 (`base + 0x300`) |
 | --- | --- | --- |
 | 0 | `0x00200000` | `0x00200300` |
-| 1 | `0x00220000` | `0x00220300` |
-| 7 | `0x002e0000` | `0x002e0300` |
-| 8 | `0x04200000` | `0x04200300` |
-| 15 | `0x042e0000` | `0x042e0300` |
+| 1 | `0x00208000` | `0x00208300` |
+| 15 | `0x00278000` | `0x00278300` |
+| 127 | `0x014fe000` | `0x014fe300` |
+| 128 | `0x04200000` | `0x04200300` |
+| 524287 | `0x3ffd4fe000` | `0x3ffd4fe300` |
 
-The first eight domain codes fit between consecutive mask fields; domain 8
-advances into bit 26 rather than changing the worker mask. This is why a simple
-contiguous domain prefix immediately above bit 16 would not work.
-
-A direct decoder, after ECI unaliasing, extracts:
+For the selected representatives, decode after ECI unaliasing as follows:
 
 ```text
-o = A & 0x1ffff
-m = (A >> 20) & 0x3f
-d = ((A >> 26) << 3) | ((A >> 17) & 7)
-worker = lookup(m)  // e.g. 2 -> 0, 4 -> 1, 6 -> 2, 24 -> 3
+o = A & 0x1fff
+d = ((A >> 15) & 31)
+  | (((A >> 22) & 1) << 5)
+  | (((A >> 24) & 1) << 6)
+  | ((A >> 26) << 7)
+base = (A & ~0x1fff) XOR K(d)
+worker = lookup_base(base)
 ```
 
-Validate the 38-bit range, selected mask, allocated domain code and installed
-owner before accepting worker traffic. Offset decoding must additionally select
-valid transport/register locations; the reference `decode()` only identifies the
-block and offset. Bypass is the single fixed block at base zero, with the same
-RX/TX offsets and full-duplex coloring; other mask-zero blocks are unassigned.
-Keep the complete domain-qualified address with outstanding requests, responses,
-invalidations and unlocks. Switching the local worker selector must not discard
-the domain bits. Retire old traffic and cache state before reusing a domain code.
+Reject out-of-range addresses, unknown bases, unallocated domains and accesses
+inconsistent with the installed owner. Decode only valid transport/register
+offsets; reference `decode()` identifies the block and offset but does not check
+register validity. Bypass is the single fixed block at zero with the same RX/TX
+offsets and full-duplex coloring; other mask-zero blocks are unassigned. Keep the
+full domain-qualified address through requests, responses, invalidations and
+unlocks. Retire old traffic and cache state before reusing a domain code.
 
-The encoding above is a **slice-relative address**, not the full Linux CPU PA.
-Under the current aperture mapping, `mem_node1_off_to_phys(A)` adds
-`FPGA_MEM_BASE = 0x10000000000`; for example domain-0 worker-0 RX control 0
-would map at CPU PA `0x10000200300`. The kernel's 1 TiB aperture does not add
-usable prefix bits to the 38-bit DCS path. The new decoder and its matched
-mappings are still to be implemented and checked end to end.
+These are slice-relative addresses, not full CPU PAs. Under the current mapping,
+`mem_node1_off_to_phys(A)` adds `FPGA_MEM_BASE=0x10000000000`; domain-0 worker-0
+RX control 0 would map at CPU PA `0x10000200300`. The 1 TiB kernel aperture does
+not enlarge the 38-bit DCS path. Production decoder/mapping changes and their
+end-to-end address preservation remain future implementation work.
 
 ### Exhaustive result and further layout search
 
 The automated `tools/progress/sweep_layouts.py` search is now implemented. With
-this stride, 64 colors, 12 contiguous overflow CLs per direction and no reserved
+the historical 128 KiB stride, 64 colors, 12 contiguous overflow CLs per direction and no reserved
 regions, it checked all shared adjacent-control/contiguous-overflow placements
 through 5245 signature equivalence classes. **Seven workers plus full-duplex
 bypass is the maximum within that family**, not merely a witness for the offsets

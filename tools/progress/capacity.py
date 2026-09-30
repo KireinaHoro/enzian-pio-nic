@@ -75,7 +75,7 @@ def prefixes(basis):
     return values
 
 
-def frontier(layout, bits=6, width=38, stride=17, reserved=()):
+def frontier(layout, bits=6, width=38, stride=13, reserved=()):
     if not (1 <= bits <= 7 and 7 <= stride <= width <= 38):
         raise ValueError('require 1..7 color bits and 7 <= stride <= width <= 38')
     rx, tx = set(layout.lines(0)), set(layout.lines(1))
@@ -257,7 +257,7 @@ def main():
     p.add_argument('--rx', type=int, nargs='+', default=[6])
     p.add_argument('--tx', type=int, nargs='+', default=[38])
     p.add_argument('--overflow', type=int, default=12)
-    p.add_argument('--stride-bits', type=int, nargs='+', default=[17])
+    p.add_argument('--stride-bits', type=int, nargs='+', default=[13])
     p.add_argument('--color-bits', type=int, default=6)
     p.add_argument('--address-bits', type=int, default=38)
     p.add_argument('--reserved', type=lambda s: tuple(int(x, 0) for x in s.split(':')), action='append', default=[])

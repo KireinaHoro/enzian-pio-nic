@@ -87,13 +87,15 @@ justify this fairness; priority RTL alone does not prove it.
 
 ## Replacement address configurations and capacity
 
-The concrete solution is documented in the [checked block layout](coherence-progress.md#example-permissive-layout)
-and [domain-qualified PA encoding](coherence-progress.md#concrete-domain-qualified-pa-encoding):
+The **selected** replacement uses the [8 KiB block layout](coherence-progress.md#example-permissive-layout)
+and [19-bit XOR domain encoding](coherence-progress.md#concrete-domain-qualified-pa-encoding):
 RX controls at `+0x300/+0x380`, TX controls at `+0x1300/+0x1380`, twelve
-contiguous overflow lines after each pair, and a 128 KiB block stride. For the
-default 64-color/38-bit geometry, PA fields are domain `[37:26]`, worker mask
-`[25:20]`, domain `[19:17]`, then block offset `[16:0]`. These describe the checked
-candidate for the router-free design, not installed production constants.
+contiguous overflow lines after each pair, and no preemption control CL. The
+searcher's default is now this selected 64-color/38-bit, 8 KiB geometry. Seven
+workers plus full-duplex bypass have 524288 domain codes each at the color/address
+level. The checked-in [configuration](../../model/steady/selected-8k.json) allocates
+seven workers and 16 domains; it targets the router-free decoder, not production
+thread-router registers. See the [selected-layout evidence and Goal 1 status](#selected-8-kib-layout-evidence-and-goal-1-status).
 
 The 128 KiB stride is inherited, not necessary. The [smaller-block check](coherence-progress.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
 finds three workers plus bypass in 4 KiB blocks, and seven plus bypass in 8 KiB
@@ -138,15 +140,17 @@ regions exclude whole blocks, conservatively, and can reduce the joint frontier.
 The verifier separately enumerates all mappings and signatures. Small geometries
 are cross-checked by brute-force active-direction enumeration.
 
-Defaults reproduce the documented candidate RX CLs 6/7 + overflow 8..19, TX CLs
-38/39 + overflow 40..51, stride 0x20000, no reservations, 38-bit aperture:
+The selected default has RX CLs 6/7 + overflow 8..19, TX CLs 38/39 + overflow
+40..51, stride 0x2000, no reservations and a 38-bit aperture. Historical checks
+below retain their explicitly recorded 128 KiB stride:
 
 | Geometry / layout / aperture | Checked color frontier (workers, domains), plus one bypass |
 | --- | --- |
-| 64 colors, default layout, 38 bits | every worker count 1..7, each with 32768 domains |
-| 128 colors, default layout, 38 bits | every worker count 1..15, each with 16384 domains |
-| 128 colors, default layout, 26 bits | every worker count 1..7, each with 8 domains |
-| 32 colors, RX 0/1+2..3, TX 4/5+6..7, 26 bits | every worker count 1..3, each with 16 domains |
+| **64 colors, selected layout, 8 KiB stride, 38 bits** | every worker count 1..7, each with 524288 domains |
+| 64 colors, same offsets, 128 KiB stride, 38 bits | every worker count 1..7, each with 32768 domains |
+| 128 colors, same offsets, 128 KiB stride, 38 bits | every worker count 1..15, each with 16384 domains |
+| 128 colors, same offsets, 128 KiB stride, 26 bits | every worker count 1..7, each with 8 domains |
+| 32 colors, RX 0/1+2..3, TX 4/5+6..7, 128 KiB stride, 26 bits | every worker count 1..3, each with 16 domains |
 | 32 colors, default 12-overflow layout | no full-duplex bypass witness |
 | Current RX 0/1, TX 256/257, 12 overflow | no full-duplex bypass witness |
 
@@ -181,11 +185,11 @@ Obtain the official TLC 1.8.0 `tla2tools.jar`; the checked artifact SHA-256 is
 ```sh
 mkdir -p out/progress
 nix develop -c python3 -m unittest discover -s tools/progress -v
-nix develop -c python3 tools/progress/capacity.py --workers 4 --domains 16 --verify > out/progress/map.json
+nix develop -c python3 tools/progress/capacity.py --workers 7 --domains 16 > out/progress/map.json
 nix develop -c python3 tools/progress/verify_config.py out/progress/map.json
 nix develop -c python3 tools/progress/witness_model.py out/progress/map.json --output out/progress/witness
 nix develop -c java -cp /tmp/lauberhorn-tla2tools.jar tlc2.TLC -workers 1 -lncheck final -metadir out/progress/witness-tlc -config out/progress/witness/Witness.cfg out/progress/witness/Witness.tla
-# Exhaust all offsets at the default stride/footprint (5245 equivalence classes):
+# Exhaust all offsets at the historical 128 KiB stride/footprint (5245 equivalence classes):
 nix develop -c python3 tools/progress/sweep_layouts.py --jobs 4 --output out/progress/sweep.json
 # Explicitly select a wider finite family (may be expensive):
 nix develop -c python3 tools/progress/capacity.py --rx 0 6 --tx 38 64 --stride-bits 15 17
@@ -220,12 +224,81 @@ silently released. This checks protocol-side observed executions; it does not
 check post-router domain addresses or AXI/ECI word framing. The current layout
 prevents a positive production full-duplex bypass test without changing the design.
 
-## Results recorded September 30
+## Selected 8 KiB layout evidence and Goal 1 status
+
+**Layout selected; conditional bounded progress checked; Goal 1 acceptance is
+not yet complete.** Selecting this layout does not close the shared-resource
+and hardware-correspondence gaps below. In particular, no result here establishes
+hardware-wide HoL freedom for seven active workers plus full-duplex bypass.
+
+The exact [selected configuration](../../model/steady/selected-8k.json) is generated
+by [capacity.py](../../tools/progress/capacity.py) with the default 8 KiB stride,
+`--workers 7 --domains 16`. [witness_model.py](../../tools/progress/witness_model.py)
+binds its full addresses, both control parities, and all 12 overflow lines to
+[ProgressSystem.tla](../../model/steady/ProgressSystem.tla), composing the unchanged
+[DCS resources](../../model/steady/DcsResources.tla),
+[THX resources](../../model/steady/ThxResources.tla), and
+[2F2F client](../../model/steady/TwoFClient.tla). The
+[single-transaction vocabulary/assumption](../../model/steady/Coherence.tla)
+remains an undischarged replacement boundary.
+
+New checks for this selection, September 30:
+
+| Check | Result and scope |
+| --- | --- |
+| Capacity regressions | Nine Python tests passed, including selected 8 KiB encoding, compensated domain vectors, maximum prefix and independent configuration verification |
+| Full address-base enumeration | All 3670016 worker/domain bases are distinct, color-invariant and match the documented encoder/decoder formulas; boundary/sample domains additionally checked at every footprint line |
+| Selected configuration | 112 distinct worker/domain blocks (seven workers, 16 domains), both parities and every overflow line checked against full-duplex bypass |
+| Address-bound TLC | 25088 distinct states, 45632 generated, depth 141; `Settled`, `NoReadDependencyCycle`, `Progress` and `Admission` passed |
+| Negative sensitivity checks | `bad-hol`, `bad-color`, `bad-credits`, `bad-slice`, `bad-ack` each produced its expected liveness counterexample |
+
+The positive TLC instance selects workers 0/1 in domains 0/15; worker 0 may retain
+its read indefinitely while worker 1 executes repeated half-duplex operations.
+It includes independent initial RX/TX parities, subsequent direction changes,
+all overflow addresses, and unlocks retained after software completion. Its
+resources are **one invalidation FIFO per color, depth one; three shared THX
+read/ack credits; three read slots per modeled slice; two aggregate unlock
+entries**, with the eligible-action fairness in `ProgressSystem!Spec`. In this
+instance, these assumptions permit admission and completion independently of the
+stalled worker. They are not confirmed hardware topology/credit guarantees.
+The checked-in configuration has seven workers, but this liveness instance has
+only two clients and no bypass client. Address/color capacity must not be relabeled
+as resource-model-verified progress capacity.
+
+The shared-FIFO [negative model](../../model/steady/Probe.tla) and its
+[bad-hol configuration](../../model/steady/bad-hol.cfg) deliberately place an
+otherwise eligible request behind a permanently blocked request. Its counterexample
+shows why coloring alone cannot justify HoL freedom; the positive model's separate
+queues and credit assumptions need concrete correspondence.
+
+The [compact evidence manifest](../../model/steady/selected-8k-evidence.json)
+records source/configuration/TLC hashes, state counts and expected negative results.
+Full logs and generated harnesses remain ignored under `out/progress/selected-8k/`.
+Reproduce the selected address-bound run in a fresh output directory:
+
+```sh
+mkdir -p out/progress/selected-recheck
+nix develop -c python3 tools/progress/verify_config.py model/steady/selected-8k.json
+nix develop -c python3 tools/progress/witness_model.py model/steady/selected-8k.json --output out/progress/selected-recheck/witness
+nix develop -c java -XX:+UseParallelGC -cp /tmp/lauberhorn-tla2tools.jar tlc2.TLC -workers 1 -lncheck final -metadir out/progress/selected-recheck/states -config out/progress/selected-recheck/witness/Witness.cfg out/progress/selected-recheck/witness/Witness.tla
+nix develop -c python3 tools/progress/check_models.py --jar /tmp/lauberhorn-tla2tools.jar --case bad-hol --case bad-color --case bad-credits --case bad-slice --case bad-ack --output out/progress/selected-recheck/negatives
+```
+
+Goal 1 still requires progress coverage for the supported concurrent worker/stall
+subsets and full-duplex bypass with overflow, and sufficient shared-resource
+fidelity for DCS write/RTG/VC/CDC/crossbar paths and THX contention. The earlier
+bypass-overflow run is incomplete, not a proof. Existing RTL tests exercise the
+current production layout with finite stalls, not this replacement mapping;
+no new RTL or board result is claimed. The [entry contract](#entry-and-environment-contracts)
+is unchanged and remains the contract Goal 2 must establish. Goal 2 should not be
+used to defer these steady-state resource-progress obligations.
+
+## Earlier results recorded September 30 (128 KiB address witness)
 
 Eight Python tests passed in Nix, including independent configuration checking,
 corrupt-witness rejection, alias inversion, exhaustive small-geometry partitioning,
 brute-force compatibility cross-checks and the sweep symmetry reduction. `--verify` also enumerated the entire
-reported default-layout frontier's physical mappings. The standalone decoder
+reported 128 KiB-layout frontier's physical mappings. The standalone decoder
 verifier checked all 64 blocks of the emitted four-worker/16-domain configuration.
 Two directed RTL tests passed after elaboration and Verilator compilation, with
 protocol-event checks enabled. No production RTL or software was changed.

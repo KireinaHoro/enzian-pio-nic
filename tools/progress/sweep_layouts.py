@@ -35,7 +35,7 @@ def representatives():
 
 def solve(offsets):
     rx, tx = offsets
-    result = frontier(Layout(rx, tx, 12))
+    result = frontier(Layout(rx, tx, 12), stride=17)
     return result['frontier'][-1]['workers'], result
 
 

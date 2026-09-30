@@ -25,7 +25,7 @@ class CapacityTests(unittest.TestCase):
                 self.assertTrue(all(color(base ^ p, bits) == m for p in prefixes(basis)))
 
     def test_current_full_duplex_rejected(self):
-        self.assertFalse(frontier(Layout(0, 256, 12), width=20)['frontier'])
+        self.assertFalse(frontier(Layout(0, 256, 12), width=20, stride=17)['frontier'])
 
     def test_small_search_against_brute_force(self):
         for bits in (3, 4):
@@ -78,9 +78,25 @@ class CapacityTests(unittest.TestCase):
                 expanded = compatible(a) and compatible(b) and all(
                     compatible([x, y]) for x in a for y in b)
                 self.assertEqual(compatible(a + b), expanded)
-        r = frontier(Layout(), bits=7, width=27)
+        r = frontier(Layout(), bits=7, width=27, stride=17)
         self.assertEqual(r['frontier'][-1]['workers'], 15)
         self.assertTrue(verify(r))
+
+    def test_selected_8k_contract(self):
+        result = frontier(Layout())
+        self.assertEqual(result['stride_bits'], 13)
+        self.assertEqual([(r['workers'], r['domains']) for r in result['frontier']],
+                         [(w, 1 << 19) for w in range(8)])
+        config = configuration(result, 7, 16)
+        self.assertEqual(verify_config(config), 112)
+        # Exercise every domain basis bit, including compensated color bits.
+        boundary = configuration(result, 7, 1 << 19)
+        for worker, domain in itertools.product(range(7), [0, (1 << 19)-1] + [1 << b for b in range(19)]):
+            for direction in range(2):
+                for line in Layout().lines(direction):
+                    address = encode(boundary, worker, domain, line * 128)
+                    self.assertEqual(decode(boundary, address), (worker, domain, line * 128))
+                    self.assertEqual(color(address, 6), color(encode(boundary, worker, 0, line * 128), 6))
 
     def test_invalid_layout(self):
         for layout in (Layout(0, 1, 1), Layout(-1, 10, 0), Layout(0, 2, -1)):
