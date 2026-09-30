@@ -91,3 +91,10 @@ model checks, THX credit assumptions and eventual board conformance separately.
 5. Choose the TCP/Protobuf merge order and follow-on gRPC scope without displacing first-paper applications. Any separate Linux/full-paper source trees still need identification if required; student reports are not the full-system paper source.
 
 Keep maintainer intent separate from source-backed implementation status. Do not silently turn these remaining choices into requirements or reopen the settled isolated-worker policy.
+
+The [control/retirement interface](../software/scheduling-control-interface.md)
+now specifies one blocking PreemptInfo read per handoff, local userspace activation
+and separate whole-domain close/quiescence/retirement. Combined race checking must
+preserve response lifetime and pending wake ownership across close. Retained
+old-domain cache generations require additional resource accounting; no ordinary
+kernel CL flush is specified.

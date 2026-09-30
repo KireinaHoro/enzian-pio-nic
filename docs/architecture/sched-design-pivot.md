@@ -39,23 +39,23 @@ release locks before blocking RX/yield and use cooperative waits for continuatio
 that require the worker to progress.
 
 At idle RX, the NIC either supplies work, stalls the load, or serves PREEMPT.
-After choosing PREEMPT it keeps requesting handoff until userspace calls
-`lh_yield()`. The kernel acknowledges entry through a register read (the current
-IpiAckReg role), completes transport drain, parks the old thread and installs the
-next assignment. Explicit HW/SW synchronization events authorize state changes;
-2F2F replay and parity mechanics implement the transport side of that contract.
-Normal TX preserves the assignment. This replaces CAS on the cooperative path.
+PREEMPT contains no next-owner information and persists until `lh_yield()` enters
+the kernel. The kernel establishes a no-return fence and issues the blocking
+`PreemptInfo` read. Read acceptance acknowledges relinquishment; the response
+installs the reserved destination and returns its stable parity snapshot. Any
+remaining 2F2F work is NIC-internal: the kernel accesses no transport CLs, performs
+no ordinary cache flush and sends no activation commit write. Normal TX preserves
+assignment. See the [control and retirement interface](../software/scheduling-control-interface.md)
+for MMIO boundaries, response fields, snapshot lifetime and close races.
 
-On resumption, yield returns mailbox identity and RX/TX parity; an index into
-pre-mapped regions suffices. The runtime retains the identity until its next
-yield. Implement the syscall interface as a blocking device ioctl behind the
-runtime wrapper; bootstrap supplies equivalent initial state. Reserve destination
-parallelism while dispatch is in flight. All domain threads are initialized before
-publishing its capacity to the NIC; threads cannot shut down individually. NIC
-assignments plus reservations must not exceed that fixed pool, so every normal
-dispatch has a backing thread. Whole-domain teardown fences new reservations and
-reconciles outstanding dispatches before releasing the pool. Activation without an outstanding userspace RX needs a kernel
-wake path.
+On success, `lh_yield(&activation)` returns 0 with this calling thread's **new**
+worker index, RX/TX next parity and `has_host_work`. It does not return the domain
+that replaced the caller. Bootstrap provides the same activation record. Kernel
+thread selection, affinity and resumption are local steps after the info response.
+All domain threads are initialized before NIC capacity publication; assignments
+plus reservations cannot exceed that fixed pool. Only whole-domain teardown can
+end the guarantee. Idle dispatch discovery is a kernel-service implementation
+obligation; normal scheduling uses no NIC IRQ.
 
 Ordinary blocking syscalls retain the core/QP assignment and onehot affinity,
 including their contribution to assigned parallelism. Strongly recommend

@@ -4,6 +4,8 @@ Goal 2 models the selected cooperative scheduling pivot, following the accepted
 [Goal 1 milestone](steady-state-verification.md). This is executable design work,
 not implementation of the new scheduler, router-free decoder or kernel ABI.
 The production scheduler still uses the older IRQ/CAS/thread-router protocol.
+The [control/retirement interface](../software/scheduling-control-interface.md) now
+uses one blocking info read and no ordinary cache-retirement/commit write.
 The models check finite instances and explicit component contracts; they do not
 claim whole-system hardware refinement.
 
@@ -29,14 +31,15 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 | Component | Producer/consumer and event | Ownership, ordering and resource contract |
 | --- | --- | --- |
 | [Assignment](../../model/scheduling/Assignment.tla) | NIC reservation/PREEMPT -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. PREEMPT is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
-| Assignment drain/retire/park | Transport and cache-retirement acknowledgment -> kernel parking | Kernel acknowledgment alone does not authorize installation. Drain precedes cache retirement and parking; old ownership is removed only at parking. |
-| Assignment install/activate | Kernel thread selection -> owner installation -> runtime resume | The fixed initialized thread pool backs every NIC reservation; successful selection consumes it. Activation returns physical mailbox and both parities. |
-| [Handoff](../../model/scheduling/Handoff.tla) transport | Domain-qualified clients -> unchanged Goal 1 `ProgressSystem`, `DcsResources`, `ThxResources`, `TwoFClient` | Old/new owners are distinct transaction identities on the same physical colors. Admission is fenced after yield. Retained acknowledgments and ordered unlocks must retire before installation. |
+| Assignment InfoAccept | Kernel no-return fence -> accepted MMIO read | Old task cannot resume; no kernel 2F2F CL access. |
+| Assignment InfoRespond | NIC-internal readiness -> MMIO response | Atomically installs reserved destination, consumes reservation and captures parity. No commit write follows. |
+| Assignment select/activate | Kernel-local claim -> userspace resume | Uses fixed initialized pool and returns the received activation snapshot. |
+| [Handoff](../../model/scheduling/Handoff.tla) transport | Domain-qualified clients -> unchanged Goal 1 resources | Conservatively requires retained old transactions/ULs to finish before InfoRespond; distinct old cached PAs do not gate ordinary activation. |
 | [ThreadClaim](../../model/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Atomically claim from the initialized pool; a concurrent loser reselects under its existing reservation. Individual withdrawal is forbidden. |
 | [HostWake](../../model/scheduling/HostWake.tla) | Sealed epoll subscription -> kernel pending -> NIC acceptance -> runtime responsibility -> service | Domain-associated cookies survive reassignment. Pending ownership transfers atomically at RX delivery or activation. Notifications concurrent with delivery remain pending. |
 | [InterruptGate](../../model/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
-| [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming host notification -> reserved handoff -> atomic transport/assignment activation and wake delivery | Couples Assignment/Goal 1 resources to HostWake; runtime services the activation flag before its next RX. An unaffected worker continues independently. |
-| [WakeRetirement](../../model/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Transport/cache retirement is an imported Assignment contract. |
+| [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming notification -> reserved handoff -> info response with host-work snapshot -> local activation | Couples Assignment/Goal 1 resources to HostWake; the kernel holds the indication until runtime can service it. An unaffected worker continues independently. |
+| [WakeRetirement](../../model/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Historical component assumes endpoint retirement separately; it is not supplied by the revised info read. |
 | [TimerMirror](../../model/scheduling/TimerMirror.tla) | Kernel arm/replace/shutdown -> ordered NIC command FIFO | Typed commands preserve generation and submission order; after delivery, NIC state matches the latest arm or shutdown. |
 
 Module state tuples and `INSTANCE` substitution expose these boundaries. The
@@ -50,16 +53,19 @@ checks is not a full cross-product of every scheduling mechanism.
 The checked transition is:
 
 ```text
-Run -> reserved PREEMPT -> lh_yield -> kernel acknowledgment -> transport drain
-    -> old cache retirement -> parked / no owner -> install -> activate
+Run -> reserved PREEMPT -> lh_yield / no-return fence
+    -> InfoAccept -> [NIC-internal readiness] -> InfoRespond / destination installed
+    -> local kernel selection -> local userspace activation
 ```
 
-A committed PREEMPT is requested at idle RX. Finite old-owner work and the
-abstract PREEMPT response use the normal transport exchange. Once that exchange
-returns, no fresh old-owner operation is admitted. The request persists until
-yield. Queued unlocks may outlive software return, so `Quiet` checks both phase
-and all retained resources. A separate old-cache retirement acknowledgment is
-required before parking and prefix release.
+PREEMPT completes the old abstract RX operation and remains latched until yield.
+The response guard checks retained transaction resources, including queued unlocks.
+This is NIC work, not a kernel drain/flush operation. Parity is captured at the
+response, not at a later commit. The separate `RetireDomain` ghost certificate
+only gates old prefix reuse; it may happen after ordinary activation. That
+certificate's concrete implementation remains unproved. Retained cached generations
+are outside the resource model; prior concrete cache-retirement/RTG assumptions
+must not be inferred from the abstract Settled predicate.
 
 `Handoff` uses actual control addresses generated from
 [`selected-8k.json`](../../model/steady/selected-8k.json), with both RX/TX parity bits for the changing worker. The routine handoff
@@ -95,17 +101,17 @@ in a single global placement predicate would incorrectly require different
 colors for two successive owners of the same worker. `New` directly instantiates the unchanged Goal 1 `ProgressSystem` on the
 post-handoff clients and projects their state from the shared transport.
 `ActivationSafe` checks **that instance's `Settled` predicate**, mailbox/parity
-return and retirement at activation. `SteadyEntry` checks it throughout subsequent
+return and transaction readiness at activation. `SteadyEntry` checks it throughout subsequent
 execution. The transition-time `CurrentSettled` predicate is not being substituted
 for this direct entry check.
 Assignments subsequently remain fixed in this one-handoff harness. The ordinary
 peer's admission and completion liveness is checked throughout the transition,
-including while drain or dispatch is pending.
+including while the info response or local dispatch is pending.
 
 Prefix release requires absence of old ownership, old cache state and full-address
 messages. The model checks eligibility to reuse a prefix, not an arbitrary number
 of generation-reuse cycles. It has no stale CPU payload/cache-hit semantics;
-cache retirement is an explicit abstract acknowledgment whose concrete correctness
+whole-domain cache retirement is an abstract endpoint certificate whose concrete correctness
 still needs refinement. Fixed pre-mapped aliases and trusted ownership enforcement
 remain implementation obligations.
 
@@ -146,7 +152,7 @@ Fairness applies to eligible resource service and arbitration, using the Goal 1
 credit assumptions. No action forces the designated stalled worker to complete.
 A progressing CPU executes its finite work; wake callbacks/commands are eventually
 accepted and runnable runtime work is serviced. Control-register command delivery
-and cache-retirement acknowledgment are abstract ports: their ability to progress
+and whole-domain retirement certification are abstract ports: their ability to progress
 independently of a stalled CPU is an implementation assumption, not a consequence
 of these checks. Multi-word MMIO publication, response framing and a full network
 queue remaining untouched by HOST_WAKE need implementation-level checks. Ordinary syscall sleeps retain
@@ -156,9 +162,9 @@ but cannot be promised application progress. No policy fairness for allocation o
 an unreserved destination is claimed.
 
 The joined `WakeHandoff` case checks one notification for the arriving domain,
-with successful selection, no ordinary syscall sleep and no interrupt. Parking
-removes the old wake target only after transport/cache retirement; activation
-atomically returns mailbox/parity and transfers pending wake responsibility.
+with successful selection, no ordinary syscall sleep and no interrupt. InfoRespond
+changes ownership and transfers the host indication to a kernel-held return
+snapshot; local activation makes it serviceable without another NIC command.
 
 The complete transport/assignment cross-product still needs whole-domain teardown/dispatch
 reconciliation, old-domain notifications racing this joined handoff, concurrent
@@ -169,7 +175,7 @@ workers, broader worker/domain bounds, overflow retirement and full-duplex bypas
 during transitions also remain to be checked. Hardware refinement inherits Goal
 1's DCS shared-path and undocumented THX resource assumptions.
 
-## Checked results (2026-09-30)
+## Historical results before blocking-info-read revision (2026-09-30)
 
 The final source at `2117f92` passed **26 expected baseline outcomes** through
 Nix and an independent development-shell run: eleven positive cases and fifteen
@@ -258,3 +264,15 @@ Linux timer/IPI early-NACK service; it does not establish the kill protocol.
 The fixed-pool clarification supersedes historical unavailable/withdrawal cases
 in the evidence tables above. All threads exist before NIC capacity publication;
 only the entire domain can be torn down. Teardown reconciliation remains open.
+
+## Blocking-info-read and whole-domain retirement revision
+
+The [interface specification](../software/scheduling-control-interface.md) is the
+current contract. `ControlRetirement` checks an info response racing whole-domain
+close and a callback, including response stability under backpressure, local
+activation fencing and retirement waiting for kernel and endpoint certificates.
+It uses one pre-reserved dispatch and abstracts internal readiness; it is not the
+complete resource/claim/wake cross-product. Negatives deliberately mutate an
+offered response, retire early or resume after close. Endpoint retirement and
+control-path progress remain explicit assumptions. The historical table above
+must not be cited as results for these revised sources.

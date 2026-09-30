@@ -9,22 +9,17 @@ import subprocess
 import time
 ROOT = Path(__file__).resolve().parents[2]
 # Values name deliberate faults. Each negative must violate its named obligation.
-# Legacy unavailable cases remain explicit-only for reproducing historical evidence;
-# they are not part of the fixed-pool protocol or its default regression.
 CASES = {
     'handoff': ('Handoff', {}, None),
     'handoff-rx-tx': ('Handoff', {'WorkerTx': True}, None),
     'handoff-stalled-peer': ('Handoff', {'WithStall': True}, None),
-    'unavailable': ('Handoff', {'FailSelection': True}, None),
     'bad-drain': ('Handoff', {'BadDrain': True}, 'DrainBeforeInstall'),
-    'bad-cache': ('Handoff', {'BadCache': True}, 'CacheBeforeInstall'),
     'bad-park': ('Handoff', {'BadPark': True}, 'Safety'),
     'bad-prefix-reuse': ('Handoff', {'BadReuse': True}, 'PrefixSafe'),
     'bad-parity': ('Handoff', {'BadParity': True}, 'ActivationSafe'),
 }
 CASES.update({
     'reservation': ('Reservation', {}, None),
-    'reservation-unavailable': ('Reservation', {'FailSelection': True}, None),
     'bad-reservation': ('Reservation', {'BadReservation': True}, 'Safety'),
     'host-wake': ('HostWake', {}, None),
     'host-wake-parked-shared': ('HostWake', {'SharedSubscription': True, 'InitiallyParked': True}, None),
@@ -44,6 +39,10 @@ CASES.update({
     'bad-timer-order': ('TimerMirror', {'BadOrder': True}, 'MirrorOrder'),
 })
 RACE_CASES = {
+    'control-retirement': ('ControlRetirement', {}, None),
+    'bad-control-retire': ('ControlRetirement', {'BadRetire': True}, 'RetirementSafe'),
+    'bad-control-snapshot': ('ControlRetirement', {'BadSnapshot': True}, 'SnapshotStable'),
+    'bad-control-resume': ('ControlRetirement', {'BadResume': True}, 'NoResumeAfterClose'),
     'wake-reassignment': ('WakeReassignment', {}, None),
     'bad-wake-stale-drop': ('WakeReassignment', {'BadDrop': True}, 'Responsibility'),
     'bad-wake-stale-delivery': ('WakeReassignment', {'BadDelivery': True}, 'RightSubscriber'),
@@ -59,8 +58,9 @@ RACE_CASES = {
 }
 CASES.update(RACE_CASES)
 DEFAULTS = {
-    'Handoff': dict.fromkeys(('WorkerTx','WithStall','FailSelection','BadDrain','BadCache','BadPark','BadReuse','BadParity'), False),
-    'Reservation': {'BadReservation': False, 'FailSelection': False},
+    'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
+    'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
+    'Reservation': {'BadReservation': False},
     'HostWake': dict.fromkeys(('BadClear','BadReassign','BadSubscriber','SharedSubscription','InitiallyParked'), False),
     'InterruptGate': {'BadRearm': False, 'BadRelease': False},
     'TimerMirror': {'BadOrder': False},
@@ -71,7 +71,8 @@ DEFAULTS = {
     'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
-    'Handoff': ['Safety','DrainBeforeInstall','CacheBeforeInstall','PrefixSafe','SteadyEntry'],
+    'ControlRetirement': ['TypeOK','RetirementSafe'],
+    'Handoff': ['Safety','DrainBeforeInstall','PrefixSafe','SteadyEntry'],
     'Reservation': ['Safety','NoLeakedReservation'],
     'HostWake': ['TypeOK','Responsibility','EligibleDelivery','HotReservation'],
     'InterruptGate': ['TypeOK','NoPrematureReblock'],
@@ -83,6 +84,7 @@ INVARIANTS = {
     'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
+    'ControlRetirement': ['SnapshotStable','NoResumeAfterClose','ReadCompletes','Retires'],
     'Handoff': ['ActivationSafe','SleepRetainsAssignment','HandoffFinishes','PeerProgress','PrefixRetires'],
     'Reservation': ['ReservationFinishes'],
     'HostWake': ['WakeProgress','SleepRetainsOwner'],
@@ -127,7 +129,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx', 'unavailable', 'reservation-unavailable'}]):
+    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]):
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()
