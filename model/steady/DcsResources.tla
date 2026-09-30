@@ -1,0 +1,42 @@
+-------------------------- MODULE DcsResources --------------------------
+EXTENDS Naturals, Sequences, FiniteSets
+CONSTANTS Clients, Addresses, Colors, ColorOf, Queues, QueueOf, QueueDepth, Slices, SliceOf, ReadSlots
+VARIABLES reads, invQ
+vars == <<reads, invQ>>
+Messages == [type : {"Invalidate", "Ack"}, txn : Clients, address : Addresses]
+Init == /\ reads = [c \in Colors |-> 0]
+        /\ invQ = [q \in Queues |-> <<>>]
+TypeOK == /\ reads \in [Colors -> Clients \cup {0}]
+          /\ invQ \in [Queues -> Seq(Messages)]
+          /\ \A q \in Queues: Len(invQ[q]) <= QueueDepth
+ReadUse(s) == Cardinality({c \in Colors: SliceOf[c] = s /\ reads[c] # 0})
+Conservation == \A s \in Slices: ReadUse(s) <= ReadSlots
+CanRead(m) == /\ reads[ColorOf[m.address]] = 0
+              /\ ReadUse(SliceOf[ColorOf[m.address]]) < ReadSlots
+              /\ \A q \in Queues: \A i \in 1..Len(invQ[q]):
+                  ~(invQ[q][i].type = "Ack" /\ invQ[q][i].address = m.address)
+ReceiveRead(m) == /\ CanRead(m)
+                  /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = m.txn]
+                  /\ UNCHANGED invQ
+CompleteRead(m) == /\ reads[ColorOf[m.address]] = m.txn
+                   /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = 0]
+                   /\ UNCHANGED invQ
+SendInvalidate(m) ==
+    LET q == QueueOf[ColorOf[m.address]] IN
+    /\ Len(invQ[q]) < QueueDepth
+    /\ invQ' = [invQ EXCEPT ![q] = Append(@, m)]
+    /\ UNCHANGED reads
+Process(q) ==
+    /\ Len(invQ[q]) > 0
+    /\ Head(invQ[q]).type = "Invalidate"
+    /\ reads[ColorOf[Head(invQ[q]).address]] = 0
+    /\ invQ' = [invQ EXCEPT ![q][1].type = "Ack"]
+    /\ UNCHANGED reads
+HasAck(c, a) == LET q == QueueOf[ColorOf[a]] IN
+    /\ Len(invQ[q]) > 0
+    /\ Head(invQ[q]) = [type |-> "Ack", txn |-> c, address |-> a]
+ReceiveUnlock(c, a) == LET q == QueueOf[ColorOf[a]] IN
+    /\ HasAck(c, a)
+    /\ invQ' = [invQ EXCEPT ![q] = Tail(@)]
+    /\ UNCHANGED reads
+=============================================================================
