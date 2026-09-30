@@ -612,14 +612,62 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(allDone)
   }
 
-  ignore("rx-hol-blocking-free") { _ =>
-    // This test checks that no HOL-blocking happens between RX of different worker
-    // cores.  This is important since if HOL-blocking happens, the 2F2F state machine
-    // won't even see a read that's blocked by another stall(-to-NACK) read, triggering
-    // timeout for the blocked read easily.
-
-    // Same requirements for wait-freedom apply as in rx-tx-interleave.
-    pending // Unimplemented historical coverage, not a passing regression.
+  for (stalledCount <- Seq(1, 2)) {
+    testWithDB(s"rx-independent-progress-$stalledCount-stalls")(Rx) { implicit dut =>
+      // Finite RTL correspondence test. Fixed compatible RX masks; no claim
+      // about the future decoder, THX silicon, or full-duplex bypass layout.
+      val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(50000)
+      val masks = Seq(14, 16, 30).take(stalledCount + 1)
+      val procs = masks.zipWithIndex.map { case (mask, idx) =>
+        val thr = ThreadDef(100 + idx, mask * 8)
+        val proc = ProcDef(100 + idx, Seq(thr))
+        thr.proc = proc
+        threads(thr.tid) = thr
+        processes(proc.pid) = proc
+        proc
+      }
+      val factories = oncRpcCallPacketFactory(csrMaster,
+        procSrvMap = procs.map(_ -> Seq(RpcSrvDef.mkRandom)))
+      val returned = Array.fill(stalledCount)(false)
+      def receiveFirst(idx: Int): Int = {
+        val (_, getPacket, _) = factories(idx)
+        val (packet, _, _) = getPacket()
+        axisMaster.send(packet.getRawData.toList)
+        val thr = procs(idx).threads.head
+        waitUntil(thr.runningOn.nonEmpty)
+        thr.runningOn.get.waitUser()
+        assert(tryReadPacketDesc(dcsMaster, thr.tid).result.nonEmpty)
+        thr.tid
+      }
+      for (idx <- 0 until stalledCount) {
+        val tid = receiveFirst(idx)
+        fork {
+          assert(tryReadPacketDesc(dcsMaster, tid, maxTries = 1).result.isEmpty)
+          returned(idx) = true
+        }
+        // Admission is observed at the simulated DCS resource boundary,
+        // rather than inferred from a CPU thread merely starting a read.
+        val color = masks(idx) ^ getEciThreadData(tid).rxNextCl
+        waitUntil((dcsMaster.dcusInProgress(color) & 1) != 0)
+        sleepCycles(50)
+        assert(!returned(idx))
+      }
+      val peerTid = receiveFirst(stalledCount)
+      for (_ <- 0 until 3) {
+        val (_, getPacket, _) = factories(stalledCount)
+        val (packet, _, _) = getPacket()
+        axisMaster.send(packet.getRawData.toList)
+        assert(tryReadPacketDesc(dcsMaster, peerTid).result.nonEmpty)
+        assert(returned.forall(x => !x), "peer waited for an unrelated RX to time out")
+      }
+      // Independent bypass RX probes exercise both parities while workers stall.
+      // Current bypass placement cannot support the proposed full-duplex contract.
+      for (_ <- 0 until 2) {
+        assert(tryReadPacketDesc(dcsMaster, -1, maxTries = 1).result.isEmpty)
+      }
+      assert(returned.forall(x => !x), "stalled reads must remain outstanding through the observation window")
+      CoherenceEventChecks.check(traceConsumer.snapshot)
+    }
   }
 
   // FIXME: rework the address map (from Jasmin) and re-enable this for CI!

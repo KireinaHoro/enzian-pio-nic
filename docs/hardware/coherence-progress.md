@@ -1,6 +1,12 @@
 # ECI 2F2F DCU Progress Model
 
-Status (2026-09-08): unresolved progress analysis. The maintainer confirms that QP ownership and DCU-color placement remain open. Current offsets are source-verified; candidate layouts and maximum-set calculations below are preserved design analysis, not installed constants or newly reproduced proofs. Trace observations are historical evidence, not current test results. See [QP design alternatives](queue-pair-design.md) and [implementation status](implementation-status.md).
+Status (2026-09-30): progress remains conditional on resource and hardware-refinement assumptions. Current offsets are installed constants; candidate layouts are not. The linked settled-verification report identifies the color calculations now reproduced and exhaustively checked. Other calculations below remain historical design analysis, and trace observations remain historical evidence. See [QP design alternatives](queue-pair-design.md) and [implementation status](implementation-status.md).
+
+The independently runnable [settled verification work](steady-state-verification.md)
+now supplies a capacity searcher for the proposed router-free worker/domain map,
+small positive/negative resource models and directed stalled-worker simulations.
+Its color frontier, finite model bounds, assumptions and remaining refinement gaps
+are separate; it does not establish whole-system progress.
 
 This note describes the cache-line coloring requirement needed to make 2F2F
 RX/TX progress. It intentionally does not assume a particular thread-to-worker
@@ -717,7 +723,8 @@ one write per aliased DCU ID and separately limits slice-level in-flight reads.
 The `rx-tx-interleaved` test in `OncRpcSim` says RX and TX control CLs
 must not be placed on the same DCU. It remains registered with the `Slow` tag
 and a FIXME to rework the address map and re-enable CI coverage; excluding
-`Slow` omits it. The separate `rx-hol-blocking-free` test has a TODO-only body.
+`Slow` omits it. The former TODO-only `rx-hol-blocking-free` test is now replaced by the two
+finite stalled-worker tests described in the [verification report](steady-state-verification.md).
 
 Under the full-duplex model above, the current layout gives a concrete same-QP
 version of this hazard. As shown in
