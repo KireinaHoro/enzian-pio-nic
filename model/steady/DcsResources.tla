@@ -4,22 +4,24 @@ CONSTANTS Clients, Addresses, Colors, ColorOf, Queues, QueueOf, QueueDepth, Slic
 VARIABLES reads, invQ
 vars == <<reads, invQ>>
 Messages == [type : {"Invalidate", "Ack"}, txn : Clients, address : Addresses]
-Init == /\ reads = [c \in Colors |-> 0]
+ReadMessages == [type : {"Read"}, txn : Clients, address : Addresses]
+Init == /\ reads = [c \in Colors |-> <<>>]
         /\ invQ = [q \in Queues |-> <<>>]
-TypeOK == /\ reads \in [Colors -> Clients \cup {0}]
+TypeOK == /\ reads \in [Colors -> Seq(ReadMessages)]
+          /\ \A c \in Colors: Len(reads[c]) <= 1
           /\ invQ \in [Queues -> Seq(Messages)]
           /\ \A q \in Queues: Len(invQ[q]) <= QueueDepth
-ReadUse(s) == Cardinality({c \in Colors: SliceOf[c] = s /\ reads[c] # 0})
+ReadUse(s) == Cardinality({c \in Colors: SliceOf[c] = s /\ Len(reads[c]) > 0})
 Conservation == \A s \in Slices: ReadUse(s) <= ReadSlots
-CanRead(m) == /\ reads[ColorOf[m.address]] = 0
+CanRead(m) == /\ Len(reads[ColorOf[m.address]]) = 0
               /\ ReadUse(SliceOf[ColorOf[m.address]]) < ReadSlots
               /\ \A q \in Queues: \A i \in 1..Len(invQ[q]):
                   ~(invQ[q][i].type = "Ack" /\ invQ[q][i].address = m.address)
 ReceiveRead(m) == /\ CanRead(m)
-                  /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = m.txn]
+                  /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = <<m>>]
                   /\ UNCHANGED invQ
-CompleteRead(m) == /\ reads[ColorOf[m.address]] = m.txn
-                   /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = 0]
+CompleteRead(m) == /\ reads[ColorOf[m.address]] = <<m>>
+                   /\ reads' = [reads EXCEPT ![ColorOf[m.address]] = <<>>]
                    /\ UNCHANGED invQ
 SendInvalidate(m) ==
     LET q == QueueOf[ColorOf[m.address]] IN
@@ -29,7 +31,7 @@ SendInvalidate(m) ==
 Process(q) ==
     /\ Len(invQ[q]) > 0
     /\ Head(invQ[q]).type = "Invalidate"
-    /\ reads[ColorOf[Head(invQ[q]).address]] = 0
+    /\ Len(reads[ColorOf[Head(invQ[q]).address]]) = 0
     /\ invQ' = [invQ EXCEPT ![q][1].type = "Ack"]
     /\ UNCHANGED reads
 HasAck(c, a) == LET q == QueueOf[ColorOf[a]] IN

@@ -39,8 +39,8 @@ TypeOK == /\ D!TypeOK /\ T!TypeOK /\ C!TypeOK
           /\ unlockQ \in Seq([type : {"Unlock"}, txn : Clients, address : Addresses])
           /\ Len(unlockQ) <= N
 Tracking == /\ held = {c \in Clients: phase[c] # "Submit"}
-            /\ \A c \in held: reads[ColorOf[C!Door(c)]] = c
-            /\ \A col \in Colors: reads[col] # 0 => reads[col] \in held
+            /\ \A c \in held: reads[ColorOf[C!Door(c)]] = <<V!Read(c, C!Door(c))>>
+            /\ \A col \in Colors: Len(reads[col]) > 0 => Head(reads[col]).txn \in held
             /\ acknowledgments = {c \in Clients: phase[c] = "Unlock"} \cup {unlockQ[i].txn: i \in 1..Len(unlockQ)}
             /\ Cardinality(acknowledgments) = Cardinality({c \in Clients: phase[c] = "Unlock"}) + Len(unlockQ)
             /\ Cardinality(UNION {{<<q,i>>: i \in 1..Len(invQ[q])}: q \in Queues}) =
@@ -51,7 +51,7 @@ Tracking == /\ held = {c \in Clients: phase[c] # "Submit"}
                    /\ m.address = C!Target(m.txn)
                 \/ /\ m.type = "Ack"
                    /\ \E j \in 1..Len(unlockQ): unlockQ[j] = V!Unlock(m.txn, m.address)
-Conservation == D!Conservation /\ T!Conservation /\ Cardinality(held) = Cardinality({col \in Colors: reads[col] # 0})
+Conservation == D!Conservation /\ T!Conservation /\ Cardinality(held) = Cardinality({col \in Colors: Len(reads[col]) > 0})
 \* Fixed assignment/retired previous owners are constants and environmental
 \* entry assumptions, not properties proved by this steady-state model.
 Footprint(c,d) == {Control[c][d][p]: p \in 0..1} \cup
@@ -66,9 +66,10 @@ CompatiblePlacement ==
 Settled == TypeOK /\ Tracking /\ Conservation /\ CompatiblePlacement
 \* Diagnostic for cycles of retained doorbells blocking invalidations.
 \* Shared-credit starvation and queue HoL need liveness, not this diagnostic.
-ReadWaits == {<<c, reads[ColorOf[C!Target(c)]]>> :
-              c \in {x \in Clients: phase[x] = "WaitAck"}}
-Successors(S) == {e[2]: e \in {edge \in ReadWaits: edge[1] \in S /\ edge[2] # 0}}
+ReadHolders(c) == LET r == reads[ColorOf[C!Target(c)]] IN {r[i].txn: i \in 1..Len(r)}
+ReadWaits == UNION {{<<c,h>>: h \in ReadHolders(c)}:
+                    c \in {x \in Clients: phase[x] = "WaitAck"}}
+Successors(S) == {e[2]: e \in {edge \in ReadWaits: edge[1] \in S}}
 RECURSIVE Reach(_, _)
 Reach(S, n) == IF n = 0 THEN {} ELSE Successors(S) \cup Reach(Successors(S), n-1)
 NoReadDependencyCycle == \A c \in Clients: c \notin Reach({c}, N)
