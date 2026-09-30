@@ -1,0 +1,557 @@
+{
+  "baseline": {
+    "cases": {
+      "bad-control-resume": {
+        "config_sha256": "3e93a4089adf8927874c01327fd081349f4403680a322b2217cd5b124f30682f",
+        "elapsed_seconds": 0.715,
+        "expected_violation": "NoResumeAfterClose",
+        "log_sha256": "e8ec0ab4d4f12f04a90f5d3a65482fc84237501c91edddbcc5b6822411fe3bc2",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "115 states generated, 68 distinct states found, 13 states left on queue.",
+          "The depth of the complete state graph search is 9."
+        ]
+      },
+      "bad-control-retire": {
+        "config_sha256": "75d87f4e0aa82df7144ab16d3e4f0e5f5a3a92ada4db6db84bed52434ac9b2f9",
+        "elapsed_seconds": 0.716,
+        "expected_violation": "RetirementSafe",
+        "log_sha256": "aefc556bae9969444d0e6d220d552d53b6d1c9719ba958eece7442384d2992f3",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "64 states generated, 42 distinct states found, 13 states left on queue.",
+          "The depth of the complete state graph search is 6."
+        ]
+      },
+      "bad-control-snapshot": {
+        "config_sha256": "a8577b58cb5239117b5b74fcd8b96e37e0f2a832ce7087b8a403597777bc06af",
+        "elapsed_seconds": 0.771,
+        "expected_violation": "SnapshotStable",
+        "log_sha256": "65eb9321f82c613a0e66849fca9c90c039b70912c4fe25db18925d5a4752858b",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "98 states generated, 59 distinct states found, 12 states left on queue.",
+          "The depth of the complete state graph search is 8."
+        ]
+      },
+      "bad-drain": {
+        "config_sha256": "706d6fa5250e4a8d78da45a3bd0f948113205652ebdbcf80956bfd701668f764",
+        "elapsed_seconds": 1.067,
+        "expected_violation": "DrainBeforeInstall",
+        "log_sha256": "16891945b1803e1f49df14e11c10cea2d84a6a2039ca2ae9771915f724a6f08b",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "2381 states generated, 1242 distinct states found, 236 states left on queue.",
+          "The depth of the complete state graph search is 12."
+        ]
+      },
+      "bad-interrupt-progress": {
+        "config_sha256": "d760dbbfd2db5a9f7245ca1af96225de2c4a3e9947aaa559c5ddfb59a0d7d38b",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "InterruptProgress",
+        "log_sha256": "4ce47df73945089e9a0491cbf54f34a4e1473180c03d545b057199dcdfad4bcb",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "Progress(11) at 2026-09-30 21:23:07: 264 states generated, 116 distinct states found, 0 states left on queue.",
+          "264 states generated, 116 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 11."
+        ]
+      },
+      "bad-parity": {
+        "config_sha256": "246f87be59a2c78b5455193e4c9400c1a16adaa255016c4e1c0641ed3d98bc87",
+        "elapsed_seconds": 1.218,
+        "expected_violation": "ActivationSafe",
+        "log_sha256": "b38e363af21a5b4e36401770a5293d31d89f0952d0cc6108894930f95307c32d",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "4074 states generated, 2079 distinct states found, 329 states left on queue.",
+          "The depth of the complete state graph search is 15."
+        ]
+      },
+      "bad-park": {
+        "config_sha256": "bed8b872522c852e0ddfdf56bccfd1907d6e023467a5d378e273429673117e5c",
+        "elapsed_seconds": 1.319,
+        "expected_violation": "Safety",
+        "log_sha256": "947645d9ed272fde50c06ff8303e51f95d4f37bd5fb1f30d405f9c27c81ebc07",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "1767 states generated, 959 distinct states found, 214 states left on queue.",
+          "The depth of the complete state graph search is 11."
+        ]
+      },
+      "bad-prefix-reuse": {
+        "config_sha256": "356c30e8e1e816a4af306667f1a55f608c38c13ce1c2de368410743636711352",
+        "elapsed_seconds": 0.818,
+        "expected_violation": "PrefixSafe",
+        "log_sha256": "826668cbd46c0846f1c939625b3c40dd8e9fcfcf3d6f7288db2a7d4207dd392c",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "12 states generated, 12 distinct states found, 4 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-rearm": {
+        "config_sha256": "628438115a497ee82707523a81a01fd33c5e97f42f529d96e845c6f771f56f2c",
+        "elapsed_seconds": 0.716,
+        "expected_violation": "NoPrematureReblock",
+        "log_sha256": "037399ad8ba37be5462a7f7de5c2e4aeac8d5f5174bdb8f6975e6c3f10c59d18",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "36 states generated, 24 distinct states found, 4 states left on queue.",
+          "The depth of the complete state graph search is 6."
+        ]
+      },
+      "bad-release": {
+        "config_sha256": "35a2e168adcc35ef60fd61cfb3026e13160e78f8821490a4563772f48c9a6a93",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "NoPrematureReblock",
+        "log_sha256": "15ae98b0cc955503113d89a27804228e9efb4af9bcb435bc0a458cd539c4d160",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "13 states generated, 11 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ]
+      },
+      "bad-reservation": {
+        "config_sha256": "9cf0c3c6eec3499161df31cace346ca4d2362335e9aad2d3fa7c080258df288a",
+        "elapsed_seconds": 0.716,
+        "expected_violation": "Safety",
+        "log_sha256": "5ca8500fb791ea6ea2e867a429f413a109183054669c6d1fc831d95e660097c6",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "14 states generated, 11 distinct states found, 1 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "bad-thread-claim": {
+        "config_sha256": "b6e5f2cff9d2bb2223ffde2dacaaaf45566211a5f34a010bb276e724515bff46",
+        "elapsed_seconds": 0.816,
+        "expected_violation": "UniqueClaim",
+        "log_sha256": "7910336709754e6479f215a0fbac4c32f9fdacd96eeb27f270c7c09748118d5c",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "79 states generated, 36 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "bad-thread-reservation": {
+        "config_sha256": "6aba61762b860daa6bdabdc43c39f899a101be8615e9dd15f4233357f3b6a6c0",
+        "elapsed_seconds": 0.715,
+        "expected_violation": "ReservationBacked",
+        "log_sha256": "146ac2b9e6580989dce9c78b07a27a6a155e80a660c0dd97d8aafe7177ccacb4",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "13 states generated, 10 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "bad-timer-order": {
+        "config_sha256": "4ca4f11350333d57d65ab0e01fa74976e6e21a2903cfa65753b166b32548b2a7",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "MirrorOrder",
+        "log_sha256": "3ee18dce74f021cfab2555d5c085a2417b36d3d8a59132bc246d1cb1ebbc1e9a",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "13 states generated, 13 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "bad-wake-ack-clear": {
+        "config_sha256": "727e2c2163928cdf67d52109ae605f441e48869d3f4fbaee1bffd31f654a2234",
+        "elapsed_seconds": 0.715,
+        "expected_violation": "NoLostNotification",
+        "log_sha256": "dfe47e35033e1e630a0494fc99c4e32edf91ead09fb1b9340c9939b20d199c01",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "32 states generated, 24 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      },
+      "bad-wake-ack-progress": {
+        "config_sha256": "6d16c2f4d116af2baff963ad9a660a8c6702379adef389143678d88c17922217",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "WakeProgress",
+        "log_sha256": "7e28789b4e5b2db517614c22fea9f5611330ad5e4dc8846a5bb990b23f63bd94",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "Progress(10) at 2026-09-30 21:27:29: 34 states generated, 24 distinct states found, 0 states left on queue.",
+          "34 states generated, 24 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      },
+      "bad-wake-clear": {
+        "config_sha256": "671d7be49b44b35673f2e19ca6960daea0d2f0fe1782d52a3ec8cf77c39baf18",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "Responsibility",
+        "log_sha256": "bcde5bdd69704acec952746a4d2d20e62e62c3450339bbe730056398baab9c19",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "134 states generated, 71 distinct states found, 41 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "bad-wake-reassign": {
+        "config_sha256": "dba869c013fab79ec127a55829dd580c39c3ac1f9830d2e9c08f0db59da505d9",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "Responsibility",
+        "log_sha256": "8eb20fff305574e366dbb8356f842f05a6152ccb7aff5e63bc884736eb43be26",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "414 states generated, 177 distinct states found, 89 states left on queue.",
+          "The depth of the complete state graph search is 6."
+        ]
+      },
+      "bad-wake-retirement": {
+        "config_sha256": "a21c9764dcbede36998cde397e3edbc92526ff0d6d3fbb5747c92083cbb2d108",
+        "elapsed_seconds": 0.715,
+        "expected_violation": "PrefixSafe",
+        "log_sha256": "db6ae26d8b24a916c80b952908a1788469c38ce7d2b3a4322d84dcb226d57878",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "53 states generated, 34 distinct states found, 12 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "bad-wake-stale-delivery": {
+        "config_sha256": "578a7f7eb5f9db5658b642e79fc537da75d171c6bd4925b85d966ba87f636ede",
+        "elapsed_seconds": 0.765,
+        "expected_violation": "RightSubscriber",
+        "log_sha256": "50f15d322af3cb83ae456b567e9aa16397cd922016f1e4b11093438cb8422487",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "181 states generated, 106 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 15."
+        ]
+      },
+      "bad-wake-stale-drop": {
+        "config_sha256": "8bac095b431303446446c65d7bbf37014b33416466689b5b62919c449c6d5463",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "Responsibility",
+        "log_sha256": "1a8fd5ea5c847808b66863a6a8fe445df7d5e150d3153bc8dd16d1fc46636a5c",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "42 states generated, 33 distinct states found, 5 states left on queue.",
+          "The depth of the complete state graph search is 8."
+        ]
+      },
+      "bad-wake-subscriber": {
+        "config_sha256": "f721d78b070b1c5f6d9a73c77598f435cd1172a5fe764eedb1d274ca9f157d11",
+        "elapsed_seconds": 0.766,
+        "expected_violation": "EligibleDelivery",
+        "log_sha256": "2706cf298c4f9c947fcf6096cc56332ab31daf4eea3d85d7240813338b719856",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "219 states generated, 100 distinct states found, 56 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "control-retirement": {
+        "config_sha256": "ed0bec9b9e812efcbf4c6c70443bd4d96aefb21942f9c23e7d06f626dd1554f3",
+        "elapsed_seconds": 0.766,
+        "expected_violation": null,
+        "log_sha256": "6e3719835b4d0f2dd546a195b91131b2b6209d05f4306add9584fea9b18dce78",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(16) at 2026-09-30 21:27:23: 184 states generated, 115 distinct states found, 0 states left on queue.",
+          "184 states generated, 115 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 16."
+        ]
+      },
+      "handoff": {
+        "config_sha256": "d48dcf149dedc3fbc6249d1b19d34f99f11d95091303c8c4fee9ff491a3e78de",
+        "elapsed_seconds": 48.944,
+        "expected_violation": null,
+        "log_sha256": "51d23a43df054c410ded590ab1e8a7bdaeedee43b4debb30ea6c6ed851fddb8d",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(24) at 2026-09-30 21:22:00: 15,857 states generated (15,857 s/min), 7,141 distinct states found (7,141 ds/min), 715 states left on queue.",
+          "Progress(48) at 2026-09-30 21:22:05: 47,304 states generated, 17,952 distinct states found, 0 states left on queue.",
+          "47304 states generated, 17952 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 48."
+        ]
+      },
+      "host-wake": {
+        "config_sha256": "b64934c7913c0df3f7c2824046cdc5e62c73ab53b917adb94951803610629176",
+        "elapsed_seconds": 3.079,
+        "expected_violation": null,
+        "log_sha256": "5708951330e76617951759d49515aead6c4d2d56a991a45d7409c0cb490153b8",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(20) at 2026-09-30 21:22:52: 6,139 states generated, 1,867 distinct states found, 0 states left on queue.",
+          "6139 states generated, 1867 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 20."
+        ]
+      },
+      "host-wake-parked-shared": {
+        "config_sha256": "b6bae46f2a99e7ced9a43cfe99eaa5310b58cf6a6bdde9395e76da540412106d",
+        "elapsed_seconds": 8.367,
+        "expected_violation": null,
+        "log_sha256": "a7a6d3c05181e29e4937ba3ebbd9981a6329505b9175663915a5c2326010584e",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(19) at 2026-09-30 21:22:55: 8,942 states generated, 2,795 distinct states found, 0 states left on queue.",
+          "8942 states generated, 2795 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 19."
+        ]
+      },
+      "interrupt": {
+        "config_sha256": "8bd12d78065380f45ce0de24a2a8886aaee7929c5790e76888df0f28961fc7ce",
+        "elapsed_seconds": 0.766,
+        "expected_violation": null,
+        "log_sha256": "af4f069e9a11cb5cd7042432ff5b787e73a64cc6a385a6e89275ca664cae7264",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(11) at 2026-09-30 21:23:05: 99 states generated, 54 distinct states found, 0 states left on queue.",
+          "99 states generated, 54 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 11."
+        ]
+      },
+      "reservation": {
+        "config_sha256": "dfe7e36b42c24b1ac9353b7966fd072e018f92f5b94761846a4e9c2655da2870",
+        "elapsed_seconds": 0.719,
+        "expected_violation": null,
+        "log_sha256": "784ad7073d6e14391685ed174f762b77d5576d178737b7f366bc15fb95d08adf",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(7) at 2026-09-30 21:22:50: 13 states generated, 13 distinct states found, 0 states left on queue.",
+          "13 states generated, 13 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "thread-claim": {
+        "config_sha256": "c1e1b3a7c5b75a4bcfc226cbdc39b2f0916d7edaf6e2c37ebdef02c2af32a2c4",
+        "elapsed_seconds": 0.766,
+        "expected_violation": null,
+        "log_sha256": "fd54d547a7f57ac648eab648ec0a2618b125e6e5c48d23218fbb413f18adb196",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(7) at 2026-09-30 21:23:08: 57 states generated, 34 distinct states found, 0 states left on queue.",
+          "57 states generated, 34 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "thread-claim-one-slot": {
+        "config_sha256": "12abecf6244273bc1a83c2c2f07da408639d1a7c2e6e527ce999868d54aaa2fa",
+        "elapsed_seconds": 0.715,
+        "expected_violation": null,
+        "log_sha256": "343bb1615764448871080299395a8f157e129007a5c20f6d0e0efd714bc8299f",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(4) at 2026-09-30 21:27:30: 7 states generated, 7 distinct states found, 0 states left on queue.",
+          "7 states generated, 7 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ]
+      },
+      "timer-mirror": {
+        "config_sha256": "bb70b5a795e6a14e5419022c7e3bd257ad19f3318899985ac395c361ea64758a",
+        "elapsed_seconds": 0.766,
+        "expected_violation": null,
+        "log_sha256": "5321357963ea16116b4d61baafddd0a2b2a908724983e70c6df239348cc12faa",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(7) at 2026-09-30 21:27:21: 13 states generated, 10 distinct states found, 0 states left on queue.",
+          "13 states generated, 10 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "wake-ack-race": {
+        "config_sha256": "f3d9dc08194fc1e1aff4f1a12b6347f2b2f16f26b0d1372164ada5b0ddec2549",
+        "elapsed_seconds": 0.715,
+        "expected_violation": null,
+        "log_sha256": "abaacc2e36d2c976cd45b10cbc46cfc71186759c6c27bda9249717aa44d711c9",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(10) at 2026-09-30 21:27:28: 33 states generated, 22 distinct states found, 0 states left on queue.",
+          "33 states generated, 22 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      },
+      "wake-handoff": {
+        "config_sha256": "3fd0a4b7bf406efdc7171fbb8b4fda72c9f4a678125e99b6a17db88cf9e27b62",
+        "elapsed_seconds": 249.296,
+        "expected_violation": null,
+        "log_sha256": "f63176e84cbca39c552e64b156c3d6eac760c2d17e9ce6be69de8c26d8eb17f7",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(13) at 2026-09-30 21:23:13: 6,678 states generated (6,678 s/min), 2,482 distinct states found (2,482 ds/min), 449 states left on queue.",
+          "Progress(52) at 2026-09-30 21:23:39: 73,752 states generated, 25,408 distinct states found, 0 states left on queue.",
+          "73752 states generated, 25408 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 52."
+        ]
+      },
+      "wake-reassignment": {
+        "config_sha256": "5fdf317f7c6b52c59f67927c0a86def7554d44277a0764b0c9ba971752455da7",
+        "elapsed_seconds": 0.815,
+        "expected_violation": null,
+        "log_sha256": "8a410a4457a57024f397a51aed6cebfffe97a076bc22c364716ea024b39030d8",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(14) at 2026-09-30 21:27:26: 168 states generated, 102 distinct states found, 0 states left on queue.",
+          "168 states generated, 102 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 14."
+        ]
+      },
+      "wake-retirement": {
+        "config_sha256": "1ff0856cae6776c654bfe45303e6b187f51d41108f8bd5fccd76b3e19b197983",
+        "elapsed_seconds": 1.371,
+        "expected_violation": null,
+        "log_sha256": "8918dbcbbc2cd0d8d04bea71677899d17df3e4e09c91752b71c5cefe6ec0b598",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(15) at 2026-09-30 21:27:19: 496 states generated, 190 distinct states found, 0 states left on queue.",
+          "496 states generated, 190 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 15."
+        ]
+      }
+    },
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+    "sources": {
+      "model/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+      "model/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+      "model/scheduling/Handoff.tla": "7abdcab510af533ab39d89b678b09730989397efad392bc5a8f46e879c9dadf9",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+      "model/scheduling/WakeHandoff.tla": "304a74eaa612d21c89863275dbedf56888b6d8404b56f93a082d5f921071dcdb",
+      "model/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+      "model/scheduling/WakeRetirement.tla": "b65c703c9811b1759bb626dd4a5c9a1c8d461c1d808b7e2178360b00085718a1",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "ae8a1a74df0bbbdfd45e17b8b196d0c4f46a7bcc92052f08620f37d3a270ca0d"
+    }
+  },
+  "excluded_runs": [
+    "Initial editing/parser/evaluation failures in info-initial, info-debug and control-initial are not acceptance evidence.",
+    "Redundant control-stalled-tmpfs run was deliberately terminated after control-stalled passed; its partial graph/log is archived and is not a passing result."
+  ],
+  "nix": {
+    "case_results_match_developer": true,
+    "output": "/nix/store/njhad49ykvw09sm3d1y55vihxq0c0ka3-lauberhorn-scheduling-progress",
+    "sources": {
+      "model/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+      "model/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+      "model/scheduling/Handoff.tla": "7abdcab510af533ab39d89b678b09730989397efad392bc5a8f46e879c9dadf9",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+      "model/scheduling/WakeHandoff.tla": "304a74eaa612d21c89863275dbedf56888b6d8404b56f93a082d5f921071dcdb",
+      "model/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+      "model/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "ae8a1a74df0bbbdfd45e17b8b196d0c4f46a7bcc92052f08620f37d3a270ca0d"
+    }
+  },
+  "provenance_note": "The raw baseline snapshot preceded only an explanatory comment change in WakeRetirement.tla; Nix checks the committed source hashes. Initial parser/evaluation debug failures are not passing evidence.",
+  "scope": "Single blocking info read; local activation; bounded close/response/callback composition. No full resource/claim/close product, retained-cache occupancy proof or kill implementation.",
+  "source_commit": "5b9c922",
+  "stalled_peer": {
+    "cases": {
+      "handoff-stalled-peer": {
+        "config_sha256": "4e0fb0193119a092b04783d3cf9d7f36d88bb00281d695d36c292052f4d3e9bc",
+        "elapsed_seconds": 586.698,
+        "expected_violation": null,
+        "log_sha256": "848c4c9765f98d0cb36f37b5c0a591a766832962e486e2dc594e6afdfaccfccb",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(12) at 2026-09-30 21:23:56: 11,689 states generated (11,689 s/min), 4,931 distinct states found (4,931 ds/min), 971 states left on queue.",
+          "Progress(49) at 2026-09-30 21:24:47: 239,056 states generated, 75,648 distinct states found, 0 states left on queue.",
+          "239056 states generated, 75648 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 49."
+        ]
+      }
+    },
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+    "sources": {
+      "model/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+      "model/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+      "model/scheduling/Handoff.tla": "7abdcab510af533ab39d89b678b09730989397efad392bc5a8f46e879c9dadf9",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+      "model/scheduling/WakeHandoff.tla": "304a74eaa612d21c89863275dbedf56888b6d8404b56f93a082d5f921071dcdb",
+      "model/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+      "model/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "ae8a1a74df0bbbdfd45e17b8b196d0c4f46a7bcc92052f08620f37d3a270ca0d"
+    }
+  }
+}
