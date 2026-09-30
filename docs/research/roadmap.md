@@ -98,3 +98,9 @@ and separate whole-domain close/quiescence/retirement. Combined race checking mu
 preserve response lifetime and pending wake ownership across close. Retained
 old-domain cache generations require additional resource accounting; no ordinary
 kernel CL flush is specified.
+
+[Retained cache and composed scheduling](../hardware/retained-cache-composition.md)
+now models full dirty sets, conflict replacement and delayed directory release,
+then joins reservations, claims, wake ownership and whole-domain close. DCS waits
+for CPU downgrades on a full set; concrete replacement-path independence is an
+explicit hardware correspondence obligation, not an empty-cache assumption.

@@ -1,0 +1,172 @@
+# Retained cache accounting and composed scheduling races
+
+This revision removes **clean cache / no conflict miss** as an ordinary handoff
+entry requirement. Retained lines consume finite directory entries, CPU conflict
+replacement creates downgrade/writeback traffic, and that traffic retains resources
+until delivery. This is a bounded abstract resource model, not THX cache-value or
+whole-system hardware refinement. The [control interface](../software/scheduling-control-interface.md)
+still uses one blocking info read and no kernel 2F2F accesses or ordinary flush.
+
+## Source evidence and the accounting correction
+
+DCS represents an 18-bit tag and 13-bit set index above the 7-bit CL offset. The
+index is split into DCU and within-DCU set fields; there are 16 ways per set in
+[`eci_dcs_defs.sv`](../../vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv).
+Crucially, [`dcu_controller.sv`](../../vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv)
+READ_RTG does **not induce eviction** on an allocating miss to a full set. It
+stalls awaiting a CPU downgrade. `dcu.sv` describes the same limitation. Therefore
+fairness of a fictional directory-victim action would be an unsound progress fix.
+
+The revised [audit](../../tools/progress/audit_resources.py) projects every
+configured domain prefix onto the full 13-bit set index, preserving multiplicity.
+It uses XOR linearity rather than enumerating hundreds of millions of lines.
+Tests cross-check the compressed count against full enumeration for small domain
+counts, including a non-power-of-two count. RX and TX footprints are both included.
+
+| Configured domains, seven workers plus bypass | Maximum potential distinct footprint tags per directory set |
+| --- | ---: |
+| 16 | 2 |
+| 128 | 6 |
+| 512 | 24 |
+| 524288 | 24576 |
+
+These are **potential aliases across lifetimes**, not simultaneous CPU residency.
+The CPU cache and directory have finite capacity: excess aliases cause replacement
+and waiting, not an unbounded physical allocation. Background traffic can fill
+sets even when the selected footprint is small. The old six-lines-per-DCU count
+is retained only as an active-assignment statistic; it is no longer used to infer
+free ways or rule out misses. Color-compatible address capacity remains distinct
+from a resource progress guarantee.
+
+## Reusable resource module
+
+[`RetainedCache`](../../model/steady/RetainedCache.tla) has no scheduling policy,
+domain, cookie or parity. Its parameters describe finite lines, cache/directory
+sets, associativity, eviction queues and queue depths. Its state is:
+
+- `resident`: CPU-resident/tag-allocated lines, including abstract in-flight fills;
+- `directory`: retained directory entries;
+- `dirty`: resident lines requiring writeback rather than clean downgrade;
+- `retiring`: invalidated entries still charged until their final protocol unlock;
+- `evictions`: ordered typed `{type, address}` messages, retaining the victim's
+  full address until the downgrade/writeback is delivered.
+
+The invariant is `directory = resident union queued victims union retiring`, with disjoint
+ownership, no duplicate queued entry and a finite per-set bound. CPU eviction
+removes residency first; it does not release the directory way. Only delivery
+releases an eviction entry; protocol invalidations retain their directory charge
+until final unlock. A fill waits for a free directory way. A protocol invalidation
+must serialize with a pending eviction of the same address. Harnesses exclude
+active transactions from victim selection; stable old-domain lines remain evictable.
+
+The parameterized `Init` permits legal nonempty, dirty sets. Concrete harnesses
+start with **full sets and dirty old lines**, deliberately exercising conflicts.
+The two-way cache harness also starts with an old dirty eviction queued at the
+stalled client's color. It permits later conflict eviction of live control lines.
+No fairness forces a stalled read or its blocked downgrade to complete.
+
+This is a resource abstraction of CPU replacement and directory admission; it does
+not implement payloads, cache hits/replay values, all CPU cache levels, replacement
+policy, or the detailed ThunderX single-line FSM. The cache/directory set relation
+and autonomous victim response are endpoint contracts to map to THX. The model
+must not be used to infer undocumented CPU associativity or write-buffer topology.
+
+## Composition with coherence resources
+
+[`CachedProgress`](../../model/steady/CachedProgress.tla) composes the new module
+with unchanged `ProgressSystem`, `DcsResources`, `ThxResources` and `TwoFClient`.
+Two clients, four colors, two ways per modeled set and bounded eviction queues
+exercise an indefinitely held RX, a progressing peer, repeated RX operations,
+retained dirty lines, queued unlocks and conflict eviction. Both live RX parities
+are initialized. Three read/ACK credits and three per-slice read slots are used.
+The address/color numbers are a synthetic resource geometry, not a new PA layout.
+
+Positive cases use independent eviction queues, both with independent downgrade
+service and with downgrade service blocked by a held read at its target color.
+Only **eligible** service is fair. A shared FIFO behind that blocked downgrade
+produces a progress counterexample. Disabling CPU victim selection also produces
+a counterexample from the full-cache initial state. These distinguish cache
+replacement from assuming either a clean cache or global downstream readiness.
+
+The writeback payload path is abstract. Message occupancy and ordering are modeled,
+but shared data beats, VC/CDC backpressure and THX write-buffer arbitration still
+need correspondence. A passing per-color-queue case is a required topology/service
+contract, not evidence that the concrete THX queues are per-color. A shared physical
+queue is acceptable only if its head cannot be indefinitely blocked or another
+proved mechanism provides the required independent progress.
+
+## Combined scheduling model
+
+[`CombinedScheduling`](../../model/scheduling/CombinedScheduling.tla) directly
+composes the same coherence and retained-cache modules with:
+
+- two physical workers initially assigned to domain A and independently requesting B;
+- fixed initialized pools, NIC reservation accounting and separate kernel
+  candidate selection, atomic claim, retry and local activation;
+- PREEMPT/yield, blocking info acceptance, internal readiness, immutable response
+  offer, response consumption and returned RX parity;
+- one sealed cookie/notification per domain, a callback that can outlive close,
+  kernel publication, NIC acceptance, delayed ACK, NIC pending ownership,
+  kernel-held activation snapshots, runtime service and explicit closed disposal;
+- whole-domain kernel close and NIC admission fencing, cancellation when close
+  beats the info response, local activation fencing and prefix retirement;
+- retained old-domain addresses, full dirty initial sets, finite eviction queues,
+  subsequent conflict misses, invalidation/eviction serialization and prefix
+  retirement waiting for the actual modeled directory/messages to disappear.
+
+The one-slot case forces NIC contention for the last destination thread. The
+two-slot case permits concurrent kernel selection of the same candidate. No
+ordinary unavailable-thread cancellation or individual thread withdrawal exists.
+The NIC installs ownership at its info response; there is no activation commit.
+Returned wake responsibility remains kernel-owned until local activation.
+
+Completed old endpoint parity/progress bookkeeping is discarded at InfoRespond
+after capture; those dormant clients never execute again in this one-handoff
+bound. Retained cache entries are not discarded by that canonicalization.
+
+Both workers share finite read/ACK and slice resources. Each physical worker has
+two control colors reused by successive domains at distinct addresses. Each
+modeled cache/directory set has one way to force old/new alias conflicts. Eviction
+delivery is blocked while a read holds that color, with independent queues and
+fairness only on eligible delivery. Protocol dependencies are control-only RX;
+the initial RX parity is fixed in this larger composition. Each worker makes at
+most one A-to-B handoff. Network work is available; a pending host event uses the
+same destination reservation and can be captured at the response.
+
+Checked obligations include capacity, unique claims, exact wake responsibility,
+subscriber routing, no early info response, response stability, resource tracking,
+no read dependency cycle, close/retirement completion and progress for any worker
+whose live assignment eventually remains stable. Admission/resource fairness is
+explicit; no allocation-policy fairness is asserted for unreserved work. Close
+uses cooperative finite work here; kill of an uncooperative application remains
+outside this model. Full prefix reuse safety relies on the single-transaction
+endpoint contract after modeled references have disappeared.
+
+The retirement endpoint may initiate evictions only after kernel quiescence;
+this abstracts the existing undischarged prefix-retirement certificate. It does
+not add a kernel CL operation or ordinary handoff flush. Establishing a concrete
+mechanism for that teardown-only certificate remains necessary.
+
+This is a **combined bounded race model**, not an arbitrary-size theorem. Repeated
+migrations, multiple cookies per domain, repeated same-cookie generations, TX/
+overflow/bypass during transitions and concrete bus framing remain separate bounds
+or component obligations. The existing notification/ACK generation model remains
+necessary; one notification per cookie cannot prove its coalescing case. The
+fault configurations disable unrelated callback/close actions for claim,
+reservation and early-info diagnostics to keep their counterexamples focused;
+positive configurations include those actors.
+
+## Reproduction
+
+```sh
+nix develop -c python3 -m unittest discover -s tools/progress -v
+nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
+nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix
+nix develop -c python3 tools/scheduling/check_models.py --composed-only --output out/scheduling/composed-run --timeout 1200 --workers 4 --heap-mib 4096
+```
+
+The original scheduling baseline remains separately runnable; use the new composed
+check explicitly. Parse failures and timeouts are not passing results. Generated
+state graphs and raw traces belong under ignored output directories; tools and
+source/configuration hashes are recorded by the runner. Use the documented tmpfs
+workflow for large liveness graphs and archive both success and incomplete runs.

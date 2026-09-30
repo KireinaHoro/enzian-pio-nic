@@ -292,3 +292,11 @@ The extended `handoff-stalled-peer` case also passed on the revised sources:
 unaffected-peer admission/completion liveness checked while the third worker
 holds RX indefinitely. A duplicate tmpfs run was stopped after this success and
 is excluded from acceptance evidence. Full RX/TX switching was not rerun.
+
+## Retained-cache and combined-race extension
+
+The [composed model report](retained-cache-composition.md) describes the new
+finite cache/directory accounting and the combined reservation/claim/wake/info-read/
+close model. It starts with dirty retained lines and permits conflict misses.
+Use `scheduling-composed` for these cases; historical baseline results above
+do not establish the new composition or concrete replacement-path independence.
