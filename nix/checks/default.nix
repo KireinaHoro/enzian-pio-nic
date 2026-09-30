@@ -1,5 +1,6 @@
 {
   pkgs,
+  tlc,
   src,
   ivyCache,
   replayPcaps,
@@ -20,12 +21,22 @@ let
     };
 in
 {
-  axi-decerr = pkgs.runCommand "axi-decerr-regression" {
-    nativeBuildInputs = [ pkgs.verilator pkgs.gcc pkgs.gnumake pkgs.bash pkgs.python3 ];
-  } ''
-    bash ${src}/deps/blocks/deps/verilog-axi/tb/axi_crossbar/run_decerr.sh
-    touch $out
-  '';
+  axi-decerr =
+    pkgs.runCommand "axi-decerr-regression"
+      {
+        nativeBuildInputs = [
+          pkgs.verilator
+          pkgs.gcc
+          pkgs.gnumake
+          pkgs.bash
+          pkgs.python3
+        ];
+      }
+      ''
+        bash ${src}/deps/blocks/deps/verilog-axi/tb/axi_crossbar/run_decerr.sh
+        touch $out
+      '';
+  steady-progress = pkgs.callPackage ./steady-progress.nix { inherit tlc; };
   workflow-tools = pkgs.callPackage ./workflow-tools.nix { };
   interactive = pkgs.callPackage ./interactive.nix { };
   eci-toolkit-rx = pkgs.callPackage ./eci-toolkit-rx.nix { inherit eciToolkit; };

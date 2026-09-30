@@ -9,6 +9,7 @@ let
     inherit (pkgs) lib;
     root = source;
   };
+  tlc = pkgs.tlaplus18;
   target = pkgs.pkgsCross.aarch64-multiplatform;
   crossGcc = target.buildPackages.gcc;
   deploymentTarget = import inputs.nixpkgs { system = "aarch64-linux"; };
@@ -118,6 +119,7 @@ let
 in
 {
   inherit
+    tlc
     runtimeTests
     dandelion
     target
@@ -147,7 +149,7 @@ in
     gitRev = identity.revision;
   };
   checks = import ./checks {
-    inherit pkgs;
+    inherit pkgs tlc;
     src = sources.spinal [
       "build.mill"
       "hw"
@@ -158,14 +160,14 @@ in
     runtimeInterface = applications.nix-build-demo;
     eciToolkit = pkgs.lib.cleanSource (source + "/vivado/eci/eci-toolkit");
   };
-  shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
+  shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel tlc; };
   ciDependencies = import ./ci/dependencies.nix {
     inherit pkgs kernel staticShell;
     crossPkgs = target;
     deploymentPackages = import ./interactive/dependencies.nix { target = deploymentTarget; };
   };
   ciEnvironment = pkgs.callPackage ./ci/environment.nix {
-    shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel; };
+    shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel tlc; };
     inherit linuxTools;
     ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
   };
