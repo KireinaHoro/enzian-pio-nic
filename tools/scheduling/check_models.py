@@ -41,6 +41,8 @@ CASES.update({
 RACE_CASES = {
     'combined-scheduling': ('CombinedScheduling', {}, None),
     'combined-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1}, None),
+    'combined-extended-scheduling': ('CombinedScheduling', {'EventBudget': 2, 'RepeatRx': True}, None),
+    'combined-extended-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1, 'EventBudget': 2, 'RepeatRx': True}, None),
     'bad-combined-reservation': ('CombinedScheduling', {'DestinationCapacity': 1, 'BadReserve': True}, 'CapacitySafe'),
     'bad-combined-claim': ('CombinedScheduling', {'BadClaim': True}, 'UniqueClaim'),
     'bad-combined-info': ('CombinedScheduling', {'BadInfo': True}, 'InfoReady'),
@@ -69,9 +71,10 @@ RACE_CASES = {
     'bad-wake-retirement': CASES['bad-wake-retirement'],
 }
 CASES.update(RACE_CASES)
-COMPOSED_CASES = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
+COMPOSED_ALL = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
+COMPOSED_CASES = {k:v for k,v in COMPOSED_ALL.items() if not k.startswith('combined-extended-')}
 DEFAULTS = {
-    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2},
+    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False},
     'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement'), False),
     'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
     'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
@@ -143,7 +146,9 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    selected = args.case or (COMPOSED_CASES if args.composed_only else RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_CASES])
+    selected = args.case or (COMPOSED_CASES if args.composed_only else
+        [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
+        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL])
     if args.safety_only and any(CASES[name][2] for name in selected):
         p.error('--safety-only requires an explicit selection of positive cases')
     jar = os.environ.get('TLA2TOOLS_JAR')

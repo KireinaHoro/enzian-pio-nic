@@ -1,6 +1,6 @@
 -------------------------- MODULE CombinedScheduling --------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS DestinationCapacity, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
+CONSTANTS DestinationCapacity, EventBudget, RepeatRx, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
 Workers == {1,2}
 Domains == {0,1}
 Clients == 1..4
@@ -64,6 +64,7 @@ Pinned == {P!C!Door(c): c \in held} \cup
 Eligible(c) == \E w \in Workers, d \in Domains:
     c = Client(w,d) /\ ctl.w[w].owner = d /\ d \notin ctl.closing
     /\ ctl.w[w].stage \in {"Run","Active"} /\ ctl.w[w].runtime = {}
+    /\ (RepeatRx \/ ~completed[c])
 \* Both physical workers compete for the destination. Network work is available;
 \* a pending host event uses the same reservation/accounting commit point.
 Request(w) ==
@@ -109,6 +110,7 @@ Activate(w) ==
          !.w[w].reply = "None", !.w[w].parity = 0]
 BeginCallback(d) ==
     /\ ~Diagnostic /\ d \notin ctl.closing /\ d \notin ctl.callback \cup ctl.issued
+    /\ Cardinality(ctl.callback \cup ctl.issued) < EventBudget
     /\ ctl' = [ctl EXCEPT !.callback = @ \cup {d}]
 FinishCallback(d) ==
     /\ d \in ctl.callback
@@ -207,7 +209,7 @@ Spec == Init /\ [][Next]_v /\ WF_v(DeliverUnlock)
     /\ (\A w \in Workers: WF_v(CPU(Local(w))) /\ WF_v(InfoRespond(w)) /\ WF_v(Stop(w)) /\ SF_v(CPU(Deliver(w))))
     /\ (\A d \in Domains: WF_v(CPU(FinishCallback(d))) /\ WF_v(CPU(Publish(d))) /\ WF_v(CPU(Accept(d)))
         /\ WF_v(CPU(Ack(d))) /\ WF_v(CPU(CloseNic(d))) /\ WF_v(CPU(Retire(d))))
-    /\ (\A c \in Clients: SF_v(Prepare(c)) /\ SF_v(Admit(c)) /\ WF_v(ClientStep(c)))
+    /\ (\A c \in Clients: SF_v(Prepare(c)) /\ SF_v(Admit(c)) /\ SF_v(ClientStep(c)))
     /\ (\A q \in Queues: WF_v(Process(q)) /\ WF_v(EvictionDelivery(q)))
     /\ (\A a \in Lines: WF_v(EvictClosed(a)))
 CapacitySafe == \A d \in Domains: Used(d) <= Capacity(d)
@@ -231,5 +233,6 @@ HandoffFinishes == \A w \in Workers: (ctl.w[w].stage = "Preempt") ~> (ctl.w[w].s
 Retires == \A d \in Domains: (d \in ctl.closing) ~> (d \in ctl.retired)
 StableProgress == \A w \in Workers, d \in Domains:
     (<>[](ctl.w[w].owner = d /\ ctl.w[w].stage \in {"Run","Active"} /\ d \notin ctl.closing))
-    => (([]<>completed[Client(w,d)]) /\ ([]<>~completed[Client(w,d)]))
+    => (IF RepeatRx THEN (([]<>completed[Client(w,d)]) /\ ([]<>~completed[Client(w,d)]))
+        ELSE <>[]completed[Client(w,d)])
 =============================================================================

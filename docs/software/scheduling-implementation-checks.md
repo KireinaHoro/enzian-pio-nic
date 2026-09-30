@@ -104,6 +104,8 @@ being present elsewhere in the file.
 | H7 | Local activation follows InfoRespond; return physical-worker identity and both parities from that response, with no NIC commit write. Assert no old-owner admission after fencing. | Worker decoder and activation return path. |
 | H8 | HOST_WAKE delivery does not pop the network queue, even when full. Ordinary TX and syscall sleep do not alter assignment. | RX pseudo-packet selection and worker ownership logic. |
 | H9 | Check accepted/resource counts, no double release, full-address preservation and transaction beat framing at actual interfaces. Control MMIO must progress independently of a stalled worker. | DCS/AXI/ECI integration; these require RTL/resource validation, not just scheduler assertions. |
+| H10 | Retain directory charges for queued evictions and invalidated entries until downgrade/writeback delivery or final unlock. Serialize invalidation and eviction of the same address. | Cache/coherence endpoint and DCS resource monitors; see the [retained-cache model](../hardware/retained-cache-composition.md). |
+| H11 | Establish both victim generation for a full directory set and independent service of eligible replacement traffic. Never infer either from a small active-assignment footprint. | CPU cache/DCS geometry and downgrade/writeback paths; concrete correspondence remains open. |
 
 A local assertion should name the owner and violated contract. Expected races
 such as a stale thread candidate or routing hint must take a defined fallback
@@ -111,10 +113,13 @@ path; they are not assertion failures in a correct implementation.
 
 ## Next race compositions
 
-Join the checked pending-source rules to fixed-pool dispatch and concurrent
-network/host capacity claims. There is no individual thread shutdown or ordinary
+The [combined model](../hardware/retained-cache-composition.md) now joins pending
+source ownership, fixed-pool dispatch, concurrent claims and retained-cache
+resources. Its bounds and verification status are recorded separately from the
+historical component results below. There is no individual thread shutdown or ordinary
 unavailable-thread cancellation. Whole-domain teardown must fence new reservations
-and retain the initialized pool until outstanding dispatches are reconciled. Then combine source closure with the actual
+and retain the initialized pool until outstanding dispatches are reconciled.
+The remaining refinement must connect source closure to the concrete
 transport/cache retirement boundary. Repeated migration is useful where it can
 expose stale replies/targets, rather than as a reason to enumerate already-forbidden
 local reorderings. Kill versus dispatch/teardown remains a separate recovery model;
