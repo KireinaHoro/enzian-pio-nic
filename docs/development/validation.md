@@ -115,3 +115,8 @@ They model the proposed cooperative handoff, pending wake ownership and interrup
 ordering. They do not test the current kernel scheduler or instantiate DCS RTL.
 The optional stalled-third-worker case and remaining composition work are
 listed in the report.
+
+For the focused concurrent-race subset, run
+`nix build .#checks.x86_64-linux.scheduling-races --out-link out/scheduling/races-nix`.
+See the [implementation checklist](../software/scheduling-implementation-checks.md)
+for bounds, negative controls and required serialization points.

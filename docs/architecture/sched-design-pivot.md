@@ -269,3 +269,8 @@ The [Goal 2 scheduling models](../hardware/scheduling-verification.md) make thes
 ordering contracts executable and reuse the Goal 1 resources. Their bounded
 component results are separate from production implementation and from full
 control/transport composition.
+
+The [implementation checks](../software/scheduling-implementation-checks.md) distinguish
+concurrent races from local sequencing and list required kmod/HW assertions.
+Normal handoff uses no scheduling IRQ; NIC scheduling interrupts are reserved
+for application kill/recovery.

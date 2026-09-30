@@ -240,3 +240,16 @@ traces stay under ignored output directories. Use a fresh tmpfs output directory
 and archive it to `out/scheduling/` for larger checks if disk graph access dominates.
 The Nix result excludes volatile timings/log hashes and retains reproducible
 source/configuration provenance.
+
+## Concurrent races and local implementation checks
+
+The [implementation checklist](../software/scheduling-implementation-checks.md)
+separates cross-actor races from locally enforced handoff sequencing. The focused
+`--races-only` suite adds delayed wake acceptance/delivery across A→B→A reassignment,
+notification arrival versus acknowledgment, and withdrawal versus atomic thread
+claim. It also includes callback retirement and duplicate claims. These are bounded
+component checks, not a combined proof of allocation, wake, close and transport.
+
+Ordinary handoff is cooperative and IRQ-free. NIC scheduling interrupts are only
+for application kill/recovery, which remains unmodeled. `InterruptGate` concerns
+Linux timer/IPI early-NACK service; it does not establish the kill protocol.
