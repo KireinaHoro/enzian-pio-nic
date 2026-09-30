@@ -126,3 +126,23 @@ nix develop -c python3 tools/scheduling/check_models.py --races-only --output ou
 
 The ordinary `scheduling-progress` check also includes the race cases. Expected
 negatives must fail their named obligation; parse errors and timeouts do not pass.
+
+## Checked results
+
+At source `f2f0286`, the focused TLC run passed four positive configurations and
+found all seven expected counterexamples. Positive reachable-state counts are
+102 (reassignment), 22 (notification/ACK), 73 (thread claim) and 190 (retirement).
+The [evidence manifest](../../model/scheduling/race-evidence.json) records source,
+configuration and log hashes, tool versions and results. Negative state counts
+are diagnostic prefixes, not exhaustive successful safety proofs.
+
+Representative counterexamples are `Notify -> Publish -> Notify -> Accept -> Ack`
+with an unconditional ACK clear, and `Notify -> Accept -> Begin -> Park -> Install
+-> Activate -> Deliver` with stale delivery eligibility. The former loses newer
+readiness; the latter delivers A's notification to B. The corrected actions
+preserve notification responsibility and revalidate the current subscriber.
+
+Both pinned Nix checks passed: the focused 11 outcomes (four positives, seven
+expected negatives) and the full 33 outcomes (13 positives, 20 expected negatives).
+The normalized focused developer results match the Nix results exactly. The
+optional extended RX/TX and stalled-peer cases were not rerun for this change.
