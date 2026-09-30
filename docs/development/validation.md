@@ -52,7 +52,7 @@ This loops until failure; bound/stop it deliberately. ScalaTest parallel executi
 
 ## Coverage limits that affect claims
 
-- `OncRpcSim` has registered but empty TODO test bodies: `rx-hol-blocking-free`, `rx-preempt-no-leaking`, and `rx-sched-crit-timeout`. A passing suite does **not** validate those properties.
+- `OncRpcSim` has registered but empty TODO test bodies: `rx-preempt-no-leaking` and `rx-sched-crit-timeout`. A passing suite does **not** validate those properties.
 - `rx-tx-interleaved` is tagged `Slow` with an address-map FIXME; fast CI excludes it. RX size scans and TX scan tests also use `Slow`.
 - `PacketAllocSim` explicitly leaves multi-configuration and block-until-free checks incomplete.
 - The Scala host model approximates software IRQ/scheduling behavior. Passing RTL simulation does not validate the actual Linux module, aarch64 atomics, or real ECI cache behavior.
@@ -80,3 +80,12 @@ leaving RTL, traffic generation and all data/loss assertions unchanged.
 The fixture seeds Scala's RNG; Spinal derives its default simulator seed from
 that RNG (1193543006 for this reproducer). The printed fixture seed is therefore
 not the simulator's displayed seed. No seed-handling change was required.
+
+### Settled progress checks
+
+See the [verification contract and reproducible commands](../hardware/steady-state-verification.md).
+`OncRpcSim` tests `rx-independent-progress-1-stalls` and
+`rx-independent-progress-2-stalls` replace the historical empty RX HoL test with
+finite observations of active peer and bypass RX progress. They do not prove
+infinite-stall liveness, full-duplex bypass safety or the new decoder. Python
+capacity tests and the independent TLC runner live under `tools/progress/`.

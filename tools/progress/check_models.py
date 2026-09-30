@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run pinned TLC scenarios; negative tests must fail with a temporal violation."""
+"""Run pinned TLC scenarios; negative tests must fail the intended safety or temporal property."""
 import argparse
 import hashlib
 import json

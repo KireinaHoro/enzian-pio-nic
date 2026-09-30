@@ -190,6 +190,7 @@ def configuration(result, workers, domains):
                 usable_address_bits=result['address_bits'], color_bits=result['color_bits'],
                 block_stride_bytes=1 << result['stride_bits'], cache_line_bytes=128,
                 worker_count=workers, domain_count=domains,
+                worker_id_space='zero-based physical-worker index excluding bypass; not a Linux CPU, thread, or datapath ID',
                 domain_encoding=dict(operation='XOR selected kernel vectors with worker base',
                                      kernel_basis_bytes=result['kernel_basis'],
                                      null_prefix_indices='consecutive indices 0 through domain_count-1',
@@ -199,7 +200,8 @@ def configuration(result, workers, domains):
                 directions={name: dict(control_offsets_bytes=[128*i for i in list(layout.lines(d))[:2]],
                                        overflow_offsets_bytes=[128*i for i in list(layout.lines(d))[2:]])
                             for d, name in enumerate(('rx', 'tx'))},
-                decode=dict(algorithm='split block offset; decode block color to worker; invert XOR kernel for domain',
+                decode=dict(input='unaliased slice-relative physical address',
+                            algorithm='split block offset; decode block color to worker; invert XOR kernel for domain',
                             reject='unknown worker color, unallocated prefix index, or domain != installed owner',
                             worker_color_masks=row['worker_masks']),
                 coherence=dict(retain='full original domain-qualified address through read, invalidate, ack and unlock',

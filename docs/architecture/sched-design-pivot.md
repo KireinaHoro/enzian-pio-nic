@@ -236,3 +236,13 @@ Linux 6.8 references: [eventpoll](https://github.com/torvalds/linux/blob/v6.8/fs
 [hrtimer](https://github.com/torvalds/linux/blob/v6.8/kernel/time/hrtimer.c),
 [arm timer](https://github.com/torvalds/linux/blob/v6.8/drivers/clocksource/arm_arch_timer.c),
 [arm64 IPI](https://github.com/torvalds/linux/blob/v6.8/arch/arm64/kernel/smp.c).
+
+## Verification boundary
+
+Implement the verification work in two stages: first fixed assignments after a
+settled handoff, then scheduling transitions. The [Goal 1 infrastructure and
+evidence](../hardware/steady-state-verification.md) emits configurations for the
+proposed direct physical-worker/domain decoder, without implementing this pivot.
+Color-compatible capacity is separate from resource-model progress and hardware
+refinement. Goal 2 must establish the settled entry contract and preserve progress
+during transitions using the same resources.
