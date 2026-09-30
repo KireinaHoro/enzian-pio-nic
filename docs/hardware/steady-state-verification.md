@@ -24,13 +24,21 @@ assignment release or fairness requirement on that client's Work action. Two
 independent clients represent full-duplex bypass; their endpoint colors must both
 be reserved. No application waits on a stalled client's locks are in scope.
 
-Initialization chooses independent RX and TX control parities and every direction,
-not just parity zero. Repeated operations, direction changes, queued invalidations, acknowledgments
+Initialization chooses both parities for every used direction. Active workers
+can start in RX or TX and later switch. Stalled clients hold RX; bypass RX and TX
+are separate fixed-direction clients. `AllowedDirections` disables unused
+directions and fixes their unobservable parity to zero, avoiding duplicate states
+without restricting the parities of accessed lines. Repeated operations, direction changes, queued invalidations, acknowledgments
 and unlocks are reachable. An unlock can remain queued across software completion
 and the next operation: half-duplex is not a transport-drain assumption. Cache
 payloads and the exact set of reachable THX stable/transient cache states remain
 behind the single-transaction assumption. This is not exhaustive initialization
-from every concrete legal cache state.
+from every concrete legal cache state. Designated stalled clients are inert from
+initialization: the harness does not yet freeze a worker after a previous TX
+operation while that same worker retains an old unlock. Active clients do exercise
+retained unlocks across direction changes. The `LateUnlock` component check below
+seeds one such retained obligation and checks its drain; it is not an exhaustive
+late-stall extension of the full 2F2F harness.
 
 ## Evidence audit and correspondence
 
@@ -57,6 +65,45 @@ an arbitrary blocked transaction eventually completes. Service fairness only
 applies when the modeled action is enabled. Downstream ability to deliver eligible
 unlocks is assumed; extending backpressure to those omitted paths is still needed.
 
+### Additional source-backed resource bounds
+
+The [reproducible RTG audit](../../tools/progress/audit_resources.py) counts every
+selected RX and TX line as resident simultaneously, even though worker software
+is half-duplex. At seven workers plus bypass, 32 DCUs each receive one control
+line and the other 32 each receive six overflow lines. Domain-prefix invariance
+makes this independent of the currently assigned domain codes. A set within a
+DCU cannot contain more distinct footprint lines than that DCU's total, so the
+six-line bound is below `DS_NUM_WAYS_PER_SET=16` in
+[`eci_dcs_defs.sv`](../../vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv).
+Thus **this footprint alone cannot fill an RTG set**, assuming one current domain
+per worker, retired old-owner cache state, no additional coherent regions, and
+one RTG entry per line. This is an occupancy bound, not a proof of RTG transition
+correctness or progress. Extra resident generations/traffic invalidate that bound.
+
+The same source declares a per-slice data buffer sized as two 512-bit words per
+DCU index. [`dp_data_store.sv`](../../vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_data_store/rtl/dp_data_store.sv)
+indexes it by DCU and releases its gate on the return handshake. This supports
+per-DCU storage allocation, but shared serialization, gates and downstream
+backpressure still need a progress correspondence; it is not a global readiness
+guarantee.
+
+[`dcu_top.sv`](../../vivado/eci/directory-controller-slice/dcs/dcu/dcu_top/rtl/dcu_top.sv)
+and [`arb_4_ecih.sv`](../../vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv)
+separate incoming message classes and rotate priority on acceptance **or stall**.
+The current single invalidation queue abstraction does not reproduce those five
+input classes or their shared upstream VC topology. The controller's explicit
+protocol/read/write/ECI/RTG stall reasons must be mapped separately before claiming
+that a stalled color cannot block a shared path.
+
+Finally, `DcsAppMaster.maxInflightReqsPerSlice=5` is a **simulation default**;
+it does not establish a five-entry hardware limit. The production crossbar's
+upstream limit is `NUM_WORKER_CORES+2`, with one operation per destination, in
+[`EciInterfacePlugin.scala`](../../hw/src/lauberhorn/host/eci/EciInterfacePlugin.scala).
+Neither count discharges ThunderX read/ack-credit sharing: the available
+[`thx-fsms` evidence](../../deps/thx-fsms/README.md) explicitly omits internal
+write and in-flight buffers. Those resource assumptions cannot be closed simply
+by increasing the TLC bound or treating a successful RTL test as a proof.
+
 ## Ports and composition
 
 Modules expose state tuples and use `INSTANCE ... WITH`. The DCS module contains
@@ -82,7 +129,11 @@ DCS `CanRead` also excludes an address locked by a processed invalidation. THX
 Pools/PoolOf are generic module parameters. These are sensitivity models, not a
 reverse-engineered ThunderX microarchitecture. `SF` is used for intermittently
 eligible shared admission/invalidation/ack arbitration. Continuously eligible CPU,
-queue processing, return and unlock actions use `WF`. Concrete arbitration must
+queue processing, return and unlock actions use `WF`. Only queues reachable from
+non-stalled clients' declared dependencies are included in `ServiceQueues`:
+`UnusedQueuesEmpty` checks that all other queues remain empty. Omitting their
+vacuous fairness clauses and disabled return directions does not remove any
+eligible service requirement. Concrete arbitration must
 justify this fairness; priority RTL alone does not prove it.
 
 ## Replacement address configurations and capacity
@@ -178,29 +229,44 @@ handoff evidence, not replacement architecture limits.
 
 ## Reproduce and interpret checks
 
-Run from the repository root. Generated output belongs under ignored `out/`.
-Obtain the official TLC 1.8.0 `tla2tools.jar`; the checked artifact SHA-256 is
-`ab4694601923fd5ac06452abbf847c366a5054a3d739552085edd6ed986c29ec`.
+Run from the repository root with the locked submodules. Python, Java and
+**nixpkgs `tlaplus18`** are declared Nix inputs; `flake.lock` pins the package set.
+`nix develop` supplies `tlc` and `TLA2TOOLS_JAR`; no manually downloaded jar or
+`/tmp` artifact is required. The current nixpkgs jar SHA-256 is
+`397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e`.
+The historical jar with hash `ab469460...` was different despite its 1.8.0 label;
+its results below are retained as historical evidence, not reused as current runs.
+
+[The Nix check](../../nix/checks/steady-progress.nix) copies only declared model,
+Python and DCS-definition inputs into the sandbox, checks the selected mapping
+and RTG bound, and runs the regression suite plus the selected two-worker witness.
+Its output contains deterministic source/tool hashes and outcomes plus the RTG
+bound. Raw logs, elapsed times and temporary paths are retained by working-tree
+runner invocations, not embedded in the Nix output. The flake exposes the checker
+as `packages.<system>.tlc` and the check as `checks.<system>.steady-progress`.
+It is a standalone flake check; CI pipeline definitions are unchanged, and no
+timing work is resumed.
 
 ```sh
+# Clean-input baseline; deterministic summary and RTG bound are in this result.
 mkdir -p out/progress
-nix develop -c python3 -m unittest discover -s tools/progress -v
+nix build .#checks.x86_64-linux.steady-progress --out-link out/progress/nix-check
+# Same model runner on the working tree; output directory must be new.
+nix develop -c python3 tools/progress/check_models.py --output out/progress/new-run
+# Extended finite bounds, with explicit memory and time limits per case.
+nix develop -c python3 tools/progress/check_models.py --case selected-two-stalls --case bypass-overflow --case selected-bypass --case selected-peer-bypass --workers 4 --heap-mib 3072 --timeout 1200 --output out/progress/extended
+# Independently reproduce the selected mapping and conservative RTG bound.
 nix develop -c python3 tools/progress/capacity.py --workers 7 --domains 16 > out/progress/map.json
 nix develop -c python3 tools/progress/verify_config.py out/progress/map.json
-nix develop -c python3 tools/progress/witness_model.py out/progress/map.json --output out/progress/witness
-nix develop -c java -cp /tmp/lauberhorn-tla2tools.jar tlc2.TLC -workers 1 -lncheck final -metadir out/progress/witness-tlc -config out/progress/witness/Witness.cfg out/progress/witness/Witness.tla
-# Exhaust all offsets at the historical 128 KiB stride/footprint (5245 equivalence classes):
+nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
+# Historical 128 KiB placement sweep (5245 equivalence classes).
 nix develop -c python3 tools/progress/sweep_layouts.py --jobs 4 --output out/progress/sweep.json
-# Explicitly select a wider finite family (may be expensive):
-nix develop -c python3 tools/progress/capacity.py --rx 0 6 --tx 38 64 --stride-bits 15 17
-nix develop -c python3 tools/progress/check_models.py --jar /tmp/lauberhorn-tla2tools.jar --output out/progress/new-run
-nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim -- -z rx-independent-progress
 ```
 
-The runner records full TLC counterexamples, tool/source checksums and compact
-results. It preserves partial output and marks timeouts incomplete (exit 124 in
+The runner records full TLC counterexamples, exact commands, Java version,
+tool/source/harness hashes, memory limits, elapsed time and compact results. It preserves partial output and marks timeouts incomplete (exit 124 in
 its summary). `--case bypass-overflow --timeout 60` reproduces the larger optional
-bound; it is excluded from the default suite. The default bypass case checks
+synthetic bound; extended cases are excluded from the default suite. The default bypass case checks
 control-only dependencies, not the overflow case. `witness_model.py` binds actual
 emitted full addresses and every overflow line to the unchanged `ProgressSystem`
 composition; by default it selects workers 0/1 in domains 0/15, stalls worker 0,
@@ -242,7 +308,8 @@ binds its full addresses, both control parities, and all 12 overflow lines to
 [single-transaction vocabulary/assumption](../../model/steady/Coherence.tla)
 remains an undischarged replacement boundary.
 
-New checks for this selection, September 30:
+Initial checks for this selection at `f9981d5`, September 30, before the Nix
+integration and explicit direction choices (current reruns are recorded below):
 
 | Check | Result and scope |
 | --- | --- |
@@ -252,7 +319,7 @@ New checks for this selection, September 30:
 | Address-bound TLC | 25088 distinct states, 45632 generated, depth 141; `Settled`, `NoReadDependencyCycle`, `Progress` and `Admission` passed |
 | Negative sensitivity checks | `bad-hol`, `bad-color`, `bad-credits`, `bad-slice`, `bad-ack` each produced its expected liveness counterexample |
 
-The positive TLC instance selects workers 0/1 in domains 0/15; worker 0 may retain
+This initial positive TLC instance selects workers 0/1 in domains 0/15; worker 0 may retain
 its read indefinitely while worker 1 executes repeated half-duplex operations.
 It includes independent initial RX/TX parities, subsequent direction changes,
 all overflow addresses, and unlocks retained after software completion. Its
@@ -271,27 +338,119 @@ otherwise eligible request behind a permanently blocked request. Its counterexam
 shows why coloring alone cannot justify HoL freedom; the positive model's separate
 queues and credit assumptions need concrete correspondence.
 
-The [compact evidence manifest](../../model/steady/selected-8k-evidence.json)
-records source/configuration/TLC hashes, state counts and expected negative results.
+The [initial compact evidence manifest](../../model/steady/selected-8k-evidence.json)
+records source/configuration/TLC hashes, state counts and expected negative results
+for that earlier source revision.
 Full logs and generated harnesses remain ignored under `out/progress/selected-8k/`.
-Reproduce the selected address-bound run in a fresh output directory:
+Reproduce the current selected address-bound run in a fresh output directory:
 
 ```sh
-mkdir -p out/progress/selected-recheck
-nix develop -c python3 tools/progress/verify_config.py model/steady/selected-8k.json
-nix develop -c python3 tools/progress/witness_model.py model/steady/selected-8k.json --output out/progress/selected-recheck/witness
-nix develop -c java -XX:+UseParallelGC -cp /tmp/lauberhorn-tla2tools.jar tlc2.TLC -workers 1 -lncheck final -metadir out/progress/selected-recheck/states -config out/progress/selected-recheck/witness/Witness.cfg out/progress/selected-recheck/witness/Witness.tla
-nix develop -c python3 tools/progress/check_models.py --jar /tmp/lauberhorn-tla2tools.jar --case bad-hol --case bad-color --case bad-credits --case bad-slice --case bad-ack --output out/progress/selected-recheck/negatives
+nix develop -c python3 tools/progress/check_models.py --case selected-workers --output out/progress/selected-recheck
 ```
 
-Goal 1 still requires progress coverage for the supported concurrent worker/stall
-subsets and full-duplex bypass with overflow, and sufficient shared-resource
-fidelity for DCS write/RTG/VC/CDC/crossbar paths and THX contention. The earlier
-bypass-overflow run is incomplete, not a proof. Existing RTL tests exercise the
+Goal 1 still requires broader concurrent worker/stall-subset progress coverage
+and sufficient shared-resource fidelity for DCS write/RTG/VC/CDC/crossbar paths
+and THX contention. The new selected-bypass run below closes the one-stalled-worker
+plus full-duplex bypass/overflow instance, not all worker/bypass combinations.
+Earlier incomplete runs remain historical, not proofs. Existing RTL tests exercise the
 current production layout with finite stalls, not this replacement mapping;
 no new RTL or board result is claimed. The [entry contract](#entry-and-environment-contracts)
 is unchanged and remains the contract Goal 2 must establish. Goal 2 should not be
 used to defer these steady-state resource-progress obligations.
+
+## Nix-pinned reruns and expanded bounds
+
+The current checker is `tlaplus18` from the existing `flake.lock`, not a custom
+TLC derivation. Its jar hash and Java version are recorded by the runner. The
+sandboxed `steady-progress` check passed eleven Python tests, verified all 112
+selected worker/domain blocks, checked the RTG occupancy bound, and passed all
+15 expected TLC outcomes (including six expected counterexamples). A Nix
+`--rebuild` check reproduced the output byte for byte.
+
+The current model makes per-client direction choices explicit. Active workers
+retain both RX/TX choices and both parities. Stalled clients remain in RX; their
+unused TX parity is unobservable. Bypass clients each use a single direction and
+both control parities. This removes duplicate states from the previous harness;
+it does not reduce the twelve-line overflow footprint, force transport drain,
+assume completion of blocked operations, or omit admission liveness.
+
+`ServiceQueues` restricts queue-service fairness to queues that the declared
+clients can actually use. `UnusedQueuesEmpty` checks that the other queues remain
+empty. All queues still exist in the resource model, and arbitration/service
+fairness on every potentially used queue is unchanged. Disabled return directions
+likewise no longer contribute vacuous fairness clauses. Older state counts are
+not directly comparable to these reduced representations.
+
+| Baseline case | Distinct states | Outcome |
+| --- | ---: | --- |
+| no-stalls | 1248 | pass |
+| positive | 1184 | pass |
+| minimal | 144 | pass |
+| two-stalls | 4736 | pass |
+| bypass (control-only) | 5280 | pass |
+| separate-ack | 1184 | pass |
+| probe | 8 | pass |
+| late-unlock | 5 | old unlock retires; stalled read persists; peer admission and progress pass |
+| selected-workers (all 12 overflow lines) | 6272 | pass |
+| bad-color, bad-credits, bad-slice, bad-ack, bad-hol, bad-cycle | recorded in manifest | expected counterexamples |
+
+The selected-address extended cases use the same model and fairness as the
+baseline, with all twelve overflow lines per direction. The synthetic case uses
+the smaller footprint stated in its row:
+
+| Extended case | Clients and bounds | Result |
+| --- | --- | --- |
+| selected-two-stalls | workers 0/1 stalled in RX, worker 2 active; domains 0/7/15; shared slots 4, per-slice reads 4, queue depth 1, unlock depth 3 | 25088 states; safety, Progress and Admission pass |
+| selected-bypass | worker 0 stalled in domain 15, independent fixed RX/TX bypass clients; shared slots 4, per-slice reads 4, queue depth 1, unlock depth 3 | 522144 states, depth 272; safety, Progress and Admission pass; 760.6 seconds |
+| bypass-overflow | synthetic three-client case, one stalled RX, two live clients, one overflow dependency per operation; shared slots 4, per-slice reads 4 | 356864 states, depth 59; safety, Progress and Admission pass; 508.1 seconds |
+
+| selected-peer-bypass | one stalled worker, one active worker, fixed RX/TX bypass clients; shared slots 5, per-slice reads 5, queue depth 1, unlock depth 4 | **incomplete** at 1200 seconds; last reported 3041960 distinct states and 219240 queued; graph exploration unfinished, liveness not checked |
+
+The [tracked Nix evidence manifest](../../model/steady/nix-progress-evidence.json)
+records source, checker, harness and log hashes, bounds and outcomes. Baseline
+model/tool sources are at `1d83a27`; extended-run sources are at `b73d238`.
+Raw local output is retained in `out/progress/nixpkgs-baseline-final/` and
+`out/progress/nixpkgs-tmpfs/`. The four-client timeout is not a passing safety or
+progress result.
+
+These finite cases do not certify seven simultaneous workers or the actual THX
+credit topology. The selected-bypass case has both progressing bypass directions,
+but no additional active worker. The color/address maximum and resource-model
+bounds therefore remain separate.
+
+[LateUnlock.tla](../../model/steady/LateUnlock.tla), with
+[late-unlock.cfg](../../model/steady/late-unlock.cfg), reuses the unchanged DCS/THX
+modules and seeds worker 0's held RX at `0x200300`, old TX Ack/unlock at
+`0x201300`, and a peer read at `0x4300`. These addresses are checked against the
+selected encoder. Two shared credits are initially exhausted by the held read
+and old acknowledgment. Under fair **eligible unlock delivery**, the old TX
+obligation retires, the RX read remains held forever, and the peer repeatedly
+admits and completes. The peer is a minimal read client, not full 2F2F; the
+five-state result checks that resource boundary, not reachability of every
+concrete late-stall/cache state or every old-traffic combination.
+
+The final extended checks use a fresh tmpfs output directory to avoid repeated
+ZFS graph reads during TLC's final liveness pass. This changes storage only; the
+jar, model, properties and fairness are identical. Copy the output back under
+ignored `out/progress/` after the run, including when a case times out. The default
+runner remains usable on ordinary disk; `--output` selects the location. Heap is
+bounded explicitly, and each case has a recorded 1200-second limit. Interrupted
+ZFS and preliminary parsing/profiling runs are not counted as successful evidence.
+
+For a Linux tmpfs rerun with durable output (the archive destination must be new):
+
+```sh
+nix develop -c bash -c '
+  mkdir -p out/progress
+  test ! -e out/progress/extended-tmpfs || exit 1
+  progress_tmp=$(mktemp -d /dev/shm/lauberhorn-progress.XXXXXX) || exit 1
+  python3 tools/progress/check_models.py --case selected-two-stalls --case selected-bypass --case bypass-overflow --case selected-peer-bypass --workers 4 --heap-mib 3072 --timeout 1200 --output "$progress_tmp/run"
+  model_result=$?
+  cp -a "$progress_tmp/run" out/progress/extended-tmpfs || exit 1
+  rm -rf "$progress_tmp"
+  exit "$model_result"
+'
+```
 
 ## Earlier results recorded September 30 (128 KiB address witness)
 
@@ -366,7 +525,8 @@ linearization or a combined abstract step. AXI/ECI packet lengths and beat frami
 need separate assertions (one two-word transaction is not two one-word requests).
 
 Remaining verification work is explicit: exhaust or tighten the intended layout
-family; extend witness-bound checking to more concurrent endpoints; complete resource
+family; extend witness-bound checking to more concurrent endpoints and late RX
+stalls following earlier operations; complete resource
 fidelity for writes/RTG/VC/CDC/crossbar/THX; check all supported stall subsets at
 larger bounds; and validate a future decoder's full-address preservation. The
 current bounded model results do not discharge these obligations. No universal
