@@ -300,5 +300,7 @@ is excluded from acceptance evidence. Full RX/TX switching was not rerun.
 The [composed model report](retained-cache-composition.md) describes the new
 finite cache/directory accounting and the combined reservation/claim/wake/info-read/
 close model. It starts with dirty retained lines and permits conflict misses.
-Use `scheduling-composed` for these cases; historical baseline results above
+Use `scheduling-composed-invariants` for the checked safety/cache/fault regression;
+`scheduling-composed` also requests the larger combined temporal checks.
+Historical baseline results above
 do not establish the new composition or concrete replacement-path independence.

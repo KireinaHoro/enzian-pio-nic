@@ -231,6 +231,40 @@ exit. Current-source traces are preserved with the development-shell results.
 | Drop accepted wake on close | Issued work loses its owner instead of receiving a closed disposition. |
 | Rewrite an offered response on close | A committed NEXT response changes to CLOSED before consumption. |
 
+## Checked results (2026-09-30)
+
+The [evidence manifest](../../model/scheduling/retained-cache-evidence.json)
+records source/configuration/tool hashes and separates completed checks from
+incomplete temporal exploration. The pinned Nix `scheduling-composed-invariants`
+regression passed all **12 expected outcomes**: two combined safety cases, two
+cache-progress cases and eight deliberate faults. The strengthened regression
+also passed `StopBeforeReuse` after separating application stop from PA reuse.
+
+| Case | Exhaustively explored states | Established result |
+| --- | ---: | --- |
+| Two destination threads | 4,513,359 | Combined state invariants; not combined liveness |
+| One destination thread | 889,743 | Combined state invariants; temporal analysis timed out |
+| Independent replacement queues/service | 11,720 | Cache safety, admission and repeated peer progress with an indefinitely stalled RX |
+| Independent queues, target-color downgrade blocking | 11,720 | Same cache properties without assuming global downstream readiness |
+
+The two combined graph counts come from the development safety run. The later
+stop/reuse clarification adds a safety assertion without changing initial states,
+transitions, fairness or temporal definitions; the manifest checks that
+correspondence and records the new Nix result separately. The original 16-outcome
+focused race suite and all 12 Python capacity/accounting tests also passed.
+
+The larger temporal explorations are **not passing evidence**. In particular,
+the two-slot run was stopped before its growing tmpfs graph exhausted available
+memory. Full combined temporal checking and the repeated-traffic/two-notification
+extensions remain open. Neither incomplete exploration nor these finite bounds
+establish whole-system hardware refinement. No new RTL or board validation was
+performed for this change.
+The one-slot temporal run enumerated its complete graph, then timed out at
+1,800 seconds during temporal analysis with TLC heap-pressure warnings (2 GiB
+heap). Its completed state enumeration does not make the temporal properties
+passing results. The larger reproduction target uses a 4 GiB heap and a longer
+budget; it has not been reported as passed.
+
 ## Reproduction
 
 ```sh

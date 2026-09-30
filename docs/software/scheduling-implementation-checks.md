@@ -106,6 +106,7 @@ being present elsewhere in the file.
 | H9 | Check accepted/resource counts, no double release, full-address preservation and transaction beat framing at actual interfaces. Control MMIO must progress independently of a stalled worker. | DCS/AXI/ECI integration; these require RTL/resource validation, not just scheduler assertions. |
 | H10 | Retain directory charges for queued evictions and invalidated entries until downgrade/writeback delivery or final unlock. Serialize invalidation and eviction of the same address. | Cache/coherence endpoint and DCS resource monitors; see the [retained-cache model](../hardware/retained-cache-composition.md). |
 | H11 | Establish both victim generation for a full directory set and independent service of eligible replacement traffic. Never infer either from a small active-assignment footprint. | CPU cache/DCS geometry and downgrade/writeback paths; concrete correspondence remains open. |
+| H12 | Latch kill and gate new blocking RX. IRQ assertion and outstanding-RX release may occur in either order; never wait for handler entry before releasing RX. Hold the gate until the no-resume certificate, and prevent a late IRQ from killing a successor. | Kill/control interface; actual IRQ/assignment interleavings remain to be modeled. Application stopping is distinct from PA-prefix reclamation. |
 
 A local assertion should name the owner and violated contract. Expected races
 such as a stale thread candidate or routing hint must take a defined fallback

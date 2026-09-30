@@ -146,6 +146,10 @@ until the kernel certifies that the task cannot resume. The existing timer/IPI
 model's release-before-IPI-delivery ordering is a separate interface contract,
 not a requirement that the new kill path delay IRQ assertion. Concrete kill IRQ
 framing, RX release and acknowledgment still need their own composed check.
+Serialize the kill request with assignment changes as well: a late IRQ must not
+kill a successor merely because it is now the current task. Either consume the
+old notification before successor activation or retain/revalidate its target
+identity. This is a kill-path obligation, not an extra ordinary-handoff commit.
 
 Cached lines at distinct PAs need not be flushed merely to switch domains. Prefix
 reuse is different: a new lifetime must not inherit stale cache state, messages,
