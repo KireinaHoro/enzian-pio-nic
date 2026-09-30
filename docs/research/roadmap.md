@@ -41,7 +41,11 @@ what passed, the incomplete four-client run, and the remaining assumptions.
 This disposition does not claim full hardware verification or whole-system HoL
 freedom. [Goal 2 modeling](../hardware/scheduling-verification.md) now has modular
 handoff/resource, reservation, thread-claim, host-wake, retirement and interrupt
-contracts, with 26 baseline outcomes and the stalled-worker extension checked.
+contracts, with the original 26 baseline outcomes and stalled-worker extension checked.
+The [race/checklist work](../software/scheduling-implementation-checks.md) adds
+delayed wake acceptance/delivery, notification/ACK and withdrawal/claim cases;
+local handoff sequencing is tracked as implementation obligations. The expanded
+33-outcome Nix regression passes; Goal 2 remains incomplete.
 A joined host-driven handoff checks the exact Goal 1 entry predicate; early-NACK
 transport integration, broader wake/selection races and implementation remain
 in progress on `goal2-scheduling-model`. Goal 2 must establish the settled entry contract and preserve unaffected
