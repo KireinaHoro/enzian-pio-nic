@@ -206,8 +206,11 @@ commit ordering needs tests against the actual MMIO framing and arbitration.
 ```sh
 nix develop -c python3 -m unittest discover -s tools/progress -v
 nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
+nix build .#checks.x86_64-linux.scheduling-composed-invariants --out-link out/scheduling/composed-invariants-nix
+nix develop -c python3 tools/scheduling/check_models.py --composed-invariants --output out/scheduling/composed-regression --timeout 1200 --workers 4 --heap-mib 2048
+# Full combined temporal checks, with a larger per-case wall-time budget:
 nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix
-nix develop -c python3 tools/scheduling/check_models.py --composed-only --output out/scheduling/composed-run --timeout 1200 --workers 4 --heap-mib 4096
+nix develop -c python3 tools/scheduling/check_models.py --composed-only --output out/scheduling/composed-run --timeout 7200 --workers 4 --heap-mib 4096
 nix develop -c python3 tools/scheduling/check_models.py --case combined-scheduling --case combined-one-slot --safety-only --output out/scheduling/composed-safety --timeout 1200 --workers 2 --heap-mib 1024
 # Larger extension; a timeout is inconclusive, not a passing result:
 nix develop -c python3 tools/scheduling/check_models.py --case combined-extended-scheduling --case combined-extended-one-slot --output out/scheduling/composed-extended --timeout 1200 --workers 4 --heap-mib 4096
@@ -221,3 +224,9 @@ workflow for large liveness graphs and archive both success and incomplete runs.
 The explicit `--safety-only` run checks state invariants on the full transition
 graph but omits temporal properties, including the response-stability action
 property. It cannot establish eventual handoff, retirement or worker progress.
+`--composed-invariants` combines those positive combined-state checks with the
+full cache-progress cases and every fault diagnostic. Each result records its
+verification kind; this target must not be described as a combined liveness proof.
+The large temporal graph should use disk-backed output unless sufficient tmpfs
+headroom is available in addition to the Java heap. Do not risk host exhaustion
+merely to make a check faster.
