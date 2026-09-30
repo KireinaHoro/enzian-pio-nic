@@ -99,7 +99,7 @@ cookie, then resolves subscribers:
   only when no subscriber is hot; a reserved activation also covers that source.
 - **Parked subscribers:** request a core for the domain and cookie. The NIC
   selects an available core or preempts a victim. Its preempt information carries
-  `next_pid`, `reason=HOST_WAKE` and the cookie. The kernel resolves the source,
+  `next_domain`, `reason=HOST_WAKE` and the cookie. The kernel resolves the source,
   selects a subscribed thread and completes dispatch. Yield returns mailbox/
   parity details with `has_host_work=1`; first activation exposes equivalent state.
 
@@ -124,10 +124,14 @@ eligibility within the explicit dispatch handshake. The protocol is:
    dispatch. An accepted wake survives reassignment. Kernel thread selection
    reconciles pending source cookies before committing network- or host-driven
    assignments, preserving the hot-subscriber rule and capacity reservations.
-3. **RT responsible:** RX delivery or committed activation with `has_host_work=1`
-   transfers responsibility to the runtime. Clear the delivered pending indication
-   atomically at that boundary; a concurrent new notification wins over clearing.
-   The runtime retains unfinished host work until serviced, then returns to RX.
+3. **Kernel-held activation:** an info response with `has_host_work=1` transfers
+   that indication into the immutable kernel return snapshot. Clear only the
+   captured NIC-pending indication; a concurrent new notification wins over
+   clearing. The kernel retains responsibility through local thread selection.
+4. **RT responsible:** local userspace resumption transfers the saved indication
+   to the runtime, without another NIC command. Direct HOST_WAKE RX delivery also
+   transfers responsibility to the runtime. It retains unfinished host work until
+   serviced, then returns to RX. Domain close must reconcile a kernel-held snapshot.
 
 Coalesce repeated requests per cookie while preserving new notifications across
 delivery. Source cookies distinguish independent epoll instances; duplicate wakes

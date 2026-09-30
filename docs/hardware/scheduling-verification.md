@@ -40,6 +40,7 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 | [InterruptGate](../../model/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
 | [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming notification -> reserved handoff -> info response with host-work snapshot -> local activation | Couples Assignment/Goal 1 resources to HostWake; the kernel holds the indication until runtime can service it. An unaffected worker continues independently. |
 | [WakeRetirement](../../model/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Historical component assumes endpoint retirement separately; it is not supplied by the revised info read. |
+| [ControlRetirement](../../model/scheduling/ControlRetirement.tla) | Kernel close / NIC close fence versus info response, callback and local resume | Preserves offered snapshot; waits for kernel quiescence and endpoint certificate before prefix reuse. Internal resource readiness is abstract in this harness. |
 | [TimerMirror](../../model/scheduling/TimerMirror.tla) | Kernel arm/replace/shutdown -> ordered NIC command FIFO | Typed commands preserve generation and submission order; after delivery, NIC state matches the latest arm or shutdown. |
 
 Module state tuples and `INSTANCE` substitution expose these boundaries. The
@@ -122,8 +123,8 @@ same Assignment module. It tests successful dispatch with serialized NIC reserva
 connects reservations to a fixed initialized pool of one or two threads, with two
 requesting workers. It checks that every reservation remains backed and finishes;
 two kernel dispatchers may observe the same candidate but must claim atomically.
-There is no individual withdrawal. Historical unavailable cases are explicit-only
-legacy scenarios, not requirements of the selected protocol.
+There is no individual withdrawal. Historical unavailable cases are removed from the current runner; their recorded
+source revisions remain reproducible, but they are not part of this protocol.
 
 `HostWake` has two domain-associated cookies, two notification generations per
 cookie, one physical worker, and two threads; the shared-subscription case adds a
@@ -276,3 +277,18 @@ complete resource/claim/wake cross-product. Negatives deliberately mutate an
 offered response, retire early or resume after close. Endpoint retirement and
 control-path progress remain explicit assumptions. The historical table above
 must not be cited as results for these revised sources.
+
+At source `5b9c922`, all **35 baseline outcomes** passed through both the pinned
+Nix check and `nix develop`: 13 positives and 22 expected negatives. Their normalized
+case results match. Handoff explores 17,952 states; the revised host-wake/transport
+composition explores 25,408; the close/response/callback harness explores 115.
+The [control-interface evidence](../../model/scheduling/control-evidence.json)
+records source/configuration/log hashes and the comment-only provenance difference
+between developer and Nix snapshots. Debug parser/evaluation failures are excluded.
+No production RTL/kmod, actual-DCS simulation or board validation was performed.
+
+The extended `handoff-stalled-peer` case also passed on the revised sources:
+75,648 states, with safety, direct abstract settled entry, handoff completion and
+unaffected-peer admission/completion liveness checked while the third worker
+holds RX indefinitely. A duplicate tmpfs run was stopped after this success and
+is excluded from acceptance evidence. Full RX/TX switching was not rerun.

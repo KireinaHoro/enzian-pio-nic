@@ -162,8 +162,9 @@ The updated focused suite passed all 12 outcomes (five positives, seven expected
 negatives) through `nix develop` and pinned TLC. The
 [fixed-pool evidence](../../model/scheduling/fixed-pool-evidence.json) supersedes
 the earlier withdrawal case. The full transport suite was not rerun; transport
-models are unchanged. Historical unavailable scenarios remain explicit-only
-reproduction cases and are excluded from the default regression.
+models are unchanged. At that revision, historical unavailable scenarios remained explicit-only. The
+blocking-info-read revision removes them; reproduce them from source `740b005`
+or the earlier evidence revision rather than the current runner.
 
 Current MMIO boundaries and whole-domain retirement are specified in the
 [control interface](scheduling-control-interface.md); they supersede older
