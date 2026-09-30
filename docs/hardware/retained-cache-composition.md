@@ -70,6 +70,11 @@ not implement payloads, cache hits/replay values, all CPU cache levels, replacem
 policy, or the detailed ThunderX single-line FSM. The cache/directory set relation
 and autonomous victim response are endpoint contracts to map to THX. The model
 must not be used to infer undocumented CPU associativity or write-buffer topology.
+In particular, a full DCS set does not itself request a CPU victim. Hardware
+correspondence must establish that such a miss induces an eligible CPU downgrade
+for that directory set, or that the concrete cache/directory geometry rules out
+the problematic full-set state. Merely assuming fair service of an eviction
+queue cannot help if the CPU never creates the required eviction.
 
 ## Composition with coherence resources
 
@@ -105,7 +110,7 @@ composes the same coherence and retained-cache modules with:
   candidate selection, atomic claim, retry and local activation;
 - PREEMPT/yield, blocking info acceptance, internal readiness, immutable response
   offer, response consumption and returned RX parity;
-- one sealed cookie/notification per domain, a callback that can outlive close,
+- one sealed cookie per domain and a bounded number of notifications, a callback that can outlive close,
   kernel publication, NIC acceptance, delayed ACK, NIC pending ownership,
   kernel-held activation snapshots, runtime service and explicit closed disposal;
 - whole-domain kernel close and NIC admission fencing, cancellation when close
@@ -125,8 +130,8 @@ after capture; those dormant clients never execute again in this one-handoff
 bound. Retained cache entries are not discarded by that canonicalization.
 Likewise, candidate IDs are discarded after a successful claim, response fields
 after local activation, and parity/completion bookkeeping after a worker stops.
-No later action in this one-handoff bound reads those discarded values; a stopped
-worker cannot restart. This reduction preserves the modeled race boundaries and
+Those historical values no longer affect enabled actions or monitored obligations
+in this one-handoff bound; a stopped worker cannot restart. This reduction preserves the modeled race boundaries and
 retained resources. It must be revisited before adding repeated assignments or
 runtime return-value semantics beyond the separately checked parity contract.
 
@@ -139,11 +144,26 @@ the initial RX parity is fixed in this larger composition. Each worker makes at
 most one A-to-B handoff. Network work is available; a pending host event uses the
 same destination reservation and can be captured at the response.
 
+The default exhaustive regression sets `EventBudget = 1` and `RepeatRx = FALSE`:
+one notification may originate from either domain, and each assignment executes
+at most one RX operation. All control actors and both workers remain present.
+Its stable-assignment property requires that offered operation to complete,
+including admission; it does not claim infinitely repeated progress. The explicit
+`combined-extended-scheduling` and `combined-extended-one-slot` cases set
+`EventBudget = 2` and `RepeatRx = TRUE`, admitting one notification per domain and
+indefinitely repeated RX operations. They require a substantially larger graph
+and are excluded from default regression selection. The independent retained-cache
+harness checks repeated RX progress with an indefinitely stalled peer, but that is
+not a substitute for checking the extended combined graph.
+
 Checked obligations include capacity, unique claims, exact wake responsibility,
 subscriber routing, no early info response, response stability, resource tracking,
 no read dependency cycle, close/retirement completion and progress for any worker
 whose live assignment eventually remains stable. Admission/resource fairness is
-explicit; no allocation-policy fairness is asserted for unreserved work. Close
+explicit; no allocation-policy fairness is asserted for unreserved work. The composition
+uses strong fairness for eligible client service, including shared ACK-credit
+arbitration: recurring availability must not starve one client. This does not
+make a permanently blocked action eligible. Close
 uses cooperative finite work here; kill of an uncooperative application remains
 outside this model. Full prefix reuse safety relies on the single-transaction
 endpoint contract after modeled references have disappeared.
@@ -154,8 +174,10 @@ not add a kernel CL operation or ordinary handoff flush. Establishing a concrete
 mechanism for that teardown-only certificate remains necessary.
 
 This is a **combined bounded race model**, not an arbitrary-size theorem. Repeated
-migrations, multiple cookies per domain, repeated same-cookie generations, TX/
-overflow/bypass during transitions and concrete bus framing remain separate bounds
+migrations, simultaneous notifications from both domains in the default bound,
+multiple cookies per domain, repeated same-cookie generations, TX/
+overflow/bypass during transitions, a permanently stalled third worker alongside
+these combined races, and concrete bus framing remain separate bounds
 or component obligations. The existing notification/ACK generation model remains
 necessary; one notification per cookie cannot prove its coalescing case. The
 fault configurations disable unrelated callback/close actions for claim,
@@ -172,6 +194,7 @@ positive configurations include those actors.
 | Wake transfer | Transfer responsibility once at acceptance or snapshot capture; retain command/ACK references until reconciled. Dispose closed work explicitly. Repeated notification generations additionally need the separate ACK-generation contract. |
 | Directory accounting | Charge queued victims and invalidated entries until their release event, forbid duplicate allocation, and serialize invalidation against an already queued eviction of the same address. |
 | Replacement progress | A stalled color must not indefinitely suppress another worker's eligible downgrade/writeback. A per-color abstract queue is one sufficient contract, not a required literal microarchitecture. |
+| Replacement initiation | Relate CPU cache indexing/associativity to the DCS directory: prove a required victim can be generated, or exclude a full directory set without a corresponding CPU replacement path. |
 | Prefix retirement | Join callbacks, reconcile responses and command references, fence all resumes, then obtain the endpoint certificate. Ordinary handoff neither releases a prefix nor waits for all old-domain cache residency to disappear. |
 
 These are implementation obligations, not assertions already added to the kmod or
@@ -186,6 +209,8 @@ nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8
 nix build .#checks.x86_64-linux.scheduling-composed --out-link out/scheduling/composed-nix
 nix develop -c python3 tools/scheduling/check_models.py --composed-only --output out/scheduling/composed-run --timeout 1200 --workers 4 --heap-mib 4096
 nix develop -c python3 tools/scheduling/check_models.py --case combined-scheduling --case combined-one-slot --safety-only --output out/scheduling/composed-safety --timeout 1200 --workers 2 --heap-mib 1024
+# Larger extension; a timeout is inconclusive, not a passing result:
+nix develop -c python3 tools/scheduling/check_models.py --case combined-extended-scheduling --case combined-extended-one-slot --output out/scheduling/composed-extended --timeout 1200 --workers 4 --heap-mib 4096
 ```
 
 The original scheduling baseline remains separately runnable; use the new composed
