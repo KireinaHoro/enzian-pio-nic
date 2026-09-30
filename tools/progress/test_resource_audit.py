@@ -7,7 +7,7 @@ from capacity import encode, color, alias
 
 
 class ResourceAuditTests(unittest.TestCase):
-    def test_all_selected_lines_can_reside(self):
+    def test_active_assignment_footprint_only(self):
         config = json.loads((Path(__file__).resolve().parents[2] /
                              'model/steady/selected-8k.json').read_text())[0]['configuration']
         # Includes both RX and TX, not only whichever direction is executing.

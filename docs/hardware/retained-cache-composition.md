@@ -123,6 +123,12 @@ Returned wake responsibility remains kernel-owned until local activation.
 Completed old endpoint parity/progress bookkeeping is discarded at InfoRespond
 after capture; those dormant clients never execute again in this one-handoff
 bound. Retained cache entries are not discarded by that canonicalization.
+Likewise, candidate IDs are discarded after a successful claim, response fields
+after local activation, and parity/completion bookkeeping after a worker stops.
+No later action in this one-handoff bound reads those discarded values; a stopped
+worker cannot restart. This reduction preserves the modeled race boundaries and
+retained resources. It must be revisited before adding repeated assignments or
+runtime return-value semantics beyond the separately checked parity contract.
 
 Both workers share finite read/ACK and slice resources. Each physical worker has
 two control colors reused by successive domains at distinct addresses. Each
