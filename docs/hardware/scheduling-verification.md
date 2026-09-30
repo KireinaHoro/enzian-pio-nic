@@ -35,13 +35,15 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 | [ThreadClaim](../../model/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Revalidate availability and atomically claim; a concurrent loser retries or reports unavailable. A claim excludes withdrawal and duplicate assignment. |
 | [HostWake](../../model/scheduling/HostWake.tla) | Sealed epoll subscription -> kernel pending -> NIC acceptance -> runtime responsibility -> service | Domain-associated cookies survive reassignment. Pending ownership transfers atomically at RX delivery or activation. Notifications concurrent with delivery remain pending. |
 | [InterruptGate](../../model/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
+| [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming host notification -> reserved handoff -> atomic transport/assignment activation and wake delivery | Couples Assignment/Goal 1 resources to HostWake; runtime services the activation flag before its next RX. An unaffected worker continues independently. |
 | [WakeRetirement](../../model/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Transport/cache retirement is an imported Assignment contract. |
 | [TimerMirror](../../model/scheduling/TimerMirror.tla) | Kernel arm/replace/shutdown -> ordered NIC command FIFO | Typed commands preserve generation and submission order; after delivery, NIC state matches the latest arm or shutdown. |
 
 Module state tuples and `INSTANCE` substitution expose these boundaries. The
 transport composition uses the unchanged Goal 1 resource modules rather than a
-second coherence model. The other harnesses isolate control-plane contracts;
-passing their conjunction is not a checked full cross-product composition.
+second coherence model. The other harnesses isolate control-plane contracts. `WakeHandoff` joins the
+transport and wake paths for one incoming host-driven activation; passing these
+checks is not a full cross-product of every scheduling mechanism.
 
 ## Handoff and settled-entry contract
 
@@ -65,7 +67,23 @@ required before parking and prefix release.
 regression executes RX; `handoff-rx-tx` additionally allows repeated RX/TX direction
 changes. Both cases explore both values of the returned TX parity. Its dependency footprint is **control
 lines only**, deliberately smaller than Goal 1's twelve-overflow-line witnesses.
-The stable peer executes repeated RX operations. An optional third physical
+The stable peer executes repeated RX operations.
+Model client IDs are not physical worker IDs:
+
+| Model client | Selected-map worker index | Domain | Role |
+| --- | ---: | ---: | --- |
+| 1 | 0 | 0 | departing owner |
+| 2 | 1 | 2 | unaffected peer |
+| 3 | 0 | 1 | arriving owner |
+| 4 (optional) | 2 | 3 | permanently stalled RX |
+
+The returned mailbox `1` is the model's one-based physical slot for selected-map
+worker index 0, not a proposed new ABI numbering rule. There is one invalidation
+FIFO per color, depth one; two modeled slices; three shared read/ack credits and
+three reads per slice in the two-worker case, increased to four with the stalled
+worker. Aggregate unlock depth is three/four (the number of domain-qualified
+client identities), although departing and arriving owners cannot overlap.
+ An optional third physical
 worker holds RX indefinitely. Old and new domains share physical-worker colors
 but cannot issue simultaneously; their full addresses remain distinct in reads,
 invalidations and unlocks. Retired endpoint bookkeeping is discarded at selection;
@@ -128,11 +146,15 @@ indefinitely sleeping application may retain capacity without violating safety,
 but cannot be promised application progress. No policy fairness for allocation of
 an unreserved destination is claimed.
 
-The host-wake, thread-claim and interrupt contracts are not yet instantiated into
-the complete transport/assignment cross-product. That integration must reconcile
-source-cookie ownership with thread selection at the same commit boundary, gate
-actual RX admission during early NACK, and connect the checked wake-retirement guard to transport/cache retirement in
-one domain teardown. Prefix reuse must satisfy both contracts together. Accordingly these bounded checks do not discharge
+The joined `WakeHandoff` case checks one notification for the arriving domain,
+with successful selection, no ordinary syscall sleep and no interrupt. Parking
+removes the old wake target only after transport/cache retirement; activation
+atomically returns mailbox/parity and transfers pending wake responsibility.
+
+The complete transport/assignment cross-product still needs unavailable-target
+reconciliation, old-domain notifications racing this joined handoff, concurrent
+thread claims, and actual RX gating during early NACK. It must connect the checked
+wake-retirement guard to transport/cache retirement in one domain teardown. Prefix reuse must satisfy both contracts together. Accordingly these bounded checks do not discharge
 all Goal 2 acceptance obligations. Repeated handoffs, migration between physical
 workers, broader worker/domain bounds, overflow retirement and full-duplex bypass
 during transitions also remain to be checked. Hardware refinement inherits Goal
@@ -151,7 +173,11 @@ nix develop -c python3 tools/scheduling/check_models.py --case handoff-rx-tx --w
 nix develop -c python3 tools/scheduling/check_models.py --case handoff-stalled-peer --workers 4 --timeout 1200 --output out/scheduling/stalled-peer
 ```
 
-The default suite excludes those two extended cases. The runner records exact source/jar/config/log hashes, commands, time bounds and
+The default suite excludes those two extended cases and `wake-handoff`; run the
+joined case with `--case wake-handoff --workers 4 --timeout 600` and a fresh output
+directory. Terminal component states legitimately stutter, so TLC deadlock
+checking is disabled; explicit liveness properties check unfinished obligations
+and unaffected-worker progress. The runner records exact source/jar/config/log hashes, commands, time bounds and
 outcomes. Expected negatives must violate their named invariant/property;
 parse failures and timeouts cannot pass. Generated graphs, logs and counterexample
 traces stay under ignored output directories. Use a fresh tmpfs output directory

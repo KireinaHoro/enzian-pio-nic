@@ -35,6 +35,7 @@ CASES.update({
     'bad-interrupt-progress': ('InterruptGate', {'BadRearm': True}, 'InterruptProgress'),
     'thread-claim': ('ThreadClaim', {}, None),
     'bad-thread-claim': ('ThreadClaim', {'BadClaim': True}, 'UniqueClaim'),
+    'wake-handoff': ('WakeHandoff', {}, None),
     'wake-retirement': ('WakeRetirement', {}, None),
     'bad-wake-retirement': ('WakeRetirement', {'BadRetirement': True}, 'PrefixSafe'),
     'timer-mirror': ('TimerMirror', {}, None),
@@ -48,6 +49,7 @@ DEFAULTS = {
     'TimerMirror': {'BadOrder': False},
     'ThreadClaim': {'BadClaim': False},
     'WakeRetirement': {'BadRetirement': False},
+    'WakeHandoff': {},
 }
 INVARIANTS = {
     'Handoff': ['Safety','DrainBeforeInstall','CacheBeforeInstall','PrefixSafe'],
@@ -57,6 +59,7 @@ INVARIANTS = {
     'TimerMirror': ['TypeOK','MirrorOrder','Shutdown'],
     'ThreadClaim': ['TypeOK','UniqueClaim','ClaimAvailable'],
     'WakeRetirement': ['Safety','PrefixSafe'],
+    'WakeHandoff': ['Safety'],
 }
 PROPERTIES = {
     'Handoff': ['ActivationSafe','SleepRetainsAssignment','HandoffFinishes','PeerProgress','PrefixRetires'],
@@ -66,6 +69,7 @@ PROPERTIES = {
     'TimerMirror': ['MirrorCatchesUp'],
     'ThreadClaim': ['SelectionFinishes'],
     'WakeRetirement': ['Retires'],
+    'WakeHandoff': ['ActivationSafe','WakeCompletes','PeerProgress'],
 }
 
 def config(module, options, negative):
@@ -74,7 +78,7 @@ def config(module, options, negative):
     if negative:
         invs = [negative] if negative in invs else []
         props = [negative] if negative in props else []
-    return ('SPECIFICATION Spec\nCONSTANTS\n' + ''.join(f'{k} = {str(v).upper()}\n' for k,v in constants.items())
+    return ('SPECIFICATION Spec\n' + ('CONSTANTS\n' if constants else '') + ''.join(f'{k} = {str(v).upper()}\n' for k,v in constants.items())
             + ('INVARIANTS ' + ' '.join(invs) + '\n' if invs else '')
             + ('PROPERTIES ' + ' '.join(props) + '\n' if props else '')
             + 'CHECK_DEADLOCK FALSE\n')
@@ -98,7 +102,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]:
+    for name in args.case or [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx', 'wake-handoff'}]:
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()
