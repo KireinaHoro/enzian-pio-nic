@@ -56,7 +56,7 @@ This loops until failure; bound/stop it deliberately. ScalaTest parallel executi
 - `rx-tx-interleaved` is tagged `Slow` with an address-map FIXME; fast CI excludes it. RX size scans and TX scan tests also use `Slow`.
 - `PacketAllocSim` explicitly leaves multi-configuration and block-until-free checks incomplete.
 - The Scala host model approximates software IRQ/scheduling behavior. Passing RTL simulation does not validate the actual Linux module, aarch64 atomics, or real ECI cache behavior.
-- `model/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. No TLC build/CI task is wired here; reconcile source and model snapshots before using results in a paper.
+- `model/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. The separate steady-state model now has a Nix check; it does not validate this older scheduling model. Reconcile source and model snapshots before using results in a paper.
 - Existing `data/` captures and plots are debugging/measurement evidence with their own provenance. They are not a current benchmark result merely because they are checked in.
 
 After a behavioral change, run the relevant suite and elaborate the affected hardware; require real target validation for scheduler/ECI deployment claims. For docs-only changes, link/path and command-definition checks suffice.
@@ -89,3 +89,17 @@ See the [verification contract and reproducible commands](../hardware/steady-sta
 finite observations of active peer and bypass RX progress. They do not prove
 infinite-stall liveness, full-duplex bypass safety or the new decoder. Python
 capacity tests and the independent TLC runner live under `tools/progress/`.
+
+The steady-state model uses **`tlaplus18` from the locked nixpkgs**, with Python
+and Java supplied by Nix. No external jar download is needed:
+
+```sh
+mkdir -p out/progress
+nix build .#checks.x86_64-linux.steady-progress --out-link out/progress/nix-check
+nix develop -c python3 tools/progress/check_models.py --case selected-two-stalls --case bypass-overflow --case selected-bypass --case selected-peer-bypass --workers 4 --heap-mib 3072 --timeout 1200 --output out/progress/extended
+```
+
+Read the result's `summary.json` first. Expected negatives count as passing only
+when TLC reports the intended property failure; parser errors and timeouts do not.
+The extended cases are opt-in finite bounds, not a proof for all worker counts or
+undocumented THX resource behavior. See the report for current results.
