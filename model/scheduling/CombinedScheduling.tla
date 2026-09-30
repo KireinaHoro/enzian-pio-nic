@@ -97,14 +97,16 @@ Choose(w,t) ==
 Claim(w) ==
     /\ ctl.w[w].stage = "Chosen" /\ 1 \notin ctl.closing
     /\ (BadClaim \/ ctl.w[w].candidate \notin Claims)
-    /\ ctl' = [ctl EXCEPT !.w[w].claim = ctl.w[w].candidate, !.w[w].stage = "Ready"]
+    /\ ctl' = [ctl EXCEPT !.w[w].claim = ctl.w[w].candidate, !.w[w].candidate = 0,
+                         !.w[w].stage = "Ready"]
 Retry(w) ==
     /\ ctl.w[w].stage = "Chosen" /\ ctl.w[w].candidate \in Claims
     /\ ctl' = [ctl EXCEPT !.w[w].stage = "Claim", !.w[w].candidate = 0]
 Activate(w) ==
     /\ ctl.w[w].stage = "Ready" /\ 1 \notin ctl.closing
     /\ ctl' = [ctl EXCEPT !.w[w].stage = "Active",
-         !.w[w].runtime = ctl.w[w].snapshot, !.w[w].snapshot = {}]
+         !.w[w].runtime = ctl.w[w].snapshot, !.w[w].snapshot = {},
+         !.w[w].reply = "None", !.w[w].parity = 0]
 BeginCallback(d) ==
     /\ ~Diagnostic /\ d \notin ctl.closing /\ d \notin ctl.callback \cup ctl.issued
     /\ ctl' = [ctl EXCEPT !.callback = @ \cup {d}]
@@ -143,7 +145,13 @@ Stop(w) ==
     /\ \A d \in Domains: Quiet(Client(w,d))
     /\ ctl' = [ctl EXCEPT !.w[w].stage = "Idle", !.w[w].owner = -1, !.w[w].claim = 0,
          !.disposed = @ \cup ctl.w[w].runtime \cup ctl.w[w].snapshot,
-         !.w[w].runtime = {}, !.w[w].snapshot = {}]
+         !.w[w].runtime = {}, !.w[w].snapshot = {}, !.w[w].candidate = 0,
+         !.w[w].reply = "None", !.w[w].parity = 0]
+    /\ parity' = [c \in Clients |-> IF c \in {Client(w,d): d \in Domains}
+                                     THEN [d \in Directions |-> 0] ELSE parity[c]]
+    /\ completed' = [c \in Clients |-> IF c \in {Client(w,d): d \in Domains}
+                                        THEN FALSE ELSE completed[c]]
+    /\ UNCHANGED <<reads,invQ,held,acknowledgments,phase,direction,remaining,unlockQ,cache>>
 KernelQuiet(d) ==
     /\ d \in ctl.fenced /\ d \notin ctl.callback \cup ctl.commands \cup ctl.kernel
     /\ \A w \in Workers:
@@ -158,7 +166,7 @@ Retire(d) ==
     /\ (BadRetire \/ (KernelQuiet(d) /\ EndpointQuiet(d)))
     /\ ctl' = [ctl EXCEPT !.retired = @ \cup {d}]
 Local(w) == Yield(w) \/ InfoAccept(w) \/ Consume(w) \/ (\E t \in ThreadPool(1): Choose(w,t))
-            \/ Claim(w) \/ Retry(w) \/ Activate(w) \/ Stop(w) \/ Service(w)
+            \/ Claim(w) \/ Retry(w) \/ Activate(w) \/ Service(w)
 ControlStep ==
     /\ ((\E w \in Workers: Request(w) \/ Local(w) \/ Deliver(w))
                   \/ (\E d \in Domains: BeginCallback(d) \/ FinishCallback(d) \/ Publish(d)
@@ -190,13 +198,13 @@ Process(q) ==
     /\ P!Process(q) /\ R!Invalidate(Head(invQ[q]).address) /\ UNCHANGED ctl
 DeliverUnlock ==
     /\ P!DeliverUnlock /\ R!ReleaseInvalidation(Head(unlockQ).address) /\ UNCHANGED ctl
-Next == ControlStep \/ DeliverUnlock \/ (\E w \in Workers: InfoRespond(w))
+Next == ControlStep \/ DeliverUnlock \/ (\E w \in Workers: InfoRespond(w) \/ Stop(w))
     \/ (\E c \in Clients: Prepare(c) \/ Admit(c) \/ ClientStep(c))
     \/ (\E q \in Queues: Process(q) \/ EvictionDelivery(q))
     \/ (\E a \in Lines: Conflict(a) \/ EvictClosed(a))
 CPU(a) == a /\ UNCHANGED <<transport,cache>>
 Spec == Init /\ [][Next]_v /\ WF_v(DeliverUnlock)
-    /\ (\A w \in Workers: WF_v(CPU(Local(w))) /\ WF_v(InfoRespond(w)) /\ SF_v(CPU(Deliver(w))))
+    /\ (\A w \in Workers: WF_v(CPU(Local(w))) /\ WF_v(InfoRespond(w)) /\ WF_v(Stop(w)) /\ SF_v(CPU(Deliver(w))))
     /\ (\A d \in Domains: WF_v(CPU(FinishCallback(d))) /\ WF_v(CPU(Publish(d))) /\ WF_v(CPU(Accept(d)))
         /\ WF_v(CPU(Ack(d))) /\ WF_v(CPU(CloseNic(d))) /\ WF_v(CPU(Retire(d))))
     /\ (\A c \in Clients: SF_v(Prepare(c)) /\ SF_v(Admit(c)) /\ WF_v(ClientStep(c)))

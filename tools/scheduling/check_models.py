@@ -119,6 +119,8 @@ PROPERTIES = {
 def config(module, options, negative, safety_only=False):
     constants = DEFAULTS[module] | options
     invs, props = INVARIANTS[module], PROPERTIES[module]
+    if module == 'CombinedScheduling' and not negative:
+        invs = ['Safety']  # Already includes every named diagnostic invariant.
     if safety_only:
         props = []
     if negative:
