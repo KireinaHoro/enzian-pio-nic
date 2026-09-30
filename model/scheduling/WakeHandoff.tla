@@ -61,7 +61,7 @@ Spec == Init /\ [][Next]_v /\ WF_v(Accept) /\ WF_v(Reserve) /\ SF_v(Request)
                                   /\ SF_v(ReceiveAck(c)) /\ WF_v(Unlock(c)))
         /\ (\A c \in H!Clients: WF_v(Return(c,0)))
         /\ (\A q \in H!UsedQueues: WF_v(Process(q)))
-Safety == /\ H!Safety /\ H!DrainBeforeInstall /\ H!CacheBeforeInstall /\ H!PrefixSafe
+Safety == /\ H!Safety /\ H!SteadyEntry /\ H!DrainBeforeInstall /\ H!CacheBeforeInstall /\ H!PrefixSafe
           /\ W!TypeOK /\ W!Responsibility /\ W!EligibleDelivery /\ W!HotReservation
           /\ (assignment[1].stage \in {"Run","Preempt","Yield","Ack","Drained","Retired"} => owner = 1)
           /\ (assignment[1].stage \in {"Park","Installed"} => owner = 0)
