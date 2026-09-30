@@ -50,8 +50,11 @@ On resumption, yield returns mailbox identity and RX/TX parity; an index into
 pre-mapped regions suffices. The runtime retains the identity until its next
 yield. Implement the syscall interface as a blocking device ioctl behind the
 runtime wrapper; bootstrap supplies equivalent initial state. Reserve destination
-parallelism while dispatch is in flight and handle an unavailable target thread
-without panicking. Activation without an outstanding userspace RX needs a kernel
+parallelism while dispatch is in flight. All domain threads are initialized before
+publishing its capacity to the NIC; threads cannot shut down individually. NIC
+assignments plus reservations must not exceed that fixed pool, so every normal
+dispatch has a backing thread. Whole-domain teardown fences new reservations and
+reconciles outstanding dispatches before releasing the pool. Activation without an outstanding userspace RX needs a kernel
 wake path.
 
 Ordinary blocking syscalls retain the core/QP assignment and onehot affinity,

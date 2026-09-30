@@ -1,42 +1,42 @@
 ----------------------------- MODULE ThreadClaim -----------------------------
 EXTENDS Naturals, FiniteSets
-CONSTANTS BadClaim, BadAvailability
+CONSTANTS BadClaim, BadReservation, PoolSize
 Workers == {1,2}
-Threads == {1,2}
-VARIABLES stage, candidate, claim, available, result
-v == <<stage,candidate,claim,available,result>>
-Init == /\ stage = [w \in Workers |-> "Select"] /\ candidate = [w \in Workers |-> 0]
-        /\ claim = [w \in Workers |-> 0] /\ available \in SUBSET Threads
-        /\ result = [w \in Workers |-> "Pending"]
-Choose(w,t) == /\ stage[w] = "Select" /\ t \in available
-               /\ t \notin {claim[x]: x \in Workers}
+Threads == 1..PoolSize
+VARIABLES stage, candidate, claim
+v == <<stage,candidate,claim>>
+\* All threads exist before publication of NIC capacity. No individual withdrawal.
+Init == /\ stage = [w \in Workers |-> "Request"]
+        /\ candidate = [w \in Workers |-> 0] /\ claim = [w \in Workers |-> 0]
+Reserved == {w \in Workers: stage[w] \in {"Select","Claim"}}
+Assigned == {w \in Workers: stage[w] = "Done"}
+Free == Threads \ {claim[w]: w \in Workers}
+\* NIC arbitration commits the reservation before dispatch to a kernel CPU.
+Reserve(w) == /\ stage[w] = "Request"
+              /\ (BadReservation \/ Cardinality(Reserved \cup Assigned) < PoolSize)
+              /\ stage' = [stage EXCEPT ![w] = "Select"]
+              /\ UNCHANGED <<candidate,claim>>
+Choose(w,t) == /\ stage[w] = "Select" /\ t \in Free
                /\ candidate' = [candidate EXCEPT ![w] = t]
                /\ stage' = [stage EXCEPT ![w] = "Claim"]
-               /\ UNCHANGED <<claim,available,result>>
-Claim(w) == /\ stage[w] = "Claim" /\ (BadAvailability \/ candidate[w] \in available)
-            /\ BadClaim \/ candidate[w] \notin {claim[x]: x \in Workers}
+               /\ UNCHANGED claim
+Claim(w) == /\ stage[w] = "Claim"
+            /\ (BadClaim \/ candidate[w] \in Free)
             /\ claim' = [claim EXCEPT ![w] = candidate[w]]
             /\ stage' = [stage EXCEPT ![w] = "Done"]
-            /\ result' = [result EXCEPT ![w] = "Installed"]
-            /\ UNCHANGED <<candidate,available>>
-Retry(w) == /\ stage[w] = "Claim"
-            /\ (candidate[w] \notin available \/ candidate[w] \in {claim[x]: x \in Workers})
+            /\ UNCHANGED candidate
+Retry(w) == /\ stage[w] = "Claim" /\ candidate[w] \notin Free
             /\ stage' = [stage EXCEPT ![w] = "Select"]
             /\ candidate' = [candidate EXCEPT ![w] = 0]
-            /\ UNCHANGED <<claim,available,result>>
-Unavailable(w) == /\ stage[w] = "Select" /\ available \ {claim[x]: x \in Workers} = {}
-                  /\ stage' = [stage EXCEPT ![w] = "Done"]
-                  /\ result' = [result EXCEPT ![w] = "Unavailable"]
-                  /\ UNCHANGED <<candidate,claim,available>>
-Withdraw(t) == /\ t \in available /\ t \notin {claim[x]: x \in Workers}
-               /\ available' = available \ {t} /\ UNCHANGED <<stage,candidate,claim,result>>
-Step(w) == (\E t \in Threads: Choose(w,t)) \/ Claim(w) \/ Retry(w) \/ Unavailable(w)
-Next == (\E w \in Workers: Step(w)) \/ (\E t \in Threads: Withdraw(t))
+            /\ UNCHANGED claim
+Step(w) == Reserve(w) \/ (\E t \in Threads: Choose(w,t)) \/ Claim(w) \/ Retry(w)
+Next == \E w \in Workers: Step(w)
 Spec == Init /\ [][Next]_v /\ (\A w \in Workers: WF_v(Step(w)))
-TypeOK == /\ stage \in [Workers -> {"Select","Claim","Done"}]
-          /\ candidate \in [Workers -> Threads \cup {0}] /\ claim \in [Workers -> Threads \cup {0}]
-          /\ available \subseteq Threads /\ result \in [Workers -> {"Pending","Installed","Unavailable"}]
+TypeOK == /\ stage \in [Workers -> {"Request","Select","Claim","Done"}]
+          /\ candidate \in [Workers -> Threads \cup {0}]
+          /\ claim \in [Workers -> Threads \cup {0}]
 UniqueClaim == \A w,x \in Workers: w # x /\ claim[w] # 0 => claim[w] # claim[x]
-ClaimAvailable == \A w \in Workers: claim[w] # 0 => claim[w] \in available
-SelectionFinishes == \A w \in Workers: <> (stage[w] = "Done")
+CapacitySafe == Cardinality(Reserved \cup Assigned) <= PoolSize
+ReservationBacked == Reserved # {} => Cardinality(Free) >= Cardinality(Reserved)
+SelectionFinishes == \A w \in Workers: (w \in Reserved) ~> (stage[w] = "Done")
 =============================================================================

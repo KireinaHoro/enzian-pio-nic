@@ -9,6 +9,8 @@ import subprocess
 import time
 ROOT = Path(__file__).resolve().parents[2]
 # Values name deliberate faults. Each negative must violate its named obligation.
+# Legacy unavailable cases remain explicit-only for reproducing historical evidence;
+# they are not part of the fixed-pool protocol or its default regression.
 CASES = {
     'handoff': ('Handoff', {}, None),
     'handoff-rx-tx': ('Handoff', {'WorkerTx': True}, None),
@@ -50,7 +52,8 @@ RACE_CASES = {
     'bad-wake-ack-progress': ('WakeAckRace', {'BadClear': True}, 'WakeProgress'),
     'thread-claim': CASES['thread-claim'],
     'bad-thread-claim': CASES['bad-thread-claim'],
-    'bad-thread-withdrawal': ('ThreadClaim', {'BadAvailability': True}, 'ClaimAvailable'),
+    'thread-claim-one-slot': ('ThreadClaim', {'PoolSize': 1}, None),
+    'bad-thread-reservation': ('ThreadClaim', {'PoolSize': 1, 'BadReservation': True}, 'ReservationBacked'),
     'wake-retirement': CASES['wake-retirement'],
     'bad-wake-retirement': CASES['bad-wake-retirement'],
 }
@@ -61,7 +64,7 @@ DEFAULTS = {
     'HostWake': dict.fromkeys(('BadClear','BadReassign','BadSubscriber','SharedSubscription','InitiallyParked'), False),
     'InterruptGate': {'BadRearm': False, 'BadRelease': False},
     'TimerMirror': {'BadOrder': False},
-    'ThreadClaim': {'BadClaim': False, 'BadAvailability': False},
+    'ThreadClaim': {'BadClaim': False, 'BadReservation': False, 'PoolSize': 2},
     'WakeRetirement': {'BadRetirement': False},
     'WakeHandoff': {},
     'WakeReassignment': {'BadDrop': False, 'BadDelivery': False},
@@ -73,7 +76,7 @@ INVARIANTS = {
     'HostWake': ['TypeOK','Responsibility','EligibleDelivery','HotReservation'],
     'InterruptGate': ['TypeOK','NoPrematureReblock'],
     'TimerMirror': ['TypeOK','MirrorOrder','Shutdown'],
-    'ThreadClaim': ['TypeOK','UniqueClaim','ClaimAvailable'],
+    'ThreadClaim': ['TypeOK','UniqueClaim','CapacitySafe','ReservationBacked'],
     'WakeRetirement': ['Safety','PrefixSafe'],
     'WakeHandoff': ['Safety'],
     'WakeReassignment': ['TypeOK','Responsibility','RightSubscriber'],
@@ -124,7 +127,7 @@ def main():
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
                'java_version': subprocess.run(['java','-version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,check=True).stdout,
                'cases': {}}
-    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'}]):
+    for name in args.case or (RACE_CASES if args.races_only else [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx', 'unavailable', 'reservation-unavailable'}]):
         module, options, negative = CASES[name]
         work = args.output/name
         work.mkdir()

@@ -30,9 +30,9 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 | --- | --- | --- |
 | [Assignment](../../model/scheduling/Assignment.tla) | NIC reservation/PREEMPT -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. PREEMPT is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
 | Assignment drain/retire/park | Transport and cache-retirement acknowledgment -> kernel parking | Kernel acknowledgment alone does not authorize installation. Drain precedes cache retirement and parking; old ownership is removed only at parking. |
-| Assignment install/activate | Kernel thread selection -> owner installation -> runtime resume | Successful selection consumes a reservation; unavailable selection cancels it and leaves the core idle. Activation returns physical mailbox and both parities. |
+| Assignment install/activate | Kernel thread selection -> owner installation -> runtime resume | The fixed initialized thread pool backs every NIC reservation; successful selection consumes it. Activation returns physical mailbox and both parities. |
 | [Handoff](../../model/scheduling/Handoff.tla) transport | Domain-qualified clients -> unchanged Goal 1 `ProgressSystem`, `DcsResources`, `ThxResources`, `TwoFClient` | Old/new owners are distinct transaction identities on the same physical colors. Admission is fenced after yield. Retained acknowledgments and ordered unlocks must retire before installation. |
-| [ThreadClaim](../../model/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Revalidate availability and atomically claim; a concurrent loser retries or reports unavailable. A claim excludes withdrawal and duplicate assignment. |
+| [ThreadClaim](../../model/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Atomically claim from the initialized pool; a concurrent loser reselects under its existing reservation. Individual withdrawal is forbidden. |
 | [HostWake](../../model/scheduling/HostWake.tla) | Sealed epoll subscription -> kernel pending -> NIC acceptance -> runtime responsibility -> service | Domain-associated cookies survive reassignment. Pending ownership transfers atomically at RX delivery or activation. Notifications concurrent with delivery remain pending. |
 | [InterruptGate](../../model/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
 | [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming host notification -> reserved handoff -> atomic transport/assignment activation and wake delivery | Couples Assignment/Goal 1 resources to HostWake; runtime services the activation flag before its next RX. An unaffected worker continues independently. |
@@ -52,7 +52,6 @@ The checked transition is:
 ```text
 Run -> reserved PREEMPT -> lh_yield -> kernel acknowledgment -> transport drain
     -> old cache retirement -> parked / no owner -> install -> activate
-                                                -> unavailable / idle
 ```
 
 A committed PREEMPT is requested at idle RX. Finite old-owner work and the
@@ -113,10 +112,12 @@ remain implementation obligations.
 ## Bounded control-plane contracts
 
 `Reservation` runs two handoffs competing for one destination slot, using the
-same Assignment module. It tests successful dispatch and unavailable-thread
-cancellation. `ThreadClaim` separately allows two dispatchers to observe the same
-available thread, including withdrawal between selection and claim. Reservation
-capacity and atomic thread claims are separate requirements.
+same Assignment module. It tests successful dispatch with serialized NIC reservations. `ThreadClaim`
+connects reservations to a fixed initialized pool of one or two threads, with two
+requesting workers. It checks that every reservation remains backed and finishes;
+two kernel dispatchers may observe the same candidate but must claim atomically.
+There is no individual withdrawal. Historical unavailable cases are explicit-only
+legacy scenarios, not requirements of the selected protocol.
 
 `HostWake` has two domain-associated cookies, two notification generations per
 cookie, one physical worker, and two threads; the shared-subscription case adds a
@@ -159,7 +160,7 @@ with successful selection, no ordinary syscall sleep and no interrupt. Parking
 removes the old wake target only after transport/cache retirement; activation
 atomically returns mailbox/parity and transfers pending wake responsibility.
 
-The complete transport/assignment cross-product still needs unavailable-target
+The complete transport/assignment cross-product still needs whole-domain teardown/dispatch
 reconciliation, old-domain notifications racing this joined handoff, concurrent
 thread claims, and actual RX gating during early NACK. It must connect the checked
 wake-retirement guard to transport/cache retirement in one domain teardown. Prefix reuse must satisfy both contracts together. Accordingly these bounded checks do not discharge
@@ -246,10 +247,14 @@ source/configuration provenance.
 The [implementation checklist](../software/scheduling-implementation-checks.md)
 separates cross-actor races from locally enforced handoff sequencing. The focused
 `--races-only` suite adds delayed wake acceptance/delivery across A→B→A reassignment,
-notification arrival versus acknowledgment, and withdrawal versus atomic thread
-claim. It also includes callback retirement and duplicate claims. These are bounded
+notification arrival versus acknowledgment, and NIC-reserved atomic thread
+claims from a fixed pool. It also includes callback retirement and duplicate claims. These are bounded
 component checks, not a combined proof of allocation, wake, close and transport.
 
 Ordinary handoff is cooperative and IRQ-free. NIC scheduling interrupts are only
 for application kill/recovery, which remains unmodeled. `InterruptGate` concerns
 Linux timer/IPI early-NACK service; it does not establish the kill protocol.
+
+The fixed-pool clarification supersedes historical unavailable/withdrawal cases
+in the evidence tables above. All threads exist before NIC capacity publication;
+only the entire domain can be torn down. Teardown reconciliation remains open.
