@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CASES = {'no-stalls': ('Steady', False), 'positive': ('Steady', False), 'minimal': ('Steady', False),
          'bad-color': ('Steady', True), 'bad-credits': ('Steady', True),
          'probe': ('Probe', False), 'bad-hol': ('Probe', True),
+         'late-unlock': ('LateUnlock', False),
          'two-stalls': ('Steady', False), 'bypass': ('Steady', False),
          'bad-slice': ('Steady', True), 'bad-cycle': ('Steady', True),
          'bad-ack': ('Steady', True), 'separate-ack': ('Steady', False)}
