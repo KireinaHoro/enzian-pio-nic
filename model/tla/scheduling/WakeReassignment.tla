@@ -4,6 +4,7 @@ CONSTANTS BadDrop, BadDelivery
 \* One physical worker moves A -> B -> A. Epoch is assignment identity, not domain.
 VARIABLES epoch, stage, issued, command, pending, target, runtime, serviced, deliveredDomain
 v == <<epoch,stage,issued,command,pending,target,runtime,serviced,deliveredDomain>>
+KernelOwns == Len(command) = 1 /\ command[1].state = "Submitted"
 Owner == IF stage = "Parked" THEN -1 ELSE IF epoch = 1 THEN 1 ELSE 0
 Init == /\ epoch = 0 /\ stage = "Run" /\ issued = FALSE /\ command = <<>>
         /\ pending = FALSE /\ target = -1 /\ runtime = FALSE /\ serviced = FALSE
@@ -39,6 +40,19 @@ Deliver == /\ pending /\ stage = "Run" /\ target >= 0
            /\ UNCHANGED <<epoch,stage,issued,command,target,serviced>>
 Service == /\ runtime /\ Owner = deliveredDomain /\ runtime' = FALSE /\ serviced' = TRUE
            /\ UNCHANGED <<epoch,stage,issued,command,pending,target,deliveredDomain>>
+\* Lifecycle adapter ports, guarded by the containing scheduling composition.
+Capture == /\ stage = "Installed" /\ Owner = 0 /\ pending
+           /\ pending' = FALSE /\ runtime' = TRUE /\ deliveredDomain' = 0
+           /\ UNCHANGED <<epoch,stage,issued,command,target,serviced>>
+Dispose == /\ issued /\ ~serviced /\ ~KernelOwns
+           /\ pending' = FALSE /\ runtime' = FALSE /\ serviced' = TRUE
+           /\ UNCHANGED <<epoch,stage,issued,command,target,deliveredDomain>>
+ResetCommand == /\ serviced /\ command = <<>>
+    /\ issued' = FALSE /\ pending' = FALSE /\ runtime' = FALSE
+    /\ serviced' = FALSE /\ target' = -1 /\ deliveredDomain' = -1
+    /\ UNCHANGED <<epoch,stage,command>>
+SetStage(nextStage) == /\ stage' = nextStage
+    /\ UNCHANGED <<epoch,issued,command,pending,target,runtime,serviced,deliveredDomain>>
 Next == Notify \/ Accept \/ Ack \/ Begin \/ Park \/ Install \/ Activate \/ Resolve \/ Deliver \/ Service
 Spec == Init /\ [][Next]_v
         /\ WF_v(Accept) /\ WF_v(Ack) /\ WF_v(Begin) /\ WF_v(Park) /\ WF_v(Install)
@@ -49,7 +63,6 @@ TypeOK == /\ epoch \in 0..2 /\ stage \in {"Run","Draining","Parked","Installed"}
           /\ command \in Seq([type : {"Wake"}, domain : {0}, cookie : {7},
                                hintEpoch : 0..2, state : {"Submitted","Accepted"}])
           /\ Len(command) <= 1
-KernelOwns == Len(command) = 1 /\ command[1].state = "Submitted"
 Responsibility == /\ issued = (KernelOwns \/ pending \/ runtime \/ serviced)
                   /\ ~(KernelOwns /\ (pending \/ runtime \/ serviced))
                   /\ ~(pending /\ (runtime \/ serviced)) /\ ~(runtime /\ serviced)

@@ -176,3 +176,11 @@ The [kill/transport composition](../hardware/kill-transport-composition.md) runs
 with `nix build .#checks.x86_64-linux.scheduling-kill-transport` or the scheduling
 runner `--kill-transport-only`. It joins existing control/resource properties,
 RX/TX cleanup, packet ownership and stalled/live peers.
+
+The [joined scheduling composition](../hardware/scheduling-composition.md) runs
+with `nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full` or the scheduling runner
+`--full-only`. It composes the focused wake/claim models with kill/transport,
+checks cross-component relations, and retains per-case TLC logs and configs in
+the Nix output. Cases are separately cacheable derivations, each with four TLC
+workers, a 4 GiB heap and a two-hour timeout. See its report for current
+validation status and finite bounds.

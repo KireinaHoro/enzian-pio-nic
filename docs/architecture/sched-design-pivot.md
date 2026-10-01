@@ -68,8 +68,9 @@ Start the cooperation timeout at the committed idle-preemption decision; account
 for transport delivery and kernel scheduling delay before diagnosing failure to
 yield. Timeout escalates to kill IRQ; execution watchdog policy is separate.
 **Signals and futex integration are deferred.** Termination/recovery is lower
-priority: fence new access, complete in-flight reads and retire CPU cache state
-before resetting/reusing FPGA 2F2F state. Validate that ordering when implementing
+priority: fence new access and complete RX/TX protocol cleanup before reusing
+worker state. Retained old-domain PAs need not be generally flushed; domain-code
+reuse is deferred. Validate that ordering when implementing
 recovery; see the [existing recovery design](../software/process-recovery.md).
 
 ### HOST_WAKE: epoll subscriptions and delivery
@@ -223,7 +224,10 @@ Implementation reminders:
   Complete resource-progress verification including bypass and retiring traffic.
 - Retain old ownership through drain, preserve full addresses for coherence
   responses/invalidation, and define safe rejected-access and prefix-reuse rules.
-  Cache hits bypass FPGA checks, so cache-state retirement is part of handoff.
+  Cache hits bypass FPGA checks: retain the software no-return fence and
+  protocol-local control invalidations, including freshness on a return to an
+  earlier domain/worker PA (implementation check H18). This does not require a
+  general flush of unrelated old-domain cache lines.
 
 ## Adoption route: A / AB / ABC
 

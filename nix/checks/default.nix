@@ -39,6 +39,7 @@ in
       '';
   tla-modules = pkgs.callPackage ./tla-modules.nix { inherit tlc; };
   scheduling-kill-transport = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; killTransportOnly = true; };
+  scheduling-full = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; fullOnly = true; };
   scheduling-axi = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; axiOnly = true; };
   scheduling-transport = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; transportOnly = true; };
   scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };

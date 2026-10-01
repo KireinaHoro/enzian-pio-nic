@@ -29,6 +29,15 @@ Retry(w) == /\ stage[w] = "Claim" /\ candidate[w] \notin Free
             /\ stage' = [stage EXCEPT ![w] = "Select"]
             /\ candidate' = [candidate EXCEPT ![w] = 0]
             /\ UNCHANGED claim
+\* Composition ports; standalone Next retains its original one-shot scope.
+Release(w) == /\ stage[w] = "Done"
+              /\ stage' = [stage EXCEPT ![w] = "Request"]
+              /\ candidate' = [candidate EXCEPT ![w] = 0]
+              /\ claim' = [claim EXCEPT ![w] = 0]
+Cancel(w) == /\ stage[w] \in {"Select","Claim"}
+             /\ stage' = [stage EXCEPT ![w] = "Request"]
+             /\ candidate' = [candidate EXCEPT ![w] = 0]
+             /\ claim' = [claim EXCEPT ![w] = 0]
 Step(w) == Reserve(w) \/ (\E t \in Threads: Choose(w,t)) \/ Claim(w) \/ Retry(w)
 Next == \E w \in Workers: Step(w)
 Spec == Init /\ [][Next]_v /\ (\A w \in Workers: WF_v(Step(w)))

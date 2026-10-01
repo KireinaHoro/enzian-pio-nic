@@ -1,0 +1,1102 @@
+{
+  "case_outputs": {
+    "bad-full-ack": "/nix/store/h6wini6czcn7hsb8g8cmyhdfwwhma215-lauberhorn-scheduling-bad-full-ack",
+    "bad-full-claim": "/nix/store/vp8w047pbc5ky8ny8i9b6iijbkcnp5rl-lauberhorn-scheduling-bad-full-claim",
+    "bad-full-claim-fairness": "/nix/store/insvxg6qzsf4g6k3j026cl7b5hb6z6dw-lauberhorn-scheduling-bad-full-claim-fairness",
+    "bad-full-drain": "/nix/store/16h6855wx9hcha5m7axswjw2avprx6dg-lauberhorn-scheduling-bad-full-drain",
+    "bad-full-drop": "/nix/store/rv045smrs0vifcyx8pr2jsmcb6gsx6ml-lauberhorn-scheduling-bad-full-drop",
+    "bad-full-free": "/nix/store/awyhb469w1hfb7n9yh9kzvz48pj4aprp-lauberhorn-scheduling-bad-full-free",
+    "bad-full-host-drain": "/nix/store/glbbma53kridpjjwfnm6nmc4bd3xp142-lauberhorn-scheduling-bad-full-host-drain",
+    "bad-full-irq": "/nix/store/z3w6xp8wl0albf5gw651kc6d9wsm0rq9-lauberhorn-scheduling-bad-full-irq",
+    "bad-full-reserve": "/nix/store/dikihsrjyr5cin75s1gxkhfds57j9fb8-lauberhorn-scheduling-bad-full-reserve",
+    "bad-full-route": "/nix/store/r1k8gkr09qjvzcngbkzdjajapbn4dvb1-lauberhorn-scheduling-bad-full-route",
+    "bad-full-snapshot": "/nix/store/hcrf4x3h6jr2yw3gn9a0w8s29hr2yk4k-lauberhorn-scheduling-bad-full-snapshot",
+    "full-abandoned-tx": "/nix/store/1w8x9wdxzf6gkpckmgk64qy7nn45zxx6-lauberhorn-scheduling-full-abandoned-tx",
+    "full-claim": "/nix/store/8m4fwphxwdbr3w8ip8jkfrq006sgllx8-lauberhorn-scheduling-full-claim",
+    "full-claim-contention": "/nix/store/w9qgpxn83ildi9kh855060s7i3s6mssr-lauberhorn-scheduling-full-claim-contention",
+    "full-committed-tx": "/nix/store/9i0zryyky3lq37qyxz01wi6y8l43y25c-lauberhorn-scheduling-full-committed-tx",
+    "full-reservation": "/nix/store/ipsfv4i87vyadl1kpk8qx343bw7ncxc2-lauberhorn-scheduling-full-reservation",
+    "full-reservation-roundtrip": "/nix/store/l2hlccrymqpjm9cgjg44k0v7wynxdxfw-lauberhorn-scheduling-full-reservation-roundtrip",
+    "full-roundtrip": "/nix/store/h1d6cmgk1c5z0wdgs7wd8izc5z4zjijc-lauberhorn-scheduling-full-roundtrip",
+    "full-roundtrip-progress": "/nix/store/hscli10905wclg6alwdnji7fg976jqzx-lauberhorn-scheduling-full-roundtrip-progress",
+    "full-scheduling": "/nix/store/f119zkmmp5facb19c3xib2471bh2k4n9-lauberhorn-scheduling-full-scheduling",
+    "witness-full-closed-wake": "/nix/store/djz86y02xryhacskc1xpxkckp3nzbnwy-lauberhorn-scheduling-witness-full-closed-wake",
+    "witness-full-kill-successor": "/nix/store/2gwz1iv9mi1nh6w0gfc5lahiz0nvgx1y-lauberhorn-scheduling-witness-full-kill-successor",
+    "witness-full-roundtrip": "/nix/store/l063h0r153cwyggjy3rj2ggl1imbgwr9-lauberhorn-scheduling-witness-full-roundtrip"
+  },
+  "date": "2026-10-01",
+  "full": {
+    "cases": {
+      "bad-full-ack": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-ack/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-ack",
+          "-config",
+          "/build/results/bad-full-ack/SchedulingComposition.cfg",
+          "/build/results/bad-full-ack/SchedulingComposition.tla"
+        ],
+        "config_sha256": "dff6c7a6b87f4639297927eefa9b2b2656cb24f91204278c84cf155656452209",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1.922,
+        "expected_violation": "NoLostNotification",
+        "final_statistics": [
+          "3237 states generated, 1119 distinct states found, 716 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ],
+        "log_sha256": "bfdb8add4bbe488ef4412b003baa3461faf561646f013a0e8b4ba70ca6030a6a",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-claim": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-claim/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-claim",
+          "-config",
+          "/build/results/bad-full-claim/SchedulingComposition.cfg",
+          "/build/results/bad-full-claim/SchedulingComposition.tla"
+        ],
+        "config_sha256": "7afffd7d69f8789deeb439800367f7571c1c001d41193a413ddc431d00a96b62",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 9.957,
+        "expected_violation": "UniqueClaim",
+        "final_statistics": [
+          "360484 states generated, 66252 distinct states found, 25986 states left on queue.",
+          "The depth of the complete state graph search is 12."
+        ],
+        "log_sha256": "79e28ef955b803259a09ca9bf3c3bab76551bd2c4535308ec4bbb8751175225b",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-claim-fairness": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-claim-fairness/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-claim-fairness",
+          "-config",
+          "/build/results/bad-full-claim-fairness/SchedulingComposition.cfg",
+          "/build/results/bad-full-claim-fairness/SchedulingComposition.tla"
+        ],
+        "config_sha256": "d0c07777bc6e9d7851079afcdf526d640914180819353d8d2980cdfae67c6cf3",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 5.474,
+        "expected_violation": "MovesFinish",
+        "final_statistics": [
+          "18783 states generated, 4836 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 45."
+        ],
+        "log_sha256": "588eb4f798f5887c0fab75b73e8f0a985fc82355bd8f042d9d219b8e2bfa4e68",
+        "passed": true,
+        "returncode": 13,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-drain": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-drain/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-drain",
+          "-config",
+          "/build/results/bad-full-drain/SchedulingComposition.cfg",
+          "/build/results/bad-full-drain/SchedulingComposition.tla"
+        ],
+        "config_sha256": "1587d2793563fbd19dfc27cbd294b28ad722e541a5dfbea4a04184f70a6f6b4b",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1.473,
+        "expected_violation": "DrainBeforeInstall",
+        "final_statistics": [
+          "54 states generated, 43 distinct states found, 34 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ],
+        "log_sha256": "cbb2dfbfc025c5368fff1e81273435755d5cb953ee9e5e8fac8145e348888673",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-drop": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-drop/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-drop",
+          "-config",
+          "/build/results/bad-full-drop/SchedulingComposition.cfg",
+          "/build/results/bad-full-drop/SchedulingComposition.tla"
+        ],
+        "config_sha256": "578f865fd46c98e2bf0325e4ed75aaf14c761451e98fdf17c0ccaae35fb4bed3",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1.418,
+        "expected_violation": "WakeResponsibility",
+        "final_statistics": [
+          "168 states generated, 105 distinct states found, 83 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ],
+        "log_sha256": "dd58f710464ea1fde44a4516d59a1693be36857a8927e2bb12bfa0facf7ebdf3",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-free": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-free/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-free",
+          "-config",
+          "/build/results/bad-full-free/SchedulingComposition.cfg",
+          "/build/results/bad-full-free/SchedulingComposition.tla"
+        ],
+        "config_sha256": "a4f7e7e906afda756474f49a8955c510701a8008116845504423d02a73e3e3e1",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 4.843,
+        "expected_violation": "MetadataWakeSafe",
+        "final_statistics": [
+          "80505 states generated, 16847 distinct states found, 6020 states left on queue.",
+          "The depth of the complete state graph search is 11."
+        ],
+        "log_sha256": "7efc8162b73c8c26b36935e28a71ed16430cb79432d180c49aa24c621ff559d6",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-host-drain": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-host-drain/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-host-drain",
+          "-config",
+          "/build/results/bad-full-host-drain/SchedulingComposition.cfg",
+          "/build/results/bad-full-host-drain/SchedulingComposition.tla"
+        ],
+        "config_sha256": "ff72136bd74c5a5d4fcc31d423908dfcbbb52ace757175cb60bc3c720f5545b9",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 7.695,
+        "expected_violation": "WakeCompletes",
+        "final_statistics": [
+          "27232 states generated, 8034 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 49."
+        ],
+        "log_sha256": "36650befa54f46ee866a6ce9809527093f54e7eb83d2f55cf2e54cfc1823d838",
+        "passed": true,
+        "returncode": 13,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-irq": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-irq/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-irq",
+          "-config",
+          "/build/results/bad-full-irq/SchedulingComposition.cfg",
+          "/build/results/bad-full-irq/SchedulingComposition.tla"
+        ],
+        "config_sha256": "146e50ecca4ae504f7e258a59502d8e20348e256d172eb8290f7b25e59c8ec4f",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 10.798,
+        "expected_violation": "NoLateIrq",
+        "final_statistics": [
+          "364932 states generated, 66875 distinct states found, 14666 states left on queue.",
+          "The depth of the complete state graph search is 16."
+        ],
+        "log_sha256": "c7b3640ca2900a73c08ef497db890a60e1c711642eea968a86bc1d14e8d5df25",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-reserve": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-reserve/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-reserve",
+          "-config",
+          "/build/results/bad-full-reserve/SchedulingComposition.cfg",
+          "/build/results/bad-full-reserve/SchedulingComposition.tla"
+        ],
+        "config_sha256": "acfc54e09da8532d85751fbe4fb1f8825ed85552cd0feb1b69f215983d1eb71b",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1.517,
+        "expected_violation": "CapacitySafe",
+        "final_statistics": [
+          "107 states generated, 67 distinct states found, 56 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ],
+        "log_sha256": "8ba469c39c5a1878d18d333b8bbd905a8d4b51241b9e7ce297b95918732a88de",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-route": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-route/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-route",
+          "-config",
+          "/build/results/bad-full-route/SchedulingComposition.cfg",
+          "/build/results/bad-full-route/SchedulingComposition.tla"
+        ],
+        "config_sha256": "50cbc0a34139124955e1179d9c572ff959b80312455ce159db4506757788e1c2",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 9.548,
+        "expected_violation": "RightSubscriber",
+        "final_statistics": [
+          "331243 states generated, 60526 distinct states found, 13184 states left on queue.",
+          "The depth of the complete state graph search is 16."
+        ],
+        "log_sha256": "06c03f1f7cb0b57041ab3711026ced88d8a1ed62bcfc6d3d5ae4aaa215cf6b98",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-full-snapshot": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/bad-full-snapshot/states",
+          "-teSpecOutDir",
+          "/build/results/bad-full-snapshot",
+          "-config",
+          "/build/results/bad-full-snapshot/SchedulingComposition.cfg",
+          "/build/results/bad-full-snapshot/SchedulingComposition.tla"
+        ],
+        "config_sha256": "15541254dc0d1968ab3935c2399634dd540c9c68c9775847fe96b973184890d1",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 3.025,
+        "expected_violation": "SnapshotStable",
+        "final_statistics": [
+          "23227 states generated, 5592 distinct states found, 2530 states left on queue.",
+          "The depth of the complete state graph search is 9."
+        ],
+        "log_sha256": "10a16216f0681002c5a09a0573ac2c653a13e97c45ce4183b6550419cd8a51e0",
+        "passed": true,
+        "returncode": 13,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-abandoned-tx": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-abandoned-tx/states",
+          "-teSpecOutDir",
+          "/build/results/full-abandoned-tx",
+          "-config",
+          "/build/results/full-abandoned-tx/SchedulingComposition.cfg",
+          "/build/results/full-abandoned-tx/SchedulingComposition.tla"
+        ],
+        "config_sha256": "685f9d5d0c964b99e7747795265cbbe2f47973cc2a71b1c106617413b73653f5",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 238.621,
+        "expected_violation": null,
+        "final_statistics": [
+          "607352 states generated, 112686 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 53."
+        ],
+        "log_sha256": "dde8c36dc98cfba76cf2203d55c446fe166243d9bef4edf5a5412c3f91bbf730",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-claim": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-claim/states",
+          "-teSpecOutDir",
+          "/build/results/full-claim",
+          "-config",
+          "/build/results/full-claim/SchedulingComposition.cfg",
+          "/build/results/full-claim/SchedulingComposition.tla"
+        ],
+        "config_sha256": "3e0312a7fe74aa7be8cfd0a5a3e09d3945d378ddad1e16ea435ca2df02678ba1",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 443.775,
+        "expected_violation": null,
+        "final_statistics": [
+          "994913 states generated, 206592 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 57."
+        ],
+        "log_sha256": "facd551466ef6852136171a7bafc8dd9d85523bf981922b4de069f95e1ff7d13",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-claim-contention": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-claim-contention/states",
+          "-teSpecOutDir",
+          "/build/results/full-claim-contention",
+          "-config",
+          "/build/results/full-claim-contention/SchedulingComposition.cfg",
+          "/build/results/full-claim-contention/SchedulingComposition.tla"
+        ],
+        "config_sha256": "34d95d46822cceb73cdbb1238d6d8e6ce48ee7bc1191783edd11e6a5ecf4410c",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 5.876,
+        "expected_violation": null,
+        "final_statistics": [
+          "18783 states generated, 4836 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 45."
+        ],
+        "log_sha256": "d41114d246cfd1abd8e6d5cc2ec72b0ffb53f65f32029ad258a5b75b093a2644",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-committed-tx": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-committed-tx/states",
+          "-teSpecOutDir",
+          "/build/results/full-committed-tx",
+          "-config",
+          "/build/results/full-committed-tx/SchedulingComposition.cfg",
+          "/build/results/full-committed-tx/SchedulingComposition.tla"
+        ],
+        "config_sha256": "c6e17375b66558f635e4acb8b1ece85429198575944e3694edb467ed225e22cc",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 2294.874,
+        "expected_violation": null,
+        "final_statistics": [
+          "4574207 states generated, 894124 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 71."
+        ],
+        "log_sha256": "21233f69d1bb39e96c43d37c05cbdf3e300bccb255846205204b6d3d4468e32f",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-reservation": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-reservation/states",
+          "-teSpecOutDir",
+          "/build/results/full-reservation",
+          "-config",
+          "/build/results/full-reservation/SchedulingComposition.cfg",
+          "/build/results/full-reservation/SchedulingComposition.tla"
+        ],
+        "config_sha256": "a30fafa207057f593234060154739ee53943b535693abb445c38ff0a52cc1d94",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1205.687,
+        "expected_violation": null,
+        "final_statistics": [
+          "2264777 states generated, 404428 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 51."
+        ],
+        "log_sha256": "e4d2a8001e6a1eb4529d9d5d9994405fb0a8c63c67ece2a0397ddd6528f0f67a",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-reservation-roundtrip": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-reservation-roundtrip/states",
+          "-teSpecOutDir",
+          "/build/results/full-reservation-roundtrip",
+          "-config",
+          "/build/results/full-reservation-roundtrip/SchedulingComposition.cfg",
+          "/build/results/full-reservation-roundtrip/SchedulingComposition.tla"
+        ],
+        "config_sha256": "aa106d3dc52a54582fa59b3807f3ca756c68d8193923fc867c33bfd385b9ffc1",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 23.59,
+        "expected_violation": null,
+        "final_statistics": [
+          "63927 states generated, 16656 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 52."
+        ],
+        "log_sha256": "49e251f99ab2aed7de793a09fd5802d0a9d36b1fc3f14add62e188418dc47dba",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-roundtrip": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-roundtrip/states",
+          "-teSpecOutDir",
+          "/build/results/full-roundtrip",
+          "-config",
+          "/build/results/full-roundtrip/SchedulingComposition.cfg",
+          "/build/results/full-roundtrip/SchedulingComposition.tla"
+        ],
+        "config_sha256": "908288a4952e98b5c66db167c1a7e5d07444e64e42a36dbd0be0eed13ada6a7b",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 11.342,
+        "expected_violation": null,
+        "final_statistics": [
+          "27264 states generated, 8034 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 49."
+        ],
+        "log_sha256": "956d8200076f81be2a76dadd5f38efa96f9c30e1d326c2058647477ea9a4e1ae",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-roundtrip-progress": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-roundtrip-progress/states",
+          "-teSpecOutDir",
+          "/build/results/full-roundtrip-progress",
+          "-config",
+          "/build/results/full-roundtrip-progress/SchedulingComposition.cfg",
+          "/build/results/full-roundtrip-progress/SchedulingComposition.tla"
+        ],
+        "config_sha256": "61206e340d1ce56f2dc54962ecef8db0b17197431b0cb4a16000a8827a3c49d8",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 454.414,
+        "expected_violation": null,
+        "final_statistics": [
+          "982851 states generated, 200850 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 73."
+        ],
+        "log_sha256": "0c2daa7a189c9eda1ca32f1cb7241073f19cb0cb3c4c9059ce916d8e70715886",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "full-scheduling": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/full-scheduling/states",
+          "-teSpecOutDir",
+          "/build/results/full-scheduling",
+          "-config",
+          "/build/results/full-scheduling/SchedulingComposition.cfg",
+          "/build/results/full-scheduling/SchedulingComposition.tla"
+        ],
+        "config_sha256": "b9b8b8618b1d526d464f7b943fc8e885826fdb8e80a9097dc90135af8b616a2c",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 1896.424,
+        "expected_violation": null,
+        "final_statistics": [
+          "3826792 states generated, 735466 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 60."
+        ],
+        "log_sha256": "28074b52a089193bd9b64baf51f4467c1eefb942da59e3974d0492009bed0efd",
+        "passed": true,
+        "returncode": 0,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "witness-full-closed-wake": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/witness-full-closed-wake/states",
+          "-teSpecOutDir",
+          "/build/results/witness-full-closed-wake",
+          "-config",
+          "/build/results/witness-full-closed-wake/SchedulingComposition.cfg",
+          "/build/results/witness-full-closed-wake/SchedulingComposition.tla"
+        ],
+        "config_sha256": "5dbdede27d3e94c952f34c68cb8dd3736b54ec23498a62ec2190741964639694",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 12.796,
+        "expected_violation": "NoClosedWake",
+        "final_statistics": [
+          "472386 states generated, 85451 distinct states found, 15142 states left on queue.",
+          "The depth of the complete state graph search is 18."
+        ],
+        "log_sha256": "273f63230dde6adcfeaa07d4a23341f683f4be7e8c848d90dff1a4075384f2c8",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "witness-full-kill-successor": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/witness-full-kill-successor/states",
+          "-teSpecOutDir",
+          "/build/results/witness-full-kill-successor",
+          "-config",
+          "/build/results/witness-full-kill-successor/SchedulingComposition.cfg",
+          "/build/results/witness-full-kill-successor/SchedulingComposition.tla"
+        ],
+        "config_sha256": "57b49e4e94a4ad9dfb7140dfc88b20b8a7597b1e292482af17dea9548c18b2c3",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 421.118,
+        "expected_violation": "NoKilledSuccessor",
+        "final_statistics": [
+          "16757485 states generated, 2577649 distinct states found, 128788 states left on queue.",
+          "The depth of the complete state graph search is 54."
+        ],
+        "log_sha256": "1bd0d1a6a0d58fe7d12871c25bba22c97037884d0d135edcf631c2160f79b498",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "witness-full-roundtrip": {
+        "command": [
+          "java",
+          "-Xmx4096m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "4",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/build/results/witness-full-roundtrip/states",
+          "-teSpecOutDir",
+          "/build/results/witness-full-roundtrip",
+          "-config",
+          "/build/results/witness-full-roundtrip/SchedulingComposition.cfg",
+          "/build/results/witness-full-roundtrip/SchedulingComposition.tla"
+        ],
+        "config_sha256": "c3484901c9738c8a5f82844ad6d4eed9c18c36c38d913365be301175a73e9ab5",
+        "directory_contract": "LCI-only: release on LCIA acceptance",
+        "elapsed_seconds": 2.82,
+        "expected_violation": "NoRoundTrip",
+        "final_statistics": [
+          "18769 states generated, 5308 distinct states found, 192 states left on queue.",
+          "The depth of the complete state graph search is 29."
+        ],
+        "log_sha256": "42680c41544f14c27ee06ec7f3dd212bf5f6a6e8877ec515aeb8fd2fe8eddb83",
+        "passed": true,
+        "returncode": 12,
+        "verification_kind": "configured invariants and temporal properties"
+      }
+    },
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+    "sources": {
+      "model/config/scheduling/suite.json": "35258c2b2b62a227cf5415f7cf4540d508cc6e3347c63962f04aaeecb325f3d6",
+      "model/data/selected-8k.json": "384ede5508ce643508aff9abb5dc3a36393c2cf099874c9f56e8c3a39d4d64d5",
+      "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+      "model/tla/scheduling/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+      "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+      "model/tla/scheduling/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+      "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/tla/scheduling/KillExit.tla": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7",
+      "model/tla/scheduling/KillTransport.tla": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242",
+      "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+      "model/tla/scheduling/SchedulingComposition.tla": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107",
+      "model/tla/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/tla/scheduling/ThreadClaim.tla": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b",
+      "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/tla/scheduling/WakeAckRace.tla": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72",
+      "model/tla/scheduling/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+      "model/tla/scheduling/WakeReassignment.tla": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e",
+      "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+      "model/tla/steady/AxiReloadGate.tla": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7",
+      "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+      "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+      "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+      "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+      "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+      "model/tla/steady/LciBatch.tla": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed",
+      "model/tla/steady/PacketResources.tla": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d",
+      "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+      "model/tla/steady/ProgressSystem.tla": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8",
+      "model/tla/steady/ReadResponses.tla": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86",
+      "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+      "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+      "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+      "model/tla/steady/TwoFClient.tla": "7f48c05515ddd8a8a62230617763172f369a20e9fd6a3619a5237804a0709cb7",
+      "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+      "tools/scheduling/addresses.py": "d449c5615513b8bdbae8867a439a4e417d465aa544697e93c0efe1992303e2e4",
+      "tools/scheduling/check_models.py": "057bd38b5fdbac3ee995e1580c0c0a3d84ea05a684350bd442b7fab96ae90e3d"
+    },
+    "verification_kind": "state invariants and temporal properties"
+  },
+  "module_check": {
+    "output": "/nix/store/y8yml46ndhg6w2dvpm6338krgn43bc6m-lauberhorn-tla-module-boundaries",
+    "results": {
+      "inventory_sha256": "65641913869d4896bf78b668be9d290f2434b3de520cf476d5b753f614b1b3b3",
+      "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+      "kind": "inventory/import boundaries and SANY; no TLC properties",
+      "modules": {
+        "Assignment": {
+          "imports": [],
+          "passed": true,
+          "role": "cooperative assignment component",
+          "source_sha256": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c"
+        },
+        "AxiReloadGate": {
+          "imports": [
+            "Coherence",
+            "DcsResources",
+            "ReadResponses"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7"
+        },
+        "CachedProgress": {
+          "imports": [
+            "CachedTransport",
+            "ProgressSystem",
+            "RetainedCache"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4"
+        },
+        "CachedTransport": {
+          "imports": [
+            "ProgressSystem",
+            "RetainedCache"
+          ],
+          "passed": true,
+          "role": "cache/transport composition adapter",
+          "source_sha256": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0"
+        },
+        "Coherence": {
+          "imports": [],
+          "passed": true,
+          "role": "message vocabulary",
+          "source_sha256": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8"
+        },
+        "CombinedScheduling": {
+          "imports": [
+            "CachedTransport",
+            "ProgressSystem",
+            "RetainedCache"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1"
+        },
+        "ControlRetirement": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0"
+        },
+        "DcsResources": {
+          "imports": [
+            "Coherence"
+          ],
+          "passed": true,
+          "role": "generic resource component",
+          "source_sha256": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462"
+        },
+        "DirectoryAdmission": {
+          "imports": [],
+          "passed": true,
+          "role": "matched-cache contract diagnostic",
+          "source_sha256": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e"
+        },
+        "Handoff": {
+          "imports": [
+            "Assignment",
+            "ProgressSystem",
+            "SelectedAddresses"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732"
+        },
+        "HostWake": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da"
+        },
+        "InterruptGate": {
+          "imports": [],
+          "passed": true,
+          "role": "historical release-first interrupt diagnostic",
+          "source_sha256": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3"
+        },
+        "KillExit": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7"
+        },
+        "KillTransport": {
+          "imports": [
+            "KillExit",
+            "ProgressSystem",
+            "CachedTransport",
+            "RetainedCache",
+            "DcsResources",
+            "Coherence",
+            "ReadResponses",
+            "LciBatch",
+            "PacketResources"
+          ],
+          "passed": true,
+          "role": "kill control and resource-tail composition with stalled and active peers",
+          "source_sha256": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242"
+        },
+        "LciBatch": {
+          "imports": [],
+          "passed": true,
+          "role": "ordered finite invalidation batch client",
+          "source_sha256": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed"
+        },
+        "PacketResources": {
+          "imports": [],
+          "passed": true,
+          "role": "buffer ownership and finite writeback service stages",
+          "source_sha256": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d"
+        },
+        "Probe": {
+          "imports": [
+            "DcsResources"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe"
+        },
+        "ProgressSystem": {
+          "imports": [
+            "Coherence",
+            "DcsResources",
+            "ThxResources",
+            "TwoFClient"
+          ],
+          "passed": true,
+          "role": "transport composition",
+          "source_sha256": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8"
+        },
+        "ReadResponses": {
+          "imports": [],
+          "passed": true,
+          "role": "generic finite read-data response channel",
+          "source_sha256": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86"
+        },
+        "Reservation": {
+          "imports": [
+            "Assignment"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0"
+        },
+        "RetainedCache": {
+          "imports": [],
+          "passed": true,
+          "role": "generic cache/directory accounting component",
+          "source_sha256": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80"
+        },
+        "SchedulingComposition": {
+          "imports": [
+            "KillTransport",
+            "WakeReassignment",
+            "WakeAckRace",
+            "ThreadClaim",
+            "ControlRetirement"
+          ],
+          "passed": true,
+          "role": "joined repeated handoff/wake/claim/close and cached transport composition",
+          "source_sha256": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107"
+        },
+        "SelectedAddresses": {
+          "imports": [],
+          "passed": true,
+          "role": "generated address witness",
+          "source_sha256": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1"
+        },
+        "Steady": {
+          "imports": [
+            "ProgressSystem"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2"
+        },
+        "ThreadClaim": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b"
+        },
+        "ThxResources": {
+          "imports": [],
+          "passed": true,
+          "role": "assumed CPU resource component",
+          "source_sha256": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127"
+        },
+        "TimerMirror": {
+          "imports": [],
+          "passed": true,
+          "role": "ordered command diagnostic",
+          "source_sha256": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435"
+        },
+        "TwoFClient": {
+          "imports": [],
+          "passed": true,
+          "role": "abstract 2F2F client",
+          "source_sha256": "7f48c05515ddd8a8a62230617763172f369a20e9fd6a3619a5237804a0709cb7"
+        },
+        "WakeAckRace": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72"
+        },
+        "WakeHandoff": {
+          "imports": [
+            "Handoff",
+            "HostWake"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e"
+        },
+        "WakeReassignment": {
+          "imports": [],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e"
+        },
+        "WakeRetirement": {
+          "imports": [
+            "HostWake"
+          ],
+          "passed": true,
+          "role": "bounded harness / focused contract",
+          "source_sha256": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb"
+        },
+        "lauberhorn": {
+          "imports": [],
+          "passed": true,
+          "role": "historical monolithic reference",
+          "source_sha256": "8a94897ccf84eb370bc8eaa57c9c887576567bd3209a53b8d30ab86df6b956b2"
+        }
+      }
+    }
+  },
+  "note": "Generated logs and state databases remain outside the source tree; this record retains completed result hashes.",
+  "pending": [
+    "full-stalled-progress",
+    "full-wake-generation"
+  ],
+  "reproduce": "nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full .#checks.x86_64-linux.tla-modules",
+  "scope": "Bounded scheduling composition; completed cases only. No claim that the full suite passes yet.",
+  "status": "INCOMPLETE: final positive checks still running"
+}

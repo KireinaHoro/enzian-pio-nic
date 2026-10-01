@@ -32,7 +32,7 @@ dispatch. Individual threads cannot withdraw.
    parked until a future assignment, potentially on a different physical worker.
 
 The resource harness currently guards InfoRespond with old transaction slots,
-invalidations, acknowledgments and queued unlocks released. This is a conservative
+invalidations and LCIA responses released. This is a conservative
 NIC-internal implementation of readiness, not a kernel drain protocol or a demand
 to evict every cached line. A more permissive engine can preserve tagged old
 obligations across handoff if refinement establishes equivalent safety/progress.

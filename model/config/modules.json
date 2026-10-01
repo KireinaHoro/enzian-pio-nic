@@ -123,6 +123,16 @@
     "imports": [],
     "role": "generic cache/directory accounting component"
   },
+  "SchedulingComposition": {
+    "imports": [
+      "KillTransport",
+      "WakeReassignment",
+      "WakeAckRace",
+      "ThreadClaim",
+      "ControlRetirement"
+    ],
+    "role": "joined repeated handoff/wake/claim/close and cached transport composition"
+  },
   "SelectedAddresses": {
     "imports": [],
     "role": "generated address witness"

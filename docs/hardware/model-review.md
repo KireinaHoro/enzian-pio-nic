@@ -117,3 +117,12 @@ Existing component invariants, control properties and parameterized live-client
 progress properties are imported. New assertions cover only the control/resource
 relations, packet disposition and writeback-to-LCIA ordering. This does not yet
 replace the older combined wake/reservation control representation.
+
+## Follow-up: joined scheduling races
+
+[SchedulingComposition](scheduling-composition.md) imports the focused wake
+routing, generation/ACK and thread-claim modules alongside `KillTransport`.
+It reuses their properties and adds only the cross-component drain, snapshot and
+lifetime relations. Its report records validation separately from this review.
+The earlier `CombinedScheduling` remains a distinct bounded two-worker model,
+not an implementation or refinement of the new composition.
