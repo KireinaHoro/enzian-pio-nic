@@ -28,13 +28,14 @@ def config(module, options, negative, safety_only=False):
         invs = ['Safety']  # Already includes every named diagnostic invariant.
     if safety_only:
         props = []
-    if module == 'KillExit' and negative and negative.endswith('Unreachable'):
+    if negative in CATALOG.get('witnesses', {}).get(module, []):
         invs = [negative]
     if negative and negative not in invs + props:
         raise ValueError(f'{module}: unconfigured negative property {negative}')
     if negative:
         invs = [negative] if negative in invs else []
         props = [negative] if negative in props else []
+    invs = list(dict.fromkeys(CATALOG.get('required_invariants', {}).get(module, []) + invs))
     return ('SPECIFICATION Spec\n' + ('CONSTANTS\n' if constants else '') + ''.join(f'{k} = {tla_value(v)}\n' for k,v in constants.items())
             + ('INVARIANTS ' + ' '.join(invs) + '\n' if invs else '')
             + ('PROPERTIES ' + ' '.join(props) + '\n' if props else '')

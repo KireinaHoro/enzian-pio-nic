@@ -97,9 +97,13 @@ composes LCIA release without UL with the existing scheduling modules. Focused
 handoff/cache safety and liveness checks passed, as did combined state invariants
 over 2,528,455 states. Full combined temporal verification remains open.
 
-Next establish the AXI response-fence contract for earlier/in-flight reads and
-shared coherence-response service, then compose actual transport cleanup and
-broader scheduling liveness. Reconcile the composed resource model with this
+The [AXI response-contract checks](../hardware/axi-response-contract.md) now cover
+earlier/queued/buffered reads, stop fencing and shared response service: five
+positive cases, seven deliberate faults and two witnesses. THX same-line response
+ordering, independent service and exclusion of target reads behind the held
+doorbell remain hardware obligations, not established guarantees. Next compose
+actual transport cleanup and broader scheduling liveness, reusing component
+properties and adding only cross-component control/transport relations. Reconcile the composed resource model with this
 selected endpoint; earlier auto-lock counterexamples and conditional nonallocating
 runs are not a new proof for the integrated ROM. No automatic ICI eviction policy is introduced.
 The following auto-lock results remain historical motivation and regression
