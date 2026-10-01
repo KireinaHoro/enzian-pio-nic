@@ -1,0 +1,89 @@
+{
+  "dcs_revision": "7b5cc874155f96735f135d3cd1f2c514bacfe28f",
+  "nix_derivation": "fx8nl4sfh957jp1yin5wphqdfj6dpfyi-lauberhorn-dcs-pressure.drv",
+  "regression_results": {
+    "lock-tables.json": {
+      "checks": [],
+      "passed": true
+    },
+    "nonlocking-summary.json": {
+      "checks": [
+        "PASS diagnostic: nonlocking absent LCI completes with invalid next state",
+        "PASS diagnostic: wholesale nonlocking swap writes arbitrary way on full miss",
+        "PASS stalled request head does not block other arbiter classes: 5 5 8 7",
+        "PASS busy same-DCU data head backpressures the shared ingress for 64 cycles",
+        "PASS clearing the head permits progress; another DCU can use its own slot"
+      ],
+      "passed": true
+    },
+    "summary.json": {
+      "checks": [
+        "PASS absent LCI stalls/retries on full directory (21 retries)",
+        "PASS absent LCI allocates a charged lock entry after a way is released",
+        "PASS UL releases charge even with full flag asserted",
+        "PASS stalled request head does not block other arbiter classes: 5 5 8 7",
+        "PASS busy same-DCU data head backpressures the shared ingress for 64 cycles",
+        "PASS clearing the head permits progress; another DCU can use its own slot"
+      ],
+      "passed": true
+    }
+  },
+  "result": {
+    "checks": [
+      "PASS filled all sixteen ways via R12/RDDA after clean target eviction",
+      "PASS actual directory absent-LCI blocked without writes/LCIA for 512 cycles (57 retries)",
+      "PASS full-set hit invalidation completes and retains existing lock entry",
+      "PASS actual directory absent-LCI blocked without writes/LCIA for 512 cycles (57 retries)",
+      "PASS releasing resident lock permits absent LCI allocation and LCIA",
+      "PASS all fifteen unrelated resident entries and other-set pending read preserved"
+    ],
+    "command": [
+      "verilator",
+      "--binary",
+      "--timing",
+      "--assert",
+      "-Wno-fatal",
+      "--top-module",
+      "DcsDirectoryTb",
+      "--Mdir",
+      "/build/directory-results/obj",
+      "-o",
+      "test",
+      "/build/vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv",
+      "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv",
+      "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/dcu/tag_state_ram/rtl/tag_state_ram.sv",
+      "/build/vivado/eci/directory-controller-slice/dcs/dcu/ram_tdp/rtl/ram_tdp.sv",
+      "/build/hw/test/rtl/dcs_pressure/XpmTdpModel.sv",
+      "/build/hw/test/rtl/dcs_pressure/DcsDirectoryTb.sv"
+    ],
+    "directory_test": true,
+    "interpretation": "active auto-lock allocation dependency reproduced",
+    "log_sha256": "35aa26b9b88305d0d339506cf50b79b36f2f388baebf0cbc50e914769cfff6a4",
+    "passed": true,
+    "primitive_model": "test-only common-clock XPM RAM",
+    "protocol": "auto_lock",
+    "scope": "Targeted actual DCS controller/table/arbiter checks, not whole-slice validation.",
+    "sources": {
+      "hw/test/rtl/dcs_pressure/DcsDirectoryTb.sv": "ca101d8e1802ea7fddc22ae89be876a592fdc70337ba42bd37a9d1cb541ab7c3",
+      "hw/test/rtl/dcs_pressure/XpmTdpModel.sv": "1b412f32dc063e7cccea0008ad3085fb4a0cf4c834cf3182d0bcab96c06b7ca7",
+      "vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv": "842a0615ee17b98bfdccfbb5754ae815c1a6918d808199b5214ec9a2182ee339",
+      "vivado/eci/directory-controller-slice/dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv": "7afa523d96d9219d573cd3a44d1d9375ec96ccfe61f2d6180e90197123662e77",
+      "vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv": "62b824dff672dcbfa614da43345d1acaaa50f48c1c751303d28b9b94fb296a3a",
+      "vivado/eci/directory-controller-slice/dcs/dcu/ram_tdp/rtl/ram_tdp.sv": "f9313ed23a6079c6e85dce2873041386195384063f4e0cdced4ddc7f15c25fc5",
+      "vivado/eci/directory-controller-slice/dcs/dcu/tag_state_ram/rtl/tag_state_ram.sv": "9055b1e890dc591fd3cdfd50e66eba8c2347a2ab14b2b6bdbf6fc604c25efc95",
+      "vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv": "34f43b924b8a032c9827a391e6ea40104dedcc1dff4bd7c88d6a349d4d47527f",
+      "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv": "21445a95f781a2578d698f83ab1774d4437fa1c1dbf06435792df54486c1ce0e",
+      "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv": "9ee02b95885d9e58909d6ee0d1cadbf1d2632bce86c1e27a2e4310ba7b27cdec",
+      "vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv": "2bea2510bc89ce7ed52329fec6a9b0b8cd7b9b41e25c5d80e40353fe41dd3e0d"
+    },
+    "verilator": "Verilator 5.048 2026-04-26 rev v5.048"
+  },
+  "runner_sha256": "1159739ad912edffa97753e67575ded544efb9178a17e159a3cd291b3a80bb8c",
+  "scope": "Actual TSU/tag_state_ram/ram_tdp/controller/ROM; behavioral XPM primitive, decoded endpoint events and controlled memory responses. Not full NIC/THX or board reachability.",
+  "status": "Auto-lock retained; full-set absent-LCI obstruction reachable in directory-component RTL."
+}

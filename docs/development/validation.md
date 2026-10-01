@@ -141,3 +141,11 @@ For the cache/directory admission contracts and full-set LCI counterexample, run
 arbiter and data-gate RTL with controlled surroundings. See the
 [directory-pressure report](../hardware/directory-pressure.md) for scope and the
 distinction between a passing diagnostic and a reproduced design progress failure.
+
+The `dcs-pressure` target also runs the reset-to-full auto-lock sequence through
+actual TSU/tag RAM and its reset wrapper, using a test XPM RAM primitive model.
+`directory-summary.json` and `directory-events.log` record naturally reached
+full-set absent-LCI stalls, successful hit invalidation, and UL-enabled recovery.
+These checks establish directory-component reachability, not the complete
+Lauberhorn/THX execution. Auto-lock remains selected; the nonlocking diagnostic
+is retained only as a regression of the unsafe wholesale-swap experiment.
