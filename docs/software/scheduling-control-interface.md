@@ -43,6 +43,11 @@ new userspace execution, or for a separate software ACK. Fabric cache responses
 may occur autonomously while the CPU is in the kernel. Shared MMIO backpressure
 must not suppress the traffic needed to finish the read or unrelated workers.
 No scheduler/callback lock needed by those paths may be held across a blocked read.
+This includes kill IRQ service on the reader's CPU: draining the old IRQ is an
+activation prerequisite, not permission to hold a read response until its blocked
+reader executes the handler. If the response arrives before IRQ drain, retain its
+snapshot and keep the successor non-runnable until the old notification is
+consumed. Preserve the old IRQ target/reference across that interval (H19).
 
 ## Register payload and transaction boundaries
 

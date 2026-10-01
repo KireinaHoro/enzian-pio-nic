@@ -143,7 +143,7 @@ nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-transport
 nix build .#checks.x86_64-linux.scheduling-axi
 nix build .#checks.x86_64-linux.scheduling-kill-transport
-nix build .#checks.x86_64-linux.scheduling-full
+nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full
 nix develop -c python3 tools/scheduling/check_models.py \
   --races-only --output out/review-races --timeout 900 --workers 4
 nix develop -c python3 tools/scheduling/check_models.py \

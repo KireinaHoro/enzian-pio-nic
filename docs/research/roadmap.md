@@ -48,27 +48,35 @@ local handoff sequencing is tracked as implementation obligations. The expanded
 33-outcome Nix regression passed before the fixed-pool clarification. The updated
 12-outcome focused suite passes; individual withdrawal and ordinary unavailable
 dispatch are excluded. Goal 2 remains incomplete.
-A joined host-driven handoff checks the exact Goal 1 entry predicate; early-NACK
-transport integration, broader wake/selection races and implementation remain
-in progress on `goal2-scheduling-model`. Goal 2 must establish the settled entry contract and preserve unaffected
+A joined host-driven handoff checks the Goal 1 resource-entry predicate. The
+[scheduling composition](../hardware/scheduling-composition.md) now connects
+wake/claim races and kill to RX/TX cleanup; its selected bounded matrix
+has completed on `goal2-scheduling-model`. Endpoint freshness and concrete
+control/transport correspondence remain assumptions. Goal 2 must establish the settled entry contract and preserve unaffected
 workers' progress during scheduling transitions, reusing the resource model.
 
 ### Active Goal 2 workstreams and compaction handoff (2026-10-01)
 
-These four workstreams remain open. **Active modeling now connects items 1 and 2;
-item 3 remains an explicit hardware-service contract.**
+**The selected bounded modeling round for items 1 and 2 is complete.** Their
+broader/refinement extensions remain open; item 3 remains an explicit
+hardware-service contract, and item 4 is implementation and validation.
 Continue on `goal2-scheduling-model`. The selected LCI-only endpoint and its
 checks are recorded below. The [module review](../hardware/model-review.md)
 consolidates cache/transport composition, removes UL from the active models and
 separates source/configuration/evidence; see the [model index](../../model/README.md).
 The new [scheduling composition](../hardware/scheduling-composition.md) joins the
-focused wake/claim contracts with kill and transport. Its bounded validation is
-currently running; retain the hardware-service assumptions explicitly.
+focused wake/claim contracts with kill and transport. Eleven positive cases, eleven
+expected faults, three reachability witnesses and all 33 module checks completed.
+The committed-TX kill/handoff case with a recurring peer completed by checkpoint
+continuation after its original timeout; the report distinguishes that result
+from the 24 completed Nix case derivations. This permits the next implementation
+round under the listed service assumptions; it does not mark Goal 2 or hardware
+verification complete.
 
 | Item | Remaining work | Status / completion evidence |
 | --- | --- | --- |
-| 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. |
-| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Active in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Validation in progress. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
+| 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
+| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
 | 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: LCI-only non-locking ROM selected in the build; hardware validation pending.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
@@ -107,8 +115,10 @@ ordering, independent service and exclusion of target reads behind the held
 doorbell remain hardware obligations, not established guarantees. The [kill-tail composition](../hardware/kill-transport-composition.md) connects
 resource cleanup to the existing kill control model. The [new composition](../hardware/scheduling-composition.md) now joins broader
 wake, reservation and repeated-handoff liveness by reusing component properties
-and adding cross-component control/transport relations; consult its validation
-status before treating it as checked evidence. Reconcile the composed resource model with this
+and adding cross-component control/transport relations. Its selected bounded matrix
+is checked; the report lists larger combinations not checked and hardware
+correspondence obligations (including control freshness, MMIO/IRQ ordering and
+RX-loan reuse). Reconcile the composed resource model with this
 selected endpoint; earlier auto-lock counterexamples and conditional nonallocating
 runs are not a new proof for the integrated ROM. No automatic ICI eviction policy is introduced.
 The following auto-lock results remain historical motivation and regression
