@@ -6,6 +6,7 @@ let
     fileset = lib.fileset.unions [
       ../../tools/progress/check_dcs_pressure.py
       ../../tools/progress/check_lock_tables.py
+      ../../data/eci/sys_trace/trace_metadata.py
       ../../tools/progress/directory_witness.py
       ../../tools/progress/capacity.py
       ../../model/steady/selected-8k.json
@@ -22,6 +23,13 @@ let
       (dcs + "/dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv")
       (dcs + "/dcs/dcu/tag_state_ram/rtl/tag_state_ram.sv")
       (dcs + "/dcs/dcu/ram_tdp/rtl/ram_tdp.sv")
+      (dcs + "/dcs/dcu/dcu/rtl/dcu.sv")
+      (dcs + "/dcs/dcu/decode_eci_req/rtl/decode_eci_req.sv")
+      (dcs + "/dcs/dcu/gen_out_header/rtl/gen_out_header.sv")
+      (dcs + "/dcs/dcu/rd_trmgr/rtl/rd_trmgr.sv")
+      (dcs + "/dcs/dcu/wr_trmgr/rtl/wr_trmgr.sv")
+      (dcs + "/dcs/dcu/eci_trmgr/rtl/eci_trmgr.sv")
+      (dcs + "/dcs/dcs_dcus/rtl/dcs_dcus.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv")
@@ -35,7 +43,10 @@ in runCommand "lauberhorn-dcs-pressure" {
   python3 tools/progress/check_dcs_pressure.py --output results
   python3 tools/progress/check_dcs_pressure.py --no-auto-lock --output nonlocking-results
   python3 tools/progress/check_dcs_pressure.py --directory --output directory-results
+  python3 tools/progress/check_dcs_pressure.py --trace --output trace-results
   mkdir -p "$out"
+  cp trace-results/summary.json "$out/trace-summary.json"
+  cp trace-results/run.log "$out/trace-events.log"
   cp directory-results/summary.json "$out/directory-summary.json"
   cp directory-results/run.log "$out/directory-events.log"
   python3 tools/progress/check_lock_tables.py > "$out/lock-tables.json"

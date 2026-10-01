@@ -540,3 +540,61 @@ upstream coverage nor our tests establish a working ICI eviction mechanism.
 Any such implementation needs new producer/victim-selection tests, clean and
 dirty ICI completion tests, locked/transient-victim rejection, preservation of
 unrelated entries and shared-path progress while the original LCI waits.
+
+## Allocation-full tracing; eviction policy deferred
+
+Maintainer direction: prioritize observing allocation stalls. Keep auto-lock and
+leave automatic ICI eviction undecided. Local LC/LCI requests can themselves fill
+all sixteen ways with entries waiting for UL; those entries are not evictable.
+Thus forced CPU eviction could help some resident-entry pressure cases but is not
+a general guarantee of local allocation. A full-set stall is ordinary backpressure
+if a release will arrive; it is not by itself proof of deadlock.
+
+DCS commit `eb64df4` on `trace-directory-allocation` supplies the trace-only
+change. The [evidence manifest](../../model/steady/directory-trace-evidence.json)
+records six trace checks plus the existing 17 RTL diagnostic checks and table
+comparison, all completed through pinned Nix.
+
+The trace-only DCS change adds `ERR_RTG_ALLOC_FULL` (numeric 7, with `error=0`)
+when an allocating directory miss stalls for lack of a free way. The event carries
+that request's decoded opcode and full aligned aliased address (decoded back to
+PA using the matching trace tooling). Because the controller
+has not enabled the ROM on this path, `state=s1__1` and `action=STALL` are explicitly
+constructed diagnostic values, not a claimed ROM transition or directory write.
+The old trace could use the previous ROM request/action and a stale response
+address because the stalled request had not asserted ready. The slice address
+selector now uses the request/context header for stalled requests and RDDA/WDDA
+as well as accepted requests. No trace layout width or pre-existing enum value
+changes; the software metadata adds the new enum label.
+
+Repeated request-stall reports are limited to sixteen for the same header/VC
+across controller retry pulses. A different request or successful non-STALL
+request service rearms reporting. Gaps between retry pulses no longer clear the
+limit. A suppressed event does not mean the stall cleared; this is a bounded
+sample, not a stall-duration/retry counter. No new forwarding, victim selection,
+allocation, writeback or UL behavior is introduced.
+
+[`DcsTraceTb.sv`](../../hw/test/rtl/dcs_pressure/DcsTraceTb.sv) instantiates the
+actual DCU, including decoder, ROM, controller, transaction managers and directory,
+with the same test XPM RAM primitive model as the directory regression. It checks:
+
+- Sixteen absent-target LC/LCI operations fill a set entirely with retained locks.
+- Additional LC and LCI stall, with the correct decoded request, high address bits,
+  nonfatal allocation-full marker and exactly sixteen reports across 66 retries.
+- UL frees one entry and permits the waiting LCI to complete.
+- Sixteen CPU R12/RDDA fills reach the same full-set marker on an absent LCI.
+
+The shared slice address-selection helper is exercised using the actual DCU
+outputs, including a previous response to a different address. The full 32-DCU
+trace mux, DMA path and board capture are not instantiated by this test. The
+existing Nix `dcs-pressure` target now emits `trace-summary.json` and
+`trace-events.log` in addition to its previous diagnostics.
+
+For a later matched-board capture, filter DC events for `ERR_RTG_ALLOC_FULL` and
+LC/LCI, then correlate prior LC/LCI acceptance/LCIA and later UL or CPU-victim
+traffic using the same PA/set/DCU. This event does not encode occupancy composition;
+classifying a full set as CPU-resident, locked or transient requires sufficient
+history or additional instrumentation. Missing events, bounded suppression and
+capture loss prevent concluding that no release existed from silence alone.
+Use the normal F_MAC1 freeze/capture and matched trace-map procedure. No board
+capture or timing-validation result is claimed for this change.
