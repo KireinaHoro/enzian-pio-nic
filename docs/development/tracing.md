@@ -598,3 +598,20 @@ do not subtract raw timestamps across domains. Reconstruct queue residence,
 active execution, suspended waits, coherence drain and kernel routing/dispatch
 separately. Report incomplete intervals and trace loss. These events support the
 analysis; they are not themselves measured scheduling results.
+
+## Directory allocation stalls
+
+The trace-only `trace-directory-allocation` DCS branch adds nonfatal
+`ERR_RTG_ALLOC_FULL` (code 7). It identifies an allocating miss with no free RTG
+way and preserves the blocked request's opcode/address even though it was not
+accepted. `state=s1__1`, `action=STALL` are diagnostic values on this pre-ROM path.
+Use metadata containing the new label with the matching DCS revision; old payload
+field widths and enum values are unchanged.
+
+The marker applies to local LC/LCI as well as other allocating misses. It does not
+imply CPU residency, an evictable victim, or deadlock: the full set may consist of
+local locks waiting for UL. At most sixteen reports for a repeated header/VC are
+emitted until a different request or successful request service rearms reporting.
+Do not infer stall clearance from absent samples. Correlate LC/LCI, LCIA, UL and
+CPU eviction events, preserving pre-freeze loss status and incomplete-history
+limitations. See the [allocation-trace contract and regression](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred).

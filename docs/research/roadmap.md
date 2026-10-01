@@ -74,7 +74,15 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: auto-lock allocation guarantee
+#### Resume here: trace auto-lock allocation pressure first
+
+**Current priority:** trace the condition; automatic ICI eviction remains an
+undecided policy. LC/LCI can fill a set with local locks pending UL, leaving no
+CPU-resident victim to evict. The [trace-only change](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred)
+adds an allocation-full marker with the blocked address/opcode and bounded retry
+reporting. Real-DCU tests cover both entirely locked and CPU-resident full sets.
+Board capture is pending; no allocation/coherence policy has changed.
+
 
 **Maintainer decision: retain auto-lock.** The nonlocking table experiment is
 historical investigation; do not pursue a wholesale variant switch. Its control
@@ -112,8 +120,8 @@ controller feature.
    gate model remains useful for response-ordering checks, not a reason to switch
    protocol or a solution to absent-target allocation.
 
-**No sidecar lock, extra way, forced eviction, cache flush, protocol switch or
-production RTL change is selected or implemented.** Component reachability is
+**No sidecar lock, extra way, forced eviction, cache flush or protocol switch is
+selected or implemented. Only trace instrumentation has changed in production RTL.** Component reachability is
 now simulation-tested; complete Lauberhorn/THX execution and board deadlock are
 not established. Do not restart timing optimization or claim Goal 2 complete.
 
