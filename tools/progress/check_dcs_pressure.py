@@ -20,19 +20,22 @@ SOURCES = [Path('vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv'),
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True, type=Path)
+    p.add_argument('--no-auto-lock', action='store_true', help='test the alternative table/controller, excluding the UL decoder')
     a=p.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
+    sources = [Path(str(f).replace('dc_stmc_auto_lock/', 'dc_stmc_auto_no_lock/')) if a.no_auto_lock else f for f in SOURCES]
     cmd=['verilator','--binary','--timing','--assert','-Wno-fatal','--top-module','DcsPressureTb',
-         '--Mdir',str(out/'obj'),'-o','test', *map(lambda f:str(ROOT/f),SOURCES)]
+         '--Mdir',str(out/'obj'),'-o','test', *map(lambda f:str(ROOT/f),sources)]
+    if a.no_auto_lock: cmd.append('+define+NO_AUTO_LOCK')
     with (out/'build.log').open('w') as log:
         build=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT,timeout=180)
     if build.returncode:
         print('\n'.join((out/'build.log').read_text().splitlines()[-30:])); return 1
     result=subprocess.run([str(out/'obj/test')],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
     (out/'run.log').write_text(result.stdout)
-    passed=result.returncode==0 and result.stdout.count('PASS ')==6
-    summary={'passed':passed,'scope':__doc__, 'command':cmd,
+    passed=result.returncode==0 and result.stdout.count('PASS ')==(4 if a.no_auto_lock else 6)
+    summary={'passed':passed,'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
         'verilator':subprocess.check_output(['verilator','--version'],text=True).strip(),
-        'sources':{str(f):hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in SOURCES},
+        'sources':{str(f):hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in sources},
         'log_sha256':hashlib.sha256(result.stdout.encode()).hexdigest(),
         'checks':[line for line in result.stdout.splitlines() if line.startswith('PASS ')]}
     (out/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')

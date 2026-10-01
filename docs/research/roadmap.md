@@ -64,7 +64,7 @@ not authorization to treat a proposed lock mechanism as the selected design.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | Pending. The [focused kill/exit model](../hardware/kill-exit-verification.md) checks control ordering under endpoint service assumptions. Compose actual RX/TX, invalidation/ACK/unlock and buffer/reply ownership; show completion does not depend on the killed application's execution or an unrelated stalled worker. |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; full combined temporal runs remain incomplete. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: DCS local-lock allocation investigation next.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: nonlocking candidate passes targeted allocation check; refill races next.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -75,6 +75,20 @@ PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activat
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
 #### Resume here: does 2F2F need DCS auto-lock?
+
+The [non-auto-lock audit](../hardware/directory-pressure.md#non-auto-lock-investigation-2026-10-01)
+now compares both generated tables and tests the alternative with the actual
+controller. Nonlocking removes absent-LCI allocation in this bounded test.
+No production switch is selected. Next check speculative/late control and overflow
+refills around LCIA/publication, dirty writeback completion, and stopped-owner
+requests. The current immediate-UL behavior does not protect the whole operation.
+Maintainer clarification and source audit identify serialized AXI reload responses
+as the intended exclusion mechanism. A narrow gate model passes with two negative
+sensitivity checks. Next establish entry to that gate for already queued/in-flight
+requests and preemption/kill without an active opposite-parity read; retain
+independent writeback/LCIA service while the read is held.
+The alternative also needs a matching decoder/NIC interface: its package has no UL.
+
 
 The maintainer reports that the DC is provisioned to track all CPU-cached lines
 without explicit directory evictions. The DCS design notes support that intent

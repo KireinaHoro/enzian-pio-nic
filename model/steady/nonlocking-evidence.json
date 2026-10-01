@@ -1,0 +1,482 @@
+{
+  "model": {
+    "cases": {
+      "axi-reload-gate": {
+        "command": [
+          "java",
+          "-Xmx1024m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "2",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/axi-reload-gate/states",
+          "-teSpecOutDir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/axi-reload-gate",
+          "-config",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/axi-reload-gate/AxiReloadGate.cfg",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/axi-reload-gate/AxiReloadGate.tla"
+        ],
+        "config_sha256": "abf600eb600b4b3d7b634a0f080147b8d71cac35b81432b18f9c61be153c4b7c",
+        "elapsed_seconds": 0.666,
+        "expected_violation": null,
+        "log_sha256": "29cfc72f7eae44c25c20a26dfe41b4e91984c8608a83e7bce6e281d6d58809cf",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(8) at 2026-10-01 09:54:53: 32 states generated, 24 distinct states found, 0 states left on queue.",
+          "32 states generated, 24 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 8."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-axi-release-gate": {
+        "command": [
+          "java",
+          "-Xmx1024m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "2",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-release-gate/states",
+          "-teSpecOutDir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-release-gate",
+          "-config",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-release-gate/AxiReloadGate.cfg",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-release-gate/AxiReloadGate.tla"
+        ],
+        "config_sha256": "a06b6e2c780b4607158370703ab926f0ce46ce93d2b86feefbaf9bbbd7f0dd6a",
+        "elapsed_seconds": 0.669,
+        "expected_violation": "Completes",
+        "log_sha256": "caeb548608cc7a4ae2705e3e6fafe6b5e2d66c55931bb27242885c956a922f9a",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "Progress(3) at 2026-10-01 09:54:55: 10 states generated, 8 distinct states found, 0 states left on queue.",
+          "10 states generated, 8 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 3."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-axi-reload-bypass": {
+        "command": [
+          "java",
+          "-Xmx1024m",
+          "-XX:+UseParallelGC",
+          "-cp",
+          "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+          "tlc2.TLC",
+          "-workers",
+          "2",
+          "-lncheck",
+          "final",
+          "-metadir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-reload-bypass/states",
+          "-teSpecOutDir",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-reload-bypass",
+          "-config",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-reload-bypass/AxiReloadGate.cfg",
+          "/local/home/pengxu/work-local/lauberhorn/platform/out/scheduling/axi-reload-gate/bad-axi-reload-bypass/AxiReloadGate.tla"
+        ],
+        "config_sha256": "1c8dba6709fccfb7cd546dbf369c42d8bb4593c7150bf3a0436724015c2016b6",
+        "elapsed_seconds": 0.667,
+        "expected_violation": "NoStaleRefill",
+        "log_sha256": "ddc3a100c9f74c549fb26b5e2921725e5255e399e40b60803585d18522f27038",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "78 states generated, 47 distinct states found, 5 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      }
+    },
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n"
+  },
+  "model_sources": {
+    "model/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+    "tools/scheduling/check_models.py": "a7c389b6d6ca71bb8e7eb4166f5345ed9246115761d5ae5b7dc04b7c2cbd5f7e"
+  },
+  "rtl": {
+    "lock-tables.json": {
+      "differences": [
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "LC",
+          "state": "s1__1"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "LCI",
+          "state": "s1__1"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "LC",
+          "state": "s1__1_A11"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "LCI",
+          "state": "s1__1_A11"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A22",
+          "nonlocking": "s1__1_A22",
+          "request": "LC",
+          "state": "s1__1_A22"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "LC",
+          "state": "s1__1_V21"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "LCI",
+          "state": "s1__1_V21"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2",
+          "nonlocking": "s1__2",
+          "request": "LC",
+          "state": "s1__2"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2_A22",
+          "nonlocking": "s1__2_A22",
+          "request": "LC",
+          "state": "s1__2_A22"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "A11",
+          "state": "s1pCI__1_A21"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "A21",
+          "state": "s1pCI__1_A21"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "V21",
+          "state": "s1pCI__1_A21"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "A31",
+          "state": "s1pCI__1_A31d"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "V31",
+          "state": "s1pCI__1_A31d"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "V31",
+          "state": "s1pCI__1_V31"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "V32",
+          "state": "s1pCI__1_V31"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "V32",
+          "state": "s1pCI__1_V32"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "V32",
+          "state": "s1pCI__1_V32_A11"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "WDDA",
+          "state": "s1pCI__1_WDDA"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "WDDA",
+          "state": "s1pCI__1_WDDA_A11"
+        },
+        {
+          "action": "SEND_LCIA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "WDDA",
+          "state": "s1pCI__1_WDDA_V21"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "A32",
+          "state": "s1pC__1_A32"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A22",
+          "nonlocking": "s1__1_A22",
+          "request": "V32",
+          "state": "s1pC__1_A32"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "V31",
+          "state": "s1pC__1_V31"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "V32",
+          "state": "s1pC__1_V31"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "V32",
+          "state": "s1pC__1_V32"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1",
+          "nonlocking": "s1__1",
+          "request": "WDDA",
+          "state": "s1pC__1_WDDA"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "WDDA",
+          "state": "s1pC__1_WDDA_A11"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A22",
+          "nonlocking": "s1__1_A22",
+          "request": "WDDA",
+          "state": "s1pC__1_WDDA_A22"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_V21",
+          "nonlocking": "s1__1_V21",
+          "request": "WDDA",
+          "state": "s1pC__1_WDDA_V21"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2",
+          "nonlocking": "s1__2",
+          "request": "A32",
+          "state": "s1pC__2_A32d"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__1_A11",
+          "nonlocking": "s1__1_A11",
+          "request": "V31",
+          "state": "s1pC__2_A32d"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2_A22",
+          "nonlocking": "s1__2_A22",
+          "request": "V32",
+          "state": "s1pC__2_A32d"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2",
+          "nonlocking": "s1__2",
+          "request": "V32",
+          "state": "s1pC__2_V32"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2",
+          "nonlocking": "s1__2",
+          "request": "WDDA",
+          "state": "s1pC__2_WDDA"
+        },
+        {
+          "action": "SEND_LCA",
+          "locked": "s1pUL__2_A22",
+          "nonlocking": "s1__2_A22",
+          "request": "WDDA",
+          "state": "s1pC__2_WDDA_A22"
+        }
+      ],
+      "explicit_transitions": [
+        2028,
+        1800
+      ],
+      "passed": true,
+      "scope": "Compare explicit generated table transitions; not a protocol refinement proof.",
+      "table_sha256": {
+        "auto_lock": "9ee02b95885d9e58909d6ee0d1cadbf1d2632bce86c1e27a2e4310ba7b27cdec",
+        "auto_no_lock": "9ed97d6603990bc856a54d225951dca479c2e9c413436087ef04472315d6c35c"
+      }
+    },
+    "nonlocking-summary.json": {
+      "checks": [
+        "PASS nonlocking absent LCI completes with full directory and no charge",
+        "PASS stalled request head does not block other arbiter classes: 5 5 8 7",
+        "PASS busy same-DCU data head backpressures the shared ingress for 64 cycles",
+        "PASS clearing the head permits progress; another DCU can use its own slot"
+      ],
+      "command": [
+        "verilator",
+        "--binary",
+        "--timing",
+        "--assert",
+        "-Wno-fatal",
+        "--top-module",
+        "DcsPressureTb",
+        "--Mdir",
+        "/build/nonlocking-results/obj",
+        "-o",
+        "test",
+        "/build/vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv",
+        "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv",
+        "/build/hw/test/rtl/dcs_pressure/DcsPressureTb.sv",
+        "+define+NO_AUTO_LOCK"
+      ],
+      "log_sha256": "97f88148d74f45bce85ad3291bbda297c6d1a2f78f752515af01d2bf3695246b",
+      "passed": true,
+      "protocol": "auto_no_lock",
+      "scope": "Targeted actual DCS controller/table/arbiter checks, not whole-slice validation.",
+      "sources": {
+        "hw/test/rtl/dcs_pressure/DcsPressureTb.sv": "1fe058c949e5e9f31fca3a2132bf52da67a83d67864e49ed67d77398e2addb15",
+        "vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv": "b3d4ba5a46b40f3cbd7139c3611ca30723012c271c23f395658962755b32f9b9",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv": "dc49a687d927da5890ba84f04dfe2ad24b81234f3cc693e567b7fe9d1101b067",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv": "5dc9c4c8bc2863b8067eb8c24611029be0e0ca38aa0214d8226ccb0205b9298c",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv": "3cb6e901dd6754f6612fdf66b9b33300d6c8aedd2b63b0375b2da3d8abf304f3",
+        "vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv": "842a0615ee17b98bfdccfbb5754ae815c1a6918d808199b5214ec9a2182ee339",
+        "vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv": "62b824dff672dcbfa614da43345d1acaaa50f48c1c751303d28b9b94fb296a3a",
+        "vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv": "34f43b924b8a032c9827a391e6ea40104dedcc1dff4bd7c88d6a349d4d47527f",
+        "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv": "25482d93d193bdefbde40872927b31c59ffd7bdac209f6f79387db61c4460e68",
+        "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv": "9ed97d6603990bc856a54d225951dca479c2e9c413436087ef04472315d6c35c",
+        "vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv": "2bea2510bc89ce7ed52329fec6a9b0b8cd7b9b41e25c5d80e40353fe41dd3e0d"
+      },
+      "verilator": "Verilator 5.048 2026-04-26 rev v5.048"
+    },
+    "summary.json": {
+      "checks": [
+        "PASS absent LCI stalls/retries on full directory (21 retries)",
+        "PASS absent LCI allocates a charged lock entry after a way is released",
+        "PASS UL releases charge even with full flag asserted",
+        "PASS stalled request head does not block other arbiter classes: 5 5 8 7",
+        "PASS busy same-DCU data head backpressures the shared ingress for 64 cycles",
+        "PASS clearing the head permits progress; another DCU can use its own slot"
+      ],
+      "command": [
+        "verilator",
+        "--binary",
+        "--timing",
+        "--assert",
+        "-Wno-fatal",
+        "--top-module",
+        "DcsPressureTb",
+        "--Mdir",
+        "/build/results/obj",
+        "-o",
+        "test",
+        "/build/vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv",
+        "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv",
+        "/build/vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv",
+        "/build/vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv",
+        "/build/hw/test/rtl/dcs_pressure/DcsPressureTb.sv"
+      ],
+      "log_sha256": "1a7950dce07efda404b65077a17492b46475c14562553f20fe51948bb85f2dd8",
+      "passed": true,
+      "protocol": "auto_lock",
+      "scope": "Targeted actual DCS controller/table/arbiter checks, not whole-slice validation.",
+      "sources": {
+        "hw/test/rtl/dcs_pressure/DcsPressureTb.sv": "1fe058c949e5e9f31fca3a2132bf52da67a83d67864e49ed67d77398e2addb15",
+        "vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv": "b3d4ba5a46b40f3cbd7139c3611ca30723012c271c23f395658962755b32f9b9",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv": "dc49a687d927da5890ba84f04dfe2ad24b81234f3cc693e567b7fe9d1101b067",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv": "5dc9c4c8bc2863b8067eb8c24611029be0e0ca38aa0214d8226ccb0205b9298c",
+        "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv": "3cb6e901dd6754f6612fdf66b9b33300d6c8aedd2b63b0375b2da3d8abf304f3",
+        "vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv": "842a0615ee17b98bfdccfbb5754ae815c1a6918d808199b5214ec9a2182ee339",
+        "vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv": "62b824dff672dcbfa614da43345d1acaaa50f48c1c751303d28b9b94fb296a3a",
+        "vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv": "34f43b924b8a032c9827a391e6ea40104dedcc1dff4bd7c88d6a349d4d47527f",
+        "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv": "21445a95f781a2578d698f83ab1774d4437fa1c1dbf06435792df54486c1ce0e",
+        "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv": "9ee02b95885d9e58909d6ee0d1cadbf1d2632bce86c1e27a2e4310ba7b27cdec",
+        "vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv": "2bea2510bc89ce7ed52329fec6a9b0b8cd7b9b41e25c5d80e40353fe41dd3e0d"
+      },
+      "verilator": "Verilator 5.048 2026-04-26 rev v5.048"
+    }
+  },
+  "scope": "Nonlocking candidate audit and narrow AXI gate contract; no production switch or whole-system proof"
+}
