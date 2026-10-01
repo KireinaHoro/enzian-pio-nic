@@ -78,6 +78,9 @@ class EciThreadClRouter extends FiberPlugin {
         val enabled = Bool()
         val prefix = Bits(THR_PREFIX_WIDTH bits)
       }), NUM_CORES.get)
+      // The simulation scoreboard must start empty, like the thread DB.
+      // Otherwise randomized register contents can invent an active prefix.
+      prefixOnCores.foreach(_.enabled.init(False))
 
       busCtrl.onWrite(idxAddr) {
         prefixOnCores(idx).enabled := writePort.enabled

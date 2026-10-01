@@ -28,11 +28,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   val txTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx", LauberhornTraceDma.NicHostInterfaceSlr)
   val rxLciTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_rx_lcl_lci", LauberhornTraceDma.NicHostInterfaceSlr)
   val rxLciaTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_rx_lcl_lcia", LauberhornTraceDma.NicHostInterfaceSlr)
-  val rxUlEnqTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_rx_lcl_ul_enq", LauberhornTraceDma.NicHostInterfaceSlr)
   val txLciTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx_lcl_lci", LauberhornTraceDma.NicHostInterfaceSlr)
   val txLciaTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx_lcl_lcia", LauberhornTraceDma.NicHostInterfaceSlr)
-  val txUlEnqTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_tx_lcl_ul_enq", LauberhornTraceDma.NicHostInterfaceSlr)
-  val ulOutTp = during setup host[TracePlugin].makePort(s"datapath_core${coreID}_lcl_ul_out", LauberhornTraceDma.NicHostInterfaceSlr)
   val irqTp = if (isBypass) during setup host[TracePlugin].makePort("datapath_bypass_irq", LauberhornTraceDma.NicHostInterfaceSlr) else null
 
   if (isBypass) {
@@ -243,23 +240,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxInvDone := False
     txInvDone := False
 
-    val rxUlFlow = Flow(EciCmdDefs.EciAddress).setIdle()
-    val txUlFlow = Flow(EciCmdDefs.EciAddress).setIdle()
-    val rxUlOverflow = Bool()
-    val txUlOverflow = Bool()
-    // max number of inflight ULs: overflow CLs + 2 ctrl CLs
-    rxLcl.ul << rxUlFlow.toStream(rxUlOverflow).queue(numOverflowCls + 2)
-    txLcl.ul << txUlFlow.toStream(txUlOverflow).queue(numOverflowCls + 2)
-    assert(
-      assertion = !rxUlOverflow,
-      message = s"RX UL flow overflow",
-      severity = FAILURE
-    )
-    assert(
-      assertion = !txUlOverflow,
-      message = s"TX UL flow overflow",
-      severity = FAILURE
-    )
+    // The selected DCS endpoint completes LCI without retaining a UL lock.
+    rxLcl.ul.setIdle()
+    txLcl.ul.setIdle()
 
     rxLcl.lcia.setBlocked()
     txLcl.lcia.setBlocked()
@@ -298,24 +281,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       tp.trace(eventName, coreTd, hostMsgTd, LclAddress(address))
     }
 
-    def recvLciaSendUl(lcia: Stream[Bits], ulFlow: Flow[Bits], counter: Counter, lciaTracePort: TracePlugin#TracePort, ulEnqTracePort: TracePlugin#TracePort, hostMsgTd: TraceData): Unit = {
+    def recvLcia(lcia: Stream[Bits], counter: Counter, lciaTracePort: TracePlugin#TracePort, hostMsgTd: TraceData): Unit = {
       lcia.freeRun()
       when (lcia.fire) {
         traceLcl(lciaTracePort, "EciLclLciaFire", hostMsgTd, lcia.payload)
-        traceLcl(ulEnqTracePort, "EciLclUlEnqueue", hostMsgTd, lcia.payload)
-        ulFlow.payload := lcia.payload
-        ulFlow.valid := True
         if (counter != null)
           counter.increment()
       }
     }
 
-    val ulTracePayload = Bits(EciCmdDefs.ECI_ADDR_WIDTH bits)
-    ulTracePayload := txLcl.ul.payload
-    when (rxLcl.ul.fire) {
-      ulTracePayload := rxLcl.ul.payload
-    }
-    traceLcl(ulOutTp, "EciLclUlFire", invalidHostMsgTd, ulTracePayload) := (rxLcl.ul.fire || txLcl.ul.fire)
 
     val rxFsm = new StateMachine {
       def handlePreempt() = {
@@ -416,14 +390,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
           }
 
-          recvLciaSendUl(rxLcl.lcia, rxUlFlow, rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLcia(rxLcl.lcia, rxOverflowInvAcked, rxLciaTp, rxHostMsgTd)
         }
       }
       val waitDataLciaDone: State = new State {
         whenIsActive {
-          recvLciaSendUl(rxLcl.lcia, rxUlFlow, rxOverflowInvAcked, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLcia(rxLcl.lcia, rxOverflowInvAcked, rxLciaTp, rxHostMsgTd)
 
           when (rxOverflowInvAcked === rxOverflowToInvalidate) {
+            // Preserve the historical trace name; completion no longer sends UL.
             rxTp.trace("EciRxDataLciaUlDone", rxOverflowTd: _*)
             goto(invalidateCtrl)
           }
@@ -443,7 +418,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          recvLciaSendUl(rxLcl.lcia, rxUlFlow, numRetired, rxLciaTp, rxUlEnqTp, rxHostMsgTd)
+          recvLcia(rxLcl.lcia, numRetired, rxLciaTp, rxHostMsgTd)
 
           when (rxLcl.lcia.fire) {
             // always toggle, even if NACK was sent
@@ -511,7 +486,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       }
       val waitInvResp: State = new State {
         whenIsActive {
-          recvLciaSendUl(txLcl.lcia, txUlFlow, null, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLcia(txLcl.lcia, null, txLciaTp, txHostMsgTd)
 
           when (txLcl.lcia.fire) {
             // we should've latched tx descriptor in savedTxDesc
@@ -546,14 +521,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             }
           }
 
-          recvLciaSendUl(txLcl.lcia, txUlFlow, txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLcia(txLcl.lcia, txOverflowInvAcked, txLciaTp, txHostMsgTd)
         }
       }
       val waitDataLciaDone: State = new State {
         whenIsActive {
-          recvLciaSendUl(txLcl.lcia, txUlFlow, txOverflowInvAcked, txLciaTp, txUlEnqTp, txHostMsgTd)
+          recvLcia(txLcl.lcia, txOverflowInvAcked, txLciaTp, txHostMsgTd)
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
+            // Preserve the historical trace name; completion no longer sends UL.
             txTp.trace("EciTxDataLciaUlDone", txOverflowTd: _*)
             goto(tx)
           }
@@ -581,7 +557,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxFsm.build()
     txFsm.build()
     preemptReq.ready := rxDrained && txFsm.isActive(txFsm.idle) &&
-      rxRouterQuiescent && txRouterQuiescent && !rxLcl.ul.valid && !txLcl.ul.valid
+      rxRouterQuiescent && txRouterQuiescent
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {

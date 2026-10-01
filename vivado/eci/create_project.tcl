@@ -7,7 +7,7 @@ proc print_help {} {
     variable script_file
     puts "Create vivado project for Lauberhorn.\n"
     puts "Syntax:"
-    puts "$script_file -tclargs --origin_dir <path> --gen_rtls <colon separated file list> --gen_xdcs <colon separated file list>"
+    puts "$script_file -tclargs --origin_dir <path> --dcs_rom <Nix ROM output> --gen_rtls <colon separated file list> --gen_xdcs <colon separated file list>"
     exit 0
 }
 
@@ -16,6 +16,7 @@ if { $::argc > 0 } {
         set option [string trim [lindex $::argv $i]]
         switch -regexp -- $option {
             "--origin_dir"    { incr i; set origin_dir [lindex $::argv $i] }
+            "--dcs_rom"       { incr i; set dcs_rom [lindex $::argv $i] }
             "--gen_rtls"      { incr i; set gen_rtls   [lindex $::argv $i] }
             "--gen_xdcs"      { incr i; set gen_xdcs   [lindex $::argv $i] }
             default {
@@ -40,6 +41,10 @@ if { ! [info exists gen_xdcs] } {
     return 1
 }
 
+if { ! [info exists dcs_rom] } { error "required option --dcs_rom (Nix dcsRom output)" }
+foreach name {eci_cc_defs.sv eci_cc_table.sv} {
+    if {![file isfile "$dcs_rom/$name"]} {error "missing generated DCS input: $name"}
+}
 set project "lauberhorn-eci"
 set part "xcvu9p-flgb2104-3-e"
 set top_module "lauberhorn_eci"
@@ -51,6 +56,7 @@ set dcs_src_dir "${src_dir}/directory-controller-slice"
 
 create_project $project ./$project -part $part
 set proj [current_project]
+set_property verilog_define {DCS_LAUBERHORN} [get_filesets sources_1]
 
 set_property "default_lib" "xil_defaultlib"                 $proj
 set_property "ip_cache_permissions" "read write"            $proj
@@ -68,8 +74,8 @@ add_files -fileset [get_filesets constrs_1] "${src_dir}/eci-toolkit/xdc"
 # Add DCS sources.
 # eci_cmd_defs is got from eci_toolkit.
 add_files -fileset [get_filesets sources_1] -norecurse \
-    "$dcs_src_dir/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv" \
-    "$dcs_src_dir/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv" \
+    "$dcs_rom/eci_cc_defs.sv" \
+    "$dcs_rom/eci_cc_table.sv" \
     "$dcs_src_dir/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv" \
     "$dcs_src_dir/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv" \
     "$dcs_src_dir/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv" \

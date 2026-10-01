@@ -10,6 +10,9 @@ let
     root = source;
   };
   tlc = pkgs.tlaplus18;
+  dcsRom = pkgs.callPackage ./hardware/dcs-rom.nix { };
+  dcsRomCheck = pkgs.callPackage ./checks/dcs-rom.nix { inherit dcsRom; };
+  dcsRtlCheck = pkgs.callPackage ./checks/dcs-pressure.nix { inherit dcsRom; };
   target = pkgs.pkgsCross.aarch64-multiplatform;
   crossGcc = target.buildPackages.gcc;
   deploymentTarget = import inputs.nixpkgs { system = "aarch64-linux"; };
@@ -30,6 +33,7 @@ let
     pkg-config
   ];
   genVerilog = pkgs.callPackage ./hardware/rtl.nix {
+    inherit dcsRom;
     src = sources.spinal [
       "build.mill"
       "hw"
@@ -120,6 +124,7 @@ in
 {
   inherit
     tlc
+    dcsRom
     runtimeTests
     dandelion
     target
@@ -144,12 +149,12 @@ in
     };
   };
   eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
-    inherit genVerilog staticShell;
+    inherit genVerilog staticShell dcsRom dcsRomCheck dcsRtlCheck;
     source = sources.vivado;
     gitRev = identity.revision;
   };
   checks = import ./checks {
-    inherit pkgs tlc;
+    inherit pkgs tlc dcsRom;
     src = sources.spinal [
       "build.mill"
       "hw"

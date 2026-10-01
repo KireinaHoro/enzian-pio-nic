@@ -17,7 +17,7 @@ if {[catch {
     cd $ci_output
     set ci_rtls [list "$ci_bundle/generated/NicEngine.v" "$ci_bundle/generated/NicEngine_ips.sv" "$ci_bundle/generated/lauberhorn_trace_dma.v"]
     set ci_xdcs [list "$ci_bundle/generated/NicEngine.xdc" "$ci_bundle/generated/lauberhorn_trace_dma.xdc"]
-    set argv [list --origin_dir "$ci_bundle/vivado/eci" --gen_rtls [join $ci_rtls :] --gen_xdcs [join $ci_xdcs :]]
+    set argv [list --dcs_rom "$ci_bundle/generated/dcs-rom" --origin_dir "$ci_bundle/vivado/eci" --gen_rtls [join $ci_rtls :] --gen_xdcs [join $ci_xdcs :]]
     set argc [llength $argv]
     source "$ci_bundle/vivado/eci/create_project.tcl"
     if {$ci_project_only} {

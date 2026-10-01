@@ -5,14 +5,22 @@
   source,
   genVerilog,
   gitRev,
+  dcsRom,
+  dcsRomCheck,
+  dcsRtlCheck,
 }:
 runCommand "lauberhorn-eci-vivado-inputs" { } ''
+  test -f ${dcsRomCheck}/summary.json
+  test -f ${dcsRtlCheck}/summary.json
   mkdir -p $out/vivado $out/deps/blocks/deps $out/generated $out/static-shell $out/tools/physical $out/tools/hardware
   cp -r ${lib.cleanSource (source + "/vivado/eci")} $out/vivado/eci
   for dep in verilog-axis verilog-axi; do
     cp -r ${source}/deps/blocks/deps/$dep $out/deps/blocks/deps/$dep
   done
   cp -r ${genVerilog}/. ${genVerilog.headers}/. ${genVerilog.devices}/. $out/generated/
+  mkdir -p $out/generated/dcs-rom
+  cp -r ${dcsRom}/. $out/generated/dcs-rom/
+  printf '%s\n' '${builtins.unsafeDiscardStringContext dcsRom.drvPath}' > $out/dcs-rom-derivation
   cp ${staticShell} $out/static-shell/static_shell_routed.dcp
   cp ${source}/tools/physical/checkpoint.tcl $out/tools/physical/
   cp -r ${source}/tools/hardware/. $out/tools/hardware/

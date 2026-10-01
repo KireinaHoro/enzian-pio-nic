@@ -209,15 +209,15 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           when (lcia.valid) {
             preemptCtrlCl.ready := False
             ptrace("PollBusy")
-            goto(unlockCheckBusy)
+            goto(checkBusyAfterLcia)
           }
         }
       }
-      val unlockCheckBusy: State = new State {
+      val checkBusyAfterLcia: State = new State {
         whenIsActive {
           preemptTimer.increment()
-          ul.valid := True
-          when (ul.ready) {
+          // Non-locking DCS: LCIA is completion; there is no UL handshake.
+          when (True) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready
               when (preemptTimer >= host[EciInterfacePlugin].hostIfCtrl.preemptCritSecTimeout) {
@@ -231,7 +231,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
                 goto(readBusyReq)
               }
             } otherwise {
-              // busy already low but locked, we can issue IPI
+              // busy already low after invalidation, we can issue IPI
               ptrace("ClearedBusyIssueIpi")
               goto(issueIpi)
             }
@@ -253,7 +253,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           lcia.freeRun()
           when (lcia.valid) {
             ptrace("CheckBusy")
-            goto(unlockCheckBusy)
+            goto(checkBusyAfterLcia)
           }
         }
       }
@@ -325,14 +325,14 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
           when (lcia.valid) {
             preemptCtrlCl.ready := True
             ptrace("AssertedReady")
-            goto(unlockToIdle)
+            goto(completeAfterLcia)
           }
         }
       }
-      val unlockToIdle: State = new State {
+      val completeAfterLcia: State = new State {
         whenIsActive {
-          ul.valid := True
-          when (ul.ready) {
+          // Non-locking DCS: LCIA is completion; there is no UL handshake.
+          when (True) {
             ptrace("Done")
             preemptReq.ready := True
             goto(idle)

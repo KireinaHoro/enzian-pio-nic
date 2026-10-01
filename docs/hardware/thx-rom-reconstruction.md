@@ -1,5 +1,9 @@
 # Reconstructing Jasmin's THX-informed DC ROM
 
+**Follow-up:** the [LCI-only non-locking build](lauberhorn-rom.md) is now selected
+on the Goal 2 branch. The investigation below records its historical inputs and
+remaining proof obligations; earlier production-selection statements are historical.
+
 Reproduced 2026-10-01. Maintainer confirms that the simplification and the later
 F31/A31d wire change came from Jasmin's THX work. The checked-in artifacts let us
 reconstruct the workflow, and reveal a distinction between the simplified DCS ROM

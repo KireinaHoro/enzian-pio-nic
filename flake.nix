@@ -63,7 +63,7 @@
         formatter = pkgs.nixfmt;
         checks = platform.checks;
         packages = {
-          inherit (platform) genVerilog devHdrs tlc;
+          inherit (platform) genVerilog devHdrs tlc dcsRom;
         }
         // pkgs.lib.optionalAttrs linux (
           {

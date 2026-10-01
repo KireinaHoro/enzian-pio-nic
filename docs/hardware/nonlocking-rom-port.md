@@ -1,5 +1,9 @@
 # Porting the existing non-locking ROM
 
+**Follow-up:** the [LCI-only non-locking build](lauberhorn-rom.md) is now selected
+on the Goal 2 branch. The investigation below records its historical inputs and
+remaining proof obligations; earlier production-selection statements are historical.
+
 Audit and reproducible trial generation, 2026-10-01. Start from the existing
 `dc_stmc_auto_no_lock` generator/ROM, as requested. Production still uses auto-lock;
 this investigation does not install a new table or change controller behavior.
