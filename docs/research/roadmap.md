@@ -104,3 +104,13 @@ now models full dirty sets, conflict replacement and delayed directory release,
 then joins reservations, claims, wake ownership and whole-domain close. DCS waits
 for CPU downgrades on a full set; concrete replacement-path independence is an
 explicit hardware correspondence obligation, not an empty-cache assumption.
+
+## Kill/exit follow-up (2026-10-01)
+
+The [focused kill/exit check](../hardware/kill-exit-verification.md) separates
+application stopping from prefix reclamation. The first implementation allocates
+domain codes monotonically without reuse; prefix-reuse certification is deferred.
+The focused model checks uncooperative userspace, outstanding RX, IRQ ordering,
+close/dispatch races and reference cleanup. It does not complete the larger
+combined temporal or concrete resource/refinement obligations. The linked report
+lists the remaining implementation and verification work.

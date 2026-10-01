@@ -1,6 +1,6 @@
 # Cooperative scheduling control and domain retirement
 
-Selected interface contract, 2026-09-30; not the existing RTL/kernel ABI. This
+Selected interface contract, 2026-10-01; not the existing RTL/kernel ABI. This
 supersedes the separate kernel drain/cache-retirement/commit sequence in earlier
 Goal 2 notes. The kernel never accesses worker 2F2F cache lines. Normal handoff
 uses one blocking **PreemptInfo read**, with no activation commit write or IRQ.
@@ -130,6 +130,13 @@ A direct HOST_WAKE RX result enters the same epoll-service routine without yield
 
 ## Whole-domain close and retirement
 
+For the first implementation, allocate domain PA prefixes monotonically without
+reuse. The selected map has 524288 domain codes before reservations. Exhaustion
+fails registration; neither wraparound nor driver reload may reuse a code while
+old coherence state can survive. `RetireDomain` is a deferred reuse interface,
+not required for application exit. See the [kill/exit check and allocation
+contract](../hardware/kill-exit-verification.md).
+
 Stopping an application and certifying its PA prefix for reuse are separate
 milestones. A domain that is no longer executing needs no kill IRQ or cache flush:
 fence pending dispatches/claims so it cannot resume, then reconcile callbacks and
@@ -144,12 +151,12 @@ then occur in either order or concurrently; do not wait for handler entry before
 releasing a load that can prevent interrupt service. Keep the RX gate asserted
 until the kernel certifies that the task cannot resume. The existing timer/IPI
 model's release-before-IPI-delivery ordering is a separate interface contract,
-not a requirement that the new kill path delay IRQ assertion. Concrete kill IRQ
-framing, RX release and acknowledgment still need their own composed check.
+not a requirement that the new kill path delay IRQ assertion. The focused kill/exit model checks assertion, RX release and acknowledgment
+ordering; concrete IRQ framing and resource correspondence remain open.
 Serialize the kill request with assignment changes as well: a late IRQ must not
-kill a successor merely because it is now the current task. Either consume the
-old notification before successor activation or retain/revalidate its target
-identity. This is a kill-path obligation, not an extra ordinary-handoff commit.
+kill a successor merely because it is now the current task. The selected implementation consumes the
+old notification and closes its issuance before successor activation. A
+target-tagged alternative would need separate verification. This is a kill-path obligation, not an extra ordinary-handoff commit.
 
 Cached lines at distinct PAs need not be flushed merely to switch domains. Prefix
 reuse is different: a new lifetime must not inherit stale cache state, messages,
@@ -177,8 +184,9 @@ completion; otherwise the same CPU/control path could block its own prerequisite
 Retirement cannot wait for userspace to service work from the closed
 domain: pending work may be discarded with an explicit closed disposition. The
 coherence certificate is a required endpoint contract, **not an implemented flush
-instruction or a passing theorem**. Its mechanism, kill path and progress under
-uncooperative execution remain unresolved. Kernel still performs no 2F2F CL accesses.
+instruction or a passing theorem**. Its prefix-reuse mechanism remains unresolved and is deferred. The focused
+kill model checks uncooperative userspace under explicit IRQ/RX service contracts;
+concrete hardware progress remains to be established. Kernel still performs no 2F2F CL accesses.
 
 Each MMIO command is published atomically, or staged under one serialized writer
 with a final doorbell. Write completion means the specified effect has committed,

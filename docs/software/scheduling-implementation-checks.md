@@ -8,7 +8,8 @@ protocol; [Goal 2 evidence](../hardware/scheduling-verification.md) records boun
 Normal handoff is **PREEMPT -> `lh_yield()` -> kernel acknowledgment**.
 The NIC scheduling interrupt is only for application kill. Existing Linux timer/
 IPI service and early NACK are separate from cooperative dispatch; the timer/IPI
-model is not a kill model. Kill racing handoff/teardown is a later recovery case.
+model is not a kill model. The [kill/exit model](../hardware/kill-exit-verification.md) now checks kill
+racing dispatch/teardown under explicit endpoint service contracts.
 
 ## What merits an interleaving model
 
@@ -82,7 +83,7 @@ closure separately. No production concurrency primitive is verified by these tes
 | K5 | Define one lock order for domain lifetime, thread claims and per-source pending state. Do not wait for drain, callback synchronization or another CPU while holding a lock it needs. | Before implementing callback/dispatch/teardown paths. Exact locks remain an implementation choice. |
 | K6 | Establish the old task no-return fence before InfoAccept; retain old transaction addresses while NIC-internal obligations remain. No kernel CL access or ordinary cache flush. | Blocking yield and return-to-user parking. Recheck the parking predicate after every wake. |
 | K7 | Return mailbox, RX parity, TX parity and host-work flag from the immutable info-response snapshot. Assert affinity names the physical worker represented by that snapshot. | Yield ioctl/bootstrap completion. Ordinary syscall sleep preserves this assignment. |
-| K8 | Fence new callback/claim acquisition during teardown; unregister and synchronize callbacks, retain object references through deferred work and wait for pending command/wake ownership to retire. | Domain/cookie teardown. Only then release/reuse cookie and prefix IDs. |
+| K8 | Fence new callback/claim acquisition during teardown; unregister and synchronize callbacks, retain object references through deferred work and wait for pending command/wake ownership to retire. | Domain/cookie teardown. Only then free associated objects/cookies. Domain PA codes are monotonic and are not reused. |
 
 Source-inspected starting points: `sched.c` already uses a checked return-to-user
 parking loop and explicitly retains the route until `datapathDrained`; `chrdev.c`
@@ -106,7 +107,7 @@ being present elsewhere in the file.
 | H9 | Check accepted/resource counts, no double release, full-address preservation and transaction beat framing at actual interfaces. Control MMIO must progress independently of a stalled worker. | DCS/AXI/ECI integration; these require RTL/resource validation, not just scheduler assertions. |
 | H10 | Retain directory charges for queued evictions and invalidated entries until downgrade/writeback delivery or final unlock. Serialize invalidation and eviction of the same address. | Cache/coherence endpoint and DCS resource monitors; see the [retained-cache model](../hardware/retained-cache-composition.md). |
 | H11 | Establish both victim generation for a full directory set and independent service of eligible replacement traffic. Never infer either from a small active-assignment footprint. | CPU cache/DCS geometry and downgrade/writeback paths; concrete correspondence remains open. |
-| H12 | Latch kill and gate new blocking RX. IRQ assertion and outstanding-RX release may occur in either order; never wait for handler entry before releasing RX. Hold the gate until the no-resume certificate, and prevent a late IRQ from killing a successor. | Kill/control interface; actual IRQ/assignment interleavings remain to be modeled. Application stopping is distinct from PA-prefix reclamation. |
+| H12 | Latch kill and gate new blocking RX. IRQ assertion and outstanding-RX release may occur in either order; never wait for handler entry before releasing RX. Hold the gate until the no-resume certificate, and prevent a late IRQ from killing a successor. | Kill/control interface; focused IRQ/assignment interleavings are checked; concrete resource/framing correspondence remains open. Drain the kill notification before successor activation. Application stopping is distinct from PA-prefix reclamation. |
 
 A local assertion should name the owner and violated contract. Expected races
 such as a stale thread candidate or routing hint must take a defined fallback
@@ -123,7 +124,7 @@ and retain the initialized pool until outstanding dispatches are reconciled.
 The remaining refinement must connect source closure to the concrete
 transport/cache retirement boundary. Repeated migration is useful where it can
 expose stale replies/targets, rather than as a reason to enumerate already-forbidden
-local reorderings. Kill versus dispatch/teardown remains a separate recovery model;
+local reorderings. Kill versus dispatch/teardown is checked in the focused kill/exit model;
 normal cooperative handoff does not acquire an IRQ path.
 
 ## Reproduction
@@ -175,3 +176,8 @@ or the earlier evidence revision rather than the current runner.
 Current MMIO boundaries and whole-domain retirement are specified in the
 [control interface](scheduling-control-interface.md); they supersede older
 cache-retirement and unavailable-dispatch descriptions in historical results.
+
+The first implementation uses monotonic, non-reused PA prefixes. Assert exhaustion
+instead of wrapping; preserve allocation state across driver reload or require a
+proved coherence-reset boundary. Free software objects only after their references
+are joined, and keep late old-address coherence service independent of freed objects.
