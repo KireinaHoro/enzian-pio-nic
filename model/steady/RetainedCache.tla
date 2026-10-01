@@ -27,9 +27,10 @@ Deliver(q) == /\ Len(evictions[q]) > 0
               /\ directory' = directory \ {Head(evictions[q]).address}
               /\ evictions' = [evictions EXCEPT ![q] = Tail(@)]
               /\ UNCHANGED <<resident,dirty,retiring>>
-\* Invalidation completion does not release the entry before its final unlock.
+\* Retain the transient entry until completion is accepted: LCIA for the
+\* selected non-locking endpoint, final UL for the legacy auto-lock endpoint.
 \* auto_lock DCS allocates an absent LCI target until UL. FALSE retains the
-\* historical nonallocating endpoint abstraction, not this concrete DCS mode.
+\* nonallocating LCI contract. The harness selects its LCIA/UL release event.
 \* A full-set hit reuses its entry; a full-set miss cannot install the lock.
 \* Already locked targets stall in the ROM until UL as well.
 Full(s) == Cardinality(directory \cap Entries(s)) = Ways

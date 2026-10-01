@@ -2,7 +2,7 @@
 EXTENDS Naturals, Sequences, FiniteSets
 CONSTANTS Clients, Addresses, Colors, ColorOf, Directions, Stalled, Control,
           Dependencies, AllowedDirections, Queues, QueueOf, QueueDepth, Pools, PoolOf, Slots,
-          SharedAck, Slices, SliceOf, ReadSlots
+          SharedAck, Slices, SliceOf, ReadSlots, Nonlocking
 N == Cardinality(Clients)
 VARIABLES reads, invQ, held, acknowledgments, phase, parity, direction, remaining, completed, unlockQ
 v == <<reads, invQ, held, acknowledgments, phase, parity, direction, remaining, completed, unlockQ>>
@@ -17,11 +17,14 @@ Inv(c) == /\ C!SubmittedInv(c) /\ D!SendInvalidate(V!Invalidate(c,C!Target(c)))
           /\ UNCHANGED <<held,acknowledgments,unlockQ>>
 Process(q) == /\ D!Process(q) /\ UNCHANGED <<held,acknowledgments,phase,parity,direction,remaining,completed,unlockQ>>
 Ack(c) == /\ phase[c] = "WaitAck" /\ D!HasAck(c,C!Target(c))
-          /\ T!ReceiveAck(c) /\ C!Acked(c) /\ UNCHANGED <<reads,invQ,unlockQ>>
-Unlock(c) == /\ C!Unlocked(c) /\ Len(unlockQ) < N
+          /\ IF Nonlocking
+              THEN /\ D!ReceiveAck(c,C!Target(c)) /\ T!CompleteAck(c)
+                   /\ C!InvalidationCompleted(c) /\ UNCHANGED unlockQ
+              ELSE /\ T!ReceiveAck(c) /\ C!Acked(c) /\ UNCHANGED <<reads,invQ,unlockQ>>
+Unlock(c) == /\ ~Nonlocking /\ C!Unlocked(c) /\ Len(unlockQ) < N
              /\ unlockQ' = Append(unlockQ, V!Unlock(c, C!Target(c)))
              /\ UNCHANGED <<reads,invQ,held,acknowledgments>>
-DeliverUnlock == /\ Len(unlockQ) > 0
+DeliverUnlock == /\ ~Nonlocking /\ Len(unlockQ) > 0
                  /\ D!ReceiveUnlock(Head(unlockQ).txn, Head(unlockQ).address)
                  /\ T!SendUnlock(Head(unlockQ).txn)
                  /\ unlockQ' = Tail(unlockQ)
@@ -45,9 +48,10 @@ Spec == Init /\ [][Next]_v /\ WF_v(DeliverUnlock)
 TypeOK == /\ D!TypeOK /\ T!TypeOK /\ C!TypeOK
           /\ unlockQ \in Seq([type : {"Unlock"}, txn : Clients, address : Addresses])
           /\ Len(unlockQ) <= N
-Tracking == /\ held = {c \in Clients: phase[c] # "Submit"}
+CommonTracking == /\ held = {c \in Clients: phase[c] # "Submit"}
             /\ \A c \in held: reads[ColorOf[C!Door(c)]] = <<V!Read(c, C!Door(c))>>
             /\ \A col \in Colors: Len(reads[col]) > 0 => Head(reads[col]).txn \in held
+LegacyAckTracking ==
             /\ acknowledgments = {c \in Clients: phase[c] = "Unlock"} \cup {unlockQ[i].txn: i \in 1..Len(unlockQ)}
             /\ Cardinality(acknowledgments) = Cardinality({c \in Clients: phase[c] = "Unlock"}) + Len(unlockQ)
             /\ Cardinality(UNION {{<<q,i>>: i \in 1..Len(invQ[q])}: q \in Queues}) =
@@ -58,6 +62,15 @@ Tracking == /\ held = {c \in Clients: phase[c] # "Submit"}
                    /\ m.address = C!Target(m.txn)
                 \/ /\ m.type = "Ack"
                    /\ \E j \in 1..Len(unlockQ): unlockQ[j] = V!Unlock(m.txn, m.address)
+Tracking == /\ CommonTracking
+            /\ IF Nonlocking THEN
+                /\ acknowledgments = {} /\ unlockQ = <<>>
+                /\ \A c \in Clients: phase[c] # "Unlock"
+                /\ Cardinality(UNION {{<<q,i>>: i \in 1..Len(invQ[q])}: q \in Queues}) =
+                    Cardinality({c \in Clients: phase[c] = "WaitAck"})
+                /\ \A q \in Queues: \A i \in 1..Len(invQ[q]):
+                    LET m == invQ[q][i] IN phase[m.txn] = "WaitAck" /\ m.address = C!Target(m.txn)
+                ELSE LegacyAckTracking
 Conservation == D!Conservation /\ T!Conservation /\ Cardinality(held) = Cardinality({col \in Colors: Len(reads[col]) > 0})
 \* Fixed assignment/retired previous owners are constants and environmental
 \* entry assumptions, not properties proved by this steady-state model.

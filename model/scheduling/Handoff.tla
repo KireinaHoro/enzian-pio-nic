@@ -1,6 +1,6 @@
 ------------------------------ MODULE Handoff ------------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS WorkerTx, WithStall, BadDrain, BadPark, BadReuse, BadParity
+CONSTANTS Nonlocking, WorkerTx, WithStall, BadDrain, BadPark, BadReuse, BadParity
 Workers == IF WithStall THEN 1..3 ELSE 1..2
 Clients == IF WithStall THEN 1..4 ELSE 1..3
 Moving == {1}

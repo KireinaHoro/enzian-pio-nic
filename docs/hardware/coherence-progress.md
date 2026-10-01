@@ -1,5 +1,11 @@
 # ECI 2F2F DCU Progress Model
 
+**LCI-only follow-up:** the [selected Lauberhorn ROM](lauberhorn-rom.md) and
+[no-UL scheduling resource composition](lci-only-resource-model.md) supersede
+active-auto-lock assumptions on the Goal 2 branch. Historical results below
+remain scoped to their recorded endpoint; full combined liveness and hardware
+refinement are not newly discharged by the ROM change.
+
 **2026-10-01 follow-up:** selected coloring/capacity remains valid, but a
 [full-directory-set local-invalidation counterexample](directory-pressure.md)
 prevents treating the retained-cache positive abstraction as hardware progress

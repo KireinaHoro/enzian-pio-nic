@@ -36,6 +36,11 @@ Unlocked(c) == /\ phase[c] = "Unlock"
                /\ phase' = [phase EXCEPT ![c] = IF remaining[c] = 1 THEN "Return" ELSE "NeedInv"]
                /\ remaining' = [remaining EXCEPT ![c] = @ - 1]
                /\ UNCHANGED <<parity, direction, completed>>
+\* LCI-only endpoint: LCIA completes the dependency without an UL phase.
+InvalidationCompleted(c) == /\ phase[c] = "WaitAck"
+    /\ phase' = [phase EXCEPT ![c] = IF remaining[c] = 1 THEN "Return" ELSE "NeedInv"]
+    /\ remaining' = [remaining EXCEPT ![c] = @ - 1]
+    /\ UNCHANGED <<parity,direction,completed>>
 Returned(c, d) == /\ phase[c] = "Return"
                   /\ d \in AllowedDirections[c]
                   /\ phase' = [phase EXCEPT ![c] = "Submit"]
