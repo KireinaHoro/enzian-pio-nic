@@ -124,3 +124,11 @@ THX contract. The directory miss-to-invalid write fix, UL interface changes,
 HAKD/context handling, response-fence proof and shared release-service checks
 remain required before a production switch. No production submodule was changed
 by this reconstruction.
+
+## Capture and historical cross-check
+
+The [retained-capture/history audit](a22-trace-history.md) found no HAKS/A22 in
+the inspected Lauberhorn captures, but FAS is already present in the earliest
+checked-in THX FSM. No A22-free version of the corrected generator exists in
+the available history. The absence in those captures does not negate the
+extracted-FSM reachability evidence.
