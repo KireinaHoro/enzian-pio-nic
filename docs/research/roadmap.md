@@ -63,7 +63,7 @@ not authorization to treat a proposed lock mechanism as the selected design.
 | Item | Remaining work | Status / completion evidence |
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | Pending. The [focused kill/exit model](../hardware/kill-exit-verification.md) checks control ordering under endpoint service assumptions. Compose actual RX/TX, invalidation/ACK/unlock and buffer/reply ownership; show completion does not depend on the killed application's execution or an unrelated stalled worker. |
-| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; full combined temporal runs remain incomplete. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
+| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
 | 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: retain auto-lock; absent-target allocation stall reached through actual directory RTL.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
@@ -87,6 +87,13 @@ V21 eviction, using actual TSU/tag RAM/controller/auto-lock ROM and a test XPM
 primitive model. It does not force full/hit outputs. Full-set **hit** invalidation
 works; its entry remains charged until UL. That UL frees a way and permits the
 absent-target LCI to complete. The test checks unrelated entries survive.
+
+The [TLA+ rerun](../hardware/directory-pressure.md#tla-rerun-with-the-rtl-allocation-contract)
+now finds the same problem after a from-empty worker/cache history (320 states)
+and in complete one-slot combined scheduling checks (33,740 states). Safety
+holds, but handoff completion and stable progress fail. Full-set hit and
+independent-release recovery controls pass. This is a confirmed model-level
+blocking condition to resolve, not merely an untested assumption.
 
 1. Close the full NIC/runtime reachability gap: a fresh first RX does not itself
    invalidate the opposite parity. Check subsequent RX, overflow lines never

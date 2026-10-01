@@ -425,3 +425,76 @@ Next work stays on auto-lock: establish or enforce a bound/guarantee ensuring a
 way is available for an absent local target, or demonstrate that the actual NIC
 sequence always supplies an independent release. No capacity workaround, forced
 eviction or production protocol/control-path change has been selected here.
+
+## TLA+ rerun with the RTL allocation contract
+
+The DC model is a composition: `DcsResources` owns transport queues, while
+`RetainedCache` owns directory entries, CPU residency, eviction delivery and
+retained local locks. `Process` in `CachedProgress` and `CombinedScheduling`
+conjoins both modules' actions, so a queued LCI cannot become an ACK if its
+absent target needs an unavailable way. The reusable directory component now
+names `Full`, `AbsentLockWait` and `CanInvalidate` explicitly. A hit reuses its
+entry, an absent target reserves a new entry, and an already locked target cannot
+be invalidated again before UL. The resource remains charged through LCIA and
+until the modeled unlock reaches the directory. Neither component contains
+Lauberhorn domain policy.
+
+[`DcsDirectoryCycle.tla`](../../model/steady/DcsDirectoryCycle.tla) composes these
+same modules for a from-empty fill/evict/replace/invalidate sequence. At 2 and 16
+ways, full-set hits complete and full-set misses fail `Completes`. An explicitly
+supplied independent victim restores progress in the recovery configuration.
+Safety includes conservation, lock retention until UL and exclusion of a second
+invalidation while locked. Individual coherence exchanges are still abstracted;
+this model does not import THX FSMs or prove their message/data semantics.
+
+`CachedProgress` now also has `ReachableCache=TRUE`: twelve setup actions fill
+target 3, fill colliding line 7, evict/deliver 3, replace it with line 11, and
+populate the other sets through the shared cache actions. It begins with an
+empty directory. The setup history precedes the two-client execution; it is not
+a new assumption that production starts with a clean cache. The old arbitrary
+full-cache initial states remain regression cases.
+
+The rerun finds actual **temporal counterexamples**, not just momentary waits:
+
+| Configuration | Checked graph / outcome |
+| --- | --- |
+| Full-set hit, 2 and 16 ways | Safety and completion pass |
+| Full-set absent target, 2 and 16 ways | Safety holds; completion fails |
+| Absent target with independent victim | Safety and completion pass |
+| From-empty worker/cache composition, auto-lock | All 320 states satisfy safety; `Progress` fails |
+| Same from-empty composition, historical nonallocating abstraction | Safety/progress pass, 11,744 states; comparison only, not active DCS evidence |
+| Combined scheduler, auto-lock, one destination slot | All 33,740 states satisfy safety; separate complete checks fail `HandoffFinishes` and `StableProgress` |
+
+The worker counterexample ends with worker 1 held, worker 2 waiting for ACK of
+LCI address 3, and stable addresses 7/11 occupying its two-way target set. No
+release is queued for that set. In the combined one-way model, addresses 9/11
+occupy the sets needed by absent targets 1/3. The stable-progress trace leaves
+both workers in Run/WaitAck; the handoff trace leaves a worker in Preempt/WaitAck.
+The combined model still starts from retained old lines, whereas the worker
+composition now reaches its pressure state from empty. Neither trace is a
+complete concrete-runtime/THX reachability proof.
+
+Fairness serves eligible arbitration, CPU operation and queued release actions.
+It does not force a CPU eviction in a set with no new CPU demand and does not
+force the blocked LCI to complete. Consequently the counterexamples persist
+under the stated fairness. Separate reachability diagnostics (`NoAbsentLockWait`)
+locate the wait early; these prefixes are not themselves proofs of indefinite
+blocking. The complete temporal checks above supply that stronger result.
+
+Reproduce all 19 directory/cache outcomes with:
+
+```sh
+nix build .#checks.x86_64-linux.scheduling-cache-contracts \
+  --out-link out/scheduling/auto-lock-contracts-nix
+```
+
+The [current evidence manifest](../../model/steady/auto-lock-model-evidence.json)
+records all 19 expected outcomes and the two historical cache regressions.
+The Nix output retains the generated configurations, TLC logs/counterexamples
+under `traces/`, and a detailed summary. The runner reports expected violations
+explicitly and labels auto-lock versus historical nonallocating configurations.
+An expected-violation success means the failure was reproduced. These results
+supersede any inference of active-DCS progress from the older nonallocating
+positives. They do not fix allocation or complete Goal 2. The broader historical
+nonallocating combined temporal runs remain incomplete; these new, smaller
+**auto-lock** combined runs completed and found counterexamples.

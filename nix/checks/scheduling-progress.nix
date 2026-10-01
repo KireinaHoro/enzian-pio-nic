@@ -33,6 +33,13 @@ runCommand (if cacheContractsOnly then "lauberhorn-scheduling-cache-contracts" e
     python3 tools/scheduling/addresses.py --check
     python3 tools/scheduling/check_models.py --output results --timeout ${if composedOnly then "7200" else if composedInvariants then "1200" else "900"} --heap-mib ${if composedOnly then "4096" else "2048"} --workers 4 ${lib.optionalString cacheContractsOnly "--cache-contracts-only"} ${lib.optionalString killOnly "--kill-only"} ${lib.optionalString racesOnly "--races-only"} ${lib.optionalString composedOnly "--composed-only"} ${lib.optionalString composedInvariants "--composed-invariants"}
     mkdir -p "$out"
+    ${lib.optionalString cacheContractsOnly ''
+      cp results/summary.json "$out/detailed-summary.json"
+      for case_dir in results/*/; do
+        mkdir -p "$out/traces/$(basename "$case_dir")"
+        cp "$case_dir"/*.cfg "$case_dir"/TLC.log "$out/traces/$(basename "$case_dir")/"
+      done
+    ''}
     python3 - <<'PYTHON'
     import json
     import os

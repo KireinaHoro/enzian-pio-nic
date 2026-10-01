@@ -1,5 +1,11 @@
 # Scheduling transition verification
 
+**Auto-lock rerun:** the [RTL-faithful directory allocation checks](directory-pressure.md#tla-rerun-with-the-rtl-allocation-contract)
+now include from-empty worker/cache history and complete one-slot combined
+scheduler checks. The active contract produces progress/handoff counterexamples
+while resource safety holds. Older nonallocating positives do not discharge this.
+
+
 **2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
 found that active DCS local invalidations allocate even on an absent cache line.
 The old retained-cache positives used a nonallocating abstraction. Enabling the
