@@ -136,19 +136,19 @@ The configured matrix separates:
 
 The positive configurations are explicit in the tracked suite catalog:
 
-| Case | Added coverage (other settings use the default RX, one notification, one-thread pool) |
-| --- | --- |
-| `full-scheduling` | Close may race either handoff and wake resolution. |
-| `full-roundtrip` | Close disabled; eventual A → B → A is required. |
-| `full-wake-generation` | Two notifications, including late callback versus ACK/close. |
-| `full-reservation` | Kill handoff with a one-thread destination possibly held forever; kill must not wait for its release. |
-| `full-reservation-roundtrip` | Normal roundtrip contending for one thread; eligible NIC reservation is strongly fair. |
-| `full-claim` | Two-thread pool, repeating competitor and two notifications; close disabled. |
-| `full-committed-tx` | Committed TX read, invalidation/writeback/output and close. |
-| `full-abandoned-tx` | Abandoned TX; cleanup starts after no-resume certification. |
-| `full-stalled-progress` | Committed-TX kill handoff to B with a repeating independent transport peer. |
-| `full-roundtrip-progress` | Repeating peer and required roundtrip, close disabled. |
-| `full-claim-contention` | Two-thread repeating claim race isolated from notifications and close. |
+| Case | Added coverage (other settings use the default RX, one notification, one-thread pool) | Distinct states checked |
+| --- | --- | --- |
+| `full-scheduling` | Close may race either handoff and wake resolution. | 735,466 |
+| `full-roundtrip` | Close disabled; eventual A → B → A is required. | 8,034 |
+| `full-wake-generation` | Two notifications, including late callback versus ACK/close. | 2,436,144 |
+| `full-reservation` | Kill handoff with a one-thread destination possibly held forever; kill must not wait for its release. | 404,428 |
+| `full-reservation-roundtrip` | Normal roundtrip contending for one thread; eligible NIC reservation is strongly fair. | 16,656 |
+| `full-claim` | Two-thread pool, repeating competitor and two notifications; close disabled. | 206,592 |
+| `full-committed-tx` | Committed TX read, invalidation/writeback/output and close. | 894,124 |
+| `full-abandoned-tx` | Abandoned TX; cleanup starts after no-resume certification. | 112,686 |
+| `full-stalled-progress` | Committed-TX kill handoff to B with a repeating independent transport peer. | 4,480,700 |
+| `full-roundtrip-progress` | Repeating peer and required roundtrip, close disabled. | 200,850 |
+| `full-claim-contention` | Two-thread repeating claim race isolated from notifications and close. | 4,836 |
 
 The fault configurations each select their named obligation, while retaining
 lower-level resource safety. A parser error, timeout or unrelated invariant
@@ -186,6 +186,9 @@ Moving A performs at most one RX before its first handoff and B at most one
 exchange. Returning A checks activation, parity and wake/control races; subsequent
 data traffic belongs to the separately checked Goal 1 entry contract. Packet
 ownership models the initial buffers, not repeated allocation of every RPC.
+That bookkeeping does not prove safe reuse by a shared allocator: an actual RX
+loan must be recycled at protocol release, or after kernel no-return acknowledgment
+and outstanding-access drain. The kill latch alone is insufficient (H20).
 Peer-enabled cases repeat client 3 indefinitely; other cases still include the
 stalled client but omit recurring peer traffic to isolate control interleavings.
 The TX batch has one control and two overflow lines. Initial parity is zero;
@@ -215,18 +218,28 @@ a blocked coherence action or requires the stalled worker to release its load.
 nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full
 nix build .#checks.x86_64-linux.tla-modules
 nix develop -c python3 tools/scheduling/check_models.py \
-  --full-only --output out/modeling/scheduling-full --timeout 7200 --workers 4 --heap-mib 4096
+  --full-only --output out/modeling/scheduling-full --timeout 21600 --workers 4 --heap-mib 4096
 ```
 
 Each full-suite case is a separate Nix derivation; the aggregate verifies matching
 source/tool identities and joins the results. Each case uses four TLC workers and
 a 4 GiB heap; `--max-jobs 3` bounds simultaneous processes on the development host.
 The Nix check uses locked `tlaplus18`, preserves generated configurations and TLC
-logs, and rejects timeouts/parser errors as negative-case evidence. Validation of
-the new full composition is in progress. The
+logs, and rejects timeouts/parser errors as negative-case evidence. The selected
+matrix completed: 11 positive cases, 11 expected fault
+counterexamples and 3 reachability witnesses, plus all 33 module-boundary/SANY
+checks. Twenty-four outcomes completed as Nix derivations. `full-stalled-progress`
+reached the original two-hour timeout, then completed exploration and temporal
+checking from its preserved checkpoint using the same pinned Nix TLC, source,
+configuration, fingerprint and properties. The original timeout remains recorded
+as incomplete. The fresh Nix case now has a six-hour budget; the aggregate was
+dry-run after this change, not rebuilt. Other cases retain two hours. The
 [evidence record](../../model/evidence/scheduling/scheduling-composition-evidence.json)
-retains completed outcomes and explicitly lists pending cases; the configured
-matrix is not yet a list of passing results.
+records exact source/configuration/tool and log hashes, individual Nix outputs,
+checkpoint provenance, final counts and component regressions. The recovery tool
+was separately tested with both passing and failing temporal fixtures; those
+fixtures are tool diagnostics, not protocol evidence. These results complete the
+selected bounded modeling round under the assumptions below.
 
 The abstract client also assumes an issued operation becomes a fresh protocol
 transaction, rather than a stale CPU cache hit. Directory occupancy does not
@@ -241,6 +254,16 @@ Control commands and kernel MMIO completion are assumed serviceable independentl
 of stalled data-plane traffic. The harness does not put those commands into the
 actual control-bus queues; implementation check H9 and actual-DCS tests must
 establish that premise.
+The harness also abstracts a CPU's request-side MMIO stall. Its conservative
+IRQ-before-`Install` order must not be copied into an implementation as a response
+waiting for an IRQ handler on the blocked reader. The required observable fence
+is IRQ drain before successor activation. A concrete implementation can retain a
+completed response in kernel storage while draining the old IRQ, preserving the
+old target/reference. This is the existing control-interface no-wait-cycle rule
+made explicit as H19; the request/IRQ correspondence is not discharged here.
+A directed implementation test should hold IRQ acknowledgment until the info read
+completes, require the response once its transport prerequisites finish, and keep
+the successor non-runnable until the old IRQ is consumed.
 
 Separate obligations remain: single-line endpoint correctness, THX replacement
 and independent coherence service, actual AXI framing/same-line ordering, RTL

@@ -182,5 +182,6 @@ with `nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full` or the sched
 `--full-only`. It composes the focused wake/claim models with kill/transport,
 checks cross-component relations, and retains per-case TLC logs and configs in
 the Nix output. Cases are separately cacheable derivations, each with four TLC
-workers, a 4 GiB heap and a two-hour timeout. See its report for current
+workers and a 4 GiB heap. Timeouts are two hours, or six hours for the larger
+`full-stalled-progress` case. See its report for current
 validation status and finite bounds.
