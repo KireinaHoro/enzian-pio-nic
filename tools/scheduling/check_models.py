@@ -41,6 +41,7 @@ CASES.update({
 RACE_CASES = {
     'combined-scheduling': ('CombinedScheduling', {}, None),
     'combined-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1}, None),
+    'combined-extended-local-allocation': ('CombinedScheduling', {'AllocateOnInvalidate': True}, None),
     'combined-extended-scheduling': ('CombinedScheduling', {'EventBudget': 2, 'RepeatRx': True}, None),
     'combined-extended-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1, 'EventBudget': 2, 'RepeatRx': True}, None),
     'bad-combined-reservation': ('CombinedScheduling', {'DestinationCapacity': 1, 'BadReserve': True}, 'CapacitySafe'),
@@ -85,12 +86,24 @@ KILL_CASES = {
 }
 CASES.update(RACE_CASES)
 CASES.update(KILL_CASES)
+CACHE_CONTRACT_CASES = {
+    'retained-cache-dcs-counterexample': ('CachedProgress', {'AllocateOnInvalidate': True}, 'Progress'),
+    'directory-one-way': ('DirectoryAdmission', {'Ways': 1}, None),
+    'directory-two-way': ('DirectoryAdmission', {}, None),
+    'directory-three-way': ('DirectoryAdmission', {'Ways': 3}, None),
+    'directory-local-full': ('DirectoryAdmission', {'Ways': 16, 'LocalRequest': True}, 'LocalProgress'),
+    'bad-directory-mapping': ('DirectoryAdmission', {'BadMapping': True}, 'BlockingHasRelease'),
+    'bad-directory-early-request': ('DirectoryAdmission', {'BadEarlyRequest': True}, 'BlockingHasRelease'),
+    'bad-directory-silent-eviction': ('DirectoryAdmission', {'BadSilentEviction': True}, 'BlockingHasRelease'),
+}
+CASES.update(CACHE_CONTRACT_CASES)
 COMPOSED_ALL = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
 COMPOSED_CASES = {k:v for k,v in COMPOSED_ALL.items() if not k.startswith('combined-extended-')}
 DEFAULTS = {
+    'DirectoryAdmission': {'Ways': 2, 'BadMapping': False, 'BadEarlyRequest': False, 'BadSilentEviction': False, 'LocalRequest': False},
     'KillExit': dict.fromkeys(('BadGate','BadRelease','BadActivate','BadResume','BadFree'), False) | {'Initial': 'User'},
-    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False},
-    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement'), False),
+    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
+    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate'), False),
     'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
     'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
     'Reservation': {'BadReservation': False},
@@ -104,6 +117,7 @@ DEFAULTS = {
     'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
+    'DirectoryAdmission': ['TypeOK','Accounting','BlockingHasRelease'],
     'KillExit': ['TypeOK','NoWrongKill','NoResume','MetadataSafe','CacheRetained'],
     'CombinedScheduling': ['Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
     'CachedProgress': ['Safety'],
@@ -120,6 +134,7 @@ INVARIANTS = {
     'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
+    'DirectoryAdmission': ['Admission','LocalProgress'],
     'KillExit': ['NoReblock','NoResumeAfterClose','SnapshotStable','StopCompletes','ExitCompletes','SuccessorsProgress'],
     'CombinedScheduling': ['SnapshotStable','HandoffFinishes','Retires','StableProgress'],
     'CachedProgress': ['Progress'],
@@ -151,6 +166,8 @@ def config(module, options, negative, safety_only=False):
     if negative:
         invs = [negative] if negative in invs else []
         props = [negative] if negative in props else []
+    if module == 'CachedProgress' and negative == 'Progress' and options.get('AllocateOnInvalidate'):
+        invs = ['Safety']  # Check accounting before accepting the concrete-DCS progress counterexample.
     return ('SPECIFICATION Spec\n' + ('CONSTANTS\n' if constants else '') + ''.join(f'{k} = {tla_value(v)}\n' for k,v in constants.items())
             + ('INVARIANTS ' + ' '.join(invs) + '\n' if invs else '')
             + ('PROPERTIES ' + ' '.join(props) + '\n' if props else '')
@@ -161,6 +178,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--case', action='append', choices=CASES)
+    selection.add_argument('--cache-contracts-only', action='store_true')
     selection.add_argument('--kill-only', action='store_true')
     selection.add_argument('--races-only', action='store_true')
     selection.add_argument('--composed-only', action='store_true')
@@ -170,9 +188,9 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    selected = args.case or (KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
+    selected = args.case or (CACHE_CONTRACT_CASES if args.cache_contracts_only else KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
         [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
-        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL])
+        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES])
     if args.safety_only and any(CASES[name][2] for name in selected):
         p.error('--safety-only requires an explicit selection of positive cases')
     jar = os.environ.get('TLA2TOOLS_JAR')

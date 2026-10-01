@@ -1,6 +1,6 @@
 ----------------------------- MODULE RetainedCache -----------------------------
 EXTENDS Naturals, Sequences, FiniteSets
-CONSTANTS Lines, Sets, SetOf, Ways, EvictionQueues, EvictionQueueOf, EvictionDepth
+CONSTANTS Lines, Sets, SetOf, Ways, EvictionQueues, EvictionQueueOf, EvictionDepth, AllocateOnInvalidate
 VARIABLES resident, directory, dirty, evictions, retiring
 vars == <<resident,directory,dirty,evictions,retiring>>
 Entries(s) == {a \in Lines: SetOf[a] = s}
@@ -28,10 +28,14 @@ Deliver(q) == /\ Len(evictions[q]) > 0
               /\ evictions' = [evictions EXCEPT ![q] = Tail(@)]
               /\ UNCHANGED <<resident,dirty,retiring>>
 \* Invalidation completion does not release the entry before its final unlock.
+\* auto_lock DCS allocates an absent LCI target until UL. FALSE retains the
+\* historical nonallocating endpoint abstraction, not this concrete DCS mode.
 Invalidate(a) == /\ a \notin Queued
+                 /\ (~AllocateOnInvalidate \/ a \in directory \/ CanFill(a))
                  /\ resident' = resident \ {a} /\ dirty' = dirty \ {a}
-                 /\ retiring' = IF a \in directory THEN retiring \cup {a} ELSE retiring
-                 /\ UNCHANGED <<directory,evictions>>
+                 /\ retiring' = (IF a \in directory \/ AllocateOnInvalidate THEN retiring \cup {a} ELSE retiring)
+                 /\ directory' = (IF AllocateOnInvalidate THEN directory \cup {a} ELSE directory)
+                 /\ UNCHANGED evictions
 ReleaseInvalidation(a) ==
     /\ retiring' = retiring \ {a}
     /\ directory' = (IF a \in retiring THEN directory \ {a} ELSE directory)

@@ -1,5 +1,12 @@
 # Scheduling transition verification
 
+**2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
+found that active DCS local invalidations allocate even on an absent cache line.
+The old retained-cache positives used a nonallocating abstraction. Enabling the
+actual allocation rule produces a progress counterexample on a full target set.
+Historical checked results below remain results for their stated abstraction;
+they do not discharge this concrete DCS progress obligation.
+
 Goal 2 models the selected cooperative scheduling pivot, following the accepted
 [Goal 1 milestone](steady-state-verification.md). This is executable design work,
 not implementation of the new scheduler, router-free decoder or kernel ABI.

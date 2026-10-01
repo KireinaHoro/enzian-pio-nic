@@ -1,5 +1,10 @@
 # ECI 2F2F DCU Progress Model
 
+**2026-10-01 follow-up:** selected coloring/capacity remains valid, but a
+[full-directory-set local-invalidation counterexample](directory-pressure.md)
+prevents treating the retained-cache positive abstraction as hardware progress
+proof. Local LCI allocation and shared release paths need additional guarantees.
+
 Status (2026-09-30): progress remains conditional on resource and hardware-refinement assumptions. Current offsets are installed constants; candidate layouts are not. The linked settled-verification report identifies the color calculations now reproduced and exhaustively checked. Other calculations below remain historical design analysis, and trace observations remain historical evidence. See [QP design alternatives](queue-pair-design.md) and [implementation status](implementation-status.md).
 
 The independently runnable [settled verification work](steady-state-verification.md)

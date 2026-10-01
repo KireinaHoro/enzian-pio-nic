@@ -1,0 +1,33 @@
+{ lib, runCommand, python3, verilator, gnumake, gcc }:
+let
+  dcs = ../../vivado/eci/directory-controller-slice;
+  source = lib.fileset.toSource {
+    root = ../..;
+    fileset = lib.fileset.unions [
+      ../../tools/progress/check_dcs_pressure.py
+      ../../tools/progress/directory_witness.py
+      ../../tools/progress/capacity.py
+      ../../model/steady/selected-8k.json
+      ../../hw/test/rtl/dcs_pressure
+      ../../vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv
+      (dcs + "/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv")
+      (dcs + "/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv")
+      (dcs + "/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv")
+      (dcs + "/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv")
+      (dcs + "/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv")
+      (dcs + "/dcs/dcu/dcu_controller/rtl/dcu_controller.sv")
+      (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv")
+      (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv")
+      (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv")
+    ];
+  };
+in runCommand "lauberhorn-dcs-pressure" {
+  nativeBuildInputs = [ python3 verilator gnumake gcc ];
+} ''
+  cp -r ${source}/. .
+  chmod -R u+w .
+  python3 tools/progress/check_dcs_pressure.py --output results
+  mkdir -p "$out"
+  cp results/summary.json "$out/summary.json"
+  python3 tools/progress/directory_witness.py model/steady/selected-8k.json > "$out/address-witness.json"
+''

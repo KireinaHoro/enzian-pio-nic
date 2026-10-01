@@ -38,6 +38,8 @@ in
       '';
   scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };
   scheduling-composed-invariants = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedInvariants = true; };
+  dcs-pressure = pkgs.callPackage ./dcs-pressure.nix { };
+  scheduling-cache-contracts = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; cacheContractsOnly = true; };
   scheduling-kill-exit = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; killOnly = true; };
   scheduling-races = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; racesOnly = true; };
   scheduling-progress = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; };

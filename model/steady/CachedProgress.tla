@@ -1,6 +1,6 @@
 ----------------------------- MODULE CachedProgress -----------------------------
 EXTENDS Naturals, Sequences, FiniteSets
-CONSTANTS SharedEvictions, BlockDowngrade, DisableReplacement
+CONSTANTS SharedEvictions, BlockDowngrade, DisableReplacement, AllocateOnInvalidate
 Clients == {1,2}
 Colors == 0..3
 Addresses == 0..11
