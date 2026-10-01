@@ -22,7 +22,8 @@
       "BadActivate": false,
       "BadResume": false,
       "BadFree": false,
-      "Initial": "User"
+      "Initial": "User",
+      "WorkerCount": 2
     },
     "CombinedScheduling": {
       "BadReserve": false,
@@ -84,6 +85,13 @@
     },
     "WakeAckRace": {
       "BadClear": false
+    },
+    "KillTransport": {
+      "TxMode": "Abandon",
+      "BadFinish": false,
+      "BadAbandon": false,
+      "BadWriteAck": false,
+      "BlockWriteService": false
     }
   },
   "invariants": {
@@ -164,6 +172,12 @@
     "WakeAckRace": [
       "TypeOK",
       "NoLostNotification"
+    ],
+    "KillTransport": [
+      "Safety",
+      "NoEarlyReuse",
+      "NoAbandonedSend",
+      "WriteBeforeAck"
     ]
   },
   "properties": {
@@ -234,6 +248,11 @@
     ],
     "WakeAckRace": [
       "WakeProgress"
+    ],
+    "KillTransport": [
+      "ControlProperties",
+      "KillCompletes",
+      "PeerProgress"
     ]
   },
   "cases": {
@@ -779,6 +798,60 @@
         "AllowTargetBehindDoor": true
       },
       "expected_violation": "NoTargetReadBehindDoor"
+    },
+    "kill-transport": {
+      "module": "KillTransport",
+      "options": {},
+      "expected_violation": null
+    },
+    "kill-transport-committed": {
+      "module": "KillTransport",
+      "options": {
+        "TxMode": "Committed"
+      },
+      "expected_violation": null
+    },
+    "kill-transport-no-tx": {
+      "module": "KillTransport",
+      "options": {
+        "TxMode": "None"
+      },
+      "expected_violation": null
+    },
+    "bad-kill-tail-reuse": {
+      "module": "KillTransport",
+      "options": {
+        "BadFinish": true
+      },
+      "expected_violation": "NoEarlyReuse"
+    },
+    "bad-kill-abandoned-send": {
+      "module": "KillTransport",
+      "options": {
+        "BadAbandon": true
+      },
+      "expected_violation": "NoAbandonedSend"
+    },
+    "bad-kill-write-ack": {
+      "module": "KillTransport",
+      "options": {
+        "BadWriteAck": true
+      },
+      "expected_violation": "WriteBeforeAck"
+    },
+    "bad-kill-write-service": {
+      "module": "KillTransport",
+      "options": {
+        "BlockWriteService": true
+      },
+      "expected_violation": "KillCompletes"
+    },
+    "witness-kill-stalled-peer": {
+      "module": "KillTransport",
+      "options": {
+        "TxMode": "None"
+      },
+      "expected_violation": "NoStalledAtExit"
     }
   },
   "groups": {
@@ -908,6 +981,16 @@
       "bad-axi-stop-fence",
       "witness-axi-buffered-at-door",
       "witness-axi-target-behind-door"
+    ],
+    "kill-transport": [
+      "kill-transport",
+      "kill-transport-committed",
+      "kill-transport-no-tx",
+      "bad-kill-tail-reuse",
+      "bad-kill-abandoned-send",
+      "bad-kill-write-ack",
+      "bad-kill-write-service",
+      "witness-kill-stalled-peer"
     ]
   },
   "witnesses": {
@@ -919,11 +1002,18 @@
     "AxiReloadGate": [
       "NoBufferedAtDoor",
       "NoTargetReadBehindDoor"
+    ],
+    "KillTransport": [
+      "NoStalledAtExit"
     ]
   },
   "required_invariants": {
     "AxiReloadGate": [
       "Safety"
+    ],
+    "KillTransport": [
+      "ComponentSafety",
+      "TailTracking"
     ]
   }
 }

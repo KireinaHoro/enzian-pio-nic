@@ -40,6 +40,11 @@ flowchart BT
   SelectedAddresses --> Handoff
   Handoff --> WakeHandoff
   HostWake --> WakeHandoff
+  KillExit --> KillTransport
+  CachedTransport --> KillTransport
+  ReadResponses --> KillTransport
+  LciBatch --> KillTransport
+  PacketResources --> KillTransport
 ```
 
 Arrows mean “used by.” The remaining small harnesses are listed below. Imports
@@ -65,6 +70,8 @@ are compositions, **not proofs that one specification refines another**.
 | `WakeReassignment`, `WakeAckRace` | Delayed stale routing hints across A→B→A, and notification versus command acknowledgment. These are different races |
 | `ThreadClaim` | Fixed preinitialized thread pool, NIC reservation and atomic kernel claim/retry |
 | `ControlRetirement` | Immutable MMIO response and close/callback ordering, with abstract endpoint readiness |
+| `LciBatch`, `PacketResources` | Generic ordered cleanup client and buffer/writeback ownership components |
+| `KillTransport` | [Kill control plus RX/TX cleanup](../docs/hardware/kill-transport-composition.md), stalled worker and repeating peer; imports existing safety/progress properties |
 | `KillExit` | Whole-domain kill/exit, either IRQ/RX-release order, no prefix reuse, retained cache allowed. Tail cleanup is abstract |
 | `InterruptGate`, `TimerMirror` | Release-first interrupt diagnostic and ordered timer command delivery. Neither requires interrupts for cooperative PREEMPT |
 | `CombinedScheduling` | Bounded joint control state plus the shared cached transport; see the limits below |
@@ -112,7 +119,7 @@ policy. They assume endpoint retirement; `KillExit` permits cached old lines to
 remain. Neither a kernel cache flush nor an activation commit write is implied.
 
 Single-line protocol correctness, independent THX replacement/response service,
-dirty writeback/data-buffer timing, actual kill TX/overflow cleanup, and hardware conformance to the
+exact writeback/data-buffer timing and hardware correspondence of kill TX/overflow cleanup, and hardware conformance to the
 [AXI response contracts](../docs/hardware/axi-response-contract.md) remain undischarged. See the
 [review and current evidence](../docs/hardware/model-review.md) and
 [implementation checklist](../docs/software/scheduling-implementation-checks.md).
@@ -126,6 +133,7 @@ nix build .#checks.x86_64-linux.tla-modules
 nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-transport
 nix build .#checks.x86_64-linux.scheduling-axi
+nix build .#checks.x86_64-linux.scheduling-kill-transport
 nix develop -c python3 tools/scheduling/check_models.py \
   --races-only --output out/review-races --timeout 900 --workers 4
 nix develop -c python3 tools/scheduling/check_models.py \

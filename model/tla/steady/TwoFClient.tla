@@ -22,7 +22,7 @@ Accepted(c) == /\ phase[c] = "Submit"
                /\ phase' = [phase EXCEPT ![c] = "Held"]
                /\ UNCHANGED <<parity, direction, remaining, completed>>
 Work(c) == /\ phase[c] = "Held" /\ c \notin Stalled
-           /\ phase' = [phase EXCEPT ![c] = "NeedInv"]
+           /\ phase' = [phase EXCEPT ![c] = IF Len(Dependencies[c][direction[c]][parity[c][direction[c]]]) = 0 THEN "Return" ELSE "NeedInv"]
            /\ remaining' = [remaining EXCEPT ![c] = Len(Dependencies[c][direction[c]][parity[c][direction[c]]])]
            /\ UNCHANGED <<parity, direction, completed>>
 Target(c) == Dependencies[c][direction[c]][parity[c][direction[c]]][remaining[c]]

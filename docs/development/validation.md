@@ -171,3 +171,8 @@ The [AXI/coherence response suite](../hardware/axi-response-contract.md) runs wi
 `nix build .#checks.x86_64-linux.scheduling-axi` or the scheduling runner
 `--axi-only`. It checks earlier and buffered reads, stop fencing and response
 service with deliberate faults. These are bounded contract checks, not RTL refinement.
+
+The [kill/transport composition](../hardware/kill-transport-composition.md) runs
+with `nix build .#checks.x86_64-linux.scheduling-kill-transport` or the scheduling
+runner `--kill-transport-only`. It joins existing control/resource properties,
+RX/TX cleanup, packet ownership and stalled/live peers.
