@@ -53,6 +53,63 @@ transport integration, broader wake/selection races and implementation remain
 in progress on `goal2-scheduling-model`. Goal 2 must establish the settled entry contract and preserve unaffected
 workers' progress during scheduling transitions, reusing the resource model.
 
+### Active Goal 2 workstreams and compaction handoff (2026-10-01)
+
+These four workstreams remain pending. **We are currently working on item 3.**
+Continue on `goal2-scheduling-model`; the latest completed directory audit/model/
+RTL-test evidence is commit `46c742b`. This handoff records investigation intent,
+not authorization to treat a proposed lock mechanism as the selected design.
+
+| Item | Remaining work | Status / completion evidence |
+| --- | --- | --- |
+| 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | Pending. The [focused kill/exit model](../hardware/kill-exit-verification.md) checks control ordering under endpoint service assumptions. Compose actual RX/TX, invalidation/ACK/unlock and buffer/reply ownership; show completion does not depend on the killed application's execution or an unrelated stalled worker. |
+| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; full combined temporal runs remain incomplete. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: DCS local-lock allocation investigation next.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
+
+Settled context: use the selected router-free 8 KiB worker blocks and monotonic
+19-bit domain-code allocation without reuse. Prefix-reuse certification is deferred;
+exhaustion must not wrap and driver reload must not reuse codes while coherence
+state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blocking
+PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
+commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
+
+#### Resume here: does 2F2F need DCS auto-lock?
+
+The maintainer reports that the DC is provisioned to track all CPU-cached lines
+without explicit directory evictions. The DCS design notes support that intent
+with matched CPU/directory set counts and associativity. Reconcile that contract
+with local lock bookkeeping before adding a capacity mechanism.
+
+1. Trace actual RTG allocation, state-validity and release for LC/LCI/LCIA/UL in
+   the selected auto-lock RTL. Distinguish ordinary CPU-resident entries from
+   transient/local-lock entries and determine whether the reported full-set
+   scenario is reachable under the complete protocol, not just the abstraction.
+2. Establish exactly what the lock protects in our RX/TX 2F2F engines: identify
+   CPU accesses and NIC data changes that can occur between invalidation completion
+   and UL, including either parity, overflow, preemption and kill. Determine
+   whether locking is necessary for correctness in this use, rather than assuming
+   the currently selected protocol variant is required.
+3. Compare the generated [auto-lock](../../vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv)
+   and [non-auto-lock](../../vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv)
+   protocols and their interfaces. If locking is unnecessary, specify how to use
+   the non-auto-lock variant, including required LCI/LCIA/UL and model changes,
+   and verify the affected races before switching production RTL.
+4. Only if locking remains necessary, select and verify its allocation guarantee
+   (e.g. a bounded separate lock record, reserved capacity or another justified
+   mechanism), then compose it with the shared release path. **No sidecar lock,
+   extra directory way, forced eviction, cache flush or protocol switch has been
+   selected or implemented.** The interrupted turn only read files.
+
+Evidence boundary: the [directory-pressure audit](../hardware/directory-pressure.md)
+reproduces full-set absent-LCI stalling in the actual controller/table with
+controlled lookup inputs, and a progress counterexample in the corrected abstract
+resource model. Its address witness fits the selected layout. It does **not**
+establish the entire cache-state sequence on hardware or prove a hardware deadlock.
+The older nonallocating-cache positives do not resolve this question. Shared
+writeback/VC/credit progress remains a separate obligation even if auto-lock can
+be removed. Do not restart timing optimization or claim Goal 2 complete.
+
 ### Targeted DCS RTL simulation after replacement RTL is available
 
 The main ECI suites use Scala `DcsAppMaster` in
@@ -118,9 +175,11 @@ lists the remaining implementation and verification work.
 ## Directory-capacity finding (2026-10-01)
 
 The [sequential replacement/delivery audit](../hardware/directory-pressure.md)
-found an absent-LCI/full-set progress counterexample in the active DCS auto-lock
-protocol, reproduced with a corrected resource model and targeted actual RTL.
-The selected address layout is unchanged. Before claiming hardware progress,
-select a local-lock allocation guarantee independent of CPU demand, then compose
-it with the shared writeback/VC path. Early targeted controller/arbiter/data-gate
-checks now exist; they do not replace the planned whole-slice routing tests.
+found an absent-LCI/full-set progress counterexample in the corrected abstract
+resource model and reproduced the controller/table's allocation dependency in
+controlled RTL tests. Complete hardware-state reachability remains unestablished.
+The selected address layout is unchanged. Follow the active item 3 investigation
+above: first determine whether 2F2F needs locking and whether the non-auto-lock
+variant is suitable; only then decide whether an additional allocation mechanism
+is necessary. Early controller/arbiter/data-gate checks do not replace the planned
+whole-slice routing tests or establish shared release-path progress.
