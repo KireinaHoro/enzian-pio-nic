@@ -282,7 +282,10 @@ def event_decoder(trace_map: Dict[str, Any]):
     event_id_offset = int(id_field["offset"])
     event_id_width = int(id_field["width"])
     data_offset = max(int(field["offset"]) + int(field["width"]) for field in fmt["fields"].values())
-    event_names = {int(k): v for k, v in fmt["events"].items()}
+    # Normalize historical trace names while emitting the current LCI-only names.
+    aliases = {"EciTxCtrlUnlocked": "EciTxCtrlInvalidated",
+               "EciTxDataLciaUlDone": "EciTxDataLciaDone"}
+    event_names = {int(k): aliases.get(v, v) for k, v in fmt["events"].items()}
     event_data = {int(k): v for k, v in fmt.get("event_data", {}).items()}
     widths = {k: int(v["width"]) for k, v in fmt.get("trace_data_keys", {}).items()}
 
@@ -369,10 +372,10 @@ TRACE_EVENT_NAMES = {
     "EciTxAcquire",
     "EciTxCommitRead",
     "EciTxCtrlInvalidate",
-    "EciTxCtrlUnlocked",
+    "EciTxCtrlInvalidated",
     "EciTxDataLciStart",
     "EciTxDataLciDone",
-    "EciTxDataLciaUlDone",
+    "EciTxDataLciaDone",
     "TxHostReqAccepted",
     "EciTxSubmit",
     "OncRpcReplyEncode",
@@ -643,14 +646,14 @@ def attach_trace_segments(
         )
         tx_unlocked = first_event_after(
             events_by_name,
-            "EciTxCtrlUnlocked",
+            "EciTxCtrlInvalidated",
             tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,
         )
         tx_data_done = first_event_after(
             events_by_name,
-            "EciTxDataLciaUlDone",
+            "EciTxDataLciaDone",
             tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,

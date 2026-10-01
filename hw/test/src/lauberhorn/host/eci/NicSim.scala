@@ -64,7 +64,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     val eciIf = dut.host[EciInterfacePlugin].logic.get
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain,
-      autoLock = false, readGetsExclusive = true)
+      readGetsExclusive = true)
 
     IpiSlave(eciIf.ipiToIntc, dut.clockDomain) { case (coreId, intId) =>
       println(s"Received IRQ #$intId for core $coreId")

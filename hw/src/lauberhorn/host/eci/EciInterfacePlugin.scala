@@ -87,7 +87,6 @@ class EciInterfacePlugin extends FiberPlugin {
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
       dcs.cleanMaybeInvReq.assertPersistence()
-      dcs.unlockResp.assertPersistence()
     }
 
     val s_axil_ctrl = slave(AxiLite4(
@@ -162,22 +161,17 @@ class EciInterfacePlugin extends FiberPlugin {
     def lclEndpointCoreIdx(unitIdx: Int): Int = unitIdx / lclEndpointsPerCore
     def lclEndpointHreqId(unitIdx: Int): Int = unitIdx % lclEndpointsPerCore
 
-    /** Bind the LCI/UL commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
+    /** Bind the LCI commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
       * list of LCI endpoints (incl. non-existent preemption control for bypass core).
       *
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
-    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[EciChannel], isUl: Boolean = false): Unit = {
-      val chanName = if (isUl) "ul" else "lci"
+    def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[EciChannel]): Unit = {
       val routerPort = host[EciThreadClRouter].logic.lcl
-      val (toRouter, fromRouter) = if (isUl) {
-        (routerPort.ulFromProto, routerPort.ulToDcs)
-      } else {
-        (routerPort.lciFromProto, routerPort.lciToDcs)
-      }
+      val (toRouter, fromRouter) = (routerPort.lciFromProto, routerPort.lciToDcs)
 
       // first, mux all core commands together
-      val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_${chanName}FromCore_mux")
+      val muxed = StreamArbiterFactory("EciInterfacePlugin_logic_lciFromCore_mux")
         .roundRobin.on(cmds.zipWithIndex.map { case (cmd, unitIdx) =>
           // core commands came in without the core offset
           cmd.mapPayloadElement(addrLocator) { a =>
@@ -279,20 +273,6 @@ class EciInterfacePlugin extends FiberPlugin {
         }
       }.setCompositeName(this, "bindLcia").ret
     }, _.lcia.address, _.cleanMaybeInvResp)
-
-    // mux LCL unlock response
-    bindCoreCmdsToLclChans(coresLcl.flatten.map(_.ul).map { addr =>
-      new Area {
-        val ret = Stream(EciWord())
-
-        // generating a UL -- refer to Table 7.11 of CCKit
-        ret.payload.ul.opcode  := B("00010")
-        ret.payload.ul.address := addr.payload
-        ret.payload.ul.xb19    := B("19'x0")
-
-        ret.arbitrationFrom(addr)
-      }.setCompositeName(this, "bindUl").ret
-    }, _.ul.address, 18, 19, _.unlockResp, isUl = true)
 
     val allSlaveNodes = mutable.ListBuffer[(Axi4, SizeMapping)]()
     val allMasterNodes = mutable.ListBuffer[Axi4]()

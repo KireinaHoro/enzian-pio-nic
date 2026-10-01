@@ -14,7 +14,7 @@ import spinal.lib.bus.misc.{BusSlaveFactory, SizeMapping}
   *
   * Keeps track of the two cache-line 2F2F state machine:
   *  - responds to AXI requests from the DCS
-  *  - issues cache line state changes via the RX/TX LCI, LCIA, and UL interfaces
+  *  - issues cache line state changes via the RX/TX LCI and LCIA interfaces
   *  - produces/consumes packet descriptors to/from [[DmaControlPlugin]] (bypass) and [[Scheduler]] (RX worker)
   */
 trait EciPioProtocol extends DatapathPlugin {

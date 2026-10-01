@@ -77,7 +77,7 @@ trait TimestampSuiteFactory { this: DutSimFunSuite[NicEngine] with DbFactory =>
       readStart = coreCycle("RxCoreReadStart", "EciRxDescSent", "EciRxNackSent"),
       afterRead = optionalCoreCycle("RxCoreReadFinish", "EciRxReadNew"),
       enqueueToHost = globalCycle("RxBypassEnqueueToHost", "RxRpcEnqueueToHost"),
-      afterRxCommit = optionalCoreCycle("RxCoreCommit", "EciRxCtrlUnlocked"),
+      afterRxCommit = optionalCoreCycle("RxCoreCommit", "EciRxCtrlInvalidated"),
     )
 
     println(s"Packet entered CMAC:\t${timestamps.entry}")

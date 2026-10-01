@@ -13,7 +13,7 @@ remote equations (including A22 races), changes R12 replies to RA3, and restrict
 local operations to LCI. It does not synthesize the ROM directly from THX JSON;
 see the [reconstruction and provenance](thx-rom-reconstruction.md).
 
-There is no LC/F32, LR/LW, autonomous ICI, or UL. The NIC no longer emits UL;
+There is no LC/F32, LR/LW, autonomous ICI, or UL. The application interfaces have no UL ports, router lookup or mux/demux;
 LCIA completes the local invalidation. The selected decoder rejects LC and UL.
 A22/HAKS remains accepted. Clean HAKD is classified as A31 when the retained
 forward slot identifies an F31 for the same address; otherwise it remains A21.
@@ -57,7 +57,7 @@ SV, source hashes, statistics and trace enums. No generated CSV/SV is tracked in
 the new source directory. The real-DCU simulation consumes this derivation;
 Vivado receives it through the checked portable input bundle and `--dcs_rom`.
 The project enables `DCS_LAUBERHORN`. Trace maps use the generated enum values.
-The Scala NIC simulator selects non-locking behavior and exclusive read replies;
+The Scala NIC simulator is LCI-only, with no lock/UL state, and selects exclusive read replies;
 it remains an abstraction of the DCS RTL.
 
 The [THX check](../../tools/progress/check_lauberhorn_rom.py) composes the generated
@@ -101,3 +101,13 @@ the suite rerun in a fresh process.
 Final fast ECI regression: **34 passed, zero failed, one existing ignored test**.
 The current routed design, existing addresses and scheduler are retained for the
 requested hardware run; the address/scheduling pivot is not implemented here.
+
+UL cleanup also removes the top-level VHDL signals and ILA probes. The generic
+DCS block's legacy local-response input pins are tied inactive at its boundary.
+Current completion trace names use `CtrlInvalidated` and `DataLciaDone`; latency
+analysis accepts their historical names when reading older trace maps.
+
+After removing the remaining UL ports/routing/ILA wiring, the full fast ECI
+suite again passed **34 tests, zero failures, one existing ignored test**. The
+Nix bundle also checks generated NIC/trace-DMA ports against VHDL and the ILA
+probe declarations against connections before handing inputs to Vivado.
