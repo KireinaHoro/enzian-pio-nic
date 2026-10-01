@@ -84,14 +84,38 @@
       "BadDelivery": false
     },
     "WakeAckRace": {
-      "BadClear": false
+      "BadClear": false,
+      "NotificationLimit": 2
     },
     "KillTransport": {
       "TxMode": "Abandon",
       "BadFinish": false,
       "BadAbandon": false,
       "BadWriteAck": false,
-      "BlockWriteService": false
+      "BlockWriteService": false,
+      "Cooperative": false,
+      "WithSuccessor": false
+    },
+    "SchedulingComposition": {
+      "TailMode": "None",
+      "WakeBudget": 1,
+      "PoolSize": 1,
+      "Contender": false,
+      "EnableClose": true,
+      "BadWakeAck": false,
+      "BadWakeDrop": false,
+      "BadWakeDelivery": false,
+      "BadReservation": false,
+      "BadClaim": false,
+      "BadDrain": false,
+      "BadSnapshot": false,
+      "BadWakeFree": false,
+      "WithPeer": false,
+      "BadHostDrain": false,
+      "BadClaimFairness": false,
+      "BadIrqDrain": false,
+      "KillOnly": false,
+      "HoldContender": false
     }
   },
   "invariants": {
@@ -178,6 +202,17 @@
       "NoEarlyReuse",
       "NoAbandonedSend",
       "WriteBeforeAck"
+    ],
+    "SchedulingComposition": [
+      "Safety",
+      "NoLostNotification",
+      "WakeResponsibility",
+      "RightSubscriber",
+      "CapacitySafe",
+      "UniqueClaim",
+      "DrainBeforeInstall",
+      "MetadataWakeSafe",
+      "NoLateIrq"
     ]
   },
   "properties": {
@@ -253,6 +288,16 @@
       "ControlProperties",
       "KillCompletes",
       "PeerProgress"
+    ],
+    "SchedulingComposition": [
+      "ControlProperties",
+      "SnapshotStable",
+      "EntrySafe",
+      "KillCompletes",
+      "WakeCompletes",
+      "PeerProgress",
+      "MovesFinish",
+      "SuccessorProgress"
     ]
   },
   "cases": {
@@ -852,6 +897,225 @@
         "TxMode": "None"
       },
       "expected_violation": "NoStalledAtExit"
+    },
+    "full-scheduling": {
+      "module": "SchedulingComposition",
+      "options": {},
+      "expected_violation": null
+    },
+    "full-roundtrip": {
+      "module": "SchedulingComposition",
+      "options": {
+        "EnableClose": false
+      },
+      "expected_violation": null
+    },
+    "full-wake-generation": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WakeBudget": 2,
+        "EnableClose": true
+      },
+      "expected_violation": null
+    },
+    "full-reservation": {
+      "module": "SchedulingComposition",
+      "options": {
+        "Contender": true,
+        "KillOnly": true,
+        "HoldContender": true
+      },
+      "expected_violation": null
+    },
+    "full-claim": {
+      "module": "SchedulingComposition",
+      "options": {
+        "PoolSize": 2,
+        "Contender": true,
+        "WakeBudget": 2,
+        "EnableClose": false
+      },
+      "expected_violation": null
+    },
+    "full-committed-tx": {
+      "module": "SchedulingComposition",
+      "options": {
+        "TailMode": "Committed"
+      },
+      "expected_violation": null
+    },
+    "full-abandoned-tx": {
+      "module": "SchedulingComposition",
+      "options": {
+        "TailMode": "Abandon"
+      },
+      "expected_violation": null
+    },
+    "bad-full-ack": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WakeBudget": 2,
+        "BadWakeAck": true
+      },
+      "expected_violation": "NoLostNotification"
+    },
+    "bad-full-drop": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadWakeDrop": true
+      },
+      "expected_violation": "WakeResponsibility"
+    },
+    "bad-full-route": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadWakeDelivery": true
+      },
+      "expected_violation": "RightSubscriber"
+    },
+    "bad-full-reserve": {
+      "module": "SchedulingComposition",
+      "options": {
+        "Contender": true,
+        "BadReservation": true
+      },
+      "expected_violation": "CapacitySafe"
+    },
+    "bad-full-claim": {
+      "module": "SchedulingComposition",
+      "options": {
+        "Contender": true,
+        "PoolSize": 2,
+        "BadClaim": true
+      },
+      "expected_violation": "UniqueClaim"
+    },
+    "bad-full-drain": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadDrain": true
+      },
+      "expected_violation": "DrainBeforeInstall"
+    },
+    "bad-full-snapshot": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadSnapshot": true
+      },
+      "expected_violation": "SnapshotStable"
+    },
+    "bad-full-free": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadWakeFree": true
+      },
+      "expected_violation": "MetadataWakeSafe"
+    },
+    "witness-full-roundtrip": {
+      "module": "SchedulingComposition",
+      "options": {
+        "EnableClose": false
+      },
+      "expected_violation": "NoRoundTrip"
+    },
+    "witness-full-closed-wake": {
+      "module": "SchedulingComposition",
+      "options": {},
+      "expected_violation": "NoClosedWake"
+    },
+    "full-stalled-progress": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WithPeer": true,
+        "KillOnly": true,
+        "TailMode": "Committed"
+      },
+      "expected_violation": null
+    },
+    "full-roundtrip-progress": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WithPeer": true,
+        "EnableClose": false
+      },
+      "expected_violation": null
+    },
+    "bad-full-host-drain": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadHostDrain": true,
+        "EnableClose": false
+      },
+      "expected_violation": "WakeCompletes"
+    },
+    "full-claim-contention": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WakeBudget": 0,
+        "PoolSize": 2,
+        "Contender": true,
+        "EnableClose": false,
+        "BadClaimFairness": false
+      },
+      "expected_violation": null
+    },
+    "bad-full-claim-fairness": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WakeBudget": 0,
+        "PoolSize": 2,
+        "Contender": true,
+        "EnableClose": false,
+        "BadClaimFairness": true
+      },
+      "expected_violation": "MovesFinish"
+    },
+    "bad-full-irq": {
+      "module": "SchedulingComposition",
+      "options": {
+        "BadIrqDrain": true
+      },
+      "expected_violation": "NoLateIrq"
+    },
+    "full-claim-close": {
+      "module": "SchedulingComposition",
+      "options": {
+        "PoolSize": 2,
+        "Contender": true,
+        "WakeBudget": 2
+      },
+      "expected_violation": null
+    },
+    "full-reservation-extended": {
+      "module": "SchedulingComposition",
+      "options": {
+        "Contender": true
+      },
+      "expected_violation": null
+    },
+    "full-stalled-progress-extended": {
+      "module": "SchedulingComposition",
+      "options": {
+        "WithPeer": true
+      },
+      "expected_violation": null
+    },
+    "full-reservation-roundtrip": {
+      "module": "SchedulingComposition",
+      "options": {
+        "Contender": true,
+        "EnableClose": false
+      },
+      "expected_violation": null
+    },
+    "witness-full-kill-successor": {
+      "module": "SchedulingComposition",
+      "options": {
+        "KillOnly": true,
+        "TailMode": "Committed",
+        "WithPeer": true
+      },
+      "expected_violation": "NoKilledSuccessor"
     }
   },
   "groups": {
@@ -991,6 +1255,33 @@
       "bad-kill-write-ack",
       "bad-kill-write-service",
       "witness-kill-stalled-peer"
+    ],
+    "full": [
+      "full-scheduling",
+      "full-roundtrip",
+      "full-wake-generation",
+      "full-reservation",
+      "full-claim",
+      "full-committed-tx",
+      "full-abandoned-tx",
+      "bad-full-ack",
+      "bad-full-drop",
+      "bad-full-route",
+      "bad-full-reserve",
+      "bad-full-claim",
+      "bad-full-drain",
+      "bad-full-snapshot",
+      "bad-full-free",
+      "witness-full-roundtrip",
+      "witness-full-closed-wake",
+      "full-stalled-progress",
+      "full-roundtrip-progress",
+      "bad-full-host-drain",
+      "full-claim-contention",
+      "bad-full-claim-fairness",
+      "bad-full-irq",
+      "full-reservation-roundtrip",
+      "witness-full-kill-successor"
     ]
   },
   "witnesses": {
@@ -1005,6 +1296,11 @@
     ],
     "KillTransport": [
       "NoStalledAtExit"
+    ],
+    "SchedulingComposition": [
+      "NoRoundTrip",
+      "NoClosedWake",
+      "NoKilledSuccessor"
     ]
   },
   "required_invariants": {
@@ -1014,6 +1310,21 @@
     "KillTransport": [
       "ComponentSafety",
       "TailTracking"
+    ],
+    "SchedulingComposition": [
+      "ResourceSafety"
     ]
+  },
+  "positive_invariants": {
+    "SchedulingComposition": [
+      "Safety"
+    ]
+  },
+  "violation_aliases": {
+    "SchedulingComposition": {
+      "SnapshotStable": [
+        "I!SnapshotStable"
+      ]
+    }
   }
 }

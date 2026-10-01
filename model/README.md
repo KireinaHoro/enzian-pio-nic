@@ -45,6 +45,11 @@ flowchart BT
   ReadResponses --> KillTransport
   LciBatch --> KillTransport
   PacketResources --> KillTransport
+  KillTransport --> SchedulingComposition
+  WakeReassignment --> SchedulingComposition
+  WakeAckRace --> SchedulingComposition
+  ThreadClaim --> SchedulingComposition
+  ControlRetirement --> SchedulingComposition
 ```
 
 Arrows mean “used by.” The remaining small harnesses are listed below. Imports
@@ -72,9 +77,13 @@ are compositions, **not proofs that one specification refines another**.
 | `ControlRetirement` | Immutable MMIO response and close/callback ordering, with abstract endpoint readiness |
 | `LciBatch`, `PacketResources` | Generic ordered cleanup client and buffer/writeback ownership components |
 | `KillTransport` | [Kill control plus RX/TX cleanup](../docs/hardware/kill-transport-composition.md), stalled worker and repeating peer; imports existing safety/progress properties |
+| `SchedulingComposition` | [Joined wake/claim/handoff/kill races](../docs/hardware/scheduling-composition.md), importing focused properties and resource-backed successor traffic |
 | `KillExit` | Whole-domain kill/exit, either IRQ/RX-release order, no prefix reuse, retained cache allowed. Tail cleanup is abstract |
 | `InterruptGate`, `TimerMirror` | Release-first interrupt diagnostic and ordered timer command delivery. Neither requires interrupts for cooperative PREEMPT |
 | `CombinedScheduling` | Bounded joint control state plus the shared cached transport; see the limits below |
+
+For the current joined race model, start with `SchedulingComposition` and follow
+its instances. Source, bounds/configuration, and checked evidence remain separate.
 
 ## State ownership and ports
 
@@ -134,6 +143,7 @@ nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-transport
 nix build .#checks.x86_64-linux.scheduling-axi
 nix build .#checks.x86_64-linux.scheduling-kill-transport
+nix build .#checks.x86_64-linux.scheduling-full
 nix develop -c python3 tools/scheduling/check_models.py \
   --races-only --output out/review-races --timeout 900 --workers 4
 nix develop -c python3 tools/scheduling/check_models.py \

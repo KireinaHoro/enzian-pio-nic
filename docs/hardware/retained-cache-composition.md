@@ -223,7 +223,7 @@ contract; it is not justification for an ordinary kernel cache flush.
 | --- | --- |
 | NIC reservation | Atomically count installed owners and outstanding destination reservations against the initialized thread pool; close fencing shares this commit order. |
 | Kernel claim | Recheck/claim a selected thread atomically, retry stale candidates, and serialize local activation with domain close. No individual thread withdrawal is assumed. |
-| Info response | Check internal transaction/UL readiness before ownership changes; hold the offered domain, parity and wake snapshot immutable until consumption. Keep its lifetime reference across close. |
+| Info response | Check internal transaction/LCIA readiness before ownership changes; hold the offered domain, parity and wake snapshot immutable until consumption. Keep its lifetime reference across close. |
 | Wake transfer | Transfer responsibility once at acceptance or snapshot capture; retain command/ACK references until reconciled. Dispose closed work explicitly. Repeated notification generations additionally need the separate ACK-generation contract. |
 | Directory accounting | Charge queued victims and invalidated entries until their release event, forbid duplicate allocation, and serialize invalidation against an already queued eviction of the same address. |
 | Replacement progress | A stalled color must not indefinitely suppress another worker's eligible downgrade/writeback. A per-color abstract queue is one sufficient contract, not a required literal microarchitecture. |

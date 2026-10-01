@@ -1,18 +1,20 @@
 ---------------------------- MODULE KillTransport ----------------------------
 EXTENDS Naturals, Sequences, FiniteSets
-CONSTANTS TxMode, BadFinish, BadAbandon, BadWriteAck, BlockWriteService
+CONSTANTS Cooperative, WithSuccessor, TxMode, BadFinish, BadAbandon, BadWriteAck, BlockWriteService
 \* One closing worker, an indefinitely held independent RX, and a live peer.
 \* RX and TX software cases are separate; an earlier RX buffer may survive TX.
-Clients == 1..3
+Clients == IF WithSuccessor THEN 1..4 ELSE 1..3
+TxTxn == IF WithSuccessor THEN 5 ELSE 4
+Base(c) == IF c = 4 THEN 12 ELSE 3*(c-1)
 Directions == {0}
 Stalled == {2}
 AllowedDirections == [c \in Clients |-> Directions]
 Addresses == 0..14
 Colors == 0..11
 ColorOf == [a \in Addresses |-> a % 12]
-Control == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |-> 3*(c-1)+p]]]
+Control == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |-> Base(c)+p]]]
 Dependencies == [c \in Clients |-> [d \in Directions |-> [p \in 0..1 |->
-    IF c = 1 /\ TxMode = "Committed" THEN <<>> ELSE <<3*(c-1)+1-p,3*(c-1)+2>>]]]
+    IF c = 1 /\ TxMode = "Committed" THEN <<>> ELSE <<Base(c)+1-p,Base(c)+2>>]]]
 Queues == Colors
 QueueOf == [q \in Colors |-> q]
 QueueDepth == 1
@@ -45,8 +47,8 @@ K == INSTANCE KillExit WITH WorkerCount <- 1, Initial <- "User",
 P == INSTANCE ProgressSystem
 CT == INSTANCE CachedTransport
 R == INSTANCE RetainedCache
-D == INSTANCE DcsResources WITH Clients <- 1..4, invQ <- txInvQ
-V == INSTANCE Coherence WITH Clients <- 1..4
+D == INSTANCE DcsResources WITH Clients <- Clients \cup {TxTxn}, invQ <- txInvQ
+V == INSTANCE Coherence WITH Clients <- Clients \cup {TxTxn}
 Q == INSTANCE ReadResponses
 B == INSTANCE LciBatch
 F == INSTANCE PacketResources
@@ -64,7 +66,7 @@ Init == /\ (IF TxMode = "Committed"
           THEN <<[type |-> "Writeback",address |-> 13]>> ELSE <<>>]
     /\ Q!Init /\ txInvQ = [q \in Queues |-> <<>>]
     /\ B!Init /\ F!Init /\ rxStarted = (TxMode = "Committed")
-Response == [type |-> "ReadData",txn |-> 1,address |-> 0,value |-> 0]
+Response == [type |-> "ReadData",txn |-> 1,address |-> P!C!Door(1),value |-> 0]
 TailQuiet == /\ P!Quiet(1) /\ responses = <<>> /\ B!Done
              /\ \A b \in Buffers: F!Done(b)
              /\ \A q \in Queues: txInvQ[q] = <<>>
@@ -72,20 +74,20 @@ ControlStep(a) == a /\ UNCHANGED <<transport,cache,tail>>
 SubmitRx == /\ TxMode = "None" /\ ~rxStarted /\ K!Submit(1) /\ rxStarted' = TRUE
     /\ UNCHANGED <<transport,cache,responses,txInvQ,batchRemaining,batchWaiting,buffer,writes>>
 AdmitRx == /\ K!Admit(1) /\ CT!Admit(1) /\ UNCHANGED tail
-WorkRx == /\ (IF TxMode = "Committed" THEN B!Done /\ F!Done("tx") ELSE s.w[1].latched)
+WorkRx == /\ (IF TxMode = "Committed" THEN B!Done /\ F!Done("tx") ELSE (Cooperative \/ s.w[1].latched))
     /\ CT!Work(1) /\ UNCHANGED <<s,tail>>
-ReleaseRx == /\ K!ReleaseRx(1) /\ CT!Return(1,0) /\ Q!Send(Response)
+ReleaseRx == /\ (IF Cooperative /\ ~s.closing THEN K!ReturnRx(1) ELSE K!ReleaseRx(1)) /\ CT!Return(1,0) /\ Q!Send(Response)
     /\ UNCHANGED <<txInvQ,batchRemaining,batchWaiting,buffer,writes,rxStarted>>
-ReceiveRx == /\ K!ReceiveRx(1) /\ Q!Receive(Response)
+ReceiveRx == /\ K!ReceiveRx(1) /\ Q!Receive(Head(responses))
     /\ UNCHANGED <<transport,cache,txInvQ,batchRemaining,batchWaiting,buffer,writes,rxStarted>>
 CompleteTail == /\ (BadFinish \/ TailQuiet) /\ ControlStep(K!CompleteTail(1))
 Offer == /\ (BadFinish \/ TailQuiet) /\ ControlStep(K!Offer(1))
 Free == /\ (BadFinish \/ TailQuiet) /\ ControlStep(K!FreeMetadata)
 Activate == /\ (BadFinish \/ TailQuiet) /\ ControlStep(K!ActivateSuccessor(1))
-RxBuffer == /\ s.w[1].latched /\ F!Release("rx",FALSE)
+RxBuffer == /\ (s.w[1].latched \/ (Cooperative /\ s.w[1].cpu = "Kernel")) /\ F!Release("rx",FALSE)
     /\ UNCHANGED <<s,transport,cache,responses,txInvQ,batchRemaining,batchWaiting,rxStarted>>
 TxSubmit == /\ (IF TxMode = "Committed" THEN 1 \in held ELSE s.w[1].certified) /\ B!Submit
-    /\ D!SendInvalidate(V!Invalidate(4,B!Target))
+    /\ D!SendInvalidate(V!Invalidate(TxTxn,B!Target))
     /\ UNCHANGED <<s,invQ,held,phase,parity,direction,remaining,completed,cache,
                    responses,buffer,writes,rxStarted>>
 TxProcess(q) == /\ D!Process(q) /\ R!Invalidate(Head(txInvQ[q]).address)
@@ -93,7 +95,7 @@ TxProcess(q) == /\ D!Process(q) /\ R!Invalidate(Head(txInvQ[q]).address)
     /\ UNCHANGED <<s,invQ,held,phase,parity,direction,remaining,completed,
                    responses,batchRemaining,batchWaiting,rxStarted>>
 TxAck == /\ batchWaiting /\ (BadWriteAck \/ writes[B!Target] = 0)
-    /\ D!ReceiveAck(4,B!Target) /\ B!Ack /\ R!ReleaseInvalidation(B!Target)
+    /\ D!ReceiveAck(TxTxn,B!Target) /\ B!Ack /\ R!ReleaseInvalidation(B!Target)
     /\ UNCHANGED <<s,invQ,held,phase,parity,direction,remaining,completed,
                    responses,buffer,writes,rxStarted>>
 WriteService(a) == /\ (~BlockWriteService \/ 2 \notin held) /\ F!ServiceWrite(a)
@@ -142,7 +144,7 @@ TailTracking == /\ rxStarted \in BOOLEAN
     /\ (s.w[1].rx = "Held") = (1 \in held)
     /\ (batchWaiting = (\E q \in Queues: txInvQ[q] # <<>>))
     /\ \A q \in Queues: txInvQ[q] # <<>> =>
-         Head(txInvQ[q]).txn = 4 /\ Head(txInvQ[q]).address = B!Target
+         Head(txInvQ[q]).txn = TxTxn /\ Head(txInvQ[q]).address = B!Target
 NoEarlyReuse == (s.freed \/ s.w[1].cpu = "Successor") => TailQuiet
 NoAbandonedSend == TxMode # "Committed" => buffer["tx"] \notin {"Output","Sent"}
 WriteBeforeAck == \A a \in WriteLines:

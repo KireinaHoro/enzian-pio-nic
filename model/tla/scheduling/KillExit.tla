@@ -35,9 +35,10 @@ AssertIrq(w) == /\ s.w[w].irq = "Needed"
                 /\ s' = [s EXCEPT !.w[w].irq = "Pending", !.w[w].sent = TRUE]
 \* Fair eligible release means NIC can synthesize a kill RX result without
 \* packet arrival, handler entry, userspace cooperation, or cache reclamation.
-ReleaseRx(w) == /\ s.w[w].latched /\ s.w[w].rx = "Held"
-                /\ (~BadRelease \/ s.w[w].irq = "Done")
-                /\ s' = [s EXCEPT !.w[w].rx = "Returned"]
+ReturnRx(w) == /\ s.w[w].rx = "Held"
+               /\ s' = [s EXCEPT !.w[w].rx = "Returned"]
+ReleaseRx(w) == /\ s.w[w].latched /\ (~BadRelease \/ s.w[w].irq = "Done")
+                /\ ReturnRx(w)
 ReceiveRx(w) == /\ s.w[w].rx = "Returned"
                 /\ s' = [s EXCEPT !.w[w].rx = "Tail"]
 \* Abstract outstanding transport tail; no physical UL message is specified.

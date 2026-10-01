@@ -1,12 +1,12 @@
 ----------------------------- MODULE WakeAckRace -----------------------------
 EXTENDS Naturals, Sequences
-CONSTANT BadClear
-\* Two notifications of one cookie. Counters are ghost generations, not a proposed ABI.
+CONSTANTS BadClear, NotificationLimit
+\* Bounded notifications of one cookie (focused default: two). Ghost generations, not an ABI.
 VARIABLES seen, accepted, serviced, outstanding, command, wakePending
 v == <<seen,accepted,serviced,outstanding,command,wakePending>>
 Init == /\ seen = 0 /\ accepted = 0 /\ serviced = 0 /\ outstanding = 0
         /\ command = <<>> /\ wakePending = FALSE
-Notify == /\ seen < 2 /\ seen' = seen+1 /\ wakePending' = TRUE
+Notify == /\ seen < NotificationLimit /\ seen' = seen+1 /\ wakePending' = TRUE
           /\ UNCHANGED <<accepted,serviced,outstanding,command>>
 Publish == /\ wakePending /\ outstanding = 0
            /\ outstanding' = seen
@@ -25,11 +25,11 @@ Service == /\ serviced < accepted /\ serviced' = accepted
            /\ UNCHANGED <<seen,accepted,outstanding,command,wakePending>>
 Next == Notify \/ Publish \/ Accept \/ Ack \/ Service
 Spec == Init /\ [][Next]_v /\ WF_v(Publish) /\ WF_v(Accept) /\ WF_v(Ack) /\ WF_v(Service)
-TypeOK == /\ seen \in 0..2 /\ accepted \in 0..seen /\ serviced \in 0..accepted
+TypeOK == /\ seen \in 0..NotificationLimit /\ accepted \in 0..seen /\ serviced \in 0..accepted
           /\ outstanding \in 0..seen /\ wakePending \in BOOLEAN
-          /\ command \in Seq([type : {"Wake"}, cookie : {7}, generation : 1..2,
+          /\ command \in Seq([type : {"Wake"}, cookie : {7}, generation : 1..NotificationLimit,
                                state : {"Submitted","Accepted"}]) /\ Len(command) <= 1
           /\ (outstanding = 0) = (command = <<>>)
 NoLostNotification == seen > accepted => wakePending
-WakeProgress == \A n \in 1..2: (seen >= n) ~> (serviced >= n)
+WakeProgress == \A n \in 1..NotificationLimit: (seen >= n) ~> (serviced >= n)
 =============================================================================

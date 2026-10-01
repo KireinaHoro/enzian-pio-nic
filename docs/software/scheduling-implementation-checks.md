@@ -84,6 +84,7 @@ closure separately. No production concurrency primitive is verified by these tes
 | K6 | Establish the old task no-return fence before InfoAccept; retain old transaction addresses while NIC-internal obligations remain. No kernel CL access or ordinary cache flush. | Blocking yield and return-to-user parking. Recheck the parking predicate after every wake. |
 | K7 | Return mailbox, RX parity, TX parity and host-work flag from the immutable info-response snapshot. Assert affinity names the physical worker represented by that snapshot. | Yield ioctl/bootstrap completion. Ordinary syscall sleep preserves this assignment. |
 | K8 | Fence new callback/claim acquisition during teardown; unregister and synchronize callbacks, retain object references through deferred work and wait for pending command/wake ownership to retire. | Domain/cookie teardown. Only then free associated objects/cookies. Domain PA codes are monotonic and are not reused. |
+| K9 | Provide starvation-free selection/claim under repeated dispatch competition. Selecting and claiming under the same domain lock avoids a repeatedly stolen candidate; an optimistic retry loop needs a progress guarantee in addition to capacity and uniqueness. | Fixed-pool dispatch; [repeated-claim counterexample](../hardware/scheduling-composition.md). |
 
 Source-inspected starting points: `sched.c` already uses a checked return-to-user
 parking loop and explicitly retains the route until `datapathDrained`; `chrdev.c`
@@ -112,24 +113,33 @@ being present elsewhere in the file.
 | H14 | An earlier same-line response cannot reinstall stale data after invalidation; retire, cancel or retry it with a proven endpoint ordering. Stop must fence new old-generation admission while existing responses finish. | Coherence endpoint and stop/worker interface. AXI RLAST alone is insufficient evidence. |
 | H15 | Service eligible coherence data and LCIA independently of publication and the held doorbell. Check shared response backpressure and unaffected peer progress. | THX/ECI/DCS service paths; modeled fairness still requires implementation evidence. |
 | H16 | Before successor activation or metadata release, require old RX responses consumed, TX control/overflow invalidations acknowledged, writeback data/responses finished and packet ownership disposed. A committed TX read must finish before IRQ service; start abandoned-TX cleanup only after no-resume certification. Never send an abandoned partial TX or trust its descriptor length. | Worker drain, TX AXI write path and buffer allocator; [composed kill-tail checks](../hardware/kill-transport-composition.md). Preserve service for already admitted writes without killed userspace. |
+| H17 | Keep already-delivered host work serviceable after PREEMPT while draining. Voluntary kernel entry must wait for its disposition; kill instead joins/disposes pending responsibility. Never disable the service that the parking guard waits for. | Runtime yield and worker drain; [combined counterexample](../hardware/scheduling-composition.md). |
+| H18 | Preserve 2F2F control freshness when returning to an earlier domain/worker PA. Keep the RX drain invalidation of the last delivered control line and its LCIA completion (and the corresponding TX protocol contract). Distinct domain PAs do not by themselves prevent a stale cached reply on A → B → A. | Existing RX `repeatDesc`/`invalidateCtrl` drain in `EciDecoupledRxTxProtocol.scala`; cache-value/fresh-read correspondence remains outside the resource model. No kernel cache flush is required. |
 
 A local assertion should name the owner and violated contract. Expected races
 such as a stale thread candidate or routing hint must take a defined fallback
 path; they are not assertion failures in a correct implementation.
 
-## Next race compositions
+## Composition and implementation boundary
 
-The [combined model](../hardware/retained-cache-composition.md) now joins pending
-source ownership, fixed-pool dispatch, concurrent claims and retained-cache
-resources. Its bounds and verification status are recorded separately from the
-historical component results below. There is no individual thread shutdown or ordinary
-unavailable-thread cancellation. Whole-domain teardown must fence new reservations
-and retain the initialized pool until outstanding dispatches are reconciled.
-The remaining refinement must connect source closure to the concrete
-transport/cache retirement boundary. Repeated migration is useful where it can
-expose stale replies/targets, rather than as a reason to enumerate already-forbidden
-local reorderings. Kill versus dispatch/teardown is checked in the focused kill/exit model;
-normal cooperative handoff does not acquire an IRQ path.
+The [joined scheduling model](../hardware/scheduling-composition.md) reuses the
+focused wake/ACK, claim and kill/transport components. Its report records the
+selected roundtrip, close, TX cleanup and stalled-peer bounds and their validation
+status. The older [combined model](../hardware/retained-cache-composition.md)
+retains separate two-worker coverage; its results do not establish the new join.
+
+There is no individual thread shutdown or ordinary unavailable-thread
+cancellation. Whole-domain teardown fences new reservations and retains the
+initialized pool until outstanding dispatches are reconciled. Interrupts remain
+exclusive to kill. The implementation must connect the modeled drain and
+activation events to actual response consumption, LCIA/writeback completion and
+packet ownership, and preserve final-control invalidation on return to a domain.
+These are concrete correspondence obligations, not an ordinary kernel cache flush.
+
+Larger combinations, multiple closing workers, a closing destination pool and
+shared packet queues remain outside the selected composition matrix. Check these
+when the implementation exposes the corresponding resource and serialization
+boundaries; the current matrix is not an unbounded scheduling proof.
 
 ## Reproduction
 

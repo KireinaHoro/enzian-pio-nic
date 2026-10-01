@@ -48,13 +48,17 @@ Conservation == D!Conservation /\ T!Conservation /\ Cardinality(held) = Cardinal
 \* entry assumptions, not properties proved by this steady-state model.
 Footprint(c,d) == {Control[c][d][p]: p \in 0..1} \cup
     UNION {{Dependencies[c][d][p][i]: i \in 1..Len(Dependencies[c][d][p])}: p \in 0..1}
-CompatiblePlacement ==
-    /\ \A c \in Clients, d \in Directions, p \in 0..1:
+CompatiblePlacementFor(cs) ==
+    /\ \A c \in cs, d \in Directions, p \in 0..1:
         /\ ColorOf[Control[c][d][p]] # ColorOf[Control[c][d][1-p]]
         /\ \A i \in 1..Len(Dependencies[c][d][p]):
             ColorOf[Control[c][d][p]] # ColorOf[Dependencies[c][d][p][i]]
-    /\ \A c,e \in Clients, d,f \in Directions, p \in 0..1:
+    /\ \A c,e \in cs, d,f \in Directions, p \in 0..1:
         c # e => (\A a \in Footprint(e,f): ColorOf[Control[c][d][p]] # ColorOf[a])
+CompatiblePlacement == CompatiblePlacementFor(Clients)
+SettledFor(cs) == /\ TypeOK /\ Tracking /\ Conservation /\ CompatiblePlacementFor(cs)
+    /\ UnusedQueuesEmpty /\ held \subseteq cs
+    /\ \A c \in Clients \ cs: Quiet(c)
 Settled == TypeOK /\ Tracking /\ Conservation /\ CompatiblePlacement /\ UnusedQueuesEmpty
 \* Diagnostic for cycles of retained doorbells blocking invalidations.
 \* Shared-credit starvation and queue HoL need liveness, not this diagnostic.

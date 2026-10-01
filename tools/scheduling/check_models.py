@@ -26,6 +26,8 @@ def config(module, options, negative, safety_only=False):
     invs, props = INVARIANTS[module], PROPERTIES[module]
     if module == 'CombinedScheduling' and not negative:
         invs = ['Safety']  # Already includes every named diagnostic invariant.
+    if not negative:
+        invs = CATALOG.get('positive_invariants', {}).get(module, invs)
     if safety_only:
         props = []
     if negative in CATALOG.get('witnesses', {}).get(module, []):
@@ -51,6 +53,7 @@ def main():
     selection.add_argument('--cache-contracts-only', action='store_true')
     selection.add_argument('--kill-only', action='store_true')
     selection.add_argument('--kill-transport-only', action='store_true')
+    selection.add_argument('--full-only', action='store_true')
     selection.add_argument('--races-only', action='store_true')
     selection.add_argument('--composed-only', action='store_true')
     selection.add_argument('--composed-invariants', action='store_true', help='composed state invariants plus cache progress and all fault diagnostics; omit positive combined temporal properties')
@@ -59,7 +62,7 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    group = ('kill-transport' if args.kill_transport_only else 'transport' if args.transport_only else 'axi' if args.axi_only else
+    group = ('full' if args.full_only else 'kill-transport' if args.kill_transport_only else 'transport' if args.transport_only else 'axi' if args.axi_only else
              'cache-contracts' if args.cache_contracts_only else 'kill' if args.kill_only else
              'composed' if args.composed_only or args.composed_invariants else
              'races' if args.races_only else 'default')
@@ -95,13 +98,26 @@ def main():
         start = time.monotonic()
         log = work/'TLC.log'
         with log.open('w') as out:
-            try: code = subprocess.run(cmd,stdout=out,stderr=subprocess.STDOUT,timeout=args.timeout).returncode
-            except subprocess.TimeoutExpired:
-                code = 124
-                out.write('\nINCOMPLETE: timeout\n')
+            with subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT) as proc:
+                deadline = start + args.timeout
+                while True:
+                    try:
+                        code = proc.wait(timeout=max(0.001, min(60, deadline-time.monotonic())))
+                        break
+                    except subprocess.TimeoutExpired:
+                        if time.monotonic() >= deadline:
+                            proc.kill()
+                            proc.wait()
+                            code = 124
+                            out.write('\nINCOMPLETE: timeout\n')
+                            break
+                        progress = [line for line in log.read_text().splitlines()
+                                    if line.startswith(('Progress(', 'Checking ', 'Finished checking temporal'))]
+                        print(f'{name}: {progress[-1] if progress else "TLC still running"}', flush=True)
         output = log.read_text()
+        violation_names = [negative] + CATALOG.get('violation_aliases', {}).get(module, {}).get(negative, [])
         expected = bool(negative) and ((code == 12 and f'Invariant {negative} is violated' in output)
-                    or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or f'Action property {negative} is violated' in output)))
+                    or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or any(f'Action property {name} is violated' in output for name in violation_names))))
         passed = expected if negative else code == 0 and 'No error has been found' in output
         directory_contract = 'LCI-only: release on LCIA acceptance'
         result = dict(directory_contract=directory_contract, passed=passed, expected_violation=negative, returncode=code,
