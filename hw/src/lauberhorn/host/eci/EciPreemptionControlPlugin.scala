@@ -80,7 +80,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
 
   val requiredAddrSpace = 0x80
 
-  // we have same address space view as the core control (for LCI/LCIA/UL, and AXI)
+  // we have same address space view as the core control (for LCI/LCIA, and AXI)
   val controlClAddr = 0x10000
   ECI_PREEMPT_CTRL_OFFSET.set(controlClAddr)
 
@@ -100,9 +100,6 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
     // These addresses are mapped back by [[EciThreadClRouter]]
     lci.valid := False
     lci.payload := controlClAddr
-
-    ul.payload := controlClAddr
-    ul.valid := False
 
     lcia.setBlocked()
     when (lcia.valid) {
@@ -216,7 +213,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       val checkBusyAfterLcia: State = new State {
         whenIsActive {
           preemptTimer.increment()
-          // Non-locking DCS: LCIA is completion; there is no UL handshake.
+          // LCIA completes the invalidation.
           when (True) {
             when (preemptCtrlCl.busy) {
               // busy when we unset ready
@@ -331,7 +328,7 @@ class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
       }
       val completeAfterLcia: State = new State {
         whenIsActive {
-          // Non-locking DCS: LCIA is completion; there is no UL handshake.
+          // LCIA completes the invalidation.
           when (True) {
             ptrace("Done")
             preemptReq.ready := True

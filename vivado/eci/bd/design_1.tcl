@@ -276,10 +276,8 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   create_bd_pin -dir I -from 19 -to 0 -type data core4_states
   create_bd_pin -dir I -from 75 -to 0 -type data lci_even
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_even
-  create_bd_pin -dir I -from 75 -to 0 -type data ul_even
   create_bd_pin -dir I -from 75 -to 0 -type data lci_odd
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_odd
-  create_bd_pin -dir I -from 75 -to 0 -type data ul_odd
   create_bd_pin -dir I -type rst resetn
   create_bd_pin -dir I -type clk txclk
   create_bd_pin -dir I -type rst resetn1
@@ -301,18 +299,16 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_INPUT_PIPE_STAGES {2} \
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_NUM_OF_PROBES {18} \
+    CONFIG.C_NUM_OF_PROBES {16} \
     CONFIG.C_PROBE0_WIDTH {20} \
-    CONFIG.C_PROBE10_WIDTH {76} \
-    CONFIG.C_PROBE11_WIDTH {48} \
-    CONFIG.C_PROBE12_WIDTH {42} \
-    CONFIG.C_PROBE13_WIDTH {42} \
-    CONFIG.C_PROBE14_TYPE {1} \
-    CONFIG.C_PROBE14_WIDTH {18} \
-    CONFIG.C_PROBE15_WIDTH {3} \
-    CONFIG.C_PROBE16_WIDTH {35} \
-    CONFIG.C_PROBE17_WIDTH {17} \
-    CONFIG.C_PROBE18_WIDTH {1} \
+    CONFIG.C_PROBE9_WIDTH {48} \
+    CONFIG.C_PROBE10_WIDTH {42} \
+    CONFIG.C_PROBE11_WIDTH {42} \
+    CONFIG.C_PROBE12_TYPE {1} \
+    CONFIG.C_PROBE12_WIDTH {18} \
+    CONFIG.C_PROBE13_WIDTH {3} \
+    CONFIG.C_PROBE14_WIDTH {35} \
+    CONFIG.C_PROBE15_WIDTH {17} \
     CONFIG.C_PROBE1_WIDTH {20} \
     CONFIG.C_PROBE2_WIDTH {20} \
     CONFIG.C_PROBE3_WIDTH {20} \
@@ -321,7 +317,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE6_WIDTH {76} \
     CONFIG.C_PROBE7_WIDTH {76} \
     CONFIG.C_PROBE8_WIDTH {76} \
-    CONFIG.C_PROBE9_WIDTH {76} \
     CONFIG.C_PROBE_WIDTH_PROPAGATION {MANUAL} \
     CONFIG.C_SLOT {1} \
     CONFIG.C_SLOT_0_APC_EN {0} \
@@ -420,15 +415,15 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
 
   # Create port connections
   connect_bd_net -net alloc_free_1  [get_bd_pins alloc_free] \
-  [get_bd_pins ila_app/probe12]
+  [get_bd_pins ila_app/probe10]
   connect_bd_net -net alloc_req_1  [get_bd_pins alloc_req] \
-  [get_bd_pins ila_app/probe14]
+  [get_bd_pins ila_app/probe12]
   connect_bd_net -net alloc_resp_1  [get_bd_pins alloc_resp] \
-  [get_bd_pins ila_app/probe13]
+  [get_bd_pins ila_app/probe11]
   connect_bd_net -net app_clk_reset_peripheral_aresetn  [get_bd_pins resetn] \
   [get_bd_pins ila_app/resetn]
   connect_bd_net -net app_clock_Q  [get_bd_pins app_clock/Q] \
-  [get_bd_pins ila_app/probe11]
+  [get_bd_pins ila_app/probe9]
   connect_bd_net -net clk_wiz_0_clk_out2  [get_bd_pins app_clk] \
   [get_bd_pins app_clock/CLK] \
   [get_bd_pins ila_app/clk]
@@ -450,11 +445,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net core4_states_1  [get_bd_pins core4_states] \
   [get_bd_pins ila_app/probe4]
   connect_bd_net -net dma_rxFsm_state_1  [get_bd_pins dma_rxFsm_state] \
-  [get_bd_pins ila_app/probe15]
+  [get_bd_pins ila_app/probe13]
   connect_bd_net -net dma_write_desc_1  [get_bd_pins dma_write_desc] \
-  [get_bd_pins ila_app/probe16]
+  [get_bd_pins ila_app/probe14]
   connect_bd_net -net dma_write_desc_status_1  [get_bd_pins dma_write_desc_status] \
-  [get_bd_pins ila_app/probe17]
+  [get_bd_pins ila_app/probe15]
   connect_bd_net -net ilvector_logic_0_Res  [get_bd_pins ilvector_logic_0/Res] \
   [get_bd_pins cmac_rx_clk/SCLR]
   connect_bd_net -net ilvector_logic_1_Res  [get_bd_pins ilvector_logic_1/Res] \
@@ -462,11 +457,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net lci_even_1  [get_bd_pins lci_even] \
   [get_bd_pins ila_app/probe5]
   connect_bd_net -net lci_odd_1  [get_bd_pins lci_odd] \
-  [get_bd_pins ila_app/probe8]
+  [get_bd_pins ila_app/probe7]
   connect_bd_net -net lcia_even_1  [get_bd_pins lcia_even] \
   [get_bd_pins ila_app/probe6]
   connect_bd_net -net lcia_odd_1  [get_bd_pins lcia_odd] \
-  [get_bd_pins ila_app/probe9]
+  [get_bd_pins ila_app/probe8]
   connect_bd_net -net resetn1_1  [get_bd_pins resetn1] \
   [get_bd_pins ila_cmac_tx/resetn] \
   [get_bd_pins ilvector_logic_1/Op1]
@@ -476,10 +471,6 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
   connect_bd_net -net txclk_1  [get_bd_pins txclk] \
   [get_bd_pins cmac_tx_clk/CLK] \
   [get_bd_pins ila_cmac_tx/clk]
-  connect_bd_net -net ul_even_1  [get_bd_pins ul_even] \
-  [get_bd_pins ila_app/probe7]
-  connect_bd_net -net ul_odd_1  [get_bd_pins ul_odd] \
-  [get_bd_pins ila_app/probe10]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -977,8 +968,6 @@ proc create_root_design { parentCell } {
   set lci_odd [ create_bd_port -dir I -from 75 -to 0 -type data lci_odd ]
   set lcia_even [ create_bd_port -dir I -from 75 -to 0 -type data lcia_even ]
   set lcia_odd [ create_bd_port -dir I -from 75 -to 0 -type data lcia_odd ]
-  set ul_even [ create_bd_port -dir I -from 75 -to 0 -type data ul_even ]
-  set ul_odd [ create_bd_port -dir I -from 75 -to 0 -type data ul_odd ]
   set alloc_free [ create_bd_port -dir I -from 41 -to 0 alloc_free ]
   set alloc_resp [ create_bd_port -dir I -from 41 -to 0 alloc_resp ]
   set alloc_req [ create_bd_port -dir I -from 17 -to 0 alloc_req ]
@@ -1377,10 +1366,6 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   [get_bd_pins ddr4_4/c0_ddr4_aresetn] \
   [get_bd_pins axi_smc/aresetn] \
   [get_bd_pins ila_ddr/resetn]
-  connect_bd_net -net ul_even_1  [get_bd_ports ul_even] \
-  [get_bd_pins hier_ilas/ul_even]
-  connect_bd_net -net ul_odd_1  [get_bd_ports ul_odd] \
-  [get_bd_pins hier_ilas/ul_odd]
   connect_bd_net -net xlconstant_0_dout  [get_bd_pins hier_cmac_ctrl_stat/gt_polarity] \
   [get_bd_pins cmac_usplus_0/gt_rxpolarity] \
   [get_bd_pins cmac_usplus_0/gt_txpolarity]

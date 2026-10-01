@@ -29,10 +29,23 @@
       "failed": 0,
       "ignored": 1,
       "command": "nix develop -c mill --no-daemon gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci"
+    },
+    "generated-port-correspondence": {
+      "NicEngine": 295,
+      "lauberhorn_trace_dma": 439,
+      "ila_probes": 16,
+      "unlock_ports": 0
+    },
+    "ul-free-bundle": "built successfully with generated port correspondence gate",
+    "fast-eci-ul-free": {
+      "passed": 34,
+      "failed": 0,
+      "ignored": 1,
+      "elapsed_seconds": 839
     }
   },
   "revisions": {
     "directory-controller-slice": "40530da",
-    "blocks": "841abb5"
+    "blocks": "69ef27c"
   }
 }

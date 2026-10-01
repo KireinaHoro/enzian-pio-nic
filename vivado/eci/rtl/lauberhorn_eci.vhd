@@ -373,7 +373,7 @@ port (
   lcl_fwd_wod_pkt_ready_o : out std_logic;
 
   -- ECI packet for local rsp without data. (VC 18 or 19).
-  -- lcl unlock response message.
+  -- Legacy local-response input; tied inactive by this application.
   lcl_rsp_wod_hdr_i       : in std_logic_vector(63 downto 0);
   lcl_rsp_wod_pkt_size_i  : in std_logic_vector( 4 downto 0);
   lcl_rsp_wod_pkt_vc_i    : in std_logic_vector( 4 downto 0); --5 bits not 4.
@@ -781,8 +781,8 @@ signal trace_dump_last_header : std_logic_vector(255 downto 0);
 signal trace_dump_state : std_logic_vector(15 downto 0);
 
 signal trace_stop : std_logic;
-signal lauberhorn_trace_valid : std_logic_vector(65 downto 0);
-signal lauberhorn_trace_payload : trace_payload_array(65 downto 0);
+signal lauberhorn_trace_valid : std_logic_vector(51 downto 0);
+signal lauberhorn_trace_payload : trace_payload_array(51 downto 0);
 signal credit_return_trace_valid : std_logic_vector(1 downto 0);
 signal credit_return_trace_payload : trace_payload_array(1 downto 0);
 
@@ -842,8 +842,6 @@ signal dcs_c16_i               : LCL_CHANNEL; -- LCL FWD WOD
 signal dcs_c17_i               : LCL_CHANNEL; -- LCL FWD WOD
 signal dcs_c18_o               : LCL_CHANNEL; -- LCL RSP WOD
 signal dcs_c19_o               : LCL_CHANNEL; -- LCL RSP WOD
-signal dcs_c18_i               : LCL_CHANNEL; -- LCL RSP WOD
-signal dcs_c19_i               : LCL_CHANNEL; -- LCL RSP WOD
 
 begin
 
@@ -1223,11 +1221,11 @@ port map (
   lcl_fwd_wod_pkt_ready_o => dcs_c16_i.ready,
 
   -- ECI packet for lcl rsp without data (VC 18 or 19).
-  lcl_rsp_wod_hdr_i       => dcs_c18_i.data,
-  lcl_rsp_wod_pkt_size_i  => dcs_c18_i.size,
-  lcl_rsp_wod_pkt_vc_i    => dcs_c18_i.vc_no, --5 bits not 4.
-  lcl_rsp_wod_pkt_valid_i => dcs_c18_i.valid,
-  lcl_rsp_wod_pkt_ready_o => dcs_c18_i.ready,
+  lcl_rsp_wod_hdr_i       => (others => '0'),
+  lcl_rsp_wod_pkt_size_i  => (others => '0'),
+  lcl_rsp_wod_pkt_vc_i    => (others => '0'), --5 bits not 4.
+  lcl_rsp_wod_pkt_valid_i => '0',
+  lcl_rsp_wod_pkt_ready_o => open,
 
   -- Output ECI events. (rsp without data, rsp with data).
   -- VC 10,11
@@ -1353,11 +1351,11 @@ port map (
   lcl_fwd_wod_pkt_ready_o => dcs_c17_i.ready,
 
   -- ECI packet for lcl rsp without data (VC 18 or 19).
-  lcl_rsp_wod_hdr_i       => dcs_c19_i.data,
-  lcl_rsp_wod_pkt_size_i  => dcs_c19_i.size,
-  lcl_rsp_wod_pkt_vc_i    => dcs_c19_i.vc_no,
-  lcl_rsp_wod_pkt_valid_i => dcs_c19_i.valid,
-  lcl_rsp_wod_pkt_ready_o => dcs_c19_i.ready,
+  lcl_rsp_wod_hdr_i       => (others => '0'),
+  lcl_rsp_wod_pkt_size_i  => (others => '0'),
+  lcl_rsp_wod_pkt_vc_i    => (others => '0'),
+  lcl_rsp_wod_pkt_valid_i => '0',
+  lcl_rsp_wod_pkt_ready_o => open,
 
   -- Output ECI events. (rsp without data, rsp with data).
   -- VC 10,11
@@ -1898,34 +1896,6 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     lauberhornTraceIn_50_payload => lauberhorn_trace_payload(50),
     lauberhornTraceIn_51_valid => lauberhorn_trace_valid(51),
     lauberhornTraceIn_51_payload => lauberhorn_trace_payload(51),
-    lauberhornTraceIn_52_valid => lauberhorn_trace_valid(52),
-    lauberhornTraceIn_52_payload => lauberhorn_trace_payload(52),
-    lauberhornTraceIn_53_valid => lauberhorn_trace_valid(53),
-    lauberhornTraceIn_53_payload => lauberhorn_trace_payload(53),
-    lauberhornTraceIn_54_valid => lauberhorn_trace_valid(54),
-    lauberhornTraceIn_54_payload => lauberhorn_trace_payload(54),
-    lauberhornTraceIn_55_valid => lauberhorn_trace_valid(55),
-    lauberhornTraceIn_55_payload => lauberhorn_trace_payload(55),
-    lauberhornTraceIn_56_valid => lauberhorn_trace_valid(56),
-    lauberhornTraceIn_56_payload => lauberhorn_trace_payload(56),
-    lauberhornTraceIn_57_valid => lauberhorn_trace_valid(57),
-    lauberhornTraceIn_57_payload => lauberhorn_trace_payload(57),
-    lauberhornTraceIn_58_valid => lauberhorn_trace_valid(58),
-    lauberhornTraceIn_58_payload => lauberhorn_trace_payload(58),
-    lauberhornTraceIn_59_valid => lauberhorn_trace_valid(59),
-    lauberhornTraceIn_59_payload => lauberhorn_trace_payload(59),
-    lauberhornTraceIn_60_valid => lauberhorn_trace_valid(60),
-    lauberhornTraceIn_60_payload => lauberhorn_trace_payload(60),
-    lauberhornTraceIn_61_valid => lauberhorn_trace_valid(61),
-    lauberhornTraceIn_61_payload => lauberhorn_trace_payload(61),
-    lauberhornTraceIn_62_valid => lauberhorn_trace_valid(62),
-    lauberhornTraceIn_62_payload => lauberhorn_trace_payload(62),
-    lauberhornTraceIn_63_valid => lauberhorn_trace_valid(63),
-    lauberhornTraceIn_63_payload => lauberhorn_trace_payload(63),
-    lauberhornTraceIn_64_valid => lauberhorn_trace_valid(64),
-    lauberhornTraceIn_64_payload => lauberhorn_trace_payload(64),
-    lauberhornTraceIn_65_valid => lauberhorn_trace_valid(65),
-    lauberhornTraceIn_65_payload => lauberhorn_trace_payload(65),
 
     axi_aw_valid => trace_dma_axi.awvalid,
     axi_aw_ready => trace_dma_axi.awready,
@@ -2149,11 +2119,9 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     -- DCS commands
     lci_even  => dcs_c16_i.valid & dcs_c16_i.ready & dcs_c16_i.vc_no & dcs_c16_i.size & dcs_c16_i.data,
     lcia_even => dcs_c18_o.valid & dcs_c18_o.ready & dcs_c18_o.vc_no & dcs_c18_o.size & dcs_c18_o.data,
-    ul_even   => dcs_c18_i.valid & dcs_c18_i.ready & dcs_c18_i.vc_no & dcs_c18_i.size & dcs_c18_i.data,
 
     lci_odd   => dcs_c17_i.valid & dcs_c17_i.ready & dcs_c17_i.vc_no & dcs_c17_i.size & dcs_c17_i.data,
     lcia_odd  => dcs_c19_o.valid & dcs_c19_o.ready & dcs_c19_o.vc_no & dcs_c19_o.size & dcs_c19_o.data,
-    ul_odd    => dcs_c19_i.valid & dcs_c19_i.ready & dcs_c19_i.vc_no & dcs_c19_i.size & dcs_c19_i.data,
 
     -- 2F2F protocol states
     core0_states => core0_states,
@@ -2354,11 +2322,6 @@ NicEngine_inst : entity work.NicEngine
     dcsOdd_cleanMaybeInvResp_payload_data => dcs_c19_o.data,
     dcsOdd_cleanMaybeInvResp_payload_size => dcs_c19_o.size,
     dcsOdd_cleanMaybeInvResp_payload_vc => dcs_c19_o.vc_no,
-    dcsOdd_unlockResp_valid => dcs_c19_i.valid,
-    dcsOdd_unlockResp_ready => dcs_c19_i.ready,
-    dcsOdd_unlockResp_payload_data => dcs_c19_i.data,
-    dcsOdd_unlockResp_payload_size => dcs_c19_i.size,
-    dcsOdd_unlockResp_payload_vc => dcs_c19_i.vc_no,
 
     -- DCS even interface
     s_axi_dcs_even_awvalid => dcs_even_axi.awvalid,
@@ -2407,11 +2370,6 @@ NicEngine_inst : entity work.NicEngine
     dcsEven_cleanMaybeInvResp_payload_data => dcs_c18_o.data,
     dcsEven_cleanMaybeInvResp_payload_size => dcs_c18_o.size,
     dcsEven_cleanMaybeInvResp_payload_vc => dcs_c18_o.vc_no,
-    dcsEven_unlockResp_valid => dcs_c18_i.valid,
-    dcsEven_unlockResp_ready => dcs_c18_i.ready,
-    dcsEven_unlockResp_payload_data => dcs_c18_i.data,
-    dcsEven_unlockResp_payload_size => dcs_c18_i.size,
-    dcsEven_unlockResp_payload_vc => dcs_c18_i.vc_no,
 
     -- regs
     s_axil_ctrl_awvalid => io_reg_axil_cdc.awvalid,
@@ -2539,34 +2497,6 @@ NicEngine_inst : entity work.NicEngine
     trace_50_payload => lauberhorn_trace_payload(50),
     trace_51_valid => lauberhorn_trace_valid(51),
     trace_51_payload => lauberhorn_trace_payload(51),
-    trace_52_valid => lauberhorn_trace_valid(52),
-    trace_52_payload => lauberhorn_trace_payload(52),
-    trace_53_valid => lauberhorn_trace_valid(53),
-    trace_53_payload => lauberhorn_trace_payload(53),
-    trace_54_valid => lauberhorn_trace_valid(54),
-    trace_54_payload => lauberhorn_trace_payload(54),
-    trace_55_valid => lauberhorn_trace_valid(55),
-    trace_55_payload => lauberhorn_trace_payload(55),
-    trace_56_valid => lauberhorn_trace_valid(56),
-    trace_56_payload => lauberhorn_trace_payload(56),
-    trace_57_valid => lauberhorn_trace_valid(57),
-    trace_57_payload => lauberhorn_trace_payload(57),
-    trace_58_valid => lauberhorn_trace_valid(58),
-    trace_58_payload => lauberhorn_trace_payload(58),
-    trace_59_valid => lauberhorn_trace_valid(59),
-    trace_59_payload => lauberhorn_trace_payload(59),
-    trace_60_valid => lauberhorn_trace_valid(60),
-    trace_60_payload => lauberhorn_trace_payload(60),
-    trace_61_valid => lauberhorn_trace_valid(61),
-    trace_61_payload => lauberhorn_trace_payload(61),
-    trace_62_valid => lauberhorn_trace_valid(62),
-    trace_62_payload => lauberhorn_trace_payload(62),
-    trace_63_valid => lauberhorn_trace_valid(63),
-    trace_63_payload => lauberhorn_trace_payload(63),
-    trace_64_valid => lauberhorn_trace_valid(64),
-    trace_64_payload => lauberhorn_trace_payload(64),
-    trace_65_valid => lauberhorn_trace_valid(65),
-    trace_65_payload => lauberhorn_trace_payload(65),
 
     -- Debug interfaces
     core0_rxRouter_state => core0_states(3 downto 0),

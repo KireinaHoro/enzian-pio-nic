@@ -21,8 +21,8 @@ case class ClAxiPort(config: Axi4Config) extends Bundle {
   val axiFromDcs, axiToProto = Axi4(config)
 }
 
-/** Pair of ports for the LCI/UL channel to the DC and LCIA from the DC.  We only
-  * instantiate one of this, since the LCI/UL direction cannot be a full crossbar:
+/** Pair of ports for the LCI channel to the DC and LCIA from the DC.  We only
+  * instantiate one of this, since the LCI direction cannot be a full crossbar:
   * simply translating the two outgoing ports won't work, as the translation
   * potentially changes the address to be odd or even, therefore they would need
   * to be sent to the opposite DCS.
@@ -32,8 +32,8 @@ case class ClAxiPort(config: Axi4Config) extends Bundle {
   * since these are control-path and low throughput.
   */
 case class ClLclPort() extends Bundle {
-  val lciFromProto, lciaFromDcs, ulFromProto = Stream(EciWord())
-  val lciToDcs, lciaToProto, ulToDcs = Stream(EciWord())
+  val lciFromProto, lciaFromDcs = Stream(EciWord())
+  val lciToDcs, lciaToProto = Stream(EciWord())
 }
 
 case class ThreadDef() extends Bundle {
@@ -194,6 +194,5 @@ class EciThreadClRouter extends FiberPlugin {
 
     unmapChan(lcl.lciFromProto, lcl.lciToDcs, _.lci.address, "lci")
     mapChan(lcl.lciaFromDcs, lcl.lciaToProto, _.lcia.address, "lcia")
-    unmapChan(lcl.ulFromProto, lcl.ulToDcs, _.ul.address, "ul")
   }
 }

@@ -2,6 +2,7 @@
   lib,
   staticShell,
   runCommand,
+  python3,
   source,
   genVerilog,
   gitRev,
@@ -9,7 +10,8 @@
   dcsRomCheck,
   dcsRtlCheck,
 }:
-runCommand "lauberhorn-eci-vivado-inputs" { } ''
+runCommand "lauberhorn-eci-vivado-inputs" { nativeBuildInputs = [ python3 ]; } ''
+  python3 ${source}/tools/hardware/check-generated-ports.py ${genVerilog} ${source}/vivado/eci/rtl/lauberhorn_eci.vhd
   test -f ${dcsRomCheck}/summary.json
   test -f ${dcsRtlCheck}/summary.json
   mkdir -p $out/vivado $out/deps/blocks/deps $out/generated $out/static-shell $out/tools/physical $out/tools/hardware

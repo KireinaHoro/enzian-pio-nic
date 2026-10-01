@@ -10,8 +10,7 @@ import scala.collection.mutable
   */
 object CoherenceEventChecks {
   def check(events: Seq[CapturedTraceEvent]): Unit = {
-    val order = Map("EciLclLciFire" -> 0, "EciLclLciaFire" -> 1,
-      "EciLclUlEnqueue" -> 2, "EciLclUlFire" -> 3)
+    val order = Map("EciLclLciFire" -> 0, "EciLclLciaFire" -> 1)
     val counts = mutable.Map[(BigInt, BigInt), Array[Int]]()
     val relevant = events.filter(e => order.contains(e.eventName))
       .sortBy(e => (e.cycle, order(e.eventName)))
@@ -20,7 +19,7 @@ object CoherenceEventChecks {
       val address = event.data("LclAddress")
       assert(address % 128 == 0, s"unaligned coherence address in $event")
       val key = (event.data("CoreID"), address)
-      val count = counts.getOrElseUpdate(key, Array.fill(4)(0))
+      val count = counts.getOrElseUpdate(key, Array.fill(2)(0))
       val stage = order(event.eventName)
       count(stage) += 1
       assert(stage == 0 || count(stage) <= count(stage - 1),

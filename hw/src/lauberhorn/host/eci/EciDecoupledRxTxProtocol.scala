@@ -240,10 +240,6 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxInvDone := False
     txInvDone := False
 
-    // The selected DCS endpoint completes LCI without retaining a UL lock.
-    rxLcl.ul.setIdle()
-    txLcl.ul.setIdle()
-
     rxLcl.lcia.setBlocked()
     txLcl.lcia.setBlocked()
 
@@ -398,8 +394,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           recvLcia(rxLcl.lcia, rxOverflowInvAcked, rxLciaTp, rxHostMsgTd)
 
           when (rxOverflowInvAcked === rxOverflowToInvalidate) {
-            // Preserve the historical trace name; completion no longer sends UL.
-            rxTp.trace("EciRxDataLciaUlDone", rxOverflowTd: _*)
+            rxTp.trace("EciRxDataLciaDone", rxOverflowTd: _*)
             goto(invalidateCtrl)
           }
         }
@@ -426,7 +421,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
             // Invalidation is triggered by reading opposite
             rxInvDone := True
-            rxTp.trace("EciRxCtrlUnlocked", rxClTd: _*)
+            rxTp.trace("EciRxCtrlInvalidated", rxClTd: _*)
             rxHostMsgId := invalidTraceId(HostMsgID.width)
             when(preemptReq.valid) { goto(waitHostRead) }
               .otherwise { goto(hostReadPending) }
@@ -499,7 +494,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
               txTp.trace("EciTxDataLciStart", coreTd, txHostMsgTd, OverflowCount(toInvalidate))
               goto(invalidatePacketData)
             } otherwise {
-              txTp.trace("EciTxCtrlUnlocked", txClTd: _*)
+              txTp.trace("EciTxCtrlInvalidated", txClTd: _*)
               goto(tx)
             }
           }
@@ -529,8 +524,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           recvLcia(txLcl.lcia, txOverflowInvAcked, txLciaTp, txHostMsgTd)
 
           when (txOverflowInvAcked === txOverflowToInvalidate) {
-            // Preserve the historical trace name; completion no longer sends UL.
-            txTp.trace("EciTxDataLciaUlDone", txOverflowTd: _*)
+            txTp.trace("EciTxDataLciaDone", txOverflowTd: _*)
             goto(tx)
           }
         }
