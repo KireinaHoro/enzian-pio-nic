@@ -98,6 +98,13 @@ blocking condition to resolve, not merely an untested assumption.
 1. Close the full NIC/runtime reachability gap: a fresh first RX does not itself
    invalidate the opposite parity. Check subsequent RX, overflow lines never
    read, retained old-domain lines, and preemption/kill against the actual engine.
+The [existing DC bench audit](../hardware/directory-pressure.md#existing-dc-testbench-coverage-and-ici-entry-points)
+finds an upstream `test_lci_stall_tsu_full` regression: it expects stalling and
+supplies voluntary CPU evictions before retry. ICI has ROM transitions but no
+current producer or explicit bench stimulus. A forced-eviction solution therefore
+requires new control-path implementation and tests; it is not enabling an existing
+controller feature.
+
 2. Establish/enforce an auto-lock allocation guarantee for absent targets, or
    prove an independent release is always pending for the permitted sequences.
    Matched CPU/directory size does not by itself cover FPGA-created locks.

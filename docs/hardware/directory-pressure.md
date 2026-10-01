@@ -498,3 +498,45 @@ supersede any inference of active-DCS progress from the older nonallocating
 positives. They do not fix allocation or complete Goal 2. The broader historical
 nonallocating combined temporal runs remain incomplete; these new, smaller
 **auto-lock** combined runs completed and found counterexamples.
+
+## Existing DC testbench coverage and ICI entry points
+
+Source audit of pinned DCS `7b5cc87`; these upstream XSim benches were **not rerun**
+for this audit. This corrects the impression that the full-set LCI behavior was
+previously undocumented: the DC repository already has a regression for it.
+
+There is no current ICI producer in the pinned implementation. The local-command
+[decoder](../../vivado/eci/directory-controller-slice/dcs/dcu/decode_eci_req/rtl/decode_eci_req.sv)
+emits LC/LCI (and UL on the response channel), not ICI. The `dcu.sv` ROM request
+mux selects RDDA, WDDA or the decoded request. The controller's full-set path
+stalls; it does not select a victim or inject ICI. ICI exists in generated protocol
+definitions/transitions and the generator as a potential internal induced
+invalidation, not an exposed application command or implemented autonomous
+replacement mechanism. No explicit ICI stimulus was found in the SV benches.
+
+The main [dcuTb](../../vivado/eci/directory-controller-slice/dcs/dcu/dcu/testbench/dcuTb.sv)
+actually invokes these relevant tests from its initial sequence:
+
+| Existing test | What its source checks | What it does not establish |
+| --- | --- | --- |
+| `test_lci_stall_tsu_full` (line 292) | Fills all 16 ways with shared lines; issues absent-tag LCI; supplies V21 for all old tags, then retries LCI and checks LCIA, lock state and UL release. Comments identify a previously encountered overwrite bug when allocating LCI was not classified as allocating. | Progress without externally supplied evictions; autonomous ICI victim selection. |
+| `test_stall_tsu_full` (line 1455) | Full-set CPU R12 stalls; explicitly supplies one V21, retries and completes. | Despite a comment saying an induced eviction should be in progress, the test body does not provoke or verify an ICI. |
+| `test_lci_lcia_ul`, `test_lci_f21_a21_lcia_ul`, `test_lci_f31_a31d_lcia_ul` and related victim/ACK races | Absent, shared and dirty/exclusive LCI paths, LCIA and unlock; related tests cover reordered victim/ack traffic and response backpressure. | Full-set absent-LCI liveness without a victim. |
+| `test_lc_lca_ul`, `test_lc_lca_v21_ul`, `test_lc_f32_a32d_lca_ul`, `test_lc_f32_v21_v32_a11_ul` | Shared/dirty LC, LCA/UL and victim races. | A dedicated full-set **absent LC** regression was not found. |
+| `dcu_tsuTb`, `tag_state_ramTb` | Capacity, hit/miss/full reporting and entry removal. | Coupled LC/LCI progress. |
+| `eci_cc_tableTb` | Small R12/R23 stimulus. | Exhaustive ROM transitions or explicit clean/dirty ICI paths. |
+
+The bench's send helper stops presenting an event after either ready **or stall**;
+it then injects V21 and explicitly retries. Thus the old LCI regression is a
+safety/recovery test, not evidence that production will always generate the
+needed release. Its checks explain why stalling is the intentional current
+behavior: it prevents overwriting an unrelated directory entry.
+
+Our newly run directory test adds bounded persistence with no supplied victim,
+full-hit comparison, retained lock occupancy and UL-triggered recovery; the TLA+
+checks expose indefinite waiting under the specified environment. The upstream
+bench already covers the central full-miss LCI/stall/retry scenario. Neither the
+upstream coverage nor our tests establish a working ICI eviction mechanism.
+Any such implementation needs new producer/victim-selection tests, clean and
+dirty ICI completion tests, locked/transient-victim rejection, preservation of
+unrelated entries and shared-path progress while the original LCI waits.
