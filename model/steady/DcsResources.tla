@@ -37,8 +37,10 @@ Process(q) ==
 HasAck(c, a) == LET q == QueueOf[ColorOf[a]] IN
     /\ Len(invQ[q]) > 0
     /\ Head(invQ[q]) = [type |-> "Ack", txn |-> c, address |-> a]
-ReceiveUnlock(c, a) == LET q == QueueOf[ColorOf[a]] IN
+ReceiveAck(c, a) == LET q == QueueOf[ColorOf[a]] IN
     /\ HasAck(c, a)
     /\ invQ' = [invQ EXCEPT ![q] = Tail(@)]
     /\ UNCHANGED reads
+\* Legacy auto-lock releases this queue only when UL returns.
+ReceiveUnlock(c, a) == ReceiveAck(c, a)
 =============================================================================

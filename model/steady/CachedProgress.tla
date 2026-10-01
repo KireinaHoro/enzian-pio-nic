@@ -1,6 +1,6 @@
 ----------------------------- MODULE CachedProgress -----------------------------
 EXTENDS Naturals, Sequences, FiniteSets
-CONSTANTS SharedEvictions, BlockDowngrade, DisableReplacement, AllocateOnInvalidate, ReachableCache
+CONSTANTS SharedEvictions, BlockDowngrade, DisableReplacement, AllocateOnInvalidate, ReachableCache, Nonlocking
 Clients == {1,2}
 Colors == 0..3
 Addresses == 0..11
@@ -80,7 +80,8 @@ Deliver(q) == /\ Len(evictions[q]) > 0
 Admit(c) == /\ Need(c) \in resident /\ P!Admit(c) /\ UNCHANGED cache
 Work(c) == /\ P!Work(c) /\ UNCHANGED cache
 Inv(c) == /\ P!Inv(c) /\ UNCHANGED cache
-Ack(c) == /\ P!Ack(c) /\ UNCHANGED cache
+Ack(c) == /\ P!Ack(c)
+          /\ IF Nonlocking THEN R!ReleaseInvalidation(P!C!Target(c)) ELSE UNCHANGED cache
 Unlock(c) == /\ P!Unlock(c) /\ UNCHANGED cache
 Return(c) == /\ P!Return(c,0) /\ UNCHANGED cache
 Process(q) == /\ P!Process(q) /\ R!Invalidate(Head(invQ[q]).address)
@@ -96,7 +97,7 @@ Spec == Init /\ [][Next]_v /\ WF_v(Warmup) /\ WF_v(Live(DeliverUnlock))
          /\ WF_v(Live(Work(c))) /\ SF_v(Live(Inv(c))) /\ SF_v(Live(Ack(c))) /\ WF_v(Live(Unlock(c))) /\ WF_v(Live(Return(c))))
     /\ (\A q \in Queues: WF_v(Live(Process(q))))
     /\ (\A q \in EvictionQueues: WF_v(Live(Deliver(q))))
-Safety == warmup \in 0..WarmupLength /\ P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
+Safety == (~Nonlocking \/ ~AllocateOnInvalidate) /\ warmup \in 0..WarmupLength /\ P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
 \* This witness is a resource wait, not itself a temporal-failure assertion.
 NoAbsentLockWait == ~\E q \in Queues:
     /\ Len(invQ[q]) > 0 /\ Head(invQ[q]).type = "Invalidate"

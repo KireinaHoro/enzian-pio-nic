@@ -1,5 +1,11 @@
 # Retained cache accounting and composed scheduling races
 
+**LCI-only follow-up:** the [selected Lauberhorn ROM](lauberhorn-rom.md) and
+[no-UL scheduling resource composition](lci-only-resource-model.md) supersede
+active-auto-lock assumptions on the Goal 2 branch. Historical results below
+remain scoped to their recorded endpoint; full combined liveness and hardware
+refinement are not newly discharged by the ROM change.
+
 **Auto-lock rerun:** the [RTL-faithful directory allocation checks](directory-pressure.md#tla-rerun-with-the-rtl-allocation-contract)
 now include from-empty worker/cache history and complete one-slot combined
 scheduler checks. The active contract produces progress/handoff counterexamples

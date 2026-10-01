@@ -116,15 +116,28 @@ GATE_CASES = {
     'bad-axi-release-gate': ('AxiReloadGate', {'BadReleaseGate': True}, 'Completes'),
 }
 CASES.update(GATE_CASES)
+NONLOCKING_CASES = {
+    'lci-only-handoff': ('Handoff', {'Nonlocking': True}, None),
+    'lci-only-handoff-stalled-peer': ('Handoff', {'Nonlocking': True, 'WithStall': True}, None),
+    'lci-only-handoff-rx-tx': ('Handoff', {'Nonlocking': True, 'WorkerTx': True}, None),
+    'lci-only-retained-cache': ('CachedProgress', {'Nonlocking': True}, None),
+    'lci-only-reachable-full': ('CachedProgress', {'Nonlocking': True, 'ReachableCache': True}, None),
+    'lci-only-independent-queues': ('CachedProgress', {'Nonlocking': True, 'BlockDowngrade': True}, None),
+    'bad-lci-only-shared-hol': ('CachedProgress', {'Nonlocking': True, 'BlockDowngrade': True, 'SharedEvictions': True}, 'Progress'),
+    'bad-lci-only-no-replacement': ('CachedProgress', {'Nonlocking': True, 'DisableReplacement': True}, 'Progress'),
+    'lci-only-combined-one-slot': ('CombinedScheduling', {'Nonlocking': True, 'DestinationCapacity': 1}, None),
+    'lci-only-combined': ('CombinedScheduling', {'Nonlocking': True}, None),
+}
+CASES.update(NONLOCKING_CASES)
 DEFAULTS = {
     'DcsDirectoryCycle': {'Ways': 2, 'TargetPresent': True, 'ReleaseVictim': False},
     'AxiReloadGate': {'BadBypass': False, 'BadReleaseGate': False},
     'DirectoryAdmission': {'Ways': 2, 'BadMapping': False, 'BadEarlyRequest': False, 'BadSilentEviction': False, 'LocalRequest': False},
     'KillExit': dict.fromkeys(('BadGate','BadRelease','BadActivate','BadResume','BadFree'), False) | {'Initial': 'User'},
-    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
-    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate','ReachableCache'), False),
+    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'Nonlocking': False, 'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
+    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate','ReachableCache','Nonlocking'), False),
     'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
-    'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
+    'Handoff': dict.fromkeys(('Nonlocking','WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
     'Reservation': {'BadReservation': False},
     'HostWake': dict.fromkeys(('BadClear','BadReassign','BadSubscriber','SharedSubscription','InitiallyParked'), False),
     'InterruptGate': {'BadRearm': False, 'BadRelease': False},
@@ -204,6 +217,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--case', action='append', choices=CASES)
+    selection.add_argument('--nonlocking-only', action='store_true')
     selection.add_argument('--cache-contracts-only', action='store_true')
     selection.add_argument('--kill-only', action='store_true')
     selection.add_argument('--races-only', action='store_true')
@@ -214,9 +228,9 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    selected = args.case or (CACHE_CONTRACT_CASES if args.cache_contracts_only else KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
+    selected = args.case or ({k:v for k,v in NONLOCKING_CASES.items() if v[0] != 'CombinedScheduling'} if args.nonlocking_only else CACHE_CONTRACT_CASES if args.cache_contracts_only else KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
         [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
-        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES and name not in GATE_CASES])
+        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES and name not in GATE_CASES and name not in NONLOCKING_CASES])
     if args.safety_only and any(CASES[name][2] for name in selected):
         p.error('--safety-only requires an explicit selection of positive cases')
     jar = os.environ.get('TLA2TOOLS_JAR')
@@ -256,7 +270,7 @@ def main():
         expected = bool(negative) and ((code == 12 and f'Invariant {negative} is violated' in output)
                     or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or f'Action property {negative} is violated' in output)))
         passed = expected if negative else code == 0 and 'No error has been found' in output
-        directory_contract = ('auto-lock' if module == 'DcsDirectoryCycle' or
+        directory_contract = ('LCI-only nonlocking: release on LCIA acceptance' if (DEFAULTS[module] | options).get('Nonlocking') else 'auto-lock' if module == 'DcsDirectoryCycle' or
             (DEFAULTS[module] | options).get('AllocateOnInvalidate') else
             'historical nonallocating abstraction' if 'AllocateOnInvalidate' in DEFAULTS[module] else None)
         result = dict(directory_contract=directory_contract, passed=passed, expected_violation=negative, returncode=code,

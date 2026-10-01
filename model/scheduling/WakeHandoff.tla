@@ -15,7 +15,7 @@ InitiallyParked == FALSE
 VARIABLES assignment, reads, invQ, held, acknowledgments, phase, parity, direction,
           remaining, completed, unlockQ, oldCache, prefixFree, reused, mailbox, returnedParity,
           issued, kernel, nic, runtime, serviced, owner, reserved, rtOwner, sleeping
-H == INSTANCE Handoff
+H == INSTANCE Handoff WITH Nonlocking <- FALSE
 W == INSTANCE HostWake
 hvars == <<assignment,reads,invQ,held,acknowledgments,phase,parity,direction,
            remaining,completed,unlockQ,oldCache,prefixFree,reused,mailbox,returnedParity>>

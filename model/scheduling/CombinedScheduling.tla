@@ -1,6 +1,6 @@
 -------------------------- MODULE CombinedScheduling --------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS AllocateOnInvalidate, DestinationCapacity, EventBudget, RepeatRx, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
+CONSTANTS Nonlocking, AllocateOnInvalidate, DestinationCapacity, EventBudget, RepeatRx, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
 Workers == {1,2}
 Domains == {0,1}
 Clients == 1..4
@@ -194,14 +194,16 @@ EvictionDelivery(q) ==
 Admit(c) ==
     /\ Eligible(c) /\ P!C!Door(c) \in resident /\ P!Admit(c) /\ UNCHANGED <<ctl,cache>>
 ClientStep(c) ==
-    /\ (P!Work(c) \/ P!Inv(c) \/ P!Ack(c) \/ P!Unlock(c) \/ P!Return(c,0))
+    /\ (P!Work(c) \/ P!Inv(c) \/ P!Unlock(c) \/ P!Return(c,0))
                  /\ UNCHANGED <<ctl,cache>>
+Acknowledge(c) == /\ P!Ack(c) /\ UNCHANGED ctl
+    /\ IF Nonlocking THEN R!ReleaseInvalidation(P!C!Target(c)) ELSE UNCHANGED cache
 Process(q) ==
     /\ P!Process(q) /\ R!Invalidate(Head(invQ[q]).address) /\ UNCHANGED ctl
 DeliverUnlock ==
     /\ P!DeliverUnlock /\ R!ReleaseInvalidation(Head(unlockQ).address) /\ UNCHANGED ctl
 Next == ControlStep \/ DeliverUnlock \/ (\E w \in Workers: InfoRespond(w) \/ Stop(w))
-    \/ (\E c \in Clients: Prepare(c) \/ Admit(c) \/ ClientStep(c))
+    \/ (\E c \in Clients: Prepare(c) \/ Admit(c) \/ ClientStep(c) \/ Acknowledge(c))
     \/ (\E q \in Queues: Process(q) \/ EvictionDelivery(q))
     \/ (\E a \in Lines: Conflict(a) \/ EvictClosed(a))
 CPU(a) == a /\ UNCHANGED <<transport,cache>>
@@ -209,7 +211,7 @@ Spec == Init /\ [][Next]_v /\ WF_v(DeliverUnlock)
     /\ (\A w \in Workers: WF_v(CPU(Local(w))) /\ WF_v(InfoRespond(w)) /\ WF_v(Stop(w)) /\ SF_v(CPU(Deliver(w))))
     /\ (\A d \in Domains: WF_v(CPU(FinishCallback(d))) /\ WF_v(CPU(Publish(d))) /\ WF_v(CPU(Accept(d)))
         /\ WF_v(CPU(Ack(d))) /\ WF_v(CPU(CloseNic(d))) /\ WF_v(CPU(Retire(d))))
-    /\ (\A c \in Clients: SF_v(Prepare(c)) /\ SF_v(Admit(c)) /\ SF_v(ClientStep(c)))
+    /\ (\A c \in Clients: SF_v(Prepare(c)) /\ SF_v(Admit(c)) /\ SF_v(ClientStep(c)) /\ SF_v(Acknowledge(c)))
     /\ (\A q \in Queues: WF_v(Process(q)) /\ WF_v(EvictionDelivery(q)))
     /\ (\A a \in Lines: WF_v(EvictClosed(a)))
 CapacitySafe == \A d \in Domains: Used(d) <= Capacity(d)
@@ -237,7 +239,7 @@ RetirementSafe == \A d \in ctl.retired: KernelQuiet(d) /\ EndpointQuiet(d)
 NoAbsentLockWait == ~\E q \in Queues:
     /\ Len(invQ[q]) > 0 /\ Head(invQ[q]).type = "Invalidate"
     /\ R!AbsentLockWait(Head(invQ[q]).address)
-Safety == P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
+Safety == (~Nonlocking \/ ~AllocateOnInvalidate) /\ P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
           /\ CapacitySafe /\ UniqueClaim /\ Responsibility /\ Routing /\ InfoReady /\ RetirementSafe /\ StopBeforeReuse
           /\ P!NoReadDependencyCycle
 SnapshotStable == [][\A w \in Workers: (ctl.w[w].stage = "Offered" /\ ctl'.w[w].stage = "Offered")

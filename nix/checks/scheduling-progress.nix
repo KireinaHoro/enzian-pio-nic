@@ -9,6 +9,7 @@
   cacheContractsOnly ? false,
   composedOnly ? false,
   composedInvariants ? false,
+  nonlockingOnly ? false,
 }:
 let
   source = lib.fileset.toSource {
@@ -22,7 +23,7 @@ let
     ];
   };
 in
-runCommand (if cacheContractsOnly then "lauberhorn-scheduling-cache-contracts" else if killOnly then "lauberhorn-scheduling-kill-exit" else if composedInvariants then "lauberhorn-scheduling-composed-invariants" else if composedOnly then "lauberhorn-scheduling-composed" else if racesOnly then "lauberhorn-scheduling-races" else "lauberhorn-scheduling-progress")
+runCommand (if nonlockingOnly then "lauberhorn-scheduling-nonlocking" else if cacheContractsOnly then "lauberhorn-scheduling-cache-contracts" else if killOnly then "lauberhorn-scheduling-kill-exit" else if composedInvariants then "lauberhorn-scheduling-composed-invariants" else if composedOnly then "lauberhorn-scheduling-composed" else if racesOnly then "lauberhorn-scheduling-races" else "lauberhorn-scheduling-progress")
   {
     nativeBuildInputs = [ python3 jre_headless tlc ];
     TLA2TOOLS_JAR = "${tlc}/share/java/tla2tools.jar";
@@ -31,7 +32,7 @@ runCommand (if cacheContractsOnly then "lauberhorn-scheduling-cache-contracts" e
     cp -r ${source}/. .
     chmod -R u+w .
     python3 tools/scheduling/addresses.py --check
-    python3 tools/scheduling/check_models.py --output results --timeout ${if composedOnly then "7200" else if composedInvariants then "1200" else "900"} --heap-mib ${if composedOnly then "4096" else "2048"} --workers 4 ${lib.optionalString cacheContractsOnly "--cache-contracts-only"} ${lib.optionalString killOnly "--kill-only"} ${lib.optionalString racesOnly "--races-only"} ${lib.optionalString composedOnly "--composed-only"} ${lib.optionalString composedInvariants "--composed-invariants"}
+    python3 tools/scheduling/check_models.py --output results --timeout ${if composedOnly then "7200" else if composedInvariants then "1200" else "900"} --heap-mib ${if composedOnly then "4096" else "2048"} --workers 4 ${lib.optionalString nonlockingOnly "--nonlocking-only"} ${lib.optionalString cacheContractsOnly "--cache-contracts-only"} ${lib.optionalString killOnly "--kill-only"} ${lib.optionalString racesOnly "--races-only"} ${lib.optionalString composedOnly "--composed-only"} ${lib.optionalString composedInvariants "--composed-invariants"}
     mkdir -p "$out"
     ${lib.optionalString cacheContractsOnly ''
       cp results/summary.json "$out/detailed-summary.json"

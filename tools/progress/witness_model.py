@@ -66,7 +66,7 @@ Slices == {0,1}
 SliceOf == [c \in Colors |-> c %% 2]
 ReadSlots == %d
 VARIABLES reads, invQ, held, acknowledgments, phase, parity, direction, remaining, completed, unlockQ
-System == INSTANCE ProgressSystem WITH reads <- reads, invQ <- invQ,
+System == INSTANCE ProgressSystem WITH Nonlocking <- FALSE, reads <- reads, invQ <- invQ,
     held <- held, acknowledgments <- acknowledgments, phase <- phase,
     parity <- parity, direction <- direction, remaining <- remaining,
     completed <- completed, unlockQ <- unlockQ

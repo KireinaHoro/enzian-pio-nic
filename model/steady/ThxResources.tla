@@ -11,8 +11,10 @@ Conservation == \A p \in Pools: Used(p) <= Slots
 CanRead(c) == /\ c \notin held /\ Used(PoolOf[c]) < Slots
 ReceiveRead(c) == /\ CanRead(c) /\ held' = held \cup {c}
                   /\ UNCHANGED acknowledgments
-ReceiveAck(c) == /\ c \in held /\ c \notin acknowledgments
-                 /\ (~SharedAck \/ Used(PoolOf[c]) < Slots)
+CanReceiveAck(c) == /\ c \in held /\ c \notin acknowledgments
+                    /\ (~SharedAck \/ Used(PoolOf[c]) < Slots)
+CompleteAck(c) == /\ CanReceiveAck(c) /\ UNCHANGED vars
+ReceiveAck(c) == /\ CanReceiveAck(c)
                  /\ acknowledgments' = acknowledgments \cup {c}
                  /\ UNCHANGED held
 SendUnlock(c) == /\ c \in acknowledgments
