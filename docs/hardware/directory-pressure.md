@@ -598,3 +598,12 @@ history or additional instrumentation. Missing events, bounded suppression and
 capture loss prevent concluding that no release existed from silence alone.
 Use the normal F_MAC1 freeze/capture and matched trace-map procedure. No board
 capture or timing-validation result is claimed for this change.
+
+## Follow-up: port the existing non-locking ROM
+
+Maintainer direction now reopens non-locking investigation, starting from its
+existing generator and ROM. The [evolution and trial-port report](nonlocking-rom-port.md)
+records exact historical changes, reproducible candidates, the RA3/simplification
+split, and remaining controller and wire-protocol obligations. Earlier decisions
+to keep auto-lock describe the production configuration, not a prohibition on
+this investigation. No production variant switch has been made.

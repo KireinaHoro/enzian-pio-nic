@@ -74,18 +74,21 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: trace auto-lock allocation pressure first
+#### Resume here: investigate a port of the existing non-locking ROM
 
-**Current priority:** trace the condition; automatic ICI eviction remains an
-undecided policy. LC/LCI can fill a set with local locks pending UL, leaving no
+**Current priority:** investigate non-locking starting from the existing
+non-locking ROM/generator. The [ROM evolution audit](../hardware/nonlocking-rom-port.md)
+reproduces RA3 and simplification trial ports; production retains auto-lock and
+automatic ICI eviction remains an undecided policy. Continue observing the condition. LC/LCI can fill a set with local locks pending UL, leaving no
 CPU-resident victim to evict. The [trace-only change](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred)
 adds an allocation-full marker with the blocked address/opcode and bounded retry
 reporting. Real-DCU tests cover both entirely locked and CPU-resident full sets.
 Board capture is pending; no allocation/coherence policy has changed.
 
 
-**Maintainer decision: retain auto-lock.** The nonlocking table experiment is
-historical investigation; do not pursue a wholesale variant switch. Its control
+**Production remains auto-lock; non-locking investigation is reopened.** Start
+from its existing generator, port RA3 separately, and justify the excluded
+V32/V32d/A22 histories before adopting simplification. Do not switch tables wholesale. Its control
 path incompatibility and ROM-version caveats are recorded in the
 [directory audit](../hardware/directory-pressure.md#control-path-incompatibility-and-rom-provenance).
 
@@ -113,12 +116,13 @@ current producer or explicit bench stimulus. A forced-eviction solution therefor
 requires new control-path implementation and tests; it is not enabling an existing
 controller feature.
 
-2. Establish/enforce an auto-lock allocation guarantee for absent targets, or
+2. Evaluate the non-locking control-path repair and response-fence contract;
+   alternatively establish/enforce an auto-lock allocation guarantee for absent targets, or
    prove an independent release is always pending for the permitted sequences.
    Matched CPU/directory size does not by itself cover FPGA-created locks.
 3. Then compose the guarantee with shared writeback/VC/credit service. The AXI
-   gate model remains useful for response-ordering checks, not a reason to switch
-   protocol or a solution to absent-target allocation.
+   gate model supplies a narrow candidate non-locking contract; extend it to the
+   missing transition cases before selecting that protocol.
 
 **No sidecar lock, extra way, forced eviction, cache flush or protocol switch is
 selected or implemented. Only trace instrumentation has changed in production RTL.** Component reachability is
@@ -196,5 +200,5 @@ controlled RTL tests. Complete hardware-state reachability remains unestablished
 The selected address layout is unchanged. Follow the active item 3 investigation
 above: retain auto-lock, close the whole-NIC reachability gap and establish its
 allocation guarantee. The new actual-directory test confirms the component-level
-obstruction, while the nonlocking experiment is historical. Early controller/arbiter/data-gate checks do not replace the planned
+obstruction; the non-locking port investigation has now been reopened. Early controller/arbiter/data-gate checks do not replace the planned
 whole-slice routing tests or establish shared release-path progress.

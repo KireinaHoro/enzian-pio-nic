@@ -45,6 +45,7 @@ mkShell {
     yices
     jdk
     python3
+    (perl.withPackages (p: [ p.autovivification ]))
     tlc
     mill
     updateMillLockFile
