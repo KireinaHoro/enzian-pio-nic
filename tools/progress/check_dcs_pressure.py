@@ -32,8 +32,8 @@ def main():
         print('\n'.join((out/'build.log').read_text().splitlines()[-30:])); return 1
     result=subprocess.run([str(out/'obj/test')],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
     (out/'run.log').write_text(result.stdout)
-    passed=result.returncode==0 and result.stdout.count('PASS ')==(4 if a.no_auto_lock else 6)
-    summary={'passed':passed,'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
+    passed=result.returncode==0 and result.stdout.count('PASS ')==(5 if a.no_auto_lock else 6)
+    summary={'passed':passed,'interpretation': 'expected unsafe full-miss write reproduced; not a viable drop-in' if a.no_auto_lock else 'active auto-lock allocation dependency reproduced', 'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
         'verilator':subprocess.check_output(['verilator','--version'],text=True).strip(),
         'sources':{str(f):hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in sources},
         'log_sha256':hashlib.sha256(result.stdout.encode()).hexdigest(),

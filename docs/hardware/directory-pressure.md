@@ -178,10 +178,17 @@ rerun the positive resource and scheduling checks before claiming hardware progr
 
 ## Non-auto-lock investigation (2026-10-01)
 
-The alternative generated `dc_stmc_auto_no_lock` protocol is a concrete candidate,
-not yet selected for production. The extended controller test now also runs this
+**Correction after control-path inspection:** the alternative is not safe as a
+wholesale table/package swap. It removes lock allocation but exposes a full-miss
+write hazard described below. The active allocation problem remains unresolved.
+
+The alternative generated `dc_stmc_auto_no_lock` protocol is a semantic reference,
+not a selected production replacement. The extended controller test now also runs this
 table: an absent LCI completes with the full flag asserted, returns to `s1__1`,
-and retains no directory charge. The same arbitration/data-gate tests still pass;
+and creates no new lock charge. However, the controller also asserts directory
+write enable on that full miss: the original harness omitted the unrelated
+resident entries and missed the destructive effect. The corrected test diagnoses
+this unsafe write. The same arbitration/data-gate tests still pass;
 nonlocking does not remove shared-path backpressure.
 
 [`check_lock_tables.py`](../../tools/progress/check_lock_tables.py) compares all
@@ -236,7 +243,7 @@ and is not a whole-slice compilation test. No production sources were switched.
 
 Reproduce both variants and the table comparison with the existing pinned
 `dcs-pressure` Nix check. It emits `summary.json` (six auto-lock checks),
-`nonlocking-summary.json` (four nonlocking checks), and `lock-tables.json`.
+`nonlocking-summary.json` (five checks, including the expected unsafe-write diagnostic), and `lock-tables.json`.
 The nonlocking controller test and structural comparison passed in this audit;
 full protocol-race checking and shared release-path guarantees remain pending.
 
@@ -283,3 +290,59 @@ nix develop -c python3 tools/scheduling/check_models.py \
   --case axi-reload-gate --case bad-axi-reload-bypass --case bad-axi-release-gate \
   --output out/scheduling/axi-reload-gate --workers 2 --heap-mib 1024
 ```
+
+
+### Control-path incompatibility and ROM provenance
+
+The active allocation stall is **not resolved**. The pinned DCS revision is
+`7b5cc874155f96735f135d3cd1f2c514bacfe28f` on `og-state-machine`; production still
+selects auto-lock. AXI gating is a possible correctness argument for removing
+post-LCIA exclusion, not a directory-allocation fix by itself.
+
+The precise wholesale-swap hazard is:
+
+1. `dcu_controller.READ_RTG` lets a nonallocating miss proceed even when full.
+2. `SEND_LCIA` completes through `handle_op_handshake` and `write_rtg`, which
+   unconditionally asserts `rtg_wr_en_o`.
+3. [`dcu.sv`](../../vivado/eci/directory-controller-slice/dcs/dcu/dcu/rtl/dcu.sv)
+   directly wires that enable to TSU write enable and uses `tsu_rd_tag_way_o`.
+   The table's `ccr_ns_valid_o` exists but does not gate this write.
+4. On a full miss, `dcu_tsu` returns an arbitrary way, explicitly documented
+   as **do not write**. `tag_state_ram` writes `INVALID_TAG` when the written
+   state is invalid (`s1__1`). Consequently, this combination invalidates an
+   unrelated resident entry rather than doing a harmless no-op.
+
+The corrected actual-controller test observes the full-miss write strobe and
+invalid next state. The resulting unrelated-entry invalidation follows from
+source wiring and RAM semantics; this harness still does not instantiate TSU/RAM.
+The [corrected evidence](../../model/steady/nonlocking-write-hazard-evidence.json)
+records both pinned RTL runs and the additional source hashes.
+Its diagnostic PASS means the unsafe behavior was reproduced, not a passing
+replacement implementation. This supersedes the earlier inference from completion
+alone in commit `70373df`; that commit's historical evidence is retained.
+
+Any nonallocating invalidation implementation must distinguish lookup hit from
+miss at directory commit. Hit-to-invalid must still remove the matched entry;
+miss-to-invalid must not write any entry. Miss-to-valid requires a genuinely
+available way and must retain the existing capacity check. Preserve lookup context
+across output backpressure and completion. Merely clearing LCI's allocation bit
+while retaining the lock-producing ROM would be worse: it could overwrite an
+unrelated entry with a live lock. These are required design/verification conditions,
+not implemented fixes. The UL decoder/interface incompatibility remains separate.
+
+The maintainer's recollection of later auto-lock evolution is also supported by
+local Git history: `a818e5d` (2024-05-22) regenerated exclusive-response behavior;
+`4bc6183` (2025-05-20) simplified the generated FSM; `2d77ada` (2025-10-20)
+updated CSV/generator simplification. These changes are on other local-history
+branches, not ancestors of the pinned `og-state-machine` revision. The checked-out
+ROM comparison therefore says nothing about replacing those evolved variants.
+The pinned tables/generator trace to the 2023 synchronization. Do not silently
+switch branches or regenerate from a different branch's CSV/generator. Choose and
+record the intended protocol baseline before deriving a minimal nonlocking change;
+retain its response semantics and later fixes explicitly.
+
+Next: establish the AXI fence contract, select the intended active/evolved FSM
+baseline, and derive a narrow coordinated ROM/allocation/writeback/interface change.
+Then validate hit, empty miss and full miss against the actual directory RAM,
+including output backpressure and preservation of every unrelated entry. No DCS
+submodule, production ROM, or controller has been modified by this investigation.
