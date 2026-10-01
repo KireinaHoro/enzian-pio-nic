@@ -87,6 +87,17 @@ KILL_CASES = {
 CASES.update(RACE_CASES)
 CASES.update(KILL_CASES)
 CACHE_CONTRACT_CASES = {
+    'directory-cycle-hit': ('DcsDirectoryCycle', {}, None),
+    'directory-cycle-hit-16': ('DcsDirectoryCycle', {'Ways': 16}, None),
+    'directory-cycle-miss': ('DcsDirectoryCycle', {'TargetPresent': False}, 'Completes'),
+    'directory-cycle-miss-16': ('DcsDirectoryCycle', {'Ways': 16, 'TargetPresent': False}, 'Completes'),
+    'directory-cycle-release': ('DcsDirectoryCycle', {'TargetPresent': False, 'ReleaseVictim': True}, None),
+    'reachable-cache-auto-lock': ('CachedProgress', {'AllocateOnInvalidate': True, 'ReachableCache': True}, 'Progress'),
+    'reachable-cache-lock-witness': ('CachedProgress', {'AllocateOnInvalidate': True, 'ReachableCache': True}, 'NoAbsentLockWait'),
+    'reachable-cache-nonallocating-control': ('CachedProgress', {'AllocateOnInvalidate': False, 'ReachableCache': True}, None),
+    'combined-auto-lock-handoff': ('CombinedScheduling', {'AllocateOnInvalidate': True, 'DestinationCapacity': 1}, 'HandoffFinishes'),
+    'combined-auto-lock-progress': ('CombinedScheduling', {'AllocateOnInvalidate': True, 'DestinationCapacity': 1}, 'StableProgress'),
+    'combined-auto-lock-witness': ('CombinedScheduling', {'AllocateOnInvalidate': True}, 'NoAbsentLockWait'),
     'retained-cache-dcs-counterexample': ('CachedProgress', {'AllocateOnInvalidate': True}, 'Progress'),
     'directory-one-way': ('DirectoryAdmission', {'Ways': 1}, None),
     'directory-two-way': ('DirectoryAdmission', {}, None),
@@ -106,11 +117,12 @@ GATE_CASES = {
 }
 CASES.update(GATE_CASES)
 DEFAULTS = {
+    'DcsDirectoryCycle': {'Ways': 2, 'TargetPresent': True, 'ReleaseVictim': False},
     'AxiReloadGate': {'BadBypass': False, 'BadReleaseGate': False},
     'DirectoryAdmission': {'Ways': 2, 'BadMapping': False, 'BadEarlyRequest': False, 'BadSilentEviction': False, 'LocalRequest': False},
     'KillExit': dict.fromkeys(('BadGate','BadRelease','BadActivate','BadResume','BadFree'), False) | {'Initial': 'User'},
     'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
-    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate'), False),
+    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate','ReachableCache'), False),
     'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
     'Handoff': dict.fromkeys(('WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
     'Reservation': {'BadReservation': False},
@@ -124,10 +136,11 @@ DEFAULTS = {
     'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
+    'DcsDirectoryCycle': ['Safety'],
     'AxiReloadGate': ['TypeOK', 'NoStaleRefill'],
     'DirectoryAdmission': ['TypeOK','Accounting','BlockingHasRelease'],
     'KillExit': ['TypeOK','NoWrongKill','NoResume','MetadataSafe','CacheRetained'],
-    'CombinedScheduling': ['Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
+    'CombinedScheduling': ['NoAbsentLockWait','Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
     'CachedProgress': ['Safety'],
     'ControlRetirement': ['TypeOK','RetirementSafe'],
     'Handoff': ['Safety','DrainBeforeInstall','PrefixSafe','SteadyEntry'],
@@ -142,6 +155,7 @@ INVARIANTS = {
     'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
+    'DcsDirectoryCycle': ['Completes'],
     'AxiReloadGate': ['Completes'],
     'DirectoryAdmission': ['Admission','LocalProgress'],
     'KillExit': ['NoReblock','NoResumeAfterClose','SnapshotStable','StopCompletes','ExitCompletes','SuccessorsProgress'],
@@ -166,6 +180,8 @@ def tla_value(v):
 def config(module, options, negative, safety_only=False):
     constants = DEFAULTS[module] | options
     invs, props = INVARIANTS[module], PROPERTIES[module]
+    if module == 'CachedProgress' and negative == 'NoAbsentLockWait':
+        invs = ['Safety', 'NoAbsentLockWait']
     if module == 'CombinedScheduling' and not negative:
         invs = ['Safety']  # Already includes every named diagnostic invariant.
     if safety_only:
@@ -175,8 +191,9 @@ def config(module, options, negative, safety_only=False):
     if negative:
         invs = [negative] if negative in invs else []
         props = [negative] if negative in props else []
-    if module == 'CachedProgress' and negative == 'Progress' and options.get('AllocateOnInvalidate'):
-        invs = ['Safety']  # Check accounting before accepting the concrete-DCS progress counterexample.
+    if module == 'DcsDirectoryCycle': invs = ['Safety']
+    if module in {'CachedProgress','CombinedScheduling'} and negative in {'Progress','NoAbsentLockWait','HandoffFinishes','StableProgress'} and options.get('AllocateOnInvalidate'):
+        invs = ['Safety'] + (['NoAbsentLockWait'] if negative == 'NoAbsentLockWait' else [])  # Retain accounting on diagnostics.
     return ('SPECIFICATION Spec\n' + ('CONSTANTS\n' if constants else '') + ''.join(f'{k} = {tla_value(v)}\n' for k,v in constants.items())
             + ('INVARIANTS ' + ' '.join(invs) + '\n' if invs else '')
             + ('PROPERTIES ' + ' '.join(props) + '\n' if props else '')
@@ -239,14 +256,18 @@ def main():
         expected = bool(negative) and ((code == 12 and f'Invariant {negative} is violated' in output)
                     or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or f'Action property {negative} is violated' in output)))
         passed = expected if negative else code == 0 and 'No error has been found' in output
-        result = dict(passed=passed, expected_violation=negative, returncode=code,
+        directory_contract = ('auto-lock' if module == 'DcsDirectoryCycle' or
+            (DEFAULTS[module] | options).get('AllocateOnInvalidate') else
+            'historical nonallocating abstraction' if 'AllocateOnInvalidate' in DEFAULTS[module] else None)
+        result = dict(directory_contract=directory_contract, passed=passed, expected_violation=negative, returncode=code,
                       verification_kind='state invariants only' if state_only else 'configured invariants and temporal properties',
                       config_sha256=sha(cfg), log_sha256=sha(log), command=cmd,
                       elapsed_seconds=round(time.monotonic()-start,3),
                       statistics=[line for line in output.splitlines() if any(x in line for x in ('distinct states found','depth of the complete'))])
         summary['cases'][name] = result
         (args.output/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
-        print(f'{name}: {"PASS" if passed else "INCOMPLETE" if code == 124 else "FAIL"}',flush=True)
+        status = f'EXPECTED {negative} VIOLATION' if expected else 'PASS' if passed else 'INCOMPLETE' if code == 124 else 'FAIL'
+        print(f'{name}: {status}',flush=True)
         if not passed: print('\n'.join(output.splitlines()[-28:]),flush=True)
     return 0 if all(c['passed'] for c in summary['cases'].values()) else 1
 if __name__ == '__main__': raise SystemExit(main())

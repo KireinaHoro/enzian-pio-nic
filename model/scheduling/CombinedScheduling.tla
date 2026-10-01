@@ -234,6 +234,9 @@ ApplicationStopped(d) ==
 PrefixReusable(d) == d \in ctl.retired
 StopBeforeReuse == \A d \in Domains: PrefixReusable(d) => ApplicationStopped(d)
 RetirementSafe == \A d \in ctl.retired: KernelQuiet(d) /\ EndpointQuiet(d)
+NoAbsentLockWait == ~\E q \in Queues:
+    /\ Len(invQ[q]) > 0 /\ Head(invQ[q]).type = "Invalidate"
+    /\ R!AbsentLockWait(Head(invQ[q]).address)
 Safety == P!TypeOK /\ P!Tracking /\ P!Conservation /\ R!TypeOK /\ R!Conservation
           /\ CapacitySafe /\ UniqueClaim /\ Responsibility /\ Routing /\ InfoReady /\ RetirementSafe /\ StopBeforeReuse
           /\ P!NoReadDependencyCycle

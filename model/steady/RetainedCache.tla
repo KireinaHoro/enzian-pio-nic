@@ -30,8 +30,13 @@ Deliver(q) == /\ Len(evictions[q]) > 0
 \* Invalidation completion does not release the entry before its final unlock.
 \* auto_lock DCS allocates an absent LCI target until UL. FALSE retains the
 \* historical nonallocating endpoint abstraction, not this concrete DCS mode.
-Invalidate(a) == /\ a \notin Queued
-                 /\ (~AllocateOnInvalidate \/ a \in directory \/ CanFill(a))
+\* A full-set hit reuses its entry; a full-set miss cannot install the lock.
+\* Already locked targets stall in the ROM until UL as well.
+Full(s) == Cardinality(directory \cap Entries(s)) = Ways
+AbsentLockWait(a) == AllocateOnInvalidate /\ a \notin directory /\ Full(SetOf[a])
+CanInvalidate(a) == /\ a \notin Queued \cup retiring
+                    /\ (~AllocateOnInvalidate \/ a \in directory \/ CanFill(a))
+Invalidate(a) == /\ CanInvalidate(a)
                  /\ resident' = resident \ {a} /\ dirty' = dirty \ {a}
                  /\ retiring' = (IF a \in directory \/ AllocateOnInvalidate THEN retiring \cup {a} ELSE retiring)
                  /\ directory' = (IF AllocateOnInvalidate THEN directory \cup {a} ELSE directory)
