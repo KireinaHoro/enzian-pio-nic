@@ -1,0 +1,643 @@
+{
+  "scope": "Count retained HAKS/A22 observations; absence in captures is not unreachability.",
+  "exports": [
+    {
+      "path": "data/eci/sys_trace/iperf-tx-0x0-timeout/events.tar.gz",
+      "rows": 9731311,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-0x8000-timeout/events.tar.gz",
+      "rows": 8374961,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-boundary-trace-0x8000-timeout/events.tar.gz",
+      "rows": 29038960,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-fldx-0x8080-timeout/events.tar.gz",
+      "rows": 20780883,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-interrupt-choked/events.tar.gz",
+      "rows": 5366430,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-invctrl-0x8080-timeout/events.tar.gz",
+      "rows": 44909546,
+      "members": 29,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-nospinlock-timeouts/events.tar.gz",
+      "rows": 10939646,
+      "members": 41,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/iperf-tx-nospinlock-timeouts-2/events.tar.gz",
+      "rows": 11093069,
+      "members": 41,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/ping-irq-stuck-intc-2word/events.tar.gz",
+      "rows": 10695105,
+      "members": 40,
+      "hits": []
+    },
+    {
+      "path": "data/eci/sys_trace/rpc-invoked-bypass-timeout-0x8080/events.tar.gz",
+      "rows": 10635357,
+      "members": 106,
+      "hits": []
+    }
+  ],
+  "legacy_csv": [
+    {
+      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/dcs.csv",
+      "rows": 0,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_app.csv",
+      "rows": 0,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_sys.csv",
+      "rows": 0,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_app.csv",
+      "rows": 3,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_sys.csv",
+      "rows": 3,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/dcs.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_app.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_sys.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_app.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_sys.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/dcs.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_app.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_sys.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_app.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_sys.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/dcs.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_app.csv",
+      "rows": 3,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_sys.csv",
+      "rows": 3,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_app.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_sys.csv",
+      "rows": 5,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/dcs.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_app.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_sys.csv",
+      "rows": 2,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_app.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_sys.csv",
+      "rows": 4,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/dcs.csv",
+      "rows": 1024,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_sys.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_app.csv",
+      "rows": 512,
+      "hits": []
+    },
+    {
+      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_sys.csv",
+      "rows": 512,
+      "hits": []
+    }
+  ],
+  "dma": [
+    {
+      "path": "out/cmac-trace-archive/hardware-tests/cmac-fmac1-20260928/received/trace-full.bin",
+      "map": "out/cmac-trace-archive/cmac-fmac1-vivado-inputs/generated/lauberhorn_trace_dma_map.json",
+      "sha256": "b7532515fae2e5d4b500c302eb55d4bd75f2a80312130d9e18dc7532cb951c68",
+      "map_sha256": "705a7fc5f1d16499bf849e2583c5249335fd4001155ca011f387977e99dd64fe",
+      "samples": 20145164,
+      "lost_markers": 0,
+      "lost_samples": 0,
+      "bubble_markers": 405513,
+      "response_samples_by_source": {
+        "38": 165,
+        "19": 330,
+        "5": 156014,
+        "31": 156014,
+        "32": 157,
+        "6": 314,
+        "37": 156021,
+        "18": 156021
+      },
+      "accepted_by_source": {
+        "38": 165,
+        "19": 165,
+        "5": 156014,
+        "31": 156014,
+        "32": 157,
+        "6": 157,
+        "37": 156021,
+        "18": 156021
+      },
+      "accepted_response_opcodes": {
+        "4": 624704,
+        "2": 10
+      },
+      "hits": []
+    },
+    {
+      "path": "out/cmac-trace-archive/hardware-tests/cmac-fmac1-20260928/recover-old/received/trace-full.bin",
+      "map": "out/cmac-trace-archive/cmac-vivado-inputs/generated/lauberhorn_trace_dma_map.json",
+      "sha256": "671ee92e64b5d03fabca4e97fc5efbf6ddb5fa0df1eae4af23a408a488cede5e",
+      "map_sha256": "705a7fc5f1d16499bf849e2583c5249335fd4001155ca011f387977e99dd64fe",
+      "samples": 13192884,
+      "lost_markers": 0,
+      "lost_samples": 0,
+      "bubble_markers": 232326,
+      "response_samples_by_source": {
+        "38": 165,
+        "19": 330,
+        "31": 65129,
+        "5": 65129,
+        "32": 156,
+        "6": 312,
+        "37": 65135,
+        "18": 65135
+      },
+      "accepted_by_source": {
+        "38": 165,
+        "19": 165,
+        "31": 65129,
+        "5": 65129,
+        "32": 156,
+        "6": 156,
+        "37": 65135,
+        "18": 65135
+      },
+      "accepted_response_opcodes": {
+        "4": 261164,
+        "2": 6
+      },
+      "hits": []
+    }
+  ],
+  "thx_history": [
+    {
+      "revision": "a137b8287c776e827f64b30356625db478a4c4c0",
+      "commit": "2026-05-06 Richard Braun Added rudimentary sorting for transitions to TLA+ generator script.",
+      "files": {
+        "legacy/eci_stmc_auto_corrected.pl": {
+          "A22_occurrences": 16,
+          "sha256": "ef1ba5cccb836a5af8b4e638394c20c3c8faa84a7d7d6db91a5519d713dac024"
+        },
+        "legacy/remote_fsm.txt": {
+          "FAS_output_transitions": 10
+        },
+        "specifications/remote_fsm.json": {
+          "FAS_output_transitions": 10
+        }
+      }
+    },
+    {
+      "revision": "a97682d62b6dd005fa4d36087fa1fe084f9276f7",
+      "commit": "2026-05-04 Richard Braun Added script for generating TLA+ spec from json system specification.",
+      "files": {
+        "legacy/eci_stmc_auto_corrected.pl": {
+          "A22_occurrences": 16,
+          "sha256": "ef1ba5cccb836a5af8b4e638394c20c3c8faa84a7d7d6db91a5519d713dac024"
+        },
+        "legacy/remote_fsm.txt": {
+          "FAS_output_transitions": 10
+        },
+        "specifications/remote_fsm.json": {
+          "FAS_output_transitions": 10
+        }
+      }
+    },
+    {
+      "revision": "7f9333bcc89ca4bee6be3f13e960a99fe689d99c",
+      "commit": "2025-10-21 Jasmin Schult add directory controller checks and gen",
+      "files": {
+        "legacy/eci_stmc_auto_corrected.pl": {
+          "A22_occurrences": 16,
+          "sha256": "ef1ba5cccb836a5af8b4e638394c20c3c8faa84a7d7d6db91a5519d713dac024"
+        },
+        "legacy/remote_fsm.txt": {
+          "FAS_output_transitions": 10
+        },
+        "specifications/remote_fsm.json": {
+          "FAS_output_transitions": 10
+        }
+      }
+    },
+    {
+      "revision": "e46f2760c0fe6c65f8f16952ef646948f30174f6",
+      "commit": "2025-06-20 Jasmin Schult add event descs",
+      "files": {
+        "legacy/remote_fsm.txt": {
+          "FAS_output_transitions": 10
+        },
+        "specifications/remote_fsm.json": {
+          "FAS_output_transitions": 10
+        }
+      }
+    },
+    {
+      "revision": "982d521119bad419d18baaf9025691022ba5ae7a",
+      "commit": "2025-06-20 Jasmin Schult add specs and basic validation",
+      "files": {
+        "legacy/remote_fsm.txt": {
+          "FAS_output_transitions": 10
+        },
+        "specifications/remote_fsm.json": {
+          "FAS_output_transitions": 10
+        }
+      }
+    },
+    {
+      "revision": "b269076c980e8ecc2df76cd692ec85e61a55f007",
+      "commit": "2025-06-19 Jasmin Schult Initial commit",
+      "files": {}
+    }
+  ]
+}
