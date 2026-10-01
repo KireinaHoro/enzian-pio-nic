@@ -4,6 +4,12 @@ Audit and reproducible trial generation, 2026-10-01. Start from the existing
 `dc_stmc_auto_no_lock` generator/ROM, as requested. Production still uses auto-lock;
 this investigation does not install a new table or change controller behavior.
 
+The maintainer subsequently confirmed Jasmin's THX work as the source of the
+simplification and F31 change. The [reconstructed workflow](thx-rom-reconstruction.md)
+finds her corrected generator **retains A22** and supplies a stronger 43-state,
+989-entry non-locking candidate. The historical 946-entry port below is a
+reproduction of the simplified DCS artifact, not her complete correction.
+
 ## History and exact semantic changes
 
 The active DCS pin `eb64df4` uses the old generated auto-lock table selected by
@@ -29,8 +35,9 @@ stalled. The [machine-readable evidence](../../model/steady/rom-evolution-eviden
 lists every changed shared entry and counts removed entries. Therefore the
 simplification is a restriction of accepted histories, not a demonstrated
 semantics-preserving minimization. RA3 alone is not evidence for that restriction:
-LC/LR can still downgrade a remote line via F32. The available commit messages do
-not establish why THX cannot produce the excluded events/races.
+LC/LR can still downgrade a remote line via F32. The maintainer attributes this work to Jasmin. Subsequent reconstruction
+confirms V32/V32d absence but finds A22/FAS in her extracted FSM and corrected
+generator; see the follow-up above.
 
 ## Trial ports from the existing non-locking source
 

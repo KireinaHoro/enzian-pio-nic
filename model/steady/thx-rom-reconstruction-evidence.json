@@ -1,0 +1,139 @@
+{
+  "scope": "Reconstruct Jasmin's legacy DC generator/checker workflow; not a full proof.",
+  "thx_revision": "a137b8287c776e827f64b30356625db478a4c4c0",
+  "source_sha256": {
+    "eci_stmc_auto_corrected.pl": "ef1ba5cccb836a5af8b4e638394c20c3c8faa84a7d7d6db91a5519d713dac024",
+    "check_DirC_csv.py": "48a62fd9967ebe3f4ca09b75afeca25297a77f746fc002e55c2beb7a46c6a776",
+    "remote_fsm.txt": "d4ba615c7e37b63e6b6875821be06a6199a597443cae13cb8c647302ca078503"
+  },
+  "cases": {
+    "lock-9c9abae": {
+      "states": 78,
+      "entries": 2028,
+      "checker_exit": 0,
+      "reported_problems": 22,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input EI in state (('I', 'E'), (('LS', 'FS_d'), ('FAS', '~')))",
+        "Node 0 not able to receive input EI in state (('I', 'E'), (('WB', 'FS_d'), ('FAS', '~')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R'), ('MEM_R_DONE', 'APP_R_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE'), ('UNLOCK', '~')))",
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0
+    },
+    "lock-simplified-ra2": {
+      "states": 48,
+      "entries": 1104,
+      "checker_exit": 0,
+      "reported_problems": 32,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R'), ('MEM_R_DONE', 'APP_R_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'),))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE'), ('UNLOCK', '~')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'),))",
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0
+    },
+    "lock-2d77ada": {
+      "states": 47,
+      "entries": 1081,
+      "checker_exit": 0,
+      "reported_problems": 38,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R'), ('MEM_R_DONE', 'APP_R_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'),))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE'), ('UNLOCK', '~')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'),))",
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0
+    },
+    "plain-simplified-ra3": {
+      "states": 43,
+      "entries": 946,
+      "checker_exit": 0,
+      "reported_problems": 35,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'), ('EI', 'MEM_R'), ('MEM_R_DONE', 'APP_R_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('LS', 'FS_d'),))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'), ('EI', 'APP_WB_DONE')))",
+        "Node 0 not able to receive input FAS in state (('I', 'E'), (('WB', 'FS_d'),))",
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0
+    },
+    "jasmin-ra2": {
+      "states": 48,
+      "entries": 1152,
+      "checker_exit": 0,
+      "reported_problems": 4,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0,
+      "only_documented_stable_request_warnings": true
+    },
+    "jasmin-ra3": {
+      "states": 47,
+      "entries": 1128,
+      "checker_exit": 0,
+      "reported_problems": 4,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0,
+      "only_documented_stable_request_warnings": true
+    },
+    "plain-jasmin-ra3": {
+      "states": 43,
+      "entries": 989,
+      "checker_exit": 0,
+      "reported_problems": 4,
+      "unique_diagnostics": [
+        "Node 0 not able to receive input IE_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IE_d in state (('I', 'S'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'E'), ())",
+        "Node 0 not able to receive input IS_d in state (('I', 'S'), ())"
+      ],
+      "deadlock_reports": 0,
+      "only_documented_stable_request_warnings": true
+    }
+  },
+  "simplified_to_jasmin_ra3": {
+    "removed": 0,
+    "added": 47,
+    "changed": []
+  },
+  "plain_port_matches_shared_lock_entries": 989,
+  "remote_json_output_counts": {
+    "ES": 0,
+    "ES_d": 0,
+    "FAS": 10
+  }
+}
