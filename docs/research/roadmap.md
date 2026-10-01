@@ -78,7 +78,9 @@ commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
 **Current priority:** investigate non-locking starting from the existing
 non-locking ROM/generator. The [ROM evolution audit](../hardware/nonlocking-rom-port.md)
-reproduces RA3 and simplification trial ports; production retains auto-lock and
+reproduces RA3 and simplification trial ports; the
+[THX reconstruction](../hardware/thx-rom-reconstruction.md) additionally ports
+Jasmin's corrected equations (retaining A22) onto the existing non-locking generator; production retains auto-lock and
 automatic ICI eviction remains an undecided policy. Continue observing the condition. LC/LCI can fill a set with local locks pending UL, leaving no
 CPU-resident victim to evict. The [trace-only change](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred)
 adds an allocation-full marker with the blocked address/opcode and bounded retry
@@ -87,8 +89,8 @@ Board capture is pending; no allocation/coherence policy has changed.
 
 
 **Production remains auto-lock; non-locking investigation is reopened.** Start
-from its existing generator, port RA3 separately, and justify the excluded
-V32/V32d/A22 histories before adopting simplification. Do not switch tables wholesale. Its control
+from its existing generator, port Jasmin's corrected remote equations and RA3,
+and retain A22/FAS handling identified in her extracted THX FSM. Do not switch tables wholesale. Its control
 path incompatibility and ROM-version caveats are recorded in the
 [directory audit](../hardware/directory-pressure.md#control-path-incompatibility-and-rom-provenance).
 
