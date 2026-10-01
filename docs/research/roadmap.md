@@ -64,7 +64,7 @@ not authorization to treat a proposed lock mechanism as the selected design.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | Pending. The [focused kill/exit model](../hardware/kill-exit-verification.md) checks control ordering under endpoint service assumptions. Compose actual RX/TX, invalidation/ACK/unlock and buffer/reply ownership; show completion does not depend on the killed application's execution or an unrelated stalled worker. |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; full combined temporal runs remain incomplete. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: nonlocking candidate passes targeted allocation check; refill races next.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: full-set lock allocation unresolved; wholesale nonlocking swap has a directory-write hazard.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -78,7 +78,13 @@ commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
 The [non-auto-lock audit](../hardware/directory-pressure.md#non-auto-lock-investigation-2026-10-01)
 now compares both generated tables and tests the alternative with the actual
-controller. Nonlocking removes absent-LCI allocation in this bounded test.
+controller. Nonlocking removes absent-LCI allocation, but the corrected controller test
+exposes an unsafe full-miss directory write. Completion alone was insufficient:
+the current control path can invalidate an unrelated way. See the
+[control-path correction and ROM provenance](../hardware/directory-pressure.md#control-path-incompatibility-and-rom-provenance).
+The active lock-allocation issue is unresolved. Do not swap in the old nonlocking
+package wholesale; select the intended FSM baseline and coordinate allocation,
+hit/miss write enable, ROM semantics and the UL interface.
 No production switch is selected. Next check speculative/late control and overflow
 refills around LCIA/publication, dirty writeback completion, and stopped-owner
 requests. The current immediate-UL behavior does not protect the whole operation.

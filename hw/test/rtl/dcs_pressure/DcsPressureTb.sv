@@ -8,6 +8,9 @@ module DcsPressureTb;
   always #5 clk = ~clk;
   logic valid = 0, full = 1, ready, stall, wr, en, error;
   logic full_stall;
+  logic missed_full_write = 0;
+  always @(posedge clk) if (!reset && wr && full && !cc_is_state_valid(state))
+    missed_full_write <= 1;
   cc_req_t request = LCI, active;
   cc_state_t state = s1__1, next_state;
   cc_action_t action;
@@ -89,7 +92,9 @@ module DcsPressureTb;
     valid=1;
     wait_accept();
     assert (state == s1__1 && !cc_is_state_valid(state)) else $fatal(1,"absent LCI retained charge");
-    $display("PASS nonlocking absent LCI completes with full directory and no charge");
+    $display("PASS diagnostic: nonlocking absent LCI completes with invalid next state");
+    assert (missed_full_write) else $fatal(1,"expected unsafe full-miss directory write was not reproduced");
+    $display("PASS diagnostic: wholesale nonlocking swap writes arbitrary way on full miss");
 `else
     assert (cc_req_creates_new_rtg_entry(LCI)) else $fatal(1,"wrong protocol variant");
     valid=1;
