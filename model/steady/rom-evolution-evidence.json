@@ -1,0 +1,1174 @@
+{
+  "scope": "Reproduce historical ROMs and trial ports from the existing non-lock generator.\nRequires local DCS history and the Perl environment in nix develop. No RTL install.\nComparisons are symbolic explicit transitions, not protocol correctness proofs.\n",
+  "revisions": {
+    "9c9abae": "9c9abaea13e930b2c5a6ca920b314b1f7ff7c591",
+    "a818e5d": "a818e5db88142880fa146563298f1bed16dfcb90",
+    "4bc6183": "4bc618346f516066f9b5912075eef1777c905eac",
+    "cf9b1cf": "cf9b1cf9c400b046bf5aaaea7fe35f14f0f015f3",
+    "acbf558": "acbf5582dafcab18297831a7398ea92e784cb7f3",
+    "2d77ada": "2d77ada33f5a60e1cf14cef16f6fe0a7f664c677",
+    "HEAD": "eb64df4f5495079e8a0e7509179f46c53d69afd6"
+  },
+  "generated": {
+    "lock-9c9abae": {
+      "states": 78,
+      "explicit_transitions": 2028,
+      "generator_sha256": "33165790712d06535e42e280c0f20884c798310cfe61d68f8d2075eae3290ae0",
+      "absent_R12": [
+        "s1__2pRA2",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1pUL__1",
+        "SEND_LCIA"
+      ]
+    },
+    "lock-a818e5d": {
+      "states": 84,
+      "explicit_transitions": 2184,
+      "generator_sha256": "852469927f9ac7c7ed459923b858d5e6660e0c6c64816bba24d88d89ac248cc9",
+      "absent_R12": [
+        "s1__3pRA3",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1pUL__1",
+        "SEND_LCIA"
+      ]
+    },
+    "lock-2d77ada": {
+      "states": 47,
+      "explicit_transitions": 1081,
+      "generator_sha256": "dea1226f99ff394b7e738a6a494dd6e679771eba0ef02ba833ec4cf8c4de86f9",
+      "absent_R12": [
+        "s1__3pRA3",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1pUL__1",
+        "SEND_LCIA"
+      ]
+    },
+    "lock-simplified-ra2": {
+      "states": 48,
+      "explicit_transitions": 1104,
+      "generator_sha256": "f52b82cefc2e179cc03087d7a2a64ac46a91e762e71ee0ef73bcd91b704053dd",
+      "absent_R12": [
+        "s1__2pRA2",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1pUL__1",
+        "SEND_LCIA"
+      ]
+    },
+    "plain-original": {
+      "states": 72,
+      "explicit_transitions": 1800,
+      "generator_sha256": "65865c0d3f9486ae4ab86cafa71eca6248cdc296967369d11c43c550f91ea99f",
+      "absent_R12": [
+        "s1__2pRA2",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1__1",
+        "SEND_LCIA"
+      ]
+    },
+    "plain-ra3": {
+      "states": 71,
+      "explicit_transitions": 1775,
+      "generator_sha256": "db639fe007cbb47544ab9aa2ddd8d9146a1cfdb2485d6d0e17a1e12f948fd41c",
+      "absent_R12": [
+        "s1__3pRA3",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1__1",
+        "SEND_LCIA"
+      ]
+    },
+    "plain-simplified-ra2": {
+      "states": 44,
+      "explicit_transitions": 968,
+      "generator_sha256": "f110e3a7eb4c3a941d0764ab0497bc17f100c45bc7f4f47f5d5bbd365745578c",
+      "absent_R12": [
+        "s1__2pRA2",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1__1",
+        "SEND_LCIA"
+      ]
+    },
+    "plain-simplified-ra3": {
+      "states": 43,
+      "explicit_transitions": 946,
+      "generator_sha256": "378fca1aa51447aa7748fde5ada58e8ae586cf98cd7808d498d26416ec48ecb2",
+      "absent_R12": [
+        "s1__3pRA3",
+        "RDD"
+      ],
+      "absent_LCI": [
+        "s1__1",
+        "SEND_LCIA"
+      ]
+    }
+  },
+  "checks": {
+    "all_eight_generated_roms_verilator_lint": true,
+    "lock-9c9abae-reproduces-checked-rom": true,
+    "lock-a818e5d-reproduces-checked-rom": true,
+    "lock-simplified-ra2-reproduces-checked-rom": true,
+    "later-generator-reproduces-merged-ra3-simplified-rom": true,
+    "lock-9c9abae-matches-plain-original-on-shared-entries-after-lock-erasure": 1800,
+    "lock-simplified-ra2-matches-plain-simplified-ra2-on-shared-entries-after-lock-erasure": 968,
+    "lock-2d77ada-matches-plain-simplified-ra3-on-shared-entries-after-lock-erasure": 946
+  },
+  "comparisons": {
+    "lock-9c9abae-to-lock-a818e5d": {
+      "removed": 26,
+      "added": 182,
+      "changed": [
+        {
+          "state": "s1__1",
+          "request": "R12",
+          "before": [
+            "s1__2pRA2",
+            "RDD"
+          ],
+          "after": [
+            "s1__3pRA3",
+            "RDD"
+          ]
+        },
+        {
+          "state": "s1__1",
+          "request": "V32",
+          "before": [
+            "s1__1",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1__3pRA3_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1__2",
+          "request": "V32",
+          "before": [
+            "s1__2",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1__3pRA3_V21_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1__3pRA3",
+          "request": "V32",
+          "before": [
+            "s1__3pRA3",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1__3pRA3",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1pLRA__1",
+          "request": "V32",
+          "before": [
+            "s1pLRA__1",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1pLRA__3pRA3_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1pLRA__2",
+          "request": "V32",
+          "before": [
+            "s1pLRA__2",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1pLRA__3pRA3_V21_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1pLWA__1",
+          "request": "V32",
+          "before": [
+            "s1pLWA__1",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1pLWA__3pRA3_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1pUL__1",
+          "request": "V32",
+          "before": [
+            "s1pUL__1",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1pUL__3pRA3_R12",
+            "NO_ACTION"
+          ]
+        },
+        {
+          "state": "s1pUL__2",
+          "request": "V32",
+          "before": [
+            "s1pUL__2",
+            "NOT_ALLOWED"
+          ],
+          "after": [
+            "s1pUL__3pRA3_V21_R12",
+            "NO_ACTION"
+          ]
+        }
+      ]
+    },
+    "lock-9c9abae-to-lock-simplified-ra2": {
+      "removed": 924,
+      "added": 0,
+      "changed": [
+        {
+          "state": "s1__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "R23",
+          "before": [
+            "s1__3",
+            "STALL"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "V21",
+          "before": [
+            "s1__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pC__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pC__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pR__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pR__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pW__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pW__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        }
+      ]
+    },
+    "lock-simplified-ra2-to-lock-2d77ada": {
+      "removed": 23,
+      "added": 0,
+      "changed": [
+        {
+          "state": "s1__1",
+          "request": "R12",
+          "before": [
+            "s1__2pRA2",
+            "RDD"
+          ],
+          "after": [
+            "s1__3pRA3",
+            "RDD"
+          ]
+        }
+      ]
+    },
+    "plain-ra3": {
+      "removed": 25,
+      "added": 0,
+      "changed": [
+        {
+          "state": "s1__1",
+          "request": "R12",
+          "before": [
+            "s1__2pRA2",
+            "RDD"
+          ],
+          "after": [
+            "s1__3pRA3",
+            "RDD"
+          ]
+        }
+      ]
+    },
+    "plain-simplified-ra2": {
+      "removed": 832,
+      "added": 0,
+      "changed": [
+        {
+          "state": "s1__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "R23",
+          "before": [
+            "s1__3",
+            "STALL"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "V21",
+          "before": [
+            "s1__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pC__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pC__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pR__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pR__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pW__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pW__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        }
+      ]
+    },
+    "plain-simplified-ra3": {
+      "removed": 854,
+      "added": 0,
+      "changed": [
+        {
+          "state": "s1__1",
+          "request": "R12",
+          "before": [
+            "s1__2pRA2",
+            "RDD"
+          ],
+          "after": [
+            "s1__3pRA3",
+            "RDD"
+          ]
+        },
+        {
+          "state": "s1__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "R23",
+          "before": [
+            "s1__3",
+            "STALL"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1__3",
+          "request": "V21",
+          "before": [
+            "s1__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1__3",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pCI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pCI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pCI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pCI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pCI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pC__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pC__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pC__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pC__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pC__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pICI__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pICI__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pICI__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pICI__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pICI__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_A32",
+          "request": "A11",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_A32",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pR__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pR__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pR__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pR__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pR__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "A21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "R23",
+          "before": [
+            "s1pW__1_A31d",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_A31d",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32_A11",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_A31d",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_V31",
+          "request": "V21",
+          "before": [
+            "s1pW__1_V32",
+            "NO_ACTION"
+          ],
+          "after": [
+            "s1pW__1_V31",
+            "NOT_ALLOWED"
+          ]
+        },
+        {
+          "state": "s1pW__1_WDDA",
+          "request": "R23",
+          "before": [
+            "s1pW__1_WDDA",
+            "STALL"
+          ],
+          "after": [
+            "s1pW__1_WDDA",
+            "NOT_ALLOWED"
+          ]
+        }
+      ]
+    }
+  }
+}
