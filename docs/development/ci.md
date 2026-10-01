@@ -22,7 +22,7 @@ digest alone does not pin that separately maintained installation.
 
 ## Pipeline and handoff
 
-1. `fast-tests-eci`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
+1. `fast-tests-eci`, `dcs-rom-thx`, `dcs-lauberhorn`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
    `interactive`, `runtime-interface`, and `workflow-tools` run
    `checks.x86_64-linux.<job>` in the Nix image. All gate preparation.
    Mill runs offline against the locked Ivy cache. The FIFO test exercises both

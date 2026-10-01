@@ -42,6 +42,12 @@ variables:
 fast-tests-eci:
   extends: .test-nix
 
+dcs-rom-thx:
+  extends: .test-nix
+
+dcs-lauberhorn:
+  extends: .test-nix
+
 blocks-tests:
   extends: .test-nix
 
@@ -68,6 +74,10 @@ prepare-eci:
   stage: prepare
   needs:
     - job: fast-tests-eci
+      artifacts: false
+    - job: dcs-rom-thx
+      artifacts: false
+    - job: dcs-lauberhorn
       artifacts: false
     - job: blocks-tests
       artifacts: false
@@ -115,6 +125,8 @@ build-hw-eci:
       - out/eci/generateVerilog.dest/
       - out/eci/vivado-inputs/git-revision
       - out/eci/vivado-inputs/rtl-derivation
+      - out/eci/vivado-inputs/dcs-rom-derivation
+      - out/eci/vivado-inputs/generated/dcs-rom/
       - out/eci/vivado-inputs/flake.lock
       - out/physical/
       - out/physical-vivado.log

@@ -1,4 +1,4 @@
-{ lib, runCommand, python3, verilator, gnumake, gcc }:
+{ lib, runCommand, python3, verilator, gnumake, gcc, dcsRom ? null }:
 let
   dcs = ../../vivado/eci/directory-controller-slice;
   source = lib.fileset.toSource {
@@ -40,6 +40,11 @@ in runCommand "lauberhorn-dcs-pressure" {
 } ''
   cp -r ${source}/. .
   chmod -R u+w .
+  ${if dcsRom != null then ''
+  python3 tools/progress/check_dcs_pressure.py --rom ${dcsRom} --output selected-results
+  mkdir -p "$out"
+  cp selected-results/summary.json selected-results/run.log "$out/"
+  '' else ''
   python3 tools/progress/check_dcs_pressure.py --output results
   python3 tools/progress/check_dcs_pressure.py --no-auto-lock --output nonlocking-results
   python3 tools/progress/check_dcs_pressure.py --directory --output directory-results
@@ -53,4 +58,5 @@ in runCommand "lauberhorn-dcs-pressure" {
   cp nonlocking-results/summary.json "$out/nonlocking-summary.json"
   cp results/summary.json "$out/summary.json"
   python3 tools/progress/directory_witness.py model/steady/selected-8k.json > "$out/address-witness.json"
+  ''}
 ''

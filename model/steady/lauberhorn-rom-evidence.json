@@ -1,0 +1,38 @@
+{
+  "scope": "LCI-only nonlocking ROM integration; no board or whole-system liveness claim",
+  "statistics": {
+    "states": 14,
+    "input_events": 18,
+    "explicit_entries": 252,
+    "permitted": 35,
+    "forbidden": 167,
+    "stall": 50
+  },
+  "sha256": {
+    "ECI_CC.csv": "622fdac751396afb8989f56c9dc6e1aabfdc811c7e4cffc8900cdc7a1dcbabd1",
+    "eci_cc_defs.sv": "3c576c399a413e6404dc1b7ced0ab7e642246cfd757bddbe3663c3e52a3c9143",
+    "eci_cc_table.sv": "5f21a130f820444575d2383d961835c1d236e883c61d55654515db3c03d0c40d"
+  },
+  "checks": {
+    "dcs-rom-thx": "passed with two documented stable-request diagnostics",
+    "dcs-lauberhorn": "passed six actual-DCU scenarios",
+    "dcs-pressure": "passed historical pressure regression suite",
+    "eciVivadoInputs": "built successfully",
+    "rt-timestamped": "passed",
+    "router-scoreboard-reproducer": {
+      "result": "passed after simulation scoreboard reset fix",
+      "setup_seed": 585039714,
+      "sim_seed": 781529635
+    },
+    "fast-eci": {
+      "passed": 34,
+      "failed": 0,
+      "ignored": 1,
+      "command": "nix develop -c mill --no-daemon gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci"
+    }
+  },
+  "revisions": {
+    "directory-controller-slice": "40530da",
+    "blocks": "841abb5"
+  }
+}

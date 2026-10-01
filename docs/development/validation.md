@@ -149,3 +149,10 @@ full-set absent-LCI stalls, successful hit invalidation, and UL-enabled recovery
 These checks establish directory-component reachability, not the complete
 Lauberhorn/THX execution. Auto-lock remains selected; the nonlocking diagnostic
 is retained only as a regression of the unsafe wholesale-swap experiment.
+
+### Generated Lauberhorn DCS ROM
+
+See [the selected ROM contract and reproducible checks](../hardware/lauberhorn-rom.md).
+`dcs-rom-thx` checks extracted-THX compatibility; `dcs-lauberhorn` runs actual DCU
+full-set/LCI tests using `dcsRom`. Both gate the Vivado input bundle. They do not
+replace whole-slice routing tests or hardware validation.

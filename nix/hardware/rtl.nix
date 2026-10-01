@@ -6,6 +6,8 @@
   src,
   gitRev,
   lockFile,
+  dcsRom,
+  python3,
 }:
 let
   ivyCache = ivy-gather lockFile;
@@ -21,6 +23,7 @@ stdenvNoCC.mkDerivation {
   buildInputs = [ ivyCache ];
   nativeBuildInputs = [
     mill
+    python3
     configure-mill-env-hook
   ];
   buildPhase = ''
@@ -30,6 +33,8 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     mkdir -p $out $devices $headers
     mv out/eci/generateVerilog.dest/*.{v,sv,xdc} $out/
+    # Embed this ROM's enums, not the historical auto-lock numeric encoding.
+    python3 ${../../tools/progress/dcs_rom_metadata.py} ${dcsRom} out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json
     mv out/eci/generateVerilog.dest/*.json      $out/
     mv out/eci/generateVerilog.dest/*.h          $headers/
     mv out/eci/generateVerilog.dest/*.dev        $devices/

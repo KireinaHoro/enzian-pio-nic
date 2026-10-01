@@ -1,6 +1,7 @@
 {
   pkgs,
   tlc,
+  dcsRom,
   src,
   ivyCache,
   replayPcaps,
@@ -38,6 +39,8 @@ in
       '';
   scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };
   scheduling-composed-invariants = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedInvariants = true; };
+  dcs-rom-thx = pkgs.callPackage ./dcs-rom.nix { inherit dcsRom; };
+  dcs-lauberhorn = pkgs.callPackage ./dcs-pressure.nix { inherit dcsRom; };
   dcs-pressure = pkgs.callPackage ./dcs-pressure.nix { };
   scheduling-cache-contracts = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; cacheContractsOnly = true; };
   scheduling-kill-exit = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; killOnly = true; };

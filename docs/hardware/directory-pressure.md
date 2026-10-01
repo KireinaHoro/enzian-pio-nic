@@ -1,5 +1,9 @@
 # Directory pressure: replacement initiation and delivery
 
+**Follow-up:** the [LCI-only non-locking build](lauberhorn-rom.md) is now selected
+on the Goal 2 branch. The investigation below records its historical inputs and
+remaining proof obligations; earlier production-selection statements are historical.
+
 Source audit, bounded model checks and targeted RTL simulation, 2026-10-01.
 **An absent local invalidation on a full directory set is an unresolved progress
 case in the selected design.** Auto-lock is retained by maintainer decision.
