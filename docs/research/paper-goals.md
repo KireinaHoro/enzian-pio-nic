@@ -50,7 +50,7 @@ Security/flexibility evidence must accompany latency: define the trusted NIC/ker
 
 ## Correctness scope
 
-`model/lauberhorn.tla` models caches, FPGA handlers, services, kernel state and core assignment. Toolbox configurations include type, cache-line exclusion, preemption and isolation invariants plus temporal properties. Checked-in `MC.out` files report historical successful model checks; they are not a proof that today's RTL refines that model. Reconcile model assumptions with decoupled RX/TX, routing, nested RPC and DCU progress, and rerun a recorded configuration before making new correctness claims.
+`model/legacy/tla/lauberhorn.tla` models caches, FPGA handlers, services, kernel state and core assignment. Toolbox configurations include type, cache-line exclusion, preemption and isolation invariants plus temporal properties. Checked-in `MC.out` files report historical successful model checks; they are not a proof that today's RTL refines that model. Reconcile model assumptions with decoupled RX/TX, routing, nested RPC and DCU progress, and rerun a recorded configuration before making new correctness claims.
 
 ## Suggested paper structure
 

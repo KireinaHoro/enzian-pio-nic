@@ -32,7 +32,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - `hw/src/lauberhorn/host/eci/` implements coherent transport and preemption; `vivado/eci/rtl/lauberhorn_eci.vhd` integrates generated RTL with DCS, ECI and CMAC.
 - `sw/kmod/` manages protected resources and worker activation; `sw/rt/` dispatches RPCs in userspace. The current C runtime still performs XDR work.
 - `sw/include/`, generated configuration/Mackerel headers, and `sw/core/eci/core.h` form a coupled hardware/software ABI. Regenerate collateral after hardware layout changes.
-- `data/eci/sys_trace/` and the microbenchmark client tools explain observed behavior; `model/lauberhorn.tla` is an abstract correctness model.
+- `data/eci/sys_trace/` and the microbenchmark client tools explain observed behavior; the [model index](../../model/README.md) separates current resource/scheduling models from the original historical correctness model.
 
 ## Navigation
 

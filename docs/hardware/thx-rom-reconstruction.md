@@ -70,7 +70,7 @@ nix develop -c python3 tools/progress/reconstruct_thx_rom.py \
 
 Pinned Perl/autovivification, Python and Verilator suffice. Generated CSV, ROM,
 package, logs and detailed summary stay under ignored `out/`. The
-[evidence manifest](../../model/steady/thx-rom-reconstruction-evidence.json)
+[evidence manifest](../../model/evidence/steady/thx-rom-reconstruction-evidence.json)
 records revisions, input hashes, counts and unique diagnostics.
 
 | CSV checked against extracted THX | States / explicit ROM entries | Checker reports |

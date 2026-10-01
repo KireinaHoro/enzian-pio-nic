@@ -37,7 +37,8 @@ in
         bash ${src}/deps/blocks/deps/verilog-axi/tb/axi_crossbar/run_decerr.sh
         touch $out
       '';
-  scheduling-nonlocking = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; nonlockingOnly = true; };
+  tla-modules = pkgs.callPackage ./tla-modules.nix { inherit tlc; };
+  scheduling-transport = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; transportOnly = true; };
   scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };
   scheduling-composed-invariants = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedInvariants = true; };
   dcs-rom-thx = pkgs.callPackage ./dcs-rom.nix { inherit dcsRom; };

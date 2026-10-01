@@ -1,10 +1,13 @@
 # LCI-only endpoint in the scheduling resource models
 
-The selected [Lauberhorn ROM](lauberhorn-rom.md) no longer retains an UL lock.
-`ProgressSystem.Nonlocking` now selects that contract without replacing the
-shared DCS, THX, cache or scheduling modules. Historical configurations explicitly
-keep the old behavior; `AllocateOnInvalidate = FALSE` alone is no longer presented
-as the selected implementation contract.
+The [module review](model-review.md) made LCI-only completion the sole active
+contract and removed the `Nonlocking` switch and UL state. Source now lives under
+`model/tla`, configuration under `model/config`, and recorded evidence under
+`model/evidence`; start with the [model index](../../model/README.md).
+
+The results below describe the pre-review selected-endpoint update. They remain
+historical evidence with their original source hashes. Fresh cleanup results are
+linked from the review.
 
 For the selected endpoint:
 
@@ -26,8 +29,7 @@ For the selected endpoint:
 `CombinedScheduling` composes the same event with PreemptInfo, reservations,
 claims, host notifications and retirement. `Handoff` selects the same endpoint
 for ordinary, RX/TX and stalled-peer transition cases, including its Goal 1
-post-handoff instance. Legacy `Steady` and `WakeHandoff` configurations retain
-explicit old endpoint selection for regression comparisons.
+post-handoff instance. The cleanup also converts `Steady` and `WakeHandoff` to the selected endpoint.
 
 The combined model's optional prefix-reuse certificate still assumes autonomous
 closed-domain eviction. That is stronger than current monotonic-no-reuse kill
@@ -39,21 +41,21 @@ Reproduction uses pinned `tlaplus18` through `nix develop`:
 
 ```sh
 nix develop -c python3 tools/scheduling/check_models.py \
-  --nonlocking-only --output out/scheduling/lci-only --timeout 900 --workers 4
+  --transport-only --output out/scheduling/lci-only --timeout 900 --workers 4
 nix develop -c python3 tools/scheduling/check_models.py \
-  --case lci-only-combined --safety-only \
+  --case combined-scheduling --safety-only \
   --output out/scheduling/lci-only-combined-safety --timeout 1200 --workers 4
 ```
 
-The Nix `scheduling-nonlocking` check selects focused cases; combined temporal
-runs remain explicit `--case lci-only-combined-one-slot` / `lci-only-combined`
+The Nix `scheduling-transport` check selects focused cases; combined temporal
+runs remain explicit `--case combined-scheduling-one-slot` / `lci-only-combined`
 invocations. Full combined liveness is not claimed: the initial 2 GiB attempt
 exhausted its heap before a result, and a 4 GiB retry was stopped for workstation
 memory pressure. These are incomplete runs, not protocol counterexamples.
 
 ## Checked results
 
-[Evidence, source hashes and exact commands](../../model/steady/lci-only-model-evidence.json)
+[Evidence, source hashes and exact commands](../../model/evidence/steady/lci-only-model-evidence.json)
 record these bounded runs using TLC 1.8.0:
 
 | Case | Distinct states | Result |

@@ -56,12 +56,12 @@ This loops until failure; bound/stop it deliberately. ScalaTest parallel executi
 - `rx-tx-interleaved` is tagged `Slow` with an address-map FIXME; fast CI excludes it. RX size scans and TX scan tests also use `Slow`.
 - `PacketAllocSim` explicitly leaves multi-configuration and block-until-free checks incomplete.
 - The Scala host model approximates software IRQ/scheduling behavior. Passing RTL simulation does not validate the actual Linux module, aarch64 atomics, or real ECI cache behavior.
-- `model/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. The separate steady-state model now has a Nix check; it does not validate this older scheduling model. Reconcile source and model snapshots before using results in a paper.
+- `model/legacy/tla/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. The separate steady-state model now has a Nix check; it does not validate this older scheduling model. Reconcile source and model snapshots before using results in a paper.
 - Existing `data/` captures and plots are debugging/measurement evidence with their own provenance. They are not a current benchmark result merely because they are checked in.
 
 After a behavioral change, run the relevant suite and elaborate the affected hardware; require real target validation for scheduler/ECI deployment claims. For docs-only changes, link/path and command-definition checks suffice.
 
-Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src/lauberhorn/Config.scala), [shared fixture](../../deps/blocks/tester/src/jsteward/blocks/DutSimFunSuite.scala), [ECI fixture](../../hw/test/src/lauberhorn/host/eci/NicSim.scala), [trace fixture](../../hw/test/src/lauberhorn/sim/DbFactory.scala), [RPC tests](../../hw/test/src/lauberhorn/host/eci/OncRpcSim.scala), [model](../../model/lauberhorn.tla), [small model config](../../model/lauberhorn.toolbox/lauberhorn_model_isolation/MC.cfg).
+Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src/lauberhorn/Config.scala), [shared fixture](../../deps/blocks/tester/src/jsteward/blocks/DutSimFunSuite.scala), [ECI fixture](../../hw/test/src/lauberhorn/host/eci/NicSim.scala), [trace fixture](../../hw/test/src/lauberhorn/sim/DbFactory.scala), [RPC tests](../../hw/test/src/lauberhorn/host/eci/OncRpcSim.scala), [model](../../model/legacy/tla/lauberhorn.tla), [small model config](../../model/config/legacy/lauberhorn_model_isolation/MC.cfg).
 
 For routed checkpoint analysis and source-level timing closure, use the
 [physical implementation guide](../hardware/physical-implementation.md).
@@ -156,3 +156,13 @@ See [the selected ROM contract and reproducible checks](../hardware/lauberhorn-r
 `dcs-rom-thx` checks extracted-THX compatibility; `dcs-lauberhorn` runs actual DCU
 full-set/LCI tests using `dcsRom`. Both gate the Vivado input bundle. They do not
 replace whole-slice routing tests or hardware validation.
+
+## TLA+ source and module checks
+
+Start with the [model index](../../model/README.md) and
+[module review](../hardware/model-review.md). The active model is LCI-only;
+source, configuration, address data and historical evidence are separate.
+`nix build .#checks.x86_64-linux.tla-modules` checks the inventory/import boundaries
+and SANY semantics. `scheduling-transport` checks focused transport/handoff cases;
+`steady-progress`, `scheduling-races` and `scheduling-kill-exit` retain their
+separate scopes. Full combined temporal verification remains open.

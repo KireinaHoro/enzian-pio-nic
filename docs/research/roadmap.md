@@ -36,7 +36,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 
 **Goal 1 is complete as the bounded modeling and layout milestone**, accepted to
 proceed with Goal 2 modeling and implementation. The [verification report](../hardware/steady-state-verification.md)
-and [reproducible evidence](../../model/steady/nix-progress-evidence.json) record
+and [reproducible evidence](../../model/evidence/steady/nix-progress-evidence.json) record
 what passed, the incomplete four-client run, and the remaining assumptions.
 This disposition does not claim full hardware verification or whole-system HoL
 freedom. [Goal 2 modeling](../hardware/scheduling-verification.md) now has modular
@@ -56,9 +56,11 @@ workers' progress during scheduling transitions, reusing the resource model.
 ### Active Goal 2 workstreams and compaction handoff (2026-10-01)
 
 These four workstreams remain pending. **We are currently working on item 3.**
-Continue on `goal2-scheduling-model`; the latest completed directory audit/model/
-RTL-test evidence is commit `46c742b`. This handoff records investigation intent,
-not authorization to treat a proposed lock mechanism as the selected design.
+Continue on `goal2-scheduling-model`. The selected LCI-only endpoint and its
+checks are recorded below. The [module review](../hardware/model-review.md)
+consolidates cache/transport composition, removes UL from the active models and
+separates source/configuration/evidence; see the [model index](../../model/README.md).
+This cleanup precedes the remaining modeling work.
 
 | Item | Remaining work | Status / completion evidence |
 | --- | --- | --- |
@@ -151,15 +153,14 @@ integration test. Cover:
 
 - Slice read/write routing to DCUs: even/odd slices, scrambled color selection,
   selected worker/domain addresses, both control parities and all overflow lines;
-  verify full address identity through responses, invalidations and unlocks.
-- Held reads with concurrent writes/invalidation/unlock traffic: stall one and
-  then multiple workers while a peer and full-duplex bypass run; include an old
-  TX unlock followed by a held RX, and same-DCU versus independent-DCU traffic.
+  verify full address identity through responses and invalidations.
+- Held reads with concurrent writes/invalidation traffic: stall one and
+  then multiple workers while a peer and full-duplex bypass run; include retained TX/overflow responses alongside a held RX, and same-DCU versus independent-DCU traffic.
 - Shared-path backpressure: exercise VC arbitration, read/write transaction
   managers, data-buffer gates, RTG occupancy, CDC and AXI queues; check whether a
   blocked DCU prevents another eligible DCU from admission or completion.
 - Accounting and framing: check allocation/release, queue occupancy, beat counts,
-  transaction identity and LCI/LCIA/UL handshakes; map observed events to the model
+  transaction identity and LCI/LCIA handshakes; map observed events to the model
   and turn its negative cases into directed sensitivity tests.
 
 Record exact RTL/configuration revisions and bounded progress observations under

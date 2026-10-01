@@ -152,7 +152,7 @@ RX controls at `+0x300/+0x380`, TX controls at `+0x1300/+0x1380`, twelve
 contiguous overflow lines after each pair, and no preemption control CL. The
 searcher's default is now this selected 64-color/38-bit, 8 KiB geometry. Seven
 workers plus full-duplex bypass have 524288 domain codes each at the color/address
-level. The checked-in [configuration](../../model/steady/selected-8k.json) allocates
+level. The checked-in [configuration](../../model/data/selected-8k.json) allocates
 seven workers and 16 domains; it targets the router-free decoder, not production
 thread-router registers. See the [selected-layout evidence and Goal 1 status](#selected-8-kib-layout-evidence-and-goal-1-status).
 
@@ -266,7 +266,7 @@ nix develop -c python3 tools/progress/check_models.py --case selected-two-stalls
 # Independently reproduce the selected mapping and conservative RTG bound.
 nix develop -c python3 tools/progress/capacity.py --workers 7 --domains 16 > out/progress/map.json
 nix develop -c python3 tools/progress/verify_config.py out/progress/map.json
-nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
+nix develop -c python3 tools/progress/audit_resources.py model/data/selected-8k.json
 # Historical 128 KiB placement sweep (5245 equivalence classes).
 nix develop -c python3 tools/progress/sweep_layouts.py --jobs 4 --output out/progress/sweep.json
 ```
@@ -305,15 +305,15 @@ checked; accepted for subsequent modeling and implementation.** This scope of
 completion does not close the shared-resource and hardware-correspondence gaps below. In particular, no result here establishes
 hardware-wide HoL freedom for seven active workers plus full-duplex bypass.
 
-The exact [selected configuration](../../model/steady/selected-8k.json) is generated
+The exact [selected configuration](../../model/data/selected-8k.json) is generated
 by [capacity.py](../../tools/progress/capacity.py) with the default 8 KiB stride,
 `--workers 7 --domains 16`. [witness_model.py](../../tools/progress/witness_model.py)
 binds its full addresses, both control parities, and all 12 overflow lines to
-[ProgressSystem.tla](../../model/steady/ProgressSystem.tla), composing the unchanged
-[DCS resources](../../model/steady/DcsResources.tla),
-[THX resources](../../model/steady/ThxResources.tla), and
-[2F2F client](../../model/steady/TwoFClient.tla). The
-[single-transaction vocabulary/assumption](../../model/steady/Coherence.tla)
+[ProgressSystem.tla](../../model/tla/steady/ProgressSystem.tla), composing the unchanged
+[DCS resources](../../model/tla/steady/DcsResources.tla),
+[THX resources](../../model/tla/steady/ThxResources.tla), and
+[2F2F client](../../model/tla/steady/TwoFClient.tla). The
+[single-transaction vocabulary/assumption](../../model/tla/steady/Coherence.tla)
 remains an undischarged replacement boundary.
 
 Initial checks for this selection at `f9981d5`, September 30, before the Nix
@@ -340,13 +340,13 @@ The checked-in configuration has seven workers, but this liveness instance has
 only two clients and no bypass client. Address/color capacity must not be relabeled
 as resource-model-verified progress capacity.
 
-The shared-FIFO [negative model](../../model/steady/Probe.tla) and its
-[bad-hol configuration](../../model/steady/bad-hol.cfg) deliberately place an
+The shared-FIFO [negative model](../../model/tla/steady/Probe.tla) and its
+[bad-hol configuration](../../model/config/steady/bad-hol.cfg) deliberately place an
 otherwise eligible request behind a permanently blocked request. Its counterexample
 shows why coloring alone cannot justify HoL freedom; the positive model's separate
 queues and credit assumptions need concrete correspondence.
 
-The [initial compact evidence manifest](../../model/steady/selected-8k-evidence.json)
+The [initial compact evidence manifest](../../model/evidence/steady/selected-8k-evidence.json)
 records source/configuration/TLC hashes, state counts and expected negative results
 for that earlier source revision.
 Full logs and generated harnesses remain ignored under `out/progress/selected-8k/`.
@@ -417,7 +417,7 @@ the smaller footprint stated in its row:
 
 | selected-peer-bypass | one stalled worker, one active worker, fixed RX/TX bypass clients; shared slots 5, per-slice reads 5, queue depth 1, unlock depth 4 | **incomplete** at 1200 seconds; last reported 3041960 distinct states and 219240 queued; graph exploration unfinished, liveness not checked |
 
-The [tracked Nix evidence manifest](../../model/steady/nix-progress-evidence.json)
+The [tracked Nix evidence manifest](../../model/evidence/steady/nix-progress-evidence.json)
 records source, checker, harness and log hashes, bounds and outcomes. Baseline
 model/tool sources are at `1d83a27`; extended-run sources are at `b73d238`.
 Raw local output is retained in `out/progress/nixpkgs-baseline-final/` and
@@ -429,8 +429,8 @@ credit topology. The selected-bypass case has both progressing bypass directions
 but no additional active worker. The color/address maximum and resource-model
 bounds therefore remain separate.
 
-[LateUnlock.tla](../../model/steady/LateUnlock.tla), with
-[late-unlock.cfg](../../model/steady/late-unlock.cfg), reuses the unchanged DCS/THX
+[LateUnlock.tla](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/blob/4cb1e8a/model/steady/LateUnlock.tla), with
+[late-unlock.cfg](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/blob/4cb1e8a/model/steady/late-unlock.cfg), reuses the unchanged DCS/THX
 modules and seeds worker 0's held RX at `0x200300`, old TX Ack/unlock at
 `0x201300`, and a peer read at `0x4300`. These addresses are checked against the
 selected encoder. Two shared credits are initially exhausted by the held read

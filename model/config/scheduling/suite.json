@@ -1,0 +1,813 @@
+{
+  "defaults": {
+    "AxiReloadGate": {
+      "BadBypass": false,
+      "BadReleaseGate": false
+    },
+    "DirectoryAdmission": {
+      "Ways": 2,
+      "BadMapping": false,
+      "BadEarlyRequest": false,
+      "BadSilentEviction": false
+    },
+    "KillExit": {
+      "BadGate": false,
+      "BadRelease": false,
+      "BadActivate": false,
+      "BadResume": false,
+      "BadFree": false,
+      "Initial": "User"
+    },
+    "CombinedScheduling": {
+      "BadReserve": false,
+      "BadClaim": false,
+      "BadRetire": false,
+      "BadWake": false,
+      "BadSnapshot": false,
+      "DestinationCapacity": 2,
+      "EventBudget": 1,
+      "RepeatRx": false
+    },
+    "CachedProgress": {
+      "SharedEvictions": false,
+      "BlockDowngrade": false,
+      "DisableReplacement": false,
+      "ReachableCache": false
+    },
+    "ControlRetirement": {
+      "BadRetire": false,
+      "BadSnapshot": false,
+      "BadResume": false
+    },
+    "Handoff": {
+      "WorkerTx": false,
+      "WithStall": false,
+      "BadPark": false,
+      "BadReuse": false,
+      "BadParity": false
+    },
+    "Reservation": {
+      "BadReservation": false
+    },
+    "HostWake": {
+      "BadClear": false,
+      "BadReassign": false,
+      "BadSubscriber": false,
+      "SharedSubscription": false,
+      "InitiallyParked": false
+    },
+    "InterruptGate": {
+      "BadRearm": false,
+      "BadRelease": false
+    },
+    "TimerMirror": {
+      "BadOrder": false
+    },
+    "ThreadClaim": {
+      "BadClaim": false,
+      "BadReservation": false,
+      "PoolSize": 2
+    },
+    "WakeRetirement": {
+      "BadRetirement": false
+    },
+    "WakeHandoff": {},
+    "WakeReassignment": {
+      "BadDrop": false,
+      "BadDelivery": false
+    },
+    "WakeAckRace": {
+      "BadClear": false
+    }
+  },
+  "invariants": {
+    "AxiReloadGate": [
+      "TypeOK",
+      "NoStaleRefill"
+    ],
+    "DirectoryAdmission": [
+      "TypeOK",
+      "Accounting",
+      "BlockingHasRelease"
+    ],
+    "KillExit": [
+      "TypeOK",
+      "NoWrongKill",
+      "NoResume",
+      "MetadataSafe",
+      "CacheRetained"
+    ],
+    "CombinedScheduling": [
+      "Safety",
+      "CapacitySafe",
+      "UniqueClaim",
+      "InfoReady",
+      "RetirementSafe",
+      "Responsibility"
+    ],
+    "CachedProgress": [
+      "Safety"
+    ],
+    "ControlRetirement": [
+      "TypeOK",
+      "RetirementSafe"
+    ],
+    "Handoff": [
+      "Safety",
+      "DrainBeforeInstall",
+      "PrefixSafe",
+      "SteadyEntry"
+    ],
+    "Reservation": [
+      "Safety",
+      "NoLeakedReservation"
+    ],
+    "HostWake": [
+      "TypeOK",
+      "Responsibility",
+      "EligibleDelivery",
+      "HotReservation"
+    ],
+    "InterruptGate": [
+      "TypeOK",
+      "NoPrematureReblock"
+    ],
+    "TimerMirror": [
+      "TypeOK",
+      "MirrorOrder",
+      "Shutdown"
+    ],
+    "ThreadClaim": [
+      "TypeOK",
+      "UniqueClaim",
+      "CapacitySafe",
+      "ReservationBacked"
+    ],
+    "WakeRetirement": [
+      "Safety",
+      "PrefixSafe"
+    ],
+    "WakeHandoff": [
+      "Safety"
+    ],
+    "WakeReassignment": [
+      "TypeOK",
+      "Responsibility",
+      "RightSubscriber"
+    ],
+    "WakeAckRace": [
+      "TypeOK",
+      "NoLostNotification"
+    ]
+  },
+  "properties": {
+    "AxiReloadGate": [
+      "Completes"
+    ],
+    "DirectoryAdmission": [
+      "Admission"
+    ],
+    "KillExit": [
+      "NoReblock",
+      "NoResumeAfterClose",
+      "SnapshotStable",
+      "StopCompletes",
+      "ExitCompletes",
+      "SuccessorsProgress"
+    ],
+    "CombinedScheduling": [
+      "SnapshotStable",
+      "HandoffFinishes",
+      "Retires",
+      "StableProgress"
+    ],
+    "CachedProgress": [
+      "Progress"
+    ],
+    "ControlRetirement": [
+      "SnapshotStable",
+      "NoResumeAfterClose",
+      "ReadCompletes",
+      "Retires"
+    ],
+    "Handoff": [
+      "ActivationSafe",
+      "SleepRetainsAssignment",
+      "HandoffFinishes",
+      "PeerProgress",
+      "PrefixRetires"
+    ],
+    "Reservation": [
+      "ReservationFinishes"
+    ],
+    "HostWake": [
+      "WakeProgress",
+      "SleepRetainsOwner"
+    ],
+    "InterruptGate": [
+      "InterruptProgress"
+    ],
+    "TimerMirror": [
+      "MirrorCatchesUp"
+    ],
+    "ThreadClaim": [
+      "SelectionFinishes"
+    ],
+    "WakeRetirement": [
+      "Retires"
+    ],
+    "WakeHandoff": [
+      "ActivationSafe",
+      "WakeCompletes",
+      "PeerProgress"
+    ],
+    "WakeReassignment": [
+      "WakeProgress",
+      "Acknowledged"
+    ],
+    "WakeAckRace": [
+      "WakeProgress"
+    ]
+  },
+  "cases": {
+    "handoff": {
+      "module": "Handoff",
+      "options": {},
+      "expected_violation": null
+    },
+    "handoff-rx-tx": {
+      "module": "Handoff",
+      "options": {
+        "WorkerTx": true
+      },
+      "expected_violation": null
+    },
+    "handoff-stalled-peer": {
+      "module": "Handoff",
+      "options": {
+        "WithStall": true
+      },
+      "expected_violation": null
+    },
+    "bad-park": {
+      "module": "Handoff",
+      "options": {
+        "BadPark": true
+      },
+      "expected_violation": "Safety"
+    },
+    "bad-prefix-reuse": {
+      "module": "Handoff",
+      "options": {
+        "BadReuse": true
+      },
+      "expected_violation": "PrefixSafe"
+    },
+    "bad-parity": {
+      "module": "Handoff",
+      "options": {
+        "BadParity": true
+      },
+      "expected_violation": "ActivationSafe"
+    },
+    "reservation": {
+      "module": "Reservation",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-reservation": {
+      "module": "Reservation",
+      "options": {
+        "BadReservation": true
+      },
+      "expected_violation": "Safety"
+    },
+    "host-wake": {
+      "module": "HostWake",
+      "options": {},
+      "expected_violation": null
+    },
+    "host-wake-parked-shared": {
+      "module": "HostWake",
+      "options": {
+        "SharedSubscription": true,
+        "InitiallyParked": true
+      },
+      "expected_violation": null
+    },
+    "bad-wake-clear": {
+      "module": "HostWake",
+      "options": {
+        "BadClear": true
+      },
+      "expected_violation": "Responsibility"
+    },
+    "bad-wake-reassign": {
+      "module": "HostWake",
+      "options": {
+        "BadReassign": true
+      },
+      "expected_violation": "Responsibility"
+    },
+    "bad-wake-subscriber": {
+      "module": "HostWake",
+      "options": {
+        "BadSubscriber": true
+      },
+      "expected_violation": "EligibleDelivery"
+    },
+    "interrupt": {
+      "module": "InterruptGate",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-rearm": {
+      "module": "InterruptGate",
+      "options": {
+        "BadRearm": true
+      },
+      "expected_violation": "NoPrematureReblock"
+    },
+    "bad-release": {
+      "module": "InterruptGate",
+      "options": {
+        "BadRelease": true
+      },
+      "expected_violation": "NoPrematureReblock"
+    },
+    "bad-interrupt-progress": {
+      "module": "InterruptGate",
+      "options": {
+        "BadRearm": true
+      },
+      "expected_violation": "InterruptProgress"
+    },
+    "thread-claim": {
+      "module": "ThreadClaim",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-thread-claim": {
+      "module": "ThreadClaim",
+      "options": {
+        "BadClaim": true
+      },
+      "expected_violation": "UniqueClaim"
+    },
+    "wake-handoff": {
+      "module": "WakeHandoff",
+      "options": {},
+      "expected_violation": null
+    },
+    "wake-retirement": {
+      "module": "WakeRetirement",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-wake-retirement": {
+      "module": "WakeRetirement",
+      "options": {
+        "BadRetirement": true
+      },
+      "expected_violation": "PrefixSafe"
+    },
+    "timer-mirror": {
+      "module": "TimerMirror",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-timer-order": {
+      "module": "TimerMirror",
+      "options": {
+        "BadOrder": true
+      },
+      "expected_violation": "MirrorOrder"
+    },
+    "combined-scheduling": {
+      "module": "CombinedScheduling",
+      "options": {},
+      "expected_violation": null
+    },
+    "combined-one-slot": {
+      "module": "CombinedScheduling",
+      "options": {
+        "DestinationCapacity": 1
+      },
+      "expected_violation": null
+    },
+    "combined-extended-scheduling": {
+      "module": "CombinedScheduling",
+      "options": {
+        "EventBudget": 2,
+        "RepeatRx": true
+      },
+      "expected_violation": null
+    },
+    "combined-extended-one-slot": {
+      "module": "CombinedScheduling",
+      "options": {
+        "DestinationCapacity": 1,
+        "EventBudget": 2,
+        "RepeatRx": true
+      },
+      "expected_violation": null
+    },
+    "bad-combined-reservation": {
+      "module": "CombinedScheduling",
+      "options": {
+        "DestinationCapacity": 1,
+        "BadReserve": true
+      },
+      "expected_violation": "CapacitySafe"
+    },
+    "bad-combined-claim": {
+      "module": "CombinedScheduling",
+      "options": {
+        "BadClaim": true
+      },
+      "expected_violation": "UniqueClaim"
+    },
+    "bad-combined-retire": {
+      "module": "CombinedScheduling",
+      "options": {
+        "BadRetire": true
+      },
+      "expected_violation": "RetirementSafe"
+    },
+    "bad-combined-wake": {
+      "module": "CombinedScheduling",
+      "options": {
+        "BadWake": true
+      },
+      "expected_violation": "Responsibility"
+    },
+    "bad-combined-snapshot": {
+      "module": "CombinedScheduling",
+      "options": {
+        "BadSnapshot": true
+      },
+      "expected_violation": "SnapshotStable"
+    },
+    "retained-cache": {
+      "module": "CachedProgress",
+      "options": {},
+      "expected_violation": null
+    },
+    "retained-cache-independent-queues": {
+      "module": "CachedProgress",
+      "options": {
+        "BlockDowngrade": true
+      },
+      "expected_violation": null
+    },
+    "bad-retained-cache-hol": {
+      "module": "CachedProgress",
+      "options": {
+        "BlockDowngrade": true,
+        "SharedEvictions": true
+      },
+      "expected_violation": "Progress"
+    },
+    "bad-retained-cache-no-replacement": {
+      "module": "CachedProgress",
+      "options": {
+        "DisableReplacement": true
+      },
+      "expected_violation": "Progress"
+    },
+    "control-retirement": {
+      "module": "ControlRetirement",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-control-retire": {
+      "module": "ControlRetirement",
+      "options": {
+        "BadRetire": true
+      },
+      "expected_violation": "RetirementSafe"
+    },
+    "bad-control-snapshot": {
+      "module": "ControlRetirement",
+      "options": {
+        "BadSnapshot": true
+      },
+      "expected_violation": "SnapshotStable"
+    },
+    "bad-control-resume": {
+      "module": "ControlRetirement",
+      "options": {
+        "BadResume": true
+      },
+      "expected_violation": "NoResumeAfterClose"
+    },
+    "wake-reassignment": {
+      "module": "WakeReassignment",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-wake-stale-drop": {
+      "module": "WakeReassignment",
+      "options": {
+        "BadDrop": true
+      },
+      "expected_violation": "Responsibility"
+    },
+    "bad-wake-stale-delivery": {
+      "module": "WakeReassignment",
+      "options": {
+        "BadDelivery": true
+      },
+      "expected_violation": "RightSubscriber"
+    },
+    "wake-ack-race": {
+      "module": "WakeAckRace",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-wake-ack-clear": {
+      "module": "WakeAckRace",
+      "options": {
+        "BadClear": true
+      },
+      "expected_violation": "NoLostNotification"
+    },
+    "bad-wake-ack-progress": {
+      "module": "WakeAckRace",
+      "options": {
+        "BadClear": true
+      },
+      "expected_violation": "WakeProgress"
+    },
+    "thread-claim-one-slot": {
+      "module": "ThreadClaim",
+      "options": {
+        "PoolSize": 1
+      },
+      "expected_violation": null
+    },
+    "bad-thread-reservation": {
+      "module": "ThreadClaim",
+      "options": {
+        "PoolSize": 1,
+        "BadReservation": true
+      },
+      "expected_violation": "ReservationBacked"
+    },
+    "kill-running": {
+      "module": "KillExit",
+      "options": {},
+      "expected_violation": null
+    },
+    "exit-kernel": {
+      "module": "KillExit",
+      "options": {
+        "Initial": "Kernel"
+      },
+      "expected_violation": null
+    },
+    "kill-parked": {
+      "module": "KillExit",
+      "options": {
+        "Initial": "Parked"
+      },
+      "expected_violation": null
+    },
+    "witness-kill-irq-first": {
+      "module": "KillExit",
+      "options": {},
+      "expected_violation": "IrqFirstUnreachable"
+    },
+    "witness-kill-release-first": {
+      "module": "KillExit",
+      "options": {},
+      "expected_violation": "ReleaseFirstUnreachable"
+    },
+    "witness-exit-no-irq": {
+      "module": "KillExit",
+      "options": {
+        "Initial": "Parked"
+      },
+      "expected_violation": "NoIrqExitUnreachable"
+    },
+    "bad-kill-gate": {
+      "module": "KillExit",
+      "options": {
+        "BadGate": true
+      },
+      "expected_violation": "NoReblock"
+    },
+    "bad-kill-handler-wait": {
+      "module": "KillExit",
+      "options": {
+        "BadRelease": true
+      },
+      "expected_violation": "StopCompletes"
+    },
+    "bad-kill-late-irq": {
+      "module": "KillExit",
+      "options": {
+        "BadActivate": true
+      },
+      "expected_violation": "NoWrongKill"
+    },
+    "bad-kill-resume": {
+      "module": "KillExit",
+      "options": {
+        "BadResume": true
+      },
+      "expected_violation": "NoResume"
+    },
+    "bad-exit-free": {
+      "module": "KillExit",
+      "options": {
+        "BadFree": true
+      },
+      "expected_violation": "MetadataSafe"
+    },
+    "reachable-cache": {
+      "module": "CachedProgress",
+      "options": {
+        "ReachableCache": true
+      },
+      "expected_violation": null
+    },
+    "directory-one-way": {
+      "module": "DirectoryAdmission",
+      "options": {
+        "Ways": 1
+      },
+      "expected_violation": null
+    },
+    "directory-two-way": {
+      "module": "DirectoryAdmission",
+      "options": {},
+      "expected_violation": null
+    },
+    "directory-three-way": {
+      "module": "DirectoryAdmission",
+      "options": {
+        "Ways": 3
+      },
+      "expected_violation": null
+    },
+    "bad-directory-mapping": {
+      "module": "DirectoryAdmission",
+      "options": {
+        "BadMapping": true
+      },
+      "expected_violation": "BlockingHasRelease"
+    },
+    "bad-directory-early-request": {
+      "module": "DirectoryAdmission",
+      "options": {
+        "BadEarlyRequest": true
+      },
+      "expected_violation": "BlockingHasRelease"
+    },
+    "bad-directory-silent-eviction": {
+      "module": "DirectoryAdmission",
+      "options": {
+        "BadSilentEviction": true
+      },
+      "expected_violation": "BlockingHasRelease"
+    },
+    "axi-reload-gate": {
+      "module": "AxiReloadGate",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-axi-reload-bypass": {
+      "module": "AxiReloadGate",
+      "options": {
+        "BadBypass": true
+      },
+      "expected_violation": "NoStaleRefill"
+    },
+    "bad-axi-release-gate": {
+      "module": "AxiReloadGate",
+      "options": {
+        "BadReleaseGate": true
+      },
+      "expected_violation": "Completes"
+    }
+  },
+  "groups": {
+    "cache-contracts": [
+      "reachable-cache",
+      "directory-one-way",
+      "directory-two-way",
+      "directory-three-way",
+      "bad-directory-mapping",
+      "bad-directory-early-request",
+      "bad-directory-silent-eviction"
+    ],
+    "kill": [
+      "kill-running",
+      "exit-kernel",
+      "kill-parked",
+      "witness-kill-irq-first",
+      "witness-kill-release-first",
+      "witness-exit-no-irq",
+      "bad-kill-gate",
+      "bad-kill-handler-wait",
+      "bad-kill-late-irq",
+      "bad-kill-resume",
+      "bad-exit-free"
+    ],
+    "races": [
+      "control-retirement",
+      "bad-control-retire",
+      "bad-control-snapshot",
+      "bad-control-resume",
+      "wake-reassignment",
+      "bad-wake-stale-drop",
+      "bad-wake-stale-delivery",
+      "wake-ack-race",
+      "bad-wake-ack-clear",
+      "bad-wake-ack-progress",
+      "thread-claim",
+      "bad-thread-claim",
+      "thread-claim-one-slot",
+      "bad-thread-reservation",
+      "wake-retirement",
+      "bad-wake-retirement"
+    ],
+    "composed": [
+      "combined-scheduling",
+      "combined-one-slot",
+      "bad-combined-reservation",
+      "bad-combined-claim",
+      "bad-combined-retire",
+      "bad-combined-wake",
+      "bad-combined-snapshot",
+      "retained-cache",
+      "retained-cache-independent-queues",
+      "bad-retained-cache-hol",
+      "bad-retained-cache-no-replacement",
+      "reachable-cache"
+    ],
+    "transport": [
+      "handoff",
+      "handoff-stalled-peer",
+      "handoff-rx-tx",
+      "retained-cache",
+      "reachable-cache",
+      "retained-cache-independent-queues",
+      "bad-retained-cache-hol",
+      "bad-retained-cache-no-replacement"
+    ],
+    "default": [
+      "handoff",
+      "bad-park",
+      "bad-prefix-reuse",
+      "bad-parity",
+      "reservation",
+      "bad-reservation",
+      "host-wake",
+      "host-wake-parked-shared",
+      "bad-wake-clear",
+      "bad-wake-reassign",
+      "bad-wake-subscriber",
+      "interrupt",
+      "bad-rearm",
+      "bad-release",
+      "bad-interrupt-progress",
+      "thread-claim",
+      "bad-thread-claim",
+      "wake-handoff",
+      "wake-retirement",
+      "bad-wake-retirement",
+      "timer-mirror",
+      "bad-timer-order",
+      "control-retirement",
+      "bad-control-retire",
+      "bad-control-snapshot",
+      "bad-control-resume",
+      "wake-reassignment",
+      "bad-wake-stale-drop",
+      "bad-wake-stale-delivery",
+      "wake-ack-race",
+      "bad-wake-ack-clear",
+      "bad-wake-ack-progress",
+      "thread-claim-one-slot",
+      "bad-thread-reservation",
+      "kill-running",
+      "exit-kernel",
+      "kill-parked",
+      "witness-kill-irq-first",
+      "witness-kill-release-first",
+      "witness-exit-no-irq",
+      "bad-kill-gate",
+      "bad-kill-handler-wait",
+      "bad-kill-late-irq",
+      "bad-kill-resume",
+      "bad-exit-free"
+    ],
+    "axi": [
+      "axi-reload-gate",
+      "bad-axi-reload-bypass",
+      "bad-axi-release-gate"
+    ]
+  }
+}

@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / 'tools/progress'))
 from capacity import encode, color
 
 def render():
-    c = json.loads((ROOT / 'model/steady/selected-8k.json').read_text())[0]['configuration']
+    c = json.loads((ROOT / 'model/data/selected-8k.json').read_text())[0]['configuration']
     controls, colors, domains = [], {}, {}
     for domain in range(4):
         workers = []
@@ -34,7 +34,7 @@ def render():
             '=============================================================================\n')
 
 if __name__ == '__main__':
-    target = ROOT / 'model/scheduling/SelectedAddresses.tla'
+    target = ROOT / 'model/tla/scheduling/SelectedAddresses.tla'
     if '--check' in sys.argv:
         assert target.read_text() == render(), 'regenerate selected addresses'
         print('Selected Goal 2 addresses match the Goal 1 encoder')

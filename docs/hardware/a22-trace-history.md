@@ -69,7 +69,7 @@ nix develop -c python3 tools/progress/scan_a22_traces.py \
   --output out/progress/a22-traces
 ```
 
-The [evidence manifest](../../model/steady/a22-trace-history-evidence.json) lists
+The [evidence manifest](../../model/evidence/steady/a22-trace-history-evidence.json) lists
 individual paths/counts, raw hashes, response-opcode counts, source-level counts
 and historical revisions. Local ignored capture archives are required to repeat
 the full scan; unavailable DMA files are explicitly reported as skipped.

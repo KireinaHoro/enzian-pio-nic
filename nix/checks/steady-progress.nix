@@ -10,8 +10,9 @@ let
     root = ../..;
     fileset = lib.fileset.unions [
       (lib.fileset.fileFilter (f: f.hasExt "py") ../../tools/progress)
-      (lib.fileset.fileFilter (f: f.hasExt "tla" || f.hasExt "cfg") ../../model/steady)
-      ../../model/steady/selected-8k.json
+      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/steady)
+      ../../model/config/steady
+      ../../model/data/selected-8k.json
       ../../vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv
     ];
   };
@@ -29,8 +30,8 @@ runCommand "lauberhorn-steady-progress"
     cp -r ${source}/. .
     chmod -R u+w .
     python3 -m unittest discover -s tools/progress -v
-    python3 tools/progress/verify_config.py model/steady/selected-8k.json
-    python3 tools/progress/audit_resources.py model/steady/selected-8k.json > rtg-bound.json
+    python3 tools/progress/verify_config.py model/data/selected-8k.json
+    python3 tools/progress/audit_resources.py model/data/selected-8k.json > rtg-bound.json
     python3 tools/progress/check_models.py --output results --timeout 300
     mkdir -p "$out"
     cp rtg-bound.json "$out/rtg-bound.json"

@@ -53,7 +53,7 @@ IRQ/control wait if the IRQ handler or completion path needs that lock.
 
 ## Model and checked bounds
 
-[`KillExit.tla`](../../model/scheduling/KillExit.tla) checks two physical workers
+[`KillExit.tla`](../../model/tla/scheduling/KillExit.tla) checks two physical workers
 of one closing domain, each with one possible successor. Initial cases start
 both workers in userspace, kernel, or parked state. Before close, optional
 kernel entry and resumption admit running/parked mixtures and delayed dispatch.
@@ -111,7 +111,7 @@ nix build .#checks.x86_64-linux.scheduling-kill-exit --out-link out/scheduling/k
 
 The tools use `tlaplus18` from locked nixpkgs. The runner snapshots the model and
 records jar/source/config/log hashes, explored states, and expected violations.
-The [tracked evidence](../../model/scheduling/kill-exit-evidence.json) records
+The [tracked evidence](../../model/evidence/scheduling/kill-exit-evidence.json) records
 current outcomes. Parse errors, timeouts and unexpected violations are failures.
 Generated full logs and counterexample traces remain in ignored `out/` directories.
 

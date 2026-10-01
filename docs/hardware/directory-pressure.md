@@ -44,7 +44,7 @@ proves existence of a release obligation, **not its eventual delivery**.
 Locked ways, allocation timing, silent drops and FPGA-created entries need their
 own correspondence; equal aggregate cache sizes alone are insufficient.
 
-[`DirectoryAdmission.tla`](../../model/steady/DirectoryAdmission.tla) checks this
+[`DirectoryAdmission.tla`](../../model/tla/steady/DirectoryAdmission.tla) checks this
 contract with one initially full set, 1/2/3 ways, `Ways+2` addresses, repeated CPU
 requests, ordered typed clean/dirty victims, and delayed invalidation unlocks.
 CPU reservations are charged before request emission. `BlockingHasRelease`
@@ -87,7 +87,7 @@ board execution or a full concrete reachability proof of the cache state**.
 
 The 16-way `directory-local-full` configuration demonstrates the fixed point
 with no CPU demand for that target set. The corrected reusable
-[`RetainedCache`](../../model/steady/RetainedCache.tla) now exposes
+[`RetainedCache`](../../model/tla/steady/RetainedCache.tla) now exposes
 `AllocateOnInvalidate`. TRUE reserves the absent line until UL and refuses a
 full-set allocation. FALSE is the explicitly historical nonallocating endpoint
 contract. The source-faithful `retained-cache-dcs-counterexample` composes TRUE
@@ -154,7 +154,7 @@ nix build .#checks.x86_64-linux.scheduling-cache-contracts --out-link out/schedu
 nix build .#checks.x86_64-linux.dcs-pressure --out-link out/progress/dcs-pressure-nix
 nix develop -c python3 tools/scheduling/check_models.py --cache-contracts-only --output out/scheduling/cache-contracts --timeout 300 --workers 4 --heap-mib 2048
 nix develop -c python3 tools/progress/check_dcs_pressure.py --output out/progress/dcs-pressure
-nix develop -c python3 tools/progress/directory_witness.py model/steady/selected-8k.json
+nix develop -c python3 tools/progress/directory_witness.py model/data/selected-8k.json
 ```
 
 Both Nix targets completed successfully: eight model outcomes (three conditional
@@ -165,7 +165,7 @@ The 12 Python capacity/accounting tests and both historical nonallocating-cache
 positives also passed. Full combined scheduling checks were not rerun.
 
 TLC (`tlaplus18`) and Verilator are pinned by Nix. The
-[evidence manifest](../../model/steady/directory-pressure-evidence.json) distinguishes
+[evidence manifest](../../model/evidence/steady/directory-pressure-evidence.json) distinguishes
 positive properties, intended fault diagnostics and genuine design counterexamples.
 A runner PASS for `directory-local-full` or `retained-cache-dcs-counterexample`
 means the expected **progress failure was reproduced**, not that progress passed.
@@ -266,7 +266,7 @@ In the nonlocking table, absent R12/R13 issue RDD and enter pending-response
 states; removing the post-LCIA lock does not remove this normal coherence
 transaction serialization. Holding AXI R therefore delays CPU acquisition.
 
-[`AxiReloadGate.tla`](../../model/steady/AxiReloadGate.tla) checks the narrow
+[`AxiReloadGate.tla`](../../model/tla/steady/AxiReloadGate.tla) checks the narrow
 replacement contract: one held door read followed by a reload of either of two
 retired lines (control/overflow), arbitrary invalidation and acknowledgment order,
 and publication only after both acknowledgments. There are no local directory
@@ -276,7 +276,7 @@ acknowledgment, publication and serial read service. Deliberately allowing a
 reload to bypass the held read violates `NoStaleRefill`; making LCIA service wait
 for the read queue to empty violates `Completes`. Both negative outcomes are
 expected diagnostic failures. All three checks completed with pinned TLC (24 states for the positive case).
-The [evidence manifest](../../model/steady/nonlocking-evidence.json) records
+The [evidence manifest](../../model/evidence/steady/nonlocking-evidence.json) records
 model outcomes, source hashes and both Nix RTL results.
 
 This model starts **after the door has become the active AXI head**. It does not
@@ -321,7 +321,7 @@ The precise wholesale-swap hazard is:
 The corrected actual-controller test observes the full-miss write strobe and
 invalid next state. The resulting unrelated-entry invalidation follows from
 source wiring and RAM semantics; this harness still does not instantiate TSU/RAM.
-The [corrected evidence](../../model/steady/nonlocking-write-hazard-evidence.json)
+The [corrected evidence](../../model/evidence/steady/nonlocking-write-hazard-evidence.json)
 records both pinned RTL runs and the additional source hashes.
 Its diagnostic PASS means the unsafe behavior was reproduced, not a passing
 replacement implementation. This supersedes the earlier inference from completion
@@ -415,7 +415,7 @@ whole NIC execution with sixteen retained colliding lines remains a separate
 integration obligation. The replacement contract explicitly permits old cached
 PAs; that permission alone is not a concrete runtime trace.
 
-The [evidence manifest](../../model/steady/directory-rtl-reachability-evidence.json)
+The [evidence manifest](../../model/evidence/steady/directory-rtl-reachability-evidence.json)
 records the six passing directory checks, source hashes, and unchanged-variant
 regressions. Reproduce via the existing `dcs-pressure` Nix target (now additionally emits
 `directory-summary.json` and `directory-events.log`) or:
@@ -443,7 +443,7 @@ be invalidated again before UL. The resource remains charged through LCIA and
 until the modeled unlock reaches the directory. Neither component contains
 Lauberhorn domain policy.
 
-[`DcsDirectoryCycle.tla`](../../model/steady/DcsDirectoryCycle.tla) composes these
+[`DcsDirectoryCycle.tla`](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/blob/4cb1e8a/model/steady/DcsDirectoryCycle.tla) composes these
 same modules for a from-empty fill/evict/replace/invalidate sequence. At 2 and 16
 ways, full-set hits complete and full-set misses fail `Completes`. An explicitly
 supplied independent victim restores progress in the recovery configuration.
@@ -492,7 +492,7 @@ nix build .#checks.x86_64-linux.scheduling-cache-contracts \
   --out-link out/scheduling/auto-lock-contracts-nix
 ```
 
-The [current evidence manifest](../../model/steady/auto-lock-model-evidence.json)
+The [current evidence manifest](../../model/evidence/steady/auto-lock-model-evidence.json)
 records all 19 expected outcomes and the two historical cache regressions.
 The Nix output retains the generated configurations, TLC logs/counterexamples
 under `traces/`, and a detailed summary. The runner reports expected violations
@@ -555,7 +555,7 @@ a general guarantee of local allocation. A full-set stall is ordinary backpressu
 if a release will arrive; it is not by itself proof of deadlock.
 
 DCS commit `eb64df4` on `trace-directory-allocation` supplies the trace-only
-change. The [evidence manifest](../../model/steady/directory-trace-evidence.json)
+change. The [evidence manifest](../../model/evidence/steady/directory-trace-evidence.json)
 records six trace checks plus the existing 17 RTL diagnostic checks and table
 comparison, all completed through pinned Nix.
 

@@ -1,0 +1,147 @@
+{
+  "Assignment": {
+    "imports": [],
+    "role": "cooperative assignment component"
+  },
+  "AxiReloadGate": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "CachedProgress": {
+    "imports": [
+      "CachedTransport",
+      "ProgressSystem",
+      "RetainedCache"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "CachedTransport": {
+    "imports": [
+      "ProgressSystem",
+      "RetainedCache"
+    ],
+    "role": "cache/transport composition adapter"
+  },
+  "Coherence": {
+    "imports": [],
+    "role": "message vocabulary"
+  },
+  "CombinedScheduling": {
+    "imports": [
+      "CachedTransport",
+      "ProgressSystem",
+      "RetainedCache"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "ControlRetirement": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "DcsResources": {
+    "imports": [
+      "Coherence"
+    ],
+    "role": "generic resource component"
+  },
+  "DirectoryAdmission": {
+    "imports": [],
+    "role": "matched-cache contract diagnostic"
+  },
+  "Handoff": {
+    "imports": [
+      "Assignment",
+      "ProgressSystem",
+      "SelectedAddresses"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "HostWake": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "InterruptGate": {
+    "imports": [],
+    "role": "historical release-first interrupt diagnostic"
+  },
+  "KillExit": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "Probe": {
+    "imports": [
+      "DcsResources"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "ProgressSystem": {
+    "imports": [
+      "Coherence",
+      "DcsResources",
+      "ThxResources",
+      "TwoFClient"
+    ],
+    "role": "transport composition"
+  },
+  "Reservation": {
+    "imports": [
+      "Assignment"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "RetainedCache": {
+    "imports": [],
+    "role": "generic cache/directory accounting component"
+  },
+  "SelectedAddresses": {
+    "imports": [],
+    "role": "generated address witness"
+  },
+  "Steady": {
+    "imports": [
+      "ProgressSystem"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "ThreadClaim": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "ThxResources": {
+    "imports": [],
+    "role": "assumed CPU resource component"
+  },
+  "TimerMirror": {
+    "imports": [],
+    "role": "ordered command diagnostic"
+  },
+  "TwoFClient": {
+    "imports": [],
+    "role": "abstract 2F2F client"
+  },
+  "WakeAckRace": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "WakeHandoff": {
+    "imports": [
+      "Handoff",
+      "HostWake"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "WakeReassignment": {
+    "imports": [],
+    "role": "bounded harness / focused contract"
+  },
+  "WakeRetirement": {
+    "imports": [
+      "HostWake"
+    ],
+    "role": "bounded harness / focused contract"
+  },
+  "lauberhorn": {
+    "imports": [],
+    "role": "historical monolithic reference"
+  }
+}

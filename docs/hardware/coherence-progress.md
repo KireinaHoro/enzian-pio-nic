@@ -575,7 +575,7 @@ independent color-representative bits partition the 25 block-address bits.
 With no reservations, all 524288 domain codes coexist for each of the seven
 selected workers at the address/color level. Configurations with reservations
 may supply `prefix_indices`; apply that mapping to the logical domain index before
-encoding. The checked-in [selected configuration](../../model/steady/selected-8k.json)
+encoding. The checked-in [selected configuration](../../model/data/selected-8k.json)
 allocates 16 domains to seven workers for reproducible finite checks; the
 19-bit architectural capacity does not imply that many model-checked clients.
 
