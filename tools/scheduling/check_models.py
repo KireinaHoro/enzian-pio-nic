@@ -99,7 +99,14 @@ CACHE_CONTRACT_CASES = {
 CASES.update(CACHE_CONTRACT_CASES)
 COMPOSED_ALL = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
 COMPOSED_CASES = {k:v for k,v in COMPOSED_ALL.items() if not k.startswith('combined-extended-')}
+GATE_CASES = {
+    'axi-reload-gate': ('AxiReloadGate', {}, None),
+    'bad-axi-reload-bypass': ('AxiReloadGate', {'BadBypass': True}, 'NoStaleRefill'),
+    'bad-axi-release-gate': ('AxiReloadGate', {'BadReleaseGate': True}, 'Completes'),
+}
+CASES.update(GATE_CASES)
 DEFAULTS = {
+    'AxiReloadGate': {'BadBypass': False, 'BadReleaseGate': False},
     'DirectoryAdmission': {'Ways': 2, 'BadMapping': False, 'BadEarlyRequest': False, 'BadSilentEviction': False, 'LocalRequest': False},
     'KillExit': dict.fromkeys(('BadGate','BadRelease','BadActivate','BadResume','BadFree'), False) | {'Initial': 'User'},
     'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
@@ -117,6 +124,7 @@ DEFAULTS = {
     'WakeAckRace': {'BadClear': False},
 }
 INVARIANTS = {
+    'AxiReloadGate': ['TypeOK', 'NoStaleRefill'],
     'DirectoryAdmission': ['TypeOK','Accounting','BlockingHasRelease'],
     'KillExit': ['TypeOK','NoWrongKill','NoResume','MetadataSafe','CacheRetained'],
     'CombinedScheduling': ['Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
@@ -134,6 +142,7 @@ INVARIANTS = {
     'WakeAckRace': ['TypeOK','NoLostNotification'],
 }
 PROPERTIES = {
+    'AxiReloadGate': ['Completes'],
     'DirectoryAdmission': ['Admission','LocalProgress'],
     'KillExit': ['NoReblock','NoResumeAfterClose','SnapshotStable','StopCompletes','ExitCompletes','SuccessorsProgress'],
     'CombinedScheduling': ['SnapshotStable','HandoffFinishes','Retires','StableProgress'],
@@ -190,7 +199,7 @@ def main():
     args = p.parse_args()
     selected = args.case or (CACHE_CONTRACT_CASES if args.cache_contracts_only else KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
         [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
-        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES])
+        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES and name not in GATE_CASES])
     if args.safety_only and any(CASES[name][2] for name in selected):
         p.error('--safety-only requires an explicit selection of positive cases')
     jar = os.environ.get('TLA2TOOLS_JAR')

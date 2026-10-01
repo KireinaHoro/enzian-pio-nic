@@ -175,3 +175,111 @@ every domain exit, or acknowledging an absent LCI without preserving the lock
 contract does not discharge this obligation. No mechanism is selected or implemented
 by this audit. Once selected, compose it with the real shared release path and
 rerun the positive resource and scheduling checks before claiming hardware progress.
+
+## Non-auto-lock investigation (2026-10-01)
+
+The alternative generated `dc_stmc_auto_no_lock` protocol is a concrete candidate,
+not yet selected for production. The extended controller test now also runs this
+table: an absent LCI completes with the full flag asserted, returns to `s1__1`,
+and retains no directory charge. The same arbitration/data-gate tests still pass;
+nonlocking does not remove shared-path backpressure.
+
+[`check_lock_tables.py`](../../tools/progress/check_lock_tables.py) compares all
+explicit generated transitions (2028 auto-lock, 1800 nonlocking). All 1800 shared
+entries have identical actions and identical next states after removing the
+`pUL` lock marker. Exactly 36 shared entries differ, all producing LCA or LCIA.
+The remaining auto-lock entries are UL requests or lock states. This is a
+structural table check, not a single-line protocol or progress proof; it does not
+prove defaults, concrete THX behavior, or all surrounding RTL compatible.
+
+The lock protects the interval from coherence completion until UL: CPU requests
+cannot acquire the line during that interval. It does not itself protect the
+entire NIC packet-processing interval. In
+[`EciDecoupledRxTxProtocol.scala`](../../hw/src/lauberhorn/host/eci/EciDecoupledRxTxProtocol.scala),
+`recvLciaSendUl` immediately enqueues UL on each LCIA. RX invalidates overflow,
+then control, and changes parity on control LCIA. TX invalidates control, then
+selected overflow, and only subsequently submits the packet. Thus individual
+lines can already be unlocked before the larger operation finishes. UL delivery
+can be delayed; enqueue is not remote release.
+
+For a cooperative, ordered CPU client, the opposite-parity read acts as the
+handoff: it must not touch retired control/overflow while waiting for publication.
+RX publication waits for invalidation completion in `DcsRxAxiRouter`; TX commits
+only after its invalidation sequence. Under that client contract, no software
+access needs the post-LCIA lock. This is a source-derived candidate argument,
+**not yet a checked claim covering speculation, prefetch, or malicious accesses**.
+The existing resource model abstracts those accesses away, so its nonallocating
+positive results cannot discharge this race.
+
+Before selecting nonlocking, check these cases explicitly:
+
+- Refill/replay of the retired control parity between invalidation completion,
+  NIC receipt of LCIA and the next publication, including queued reads.
+- RX overflow prefetch/refill after its individual LCIA and before the next
+  descriptor; verify stale data cannot survive to the next use of that address.
+- TX dirty writeback completion versus descriptor/overflow consumption, and a
+  late CPU store or acquisition while commit is outstanding.
+- Stopped-owner late requests, kill release and subsequent same-domain activation;
+  domain-qualified PAs prevent cross-domain aliasing but not same-PA refill races.
+
+Do not assume software serialization prevents speculative coherent requests.
+Determine the effective mapping attributes, runtime barriers and NIC response
+rules, then model the permitted requests. Retaining auto-lock only until immediate
+UL is not automatically a solution to refills after that UL either.
+
+A switch also requires integration work: `decode_eci_req.sv` unconditionally
+references `UL`, which the alternative package does not define. Remove/parameterize
+that decode together with NIC UL generation, UL accounting and preemption-control
+users; select matching generated collateral. Do not mix enum encodings from the
+two packages. The targeted alternative test deliberately excludes the decoder
+and is not a whole-slice compilation test. No production sources were switched.
+
+Reproduce both variants and the table comparison with the existing pinned
+`dcs-pressure` Nix check. It emits `summary.json` (six auto-lock checks),
+`nonlocking-summary.json` (four nonlocking checks), and `lock-tables.json`.
+The nonlocking controller test and structural comparison passed in this audit;
+full protocol-race checking and shared release-path guarantees remain pending.
+
+### AXI response gating is the candidate replacement for the lock
+
+Maintainer clarification: Lauberhorn synthesizes AXI responses and deliberately
+blocks reload completion; the DCS need not be treated as an ordinary always-ready
+memory controller. Source inspection supports this distinction. Both RX and TX
+routers have one serial read FSM behind an eight-entry AXI queue. While the
+opposite-parity control read is active, neither engine returns to its read-idle
+state to service later control or overflow requests. TX additionally waits for
+submission/result before releasing the read. Writeback has a separate TX FSM.
+In the nonlocking table, absent R12/R13 issue RDD and enter pending-response
+states; removing the post-LCIA lock does not remove this normal coherence
+transaction serialization. Holding AXI R therefore delays CPU acquisition.
+
+[`AxiReloadGate.tla`](../../model/steady/AxiReloadGate.tla) checks the narrow
+replacement contract: one held door read followed by a reload of either of two
+retired lines (control/overflow), arbitrary invalidation and acknowledgment order,
+and publication only after both acknowledgments. There are no local directory
+locks. Serial read service prevents stale-generation refills; eligible release
+service permits completion. Weak fairness applies only to enabled invalidation,
+acknowledgment, publication and serial read service. Deliberately allowing a
+reload to bypass the held read violates `NoStaleRefill`; making LCIA service wait
+for the read queue to empty violates `Completes`. Both negative outcomes are
+expected diagnostic failures. All three checks completed with pinned TLC (24 states for the positive case).
+The [evidence manifest](../../model/steady/nonlocking-evidence.json) records
+model outcomes, source hashes and both Nix RTL results.
+
+This model starts **after the door has become the active AXI head**. It does not
+establish that every concrete transition reaches that state safely. Remaining
+obligations are requests already ahead of the door, coherence responses already
+in flight, CPU speculative accesses that trigger parity transitions, and
+preemption/kill paths without an active door. The replacement must establish an
+explicit response fence on those paths or prove their existing sequencing
+sufficient. CPU access permission changes that need no new AXI read also require
+single-line correspondence; the model assumes acquisition after invalidation
+requires a new response. Full payload values and the whole DCS transport remain
+outside this small check. This is stronger support for the nonlocking candidate,
+not a production-switch decision or whole-protocol proof.
+
+```sh
+nix develop -c python3 tools/scheduling/check_models.py \
+  --case axi-reload-gate --case bad-axi-reload-bypass --case bad-axi-release-gate \
+  --output out/scheduling/axi-reload-gate --workers 2 --heap-mib 1024
+```

@@ -84,6 +84,13 @@ module DcsPressureTb;
     for(int i=0;i<5;i++) counts[i]=0;
     repeat(4) @(negedge clk);
     reset=0;
+`ifdef NO_AUTO_LOCK
+    assert (!cc_req_creates_new_rtg_entry(LCI)) else $fatal(1,"LCI allocates");
+    valid=1;
+    wait_accept();
+    assert (state == s1__1 && !cc_is_state_valid(state)) else $fatal(1,"absent LCI retained charge");
+    $display("PASS nonlocking absent LCI completes with full directory and no charge");
+`else
     assert (cc_req_creates_new_rtg_entry(LCI)) else $fatal(1,"wrong protocol variant");
     valid=1;
     repeat(64) begin
@@ -101,6 +108,7 @@ module DcsPressureTb;
     wait_accept();
     assert (state == s1__1 && !cc_is_state_valid(state)) else $fatal(1,"UL did not free the entry");
     $display("PASS UL releases charge even with full flag asserted");
+`endif
     @(negedge clk); av='1; arb_test=1;
     repeat(128) @(negedge clk);
     arb_test=0; av=0;

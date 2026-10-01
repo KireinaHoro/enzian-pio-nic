@@ -5,6 +5,7 @@ let
     root = ../..;
     fileset = lib.fileset.unions [
       ../../tools/progress/check_dcs_pressure.py
+      ../../tools/progress/check_lock_tables.py
       ../../tools/progress/directory_witness.py
       ../../tools/progress/capacity.py
       ../../model/steady/selected-8k.json
@@ -15,6 +16,8 @@ let
       (dcs + "/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv")
       (dcs + "/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv")
       (dcs + "/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv")
+      (dcs + "/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv")
+      (dcs + "/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv")
       (dcs + "/dcs/dcu/dcu_controller/rtl/dcu_controller.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv")
@@ -27,7 +30,10 @@ in runCommand "lauberhorn-dcs-pressure" {
   cp -r ${source}/. .
   chmod -R u+w .
   python3 tools/progress/check_dcs_pressure.py --output results
+  python3 tools/progress/check_dcs_pressure.py --no-auto-lock --output nonlocking-results
   mkdir -p "$out"
+  python3 tools/progress/check_lock_tables.py > "$out/lock-tables.json"
+  cp nonlocking-results/summary.json "$out/nonlocking-summary.json"
   cp results/summary.json "$out/summary.json"
   python3 tools/progress/directory_witness.py model/steady/selected-8k.json > "$out/address-witness.json"
 ''
