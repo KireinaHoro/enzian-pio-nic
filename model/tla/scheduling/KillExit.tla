@@ -1,17 +1,18 @@
 ------------------------------ MODULE KillExit ------------------------------
 EXTENDS Naturals, FiniteSets
-CONSTANTS Initial, BadGate, BadRelease, BadActivate, BadResume, BadFree
-\* Two physical workers of one closing domain; each may dispatch a successor.
+CONSTANTS WorkerCount, Initial, BadGate, BadRelease, BadActivate, BadResume, BadFree
+\* Physical workers of one closing domain; each may dispatch a successor.
 \* Prefixes are never reused. Cached old lines deliberately remain forever.
 \* The chosen implementation serializes successor activation after IRQ drain.
-Workers == {1,2}
+Workers == 1..WorkerCount
 VARIABLE s
 v == <<s>>
-Init == s = [closing |-> FALSE, fenced |-> FALSE, callback |-> "Idle",
+InitialState == [closing |-> FALSE, fenced |-> FALSE, callback |-> "Idle",
     freed |-> FALSE, cached |-> Workers,
     w |-> [w \in Workers |-> [cpu |-> Initial, rx |-> "Idle",
         latched |-> FALSE, gate |-> FALSE, irq |-> "None", sent |-> FALSE,
         certified |-> FALSE, reply |-> "None", successorDone |-> FALSE]]]
+Init == s = InitialState
 \* Exit may initiate domain close without any IRQ. Kill also uses Close, then
 \* asynchronous per-worker latch. Neither requires cooperative application work.
 Close == /\ ~s.closing /\ s' = [s EXCEPT !.closing = TRUE]

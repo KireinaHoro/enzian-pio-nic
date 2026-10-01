@@ -72,6 +72,28 @@
     "imports": [],
     "role": "bounded harness / focused contract"
   },
+  "KillTransport": {
+    "imports": [
+      "KillExit",
+      "ProgressSystem",
+      "CachedTransport",
+      "RetainedCache",
+      "DcsResources",
+      "Coherence",
+      "ReadResponses",
+      "LciBatch",
+      "PacketResources"
+    ],
+    "role": "kill control and resource-tail composition with stalled and active peers"
+  },
+  "LciBatch": {
+    "imports": [],
+    "role": "ordered finite invalidation batch client"
+  },
+  "PacketResources": {
+    "imports": [],
+    "role": "buffer ownership and finite writeback service stages"
+  },
   "Probe": {
     "imports": [
       "DcsResources"

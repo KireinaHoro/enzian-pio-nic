@@ -108,3 +108,12 @@ The [response-contract extension](axi-response-contract.md) adds generic
 one-slot boundary now cover earlier/in-flight reads and stop; faults expose the
 ordering and service obligations. Its separate evidence does not supersede the
 review regression results above or establish full scheduling composition.
+
+## Follow-up: kill/resource composition
+
+[KillTransport](kill-transport-composition.md) instantiates `KillExit` and
+`CachedTransport`, with generic `LciBatch` and `PacketResources` components.
+Existing component invariants, control properties and parameterized live-client
+progress properties are imported. New assertions cover only the control/resource
+relations, packet disposition and writeback-to-LCIA ordering. This does not yet
+replace the older combined wake/reservation control representation.

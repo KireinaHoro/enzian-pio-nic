@@ -50,6 +50,7 @@ def main():
     selection.add_argument('--axi-only', action='store_true')
     selection.add_argument('--cache-contracts-only', action='store_true')
     selection.add_argument('--kill-only', action='store_true')
+    selection.add_argument('--kill-transport-only', action='store_true')
     selection.add_argument('--races-only', action='store_true')
     selection.add_argument('--composed-only', action='store_true')
     selection.add_argument('--composed-invariants', action='store_true', help='composed state invariants plus cache progress and all fault diagnostics; omit positive combined temporal properties')
@@ -58,7 +59,7 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    group = ('transport' if args.transport_only else 'axi' if args.axi_only else
+    group = ('kill-transport' if args.kill_transport_only else 'transport' if args.transport_only else 'axi' if args.axi_only else
              'cache-contracts' if args.cache_contracts_only else 'kill' if args.kill_only else
              'composed' if args.composed_only or args.composed_invariants else
              'races' if args.races_only else 'default')

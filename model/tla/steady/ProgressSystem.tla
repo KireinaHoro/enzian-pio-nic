@@ -65,6 +65,8 @@ Successors(S) == {e[2]: e \in {edge \in ReadWaits: edge[1] \in S}}
 RECURSIVE Reach(_, _)
 Reach(S, n) == IF n = 0 THEN {} ELSE Successors(S) \cup Reach(Successors(S), n-1)
 NoReadDependencyCycle == \A c \in Clients: c \notin Reach({c}, N)
-Progress == \A c \in Clients \ Stalled: ([]<>completed[c]) /\ ([]<>~completed[c])
-Admission == \A c \in Clients \ Stalled: []<>(phase[c] = "Held")
+ProgressFor(cs) == \A c \in cs: ([]<>completed[c]) /\ ([]<>~completed[c])
+AdmissionFor(cs) == \A c \in cs: []<>(phase[c] = "Held")
+Progress == ProgressFor(Clients \ Stalled)
+Admission == AdmissionFor(Clients \ Stalled)
 =============================================================================

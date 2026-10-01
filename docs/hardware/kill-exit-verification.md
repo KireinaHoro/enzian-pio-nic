@@ -46,7 +46,7 @@ unissued but latched IRQ cannot appear later. There is no normal-handoff commit
 write and no scheduling IRQ on the cooperative path. A tagged/revalidated IRQ
 scheme could permit more overlap, but has not been checked here.
 
-This introduces only kill-local sequencing. NIC transaction completion/unlock
+This introduces only kill-local sequencing. NIC transaction completion
 must still precede reuse of untagged physical-worker engine state. It does not
 require eviction of stable old-domain cache lines. Do not hold a lock across an
 IRQ/control wait if the IRQ handler or completion path needs that lock.
@@ -59,7 +59,7 @@ both workers in userspace, kernel, or parked state. Before close, optional
 kernel entry and resumption admit running/parked mixtures and delayed dispatch.
 One callback can race close; an info response has separate offer and consumption
 boundaries and remains immutable. Each worker has one RX slot with distinct
-submission, admission, held-load, returned-load and final-unlock states. Requests
+submission, admission, held-load, returned-load and abstract tail states. Requests
 may be submitted repeatedly before fencing. A held RX has **no normal completion**:
 only kill releases it. IRQ assertion and service are separate actions. All old
 cache markers remain forever, including after metadata release.
@@ -69,7 +69,7 @@ The checked properties are:
 - No IRQ kills a successor; certified threads never resume; no resume occurs
   after close; the RX gate prevents reblocking; offered responses stay stable.
 - Metadata release requires the NIC fence, callback join, all no-resume
-  certificates, consumed responses, drained IRQs and completed RX/unlock work.
+  certificates, consumed responses, drained IRQs and completed RX/tail work.
 - Close eventually stops both threads, releases those metadata references, and
   allows both successors to execute their modeled operation.
 
@@ -84,7 +84,7 @@ are outside that contract.
 
 The successor operation is an abstract fair CPU action, not a coherence workload
 or proof of resource-independent peer progress. This focused harness does not
-instantiate DCS/THX resource modules. Its RX release and unlock steps are endpoint
+instantiate DCS/THX resource modules. Its RX release and tail steps are endpoint
 contracts to connect to the existing resource model and actual RTL. Retained
 cache markers establish that this control path does not depend on flushing;
 the separate retained-cache model checks finite occupancy/replacement.
@@ -115,13 +115,20 @@ The [tracked evidence](../../model/evidence/scheduling/kill-exit-evidence.json) 
 current outcomes. Parse errors, timeouts and unexpected violations are failures.
 Generated full logs and counterexample traces remain in ignored `out/` directories.
 
+## Resource composition follow-up
+
+[KillTransport](kill-transport-composition.md) now imports this control model and
+adds resource-backed RX completion, TX control/overflow writeback, packet ownership
+and independent stalled/live peers. Its evidence is separate from the historical
+control-only results above. Broader wake/migration composition and actual hardware
+correspondence remain open.
+
 ## Remaining work before implementation confidence
 
-1. Connect kill release to actual 2F2F/DCS resources: CPU load completion,
-   invalidation/ACK/unlock traffic, in-flight TX and overflow, and full-address
-   preservation. Verify the release/control path cannot be blocked by the load
-   it is trying to release or by an unrelated stalled worker. The focused model
-   checks sequencing, not this structural progress guarantee.
+1. Extend the [resource composition](kill-transport-composition.md) to additional
+   workers, shared packet queues and successor transport. Its bounded RX/TX cases
+   connect load completion, invalidation/LCIA, writeback and ownership disposal;
+   actual RTL correspondence and full-address routing still require validation.
 2. Complete the larger combined temporal checks and relevant transition bounds:
    repeated migration/notifications, TX/overflow/bypass and a stalled unaffected
    peer. Existing combined state invariants pass; its full liveness runs remain
@@ -136,8 +143,9 @@ Generated full logs and counterexample traces remain in ignored `out/` directori
    domain-wide signal/exit hook and IRQ acknowledgment mechanism. Check actual
    bus framing and IRQ delivery, including kernel-context interruption.
 5. Run the planned targeted actual-DCS RTL tests, then matched hardware tests.
-   Also define disposal of network packets, DMA/buffer/reply ownership and external
-   effects of a killed RPC. These are outside the control-only kill model.
+   Validate disposal of network packets and buffer/reply ownership against the
+   composed resource contract; DMA framing and external effects of a killed RPC
+   remain outside it.
 
 No counterexample in the selected focused protocol requires a new workaround:
 ordinary fences and kill-local serialization suffice at this abstraction. This
