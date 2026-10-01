@@ -134,3 +134,10 @@ For monotonic-prefix kill/exit checks, run
 The [kill/exit report](../hardware/kill-exit-verification.md) describes three
 positive temporal cases, five deliberate faults, three ordering/reachability
 witnesses, and the endpoint assumptions still requiring hardware correspondence.
+
+For the cache/directory admission contracts and full-set LCI counterexample, run
+`nix build .#checks.x86_64-linux.scheduling-cache-contracts`.
+`nix build .#checks.x86_64-linux.dcs-pressure` checks actual controller/table,
+arbiter and data-gate RTL with controlled surroundings. See the
+[directory-pressure report](../hardware/directory-pressure.md) for scope and the
+distinction between a passing diagnostic and a reproduced design progress failure.

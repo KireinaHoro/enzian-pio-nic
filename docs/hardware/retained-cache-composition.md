@@ -1,5 +1,12 @@
 # Retained cache accounting and composed scheduling races
 
+**2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
+found that active DCS local invalidations allocate even on an absent cache line.
+The old retained-cache positives used a nonallocating abstraction. Enabling the
+actual allocation rule produces a progress counterexample on a full target set.
+Historical checked results below remain results for their stated abstraction;
+they do not discharge this concrete DCS progress obligation.
+
 This revision removes **clean cache / no conflict miss** as an ordinary handoff
 entry requirement. Retained lines consume finite directory entries, CPU conflict
 replacement creates downgrade/writeback traffic, and that traffic retains resources

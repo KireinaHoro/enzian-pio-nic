@@ -114,3 +114,13 @@ The focused model checks uncooperative userspace, outstanding RX, IRQ ordering,
 close/dispatch races and reference cleanup. It does not complete the larger
 combined temporal or concrete resource/refinement obligations. The linked report
 lists the remaining implementation and verification work.
+
+## Directory-capacity finding (2026-10-01)
+
+The [sequential replacement/delivery audit](../hardware/directory-pressure.md)
+found an absent-LCI/full-set progress counterexample in the active DCS auto-lock
+protocol, reproduced with a corrected resource model and targeted actual RTL.
+The selected address layout is unchanged. Before claiming hardware progress,
+select a local-lock allocation guarantee independent of CPU demand, then compose
+it with the shared writeback/VC path. Early targeted controller/arbiter/data-gate
+checks now exist; they do not replace the planned whole-slice routing tests.

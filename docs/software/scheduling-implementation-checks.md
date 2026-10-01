@@ -105,7 +105,7 @@ being present elsewhere in the file.
 | H7 | Local activation follows InfoRespond; return physical-worker identity and both parities from that response, with no NIC commit write. Assert no old-owner admission after fencing. | Worker decoder and activation return path. |
 | H8 | HOST_WAKE delivery does not pop the network queue, even when full. Ordinary TX and syscall sleep do not alter assignment. | RX pseudo-packet selection and worker ownership logic. |
 | H9 | Check accepted/resource counts, no double release, full-address preservation and transaction beat framing at actual interfaces. Control MMIO must progress independently of a stalled worker. | DCS/AXI/ECI integration; these require RTL/resource validation, not just scheduler assertions. |
-| H10 | Retain directory charges for queued evictions and invalidated entries until downgrade/writeback delivery or final unlock. Serialize invalidation and eviction of the same address. | Cache/coherence endpoint and DCS resource monitors; see the [retained-cache model](../hardware/retained-cache-composition.md). |
+| H10 | Retain directory charges for queued evictions and invalidated entries until downgrade/writeback delivery or final unlock. Absent-line LCI also allocates a lock entry; guarantee its capacity without assuming a CPU miss. Serialize invalidation and eviction of the same address. | Cache/coherence endpoint and DCS resource monitors; see the [retained-cache model](../hardware/retained-cache-composition.md). |
 | H11 | Establish both victim generation for a full directory set and independent service of eligible replacement traffic. Never infer either from a small active-assignment footprint. | CPU cache/DCS geometry and downgrade/writeback paths; concrete correspondence remains open. |
 | H12 | Latch kill and gate new blocking RX. IRQ assertion and outstanding-RX release may occur in either order; never wait for handler entry before releasing RX. Hold the gate until the no-resume certificate, and prevent a late IRQ from killing a successor. | Kill/control interface; focused IRQ/assignment interleavings are checked; concrete resource/framing correspondence remains open. Drain the kill notification before successor activation. Application stopping is distinct from PA-prefix reclamation. |
 
@@ -181,3 +181,8 @@ The first implementation uses monotonic, non-reused PA prefixes. Assert exhausti
 instead of wrapping; preserve allocation state across driver reload or require a
 proved coherence-reset boundary. Free software objects only after their references
 are joined, and keep late old-address coherence service independent of freed objects.
+
+The [directory-pressure audit](../hardware/directory-pressure.md) narrows H11:
+matched CPU/directory geometry explains CPU-initiated replacement, but not
+FPGA-initiated absent-line LCI. A full-set counterexample is now reproduced.
+Local allocation capacity and shared release-path progress remain open.

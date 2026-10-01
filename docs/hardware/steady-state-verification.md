@@ -1,5 +1,12 @@
 # Settled progress verification
 
+**2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
+found that active DCS local invalidations allocate even on an absent cache line.
+The old retained-cache positives used a nonallocating abstraction. Enabling the
+actual allocation rule produces a progress counterexample on a full target set.
+Historical checked results below remain results for their stated abstraction;
+they do not discharge this concrete DCS progress obligation.
+
 Status (2026-09-30): **Goal 1 complete as a bounded modeling/layout milestone**,
 accepted by the maintainer to proceed with Goal 2 modeling and implementation.
 This is not full hardware verification, a whole-system progress proof or an

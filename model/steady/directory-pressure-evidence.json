@@ -1,0 +1,332 @@
+{
+  "address_witness": {
+    "absent_lci_target": {
+      "domain": 2048,
+      "pa": 1075839872,
+      "pa_hex": "0x40200380"
+    },
+    "assumptions": [
+      "16 old RX-control lines may remain cached across assignments",
+      "current CPU RX is to the other parity/set; no other CPU access forces target-set eviction",
+      "DCS auto_lock LCI allocates a directory entry even on an absent line"
+    ],
+    "domain_codes_required": 2049,
+    "new_rx_door": {
+      "pa": 1075839744,
+      "pa_hex": "0x40200300",
+      "rtg_set": 516
+    },
+    "retained_old_lines": [
+      {
+        "domain": 0,
+        "pa": 2098048,
+        "pa_hex": "0x200380"
+      },
+      {
+        "domain": 210,
+        "pa": 84484992,
+        "pa_hex": "0x5092380"
+      },
+      {
+        "domain": 292,
+        "pa": 140657536,
+        "pa_hex": "0x8624380"
+      },
+      {
+        "domain": 502,
+        "pa": 223044480,
+        "pa_hex": "0xd4b6380"
+      },
+      {
+        "domain": 512,
+        "pa": 270533504,
+        "pa_hex": "0x10200380"
+      },
+      {
+        "domain": 722,
+        "pa": 352920448,
+        "pa_hex": "0x15092380"
+      },
+      {
+        "domain": 804,
+        "pa": 409092992,
+        "pa_hex": "0x18624380"
+      },
+      {
+        "domain": 1014,
+        "pa": 491479936,
+        "pa_hex": "0x1d4b6380"
+      },
+      {
+        "domain": 1024,
+        "pa": 538968960,
+        "pa_hex": "0x20200380"
+      },
+      {
+        "domain": 1234,
+        "pa": 621355904,
+        "pa_hex": "0x25092380"
+      },
+      {
+        "domain": 1316,
+        "pa": 677528448,
+        "pa_hex": "0x28624380"
+      },
+      {
+        "domain": 1526,
+        "pa": 759915392,
+        "pa_hex": "0x2d4b6380"
+      },
+      {
+        "domain": 1536,
+        "pa": 807404416,
+        "pa_hex": "0x30200380"
+      },
+      {
+        "domain": 1746,
+        "pa": 889791360,
+        "pa_hex": "0x35092380"
+      },
+      {
+        "domain": 1828,
+        "pa": 945963904,
+        "pa_hex": "0x38624380"
+      },
+      {
+        "domain": 2038,
+        "pa": 1028350848,
+        "pa_hex": "0x3d4b6380"
+      }
+    ],
+    "rtg_set": 517,
+    "scope": "Address witness, not a board-observed execution; selected layout expanded to full domain-code capacity",
+    "worker": 0
+  },
+  "audit_source_hashes": {
+    "flake.lock": "aa42354e58cafc58e34ebcc5935d327e514ad7cb0d5a24c5d253a9a3c05b648a",
+    "nix/checks/dcs-pressure.nix": "50e7d2a1537aaa37453cd200450f44878fb21062dc1fe728960ef7e3015f5a68",
+    "nix/checks/scheduling-progress.nix": "f3299177fd911942f8c149216fd5d92e0c212402899940d0ee767aa56bb4876a",
+    "tools/progress/audit_resources.py": "ba358c2764c0797777efa9555a6015ae7ac0113fa0674b6c201bb7c4d894a9b7",
+    "tools/progress/check_dcs_pressure.py": "97ce4a75b91b7bcb4bffa1ef442159a5a9611c95d05206b761013b4128d86ee0",
+    "tools/progress/directory_witness.py": "bff533b5b32a6f47acb68f536bd1f0030b62f1dc5fb3aa8afd7e6bf070e2c27b",
+    "vivado/eci/create_project.tcl": "aa213c25b7f7fd2374047943d1c08e32d357194c071d7ce57a5c62e5b3d8b581",
+    "vivado/eci/directory-controller-slice/dcs/dcs_dcus/rtl/dcs_dcus.sv": "657e8798a4d4905e267b762d1607e9fcb43e49090b0d840e1b27580d9bd4adb7",
+    "vivado/eci/directory-controller-slice/dcs/dcu/dcu_top/rtl/dcu_top.sv": "857e9bd54ff1d3a11fed2a720a1af3250e79bd1e84283e08b876bb4444d1c98b",
+    "vivado/eci/directory-controller-slice/dcs/dcu/decode_eci_req/rtl/decode_eci_req.sv": "9ae1f71a8878c9f223246c36404650eef07058dc356a3e2f54227977993d07c7",
+    "vivado/eci/directory-controller-slice/documentation/dcu.tex": "6ce79b9229946f74dcaa9b88d538894b6145b81fac8ae1edcd08b78161830f39",
+    "vivado/eci/directory-controller-slice/documentation/introduction.tex": "e824f77df8162ba17d9ba7b1a20cdeeb82883658c1439e6819bb8095357855f4"
+  },
+  "conclusion": "Absent-line local invalidation allocation is an unresolved full-set progress obstruction; earlier nonallocating cache positives do not establish active DCS progress. Shared release-path progress remains unresolved.",
+  "date": "2026-10-01",
+  "models": {
+    "cases": {
+      "bad-directory-early-request": {
+        "config_sha256": "7e938e698a0e74ae42ca958d6b514df9745363c35d86a0957b4e888f03d43ff5",
+        "elapsed_seconds": 0.717,
+        "expected_violation": "BlockingHasRelease",
+        "log_sha256": "1129e2a4b3f7d7e7a5383fffef53c052e9d5bae285e6a9b9e1a0fee498febd73",
+        "meaning": "deliberate contract violation diagnosed",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "113 states generated, 50 distinct states found, 31 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-directory-mapping": {
+        "config_sha256": "2e6fb6ba8ebf199212c06dbe25d8f0caa3901aac05c79c1a4aa6f0f319b43b2c",
+        "elapsed_seconds": 0.717,
+        "expected_violation": "BlockingHasRelease",
+        "log_sha256": "52db158c97d040647668911b5f41ce32e7721af9838cb5d6d12a732f7555d39d",
+        "meaning": "deliberate contract violation diagnosed",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "88 states generated, 55 distinct states found, 34 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "bad-directory-silent-eviction": {
+        "config_sha256": "5ea2dd2084d039afb1c9fb474c2a3f60382affbb84043a453d8766e2672c2720",
+        "elapsed_seconds": 0.72,
+        "expected_violation": "BlockingHasRelease",
+        "log_sha256": "6be4603cf576b499a2f7145413aa052f0f2a7a61382075d6115c3c2ca15af4f7",
+        "meaning": "deliberate contract violation diagnosed",
+        "passed": true,
+        "returncode": 12,
+        "statistics": [
+          "49 states generated, 36 distinct states found, 19 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "directory-local-full": {
+        "config_sha256": "b120fb05599dcf94d930c70967d15941f178bccfcd60c5477290695f45acd4f5",
+        "elapsed_seconds": 3.476,
+        "expected_violation": "LocalProgress",
+        "log_sha256": "c155350dcaac0e6e6a51275cb9b79f855e8f2b199be1ed3c40e0e34b1c6b593a",
+        "meaning": "genuine design progress counterexample reproduced",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "Progress(1) at 2026-10-01 09:27:37: 1 states generated, 1 distinct states found, 0 states left on queue.",
+          "1 states generated, 1 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 1."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "directory-one-way": {
+        "config_sha256": "335a3c610170407c119eae2b672914f54dbbffbbcc4a0c1008a33dac60ad2061",
+        "elapsed_seconds": 0.766,
+        "expected_violation": null,
+        "log_sha256": "a849b08ae7d757c125575bed1d9a80b595257481158a1fc1b26971cfe0c31ce5",
+        "meaning": "bounded safety and conditional admission liveness passed",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(8) at 2026-10-01 09:27:31: 46 states generated, 28 distinct states found, 0 states left on queue.",
+          "46 states generated, 28 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 8."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "directory-three-way": {
+        "config_sha256": "ee161a4c0d74fe4620cc48a3199936b4f9a61799d8dd1cb6c43ff345cd128d05",
+        "elapsed_seconds": 2.074,
+        "expected_violation": null,
+        "log_sha256": "c273499e46cc2e2dbd77e6ea4cdd9843b94b4ff8c84eb86fa9a23704a1ecc005",
+        "meaning": "bounded safety and conditional admission liveness passed",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(19) at 2026-10-01 09:27:33: 17,186 states generated, 4,046 distinct states found, 0 states left on queue.",
+          "17186 states generated, 4046 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 19."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "directory-two-way": {
+        "config_sha256": "1db69061e29fad51dc81bc59e48726bad9a4e2d092a00fab9885470d59590200",
+        "elapsed_seconds": 0.916,
+        "expected_violation": null,
+        "log_sha256": "887237a715206275ce05d57f3873d874e8cd0a406bc73c1b7b389cdf5418bc8c",
+        "meaning": "bounded safety and conditional admission liveness passed",
+        "passed": true,
+        "returncode": 0,
+        "statistics": [
+          "Progress(15) at 2026-10-01 09:27:31: 1,169 states generated, 387 distinct states found, 0 states left on queue.",
+          "1169 states generated, 387 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 15."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      },
+      "retained-cache-dcs-counterexample": {
+        "config_sha256": "0ce7a5e2f99e27ee8de2b013d2d9c81b70f158b07eb211c736eddc133a2a70f6",
+        "elapsed_seconds": 1.216,
+        "expected_violation": "Progress",
+        "log_sha256": "4066652b2e762dd599dc4005555633810093146360f6c00158af02bd8511f1e2",
+        "meaning": "genuine design progress counterexample reproduced",
+        "passed": true,
+        "returncode": 13,
+        "statistics": [
+          "Progress(11) at 2026-10-01 09:27:30: 924 states generated, 296 distinct states found, 0 states left on queue.",
+          "924 states generated, 296 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 11."
+        ],
+        "verification_kind": "configured invariants and temporal properties"
+      }
+    },
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+    "nix_result": "/nix/store/pvbsn2z2h6pm5nclhg7g8pf79900vpdv-lauberhorn-scheduling-cache-contracts",
+    "nix_source_config_match": true,
+    "sources": {
+      "model/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+      "model/scheduling/CombinedScheduling.tla": "468f36c3f9066199ccd1cfed202c7b6330186f9b55d377ce0c37c245c8aeaf23",
+      "model/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+      "model/scheduling/Handoff.tla": "7abdcab510af533ab39d89b678b09730989397efad392bc5a8f46e879c9dadf9",
+      "model/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+      "model/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+      "model/scheduling/KillExit.tla": "39f376220a81bf68d2d15db8c265ae9f4c58fe1bc03aaddae3b558cccaefae78",
+      "model/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+      "model/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+      "model/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+      "model/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+      "model/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+      "model/scheduling/WakeHandoff.tla": "304a74eaa612d21c89863275dbedf56888b6d8404b56f93a082d5f921071dcdb",
+      "model/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+      "model/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+      "model/steady/CachedProgress.tla": "cfee8f7fa1a13a1f8f8768d1354e8410d7885b8ab817cfea4420276b1d6ce512",
+      "model/steady/Coherence.tla": "b59057475fb8dbf91784fefa18a850547171b15115170927f6b5dffc77e6d8ab",
+      "model/steady/DcsResources.tla": "9708b97fc5f9413a692729a623d9045a6ed7913d6327564337fe3aefcf4f3d4f",
+      "model/steady/DirectoryAdmission.tla": "2e2652266ddf0e2e0111c5cbcbd059a54b39b10e0e2ebdcdfb5d4b6b52d76533",
+      "model/steady/LateUnlock.tla": "48dcd9b9db5bf2c96a1ea28ed56a695aabe2438fed48472b0a44957a999f5cf6",
+      "model/steady/Probe.tla": "5866d259a2ac8af9c67b68efa62cb1138929e73eb49ddf3fcd4405041c231b5a",
+      "model/steady/ProgressSystem.tla": "097af7c6389c6954fc007387a7699dd00a1b4803103b93d0af57039fcca4e67f",
+      "model/steady/RetainedCache.tla": "fc00825a29c864d7af7691f6f7c71a3f426dcbd93e0c5e32917969812e3109ff",
+      "model/steady/Steady.tla": "d0ef6b18368e3b12c162d81d75ce6e5a399816c4538af0112431752d8ebf510a",
+      "model/steady/ThxResources.tla": "1c0971ff1b6cddee36ec037be2c31258bbc23ce4dac08e258e1f1d877f4c37fd",
+      "model/steady/TwoFClient.tla": "ec4af08e97aae79d69bd8eaf741e5c4ef2d566cd965562350c2f811b8ba83033",
+      "model/steady/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+      "tools/progress/capacity.py": "29d4f0a6b45f3f5366db8edcec02c0ffe62d595e2cfd66c416a494f0f58c4957",
+      "tools/scheduling/addresses.py": "43d887afa56d4fff7df569cdf5d0d5313151309f3cc9c6c8bffec7abc743fe3b",
+      "tools/scheduling/check_models.py": "dba6b81015e834c520676336b5b6bad91e0286fc6b448ed7b3e55b940701c469"
+    },
+    "summary": "out/scheduling/cache-contracts-checked/summary.json",
+    "summary_sha256": "e56bbd4957431185e76015ff036667a5944fe7a3bdc9dee7e53a76794d155030"
+  },
+  "not_established": [
+    "CPU set mapping/allocation timing under live machine settings",
+    "Concrete reachability of the complete 16-resident-line state; address witness is checked",
+    "Infinite-stall progress through THX queues, link credits, shared DCS writeback ingress and output",
+    "A mechanism guaranteeing absent-line local LCI directory/lock capacity",
+    "Larger combined scheduling liveness and full RTL/board refinement"
+  ],
+  "other_checks": {
+    "historical_cache_modes": "Both nonallocating positives passed; out/scheduling/cache-historical-regression/summary.json",
+    "python_capacity_accounting": "12 tests passed through nix develop"
+  },
+  "rtl": {
+    "checks": [
+      "PASS absent LCI stalls/retries on full directory (21 retries)",
+      "PASS absent LCI allocates a charged lock entry after a way is released",
+      "PASS UL releases charge even with full flag asserted",
+      "PASS stalled request head does not block other arbiter classes: 5 5 8 7",
+      "PASS busy same-DCU data head backpressures the shared ingress for 64 cycles",
+      "PASS clearing the head permits progress; another DCU can use its own slot"
+    ],
+    "log_sha256": "65bd31dba80c6b3e4277ba122ff70d8b8012959746e86ffd28ed2baadf335f23",
+    "nix_result": "/nix/store/640b33g6ajxxahq8a016pjlbkyfw98pr-lauberhorn-dcs-pressure",
+    "nix_source_checks_match": true,
+    "passed": true,
+    "scope": "Targeted actual DCS controller/table/arbiter checks, not whole-slice validation.",
+    "sources": {
+      "hw/test/rtl/dcs_pressure/DcsPressureTb.sv": "69479608eb94c878082075659a04ff1f60d8c6eada336ec2af1756df80050257",
+      "vivado/eci/directory-controller-slice/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv": "b3d4ba5a46b40f3cbd7139c3611ca30723012c271c23f395658962755b32f9b9",
+      "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv": "dc49a687d927da5890ba84f04dfe2ad24b81234f3cc693e567b7fe9d1101b067",
+      "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv": "5dc9c4c8bc2863b8067eb8c24611029be0e0ca38aa0214d8226ccb0205b9298c",
+      "vivado/eci/directory-controller-slice/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv": "3cb6e901dd6754f6612fdf66b9b33300d6c8aedd2b63b0375b2da3d8abf304f3",
+      "vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv": "842a0615ee17b98bfdccfbb5754ae815c1a6918d808199b5214ec9a2182ee339",
+      "vivado/eci/directory-controller-slice/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv": "62b824dff672dcbfa614da43345d1acaaa50f48c1c751303d28b9b94fb296a3a",
+      "vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv": "34f43b924b8a032c9827a391e6ea40104dedcc1dff4bd7c88d6a349d4d47527f",
+      "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv": "21445a95f781a2578d698f83ab1774d4437fa1c1dbf06435792df54486c1ce0e",
+      "vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv": "9ee02b95885d9e58909d6ee0d1cadbf1d2632bce86c1e27a2e4310ba7b27cdec",
+      "vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv": "2bea2510bc89ce7ed52329fec6a9b0b8cd7b9b41e25c5d80e40353fe41dd3e0d"
+    },
+    "summary": "out/progress/dcs-pressure-final/summary.json",
+    "summary_sha256": "8afe0dad97de962d932741b115f2b09e6b209376921ac89610032f67db0c79b7",
+    "verilator": "Verilator 5.048 2026-04-26 rev v5.048"
+  },
+  "submodule_revisions": {
+    "vivado/eci/directory-controller-slice": "7b5cc874155f96735f135d3cd1f2c514bacfe28f",
+    "vivado/eci/eci-toolkit": "c92f0d97ced64fbb775ce1589cc96b915ef7a1cd"
+  },
+  "superseded_runs": {
+    "cache-contracts-final": "Progress counterexample before enabling Safety alongside it; superseded",
+    "dcs-pressure": "Initial four checks; superseded by six-check final/Nix runs",
+    "directory-admission, directory-admission-v2": "TLA conditional framing errors; not evidence",
+    "directory-admission-v3, directory-admission-final": "Earlier CPU-contract/local-only checks; superseded by current eight-case regression"
+  }
+}

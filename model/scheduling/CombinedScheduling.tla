@@ -1,6 +1,6 @@
 -------------------------- MODULE CombinedScheduling --------------------------
 EXTENDS Integers, Sequences, FiniteSets
-CONSTANTS DestinationCapacity, EventBudget, RepeatRx, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
+CONSTANTS AllocateOnInvalidate, DestinationCapacity, EventBudget, RepeatRx, BadReserve, BadClaim, BadInfo, BadRetire, BadWake, BadSnapshot
 Workers == {1,2}
 Domains == {0,1}
 Clients == 1..4

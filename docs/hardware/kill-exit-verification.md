@@ -144,3 +144,8 @@ ordinary fences and kill-local serialization suffice at this abstraction. This
 is bounded evidence of implementability under the listed contracts, not proof
 that the current hardware supplies them. Prefix reclamation, arbitrary-size
 proofs and whole-system refinement remain separate work.
+
+The subsequent [directory-pressure audit](directory-pressure.md) found a concrete
+missing allocation contract for absent-line LCI on full sets. The focused kill
+control checks still hold under their stated endpoint assumptions, but those
+assumptions are not discharged by the older nonallocating cache abstraction.
