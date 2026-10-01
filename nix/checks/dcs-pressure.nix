@@ -9,7 +9,7 @@ let
       ../../data/eci/sys_trace/trace_metadata.py
       ../../tools/progress/directory_witness.py
       ../../tools/progress/capacity.py
-      ../../model/steady/selected-8k.json
+      ../../model/data/selected-8k.json
       ../../hw/test/rtl/dcs_pressure
       ../../vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv
       (dcs + "/dcs/dcu/eci_dirc_defs/eci_dirc_defs.sv")
@@ -57,6 +57,6 @@ in runCommand "lauberhorn-dcs-pressure" {
   python3 tools/progress/check_lock_tables.py > "$out/lock-tables.json"
   cp nonlocking-results/summary.json "$out/nonlocking-summary.json"
   cp results/summary.json "$out/summary.json"
-  python3 tools/progress/directory_witness.py model/steady/selected-8k.json > "$out/address-witness.json"
+  python3 tools/progress/directory_witness.py model/data/selected-8k.json > "$out/address-witness.json"
   ''}
 ''

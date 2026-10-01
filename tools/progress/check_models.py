@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[2]
 CASES = {'no-stalls': ('Steady', False), 'positive': ('Steady', False), 'minimal': ('Steady', False),
          'bad-color': ('Steady', True), 'bad-credits': ('Steady', True),
          'probe': ('Probe', False), 'bad-hol': ('Probe', True),
-         'late-unlock': ('LateUnlock', False),
          'two-stalls': ('Steady', False), 'bypass': ('Steady', False),
          'bad-slice': ('Steady', True), 'bad-cycle': ('Steady', True),
          'bad-ack': ('Steady', True), 'separate-ack': ('Steady', False)}
@@ -42,9 +41,10 @@ def main():
         p.error('timeout, workers and heap-mib must be positive')
     a.output.mkdir(parents=True, exist_ok=False)
     (a.output/'trace-specs').mkdir()
-    sources = sorted((ROOT/'model/steady').glob('*.tla')) + sorted((ROOT/'model/steady').glob('*.cfg'))
-    sources += [ROOT/'model/steady/selected-8k.json'] + sorted((ROOT/'tools/progress').glob('*.py'))
-    summary = {'source_sha256': {str(f.relative_to(ROOT)): hashlib.sha256(f.read_bytes()).hexdigest()
+    sources = sorted((ROOT/'model/tla/steady').glob('*.tla')) + sorted((ROOT/'model/config/steady').glob('*.cfg'))
+    sources += [ROOT/'model/data/selected-8k.json'] + sorted((ROOT/'tools/progress').glob('*.py'))
+    snapshot = {p: p.read_bytes() for p in sources}
+    summary = {'source_sha256': {str(f.relative_to(ROOT)): hashlib.sha256(snapshot[f]).hexdigest()
                                  for f in sources if '_TTrace_' not in f.name},
                'tlc_sha256': hashlib.sha256(a.jar.read_bytes()).hexdigest(),
                'java_version': subprocess.run(['java', '-version'], text=True, stdout=subprocess.PIPE,
@@ -54,12 +54,20 @@ def main():
         module, negative = CASES.get(name, ('Steady', False))
         if name in WITNESSES:
             domains, stalls, bypass = WITNESSES[name]
-            config = json.loads((ROOT/'model/steady/selected-8k.json').read_text())[0]['configuration']
+            config = json.loads((ROOT/'model/data/selected-8k.json').read_text())[0]['configuration']
             harness = a.output / (name + '-harness')
             generate(config, domains, stalls, bypass, harness)
             module_file, config_file = harness/'Witness.tla', harness/'Witness.cfg'
         else:
-            module_file, config_file = ROOT/f'model/steady/{module}.tla', ROOT/f'model/steady/{name}.cfg'
+            # TLC 1.8 resolves configuration names beside the root module.
+            # Keep the repository layout separate; materialize an isolated run.
+            harness = a.output / (name + '-harness')
+            harness.mkdir()
+            for path, contents in snapshot.items():
+                if path.suffix == '.tla': (harness/path.name).write_bytes(contents)
+            config_file = harness / (name + '.cfg')
+            config_file.write_bytes(snapshot[ROOT/f'model/config/steady/{name}.cfg'])
+            module_file = harness / (module + '.tla')
         cmd = ['java', f'-Xmx{a.heap_mib}m', '-XX:+UseParallelGC', '-cp', str(a.jar.resolve()), 'tlc2.TLC',
                '-workers', str(a.workers), '-lncheck', 'final', '-teSpecOutDir', str((a.output/'trace-specs').resolve()),
                '-metadir', str((a.output/name).resolve()), '-config', str(config_file.resolve()), str(module_file.resolve())]

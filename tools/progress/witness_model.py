@@ -65,11 +65,11 @@ SharedAck == TRUE
 Slices == {0,1}
 SliceOf == [c \in Colors |-> c %% 2]
 ReadSlots == %d
-VARIABLES reads, invQ, held, acknowledgments, phase, parity, direction, remaining, completed, unlockQ
-System == INSTANCE ProgressSystem WITH Nonlocking <- FALSE, reads <- reads, invQ <- invQ,
-    held <- held, acknowledgments <- acknowledgments, phase <- phase,
+VARIABLES reads, invQ, held, phase, parity, direction, remaining, completed
+System == INSTANCE ProgressSystem WITH reads <- reads, invQ <- invQ,
+    held <- held, phase <- phase,
     parity <- parity, direction <- direction, remaining <- remaining,
-    completed <- completed, unlockQ <- unlockQ
+    completed <- completed
 Spec == System!Spec
 Settled == System!Settled
 NoReadDependencyCycle == System!NoReadDependencyCycle
@@ -81,7 +81,7 @@ Admission == System!Admission
        case_function('c', controls), case_function('c', dependencies), len(clients)+1, len(clients)+1)
     output.mkdir(parents=True, exist_ok=False)
     for module in ('ProgressSystem', 'DcsResources', 'ThxResources', 'TwoFClient', 'Coherence'):
-        shutil.copyfile(ROOT/f'model/steady/{module}.tla', output/f'{module}.tla')
+        shutil.copyfile(ROOT/f'model/tla/steady/{module}.tla', output/f'{module}.tla')
     (output/'Witness.tla').write_text(text)
     (output/'Witness.cfg').write_text('SPECIFICATION Spec\nINVARIANTS Settled NoReadDependencyCycle\nPROPERTIES Progress Admission\nCHECK_DEADLOCK FALSE\n')
     (output/'manifest.json').write_text(json.dumps(dict(configuration=config, selected_domains=domains,

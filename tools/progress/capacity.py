@@ -204,7 +204,7 @@ def configuration(result, workers, domains):
                             algorithm='split block offset; decode block color to worker; invert XOR kernel for domain',
                             reject='unknown worker color, unallocated prefix index, or domain != installed owner',
                             worker_color_masks=row['worker_masks']),
-                coherence=dict(retain='full original domain-qualified address through read, invalidate, ack and unlock',
+                coherence=dict(retain='full original domain-qualified address through read, invalidate and ack',
                                retirement='drain old transactions and retire cache state before prefix reuse'),
                 reserved_regions=result['reserved'])
 

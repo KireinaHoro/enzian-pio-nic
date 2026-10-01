@@ -59,7 +59,7 @@ from a resource progress guarantee.
 
 ## Reusable resource module
 
-[`RetainedCache`](../../model/steady/RetainedCache.tla) has no scheduling policy,
+[`RetainedCache`](../../model/tla/steady/RetainedCache.tla) has no scheduling policy,
 domain, cookie or parity. Its parameters describe finite lines, cache/directory
 sets, associativity, eviction queues and queue depths. Its state is:
 
@@ -97,7 +97,7 @@ queue cannot help if the CPU never creates the required eviction.
 
 ## Composition with coherence resources
 
-[`CachedProgress`](../../model/steady/CachedProgress.tla) composes the new module
+[`CachedProgress`](../../model/tla/steady/CachedProgress.tla) composes the new module
 with unchanged `ProgressSystem`, `DcsResources`, `ThxResources` and `TwoFClient`.
 Two clients, four colors, two ways per modeled set and bounded eviction queues
 exercise an indefinitely held RX, a progressing peer, repeated RX operations,
@@ -121,7 +121,7 @@ proved mechanism provides the required independent progress.
 
 ## Combined scheduling model
 
-[`CombinedScheduling`](../../model/scheduling/CombinedScheduling.tla) directly
+[`CombinedScheduling`](../../model/tla/scheduling/CombinedScheduling.tla) directly
 composes the same coherence and retained-cache modules with:
 
 - two physical workers initially assigned to domain A and independently requesting B;
@@ -252,7 +252,7 @@ exit. Current-source traces are preserved with the development-shell results.
 
 ## Checked results (2026-09-30)
 
-The [evidence manifest](../../model/scheduling/retained-cache-evidence.json)
+The [evidence manifest](../../model/evidence/scheduling/retained-cache-evidence.json)
 records source/configuration/tool hashes and separates completed checks from
 incomplete temporal exploration. The pinned Nix `scheduling-composed-invariants`
 regression passed all **12 expected outcomes**: two combined safety cases, two
@@ -288,7 +288,7 @@ budget; it has not been reported as passed.
 
 ```sh
 nix develop -c python3 -m unittest discover -s tools/progress -v
-nix develop -c python3 tools/progress/audit_resources.py model/steady/selected-8k.json
+nix develop -c python3 tools/progress/audit_resources.py model/data/selected-8k.json
 nix build .#checks.x86_64-linux.scheduling-composed-invariants --out-link out/scheduling/composed-invariants-nix
 nix develop -c python3 tools/scheduling/check_models.py --composed-invariants --output out/scheduling/composed-regression --timeout 1200 --workers 4 --heap-mib 2048
 # Full combined temporal checks, with a larger per-case wall-time budget:

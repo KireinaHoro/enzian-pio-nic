@@ -38,22 +38,22 @@ cache-line interleaving into each control-plane race.
 
 ## Modeled independent actors
 
-- [WakeAckRace](../../model/scheduling/WakeAckRace.tla): two notifications of the
+- [WakeAckRace](../../model/tla/scheduling/WakeAckRace.tla): two notifications of the
   same cookie, one command in flight, distinct NIC acceptance and kernel ACK.
   A second callback can run while the first command is outstanding. A plain
   `pending = false` on ACK loses the second event; the positive action acknowledges
   only its own generation. Service can occur before the command ACK returns.
-- [WakeReassignment](../../model/scheduling/WakeReassignment.tla): a callback
+- [WakeReassignment](../../model/tla/scheduling/WakeReassignment.tla): a callback
   snapshots a worker hint, then acceptance and delivery race an A -> B -> A
   reassignment, including the parked/installed window. Acceptance must preserve
   readiness even with no eligible current target; delivery must revalidate the
   current subscriber. Reassignment does not erase accepted source ownership.
   The command ACK can arrive after NIC delivery or runtime service.
-- [ThreadClaim](../../model/scheduling/ThreadClaim.tla): concurrent observations
+- [ThreadClaim](../../model/tla/scheduling/ThreadClaim.tla): concurrent observations
   of one thread are not exclusive claims. NIC reservations guarantee backing threads. One-slot and two-slot cases check
   capacity and eventual claims; duplicate claims and over-reservation have separate
   counterexamples. No individual thread withdrawal is permitted.
-- [WakeRetirement](../../model/scheduling/WakeRetirement.tla): source closure can
+- [WakeRetirement](../../model/tla/scheduling/WakeRetirement.tla): source closure can
   race an already-running callback. Prefix release waits for both that callback
   and kernel/NIC/runtime wake references. Transport/cache retirement is an
   imported contract, not reimplemented here.
@@ -142,7 +142,7 @@ negatives must fail their named obligation; parse errors and timeouts do not pas
 At source `f2f0286`, the focused TLC run passed four positive configurations and
 found all seven expected counterexamples. Positive reachable-state counts are
 102 (reassignment), 22 (notification/ACK), 73 (thread claim) and 190 (retirement).
-The [evidence manifest](../../model/scheduling/race-evidence.json) records source,
+The [evidence manifest](../../model/evidence/scheduling/race-evidence.json) records source,
 configuration and log hashes, tool versions and results. Negative state counts
 are diagnostic prefixes, not exhaustive successful safety proofs.
 
@@ -167,7 +167,7 @@ without capacity stays at NIC admission, not in a failing kernel dispatch.
 
 The updated focused suite passed all 12 outcomes (five positives, seven expected
 negatives) through `nix develop` and pinned TLC. The
-[fixed-pool evidence](../../model/scheduling/fixed-pool-evidence.json) supersedes
+[fixed-pool evidence](../../model/evidence/scheduling/fixed-pool-evidence.json) supersedes
 the earlier withdrawal case. The full transport suite was not rerun; transport
 models are unchanged. At that revision, historical unavailable scenarios remained explicit-only. The
 blocking-info-read revision removes them; reproduce them from source `740b005`

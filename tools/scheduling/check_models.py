@@ -8,184 +8,15 @@ from pathlib import Path
 import subprocess
 import time
 ROOT = Path(__file__).resolve().parents[2]
-# Values name deliberate faults. Each negative must violate its named obligation.
-CASES = {
-    'handoff': ('Handoff', {}, None),
-    'handoff-rx-tx': ('Handoff', {'WorkerTx': True}, None),
-    'handoff-stalled-peer': ('Handoff', {'WithStall': True}, None),
-    'bad-drain': ('Handoff', {'BadDrain': True}, 'DrainBeforeInstall'),
-    'bad-park': ('Handoff', {'BadPark': True}, 'Safety'),
-    'bad-prefix-reuse': ('Handoff', {'BadReuse': True}, 'PrefixSafe'),
-    'bad-parity': ('Handoff', {'BadParity': True}, 'ActivationSafe'),
-}
-CASES.update({
-    'reservation': ('Reservation', {}, None),
-    'bad-reservation': ('Reservation', {'BadReservation': True}, 'Safety'),
-    'host-wake': ('HostWake', {}, None),
-    'host-wake-parked-shared': ('HostWake', {'SharedSubscription': True, 'InitiallyParked': True}, None),
-    'bad-wake-clear': ('HostWake', {'BadClear': True}, 'Responsibility'),
-    'bad-wake-reassign': ('HostWake', {'BadReassign': True}, 'Responsibility'),
-    'bad-wake-subscriber': ('HostWake', {'BadSubscriber': True}, 'EligibleDelivery'),
-    'interrupt': ('InterruptGate', {}, None),
-    'bad-rearm': ('InterruptGate', {'BadRearm': True}, 'NoPrematureReblock'),
-    'bad-release': ('InterruptGate', {'BadRelease': True}, 'NoPrematureReblock'),
-    'bad-interrupt-progress': ('InterruptGate', {'BadRearm': True}, 'InterruptProgress'),
-    'thread-claim': ('ThreadClaim', {}, None),
-    'bad-thread-claim': ('ThreadClaim', {'BadClaim': True}, 'UniqueClaim'),
-    'wake-handoff': ('WakeHandoff', {}, None),
-    'wake-retirement': ('WakeRetirement', {}, None),
-    'bad-wake-retirement': ('WakeRetirement', {'BadRetirement': True}, 'PrefixSafe'),
-    'timer-mirror': ('TimerMirror', {}, None),
-    'bad-timer-order': ('TimerMirror', {'BadOrder': True}, 'MirrorOrder'),
-})
-RACE_CASES = {
-    'combined-scheduling': ('CombinedScheduling', {}, None),
-    'combined-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1}, None),
-    'combined-extended-local-allocation': ('CombinedScheduling', {'AllocateOnInvalidate': True}, None),
-    'combined-extended-scheduling': ('CombinedScheduling', {'EventBudget': 2, 'RepeatRx': True}, None),
-    'combined-extended-one-slot': ('CombinedScheduling', {'DestinationCapacity': 1, 'EventBudget': 2, 'RepeatRx': True}, None),
-    'bad-combined-reservation': ('CombinedScheduling', {'DestinationCapacity': 1, 'BadReserve': True}, 'CapacitySafe'),
-    'bad-combined-claim': ('CombinedScheduling', {'BadClaim': True}, 'UniqueClaim'),
-    'bad-combined-info': ('CombinedScheduling', {'BadInfo': True}, 'InfoReady'),
-    'bad-combined-retire': ('CombinedScheduling', {'BadRetire': True}, 'RetirementSafe'),
-    'bad-combined-wake': ('CombinedScheduling', {'BadWake': True}, 'Responsibility'),
-    'bad-combined-snapshot': ('CombinedScheduling', {'BadSnapshot': True}, 'SnapshotStable'),
-    'retained-cache': ('CachedProgress', {}, None),
-    'retained-cache-independent-queues': ('CachedProgress', {'BlockDowngrade': True}, None),
-    'bad-retained-cache-hol': ('CachedProgress', {'BlockDowngrade': True, 'SharedEvictions': True}, 'Progress'),
-    'bad-retained-cache-no-replacement': ('CachedProgress', {'DisableReplacement': True}, 'Progress'),
-    'control-retirement': ('ControlRetirement', {}, None),
-    'bad-control-retire': ('ControlRetirement', {'BadRetire': True}, 'RetirementSafe'),
-    'bad-control-snapshot': ('ControlRetirement', {'BadSnapshot': True}, 'SnapshotStable'),
-    'bad-control-resume': ('ControlRetirement', {'BadResume': True}, 'NoResumeAfterClose'),
-    'wake-reassignment': ('WakeReassignment', {}, None),
-    'bad-wake-stale-drop': ('WakeReassignment', {'BadDrop': True}, 'Responsibility'),
-    'bad-wake-stale-delivery': ('WakeReassignment', {'BadDelivery': True}, 'RightSubscriber'),
-    'wake-ack-race': ('WakeAckRace', {}, None),
-    'bad-wake-ack-clear': ('WakeAckRace', {'BadClear': True}, 'NoLostNotification'),
-    'bad-wake-ack-progress': ('WakeAckRace', {'BadClear': True}, 'WakeProgress'),
-    'thread-claim': CASES['thread-claim'],
-    'bad-thread-claim': CASES['bad-thread-claim'],
-    'thread-claim-one-slot': ('ThreadClaim', {'PoolSize': 1}, None),
-    'bad-thread-reservation': ('ThreadClaim', {'PoolSize': 1, 'BadReservation': True}, 'ReservationBacked'),
-    'wake-retirement': CASES['wake-retirement'],
-    'bad-wake-retirement': CASES['bad-wake-retirement'],
-}
-KILL_CASES = {
-    'kill-running': ('KillExit', {}, None),
-    'exit-kernel': ('KillExit', {'Initial': 'Kernel'}, None),
-    'kill-parked': ('KillExit', {'Initial': 'Parked'}, None),
-    'witness-kill-irq-first': ('KillExit', {}, 'IrqFirstUnreachable'),
-    'witness-kill-release-first': ('KillExit', {}, 'ReleaseFirstUnreachable'),
-    'witness-exit-no-irq': ('KillExit', {'Initial': 'Parked'}, 'NoIrqExitUnreachable'),
-    'bad-kill-gate': ('KillExit', {'BadGate': True}, 'NoReblock'),
-    'bad-kill-handler-wait': ('KillExit', {'BadRelease': True}, 'StopCompletes'),
-    'bad-kill-late-irq': ('KillExit', {'BadActivate': True}, 'NoWrongKill'),
-    'bad-kill-resume': ('KillExit', {'BadResume': True}, 'NoResume'),
-    'bad-exit-free': ('KillExit', {'BadFree': True}, 'MetadataSafe'),
-}
-CASES.update(RACE_CASES)
-CASES.update(KILL_CASES)
-CACHE_CONTRACT_CASES = {
-    'directory-cycle-hit': ('DcsDirectoryCycle', {}, None),
-    'directory-cycle-hit-16': ('DcsDirectoryCycle', {'Ways': 16}, None),
-    'directory-cycle-miss': ('DcsDirectoryCycle', {'TargetPresent': False}, 'Completes'),
-    'directory-cycle-miss-16': ('DcsDirectoryCycle', {'Ways': 16, 'TargetPresent': False}, 'Completes'),
-    'directory-cycle-release': ('DcsDirectoryCycle', {'TargetPresent': False, 'ReleaseVictim': True}, None),
-    'reachable-cache-auto-lock': ('CachedProgress', {'AllocateOnInvalidate': True, 'ReachableCache': True}, 'Progress'),
-    'reachable-cache-lock-witness': ('CachedProgress', {'AllocateOnInvalidate': True, 'ReachableCache': True}, 'NoAbsentLockWait'),
-    'reachable-cache-nonallocating-control': ('CachedProgress', {'AllocateOnInvalidate': False, 'ReachableCache': True}, None),
-    'combined-auto-lock-handoff': ('CombinedScheduling', {'AllocateOnInvalidate': True, 'DestinationCapacity': 1}, 'HandoffFinishes'),
-    'combined-auto-lock-progress': ('CombinedScheduling', {'AllocateOnInvalidate': True, 'DestinationCapacity': 1}, 'StableProgress'),
-    'combined-auto-lock-witness': ('CombinedScheduling', {'AllocateOnInvalidate': True}, 'NoAbsentLockWait'),
-    'retained-cache-dcs-counterexample': ('CachedProgress', {'AllocateOnInvalidate': True}, 'Progress'),
-    'directory-one-way': ('DirectoryAdmission', {'Ways': 1}, None),
-    'directory-two-way': ('DirectoryAdmission', {}, None),
-    'directory-three-way': ('DirectoryAdmission', {'Ways': 3}, None),
-    'directory-local-full': ('DirectoryAdmission', {'Ways': 16, 'LocalRequest': True}, 'LocalProgress'),
-    'bad-directory-mapping': ('DirectoryAdmission', {'BadMapping': True}, 'BlockingHasRelease'),
-    'bad-directory-early-request': ('DirectoryAdmission', {'BadEarlyRequest': True}, 'BlockingHasRelease'),
-    'bad-directory-silent-eviction': ('DirectoryAdmission', {'BadSilentEviction': True}, 'BlockingHasRelease'),
-}
-CASES.update(CACHE_CONTRACT_CASES)
-COMPOSED_ALL = {k:v for k,v in CASES.items() if v[0] in {"CombinedScheduling","CachedProgress"}}
-COMPOSED_CASES = {k:v for k,v in COMPOSED_ALL.items() if not k.startswith('combined-extended-')}
-GATE_CASES = {
-    'axi-reload-gate': ('AxiReloadGate', {}, None),
-    'bad-axi-reload-bypass': ('AxiReloadGate', {'BadBypass': True}, 'NoStaleRefill'),
-    'bad-axi-release-gate': ('AxiReloadGate', {'BadReleaseGate': True}, 'Completes'),
-}
-CASES.update(GATE_CASES)
-NONLOCKING_CASES = {
-    'lci-only-handoff': ('Handoff', {'Nonlocking': True}, None),
-    'lci-only-handoff-stalled-peer': ('Handoff', {'Nonlocking': True, 'WithStall': True}, None),
-    'lci-only-handoff-rx-tx': ('Handoff', {'Nonlocking': True, 'WorkerTx': True}, None),
-    'lci-only-retained-cache': ('CachedProgress', {'Nonlocking': True}, None),
-    'lci-only-reachable-full': ('CachedProgress', {'Nonlocking': True, 'ReachableCache': True}, None),
-    'lci-only-independent-queues': ('CachedProgress', {'Nonlocking': True, 'BlockDowngrade': True}, None),
-    'bad-lci-only-shared-hol': ('CachedProgress', {'Nonlocking': True, 'BlockDowngrade': True, 'SharedEvictions': True}, 'Progress'),
-    'bad-lci-only-no-replacement': ('CachedProgress', {'Nonlocking': True, 'DisableReplacement': True}, 'Progress'),
-    'lci-only-combined-one-slot': ('CombinedScheduling', {'Nonlocking': True, 'DestinationCapacity': 1}, None),
-    'lci-only-combined': ('CombinedScheduling', {'Nonlocking': True}, None),
-}
-CASES.update(NONLOCKING_CASES)
-DEFAULTS = {
-    'DcsDirectoryCycle': {'Ways': 2, 'TargetPresent': True, 'ReleaseVictim': False},
-    'AxiReloadGate': {'BadBypass': False, 'BadReleaseGate': False},
-    'DirectoryAdmission': {'Ways': 2, 'BadMapping': False, 'BadEarlyRequest': False, 'BadSilentEviction': False, 'LocalRequest': False},
-    'KillExit': dict.fromkeys(('BadGate','BadRelease','BadActivate','BadResume','BadFree'), False) | {'Initial': 'User'},
-    'CombinedScheduling': dict.fromkeys(('BadReserve','BadClaim','BadInfo','BadRetire','BadWake','BadSnapshot'),False) | {'Nonlocking': False, 'DestinationCapacity': 2, 'EventBudget': 1, 'RepeatRx': False, 'AllocateOnInvalidate': False},
-    'CachedProgress': dict.fromkeys(('SharedEvictions','BlockDowngrade','DisableReplacement','AllocateOnInvalidate','ReachableCache','Nonlocking'), False),
-    'ControlRetirement': dict.fromkeys(('BadRetire','BadSnapshot','BadResume'), False),
-    'Handoff': dict.fromkeys(('Nonlocking','WorkerTx','WithStall','BadDrain','BadPark','BadReuse','BadParity'), False),
-    'Reservation': {'BadReservation': False},
-    'HostWake': dict.fromkeys(('BadClear','BadReassign','BadSubscriber','SharedSubscription','InitiallyParked'), False),
-    'InterruptGate': {'BadRearm': False, 'BadRelease': False},
-    'TimerMirror': {'BadOrder': False},
-    'ThreadClaim': {'BadClaim': False, 'BadReservation': False, 'PoolSize': 2},
-    'WakeRetirement': {'BadRetirement': False},
-    'WakeHandoff': {},
-    'WakeReassignment': {'BadDrop': False, 'BadDelivery': False},
-    'WakeAckRace': {'BadClear': False},
-}
-INVARIANTS = {
-    'DcsDirectoryCycle': ['Safety'],
-    'AxiReloadGate': ['TypeOK', 'NoStaleRefill'],
-    'DirectoryAdmission': ['TypeOK','Accounting','BlockingHasRelease'],
-    'KillExit': ['TypeOK','NoWrongKill','NoResume','MetadataSafe','CacheRetained'],
-    'CombinedScheduling': ['NoAbsentLockWait','Safety','CapacitySafe','UniqueClaim','InfoReady','RetirementSafe','Responsibility'],
-    'CachedProgress': ['Safety'],
-    'ControlRetirement': ['TypeOK','RetirementSafe'],
-    'Handoff': ['Safety','DrainBeforeInstall','PrefixSafe','SteadyEntry'],
-    'Reservation': ['Safety','NoLeakedReservation'],
-    'HostWake': ['TypeOK','Responsibility','EligibleDelivery','HotReservation'],
-    'InterruptGate': ['TypeOK','NoPrematureReblock'],
-    'TimerMirror': ['TypeOK','MirrorOrder','Shutdown'],
-    'ThreadClaim': ['TypeOK','UniqueClaim','CapacitySafe','ReservationBacked'],
-    'WakeRetirement': ['Safety','PrefixSafe'],
-    'WakeHandoff': ['Safety'],
-    'WakeReassignment': ['TypeOK','Responsibility','RightSubscriber'],
-    'WakeAckRace': ['TypeOK','NoLostNotification'],
-}
-PROPERTIES = {
-    'DcsDirectoryCycle': ['Completes'],
-    'AxiReloadGate': ['Completes'],
-    'DirectoryAdmission': ['Admission','LocalProgress'],
-    'KillExit': ['NoReblock','NoResumeAfterClose','SnapshotStable','StopCompletes','ExitCompletes','SuccessorsProgress'],
-    'CombinedScheduling': ['SnapshotStable','HandoffFinishes','Retires','StableProgress'],
-    'CachedProgress': ['Progress'],
-    'ControlRetirement': ['SnapshotStable','NoResumeAfterClose','ReadCompletes','Retires'],
-    'Handoff': ['ActivationSafe','SleepRetainsAssignment','HandoffFinishes','PeerProgress','PrefixRetires'],
-    'Reservation': ['ReservationFinishes'],
-    'HostWake': ['WakeProgress','SleepRetainsOwner'],
-    'InterruptGate': ['InterruptProgress'],
-    'TimerMirror': ['MirrorCatchesUp'],
-    'ThreadClaim': ['SelectionFinishes'],
-    'WakeRetirement': ['Retires'],
-    'WakeHandoff': ['ActivationSafe','WakeCompletes','PeerProgress'],
-    'WakeReassignment': ['WakeProgress','Acknowledged'],
-    'WakeAckRace': ['WakeProgress'],
-}
+# Bounds, fault injections, properties and suite membership are model inputs.
+SUITE = ROOT / 'model/config/scheduling/suite.json'
+CATALOG = json.loads(SUITE.read_text())
+CASES = {name: (case['module'], case['options'], case['expected_violation'])
+         for name, case in CATALOG['cases'].items()}
+DEFAULTS = CATALOG['defaults']
+INVARIANTS = CATALOG['invariants']
+PROPERTIES = CATALOG['properties']
+GROUPS = CATALOG['groups']
 
 def tla_value(v):
     return json.dumps(v) if isinstance(v, str) else str(v).upper()
@@ -193,20 +24,17 @@ def tla_value(v):
 def config(module, options, negative, safety_only=False):
     constants = DEFAULTS[module] | options
     invs, props = INVARIANTS[module], PROPERTIES[module]
-    if module == 'CachedProgress' and negative == 'NoAbsentLockWait':
-        invs = ['Safety', 'NoAbsentLockWait']
     if module == 'CombinedScheduling' and not negative:
         invs = ['Safety']  # Already includes every named diagnostic invariant.
     if safety_only:
         props = []
     if module == 'KillExit' and negative and negative.endswith('Unreachable'):
         invs = [negative]
+    if negative and negative not in invs + props:
+        raise ValueError(f'{module}: unconfigured negative property {negative}')
     if negative:
         invs = [negative] if negative in invs else []
         props = [negative] if negative in props else []
-    if module == 'DcsDirectoryCycle': invs = ['Safety']
-    if module in {'CachedProgress','CombinedScheduling'} and negative in {'Progress','NoAbsentLockWait','HandoffFinishes','StableProgress'} and options.get('AllocateOnInvalidate'):
-        invs = ['Safety'] + (['NoAbsentLockWait'] if negative == 'NoAbsentLockWait' else [])  # Retain accounting on diagnostics.
     return ('SPECIFICATION Spec\n' + ('CONSTANTS\n' if constants else '') + ''.join(f'{k} = {tla_value(v)}\n' for k,v in constants.items())
             + ('INVARIANTS ' + ' '.join(invs) + '\n' if invs else '')
             + ('PROPERTIES ' + ' '.join(props) + '\n' if props else '')
@@ -217,7 +45,8 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--case', action='append', choices=CASES)
-    selection.add_argument('--nonlocking-only', action='store_true')
+    selection.add_argument('--transport-only', action='store_true')
+    selection.add_argument('--axi-only', action='store_true')
     selection.add_argument('--cache-contracts-only', action='store_true')
     selection.add_argument('--kill-only', action='store_true')
     selection.add_argument('--races-only', action='store_true')
@@ -228,17 +57,19 @@ def main():
     p.add_argument('--heap-mib', type=int, default=2048)
     p.add_argument('--workers', type=int, default=1)
     args = p.parse_args()
-    selected = args.case or ({k:v for k,v in NONLOCKING_CASES.items() if v[0] != 'CombinedScheduling'} if args.nonlocking_only else CACHE_CONTRACT_CASES if args.cache_contracts_only else KILL_CASES if args.kill_only else COMPOSED_CASES if args.composed_only or args.composed_invariants else
-        [name for name in RACE_CASES if name not in COMPOSED_ALL] if args.races_only else
-        [name for name in CASES if name not in {'handoff-stalled-peer', 'handoff-rx-tx'} and name not in COMPOSED_ALL and name not in CACHE_CONTRACT_CASES and name not in GATE_CASES and name not in NONLOCKING_CASES])
+    group = ('transport' if args.transport_only else 'axi' if args.axi_only else
+             'cache-contracts' if args.cache_contracts_only else 'kill' if args.kill_only else
+             'composed' if args.composed_only or args.composed_invariants else
+             'races' if args.races_only else 'default')
+    selected = args.case or GROUPS[group]
     if args.safety_only and any(CASES[name][2] for name in selected):
         p.error('--safety-only requires an explicit selection of positive cases')
     jar = os.environ.get('TLA2TOOLS_JAR')
     if not jar: p.error('run through nix develop: TLA2TOOLS_JAR is required')
     if min(args.timeout,args.heap_mib,args.workers) <= 0: p.error('bounds must be positive')
     args.output.mkdir(parents=True,exist_ok=False)
-    sources = sorted((ROOT/'model/scheduling').glob('*.tla')) + sorted((ROOT/'model/steady').glob('*.tla'))
-    sources += sorted((ROOT/'tools/scheduling').glob('*.py')) + [ROOT/'model/steady/selected-8k.json', ROOT/'tools/progress/capacity.py']
+    sources = sorted((ROOT/'model/tla/scheduling').glob('*.tla')) + sorted((ROOT/'model/tla/steady').glob('*.tla'))
+    sources += [SUITE] + sorted((ROOT/'tools/scheduling').glob('*.py')) + [ROOT/'model/data/selected-8k.json', ROOT/'tools/progress/capacity.py']
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     snapshot = {f: f.read_bytes() for f in sources}
     summary = {'jar_sha256': sha(Path(jar)), 'sources': {str(f.relative_to(ROOT)): hashlib.sha256(data).hexdigest() for f,data in snapshot.items()},
@@ -270,9 +101,7 @@ def main():
         expected = bool(negative) and ((code == 12 and f'Invariant {negative} is violated' in output)
                     or (code == 13 and negative in PROPERTIES[module] and ('Temporal properties were violated' in output or f'Action property {negative} is violated' in output)))
         passed = expected if negative else code == 0 and 'No error has been found' in output
-        directory_contract = ('LCI-only nonlocking: release on LCIA acceptance' if (DEFAULTS[module] | options).get('Nonlocking') else 'auto-lock' if module == 'DcsDirectoryCycle' or
-            (DEFAULTS[module] | options).get('AllocateOnInvalidate') else
-            'historical nonallocating abstraction' if 'AllocateOnInvalidate' in DEFAULTS[module] else None)
+        directory_contract = 'LCI-only: release on LCIA acceptance'
         result = dict(directory_contract=directory_contract, passed=passed, expected_violation=negative, returncode=code,
                       verification_kind='state invariants only' if state_only else 'configured invariants and temporal properties',
                       config_sha256=sha(cfg), log_sha256=sha(log), command=cmd,

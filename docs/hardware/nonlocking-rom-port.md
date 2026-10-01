@@ -35,7 +35,7 @@ copies under `dcs/dcu`. They must not be confused when selecting a build baselin
 The simplification also changes 24 entries on surviving state/request pairs to
 `NOT_ALLOWED`. Examples: `s1__3 + V21` previously waited for V32;
 `s1pCI__1_A31d + A21` previously waited for V32; several R23 requests previously
-stalled. The [machine-readable evidence](../../model/steady/rom-evolution-evidence.json)
+stalled. The [machine-readable evidence](../../model/evidence/steady/rom-evolution-evidence.json)
 lists every changed shared entry and counts removed entries. Therefore the
 simplification is a restriction of accepted histories, not a demonstrated
 semantics-preserving minimization. RA3 alone is not evidence for that restriction:

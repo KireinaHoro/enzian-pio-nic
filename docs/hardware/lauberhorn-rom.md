@@ -84,7 +84,7 @@ not cover whole-slice queues, all response races, hardware arbitration fairness,
 or THX replacement. The historical auto-lock pressure suite remains a regression
 and counterexample diagnostic for the old configuration.
 
-The [evidence manifest](../../model/steady/lauberhorn-rom-evidence.json) records
+The [evidence manifest](../../model/evidence/steady/lauberhorn-rom-evidence.json) records
 generated-artifact hashes and checks run.
 
 Remaining work is in the [roadmap](../research/roadmap.md): extend the AXI fence

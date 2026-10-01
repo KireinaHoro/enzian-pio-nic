@@ -43,18 +43,18 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 
 | Component | Producer/consumer and event | Ownership, ordering and resource contract |
 | --- | --- | --- |
-| [Assignment](../../model/scheduling/Assignment.tla) | NIC reservation/PREEMPT -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. PREEMPT is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
+| [Assignment](../../model/tla/scheduling/Assignment.tla) | NIC reservation/PREEMPT -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. PREEMPT is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
 | Assignment InfoAccept | Kernel no-return fence -> accepted MMIO read | Old task cannot resume; no kernel 2F2F CL access. |
 | Assignment InfoRespond | NIC-internal readiness -> MMIO response | Atomically installs reserved destination, consumes reservation and captures parity. No commit write follows. |
 | Assignment select/activate | Kernel-local claim -> userspace resume | Uses fixed initialized pool and returns the received activation snapshot. |
-| [Handoff](../../model/scheduling/Handoff.tla) transport | Domain-qualified clients -> unchanged Goal 1 resources | Conservatively requires retained old transactions/ULs to finish before InfoRespond; distinct old cached PAs do not gate ordinary activation. |
-| [ThreadClaim](../../model/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Atomically claim from the initialized pool; a concurrent loser reselects under its existing reservation. Individual withdrawal is forbidden. |
-| [HostWake](../../model/scheduling/HostWake.tla) | Sealed epoll subscription -> kernel pending -> NIC acceptance -> runtime responsibility -> service | Domain-associated cookies survive reassignment. Pending ownership transfers atomically at RX delivery or activation. Notifications concurrent with delivery remain pending. |
-| [InterruptGate](../../model/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
-| [WakeHandoff](../../model/scheduling/WakeHandoff.tla) | Incoming notification -> reserved handoff -> info response with host-work snapshot -> local activation | Couples Assignment/Goal 1 resources to HostWake; the kernel holds the indication until runtime can service it. An unaffected worker continues independently. |
-| [WakeRetirement](../../model/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Historical component assumes endpoint retirement separately; it is not supplied by the revised info read. |
-| [ControlRetirement](../../model/scheduling/ControlRetirement.tla) | Kernel close / NIC close fence versus info response, callback and local resume | Preserves offered snapshot; waits for kernel quiescence and endpoint certificate before prefix reuse. Internal resource readiness is abstract in this harness. |
-| [TimerMirror](../../model/scheduling/TimerMirror.tla) | Kernel arm/replace/shutdown -> ordered NIC command FIFO | Typed commands preserve generation and submission order; after delivery, NIC state matches the latest arm or shutdown. |
+| [Handoff](../../model/tla/scheduling/Handoff.tla) transport | Domain-qualified clients -> unchanged Goal 1 resources | Conservatively requires retained old transactions/ULs to finish before InfoRespond; distinct old cached PAs do not gate ordinary activation. |
+| [ThreadClaim](../../model/tla/scheduling/ThreadClaim.tla) | Concurrent kernel dispatchers -> thread claim | Selection is not a claim. Atomically claim from the initialized pool; a concurrent loser reselects under its existing reservation. Individual withdrawal is forbidden. |
+| [HostWake](../../model/tla/scheduling/HostWake.tla) | Sealed epoll subscription -> kernel pending -> NIC acceptance -> runtime responsibility -> service | Domain-associated cookies survive reassignment. Pending ownership transfers atomically at RX delivery or activation. Notifications concurrent with delivery remain pending. |
+| [InterruptGate](../../model/tla/scheduling/InterruptGate.tla) | Timer expiry / IPI sender -> release request -> release acknowledgment -> architectural pending -> service -> rearm | Gate forbids another long RX stall from release through service. Timer/IPI causes coexist; servicing one cannot release the gate while the other remains outstanding. |
+| [WakeHandoff](../../model/tla/scheduling/WakeHandoff.tla) | Incoming notification -> reserved handoff -> info response with host-work snapshot -> local activation | Couples Assignment/Goal 1 resources to HostWake; the kernel holds the indication until runtime can service it. An unaffected worker continues independently. |
+| [WakeRetirement](../../model/tla/scheduling/WakeRetirement.tla) | Domain close -> callback drain -> pending-wake service -> detach -> prefix release | New callbacks are fenced; already-running callbacks and kernel/NIC/runtime responsibility must retire before prefix reuse. Historical component assumes endpoint retirement separately; it is not supplied by the revised info read. |
+| [ControlRetirement](../../model/tla/scheduling/ControlRetirement.tla) | Kernel close / NIC close fence versus info response, callback and local resume | Preserves offered snapshot; waits for kernel quiescence and endpoint certificate before prefix reuse. Internal resource readiness is abstract in this harness. |
+| [TimerMirror](../../model/tla/scheduling/TimerMirror.tla) | Kernel arm/replace/shutdown -> ordered NIC command FIFO | Typed commands preserve generation and submission order; after delivery, NIC state matches the latest arm or shutdown. |
 
 Module state tuples and `INSTANCE` substitution expose these boundaries. The
 transport composition uses the unchanged Goal 1 resource modules rather than a
@@ -82,7 +82,7 @@ are outside the resource model; prior concrete cache-retirement/RTG assumptions
 must not be inferred from the abstract Settled predicate.
 
 `Handoff` uses actual control addresses generated from
-[`selected-8k.json`](../../model/steady/selected-8k.json), with both RX/TX parity bits for the changing worker. The routine handoff
+[`selected-8k.json`](../../model/data/selected-8k.json), with both RX/TX parity bits for the changing worker. The routine handoff
 regression executes RX; `handoff-rx-tx` additionally allows repeated RX/TX direction
 changes. Both cases explore both values of the returned TX parity. Its dependency footprint is **control
 lines only**, deliberately smaller than Goal 1's twelve-overflow-line witnesses.
@@ -199,7 +199,7 @@ intentional counterexamples. Their normalized results and provenance agree
 exactly. The larger stalled-worker RX case also passed. The unchanged Goal 1
 Nix check remains independently runnable and passed (cached result).
 
-The [tracked evidence manifest](../../model/scheduling/evidence.json) records
+The [tracked evidence manifest](../../model/evidence/scheduling/evidence.json) records
 source, checker, configuration and log hashes, bounds and timings. Full current
 logs/counterexamples are local ignored artifacts in `out/scheduling/entry-baseline/`
 and `out/scheduling/entry-stalled/`. No new RTL simulation or board result is claimed.
@@ -297,7 +297,7 @@ At source `5b9c922`, all **35 baseline outcomes** passed through both the pinned
 Nix check and `nix develop`: 13 positives and 22 expected negatives. Their normalized
 case results match. Handoff explores 17,952 states; the revised host-wake/transport
 composition explores 25,408; the close/response/callback harness explores 115.
-The [control-interface evidence](../../model/scheduling/control-evidence.json)
+The [control-interface evidence](../../model/evidence/scheduling/control-evidence.json)
 records source/configuration/log hashes and the comment-only provenance difference
 between developer and Nix snapshots. Debug parser/evaluation failures are excluded.
 No production RTL/kmod, actual-DCS simulation or board validation was performed.

@@ -1,0 +1,3298 @@
+{
+  "additional_checks": {
+    "capacity_utility_tests": 11,
+    "historical_artifacts": {
+      "unchanged_historical_moves": [
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation/MC.cfg",
+          "model/config/legacy/lauberhorn_model_isolation/MC.cfg"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation_large/MC.cfg",
+          "model/config/legacy/lauberhorn_model_isolation_large/MC.cfg"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation/MC.out",
+          "model/evidence/legacy/lauberhorn_model_isolation/MC.out"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation/MC_TE.out",
+          "model/evidence/legacy/lauberhorn_model_isolation/MC_TE.out"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation_large/MC.out",
+          "model/evidence/legacy/lauberhorn_model_isolation_large/MC.out"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation_large/MC_TE.out",
+          "model/evidence/legacy/lauberhorn_model_isolation_large/MC_TE.out"
+        ],
+        [
+          "model/scheduling/control-evidence.json",
+          "model/evidence/scheduling/control-evidence.json"
+        ],
+        [
+          "model/scheduling/evidence.json",
+          "model/evidence/scheduling/evidence.json"
+        ],
+        [
+          "model/scheduling/fixed-pool-evidence.json",
+          "model/evidence/scheduling/fixed-pool-evidence.json"
+        ],
+        [
+          "model/scheduling/kill-exit-evidence.json",
+          "model/evidence/scheduling/kill-exit-evidence.json"
+        ],
+        [
+          "model/scheduling/race-evidence.json",
+          "model/evidence/scheduling/race-evidence.json"
+        ],
+        [
+          "model/scheduling/retained-cache-evidence.json",
+          "model/evidence/scheduling/retained-cache-evidence.json"
+        ],
+        [
+          "model/steady/a22-trace-history-evidence.json",
+          "model/evidence/steady/a22-trace-history-evidence.json"
+        ],
+        [
+          "model/steady/auto-lock-model-evidence.json",
+          "model/evidence/steady/auto-lock-model-evidence.json"
+        ],
+        [
+          "model/steady/directory-pressure-evidence.json",
+          "model/evidence/steady/directory-pressure-evidence.json"
+        ],
+        [
+          "model/steady/directory-rtl-reachability-evidence.json",
+          "model/evidence/steady/directory-rtl-reachability-evidence.json"
+        ],
+        [
+          "model/steady/directory-trace-evidence.json",
+          "model/evidence/steady/directory-trace-evidence.json"
+        ],
+        [
+          "model/steady/lauberhorn-rom-evidence.json",
+          "model/evidence/steady/lauberhorn-rom-evidence.json"
+        ],
+        [
+          "model/steady/lci-only-model-evidence.json",
+          "model/evidence/steady/lci-only-model-evidence.json"
+        ],
+        [
+          "model/steady/nix-progress-evidence.json",
+          "model/evidence/steady/nix-progress-evidence.json"
+        ],
+        [
+          "model/steady/nonlocking-evidence.json",
+          "model/evidence/steady/nonlocking-evidence.json"
+        ],
+        [
+          "model/steady/nonlocking-write-hazard-evidence.json",
+          "model/evidence/steady/nonlocking-write-hazard-evidence.json"
+        ],
+        [
+          "model/steady/rom-evolution-evidence.json",
+          "model/evidence/steady/rom-evolution-evidence.json"
+        ],
+        [
+          "model/steady/selected-8k-evidence.json",
+          "model/evidence/steady/selected-8k-evidence.json"
+        ],
+        [
+          "model/steady/thx-rom-reconstruction-evidence.json",
+          "model/evidence/steady/thx-rom-reconstruction-evidence.json"
+        ],
+        [
+          "model/lauberhorn.tla",
+          "model/legacy/tla/lauberhorn.tla"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation/MC.tla",
+          "model/legacy/tla/lauberhorn_model_isolation/MC.tla"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation/lauberhorn.tla",
+          "model/legacy/tla/lauberhorn_model_isolation/lauberhorn.tla"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation_large/MC.tla",
+          "model/legacy/tla/lauberhorn_model_isolation_large/MC.tla"
+        ],
+        [
+          "model/lauberhorn.toolbox/lauberhorn_model_isolation_large/lauberhorn.tla",
+          "model/legacy/tla/lauberhorn_model_isolation_large/lauberhorn.tla"
+        ]
+      ]
+    },
+    "selected_address_generator": "--check passes"
+  },
+  "base_revision": "4cb1e8a",
+  "date": "2026-10-01",
+  "module_check": {
+    "inventory_sha256": "de1345a093344635d568ab25990f77a1dac5da1e742d7f3827d191b3d990513e",
+    "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+    "kind": "inventory/import boundaries and SANY; no TLC properties",
+    "modules": {
+      "Assignment": {
+        "imports": [],
+        "passed": true,
+        "role": "cooperative assignment component",
+        "source_sha256": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c"
+      },
+      "AxiReloadGate": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378"
+      },
+      "CachedProgress": {
+        "imports": [
+          "CachedTransport",
+          "ProgressSystem",
+          "RetainedCache"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4"
+      },
+      "CachedTransport": {
+        "imports": [
+          "ProgressSystem",
+          "RetainedCache"
+        ],
+        "passed": true,
+        "role": "cache/transport composition adapter",
+        "source_sha256": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0"
+      },
+      "Coherence": {
+        "imports": [],
+        "passed": true,
+        "role": "message vocabulary",
+        "source_sha256": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8"
+      },
+      "CombinedScheduling": {
+        "imports": [
+          "CachedTransport",
+          "ProgressSystem",
+          "RetainedCache"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1"
+      },
+      "ControlRetirement": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0"
+      },
+      "DcsResources": {
+        "imports": [
+          "Coherence"
+        ],
+        "passed": true,
+        "role": "generic resource component",
+        "source_sha256": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462"
+      },
+      "DirectoryAdmission": {
+        "imports": [],
+        "passed": true,
+        "role": "matched-cache contract diagnostic",
+        "source_sha256": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e"
+      },
+      "Handoff": {
+        "imports": [
+          "Assignment",
+          "ProgressSystem",
+          "SelectedAddresses"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732"
+      },
+      "HostWake": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da"
+      },
+      "InterruptGate": {
+        "imports": [],
+        "passed": true,
+        "role": "historical release-first interrupt diagnostic",
+        "source_sha256": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3"
+      },
+      "KillExit": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "69a1daa7b5373030cc8a6c2f887e9fec38316b2979e72c0ccf4dbbb93e4a4dbd"
+      },
+      "Probe": {
+        "imports": [
+          "DcsResources"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe"
+      },
+      "ProgressSystem": {
+        "imports": [
+          "Coherence",
+          "DcsResources",
+          "ThxResources",
+          "TwoFClient"
+        ],
+        "passed": true,
+        "role": "transport composition",
+        "source_sha256": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff"
+      },
+      "Reservation": {
+        "imports": [
+          "Assignment"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0"
+      },
+      "RetainedCache": {
+        "imports": [],
+        "passed": true,
+        "role": "generic cache/directory accounting component",
+        "source_sha256": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80"
+      },
+      "SelectedAddresses": {
+        "imports": [],
+        "passed": true,
+        "role": "generated address witness",
+        "source_sha256": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1"
+      },
+      "Steady": {
+        "imports": [
+          "ProgressSystem"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2"
+      },
+      "ThreadClaim": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6"
+      },
+      "ThxResources": {
+        "imports": [],
+        "passed": true,
+        "role": "assumed CPU resource component",
+        "source_sha256": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127"
+      },
+      "TimerMirror": {
+        "imports": [],
+        "passed": true,
+        "role": "ordered command diagnostic",
+        "source_sha256": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435"
+      },
+      "TwoFClient": {
+        "imports": [],
+        "passed": true,
+        "role": "abstract 2F2F client",
+        "source_sha256": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359"
+      },
+      "WakeAckRace": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6"
+      },
+      "WakeHandoff": {
+        "imports": [
+          "Handoff",
+          "HostWake"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e"
+      },
+      "WakeReassignment": {
+        "imports": [],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b"
+      },
+      "WakeRetirement": {
+        "imports": [
+          "HostWake"
+        ],
+        "passed": true,
+        "role": "bounded harness / focused contract",
+        "source_sha256": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb"
+      },
+      "lauberhorn": {
+        "imports": [],
+        "passed": true,
+        "role": "historical monolithic reference",
+        "source_sha256": "8a94897ccf84eb370bc8eaa57c9c887576567bd3209a53b8d30ab86df6b956b2"
+      }
+    }
+  },
+  "nix": {
+    "built": "/nix/store/zll3b89zsxq6rza389w7vvwms26mz2ml-lauberhorn-tla-module-boundaries.drv",
+    "evaluated_not_rebuilt": [
+      "steady-progress",
+      "scheduling-transport",
+      "scheduling-progress",
+      "scheduling-races",
+      "scheduling-kill-exit",
+      "scheduling-cache-contracts",
+      "scheduling-composed-invariants"
+    ],
+    "note": "Constituent TLC cases ran through nix develop; no claim that these full Nix recipes were rebuilt."
+  },
+  "provenance_notes": [
+    "Every recorded final-run TLA+ source hash matches the reviewed tree.",
+    "Early runs predate a descriptive address-input string cleanup and the runner guard against unconfigured negative properties; their actual tool/data hashes remain recorded. Numerical address inputs and configured properties are unchanged.",
+    "Initial imported-tuple evaluation errors and separated-config lookup errors were corrected; final runs replace those failed integration attempts."
+  ],
+  "remaining_obligations": [
+    "Full combined temporal verification and repeated/stalled transitions",
+    "Focused-control to combined-control correspondence/refinement",
+    "Earlier/in-flight AXI reload fencing",
+    "THX replacement/response-service guarantees and detailed single-line protocol refinement",
+    "Explicit writeback/TX/overflow/packet cleanup resources for kill",
+    "Whole-slice RTL and hardware conformance"
+  ],
+  "reproduce": [
+    "nix build .#checks.x86_64-linux.tla-modules",
+    "nix develop -c python3 tools/scheduling/check_models.py --transport-only --output out/review-transport --timeout 900 --workers 4",
+    "nix develop -c python3 tools/progress/check_models.py --output out/review-steady --timeout 600 --workers 2",
+    "nix develop -c python3 tools/scheduling/check_models.py --case combined-scheduling --safety-only --output out/review-combined --timeout 1200 --workers 4",
+    "The exact per-case commands and effective config hashes for focused contracts and combined fault cases are in runs."
+  ],
+  "runs": {
+    "combined-faults": {
+      "cases": {
+        "bad-combined-claim": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-claim/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-claim",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-claim/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-claim/CombinedScheduling.tla"
+          ],
+          "config_sha256": "b6f02eb3f7842aac110b005d707d521b7d1202d3dfd013f1db1787c89d18f82f",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.417,
+          "expected_violation": "UniqueClaim",
+          "log_sha256": "97aa1eb02ef30816cf7e3dea25c44d60bb8c8310b01381b4535f0e134d2b718c",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "12128 states generated, 4366 distinct states found, 438 states left on queue.",
+            "The depth of the complete state graph search is 33."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-combined-reservation": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-reservation/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-reservation",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-reservation/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-reservation/CombinedScheduling.tla"
+          ],
+          "config_sha256": "e6ec733c8e726df469477ff3777ee1d61da4d3f53517ef23153278757e54deb4",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.866,
+          "expected_violation": "CapacitySafe",
+          "log_sha256": "c0abc1c770ea24d23c70714be2fdb82919cc5be394b0da9c28145f3073ce7435",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "295 states generated, 154 distinct states found, 31 states left on queue.",
+            "The depth of the complete state graph search is 12."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-combined-retire": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-retire/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-retire",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-retire/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-retire/CombinedScheduling.tla"
+          ],
+          "config_sha256": "33544ecb2af8ea8c53713ceacf27de4b6b27b3aa4998c6b03409982977317a6c",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.867,
+          "expected_violation": "RetirementSafe",
+          "log_sha256": "275a12a7c909462c15e96af74e9a07862c7670106c182c0ff29a206c06fa4de6",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "135 states generated, 94 distinct states found, 64 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-combined-snapshot": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-snapshot/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-snapshot",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-snapshot/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-snapshot/CombinedScheduling.tla"
+          ],
+          "config_sha256": "1f3dbab9527df9ff058ceda2d1e37f379d37da4d229086b679cff8b3b669b4b0",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 2.721,
+          "expected_violation": "SnapshotStable",
+          "log_sha256": "442d41528ad751d85870948135f32cd3ee48dccdd91357ec702f3598ede6960b",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "134062 states generated, 35825 distinct states found, 6850 states left on queue.",
+            "The depth of the complete state graph search is 17."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-combined-wake": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-wake/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-wake",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-wake/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-faults/bad-combined-wake/CombinedScheduling.tla"
+          ],
+          "config_sha256": "9a00332092e84a4f404c1bfa55cc5ab2e9701ea4da583352431fd3cd2e5873b3",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": "Responsibility",
+          "log_sha256": "71a9e23432f0f81c21d0842aec33828f715692b75e4c15c485319302addf67d0",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "1020 states generated, 501 distinct states found, 288 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        }
+      },
+      "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+      "sources": {
+        "model/config/scheduling/suite.json": "f6c77aa561b7ef4a4cd1953307dec768ef88eee00fe0f65bc836297be2dfd88c",
+        "model/data/selected-8k.json": "384ede5508ce643508aff9abb5dc3a36393c2cf099874c9f56e8c3a39d4d64d5",
+        "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+        "model/tla/scheduling/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+        "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+        "model/tla/scheduling/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+        "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+        "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+        "model/tla/scheduling/KillExit.tla": "69a1daa7b5373030cc8a6c2f887e9fec38316b2979e72c0ccf4dbbb93e4a4dbd",
+        "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+        "model/tla/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+        "model/tla/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+        "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+        "model/tla/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+        "model/tla/scheduling/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+        "model/tla/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+        "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+        "model/tla/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+        "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+        "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+        "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+        "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+        "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+        "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+        "model/tla/steady/ProgressSystem.tla": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff",
+        "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+        "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+        "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+        "model/tla/steady/TwoFClient.tla": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359",
+        "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+        "tools/scheduling/addresses.py": "d449c5615513b8bdbae8867a439a4e417d465aa544697e93c0efe1992303e2e4",
+        "tools/scheduling/check_models.py": "e733882126ebe75b67ed9225dfb36dad3ee412515e80a3aaa236c6eba8a8cee1"
+      },
+      "verification_kind": "state invariants and temporal properties"
+    },
+    "combined-safety": {
+      "cases": {
+        "combined-scheduling": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-safety/combined-scheduling/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-safety/combined-scheduling",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-safety/combined-scheduling/CombinedScheduling.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/combined-safety/combined-scheduling/CombinedScheduling.tla"
+          ],
+          "config_sha256": "e3d22c8f35500b97aece33a6c84126a893cc4d6f81ed1e1ce17233c84b1afde3",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 143.525,
+          "expected_violation": null,
+          "log_sha256": "f8f124688552fe0c2063b7dc730244dd3c57d03335a0715b2c24a7a4e19dad67",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(17) at 2026-10-01 15:40:19: 134,679 states generated (134,679 s/min), 35,905 distinct states found (35,905 ds/min), 6,842 states left on queue.",
+            "Progress(43) at 2026-10-01 15:41:19: 5,971,043 states generated (5,836,364 s/min), 1,211,336 distinct states found (1,175,431 ds/min), 89,073 states left on queue.",
+            "Progress(56) at 2026-10-01 15:42:19: 12,054,075 states generated (6,083,032 s/min), 2,234,949 distinct states found (1,023,613 ds/min), 61,334 states left on queue.",
+            "14107040 states generated, 2528455 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 73."
+          ],
+          "verification_kind": "state invariants only"
+        }
+      },
+      "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+      "sources": {
+        "model/config/scheduling/suite.json": "f6c77aa561b7ef4a4cd1953307dec768ef88eee00fe0f65bc836297be2dfd88c",
+        "model/data/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+        "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+        "model/tla/scheduling/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+        "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+        "model/tla/scheduling/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+        "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+        "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+        "model/tla/scheduling/KillExit.tla": "69a1daa7b5373030cc8a6c2f887e9fec38316b2979e72c0ccf4dbbb93e4a4dbd",
+        "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+        "model/tla/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+        "model/tla/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+        "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+        "model/tla/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+        "model/tla/scheduling/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+        "model/tla/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+        "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+        "model/tla/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+        "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+        "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+        "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+        "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+        "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+        "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+        "model/tla/steady/ProgressSystem.tla": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff",
+        "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+        "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+        "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+        "model/tla/steady/TwoFClient.tla": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359",
+        "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+        "tools/scheduling/addresses.py": "d449c5615513b8bdbae8867a439a4e417d465aa544697e93c0efe1992303e2e4",
+        "tools/scheduling/check_models.py": "359581cec82ec6f617f0e452f61858dbfe4789587f72c74cff3e2522bcede5cc"
+      },
+      "verification_kind": "state invariants only"
+    },
+    "contracts": {
+      "cases": {
+        "axi-reload-gate": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/axi-reload-gate/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/axi-reload-gate",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/axi-reload-gate/AxiReloadGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/axi-reload-gate/AxiReloadGate.tla"
+          ],
+          "config_sha256": "abf600eb600b4b3d7b634a0f080147b8d71cac35b81432b18f9c61be153c4b7c",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": null,
+          "log_sha256": "8ab532488458527c78aa165c5fd809869d5a1d2db3fb671741af7eba0b9b3a15",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(8) at 2026-10-01 15:43:59: 32 states generated, 24 distinct states found, 0 states left on queue.",
+            "32 states generated, 24 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 8."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-axi-release-gate": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-release-gate/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-release-gate",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-release-gate/AxiReloadGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-release-gate/AxiReloadGate.tla"
+          ],
+          "config_sha256": "a06b6e2c780b4607158370703ab926f0ce46ce93d2b86feefbaf9bbbd7f0dd6a",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "Completes",
+          "log_sha256": "88d90a1f64f373605800c2bd2cc50d70b776ad5e48dc09d25845c5465a8a5fdb",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(3) at 2026-10-01 15:44:00: 10 states generated, 8 distinct states found, 0 states left on queue.",
+            "10 states generated, 8 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 3."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-axi-reload-bypass": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-reload-bypass/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-reload-bypass",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-reload-bypass/AxiReloadGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-axi-reload-bypass/AxiReloadGate.tla"
+          ],
+          "config_sha256": "1c8dba6709fccfb7cd546dbf369c42d8bb4593c7150bf3a0436724015c2016b6",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "NoStaleRefill",
+          "log_sha256": "aec10b45c6ffe40ca05d84646ede620f45fc33d1fe6fdc69ed3c2645c8f432b9",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "78 states generated, 47 distinct states found, 5 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-control-resume": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-resume/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-resume",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-resume/ControlRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-resume/ControlRetirement.tla"
+          ],
+          "config_sha256": "3e93a4089adf8927874c01327fd081349f4403680a322b2217cd5b124f30682f",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.876,
+          "expected_violation": "NoResumeAfterClose",
+          "log_sha256": "b8145d9b7baa3668479bb334264cb243e16152dc0a580882f9b2db1c13cf5f14",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "93 states generated, 55 distinct states found, 13 states left on queue.",
+            "The depth of the complete state graph search is 8."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-control-retire": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-retire/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-retire",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-retire/ControlRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-retire/ControlRetirement.tla"
+          ],
+          "config_sha256": "75d87f4e0aa82df7144ab16d3e4f0e5f5a3a92ada4db6db84bed52434ac9b2f9",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.88,
+          "expected_violation": "RetirementSafe",
+          "log_sha256": "13eb1680739b71abe22cdd27d5610d2c1933561de142f39c3535d75080225acc",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "44 states generated, 29 distinct states found, 10 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-control-snapshot": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-snapshot/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-snapshot",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-snapshot/ControlRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-control-snapshot/ControlRetirement.tla"
+          ],
+          "config_sha256": "a8577b58cb5239117b5b74fcd8b96e37e0f2a832ce7087b8a403597777bc06af",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.842,
+          "expected_violation": "SnapshotStable",
+          "log_sha256": "1fe975019d59c896532e09bc2c8b8875bec70d743283f53af002f4d7c5eac3d2",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "75 states generated, 45 distinct states found, 11 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-directory-early-request": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-early-request/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-early-request",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-early-request/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-early-request/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "fd49f28384de2b09ffc6a98587d543d97417fbcc180db620c75c9261f89e85d8",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": "BlockingHasRelease",
+          "log_sha256": "27602f0a37f3bad15a1d6637f91d4594d2099f675b4f98ea4018fbad3fefdefb",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "47 states generated, 28 distinct states found, 20 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-directory-mapping": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-mapping/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-mapping",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-mapping/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-mapping/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "34993b91d6e3084505ae35dbc7694da182c072af784d46358b667b2805273763",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "BlockingHasRelease",
+          "log_sha256": "4f9610d9ee7f9254c2b019723b18864969f9f2b4d3b369250dd45ee86042e62a",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "42 states generated, 32 distinct states found, 22 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-directory-silent-eviction": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-silent-eviction/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-silent-eviction",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-silent-eviction/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-directory-silent-eviction/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "d0abaa73daa579abcbe0a21d502e54b41788fe029736b7a9e91fe7c02a452fa2",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "BlockingHasRelease",
+          "log_sha256": "c4542305a530442d6907cf5c2d31785d8fedbb4bf1324446872f997d118956eb",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "16 states generated, 14 distinct states found, 8 states left on queue.",
+            "The depth of the complete state graph search is 3."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-exit-free": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-exit-free/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-exit-free",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-exit-free/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-exit-free/KillExit.tla"
+          ],
+          "config_sha256": "ab1ba65f81b83b509b4aadc3c42d34d8724b6a3dcf14325b0400fe15fb80fc58",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.715,
+          "expected_violation": "MetadataSafe",
+          "log_sha256": "f284d3c8b5832dc958816a5078ebc456e80032995c69ac0c5e8b48b11f3c2777",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "16 states generated, 16 distinct states found, 10 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-interrupt-progress": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-interrupt-progress/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-interrupt-progress",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-interrupt-progress/InterruptGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-interrupt-progress/InterruptGate.tla"
+          ],
+          "config_sha256": "d760dbbfd2db5a9f7245ca1af96225de2c4a3e9947aaa559c5ddfb59a0d7d38b",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": "InterruptProgress",
+          "log_sha256": "ff3df279cca10c0cef55d34e41b5bb41d6d479a23352e06e5f7644bd930b5d26",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(11) at 2026-10-01 15:41:46: 264 states generated, 116 distinct states found, 0 states left on queue.",
+            "264 states generated, 116 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 11."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-kill-gate": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-gate/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-gate",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-gate/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-gate/KillExit.tla"
+          ],
+          "config_sha256": "cff9138f18cad7d378338276b084a24957ef4074fd7fd9a7da66e7f80d74d3f1",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "NoReblock",
+          "log_sha256": "c4560ca655ac2042f1798d98a6e8d0b8c16cebe6c4b31c991469e5a1539e61c9",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "139 states generated, 74 distinct states found, 52 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-kill-handler-wait": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-handler-wait/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-handler-wait",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-handler-wait/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-handler-wait/KillExit.tla"
+          ],
+          "config_sha256": "747a6aa9c6421597afd2ab34a2e1dc9272174592d68a87d645f77e1b3a9c96a9",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.818,
+          "expected_violation": "StopCompletes",
+          "log_sha256": "ff1a3955bb7ef0f188c42a72b425efcacd6792a50dd7da05474c762a30177446",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(22) at 2026-10-01 15:43:50: 64,718 states generated, 16,302 distinct states found, 0 states left on queue.",
+            "64718 states generated, 16302 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 22."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-kill-late-irq": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-late-irq/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-late-irq",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-late-irq/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-late-irq/KillExit.tla"
+          ],
+          "config_sha256": "cfb0fd5585191daca704977fd82e9df4c5a7ce5a88dc2adc6aea19b8a7be84d2",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": "NoWrongKill",
+          "log_sha256": "4937ca5f7231ff1a0ac988f1ad595188b41de221cc4f9b8659b534cc40049efb",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "12498 states generated, 4380 distinct states found, 1682 states left on queue.",
+            "The depth of the complete state graph search is 11."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-kill-resume": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-resume/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-resume",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-resume/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-kill-resume/KillExit.tla"
+          ],
+          "config_sha256": "51163d6036e2471bcc180fe3fd38d854b0b71aee453e1a14398bd016e3d05c4a",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": "NoResume",
+          "log_sha256": "7f1d864259209c22ab25440fc00055323552fd0b4e45de49118e624fb653539c",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "216 states generated, 112 distinct states found, 70 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-parity": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-parity/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-parity",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-parity/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-parity/Handoff.tla"
+          ],
+          "config_sha256": "1417c2b9e6b477b983052d06569ef3543ccf756a529e28bd529c6bacdd2264b6",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.518,
+          "expected_violation": "ActivationSafe",
+          "log_sha256": "79c8993c7fd0ad25ff26c82159ea864ccb69ef68fb40598f2c0051a795397f4b",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "2422 states generated, 1319 distinct states found, 235 states left on queue.",
+            "The depth of the complete state graph search is 13."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-park": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-park/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-park",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-park/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-park/Handoff.tla"
+          ],
+          "config_sha256": "fc0be00e9a186fae8d63625111756857e8c3ef47b93add5514388f085ac8ebc6",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.626,
+          "expected_violation": "Safety",
+          "log_sha256": "e4d3de7f849f77655c3b49f079825468cae5355a6baa68da2fa8bcf279d56881",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "1241 states generated, 700 distinct states found, 154 states left on queue.",
+            "The depth of the complete state graph search is 10."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-prefix-reuse": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-prefix-reuse/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-prefix-reuse",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-prefix-reuse/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-prefix-reuse/Handoff.tla"
+          ],
+          "config_sha256": "8e1ad8b26742575b537cac58ad041ff8b9cfec31c2b3f3954d625f3374ad4cdc",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.069,
+          "expected_violation": "PrefixSafe",
+          "log_sha256": "dd46ddd4a538082f273834101ca48ecff34fed16e7b5791606dd0c44b06c8ace",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "10 states generated, 10 distinct states found, 6 states left on queue.",
+            "The depth of the complete state graph search is 2."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-rearm": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-rearm/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-rearm",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-rearm/InterruptGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-rearm/InterruptGate.tla"
+          ],
+          "config_sha256": "628438115a497ee82707523a81a01fd33c5e97f42f529d96e845c6f771f56f2c",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.866,
+          "expected_violation": "NoPrematureReblock",
+          "log_sha256": "c59b1d1ce9602913e745a566452ccca342345a3800fe2f96c9c1d945b02c061a",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "25 states generated, 18 distinct states found, 7 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-release": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-release/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-release",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-release/InterruptGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-release/InterruptGate.tla"
+          ],
+          "config_sha256": "35a2e168adcc35ef60fd61cfb3026e13160e78f8821490a4563772f48c9a6a93",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.769,
+          "expected_violation": "NoPrematureReblock",
+          "log_sha256": "aa1926eaba780817c2eeafed4fc933dd5ae92b57e5932a51157ba46a2e1f4b3c",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "11 states generated, 9 distinct states found, 2 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-reservation": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-reservation/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-reservation",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-reservation/Reservation.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-reservation/Reservation.tla"
+          ],
+          "config_sha256": "9cf0c3c6eec3499161df31cace346ca4d2362335e9aad2d3fa7c080258df288a",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.867,
+          "expected_violation": "Safety",
+          "log_sha256": "db65b83b5cc1323ee401358abf4589772e3dd1af3d6d81b27d643cacedaa0ba3",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "9 states generated, 7 distinct states found, 2 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-thread-claim": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-claim/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-claim",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-claim/ThreadClaim.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-claim/ThreadClaim.tla"
+          ],
+          "config_sha256": "b6e5f2cff9d2bb2223ffde2dacaaaf45566211a5f34a010bb276e724515bff46",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": "UniqueClaim",
+          "log_sha256": "696355a3cf0f7dfe935f5cedaae5afda2958554a1144644cd26d8dd4f11fb110",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "77 states generated, 36 distinct states found, 3 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-thread-reservation": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-reservation/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-reservation",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-reservation/ThreadClaim.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-thread-reservation/ThreadClaim.tla"
+          ],
+          "config_sha256": "6aba61762b860daa6bdabdc43c39f899a101be8615e9dd15f4233357f3b6a6c0",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.867,
+          "expected_violation": "ReservationBacked",
+          "log_sha256": "6a6b25e4f49e40b3aea4f728dc5c963c3f61c67872ff88ce4302d2e2465842dc",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "9 states generated, 7 distinct states found, 2 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-timer-order": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-timer-order/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-timer-order",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-timer-order/TimerMirror.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-timer-order/TimerMirror.tla"
+          ],
+          "config_sha256": "4ca4f11350333d57d65ab0e01fa74976e6e21a2903cfa65753b166b32548b2a7",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": "MirrorOrder",
+          "log_sha256": "e1832db559f3783e974537c88e1423199237bf71071d2a377f9f42efa8188d51",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "7 states generated, 7 distinct states found, 1 states left on queue.",
+            "The depth of the complete state graph search is 5."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-ack-clear": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-clear/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-clear",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-clear/WakeAckRace.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-clear/WakeAckRace.tla"
+          ],
+          "config_sha256": "727e2c2163928cdf67d52109ae605f441e48869d3f4fbaee1bffd31f654a2234",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": "NoLostNotification",
+          "log_sha256": "9f3ad84c92354dc564c618d6b6b743b807221c3230a165966db5b2aa9ea5331e",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "25 states generated, 21 distinct states found, 2 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-ack-progress": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-progress/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-progress",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-progress/WakeAckRace.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-ack-progress/WakeAckRace.tla"
+          ],
+          "config_sha256": "6d16c2f4d116af2baff963ad9a660a8c6702379adef389143678d88c17922217",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": "WakeProgress",
+          "log_sha256": "7f45247052b5671b15c86e96ed8dc0285ee43bb54c3c47384f4e89c29bc71ee0",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(10) at 2026-10-01 15:43:21: 34 states generated, 24 distinct states found, 0 states left on queue.",
+            "34 states generated, 24 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 10."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-clear": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-clear/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-clear",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-clear/HostWake.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-clear/HostWake.tla"
+          ],
+          "config_sha256": "671d7be49b44b35673f2e19ca6960daea0d2f0fe1782d52a3ec8cf77c39baf18",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.866,
+          "expected_violation": "Responsibility",
+          "log_sha256": "71642f4f197534d65a69d6df361eb76a30de507cd2571e28f49a754c7c3e8a9a",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "68 states generated, 42 distinct states found, 27 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-reassign": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-reassign/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-reassign",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-reassign/HostWake.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-reassign/HostWake.tla"
+          ],
+          "config_sha256": "dba869c013fab79ec127a55829dd580c39c3ac1f9830d2e9c08f0db59da505d9",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.917,
+          "expected_violation": "Responsibility",
+          "log_sha256": "c3f19255a79f3ccbd5e1201ddbfb97a4d3d83c014483a4261f1f2551a317d80f",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "335 states generated, 140 distinct states found, 69 states left on queue.",
+            "The depth of the complete state graph search is 6."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-retirement": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-retirement/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-retirement",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-retirement/WakeRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-retirement/WakeRetirement.tla"
+          ],
+          "config_sha256": "a21c9764dcbede36998cde397e3edbc92526ff0d6d3fbb5747c92083cbb2d108",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": "PrefixSafe",
+          "log_sha256": "16ccf1c9905799e5e4c1714832cfccca40e30099aed2d77c59b286a25c391e14",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "41 states generated, 26 distinct states found, 10 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-stale-delivery": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-delivery/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-delivery",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-delivery/WakeReassignment.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-delivery/WakeReassignment.tla"
+          ],
+          "config_sha256": "578a7f7eb5f9db5658b642e79fc537da75d171c6bd4925b85d966ba87f636ede",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.866,
+          "expected_violation": "RightSubscriber",
+          "log_sha256": "510c6b050ef6ab8f551f057bc91bf51e266acb37fcb2c804dddfaee7ffb228c3",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "83 states generated, 55 distinct states found, 10 states left on queue.",
+            "The depth of the complete state graph search is 9."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-stale-drop": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-drop/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-drop",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-drop/WakeReassignment.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-stale-drop/WakeReassignment.tla"
+          ],
+          "config_sha256": "8bac095b431303446446c65d7bbf37014b33416466689b5b62919c449c6d5463",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.822,
+          "expected_violation": "Responsibility",
+          "log_sha256": "e227588cedbd2ddfee20f84e7d28281ac15afe63b99367c40eddc40d392d508d",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "26 states generated, 22 distinct states found, 7 states left on queue.",
+            "The depth of the complete state graph search is 6."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-wake-subscriber": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-subscriber/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-subscriber",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-subscriber/HostWake.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/bad-wake-subscriber/HostWake.tla"
+          ],
+          "config_sha256": "f721d78b070b1c5f6d9a73c77598f435cd1172a5fe764eedb1d274ca9f157d11",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.817,
+          "expected_violation": "EligibleDelivery",
+          "log_sha256": "0b96e1acce0305d1892bb4d1ea799aeb0d424c8ce5cfdd25cc734646913c6277",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "107 states generated, 54 distinct states found, 32 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "control-retirement": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/control-retirement/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/control-retirement",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/control-retirement/ControlRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/control-retirement/ControlRetirement.tla"
+          ],
+          "config_sha256": "ed0bec9b9e812efcbf4c6c70443bd4d96aefb21942f9c23e7d06f626dd1554f3",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": null,
+          "log_sha256": "374c5f91426ec3ab5f3aee950d4cf2900e881b6b9d80b332da9eaa7d97b5f76c",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(16) at 2026-10-01 15:43:13: 184 states generated, 115 distinct states found, 0 states left on queue.",
+            "184 states generated, 115 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 16."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "directory-one-way": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-one-way/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-one-way",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-one-way/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-one-way/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "6464a7e1c3c57fec0b479d48b1d96dcc37694a8ffcad2ea0888b011e1c6da17c",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.715,
+          "expected_violation": null,
+          "log_sha256": "0b66fa848d31f0d3bc5649593f7622ad77c552c530b3600dab7a683df73dddd1",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(8) at 2026-10-01 15:43:53: 46 states generated, 28 distinct states found, 0 states left on queue.",
+            "46 states generated, 28 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 8."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "directory-three-way": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-three-way/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-three-way",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-three-way/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-three-way/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "cef143b075edbf0287d1a15063ce1eafcc6946c162dc69a67158a5196fc3fde9",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 2.168,
+          "expected_violation": null,
+          "log_sha256": "cb59d61e91dcd9eee7cc9334b585986ed9235f323a9d2cfef6ea2eff2fcbab13",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:55: 17,186 states generated, 4,046 distinct states found, 0 states left on queue.",
+            "17186 states generated, 4046 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 19."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "directory-two-way": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-two-way/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-two-way",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-two-way/DirectoryAdmission.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/directory-two-way/DirectoryAdmission.tla"
+          ],
+          "config_sha256": "a34b4f687589fd324aa277ee2f262ce895a90f003dc7e6001bb45cd57d5aaa70",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": null,
+          "log_sha256": "5b9bd8bbc79e1c350f98c30925021a084f9507f9a2508f59c17e7f2323ea87dc",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(15) at 2026-10-01 15:43:54: 1,169 states generated, 387 distinct states found, 0 states left on queue.",
+            "1169 states generated, 387 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 15."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "exit-kernel": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/exit-kernel/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/exit-kernel",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/exit-kernel/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/exit-kernel/KillExit.tla"
+          ],
+          "config_sha256": "323bda7c855b90c96d6df100dea86bd899b0cf9a3d3aa5dedc4574e5f9470d38",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 7.428,
+          "expected_violation": null,
+          "log_sha256": "6e772b4210f9c3afd8cac9ef13174d53693fb0a7d3070e21c9918606a947764b",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(17) at 2026-10-01 15:43:33: 91,694 states generated (91,694 s/min), 23,387 distinct states found (23,387 ds/min), 2,746 states left on queue.",
+            "Progress(27) at 2026-10-01 15:43:34: 142,790 states generated, 31,782 distinct states found, 0 states left on queue.",
+            "142790 states generated, 31782 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 27."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "host-wake": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake/HostWake.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake/HostWake.tla"
+          ],
+          "config_sha256": "b64934c7913c0df3f7c2824046cdc5e62c73ab53b917adb94951803610629176",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 6.377,
+          "expected_violation": null,
+          "log_sha256": "16732a7dab38c4359f79e060853f1cdfc29bb28c51f054c2eeae5a2ad98b14f5",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(20) at 2026-10-01 15:41:18: 6,139 states generated, 1,867 distinct states found, 0 states left on queue.",
+            "6139 states generated, 1867 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 20."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "host-wake-parked-shared": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake-parked-shared/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake-parked-shared",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake-parked-shared/HostWake.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/host-wake-parked-shared/HostWake.tla"
+          ],
+          "config_sha256": "b6bae46f2a99e7ced9a43cfe99eaa5310b58cf6a6bdde9395e76da540412106d",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 17.867,
+          "expected_violation": null,
+          "log_sha256": "32d3aa029a53b7938cec7355db0dde263c1484b6269ffb3e6f68e3cb83c72154",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:41:24: 8,942 states generated, 2,795 distinct states found, 0 states left on queue.",
+            "8942 states generated, 2795 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 19."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "interrupt": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/interrupt/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/interrupt",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/interrupt/InterruptGate.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/interrupt/InterruptGate.tla"
+          ],
+          "config_sha256": "8bd12d78065380f45ce0de24a2a8886aaee7929c5790e76888df0f28961fc7ce",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.868,
+          "expected_violation": null,
+          "log_sha256": "8f3ec0972b6532e37f0418fc20b7a8d9ebd4c77a71a6fa3f4dc12cbd5578c447",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(11) at 2026-10-01 15:41:44: 99 states generated, 54 distinct states found, 0 states left on queue.",
+            "99 states generated, 54 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 11."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "kill-parked": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-parked/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-parked",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-parked/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-parked/KillExit.tla"
+          ],
+          "config_sha256": "a82ede78d0ceabb2f046da9c082fa3812c163ccaa8ae297a0f613ec7375f8aef",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 8.432,
+          "expected_violation": null,
+          "log_sha256": "cec44d9887590c585039d3ca154ce85e2fd70c8c218bbe5fcf205eb45d3ef965",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(14) at 2026-10-01 15:43:40: 83,998 states generated (83,998 s/min), 23,413 distinct states found (23,413 ds/min), 4,530 states left on queue.",
+            "Progress(27) at 2026-10-01 15:43:43: 190,553 states generated, 43,163 distinct states found, 0 states left on queue.",
+            "190553 states generated, 43163 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 27."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "kill-running": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-running/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-running",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-running/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/kill-running/KillExit.tla"
+          ],
+          "config_sha256": "c6c6f57445a3d598307b854afb39f1b3aa1a696ac6597ec423c052182ac46475",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 6.779,
+          "expected_violation": null,
+          "log_sha256": "e35ee1f84a46c0e49c5b55d59acc5254236c33b22c2e810cba154a8b443bae3b",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(18) at 2026-10-01 15:43:26: 93,309 states generated (93,309 s/min), 23,628 distinct states found (23,628 ds/min), 2,343 states left on queue.",
+            "Progress(29) at 2026-10-01 15:43:27: 142,790 states generated, 31,782 distinct states found, 0 states left on queue.",
+            "142790 states generated, 31782 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 29."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "reservation": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/reservation/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/reservation",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/reservation/Reservation.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/reservation/Reservation.tla"
+          ],
+          "config_sha256": "dfe7e36b42c24b1ac9353b7966fd072e018f92f5b94761846a4e9c2655da2870",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.869,
+          "expected_violation": null,
+          "log_sha256": "e0987071928daa1c5a5b948ee47490a85d79ae25b303d6246a8c7d15a4829108",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(7) at 2026-10-01 15:41:15: 13 states generated, 13 distinct states found, 0 states left on queue.",
+            "13 states generated, 13 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "thread-claim": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim/ThreadClaim.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim/ThreadClaim.tla"
+          ],
+          "config_sha256": "c1e1b3a7c5b75a4bcfc226cbdc39b2f0916d7edaf6e2c37ebdef02c2af32a2c4",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": null,
+          "log_sha256": "1ef108cee85255f9a56ea9b5b78b80e7de85568232e5eb81be78ec2139873644",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(7) at 2026-10-01 15:41:47: 57 states generated, 34 distinct states found, 0 states left on queue.",
+            "57 states generated, 34 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "thread-claim-one-slot": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim-one-slot/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim-one-slot",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim-one-slot/ThreadClaim.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/thread-claim-one-slot/ThreadClaim.tla"
+          ],
+          "config_sha256": "12abecf6244273bc1a83c2c2f07da408639d1a7c2e6e527ce999868d54aaa2fa",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": null,
+          "log_sha256": "96ce8c992a2446dc8df68599836d1f1c533b4b5359acec93dec4779ab8e56c4c",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(4) at 2026-10-01 15:43:21: 7 states generated, 7 distinct states found, 0 states left on queue.",
+            "7 states generated, 7 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 4."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "timer-mirror": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/timer-mirror/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/timer-mirror",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/timer-mirror/TimerMirror.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/timer-mirror/TimerMirror.tla"
+          ],
+          "config_sha256": "bb70b5a795e6a14e5419022c7e3bd257ad19f3318899985ac395c361ea64758a",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.792,
+          "expected_violation": null,
+          "log_sha256": "b887394cb9e30ba48ded24d980bfcb2a2a137a1c389d1471c2e94687b18dcf97",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(7) at 2026-10-01 15:43:11: 13 states generated, 10 distinct states found, 0 states left on queue.",
+            "13 states generated, 10 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "wake-ack-race": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-ack-race/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-ack-race",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-ack-race/WakeAckRace.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-ack-race/WakeAckRace.tla"
+          ],
+          "config_sha256": "f3d9dc08194fc1e1aff4f1a12b6347f2b2f16f26b0d1372164ada5b0ddec2549",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": null,
+          "log_sha256": "1dad0b3d5c1e166bdfa434d3d9ff75bffdd4298e5c8345bb6504e7f412a04f9f",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(10) at 2026-10-01 15:43:19: 33 states generated, 22 distinct states found, 0 states left on queue.",
+            "33 states generated, 22 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 10."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "wake-handoff": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-handoff/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-handoff",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-handoff/WakeHandoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-handoff/WakeHandoff.tla"
+          ],
+          "config_sha256": "3fd0a4b7bf406efdc7171fbb8b4fda72c9f4a678125e99b6a17db88cf9e27b62",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 80.4,
+          "expected_violation": null,
+          "log_sha256": "0f6ff26df38c2c4443a786260b5eb779a9dda21bbadb4fbde9f2837472ca97f1",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(9) at 2026-10-01 15:41:52: 2,538 states generated (2,538 s/min), 987 distinct states found (987 ds/min), 251 states left on queue.",
+            "Progress(42) at 2026-10-01 15:42:14: 34,344 states generated, 11,904 distinct states found, 0 states left on queue.",
+            "34344 states generated, 11904 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 42."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "wake-reassignment": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-reassignment/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-reassignment",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-reassignment/WakeReassignment.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-reassignment/WakeReassignment.tla"
+          ],
+          "config_sha256": "5fdf317f7c6b52c59f67927c0a86def7554d44277a0764b0c9ba971752455da7",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": null,
+          "log_sha256": "1349cc42f3dcff928737e5245186039d4a3c46c62fcbc2f8b4396c1352d43369",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(14) at 2026-10-01 15:43:16: 168 states generated, 102 distinct states found, 0 states left on queue.",
+            "168 states generated, 102 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 14."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "wake-retirement": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-retirement/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-retirement",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-retirement/WakeRetirement.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/wake-retirement/WakeRetirement.tla"
+          ],
+          "config_sha256": "1ff0856cae6776c654bfe45303e6b187f51d41108f8bd5fccd76b3e19b197983",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.317,
+          "expected_violation": null,
+          "log_sha256": "fe1c1c7b73e5aeb33aaf02ddcef7583019b579e516eb0328e30af20e2ce17d03",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(15) at 2026-10-01 15:43:09: 496 states generated, 190 distinct states found, 0 states left on queue.",
+            "496 states generated, 190 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 15."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "witness-exit-no-irq": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-exit-no-irq/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-exit-no-irq",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-exit-no-irq/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-exit-no-irq/KillExit.tla"
+          ],
+          "config_sha256": "7237d17435c75a133217ebc681adb7eabe4104b05875ac9cee166659b15ef6da",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.916,
+          "expected_violation": "NoIrqExitUnreachable",
+          "log_sha256": "94b14f59c9fc5a0e8afb5502d25c21f7751534471b8347691db9ddf177c45f60",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "29577 states generated, 9616 distinct states found, 3327 states left on queue.",
+            "The depth of the complete state graph search is 12."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "witness-kill-irq-first": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-irq-first/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-irq-first",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-irq-first/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-irq-first/KillExit.tla"
+          ],
+          "config_sha256": "3a5108cc473774bef57a222d1417de740202650762dd7d43c8a9fd37db686f8d",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.716,
+          "expected_violation": "IrqFirstUnreachable",
+          "log_sha256": "e1e83bd236b3cd716fe88dc1667d6853d726e6a08db0bf109172e6a24d7bb4f3",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "846 states generated, 409 distinct states found, 230 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "witness-kill-release-first": {
+          "command": [
+            "java",
+            "-Xmx1024m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-release-first/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-release-first",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-release-first/KillExit.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/contracts/witness-kill-release-first/KillExit.tla"
+          ],
+          "config_sha256": "cbcace16b1ddbdffab248d892cd5bd8437a4fc77fe1620ee4e24d600fe8fe8c3",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.766,
+          "expected_violation": "ReleaseFirstUnreachable",
+          "log_sha256": "2bb7054825ba6fb16ddd6dc23428b1862fc30eb40559e7aa3c9047f0221a21bb",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "961 states generated, 464 distinct states found, 261 states left on queue.",
+            "The depth of the complete state graph search is 7."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        }
+      },
+      "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+      "sources": {
+        "model/config/scheduling/suite.json": "f6c77aa561b7ef4a4cd1953307dec768ef88eee00fe0f65bc836297be2dfd88c",
+        "model/data/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+        "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+        "model/tla/scheduling/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+        "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+        "model/tla/scheduling/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+        "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+        "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+        "model/tla/scheduling/KillExit.tla": "69a1daa7b5373030cc8a6c2f887e9fec38316b2979e72c0ccf4dbbb93e4a4dbd",
+        "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+        "model/tla/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+        "model/tla/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+        "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+        "model/tla/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+        "model/tla/scheduling/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+        "model/tla/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+        "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+        "model/tla/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+        "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+        "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+        "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+        "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+        "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+        "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+        "model/tla/steady/ProgressSystem.tla": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff",
+        "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+        "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+        "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+        "model/tla/steady/TwoFClient.tla": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359",
+        "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+        "tools/scheduling/addresses.py": "d449c5615513b8bdbae8867a439a4e417d465aa544697e93c0efe1992303e2e4",
+        "tools/scheduling/check_models.py": "359581cec82ec6f617f0e452f61858dbfe4789587f72c74cff3e2522bcede5cc"
+      },
+      "verification_kind": "state invariants and temporal properties"
+    },
+    "steady-final": {
+      "cases": {
+        "bad-ack": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-ack",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-ack-harness/bad-ack.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-ack-harness/Steady.tla"
+          ],
+          "config_sha256": "5ca71134c744a4aed06da82935b8fa69f68b04e75e54b963e6326d7b3cf64ed2",
+          "elapsed_seconds": 1.317,
+          "expected_counterexample": true,
+          "log_sha256": "0efac1e2d996cc90c0695f796609ba40e48512a48d73b3d24d5feaec1106ea9f",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:36: 880 states generated, 576 distinct states found, 0 states left on queue.",
+            "880 states generated, 576 distinct states found, 0 states left on queue."
+          ]
+        },
+        "bad-color": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-color",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-color-harness/bad-color.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-color-harness/Steady.tla"
+          ],
+          "config_sha256": "78115630ab3dc016339f1e43a2c93a918c70baf4ba30501fc17475275b234017",
+          "elapsed_seconds": 1.117,
+          "expected_counterexample": true,
+          "log_sha256": "1477708dd0112e2323dab02daa6088a09cce985a5dc84d261dbfcc0f9d300458",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:24: 640 states generated, 448 distinct states found, 0 states left on queue.",
+            "640 states generated, 448 distinct states found, 0 states left on queue."
+          ]
+        },
+        "bad-credits": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-credits",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-credits-harness/bad-credits.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-credits-harness/Steady.tla"
+          ],
+          "config_sha256": "436a6aa53a813b1287eee2a981b4ce6886302db211788c73e6a0d77e5ebe7556",
+          "elapsed_seconds": 1.017,
+          "expected_counterexample": true,
+          "log_sha256": "6d512a84d556437944c655b736712f90a74ba8cef73e1f786e5d3a336e4a6556",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(5) at 2026-10-01 15:43:25: 96 states generated, 96 distinct states found, 0 states left on queue.",
+            "96 states generated, 96 distinct states found, 0 states left on queue."
+          ]
+        },
+        "bad-cycle": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-cycle",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-cycle-harness/bad-cycle.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-cycle-harness/Steady.tla"
+          ],
+          "config_sha256": "0ab411f2c36482a527a64ca5d0dff7aaa7990f1707f2f12545444b2a4d74e5ce",
+          "elapsed_seconds": 1.667,
+          "expected_counterexample": true,
+          "log_sha256": "0ad2da81cace47d05efde2069b8c745609df98daad22da838acde51ca677be8f",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 12,
+          "statistics": [
+            "5028 states generated, 3368 distinct states found, 521 states left on queue."
+          ]
+        },
+        "bad-hol": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-hol",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-hol-harness/bad-hol.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-hol-harness/Probe.tla"
+          ],
+          "config_sha256": "615d2fa4140d8548a22bb222025ba0ab465a5eac5e4cf13a18beb343e93e4728",
+          "elapsed_seconds": 0.866,
+          "expected_counterexample": true,
+          "log_sha256": "be1e9311f249487b1af3302d4ae61b9766edc05f0f36344ae98b3a69eb0109b2",
+          "module_sha256": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(4) at 2026-10-01 15:43:27: 4 states generated, 4 distinct states found, 0 states left on queue.",
+            "4 states generated, 4 distinct states found, 0 states left on queue."
+          ]
+        },
+        "bad-slice": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-slice",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-slice-harness/bad-slice.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bad-slice-harness/Steady.tla"
+          ],
+          "config_sha256": "4d917db351977464de562295c1dea346acd5ac8b0244e87d7d1cf0a8eba80a3c",
+          "elapsed_seconds": 1.166,
+          "expected_counterexample": true,
+          "log_sha256": "3c308819c95dbbda2ef713cd4aea2c8420bbfdf73a19de5ca69508a57c1aa47f",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:33: 656 states generated, 448 distinct states found, 0 states left on queue.",
+            "656 states generated, 448 distinct states found, 0 states left on queue."
+          ]
+        },
+        "bypass": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bypass",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bypass-harness/bypass.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/bypass-harness/Steady.tla"
+          ],
+          "config_sha256": "8ca418b7de9c0df96846e5af95c81f8b0235a663e4303e930f9968190618c732",
+          "elapsed_seconds": 2.419,
+          "expected_counterexample": false,
+          "log_sha256": "b893ecfc60c1289030f583dd1189d2efc48b150013447590fbc8588bab291bde",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(24) at 2026-10-01 15:43:31: 5,768 states generated, 2,304 distinct states found, 0 states left on queue.",
+            "5768 states generated, 2304 distinct states found, 0 states left on queue."
+          ]
+        },
+        "minimal": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/minimal",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/minimal-harness/minimal.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/minimal-harness/Steady.tla"
+          ],
+          "config_sha256": "62fc38c28a4ca5efac2759bb7d134f3f137b07ebce34b73aeabf244f0ca71a5d",
+          "elapsed_seconds": 1.067,
+          "expected_counterexample": false,
+          "log_sha256": "42a3d9fdd082fbbae2ab864bf831a8340630bb68f3c219c0390b6cb0c9f67a96",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(13) at 2026-10-01 15:43:23: 148 states generated, 96 distinct states found, 0 states left on queue.",
+            "148 states generated, 96 distinct states found, 0 states left on queue."
+          ]
+        },
+        "no-stalls": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/no-stalls",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/no-stalls-harness/no-stalls.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/no-stalls-harness/Steady.tla"
+          ],
+          "config_sha256": "bda869c76283c53946c90026bf1527edcb4d35fafca2020e48af05c09ed73589",
+          "elapsed_seconds": 1.367,
+          "expected_counterexample": false,
+          "log_sha256": "bf30fd4ae9e56cfbbf6fd6369cb7517b090866cbc996f269af931265d6c96615",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(23) at 2026-10-01 15:43:21: 1,156 states generated, 576 distinct states found, 0 states left on queue.",
+            "1156 states generated, 576 distinct states found, 0 states left on queue."
+          ]
+        },
+        "positive": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/positive",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/positive-harness/positive.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/positive-harness/Steady.tla"
+          ],
+          "config_sha256": "d94d7af84104b298ffb3a5d64891eda5e13d2ecc82dc0039b0edb755cd15c153",
+          "elapsed_seconds": 1.368,
+          "expected_counterexample": false,
+          "log_sha256": "7ea17fd20b13d116d577747db1dead5b76e8ee4327c3856a1f5e8579c0f51df5",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:22: 944 states generated, 576 distinct states found, 0 states left on queue.",
+            "944 states generated, 576 distinct states found, 0 states left on queue."
+          ]
+        },
+        "probe": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/probe",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/probe-harness/probe.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/probe-harness/Probe.tla"
+          ],
+          "config_sha256": "e462ad52c130be1268d3a7b758c97d6708fda4563d80b5f7ec0d59c8df6cc298",
+          "elapsed_seconds": 0.766,
+          "expected_counterexample": false,
+          "log_sha256": "83b95d93826739b48ecda0cf30758d027ae22bbd2280d05b15aece4bd5eaee24",
+          "module_sha256": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(8) at 2026-10-01 15:43:26: 9 states generated, 8 distinct states found, 0 states left on queue.",
+            "9 states generated, 8 distinct states found, 0 states left on queue."
+          ]
+        },
+        "selected-workers": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/selected-workers",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/selected-workers-harness/Witness.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/selected-workers-harness/Witness.tla"
+          ],
+          "config_sha256": "72720ac0163a81f19b5b56aad18d72dc00b2071e9b9978d24d2e67dfc2338d9e",
+          "elapsed_seconds": 2.469,
+          "expected_counterexample": false,
+          "log_sha256": "07ca14e11765fe0ab70f166f0ab8edfab0cdb30e88e887e06883c62161aaf2a4",
+          "module_sha256": "32a0f4787a4ac9078aed0b911aa83ca523a0cd50f4bd495891a970530f3746c2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(85) at 2026-10-01 15:43:40: 4,112 states generated, 2,688 distinct states found, 0 states left on queue.",
+            "4112 states generated, 2688 distinct states found, 0 states left on queue."
+          ]
+        },
+        "separate-ack": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/separate-ack",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/separate-ack-harness/separate-ack.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/separate-ack-harness/Steady.tla"
+          ],
+          "config_sha256": "245139a0df9c0525bbbf96544c7757cbb81c624f6301da0be8b6d87b4d245ebe",
+          "elapsed_seconds": 1.617,
+          "expected_counterexample": false,
+          "log_sha256": "c37af8e2e99450781c158ad6e5337cdcbb03abf25048c2f106564c7c92d12e37",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(19) at 2026-10-01 15:43:38: 1,008 states generated, 576 distinct states found, 0 states left on queue.",
+            "1008 states generated, 576 distinct states found, 0 states left on queue."
+          ]
+        },
+        "two-stalls": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "2",
+            "-lncheck",
+            "final",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/trace-specs",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/two-stalls",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/two-stalls-harness/two-stalls.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/steady-final/two-stalls-harness/Steady.tla"
+          ],
+          "config_sha256": "dd9742c6ba631e16c3cf797621cfdab723cb15cd431b1e92eacd083125c7b2e5",
+          "elapsed_seconds": 2.569,
+          "expected_counterexample": false,
+          "log_sha256": "1f56057f3b0e893a92750122f4749b07bb5872fcbea151e40e44b94e0395ad6b",
+          "module_sha256": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(20) at 2026-10-01 15:43:29: 4,896 states generated, 2,304 distinct states found, 0 states left on queue.",
+            "4896 states generated, 2304 distinct states found, 0 states left on queue."
+          ]
+        }
+      },
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+      "source_sha256": {
+        "model/config/steady/bad-ack.cfg": "5ca71134c744a4aed06da82935b8fa69f68b04e75e54b963e6326d7b3cf64ed2",
+        "model/config/steady/bad-color.cfg": "78115630ab3dc016339f1e43a2c93a918c70baf4ba30501fc17475275b234017",
+        "model/config/steady/bad-credits.cfg": "436a6aa53a813b1287eee2a981b4ce6886302db211788c73e6a0d77e5ebe7556",
+        "model/config/steady/bad-cycle.cfg": "0ab411f2c36482a527a64ca5d0dff7aaa7990f1707f2f12545444b2a4d74e5ce",
+        "model/config/steady/bad-hol.cfg": "615d2fa4140d8548a22bb222025ba0ab465a5eac5e4cf13a18beb343e93e4728",
+        "model/config/steady/bad-slice.cfg": "4d917db351977464de562295c1dea346acd5ac8b0244e87d7d1cf0a8eba80a3c",
+        "model/config/steady/bypass-overflow.cfg": "69109130fbc61bc19ccf11434f32325acf0fc9c5af578c2b5a51adb9ee1018cf",
+        "model/config/steady/bypass.cfg": "8ca418b7de9c0df96846e5af95c81f8b0235a663e4303e930f9968190618c732",
+        "model/config/steady/minimal.cfg": "62fc38c28a4ca5efac2759bb7d134f3f137b07ebce34b73aeabf244f0ca71a5d",
+        "model/config/steady/no-stalls.cfg": "bda869c76283c53946c90026bf1527edcb4d35fafca2020e48af05c09ed73589",
+        "model/config/steady/positive.cfg": "d94d7af84104b298ffb3a5d64891eda5e13d2ecc82dc0039b0edb755cd15c153",
+        "model/config/steady/probe.cfg": "e462ad52c130be1268d3a7b758c97d6708fda4563d80b5f7ec0d59c8df6cc298",
+        "model/config/steady/separate-ack.cfg": "245139a0df9c0525bbbf96544c7757cbb81c624f6301da0be8b6d87b4d245ebe",
+        "model/config/steady/two-stalls.cfg": "dd9742c6ba631e16c3cf797621cfdab723cb15cd431b1e92eacd083125c7b2e5",
+        "model/data/selected-8k.json": "384ede5508ce643508aff9abb5dc3a36393c2cf099874c9f56e8c3a39d4d64d5",
+        "model/tla/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+        "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+        "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+        "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+        "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+        "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+        "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+        "model/tla/steady/ProgressSystem.tla": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff",
+        "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+        "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+        "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+        "model/tla/steady/TwoFClient.tla": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359",
+        "tools/progress/audit_resources.py": "ba358c2764c0797777efa9555a6015ae7ac0113fa0674b6c201bb7c4d894a9b7",
+        "tools/progress/audit_rom_evolution.py": "197ffd636fbf348c132ba6b806edd4f491c6a364965f03c9818b3987a75aa52f",
+        "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+        "tools/progress/check_dcs_pressure.py": "057f141a9d0ccd3b5e7df05026f8d8476ef1b1698c4e83e274754526b954b20a",
+        "tools/progress/check_lauberhorn_rom.py": "d7edc637a739a07f012bd4b03d4f926e408b090390cead8c9859379c74b01baf",
+        "tools/progress/check_lock_tables.py": "02b4cc2bd2ec53b64561fc5d8eb880d5db247479d5f28c9bb2e03068f2c53924",
+        "tools/progress/check_models.py": "404590727d2ef34931c5852f9e7e9f0fff5fd98d87f019fe54ad2c5be5a9d016",
+        "tools/progress/dcs_rom_metadata.py": "f7662ea4ab485ade062ce82271f0e9422cf31bbad3e0c7c7f1fb51f6ba1f406e",
+        "tools/progress/directory_witness.py": "bff533b5b32a6f47acb68f536bd1f0030b62f1dc5fb3aa8afd7e6bf070e2c27b",
+        "tools/progress/reconstruct_thx_rom.py": "ebb5b0719aa0fdad5d076ed6130d3d1bd0217da3b4a9d69281ca424b252a5745",
+        "tools/progress/scan_a22_traces.py": "ad3335513dbd06c866020e30b08531d48b7a2a7599c39a4f1d860b2bc91194ad",
+        "tools/progress/sweep_layouts.py": "e85998c2950f6984b687df040244bafcf57c5c3b450c297c24542e7d794b5d29",
+        "tools/progress/test_capacity.py": "00aa4c041e563f0c01daf7928dc90bdff536dcfb55dc9b488f367f00f2e1eea7",
+        "tools/progress/test_resource_audit.py": "429a13cae71cd6bd63d79351c5ae113442b44b38744acac663b2036b1a4dfd73",
+        "tools/progress/verify_config.py": "a14ec52f8546b5a233fff74474eacbbf733303c67e3fe699d019321c97210f29",
+        "tools/progress/witness_model.py": "61d6dcf5f97e1be8d1f8182046493f93bc25c888f15ed7643787db8be272a20c"
+      },
+      "tlc_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e"
+    },
+    "transport": {
+      "cases": {
+        "bad-retained-cache-hol": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-hol/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-hol",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-hol/CachedProgress.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-hol/CachedProgress.tla"
+          ],
+          "config_sha256": "8d26da09e69724c1fa9747ab7a3cca6185babe23109acceb4f3b9347e4a34ff7",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 1.368,
+          "expected_violation": "Progress",
+          "log_sha256": "3043549c81f2cac957bac2d73a39c104250057eed501ec01be51a567794ce51b",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(43) at 2026-10-01 15:44:57: 9,682 states generated, 4,364 distinct states found, 0 states left on queue.",
+            "9682 states generated, 4364 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 43."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "bad-retained-cache-no-replacement": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-no-replacement/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-no-replacement",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-no-replacement/CachedProgress.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/bad-retained-cache-no-replacement/CachedProgress.tla"
+          ],
+          "config_sha256": "e2d61a161b4a4530b79206b2c9a9213d0b5ab55ed62a34e2c3a0430ab11ebf09",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 0.816,
+          "expected_violation": "Progress",
+          "log_sha256": "2b3b51ddf429c70fe145a30f1c58e20c7865f526c752781ffb85174be03af815",
+          "passed": true,
+          "returncode": 13,
+          "statistics": [
+            "Progress(3) at 2026-10-01 15:44:58: 12 states generated, 8 distinct states found, 0 states left on queue.",
+            "12 states generated, 8 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 3."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "handoff": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff/Handoff.tla"
+          ],
+          "config_sha256": "e626824613809eb5f616abab78ec30cef9291677bfaf2a38bb6018e8824ddb25",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 14.594,
+          "expected_violation": null,
+          "log_sha256": "01115200fa496357030ee4fe3bba30f9a7d3af39a6ec5b7fa7114efeec9cfa73",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(29) at 2026-10-01 15:39:47: 16,742 states generated (16,742 s/min), 6,986 distinct states found (6,986 ds/min), 296 states left on queue.",
+            "Progress(38) at 2026-10-01 15:39:48: 20,936 states generated, 8,256 distinct states found, 0 states left on queue.",
+            "20936 states generated, 8256 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 38."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "handoff-rx-tx": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-rx-tx/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-rx-tx",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-rx-tx/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-rx-tx/Handoff.tla"
+          ],
+          "config_sha256": "5c223fdc2c3a190aea06521a72cfea1c9332beb39fe5ce92a0015ced15e9c22f",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 116.794,
+          "expected_violation": null,
+          "log_sha256": "8d738357e4c041d697c5f9e810d68358f1193219a9c5ec8764a12b3bce9c6075",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(20) at 2026-10-01 15:42:55: 18,150 states generated (18,150 s/min), 7,921 distinct states found (7,921 ds/min), 806 states left on queue.",
+            "Progress(50) at 2026-10-01 15:43:06: 86,424 states generated, 28,800 distinct states found, 0 states left on queue.",
+            "86424 states generated, 28800 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 50."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "handoff-stalled-peer": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-stalled-peer/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-stalled-peer",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-stalled-peer/Handoff.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/handoff-stalled-peer/Handoff.tla"
+          ],
+          "config_sha256": "a80f8c448de1a2db163f876d8007049c5c31be992fad1b56c933940806e9f713",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 173.398,
+          "expected_violation": null,
+          "log_sha256": "09bc6755f6d7f929b45a0920048bd29efdb1434b1c50c07483f959ea6a7f35a8",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(14) at 2026-10-01 15:40:02: 14,697 states generated (14,697 s/min), 6,312 distinct states found (6,312 ds/min), 1,043 states left on queue.",
+            "Progress(39) at 2026-10-01 15:40:19: 100,240 states generated, 33,024 distinct states found, 0 states left on queue.",
+            "100240 states generated, 33024 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 39."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "reachable-cache": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/reachable-cache/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/reachable-cache",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/reachable-cache/CachedProgress.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/reachable-cache/CachedProgress.tla"
+          ],
+          "config_sha256": "b1370cef6ded7dee9cc416719f6f5c17b7cab52f18ad08220ae949e7fa7e5952",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 2.32,
+          "expected_violation": null,
+          "log_sha256": "51ab93d7259b9749ee769d58894223319a915abb6b92517c3a66f17d778c9a41",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(44) at 2026-10-01 15:44:53: 37,398 states generated, 8,616 distinct states found, 0 states left on queue.",
+            "37398 states generated, 8616 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 44."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "retained-cache": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache/CachedProgress.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache/CachedProgress.tla"
+          ],
+          "config_sha256": "31256ad89b78803c8d960c4f628429a3adb9afb3761171389dc136ca35cd0b68",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 2.419,
+          "expected_violation": null,
+          "log_sha256": "f9d70eec3ea3741506ea9283063c512f2d780c5bc88c1e87d60a953ce9e7fdf1",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(32) at 2026-10-01 15:44:50: 37,374 states generated, 8,592 distinct states found, 0 states left on queue.",
+            "37374 states generated, 8592 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 32."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        },
+        "retained-cache-independent-queues": {
+          "command": [
+            "java",
+            "-Xmx2048m",
+            "-XX:+UseParallelGC",
+            "-cp",
+            "/nix/store/7zp6995y8phslcxx8f6ybph3z3m8f199-tlaplus-1.8.0/share/java/tla2tools.jar",
+            "tlc2.TLC",
+            "-workers",
+            "4",
+            "-lncheck",
+            "final",
+            "-metadir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache-independent-queues/states",
+            "-teSpecOutDir",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache-independent-queues",
+            "-config",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache-independent-queues/CachedProgress.cfg",
+            "/local/home/pengxu/work-local/lauberhorn/platform/out/model-review/transport/retained-cache-independent-queues/CachedProgress.tla"
+          ],
+          "config_sha256": "78fbb3e802216ea5ce85dd20938674871dc21a4e8c25383d1cc2303584f0a03b",
+          "directory_contract": "LCI-only: release on LCIA acceptance",
+          "elapsed_seconds": 2.322,
+          "expected_violation": null,
+          "log_sha256": "6328687bc1863418434e347b7aec6e3617387dea0114d656ff1dc3cb3035e2f2",
+          "passed": true,
+          "returncode": 0,
+          "statistics": [
+            "Progress(32) at 2026-10-01 15:44:55: 24,326 states generated, 8,592 distinct states found, 0 states left on queue.",
+            "24326 states generated, 8592 distinct states found, 0 states left on queue.",
+            "The depth of the complete state graph search is 32."
+          ],
+          "verification_kind": "configured invariants and temporal properties"
+        }
+      },
+      "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+      "sources": {
+        "model/config/scheduling/suite.json": "f6c77aa561b7ef4a4cd1953307dec768ef88eee00fe0f65bc836297be2dfd88c",
+        "model/data/selected-8k.json": "dc02a45b32685a0f69361ed94badf82c28d82de91677c81bb4f7b564ef400fcf",
+        "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+        "model/tla/scheduling/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+        "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+        "model/tla/scheduling/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+        "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+        "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+        "model/tla/scheduling/KillExit.tla": "69a1daa7b5373030cc8a6c2f887e9fec38316b2979e72c0ccf4dbbb93e4a4dbd",
+        "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+        "model/tla/scheduling/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+        "model/tla/scheduling/ThreadClaim.tla": "309a388d91810b4146e9c21a507b486b8d29c18b5bc7c7d3f274c036dc9152a6",
+        "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+        "model/tla/scheduling/WakeAckRace.tla": "a0f07e5b914540cf5aaf7a4a49a57b1d802a0308283d69e6123ebe52d06ba8b6",
+        "model/tla/scheduling/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+        "model/tla/scheduling/WakeReassignment.tla": "75366b683b62f65a4102011cb36cfeab9a8cecac058d24a8f521bf3fbeab245b",
+        "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+        "model/tla/steady/AxiReloadGate.tla": "ad232085702db1831865603bf9cacf90867c80a61d051bcf79c8da9aba847378",
+        "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+        "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+        "model/tla/steady/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+        "model/tla/steady/DcsResources.tla": "7fc57680b2303ba78858de90d9b7775eaacd4a70c0ae58a37575d3bd16845462",
+        "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+        "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+        "model/tla/steady/ProgressSystem.tla": "17ba9049c4724ac1e7045ebd25ef5672d8ab94809ee2b3d25c77e66eefd01cff",
+        "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+        "model/tla/steady/Steady.tla": "6622ba7d591869bf3451bb7c85ae6174b5ae86db95ed7edb9c6a8fe0fc14a8e2",
+        "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+        "model/tla/steady/TwoFClient.tla": "7d530ca95476a8f6e4f6f837bc6b8068faef11f3a5bb9754fe77f21d890f7359",
+        "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+        "tools/scheduling/addresses.py": "d449c5615513b8bdbae8867a439a4e417d465aa544697e93c0efe1992303e2e4",
+        "tools/scheduling/check_models.py": "359581cec82ec6f617f0e452f61858dbfe4789587f72c74cff3e2522bcede5cc"
+      },
+      "verification_kind": "state invariants and temporal properties"
+    }
+  },
+  "scope": "UL-free selected endpoint, shared cache/transport adapter, source/config/evidence split and module review",
+  "summary": {
+    "combined_safety_distinct_states": 2528455,
+    "expected_counterexamples_or_reachability_witnesses": 47,
+    "full_combined_temporal": "not checked in this review; remains open",
+    "positive_outcomes": 34,
+    "sany_modules": 28,
+    "tlc_outcomes": 81
+  }
+}
