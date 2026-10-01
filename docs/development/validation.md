@@ -128,3 +128,9 @@ larger `scheduling-composed` target additionally checks combined temporal
 properties; its result must be reported separately.
 See [bounds and assumptions](../hardware/retained-cache-composition.md); this is
 separate from the original component baseline.
+
+For monotonic-prefix kill/exit checks, run
+`nix build .#checks.x86_64-linux.scheduling-kill-exit --out-link out/scheduling/kill-exit-nix`.
+The [kill/exit report](../hardware/kill-exit-verification.md) describes three
+positive temporal cases, five deliberate faults, three ordering/reachability
+witnesses, and the endpoint assumptions still requiring hardware correspondence.

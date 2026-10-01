@@ -294,3 +294,13 @@ verification kind; this target must not be described as a combined liveness proo
 The large temporal graph should use disk-backed output unless sufficient tmpfs
 headroom is available in addition to the Java heap. Do not risk host exhaustion
 merely to make a check faster.
+
+## Kill/exit follow-up (2026-10-01)
+
+The [focused kill/exit check](kill-exit-verification.md) separates
+application stopping from prefix reclamation. The first implementation allocates
+domain codes monotonically without reuse; prefix-reuse certification is deferred.
+The focused model checks uncooperative userspace, outstanding RX, IRQ ordering,
+close/dispatch races and reference cleanup. It does not complete the larger
+combined temporal or concrete resource/refinement obligations. The linked report
+lists the remaining implementation and verification work.
