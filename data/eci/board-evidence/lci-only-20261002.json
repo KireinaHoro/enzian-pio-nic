@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-02",
+  "status": "FAIL: RPC discovery; bypass RX writeback progress blocker",
+  "pipeline": 515621,
+  "hardware_job": 2861585,
+  "prepare_job": 2861604,
+  "revision": "2699f580a6c14fb00fa8cff3857dc5b83f890a89",
+  "dut": "zuestoll14",
+  "capture_peer": "zuestoll12",
+  "trial": [
+    {
+      "case": "lci-20261002-trial1",
+      "round": 1,
+      "revision": "2699f580a6c14fb00fa8cff3857dc5b83f890a89",
+      "status": "fail",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/20261002-lci/trial1/01-lci-20261002-trial1/boot",
+          "status": "eci_bringup_failed",
+          "error": "Missing BDK CCPI lane initialization report"
+        },
+        {
+          "attempt": 2,
+          "logs": "out/board/20261002-lci/trial1/01-lci-20261002-trial1/boot/retry-02",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]"
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.002, 0.00390625], 'VCCINT_FPGA': [0.0]}",
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "faults": [],
+      "client_exit": 1,
+      "seconds": 338.4
+    }
+  ],
+  "manifest": [
+    {
+      "name": "lci-20261002-trial1",
+      "revision": "2699f580a6c14fb00fa8cff3857dc5b83f890a89",
+      "image": "/scratch/pengxu/lci-20261002/deploy.img",
+      "program": [
+        "ssh",
+        "enzian-ba2",
+        "/opt/Xilinx/Vivado/2023.2/bin/vivado",
+        "-mode",
+        "batch",
+        "-nojournal",
+        "-log",
+        "/tmp/lauberhorn-lci-2861585/trial1-program.log",
+        "-source",
+        "/tmp/lauberhorn-lci-2861585/program-arm.tcl",
+        "-tclargs",
+        "enzian-gateway.ethz.ch:3121",
+        "Digilent/210357B4B301A",
+        "/tmp/lauberhorn-lci-2861585/shell_lauberhorn-eci.bit",
+        "/tmp/lauberhorn-lci-2861585/shell_lauberhorn-eci.ltx"
+      ],
+      "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\ncpu serve add 4 /scratch/pengxu/lci-20261002/{run}\n",
+      "client": "timeout 90 /scratch/pengxu/lci-20261002/client/bench_client 192.168.129.200 add 100 /scratch/pengxu/lci-20261002/{run}/client.csv"
+    }
+  ],
+  "artifacts": {
+    "deploy.img": "ff75a507efe77c031dc4da5f6359ec8270e5f8f15e4afee893bb5a84f578e28f",
+    "hardware/shell_lauberhorn-eci.bit": "5842e9e5a92a1d23a664dc39fd4aaa82d1fa32cdbe8c9ec840e5aa79a5c110a7",
+    "hardware/shell_lauberhorn-eci.ltx": "ed8ead1cae733ccfd80183db210ae6ae3cec25b42ca3feaa425e9a0769a56613",
+    "hardware/lauberhorn_trace_dma_map.json": "d3640225d84c6d2153ea9bed2c9f3a8cb1c614e4aac4987a29182d8253a1904e"
+  },
+  "rom_derivation": "/nix/store/ywb4ds6l5fli1q0x7986kydxcpaq0my5-lauberhorn-dcs-rom.drv",
+  "capture": {
+    "path": "out/board/20261002-lci/failed-trace/trace-dram.bin",
+    "bytes": 139951936,
+    "sha256": "f803044b8ef248bfa9feb0c30b10928bbccbc50abb4f26bea0c291dbbad13b46",
+    "repeated_read_same_hash": true,
+    "write_slot": 2186749,
+    "wrapped": false,
+    "pre_freeze_loss": false,
+    "dma_error": false,
+    "decoded_lost_samples": 0,
+    "decoded_dcs_errors": 0
+  },
+  "observed_sequence": [
+    "Bypass RX 0x100: RLDD -> PEMD (R12 -> RA3)",
+    "Next control RLDD 0x80 remains without response",
+    "LCI 0x100 -> FLDX_EH, dynamic/static boundary acceptance confirmed",
+    "CPU HAKD 0x100 dmask=15 -> DC A31d/WDD",
+    "No subsequent WDDA or LCIA for 0x100 in the preserved capture"
+  ],
+  "source_correspondence": [
+    "DcsRxAxiRouter.scala calls dcsQ.setBlocked() and only services AR/R; AW/W/B have no service action",
+    "axi_wr_cl.sv produces write completion from the AXI B handshake"
+  ],
+  "interpretation": "Observed transaction tail and source identify an unserviced RX writeback dependency. AXI handshakes are not directly present in this trace; confirm with a directed real-DC/RX-router test before declaring a fix.",
+  "scope": "No application RPCs completed; driver/version checks passed. No claim of ROM/HW acceptance or universal proof. Second cold-boot trial not run after failure.",
+  "board_disposition": "DUT left programmed, trace frozen; no reset after failure capture. Original VIO controls preserved.",
+  "logs": "out/board/20261002-lci",
+  "next": "Service legal RX writebacks independently of the blocked RX read; validate transaction framing/completion and packet ownership before retesting. Implementation and plan-mode work not started."
+}

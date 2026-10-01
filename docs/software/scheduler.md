@@ -2,6 +2,11 @@
 
 Scope: source inspection, 2026-09-08. Implemented mechanisms are not evidence of measured isolation, fairness, or working fault recovery.
 
+**2026-10-02 design status:** this page describes the existing IRQ/CAS/thread-router
+implementation. The [selected cooperative interface](scheduling-control-interface.md)
+and [bounded scheduling composition](../hardware/scheduling-composition.md) specify
+and check its replacement; the new address and PREEMPT ABI is not implemented.
+
 ## Confirmed execution policy
 
 Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cores; these cores are not shared with ordinary Linux tasks. Cooperative nested-call waits may yield a fiber. An independent preemption critical-section timeout and an optional execution watchdog terminate the whole application through the [B4 recovery path](process-recovery.md). Execution monitoring defaults to disabled; hardware acceptance remains pending.

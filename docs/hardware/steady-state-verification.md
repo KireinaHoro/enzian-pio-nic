@@ -1,7 +1,13 @@
 # Settled progress verification
 
+**Current status (2026-10-02):** the selected build uses the
+[LCI-only non-locking DC](lauberhorn-rom.md). The auto-lock findings below are
+historical failure evidence, not the current endpoint contract. The
+[scheduling composition report](scheduling-composition.md) records the completed
+selected bounded modeling round and its remaining hardware assumptions.
+
 **2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
-found that active DCS local invalidations allocate even on an absent cache line.
+found that the then-selected auto-lock DCS local invalidations allocate even on an absent cache line.
 The old retained-cache positives used a nonallocating abstraction. Enabling the
 actual allocation rule produces a progress counterexample on a full target set.
 Historical checked results below remain results for their stated abstraction;

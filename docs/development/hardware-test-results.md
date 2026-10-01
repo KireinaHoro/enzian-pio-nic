@@ -540,3 +540,45 @@ rejected by automatic approval review and was not performed. The original pipeli
 first attempt, driver load/version verification passed, and the original network
 configuration was restored. No application was running before this trial; none
 was started after restoration.
+
+
+## Simplified LCI-only DC trial — 2026-10-02
+
+**Failed; not hardware acceptance.** Pipeline 515621, hardware job 2861585,
+revision `2699f580a6c14fb00fa8cff3857dc5b83f890a89`, used the matched CI deployment
+image, bitstream, LTX and trace map on zuestoll14. This is the existing routed
+128 KiB design with the selected non-locking DC and UL removed. See the
+[compact evidence](../../data/eci/board-evidence/lci-only-20261002.json).
+
+The first boot lacked the required CCPI report. The automated second full cold
+reset passed QLM8–13 CDR lock and all CCPI lanes 0–23. Driver load, revision
+verification and four-worker service registration passed. RPC client creation
+then failed with `RPC: Unable to receive`; no application RPCs completed. The
+DUT console subsequently failed to return a prompt. The planned second trial was
+not run, and the board was not reset after this failure.
+
+The complete F_MAC1 capture is 139,951,936 bytes (2,186,749 slots), unwrapped,
+with no pre-freeze loss/DMA error or decoded loss marker. A second frozen read
+has the same SHA-256. The matching-map decoder found no DCS error events.
+The decisive bypass RX sequence is:
+
+1. Read `0x100` receives `PEMD` (`R12 → RA3`, exclusive permission).
+2. Read next RX control `0x80` waits for prior data invalidation.
+3. LCI `0x100` sends `FLDX_EH`; the trace confirms dynamic/static boundary acceptance.
+4. CPU returns data-bearing `HAKD`, dmask 15. The DC accepts `A31d` and enters `WDD`.
+5. No `WDDA` or `LCIA` follows in the capture; the `0x80` read remains unanswered.
+
+Source inspection identifies the corresponding integration gap:
+`DcsRxAxiRouter` leaves AW/W/B blocked and only implements AR/R service. The DC's
+AXI write adapter waits for B completion before returning write completion. The
+selected endpoint therefore exposes an RX writeback dependency the application
+router cannot service. This is not a captured forbidden ROM transition. Actual
+AXI handshakes are not traced here; add a directed real-DC/RX-router regression
+and establish correct RX writeback disposition before claiming a fix.
+
+This also makes the model's independent writeback-service premise a concrete
+implementation blocker. The bounded model result remains conditional on that
+premise. No addr/PREEMPT implementation or workaround was added during this test.
+The DUT remains programmed with tracing frozen; original VIO values and all
+artifacts/logs are retained in `out/board/20261002-lci/` and matching shared/ba2
+paths recorded there. Preserve that state before further board work.

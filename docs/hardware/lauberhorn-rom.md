@@ -1,8 +1,11 @@
 # Selected Lauberhorn coherence ROM
 
-Implemented on the Goal 2 branch, 2026-10-01. The downstream ECI build now selects
-an LCI-only, non-locking ROM. This replaces the previous auto-lock selection;
-it has not yet been validated on the board or through physical implementation.
+Selected in the source build, 2026-10-01: an LCI-only, non-locking ROM replaces
+the previous auto-lock selection. **Board trial 2026-10-02 failed:** bypass RX
+writeback reaches `WDD`, but the RX AXI router has no write service. See the
+[trace-backed failure](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
+Driver/version checks passed; no application RPCs completed. This is not hardware
+acceptance or timing closure.
 
 ## Source and interface
 
@@ -87,9 +90,11 @@ and counterexample diagnostic for the old configuration.
 The [evidence manifest](../../model/evidence/steady/lauberhorn-rom-evidence.json) records
 generated-artifact hashes and checks run.
 
-Remaining work is in the [roadmap](../research/roadmap.md): extend the AXI fence
-and shared response-service composition, actual transport kill cleanup, broader
-scheduling liveness, whole-slice routing/backpressure, and matched board tests.
+The selected bounded AXI-response, kill/transport and scheduling composition
+checks are complete; see the [composition report](scheduling-composition.md).
+Remaining work in the [roadmap](../research/roadmap.md) includes concrete service
+guarantees, broader combinations, implementation, whole-slice routing/backpressure
+and matched board validation.
 
 The broader ECI run exposed an uninitialized simulation-only router prefix
 scoreboard. Its enabled bits now reset false, matching an empty thread database.

@@ -51,7 +51,7 @@ dispatch are excluded. Goal 2 remains incomplete.
 A joined host-driven handoff checks the Goal 1 resource-entry predicate. The
 [scheduling composition](../hardware/scheduling-composition.md) now connects
 wake/claim races and kill to RX/TX cleanup; its selected bounded matrix
-has completed on `goal2-scheduling-model`. Endpoint freshness and concrete
+is merged into `master`. Endpoint freshness and concrete
 control/transport correspondence remain assumptions. Goal 2 must establish the settled entry contract and preserve unaffected
 workers' progress during scheduling transitions, reusing the resource model.
 
@@ -60,7 +60,7 @@ workers' progress during scheduling transitions, reusing the resource model.
 **The selected bounded modeling round for items 1 and 2 is complete.** Their
 broader/refinement extensions remain open; item 3 remains an explicit
 hardware-service contract, and item 4 is implementation and validation.
-Continue on `goal2-scheduling-model`. The selected LCI-only endpoint and its
+The completed modeling branch is merged into `master`. The selected LCI-only endpoint and its
 checks are recorded below. The [module review](../hardware/model-review.md)
 consolidates cache/transport composition, removes UL from the active models and
 separates source/configuration/evidence; see the [model index](../../model/README.md).
@@ -77,7 +77,7 @@ verification complete.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: LCI-only non-locking ROM selected in the build; hardware validation pending.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | **Blocked in the current RTL integration: the October 2 board trace reaches RX writeback `WDD` with no AXI write service.** The LCI-only ROM is selected; board acceptance has not passed. Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -87,13 +87,20 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: validate the selected non-locking contract
+#### Resume here: RX writeback integration blocker before the implementation plan
 
-Hardware validation is launched at revision `2699f58`,
+Hardware validation used revision `2699f58`,
 [pipeline 515621](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515621).
 Hardware job [2861585](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2861585)
-is gated by the test/preparation jobs. This is the existing routed/addressed design with the simplified DC and UL removed,
-not the scheduling/address pivot. Board 2F2F validation awaits matching artifacts.
+succeeded in CI. This is the existing routed/addressed design with the simplified DC and UL removed,
+not the scheduling/address pivot. The [October 2 matched board trial](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02)
+passed driver/revision checks but failed RPC discovery. The frozen trace shows a
+data-bearing HAKD for RX `0x100`, followed by `WDD` without `WDDA`/LCIA; the RX
+AXI router blocks write channels. Preserve the captured failure and first add
+a directed real-DC/RX-router writeback regression. Correct RX writeback service
+and disposition, then repeat board tests before starting the address/PREEMPT
+implementation. Detailed implementation planning is deferred to the maintainer
+switching to plan mode; no production pivot work has started.
 
 The [selected LCI-only ROM](../hardware/lauberhorn-rom.md) is now generated by
 Nix from a dedicated Perl source in the DC submodule and consumed by real-DCU
@@ -101,7 +108,8 @@ simulation and the Vivado input bundle. It retains Jasmin's A22 equations, uses
 RA3 for R12, and removes LC/F32 and UL. NIC UL emission is removed. Directory
 miss-to-invalid writes are suppressed and clean HAKD uses outstanding F31 context.
 The selected ROM has 14 states and 35 permitted transitions. The linked document
-records the precise checks and limitations; board validation remains pending.
+records the precise checks and limitations; board validation failed at the RX
+writeback integration boundary above.
 
 The [LCI-only resource-model update](../hardware/lci-only-resource-model.md) now
 composes LCIA release without UL with the existing scheduling modules. Focused

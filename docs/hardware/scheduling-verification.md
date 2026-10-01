@@ -1,13 +1,19 @@
 # Scheduling transition verification
 
+**Current status (2026-10-02):** the selected build uses the
+[LCI-only non-locking DC](lauberhorn-rom.md). The auto-lock findings below are
+historical failure evidence, not the current endpoint contract. The
+[scheduling composition report](scheduling-composition.md) records the completed
+selected bounded modeling round and its remaining hardware assumptions.
+
 **Auto-lock rerun:** the [RTL-faithful directory allocation checks](directory-pressure.md#tla-rerun-with-the-rtl-allocation-contract)
 now include from-empty worker/cache history and complete one-slot combined
-scheduler checks. The active contract produces progress/handoff counterexamples
+scheduler checks. That historical auto-lock contract produces progress/handoff counterexamples
 while resource safety holds. Older nonallocating positives do not discharge this.
 
 
 **2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
-found that active DCS local invalidations allocate even on an absent cache line.
+found that the then-selected auto-lock DCS local invalidations allocate even on an absent cache line.
 The old retained-cache positives used a nonallocating abstraction. Enabling the
 actual allocation rule produces a progress counterexample on a full target set.
 Historical checked results below remain results for their stated abstraction;
