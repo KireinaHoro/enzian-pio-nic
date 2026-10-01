@@ -4,7 +4,11 @@ The active model is the **LCI-only endpoint** with cooperative scheduling. Start
 with [ProgressSystem](tla/steady/ProgressSystem.tla), then
 [CachedTransport](tla/steady/CachedTransport.tla), then
 [Handoff](tla/scheduling/Handoff.tla) and
-[CombinedScheduling](tla/scheduling/CombinedScheduling.tla).
+[SchedulingComposition](tla/scheduling/SchedulingComposition.tla). The
+[completed bounded report](../docs/hardware/scheduling-composition.md) distinguishes
+checked cases from larger combinations and hardware assumptions.
+[CombinedScheduling](tla/scheduling/CombinedScheduling.tla) retains separate
+historical/two-worker coverage.
 
 | Directory | Contents |
 | --- | --- |

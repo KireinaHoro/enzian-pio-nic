@@ -265,6 +265,12 @@ A directed implementation test should hold IRQ acknowledgment until the info rea
 completes, require the response once its transport prerequisites finish, and keep
 the successor non-runnable until the old IRQ is consumed.
 
+The [October 2 board trial](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02)
+exposed a concrete violation of the independent writeback-service premise: the
+selected DC requests RX writeback, but the current RX AXI router has no write
+service. These conditional model results do not establish progress for that
+integration. Resolve the RX writeback blocker before board acceptance.
+
 Separate obligations remain: single-line endpoint correctness, THX replacement
 and independent coherence service, actual AXI framing/same-line ordering, RTL
 refinement and board validation. This harness does not enumerate multiple closing

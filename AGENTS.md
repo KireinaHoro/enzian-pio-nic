@@ -34,6 +34,17 @@ CMAC trace path uses F_MAC1; revision `5cda901` passed 300 RPCs and three full
 322 MB dumps, with WNS -0.062 ns (not closure). See the
 [CMAC board evidence](docs/development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
 
+The selected bounded Goal 2 modeling round is complete; see the
+[scheduling composition report](docs/hardware/scheduling-composition.md). The
+source build selects the simplified LCI-only DC with UL removed, but the
+router-free 8 KiB address layout and cooperative PREEMPT ABI remain unimplemented.
+The October 2 simplified-DC board trial failed at RX writeback: DC `WDD` waits
+on an RX AXI router that does not service writes. See the
+[board failure](docs/development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
+DUT zuestoll14 was left programmed with tracing frozen; recheck reservation and
+preserve the failure before resetting. Retain the documented hardware-service
+assumptions and implementation checks.
+
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,

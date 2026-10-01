@@ -1,7 +1,10 @@
 # Scheduler design pivot (September 2026)
 
-Status: **proposal**, consolidated 2026-09-28. Mechanisms below are implementation
-candidates. See the [current scheduler](../software/scheduler.md),
+Status (2026-10-02): **selected design contract; production pivot not implemented**.
+The [bounded scheduling composition](../hardware/scheduling-composition.md) has
+completed its selected checks. Hardware service/refinement assumptions and the
+[kmod/HW implementation checks](../software/scheduling-implementation-checks.md)
+remain open. The mechanisms below specify the intended replacement. See the [current scheduler](../software/scheduler.md),
 [QP alternatives](../hardware/queue-pair-design.md), and
 [DCU progress model](../hardware/coherence-progress.md).
 

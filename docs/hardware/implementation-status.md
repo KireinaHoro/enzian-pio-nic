@@ -2,6 +2,12 @@
 
 Inspected 2026-09-08. “Present” means source exists and is wired into the generator; it does not certify current simulation, timing closure, or board validation. No hardware builds or simulations were run for this documentation pass.
 
+**2026-10-02 update:** the selected build now uses the [LCI-only non-locking
+DC](lauberhorn-rom.md), with UL removed through the application interfaces. The
+[bounded scheduling model](scheduling-composition.md) is checked; the router-free
+8 KiB layout and cooperative PREEMPT ABI remain unimplemented. The source survey
+below predates this change; hardware-service/refinement obligations remain open.
+
 ## Present in the main source tree
 
 - ECI/Enzian integration, four worker engines plus bypass, programmable thread-to-engine routing, decoupled coherent RX/TX, preemption signaling: `hw/src/lauberhorn/GenEngineVerilog.scala`, `host/eci/`.
