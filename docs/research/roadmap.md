@@ -64,7 +64,7 @@ not authorization to treat a proposed lock mechanism as the selected design.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | Pending. The [focused kill/exit model](../hardware/kill-exit-verification.md) checks control ordering under endpoint service assumptions. Compose actual RX/TX, invalidation/ACK/unlock and buffer/reply ownership; show completion does not depend on the killed application's execution or an unrelated stalled worker. |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Pending. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; full combined temporal runs remain incomplete. Cover repeated migration/notifications, transition-time TX/overflow/bypass and unaffected peers while another worker remains stalled. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: full-set lock allocation unresolved; wholesale nonlocking swap has a directory-write hazard.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | **Active: retain auto-lock; absent-target allocation stall reached through actual directory RTL.** Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -74,61 +74,34 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: does 2F2F need DCS auto-lock?
+#### Resume here: auto-lock allocation guarantee
 
-The [non-auto-lock audit](../hardware/directory-pressure.md#non-auto-lock-investigation-2026-10-01)
-now compares both generated tables and tests the alternative with the actual
-controller. Nonlocking removes absent-LCI allocation, but the corrected controller test
-exposes an unsafe full-miss directory write. Completion alone was insufficient:
-the current control path can invalidate an unrelated way. See the
-[control-path correction and ROM provenance](../hardware/directory-pressure.md#control-path-incompatibility-and-rom-provenance).
-The active lock-allocation issue is unresolved. Do not swap in the old nonlocking
-package wholesale; select the intended FSM baseline and coordinate allocation,
-hit/miss write enable, ROM semantics and the UL interface.
-No production switch is selected. Next check speculative/late control and overflow
-refills around LCIA/publication, dirty writeback completion, and stopped-owner
-requests. The current immediate-UL behavior does not protect the whole operation.
-Maintainer clarification and source audit identify serialized AXI reload responses
-as the intended exclusion mechanism. A narrow gate model passes with two negative
-sensitivity checks. Next establish entry to that gate for already queued/in-flight
-requests and preemption/kill without an active opposite-parity read; retain
-independent writeback/LCIA service while the read is held.
-The alternative also needs a matching decoder/NIC interface: its package has no UL.
+**Maintainer decision: retain auto-lock.** The nonlocking table experiment is
+historical investigation; do not pursue a wholesale variant switch. Its control
+path incompatibility and ROM-version caveats are recorded in the
+[directory audit](../hardware/directory-pressure.md#control-path-incompatibility-and-rom-provenance).
 
+The [new directory RTL test](../hardware/directory-pressure.md#auto-lock-reachability-through-the-actual-directory)
+reaches a full-set absent-LCI stall from reset through R12/RDDA fills and a clean
+V21 eviction, using actual TSU/tag RAM/controller/auto-lock ROM and a test XPM
+primitive model. It does not force full/hit outputs. Full-set **hit** invalidation
+works; its entry remains charged until UL. That UL frees a way and permits the
+absent-target LCI to complete. The test checks unrelated entries survive.
 
-The maintainer reports that the DC is provisioned to track all CPU-cached lines
-without explicit directory evictions. The DCS design notes support that intent
-with matched CPU/directory set counts and associativity. Reconcile that contract
-with local lock bookkeeping before adding a capacity mechanism.
+1. Close the full NIC/runtime reachability gap: a fresh first RX does not itself
+   invalidate the opposite parity. Check subsequent RX, overflow lines never
+   read, retained old-domain lines, and preemption/kill against the actual engine.
+2. Establish/enforce an auto-lock allocation guarantee for absent targets, or
+   prove an independent release is always pending for the permitted sequences.
+   Matched CPU/directory size does not by itself cover FPGA-created locks.
+3. Then compose the guarantee with shared writeback/VC/credit service. The AXI
+   gate model remains useful for response-ordering checks, not a reason to switch
+   protocol or a solution to absent-target allocation.
 
-1. Trace actual RTG allocation, state-validity and release for LC/LCI/LCIA/UL in
-   the selected auto-lock RTL. Distinguish ordinary CPU-resident entries from
-   transient/local-lock entries and determine whether the reported full-set
-   scenario is reachable under the complete protocol, not just the abstraction.
-2. Establish exactly what the lock protects in our RX/TX 2F2F engines: identify
-   CPU accesses and NIC data changes that can occur between invalidation completion
-   and UL, including either parity, overflow, preemption and kill. Determine
-   whether locking is necessary for correctness in this use, rather than assuming
-   the currently selected protocol variant is required.
-3. Compare the generated [auto-lock](../../vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl/eci_cc_table.sv)
-   and [non-auto-lock](../../vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv)
-   protocols and their interfaces. If locking is unnecessary, specify how to use
-   the non-auto-lock variant, including required LCI/LCIA/UL and model changes,
-   and verify the affected races before switching production RTL.
-4. Only if locking remains necessary, select and verify its allocation guarantee
-   (e.g. a bounded separate lock record, reserved capacity or another justified
-   mechanism), then compose it with the shared release path. **No sidecar lock,
-   extra directory way, forced eviction, cache flush or protocol switch has been
-   selected or implemented.** The interrupted turn only read files.
-
-Evidence boundary: the [directory-pressure audit](../hardware/directory-pressure.md)
-reproduces full-set absent-LCI stalling in the actual controller/table with
-controlled lookup inputs, and a progress counterexample in the corrected abstract
-resource model. Its address witness fits the selected layout. It does **not**
-establish the entire cache-state sequence on hardware or prove a hardware deadlock.
-The older nonallocating-cache positives do not resolve this question. Shared
-writeback/VC/credit progress remains a separate obligation even if auto-lock can
-be removed. Do not restart timing optimization or claim Goal 2 complete.
+**No sidecar lock, extra way, forced eviction, cache flush, protocol switch or
+production RTL change is selected or implemented.** Component reachability is
+now simulation-tested; complete Lauberhorn/THX execution and board deadlock are
+not established. Do not restart timing optimization or claim Goal 2 complete.
 
 ### Targeted DCS RTL simulation after replacement RTL is available
 
@@ -199,7 +172,7 @@ found an absent-LCI/full-set progress counterexample in the corrected abstract
 resource model and reproduced the controller/table's allocation dependency in
 controlled RTL tests. Complete hardware-state reachability remains unestablished.
 The selected address layout is unchanged. Follow the active item 3 investigation
-above: first determine whether 2F2F needs locking and whether the non-auto-lock
-variant is suitable; only then decide whether an additional allocation mechanism
-is necessary. Early controller/arbiter/data-gate checks do not replace the planned
+above: retain auto-lock, close the whole-NIC reachability gap and establish its
+allocation guarantee. The new actual-directory test confirms the component-level
+obstruction, while the nonlocking experiment is historical. Early controller/arbiter/data-gate checks do not replace the planned
 whole-slice routing tests or establish shared release-path progress.

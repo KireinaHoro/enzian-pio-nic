@@ -19,6 +19,9 @@ let
       (dcs + "/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_defs.sv")
       (dcs + "/gen_dc_protocol/dc_stmc_auto_no_lock/cc_rom_from_cc_tbl/eci_cc_table.sv")
       (dcs + "/dcs/dcu/dcu_controller/rtl/dcu_controller.sv")
+      (dcs + "/dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv")
+      (dcs + "/dcs/dcu/tag_state_ram/rtl/tag_state_ram.sv")
+      (dcs + "/dcs/dcu/ram_tdp/rtl/ram_tdp.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv")
@@ -31,7 +34,10 @@ in runCommand "lauberhorn-dcs-pressure" {
   chmod -R u+w .
   python3 tools/progress/check_dcs_pressure.py --output results
   python3 tools/progress/check_dcs_pressure.py --no-auto-lock --output nonlocking-results
+  python3 tools/progress/check_dcs_pressure.py --directory --output directory-results
   mkdir -p "$out"
+  cp directory-results/summary.json "$out/directory-summary.json"
+  cp directory-results/run.log "$out/directory-events.log"
   python3 tools/progress/check_lock_tables.py > "$out/lock-tables.json"
   cp nonlocking-results/summary.json "$out/nonlocking-summary.json"
   cp results/summary.json "$out/summary.json"

@@ -2,8 +2,10 @@
 
 Source audit, bounded model checks and targeted RTL simulation, 2026-10-01.
 **An absent local invalidation on a full directory set is an unresolved progress
-case in the selected design.** The corrected model produces a counterexample;
-the actual controller/protocol table reproduces the allocation dependency.
+case in the selected design.** Auto-lock is retained by maintainer decision.
+The corrected model produces a counterexample; a new reset-to-full RTL test now
+reaches the dependency through actual directory reads, fills and eviction, without
+forcing lookup/full outputs. See [the reachable-directory test](#auto-lock-reachability-through-the-actual-directory).
 Earlier retained-cache progress results used a nonallocating invalidation
 abstraction and do not establish progress for the active `auto_lock` DCS protocol.
 The selected 8 KiB coloring/address-capacity calculation remains valid, but is
@@ -346,3 +348,80 @@ baseline, and derive a narrow coordinated ROM/allocation/writeback/interface cha
 Then validate hit, empty miss and full miss against the actual directory RAM,
 including output backpressure and preservation of every unrelated entry. No DCS
 submodule, production ROM, or controller has been modified by this investigation.
+
+
+## Auto-lock reachability through the actual directory
+
+**Decision: keep auto-lock.** The nonlocking experiment above is historical
+investigation, not the implementation direction. The remaining question is
+allocation progress under the retained protocol.
+
+[`DcsDirectoryTb.sv`](../../hw/test/rtl/dcs_pressure/DcsDirectoryTb.sv) now
+instantiates the actual `dcu_controller`, active auto-lock table, `dcu_tsu`,
+`tag_state_ram` and `ram_tdp`, at the current 128 sets/DCU, 16 ways and registered
+TSR-output geometry. It mirrors `dcu.sv`'s lookup/context/write wiring. The only
+memory substitution is a test model of the XPM primitive's configured common-clock,
+one-cycle, write-first 1Kx36 RAM, with 9-bit write enables and collision assertions.
+The production reset sweep, tag comparison, free-way selection, state reads and
+writes all execute as RTL. There are no forced full/hit flags, preloaded entries,
+or direct testbench directory writes.
+
+The trace starts from reset and uses these legal endpoint events:
+
+1. R12 followed by memory RDDA fills the target and fifteen other tags in one
+   set. Every line reaches stable `s1__2`.
+2. A clean CPU victim V21 removes the target. R12/RDDA fills that freed way with
+   a sixteenth other tag. CPU occupancy never needs to exceed sixteen ways.
+3. A read in a different set is admitted and its memory response is withheld.
+   It does not force a victim in the target set. This is generic other-set demand,
+   not an instantiated Lauberhorn doorbell/AXI engine.
+4. LCI for the absent target retries 57 times over 512 cycles. No LCIA, allocation
+   or directory write occurs. The full flag is produced by the actual lookup.
+5. Input arbitration is allowed to select LCI for a **resident** target in the
+   full set. LCI/F21/A21 completes and changes its existing entry to `s1pUL__1`.
+   No extra way is required. Holding that UL leaves the absent-target LCI blocked
+   for another 512 cycles/57 retries.
+6. UL releases that resident lock. Retried absent-target LCI now allocates the
+   available way, returns LCIA and remains charged until its own UL.
+7. The test verifies all fifteen unrelated resident tags still exist, and the
+   other-set pending read can complete when its memory response is supplied.
+
+This resolves the **directory-component reachability** question: the obstruction
+is real in the active RTL, not an artifact of forcing an impossible full-set flag.
+It also narrows the claim: *full-set hit invalidation is fine*. The problematic
+operation is allocating a lock for an absent target. Completing an invalidation
+of a resident line does not itself free capacity; UL does. No autonomous victim
+is generated during the repeated full miss. The infinite-wait argument remains
+conditional on no subsequent CPU victim or other release; the linked finite
+TLA+ local-full counterexample captures that fixed-point contract. Simulation
+observes bounded repeated stalls, not infinite execution or a board deadlock.
+
+The harness supplies decoded requests, memory completions, output readiness and
+input selection. It does not instantiate THX, link/credit paths, transaction
+managers, the whole DCU/slice or Lauberhorn's runtime. The selected-layout address
+witness supplies valid PA collisions separately; this test uses generic tags in
+one set. It therefore does **not** prove the whole workload/scheduler history.
+In particular, a fresh first RX does not automatically invalidate the opposite
+parity: the current RX engine first returns a descriptor and invalidates the
+previously delivered parity on a subsequent opposite-parity read. The original
+address witness must not be read as a first-RX execution trace. An absent target
+can have been evicted earlier; RX overflow invalidation can also target lines
+software never read, since its count comes from packet length. Establishing a
+whole NIC execution with sixteen retained colliding lines remains a separate
+integration obligation. The replacement contract explicitly permits old cached
+PAs; that permission alone is not a concrete runtime trace.
+
+The [evidence manifest](../../model/steady/directory-rtl-reachability-evidence.json)
+records the six passing directory checks, source hashes, and unchanged-variant
+regressions. Reproduce via the existing `dcs-pressure` Nix target (now additionally emits
+`directory-summary.json` and `directory-events.log`) or:
+
+```sh
+nix develop -c python3 tools/progress/check_dcs_pressure.py --directory \
+  --output out/progress/dcs-directory-reachable
+```
+
+Next work stays on auto-lock: establish or enforce a bound/guarantee ensuring a
+way is available for an absent local target, or demonstrate that the actual NIC
+sequence always supplies an independent release. No capacity workaround, forced
+eviction or production protocol/control-path change has been selected here.

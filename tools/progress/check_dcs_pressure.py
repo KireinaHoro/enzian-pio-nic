@@ -20,10 +20,21 @@ SOURCES = [Path('vivado/eci/eci-toolkit/hdl/eci_cmd_defs.sv'),
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True, type=Path)
+    p.add_argument('--directory', action='store_true', help='populate actual TSU/tag RAM via protocol events; use test XPM primitive model')
     p.add_argument('--no-auto-lock', action='store_true', help='test the alternative table/controller, excluding the UL decoder')
-    a=p.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
+    a=p.parse_args()
+    if a.directory and a.no_auto_lock: p.error('directory reachability test uses active auto_lock only')
+    out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     sources = [Path(str(f).replace('dc_stmc_auto_lock/', 'dc_stmc_auto_no_lock/')) if a.no_auto_lock else f for f in SOURCES]
-    cmd=['verilator','--binary','--timing','--assert','-Wno-fatal','--top-module','DcsPressureTb',
+    top = 'DcsDirectoryTb' if a.directory else 'DcsPressureTb'
+    if a.directory:
+        sources = SOURCES[:3] + SOURCES[4:7] + [
+            DCS/'dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv',
+            DCS/'dcs/dcu/tag_state_ram/rtl/tag_state_ram.sv',
+            DCS/'dcs/dcu/ram_tdp/rtl/ram_tdp.sv',
+            Path('hw/test/rtl/dcs_pressure/XpmTdpModel.sv'),
+            Path('hw/test/rtl/dcs_pressure/DcsDirectoryTb.sv')]
+    cmd=['verilator','--binary','--timing','--assert','-Wno-fatal','--top-module',top,
          '--Mdir',str(out/'obj'),'-o','test', *map(lambda f:str(ROOT/f),sources)]
     if a.no_auto_lock: cmd.append('+define+NO_AUTO_LOCK')
     with (out/'build.log').open('w') as log:
@@ -33,11 +44,12 @@ def main():
     result=subprocess.run([str(out/'obj/test')],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
     (out/'run.log').write_text(result.stdout)
     passed=result.returncode==0 and result.stdout.count('PASS ')==(5 if a.no_auto_lock else 6)
-    summary={'passed':passed,'interpretation': 'expected unsafe full-miss write reproduced; not a viable drop-in' if a.no_auto_lock else 'active auto-lock allocation dependency reproduced', 'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
+    summary={'passed':passed, 'directory_test': a.directory, 'primitive_model': 'test-only common-clock XPM RAM' if a.directory else None,'interpretation': 'expected unsafe full-miss write reproduced; not a viable drop-in' if a.no_auto_lock else 'active auto-lock allocation dependency reproduced', 'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
         'verilator':subprocess.check_output(['verilator','--version'],text=True).strip(),
         'sources':{str(f):hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in sources},
         'log_sha256':hashlib.sha256(result.stdout.encode()).hexdigest(),
         'checks':[line for line in result.stdout.splitlines() if line.startswith('PASS ')]}
     (out/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
-    print(result.stdout,end=''); return 0 if passed else 1
+    print('\n'.join(summary['checks']) if a.directory and passed else result.stdout, end='\n')
+    return 0 if passed else 1
 if __name__=='__main__':raise SystemExit(main())
