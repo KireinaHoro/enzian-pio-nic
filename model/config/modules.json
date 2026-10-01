@@ -4,7 +4,11 @@
     "role": "cooperative assignment component"
   },
   "AxiReloadGate": {
-    "imports": [],
+    "imports": [
+      "Coherence",
+      "DcsResources",
+      "ReadResponses"
+    ],
     "role": "bounded harness / focused contract"
   },
   "CachedProgress": {
@@ -82,6 +86,10 @@
       "TwoFClient"
     ],
     "role": "transport composition"
+  },
+  "ReadResponses": {
+    "imports": [],
+    "role": "generic finite read-data response channel"
   },
   "Reservation": {
     "imports": [

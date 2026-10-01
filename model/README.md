@@ -57,7 +57,8 @@ are compositions, **not proofs that one specification refines another**.
 | `Steady`, `CachedProgress` | Fixed-configuration traffic, deliberate stalls, geometry, initial cache history and fairness |
 | `Probe` | A second device client of the unchanged generic DCS resource interface |
 | `DirectoryAdmission` | Separate CPU fill-reservation/pigeonhole contract; it models requests overtaking queued victims, which `RetainedCache` does not |
-| `AxiReloadGate` | Later reloads behind a held AXI head; earlier/in-flight reload fencing is still outside this diagnostic |
+| `ReadResponses` | Generic finite ordered read-data channel, transaction identity and capacity; no scheduling policy |
+| `AxiReloadGate` | Earlier/queued/buffered reads, held doorbell, stop fencing and independent peer service; [contracts and counterexamples](../docs/hardware/axi-response-contract.md) |
 | `Assignment`, `Reservation` | Cooperative assignment transitions and destination-capacity contention |
 | `Handoff`, `SelectedAddresses` | Handoff to the exact Goal 1 predicate using generated selected-layout control addresses |
 | `HostWake`, `WakeHandoff`, `WakeRetirement` | Notification ownership, joined host-driven handoff, and callback lifetime; the retirement harness assumes endpoint retirement |
@@ -111,8 +112,8 @@ policy. They assume endpoint retirement; `KillExit` permits cached old lines to
 remain. Neither a kernel cache flush nor an activation commit write is implied.
 
 Single-line protocol correctness, independent THX replacement/response service,
-dirty writeback/data-buffer timing, actual kill TX/overflow cleanup, and earlier
-AXI reload fencing remain undischarged contracts. See the
+dirty writeback/data-buffer timing, actual kill TX/overflow cleanup, and hardware conformance to the
+[AXI response contracts](../docs/hardware/axi-response-contract.md) remain undischarged. See the
 [review and current evidence](../docs/hardware/model-review.md) and
 [implementation checklist](../docs/software/scheduling-implementation-checks.md).
 
@@ -124,6 +125,7 @@ All commands use the locked Nix `tlaplus18` toolchain:
 nix build .#checks.x86_64-linux.tla-modules
 nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-transport
+nix build .#checks.x86_64-linux.scheduling-axi
 nix develop -c python3 tools/scheduling/check_models.py \
   --races-only --output out/review-races --timeout 900 --workers 4
 nix develop -c python3 tools/scheduling/check_models.py \

@@ -1,8 +1,14 @@
 {
   "defaults": {
     "AxiReloadGate": {
+      "Entry": "Later",
+      "ResponseDepth": 2,
       "BadBypass": false,
-      "BadReleaseGate": false
+      "BadReleaseGate": false,
+      "BadResponseOrder": false,
+      "BadResponseService": false,
+      "AllowTargetBehindDoor": false,
+      "BadStopFence": false
     },
     "DirectoryAdmission": {
       "Ways": 2,
@@ -82,7 +88,7 @@
   },
   "invariants": {
     "AxiReloadGate": [
-      "TypeOK",
+      "Safety",
       "NoStaleRefill"
     ],
     "DirectoryAdmission": [
@@ -162,7 +168,8 @@
   },
   "properties": {
     "AxiReloadGate": [
-      "Completes"
+      "Completes",
+      "PeerProgress"
     ],
     "DirectoryAdmission": [
       "Admission"
@@ -690,6 +697,88 @@
         "BadReleaseGate": true
       },
       "expected_violation": "Completes"
+    },
+    "axi-earlier-read": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Queued"
+      },
+      "expected_violation": null
+    },
+    "axi-buffered-read": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered"
+      },
+      "expected_violation": null
+    },
+    "axi-stop-inflight": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Stop"
+      },
+      "expected_violation": null
+    },
+    "axi-response-depth-one": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered",
+        "ResponseDepth": 1
+      },
+      "expected_violation": null
+    },
+    "bad-axi-response-order": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered",
+        "BadResponseOrder": true
+      },
+      "expected_violation": "NoStaleRefill"
+    },
+    "bad-axi-response-service": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered",
+        "BadResponseService": true
+      },
+      "expected_violation": "Completes"
+    },
+    "bad-axi-peer-service": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered",
+        "BadResponseService": true
+      },
+      "expected_violation": "PeerProgress"
+    },
+    "bad-axi-target-behind-door": {
+      "module": "AxiReloadGate",
+      "options": {
+        "AllowTargetBehindDoor": true
+      },
+      "expected_violation": "Completes"
+    },
+    "bad-axi-stop-fence": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Stop",
+        "BadStopFence": true
+      },
+      "expected_violation": "NoStaleRefill"
+    },
+    "witness-axi-buffered-at-door": {
+      "module": "AxiReloadGate",
+      "options": {
+        "Entry": "Buffered"
+      },
+      "expected_violation": "NoBufferedAtDoor"
+    },
+    "witness-axi-target-behind-door": {
+      "module": "AxiReloadGate",
+      "options": {
+        "AllowTargetBehindDoor": true
+      },
+      "expected_violation": "NoTargetReadBehindDoor"
     }
   },
   "groups": {
@@ -807,7 +896,34 @@
     "axi": [
       "axi-reload-gate",
       "bad-axi-reload-bypass",
-      "bad-axi-release-gate"
+      "bad-axi-release-gate",
+      "axi-earlier-read",
+      "axi-buffered-read",
+      "axi-stop-inflight",
+      "axi-response-depth-one",
+      "bad-axi-response-order",
+      "bad-axi-response-service",
+      "bad-axi-peer-service",
+      "bad-axi-target-behind-door",
+      "bad-axi-stop-fence",
+      "witness-axi-buffered-at-door",
+      "witness-axi-target-behind-door"
+    ]
+  },
+  "witnesses": {
+    "KillExit": [
+      "IrqFirstUnreachable",
+      "ReleaseFirstUnreachable",
+      "NoIrqExitUnreachable"
+    ],
+    "AxiReloadGate": [
+      "NoBufferedAtDoor",
+      "NoTargetReadBehindDoor"
+    ]
+  },
+  "required_invariants": {
+    "AxiReloadGate": [
+      "Safety"
     ]
   }
 }

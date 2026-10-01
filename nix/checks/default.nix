@@ -38,6 +38,7 @@ in
         touch $out
       '';
   tla-modules = pkgs.callPackage ./tla-modules.nix { inherit tlc; };
+  scheduling-axi = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; axiOnly = true; };
   scheduling-transport = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; transportOnly = true; };
   scheduling-composed = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedOnly = true; };
   scheduling-composed-invariants = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedInvariants = true; };

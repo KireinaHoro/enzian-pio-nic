@@ -166,3 +166,8 @@ source, configuration, address data and historical evidence are separate.
 and SANY semantics. `scheduling-transport` checks focused transport/handoff cases;
 `steady-progress`, `scheduling-races` and `scheduling-kill-exit` retain their
 separate scopes. Full combined temporal verification remains open.
+
+The [AXI/coherence response suite](../hardware/axi-response-contract.md) runs with
+`nix build .#checks.x86_64-linux.scheduling-axi` or the scheduling runner
+`--axi-only`. It checks earlier and buffered reads, stop fencing and response
+service with deliberate faults. These are bounded contract checks, not RTL refinement.
