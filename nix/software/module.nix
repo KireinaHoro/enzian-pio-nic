@@ -1,5 +1,6 @@
 {
   stdenv,
+  buildPackages,
   src,
   linuxTools,
   nukeReferences,
@@ -14,6 +15,11 @@ stdenv.mkDerivation {
   inherit src;
   nativeBuildInputs = linuxTools ++ [ nukeReferences ];
   buildPhase = ''
+    ${buildPackages.stdenv.cc}/bin/cc -std=c11 -Wall -Wextra -Werror \
+      -fsanitize=undefined -fno-sanitize-recover=all \
+      -Isw/kmod -I${genVerilog.headers} sw/kmod/tests/worker_regs.c \
+      -o worker-regs-check
+    ./worker-regs-check
     export ARCH=arm64
     export CROSS_COMPILE=aarch64-unknown-linux-gnu-
     export KDIR=${kernel}
