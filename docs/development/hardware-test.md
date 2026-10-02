@@ -30,7 +30,9 @@ and [machine/JTAG inventory](https://enzian.systems/generated/cluster-info.html)
 
 Known working reference: job **2812450**, commit
 `aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`. For another build, update the job,
-revision and paths together. Do not poll CI unless asked to wait for it.
+revision and paths together. When launching an authorized hardware pipeline, use
+the [30-minute gate check followed by five-hour collection/test timer](ci.md#scheduled-hardware-build-follow-up).
+Do not start additional CI polling outside that workflow unless requested.
 The project token at `../.gitlab_token` is for **read-only CI queries and HW
 artifact downloads only**; do not copy it to remote hosts.
 

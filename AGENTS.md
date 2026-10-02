@@ -41,7 +41,7 @@ router-free 8 KiB address layout and cooperative PREEMPT ABI remain unimplemente
 The October 2 simplified-DC board trial failed at RX writeback: DC `WDD` waits
 on an RX AXI router that does not service writes. See the
 [board failure](docs/development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
-The RX write sink fix is now committed at `a51139e`; pipeline 515796 builds it,
+The RX write sink fix is now committed at `a51139e`; replacement pipeline 515802 builds it (515796 failed after premature ref cleanup),
 with board revalidation pending. The [layered verification report](docs/hardware/layered-verification.md)
 records generated DC/THX endpoint checks, public contract projections and the
 remaining low-level race/refinement gaps.
@@ -68,7 +68,7 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   changes may be committed directly on this worktree's `master`. Use separate
   branches for larger goals and independent experiments; when complete, merge
   into `master` and push to the private GitLab remote. Remove agent-created local
-  and private-remote branches once merged; preserve unmerged experiments and
+  and private-remote branches once merged and all CI jobs using their refs have finished; preserve unmerged experiments and
   branches belonging to others. Do not accumulate completed work as uncommitted changes or
   untracked source/docs in the master worktree; track intended project files with
   their goal and keep generated artifacts in ignored output directories. If work
@@ -92,6 +92,7 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
 - Read the ECI progress and routing notes before changing cache-line layouts,
   barriers, preemption ordering or ownership. Local address arithmetic alone does
   not establish coherence progress or isolation.
+- After launching hardware CI, follow the [scheduled CI workflow](docs/development/ci.md#scheduled-hardware-build-follow-up): check tests/preparation and HW start after 30 minutes, then wait five hours before collecting results and testing on Enzian. Inspect failed gates; fix only trivial causes, otherwise report the diagnosis and stop. Keep pipeline refs until every job finishes.
 - Use `nix develop` and source-defined Mill targets. Choose targeted validation
   from the [validation guide](docs/development/validation.md); for real hardware use
   the [automated test routine](docs/development/hardware-test.md). Vivado and
