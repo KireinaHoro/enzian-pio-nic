@@ -31,10 +31,10 @@ int lauberhorn_set_worker_count(lauberhorn_t *ctx, uint32_t count);
 /* Bootstrap or relinquish after PREEMPT; returns this thread's assignment. */
 int lh_yield(struct lh_activation *result);
 
-/* Configure before creating workers. Zero disables the debugging watchdog.
- * Limits are approximate elapsed execution time, refreshed only after suspension. */
+/* Deadline/watchdog integration is deferred; only a zero limit is supported. */
 int lauberhorn_set_watchdog(lauberhorn_t *ctx, uint32_t limit_us);
-/* Force whole-process termination and hardware reclamation. */
+/* Terminate and fence the domain. Resources and identities remain retained;
+ * the session requires a full coherence reset before reuse. */
 int lauberhorn_stop(lauberhorn_t *ctx);
 
 typedef void* lauberhorn_msg_t;

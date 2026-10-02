@@ -166,3 +166,25 @@ allows an earlier idle kick to arrive while ordinary handoff owns the reader and
 control bus. The pinned cooperative check passed all thirteen outcomes, including
 a reachability witness for that overlap. This changes model coverage only;
 the hardware candidate already passed the corresponding delayed-kick simulation.
+
+The corrected-module image uses hardware/runtime/application revision `8cc9ad58`
+and module revision `336c65d6`, explicitly recorded together in its manifest.
+Its SHA-256 is `8dac17d20850e5edae297a3a414cfd0cb512f611e9a8cae2246fad0d97ed8adc`.
+The [recorded Nix recipe](../../data/eci/board-evidence/cooperative-20261003-module-image.nix)
+reproduces the exact image store path. Production RTL, runtime, application and
+ABI sources were unchanged between those two revisions; the module uses the
+original generated headers. All seven module configurations passed the added
+UBSAN register-selection check and cross-build. Restoring the old `+1` index in
+the native check reproduces its assertion failure.
+
+The corrected cold-boot baseline passed 100 RPCs and all eight TAD assessments.
+The application clock is 200 MHz (5 ns), from the candidate's post-route clock
+report and generated configuration; no independent oscillator measurement is
+claimed. Initial finite probes through 10,000,000 cycles passed. A bounded
+64 MiB tail contains 832 completed worker holds of 10,000,003–10,000,004 cycles,
+including protocol overhead. The 100,000,000-cycle probe logged an uncorrected
+LFB-entry timeout at TAD4 and fenced the domain. Its full newly appended trace
+region was preserved; it contains one completed 100,000,003-cycle hold and a
+loss marker associated with the earlier freeze/resume gap. No continuous-history
+claim spans that gap. A fresh cold-boot 55,000,000-cycle probe also failed;
+refinement and final contention/two-boot acceptance are still in progress.
