@@ -40,18 +40,23 @@ source build selects the simplified LCI-only DC with UL removed. The 8 KiB
 physical-worker address layout and cooperative PREEMPT ABI are the sole ECI
 implementation on `feat/cooperative-yield`; see the [implementation evidence](docs/hardware/eci-implementation.md).
 Local model, simulation and software checks passed. Pipeline 515944 (`8cc9ad58`)
-is the matched hardware candidate; fresh board acceptance remains outstanding.
+passed all 13 gates and hardware/report jobs. Its first driver load exposed a
+preemption-table index bug, fixed at `336c65d6`. A corrected module built against
+the exact candidate headers passed 100 RPCs. Fresh RX-timeout boundary refinement
+is running; full board acceptance remains outstanding.
 The initial October 2 simplified-DC trial exposed missing RX AXI write service.
 The independent RX write sink at `a51139e` passed pipeline 515802 and two
 cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
 stuck RX writeback now completes. See the [board evidence](docs/development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
-Timing remains open: WNS −0.005 ns, one failing setup endpoint. The
+That historical image had WNS −0.005 ns. Current candidate 515944 has WNS
+−0.089 ns and 474 failing setup endpoints; timing remains open. The
 [layered verification report](docs/hardware/layered-verification.md) records
 DC/THX endpoint checks and remaining race/refinement gaps.
-DUT zuestoll14 remains on `a51139e` with its four-worker adder service running
-and tracing active after the second trial; recheck reservation before access.
-The prior failing capture is preserved. Continue the matched CI/board acceptance
-campaign, retaining the documented hardware-service assumptions.
+DUT zuestoll14 and capture peer zuestoll12 are in the cooperative acceptance
+campaign. Consult `out/board/cooperative-515944-refine/summary.json` and the
+evidence ledger before access; do not assume a healthy service or reset a frozen
+failure. Recheck reservations. Continue acceptance while retaining documented
+hardware-service assumptions.
 
 ## Confirmed research and scheduling scope
 

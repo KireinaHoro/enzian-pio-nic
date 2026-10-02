@@ -35,9 +35,10 @@ uses the selected physical-worker decoder and cooperative PREEMPT contract.
 Implementation is integrated on `feat/cooperative-yield`, with generated
 address arithmetic, physical-worker routing, owner validation and cooperative
 kernel/runtime activation. See [evidence and remaining integration](../hardware/eci-implementation.md).
-Pinned model, simulation and software checks passed; pipeline 515944 tests the
-matched hardware candidate. The fresh Enzian RX-stall timeout campaign remains
-outstanding. HOST_WAKE interface design and
+Pinned checks and pipeline 515944 passed. A kernel preemption-table indexing
+fix built against its exact headers passed the first 100-RPC baseline. The fresh
+Enzian RX-stall boundary campaign is in progress; contention and two-boot
+acceptance remain outstanding. HOST_WAKE interface design and
 implementation, deadline-kick integration, and complete kill/exit recovery are
 explicitly outside this stage; step 4 below is later work.
 
