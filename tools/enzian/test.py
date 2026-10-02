@@ -122,6 +122,10 @@ def main():
             result['status'] = 'pass' if not rc else 'fail'
             result['seconds'] = round(time.monotonic()-started, 1)
             save(); print(json.dumps(result), flush=True)
+            if rc:
+                # A subsequent case begins with a cold reset. Preserve the
+                # failed board state for mandatory trace/TAD capture first.
+                return 1
     return int(any(r['status'] != 'pass' for r in results))
 
 

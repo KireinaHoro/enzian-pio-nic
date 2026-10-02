@@ -116,7 +116,8 @@ continue normally; avoid loading routine transcripts into the conversation
 to save tokens. Do not issue one tool call per setup step.
 Full logs, manifest and executed CPU script
 are retained; client CSVs are at the manifest's shared paths. Reset failures
-stop the campaign as infrastructure failures; CPU failures skip RPC. Timeouts
+stop the campaign as infrastructure failures. CPU or client failures also stop
+the entire campaign before another reset, preserving hardware state for capture. Timeouts
 interrupt/reap local child processes. The final successful server stays running.
 
 Each normal boot shuts down CPU/FPGA rails and main PSU, waits five seconds,

@@ -14,6 +14,9 @@ let
       ../../tools/enzian/boot.py
       ../../tools/enzian/console.py
       ../../tools/enzian/run.py
+      ../../tools/enzian/test.py
+      ../../tools/enzian/cpu.sh
+      ../../tools/enzian/tests/test_campaign.py
       ../../tools/enzian/tests/test_boot.py
       ../../tools/enzian/tests/test_run.py
       ../../tools/enzian/cooperative_client.py
@@ -43,5 +46,6 @@ runCommand "lauberhorn-workflow-tools-tests"
     python3 -m unittest discover -s tools/enzian/tests -p test_run.py -v
     python3 -m unittest discover -s tools/enzian/tests -p test_rx_holds.py -v
     python3 -m unittest discover -s tools/enzian/tests -p test_cooperative_client.py -v
+    python3 -m unittest discover -s tools/enzian/tests -p test_campaign.py -v
     touch $out
   ''
