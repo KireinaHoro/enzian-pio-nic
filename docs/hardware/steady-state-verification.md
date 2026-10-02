@@ -76,7 +76,7 @@ late-stall extension of the full 2F2F harness.
 | `EciInterfacePlugin.scala` crossbar W+2 upstream, one operation per destination | finite admission/backpressure | Crossbar issue queues not independently instantiated in this model |
 | `EciDecoupledRxTxProtocol.scala` LCIA -> queued UL, overflow+2 depth per direction | Ack -> unlockQ -> DeliverUnlock | Distinct acceptance/release; model serializes ack occupancy per client and uses aggregate unlock depth N |
 | Protocol `rxInvDone`/`txInvDone` versus `transportQuiescent` | Return may precede DeliverUnlock | Source confirms that software completion is not final unlock delivery |
-| `EciThreadClRouter.scala` AXI prefix rewrite, LCI/LCIA/UL translation | future direct worker/domain decoder | Current router is NOT the generated configuration target |
+| `EciAddressDecoder` / `EciAxiIngress` | Physical-worker/domain decoding with retained transaction addresses | Sole ECI implementation; see the [current evidence](eci-implementation.md) for validation limits |
 | `deps/thx-fsms/README.md` explicitly excludes LFB/write-buffer internals | ThxResources pool/credit alternatives | All THX slot counts and sharing assumptions are unconfirmed |
 
 The DCS abstraction omits standalone data writes, RTG/set capacity, data beat
@@ -182,7 +182,7 @@ PYTHON
 python3 tools/progress/capacity.py --stride-bits 13
 ```
 
-`tools/progress/capacity.py` emits `lauberhorn.fixed-worker-domain-map.v1`
+`tools/progress/capacity.py` emits `lauberhorn.eci-address-map.v1`
 configurations, **not thread-router register programming**. A configuration carries
 worker bases, shared direction offsets, full-duplex bypass, allocated domain
 prefix indices, XOR kernel vectors, decoder/rejection rules and required full

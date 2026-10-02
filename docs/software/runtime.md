@@ -1,14 +1,15 @@
 # Software runtime and datapath
 
-October 2 scheduling replacement: the fixed-pool declaration, explicit ready
-registration, bootstrap `lh_yield()` and per-activation alias/parity selection
-are specified in the [control contract](scheduling-control-interface.md), but
-are **not implemented in this runtime yet**. The
-[preparatory checks](../hardware/fixed-worker-implementation.md) do not establish
-runtime integration. HOST_WAKE is excluded; the existing deadline-kick mechanism
-below must not be treated as replacement parked-domain timeout activation.
+October 2: the sole ECI runtime declares its pool with
+`lauberhorn_set_worker_count()` before creating threads. Each thread completes
+its initialization callback and fiber setup, registers explicitly and enters
+bootstrap `lh_yield()`. PREEMPT causes the same yield before further RX/TX.
+Activation replaces the selected mapped alias and both local parity bits.
+Mapping never registers or parks threads. The shared parity page and transport
+READY/BUSY helpers are removed. See the [control contract](scheduling-control-interface.md)
+and [evidence ledger](../hardware/eci-implementation.md); board acceptance is pending.
 
-Current branch: `feat/nested-rpc`, September 17, 2026. The runtime dispatches
+The runtime dispatches
 managed request outcomes over ECI, with cooperative fibers for explicitly
 deferred work. See the [programming contract](programming-model.md),
 [blocker ledger](nested-rpc-blockers.md) and
@@ -46,7 +47,7 @@ retry states have been removed. Replies with nonzero accepted status bypass
 success decoding. Deferred handlers remain responsible for consuming every
 submitted future before returning. Explicit cancellation and timeout settlement
 now acknowledge outgoing hardware retirement. Ordinary handler return does not
-automatically consume abandoned futures; whole-process teardown reclaims transport ownership. Cancellation produces a result that must still be consumed.
+automatically consume abandoned futures; unsupported whole-process exit fences unresolved ownership until coherence reset. Cancellation produces a result that must still be consumed.
 
 Both encoders receive explicit output capacities. XDR encoding uses this bound
 rather than the in-memory object size. Rust encoders receive a slice of exactly
@@ -74,14 +75,15 @@ Timeout/cancellation now request acknowledged hardware retirement before releasi
 endpoint ownership. Failed retirement and indeterminate submission still retain
 unresolved ownership. Software completion-cookie generations retire before wrap;
 hardware incoming context generations wrap and are not an authentication
-mechanism. Whole-process shutdown and abnormal-exit reclamation are implemented
-in source; matching-board acceptance remains tracked in B4.
+mechanism. Whole-process shutdown and abnormal exit fail closed and require
+reset; complete reclamation is deferred.
 
 Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
-NACK timing lets an assigned worker regain control. An internal housekeeping
-thread requests hardware activation for expired calls even when the service is
-parked. It does not replace an application timer API. The optional execution
-watchdog and stop lifecycle are described in [process recovery](process-recovery.md). Runtime-managed Raft services and
+NACK timing lets an assigned worker regain control. Parked-domain deadline
+activation and execution-watchdog integration are deferred; the former deadline
+housekeeping thread is removed. HOST_WAKE and its interface are outside this
+stage. The [failure policy](process-recovery.md) retains unresolved resources.
+Runtime-managed Raft services and
 resident memcached workers are [documented follow-on designs](service-execution-design.md)
 only. Neither is implemented by this batch.
 

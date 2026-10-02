@@ -9,7 +9,11 @@ See [blockers and validation status](nested-rpc-blockers.md).
 ## Registration and execution
 
 Initialize a context, register services and nested endpoints before creating
-workers, then join workers before deregistering endpoints/services. Registered
+workers. Call `lauberhorn_set_worker_count(ctx, n)` before the first worker
+creation. Each worker completes setup, registers and enters bootstrap yield;
+capacity is published only after the whole declared pool is ready. The pool
+is immutable. Individual withdrawal and normal resource-recycling teardown are
+unsupported in this stage; exits fence the domain until coherence reset. Registered
 endpoints must remain at a stable address and must not be copied. Codec and
 service-private state must outlive their users. A service supplies `{data, func}`;
 there is no service-level inline/fiber declaration. See

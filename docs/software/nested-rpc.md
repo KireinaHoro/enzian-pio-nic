@@ -53,7 +53,7 @@ not cross their scalar access boundary.
 | Service-registration program/version/procedure and UDP listen port | Host-order numbers, swapped in hardware on table installation. PID/function pointer/protocol selector are host metadata. |
 | Reply context readback / nested in-flight table control | Host-order numeric XID, IPv4 address and ports; hardware swaps at the CSR boundary. Incoming contexts have debug readback only, not arbitrary indexed writes. Nested in-flight table control is unchanged. |
 | IP address, neighbor address and MAC address controls/readback | Wire-native values matching Linux network-stack types and byte arrays. Preserving them avoids adding software swaps or repacking. |
-| Scheduler, thread router, DMA, timeout, interrupt and statistics controls | Host-order numbers, addresses, flags and counters. No network conversion. |
+| Scheduler, ownership, DMA, timeout, interrupt and statistics controls | Host-order numbers, addresses, flags and counters. No network conversion. |
 
 Endpoint initialization parses IPv4 with `inet_pton` and caches its host-order
 value using `ntohl`. `rpc_send_call` supplies cached PID/address/source port,
