@@ -1,0 +1,335 @@
+{
+  "date": "2026-10-02",
+  "status": "PASS: two verified cold-reset trials, 100 correct add RPCs each; observed RX writeback completion",
+  "revision": "a51139ef8816ecc91366043016867caccf7b0e0c",
+  "pipeline": 515802,
+  "hardware_job": 2863307,
+  "prepare_job": 2863306,
+  "report_job": 2863308,
+  "gating_tests": "all ten passed",
+  "dut": "zuestoll14",
+  "capture_peer": "zuestoll12",
+  "physical": {
+    "wns": -0.005,
+    "tns": -0.005,
+    "setup_failing": 1.0,
+    "setup_total": 1345491.0,
+    "whs": 0.004,
+    "ths": 0.0,
+    "hold_failing": 0.0,
+    "hold_total": 1343483.0,
+    "wpws": 0.039,
+    "tpws": 0.0,
+    "pulse_failing": 0.0,
+    "pulse_total": 602617.0
+  },
+  "trials": [
+    {
+      "case": "rx-fix-515802",
+      "round": 1,
+      "revision": "a51139ef8816ecc91366043016867caccf7b0e0c",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/rx-fix-515802/trial1-retry/01-rx-fix-515802/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]"
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 205.0
+    },
+    {
+      "case": "rx-fix-515802-trial2",
+      "round": 1,
+      "revision": "a51139ef8816ecc91366043016867caccf7b0e0c",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/rx-fix-515802/trial2/01-rx-fix-515802-trial2/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]"
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 229.9
+    }
+  ],
+  "host_setup_failure": {
+    "path": "out/board/rx-fix-515802/trial1/summary.json",
+    "cause": "pexpect missing from dev shell; failed before board reset",
+    "fix": "0926b4d"
+  },
+  "capture": {
+    "bytes": 429277056,
+    "sha256": "d3b147b45535c95b992c80a9f5db68f921b132aeb5d4980f6d91719a4ba620c3",
+    "repeated_frozen_read_matches": true,
+    "write_slot_hex": "006658fe",
+    "wrapped": false,
+    "pre_freeze_loss": false,
+    "post_freeze_loss": true,
+    "dma_error": false,
+    "evidence": {
+      "scope": "Observed data-returning RX exchanges and aggregate trace counters, not universal progress or refinement.",
+      "hard_error_events": 0,
+      "diagnostic_codes": {
+        "0": 2729198,
+        "6": 144
+      },
+      "decoded_lost_samples": 0,
+      "write_events": {
+        "WDD": 545832,
+        "WDDA_LCIA": 545832
+      },
+      "rx_0x100_eci": [
+        {
+          "time": 27557433184,
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": 15,
+          "source": 36,
+          "channel": "req_wod_i",
+          "raw_header": "0x0003f00000000100",
+          "address": "0x100",
+          "sample": 9130969
+        },
+        {
+          "time": 27557433284,
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": 15,
+          "source": 40,
+          "channel": "rsp_wd_o",
+          "raw_header": "0x5003c00000000100",
+          "address": "0x100",
+          "sample": 9130975
+        },
+        {
+          "time": 27557434423,
+          "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+          "dmask": 15,
+          "source": 41,
+          "channel": "fwd_wod_o",
+          "raw_header": "0x480be40000000100",
+          "address": "0x100",
+          "sample": 9130992
+        },
+        {
+          "time": 27557434471,
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": 15,
+          "source": 38,
+          "channel": "rsp_wd_i",
+          "raw_header": "0x200be00000000100",
+          "address": "0x100",
+          "sample": 9130994
+        },
+        {
+          "time": 32077742608,
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": 15,
+          "source": 36,
+          "channel": "req_wod_i",
+          "raw_header": "0x0007f00000000100",
+          "address": "0x100",
+          "sample": 21135643
+        },
+        {
+          "time": 32077742708,
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": 15,
+          "source": 40,
+          "channel": "rsp_wd_o",
+          "raw_header": "0x5007c00000000100",
+          "address": "0x100",
+          "sample": 21135653
+        },
+        {
+          "time": 32077752661,
+          "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+          "dmask": 15,
+          "source": 41,
+          "channel": "fwd_wod_o",
+          "raw_header": "0x480be40000000100",
+          "address": "0x100",
+          "sample": 21135785
+        },
+        {
+          "time": 32077752673,
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": 15,
+          "source": 38,
+          "channel": "rsp_wd_i",
+          "raw_header": "0x200be00000000100",
+          "address": "0x100",
+          "sample": 21135791
+        }
+      ],
+      "rx_dcs_and_next_read": [
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 9130867,
+          "source": 0,
+          "time": 27557405443
+        },
+        {
+          "error": 0,
+          "cli": 256,
+          "state": "s1pCI__1_WDDA",
+          "action": "WDD",
+          "request": "A31d",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 9130997,
+          "source": 2,
+          "time": 27557434505
+        },
+        {
+          "error": 0,
+          "cli": 256,
+          "state": "s1__1",
+          "action": "SEND_LCIA",
+          "request": "WDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 9130998,
+          "source": 2,
+          "time": 27557434553
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 9131020,
+          "source": 0,
+          "time": 27557434773
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 9144987,
+          "source": 0,
+          "time": 27573030041
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 11828552,
+          "source": 0,
+          "time": 28636040571
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 21029598,
+          "source": 0,
+          "time": 32044142285
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 21029892,
+          "source": 0,
+          "time": 32044203990
+        },
+        {
+          "error": 0,
+          "cli": 256,
+          "state": "s1pCI__1_WDDA",
+          "action": "WDD",
+          "request": "A31d",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 21135798,
+          "source": 2,
+          "time": 32077752687
+        },
+        {
+          "error": 0,
+          "cli": 256,
+          "state": "s1__1",
+          "action": "SEND_LCIA",
+          "request": "WDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 21135800,
+          "source": 2,
+          "time": 32077752712
+        },
+        {
+          "error": 0,
+          "cli": 128,
+          "state": "s1__3",
+          "action": "SEND_RA3",
+          "request": "RDDA",
+          "error_code": "ERR_NO_ERROR",
+          "sample": 21135844,
+          "source": 0,
+          "time": 32077752943
+        }
+      ]
+    }
+  },
+  "remaining_scope": "Adder RPC regression and observed exchanges only; not general HoL freedom, scheduling-pivot validation or timing closure.",
+  "final_state": "zuestoll14 programmed with a51139e, four-worker adder service running after trial2; trace active on fresh image",
+  "artifacts": {
+    "deploy.img": "0d96961b4287fd3bbf7b6c0e592704f854758a56e8ecb79cffec8506331e2360",
+    "physical-summary.json": "a79956a1319f11df3e2f97c574fb519612f1fff11b5b4a9b9bfa5e38441fa6ee",
+    "hardware/shell_lauberhorn-eci.bit": "84fe199bd8dc7dc9445e408b4195724017f7510c8aad5d5b75a3c1ee58f9f978",
+    "hardware/shell_lauberhorn-eci.ltx": "fe952479795b067c4de16c51adfde3cf01ea3b9185d65fa30a6ca667f9c7269c",
+    "hardware/lauberhorn_trace_dma_map.json": "d3640225d84c6d2153ea9bed2c9f3a8cb1c614e4aac4987a29182d8253a1904e",
+    "client-results/trial1.csv": "cddf85573d151ba45b55aa63de7250f770d9b3c61cd89e62623c3476da63a4c2",
+    "client-results/trial2.csv": "17d558fc32717cfb81c0ccafaf791950680cce9f8da9f373f7618174093a9bf9"
+  },
+  "raw_evidence": "out/board/rx-fix-515802"
+}
