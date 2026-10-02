@@ -10,7 +10,7 @@ atomic claims, activation delivery and initialization failure. They reuse claim
 properties but are not a full Linux/RTL/coherence refinement proof. See the
 [current evidence ledger](../docs/hardware/eci-implementation.md).
 
-The active LCI-only model has three verification layers. Start with
+The LCI-only transport models and earlier composition evidence have three layers. Start with
 [`LineEndpoint`](tla/worker/LineEndpoint.tla) and
 [`SingleWorker`](tla/worker/SingleWorker.tla), then
 [`ProgressSystem`](tla/steady/ProgressSystem.tla), then
@@ -43,7 +43,13 @@ ignored `out/`, not beside the source. The historical Toolbox configurations are
 in `config/legacy`, with their old output in `evidence/legacy`. They are not
 configurations for today's model.
 
-## Components and composition
+## Transport components and earlier composition evidence
+
+The graph below records the earlier modeling round. Its host-wake, kill and
+combined scheduling harnesses are retained evidence, not interfaces implemented
+by the cooperative scheduler. HOST_WAKE design and implementation remain deferred.
+Use `IdleDispatch`, `HandoffClaims` and `PoolBootstrap` for the current scheduling
+contract; use the transport components below for their stated resource properties.
 
 ```mermaid
 flowchart BT
@@ -104,8 +110,9 @@ are compositions, **not proofs that one specification refines another**.
 | `InterruptGate`, `TimerMirror` | Release-first interrupt diagnostic and ordered timer command delivery. Neither requires interrupts for cooperative PREEMPT |
 | `CombinedScheduling` | Bounded joint control state plus the shared cached transport; see the limits below |
 
-For the current joined race model, start with `SchedulingComposition` and follow
-its instances. Source, bounds/configuration, and checked evidence remain separate.
+For the historical joined race evidence, follow `SchedulingComposition` and its
+instances. It is not a refinement proof of the current scheduler. Source,
+bounds/configuration, and checked evidence remain separate.
 
 ## State ownership and ports
 
