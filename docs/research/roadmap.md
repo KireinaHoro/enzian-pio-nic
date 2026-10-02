@@ -23,12 +23,13 @@ RX writebacks are now drained and discarded by the RTL, with a
 use as an open feasibility/performance study alongside
 [application measurements](#application-performance-and-coupled-rxtx-analysis). Pipeline
 [515802](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515802)
-rebuilds that fix at `a51139e` after pipeline 515796 failed fetching its prematurely
-deleted branch; board validation is still pending. The
+built that fix at `a51139e` after pipeline 515796 failed fetching its prematurely
+deleted branch. [Two cold-reset trials passed 200 RPCs](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02),
+with trace-confirmed RX writeback completion. The
 [30-minute / five-hour CI follow-up](../development/ci.md#scheduled-hardware-build-follow-up)
 now retains pipeline refs until all jobs finish. Keep the existing
 router and address ABI for this trial. Router-free address/PREEMPT implementation
-planning follows that hardware check, as requested.
+planning is now the next step, as requested.
 
 ## Next steps after the bounded modeling round
 
@@ -37,12 +38,12 @@ Carry their assumptions into implementation as explicit service contracts and
 local checks; full THX/RTL refinement and every larger model product are not
 prerequisites for starting implementation. Close any newly exposed dependency
 that invalidates those contracts before relying on the affected mechanism.
-Detailed implementation planning remains the next plan-mode task, after the
-existing-design board trial; the sequence below does not start production changes.
+Detailed implementation planning remains the next plan-mode task; the
+existing-design RX-fix board trial has passed. The sequence below does not start production changes.
 
 | Order | Work | Completion checkpoint |
 | --- | --- | --- |
-| 1 | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Matched CI artifacts pass discovery and repeated 2F2F RPCs; traces show returned RX data reaches WDDA/LCIA and the next read. Preserve and diagnose failures before reset. |
+| 1 (complete, bounded regression) | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Pipeline 515802 passed two cold-reset trials / 200 RPCs; a repeated-hash trace shows RX WDDA/LCIA and the next read. Broader stress remains in step 5. |
 | 2 | Plan and implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
 | 3 | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
 | 4 | Complete host-event activation and whole-domain kill/exit integration. | HOST_WAKE ownership survives reassignment and ACK races; close fences claims/callbacks, releases held RX and drains TX/overflow/packet ownership before retirement. Interrupts serve kill only. Reuse the existing modeled contracts; HOST_WAKE is already modeled. |
@@ -150,7 +151,7 @@ verification complete.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | The October 2 board trial exposed RX `WDD` without AXI write service; `a51139e` implements an independent write sink and passes directed RTL tests. Board revalidation is pending. The LCI-only ROM is selected; board acceptance has not passed. Retain explicit directory-provisioning assumptions and establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | The October 2 board trial exposed RX `WDD` without AXI write service; `a51139e` implements an independent write sink and passes directed RTL tests. Two cold-reset board trials now pass with trace-confirmed completion. The LCI-only ROM is selected; broader service guarantees remain open. Retain explicit directory-provisioning assumptions and establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -160,7 +161,7 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: board revalidation of the RX writeback fix
+#### Resume here: implementation planning after RX-fix board acceptance
 
 Hardware validation used revision `2699f58`,
 [pipeline 515621](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515621).
@@ -175,9 +176,10 @@ PSHA/SINV_H/no-data HAKD; exclusive RX now uses FLDX_EH/data-bearing HAKD. No
 software store is required. The [actual-RTL reproducer](../development/validation.md#rx-writeback-regression-reproducer)
 reproduced AW queueing with WREADY low; the production fix now drains and discards
 RX writes independently, and its regression checks WDDA/LCIA and the pending read.
-Preserve the board capture and repeat board tests before starting the address/PREEMPT
-implementation. Detailed implementation planning is deferred to the maintainer
-switching to plan mode; no production pivot work has started.
+The [RX-fix follow-up](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02)
+passed two cold-reset trials and directly observed RX completion. Both captures
+are preserved. Detailed address/PREEMPT implementation planning is now the next
+plan-mode task; no production pivot work has started.
 
 The [selected LCI-only ROM](../hardware/lauberhorn-rom.md) is now generated by
 Nix from a dedicated Perl source in the DC submodule and consumed by real-DCU
@@ -185,8 +187,8 @@ simulation and the Vivado input bundle. It retains Jasmin's A22 equations, uses
 RA3 for R12, and removes LC/F32 and UL. NIC UL emission is removed. Directory
 miss-to-invalid writes are suppressed and clean HAKD uses outstanding F31 context.
 The selected ROM has 14 states and 35 permitted transitions. The linked document
-records the precise checks and limitations; board validation failed at the RX
-writeback integration boundary above.
+records the precise checks and limitations; the initial board failure at the RX
+writeback boundary is resolved for the checked regression above.
 
 The [LCI-only resource-model update](../hardware/lci-only-resource-model.md) now
 composes LCIA release without UL with the existing scheduling modules. Focused

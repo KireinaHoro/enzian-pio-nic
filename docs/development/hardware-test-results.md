@@ -630,3 +630,52 @@ The six existing selected-ROM DCU checks were also rerun. The four diagnostic
 passes establish the obstruction and intervention, not production acceptance.
 [Run evidence](../../data/eci/board-evidence/rx-writeback-rtl-20261002.json) records
 source hashes and the observed outcomes.
+
+
+## RX writeback fix — 2026-10-02
+
+**Passed the two-trial adder regression.** Pipeline
+[515802](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515802),
+revision `a51139ef8816ecc91366043016867caccf7b0e0c`, passed all ten test gates,
+preparation 2863306, hardware 2863307 and reporting 2863308. The exact CI
+bitstream/LTX/map and deployment image were staged with SHA-256 verification.
+The existing router/address ABI remains in use; this is the simplified LCI-only
+DC plus the independent RX write sink, not the scheduling/address pivot.
+
+Two separately invoked verified cold-reset trials on zuestoll14 each passed
+QLM8–13 CDR lock and all CCPI lanes 0–23 on their first boot attempt, then
+module/revision verification, four-worker adder registration and **100 correct
+RPC replies**. No kernel faults were reported. An earlier host invocation failed
+before any reset because `pexpect` was absent; commit `0926b4d` adds it to the
+Nix development shell. That invocation is retained as a tooling failure, not a
+hardware trial.
+
+The first successful trial's frozen F_MAC1 dump contains **429,277,056 bytes**
+(6,707,454 slots), unwrapped. A repeated frozen-buffer read has the same SHA-256
+`d3b147b45535c95b992c80a9f5db68f921b132aeb5d4980f6d91719a4ba620c3`.
+The loss flag was clear before freeze and asserted afterward; the captured stream
+has zero decoded lost samples and no DMA error. It has zero asserted DC error
+events; 144 code-6 records are the trace-only `ERR_REQ_STALLED` diagnostic.
+Aggregate trace counts are 545,832 `WDD` events and 545,832 `WDDA/SEND_LCIA`
+events; these are observed trace events, not an independent transaction proof.
+
+The earlier stuck bypass RX address `0x100` now shows:
+
+- ECI `RLDD → PEMD → FLDX_EH → HAKD`, with data-bearing HAKD (`dmask=15`).
+- DCS `A31d/WDD` at timestamp 27557434505, then `WDDA/SEND_LCIA` at 27557434553.
+- The waiting `0x80` read reaches `RDDA/SEND_RA3` at 27557434773.
+
+These timestamps identify the same DCS trace-clock sequence; they are not an
+application latency measurement. The capture was preserved before the second
+cold reset. Raw data, scripts, summaries and client CSVs are under
+`out/board/rx-fix-515802/`, with peer copies under
+`/scratch/pengxu/rx-fix-515802/`. [Compact provenance and excerpts](../../data/eci/board-evidence/rx-writeback-fix-20261002.json)
+record the exact hashes and scope.
+
+Timing remains narrowly open: **WNS −0.005 ns, TNS −0.005 ns, one failing setup
+endpoint**, WHS +0.004 ns, no hold or pulse-width failures. This passing functional
+regression is not timing closure or a general progress/refinement proof.
+The deferred CI timer was canceled when the user requested immediate collection.
+The DUT remains on `a51139e` with the four-worker adder service running after
+trial two; the fresh image's tracing remains active. No address/PREEMPT changes
+were made. Implementation planning may now follow the roadmap.

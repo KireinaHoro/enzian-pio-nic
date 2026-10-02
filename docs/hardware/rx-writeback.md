@@ -41,3 +41,10 @@ HAKD and checks that WDDA, LCIA and the next control read complete. Its delayed
 B control still blocks those events until B is released. The harness supplies
 test RAM, synthetic returned payload/read completion and direct LCIA-to-invDone
 wiring; it is not a full DCS/NIC/THX simulation or board acceptance.
+
+
+[Board regression, October 2](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02):
+pipeline 515802 at `a51139e` passed two cold-reset trials, 200 correct RPCs total.
+The matched trace shows RX `0x100` completing `WDD → WDDA/LCIA` and the pending
+`0x80` read completing afterward. This closes the reproduced RX service blocker
+for the checked workload; broader contention/refinement checks remain separate.

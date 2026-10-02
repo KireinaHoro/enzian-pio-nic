@@ -1,11 +1,11 @@
 # Selected Lauberhorn coherence ROM
 
 Selected in the source build, 2026-10-01: an LCI-only, non-locking ROM replaces
-the previous auto-lock selection. **Board trial 2026-10-02 failed:** bypass RX
-writeback reaches `WDD`, but the RX AXI router has no write service. See the
-[trace-backed failure](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
-Driver/version checks passed; no application RPCs completed. This is not hardware
-acceptance or timing closure.
+the previous auto-lock selection. The initial October 2 board trial exposed a
+missing RX AXI write service. With the independent RX sink at `a51139e`,
+[two cold-reset trials passed 200 RPCs and captured RX completion](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
+This is bounded functional acceptance of the fix, not general progress/refinement
+or timing closure; the routed build still has one failing setup endpoint.
 
 ## Source and interface
 

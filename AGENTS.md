@@ -38,16 +38,17 @@ The selected bounded Goal 2 modeling round is complete; see the
 [scheduling composition report](docs/hardware/scheduling-composition.md). The
 source build selects the simplified LCI-only DC with UL removed, but the
 router-free 8 KiB address layout and cooperative PREEMPT ABI remain unimplemented.
-The October 2 simplified-DC board trial failed at RX writeback: DC `WDD` waits
-on an RX AXI router that does not service writes. See the
-[board failure](docs/development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
-The RX write sink fix is now committed at `a51139e`; replacement pipeline 515802 builds it (515796 failed after premature ref cleanup),
-with board revalidation pending. The [layered verification report](docs/hardware/layered-verification.md)
-records generated DC/THX endpoint checks, public contract projections and the
-remaining low-level race/refinement gaps.
-DUT zuestoll14 was left programmed with tracing frozen; recheck reservation and
-preserve the failure before resetting. Retain the documented hardware-service
-assumptions and implementation checks.
+The initial October 2 simplified-DC trial exposed missing RX AXI write service.
+The independent RX write sink at `a51139e` passed pipeline 515802 and two
+cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
+stuck RX writeback now completes. See the [board evidence](docs/development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
+Timing remains open: WNS −0.005 ns, one failing setup endpoint. The
+[layered verification report](docs/hardware/layered-verification.md) records
+DC/THX endpoint checks and remaining race/refinement gaps.
+DUT zuestoll14 remains on `a51139e` with its four-worker adder service running
+and tracing active after the second trial; recheck reservation before access.
+The prior failing capture is preserved. Implementation planning can proceed;
+retain the documented hardware-service assumptions and implementation checks.
 
 ## Confirmed research and scheduling scope
 
