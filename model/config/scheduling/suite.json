@@ -127,6 +127,10 @@
       "BadLateRelease": false,
       "BadWakeReturn": false,
       "CopyFails": false
+    },
+    "PoolBootstrap": {
+      "InitFails": false,
+      "BadEarlyPublish": false
     }
   },
   "invariants": {
@@ -239,6 +243,14 @@
       "CapacitySafe",
       "FreshReturn",
       "FailClosed"
+    ],
+    "PoolBootstrap": [
+      "TypeOK",
+      "PublicationReady",
+      "UniqueClaim",
+      "CapacitySafe",
+      "InitializedClaim",
+      "FailClosed"
     ]
   },
   "properties": {
@@ -330,6 +342,9 @@
       "ControlProgress"
     ],
     "HandoffClaims": [
+      "Completes"
+    ],
+    "PoolBootstrap": [
       "Completes"
     ]
   },
@@ -1208,6 +1223,25 @@
         "BadWakeReturn": true
       },
       "expected_violation": "FreshReturn"
+    },
+    "pool-bootstrap": {
+      "module": "PoolBootstrap",
+      "options": {},
+      "expected_violation": null
+    },
+    "pool-initialization-fails": {
+      "module": "PoolBootstrap",
+      "options": {
+        "InitFails": true
+      },
+      "expected_violation": null
+    },
+    "bad-pool-early-publication": {
+      "module": "PoolBootstrap",
+      "options": {
+        "BadEarlyPublish": true
+      },
+      "expected_violation": "PublicationReady"
     }
   },
   "groups": {
@@ -1384,7 +1418,10 @@
       "handoff-claims",
       "handoff-copy-fails",
       "bad-handoff-late-release",
-      "bad-handoff-unrelated-wake"
+      "bad-handoff-unrelated-wake",
+      "pool-bootstrap",
+      "pool-initialization-fails",
+      "bad-pool-early-publication"
     ]
   },
   "witnesses": {
