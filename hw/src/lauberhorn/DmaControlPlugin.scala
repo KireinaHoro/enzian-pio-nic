@@ -312,6 +312,23 @@ class DmaControlPlugin extends FiberPlugin {
     }
     val acceptedTxCore = txCoreId(txReqMuxed.req)
     val bufferedTxCore = txCoreId(txReqBuffered.req)
+    // The buffer address is installed by the physical datapath, not supplied in
+    // its host descriptor. Capture the trusted owner with accepted metadata.
+    val trustedTxOwner = UInt(PID_WIDTH.get bits)
+    trustedTxOwner := 0
+    for (worker <- 0 until NUM_WORKER_CORES.get) {
+      when(acceptedTxCore === worker + 1) {
+        trustedTxOwner := sched.logic.processPids(sched.logic.coreResident(worker)).bits
+      }
+    }
+    val txAuthorized = Bool()
+    txAuthorized := (acceptedTxCore === 0 && txReqMuxed.req.ty === HostReqType.bypass) ||
+      (acceptedTxCore =/= 0 && trustedTxOwner =/= 0 &&
+        (txReqMuxed.req.ty === HostReqType.oncRpcReplyTx ||
+         txReqMuxed.req.ty === HostReqType.executionControl ||
+         (txReqMuxed.req.ty === HostReqType.oncRpcCallTx &&
+          txReqMuxed.req.data.oncRpcCallTx.pid.bits === trustedTxOwner)))
+
 
     // A TX result also releases ownership of the per-core TX packet buffer.
     // Do not let the host overwrite it while DMA is still reading.
@@ -355,6 +372,7 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.ty := PacketDescType.oncRpcReplyTx
                 txPacketDesc.metadata.assignDontCare()
                 txPacketDesc.metadata.oncRpcReplyTx.rpcId := invalidTraceId(RpcID.width)
+                txPacketDesc.metadata.oncRpcReplyTx.owner := trustedTxOwner
                 txPacketDesc.metadata.oncRpcReplyTx.requestToken := txReqMuxed.req.data.oncRpcReplyTx.requestToken
                 txPacketDesc.metadata.oncRpcReplyTx.status := txReqMuxed.req.data.oncRpcReplyTx.status
                 txPacketDesc.metadata.oncRpcReplyTx.data := txReqMuxed.req.data.oncRpcReplyTx.data
@@ -395,13 +413,18 @@ class DmaControlPlugin extends FiberPlugin {
               PacketDescTy(txPacketDescTy),
               LogicalLength(txLogicalLen),
               DmaLength(txReqMuxed.req.buffer.size.bits)) := True
-            when (txReqMuxed.req.ty === HostReqType.executionControl) {
+            when (!txAuthorized || txReqMuxed.req.buffer.size.bits > U(ROUNDED_MTU.get)) {
+              goto(rejectDescriptor)
+            } elsewhen (txReqMuxed.req.ty === HostReqType.executionControl) {
               goto(completeControl)
             } elsewhen (txReqMuxed.req.ty === HostReqType.oncRpcCallTx) {
               goto(reserveNested)
             } otherwise { goto(sendDmaCmd) }
           }
         }
+      }
+      val rejectDescriptor: State = new State {
+        whenIsActive { completeTx(3); goto(idle) }
       }
       val completeControl: State = new State {
         whenIsActive { completeTx(1); goto(idle) }

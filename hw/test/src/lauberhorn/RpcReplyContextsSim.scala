@@ -17,6 +17,7 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     dut.io.discard.payload #= 0
     dut.io.retire #= false
     dut.io.replyToken #= 0
+    dut.io.replyOwner #= 42
     dut.io.readIndex #= 0
     dut.io.allocate.xid #= 0x12345678
     dut.io.allocate.clientAddr #= 0xc0a80101L
@@ -47,6 +48,9 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
       assert(dut.io.replyContext.clientPort.toInt == 1000 + i)
       assert(dut.io.replyContext.xid.toBigInt == 0x12345678)
     }
+    dut.io.replyOwner #= 99
+    check(tokens(7), false) // A guessed live token cannot borrow another owner’s route.
+    dut.io.replyOwner #= 42
     var previous = tokens(7)
     for (_ <- 0 until 1024) {
       check(previous, true)
@@ -94,6 +98,7 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     dut.io.reclaim.valid #= false
     check(previous, false)
     check(next, false)
+    dut.io.replyOwner #= 99
     check(other, true)
     check(concurrent, true)
     dut.io.readIndex #= (other & 15).toInt
@@ -103,6 +108,7 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     val reused = allocate(7654)
     assert(reused != next)
     check(next, false)
+    dut.io.replyOwner #= 42
     check(reused, true)
     dut.io.reclaim.payload #= 99
     dut.io.reclaim.valid #= true
@@ -110,12 +116,14 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     dut.io.reclaim.valid #= false
     check(other, false)
     check(concurrent, false)
+    dut.io.replyOwner #= 42
     check(reused, true)
     // A late discard must not invalidate a new generation in the same slot.
     dut.io.discard.payload #= next
     dut.io.discard.valid #= true
     dut.clockDomain.waitSampling()
     dut.io.discard.valid #= false
+    dut.io.replyOwner #= 42
     check(reused, true)
     dut.io.discard.payload #= reused
     dut.io.discard.valid #= true

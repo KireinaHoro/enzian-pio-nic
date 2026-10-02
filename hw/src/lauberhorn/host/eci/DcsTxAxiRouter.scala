@@ -73,9 +73,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val dcsQ = dcsAxi.queue(8)
 
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
-  val readAddr = readCmd.addr - ECI_TX_BASE.get
+  val readAddr = readCmd.addr(12 downto 0) - ECI_TX_BASE.get
   val writeCmd: Axi4Aw = Reg(dcsAxi.aw.payload.clone)
-  val writeAddr = writeCmd.addr - ECI_TX_BASE.get
+  val writeAddr = writeCmd.addr(12 downto 0) - ECI_TX_BASE.get
 
   // initialization to avoid latches
   dcsQ.setBlocked()
@@ -94,25 +94,26 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   execution.payload := executionType ? savedControl(20 downto 19) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
-  currInvLen := aliasedHostCtrl.len
+  val requestedInvLen = PacketLength()
+  requestedInvLen := aliasedHostCtrl.len
 
-  when(aliasedHostCtrl.ty === HostReqType.executionControl) { currInvLen.bits := 0 }
+  when(aliasedHostCtrl.ty === HostReqType.executionControl) { requestedInvLen.bits := 0 }
 
   // RPC requests repurposed len to INCLUDE inlined bytes
   // (see sw/core/eci/core.h:310)
   // adjust len to get the correct number of CLs to invalidate
   when (aliasedHostCtrl.ty === HostReqType.oncRpcReplyTx) {
     when (aliasedHostCtrl.len.bits > Global.ONCRPC_INLINE_BYTES.get) {
-      currInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_INLINE_BYTES.get
+      requestedInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_INLINE_BYTES.get
     } otherwise {
-      currInvLen.bits := 0
+      requestedInvLen.bits := 0
     }
   }
   when (aliasedHostCtrl.ty === HostReqType.oncRpcCallTx) {
     when (aliasedHostCtrl.len.bits > Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
-      currInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get
+      requestedInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get
     } otherwise {
-      currInvLen.bits := 0
+      requestedInvLen.bits := 0
     }
   }
 
@@ -125,6 +126,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   invFinished.setWhen(invDone)
 
   // offset and size to read from packet buffer, to serve CL fetch
+  // Invalid descriptors may request arbitrary lengths. Cleanup only addresses
+  // actual transport lines; the DMA boundary rejects oversized transmission.
+  currInvLen := requestedInvLen
+  when(requestedInvLen.bits > EciAddressMap.overflow_lines * 128 + 64) {
+    currInvLen.bits := EciAddressMap.overflow_lines * 128 + 64
+  }
+
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
 
   // we read max 2 beats each round, will fit inside one AXI burst

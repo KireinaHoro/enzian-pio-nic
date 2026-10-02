@@ -40,30 +40,25 @@ trait CoreState {
     inISR = false
   }
 
-  /** Configure the thread router to enable one mapping.  This is called in the ISR so must
-    * be reentrant -- protect with lock */
-  def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]): Unit = {
-    threadDbMtx.lock()
-
-    log(f"enabling thread prefix ${thr.prefix}%#x in router entry $cid")
-
-    asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "addrPrefix"), thr.prefix.toBytesLE)
-    asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "enabled"), 1.toBytesLE)
-
-    asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "coreIdx"), cid.toBytesLE)
-
-    threadDbMtx.unlock()
-  }
 }
 
-case class ThreadDef(tid: Int, prefix: Int) {
+case class ThreadDef(tid: Int) {
   /** Track which core we are running on */
   var runningOn: Option[WorkerCoreState] = None
   var proc: ProcDef = null
 }
 case class ProcDef(pid: Int, threads: Seq[ThreadDef]) {
+  var domainCode = -1
+  var slot = -1
   def enableAt[B](idx: Int, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
-    // activate process
+    assert(domainCode == -1, "domain pool is immutable")
+    val ownership = ALLOC.readBack("ownership")
+    domainCode = asMaster.read(bus, ownership("allocateDomain"), 8).bytesToBigInt.toInt
+    assert(domainCode < (1 << 19))
+    slot = idx
+    asMaster.write(bus, ownership("domainCode"), domainCode.toBytesLE)
+    asMaster.write(bus, ownership("domainSlot"), idx.toBytesLE)
+    // Publish the fully initialized, waiting pool; packet allocation starts it.
     asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_pid"), pid.toBytesLE)
     asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_maxThreads"), threads.length.toBytesLE)
     asMaster.write(bus, ALLOC.readBack("sched")("ctrl", "proc_enabled"), 1.toBytesLE)
@@ -80,14 +75,8 @@ trait WorkerCoreState extends CoreState {
   assert(cid >= 1, "worker core should have ID > 1")
   assert(cid <= NUM_CORES, s"worker core ID $cid exceeds maximum of $NUM_CORES")
 
-  def canInterrupt: Boolean
+  val dispatchMutex = SimMutex()
 
-  var allowKill = false
-  var killCount = 0
-  def recordKill(): Unit = {
-    assert(allowKill, "unexpected forced process termination")
-    killCount += 1
-  }
   var currThread: Option[ThreadDef] = None
   override def log(msg: String) = {
     currThread match {
@@ -96,7 +85,7 @@ trait WorkerCoreState extends CoreState {
     }
   }
 
-  override def switchToThread[B](thr: ThreadDef, bus: B)(implicit asMaster: AsSimBusMaster[B]) = {
+  def switchToThread(thr: ThreadDef, rx: Int, tx: Int): Unit = {
     assert(thr.tid != -1, "can't enable the bypass thread on a worker core")
     thr.runningOn = Some(this)
 
@@ -110,15 +99,13 @@ trait WorkerCoreState extends CoreState {
     log(s"switching to thread ${thr.tid}")
 
     currThread = Some(thr)
-    super.switchToThread(thr, bus)
 
     // impl-specific actions
-    switchToThreadImpl(thr)
+    switchToThreadImpl(thr, rx, tx)
   }
 
-  /** Implementation-specific thread enable action.  For example, the ECI
-    * backend needs to program CL parity bits into HW. */
-  protected def switchToThreadImpl(threadDef: ThreadDef): Unit
+  /** Install the authoritative activation parities before transport access. */
+  protected def switchToThreadImpl(threadDef: ThreadDef, rx: Int, tx: Int): Unit
 
   /** Wait until the core is running any user thread. */
   def waitUser() = waitUntil(!inISR && currThread.nonEmpty)
@@ -159,8 +146,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
   def mkRandomProc(maxThreads: Int) = {
     val ts = Seq.fill(maxThreads) {
       val tid = genNewId(threads.keys.toSeq)
-      val prefix = genNewId(threads.values.map(_.prefix).toSeq)
-      val thr = ThreadDef(tid, prefix)
+      val thr = ThreadDef(tid)
       threads(thr.tid) = thr
       thr
     }
@@ -172,78 +158,54 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     pd
   }
 
-  /** Simulates behaviour of the Lauberhorn scheduler integration on Linux.
-    *  - the bypass ISR runs a given handler "in kernel"
-    *  - the worker ISR modifies the core states to convey the idea that
-    *    a thread has been descheduled.
-    *
-    * The test benches should run simulation threads for each physical worker core
-    * and consult [[WorkerCoreState]] to determine if the thread running has been
-    * changed.
-    */
+  /** Both kernel entry paths consume one snapshot with serialized readers. */
+  private def activate[B](bus: B, wcs: WorkerCoreState)(implicit asMaster: AsSimBusMaster[B]): Unit = {
+    val info = asMaster.read(bus, ALLOC.readBack("preempt", wcs.cid)("preemptInfo"), 8).bytesToBigInt
+    val domain = (info & ((BigInt(1) << 19) - 1)).toInt
+    val slot = ((info >> 19) & 31).toInt
+    val rx = ((info >> 24) & 1).toInt
+    val tx = ((info >> 25) & 1).toInt
+    val proc = processes.values.find(p => p.slot == slot && p.domainCode == domain).get
+    threadDbMtx.lock()
+    val thr = proc.threads.find(_.runningOn.isEmpty).getOrElse(fail("no waiting thread for committed destination"))
+    wcs.switchToThread(thr, rx, tx)
+    threadDbMtx.unlock()
+  }
+
+  def cooperativeYield[B](bus: B, cid: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
+    val wcs = coreStates(cid).asInstanceOf[WorkerCoreState]
+    wcs.dispatchMutex.lock()
+    assert(wcs.enterISR())
+    threadDbMtx.lock()
+    wcs.currThread.foreach(_.runningOn = None)
+    wcs.currThread = None
+    threadDbMtx.unlock()
+    activate(bus, wcs)
+    wcs.exitISR()
+    wcs.dispatchMutex.unlock()
+  }
+
   def genericIrqCb[B](bus: B, irq: Int, cid: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
-    val preemptRegBlock = ALLOC.readBack("preempt", blockIdx = cid)
-    val cs = coreStates(cid)
-
-    // no need to mask interrupt for worker: preemption won't send another interrupt
-    // until we write to ACK
-    if (!cs.enterISR()) return
-
-    cs.log("disabling IRQ")
-    asMaster.write(bus, preemptRegBlock("irqEn"), 0.toBytesLE)
-
     if (irq == 15) {
-      assert(cid == 0, "bypass IRQ should only be sent to core 0")
-
-      // call bypass handler
-      cs.asInstanceOf[BypassCoreState].handler()
+      assert(cid == 0)
+      val regs = ALLOC.readBack("bypassIrq")
+      val bypass = bypassCore
+      if (!bypass.enterISR()) return
+      asMaster.write(bus, regs("irqEn"), 0.toBytesLE)
+      bypass.handler()
+      bypass.exitISR()
+      asMaster.write(bus, regs("irqEn"), 1.toBytesLE)
     } else if (irq == 8) {
-      val wcs = cs.asInstanceOf[WorkerCoreState]
-
-      // FIXME: possibly we never get a chance to interrupt
-      cs.log("waiting until we can interrupt")
-      waitUntil(wcs.canInterrupt)
-
-      assert(cid >= 1, "worker IRQ should only be sent to worker cores")
-      assert(cid < NUM_CORES, s"worker IRQ sent to core $cid, but only $NUM_WORKER_CORES workers exist")
-
-      cs.log("reading preempt cmd")
-      val ipiAckReg = asMaster.read(bus, preemptRegBlock("schedCmd"), 8).bytesToBigInt
-      val ipiAck = new BigIntParser(ipiAckReg)
-
-      val pidToSched = ipiAck.pop(PID_WIDTH)
-      val killed     = ipiAck.pop(1) != 0
-
-      if(killed) wcs.recordKill()
-
-      // IRQ acknowledgement stops userspace, but the old mapping must remain
-      // until RX/TX invalidations and packet retirement have completed.
-      while(asMaster.read(bus, preemptRegBlock("datapathDrained"), 8).bytesToBigInt == 0) {
-        spinal.core.sim.sleep(10)
+      val wcs = coreStates(cid).asInstanceOf[WorkerCoreState]
+      wcs.dispatchMutex.lock()
+      // Duplicate or delayed kicks cannot cause another side-effecting read.
+      if (wcs.currThread.isEmpty &&
+          asMaster.read(bus, ALLOC.readBack("preempt", cid)("idleNotification"), 8).bytesToBigInt != 0) {
+        assert(wcs.enterISR())
+        activate(bus, wcs)
+        wcs.exitISR()
       }
-
-      // PID zero returns the physical worker to idle with no routed prefix.
-      if(pidToSched == 0) {
-        threadDbMtx.lock()
-        asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "enabled"), 0.toBytesLE)
-        asMaster.write(bus, ALLOC.readBack("threadRouter")("ctrl", "coreIdx"), cid.toBytesLE)
-        wcs.currThread.foreach(_.runningOn = None)
-        wcs.currThread = None
-        threadDbMtx.unlock()
-      } else processes(pidToSched.toInt).threads.find(_.runningOn.isEmpty) match {
-        case Some(thr) =>
-          wcs.switchToThread(thr, bus)
-        case None =>
-          fail(s"PID#$pidToSched has all threads running, can't schedule more")
-      }
-    } else {
-      fail(s"unknown IRQ $irq")
-    }
-
-    // in the Linux kernel, the next interrupt will not come in until we are out
-    cs.exitISR()
-
-    cs.log("re-enabling IRQ")
-    asMaster.write(bus, preemptRegBlock("irqEn"), 1.toBytesLE)
+      wcs.dispatchMutex.unlock()
+    } else fail(s"unexpected interrupt $irq on core $cid")
   }
 }

@@ -71,6 +71,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     * the old request.
     */
   val doPreempt = in Bool()
+  val yieldRequested = in Bool()
+  val fatalRelease = in Bool()
   val quiescent = out Bool()
 
   /** Pulse: host is reading the next CL and the protocol has just finished invalidating the current CL.
@@ -144,6 +146,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
   // command saved from DCS in AR
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
+  val readOffset = readCmd.addr(12 downto 0) - EciAddressMap.rx_control
 
   // packet buffer slot that the descriptor carried
   val currentPktBuf = Reg(new Bundle {
@@ -189,12 +192,12 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
       whenIsActive {
         assert(readCmd.len === 1, "only support two-beat reads from DCS")
 
-        when (readCmd.addr === 0x0 || readCmd.addr === 0x80) {
+        when (readOffset === 0x0 || readOffset === 0x80) {
           // host reading a control CL
           pktBufReadOff   := 0x0
           pktBufReadBeats := 1
 
-          val reqCl = (readCmd.addr === 0x80).asUInt
+          val reqCl = (readOffset === 0x80).asUInt
           hostReq(reqCl) := True
 
           // the very first read request needs to pop a descriptor, even if it's reading the
@@ -208,7 +211,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           }
         } otherwise {
           // host reading an overflow CL
-          pktBufReadOff := (readCmd.addr - 0xc0).resized
+          pktBufReadOff := (readOffset - 0xc0).resized
           pktBufReadBeats := 2
           goto(readPktBuf)
         }
@@ -218,16 +221,21 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
       whenIsActive {
         // block up to blockCycles
         blockTimer.increment()
-        rxDesc.ready := True
-        when (blockTimer >= blockCycles || rxDesc.valid) {
+        rxDesc.ready := !yieldRequested && !fatalRelease
+        when (blockTimer >= blockCycles || rxDesc.valid || yieldRequested || fatalRelease) {
           // one of two outcomes:
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
-          savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload) ## rxDesc.valid
+          savedControl.payload := B(0, 512 bits)
+          when(rxDesc.fire) {
+            savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload) ## True
+          } elsewhen(yieldRequested && !fatalRelease) {
+            savedControl.payload(1) := True // valid=0, PREEMPT=1, no payload
+          }
 
           // when a packet is present, read from slot in packet buffer
-          when (rxDesc.valid) {
+          when (rxDesc.fire) {
             currentPktBuf.addr := rxDesc.buffer.addr
             // buffer size is the actual length of packet --
             // calculate size of actual packet buffer

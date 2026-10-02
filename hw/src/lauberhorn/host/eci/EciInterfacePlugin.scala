@@ -57,11 +57,10 @@ class EciInterfacePlugin extends FiberPlugin {
   )
 
   val hostIfCtrl = during setup new Area {
-    val preemptCritSecTimeout = Reg(UInt(REG_WIDTH bits)) init 100000 // 400 us @ 250 MHz
     val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
   }
 
-  val coreOffset = 0x20000
+  val coreOffset = EciAddressMap.block_bytes
   ECI_CORE_OFFSET.set(coreOffset)
 
   val logic = during setup new Area {
@@ -82,7 +81,7 @@ class EciInterfacePlugin extends FiberPlugin {
     val ipiToIntc = master(Stream(EciIntcInterface()))
     val demuxedIpiIntfs = Seq.fill(NUM_CORES)(Stream(EciIntcInterface()))
     // FIXME: do we need to merge core masks?
-    ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs)
+    ipiToIntc << StreamArbiterFactory(s"${getName()}_ipiCmdMux").roundRobin.on(demuxedIpiIntfs :+ host[EciOwnership].logic.faultIrq)
 
     // assert dcs interfaces never drop valid when ready is low
     dcsIntfs foreach { dcs =>
@@ -118,13 +117,11 @@ class EciInterfacePlugin extends FiberPlugin {
 
     drive(host[Scheduler].driveControl, "sched", blockSize = 0x200)
     drive(host[DmaControlPlugin].logic.driveControl, "dma")
-    drive(host[EciThreadClRouter].driveControl, "threadRouter")
+    drive(host[EciOwnership].driveControl, "ownership")
     drive(host[BypassCmdSink].driveControl, "bypassSink")
 
     drive({ (bus, alloc) =>
       val busCtrl = AxiLite4SlaveFactory(bus)
-      busCtrl.readAndWrite(hostIfCtrl.preemptCritSecTimeout, alloc("preemptCritSecTimeout",
-        desc = "Timeout before preemption victim process is killed (in cycles)"))
       busCtrl.readAndWrite(hostIfCtrl.rxBlockCycles, alloc("rxBlockCycles",
         desc = "Timeout before a NACK is returned for RX (in cycles)"))
     }, "hostIf")
@@ -132,18 +129,10 @@ class EciInterfacePlugin extends FiberPlugin {
     // master nodes for access to packet buffer
     val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
 
-    val coreIdMask  = 0x7e0000
-    val preemptMask = 0x010000
-    val unitIdMask  = coreIdMask | preemptMask
-    val unitIdShift = Integer.numberOfTrailingZeros(unitIdMask)
-
-    // list of data path nodes with optionally the preemption control node
-    val dcsNodeConfig = axiConfig.copy(
-      // 2 masters, ID width + 1
-      idWidth = 8,
-      // truncate address here so that the core protocol modules wouldn't have to subtract the core offset
-      addressWidth = log2Up(coreOffset - 1),
-    )
+    val routedConfig = axiConfig.copy(arUserWidth = axiConfig.addressWidth,
+      awUserWidth = axiConfig.addressWidth)
+    // Endpoints receive the full accepted address; low bits select transport lines.
+    val dcsNodeConfig = routedConfig.copy(idWidth = 8)
 
     val unaliasedDcsAxi = dcsIntfs map { dcs =>
       dcs.axi.remapAddr { a =>
@@ -152,14 +141,26 @@ class EciInterfacePlugin extends FiberPlugin {
         (EciCmdDefs.unaliasAddress(a.asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)).asUInt | byteOffset.resized).resized
       }
     }
-    val translatedDcsAxi = unaliasedDcsAxi zip host[EciThreadClRouter].logic.axi map { case (ua, rp) =>
-      ua >> rp.axiFromDcs
-      rp.axiToProto
+    val translatedDcsAxi = unaliasedDcsAxi zip host[EciOwnership].logic.ingress map { case (ua, ingress) =>
+      ua >> ingress.io.input
+      ingress.io.routed
     }
 
-    val lclEndpointsPerCore = 3
+    val lclEndpointsPerCore = 2
     def lclEndpointCoreIdx(unitIdx: Int): Int = unitIdx / lclEndpointsPerCore
     def lclEndpointHreqId(unitIdx: Int): Int = unitIdx % lclEndpointsPerCore
+
+    // One obligation per transport line. Records retain the full address until
+    // matching LCIA, including when arbitration or DCS completion is delayed.
+    val obligations = Seq.fill(NUM_CORES * lclEndpointsPerCore) {
+      Vec.fill(2 + EciAddressMap.overflow_lines) {
+        val record = Reg(Flow(Bits(EciCmdDefs.ECI_ADDR_WIDTH bits)))
+        record.valid init False
+        record
+      }
+    }
+    def obligationIndex(address: Bits): UInt =
+      (address(11 downto 7).asUInt - (EciAddressMap.rx_control / 128)).resize(4)
 
     /** Bind the LCI commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
       * list of LCI endpoints (incl. non-existent preemption control for bypass core).
@@ -167,24 +168,27 @@ class EciInterfacePlugin extends FiberPlugin {
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
     def bindCoreCmdsToLclChans(cmds: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, evenVc: Int, oddVc: Int, chanLocator: DcsInterface => Stream[EciChannel]): Unit = {
-      val routerPort = host[EciThreadClRouter].logic.lcl
-      val (toRouter, fromRouter) = (routerPort.lciFromProto, routerPort.lciToDcs)
-
-      // first, mux all core commands together
+      // Capture full addresses before arbitration. Ownership cannot retag a
+      // stalled command, and remains held until its matching LCIA completes.
       val muxed = StreamArbiterFactory("EciInterfacePlugin_logic_lciFromCore_mux")
         .roundRobin.on(cmds.zipWithIndex.map { case (cmd, unitIdx) =>
-          // core commands came in without the core offset
-          cmd.mapPayloadElement(addrLocator) { a =>
-            (a.asUInt + coreOffset * lclEndpointCoreIdx(unitIdx)).asBits
+          val core = lclEndpointCoreIdx(unitIdx)
+          val full = cmd.mapPayloadElement(addrLocator) { offset =>
+            if (core == 0) offset else host[EciOwnership].logic.fullAddress(core - 1, offset)
+          }.m2sPipe()
+          val index = obligationIndex(addrLocator(full.payload))
+          when(full.fire) {
+            assert(index < 2 + EciAddressMap.overflow_lines, "LCI outside transport lines")
+            assert(!obligations(unitIdx)(index).valid, "duplicate outstanding LCI")
+            obligations(unitIdx)(index).valid := True
+            obligations(unitIdx)(index).payload := addrLocator(full.payload)
           }
+          full
         })
-
-      // translate this muxed channel
-      muxed >> toRouter
 
       // pack into ECI channel
       val chan = Stream(EciChannel())
-      chan.translateFrom(fromRouter) { case (c, fr) =>
+      chan.translateFrom(muxed) { case (c, fr) =>
         c.data := fr.mapElement(addrLocator)(EciCmdDefs.aliasAddress)
         c.vc := ~addrLocator(chan.data)(7) ? B(oddVc) | B(evenVc)
         c.size := 1
@@ -203,9 +207,6 @@ class EciInterfacePlugin extends FiberPlugin {
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
     def bindLclChansToCoreResps(resps: Seq[Stream[EciWord]], addrLocator: EciWord => Bits, chanLocator: DcsInterface => Stream[EciChannel]): Unit = {
-      val routerPort = host[EciThreadClRouter].logic.lcl
-      val (toRouter, fromRouter) = (routerPort.lciaFromDcs, routerPort.lciaToProto)
-
       // first, mux all dcs responses together
       val muxed = StreamArbiterFactory(s"EciInterfacePlugin_logic_lciaFromDcs_mux")
         .roundRobin.on(dcsIntfs map { dcs =>
@@ -218,23 +219,33 @@ class EciInterfacePlugin extends FiberPlugin {
           unaliased.translateWith(unaliased.data)
         })
 
-      // translate this muxed response channel
-      muxed >> toRouter
-
-      // unmux the translated channel
-      val translatedAddr = addrLocator(fromRouter.payload)
-      val oldUnitIdx = ((translatedAddr & unitIdMask) >> unitIdShift).resize(log2Up(2 * NUM_CORES)).asUInt
-      val coreIdx = (oldUnitIdx >> 1).resize(log2Up(NUM_CORES))
-      val endpointIdx = (coreIdx * lclEndpointsPerCore + fromRouter.payload.lcia.hreqId.asUInt).resize(log2Up(lclEndpointsPerCore * NUM_CORES))
-      val unmuxed = StreamDemux(fromRouter, endpointIdx, lclEndpointsPerCore * NUM_CORES)
-      when (fromRouter.fire) {
-        assert(fromRouter.payload.lcia.hreqId.asUInt < lclEndpointsPerCore, "unexpected LCIA hreqId")
+      // LCIA routing depends only on its immutable physical address, never on
+      // the current owner. Old-domain cleanup must reach the same endpoint.
+      val decoded = EciAddressDecoder(NUM_WORKER_CORES.get)
+      decoded.io.address := addrLocator(muxed.payload).asUInt.resized
+      decoded.io.owners := host[EciOwnership].logic.owners
+      decoded.io.enabled := host[EciOwnership].logic.enabled
+      val core = UInt(log2Up(NUM_CORES) bits)
+      core := decoded.io.worker.resize(core.getWidth) + 1
+      when(decoded.io.bypass) { core := 0 }
+      val endpoint = (core * lclEndpointsPerCore + muxed.payload.lcia.hreqId.asUInt)
+        .resize(log2Up(lclEndpointsPerCore * NUM_CORES))
+      val unmuxed = StreamDemux(muxed, endpoint, lclEndpointsPerCore * NUM_CORES)
+      when(muxed.valid) {
+        assert(decoded.io.known || decoded.io.bypass, "unknown LCIA physical endpoint")
+        assert(muxed.payload.lcia.hreqId.asUInt < lclEndpointsPerCore, "unexpected LCIA hreqId")
       }
-
-      // subtract core offset and connect to cores
-      (unmuxed zip resps).zipWithIndex foreach { case ((fr, resp), unitIdx) =>
-        resp << fr.mapPayloadElement(addrLocator) { a =>
-          (a.asUInt - coreOffset * lclEndpointCoreIdx(unitIdx)).asBits
+      unmuxed.zip(resps).zipWithIndex.foreach { case ((fr, resp), unitIdx) =>
+        val address = addrLocator(fr.payload)
+        val index = obligationIndex(address)
+        when(fr.fire) {
+          assert(index < 2 + EciAddressMap.overflow_lines, "LCIA outside transport lines")
+          assert(obligations(unitIdx)(index).valid &&
+            obligations(unitIdx)(index).payload === address, "LCIA has no matching full-address obligation")
+          obligations(unitIdx)(index).valid := False
+        }
+        resp << fr.mapPayloadElement(addrLocator) { address =>
+          address(12 downto 0).resize(address.getWidth)
         }
       }
     }
@@ -279,7 +290,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     // drive core control interface -- datapath per core
     0 until NUM_CORES foreach { cid => new Area {
-      val Seq(dataRxLcl, dataTxLcl, preemptLcl) = coresLcl(cid)
+      val Seq(dataRxLcl, dataTxLcl) = coresLcl(cid)
       val proto = protos(cid)
       val preempt = preempts(cid)
       val ipiCtrl = demuxedIpiIntfs(cid)
@@ -305,26 +316,22 @@ class EciInterfacePlugin extends FiberPlugin {
         allSlaveNodes.append((sn, map.copy(base = map.base + coreOffset * cid)))
       }
       if (cid != 0) {
-        // also add preempt node
-        val preemptNode = Axi4(dcsNodeConfig)
-        val preemptSize = host.list[EciPreemptionControlPlugin].apply(cid - 1).requiredAddrSpace
-        val preemptMapping = SizeMapping(coreOffset * cid + proto.sizePerCore, preemptSize)
-
-        preempt.driveDcsBus(preemptNode, preemptLcl)
         drive(preempt.driveControl, "preempt", cid)
         preempt.logic.ipiToIntc >> ipiCtrl
 
-        allSlaveNodes.append((preemptNode, preemptMapping))
       } else {
-        preemptLcl.setIdle()
         assert(preempt == null)
         // tie down preemption request for bypass
         proto.preemptReq.setIdle()
+        val bypass = proto.asInstanceOf[EciDecoupledRxTxProtocol]
+        bypass.logic.yieldRequested := False
+        bypass.logic.fatalRelease := False
+        bypass.logic.externalQuiet := True
 
         // bypass core generates interrupt to host that signifies non-empty queue
         val bypassProto = proto.asInstanceOf[EciDecoupledRxTxProtocol]
         bypassProto.logic.irqOut >> ipiCtrl
-        drive(bypassProto.driveBypassIrqCtrl, "preempt", cid)
+        drive(bypassProto.driveBypassIrqCtrl, "bypassIrq")
       }
     }.setCompositeName(this, "bindProtoToCoreCtrl")
     }
@@ -338,7 +345,7 @@ class EciInterfacePlugin extends FiberPlugin {
 
     val numMasters = translatedDcsAxi.length
     val numConcurrentReqs = NUM_WORKER_CORES.get + 2 // every worker has one thread, bypass has RX and TX
-    val dcsXbar = new AxiCrossbar(axiConfig,
+    val dcsXbar = new AxiCrossbar(routedConfig,
       translatedDcsAxi.map { _ => AxiCrossbarSlaveConfig(
         concurrentOps = numConcurrentReqs,
         threads = numConcurrentReqs,
@@ -351,7 +358,19 @@ class EciInterfacePlugin extends FiberPlugin {
       ) }.toSeq,
     )
     dcsXbar.s_axi zip translatedDcsAxi foreach { case (sp, m) => m >> sp }
-    dcsXbar.m_axi zip allSlaveNodes foreach { case (mp, (s, _)) => mp >> s }
+    dcsXbar.m_axi zip allSlaveNodes foreach { case (mp, (endpoint, _)) =>
+      endpoint.ar.arbitrationFrom(mp.ar)
+      endpoint.ar.payload := mp.ar.payload
+      endpoint.ar.addr.allowOverride
+      endpoint.ar.addr := mp.ar.user.asUInt
+      endpoint.aw.arbitrationFrom(mp.aw)
+      endpoint.aw.payload := mp.aw.payload
+      endpoint.aw.addr.allowOverride
+      endpoint.aw.addr := mp.aw.user.asUInt
+      endpoint.w << mp.w
+      mp.r << endpoint.r
+      mp.b << endpoint.b
+    }
 
     // connect all AXI-Lite nodes
     val fullNodes = ctrlAxiLiteNodes.map { case (n, sm) =>

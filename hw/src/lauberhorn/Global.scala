@@ -36,7 +36,6 @@ object Global extends AreaRoot {
   val BYPASS_HDR_WIDTH = value[Int]
   val ONCRPC_INLINE_BYTES = blocking[Int]
   val ONCRPC_NESTED_CALL_INLINE_BYTES = blocking[Int]
-  val THR_PREFIX_WIDTH = value[Int]
 
   val GIT_VERSION = value[BigInt]
 
@@ -53,7 +52,6 @@ object Global extends AreaRoot {
   val ECI_RX_BASE = value[Int]
   val ECI_TX_BASE = blocking[Int]
   val ECI_CORE_OFFSET = blocking[Long]
-  val ECI_PREEMPT_CTRL_OFFSET = value[Int]
   val ECI_OVERFLOW_OFFSET = value[Int]
   val ECI_NUM_OVERFLOW_CL = value[Int]
 
@@ -120,7 +118,6 @@ object Global extends AreaRoot {
     PID_WIDTH.set(16)
     NUM_NEIGHBOR_ENTRIES.set(8)
     NUM_LISTEN_PORTS.set(16)
-    THR_PREFIX_WIDTH.set(16)
 
     // FIXME: these numbers are now ridiculously small!
     //        this is due to the current fully-connected LookupTable being difficult to place and route.

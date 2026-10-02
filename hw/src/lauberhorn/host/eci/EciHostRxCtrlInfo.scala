@@ -86,6 +86,12 @@ case class EciHostRxCtrlInfo() extends Bundle {
 
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_rx_status lsbfirst(64) "ECI RX status when valid is zero" {
+         |  valid 1 "Packet descriptor follows when set";
+         |  preempt 1 "Yield immediately when valid is zero and this bit is set";
+         |  _ 6 rsvd;
+         |};
+         |
          |datatype host_ctrl_info_error lsbfirst(64) "ECI Host Control Info (Error)" {
          |  valid 1 "RX descriptor valid";
          |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
