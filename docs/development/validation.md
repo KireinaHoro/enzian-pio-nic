@@ -242,7 +242,10 @@ The pinned `dcs-lauberhorn` check now runs both the real DCU tests and
 `tools/progress/check_slice_routing.py`. The latter sends 812 selected-map
 address trials through the production 32-DCU slice control array, routers and
 arbiters. It verifies address/ID preservation through read completion, dirty
-write completion and backpressured LCIA. The XPM RAM and passive trace outputs
+write completion and backpressured LCIA. It also withholds three worker read
+responses plus bypass RX while an independent worker and bypass TX complete
+three rounds, then returns the held responses in a different order and checks
+final writeback/LCIA accounting. The XPM RAM and passive trace outputs
 are test models; the payload datapath and ThunderX are not instantiated. The
 runner removes one unmatched `%d` from an upstream unsupported-size diagnostic
 in a temporary compile copy; it does not alter protocol logic or the dependency.
