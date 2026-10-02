@@ -291,3 +291,17 @@ nearest failing bound, actual hold durations and peer completions. Include
 one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
 simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
 do not substitute a historical threshold or weaken architectural protection.
+
+Use the matched generated trace map to quantify intervals and overlapping peer
+transport events:
+
+```sh
+python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
+  --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
+  --output RUN/rx-holds.json
+```
+
+The report includes capture/map hashes, loss and incomplete-pair counts. Its
+request-to-NACK intervals include protocol/response overhead; pending handoffs
+are marked. Peer RX/TX, CMAC and activation events are supporting transport
+evidence. Confirm application completions independently using client results.
