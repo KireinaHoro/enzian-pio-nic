@@ -30,7 +30,9 @@ irrelevant. Before using those bytes, analyse:
   traffic and contention, and the useful response-size distribution.
 
 This optimization remains open; no command/response ABI or performance claim
-is selected here.
+is selected here. Schedule it alongside [application performance collection](../research/roadmap.md#application-performance-and-coupled-rxtx-analysis),
+after measuring the independent RX/TX baseline. Application benefit determines
+whether to adopt it; it does not gate the address/PREEMPT implementation.
 
 Validation uses `RxWritebackSim` for independent AW/W channels, delayed W,
 queued IDs, partial/zero strobes, held B and quiescence. The actual DCU +
