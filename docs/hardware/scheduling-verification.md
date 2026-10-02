@@ -22,7 +22,7 @@ they do not discharge this concrete DCS progress obligation.
 Goal 2 models the selected cooperative scheduling pivot, following the accepted
 [Goal 1 milestone](steady-state-verification.md). This is executable design work,
 not implementation of the new scheduler, router-free decoder or kernel ABI.
-The production scheduler still uses the older IRQ/CAS/thread-router protocol.
+The current ECI source implements cooperative activation; this report records the earlier modeling round, not validation of that implementation.
 The [control/retirement interface](../software/scheduling-control-interface.md) now
 uses one blocking info read and no ordinary cache-retirement/commit write.
 The models check finite instances and explicit component contracts; they do not
@@ -32,11 +32,10 @@ claim whole-system hardware refinement.
 
 The implementation audit starts at platform `7387e05`. The
 [pivot](../architecture/sched-design-pivot.md) supplies the intended behavior.
-Current `Scheduler.scala` already distinguishes `coreResident` from the early
-`corePidMap` reservation. `sw/kmod/sched.c` explicitly retains the old route until
+At that revision, `Scheduler.scala` distinguished `coreResident` from the early
+`corePidMap` reservation. The former `sw/kmod/sched.c` retained the old route until
 `datapathDrained`, then updates affinity/routing/parity; this is useful ordering
-evidence, not an implementation of cooperative yield. `EciPreemptionControlPlugin`
-exposes acknowledgment and drain separately. Existing no-target-thread failure
+evidence, not an implementation of cooperative yield. The former preemption plugin exposed acknowledgment and drain separately. Existing no-target-thread failure
 handling and return-to-user parking are documented in the
 [current scheduler](../software/scheduler.md).
 

@@ -1,10 +1,9 @@
 # Cooperative scheduling control
 
-Selected implementation contract, October 2, 2026. The production RTL replacement is being integrated; the kernel
-and runtime are not yet matched. The replacement is under development
-on `feat/fixed-worker-cooperative-yield`; the arithmetic and focused control checks
-alone do not establish implementation or board acceptance. This is the sole ECI design; the replacement removes thread routers and
-reassigned address prefixes. Superseded designs remain available in Git history.
+Selected implementation contract, October 2, 2026. RTL, kernel and runtime
+implement this sole ECI design on `feat/cooperative-yield`. Validation is in
+progress; [the evidence ledger](../hardware/eci-implementation.md) records its
+limits. Superseded designs remain available in Git history.
 
 ## Activation and handoff
 
@@ -30,7 +29,10 @@ while idle. A pending IRQ or a local wake alone does not authorize a read:
 duplicate and delayed kicks must be reconciled with the sticky hardware
 notification under reader serialization. Notification stays set until dispatch
 consumption. Ordinary handoff must not create it. The pinned dispatch thread
-sleeps while an application owns its worker.
+sleeps while an application owns its worker. An ordinary yield checks the
+read-only `yieldRequested` register under the same reader lock before issuing
+the side-effecting read. This rejects an application calling yield without a
+pending handoff; it is not polled for work or a validity bit in `PreemptInfo`.
 
 Read acceptance and response consumption are distinct boundaries. The accepted
 transaction retains its destination and response identity under backpressure.

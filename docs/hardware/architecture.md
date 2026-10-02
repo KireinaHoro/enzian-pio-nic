@@ -22,11 +22,11 @@ See [packet processing](packet-processing.md) for ingress/egress stages, metadat
 
 ## ECI protocol and routing
 
-`EciInterfacePlugin.scala` accepts two DCS slices in **aliased** ECI address space, converts addresses, and connects 512-bit AXI/control paths. `EciThreadClRouter.scala` works in **unaliased** addresses: programmable thread physical prefixes map to backing worker protocol engines. Reverse translation also applies to coherence invalidations/responses; translation can change even/odd slice selection. Do not replace the coherence mux/demux with two independent translated channels.
+`EciInterfacePlugin.scala` accepts both DCS slices, removes ECI aliasing and passes original addresses through `EciAxiIngress`. `EciAddressDecoder` identifies the physical worker and lifetime domain code. `EciOwnership` authorizes fresh accesses against the installed owner. Accepted transactions retain their original addresses through responses and coherence completion; changing owners cannot retag them. Old RX writebacks continue through the independent sink.
 
-`EciDecoupledRxTxProtocol.scala` is instantiated for every datapath, including workers. Each direction alternates two 128-byte control cache lines; extra data uses overflow lines. Reading the opposite control line acts as a doorbell. RX retires packet state and invalidates old data/control; TX invalidates control and overflow before submission. `DcsRxAxiRouter.scala` and `DcsTxAxiRouter.scala` implement CPU AXI access and invalidation completion waits. `EciPreemptionControlPlugin.scala` coordinates the protocol with preemption control lines and interrupts.
+`EciDecoupledRxTxProtocol.scala` implements alternating control lines and twelve overflow lines per direction. The selected 8 KiB layout places RX controls at `0x300/0x380`, TX controls at `0x1300/0x1380`, and overflow at `0x400/0x1400`. `EciAddressMap` and the generated C helper encode color-neutral 19-bit lifetime codes separately from worker identities.
 
-Current constants: thread/core block stride `0x20000`, RX `+0`, TX `+0x8000`, overflow `+0x100` within each direction. Hardware-generated headers are authoritative; update both protocol and software assumptions when changing layouts. See [DCU progress analysis](coherence-progress.md) before changing addresses or concurrent RX/TX behavior.
+`EciPreemptionControlPlugin.scala` delivers payload-free PREEMPT through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md); board acceptance remains outstanding.
 
 ## Defaults and invariants
 
@@ -34,7 +34,7 @@ Current constants: thread/core block stride `0x20000`, RX `+0`, TX `+0x8000`, ov
 
 - `DecoderSink` serializes packet admission until payload acknowledgment to keep metadata and payload matched. Independent round-robin arbitration can mismatch packets or deadlock. Refactoring requires a deliberate metadata/payload association scheme.
 - RX allocations are released through host acknowledgment. Follow every error/drop/preemption path through allocation ownership.
-- Thread prefixes must be unique among enabled router entries; remapping must respect in-flight coherence and protocol ownership.
+- Lifetime domain codes are monotonic until a full coherence reset. Worker reuse follows final control invalidation and completion.
 - `Config.scala` specifies synchronous active-high reset, XPM memory blackboxing, and 200 MHz default clock metadata. Do not infer achieved timing from metadata or older 250 MHz comments.
 - Generated register/device/C-header collateral comes from the elaborated database. Edit Scala/register definitions, regenerate, and consume matching headers; do not patch generated ABI constants independently.
 

@@ -18,7 +18,7 @@ Ethernet CMAC → Ethernet/IP/UDP/ONC-RPC decode → packet storage + metadata
                                                      ↓
                                           FPGA Scheduler
                                                      ↓
-                        ECI thread router + worker 2F2F protocol
+                        ECI ownership decoder + worker 2F2F protocol
                                                      ↓
                     Linux worker scheduling ↔ userspace runtime/handler
                                                      ↓

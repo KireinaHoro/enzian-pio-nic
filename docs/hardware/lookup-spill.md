@@ -599,7 +599,7 @@ RAM implementation:
 
 Current use:
 
-- `EciThreadClRouter.threadDb`;
+- the ECI domain ownership table;
 - many lookup ports, but only `NUM_CORES` entries in generated hardware.
 
 Plan:

@@ -1,60 +1,67 @@
 # Scheduler and Linux integration
 
-Scope: source inspection, 2026-09-08. Implemented mechanisms are not evidence of measured isolation, fairness, or working fault recovery.
+The sole ECI design is physical-worker address decoding with cooperative
+PREEMPT/yield. Source integration is in progress on `feat/cooperative-yield`;
+[implementation evidence](../hardware/eci-implementation.md) separates passing
+checks from outstanding board acceptance. The [control contract](scheduling-control-interface.md)
+is authoritative. Superseded implementations are available in Git history.
 
-**2026-10-02 design status:** this page describes the existing IRQ/CAS/thread-router
-implementation. The [selected cooperative interface](scheduling-control-interface.md)
-and [bounded scheduling composition](../hardware/scheduling-composition.md) specify
-and check its replacement; the new address and PREEMPT ABI is not implemented.
+## Responsibilities and identities
 
-## Confirmed execution policy
+The FPGA scheduler preserves packet-driven allocation, idle-first selection,
+the additional-core watermark and background discovery of queued domains.
+Linux chooses a waiting initialized thread and installs its CPU affinity.
+Selection is not a completed fairness or latency-SLO policy.
 
-Maintainer decision (2026-09-08): RPC tasks run to finish on isolated worker cores; these cores are not shared with ordinary Linux tasks. Cooperative nested-call waits may yield a fiber. An independent preemption critical-section timeout and an optional execution watchdog terminate the whole application through the [B4 recovery path](process-recovery.md). Execution monitoring defaults to disabled; hardware acceptance remains pending.
+Physical NIC worker indices, Linux CPU numbers, scheduler slots, Linux PIDs and
+19-bit PA lifetime codes are distinct. Bypass is datapath zero; four physical
+workers and sixteen active domain slots are the defaults. The selected address
+geometry supports up to seven workers. Kernel workers use isolated CPUs and
+FIFO scheduling; ordinary tasks do not share those CPUs.
 
-## Division of responsibility
+A domain maps stable aliases for physical workers. Address decoding identifies
+the worker and domain; admission checks its trusted installed owner. No thread
+router, prefix reassignment, preemption control cache line or shared parity page
+participates. Kernel scheduling never touches transport cache lines.
 
-- FPGA [`Scheduler.scala`](../../hw/src/lauberhorn/Scheduler.scala) queues requests per process, tracks core assignments and maximum process parallelism, and requests process switches. Linux selects an available registered thread for that process and performs affinity/wakeup operations.
-- A hardware PID represents the application TGID, not a fiber or Linux worker TID. Process index zero is reserved for IDLE; physical worker slot zero is the kernel bypass path. These are different namespaces.
-- [`chrdev.c`](../../sw/kmod/chrdev.c) registers processes through `/dev/lauberhorn` open, services through ioctls, and threads through datapath `mmap`. Each thread gets a persistent address prefix; routing maps its cachelines to whichever FPGA worker slot currently serves it. The mapped-thread count programs `maxThreads`.
-- [`worker.c`](../../sw/kmod/worker.c) reserves the highest numbered `LAUBERHORN_NUM_WORKER_CORES` online CPUs. It checks housekeeping configuration and isolation, configures SGI 8, and promotes their `ksoftirqd` tasks to FIFO priority above RPC workers. See the build/deployment configuration before choosing CPU numbers.
+## Pool and activation
 
-## Dispatch protocol
+`lauberhorn_set_worker_count()` declares an immutable pool before creation.
+Each thread completes its callback and runtime setup, explicitly registers,
+and enters bootstrap `lh_yield()`. Capacity is published after all declared
+threads are ready. Mapping neither registers nor parks a thread.
 
-1. `prepare_worker_thread` changes a mapped worker to `SCHED_FIFO` priority 1 and queues return-to-user task work. After `mmap` releases its locks, that callback waits in `TASK_IDLE` until dispatch clears the parking condition. Every wakeup rechecks the condition; setting task state inside `mmap` alone does not prevent premature userspace access.
-2. FPGA preemption control clears READY, coordinates BUSY and RX/TX cacheline retirement, then sends SGI 8. Bootstrap from IDLE skips fetching an unmapped old thread's control line.
-3. `worker_fpi_handler` masks the interrupt, reads the next PID, atomically claims an enabled thread with `worker_idx == -1`, parks the old worker while retaining its mapping, and schedules deferred work on that CPU.
-4. `_sched_worker_thread` waits for hardware drain, unroutes the old thread, pins the new thread, routes its prefix, restores RX/TX parity from its shared parity page, fetches/locks the preemption cacheline in L2, wakes the thread, and reenables the FPGA interrupt. Reenabling is the hardware completion handshake.
-5. Whole-process teardown first drains hardware, then restores `SCHED_NORMAL`, housekeeping affinity and wakefulness. A kernel monitor detects fatal signals on parked workers. All preemption IRQ paths use the same return-to-user parking callback, including interrupts from userspace. Each queued callback retains the application file until its last access to the thread record.
+An initial packet reserves an idle worker and sets a sticky notification.
+SGI 8 only wakes its pinned kernel dispatcher. Under the worker's reader mutex,
+the dispatcher reconciles notification and ownership before consuming one
+`PreemptInfo` snapshot. Duplicate interrupts cannot authorize duplicate reads.
+The dispatcher sleeps while an application owns the worker; unassigned CPUs
+use Linux idle/WFI.
 
-Sources: [`sched.c`](../../sw/kmod/sched.c), [`worker.c`](../../sw/kmod/worker.c), [`EciPreemptionControlPlugin.scala`](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala), [`cs.h`](../../sw/rt/cs.h).
+For an ordinary handoff, idle RX returns payload-free PREEMPT. Runtime calls
+`lh_yield()` before further RX/TX. Kernel fences the outgoing task inside the
+syscall, checks that relinquishment is requested, and reads `PreemptInfo`.
+Acceptance acknowledges relinquishment; autonomous NIC cleanup precedes the
+response. No scheduling IRQ is generated. Shared AXI-Lite accesses can wait
+behind this read, so cleanup must not require another control access.
 
-September 17 B4 implementation update: deferred dispatch now waits for the
-`datapathDrained` acknowledgement before unmapping the old thread prefix. RX
-retires its retained packet and invalidates its cachelines; TX finishes traffic
-or flushes an uncommitted buffer without transmitting it. The acknowledgement
-also waits for router quiescence and queued unlock traffic. Thread selection
-claims `worker_idx` atomically before deferred dispatch. The generated IPI killed
-field now follows `PID_WIDTH` rather than a hard-coded 32-bit PID, and runtime
-critical-section entry reloads READY while waiting. Whole-process termination is now implemented in source;
-with the September 18 return-to-user parking fix it passed the two-round
-incoming/process recovery campaign on pipeline 512199. Broader B4 acceptance
-remains open; see [the B4 design](process-recovery.md).
+Both paths use one snapshot/claim/affinity helper. Claims use a short spinlock;
+no claim lock crosses MMIO, affinity installation or sleep. A thread waits for
+its own fresh activation, regardless of unrelated wakeups. The returned worker
+index selects its mapped alias, and both local parity bits are replaced before
+transport access. Ordinary blocking syscalls retain assignment.
 
-## Actual policy and limits
+## Failure boundary
 
-- On arrival, a process without a core can claim an idle core; a queue at least half full can also claim a ready core, subject to `maxThreads`. Ready means able to receive a request, not arbitrary involuntary interruption of a running handler. The pop path also searches pending processes when a worker has no work.
-- Selection uses first-set choices; fairness is explicitly TODO. Do not describe this as a completed fair-share or latency-SLO scheduler.
-- Process disable and watchdog expiry force every assigned core through stop-to-idle without requiring RX readiness. The kernel handles `killed` by requesting whole-process recovery. Ordinary preemption, explicit stop and critical-section timeouts remain enabled when execution monitoring is off.
-- No available target thread causes a kernel panic. Thread selection and shared registration state deserve concurrency review before claiming robust multi-process operation.
-- Process storage includes the reserved IDLE slot and registration uses TGID. Reuse waits for final file/VMA release and verified hardware retirement.
+Unauthorized fresh reads kill the requesting domain, not the installed owner
+of the addressed worker. SGI 9 reports sticky domain faults to housekeeping.
+Old-address writebacks and LCIA remain cleanup obligations. Unsupported exit,
+fatal activation failure and failed result copying after relinquishment fence
+claims and require a coherence reset; unresolved identities and resources are
+retained. Full recovery and parked-domain deadline activation are deferred.
+See [failure policy](process-recovery.md).
 
-## Where to change things
-
-| Change | Read first |
-|---|---|
-| Core allocation, queue fairness, readiness | `hw/src/lauberhorn/Scheduler.scala` |
-| Coherent preemption handshake | `hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala`, `sw/rt/cs.h` |
-| Linux migration, parking, wakeup | `sw/kmod/sched.c`, `sw/kmod/worker.c` |
-| Process/thread ownership and lifetime | `sw/kmod/chrdev.c`, `sw/kmod/common.h` |
-
-Open work: allocation fairness/SLOs and matched-hardware recovery acceptance. Run-to-finish and isolation from ordinary Linux work are settled intent, not open alternatives.
+Sources: [scheduler](../../hw/src/lauberhorn/Scheduler.scala),
+[ECI handoff](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala),
+[kernel activation](../../sw/kmod/sched.c), [IRQs and lifetimes](../../sw/kmod/worker.c),
+[registration and mapping](../../sw/kmod/chrdev.c).

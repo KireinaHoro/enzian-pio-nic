@@ -27,17 +27,16 @@ built that fix at `a51139e` after pipeline 515796 failed fetching its prematurel
 deleted branch. [Two cold-reset trials passed 200 RPCs](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02),
 with trace-confirmed RX writeback completion. The
 [30-minute / five-hour CI follow-up](../development/ci.md#scheduled-hardware-build-follow-up)
-now retains pipeline refs until all jobs finish. Keep the existing
-router and address ABI for this trial. Router-free address/PREEMPT implementation
-planning is now the next step, as requested.
+now retains pipeline refs until all jobs finish. That historical trial used the former address ABI. The current ECI source now
+uses the selected physical-worker decoder and cooperative PREEMPT contract.
 
 ## Next steps after the bounded modeling round
 
-Implementation has started on `feat/fixed-worker-cooperative-yield`, with
+Implementation has started on `feat/cooperative-yield`, with
 generated address arithmetic, a standalone owner-validating decoder, and focused
-idle-kick/ordinary-handoff checks. See [evidence and remaining integration](../hardware/fixed-worker-implementation.md).
-Production routing, cooperative RTL/kernel/runtime integration, CI and the fresh
-Enzian RX-stall timeout probe remain outstanding. HOST_WAKE interface design and
+idle-kick/ordinary-handoff checks. See [evidence and remaining integration](../hardware/eci-implementation.md).
+Production routing and cooperative RTL/kernel/runtime are integrated. Validation,
+CI and the fresh Enzian RX-stall timeout probe remain outstanding. HOST_WAKE interface design and
 implementation, deadline-kick integration, and complete kill/exit recovery are
 explicitly outside this stage; step 4 below is later work.
 
@@ -54,7 +53,7 @@ the replacement integration from deferred follow-on work.
 | 1 (complete, bounded regression) | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Pipeline 515802 passed two cold-reset trials / 200 RPCs; a repeated-hash trace shows RX WDDA/LCIA and the next read. Broader stress remains in step 5. |
 | 2 | Plan and implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
 | 3 | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
-| 4 | Complete host-event activation and whole-domain kill/exit integration. | HOST_WAKE ownership survives reassignment and ACK races; close fences claims/callbacks, releases held RX and drains TX/overflow/packet ownership before retirement. Interrupts serve kill only. Reuse the existing modeled contracts; HOST_WAKE is already modeled. |
+| 4 (deferred) | Design host-event activation and complete whole-domain recovery in a later round. | Neither interface design nor reusable-resource recovery is part of this stage. |
 | 5 | Validate the integrated replacement with targeted actual-DCS RTL simulations and matched board stress. | Run the [whole-slice cases below](#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available), stalled peers plus bypass, repeated handoffs, wakes and kill cleanup. Add model-derived assertions/event monitors as each component lands, rather than postponing all validation to this stage. Record finite observations separately from liveness assumptions. |
 | 6 | Integrate the first-paper applications and collect performance data, then evaluate coupled RX/TX where measurements justify it. | Reproducible functional workloads and baseline comparisons; quantify scheduling costs and application bottlenecks before selecting another transport optimization. |
 
@@ -111,7 +110,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 - `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](dandelion.md); these are external reference trees, not merged support in this checkout.
 - Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. A timer should kill a task stuck in the 2F2F receive critical section, or an application timeout should bound it; precise policy is still open. Current `BUG_ON(killed)` is an implementation gap, not that intended recovery guarantee.
 - TCP and Protobuf student platform/report trees are located and documented in [TCP](tcp.md) and [Protobuf](protobuf.md). Merge soon to avoid drift, at lower priority than Dandelion and the other first-paper applications. Fully offloaded gRPC is a possible subsequent paper.
-- Updated 2026-09-30: physical-worker-owned QPs and the [8 KiB layout/domain encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding) are selected for the router-free replacement. Current thread-owned routing remains the implementation baseline.
+- Updated 2026-09-30: physical-worker-owned QPs and the [8 KiB layout/domain encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding) are selected for the router-free replacement. The implementation now selects physical-worker decoding; full acceptance is pending.
 
 ## Scheduling verification milestones (maintainer, 2026-09-30)
 
@@ -313,8 +312,8 @@ explicit hardware correspondence obligation, not an empty-cache assumption.
 ## Kill/exit follow-up (2026-10-01)
 
 The [focused kill/exit check](../hardware/kill-exit-verification.md) separates
-application stopping from prefix reclamation. The first implementation allocates
-domain codes monotonically without reuse; prefix-reuse certification is deferred.
+application stopping from PA lifetime reclamation. The first implementation allocates
+domain codes monotonically without reuse; domain-code reuse certification is deferred.
 The focused model checks uncooperative userspace, outstanding RX, IRQ ordering,
 close/dispatch races and reference cleanup. It does not complete the larger
 combined temporal or concrete resource/refinement obligations. The linked report
