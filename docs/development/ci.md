@@ -20,6 +20,62 @@ license-server default shared with the local Docker launcher. It receives Vivado
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
 digest alone does not pin that separately maintained installation.
 
+## Scheduled hardware-build follow-up
+
+After launching an authorized hardware CI pipeline, schedule a **30-minute**
+check in the same agent thread. Use the local user timer helper (requires the
+host and Codex app-server to remain available):
+
+```sh
+python3 tools/ci/schedule-hw-check.py PIPELINE_ID --stage preflight
+```
+
+It uses `CODEX_THREAD_ID` or an explicit `--thread THREAD_ID`; `--dry-run` prints
+the exact timer/queued task without installing it. Timers are named
+`lauberhorn-ci-PIPELINE_ID-STAGE`. Inspect with `systemctl --user list-timers`;
+cancel a pending check with `systemctl --user stop NAME.timer`. The helper refuses
+a duplicate live timer; `--rearm` explicitly replaces that stage's timer but
+never interrupts a running queue invocation. These are local one-shot timers,
+not an unattended script that programs a board without rechecking its state.
+
+1. At the 30-minute check, read all test gates, `prepare-eci`, and `build-hw-eci`
+   in that pipeline. Record SHA and job IDs, including retry jobs. When all gates
+   passed and the hardware build is **running**, schedule collection **five hours
+   from that check**, then stop polling:
+
+   ```sh
+   python3 tools/ci/schedule-hw-check.py PIPELINE_ID --stage results
+   ```
+
+2. If tests or preparation failed, inspect the relevant failed-stage log. Fix,
+   validate and relaunch only a trivial, understood cause, then install a new
+   30-minute check for the replacement pipeline. For a nontrivial problem,
+   identify the cause/evidence, report it and stop; do not expand into an
+   unrequested redesign. Never treat skipped hardware as a running build.
+3. If tests/preparation or runner allocation are still pending, re-arm the
+   preflight check for 30 minutes with `--rearm`; do not start the five-hour wait
+   until hardware is running. If hardware has already succeeded, collect/test
+   immediately. If it failed, diagnose and report rather than queue a board test.
+4. At the five-hour check, collect hardware results and matching bitstream,
+   software and trace-map artifacts. On success, follow the
+   [Enzian test procedure](hardware-test.md): recheck reservation, preserve any
+   frozen failure evidence before reset, and run matched-artifact RPC tests with
+   at least two repeats and tracing through module load. Report compact results;
+   capture and diagnose a failure before resetting. Do not claim timing closure
+   from a successful build or silently restart timing optimization.
+5. If hardware is still running after five hours, use `--stage results-recheck`
+   for a 30-minute recheck (`--rearm` for subsequent checks). Do not repeatedly
+   restart the five-hour wait. Stop after completion or a diagnosed blocker;
+   cancel any obsolete timers when replacing/canceling a pipeline or test.
+
+**Retain the pipeline branch until every job has finished**, even after merging
+its commit into master. Jobs can fetch the branch when they start. Deleting
+`fix-rx-writeback` prematurely caused pipeline 515796's prepare job to fail;
+restoring the same `a51139e` ref launched replacement pipeline 515802. Delete the
+merged temporary ref only after its jobs finish. The read-only project token
+must not be used to retry or mutate CI; use the authorized Git workflow or a
+separately authorized write-capable interface.
+
 ## Pipeline and handoff
 
 1. `fast-tests-eci`, `dcs-rom-thx`, `dcs-lauberhorn`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
@@ -108,7 +164,7 @@ old Mill versions is a signal to repeat from a clean cache. Then run the Nix
 checks offline; a warm interactive build is not evidence of lock completeness.
 `nix run .#ciBuild -- NAME INSTALLABLE` reproduces the CI logging wrapper.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
-Hardware runs take hours; collect once after notification or a scheduled trigger.
+Hardware runs take hours; use the [30-minute / five-hour follow-up](#scheduled-hardware-build-follow-up) above rather than frequent polling.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
 and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
 

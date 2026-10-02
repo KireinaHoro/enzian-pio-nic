@@ -22,8 +22,11 @@ RX writebacks are now drained and discarded by the RTL, with a
 [design note](../hardware/rx-writeback.md) retaining command/status/fast-response
 use as an open feasibility/performance study alongside
 [application measurements](#application-performance-and-coupled-rxtx-analysis). Pipeline
-[515796](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515796)
-builds that fix at `a51139e`; board validation is still pending. Keep the existing
+[515802](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515802)
+rebuilds that fix at `a51139e` after pipeline 515796 failed fetching its prematurely
+deleted branch; board validation is still pending. The
+[30-minute / five-hour CI follow-up](../development/ci.md#scheduled-hardware-build-follow-up)
+now retains pipeline refs until all jobs finish. Keep the existing
 router and address ABI for this trial. Router-free address/PREEMPT implementation
 planning follows that hardware check, as requested.
 
