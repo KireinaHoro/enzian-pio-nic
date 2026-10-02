@@ -281,6 +281,17 @@ one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
 simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
 do not substitute a historical threshold or weaken architectural protection.
 
+Check TAD state and kernel logs again **after** the follow-up RPC check. A clean
+short idle probe can fault later at the same setting: the October 3 campaign
+observed this at 27,204,589 cycles. A timed-out client is not a passing probe;
+preserve its trace and subsequent fault state before continuing or resetting.
+Bound the client process and its cleanup as well as the RPC deadline. Confirm
+that the next value was actually programmed before attributing a fault to it:
+a later 27,193,602-cycle trial faulted before the following write. Its preserved
+trace still showed only the preceding value. Withdraw such a short pass and
+re-establish the lower bound with a longer exposure; do not keep narrowing
+around a lower bound that has already failed.
+
 Use the matched generated trace map to quantify intervals and overlapping peer
 transport events:
 
@@ -330,6 +341,13 @@ The hold analyzer additionally groups independent transport events by the number
 of **simultaneously** stalled workers whose completed intervals meet
 `--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
 ordinary `YieldAccepted` events are distinguished from initial activation.
+The report also separates idle/ordinary activation counts by physical worker
+and PA domain, and request dispatch counts by Linux PID and physical worker.
+Trace `CoreID` is the NIC datapath ID: zero is bypass, and application worker
+index is `CoreID - 1`; it is not a Linux CPU ID. Keep these identity spaces
+distinct. Preserve a full capture, then analyze a
+recorded byte range for each measured trial so earlier phases cannot inflate
+its counts.
 Use these overlap counts together with client completions and TAD assessment.
 They do not prove progress outside the recorded window.
 
