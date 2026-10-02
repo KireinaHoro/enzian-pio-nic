@@ -63,7 +63,7 @@ def main():
                             capture_output=True, text=True, timeout=120)
     log = result.stdout + result.stderr
     (out/'run.log').write_text(log)
-    passed = result.returncode == 0 and 'PASS ' in log
+    passed = result.returncode == 0 and log.count('PASS ') == 3
     summary = dict(passed=passed, scope=__doc__, address_trials=len(addresses),
                    worker_count=len(config['workers']), domain_codes=[0, 1, (1 << len(basis))-1, 0],
                    sources={str(f): hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in sources},
