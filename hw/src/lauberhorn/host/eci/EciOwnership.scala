@@ -23,11 +23,8 @@ class EciOwnership extends FiberPlugin {
     val allocate = alloc("allocateDomain", attr = RC, readSensitive = true,
       desc = "Allocate one non-reused 19-bit PA lifetime; 524288 means exhausted")
     ctrl.read(logic.nextDomain, allocate)
-    ctrl.onRead(allocate) {
-      when(!logic.resetRequired && logic.nextDomain < EciAddressMap.domain_limit) {
-        logic.nextDomain := logic.nextDomain + 1
-      }
-    }
+    logic.allocator.io.allocate := False
+    ctrl.onRead(allocate) { logic.allocator.io.allocate := True }
     val code = UInt(EciAddressMap.domain_bits bits)
     ctrl.drive(code, alloc("domainCode", attr = WO,
       desc = "PA lifetime to bind to an unused scheduler slot"))
@@ -65,16 +62,14 @@ class EciOwnership extends FiberPlugin {
   val logic = during setup new Area {
     val workers = NUM_WORKER_CORES.get
     require(workers >= 1 && workers <= EciAddressMap.max_workers)
-    val appReset = ClockDomain.current.isResetActive
+    val appReset = Bool()
+    appReset := ClockDomain.current.isResetActive
     // VIO probe_out5 can reset the application without resetting THX coherence.
     // FPGA initialization, rather than that reset input, initializes these regs.
-    val persistent = new ClockingArea(ClockDomain.current.withBootReset()) {
-      val nextDomain = Reg(UInt(20 bits)) init 0
-      val resetRequired = RegInit(False)
-      when(appReset && nextDomain =/= 0) { resetRequired := True }
-    }
-    val nextDomain = persistent.nextDomain
-    val resetRequired = persistent.resetRequired
+    val allocator = EciDomainAllocator()
+    allocator.io.appReset := appReset
+    val nextDomain = allocator.io.next
+    val resetRequired = allocator.io.resetRequired
     val domainCodes = Vec.fill(NUM_PROCS.get + 1)(Reg(UInt(EciAddressMap.domain_bits bits)) init 0)
     val domainBound = Vec.fill(NUM_PROCS.get + 1)(RegInit(False))
     val owners = Vec.fill(workers)(Reg(UInt(EciAddressMap.domain_bits bits)) init 0)
@@ -100,7 +95,7 @@ class EciOwnership extends FiberPlugin {
     faultIrq.intId := 9
     faultIrq.affLvl0 := 1
     faultIrq.affLvl1 := 0
-    when(faults.io.failed.orR) { resetRequired := True }
+    allocator.io.fatal := faults.io.failed.orR
     for (w <- 0 until workers) {
       failedWorkers(w) := (1 to NUM_PROCS.get).map(s =>
         faults.io.failed(s) && domainBound(s) && owners(w) === domainCodes(s)).reduce(_ || _)

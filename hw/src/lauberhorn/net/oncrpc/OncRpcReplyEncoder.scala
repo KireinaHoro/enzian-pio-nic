@@ -18,6 +18,7 @@ import scala.language.postfixOps
 case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   val rpcId = UInt(RpcID.width bits)
   val requestToken = Bits(32 bits)
+  val owner = UInt(lauberhorn.Global.PID_WIDTH.get bits) // trusted assignment, never user supplied
   val status = Bits(8 bits)
   val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
@@ -113,6 +114,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     val overflowPldPresent = Reg(Bool())
 
     contexts.io.replyToken := md.requestToken
+    contexts.io.replyOwner := md.owner
     contexts.io.retire := False
     md.ready := False
     val lastWasReject = RegInit(False)

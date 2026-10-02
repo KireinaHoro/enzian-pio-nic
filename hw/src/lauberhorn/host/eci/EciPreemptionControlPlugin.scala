@@ -1,350 +1,123 @@
 package lauberhorn.host.eci
 
-import jsteward.blocks.eci.{DcsAppLclInterface, EciCmdDefs, EciIntcInterface}
+import jsteward.blocks.eci.EciIntcInterface
+import jsteward.blocks.misc.RegBlockAlloc
 import lauberhorn._
+import lauberhorn.Global._
+import lauberhorn.host.PreemptionService
 import spinal.core._
 import spinal.lib._
-import spinal.lib.bus.amba4.axi.{Axi4, Axi4SlaveFactory}
-import spinal.lib.fsm._
-import spinal.lib.bus.regif.AccessType.{RC, RW}
-import jsteward.blocks.misc.RegBlockAlloc
-import lauberhorn.host.PreemptionService
-import Global._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
+import spinal.lib.bus.regif.AccessType.{RC, RO}
 
-import scala.language.postfixOps
-
-/**
-  * Backing storage for preemption control cacheline.  Fits the following information to pass to host:
-  *  - READY & BUSY bits
-  */
-case class PreemptionControlCl() extends Bundle {
-  val busy = Bool()
-  val ready = Bool()
-
-  def addMackerel() = {
-    ALLOC.addMackerelEpilogue(
-      s"""
-         |datatype host_worker_ctrl lsbfirst(64) "ECI Host Worker Control Info" {
-         |  busy      1 "the thread is in the critical section";
-         |  ready     1 "worker ready to serve the next request (the thread is allowed to enter the critical section)";
-         |  _         6 rsvd;
-         |};
-         """.stripMargin)
-  }
-}
-
-/**
-  * Extra information to pass to kernel.  This register will be read by kernel; the read also functions
-  * as an ACK for the IPI.  Information included here:
-  *  - RX & TX parity bits
-  *  - whether the process was force-killed
-  *  - next PID
-  */
-case class IpiAckReg() extends Bundle {
-  val pid = PID()
-  val killed = Bool()
-}
-
-/**
-  * Preemption control plugin for ECI.  Interfaces with [[EciInterfacePlugin]] to issue interrupts to CPU as IPI.
-  *
-  * READY/BUSY flags are implemented in a **preemption control cacheline** that's normally pinned in the L2 cache.
-  * We take parity flags as input, to return them inside this cacheline as well.
-  */
+/** Cooperative handoff: idle reservations send a kick, ordinary reservations
+  * deliver PREEMPT through RX. Acceptance of PreemptInfo starts autonomous
+  * cleanup; its response supplies the committed assignment. */
 class EciPreemptionControlPlugin(val coreID: Int) extends PreemptionService {
+  require(coreID > 0)
   withPrefix(s"worker_${coreID - 1}")
 
   val tp = during setup host[TracePlugin].makePort(s"preempt_core$coreID", LauberhornTraceDma.NicHostInterfaceSlr)
 
-  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc) = {
-    val busCtrl = AxiLite4SlaveFactory(bus)
-    val schedCmdAddr = alloc("schedCmd", attr = RC, readSensitive = true,
-      desc = "Preemption command for worker core (all zero for bypass)")
-    busCtrl.read(logic.schedCmd, schedCmdAddr)
-    busCtrl.onRead(schedCmdAddr) {
-      logic.ipiCmdSent := True
+  def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
+    val ctrl = AxiLite4SlaveFactory(bus)
+    val info = alloc("preemptInfo", attr = RC, readSensitive = true,
+      desc = "Committed assignment; read acceptance relinquishes outgoing assignment",
+      ty = s"""{
+        | domain_code 19 "PA lifetime";
+        | domain_slot ${log2Up(NUM_PROCS.get + 1)} "Scheduler slot";
+        | rx_next 1 "Next RX parity";
+        | tx_next 1 "Next TX parity";
+        | _ ${64 - 21 - log2Up(NUM_PROCS.get + 1)} rsvd;
+        |}""".stripMargin)
+    ctrl.read(logic.snapshot, info)
+    logic.accept := bus.ar.fire && ctrl.maskAddress(bus.ar.addr) === info
+    logic.consumed := bus.r.fire && ctrl.readAddress() === info
+    when(ctrl.readDataStage.valid && ctrl.readAddress() === info && !logic.response) {
+      ctrl.readHalt()
     }
-
-    busCtrl.readAndWrite(logic.realCoreId, alloc("realCoreId",
-      desc = "Actual core ID serving requests for this context"))
-
-    val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
-    busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
-    when (logic.irqEn.rise()) {
-      logic.kernelFinished := True
-    }
-    busCtrl.read(logic.datapathDrained, alloc("datapathDrained",
-      desc = "Old RX/TX and coherence traffic drained; safe to change thread mapping"))
+    ctrl.read(logic.idleNotification, alloc("idleNotification", attr = RO,
+      desc = "Sticky idle reservation; consumed by one serialized PreemptInfo read"))
+    ctrl.read(logic.active && !logic.idleNotification && !logic.relinquished,
+      alloc("yieldRequested", attr = RO, desc = "Ordinary relinquishment is authorized; never poll for work"))
+    ctrl.readAndWrite(logic.realCoreId, alloc("realCoreId",
+      desc = "Linux CPU receiving idle-dispatch kicks"))
   }
 
-  val requiredAddrSpace = 0x80
-
-  // we have same address space view as the core control (for LCI/LCIA, and AXI)
-  val controlClAddr = 0x10000
-  ECI_PREEMPT_CTRL_OFFSET.set(controlClAddr)
-
-  assert(coreID != 0, "bypass core does not need preemption control!")
+  val requestPort = during setup Stream(PreemptReq())
 
   val logic = during setup new Area {
-    val proto = host.list[EciDecoupledRxTxProtocol].apply(coreID)
-
-    // DCS interfaces
-    val lcl = DcsAppLclInterface()
-    lcl.assertPersistence()
-    import lcl._
-
-    // muxed interface to ECI interrupt controller
+    val preemptReq = requestPort.get
     val ipiToIntc = Stream(EciIntcInterface())
-
-    // These addresses are mapped back by [[EciThreadClRouter]]
-    lci.valid := False
-    lci.payload := controlClAddr
-
-    lcia.setBlocked()
-    when (lcia.valid) {
-      assert(lcia.payload === controlClAddr, "LCIA does not match control address!")
-    }
-
-    val preemptCtrlCl = Reg(PreemptionControlCl())
-    // CPU is not in critical section at the very start
-    preemptCtrlCl.busy init False
-    // We are not issuing a preemption request at the start
-    preemptCtrlCl.ready init True
-
-    assert(requiredAddrSpace >= preemptCtrlCl.getBitsWidth, "not all information fits in the preemption control CL")
-
-    // Preemption request from scheduler.  When issued (valid === True), the scheduler
-    // must have:
-    // - blocked off new requests from entering the granted buffer (i.e. the
-    //   datapath will not receive a new packet)
-    // - updated queue mapping to pop from new PID queue
-    //
-    // When [[preemptReq]] is acknowledged (valid && ready === True), the kernel would have
-    // signalled that they finished all steps and will immediately return to user space.
-    // The scheduler can then allow new requests into the granted buffer.
-    val preemptReq = Stream(PreemptReq())
-    preemptReq.setBlocked()
-
-    val schedCmd = Reg(IpiAckReg())
-    // Are we in the kernel?
-    val ipiCmdSent = CombInit(False)
+    val realCoreId = Reg(UInt(log2Up(MAX_CORE_ID) bits)) init coreID
+    val accept, consumed = Bool()
+    val active = RegInit(False)
+    val relinquished = RegInit(False)
+    val response = RegInit(False)
+    val idleNotification = RegInit(False)
+    val kickPending = RegInit(False)
+    val targetSlot = Reg(UInt(log2Up(NUM_PROCS.get + 1) bits)) init 0
+    val targetCode = Reg(UInt(EciAddressMap.domain_bits bits)) init 0
+    val snapshot = Reg(Bits(REG_WIDTH bits)) init 0
 
     awaitBuild()
 
-    // Retain the reason through IPI delivery and the kernel acknowledgement.
-    schedCmd.killed init False
-    schedCmd.pid := preemptReq.pid
+    val ownership = host[EciOwnership].logic
+    val proto = host.list[EciDecoupledRxTxProtocol].apply(coreID)
+    val worker = coreID - 1
+    preemptReq.ready := False
+    proto.preemptReq.valid := relinquished && !response
+    proto.logic.yieldRequested := active && !idleNotification && !relinquished
+    proto.logic.fatalRelease := ownership.failedWorkers(worker)
+    proto.logic.externalQuiet := !ownership.busy(worker)
+    ownership.fence(worker) := relinquished
+    ownership.install(worker).setIdle()
 
     ipiToIntc.cmd := 0
-    // 8 to 15 are allowed
-    // FIXME: should we use a different interrupt ID for killing a proc?
     ipiToIntc.intId := 8
-
-    // affLvl0 is a bit mask, but we only send to one at a time
-    // FIXME: can we eliminate this calculation? i.e. use a fixed core offset
-    val coreIDWidth = log2Up(MAX_CORE_ID)
-    val realCoreId = Reg(UInt(coreIDWidth bits)) init coreID
     ipiToIntc.affLvl0 := UIntToOh(realCoreId(3 downto 0))
-    ipiToIntc.affLvl1 := realCoreId(coreIDWidth - 1 downto 4).asBits.resized
-    ipiToIntc.valid := False
+    ipiToIntc.affLvl1 := realCoreId(realCoreId.getWidth - 1 downto 4).asBits.resized
+    ipiToIntc.valid := kickPending
+    when(ipiToIntc.fire) { kickPending := False }
 
-    val irqEn = Bool()
-
-    // The kernel will re-enable IRQ after finishing:
-    // - update parity in HW to match the new thread
-    // - update thread CL routing
-    // - pin the preemption control of the new thread
-    val kernelFinished = Reg(Bool()) init False
-    val datapathDrained = RegInit(False)
-
-    // Preemption request to forward to the datapath.  Issued AFTER clearing READY bit
-    // to ACK the pending packet (if any) and drop ctrl (& data, if any) CLs from L2 cache
-    val rxProtoPreemptReq = proto.preemptReq
-    rxProtoPreemptReq.setIdle()
-
-    // Timer for CPU to exit critical section (unset BUSY), before the FPGA kills the
-    // process (sets killed === True) before sending IPI
-    val preemptTimer = Counter(REG_WIDTH bits)
-
-    def ptrace(ev: String) = tp.trace(s"PreemptCtrl$ev",
-      CoreID(B(coreID, CoreID.width bits)),
-      ProcessID(preemptReq.pid.bits),
-      PreemptReady(preemptCtrlCl.ready),
-      PreemptBusy(preemptCtrlCl.busy),
-      PreemptKilled(schedCmd.killed),
-      PreemptOutOfIdle(preemptReq.outOfIdle),
-    )
-
-    val fsm = new StateMachine {
-      val idle: State = new State with EntryPoint {
-        whenIsActive {
-          kernelFinished := False
-          preemptTimer.clear()
-          // only start preemption when IRQ is enabled
-          when (preemptReq.valid && irqEn) {
-            schedCmd.killed := preemptReq.kill
-            datapathDrained := preemptReq.outOfIdle
-            when (preemptReq.outOfIdle) {
-              // if we are kicking a core out of idle, no thread mapping
-              // will be present yet -- directly send interrupt
-              ptrace("Bootstrap")
-              goto(issueIpi)
-            } otherwise {
-              lci.valid := True
-              when (lci.ready) {
-                ptrace("ClearReady")
-                goto(unsetReady)
-              }
-            }
-          }
-        }
-      }
-      val unsetReady: State = new State {
-        whenIsActive {
-          lcia.freeRun()
-          when (lcia.valid) {
-            preemptCtrlCl.ready := False
-            ptrace("PollBusy")
-            goto(checkBusyAfterLcia)
-          }
-        }
-      }
-      val checkBusyAfterLcia: State = new State {
-        whenIsActive {
-          preemptTimer.increment()
-          // LCIA completes the invalidation.
-          when (True) {
-            when (preemptCtrlCl.busy) {
-              // busy when we unset ready
-              when (preemptTimer >= host[EciInterfacePlugin].hostIfCtrl.preemptCritSecTimeout) {
-                // timer has expired -- kill
-                schedCmd.killed := True
-                ptrace("KillTimeout")
-                goto(issueIpi)
-              } otherwise {
-                // timer has not expired -- poll again
-                ptrace("FetchBusy")
-                goto(readBusyReq)
-              }
-            } otherwise {
-              // busy already low after invalidation, we can issue IPI
-              ptrace("ClearedBusyIssueIpi")
-              goto(issueIpi)
-            }
-          }
-        }
-      }
-      val readBusyReq: State = new State {
-        whenIsActive {
-          preemptTimer.increment()
-          lci.valid := True
-          when (lci.ready) {
-            goto(readBusy)
-          }
-        }
-      }
-      val readBusy: State = new State {
-        whenIsActive {
-          preemptTimer.increment()
-          lcia.freeRun()
-          when (lcia.valid) {
-            ptrace("CheckBusy")
-            goto(checkBusyAfterLcia)
-          }
-        }
-      }
-      val issueIpi: State = new State {
-        whenIsActive {
-          ipiToIntc.valid := True
-          when (ipiToIntc.ready) {
-            ptrace("IpiIssued")
-            goto(ipiWaitAck)
-          }
-        }
-      }
-      val ipiWaitAck: State = new State {
-        whenIsActive {
-          when (ipiCmdSent) {
-            // we can only trigger data path preemption once we are sure we are
-            // in the kernel, or the old user thread might have a chance to
-            // corrupt the clean state (e.g. sneak covert data in)
-            ptrace("PreemptDatapath")
-            goto(preemptDataPath)
-          }
-        }
-      }
-      val preemptDataPath: State = new State {
-        whenIsActive {
-          // Since each thread has its own physical address, we don't need to
-          // invalidate any cache data on context switch.  This request sequences
-          // us with the data path state machine to make sure that the data path
-          // can still properly retire the current packet (that is being repeated).
-          rxProtoPreemptReq.valid := True
-          when (rxProtoPreemptReq.ready) {
-            datapathDrained := True
-            // Before re-enabling IRQ, the kernel will:
-            // - update mapping in [[EciThreadClRouter]] to route the new thread, and
-            // - update rx/tx parity to new thread in the data path.
-            ptrace("FetchReady")
-            goto(setReadyReq)
-          }
-        }
-      }
-      val setReadyReq: State = new State {
-        whenIsActive {
-          // No synchronization between HW and kernel by setting ready: preempt control
-          // is not accessed in kernel.  We still update this in HW to keep the preempt
-          // lock conceptually clean (synchronization between hardware and userspace only).
-
-          // Did the kernel finish updating the thread CL routing?
-          when (kernelFinished) {
-            when(preemptReq.pid.bits === 0) {
-              // No next mapping exists when stopping to idle. Do not send an
-              // invalidation through the now-unrouted thread prefix.
-              preemptCtrlCl.ready := True
-              preemptCtrlCl.busy := False
-              ptrace("Done")
-              preemptReq.ready := True
-              goto(idle)
-            } otherwise {
-            lci.valid := True
-            when (lci.ready) {
-              goto(setReady)
-            }
-            }
-          }
-        }
-      }
-      val setReady: State = new State {
-        whenIsActive {
-          lcia.freeRun()
-          when (lcia.valid) {
-            preemptCtrlCl.ready := True
-            ptrace("AssertedReady")
-            goto(completeAfterLcia)
-          }
-        }
-      }
-      val completeAfterLcia: State = new State {
-        whenIsActive {
-          // LCIA completes the invalidation.
-          when (True) {
-            ptrace("Done")
-            preemptReq.ready := True
-            goto(idle)
-          }
-        }
-      }
+    when(!active && preemptReq.valid && !ownership.failedWorkers(worker)) {
+      val slot = host[Scheduler].logic.corePidMap(worker)
+      assert(slot =/= 0 && ownership.domainBound(slot), "reservation without bound domain")
+      assert(!preemptReq.kill, "legacy kill scheduling is unsupported")
+      targetSlot := slot.resized
+      targetCode := ownership.domainCodes(slot)
+      active := True
+      idleNotification := preemptReq.outOfIdle
+      kickPending := preemptReq.outOfIdle
     }
-    fsm.build()
+    when(accept) {
+      tp.trace("YieldAccepted", CoreID(B(coreID, CoreID.width bits)), DomainCode(targetCode.asBits),
+        QueueIndex(targetSlot), PreemptOutOfIdle(idleNotification))
+      assert(active && !relinquished && !response, "unauthorized PreemptInfo read")
+      relinquished := True
+      idleNotification := False
+    }
+    when(proto.preemptReq.fire) {
+      tp.trace("ActivationCommitted", CoreID(B(coreID, CoreID.width bits)), DomainCode(targetCode.asBits),
+        QueueIndex(targetSlot), RxNext(proto.logic.rxCurrClIdx), TxNext(proto.logic.txCurrClIdx))
+      // Cleanup and all accepted AXI responses have completed. Parities are
+      // sampled here, after final control invalidation, without software writes.
+      snapshot := (proto.logic.txCurrClIdx.asBits ## proto.logic.rxCurrClIdx.asBits ##
+        targetSlot.asBits ## targetCode.asBits).resized
+      ownership.install(worker).valid := True
+      ownership.install(worker).payload := targetCode
+      preemptReq.ready := True
+      response := True
+    }
+    when(consumed) {
+      tp.trace("ActivationDelivered", CoreID(B(coreID, CoreID.width bits)), DomainCode(targetCode.asBits),
+        QueueIndex(targetSlot))
+      assert(response)
+      active := False
+      relinquished := False
+      response := False
+    }
   }
 
-  override def preemptReq: Stream[PreemptReq] = logic.preemptReq
-  def driveDcsBus(bus: Axi4, lcl: DcsAppLclInterface): Unit = new Area {
-    val busCtrl = Axi4SlaveFactory(bus)
-    busCtrl.readAndWrite(logic.preemptCtrlCl, controlClAddr)
-
-    lcl << logic.lcl
-  }.setCompositeName(this, "driveDcsBus")
+  override def preemptReq: Stream[PreemptReq] = requestPort.get
 }

@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
-import lauberhorn.host.eci.EciDecoupledRxTxProtocol
+import lauberhorn.host.eci.{EciDecoupledRxTxProtocol, EciOwnership}
 import lauberhorn.host.{HostReq, HostReqType, HostReqWithTrace, PreemptionService}
 import lauberhorn.Global._
 import lauberhorn.net.invalidTraceId
@@ -81,6 +81,7 @@ class Scheduler extends FiberPlugin {
 
   def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.procDb.update.setIdle()
+    if (host.list[EciOwnership].isEmpty) {
     val wakeIndex = ProcTblIdx
     wakeIndex := 0
     val wakeAddr = alloc("ctrl", "Request a worker for internal deadline progress", "wake_idx", attr = AccessType.WO)
@@ -101,6 +102,8 @@ class Scheduler extends FiberPlugin {
         "watchdog configuration changed after workers started")
       logic.watchdogLimits(watchdogIndex) := watchdogLimit
       logic.watchdogKilled(watchdogIndex) := False
+    }
+
     }
 
     // max number of threads per process (degree of parallelism)
@@ -204,7 +207,8 @@ class Scheduler extends FiberPlugin {
     // The pipelined lookup can still contain a result from before disable.
     // Gate admission/pop with the current control state as well.
     val softwarePending = Vec.fill(NUM_PROCS + 1)(RegInit(False))
-    val watchdogLimits = Vec.fill(NUM_PROCS + 1)(Reg(UInt(32 bits)) init 0)
+    val watchdogLimits = Vec.fill(NUM_PROCS + 1)(
+      if (host.list[EciOwnership].nonEmpty) U(0, 32 bits) else Reg(UInt(32 bits)) init 0)
     val watchdogKilled = Vec.fill(NUM_PROCS + 1)(RegInit(False))
     val watchdogNow = Counter(32 bits)
     watchdogNow.increment()
@@ -303,6 +307,12 @@ class Scheduler extends FiberPlugin {
         is (B("01")) { queueMetas(idx).popOne()  }
         is (B("10")) { queueMetas(idx).pushOne() }
         is (B("11")) { queueMetas(idx).passOne() }
+      }
+    }
+
+    host.list[EciOwnership].headOption.foreach { ownership =>
+      for (slot <- 1 to NUM_PROCS.get) {
+        when(ownership.logic.faults.io.failed(slot)) { processEnabled(slot) := False }
       }
     }
 
@@ -565,7 +575,10 @@ class Scheduler extends FiberPlugin {
       val watchdog = new ExecutionWatchdog()
       watchdog.io.now := watchdogNow.value
       watchdog.io.limit := RegNext(watchdogLimits(coreResident(idx))) init 0
-      watchdog.io.enabled := RegNext(watchdogLimits(coreResident(idx)) =/= 0 && coreResident(idx) =/= 0) init False
+      watchdog.io.enabled := False
+      if (host.list[EciOwnership].isEmpty) {
+        watchdog.io.enabled := RegNext(watchdogLimits(coreResident(idx)) =/= 0 && coreResident(idx) =/= 0) init False
+      }
       // Register scheduler/TX events before the deadline register's enable.
       // Clear both immediately and for the following cycle, discarding events
       // from the previous owner rather than starting them on a new process.
@@ -606,6 +619,7 @@ class Scheduler extends FiberPlugin {
         val idle: State = new State with EntryPoint {
           whenIsActive {
             when (corePopQueueIdx =/= 0 && !processEnabled(corePopQueueIdx)) {
+              if (host.list[EciOwnership].isEmpty) {
               corePreempt(idx).kill := watchdogKilled(corePopQueueIdx)
               corePreempt(idx).pid.bits := 0
               corePreempt(idx).outOfIdle := False
@@ -619,14 +633,14 @@ class Scheduler extends FiberPlugin {
                 PreemptOutOfIdle(False), QueueIndex(corePopQueueIdx),
                 QueueFill(queueMetas(corePopQueueIdx).fill))
               goto(preempt)
+              } // ECI fatal lifetimes retain their worker; no recovery handoff.
             } elsewhen (rxPreemptReq.valid && processEnabled(rxPreemptReq.idx) && victimCoreMapSel(idx)) {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
               corePreempt(idx).kill := False
               corePreempt(idx).pid := rxPreemptReq.pid
 
-              // are we previously in idle?  if yes, the preemption control cannot
-              // try to unset ready (thread router not set up yet)
+              // Only an idle reservation authorizes a scheduling kick.
               corePreempt(idx).outOfIdle := coreIdleMap(idx)
 
               corePidMap(idx) := rxPreemptReq.idx

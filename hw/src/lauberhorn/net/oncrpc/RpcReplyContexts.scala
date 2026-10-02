@@ -29,6 +29,7 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
     val available = out Bool()
     val token = out Bits(32 bits)
     val replyToken = in Bits(32 bits)
+    val replyOwner = in UInt(ownerWidth bits)
     val replyValid = out Bool()
     val replyContext = out(UdpReplyContext())
     val retire = in Bool()
@@ -56,7 +57,7 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
     owners(slot) := io.allocateOwner
   }
   val replySlot = io.replyToken(slotBits - 1 downto 0).asUInt
-  io.replyValid := active(replySlot) &&
+  io.replyValid := active(replySlot) && owners(replySlot) === io.replyOwner &&
     generations(replySlot).asBits === io.replyToken(31 downto slotBits)
   io.replyContext := contexts(replySlot)
   when(io.retire) {

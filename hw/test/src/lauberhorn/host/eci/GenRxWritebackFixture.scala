@@ -21,6 +21,8 @@ case class RxWritebackFixture() extends Component {
   router.blockCycles := 0
   router.currCl := 0
   router.doPreempt := False
+  router.yieldRequested := False
+  router.fatalRelease := False
   router.invDone := invDone
   router.pktBufAxi.setBlocked()
   quiescent := router.quiescent

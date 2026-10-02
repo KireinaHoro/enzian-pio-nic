@@ -96,14 +96,7 @@ class TxBypassSim extends NicSim {
 
       val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
-      val tid = if (cid == 0) -1 else {
-        // create one process with one thread, enable that thread on the core under test
-        val proc = mkRandomProc(1)
-        val thr = proc.threads.head
-        workerCore(cid - 1).switchToThread(thr, csrMaster)
-
-        thr.tid
-      }
+      val tid = -1
 
       txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, tid)
     }
@@ -184,30 +177,22 @@ class TxBypassSim extends NicSim {
   }
 
   def txAllCores(doVoluntaryInv: Boolean) = {
-    val testName = s"all-cores-${if (!doVoluntaryInv) "no-" else ""}inv"
+    val testName = s"bypass-${if (!doVoluntaryInv) "no-" else ""}inv"
     testWithDB(testName, timeout = 10e9.toLong)(Tx) { implicit dut =>
       val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
 
       implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
 
-      // create one process with threads on all worker cores
-      val proc = mkRandomProc(NUM_WORKER_CORES)
 
       if (!doVoluntaryInv) {
         dcsMaster.voluntaryInvProb = 0
         dcsMaster.doPartialWrite = false
       }
 
-      0 until NUM_CORES foreach { idx =>
+      Seq(0) foreach { idx =>
         println(s"====> Testing core $idx")
 
-        val tid = if (idx == 0) -1 else {
-          val wcid = idx - 1
-          val thr = proc.threads(wcid)
-          workerCore(wcid).switchToThread(thr, csrMaster)
-
-          thr.tid
-        }
+        val tid = -1
 
         txTestRange(axisSlave, dcsMaster, csrMaster, 64, 256, 64, tid)
       }
@@ -226,10 +211,7 @@ class TxBypassSim extends NicSim {
 
     val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(1000)
 
-    // enable one thread on worker 0
-    val thr = mkRandomProc(1).threads.head
-    workerCore(0).switchToThread(thr, csrMaster)
-    val tid = thr.tid
+    val tid = -1 // raw network traffic belongs to bypass
 
     // send one IP packet without programming the neighbor table first
     val pld = ipPkt.getPayload.getRawData.toList

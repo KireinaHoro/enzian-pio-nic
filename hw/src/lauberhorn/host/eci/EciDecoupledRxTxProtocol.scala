@@ -47,9 +47,9 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     busCtrl.read(logic.txFsm.stateReg, alloc("stat", subName = "txFsmState", attr = RO,
       desc = "state of the TX state machine (raw value)"))
 
-    busCtrl.readAndWrite(logic.txCurrClIdx, alloc("ctrl", subName = "txCurrClIdx", attr = RW,
+    busCtrl.read(logic.txCurrClIdx, alloc("ctrl", subName = "txCurrClIdx", attr = RO,
       desc = "parity (next CL to write) of the TX state machine"))
-    busCtrl.readAndWrite(logic.rxCurrClIdx, alloc("ctrl", subName = "rxCurrClIdx", attr = RW,
+    busCtrl.read(logic.rxCurrClIdx, alloc("ctrl", subName = "rxCurrClIdx", attr = RO,
       desc = "parity (next CL to read) of the RX state machine"))
 
     debug.postDebug(s"core${coreID}_rxFsm_state", logic.rxFsm.stateReg)
@@ -80,26 +80,10 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   def driveBypassIrqCtrl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
-    alloc("realCoreId", desc = "Actual core ID serving requests for this context")
-    val schedCmdAddr = alloc("schedCmd", attr = RC, readSensitive = true,
-      desc = "Preemption command for worker core (all zero for bypass)",
-      ty =
-        s"""
-          |{
-          |  next_pid   ${PID_WIDTH.get} "Next PID to schedule";
-          |  killed     1  "Previously running process is killed";
-          |  _          ${63 - PID_WIDTH.get} rsvd;
-          |}
-          |""".stripMargin)
-    busCtrl.read(U(0), schedCmdAddr)
-
     // generate IRQ enable reg for bypass
     val irqEnAddr = alloc("irqEn", desc = "Enable IRQ to this core")
     busCtrl.driveAndRead(logic.irqEn, irqEnAddr) init False
-    busCtrl.read(True, alloc("datapathDrained",
-      desc = "Old RX/TX and coherence traffic drained; safe to change thread mapping"))
 
-    PreemptionControlCl().addMackerel()
   }
 
   lazy val overflowCountWidth = log2Up(numOverflowCls)
@@ -112,7 +96,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   lazy val numOverflowCls = (sizePerMtuPerDirection / EciCmdDefs.ECI_CL_SIZE_BYTES - 1).toInt
 
   // map at aligned address to eliminate long comb paths
-  val txOffset = 0x8000
+  val txOffset = 0x1000
   val sizePerCore = 2 * txOffset
 
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
@@ -121,22 +105,20 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   }
 
   private def overflowIdxToAddr(idx: UInt, isTx: Boolean = false): Bits = {
-    val offset = if (isTx) U(txOffset) else U(0)
+    val offset = if (isTx) U(EciAddressMap.tx_control) else U(EciAddressMap.rx_control)
     // two control cachelines before overflow
     ((idx + 2) * EciCmdDefs.ECI_CL_SIZE_BYTES + offset).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
   }
 
   private def ctrlToAddr(currIdx: UInt, isTx: Boolean = false): Bits = {
-    (currIdx * EciCmdDefs.ECI_CL_SIZE_BYTES + (if (isTx) U(txOffset) else U(0))).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
+    (currIdx * EciCmdDefs.ECI_CL_SIZE_BYTES + (if (isTx) U(EciAddressMap.tx_control) else U(EciAddressMap.rx_control))).asBits.resize(EciCmdDefs.ECI_ADDR_WIDTH)
   }
 
   def makeAccessPorts(dcsConfig: Axi4Config, memConfig: Axi4Config): (Seq[(Axi4, SizeMapping)], Seq[Axi4]) = new Area {
     // RX router
     val rxRouter = DcsRxAxiRouter(dcsConfig, memConfig)
 
-    // No need to halt the stream here during preemption: host can't be reading
-    // when preemption happens, since it is out of the critical region where a
-    // read can happen.
+    // PREEMPT is returned at idle RX without consuming a packet.
     rxRouter.rxDesc.translateFrom(hostRx) { case (rxDesc, hostReq) =>
       rxDesc := hostReq.req
     }
@@ -144,6 +126,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
     rxRouter.doPreempt := preemptReq.fire
+    rxRouter.yieldRequested := logic.yieldRequested
+    rxRouter.fatalRelease := logic.fatalRelease
     logic.rxRouterQuiescent := rxRouter.quiescent
     logic.rxSentNack := rxRouter.nackSent
     logic.rxReqs := rxRouter.hostReq
@@ -189,15 +173,15 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
   def preemptReq = logic.preemptReq
 
   val logic = during setup new Area {
-    // The kernel will update these on thread resume
+    // Authoritative transport parities are returned in the activation snapshot.
     val rxCurrClIdx = Reg(Bool()) init False
     val txCurrClIdx = Reg(Bool()) init False
 
-    // Preemption request from [[EciPreemptionControlPlugin]].  This will only come
-    // after the thread is out of the ready/busy critical section and spinning on !ready
+    // Cleanup starts after the outgoing thread has entered kernel yield.
     val execution = Flow(Bits(2 bits))
     val executionOnly = Bool()
     val preemptReq = Event
+    val yieldRequested, fatalRelease, externalQuiet = Bool()
     val rxRouterQuiescent, txRouterQuiescent = Bool()
     val rxDrained = Bool()
 
@@ -208,8 +192,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // the router sent back a NACK
     val rxSentNack = Bool()
 
-    ECI_RX_BASE.set(0)
-    ECI_TX_BASE.set(txOffset)
+    ECI_RX_BASE.set(EciAddressMap.rx_control)
+    ECI_TX_BASE.set(EciAddressMap.tx_control)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
@@ -306,7 +290,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           // In other cases, first read for the next request IS the one triggering the switch,
           // so we'd always end in hostIssuedRead
           when (rxReqs(rxCurrClIdx.asUInt)) {
-            assert(!preemptReq.valid, "critical section violation: no preemption is allowed during read")
+            assert(!preemptReq.valid, "fresh RX read after relinquishment")
             rxTp.trace("EciRxReadFirst", rxReadTd: _*)
             goto(hostReadPending)
           } otherwise { handlePreempt() }
@@ -551,7 +535,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxFsm.build()
     txFsm.build()
     preemptReq.ready := rxDrained && txFsm.isActive(txFsm.idle) &&
-      rxRouterQuiescent && txRouterQuiescent
+      rxRouterQuiescent && txRouterQuiescent && externalQuiet
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty
     val bypassIrqArea: Area {

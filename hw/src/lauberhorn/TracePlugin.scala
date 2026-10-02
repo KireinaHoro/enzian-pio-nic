@@ -54,9 +54,9 @@ case object ExecutionCommand extends TraceDataKey { def width = 2 }
 case object PreviousProcessID extends TraceDataKey { def width = 16 }
 case object PreemptCommand extends TraceDataKey { def width = 2 }
 case object PreemptOutOfIdle extends TraceDataKey { def width = 1 }
-case object PreemptReady  extends TraceDataKey { def width = 1 }
-case object PreemptBusy   extends TraceDataKey { def width = 1 }
-case object PreemptKilled extends TraceDataKey { def width = 1 }
+case object DomainCode extends TraceDataKey { def width = 19 }
+case object RxNext extends TraceDataKey { def width = 1 }
+case object TxNext extends TraceDataKey { def width = 1 }
 case object InterruptEnabled extends TraceDataKey { def width = 1 }
 case object BypassStalled extends TraceDataKey { def width = 1 }
 

@@ -4,7 +4,7 @@ import lauberhorn.sim.CapturedTraceEvent
 import scala.collection.mutable
 
 /** Observed protocol-side obligations, not an end-to-end refinement proof.
-  * Trace addresses here precede thread-prefix translation. Counts preserve
+  * Trace addresses here are protocol-local worker offsets. Counts preserve
   * repeated equal-valued events. Events on distinct ports in one cycle are
   * linearized in dependency order; this permits simultaneous handshakes.
   */

@@ -84,7 +84,7 @@ module DcsRxWritebackTb;
    if(rvalid) read_beats++;
    if(awvalid && awready) begin
      sink_id=awid;
-     assert(awaddr==38'h100 && awlen==1 && awsize==6 && awburst==1);
+     assert(awaddr==38'h400 && awlen==1 && awsize==6 && awburst==1);
      aw_count++;
    end
    if(wvalid && wready) begin
@@ -141,25 +141,25 @@ module DcsRxWritebackTb;
  endtask
  initial begin
    // Clean acknowledgement is the control: no writeback service required.
-   reset_dc();fill(40'h100);send(local_cmd(LCL_CMD_MFWD_CLEAN_INV,40'h100));ack(40'h100,0);
+   reset_dc();fill(40'h400);send(local_cmd(LCL_CMD_MFWD_CLEAN_INV,40'h400));ack(40'h400,0);
    repeat(30) @(negedge clk);
    assert(lcias==1 && write_requests==0) else $fatal(1,"clean control did not finish");
    $display("PASS no-data HAKD completes LCI without AXI writeback");
    // Two runs differ only in the write destination; the read router is unchanged.
    for(int mode=0;mode<2;mode++) begin
      sink=1'(mode);release_b=0;reset_dc();
-     read_control(0);repeat(40) @(negedge clk);
+     read_control(38'h300);repeat(40) @(negedge clk);
      assert(read_beats==2) else $fatal(1,"initial RX read failed");
-     fill(40'h100);read_control(38'h80);repeat(40) @(negedge clk);
+     fill(40'h400);read_control(38'h380);repeat(40) @(negedge clk);
      assert(read_beats==2) else $fatal(1,"next control completed before invalidation");
-     send(local_cmd(LCL_CMD_MFWD_CLEAN_INV,40'h100));ack(40'h100,1);
+     send(local_cmd(LCL_CMD_MFWD_CLEAN_INV,40'h400));ack(40'h400,1);
      assert(trace_req==A31d && trace_action==WDD) else $fatal(1,"wrong HAKD decode/action");
      repeat(200) @(negedge clk);
      assert(aw_count==1 && w_count==2) else $fatal(1,"unexpected AXI acceptance");
      if(!sink) begin
        assert(write_requests==1 && write_responses==1 && lcias==1 && read_beats==4)
          else $fatal(1,"production RX writeback did not release LCI and next read");
-       $display("PASS production RX drains returned data, completes WDDA/LCIA and releases control 0x80");
+       $display("PASS production RX drains returned data, completes WDDA/LCIA and releases control 0x380");
      end else begin
        assert(write_requests==1 && write_responses==0 && lcias==0 && read_beats==2)
          else $fatal(1,"expected delayed-B dependency not reproduced");

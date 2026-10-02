@@ -83,12 +83,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     cs.waitUser()
     val tid = cs.currThread.get.tid
 
-    val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+    val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid).result.get
     val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
     val receivedXid = requestXid(csrMaster, info.requestToken)
     assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
     checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
-    exitCriticalSection(dcsMaster, tid)
 
     val traceStart = trace.cursor
     val (respInlineData, respTail) = replyData.splitAt(ONCRPC_INLINE_BYTES)
@@ -122,11 +121,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       input.send(packet(30000 + i, args).getRawData.toList)
       worker.waitUser()
       val tid = worker.currThread.get.tid
-      val (desc, pld) = tryReadPacketDesc(dcs, tid, exitCS = false).result.get
+      val (desc, pld) = tryReadPacketDesc(dcs, tid).result.get
       val token = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
       assert(requestXid(csr, token) == wireXid)
       checkOncRpcCall(desc, desc.len, funcPtr, args, readPayload(dcs, pld, desc.len))
-      exitCriticalSection(dcs, tid)
+
       token
     }
     assert(tokens.distinct.size == NUM_SESSIONS.get)
@@ -148,11 +147,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     checkOncRpcReplyPacket(replies(3), packet(30000, Nil), wireXid, Nil)
     input.send(packet(50000, List(9.toByte)).getRawData.toList)
     worker.waitUser()
-    val (desc, pld) = tryReadPacketDesc(dcs, tid, exitCS = false).result.get
+    val (desc, pld) = tryReadPacketDesc(dcs, tid).result.get
     val replacement = desc.asInstanceOf[OncRpcCallRxPacketDescSim].requestToken
     assert(replacement != tokens.head && (replacement & 15) == (tokens.head & 15))
     readPayload(dcs, pld, desc.len)
-    exitCriticalSection(dcs, tid)
+
     // A stale reply with overflow must drain without consuming the replacement.
     val stale = List.fill(160)(77.toByte)
     txSendSingle(dcs, TxOncRpcReplySim(stale.length, tokens.head,
@@ -176,7 +175,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       val aligned = ((size - 64 + 127) / 128) * 128 + 64
       ALLOC.readBack("dma")("stat", s"rxAllocOccupancy_upTo$aligned")
     }
-    val initialFree = occupancyRegs.map(csr.read(_, 8).bytesToBigInt)
+    // The free-slot FIFOs initialize incrementally; removal of bootstrap CSR
+    // writes exposes that startup interval. Wait for the specified full capacity.
+    val expectedFree = dut.host[lauberhorn.DmaControlPlugin].logic.get.rxAlloc.roundedMap.map(_._2)
+    var initialFree = occupancyRegs.map(csr.read(_, 8).bytesToBigInt)
+    while (initialFree != expectedFree) {
+      sleepCycles(20)
+      initialFree = occupancyRegs.map(csr.read(_, 8).bytesToBigInt)
+    }
     csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
     val service = RpcSrvDef.mkRandom
     val process = mkRandomProc(1)
@@ -360,7 +366,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           cs.waitUser()
           val tid = cs.currThread.get.tid
 
-          val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result match {
+          val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid).result match {
             case Some(ret) => ret
             case None =>
               if (packetsReceived == totalToSend) {
@@ -396,7 +402,6 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           packetsReceived += 1
           lastReceiveProgress = simTime()
 
-          exitCriticalSection(dcsMaster, tid)
           txSendSingle(dcsMaster, TxOncRpcReplySim(0, info.requestToken, BigInt(0)), Nil, tid)
           inflightPackets.remove(xid)
         }
@@ -536,14 +541,13 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
     // read first request
     val firstToken = {
-      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid).result.get
       // check if decoded packet is what we sent
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = requestXid(csrMaster, info.requestToken)
       assert(receivedXid == xid, f"xid mismatch: expected $xid%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld, readPayload(dcsMaster, pldDesc, desc.len))
-      exitCriticalSection(dcsMaster, tid)
 
       val curr = trace.currentCycle
 
@@ -578,13 +582,12 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     readingSecond = true
 
     val secondToken = {
-      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result.get
+      val (desc, pldDesc) = tryReadPacketDesc(dcsMaster, tid).result.get
       val info = desc.asInstanceOf[OncRpcCallRxPacketDescSim]
       val receivedXid = requestXid(csrMaster, info.requestToken)
       assert(receivedXid == xid2, f"xid2 mismatch: expected $xid2%#x, got $receivedXid%x")
 
       checkOncRpcCall(desc, desc.len, funcPtr, pld2, readPayload(dcsMaster, pldDesc, desc.len))
-      exitCriticalSection(dcsMaster, tid)
 
       val curr = trace.currentCycle
       val ts = getRxTimestamps(trace, Some(workerTraceCoreId), secondTraceStart)
@@ -614,12 +617,11 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
 
   for (stalledCount <- Seq(1, 2)) {
     testWithDB(s"rx-independent-progress-$stalledCount-stalls")(Rx) { implicit dut =>
-      // Finite RTL correspondence test. Fixed compatible RX masks; no claim
-      // about the future decoder, THX silicon, or full-duplex bypass layout.
+      // Finite RTL correspondence using the selected physical aliases.
+      // This does not establish a silicon stall-timeout bound.
       val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(50000)
-      val masks = Seq(14, 16, 30).take(stalledCount + 1)
-      val procs = masks.zipWithIndex.map { case (mask, idx) =>
-        val thr = ThreadDef(100 + idx, mask * 8)
+      val procs = (0 to stalledCount).map { idx =>
+        val thr = ThreadDef(100 + idx)
         val proc = ProcDef(100 + idx, Seq(thr))
         thr.proc = proc
         threads(thr.tid) = thr
@@ -647,7 +649,9 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
         }
         // Admission is observed at the simulated DCS resource boundary,
         // rather than inferred from a CPU thread merely starting a read.
-        val color = masks(idx) ^ getEciThreadData(tid).rxNextCl
+        val etd = getEciThreadData(tid)
+        val address = etd.baseAddr + ECI_RX_BASE.get + etd.rxNextCl * 128
+        val color = ((jsteward.blocks.eci.sim.aliasAddress(BigInt(address)) >> 7) & 63).toInt
         waitUntil((dcsMaster.dcusInProgress(color) & 1) != 0)
         sleepCycles(50)
         assert(!returned(idx))
@@ -678,7 +682,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // read blocking is in place for bypass, making it difficult to construct
     // an artificial case where two reads will go to the same 2F2F state machine
     // and potentially interleave.  In this case we test with one worker core
-    // and skip the TX critical section to allow the following two reads to
+    // and allow the following two reads to
     // interleave:
     // - RX read (blocked until NACK)
     // - TX read (CL refill for load exclusive -> modify)
@@ -737,8 +741,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       sleepCycles(1000)
 
       println("Starting read for TX...")
-      // skip critical section!
-      txSendSingle(dcsMaster, desc, List.empty, tid, skipCS = true)
+      txSendSingle(dcsMaster, desc, List.empty, tid)
 
       // wait a bit and check did we finish after RX did;
       // if we could properly interleave, this small wait won't make a difference;
@@ -849,7 +852,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
             procLog("try receive one")
 
             // this read might be launched before the queue was empty
-            val descOption = tryReadPacketDesc(dcsMaster, tid, exitCS = false).result
+            val descOption = tryReadPacketDesc(dcsMaster, tid).result
             if (descOption.nonEmpty) {
               // reset retry count for this thread
               threadRetryMap(tid) = 0
@@ -860,7 +863,6 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
               val tail = readPayload(dcsMaster, pldDesc, desc.len)
               procLog(s"received trailing payload ${tail.bytesToHex} (len ${desc.len})")
 
-              exitCriticalSection(dcsMaster, tid)
               procLog("finished receiving")
               randomSleep(100, 50)
 
@@ -889,7 +891,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
             }
           } else {
             procLog("process finished receiving, waiting for preemption...")
-            waitUntil(cs.inISR)
+            tryReadPacketDesc(dcsMaster, tid, maxTries = 1).result
           }
         }
       }
@@ -898,103 +900,14 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(pktsExpecting.sum == pktsReceived.sum)
   }
 
-  testWithDB("watchdog-suspend-resume-and-kill")(Rx) { implicit dut =>
-    SimTimeout(5000000000L)
-    val (csr, ingress, egress, dcs) = commonDutSetup(10000)
-    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
-    fork { egress.recv(); fail("execution control emitted a network packet") }
-    val process = mkRandomProc(1)
-    val (_, packet, _) = oncRpcCallPacketFactory(csr,
-      procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom))).head
-    val sched = ALLOC.readBack("sched")
-    csr.write(sched("ctrl", "watchdog_cycles"), 10000.toBytesLE)
-    csr.write(sched("ctrl", "watchdog_idx"), 1.toBytesLE)
-    val (request, _, _) = packet()
-    ingress.send(request.getRawData.toList)
-    val worker = workerCore(0)
-    worker.allowKill = true
-    worker.waitUser()
-    val tid = worker.currThread.get.tid
-    assert(tryReadPacketDesc(dcs, tid, exitCS = true).result.nonEmpty)
-    // No network packet is emitted by either notification. The normal ECI TX
-    // acknowledgement still proves that hardware applied the transition.
-    txSendSingle(dcs, TxExecutionSim(1), Nil, tid)
-    sleepCycles(20000)
-    assert(worker.killCount == 0 && worker.currThread.nonEmpty)
-    txSendSingle(dcs, TxExecutionSim(3), Nil, tid)
-    waitUntil(worker.currThread.isEmpty && !worker.inISR)
-    assert(worker.killCount == 1)
-    assert(csr.read(sched("stat", "watchdogControls_core1"), 8).bytesToBigInt == 2)
-    assert(csr.read(sched("stat", "watchdogExpirations_core1"), 8).bytesToBigInt == 1)
-    // A concurrent maxThreads/enable publication must not resurrect a killed
-    // lifetime before the kernel observes and completes whole-process recovery.
-    process.enableAt(1, csr)
-    csr.write(sched("ctrl", "wake_idx"), 1.toBytesLE)
-    val (lateRequest, _, _) = packet()
-    ingress.send(lateRequest.getRawData.toList)
-    sleepCycles(20000)
-    assert(worker.currThread.isEmpty && worker.killCount == 1)
-    // Only explicit configuration for a new, drained lifetime clears the latch.
-    csr.write(sched("ctrl", "watchdog_cycles"), 0.toBytesLE)
-    csr.write(sched("ctrl", "watchdog_idx"), 1.toBytesLE)
-    process.enableAt(1, csr)
-    csr.write(sched("ctrl", "wake_idx"), 1.toBytesLE)
-    worker.waitUser()
-    assert(worker.currThread.get.proc.pid == process.pid)
-  }
-
-  testWithDB("deadline-wake-without-network-traffic")(Rx) { implicit dut =>
-    SimTimeout(5000000000L)
+  testWithDB("registration-waits-for-packet")(Rx) { implicit dut =>
     val (csr, _, _, _) = commonDutSetup(10000)
     val process = mkRandomProc(1)
     oncRpcCallPacketFactory(csr, procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom)))
-    csr.write(ALLOC.readBack("sched")("ctrl", "wake_idx"), 1.toBytesLE)
-    val worker = workerCore(0)
-    worker.waitUser()
-    assert(worker.currThread.get.proc.pid == process.pid)
-  }
-
-  testWithDB("stop-active-process-and-reuse-worker")(Rx) { implicit dut =>
-    SimTimeout(5000000000L)
-    val (csr, ingress, egress, dcs) = commonDutSetup(10000)
-    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
-    fork { egress.recv(); fail("uncommitted TX emitted a network packet") }
-    val process = mkRandomProc(1)
-    val (_, packet, _) = oncRpcCallPacketFactory(csr,
-      procSrvMap = Seq(process -> Seq(RpcSrvDef.mkRandom))).head
-    val worker = workerCore(0)
-    for(round <- 0 until 3) {
-      if(round != 0) process.enableAt(1, csr)
-      val (request, _, _) = packet()
-      ingress.send(request.getRawData.toList)
-      worker.waitUser()
-      val tid = worker.currThread.get.tid
-      worker.allowKill = round == 1
-      assert(tryReadPacketDesc(dcs, tid, exitCS = round != 1).result.nonEmpty)
-      // Round 1 also leaves BUSY high: independent critical-section timeout
-      // must report killed and drain while execution monitoring is disabled.
-      if(round == 2) {
-        assert(enterCriticalSection(dcs, tid))
-        val td = getEciThreadData(tid)
-        val txBase = td.baseAddr + ECI_TX_BASE.get
-        dcs.write(txBase + td.txNextCl * 0x80, List.fill(64)(0xff.toByte))
-        dcs.write(txBase + ECI_OVERFLOW_OFFSET, List.fill(128)(0xa5.toByte))
-        exitCriticalSection(dcs, tid)
-      }
-      // Handler has consumed RX but never replied and does not poll again.
-      // Stop must run without new traffic or RX-ready and retain mapping until drain.
-      csr.write(ALLOC.readBack("sched")("ctrl", "proc_enabled"), 0.toBytesLE)
-      csr.write(ALLOC.readBack("sched")("ctrl", "proc_idx"), 1.toBytesLE)
-      waitUntil(worker.currThread.isEmpty && !worker.inISR)
-      assert(worker.killCount == (if(round == 0) 0 else 1))
-      assert(csr.read(ALLOC.readBack("sched")("stat", "watchdogControls_core1"), 8).bytesToBigInt == 0)
-      assert(csr.read(ALLOC.readBack("sched")("stat", "watchdogExpirations_core1"), 8).bytesToBigInt == 0)
-      var draining = true
-      while(draining) {
-        csr.write(ALLOC.readBack("sched")("stat", "readback_idx"), 1.toBytesLE)
-        draining = csr.read(ALLOC.readBack("sched")("stat", "readback_draining"), 8).bytesToBigInt != 0
-      }
-      csr.write(ALLOC.readBack("OncRpcReplyEncoder")("ctrl", "context_reclaim_pid"), process.pid.toBytesLE)
+    sleepCycles(20000)
+    for (w <- 0 until NUM_WORKER_CORES) {
+      assert(workerCore(w).currThread.isEmpty)
+      assert(csr.read(ALLOC.readBack("preempt", w + 1)("idleNotification"), 8).bytesToBigInt == 0)
     }
   }
 
