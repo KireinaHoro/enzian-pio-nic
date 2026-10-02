@@ -202,12 +202,21 @@ nix develop -c python3 tools/progress/check_dcs_pressure.py \
   --output out/rx-writeback-check
 ```
 
-A passing diagnostic means the **obstruction was reproduced**, not that the
-production design is fixed: AW queues, WREADY remains low, and B/WDDA/LCIA and
-the next RX control read do not complete over 200 cycles. Controls check a
-no-data HAKD and an independent test write sink; the latter accepts both beats,
-withholds B, then releases B and observes WDDA, LCIA and the pending read finish.
-The test uses synthetic returned data, manual initial DC read completion, test
-XPM RAM and direct LCIA-to-`invDone` wiring. It excludes the full slice data
-buffer/crossbar, THX and higher-level RX protocol. The sink is not a proposed
-production data-disposition policy. See the [board comparison](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).
+The regression now requires the production RX sink to accept both write beats,
+return B and release WDDA, LCIA and the next RX control read. Controls check a
+no-data HAKD and an independent test sink which deliberately withholds B: the
+latter must block completion until B is released. The test uses synthetic
+returned data, manual initial DC read completion, test XPM RAM and direct
+LCIA-to-`invDone` wiring. It excludes the full slice data buffer/crossbar, THX
+and higher-level RX protocol. The [return-half design note](../hardware/rx-writeback.md)
+describes the current discard policy and possible future uses.
+
+The independent-channel test also runs in the fast ECI CI suite:
+
+```sh
+nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxWritebackSim
+```
+
+It checks W-before-AW, delayed W, queued IDs, zero/partial strobes, stable B under
+backpressure and quiescence. The historical failing diagnostic and board
+comparison remain in the [October 2 report](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).
