@@ -1,0 +1,313 @@
+{
+  "scope": "Read-only post-route snapshot comparison, not a ROM-only controlled experiment or a timing optimization run.",
+  "vivado": "2025.1",
+  "analysis_script": "tools/physical/dcs-detail.tcl",
+  "script_sha256": "d7ec03c1aa723b1da82c8641cbe472c544abd01849366be24ee8eb8402e594c5",
+  "builds": [
+    {
+      "job": 2852730,
+      "revision": "5cda9017fdae1177c002ad0ba51ec3176019c917",
+      "hashes": {
+        "metadata.txt": "721b822fbee7d0af0ad104e7bfc20d9f69509d2b723c3eb954ee6f6176e714a4",
+        "utilization.rpt": "13b2f734a318571f72d0aaef0821ee0f875bd0387a0376add4d72182e02a22d5",
+        "routed.dcp": "6deb58ccba40d34a44f5ef102a2fd71c6869c2111108bb406b281de83b57eb4a",
+        "summary.json": "ebe0aead29cda27c592e962d00bd867dc008868322fe026f5b5f74469aa8fb6b",
+        "max-detail.rpt": "7a2072f97cea9a97f2bdb986a728feade1b33fca6790849518ae5aa37f4ebcf2",
+        "timing.rpt": "88c6ac49f0492ffcdfd7b9ba63e1a0d1d494b7a65a58cfa6ce584ef878b8e95c",
+        "COMPLETE": "880df245ad39296032306f5764ad581507be77a454cc8f94463c6d2c4e183584",
+        "paths.tsv": "74d4d207840d110e3a4da94da63fff63416026798339083d5bf0c93317bedefa"
+      },
+      "timing": {
+        "wns": -0.062,
+        "tns": -4.622,
+        "setup_failing": 184.0,
+        "setup_total": 1351336.0,
+        "whs": 0.002,
+        "ths": 0.0,
+        "hold_failing": 0.0,
+        "hold_total": 1349327.0,
+        "wpws": 0.039,
+        "tpws": 0.0,
+        "pulse_failing": 0.0,
+        "pulse_total": 604009.0
+      },
+      "area": {
+        "enzian_shell": {
+          "lut": 407916,
+          "ff": 523775,
+          "bram36": 794,
+          "bram18": 43
+        },
+        "enzian_shell/i_app": {
+          "lut": 360767,
+          "ff": 490571,
+          "bram36": 725,
+          "bram18": 37
+        },
+        "enzian_shell/i_app/dcs_even": {
+          "lut": 60377,
+          "ff": 78814,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_even/i_dcs": {
+          "lut": 51543,
+          "ff": 60274,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_odd": {
+          "lut": 61853,
+          "ff": 78883,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_odd/i_dcs": {
+          "lut": 51591,
+          "ff": 60274,
+          "bram36": 64,
+          "bram18": 0
+        }
+      },
+      "dcs_paths": [
+        {
+          "scope": "dcs_even/internal",
+          "slack": "0.007",
+          "delay": "5.212",
+          "levels": "1",
+          "start": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[29].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[21]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_even/into",
+          "slack": "0.007",
+          "delay": "5.212",
+          "levels": "1",
+          "start": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[29].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[21]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_even/outof",
+          "slack": "0.007",
+          "delay": "5.212",
+          "levels": "1",
+          "start": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_even/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[29].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[21]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/internal",
+          "slack": "0.006",
+          "delay": "5.306",
+          "levels": "1",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[7].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[27]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/into",
+          "slack": "0.006",
+          "delay": "5.306",
+          "levels": "1",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[7].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[27]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/outof",
+          "slack": "0.006",
+          "delay": "5.306",
+          "levels": "1",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/req_wod_ps1/exp_valid_reg_reg_inv/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[7].dcu_inst/req_wod_pipe_inst/prim_data_reg_reg[27]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        }
+      ],
+      "dcu_hierarchy_totals": {
+        "core_dcu_inst": {
+          "instances": 64,
+          "lut": 32348,
+          "ff": 22784
+        },
+        "cc_rom_inst": {
+          "instances": 64,
+          "lut": 4927,
+          "ff": 1024
+        },
+        "dcu_controller_inst": {
+          "instances": 64,
+          "lut": 9166,
+          "ff": 576
+        },
+        "ip_evts_arb1": {
+          "instances": 64,
+          "lut": 24350,
+          "ff": 12032
+        }
+      },
+      "detail_hashes": {
+        "dcs_even-internal.rpt": "7be705ae4d13916be4ab5fb3813c3abc634fb5cf91da68a142f06541fdb0ad05",
+        "paths.tsv": "8737f08cf9756fccba4b5033d5d54d54fdcb02acc0c78d8d753ade91457098f6",
+        "dcs_odd-into.rpt": "758fa2e3ea439944c16dbaa0b31f9ef084dc29c8810c013032947aaaafe42a08",
+        "dcs_even-util.rpt": "3e0e77e6aa19d49b40bcffc6df7eeb5853745b7378c52d4c58a73d12f0c4ca8e",
+        "dcs_even-into.rpt": "c47e3f52383746584c4bcfa94b22d7ab1a545aa4f0578a0024cfb3a431aac4ba",
+        "dcs_odd-outof.rpt": "39065d2f63473782ffe286f1d2f06bdeb048f7979b2b1a46c3153c38172e6a08",
+        "dcs_odd-util.rpt": "d4914ebe9c3ea4aad6851ec808be3cc44b21fb708d71e4ad16d84c0e139f33c7",
+        "dcs_even-outof.rpt": "26989aee26058f5c8e9fd48016cb619fbb1c3a71b1f94aab3ad71f461b843816",
+        "dcs_odd-internal.rpt": "f08b1cef6d5be247ad28e915255c4121bfa4063d9b03fa3a1bf073dec0e8e4b7"
+      }
+    },
+    {
+      "job": 2861585,
+      "revision": "2699f580a6c14fb00fa8cff3857dc5b83f890a89",
+      "hashes": {
+        "summary.json": "86b2d8ab79045782ef728857fc8ec5bbb40e760b8029a171d27317b54f88c762",
+        "COMPLETE": "880df245ad39296032306f5764ad581507be77a454cc8f94463c6d2c4e183584",
+        "utilization.rpt": "2694056d4e9471dbb080fb829f04562ca386015bdbfb163bdb8b50b4ee12e8db",
+        "timing.rpt": "612696e5202d790957959dc7275487ea698056e4337e1daaa1b93e8529e9338f",
+        "metadata.txt": "32e3fb3201a6832559356e3194cccbca6e7673a8c06e9a07efb8da1829a2d80a",
+        "max-detail.rpt": "675c7fabfe3d80ed627beec969ed114232f6a0d122b8749434bda0c062288e56",
+        "paths.tsv": "0a0928507d0b63ee9b7fd9ca81600ab11473ccf995586d2837c207ae932faadb",
+        "routed.dcp": "523c298a3328fab56d2fd34dc276a85599fe15bc70098d0455028f014380446e"
+      },
+      "timing": {
+        "wns": -0.288,
+        "tns": -130.626,
+        "setup_failing": 2341.0,
+        "setup_total": 1345394.0,
+        "whs": 0.001,
+        "ths": 0.0,
+        "hold_failing": 0.0,
+        "hold_total": 1343386.0,
+        "wpws": 0.039,
+        "tpws": 0.0,
+        "pulse_failing": 0.0,
+        "pulse_total": 604424.0
+      },
+      "area": {
+        "enzian_shell": {
+          "lut": 390100,
+          "ff": 524123,
+          "bram36": 770,
+          "bram18": 42
+        },
+        "enzian_shell/i_app": {
+          "lut": 342951,
+          "ff": 490919,
+          "bram36": 701,
+          "bram18": 36
+        },
+        "enzian_shell/i_app/dcs_even": {
+          "lut": 52862,
+          "ff": 80931,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_even/i_dcs": {
+          "lut": 43546,
+          "ff": 62267,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_odd": {
+          "lut": 54132,
+          "ff": 80827,
+          "bram36": 64,
+          "bram18": 0
+        },
+        "enzian_shell/i_app/dcs_odd/i_dcs": {
+          "lut": 43470,
+          "ff": 62267,
+          "bram36": 64,
+          "bram18": 0
+        }
+      },
+      "dcs_paths": [
+        {
+          "scope": "dcs_even/internal",
+          "slack": "0.014",
+          "delay": "4.816",
+          "levels": "0",
+          "start": "i_app/dcs_even/i_dcs/dc_2_axi_rd_i1/rd_rsp_id_reg_reg[3]/C",
+          "end": "i_app/dcs_even/i_dcs/dcs_inst/dcs_rd_data_path/rd_dp_gen_path/gen_dp_store_1/dp_store/data_ram_reg_reg_r1_0_63_7_13/RAMA/WADR3",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_even/into",
+          "slack": "0.014",
+          "delay": "4.816",
+          "levels": "0",
+          "start": "i_app/dcs_even/i_dcs/dc_2_axi_rd_i1/rd_rsp_id_reg_reg[3]/C",
+          "end": "i_app/dcs_even/i_dcs/dcs_inst/dcs_rd_data_path/rd_dp_gen_path/gen_dp_store_1/dp_store/data_ram_reg_reg_r1_0_63_7_13/RAMA/WADR3",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_even/outof",
+          "slack": "-0.157",
+          "delay": "5.107",
+          "levels": "7",
+          "start": "i_app/dcs_even/i_dcs/dcs_inst/dcs_rd_data_path/rd_dp_gen_path/gen_wr_gate1/h_valid_reg_reg/C",
+          "end": "i_app/dcs_even/i_axi_pipe/inst/r16.r_auto/slr_auto_dest/srl_fifo/mesg_reg_reg[296]/CE",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/internal",
+          "slack": "-0.198",
+          "delay": "5.055",
+          "levels": "13",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/ip_evts_arb1/arb_2ip_s1/eci_hdr_reg_reg[61]/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/core_dcu_inst/cc_rom_inst/next_action_reg_reg[2]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/into",
+          "slack": "-0.198",
+          "delay": "5.055",
+          "levels": "13",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/ip_evts_arb1/arb_2ip_s1/eci_hdr_reg_reg[61]/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/core_dcu_inst/cc_rom_inst/next_action_reg_reg[2]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        },
+        {
+          "scope": "dcs_odd/outof",
+          "slack": "-0.198",
+          "delay": "5.055",
+          "levels": "13",
+          "start": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/ip_evts_arb1/arb_2ip_s1/eci_hdr_reg_reg[61]/C",
+          "end": "i_app/dcs_odd/i_dcs/dcs_inst/dcs_dcus_inst/DCUS[2].dcu_inst/core_dcu_inst/cc_rom_inst/next_action_reg_reg[2]/D",
+          "clock": "clk_out1_design_1_clk_wiz_app_0"
+        }
+      ],
+      "dcu_hierarchy_totals": {
+        "core_dcu_inst": {
+          "instances": 64,
+          "lut": 34095,
+          "ff": 26496
+        },
+        "dcu_controller_inst": {
+          "instances": 64,
+          "lut": 14579,
+          "ff": 576
+        },
+        "ip_evts_arb1": {
+          "instances": 64,
+          "lut": 9344,
+          "ff": 13192
+        }
+      },
+      "detail_hashes": {
+        "dcs_odd-into.rpt": "cd35d4ade08abe243755ed5390ca232b2955b2765ba791111c724175d2a84d5f",
+        "dcs_even-internal.rpt": "a1b76b9ae39c736231d57d215ec8d62d038beba9fa35e32d2b8cf8c751c9a4ef",
+        "dcs_even-outof.rpt": "7fd24672831346cc25146b2a5bb150d43c18dfbe8ef650cf3e44516bdf9eb008",
+        "dcs_even-into.rpt": "4f33f99031a311796e134a91c2c3151756b0a4e7e8cd5198c7787431c4ccf594",
+        "dcs_odd-outof.rpt": "83349a189dc99b5aeed7af8d661da4720901e6cef48d33ab52bc9f225f67378c",
+        "dcs_even-util.rpt": "7f27c9a2471b653828e70c970b0a785f85290f6f2deb69862ccca71696c68988",
+        "paths.tsv": "9a9d172f96afa34806cdf171b4838e41f6df498c817791e667241a067a5ee493",
+        "dcs_odd-util.rpt": "97cd06785ade1df1ea378f227ad5ae01731ba91b0c91c6e59ed22a11245d6455",
+        "dcs_odd-internal.rpt": "4b2523043dd1c9b55446dc7beae666cd8c2ca19e9e9322d958c68d31659bb74c"
+      }
+    }
+  ]
+}

@@ -43,6 +43,11 @@ F32 enum, which the new build removes. States fall by 82%, permitted transitions
 by 87%, and input/state entries by 87%. This is specialization to Lauberhorn's
 protocol, not equivalence for arbitrary memory-backed DC clients.
 
+The [routed checkpoint comparison](dc-simplification-qor.md) measures the
+implementation effect separately: DCS cores use 15.6% fewer LUTs in the selected
+simplified build, but whole-design setup timing is worse. It distinguishes
+ROM counts from synthesis area, supporting changes and placement effects.
+
 ## Reproduction and evidence
 
 ```sh
