@@ -53,8 +53,12 @@ typedef struct {
 #define LAUBERHORN_IOCTL_DEREG_SRV \
 	_IOW(LAUBERHORN_IOCTL_MAGIC, 2, lauberhorn_dereg_srv_t)
 
-// Start / stop handling requests on an application thread
-// These are implemented as mmap / destroy VMA
+#include "lauberhorn/activation.h"
+
+/* Declare once before registration. Registration does not activate a thread. */
+#define LAUBERHORN_IOCTL_SET_WORKER_COUNT _IOW(LAUBERHORN_IOCTL_MAGIC, 10, u32)
+#define LAUBERHORN_IOCTL_REGISTER_THREAD _IOW(LAUBERHORN_IOCTL_MAGIC, 11, u32)
+#define LAUBERHORN_IOCTL_YIELD _IOR(LAUBERHORN_IOCTL_MAGIC, 12, struct lh_activation)
 
 // Legacy shutdown command, now an alias for whole-process STOP_PROCESS.
 // Never wake parked workers against an unrouted datapath.

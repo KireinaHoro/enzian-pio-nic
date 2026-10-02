@@ -14,14 +14,16 @@ static inline void mackerel_write_addr_64(mackerel_addr_t base, int offset, uint
 static bool_t string_xdr(XDR *xdr, void *p) { return xdr_string(xdr, p, 32); }
 int main(void)
 {
-    uint64_t killed_cmd = (UINT64_C(1) << LAUBERHORN_PID_WIDTH) | 0x1234;
-    assert(lauberhorn_eci_preempt_sched_cmd_killed_extract(killed_cmd) == 1);
-    assert(lauberhorn_eci_preempt_sched_cmd_next_pid_extract(killed_cmd) == 0x1234);
+    uint64_t info = (UINT64_C(1) << 25) | (UINT64_C(1) << 24) |
+        (UINT64_C(16) << 19) | UINT64_C(0x7ffff);
+    assert(lauberhorn_eci_preempt_preempt_info_domain_code_extract(info) == 0x7ffff);
+    assert(lauberhorn_eci_preempt_preempt_info_domain_slot_extract(info) == 16);
+    assert(lauberhorn_eci_preempt_preempt_info_rx_next_extract(info) == 1);
+    assert(lauberhorn_eci_preempt_preempt_info_tx_next_extract(info) == 1);
     unsigned char control[8] = {0};
-    lauberhorn_eci_host_worker_ctrl_busy_insert(control, 1);
-    assert(control[0] == 1);
-    lauberhorn_eci_host_worker_ctrl_ready_insert(control, 1);
-    assert(control[0] == 3);
+    lauberhorn_eci_host_rx_status_preempt_insert(control, 1);
+    assert(control[0] == 2);
+    assert(!lauberhorn_eci_host_rx_status_valid_extract(control));
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size == 16, "reply inline offset");
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size == 16, "completion inline offset");
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size == 16, "call inline offset");

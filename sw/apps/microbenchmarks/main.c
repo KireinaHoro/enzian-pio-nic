@@ -179,6 +179,10 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "microbenchmark %s listening on UDP port %u with %d workers\n",
           def->name, def->port, workers_count);
 
+  if (lauberhorn_set_worker_count(&ctx, workers_count)) {
+    perror("declare worker pool");
+    goto fini;
+  }
   for (i = 0; i < workers_count; ++i) {
     workers[i] = lauberhorn_create_worker(&ctx, NULL, NULL);
     if (!workers[i])

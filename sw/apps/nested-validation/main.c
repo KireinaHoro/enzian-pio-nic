@@ -150,6 +150,7 @@ int main(int argc,char **argv) {
     if(lauberhorn_reg_srv(&ctx,(lauberhorn_handler_t){.func=handle},PROGRAM,VERSION,PROCEDURE,PORT,&codec)<0) {
         perror("service"); return 1;
     }
+    if (lauberhorn_set_worker_count(&ctx, 1)) { perror("declare worker pool"); return 1; }
     lauberhorn_worker_t w=lauberhorn_create_worker(&ctx,NULL,NULL);
     if(!w) { perror("worker"); return 1; }
     printf("VALIDATION_READY remote_port=%u local_port=%u pid=%u\n",

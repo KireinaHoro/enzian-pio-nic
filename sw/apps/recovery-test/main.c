@@ -1,5 +1,5 @@
-/* Enzian recovery fixture. Intentionally uses private runtime/ECI interfaces
- * to create faults; this is not an example of the public application contract. */
+/* Enzian fatal-domain fixture. Resources remain fenced until coherence reset.
+ * Private transport accesses deliberately create incomplete transactions. */
 #include "lauberhorn.h"
 #include "lauberhorn/oncrpc.h"
 #include "worker.h"
@@ -18,20 +18,14 @@ static lauberhorn_outcome_t handle(void *unused, void *arg, lauberhorn_request_c
 {
     bench_call *call = arg;
     lauberhorn_worker_t w = worker_get_current();
-    if (!strcmp(mode, "busy")) {
-        enter_cs(w->dp_base);
-        hang();
-    }
     if (!strcmp(mode, "dirty-tx")) {
-        enter_cs(w->dp_base);
         volatile unsigned char *base = (unsigned char *)w->dp_base + LAUBERHORN_ECI_TX_BASE;
         volatile unsigned char *ctrl = base + *w->dp.tx_next_cl * LAUBERHORN_ECI_CL_SIZE;
         /* Acquire/dirty TX and overflow, but never read the opposite control CL
-         * to commit it. Recovery must invalidate without transmitting garbage. */
+         * to commit it. Fatal handling must fence the domain without transmitting garbage. */
         ctrl[0] = 0xff;
         base[LAUBERHORN_ECI_OVERFLOW_OFFSET] = 0xa5;
         BARRIER;
-        exit_cs(w->dp_base);
         hang();
     }
     if (!strcmp(mode, "hang")) hang();
@@ -49,21 +43,23 @@ static unsigned number(const char *s)
 int main(int argc, char **argv)
 {
     if (argc < 3 || argc > 5) {
-        fprintf(stderr, "usage: %s normal|hang|busy|dirty-tx WATCHDOG_US [WORKERS=4] [STOP_AFTER_MS=0]\n", argv[0]);
+        fprintf(stderr, "usage: %s normal|hang|dirty-tx WATCHDOG_US_MUST_BE_ZERO [WORKERS=4] [STOP_AFTER_MS=0]\n", argv[0]);
         return 2;
     }
     mode = argv[1];
-    if (strcmp(mode, "normal") && strcmp(mode, "hang") && strcmp(mode, "busy") && strcmp(mode, "dirty-tx")) return 2;
+    if (strcmp(mode, "normal") && strcmp(mode, "hang") && strcmp(mode, "dirty-tx")) return 2;
     unsigned watchdog = number(argv[2]), workers = argc > 3 ? number(argv[3]) : 4;
     unsigned stop_ms = argc > 4 ? number(argv[4]) : 0;
     if (!workers || workers > LAUBERHORN_NUM_WORKER_CORES) return 2;
+    if (watchdog) { fprintf(stderr, "watchdog activation/recovery is deferred\n"); return 2; }
     lauberhorn_t ctx;
-    if (lauberhorn_init(&ctx) || lauberhorn_set_watchdog(&ctx, watchdog)) { perror("init/watchdog"); return 1; }
+    if (lauberhorn_init(&ctx)) { perror("init"); return 1; }
     xdr_adapter_t adapter = {.call_size = sizeof(bench_call), .resp_size = sizeof(bench_resp),
         .call_xdrproc = (xdrproc_t)xdr_bench_call, .resp_xdrproc = (xdrproc_t)xdr_bench_resp};
     rpc_codec_t codec = oncrpc_codec(&adapter);
     lauberhorn_handler_t handler = {.func = handle};
     if (lauberhorn_reg_srv(&ctx, handler, ADD_PROG, ADD_VERS, ADD, 12345, &codec) < 0) { perror("service"); return 1; }
+    if (lauberhorn_set_worker_count(&ctx, workers)) { perror("declare worker pool"); return 1; }
     lauberhorn_worker_t threads[LAUBERHORN_NUM_WORKER_CORES];
     for (unsigned i = 0; i < workers; ++i)
         if (!(threads[i] = lauberhorn_create_worker(&ctx, NULL, NULL))) { perror("worker"); return 1; }

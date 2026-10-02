@@ -32,6 +32,7 @@ typedef enum {
   TY_ONCRPC_CALL_TX,
   TY_ONCRPC_REPLY_RX,
   TY_EXECUTION_CONTROL,
+  TY_PREEMPT, /* RX status only: no application payload */
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
@@ -117,8 +118,6 @@ typedef struct {
 //                        + LAUBERHORN_ECI_OVERFLOW_OFFSET      TX overflow cachelines
 // (count: LAUBERHORN_ECI_NUM_OVERFLOW_CL)
 //
-// LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET                           preemption control CL (non-bypass)
-//
 // LAUBERHORN_ECI_CORE_OFFSET                                   the end of mapped region
 // clang-format on
 
@@ -128,14 +127,10 @@ static_assert(LAUBERHORN_ECI_TX_BASE >=
                   LAUBERHORN_ECI_OVERFLOW_OFFSET +
                       LAUBERHORN_ECI_NUM_OVERFLOW_CL * LAUBERHORN_ECI_CL_SIZE,
               "TX control CL should not overlap with RX overflow CL");
-static_assert(LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET >=
+static_assert(LAUBERHORN_ECI_CORE_OFFSET >=
                   LAUBERHORN_ECI_TX_BASE + LAUBERHORN_ECI_OVERFLOW_OFFSET +
                       LAUBERHORN_ECI_NUM_OVERFLOW_CL * LAUBERHORN_ECI_CL_SIZE,
-              "preempt control CL should not overlap with TX overflow CL");
-static_assert(
-    LAUBERHORN_ECI_CORE_OFFSET >=
-        LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET + LAUBERHORN_ECI_CL_SIZE,
-    "preempt control CL should not overlap with RX control CL in next core");
+              "TX overflow must fit within its physical worker alias");
 
 typedef uint64_t (*lauberhorn_trace_now_fn_t)(void);
 
@@ -147,7 +142,6 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
 
-  enter_cs(base);
 
   bool rx_parity = *ctx->rx_next_cl;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
@@ -165,6 +159,11 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
 
   // decode the packet
   if (!valid) {
+    if (lauberhorn_eci_host_rx_status_preempt_extract(rx_ctrl)) {
+      desc->type = TY_PREEMPT;
+      desc->payload_len = 0;
+      return true;
+    }
     pr_debug("eci_rx: did not get a packet\n");
   } else {
 
@@ -293,14 +292,13 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       }
     }
 
-    // All data in ctx->rx_buf, good to exit the critical section
+    // All payload bytes are now in the calling worker’s RX buffer.
   }
 
   BARRIER; // make sure !BUSY comes after
 
   pr_debug("eci_rx: finished rx\n");
 
-  exit_cs(base);
 
   // Done
   return valid;
@@ -322,7 +320,6 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
 
-  enter_cs(base);
 
   bool tx_parity = *ctx->tx_next_cl;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
@@ -485,7 +482,6 @@ out:
 #endif
   BARRIER; // make sure !BUSY comes after
 
-  exit_cs(base);
   return tx_result;
 }
 
