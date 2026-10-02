@@ -121,7 +121,7 @@ proved mechanism provides the required independent progress.
 
 ## Combined scheduling model
 
-[`CombinedScheduling`](../../model/tla/scheduling/CombinedScheduling.tla) directly
+[`CombinedScheduling`](../../model/tla/composition/CombinedScheduling.tla) directly
 composes the same coherence and retained-cache modules with:
 
 - two physical workers initially assigned to domain A and independently requesting B;

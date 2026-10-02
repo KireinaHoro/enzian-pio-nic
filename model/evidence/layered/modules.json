@@ -1,0 +1,366 @@
+{
+  "contracts_sha256": "a5c5dba0bb13556e52bce57b614490297e1b14dd7dbd44a379d91c46acee4a10",
+  "inventory_sha256": "9700af13d6bdaf6a9465c0d37f2c0ddb9a431c10c6f7bbf39177d3355cbf2282",
+  "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+  "kind": "inventory/import boundaries and SANY; no TLC properties",
+  "modules": {
+    "Assignment": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "cooperative assignment component",
+      "source_sha256": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c"
+    },
+    "AxiReloadGate": {
+      "imports": [
+        "Coherence",
+        "DcsResources",
+        "ReadResponses"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7"
+    },
+    "CachedProgress": {
+      "imports": [
+        "CachedTransport",
+        "ProgressSystem",
+        "RetainedCache"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4"
+    },
+    "CachedTransport": {
+      "imports": [
+        "ProgressSystem",
+        "RetainedCache"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "cache/transport composition adapter",
+      "source_sha256": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0"
+    },
+    "Coherence": {
+      "imports": [],
+      "layer": "common",
+      "passed": true,
+      "role": "message vocabulary",
+      "source_sha256": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8"
+    },
+    "CombinedScheduling": {
+      "imports": [
+        "CachedTransport",
+        "ProgressSystem",
+        "RetainedCache"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1"
+    },
+    "ControlRetirement": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0"
+    },
+    "DcMachine": {
+      "imports": [],
+      "layer": "worker",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "64165f069bbed5f1202b8edb0c79cff6bc72ac324f056ed47cd4ce4cb5bee578"
+    },
+    "DcsResources": {
+      "imports": [
+        "Coherence",
+        "InvalidationPort"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "generic resource component",
+      "source_sha256": "21371bdb0131231df05223c5dcf514a28cd2d8a1198bcbdab853da9c6248aa4c"
+    },
+    "DetailedSteady": {
+      "imports": [
+        "LineEndpoint",
+        "ProgressSystem",
+        "SteadyGeometry"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "146b5bb1aa6c8adbff51e3e30679ba6bfd7e43c083a355260a14b762f1eb556e"
+    },
+    "DirectoryAdmission": {
+      "imports": [],
+      "layer": "steady",
+      "passed": true,
+      "role": "matched-cache contract diagnostic",
+      "source_sha256": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e"
+    },
+    "ExpandedScheduling": {
+      "imports": [
+        "LineEndpoint",
+        "SchedulingComposition"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "e6a84270e6eecb7f2e7b59c850232a9f7bb9535336ca26a2d90d8b88ab71f524"
+    },
+    "Handoff": {
+      "imports": [
+        "Assignment",
+        "ProgressSystem",
+        "SelectedAddresses"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732"
+    },
+    "HostWake": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da"
+    },
+    "InterruptGate": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "historical release-first interrupt diagnostic",
+      "source_sha256": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3"
+    },
+    "InvalidationPort": {
+      "imports": [
+        "Coherence"
+      ],
+      "layer": "contracts",
+      "passed": true,
+      "role": "layer contract",
+      "source_sha256": "c3dc698f7599c82255ad1fde0ce6259d3c872ed17362b4a4d6f8297ef269828f"
+    },
+    "KillExit": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7"
+    },
+    "KillTransport": {
+      "imports": [
+        "CachedTransport",
+        "Coherence",
+        "DcsResources",
+        "KillExit",
+        "LciBatch",
+        "PacketResources",
+        "ProgressSystem",
+        "ReadResponses",
+        "RetainedCache"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "kill control and resource-tail composition with stalled and active peers",
+      "source_sha256": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242"
+    },
+    "LciBatch": {
+      "imports": [],
+      "layer": "common",
+      "passed": true,
+      "role": "ordered finite invalidation batch client",
+      "source_sha256": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed"
+    },
+    "LineEndpoint": {
+      "imports": [
+        "DcMachine",
+        "InvalidationPort",
+        "ThxMachine"
+      ],
+      "layer": "worker",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "a2f75ea563a04328f2d5852d9b1ce22120df68ef43d23825ea21de8d226b5524"
+    },
+    "PacketResources": {
+      "imports": [],
+      "layer": "common",
+      "passed": true,
+      "role": "buffer ownership and finite writeback service stages",
+      "source_sha256": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d"
+    },
+    "Probe": {
+      "imports": [
+        "DcsResources"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe"
+    },
+    "ProgressSystem": {
+      "imports": [
+        "Coherence",
+        "DcsResources",
+        "ThxResources",
+        "TwoFClient"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "transport composition",
+      "source_sha256": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8"
+    },
+    "ReadResponses": {
+      "imports": [],
+      "layer": "common",
+      "passed": true,
+      "role": "generic finite read-data response channel",
+      "source_sha256": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86"
+    },
+    "Reservation": {
+      "imports": [
+        "Assignment"
+      ],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0"
+    },
+    "RetainedCache": {
+      "imports": [],
+      "layer": "steady",
+      "passed": true,
+      "role": "generic cache/directory accounting component",
+      "source_sha256": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80"
+    },
+    "SchedulingComposition": {
+      "imports": [
+        "ControlRetirement",
+        "KillTransport",
+        "ThreadClaim",
+        "WakeAckRace",
+        "WakeReassignment"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "joined repeated handoff/wake/claim/close and cached transport composition",
+      "source_sha256": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107"
+    },
+    "SelectedAddresses": {
+      "imports": [],
+      "layer": "composition",
+      "passed": true,
+      "role": "generated address witness",
+      "source_sha256": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1"
+    },
+    "SingleWorker": {
+      "imports": [
+        "LineEndpoint",
+        "TwoFClient"
+      ],
+      "layer": "worker",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "4a4431e22a5c7ee042bc73cdc179fd73335d6ab4e70481fec7bd41bf40795dfb"
+    },
+    "Steady": {
+      "imports": [
+        "ProgressSystem",
+        "SteadyGeometry"
+      ],
+      "layer": "steady",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "d2898fb7059a25af856a11532221af8282e64a68d739de9d45328da86940d53d"
+    },
+    "SteadyGeometry": {
+      "imports": [],
+      "layer": "steady",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "5acc9155689cc4a5da22e11212ce55cadbcdea7bd7dcef29a25ac33f1120c346"
+    },
+    "ThreadClaim": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b"
+    },
+    "ThxMachine": {
+      "imports": [],
+      "layer": "worker",
+      "passed": true,
+      "role": "bounded coherence component/check",
+      "source_sha256": "65011d0f91eb43a532c5aca443788170816121dbaddd131629a006cc58f2436e"
+    },
+    "ThxResources": {
+      "imports": [],
+      "layer": "steady",
+      "passed": true,
+      "role": "assumed CPU resource component",
+      "source_sha256": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127"
+    },
+    "TimerMirror": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "ordered command diagnostic",
+      "source_sha256": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435"
+    },
+    "TwoFClient": {
+      "imports": [],
+      "layer": "contracts",
+      "passed": true,
+      "role": "abstract 2F2F client",
+      "source_sha256": "7fdaed318a9364ae2bc1b9037550ce155129e58066362d902923d4849749f56f"
+    },
+    "WakeAckRace": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72"
+    },
+    "WakeHandoff": {
+      "imports": [
+        "Handoff",
+        "HostWake"
+      ],
+      "layer": "composition",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e"
+    },
+    "WakeReassignment": {
+      "imports": [],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e"
+    },
+    "WakeRetirement": {
+      "imports": [
+        "HostWake"
+      ],
+      "layer": "scheduling",
+      "passed": true,
+      "role": "bounded harness / focused contract",
+      "source_sha256": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb"
+    },
+    "lauberhorn": {
+      "imports": [],
+      "layer": "legacy",
+      "passed": true,
+      "role": "historical monolithic reference",
+      "source_sha256": "8a94897ccf84eb370bc8eaa57c9c887576567bd3209a53b8d30ab86df6b956b2"
+    }
+  }
+}

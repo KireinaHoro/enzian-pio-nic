@@ -40,4 +40,9 @@ Returned(c, d) == /\ phase[c] = "Return"
                   /\ direction' = [direction EXCEPT ![c] = d]
                   /\ completed' = [completed EXCEPT ![c] = ~@]
                   /\ UNCHANGED remaining
+\* Public operation relation shared by the concrete worker and resource layer.
+\* Scheduling, coloring and endpoint internals are outside this contract.
+Next == (\E c \in Clients: Accepted(c) \/ Work(c) \/ SubmittedInv(c) \/ InvalidationCompleted(c))
+        \/ (\E c \in Clients,d \in Directions: Returned(c,d))
+Behavior == Init /\ [][Next]_vars
 =============================================================================

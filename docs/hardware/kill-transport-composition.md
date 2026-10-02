@@ -7,7 +7,7 @@ full HOST_WAKE/reservation/migration composition or an RTL refinement proof.
 
 ## Reused components and properties
 
-The [harness](../../model/tla/scheduling/KillTransport.tla) instantiates:
+The [harness](../../model/tla/composition/KillTransport.tla) instantiates:
 
 - `KillExit`: close/callback lifetime, kill latch, IRQ issue/service, no-resume
   certification, immutable response, successor activation and metadata release.

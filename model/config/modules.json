@@ -1,6 +1,7 @@
 {
   "Assignment": {
     "imports": [],
+    "layer": "scheduling",
     "role": "cooperative assignment component"
   },
   "AxiReloadGate": {
@@ -9,6 +10,7 @@
       "DcsResources",
       "ReadResponses"
     ],
+    "layer": "composition",
     "role": "bounded harness / focused contract"
   },
   "CachedProgress": {
@@ -17,6 +19,7 @@
       "ProgressSystem",
       "RetainedCache"
     ],
+    "layer": "steady",
     "role": "bounded harness / focused contract"
   },
   "CachedTransport": {
@@ -24,10 +27,12 @@
       "ProgressSystem",
       "RetainedCache"
     ],
+    "layer": "steady",
     "role": "cache/transport composition adapter"
   },
   "Coherence": {
     "imports": [],
+    "layer": "common",
     "role": "message vocabulary"
   },
   "CombinedScheduling": {
@@ -36,21 +41,48 @@
       "ProgressSystem",
       "RetainedCache"
     ],
+    "layer": "composition",
     "role": "bounded harness / focused contract"
   },
   "ControlRetirement": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
+  },
+  "DcMachine": {
+    "imports": [],
+    "layer": "worker",
+    "role": "bounded coherence component/check"
   },
   "DcsResources": {
     "imports": [
-      "Coherence"
+      "Coherence",
+      "InvalidationPort"
     ],
+    "layer": "steady",
     "role": "generic resource component"
+  },
+  "DetailedSteady": {
+    "imports": [
+      "LineEndpoint",
+      "ProgressSystem",
+      "SteadyGeometry"
+    ],
+    "layer": "composition",
+    "role": "bounded coherence component/check"
   },
   "DirectoryAdmission": {
     "imports": [],
+    "layer": "steady",
     "role": "matched-cache contract diagnostic"
+  },
+  "ExpandedScheduling": {
+    "imports": [
+      "LineEndpoint",
+      "SchedulingComposition"
+    ],
+    "layer": "composition",
+    "role": "bounded coherence component/check"
   },
   "Handoff": {
     "imports": [
@@ -58,46 +90,70 @@
       "ProgressSystem",
       "SelectedAddresses"
     ],
+    "layer": "composition",
     "role": "bounded harness / focused contract"
   },
   "HostWake": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "InterruptGate": {
     "imports": [],
+    "layer": "scheduling",
     "role": "historical release-first interrupt diagnostic"
+  },
+  "InvalidationPort": {
+    "imports": [
+      "Coherence"
+    ],
+    "layer": "contracts",
+    "role": "layer contract"
   },
   "KillExit": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "KillTransport": {
     "imports": [
-      "KillExit",
-      "ProgressSystem",
       "CachedTransport",
-      "RetainedCache",
-      "DcsResources",
       "Coherence",
-      "ReadResponses",
+      "DcsResources",
+      "KillExit",
       "LciBatch",
-      "PacketResources"
+      "PacketResources",
+      "ProgressSystem",
+      "ReadResponses",
+      "RetainedCache"
     ],
+    "layer": "composition",
     "role": "kill control and resource-tail composition with stalled and active peers"
   },
   "LciBatch": {
     "imports": [],
+    "layer": "common",
     "role": "ordered finite invalidation batch client"
+  },
+  "LineEndpoint": {
+    "imports": [
+      "DcMachine",
+      "InvalidationPort",
+      "ThxMachine"
+    ],
+    "layer": "worker",
+    "role": "bounded coherence component/check"
   },
   "PacketResources": {
     "imports": [],
+    "layer": "common",
     "role": "buffer ownership and finite writeback service stages"
   },
   "Probe": {
     "imports": [
       "DcsResources"
     ],
+    "layer": "steady",
     "role": "bounded harness / focused contract"
   },
   "ProgressSystem": {
@@ -107,60 +163,91 @@
       "ThxResources",
       "TwoFClient"
     ],
+    "layer": "steady",
     "role": "transport composition"
   },
   "ReadResponses": {
     "imports": [],
+    "layer": "common",
     "role": "generic finite read-data response channel"
   },
   "Reservation": {
     "imports": [
       "Assignment"
     ],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "RetainedCache": {
     "imports": [],
+    "layer": "steady",
     "role": "generic cache/directory accounting component"
   },
   "SchedulingComposition": {
     "imports": [
+      "ControlRetirement",
       "KillTransport",
-      "WakeReassignment",
-      "WakeAckRace",
       "ThreadClaim",
-      "ControlRetirement"
+      "WakeAckRace",
+      "WakeReassignment"
     ],
+    "layer": "composition",
     "role": "joined repeated handoff/wake/claim/close and cached transport composition"
   },
   "SelectedAddresses": {
     "imports": [],
+    "layer": "composition",
     "role": "generated address witness"
+  },
+  "SingleWorker": {
+    "imports": [
+      "LineEndpoint",
+      "TwoFClient"
+    ],
+    "layer": "worker",
+    "role": "bounded coherence component/check"
   },
   "Steady": {
     "imports": [
-      "ProgressSystem"
+      "ProgressSystem",
+      "SteadyGeometry"
     ],
+    "layer": "steady",
     "role": "bounded harness / focused contract"
+  },
+  "SteadyGeometry": {
+    "imports": [],
+    "layer": "steady",
+    "role": "bounded coherence component/check"
   },
   "ThreadClaim": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
+  },
+  "ThxMachine": {
+    "imports": [],
+    "layer": "worker",
+    "role": "bounded coherence component/check"
   },
   "ThxResources": {
     "imports": [],
+    "layer": "steady",
     "role": "assumed CPU resource component"
   },
   "TimerMirror": {
     "imports": [],
+    "layer": "scheduling",
     "role": "ordered command diagnostic"
   },
   "TwoFClient": {
     "imports": [],
+    "layer": "contracts",
     "role": "abstract 2F2F client"
   },
   "WakeAckRace": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "WakeHandoff": {
@@ -168,20 +255,24 @@
       "Handoff",
       "HostWake"
     ],
+    "layer": "composition",
     "role": "bounded harness / focused contract"
   },
   "WakeReassignment": {
     "imports": [],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "WakeRetirement": {
     "imports": [
       "HostWake"
     ],
+    "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
   "lauberhorn": {
     "imports": [],
+    "layer": "legacy",
     "role": "historical monolithic reference"
   }
 }

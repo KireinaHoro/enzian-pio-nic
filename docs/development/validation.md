@@ -220,3 +220,10 @@ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxWritebackSim
 It checks W-before-AW, delayed W, queued IDs, zero/partial strobes, stable B under
 backpressure and quiescence. The historical failing diagnostic and board
 comparison remain in the [October 2 report](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).
+
+## Layered coherence contracts
+
+Run `nix build .#checks.x86_64-linux.coherence-layers` for generated DC/THX
+line exchanges, repeated worker operations, fault cases and the detailed
+steady-state projection. `tla-modules` enforces layer imports and parses every
+module. See [bounds, optional products and remaining obligations](../hardware/layered-verification.md).

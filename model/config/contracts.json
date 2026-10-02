@@ -1,0 +1,34 @@
+{
+  "endpoint-completion": {
+    "interface": "InvalidationPort",
+    "providers": ["LineEndpoint"],
+    "consumers": ["DcsResources"],
+    "checked_properties": ["LineEndpoint!PortRefinement", "LineEndpoint!CompletionSound", "LineEndpoint!Completes"],
+    "assumptions": ["Legal initial line state or serialized cold refill", "Bounded FIFO link configuration", "AXI read and required write service enabled and weakly fair", "Client accepts LCIA"],
+    "scope": "Single admitted line and supported harness software histories; not arbitrary shared-resource arbitration or all extracted-FSM transitions"
+  },
+  "worker-operation": {
+    "interface": "TwoFClient",
+    "providers": ["SingleWorker"],
+    "consumers": ["ProgressSystem"],
+    "checked_properties": ["SingleWorker!OperationRefinement", "SingleWorker!NoOutstandingAtReturn", "SingleWorker!Progress"],
+    "assumptions": ["Serialized worker RX/TX", "Input work and executing CPU", "Endpoint completion contract", "Bounded opposite-control plus two-overflow dependency sequence"],
+    "scope": "Repeated operations and both initial parities; control/data-value and actual RTL refinement remain separate"
+  },
+  "independent-transport": {
+    "interface": "ProgressSystem",
+    "providers": ["Steady", "CachedProgress"],
+    "consumers": ["Handoff", "KillTransport", "CombinedScheduling"],
+    "checked_properties": ["ProgressSystem!Settled", "ProgressSystem!Quiet", "ProgressSystem!ProgressFor", "ProgressSystem!AdmissionFor"],
+    "assumptions": ["Endpoint completion contract when target resources are eligible", "Selected geometry and finite shared-resource topology", "Fair guarded arbitration", "Cache replacement/delivery assumptions in cached harnesses"],
+    "scope": "Conditional multi-worker progress, including held peers and bypass; no general proof of undocumented THX shared resources"
+  },
+  "expanded-correspondence": {
+    "interface": "ProgressSystem",
+    "providers": ["DetailedSteady"],
+    "consumers": [],
+    "checked_properties": ["DetailedSteady!AbstractBehavior", "DetailedSteady!EndpointSafety", "DetailedSteady!Progress", "DetailedSteady!Admission"],
+    "assumptions": ["Resident exclusive target at each detailed exchange entry", "Environment re-establishes warm entry between accepted exchanges", "Resource-layer admission and fairness"],
+    "scope": "Bounded safety projection and direct liveness checking, not an unbounded compositional proof or full scheduling+coherence liveness result"
+  }
+}

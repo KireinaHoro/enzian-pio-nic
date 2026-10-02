@@ -10,7 +10,7 @@ let
     root = ../..;
     fileset = lib.fileset.unions [
       (lib.fileset.fileFilter (f: f.hasExt "py") ../../tools/progress)
-      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/steady)
+      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla)
       ../../model/config/steady
       ../../model/data/selected-8k.json
       ../../vivado/eci/directory-controller-slice/dcs/eci_dcs_defs/rtl/eci_dcs_defs.sv

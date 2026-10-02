@@ -5,9 +5,9 @@ let
     fileset = lib.fileset.unions [
       ../../tools/model/check_modules.py
       ../../model/config/modules.json
+      ../../model/config/contracts.json
       ../../model/legacy/tla/lauberhorn.tla
-      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/steady)
-      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/scheduling)
+      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla)
     ];
   };
 in

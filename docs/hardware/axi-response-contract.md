@@ -1,6 +1,6 @@
 # AXI and coherence response contract
 
-The bounded [AxiReloadGate model](../../model/tla/steady/AxiReloadGate.tla)
+The bounded [AxiReloadGate model](../../model/tla/composition/AxiReloadGate.tla)
 checks earlier reads, buffered coherence responses, a held doorbell and a stop
 without a doorbell. It identifies implementation requirements for Goal 2;
 it does **not** establish THX conformance or a hardware bug. This extends the
@@ -9,7 +9,7 @@ later-read diagnostic reviewed on 2026-10-01. No RTL is changed by this work.
 ## Components and boundaries
 
 The harness instantiates the unchanged `DcsResources` and the new generic
-[ReadResponses](../../model/tla/steady/ReadResponses.tla) channel. The latter has
+[ReadResponses](../../model/tla/common/ReadResponses.tla) channel. The latter has
 no scheduling, domains, parity or 2F2F semantics. `Safety` references their typing,
 capacity and response-identity properties directly; only cross-component tracking
 and harness state are added. Full scheduling composition should reuse these

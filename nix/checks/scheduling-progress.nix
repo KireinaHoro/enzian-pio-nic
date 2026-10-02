@@ -20,8 +20,7 @@ let
     fileset = lib.fileset.unions [
       (lib.fileset.fileFilter (f: f.hasExt "py") ../../tools/scheduling)
       ../../tools/progress/capacity.py
-      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/steady)
-      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla/scheduling)
+      (lib.fileset.fileFilter (f: f.hasExt "tla") ../../model/tla)
       ../../model/config/scheduling/suite.json
       ../../model/data/selected-8k.json
     ];

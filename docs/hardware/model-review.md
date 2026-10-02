@@ -1,5 +1,9 @@
 # TLA+ module review — 2026-10-01
 
+October 2 follow-up: [layered coherence verification](layered-verification.md)
+adds generated DC/THX endpoint checks and explicit contract projections. The
+results below retain their original scope and assumptions.
+
 The active model now has one endpoint contract: **LCI/LCIA, no UL**. The
 [model index](../../model/README.md) separates readable TLA+ source from model
 configuration, address inputs, and evidence, and describes every module's role.

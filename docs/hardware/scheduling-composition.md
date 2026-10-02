@@ -1,6 +1,10 @@
 # Scheduling, wake and transport composition
 
-The [SchedulingComposition harness](../../model/tla/scheduling/SchedulingComposition.tla)
+October 2 follow-up: [layered coherence verification](layered-verification.md)
+adds generated DC/THX endpoint checks and explicit contract projections. The
+results below retain their original scope and assumptions.
+
+The [SchedulingComposition harness](../../model/tla/composition/SchedulingComposition.tla)
 joins the focused scheduling contracts to actual abstract transport resources.
 It checks A → B → A on one physical worker, notification/ACK generations,
 concurrent fixed-pool claims, immutable preemption information, and whole-domain

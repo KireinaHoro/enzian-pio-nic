@@ -1,0 +1,182 @@
+{
+  "line": {
+    "constants": {
+      "Line": 256,
+      "CpuLoad": "LS",
+      "InitialPermission": "Invalid",
+      "WriteService": true,
+      "BadEarlyAck": false,
+      "LinkDepth": 2
+    },
+    "invariants": [
+      "TypeOK",
+      "NoProtocolError",
+      "CompletionSound"
+    ],
+    "properties": [
+      "PortRefinement",
+      "Completes"
+    ]
+  },
+  "cases": {
+    "cold-rx": {
+      "module": "LineEndpoint",
+      "options": {}
+    },
+    "cold-tx": {
+      "module": "LineEndpoint",
+      "options": {
+        "CpuLoad": "LE"
+      }
+    },
+    "warm-shared": {
+      "module": "LineEndpoint",
+      "options": {
+        "InitialPermission": "Shared",
+        "WriteService": false
+      }
+    },
+    "warm-exclusive": {
+      "module": "LineEndpoint",
+      "options": {
+        "InitialPermission": "Exclusive"
+      }
+    },
+    "one-slot-links": {
+      "module": "LineEndpoint",
+      "options": {
+        "LinkDepth": 1
+      }
+    },
+    "rx-no-write-service": {
+      "module": "LineEndpoint",
+      "options": {
+        "WriteService": false
+      },
+      "violation": "Completes"
+    },
+    "early-ack": {
+      "module": "LineEndpoint",
+      "options": {
+        "BadEarlyAck": true
+      },
+      "violation": "CompletionSound"
+    },
+    "load-only-data-witness": {
+      "module": "LineEndpoint",
+      "options": {},
+      "violation": "NoReturnedData"
+    },
+    "single-worker": {
+      "module": "SingleWorker",
+      "options": {
+        "WriteService": true,
+        "WorkerDirections": 1
+      }
+    },
+    "half-duplex-worker": {
+      "module": "SingleWorker",
+      "options": {
+        "WriteService": true,
+        "WorkerDirections": 2
+      }
+    },
+    "single-worker-blocked": {
+      "module": "SingleWorker",
+      "options": {
+        "WriteService": false,
+        "WorkerDirections": 1
+      },
+      "violation": "Progress"
+    },
+    "expanded-steady": {
+      "module": "DetailedSteady",
+      "options": {
+        "WriteService": true
+      }
+    },
+    "expanded-steady-blocked": {
+      "module": "DetailedSteady",
+      "options": {
+        "WriteService": false
+      },
+      "violation": "Progress"
+    },
+    "expanded-scheduling-safety": {
+      "module": "ExpandedScheduling",
+      "options": {
+        "WriteService": true,
+        "WakeBudget": 0,
+        "KillOnly": true
+      }
+    },
+    "absent-lci": {
+      "module": "LineEndpoint",
+      "options": {
+        "InitialPermission": "Absent",
+        "WriteService": false
+      }
+    }
+  },
+  "single": {
+    "invariants": [
+      "Safety",
+      "NoOutstandingAtReturn"
+    ],
+    "properties": [
+      "OperationRefinement",
+      "ReturnAfterDoorResponse",
+      "Progress"
+    ]
+  },
+  "expanded": {
+    "constants": {
+      "N": 2,
+      "ColorCount": 8,
+      "Slots": 3,
+      "QueueDepth": 1,
+      "SharedQueue": false,
+      "SharedAck": true,
+      "BadColor": false,
+      "StallCount": 1,
+      "Minimal": true,
+      "ReadSlots": 3
+    },
+    "invariants": [
+      "TypeOK",
+      "Tracking",
+      "Conservation",
+      "EndpointSafety"
+    ],
+    "properties": [
+      "AbstractBehavior",
+      "Progress",
+      "Admission"
+    ]
+  },
+  "default": [
+    "cold-rx",
+    "cold-tx",
+    "absent-lci",
+    "warm-shared",
+    "warm-exclusive",
+    "one-slot-links",
+    "rx-no-write-service",
+    "early-ack",
+    "load-only-data-witness",
+    "single-worker",
+    "half-duplex-worker",
+    "single-worker-blocked",
+    "expanded-steady",
+    "expanded-steady-blocked"
+  ],
+  "expanded_scheduling": {
+    "defaults_from": "SchedulingComposition",
+    "invariants": [
+      "Safety"
+    ],
+    "properties": [
+      "AbstractBehavior"
+    ]
+  }
+}

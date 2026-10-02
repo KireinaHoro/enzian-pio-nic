@@ -41,7 +41,7 @@ def main():
         p.error('timeout, workers and heap-mib must be positive')
     a.output.mkdir(parents=True, exist_ok=False)
     (a.output/'trace-specs').mkdir()
-    sources = sorted((ROOT/'model/tla/steady').glob('*.tla')) + sorted((ROOT/'model/config/steady').glob('*.cfg'))
+    sources = sorted((ROOT/'model/tla').glob('*/*.tla')) + sorted((ROOT/'model/config/steady').glob('*.cfg'))
     sources += [ROOT/'model/data/selected-8k.json'] + sorted((ROOT/'tools/progress').glob('*.py'))
     snapshot = {p: p.read_bytes() for p in sources}
     summary = {'source_sha256': {str(f.relative_to(ROOT)): hashlib.sha256(snapshot[f]).hexdigest()
