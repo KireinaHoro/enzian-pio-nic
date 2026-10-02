@@ -20,11 +20,62 @@ These are distinct from the historical bounded scheduling completion milestone.
 
 RX writebacks are now drained and discarded by the RTL, with a
 [design note](../hardware/rx-writeback.md) retaining command/status/fast-response
-use as an open feasibility/performance study. Pipeline
+use as an open feasibility/performance study alongside
+[application measurements](#application-performance-and-coupled-rxtx-analysis). Pipeline
 [515796](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515796)
 builds that fix at `a51139e`; board validation is still pending. Keep the existing
 router and address ABI for this trial. Router-free address/PREEMPT implementation
 planning follows that hardware check, as requested.
+
+## Next steps after the bounded modeling round
+
+The selected scheduling matrix and initial three-layer checks are complete.
+Carry their assumptions into implementation as explicit service contracts and
+local checks; full THX/RTL refinement and every larger model product are not
+prerequisites for starting implementation. Close any newly exposed dependency
+that invalidates those contracts before relying on the affected mechanism.
+Detailed implementation planning remains the next plan-mode task, after the
+existing-design board trial; the sequence below does not start production changes.
+
+| Order | Work | Completion checkpoint |
+| --- | --- | --- |
+| 1 | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Matched CI artifacts pass discovery and repeated 2F2F RPCs; traces show returned RX data reaches WDDA/LCIA and the next read. Preserve and diagnose failures before reset. |
+| 2 | Plan and implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
+| 3 | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
+| 4 | Complete host-event activation and whole-domain kill/exit integration. | HOST_WAKE ownership survives reassignment and ACK races; close fences claims/callbacks, releases held RX and drains TX/overflow/packet ownership before retirement. Interrupts serve kill only. Reuse the existing modeled contracts; HOST_WAKE is already modeled. |
+| 5 | Validate the integrated replacement with targeted actual-DCS RTL simulations and matched board stress. | Run the [whole-slice cases below](#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available), stalled peers plus bypass, repeated handoffs, wakes and kill cleanup. Add model-derived assertions/event monitors as each component lands, rather than postponing all validation to this stage. Record finite observations separately from liveness assumptions. |
+| 6 | Integrate the first-paper applications and collect performance data, then evaluate coupled RX/TX where measurements justify it. | Reproducible functional workloads and baseline comparisons; quantify scheduling costs and application bottlenecks before selecting another transport optimization. |
+
+Continue targeted modeling alongside these steps: competing CPU requests and
+evictions, independent VC ordering, shared response/data-resource contention,
+and the larger scheduling combinations listed below. Prioritize cases touched
+by implementation or contradicting a service assumption. Keep layer checks
+independent; extend detailed compositions when a cross-layer dependency warrants
+it. Revisit formal refinement when stronger guarantees or observed discrepancies
+justify it. Timing optimization remains paused.
+
+### Application performance and coupled RX/TX analysis
+
+Put the RX return-half study in the application evaluation round, after the
+correct independent RX/TX baseline is running. Start with RPC workloads and
+Dandelion, then the planned application portfolio in the
+[paper evidence plan](paper-goals.md). The
+[RX return-half design note](../hardware/rx-writeback.md) describes possible
+commands/status and responses carried by intentionally dirtying an RX CL.
+This is an experiment to establish benefit, not a prerequisite for the address
+or PREEMPT work and not a selected replacement protocol.
+
+- First measure response-size distributions, the fraction fitting in the usable
+  return payload, handler time, and the share of latency/CPU work spent on TX.
+- Compare the independent path with a coupled prototype on the same hardware,
+  application semantics and offered loads: median/tail RPC latency, throughput,
+  CPU work, coherence traffic and resource/backpressure effects. Include mixed
+  small/large responses and fallback to the independent TX path.
+- Before promoting the prototype, check message identity, validity, exactly-once
+  consumption, preemption/kill cleanup and independent write service under stalls.
+  A response depending on the next held RX must not reintroduce a service cycle.
+- Keep or reject the optimization based on measured application benefit against
+  implementation and protocol cost; retain artifacts and negative results too.
 
 ## Work supported by repository evidence
 
@@ -33,7 +84,7 @@ planning follows that hardware check, as requested.
 | Scheduling robustness under pressure | `hw/src/lauberhorn/Scheduler.scala`: queue-full drop has buffer-free FIXME; fairness and non-retrying-core recovery TODOs | No buffer leak under saturation; bounded progress/recovery; documented policy and multi-process stress |
 | Scalable service/process/session tables | `docs/hardware/lookup-spill.md` proposes hardware caches and typed software spill ownership | End-to-end admission, eviction, ownership and packet lifetime tests beyond table capacity |
 | Nested RPC usable from applications | Call encoder/reply decoder and nested simulation exist; hardware support does not imply C-runtime completion support | Runtime API and continuation lifetime, reply dispatch, error/timeout cleanup, application demo |
-| Coherence progress and queue-pair placement | Goal 1 complete as a bounded modeling/layout milestone: selected 8 KiB physical-worker blocks, domain encoding and reproducible positive/negative models | Goal 2 scheduling model and replacement implementation; targeted DCS RTL validation below, followed by adversarial board traces |
+| Coherence progress and queue-pair placement | Goal 1 complete as a bounded modeling/layout milestone: selected 8 KiB physical-worker blocks, domain encoding and reproducible positive/negative models | Selected bounded Goal 2 matrix complete; replacement implementation and targeted DCS RTL validation below, followed by adversarial board traces |
 | TCP and Protobuf integration | Finished external student projects in `../flavian-tcp` and `../elena-protobuf`; unmerged here | Adapt code/dependencies and validate host contracts after higher-priority applications; [follow-on roadmap](grpc-roadmap.md) |
 | Data movement and decode extensions | Current C runtime performs XDR; generator TODO suggests coupled worker protocol | Chosen ABI and workloads; measured benefit; large-message strategy independently validated |
 | Reproducible evaluation | Trace/latency tooling and descheduling microbenchmark exist; historical examples are not a full evaluation | [Paper evidence matrix](paper-goals.md), reproducible raw data and controls |
@@ -65,7 +116,8 @@ delayed wake acceptance/delivery, notification/ACK and fixed-pool reservation/cl
 local handoff sequencing is tracked as implementation obligations. The expanded
 33-outcome Nix regression passed before the fixed-pool clarification. The updated
 12-outcome focused suite passes; individual withdrawal and ordinary unavailable
-dispatch are excluded. Goal 2 remains incomplete.
+dispatch are excluded. The later selected bounded matrix is complete as recorded
+below; broader verification and implementation remain open.
 A joined host-driven handoff checks the Goal 1 resource-entry predicate. The
 [scheduling composition](../hardware/scheduling-composition.md) now connects
 wake/claim races and kill to RX/TX cleanup; its selected bounded matrix
@@ -95,7 +147,7 @@ verification complete.
 | --- | --- | --- |
 | 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
 | 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
-| 3 | Establish THX replacement and independent coherence-service guarantees. | **Blocked in the current RTL integration: the October 2 board trace reaches RX writeback `WDD` with no AXI write service.** The LCI-only ROM is selected; board acceptance has not passed. Resolve the allocation/provisioning contract below, then establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
+| 3 | Establish THX replacement and independent coherence-service guarantees. | The October 2 board trial exposed RX `WDD` without AXI write service; `a51139e` implements an independent write sink and passes directed RTL tests. Board revalidation is pending. The LCI-only ROM is selected; board acceptance has not passed. Retain explicit directory-provisioning assumptions and establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
@@ -105,7 +157,7 @@ state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blockin
 PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Interrupts are for whole-domain kill, not cooperative scheduling.
 
-#### Resume here: RX writeback integration blocker before the implementation plan
+#### Resume here: board revalidation of the RX writeback fix
 
 Hardware validation used revision `2699f58`,
 [pipeline 515621](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515621).
@@ -118,9 +170,9 @@ AXI router blocks write channels. The [trace comparison](../development/hardware
 identifies the newly selected R12→RA3 permission change: earlier RX used
 PSHA/SINV_H/no-data HAKD; exclusive RX now uses FLDX_EH/data-bearing HAKD. No
 software store is required. The [actual-RTL reproducer](../development/validation.md#rx-writeback-regression-reproducer)
-now confirms AW queues but WREADY stays low, and a test-only completion sink
-releases WDDA/LCIA and the pending read. Preserve the board capture. Resolve RX
-permission/writeback service and data disposition, then repeat board tests before starting the address/PREEMPT
+reproduced AW queueing with WREADY low; the production fix now drains and discards
+RX writes independently, and its regression checks WDDA/LCIA and the pending read.
+Preserve the board capture and repeat board tests before starting the address/PREEMPT
 implementation. Detailed implementation planning is deferred to the maintainer
 switching to plan mode; no production pivot work has started.
 
@@ -151,6 +203,8 @@ correspondence obligations (including control freshness, MMIO/IRQ ordering and
 RX-loan reuse). Reconcile the composed resource model with this
 selected endpoint; earlier auto-lock counterexamples and conditional nonallocating
 runs are not a new proof for the integrated ROM. No automatic ICI eviction policy is introduced.
+#### Historical auto-lock investigation — superseded by the selected LCI-only endpoint
+
 The following auto-lock results remain historical motivation and regression
 cases, not evidence that the selected non-locking endpoint has the same failure.
 
@@ -165,8 +219,10 @@ The [TLA+ rerun](../hardware/directory-pressure.md#tla-rerun-with-the-rtl-alloca
 now finds the same problem after a from-empty worker/cache history (320 states)
 and in complete one-slot combined scheduling checks (33,740 states). Safety
 holds, but handoff completion and stable progress fail. Full-set hit and
-independent-release recovery controls pass. This is a confirmed model-level
-blocking condition to resolve, not merely an untested assumption.
+independent-release recovery controls pass. This was a confirmed blocking condition in the auto-lock model, motivating the
+subsequent LCI-only selection; it is not a current request to restore auto-lock.
+
+The investigation originally proposed the following steps (historical):
 
 1. Close the full NIC/runtime reachability gap: a fresh first RX does not itself
    invalidate the opposite parity. Check subsequent RX, overflow lines never
@@ -186,10 +242,9 @@ controller feature.
    gate model supplies a narrow candidate non-locking contract; extend it to the
    missing transition cases before selecting that protocol.
 
-**No sidecar lock, extra way, forced eviction, cache flush or protocol switch is
-selected or implemented. Only trace instrumentation has changed in production RTL.** Component reachability is
-now simulation-tested; complete Lauberhorn/THX execution and board deadlock are
-not established. Do not restart timing optimization or claim Goal 2 complete.
+At that investigation stage, only trace instrumentation had changed in production
+RTL. That status is superseded by the selected LCI-only ROM, UL removal and RX
+write-service fix above. No forced-eviction policy or extra directory way is selected.
 
 ### Targeted DCS RTL simulation after replacement RTL is available
 
@@ -221,7 +276,7 @@ model checks, THX credit assumptions and eventual board conformance separately.
 
 ## Remaining decisions
 
-1. Model scheduling transitions (Goal 2) and implement the selected physical-worker/domain design. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
+1. Implement the selected physical-worker/domain design using the completed bounded scheduling models and the next-step sequence above. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
 2. Specify receive-critical-section versus whole-application timeout, timer start/reset points, kill granularity and safe resource/reply cleanup. Define service allocation fairness if a guarantee is needed; run-to-finish alone does not define it.
 3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../software/service-execution-design.md) in later runs.
 4. Consensus targets a runtime-managed raft-rs embedding; memcached uses resident transport-only adoption. Select NFS implementation, Demikernel backend/version and comparison platform, target venue/cycle, and ordered feature milestones.
@@ -258,8 +313,8 @@ The [sequential replacement/delivery audit](../hardware/directory-pressure.md)
 found an absent-LCI/full-set progress counterexample in the corrected abstract
 resource model and reproduced the controller/table's allocation dependency in
 controlled RTL tests. Complete hardware-state reachability remains unestablished.
-The selected address layout is unchanged. Follow the active item 3 investigation
-above: retain auto-lock, close the whole-NIC reachability gap and establish its
-allocation guarantee. The new actual-directory test confirms the component-level
+The selected address layout is unchanged. The earlier instruction to retain auto-lock was superseded by the selected
+LCI-only endpoint. Item 3 now concerns independent service and the remaining
+resource/refinement obligations, not restoring auto-lock. The new actual-directory test confirms the component-level
 obstruction; the selected non-locking build now has focused real-DCU regression coverage. Early controller/arbiter/data-gate checks do not replace the planned
 whole-slice routing tests or establish shared release-path progress.
