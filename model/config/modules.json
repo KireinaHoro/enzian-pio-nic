@@ -98,6 +98,11 @@
     "layer": "scheduling",
     "role": "bounded harness / focused contract"
   },
+  "IdleDispatch": {
+    "imports": [],
+    "layer": "scheduling",
+    "role": "idle-only sticky kick and interrupt-free cooperative control-bus contract"
+  },
   "InterruptGate": {
     "imports": [],
     "layer": "scheduling",

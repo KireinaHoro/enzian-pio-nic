@@ -116,6 +116,12 @@
       "BadIrqDrain": false,
       "KillOnly": false,
       "HoldContender": false
+    },
+    "IdleDispatch": {
+      "BadDuplicate": false,
+      "BadLostKick": false,
+      "BadOrdinaryIrq": false,
+      "BadCleanupDependency": false
     }
   },
   "invariants": {
@@ -213,6 +219,14 @@
       "DrainBeforeInstall",
       "MetadataWakeSafe",
       "NoLateIrq"
+    ],
+    "IdleDispatch": [
+      "TypeOK",
+      "AuthorizedReader",
+      "StickyNotification",
+      "NoOrdinaryIrq",
+      "NoReturn",
+      "Readiness"
     ]
   },
   "properties": {
@@ -298,6 +312,10 @@
       "PeerProgress",
       "MovesFinish",
       "SuccessorProgress"
+    ],
+    "IdleDispatch": [
+      "Completes",
+      "ControlProgress"
     ]
   },
   "cases": {
@@ -1116,6 +1134,39 @@
         "WithPeer": true
       },
       "expected_violation": "NoKilledSuccessor"
+    },
+    "idle-dispatch": {
+      "module": "IdleDispatch",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-idle-duplicate": {
+      "module": "IdleDispatch",
+      "options": {
+        "BadDuplicate": true
+      },
+      "expected_violation": "AuthorizedReader"
+    },
+    "bad-idle-lost-kick": {
+      "module": "IdleDispatch",
+      "options": {
+        "BadLostKick": true
+      },
+      "expected_violation": "StickyNotification"
+    },
+    "bad-ordinary-irq": {
+      "module": "IdleDispatch",
+      "options": {
+        "BadOrdinaryIrq": true
+      },
+      "expected_violation": "NoOrdinaryIrq"
+    },
+    "bad-handoff-control-cycle": {
+      "module": "IdleDispatch",
+      "options": {
+        "BadCleanupDependency": true
+      },
+      "expected_violation": "Completes"
     }
   },
   "groups": {
@@ -1282,6 +1333,13 @@
       "bad-full-irq",
       "full-reservation-roundtrip",
       "witness-full-kill-successor"
+    ],
+    "cooperative": [
+      "idle-dispatch",
+      "bad-idle-duplicate",
+      "bad-idle-lost-kick",
+      "bad-ordinary-irq",
+      "bad-handoff-control-cycle"
     ]
   },
   "witnesses": {

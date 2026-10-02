@@ -22,6 +22,8 @@ let
     };
 in
 {
+  fixed-worker-map = pkgs.callPackage ./fixed-worker-map.nix { };
+  scheduling-cooperative = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; cooperativeOnly = true; };
   axi-decerr =
     pkgs.runCommand "axi-decerr-regression"
       {
