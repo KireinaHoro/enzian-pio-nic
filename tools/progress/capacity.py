@@ -184,7 +184,7 @@ def configuration(result, workers, domains):
         raise ValueError('requested worker/domain combination is outside the color frontier')
     layout = Layout(**result['layout'])
     indices = row['domain_indices']
-    return dict(schema='lauberhorn.fixed-worker-domain-map.v1',
+    return dict(schema='lauberhorn.eci-address-map.v1',
                 status='candidate; color-checked; hardware progress/refinement not established',
                 address_space='DCS slice-relative byte address (at most 38 bits); external aperture base is not encoded',
                 usable_address_bits=result['address_bits'], color_bits=result['color_bits'],

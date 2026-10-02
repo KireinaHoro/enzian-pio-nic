@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently enumerate an emitted fixed-worker/domain configuration."""
+"""Independently enumerate an emitted ECI address configuration."""
 import argparse
 import json
 from pathlib import Path
@@ -7,7 +7,7 @@ from capacity import color, encode, decode, compatible
 
 
 def verify_config(config):
-    assert config['schema'] == 'lauberhorn.fixed-worker-domain-map.v1'
+    assert config['schema'] == 'lauberhorn.eci-address-map.v1'
     stride, bits = config['block_stride_bytes'], config['color_bits']
     assert stride > 0 and stride & (stride-1) == 0
     assert stride >= 4096, 'worker mapping blocks must be page aligned'

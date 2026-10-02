@@ -93,6 +93,13 @@
     "layer": "composition",
     "role": "bounded harness / focused contract"
   },
+  "HandoffClaims": {
+    "imports": [
+      "ThreadClaim"
+    ],
+    "layer": "scheduling",
+    "role": "cooperative cross-worker claim release and activation delivery"
+  },
   "HostWake": {
     "imports": [],
     "layer": "scheduling",
