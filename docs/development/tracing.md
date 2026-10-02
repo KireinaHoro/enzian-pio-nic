@@ -566,7 +566,15 @@ decode logic in the Lua dissector.
 - [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
 - [Latency measurement and attribution](../research/latency-measurement.md).
 
-## B4 scheduling and recovery events
+## Cooperative activation events
+
+The current ECI preemption ports emit `YieldAccepted`, `ActivationCommitted`
+and `ActivationDelivered`, with physical core, PA domain code and scheduler
+slot; committed activation also records RX/TX parity. Idle dispatch is identified
+at acceptance. Use the matching generated trace map. Kernel `worker_switch`
+records outgoing and incoming task/lifetime identities at activation delivery.
+
+## Historical B4 scheduling and recovery events
 
 The B4 source extends `SchedulerPreemptCore` with `PreviousProcessID` and
 `EciTxSubmit` with `ExecutionCommand` (0 unchanged, 1 end, 2 begin, 3 end/begin).

@@ -26,7 +26,7 @@ int register_worker_thread(struct proc_def *proc, u32 index)
     thr->worker_idx = -1;
     get_task_struct(current);
     thr->task = current;
-    thr->enabled = true;
+    smp_store_release(&thr->enabled, true);
     ++proc->num_rdy_thrs;
     spin_unlock_irqrestore(&claim_lock, flags);
     sched_set_fifo_low(current);

@@ -40,7 +40,7 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 | Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; raw packet header starts at byte 4. Header/payload bytes are copied unchanged. |
 | Neighbor miss RX | Index shares the first word; IPv4 destination/source at bytes 4/8 are wire-native Linux `__be32` values, protocol at byte 12. Padding rounds metadata to 16 bytes. Kernel uses the addresses directly in IP headers, route lookup and ARP state. |
 | Error RX, common descriptor fields | Valid/type/length are packed host bitfields contained in one 32-bit access. No network conversion. |
-| Worker preemption control / IPI acknowledgment | Flags, PID and parity are host metadata; no network conversion. Control-line placement and READY/BUSY ordering are unchanged. |
+| Worker activation snapshot | Domain lifetime, scheduler slot and RX/TX parity are host metadata; no network conversion. Cooperative yield returns the committed assignment without a control cache line. |
 
 The nested alignment repair moves existing padding after PID, retaining the
 64-byte descriptor bound, inline capacities (24-byte call, 48-byte reply),

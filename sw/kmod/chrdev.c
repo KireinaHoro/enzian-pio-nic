@@ -58,7 +58,7 @@ struct proc_def *find_proc(pid_t tgid)
 {
 	int i;
 	for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i) {
-		if (READ_ONCE(proc_defs[i].enabled) && READ_ONCE(proc_defs[i].tgid) == tgid) {
+		if (smp_load_acquire(&proc_defs[i].enabled) && READ_ONCE(proc_defs[i].tgid) == tgid) {
 			return &proc_defs[i];
 		}
 	}
@@ -247,7 +247,7 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 		proc->srvs[i] = NULL;
 	}
 
-	proc->enabled = true;
+	smp_store_release(&proc->enabled, true);
 	update_proc_hw(dev, proc);
 
 	pr_info("Registered app #%d with TGID %d\n", proc->idx, tgid);
@@ -257,7 +257,7 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 
 struct proc_def *find_proc_slot(u32 slot)
 {
-    if (!slot || slot > LAUBERHORN_NUM_PROCS || !READ_ONCE(proc_defs[slot].enabled)) return NULL;
+    if (!slot || slot > LAUBERHORN_NUM_PROCS || !smp_load_acquire(&proc_defs[slot].enabled)) return NULL;
     return &proc_defs[slot];
 }
 
@@ -277,7 +277,7 @@ static void lifetime_monitor(struct work_struct *work)
         }
         for (j = 0; j < proc->declared_workers; ++j) {
             struct thr_def *thr = &proc->thr_defs[j];
-            if (READ_ONCE(thr->enabled) &&
+            if (smp_load_acquire(&thr->enabled) &&
                 (READ_ONCE(thr->task->exit_state) || fatal_signal_pending(thr->task))) {
                 fail_domain(proc);
                 break;
