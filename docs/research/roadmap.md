@@ -96,9 +96,13 @@ succeeded in CI. This is the existing routed/addressed design with the simplifie
 not the scheduling/address pivot. The [October 2 matched board trial](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02)
 passed driver/revision checks but failed RPC discovery. The frozen trace shows a
 data-bearing HAKD for RX `0x100`, followed by `WDD` without `WDDA`/LCIA; the RX
-AXI router blocks write channels. Preserve the captured failure and first add
-a directed real-DC/RX-router writeback regression. Correct RX writeback service
-and disposition, then repeat board tests before starting the address/PREEMPT
+AXI router blocks write channels. The [trace comparison](../development/hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02)
+identifies the newly selected R12→RA3 permission change: earlier RX used
+PSHA/SINV_H/no-data HAKD; exclusive RX now uses FLDX_EH/data-bearing HAKD. No
+software store is required. The [actual-RTL reproducer](../development/validation.md#rx-writeback-regression-reproducer)
+now confirms AW queues but WREADY stays low, and a test-only completion sink
+releases WDDA/LCIA and the pending read. Preserve the board capture. Resolve RX
+permission/writeback service and data disposition, then repeat board tests before starting the address/PREEMPT
 implementation. Detailed implementation planning is deferred to the maintainer
 switching to plan mode; no production pivot work has started.
 

@@ -1,0 +1,296 @@
+{
+  "scope": "Selected observed exchanges, not exhaustive trace conformance or proof of software access history.",
+  "successful_baseline": {
+    "revision": "5cda901",
+    "dcs_revision": "7b5cc874155f96735f135d3cd1f2c514bacfe28f",
+    "capture": "out/cmac-trace-archive/hardware-tests/cmac-fmac1-20260928/final-capture/received/trace-full.bin",
+    "map": "out/cmac-trace-archive/ci/cmac-5cda901-hw-5h/hardware/lauberhorn_trace_dma_map.json",
+    "capture_sha256": "b7532515fae2e5d4b500c302eb55d4bd75f2a80312130d9e18dc7532cb951c68",
+    "rx_address": "0x100",
+    "rows": [
+      {
+        "time": 32493095802,
+        "opcode_name": "ECI_CMD_MREQ_RLDD",
+        "dmask": 15,
+        "raw_header": "0x0003f00000000100",
+        "channel": "req_wod_i",
+        "sample": 8810169
+      },
+      {
+        "time": 32493095903,
+        "opcode_name": "ECI_CMD_MRSP_PSHA",
+        "dmask": 15,
+        "raw_header": "0x4803c00000000100",
+        "channel": "rsp_wd_o",
+        "sample": 8810175
+      },
+      {
+        "time": 32493097336,
+        "opcode_name": "ECI_CMD_MFWD_SINV_H",
+        "dmask": 0,
+        "raw_header": "0x7008240000000100",
+        "channel": "fwd_wod_o",
+        "sample": 8810196
+      },
+      {
+        "time": 32493097375,
+        "opcode_name": "ECI_CMD_MRSP_HAKD",
+        "dmask": 0,
+        "raw_header": "0x2008200000000100",
+        "channel": "rsp_wod_i",
+        "sample": 8810198
+      },
+      {
+        "time": 32510899426,
+        "opcode_name": "ECI_CMD_MREQ_RLDD",
+        "dmask": 15,
+        "raw_header": "0x0007f00000000100",
+        "channel": "req_wod_i",
+        "sample": 8841161
+      },
+      {
+        "time": 32510899528,
+        "opcode_name": "ECI_CMD_MRSP_PSHA",
+        "dmask": 15,
+        "raw_header": "0x4807c00000000100",
+        "channel": "rsp_wd_o",
+        "sample": 8841167
+      },
+      {
+        "time": 32510904359,
+        "opcode_name": "ECI_CMD_MFWD_SINV_H",
+        "dmask": 0,
+        "raw_header": "0x7008240000000100",
+        "channel": "fwd_wod_o",
+        "sample": 8841437
+      },
+      {
+        "time": 32510904400,
+        "opcode_name": "ECI_CMD_MRSP_HAKD",
+        "dmask": 0,
+        "raw_header": "0x2008200000000100",
+        "channel": "rsp_wod_i",
+        "sample": 8841440
+      },
+      {
+        "time": 32513276869,
+        "opcode_name": "ECI_CMD_MREQ_RLDD",
+        "dmask": 15,
+        "raw_header": "0x0003f00000000100",
+        "channel": "req_wod_i",
+        "sample": 8857540
+      },
+      {
+        "time": 32513276969,
+        "opcode_name": "ECI_CMD_MRSP_PSHA",
+        "dmask": 15,
+        "raw_header": "0x4803c00000000100",
+        "channel": "rsp_wd_o",
+        "sample": 8857557
+      },
+      {
+        "time": 32513286924,
+        "opcode_name": "ECI_CMD_MFWD_SINV_H",
+        "dmask": 0,
+        "raw_header": "0x7008240000000100",
+        "channel": "fwd_wod_o",
+        "sample": 8858155
+      },
+      {
+        "time": 32513286966,
+        "opcode_name": "ECI_CMD_MRSP_HAKD",
+        "dmask": 0,
+        "raw_header": "0x2008200000000100",
+        "channel": "rsp_wod_i",
+        "sample": 8858158
+      }
+    ]
+  },
+  "other_observations": [
+    {
+      "archive": "data/eci/sys_trace/iperf-tx-fldx-0x8080-timeout/events.tar.gz",
+      "member": "addr_0x0000000100.csv",
+      "rows": [
+        {
+          "time": "156222973729",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0007f00000000100",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "156222973833",
+          "opcode_name": "ECI_CMD_MRSP_PSHA",
+          "dmask": "15",
+          "raw_header": "0x4807c00000000100",
+          "channel": "rsp_wd_o"
+        },
+        {
+          "time": "156222976725",
+          "opcode_name": "ECI_CMD_MFWD_SINV_H",
+          "dmask": "0",
+          "raw_header": "0x7008240000000100",
+          "channel": "fwd_wod_o"
+        },
+        {
+          "time": "156222976755",
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": "0",
+          "raw_header": "0x2008200000000100",
+          "channel": "rsp_wod_i"
+        },
+        {
+          "time": "156435471856",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0007f00000000100",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "156435471960",
+          "opcode_name": "ECI_CMD_MRSP_PSHA",
+          "dmask": "15",
+          "raw_header": "0x4807c00000000100",
+          "channel": "rsp_wd_o"
+        }
+      ]
+    },
+    {
+      "archive": "data/eci/sys_trace/iperf-tx-fldx-0x8080-timeout/events.tar.gz",
+      "member": "addr_0x0000008000.csv",
+      "rows": [
+        {
+          "time": "156221255525",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0007e00000008000",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "156221255629",
+          "opcode_name": "ECI_CMD_MRSP_PSHA",
+          "dmask": "15",
+          "raw_header": "0x4807c00000008000",
+          "channel": "rsp_wd_o"
+        },
+        {
+          "time": "156221255802",
+          "opcode_name": "ECI_CMD_MREQ_RC2D_S",
+          "dmask": "15",
+          "raw_header": "0x3803e00000008000",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "156221255849",
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": "0",
+          "raw_header": "0x5000000000008000",
+          "channel": "rsp_wod_o"
+        },
+        {
+          "time": "156221256046",
+          "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+          "dmask": "15",
+          "raw_header": "0x4803e40000008000",
+          "channel": "fwd_wod_o"
+        },
+        {
+          "time": "156221256093",
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": "15",
+          "raw_header": "0x2003e00000008000",
+          "channel": "rsp_wd_i"
+        }
+      ]
+    },
+    {
+      "archive": "out/board/20261002-lci/failed-trace/eci-events.tar.gz",
+      "member": "addr_0x0000000100.csv",
+      "rows": [
+        {
+          "time": "32981670372",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0003f00000000100",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "32981670476",
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": "15",
+          "raw_header": "0x5003c00000000100",
+          "channel": "rsp_wd_o"
+        },
+        {
+          "time": "32981671951",
+          "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+          "dmask": "15",
+          "raw_header": "0x480be40000000100",
+          "channel": "fwd_wod_o"
+        },
+        {
+          "time": "32981671998",
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": "15",
+          "raw_header": "0x200be00000000100",
+          "channel": "rsp_wd_i"
+        }
+      ]
+    },
+    {
+      "archive": "out/board/20261002-lci/failed-trace/eci-events.tar.gz",
+      "member": "addr_0x0000008000.csv",
+      "rows": [
+        {
+          "time": "32415888479",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0003e00000008000",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "32415888583",
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": "15",
+          "raw_header": "0x5003c00000008000",
+          "channel": "rsp_wd_o"
+        },
+        {
+          "time": "32415888926",
+          "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+          "dmask": "15",
+          "raw_header": "0x4803e40000008000",
+          "channel": "fwd_wod_o"
+        },
+        {
+          "time": "32415888975",
+          "opcode_name": "ECI_CMD_MRSP_HAKD",
+          "dmask": "15",
+          "raw_header": "0x2003e00000008000",
+          "channel": "rsp_wd_i"
+        },
+        {
+          "time": "32481289920",
+          "opcode_name": "ECI_CMD_MREQ_RLDD",
+          "dmask": "15",
+          "raw_header": "0x0007e00000008000",
+          "channel": "req_wod_i"
+        },
+        {
+          "time": "32481290434",
+          "opcode_name": "ECI_CMD_MRSP_PEMD",
+          "dmask": "15",
+          "raw_header": "0x5007c00000008000",
+          "channel": "rsp_wd_o"
+        }
+      ]
+    }
+  ],
+  "source_findings": [
+    "5cda901 create_project.tcl selects gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl, whose absent R12 uses 2pRA2/RDD then SEND_RA2/PSHA.",
+    "40530da selected Lauberhorn generator uses R12 -> 3pRA3/RDD then SEND_RA3/PEMD.",
+    "SEND_F31 used FLDX_EH already at 7b5cc87; SEND_F21 uses SINV_H with zero dmask.",
+    "THX legacy remote_fsm.txt admits LS -> IS_d; AE_d -> E; FE_d -> FA_d, without intervening software store. This abstract FSM does not model payload values or clean/dirty contents.",
+    "RX router has no write completion path; data-bearing HAKD does not establish a software store."
+  ]
+}
