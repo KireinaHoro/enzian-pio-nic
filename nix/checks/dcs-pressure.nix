@@ -5,6 +5,7 @@ let
     root = ../..;
     fileset = lib.fileset.unions [
       ../../tools/progress/check_dcs_pressure.py
+      ../../tools/progress/check_slice_routing.py
       ../../tools/progress/check_lock_tables.py
       ../../data/eci/sys_trace/trace_metadata.py
       ../../tools/progress/directory_witness.py
@@ -30,6 +31,12 @@ let
       (dcs + "/dcs/dcu/wr_trmgr/rtl/wr_trmgr.sv")
       (dcs + "/dcs/dcu/eci_trmgr/rtl/eci_trmgr.sv")
       (dcs + "/dcs/dcs_dcus/rtl/dcs_dcus.sv")
+      (dcs + "/dcs/dcu/dcu_top/rtl/dcu_top.sv")
+      (dcs + "/dcs/dcs_rr_arb/rtl/dcs_rr_arb.sv")
+      (dcs + "/dcs/dc_to_vc_router/rtl/dc_to_vc_router.sv")
+      (dcs + "/common/axis_pipeline_stage/rtl/axis_pipeline_stage.sv")
+      (dcs + "/common/axis_comb_router/rtl/axis_comb_router.sv")
+      (dcs + "/common/axis_comb_rr_arb/rtl/axis_comb_rr_arb.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_3_ecih.sv")
       (dcs + "/dcs/dcu/arb_4_ecih/rtl/arb_4_ecih.sv")
@@ -42,8 +49,11 @@ in runCommand "lauberhorn-dcs-pressure" {
   chmod -R u+w .
   ${if dcsRom != null then ''
   python3 tools/progress/check_dcs_pressure.py --rom ${dcsRom} --output selected-results
+  python3 tools/progress/check_slice_routing.py --rom ${dcsRom} --output slice-results
   mkdir -p "$out"
   cp selected-results/summary.json selected-results/run.log "$out/"
+  cp slice-results/summary.json "$out/slice-summary.json"
+  cp slice-results/run.log "$out/slice-run.log"
   '' else ''
   python3 tools/progress/check_dcs_pressure.py --output results
   python3 tools/progress/check_dcs_pressure.py --no-auto-lock --output nonlocking-results

@@ -249,26 +249,14 @@ through FPGA UDP RPC, then validate the returned matrix. It needs pymongo's
 packaged `mmu_worker` and `DANDELION_LAUBERHORN_CONFIG` to the DUT configuration.
 Composition tests remain separate because local nested transport has not landed.
 
-## B4 no-reset process recovery
+## Historical B4 recovery evidence
 
-After `test.py` verifies the matching image and starts a persistent **mul** service,
-run `python3 tools/enzian/recovery.py --revision FULL_REV --client GATEWAY_CLIENT
---logs NEW_DIR --repeats 2`. The image must include `recovery-test`. The runner
-creates only its own add-service fixtures, exercises idle/active signals,
-explicit stop, abandoned dirty TX, stuck BUSY and watchdog expiry, and checks
-that the unrelated mul service still answers correctly. It requires kernel
-trace evidence of dispatch for active cases and completed retirement before
-reusing the service. It never resets, unloads the module or takes over a console.
-
-Read its local `summary.json`; detailed kernel traces, trace-buffer statistics,
-server output and dmesg snapshots remain in the reported CPU `/var/tmp` directory.
-Archive those files and inspect loss/faults before declaring acceptance. This
-runner covers incoming-request/process recovery only: nested timeout/cancel,
-late-reply and outgoing-table capacity tests remain separate B4 acceptance gates.
-The original pipeline 512199 campaign stopped after six signal cases at an L2
-fill timeout. Applying only the kernel parking fix subsequently passed all 20
-cases over two no-reset rounds on that bitstream. See the
-[follow-up board results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
+The September B4 campaign used the superseded control-line and recovery ABI.
+Its runner is removed; it must not be used with cooperative PREEMPT images.
+See the [recorded results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
+for the tested revisions. Current unsupported exit and fatal faults kill and
+fence the affected domain, retaining resources until a full coherence reset.
+Complete recovery and parked-domain deadline activation remain deferred.
 
 ## Cooperative RX hold campaign
 
@@ -305,3 +293,25 @@ The report includes capture/map hashes, loss and incomplete-pair counts. Its
 request-to-NACK intervals include protocol/response overhead; pending handoffs
 are marked. Peer RX/TX, CMAC and activation events are supporting transport
 evidence. Confirm application completions independently using client results.
+
+For finite concurrent peer load, `tools/enzian/cooperative_client.py` supports
+`add`, `mul`, the packaged `nested-validation` fixture's `echo`, and kernel UDP
+`bypass` streams. It checks every response and source, records individual send/
+receive timestamps in `completions.csv`, and fails without retry on loss or
+corruption. Start its `--bypass-server` mode on a non-worker DUT CPU, binding
+only the DUT NIC address; this is an ordinary kernel UDP echo service on 32345.
+Create fresh output directories for each run. For example, on the reserved peer:
+
+```sh
+python3 cooperative_client.py --bind 192.168.129.129 --nic 192.168.129.200 \
+  --streams add,echo,bypass --seconds 60 --window 1 --output NEW_PEER_RUN
+```
+
+Activate services in a recorded order and verify actual worker placement from
+traces. Additional workers still require the existing queue watermark; declaring
+three threads or sending three sequential calls does not allocate three workers.
+To exercise all-but-one stalls, first place an active service on worker 0, then
+use a bounded burst to allocate the three-thread stalled service on the other
+workers. Alternate the two one-thread active services to require cooperative
+handoffs while bypass traffic continues. This is a campaign procedure, not a
+claim that the placement or progress has already been observed.

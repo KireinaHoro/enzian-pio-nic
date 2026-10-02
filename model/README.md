@@ -1,5 +1,14 @@
 # TLA+ models
 
+The cooperative implementation is checked by [`IdleDispatch`](tla/scheduling/IdleDispatch.tla),
+[`HandoffClaims`](tla/scheduling/HandoffClaims.tla) and
+[`PoolBootstrap`](tla/scheduling/PoolBootstrap.tla). The pinned cooperative group
+passes twelve outcomes: five positive and seven expected faults. These cover
+sticky idle notification, interrupt-free ordinary handoff, shared-control cleanup,
+atomic claims, activation delivery and initialization failure. They reuse claim
+properties but are not a full Linux/RTL/coherence refinement proof. See the
+[current evidence ledger](../docs/hardware/eci-implementation.md).
+
 The active LCI-only model has three verification layers. Start with
 [`LineEndpoint`](tla/worker/LineEndpoint.tla) and
 [`SingleWorker`](tla/worker/SingleWorker.tla), then
@@ -84,6 +93,7 @@ are compositions, **not proofs that one specification refines another**.
 | `Handoff`, `SelectedAddresses` | Handoff to the exact Goal 1 predicate using generated selected-layout control addresses |
 | `HostWake`, `WakeHandoff`, `WakeRetirement` | Notification ownership, joined host-driven handoff, and callback lifetime; the retirement harness assumes endpoint retirement |
 | `WakeReassignment`, `WakeAckRace` | Delayed stale routing hints across A→B→A, and notification versus command acknowledgment. These are different races |
+| `IdleDispatch`, `HandoffClaims`, `PoolBootstrap` | Current idle/ordinary activation, simultaneous domain exchange, fresh return and immutable pool publication |
 | `ThreadClaim` | Fixed preinitialized thread pool, NIC reservation and atomic kernel claim/retry |
 | `ControlRetirement` | Immutable MMIO response and close/callback ordering, with abstract endpoint readiness |
 | `LciBatch`, `PacketResources` | Generic ordered cleanup client and buffer/writeback ownership components |

@@ -2,9 +2,9 @@
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
-incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515941
-was launched for `23561fa3`; subsequent correctness fixes require a replacement
-pipeline before board acceptance. Do not merge or substitute
+incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515944 is running for `8cc9ad58`; its 30-minute preflight
+check is scheduled for 19:38 CEST. Pipeline 515941 (`23561fa3`) is superseded
+and must not supply acceptance artifacts. Both pipeline refs are retained. Do not merge or substitute
 historical board evidence for these gates.
 
 ## Implementation
@@ -65,6 +65,8 @@ and fences the affected domain. Ordinary syscall sleep retains assignment.
 | `RpcReplyContextsSim` | Live-token owner mismatch rejected; test passed. |
 | Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. The first committed rerun passed 42 tests. After the idle-first and same-edge ingress fixes, all 44 tests in 13 suites passed (one existing ignored test). The additional cross-worker migration test passed separately. |
 | Actual DCU/RX writeback | Four directed checks passed with the selected ROM and new RX layout, including delayed B, WDDA, LCIA and next-control release. This is not a full DCS slice. |
+| Production DCS slice control routing | 812 address trials passed through the 32-DCU array, production routers and arbiters: seven workers plus bypass, both parities, every overflow line, high lifetime bits and A→B→A. Read/dirty-write addresses and IDs, delayed completion and backpressured LCIA checked. Test RAM/passive trace sinks; payload datapath and ThunderX are not instantiated. |
+| Stalled-worker/bypass progress | Three expanded tests passed: one, two and three held worker reads while an independent worker progresses and bypass RX/TX transfer concurrently across both parities. Finite 50000-cycle hold setting in the host coherence model; no silicon timeout claim. The separately run RX/TX interleaving test passed and is restored to the regular suite. |
 | Worker configurations | Production ECI composition elaborated for every count 1–7. |
 | Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
 | Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
@@ -85,9 +87,9 @@ is preserved and excluded from platform commits.
 
 ## Outstanding acceptance
 
-- Finish actual DCS slice routing/completion checks. The separate migration
-  simulation and initialization-failure model passed; actual Linux concurrency
-  and failure handling remain board checks.
+- Actual Linux concurrency and failure handling remain board checks. The
+  slice control-array check, separate migration simulation and initialization-
+  failure model do not constitute a full DCS/NIC/ThunderX composition proof.
 - Reconcile remaining transport-readiness and activation properties with the
   concrete implementation. Report assumptions and finite bounds explicitly.
 - Launch hardware CI with matched artifacts, retain its refs and follow the
@@ -121,3 +123,8 @@ oversized TX rejection, and subsequent valid TX progress. The corrected full reg
 migration test moved single-thread domains between workers and back, with only
 the three initial scheduling IRQs. Dandelion's matched adapter build and the pinned
 transport/AXI model checks passed; these are separate from board evidence.
+
+The pinned workflow check also passes three real loopback UDP client tests: concurrent
+validated RPC/bypass completions, corruption rejection and timeout without retry.
+These validate the measurement tool, not the board. The obsolete B4 recovery
+runner is removed because it uses the superseded control/recovery ABI.
