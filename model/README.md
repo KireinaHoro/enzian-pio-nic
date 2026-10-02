@@ -3,7 +3,8 @@
 The cooperative implementation is checked by [`IdleDispatch`](tla/scheduling/IdleDispatch.tla),
 [`HandoffClaims`](tla/scheduling/HandoffClaims.tla) and
 [`PoolBootstrap`](tla/scheduling/PoolBootstrap.tla). The pinned cooperative group
-passes twelve outcomes: five positive and seven expected faults. These cover
+passes thirteen outcomes: five positive, seven expected faults and one delayed-kick
+reachability witness. These cover
 sticky idle notification, interrupt-free ordinary handoff, shared-control cleanup,
 atomic claims, activation delivery and initialization failure. They reuse claim
 properties but are not a full Linux/RTL/coherence refinement proof. See the
