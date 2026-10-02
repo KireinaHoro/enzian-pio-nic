@@ -247,3 +247,18 @@ are test models; the payload datapath and ThunderX are not instantiated. The
 runner removes one unmatched `%d` from an upstream unsupported-size diagnostic
 in a temporary compile copy; it does not alter protocol logic or the dependency.
 Source hashes and that normalization are recorded in `slice-summary.json`.
+
+To generate and cross-build all seven supported worker counts from a committed
+checkout (the outputs are interface-check artifacts, not deployment images):
+
+```sh
+nix develop -c mill gen.test.runMain lauberhorn.host.eci.GenWorkerConfigurations "$PWD/out/worker-configs"
+nix build -L --impure --file tools/address-map/worker-builds.nix \
+  --argstr revision "$(git rev-parse HEAD)" --arg generatedRoot "$PWD/out/worker-configs" \
+  kmod1 runtime1 kmod2 runtime2 kmod3 runtime3 kmod4 runtime4 \
+  kmod5 runtime5 kmod6 runtime6 kmod7 runtime7 --no-link --json
+```
+
+The helper resets the descriptor-emission guard between elaborations because
+the production CLI normally elaborates only once per JVM. Do not hand-edit
+headers to make a configuration compile.

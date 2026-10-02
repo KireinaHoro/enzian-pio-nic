@@ -244,9 +244,14 @@ int init_workers()
 		fpi_data->index = cpu - worker_lo;
 		fpi_data->cpu = cpu;
 
-		lauberhorn_eci_preempt_initialize(
-			&fpi_data->preempt_dev,
-			LAUBERHORN_ECI_PREEMPT_BASE(cpu - worker_lo + 1));
+#if LAUBERHORN_NUM_WORKER_CORES == 1
+        /* A single generated register block has a scalar base macro. */
+        lauberhorn_eci_preempt_initialize(&fpi_data->preempt_dev,
+            LAUBERHORN_ECI_PREEMPT_BASE);
+#else
+        lauberhorn_eci_preempt_initialize(&fpi_data->preempt_dev,
+            LAUBERHORN_ECI_PREEMPT_BASE(cpu - worker_lo + 1));
+#endif
 
 
 		// Program the real core ID for this worker (destination core for FPI)
