@@ -31,7 +31,7 @@
 #include "eci/core.h"
 #include "regblock_bases.h"
 
-#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_bypassIrq_dev.h"
 #include "lauberhorn_eci_dma_dev.h"
 #include "lauberhorn_eci_bypassSink_dev.h"
 #include "lauberhorn_eci_EthernetDecoder_dev.h"
@@ -60,7 +60,7 @@ struct netdev_priv {
 	bool promisc;
 
 	// Mackerel devices
-	lauberhorn_eci_preempt_t reg_dev;
+	lauberhorn_eci_bypassIrq_t reg_dev;
 	lauberhorn_eci_dma_t dma_dev;
 	lauberhorn_eci_bypassSink_t bypassSink_dev;
 	lauberhorn_eci_EthernetDecoder_t EthernetDecoder_dev;
@@ -132,7 +132,7 @@ static irqreturn_t bypass_fpi_handler(int irq, void *cookie)
 		__LINE__, smp_processor_id(), irq);
 
 	dev_dbg(&dev->dev, "disabling IRQ and scheduling NAPI\n");
-	lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+	lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, 0);
 	napi_schedule_irqoff(&priv->napi);
 
 	return IRQ_HANDLED;
@@ -231,7 +231,7 @@ static int netdev_open(struct net_device *dev)
 	} else {
 		dev_dbg(&dev->dev, "enabling bypass IRQ\n");
 		smp_wmb();
-		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+		lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, 1);
 	}
 
 	return 0;
@@ -286,7 +286,7 @@ static int netdev_stop(struct net_device *dev)
 		timer_delete(&priv->poll_timer);
 	} else {
 		dev_dbg(&dev->dev, "disabling bypass IRQ\n");
-		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 0);
+		lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, 0);
 	}
 
 	napi_disable(&priv->napi);
@@ -540,7 +540,7 @@ static int napi_poll(struct napi_struct *n, int budget)
 		if (napi_complete_done(n, work_done) && !force_poll) {
 			dev_dbg(&dev->dev,
 				"NAPI complete, re-enabling interrupt\n");
-			lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, 1);
+			lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, 1);
 		}
 	}
 
@@ -663,7 +663,7 @@ static ssize_t bypass_irq_en_show(struct device *dev,
 
 	return sysfs_emit(
 		buf, "%d\n",
-		(bool)lauberhorn_eci_preempt_irq_en_rd(&priv->reg_dev));
+		(bool)lauberhorn_eci_bypassIrq_irq_en_rd(&priv->reg_dev));
 }
 
 static ssize_t bypass_irq_en_store(struct device *dev,
@@ -678,7 +678,7 @@ static ssize_t bypass_irq_en_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	old_en = lauberhorn_eci_preempt_irq_en_rd(&priv->reg_dev);
+	old_en = lauberhorn_eci_bypassIrq_irq_en_rd(&priv->reg_dev);
 	if (old_en == en) {
 		dev_warn(
 			dev,
@@ -687,7 +687,7 @@ static ssize_t bypass_irq_en_store(struct device *dev,
 	} else {
 		dev_warn(dev, "toggling IRQ enable state: %d -> %d\n", old_en,
 			 en);
-		lauberhorn_eci_preempt_irq_en_wr(&priv->reg_dev, en);
+		lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, en);
 	}
 	return count;
 }
@@ -748,8 +748,8 @@ int init_bypass(void)
 	}
 
 	// Create Mackerel devices
-	lauberhorn_eci_preempt_initialize(&priv->reg_dev,
-					  LAUBERHORN_ECI_PREEMPT_BASE(0));
+	lauberhorn_eci_bypassIrq_initialize(&priv->reg_dev,
+					  LAUBERHORN_ECI_BYPASS_IRQ_BASE);
 	lauberhorn_eci_dma_initialize(&priv->dma_dev, LAUBERHORN_ECI_DMA_BASE);
 	lauberhorn_eci_bypassSink_initialize(&priv->bypassSink_dev,
 					     LAUBERHORN_ECI_BYPASS_SINK_BASE);
@@ -817,8 +817,6 @@ int init_bypass(void)
 	priv->ctx.rx_buf_size = LAUBERHORN_MTU;
 	priv->ctx.rx_buf = kmalloc(priv->ctx.rx_buf_size, GFP_KERNEL);
 
-	// Route bypass access to fixed base
-	route_prefix_to_core(0, 0);
 
 	// Invalidate control and bypass CLs
 	for (cl_id = 0; cl_id < 2; ++cl_id) {

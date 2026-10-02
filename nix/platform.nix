@@ -59,6 +59,7 @@ let
     src = sources.c [
       "sw/kmod"
       "sw/core"
+      "sw/include"
     ];
   };
   runtime = target.callPackage ./software/runtime.nix {
@@ -100,7 +101,7 @@ let
       "sw/core"
       "sw/kmod/ioctl.h"
       "sw/kmod/endpoints.h"
-      "sw/kmod/recovery.h"
+      "sw/kmod/retire_call.h"
     ];
     configHeaders = genVerilog.headers;
     deviceHeaders = devHdrs;

@@ -20,11 +20,6 @@
 #endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-// bypass core does not have preemption control; critical section operations are
-// no-ops
-#define enter_cs(base)
-#define exit_cs(base)
-
 #define assert(cond) BUG_ON(!(cond))
 
 #else // ! __KERNEL__
@@ -50,7 +45,6 @@
 
 #define BARRIER asm volatile("dmb sy")
 
-#include "cs.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 

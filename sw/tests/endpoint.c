@@ -34,7 +34,7 @@ int main(void)
     _Static_assert(sizeof(lauberhorn_outcome_t) == 48, "Rust outcome ABI");
     _Static_assert(offsetof(lauberhorn_outcome_t, endpoint) == 40, "Rust outcome endpoint");
     _Static_assert(sizeof(lauberhorn_handler_t) == 16, "Rust handler ABI");
-    _Static_assert(sizeof(lauberhorn_t) == 24, "Rust context ABI");
+    _Static_assert(sizeof(lauberhorn_t) == 32, "Rust context ABI");
     _Static_assert(sizeof(lauberhorn_rpc_endpoint_t) == 72, "Rust endpoint ABI");
     _Static_assert(offsetof(lauberhorn_rpc_endpoint_t, _transport) == 32, "Rust transport offset");
     _Static_assert(sizeof(lauberhorn_reg_endpoint_t) == 16, "registration ABI");

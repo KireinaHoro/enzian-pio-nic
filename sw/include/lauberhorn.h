@@ -13,15 +13,23 @@
 #include "lauberhorn/rpc.h"
 #include "lauberhorn/xdr_rpc.h"
 #include "lauberhorn/future.h"
+#include "lauberhorn/activation.h"
 
 typedef struct lauberhorn {
 	/* to /dev/lauberhorn */
 	int fd;
-	uint8_t* parity_page;
+	void *_aliases;
+	uint32_t _declared_workers;
+	uint32_t _created;
 	/* Private: control operations require external serialization. */
 	uint32_t _workers;
 	bool _watchdog_enabled;
 } lauberhorn_t;
+
+/* Declare the immutable pool before creating any threads. */
+int lauberhorn_set_worker_count(lauberhorn_t *ctx, uint32_t count);
+/* Bootstrap or relinquish after PREEMPT; returns this thread's assignment. */
+int lh_yield(struct lh_activation *result);
 
 /* Configure before creating workers. Zero disables the debugging watchdog.
  * Limits are approximate elapsed execution time, refreshed only after suspension. */

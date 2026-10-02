@@ -26,31 +26,17 @@ int lauberhorn_fd;
 struct pending_call_table pending_call_table;
 struct srv_table srv_table;
 
-static pthread_t deadline_thread;
-static atomic_bool deadline_running;
-static void *deadline_loop(void *unused) {
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT); sigaddset(&mask, SIGTERM);
-    pthread_sigmask(SIG_BLOCK, &mask, NULL);
-    while (atomic_load(&deadline_running)) {
-        if (pending_call_table_has_expired(&pending_call_table))
-            ioctl(lauberhorn_fd, LAUBERHORN_IOCTL_KICK_PROCESS);
-        struct timespec delay = {.tv_nsec = 10000000};
-        nanosleep(&delay, NULL);
-    }
-    return NULL;
-}
-
 static void shutdown_signal(int signo) {
-    /* exit_group requests fatal termination of workers too. The kernel's
-     * recovery monitor handles TASK_IDLE workers before releasing mappings. */
+    /* Unsupported exit fences the domain; the kernel retains unresolved
+     * resources and lifetime identities until full coherence reset. */
     _exit(128 + signo);
 }
 
 int lauberhorn_init(lauberhorn_t *ctx) {
     server_trace_init();
     ctx->_workers = 0;
+    ctx->_created = 0;
+    ctx->_declared_workers = 0;
     ctx->_watchdog_enabled = false;
     struct sigaction sa = {
         .sa_handler = shutdown_signal,
@@ -58,7 +44,6 @@ int lauberhorn_init(lauberhorn_t *ctx) {
     };
     int err;
 
-    int page_size = getpagesize();
 
     LOG("initializing");
 
@@ -69,10 +54,9 @@ int lauberhorn_init(lauberhorn_t *ctx) {
         return -1;
     }
 
-    ctx->parity_page =
-        mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, ctx->fd, 0);
-    if (ctx->parity_page == MAP_FAILED) {
-        PERROR("map parity page");
+    ctx->_aliases = mmap(NULL, LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET,
+        PROT_READ | PROT_WRITE, MAP_SHARED, ctx->fd, 0);
+    if (ctx->_aliases == MAP_FAILED) {
         close(ctx->fd);
         return -1;
     }
@@ -82,6 +66,7 @@ int lauberhorn_init(lauberhorn_t *ctx) {
     if (!err) err = sigaction(SIGTERM, &sa, NULL);
     if (err) {
         PERROR("handle SIGINT");
+        munmap(ctx->_aliases, LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET);
         close(ctx->fd);
         return -1;
     }
@@ -90,16 +75,15 @@ int lauberhorn_init(lauberhorn_t *ctx) {
     pending_call_table_init(&pending_call_table);
     srv_table_init(&srv_table);
 
-    atomic_store(&deadline_running, true);
-    err = pthread_create(&deadline_thread, NULL, deadline_loop, NULL);
-    if (err) {
-        atomic_store(&deadline_running, false);
-        munmap(ctx->parity_page, page_size);
-        close(ctx->fd);
-        errno = err;
-        return -1;
-    }
     LOG("app initialized");
+    return 0;
+}
+
+int lauberhorn_set_worker_count(lauberhorn_t *ctx, uint32_t count) {
+    if (!ctx || !count || count > LAUBERHORN_NUM_WORKER_CORES) { errno = EINVAL; return -1; }
+    if (ctx->_declared_workers || ctx->_created) { errno = EBUSY; return -1; }
+    if (ioctl(ctx->fd, LAUBERHORN_IOCTL_SET_WORKER_COUNT, &count)) return -1;
+    ctx->_declared_workers = count;
     return 0;
 }
 
@@ -118,10 +102,8 @@ int lauberhorn_stop(lauberhorn_t *ctx) {
 
 void lauberhorn_fini(lauberhorn_t *ctx) {
     server_trace_fini();
-    atomic_store(&deadline_running, false);
-    pthread_join(deadline_thread, NULL);
-    munmap(ctx->parity_page, getpagesize());
-    ctx->parity_page = NULL;
+    munmap(ctx->_aliases, LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET);
+    ctx->_aliases = NULL;
     close(ctx->fd);
     ctx->fd = -1;
 }

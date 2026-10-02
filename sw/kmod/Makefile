@@ -11,7 +11,7 @@ endif
 
 KDIR ?= /lib/modules/`uname -r`/build
 
-ccflags-y += -I$(MACKEREL_DEV_HDRS) -I$(HW_CFG_HDRS) -I$(M) -I$(M)/../core/
+ccflags-y += -I$(MACKEREL_DEV_HDRS) -I$(HW_CFG_HDRS) -I$(M) -I$(M)/../core/ -I$(M)/../include/
 
 obj-m += lauberhorn.o
 lauberhorn-y := main.o bypass.o misc.o worker.o sched.o chrdev.o cmac.o l2c_tad_debug.o

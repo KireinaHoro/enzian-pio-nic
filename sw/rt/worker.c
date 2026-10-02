@@ -6,6 +6,7 @@
 
 #include "fiber/scheduler.h"
 #include "lauberhorn.h"
+#include "ioctl.h"
 #include "lauberhorn_state.h"
 #include "log.h"
 #include "oncrpc.h"
@@ -14,26 +15,12 @@
 #include "utils/clock.h"
 
 static __thread lauberhorn_worker_t current_worker;
-static atomic_int next_worker = 0;
 
 lauberhorn_worker_t worker_get_current() {
     return current_worker; 
 }
 
 int init_worker(lauberhorn_worker_t w) {
-
-    int dp_size = LAUBERHORN_ECI_CORE_OFFSET;
-    int dp_offset = dp_size * w->worker_id + getpagesize();
-
-    void *dp_base = mmap(NULL, dp_size, PROT_READ | PROT_WRITE, MAP_SHARED,
-                         w->ctx->fd, dp_offset);
-
-    if (dp_base == MAP_FAILED) {
-        PERROR("map datapath page");
-        return -1;
-    }
-
-    w->dp_base = dp_base;
 
     if (w->init) {
         w->init(w->worker_id);
@@ -49,6 +36,11 @@ int init_worker(lauberhorn_worker_t w) {
         return -1;
     }
     return 0;
+}
+
+static void worker_fail(lauberhorn_worker_t w) {
+    lauberhorn_stop(w->ctx);
+    abort();
 }
 
 // run every 1 seconds
@@ -88,13 +80,16 @@ static void *lauberhorn_worker_loop(void *arg) {
     lauberhorn_worker_t w = arg;
     current_worker = w;
 
-    if (init_worker(w) < 0) {
-        return NULL;
-    }
+    if (init_worker(w) < 0) worker_fail(w);
 
     // initialize scheduler context
     fiber_sched_init();
     fiber_sched_set_execution_hooks(execution_begin, execution_end, execution_flush);
+
+    uint32_t index = w->worker_id;
+    struct lh_activation activation;
+    if (ioctl(w->ctx->fd, LAUBERHORN_IOCTL_REGISTER_THREAD, &index) ||
+        lh_yield(&activation)) worker_fail(w);
 
     lauberhorn_pkt_desc_t desc;
 
@@ -115,10 +110,15 @@ static void *lauberhorn_worker_loop(void *arg) {
         } else {
             received = core_eci_rx(w->dp_base, &w->dp, &desc);
         }
+        if (received && desc.type == TY_PREEMPT) {
+            if (lh_yield(&activation)) worker_fail(w);
+            continue;
+        }
         if (received) {
             rpc_handle_packet(w, &desc);
         }
     }
+    worker_fail(w); /* Individual withdrawal is unsupported. */
     return NULL;
 }
 
@@ -133,6 +133,10 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
                                              lauberhorn_user_cb_t init,
                                              lauberhorn_user_cb_t fini) {
     int err;
+    if (!ctx || !ctx->_declared_workers || ctx->_created >= ctx->_declared_workers) {
+        errno = EINVAL;
+        return NULL;
+    }
 
     lauberhorn_worker_t w = calloc(sizeof(struct lauberhorn_worker), 1);
     if (!w) {
@@ -143,17 +147,23 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
     w->ctx = ctx;
     w->init = init;
     w->fini = fini;
-    w->worker_id = atomic_fetch_add(&next_worker, 1);
+    w->worker_id = ctx->_created++;
 
-    // parity bits are shared with the kernel
-    w->dp.rx_next_cl = &ctx->parity_page[w->worker_id * 2];
-    w->dp.tx_next_cl = &ctx->parity_page[w->worker_id * 2 + 1];
-    *w->dp.rx_next_cl = *w->dp.tx_next_cl = 0;
+    w->dp.rx_next_cl = &w->rx_next;
+    w->dp.tx_next_cl = &w->tx_next;
     w->dp.rx_buf_size = LAUBERHORN_MTU;
 
-    // TODO: check if allocation failed
     w->dp.rx_buf = malloc(LAUBERHORN_MTU);
     w->dp.tx_buf = malloc(LAUBERHORN_MTU);
+
+    if (!w->dp.rx_buf || !w->dp.tx_buf) {
+        free(w->dp.rx_buf);
+        free(w->dp.tx_buf);
+        free(w);
+        lauberhorn_stop(ctx);
+        errno = ENOMEM;
+        return NULL;
+    }
 
     lauberhorn_is_running = 1;
 
@@ -163,6 +173,7 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
         ctx->_workers--;
         errno = err;
         PERROR("create thread");
+        lauberhorn_stop(ctx);
         free(w->dp.tx_buf);
         free(w->dp.rx_buf);
         free(w);
@@ -184,11 +195,6 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
 
     if (res) {
         LOG("worker thread returned %ld", (ssize_t)res);
-    }
-
-    err = munmap(w->dp_base, LAUBERHORN_ECI_CORE_OFFSET);
-    if (err != 0) {
-        PERROR("unmap datapath");
     }
 
     ctx->_workers--;

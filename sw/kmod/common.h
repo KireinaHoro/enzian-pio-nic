@@ -19,7 +19,8 @@
 #include <linux/uaccess.h> // copy_to/from_user
 #include <linux/wait.h>
 #include <linux/smp.h>
-#include <linux/task_work.h>
+#include <linux/mutex.h>
+#include "lauberhorn/activation.h"
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/irqreturn.h>
@@ -72,24 +73,6 @@ void l2c_tad_debug_print_tx(u32 tx_len);
 struct proc_def;
 struct thr_def;
 
-// Private data for a VMA
-#define THR_DATAPATH_VMA_NAME_SIZE 64
-struct worker_dev;
-struct vma_priv_data {
-	bool is_parity_page;
-
-	// used to access Mackerel devices
-	struct worker_dev *dev;
-
-	union {
-		struct proc_def *proc;
-		struct {
-			struct thr_def *thr;
-			char vma_name[THR_DATAPATH_VMA_NAME_SIZE];
-		};
-	};
-};
-
 // Defines an RPC service
 struct srv_def {
 	bool enabled;
@@ -109,76 +92,48 @@ struct srv_def {
 	struct proc_def *proc;
 };
 
-// Defines a thread for an RPC application
+/* Thread identity, scheduler slot, PA lifetime and CPU are separate. */
 struct thr_def {
-	bool enabled;
-	bool park_requested;
-	atomic_t park_queued;
-	struct callback_head park_work;
-	struct file *park_file; /* borrowed while mapped; queued callback takes a ref */
-	u32 idx;
-
-	struct proc_def *parent;
-
-	// Used to update the per-thread CL address to core worker mapping
-	u16 prefix;
-	static_assert(sizeof(u16) * 8 == LAUBERHORN_THR_PREFIX_WIDTH);
-	phys_addr_t dp_phys_base;
-
-	// Which worker core ID is this thread currently running on?
-	int worker_idx;
-
-	struct vma_priv_data vma_data_datapath;
-
-	struct task_struct *task;
+    bool enabled, waiting, activation_ready;
+    u32 idx;
+    struct proc_def *parent;
+    int worker_idx;
+    struct task_struct *task;
+    wait_queue_head_t wait;
+    struct lh_activation activation;
 };
-
-// Defines the process of an RPC application
 struct proc_def {
-	bool enabled; /* slot reserved until final device release */
-	bool stopping, stopped;
-	atomic_t stop_requested;
-	u64 lifetime;
-	u32 idx;
-
-	// This is the PID actually programmed into the process table
-	pid_t tgid;
-	struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
-	u32 num_rdy_thrs;
-
-	// Track services that this process owns
-	struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
-
-	// One page per process that contains the parity bits for all threads
-	// 2 byte per thread: byte 0 is RX parity, byte 1 is TX parity
-	u8 parity_page[PAGE_SIZE] __aligned(PAGE_SIZE);
-	static_assert(PAGE_SIZE >= LAUBERHORN_NUM_WORKER_CORES * 2);
-
-	struct vma_priv_data vma_data_parity_page;
+    bool enabled, failed;
+    u64 lifetime;
+    u32 idx, domain_code, declared_workers, num_rdy_thrs;
+    pid_t tgid;
+    struct task_struct *leader;
+    struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
+    struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
+    wait_queue_head_t claims;
 };
 struct proc_def *find_proc(pid_t tgid);
+struct proc_def *find_proc_slot(u32 slot);
+void fail_domain(struct proc_def *proc);
+void handle_domain_faults(void);
+u32 allocate_domain_code(u32 slot);
+int check_ownership_abi(void);
+extern spinlock_t claim_lock;
 
 struct worker_fpi_data {
-	// Mackerel devices for this CPU core
-	lauberhorn_eci_preempt_t preempt_dev;
-	lauberhorn_eci_worker_t worker_dev;
-
-	// Thread running on this core (if any)
-	struct thr_def *thr;
-	bool killed;
+    lauberhorn_eci_preempt_t preempt_dev;
+    struct thr_def *thr;
+    int index, cpu;
+    struct mutex reader;
+    wait_queue_head_t dispatch_wait;
+    atomic_t kick;
+    struct task_struct *dispatcher;
 };
-
-void request_process_stop(struct proc_def *proc);
-void init_worker_schedule(int cpu);
-void flush_worker_schedules(void);
-int prepare_worker_thread(struct thr_def *thr);
-void clean_worker_thread(struct thr_def *thr);
-void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv);
-void desched_worker_thread(struct thr_def *thr);
-
-// Manipulate thread router to route / unroute a prefix to a core
-void route_prefix_to_core(u16 prefix, u32 core_idx);
-void unroute_prefix_on_core(u32 core_idx);
+struct worker_fpi_data *worker_by_index(unsigned int index);
+int start_worker_dispatch(struct worker_fpi_data *worker);
+void stop_worker_dispatch(struct worker_fpi_data *worker);
+long worker_yield(struct proc_def *proc, struct lh_activation __user *result);
+int register_worker_thread(struct proc_def *proc, u32 index);
 
 // CMAC functions
 typedef struct cmac_t cmac_t;
@@ -195,11 +150,6 @@ static inline void cl_hit_wb_inv(phys_addr_t addr)
 {
 	// L2 Cache Hit Writeback Invalidate, SYS CVMCACHEWBIL2, Xt
 	asm volatile("sys #0,c11,c1,#2,%0 \n" ::"r"(addr));
-}
-static inline void cl_fetch_and_lock(phys_addr_t addr)
-{
-	// L2 Cache Fetch and Lock, SYS CVMCACHELCKL2, Xt
-	asm volatile("sys #0,c11,c1,#4,%0 \n" ::"r"(addr));
 }
 
 #endif // LAUBERHORN_KMOD_COMMON_H

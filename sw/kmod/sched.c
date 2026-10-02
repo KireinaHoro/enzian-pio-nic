@@ -1,253 +1,194 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 #include "common.h"
 #include "trace.h"
-#include <linux/iopoll.h>
-#include <linux/file.h>
+#include <linux/sched/signal.h>
 
-// defined in worker.c
-extern int worker_lo, worker_hi;
+DEFINE_SPINLOCK(claim_lock);
 
-/* Registration holds mmap/control locks, and IRQs may interrupt kernel code.
- * Park only at return to userspace, after those locks have been released. */
-static void park_at_user_return(struct callback_head *cb)
+int register_worker_thread(struct proc_def *proc, u32 index)
 {
-	struct thr_def *thr = container_of(cb, struct thr_def, park_work);
-	struct file *file = thr->park_file;
-	/* task_work_run has detached this callback. A new preemption may queue
-	 * it again while we sleep or after our final condition check. Each
-	 * queued invocation owns its own file reference. */
-	atomic_set(&thr->park_queued, 0);
-	for (;;) {
-		/* Publish sleep state before testing the condition so dispatch or
-		 * teardown cannot lose a wakeup. Other wakeups confer no permission
-		 * to access an unrouted datapath: always recheck after scheduling. */
-		set_current_state(TASK_IDLE);
-		if (!READ_ONCE(thr->enabled) || !READ_ONCE(thr->park_requested))
-			break;
-		schedule();
-	}
-	__set_current_state(TASK_RUNNING);
-	/* exit_files precedes exit_task_work: keep the slot and module alive
-	 * until this callback has made its last access to the thread record. */
-	fput(file);
+    struct thr_def *thr;
+    unsigned long flags;
+    int i;
+    if (!proc->declared_workers || index >= proc->declared_workers) return -EINVAL;
+    spin_lock_irqsave(&claim_lock, flags);
+    if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
+    for (i = 0; i < proc->declared_workers; ++i)
+        if (proc->thr_defs[i].task == current) {
+            spin_unlock_irqrestore(&claim_lock, flags);
+            return -EALREADY;
+        }
+    thr = &proc->thr_defs[index];
+    if (thr->enabled) { spin_unlock_irqrestore(&claim_lock, flags); return -EALREADY; }
+    init_waitqueue_head(&thr->wait);
+    thr->idx = index;
+    thr->parent = proc;
+    thr->worker_idx = -1;
+    get_task_struct(current);
+    thr->task = current;
+    thr->enabled = true;
+    ++proc->num_rdy_thrs;
+    spin_unlock_irqrestore(&claim_lock, flags);
+    sched_set_fifo_low(current);
+    return 0;
 }
 
-int prepare_worker_thread(struct thr_def *thr)
+static bool waiting_thread(struct proc_def *proc)
 {
-	pr_info("Registering thread %d from Lauberhorn\n", thr->task->pid);
-
-	// Change scheduler class to SCHED_FIFO with priority 1
-	sched_set_fifo_low(thr->task);
-	thr->enabled = true;
-	thr->park_requested = false;
-	atomic_set(&thr->park_queued, 0);
-	init_task_work(&thr->park_work, park_at_user_return);
-
-	// Wait for HW to wake us up
-	desched_worker_thread(thr);
-
-	return 0;
+    int i;
+    if (READ_ONCE(proc->failed)) return true;
+    for (i = 0; i < proc->declared_workers; ++i)
+        if (READ_ONCE(proc->thr_defs[i].waiting)) return true;
+    return false;
 }
 
-/**
- * Deregister an application thread from Lauberhorn and restore it to be
- * a normal Linux user thread.
- *
- * This will only be called from process context (munmap, rmmod) so we
- * can safely set affinity and wake up processes.
- */
-void clean_worker_thread(struct thr_def *thr)
+/* Called with only this worker's reader mutex held. No claim/lifetime lock
+ * crosses blocking MMIO, affinity installation or thread wait. */
+static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing)
 {
-	if (!thr->enabled) {
-		// Thread woke up via ioctl and cleaned up already, skipping
-		pr_debug("Thread %d already deregistered\n", thr->task->pid);
-		return;
-	}
-
-	pr_info("Deregistering thread %d from Lauberhorn\n", thr->task->pid);
-
-	WRITE_ONCE(thr->enabled, false);
-	WRITE_ONCE(thr->park_requested, false);
-
-	// Reset scheduler class to SCHED_NORMAL
-	sched_set_normal(thr->task, 0);
-
-	// Reset affinity to all cores
-	set_cpus_allowed_ptr(thr->task, housekeeping_cpumask(HK_TYPE_DOMAIN));
-
-	// Wake up task again for it to finish clean-up
-	wake_up_process(thr->task);
+    u64 info = lauberhorn_eci_preempt_preempt_info_rawrd(&worker->preempt_dev);
+    u32 code = lauberhorn_eci_preempt_preempt_info_domain_code_extract(info);
+    u32 slot = lauberhorn_eci_preempt_preempt_info_domain_slot_extract(info);
+    struct proc_def *proc = find_proc_slot(slot);
+    struct thr_def *next = NULL;
+    unsigned long flags;
+    int i, ret;
+    if (!proc || proc->domain_code != code) {
+        pr_err("Invalid committed activation slot=%u code=%u\n", slot, code);
+        // A malformed committed snapshot cannot identify a safe successor.
+        // Fence every retained domain; none may return to an old assignment.
+        for (i = 1; i <= LAUBERHORN_NUM_PROCS; ++i)
+            fail_domain(find_proc_slot(i));
+        return -EPROTO;
+    }
+    if (outgoing) {
+        // The accepted handoff has finished transport cleanup. Publish the
+        // outgoing thread before waiting for another domain's thread: otherwise
+        // simultaneous A->B and B->A handoffs could wait on one another.
+        spin_lock_irqsave(&claim_lock, flags);
+        outgoing->worker_idx = -1;
+        outgoing->waiting = !outgoing->parent->failed;
+        worker->thr = NULL;
+        spin_unlock_irqrestore(&claim_lock, flags);
+        wake_up_all(&outgoing->parent->claims);
+    }
+    for (;;) {
+        spin_lock_irqsave(&claim_lock, flags);
+        if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
+        for (i = 0; i < proc->declared_workers; ++i) {
+            struct thr_def *thr = &proc->thr_defs[i];
+            if (thr->enabled && thr->waiting && thr->worker_idx == -1) {
+                next = thr;
+                next->waiting = false;
+                next->worker_idx = worker->index;
+                break;
+            }
+        }
+        spin_unlock_irqrestore(&claim_lock, flags);
+        if (next) break;
+        ret = wait_event_killable(proc->claims, waiting_thread(proc));
+        if (ret) { fail_domain(proc); return ret; }
+    }
+    ret = set_cpus_allowed_ptr(next->task, cpumask_of(worker->cpu));
+    if (ret) { fail_domain(proc); return ret; }
+    spin_lock_irqsave(&claim_lock, flags);
+    if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
+    next->activation = (struct lh_activation) {
+        .worker_index = worker->index,
+        .rx_next = lauberhorn_eci_preempt_preempt_info_rx_next_extract(info),
+        .tx_next = lauberhorn_eci_preempt_preempt_info_tx_next_extract(info),
+    };
+    worker->thr = next;
+    next->activation_ready = true;
+    spin_unlock_irqrestore(&claim_lock, flags);
+    trace_worker_switch(worker->cpu, outgoing ? outgoing->parent->lifetime : 0,
+        outgoing ? outgoing->parent->tgid : 0, outgoing ? outgoing->task->pid : 0,
+        proc->lifetime, proc->tgid,
+        next->task->pid, 2, false);
+    wake_up(&next->wait);
+    return 0;
 }
 
-struct sched_thread_work {
-	struct work_struct work;
-	struct thr_def *thr;
-	struct thr_def *previous;
-	struct worker_fpi_data *fpi_priv;
-};
-static DEFINE_PER_CPU(struct sched_thread_work, sched_work_percpu);
-
-static void trace_switch(struct sched_thread_work *w, int phase)
+static int dispatch_thread(void *arg)
 {
-	struct thr_def *old = w->previous, *next = w->thr;
-	trace_worker_switch(smp_processor_id(), old ? old->parent->lifetime : 0,
-		old ? old->parent->tgid : 0, old ? old->task->pid : 0,
-		next ? next->parent->lifetime : 0, next ? next->parent->tgid : 0,
-		next ? next->task->pid : 0, phase, w->fpi_priv->killed);
+    struct worker_fpi_data *worker = arg;
+    sched_set_fifo(current);
+    while (!kthread_should_stop()) {
+        wait_event_interruptible(worker->dispatch_wait,
+            kthread_should_stop() || atomic_read(&worker->kick));
+        if (kthread_should_stop()) break;
+        mutex_lock(&worker->reader);
+        atomic_set(&worker->kick, 0);
+        if (!READ_ONCE(worker->thr) &&
+            lauberhorn_eci_preempt_idle_notification_rd(&worker->preempt_dev))
+            activate(worker, NULL);
+        mutex_unlock(&worker->reader);
+    }
+    return 0;
 }
 
-/**
- * The deferred function that does the actual job of scheduling the new
- * thread, but in process context.
- */
-static void _sched_worker_thread(struct work_struct *ws)
+int start_worker_dispatch(struct worker_fpi_data *worker)
 {
-	struct sched_thread_work *w =
-		container_of(ws, struct sched_thread_work, work);
-	struct thr_def *thr = w->thr;
-	int affinity_ret;
-	int wake_ret;
-	unsigned long drained;
-	int ret;
-
-	/* Keep the old prefix routed until its RX/TX invalidations and responses
-	 * have completed. IRQ acknowledgement only establishes CPU quiescence. */
-	ret = read_poll_timeout(lauberhorn_eci_preempt_datapath_drained_rd,
-		drained, drained, 10, 100000, false, &w->fpi_priv->preempt_dev);
-	if (ret) {
-		pr_err("ECI datapath failed to drain on CPU %d: %d\n", smp_processor_id(), ret);
-		return;
-	}
-	trace_switch(w, 1);
-	if (w->previous) {
-		unroute_prefix_on_core(w->previous->worker_idx + 1);
-		w->previous->worker_idx = -1;
-	}
-
-	w->fpi_priv->thr = NULL;
-	if (!thr) {
-		trace_switch(w, 2);
-		lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
-		return;
-	}
-
-	u8 *parity_page = w->thr->parent->parity_page;
-	u8 rx_parity = parity_page[thr->idx * 2];
-	u8 tx_parity = parity_page[thr->idx * 2 + 1];
-
-	int me = smp_processor_id();
-
-	// Update affinity to this core only
-	affinity_ret = set_cpus_allowed_ptr(thr->task,
-					     cpumask_of(smp_processor_id()));
-	pr_info("Worker CPU %d dispatching thread %d prefix %#x: affinity_ret=%d\n",
-		me, thr->task->pid, thr->prefix, affinity_ret);
-
-	// Allow next FPI handler to deschedule this thread
-	w->fpi_priv->thr = thr;
-
-	// Route CL
-	thr->worker_idx = me - worker_lo;
-	route_prefix_to_core(thr->prefix, thr->worker_idx + 1);
-
-	// Program parity bits into HW
-	lauberhorn_eci_worker_ctrl_rx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						     rx_parity);
-	lauberhorn_eci_worker_ctrl_tx_curr_cl_idx_wr(&w->fpi_priv->worker_dev,
-						     tx_parity);
-
-	// Lock preemption control CL in L2 -- will be unlocked when the FPGA
-	// tries to preempt this thread
-	cl_fetch_and_lock(thr->dp_phys_base +
-			  LAUBERHORN_ECI_PREEMPT_CTRL_OFFSET);
-
-	// A pending return-to-user callback must not park a newly dispatched thread.
-	WRITE_ONCE(thr->park_requested, false);
-	// Wake up the task
-	wake_ret = wake_up_process(thr->task);
-	pr_info("Worker CPU %d woke thread %d for prefix %#x: wake_ret=%d state=0x%x\n",
-		me, thr->task->pid, thr->prefix, wake_ret,
-		READ_ONCE(thr->task->__state));
-
-	trace_switch(w, 2);
-	// Ack interrupt
-	lauberhorn_eci_preempt_irq_en_wr(&w->fpi_priv->preempt_dev, 1);
-	pr_info("Worker CPU %d re-enabled preempt IRQ for thread %d\n", me,
-		thr->task->pid);
+    mutex_init(&worker->reader);
+    init_waitqueue_head(&worker->dispatch_wait);
+    atomic_set(&worker->kick, 0);
+    worker->dispatcher = kthread_create(dispatch_thread, worker, "lh_dispatch/%d", worker->index);
+    if (IS_ERR(worker->dispatcher)) return PTR_ERR(worker->dispatcher);
+    kthread_bind(worker->dispatcher, worker->cpu);
+    wake_up_process(worker->dispatcher);
+    return 0;
+}
+void stop_worker_dispatch(struct worker_fpi_data *worker)
+{
+    if (worker->dispatcher && !IS_ERR(worker->dispatcher)) kthread_stop(worker->dispatcher);
 }
 
-void init_worker_schedule(int cpu)
+long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
 {
-	INIT_WORK(&per_cpu(sched_work_percpu, cpu).work, _sched_worker_thread);
-}
-
-void flush_worker_schedules(void)
-{
-	int cpu;
-	for (cpu = worker_lo; cpu < worker_hi; ++cpu)
-		flush_work(&per_cpu(sched_work_percpu, cpu).work);
-}
-
-/**
- * Schedule the given thread on the current CPU core.
- *
- * This is called inside interrupt context, but we cannot safely change
- * the CPU mask with set_cpus_allowed_ptr, since thread migration might
- * happen and it will try to acquire locks.  Instead we launch a deferred
- * task to change affinity and migrate the thread, as well as wake it up.
- */
-void sched_worker_thread(struct thr_def *thr, struct worker_fpi_data *fpi_priv)
-{
-	struct sched_thread_work *w = this_cpu_ptr(&sched_work_percpu);
-	int me = smp_processor_id();
-	int err;
-
-	pr_info("Scheduling deferred work to dispatch thread %d on CPU %d\n",
-		thr ? thr->task->pid : 0, me);
-
-	if (thr) {
-		BUG_ON(!thr->enabled);
-		BUG_ON(thr->worker_idx != me - worker_lo);
-	}
-
-	w->thr = thr;
-	w->previous = fpi_priv->thr;
-	w->fpi_priv = fpi_priv;
-
-	err = schedule_work_on(me, &w->work);
-	BUG_ON(!err);
-}
-
-/**
- * Deschedule the current (running) thread.  Two cases possible:
- * - we are running in process context (called by mmap handler for thread
- *   to enter Lauberhorn control)
- * - we are running in interrupt context (called by FPI handler)
- *
- * In both cases, queue a checked wait at return to userspace. Setting task
- * state inside mmap is insufficient: intervening kernel sleeps can overwrite
- * it before syscall exit. Deferred dispatch work retains the old mapping until
- * the hardware confirms drain, then unroutes it before assigning the next task.
- *
- * Use TASK_IDLE, which is TASK_UNINTERRUPTIBLE | TASK_NOLOAD.  Signals
- * must not wake a parked worker because the datapath CLs are unrouted,
- * but these sleeps are intentional and should not be reported by the
- * kernel hung-task detector as stuck D-state tasks.
- */
-void desched_worker_thread(struct thr_def *thr)
-{
-	BUG_ON(!thr->enabled);
-
-	WRITE_ONCE(thr->park_requested, true);
-	if (atomic_cmpxchg(&thr->park_queued, 0, 1) == 0) {
-		int ret;
-		get_file(thr->park_file);
-		ret = task_work_add(thr->task, &thr->park_work, TWA_RESUME);
-		if (ret) {
-			/* An exiting task can no longer return to userspace. */
-			atomic_set(&thr->park_queued, 0);
-			WARN_ON_ONCE(ret != -ESRCH);
-			fput(thr->park_file);
-		}
-	}
-	// Retain worker_idx and routing until deferred dispatch observes HW drain.
+    struct thr_def *thr = NULL;
+    struct worker_fpi_data *worker;
+    struct lh_activation activation;
+    unsigned long flags;
+    int i, index, ret;
+    if (!access_ok(result, sizeof(*result))) return -EFAULT;
+    for (i = 0; i < proc->declared_workers; ++i)
+        if (proc->thr_defs[i].enabled && proc->thr_defs[i].task == current) thr = &proc->thr_defs[i];
+    if (!thr) return -EPERM;
+    spin_lock_irqsave(&claim_lock, flags);
+    if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
+    index = thr->worker_idx;
+    // No unrelated wake can deliver the previous activation again.
+    thr->activation_ready = false;
+    spin_unlock_irqrestore(&claim_lock, flags);
+    if (index >= 0) {
+        worker = worker_by_index(index);
+        mutex_lock(&worker->reader);
+        if (worker->thr != thr ||
+            !lauberhorn_eci_preempt_yield_requested_rd(&worker->preempt_dev)) {
+            mutex_unlock(&worker->reader);
+            fail_domain(proc);
+            return -EPROTO;
+        }
+        // The calling task is fenced inside this syscall before read acceptance.
+        ret = activate(worker, thr);
+        mutex_unlock(&worker->reader);
+        if (ret) { fail_domain(proc); return ret; }
+    }
+    if (index < 0) {
+        spin_lock_irqsave(&claim_lock, flags);
+        thr->waiting = !proc->failed;
+        spin_unlock_irqrestore(&claim_lock, flags);
+        wake_up_all(&proc->claims);
+    }
+    ret = wait_event_killable(thr->wait,
+        READ_ONCE(proc->failed) || READ_ONCE(thr->activation_ready));
+    if (ret || READ_ONCE(proc->failed)) { fail_domain(proc); return -ESHUTDOWN; }
+    spin_lock_irqsave(&claim_lock, flags);
+    activation = thr->activation;
+    spin_unlock_irqrestore(&claim_lock, flags);
+    if (copy_to_user(result, &activation, sizeof(activation))) {
+        fail_domain(proc);
+        return -EFAULT;
+    }
+    return 0;
 }

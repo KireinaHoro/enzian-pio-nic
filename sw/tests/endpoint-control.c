@@ -72,7 +72,7 @@ static int lauberhorn_eci_OncRpcReplyDecoder_stat_retire_busy_rd(int *d) { retur
 #define read_poll_timeout(op, value, condition, sleep, timeout, before, ...) \
     ({ (value) = op(__VA_ARGS__); (condition) ? 0 : -ETIMEDOUT; })
 #include "../kmod/endpoints.h"
-#include "../kmod/recovery.h"
+#include "../kmod/retire_call.h"
 int main(void) {
     struct proc proc = {.tgid = 123};
     struct worker_dev dev = {0};

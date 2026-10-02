@@ -18,6 +18,7 @@ let
       ./0001-registered-endpoint-and-worker-placement.patch
       ./0002-configurable-state-directory.patch
       ./0003-explicit-request-outcomes.patch
+      ./0004-cooperative-worker-pool.patch
     ];
   };
   target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
