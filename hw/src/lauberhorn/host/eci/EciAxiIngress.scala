@@ -105,7 +105,11 @@ case class EciAxiIngress(config: Axi4Config, workers: Int) extends Component {
     writeCharged(io.input.aw.id) := writeAllowed && !aw.io.bypass
   }
   for (w <- 0 until workers) {
-    io.busy(w) := (0 until ids).map { id =>
+    // Include acceptance on this edge: owner installation must not race the
+    // first beat of an old-address writeback while the registered count is zero.
+    val acceptingRead = io.input.ar.fire && readAllowed && !ar.io.bypass && ar.io.worker === w
+    val acceptingWrite = io.input.aw.fire && writeAllowed && !aw.io.bypass && aw.io.worker === w
+    io.busy(w) := acceptingRead || acceptingWrite || (0 until ids).map { id =>
       (reads(id) && readCharged(id) && readWorker(id) === w) ||
         (writes(id) && writeCharged(id) && writeWorker(id) === w)
     }.reduce(_ || _)

@@ -18,6 +18,7 @@ case class EciIngressFixture() extends Component {
     val owner = in UInt(19 bits)
     val enabled, fenced = in Bool()
     val busy = out Bool()
+    val violation = master(Flow(UInt(19 bits)))
     val endpoints = Vec(master(Axi4(ingress.routedConfig)), 2)
   }
   ingress.io.input << io.input
@@ -25,6 +26,7 @@ case class EciIngressFixture() extends Component {
   ingress.io.enabled(0) := io.enabled
   ingress.io.fenced(0) := io.fenced
   io.busy := ingress.io.busy(0)
+  io.violation << ingress.io.violation
   val xbar = new AxiCrossbar(ingress.routedConfig,
     Seq(AxiCrossbarSlaveConfig(concurrentOps = 4, threads = 4)),
     (0 until 2).map(i => AxiCrossbarMasterConfig(Seq(SizeMapping(i * 8192, 8192)),
@@ -82,6 +84,9 @@ class EciAxiIngressSim extends DutSimFunSuite[EciIngressFixture] {
     dut.io.owner #= code
     a.ar.addr #= original
     a.ar.valid #= true
+    sleep(1)
+    assert(a.ar.ready.toBoolean && dut.io.busy.toBoolean, "read acceptance must fence reuse on the same edge")
+    assert(!dut.io.violation.valid.toBoolean)
     dut.clockDomain.waitSamplingWhere(a.ar.ready.toBoolean)
     a.ar.valid #= false
     dut.io.owner #= 2
@@ -116,6 +121,9 @@ class EciAxiIngressSim extends DutSimFunSuite[EciIngressFixture] {
     val oldRx = EciAddressMap.encode(1, 0, code, 0x380)
     a.aw.addr #= oldRx
     a.aw.valid #= true
+    sleep(1)
+    assert(a.aw.ready.toBoolean && dut.io.busy.toBoolean, "writeback acceptance must fence reuse on the same edge")
+    assert(!dut.io.violation.valid.toBoolean, "old RX writeback must not fault its lifetime")
     dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
     a.aw.valid #= false
     step(8)
@@ -168,6 +176,9 @@ class EciAxiIngressSim extends DutSimFunSuite[EciIngressFixture] {
     a.ar.addr #= original
     a.ar.valid #= true
     a.r.ready #= false
+    sleep(1)
+    assert(dut.io.violation.valid.toBoolean && dut.io.violation.payload.toInt == code,
+      "unauthorized read must fault the requesting PA lifetime, not the successor")
     dut.clockDomain.waitSamplingWhere(a.ar.ready.toBoolean)
     a.ar.valid #= false
     for (last <- Seq(false, true)) {

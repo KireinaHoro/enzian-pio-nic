@@ -85,9 +85,10 @@ static int l2c_tad_map_from_pci(void)
 		int idx = found;
 
 		if (idx >= L2C_TAD_UNITS) {
-			pr_warn("ignoring extra L2C-TAD PCI device %s BAR0 %pa len %#llx\n",
-				pci_name(pdev), &phys, (u64)len);
-			continue;
+			pr_err("extra exposed L2C-TAD PCI device %s BAR0 %pa; refusing incomplete monitoring\n",
+				pci_name(pdev), &phys);
+            pci_dev_put(pdev);
+            return -E2BIG;
 		}
 
 		if (len <= L2C_TAD_TIMEOUT) {

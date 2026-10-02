@@ -159,7 +159,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
   }
 
   /** Both kernel entry paths consume one snapshot with serialized readers. */
-  private def activate[B](bus: B, wcs: WorkerCoreState)(implicit asMaster: AsSimBusMaster[B]): Unit = {
+  private def activate[B](bus: B, wcs: WorkerCoreState, outgoing: Option[ThreadDef] = None)(implicit asMaster: AsSimBusMaster[B]): Unit = {
     val info = asMaster.read(bus, ALLOC.readBack("preempt", wcs.cid)("preemptInfo"), 8).bytesToBigInt
     val domain = (info & ((BigInt(1) << 19) - 1)).toInt
     val slot = ((info >> 19) & 31).toInt
@@ -167,20 +167,28 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
     val tx = ((info >> 25) & 1).toInt
     val proc = processes.values.find(p => p.slot == slot && p.domainCode == domain).get
     threadDbMtx.lock()
-    val thr = proc.threads.find(_.runningOn.isEmpty).getOrElse(fail("no waiting thread for committed destination"))
-    wcs.switchToThread(thr, rx, tx)
+    outgoing.foreach(_.runningOn = None)
+    if (outgoing.nonEmpty) wcs.currThread = None
     threadDbMtx.unlock()
+    var claimed = false
+    while (!claimed) {
+      waitUntil(proc.threads.exists(_.runningOn.isEmpty))
+      threadDbMtx.lock()
+      proc.threads.find(_.runningOn.isEmpty).foreach { thr =>
+        wcs.switchToThread(thr, rx, tx)
+        claimed = true
+      }
+      threadDbMtx.unlock()
+    }
   }
 
   def cooperativeYield[B](bus: B, cid: Int)(implicit asMaster: AsSimBusMaster[B]): Unit = {
     val wcs = coreStates(cid).asInstanceOf[WorkerCoreState]
     wcs.dispatchMutex.lock()
     assert(wcs.enterISR())
-    threadDbMtx.lock()
-    wcs.currThread.foreach(_.runningOn = None)
-    wcs.currThread = None
-    threadDbMtx.unlock()
-    activate(bus, wcs)
+    // Match the kernel: relinquishment is acknowledged by the read, then the
+    // old thread is published before waiting for a destination claim.
+    activate(bus, wcs, wcs.currThread)
     wcs.exitISR()
     wcs.dispatchMutex.unlock()
   }
