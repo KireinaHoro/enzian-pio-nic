@@ -95,3 +95,47 @@ No hardware CI, kernel/deployment build, board access, timeout re-probe or merge
 has been performed for this branch. No historical timeout threshold is used as
 new evidence. The pre-existing `deps/thx-fsms` worktree revision change was
 preserved and is not part of these changes.
+
+## Address ingress follow-up and pending rejection decision
+
+The continued implementation adds `FixedWorkerAxiIngress`, tested through the
+actual `AxiCrossbar`. The internal address selects a physical endpoint; ARUSER
+and AWUSER retain the original unaliased address. Admission is captured before
+backpressure. Accepted transactions remain charged until their final R or B
+response is consumed. Late RX writeback remains serviceable independently of
+current owner; rejected TX writes are absorbed without reaching a successor's
+buffer. This component is not connected to the production engine yet.
+
+Blocks previously forced AXI USER ports to one bit. Dependency commit `1eddae0`
+on local branch `feat/preserve-axi-user-widths` preserves configured widths and
+makes the crossbar declare its arbiter/priority-encoder RTL dependencies. The
+full `nix develop -c mill 'blocks[2.13.12].test'` regression passed. The platform
+`FixedWorkerAxiIngressSim` passed with the real crossbar, high domain bits,
+backpressure, owner changes, writeback response retention, and DECERR tests.
+
+A **design decision is pending before production admission is selected**:
+`desc_to_axi/axi_rd_cl/rtl/axi_rd_cl.sv` in the DCS dependency explicitly ignores
+`p_axi_rresp` (line 116). It captures returned data and emits an ordinary read
+completion, with no error status on its DCS-facing response. The crossbar test
+confirms rejection returns two zero-data DECERR beats; it does not establish an
+architectural ECI fault or prevent cache allocation.
+
+Consequently, a domain touching an inactive alias after final control
+invalidation could cache rejected data and later hit it when reassigned. This
+freshness consequence is inferred from the read path and coherent-cache
+semantics, not a newly reproduced THX/board execution. The current plan does not
+specify whether inactive-alias access is a domain-local protocol violation
+(with no data disclosure, but no freshness promise to that misbehaving domain),
+or must receive a non-cacheable/architectural ECI rejection. The latter requires
+an additional DCS/ECI error-path design. The implementation question has been
+put to the maintainer; neither disposition is claimed as accepted.
+
+`EciFixedWorkerRouter` is a compiled but **not elaborated or integrated draft**
+of ownership, lifetime allocation and fail-closed controls. Its lifetime counter
+and reset-required latch use FPGA initialization, surviving application reset.
+This matters because VIO `probe_out5` drives `app_aux_reset`, separately from
+THX coherence (`vivado/eci/bd/design_1.tcl`, lines 578 and 712). An application
+reset after allocation latches reset-required rather than resetting allocation.
+Programming the FPGA still requires the full coherence-reset boundary. Reset,
+allocation exhaustion, binding and dispatch integration tests remain outstanding;
+compilation alone is not validation of this draft.
