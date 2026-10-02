@@ -2,7 +2,7 @@
 package lauberhorn.host.eci
 
 /** Arithmetic only: ownership and accepted-transaction lifetime are separate. */
-object FixedWorkerMap {
+object EciAddressMap {
   val address_bits: Int = 38
   val block_bytes: Int = 8192
   val line_bytes: Int = 128

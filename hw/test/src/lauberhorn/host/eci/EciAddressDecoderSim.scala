@@ -4,8 +4,8 @@ import jsteward.blocks.DutSimFunSuite
 import lauberhorn.Config
 import spinal.core.sim._
 
-class FixedWorkerDecoderSim extends DutSimFunSuite[FixedWorkerDecoder] {
-  val dut = Config.sim.compile(FixedWorkerDecoder(7))
+class EciAddressDecoderSim extends DutSimFunSuite[EciAddressDecoder] {
+  val dut = Config.sim.compile(EciAddressDecoder(7))
   test("fixed physical decode checks domain ownership without truncating high bits") { implicit dut =>
     dut.io.enabled #= 127
     for (w <- 0 until 7) dut.io.owners(w) #= 0
@@ -15,7 +15,7 @@ class FixedWorkerDecoderSim extends DutSimFunSuite[FixedWorkerDecoder] {
     for (w <- 0 until 7; d <- domains) {
       dut.io.owners(w) #= d
       for (offset <- offsets) {
-        dut.io.address #= FixedWorkerMap.encode(7, w, d, offset)
+        dut.io.address #= EciAddressMap.encode(7, w, d, offset)
         sleep(1)
         assert(dut.io.known.toBoolean && dut.io.admitted.toBoolean)
         assert(!dut.io.bypass.toBoolean)
@@ -31,7 +31,7 @@ class FixedWorkerDecoderSim extends DutSimFunSuite[FixedWorkerDecoder] {
       sleep(1)
       assert(!dut.io.admitted.toBoolean)
       dut.io.enabled #= 127
-      dut.io.address #= (FixedWorkerMap.encode(7, w, d, 0x300) | (BigInt(1) << 38))
+      dut.io.address #= (EciAddressMap.encode(7, w, d, 0x300) | (BigInt(1) << 38))
       sleep(1)
       assert(!dut.io.known.toBoolean && !dut.io.admitted.toBoolean)
     }

@@ -1,6 +1,7 @@
 package lauberhorn.host.eci
 
 import jsteward.blocks.misc.RegBlockAlloc
+import jsteward.blocks.eci.EciIntcInterface
 import lauberhorn.Global._
 import spinal.core._
 import spinal.lib._
@@ -13,21 +14,21 @@ import spinal.lib.misc.plugin.FiberPlugin
   * Lifetime state survives application reset and driver reload. FPGA image
   * programming still requires a full coherence reset, not just driver reload.
   */
-class EciFixedWorkerRouter extends FiberPlugin {
+class EciOwnership extends FiberPlugin {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val ctrl = AxiLite4SlaveFactory(bus)
     ctrl.read(U(2, REG_WIDTH bits), alloc("abi", attr = RO,
-      desc = "Fixed-worker cooperative ABI version; must equal software version"))
+      desc = "Cooperative ECI ABI version; must equal software version"))
     // A 20-bit saturating counter distinguishes exhausted from code zero.
     val allocate = alloc("allocateDomain", attr = RC, readSensitive = true,
       desc = "Allocate one non-reused 19-bit PA lifetime; 524288 means exhausted")
     ctrl.read(logic.nextDomain, allocate)
     ctrl.onRead(allocate) {
-      when(!logic.resetRequired && logic.nextDomain < FixedWorkerMap.domain_limit) {
+      when(!logic.resetRequired && logic.nextDomain < EciAddressMap.domain_limit) {
         logic.nextDomain := logic.nextDomain + 1
       }
     }
-    val code = UInt(FixedWorkerMap.domain_bits bits)
+    val code = UInt(EciAddressMap.domain_bits bits)
     ctrl.drive(code, alloc("domainCode", attr = WO,
       desc = "PA lifetime to bind to an unused scheduler slot"))
     val slot = UInt(log2Up(NUM_PROCS.get + 1) bits)
@@ -44,16 +45,26 @@ class EciFixedWorkerRouter extends FiberPlugin {
       logic.domainCodes(slot) := code
       logic.domainBound(slot) := True
     }
+    ctrl.read(logic.faults.io.failed, alloc("failedDomains", attr = RO,
+      desc = "Sticky domain-slot faults; kill these domains and do not recycle"))
     ctrl.read(logic.resetRequired, alloc("resetRequired", attr = RO,
       desc = "Fatal lifecycle failure: full coherence reset required"))
-    val fail = alloc("fenceSession", attr = WO,
-      desc = "Sticky fail-closed session fence; no software clear")
-    ctrl.onWrite(fail) { logic.resetRequired := True }
+    val failedSlot = UInt(log2Up(NUM_PROCS.get + 1) bits)
+    failedSlot := 0
+    logic.softwareFault.setIdle()
+    val fail = alloc("failDomain", attr = WO,
+      desc = "Fatal domain-slot failure; retain resources until coherence reset")
+    ctrl.write(failedSlot, fail)
+    ctrl.onWrite(fail) {
+      assert(failedSlot =/= 0 && failedSlot <= NUM_PROCS.get && logic.domainBound(failedSlot))
+      logic.softwareFault.valid := True
+      logic.softwareFault.payload := logic.domainCodes(failedSlot)
+    }
   }
 
   val logic = during setup new Area {
     val workers = NUM_WORKER_CORES.get
-    require(workers >= 1 && workers <= FixedWorkerMap.max_workers)
+    require(workers >= 1 && workers <= EciAddressMap.max_workers)
     val appReset = ClockDomain.current.isResetActive
     // VIO probe_out5 can reset the application without resetting THX coherence.
     // FPGA initialization, rather than that reset input, initializes these regs.
@@ -64,27 +75,45 @@ class EciFixedWorkerRouter extends FiberPlugin {
     }
     val nextDomain = persistent.nextDomain
     val resetRequired = persistent.resetRequired
-    val domainCodes = Vec.fill(NUM_PROCS.get + 1)(Reg(UInt(FixedWorkerMap.domain_bits bits)) init 0)
+    val domainCodes = Vec.fill(NUM_PROCS.get + 1)(Reg(UInt(EciAddressMap.domain_bits bits)) init 0)
     val domainBound = Vec.fill(NUM_PROCS.get + 1)(RegInit(False))
-    val owners = Vec.fill(workers)(Reg(UInt(FixedWorkerMap.domain_bits bits)) init 0)
+    val owners = Vec.fill(workers)(Reg(UInt(EciAddressMap.domain_bits bits)) init 0)
     val enabled = Reg(Bits(workers bits)) init 0
     val fence = Bits(workers bits)
-    val install = Vec.fill(workers)(Flow(UInt(FixedWorkerMap.domain_bits bits)))
-    val ingress = Seq.fill(2)(FixedWorkerAxiIngress(host[EciInterfacePlugin].axiConfig, workers))
+    val install = Vec.fill(workers)(Flow(UInt(EciAddressMap.domain_bits bits)))
+    val ingress = Seq.fill(2)(EciAxiIngress(host[EciInterfacePlugin].axiConfig, workers))
     val busy = Bits(workers bits)
+    val faults = EciDomainFaults(NUM_PROCS.get + 1, 3)
+    val softwareFault = Flow(UInt(EciAddressMap.domain_bits bits))
+    val faultIrq = Stream(EciIntcInterface())
+    val failedWorkers = Bits(workers bits)
 
     awaitBuild()
 
+    faults.io.codes := domainCodes
+    faults.io.bound := domainBound.asBits
+    faults.io.violations.take(2).zip(ingress).foreach { case (fault, port) => fault << port.io.violation }
+    faults.io.violations(2) << softwareFault
+    faultIrq.valid := faults.io.interrupt.valid
+    faults.io.interrupt.ready := faultIrq.ready
+    faultIrq.cmd := 0
+    faultIrq.intId := 9
+    faultIrq.affLvl0 := 1
+    faultIrq.affLvl1 := 0
+    when(faults.io.failed.orR) { resetRequired := True }
+    for (w <- 0 until workers) {
+      failedWorkers(w) := (1 to NUM_PROCS.get).map(s =>
+        faults.io.failed(s) && domainBound(s) && owners(w) === domainCodes(s)).reduce(_ || _)
+    }
     ingress.foreach { port =>
       port.io.owners := owners
       port.io.enabled := enabled
-      port.io.fenced := fence | B(workers bits, default -> resetRequired)
+      port.io.fenced := fence | failedWorkers
     }
     busy := ingress.map(_.io.busy).reduce(_ | _)
     for (w <- 0 until workers) {
       when(install(w).valid) {
         assert(!busy(w), "owner changed with accepted AXI traffic outstanding")
-        assert(!resetRequired, "activation after session fence")
         owners(w) := install(w).payload
         enabled(w) := True
       }
@@ -93,8 +122,8 @@ class EciFixedWorkerRouter extends FiberPlugin {
     /** Only use for new protocol-local LCI creation while ownership is held.
       * Once offered, the command must retain this full address until LCIA. */
     def fullAddress(worker: Int, offset: Bits): Bits = {
-      val base = FixedWorkerMap.domainBasis.zipWithIndex.foldLeft(
-        B(FixedWorkerMap.workerBases(worker), offset.getWidth bits)) {
+      val base = EciAddressMap.domainBasis.zipWithIndex.foldLeft(
+        B(EciAddressMap.workerBases(worker), offset.getWidth bits)) {
         case (value, (vector, bit)) => value ^ Mux(owners(worker)(bit),
           B(vector, offset.getWidth bits), B(0, offset.getWidth bits))
       }

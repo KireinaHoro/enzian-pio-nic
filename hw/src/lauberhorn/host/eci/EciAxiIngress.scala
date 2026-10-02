@@ -9,22 +9,25 @@ import spinal.lib.bus.amba4.axi._
   * AWUSER carry the immutable unaliased address to the protocol endpoint.
   * One outstanding transaction of each kind per DCS ID is required by the DCS.
   */
-case class FixedWorkerAxiIngress(config: Axi4Config, workers: Int) extends Component {
-  require(config.addressWidth == FixedWorkerMap.address_bits)
+case class EciAxiIngress(config: Axi4Config, workers: Int) extends Component {
+  require(config.addressWidth == EciAddressMap.address_bits)
   require(config.useId && config.useLast)
   require(!config.useArUser && !config.useAwUser)
   val routedConfig = config.copy(arUserWidth = config.addressWidth, awUserWidth = config.addressWidth)
   val io = new Bundle {
     val input = slave(Axi4(config))
     val routed = master(Axi4(routedConfig))
-    val owners = in Vec(UInt(FixedWorkerMap.domain_bits bits), workers)
+    val owners = in Vec(UInt(EciAddressMap.domain_bits bits), workers)
     val enabled = in Bits(workers bits)
     val fenced = in Bits(workers bits)
     val busy = out Bits(workers bits)
+    // Fresh rejected reads identify the offending PA lifetime, never the
+    // installed successor. AW is not a violation: it may be late writeback.
+    val violation = master(Flow(UInt(EciAddressMap.domain_bits bits)))
   }
 
-  def decoder(address: UInt): FixedWorkerDecoder = {
-    val d = FixedWorkerDecoder(workers)
+  def decoder(address: UInt): EciAddressDecoder = {
+    val d = EciAddressDecoder(workers)
     d.io.address := address.resized
     d.io.owners := io.owners
     d.io.enabled := io.enabled
@@ -34,13 +37,15 @@ case class FixedWorkerAxiIngress(config: Axi4Config, workers: Int) extends Compo
   val aw = decoder(io.input.aw.addr)
   val readFence = if (workers == 1) io.fenced(0) else io.fenced(ar.io.worker)
   val readAllowed = ar.io.admitted && (ar.io.bypass || !readFence)
+  io.violation.valid := io.input.ar.fire && ar.io.known && !readAllowed
+  io.violation.payload := ar.io.domain
   // RX writeback is discarded by an independent sink. It must remain serviceable
   // even when its domain is no longer installed. Old TX writebacks take the
   // crossbar's rejecting sink, never the successor's packet buffer.
   val writeAllowed = aw.io.transportLine &&
     (aw.io.bypass || (aw.io.known && (!aw.io.tx || aw.io.admitted)))
 
-  def route(address: UInt, d: FixedWorkerDecoder, allowed: Bool): UInt = {
+  def route(address: UInt, d: EciAddressDecoder, allowed: Bool): UInt = {
     val selector = UInt(config.addressWidth bits)
     val core = UInt(log2Up(workers + 1) bits)
     core := d.io.worker.resize(core.getWidth) + 1

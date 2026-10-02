@@ -23,7 +23,7 @@ class AddressMapTest(unittest.TestCase):
         path = Path(cls.tmp.name)
         (path / 'test.c').write_text('''
 #include <stdint.h>
-#include "fixed_worker_map.h"
+#include "eci_address_map.h"
 int encode(unsigned n, unsigned w, unsigned d, unsigned o, uint64_t *a)
 { return lh_map_encode(n, w, d, o, a); }
 int decode(unsigned n, uint64_t a, unsigned *w, unsigned *d, unsigned *o)

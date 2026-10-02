@@ -6,11 +6,11 @@ let
       ../../tools/address-map
       ../../tools/progress/capacity.py
       ../../model/data/selected-8k.json
-      ../../sw/include/fixed_worker_map.h
-      ../../hw/src/lauberhorn/host/eci/FixedWorkerMap.scala
+      ../../sw/include/eci_address_map.h
+      ../../hw/src/lauberhorn/host/eci/EciAddressMap.scala
     ];
   };
-in runCommand "lauberhorn-fixed-worker-map" {
+in runCommand "lauberhorn-eci-address-map" {
   nativeBuildInputs = [ python3 stdenv.cc ];
 } ''
   cp -r ${source}/. .
