@@ -79,7 +79,8 @@ separately authorized write-capable interface.
 ## Pipeline and handoff
 
 1. `fast-tests-eci`, `dcs-rom-thx`, `dcs-lauberhorn`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
-   `interactive`, `runtime-interface`, and `workflow-tools` run
+   `interactive`, `runtime-interface`, `runtime-tests`, `eci-address-map`,
+   `scheduling-cooperative`, and `workflow-tools` run
    `checks.x86_64-linux.<job>` in the Nix image. All gate preparation.
    Mill runs offline against the locked Ivy cache. The FIFO test exercises both
    output-stage settings at the real trace width/depth under stalls and reset.

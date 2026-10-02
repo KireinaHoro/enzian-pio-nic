@@ -43,7 +43,7 @@
 
 #define pr_flush() fflush(stdout);
 
-#define BARRIER asm volatile("dmb sy")
+#define BARRIER asm volatile("dmb sy" ::: "memory")
 
 
 #define min(a, b) ((a) < (b) ? (a) : (b))

@@ -161,6 +161,13 @@
     "layer": "common",
     "role": "buffer ownership and finite writeback service stages"
   },
+  "PoolBootstrap": {
+    "imports": [
+      "ThreadClaim"
+    ],
+    "layer": "scheduling",
+    "role": "initialization, immutable pool publication and delayed bootstrap claims"
+  },
   "Probe": {
     "imports": [
       "DcsResources"

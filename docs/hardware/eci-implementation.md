@@ -2,7 +2,7 @@
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
-incomplete: regression and deployment checks are in progress, and the Enzian timeout campaign has not run. Hardware pipeline 515941
+incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515941
 was launched for `23561fa3`; subsequent correctness fixes require a replacement
 pipeline before board acceptance. Do not merge or substitute
 historical board evidence for these gates.
@@ -63,14 +63,14 @@ and fences the affected domain. Ordinary syscall sleep retains assignment.
 | `EciDomainAllocatorSim` | Both tests passed, including all 524288 allocations, saturation, fatal fencing and application reset. |
 | `CooperativeYieldSim` | Delayed cleanup, shared control contention and repeated A→B→A passed with one initial scheduling IRQ and zero ordinary IRQs. Fatal-domain control/IRQ test passed while an independent owner continued. Host coherence model, not silicon. |
 | `RpcReplyContextsSim` | Live-token owner mismatch rejected; test passed. |
-| Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. The committed rerun passed all 42 tests (12 suites, one existing ignored test). |
+| Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. The first committed rerun passed 42 tests. After the idle-first and same-edge ingress fixes, all 44 tests in 13 suites passed (one existing ignored test). The additional cross-worker migration test passed separately. |
 | Actual DCU/RX writeback | Four directed checks passed with the selected ROM and new RX layout, including delayed B, WDDA, LCIA and next-control release. This is not a full DCS slice. |
 | Worker configurations | Production ECI composition elaborated for every count 1–7. |
 | Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
 | Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
-| Matched cross builds | Runtime and kernel passed before the final claim-release and fixture corrections. Deployment and Vivado-input builds passed; the subsequent probe-control kernel/deployment build also passed. |
-| Pinned cooperative TLC | Nine outcomes passed: three positives and six expected violations. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying and unrelated wakeups. |
-| TLA module boundaries/SANY | All 43 inventoried modules passed. Parsing/import checks are not exhaustive model verification. |
+| Matched cross builds | Runtime, kernel, deployment and Vivado-input builds passed with the correctness fixes and probe controls. The final compiler memory-barrier change passed runtime and native interface checks. Dandelion’s matching adapter cross-build passed. |
+| Pinned cooperative TLC | Twelve outcomes passed: five positives and seven expected violations. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying, unrelated wakeups, delayed bootstrap parking and initialization failure. |
+| TLA module boundaries/SANY | All 44 inventoried modules passed. Parsing/import checks are not exhaustive model verification. |
 
 `HandoffClaims` reuses `ThreadClaim` uniqueness and capacity invariants. Its
 late-release negative reproduces the simultaneous exchange deadlock. This is a
@@ -85,9 +85,9 @@ is preserved and excluded from platform commits.
 
 ## Outstanding acceptance
 
-- Finish actual DCS slice routing/completion checks and
-  Dandelion adapter build. Extend concurrent migration and initialization-failure
-  evidence where existing tests do not cover the implementation boundary.
+- Finish actual DCS slice routing/completion checks. The separate migration
+  simulation and initialization-failure model passed; actual Linux concurrency
+  and failure handling remain board checks.
 - Reconcile remaining transport-readiness and activation properties with the
   concrete implementation. Report assumptions and finite bounds explicitly.
 - Launch hardware CI with matched artifacts, retain its refs and follow the
@@ -117,6 +117,7 @@ writeback cleanup.
 The host model now publishes an outgoing thread only after the committed info
 response, matching the kernel. Four focused tests passed after these corrections,
 including duplicate kicks during blocked ordinary handoff, foreign-PID and
-oversized TX rejection, and subsequent valid TX progress. A fresh full regression
-is pending for these changes. Dandelion's matched adapter build and the pinned
+oversized TX rejection, and subsequent valid TX progress. The corrected full regression passed all 44 tests. A separate six-handoff
+migration test moved single-thread domains between workers and back, with only
+the three initial scheduling IRQs. Dandelion's matched adapter build and the pinned
 transport/AXI model checks passed; these are separate from board evidence.

@@ -295,7 +295,7 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
     // All payload bytes are now in the calling worker’s RX buffer.
   }
 
-  BARRIER; // make sure !BUSY comes after
+  BARRIER; // Complete transport memory accesses before returning
 
   pr_debug("eci_rx: finished rx\n");
 
@@ -480,7 +480,7 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
 #ifdef __KERNEL__
 out:
 #endif
-  BARRIER; // make sure !BUSY comes after
+  BARRIER; // Complete transport memory accesses before returning
 
   return tx_result;
 }
