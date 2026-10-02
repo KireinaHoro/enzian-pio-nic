@@ -69,6 +69,15 @@ interactive:
 runtime-interface:
   extends: .test-nix
 
+runtime-tests:
+  extends: .test-nix
+
+eci-address-map:
+  extends: .test-nix
+
+scheduling-cooperative:
+  extends: .test-nix
+
 prepare-eci:
   extends: .nix
   stage: prepare
@@ -92,6 +101,12 @@ prepare-eci:
     - job: interactive
       artifacts: false
     - job: runtime-interface
+      artifacts: false
+    - job: runtime-tests
+      artifacts: false
+    - job: eci-address-map
+      artifacts: false
+    - job: scheduling-cooperative
       artifacts: false
   script:
     - nix run --no-update-lock-file .#prepareEci

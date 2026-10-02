@@ -269,3 +269,25 @@ The original pipeline 512199 campaign stopped after six signal cases at an L2
 fill timeout. Applying only the kernel parking fix subsequently passed all 20
 cases over two no-reset rounds on that bitstream. See the
 [follow-up board results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
+
+## Cooperative RX hold campaign
+
+The matched module exposes root-only parameters:
+
+- `/sys/module/lauberhorn/parameters/rx_hold_cycles`: write the NIC hold interval
+  in application-clock cycles; read returns the programmed hardware value.
+  The implemented timer is 64 bits with one-cycle resolution. Convert using the
+  matched bitstream's actual clock, and verify durations in traces.
+- `/sys/module/lauberhorn/parameters/l2c_tad_snapshot`: read all eight mapped
+  units' BAR, INT, STAT and TIMEOUT values. Reads do not acknowledge interrupts
+  or modify timeout protection. A clean snapshot alone is insufficient: the
+  normal EDAC handler can clear INT, so retain kernel exception logs too.
+
+First establish a passing setting on the new image. Increase hold duration to
+an exception or the register limit, then refine at timer resolution. Preserve
+traces and fault state before every failing-trial reset. Repeat the highest
+passing candidate under contention across two cold boots; record exposure,
+nearest failing bound, actual hold durations and peer completions. Include
+one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
+simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
+do not substitute a historical threshold or weaken architectural protection.

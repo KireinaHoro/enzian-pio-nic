@@ -13,6 +13,7 @@
 #define L2C_TAD_PRF_SEL_E 0x10000
 #define L2C_TAD_PFC(n) (0x10100 + (n) * sizeof(u64))
 #define L2C_TAD_STAT 0x20008
+#define L2C_TAD_INT_W1C 0x40000
 #define L2C_TAD_TIMEOUT 0x50100
 
 #define L2C_TAD_STAT_LFB_VALID_CNT GENMASK_ULL(13, 8)
@@ -36,6 +37,25 @@ MODULE_PARM_DESC(l2c_tad_debug_tx_interval,
 static void __iomem *l2c_tad_regs[L2C_TAD_UNITS];
 static resource_size_t l2c_tad_phys[L2C_TAD_UNITS];
 static atomic64_t l2c_tad_tx_seq = ATOMIC64_INIT(0);
+
+/* Read-only snapshot: never acknowledge/clear interrupts or change TIMEOUT.
+ * Kernel exception logs must also be captured: the EDAC handler can clear INT. */
+static int l2c_tad_snapshot_get(char *buffer, const struct kernel_param *param)
+{
+    int i, length = 0;
+    for (i = 0; i < L2C_TAD_UNITS; ++i) {
+        void __iomem *regs = l2c_tad_regs[i];
+        if (!regs) return -ENODEV;
+        length += scnprintf(buffer + length, PAGE_SIZE - length,
+            "TAD%d BAR=%pa INT=%016llx STAT=%016llx TIMEOUT=%016llx\n",
+            i, &l2c_tad_phys[i], readq(regs + L2C_TAD_INT_W1C),
+            readq(regs + L2C_TAD_STAT), readq(regs + L2C_TAD_TIMEOUT));
+    }
+    return length;
+}
+static const struct kernel_param_ops l2c_tad_snapshot_ops = {.get = l2c_tad_snapshot_get};
+module_param_cb(l2c_tad_snapshot, &l2c_tad_snapshot_ops, NULL, 0400);
+MODULE_PARM_DESC(l2c_tad_snapshot, "Read all eight mapped L2C_TAD interrupt/status/timeout registers without clearing");
 
 static void l2c_tad_program_prf(void __iomem *regs)
 {
