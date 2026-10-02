@@ -42,6 +42,7 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
     pending, preempt = {}, set()
     holds, unmatched = [], Counter()
     counts, losses = Counter(), 0
+    activations, dispatches = Counter(), Counter()
     peer_events = []
     for timestamp, name, fields in sorted(records, key=lambda row: row[0]):
         counts[name] += 1
@@ -55,6 +56,8 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
             preempt.add(core)
         elif name == 'YieldAccepted':
             preempt.discard(core)
+            kind = 'idle' if fields.get('PreemptOutOfIdle', 0) else 'ordinary'
+            activations[f"{kind}:core={core}:domain={fields.get('DomainCode')}"] += 1
         elif name in ('EciRxReadFirst', 'EciRxReadNew'):
             if core in pending:
                 unmatched['replaced_read'] += 1
@@ -69,6 +72,8 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
                 holds.append(dict(core=core, start_cycle=start, end_cycle=timestamp,
                                   cycles=timestamp-start, microseconds=(timestamp-start)*1e6/clock_hz,
                                   handoff_pending=core in preempt))
+        if name == 'SchedulerRequestDispatched':
+            dispatches[f"process={fields.get('ProcessID')}:core={core}"] += 1
         if name in ('EciRxDescSent', 'EciTxSubmit', 'TxCmacExit', 'ActivationDelivered') or (name == 'YieldAccepted' and not fields.get('PreemptOutOfIdle', 0)):
             peer_events.append((timestamp, core, name))
     unmatched['open_read_at_capture_end'] = len(pending)
@@ -109,6 +114,7 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
     return dict(clock_hz=clock_hz, minimum_hold_cycles=minimum_hold_cycles,
                 peer_events_by_simultaneously_stalled_workers={str(n): dict(events) for n, events in concurrency.items()},
                 lost_samples=losses, event_counts=dict(counts),
+                accepted_activations=dict(activations), process_worker_dispatches=dict(dispatches),
                 unmatched=dict(unmatched), holds=holds,
                 scope='Finite request-to-NACK intervals include transport overhead; event counts do not prove application completion or infinite-stall progress.')
 

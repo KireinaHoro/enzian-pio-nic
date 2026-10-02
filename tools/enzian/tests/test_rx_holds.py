@@ -48,6 +48,19 @@ class HoldTests(unittest.TestCase):
                          {'EciRxDescSent:core=0': 1, 'EciTxSubmit:core=0': 1, 'YieldAccepted:core=3': 1})
         self.assertEqual(holds.summarize(records, 1, 50)['peer_events_by_simultaneously_stalled_workers'], {})
 
+    def test_activation_paths_and_physical_dispatch_are_distinct(self):
+        records = [(1, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 7, 'PreemptOutOfIdle': 1}),
+                   (2, 'SchedulerRequestDispatched', {'CoreID': 2, 'ProcessID': 99}),
+                   (3, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 8, 'PreemptOutOfIdle': 0}),
+                   (4, 'YieldAccepted', {'CoreID': 3, 'DomainCode': 7, 'PreemptOutOfIdle': 0}),
+                   (5, 'SchedulerRequestDispatched', {'CoreID': 3, 'ProcessID': 99})]
+        result = holds.summarize(records, 1)
+        self.assertEqual(result['accepted_activations'],
+                         {'idle:core=2:domain=7': 1, 'ordinary:core=2:domain=8': 1,
+                          'ordinary:core=3:domain=7': 1})
+        self.assertEqual(result['process_worker_dispatches'],
+                         {'process=99:core=2': 1, 'process=99:core=3': 1})
+
     def test_loss_prevents_false_duration_and_handoff_is_marked(self):
         records = [(1, 'EciRxReadNew', {'CoreID': 1}), (2, 'Lost', {'count': 3}),
                    (4, 'EciRxNackSent', {'CoreID': 1}),
