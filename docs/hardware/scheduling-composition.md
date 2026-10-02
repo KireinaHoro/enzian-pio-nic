@@ -1,8 +1,13 @@
 # Scheduling, wake and transport composition
 
-October 2 follow-up: [layered coherence verification](layered-verification.md)
-adds generated DC/THX endpoint checks and explicit contract projections. The
-results below retain their original scope and assumptions.
+Historical bounded-model evidence. This report includes wake/close scenarios
+outside the current implementation stage; it does not define another supported
+ECI design. The sole current contract is [cooperative scheduling
+control](../software/scheduling-control-interface.md), with focused models and
+concrete tests recorded in [the implementation ledger](eci-implementation.md).
+No wake fields, subscriptions or close-resource reuse from this older harness
+are part of that implementation. The [layered verification report](layered-verification.md)
+explains reusable transport contracts and their remaining assumptions.
 
 The [SchedulingComposition harness](../../model/tla/composition/SchedulingComposition.tla)
 joins the focused scheduling contracts to actual abstract transport resources.

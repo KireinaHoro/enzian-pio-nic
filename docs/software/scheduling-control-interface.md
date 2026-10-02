@@ -124,19 +124,27 @@ timeout activation. PCIe scheduling and timing optimization are also excluded.
 
 ## Verification status
 
-The generated C/Scala arithmetic and standalone RTL decoder are preparatory
-components, not a replacement production route. The decoder's admission result
-is only for fresh host reads; old writebacks and LCIA require retained transaction
-matching. `IdleDispatch` checks sticky notification, duplicate kicks, reader
-serialization, ordinary handoff without an IRQ, and shared control-bus contention
-under abstract autonomous cleanup. Its four fault controls reproduce violations;
-it does not instantiate the DCS, kernel, thread claims or transport engine.
-Existing capacity, claim and transport-readiness checks retain their separate
-scopes and must be composed with the implementation.
+Generated C/Scala constants and the ownership decoder are integrated into the
+production route. Fresh reads use trusted owner validation; accepted traffic,
+old writebacks and LCIA retain their transaction addresses. The local checks
+include full-domain encoding, one through seven worker builds, actual DCS slice
+control routing, runtime activation, migration and shared-control contention.
+See [the evidence ledger](../hardware/eci-implementation.md) for exact results
+and the distinction between separate checks and a full-system proof.
 
-Required acceptance remains: matched RTL/software collateral, runtime lifecycle
-and kernel builds, ECI and actual DCS slice tests, A→B→A and migration, ownership
-and reply validation, CI, and Enzian timeout/progress trials. Re-probe RX hold
+`IdleDispatch` checks sticky notification through response consumption, duplicate
+kicks (including delayed idle kicks during ordinary handoff), reader serialization
+and autonomous cleanup with shared control-bus contention. It counts IRQs created
+by ordinary handoff separately from delayed delivery of an earlier idle IRQ.
+`HandoffClaims` reuses `ThreadClaim` uniqueness/capacity and checks concurrent
+exchange, unrelated wakeups and failed copying. `PoolBootstrap` checks publication
+after initialization/registration and delayed parking. These models do not
+instantiate DCS or Linux. Existing transport models retain their settled-entry,
+resource-service and endpoint-freshness assumptions; the concrete delayed-LCIA,
+A→B→A and writeback tests provide separate finite evidence for those obligations.
+
+Remaining acceptance requires successful matched hardware CI and Enzian
+lifecycle, timeout and progress trials. Re-probe RX hold
 limits using matching artifacts and clocks, recording every exposed L2C_TAD
 unit. Preserve trace/fault evidence before reset; refine the boundary at timer
 resolution. Repeat the highest exception-free tested setting under contention

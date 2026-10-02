@@ -73,7 +73,7 @@ and fences the affected domain. Ordinary syscall sleep retains assignment.
 | Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
 | Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
 | Matched cross builds | Runtime, kernel, deployment and Vivado-input builds passed with the correctness fixes and probe controls. The final compiler memory-barrier change passed runtime and native interface checks. Dandelion’s matching adapter cross-build passed. |
-| Pinned cooperative TLC | Twelve outcomes passed: five positives and seven expected violations. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying, unrelated wakeups, delayed bootstrap parking and initialization failure. |
+| Pinned cooperative TLC | Thirteen outcomes passed: five positives, seven expected faults and one delayed-idle-kick reachability witness. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying, unrelated wakeups, delayed bootstrap parking and initialization failure. |
 | TLA module boundaries/SANY | All 44 inventoried modules passed. Parsing/import checks are not exhaustive model verification. |
 
 `HandoffClaims` reuses `ThreadClaim` uniqueness and capacity invariants. Its
@@ -92,8 +92,10 @@ is preserved and excluded from platform commits.
 - Actual Linux concurrency and failure handling remain board checks. The
   slice control-array check, separate migration simulation and initialization-
   failure model do not constitute a full DCS/NIC/ThunderX composition proof.
-- Reconcile remaining transport-readiness and activation properties with the
-  concrete implementation. Report assumptions and finite bounds explicitly.
+- Transport settled-entry and freshness remain conditional model obligations.
+  Delayed-LCIA, retained-address, final-control invalidation and A→B→A tests
+  check the corresponding concrete boundaries separately; they do not prove
+  full-system refinement or infinite-stall silicon progress.
 - Launch hardware CI with matched artifacts, retain its refs and follow the
   30-minute/five-hour collection workflow.
 - Recheck Enzian reservation. Record artifacts, clocks, programmed RX hold and
@@ -151,3 +153,9 @@ and four TAD assessment cases. Simultaneous-stall counts exclude bypass and
 initial activation; log loss, missing units, nonzero interrupts, changed TIMEOUT
 state and logged EDAC faults prevent a clean assessment. The assessment remains
 limited to the recorded finite exposure.
+
+The refined idle model keeps notification set through response consumption and
+allows an earlier idle kick to arrive while ordinary handoff owns the reader and
+control bus. The pinned cooperative check passed all thirteen outcomes, including
+a reachability witness for that overlap. This changes model coverage only;
+the hardware candidate already passed the corresponding delayed-kick simulation.

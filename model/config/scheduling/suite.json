@@ -1242,6 +1242,11 @@
         "BadEarlyPublish": true
       },
       "expected_violation": "PublicationReady"
+    },
+    "witness-delayed-idle-kick": {
+      "module": "IdleDispatch",
+      "options": {},
+      "expected_violation": "NoDelayedKickDuringHandoff"
     }
   },
   "groups": {
@@ -1421,7 +1426,8 @@
       "bad-handoff-unrelated-wake",
       "pool-bootstrap",
       "pool-initialization-fails",
-      "bad-pool-early-publication"
+      "bad-pool-early-publication",
+      "witness-delayed-idle-kick"
     ]
   },
   "witnesses": {
@@ -1441,6 +1447,9 @@
       "NoRoundTrip",
       "NoClosedWake",
       "NoKilledSuccessor"
+    ],
+    "IdleDispatch": [
+      "NoDelayedKickDuringHandoff"
     ]
   },
   "required_invariants": {
