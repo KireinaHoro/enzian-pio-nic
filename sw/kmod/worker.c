@@ -9,6 +9,7 @@
 
 #include "lauberhorn_eci_preempt_dev.h"
 #include "lauberhorn_eci_ownership_dev.h"
+#include "lauberhorn_eci_hostIf_dev.h"
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
 int worker_lo, worker_hi;
@@ -16,6 +17,36 @@ static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
 static u64 irq_no;
 
 static lauberhorn_eci_ownership_t ownership_dev;
+/* Privileged experiment control: only changes NIC receive hold duration.
+ * Architectural CPU timeout protection is never modified. */
+static lauberhorn_eci_hostIf_t host_if_dev;
+static DEFINE_MUTEX(rx_hold_lock);
+static bool host_if_ready;
+static unsigned long long rx_hold_cycles = 10000;
+static int rx_hold_set(const char *value, const struct kernel_param *param)
+{
+    unsigned long long cycles;
+    int ret = kstrtoull(value, 0, &cycles);
+    if (ret) return ret;
+    mutex_lock(&rx_hold_lock);
+    rx_hold_cycles = cycles;
+    if (host_if_ready)
+        lauberhorn_eci_hostIf_rx_block_cycles_wr(&host_if_dev, cycles);
+    mutex_unlock(&rx_hold_lock);
+    return 0;
+}
+static int rx_hold_get(char *buffer, const struct kernel_param *param)
+{
+    unsigned long long cycles;
+    mutex_lock(&rx_hold_lock);
+    cycles = host_if_ready ? lauberhorn_eci_hostIf_rx_block_cycles_rd(&host_if_dev) : rx_hold_cycles;
+    mutex_unlock(&rx_hold_lock);
+    return scnprintf(buffer, PAGE_SIZE, "%llu\n", cycles);
+}
+static const struct kernel_param_ops rx_hold_ops = {.set = rx_hold_set, .get = rx_hold_get};
+module_param_cb(rx_hold_cycles, &rx_hold_ops, &rx_hold_cycles, 0600);
+MODULE_PARM_DESC(rx_hold_cycles, "NIC RX hold in application clock cycles; readback is programmed hardware value");
+
 static unsigned int fault_irq;
 static void fault_work_fn(struct work_struct *work) { handle_domain_faults(); }
 static DECLARE_WORK(fault_work, fault_work_fn);
@@ -186,6 +217,11 @@ int init_workers()
 
 	err = check_ownership_abi();
 	if (err) return err;
+    mutex_lock(&rx_hold_lock);
+    lauberhorn_eci_hostIf_initialize(&host_if_dev, LAUBERHORN_ECI_HOST_IF_BASE);
+    lauberhorn_eci_hostIf_rx_block_cycles_wr(&host_if_dev, rx_hold_cycles);
+    host_if_ready = true;
+    mutex_unlock(&rx_hold_lock);
 
 	// Which cores are the worker cores?
 	worker_hi = num_online_cpus();
@@ -256,6 +292,10 @@ stop_dispatchers:
 
 void deinit_workers()
 {
+    mutex_lock(&rx_hold_lock);
+    host_if_ready = false;
+    mutex_unlock(&rx_hold_lock);
+
 	struct task_struct *task;
 
 	// Disable FPI interrupt for the core

@@ -62,11 +62,12 @@ and fences the affected domain. Ordinary syscall sleep retains assignment.
 | `EciDomainAllocatorSim` | Both tests passed, including all 524288 allocations, saturation, fatal fencing and application reset. |
 | `CooperativeYieldSim` | Delayed cleanup, shared control contention and repeated A→B→A passed with one initial scheduling IRQ and zero ordinary IRQs. Fatal-domain control/IRQ test passed while an independent owner continued. Host coherence model, not silicon. |
 | `RpcReplyContextsSim` | Live-token owner mismatch rejected; test passed. |
-| Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. Full committed rerun is pending. |
+| Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. The committed rerun passed all 42 tests (12 suites, one existing ignored test). |
+| Actual DCU/RX writeback | Four directed checks passed with the selected ROM and new RX layout, including delayed B, WDDA, LCIA and next-control release. This is not a full DCS slice. |
 | Worker configurations | Production ECI composition elaborated for every count 1–7. |
 | Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
 | Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
-| Matched cross builds | Runtime and kernel passed before the final claim-release and fixture corrections. Final deployment/Vivado-input builds are pending. |
+| Matched cross builds | Runtime and kernel passed before the final claim-release and fixture corrections. Deployment and Vivado-input builds passed; the subsequent probe-control kernel/deployment build also passed. |
 | Pinned cooperative TLC | Nine outcomes passed: three positives and six expected violations. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying and unrelated wakeups. |
 | TLA module boundaries/SANY | All 43 inventoried modules passed. Parsing/import checks are not exhaustive model verification. |
 
@@ -83,8 +84,7 @@ is preserved and excluded from platform commits.
 
 ## Outstanding acceptance
 
-- Finish the committed ECI regression, actual DCU/writeback and DCS slice
-  routing/completion checks, matching runtime/kernel/deployment builds, and
+- Finish actual DCS slice routing/completion checks and
   Dandelion adapter build. Extend concurrent migration and initialization-failure
   evidence where existing tests do not cover the implementation boundary.
 - Reconcile remaining transport-readiness and activation properties with the

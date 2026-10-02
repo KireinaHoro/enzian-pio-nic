@@ -6,6 +6,7 @@
   ivyCache,
   replayPcaps,
   runtimeInterface,
+  runtimeTests,
   eciToolkit,
 }:
 let
@@ -75,4 +76,5 @@ in
 }
 // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
   runtime-interface = runtimeInterface;
+  runtime-tests = runtimeTests;
 }
