@@ -1,5 +1,9 @@
 # Checkpoint findings — 2026-09-10
 
+For the later auto-lock versus LCI-only comparison, see the
+[October 2 DC area/timing analysis](dc-simplification-qor.md). This is a read-only
+comparison of completed checkpoints, not a resumed timing-optimization campaign.
+
 Read-only analysis on **enzian-ba2, Vivado 2025.1**, using implemented
 `Physopt postRoute` checkpoints. Recipes and report meanings are in
 [physical implementation](physical-implementation.md). Board observations are
