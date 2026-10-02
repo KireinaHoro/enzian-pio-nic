@@ -122,6 +122,11 @@
       "BadLostKick": false,
       "BadOrdinaryIrq": false,
       "BadCleanupDependency": false
+    },
+    "HandoffClaims": {
+      "BadLateRelease": false,
+      "BadWakeReturn": false,
+      "CopyFails": false
     }
   },
   "invariants": {
@@ -227,6 +232,13 @@
       "NoOrdinaryIrq",
       "NoReturn",
       "Readiness"
+    ],
+    "HandoffClaims": [
+      "TypeOK",
+      "UniqueClaim",
+      "CapacitySafe",
+      "FreshReturn",
+      "FailClosed"
     ]
   },
   "properties": {
@@ -316,6 +328,9 @@
     "IdleDispatch": [
       "Completes",
       "ControlProgress"
+    ],
+    "HandoffClaims": [
+      "Completes"
     ]
   },
   "cases": {
@@ -1167,6 +1182,32 @@
         "BadCleanupDependency": true
       },
       "expected_violation": "Completes"
+    },
+    "handoff-claims": {
+      "module": "HandoffClaims",
+      "options": {},
+      "expected_violation": null
+    },
+    "handoff-copy-fails": {
+      "module": "HandoffClaims",
+      "options": {
+        "CopyFails": true
+      },
+      "expected_violation": null
+    },
+    "bad-handoff-late-release": {
+      "module": "HandoffClaims",
+      "options": {
+        "BadLateRelease": true
+      },
+      "expected_violation": "Completes"
+    },
+    "bad-handoff-unrelated-wake": {
+      "module": "HandoffClaims",
+      "options": {
+        "BadWakeReturn": true
+      },
+      "expected_violation": "FreshReturn"
     }
   },
   "groups": {
@@ -1339,7 +1380,11 @@
       "bad-idle-duplicate",
       "bad-idle-lost-kick",
       "bad-ordinary-irq",
-      "bad-handoff-control-cycle"
+      "bad-handoff-control-cycle",
+      "handoff-claims",
+      "handoff-copy-fails",
+      "bad-handoff-late-release",
+      "bad-handoff-unrelated-wake"
     ]
   },
   "witnesses": {
