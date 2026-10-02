@@ -2,8 +2,9 @@
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
-incomplete: regression and deployment checks are in progress, and no replacement
-hardware CI or Enzian timeout campaign has run. Do not merge or substitute
+incomplete: regression and deployment checks are in progress, and the Enzian timeout campaign has not run. Hardware pipeline 515941
+was launched for `23561fa3`; subsequent correctness fixes require a replacement
+pipeline before board acceptance. Do not merge or substitute
 historical board evidence for these gates.
 
 ## Implementation
@@ -102,3 +103,20 @@ is preserved and excluded from platform commits.
 No current RX stall threshold, board acceptance or timing closure is claimed.
 Host-event interface design, deadline activation, full exit recovery, PCIe
 scheduling and timing optimization remain outside this stage.
+
+## Follow-up correctness checks
+
+A directed watermark test reproduced selection of an occupied, RX-ready worker
+while another physical worker was idle. Selection now gives the idle set priority.
+The test passes after the correction. Ingress busy tracking also includes AR/AW
+acceptance on the current edge, so owner installation cannot race the first
+accepted old-address writeback. Directed assertions cover this boundary and
+attribute rejected reads to their requesting lifetime, without faulting old RX
+writeback cleanup.
+
+The host model now publishes an outgoing thread only after the committed info
+response, matching the kernel. Four focused tests passed after these corrections,
+including duplicate kicks during blocked ordinary handoff, foreign-PID and
+oversized TX rejection, and subsequent valid TX progress. A fresh full regression
+is pending for these changes. Dandelion's matched adapter build and the pinned
+transport/AXI model checks passed; these are separate from board evidence.

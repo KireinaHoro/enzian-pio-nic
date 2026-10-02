@@ -550,7 +550,7 @@ class Scheduler extends FiberPlugin {
 
     val victimCoreMap = rxPreemptReq.ty.mux(
       PreemptCmdType.idle -> coreIdleMap,
-      PreemptCmdType.ready -> (coreReadyMap | coreIdleMap),
+      PreemptCmdType.ready -> Mux(coreIdleMap.orR, coreIdleMap, coreReadyMap),
       // TODO: when do we need the `force` command type?
       //       when we need to kill a running handler?
       default -> B(0),
