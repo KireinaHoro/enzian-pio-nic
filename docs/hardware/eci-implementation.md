@@ -2,8 +2,10 @@
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
-incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515944 is running for `8cc9ad58`; its 30-minute preflight
-check is scheduled for 19:38 CEST. Pipeline 515941 (`23561fa3`) is superseded
+incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515944 is running for `8cc9ad58`. At the October 2 19:38 CEST
+preflight, all 14 gates and preparation job 2864672 passed; hardware job 2864673
+was running. The required five-hour collection is scheduled for October 3
+00:39 CEST. No CI polling is scheduled within that interval. Pipeline 515941 (`23561fa3`) is superseded
 and must not supply acceptance artifacts. Both pipeline refs are retained. Do not merge or substitute
 historical board evidence for these gates.
 
@@ -67,7 +69,7 @@ and fences the affected domain. Ordinary syscall sleep retains assignment.
 | Actual DCU/RX writeback | Four directed checks passed with the selected ROM and new RX layout, including delayed B, WDDA, LCIA and next-control release. This is not a full DCS slice. |
 | Production DCS slice control routing | 812 address trials passed through the 32-DCU array, production routers and arbiters: seven workers plus bypass, both parities, every overflow line, high lifetime bits and A→B→A. Read/dirty-write addresses and IDs, delayed completion and backpressured LCIA checked. Test RAM/passive trace sinks; payload datapath and ThunderX are not instantiated. |
 | Stalled-worker/bypass progress | Three expanded tests passed: one, two and three held worker reads while an independent worker progresses and bypass RX/TX transfer concurrently across both parities. Finite 50000-cycle hold setting in the host coherence model; no silicon timeout claim. The separately run RX/TX interleaving test passed and is restored to the regular suite. |
-| Worker configurations | Production ECI composition elaborated for every count 1–7. |
+| Worker configurations | Production ECI composition and matched headers generated for every count 1–7; all seven kernel modules and seven runtimes cross-built successfully. The one-worker scalar preemption-register macro needed a kernel fix; the default four-worker path is unchanged. |
 | Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
 | Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
 | Matched cross builds | Runtime, kernel, deployment and Vivado-input builds passed with the correctness fixes and probe controls. The final compiler memory-barrier change passed runtime and native interface checks. Dandelion’s matching adapter cross-build passed. |
@@ -128,3 +130,24 @@ The pinned workflow check also passes three real loopback UDP client tests: conc
 validated RPC/bypass completions, corruption rejection and timeout without retry.
 These validate the measurement tool, not the board. The obsolete B4 recovery
 runner is removed because it uses the superseded control/recovery ABI.
+
+The exact `8cc9ad58` deployment image built from the committed flake and was
+staged on the shared filesystem. Local and remote SHA-256 agree:
+`97bdf4a14350ffe5a1c3f8fecb40de03d1ac2f501b3ff0d11d2007d73034ac13`.
+DUT zuestoll14 and capture peer zuestoll12 were both reserved by `pengxu` at the
+October 2 preparation check. Neither board was reset or reprogrammed in this
+preparation. The campaign runner now stops on CPU/client failure before any
+subsequent cold reset; three focused tests and the pinned workflow gate passed.
+
+The worker-count matrix initially exposed a test generator's one-per-JVM
+Mackerel guard, then the kernel's scalar-versus-indexed base mismatch for one
+worker. Both are corrected. `GenWorkerConfigurations` emits each configuration's
+headers/devices, and `tools/address-map/worker-builds.nix` cross-builds them.
+These are configuration/interface checks; the Enzian candidate remains the
+four-worker `8cc9ad58` artifact. No board result for seven workers is claimed.
+
+The pinned workflow check passed the expanded four-case hold-analysis suite
+and four TAD assessment cases. Simultaneous-stall counts exclude bypass and
+initial activation; log loss, missing units, nonzero interrupts, changed TIMEOUT
+state and logged EDAC faults prevent a clean assessment. The assessment remains
+limited to the recorded finite exposure.

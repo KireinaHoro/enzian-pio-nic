@@ -38,7 +38,7 @@ def event(sample, trace_map):
     return name, values
 
 
-def summarize(records, clock_hz):
+def summarize(records, clock_hz, minimum_hold_cycles=0):
     pending, preempt = {}, set()
     holds, unmatched = [], Counter()
     counts, losses = Counter(), 0
@@ -69,7 +69,7 @@ def summarize(records, clock_hz):
                 holds.append(dict(core=core, start_cycle=start, end_cycle=timestamp,
                                   cycles=timestamp-start, microseconds=(timestamp-start)*1e6/clock_hz,
                                   handoff_pending=core in preempt))
-        if name in ('EciRxDescSent', 'EciTxSubmit', 'TxCmacExit', 'ActivationDelivered'):
+        if name in ('EciRxDescSent', 'EciTxSubmit', 'TxCmacExit', 'ActivationDelivered') or (name == 'YieldAccepted' and not fields.get('PreemptOutOfIdle', 0)):
             peer_events.append((timestamp, core, name))
     unmatched['open_read_at_capture_end'] = len(pending)
     # Aggregate overlap evidence without constructing a quadratic event product.
@@ -86,7 +86,29 @@ def summarize(records, clock_hz):
             if count:
                 overlap[f'{name}:core={core}'] = count
         hold['other_transport_events_during_hold'] = overlap
-    return dict(clock_hz=clock_hz, lost_samples=losses, event_counts=dict(counts),
+    # Count events occurring while N distinct worker reads overlap. Bypass is
+    # datapath zero and is never included among stalled application workers.
+    import heapq
+    qualifying = sorted((h for h in holds if h['core'] and not h['handoff_pending']
+                         and h['cycles'] >= minimum_hold_cycles), key=lambda h: h['start_cycle'])
+    active, ending, cursor = Counter(), [], 0
+    concurrency = defaultdict(Counter)
+    for timestamp, core, name in peer_events:
+        while cursor < len(qualifying) and qualifying[cursor]['start_cycle'] <= timestamp:
+            hold = qualifying[cursor]
+            heapq.heappush(ending, (hold['end_cycle'], cursor, hold['core']))
+            active[hold['core']] += 1
+            cursor += 1
+        while ending and ending[0][0] < timestamp:
+            _, _, worker = heapq.heappop(ending)
+            active[worker] -= 1
+            if not active[worker]:
+                del active[worker]
+        if active and core not in active:
+            concurrency[len(active)][f'{name}:core={core}'] += 1
+    return dict(clock_hz=clock_hz, minimum_hold_cycles=minimum_hold_cycles,
+                peer_events_by_simultaneously_stalled_workers={str(n): dict(events) for n, events in concurrency.items()},
+                lost_samples=losses, event_counts=dict(counts),
                 unmatched=dict(unmatched), holds=holds,
                 scope='Finite request-to-NACK intervals include transport overhead; event counts do not prove application completion or infinite-stall progress.')
 
@@ -96,10 +118,12 @@ def main():
     parser.add_argument('capture', type=Path)
     parser.add_argument('--map', type=Path, required=True)
     parser.add_argument('--clock-hz', type=int, required=True)
+    parser.add_argument('--minimum-hold-cycles', type=int, default=0,
+                        help='only count simultaneous stalls at least this long; use the programmed hold')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    if args.clock_hz <= 0:
-        parser.error('clock frequency must be positive')
+    if args.clock_hz <= 0 or args.minimum_hold_cycles < 0:
+        parser.error('positive clock frequency and nonnegative minimum hold required')
     trace_map = dma.load_map(args.map)
     def selected(sample):
         source = dma.source_info(trace_map, dma.sample_source(sample, trace_map))
@@ -117,7 +141,7 @@ def main():
             decoded = event(sample, trace_map)
             if decoded:
                 records.append((timestamp, *decoded))
-    result = summarize(records, args.clock_hz)
+    result = summarize(records, args.clock_hz, args.minimum_hold_cycles)
     result['capture_sha256'] = hashlib.file_digest(args.capture.open('rb'), 'sha256').hexdigest()
     result['map_sha256'] = hashlib.sha256(args.map.read_bytes()).hexdigest()
     args.output.write_text(json.dumps(result, indent=2) + '\n')

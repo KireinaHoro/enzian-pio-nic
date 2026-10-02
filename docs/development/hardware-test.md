@@ -287,6 +287,7 @@ transport events:
 ```sh
 python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
   --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
+  --minimum-hold-cycles PROGRAMMED_HOLD \
   --output RUN/rx-holds.json
 ```
 
@@ -316,3 +317,18 @@ use a bounded burst to allocate the three-thread stalled service on the other
 workers. Alternate the two one-thread active services to require cooperative
 handoffs while bypass traffic continues. This is a campaign procedure, not a
 claim that the placement or progress has already been observed.
+
+Save plain `l2c_tad_snapshot` output and complete kernel logs before and after
+each trial. `tools/enzian/assess_tad.py --before TAD_BEFORE --after TAD_AFTER
+--kernel-before DMESG_BEFORE --kernel-after DMESG_AFTER --output NEW_REPORT.json`
+requires exactly eight distinct units, checks their interrupt/timeout state,
+and rejects kernel fault diagnostics or missing log continuity. It only reads
+saved files. EDAC may clear a hardware interrupt before a snapshot, so neither
+register snapshots nor logs alone suffice. Preserve the board state on failure.
+
+The hold analyzer additionally groups independent transport events by the number
+of **simultaneously** stalled workers whose completed intervals meet
+`--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
+ordinary `YieldAccepted` events are distinguished from initial activation.
+Use these overlap counts together with client completions and TAD assessment.
+They do not prove progress outside the recorded window.

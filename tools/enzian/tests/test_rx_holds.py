@@ -34,6 +34,20 @@ class HoldTests(unittest.TestCase):
         self.assertEqual(result['holds'][0]['other_transport_events_during_hold'],
                          {'EciRxDescSent:core=2': 1, 'TxCmacExit:core=None': 1})
 
+    def test_simultaneous_stalls_with_bypass_and_ordinary_handoff(self):
+        records = [(1, 'EciRxReadNew', {'CoreID': 1}),
+                   (2, 'EciRxReadNew', {'CoreID': 2}),
+                   (10, 'EciRxDescSent', {'CoreID': 0}),
+                   (11, 'EciTxSubmit', {'CoreID': 0}),
+                   (12, 'YieldAccepted', {'CoreID': 3, 'PreemptOutOfIdle': 0}),
+                   (13, 'YieldAccepted', {'CoreID': 4, 'PreemptOutOfIdle': 1}),
+                   (20, 'EciRxNackSent', {'CoreID': 1}),
+                   (25, 'EciRxNackSent', {'CoreID': 2})]
+        result = holds.summarize(records, 1, 15)
+        self.assertEqual(result['peer_events_by_simultaneously_stalled_workers']['2'],
+                         {'EciRxDescSent:core=0': 1, 'EciTxSubmit:core=0': 1, 'YieldAccepted:core=3': 1})
+        self.assertEqual(holds.summarize(records, 1, 50)['peer_events_by_simultaneously_stalled_workers'], {})
+
     def test_loss_prevents_false_duration_and_handoff_is_marked(self):
         records = [(1, 'EciRxReadNew', {'CoreID': 1}), (2, 'Lost', {'count': 3}),
                    (4, 'EciRxNackSent', {'CoreID': 1}),
