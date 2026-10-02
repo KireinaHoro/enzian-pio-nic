@@ -354,7 +354,7 @@ layout is safe.
 
 ## Example Permissive Layout
 
-**Selected layout for the proposed fixed-worker design (September 30):**
+**Selected layout (September 30), now used by the ECI implementation:**
 `tools/progress/capacity.py` emits the compact layout below by default. It uses
 64 colors, a 38-bit slice-relative aperture, a `0x2000` (8 KiB) block stride,
 and 12 overflow CLs per direction. This is a color-compatible solution; the
