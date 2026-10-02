@@ -1,11 +1,10 @@
-# Fixed-worker cooperative scheduling control
+# Cooperative scheduling control
 
-Selected implementation contract, October 2, 2026. The production RTL, kernel
-and runtime still use the legacy scheduler. The replacement is under development
+Selected implementation contract, October 2, 2026. The production RTL replacement is being integrated; the kernel
+and runtime are not yet matched. The replacement is under development
 on `feat/fixed-worker-cooperative-yield`; the arithmetic and focused control checks
-alone do not establish implementation or board acceptance. Earlier retirement
-and wake proposals are retained as [historical design notes](scheduling-control-history.md),
-not interfaces to implement in this stage.
+alone do not establish implementation or board acceptance. This is the sole ECI design; the replacement removes thread routers and
+reassigned address prefixes. Superseded designs remain available in Git history.
 
 ## Activation and handoff
 
@@ -97,8 +96,16 @@ validated against trusted assignment, not self-reported userspace identity.
 
 Preserve final RX control invalidation and its completion before worker reuse,
 including A→B→A freshness, and preserve the independent RX writeback sink.
-Remove thread-prefix translation, the preemption control cache line, READY/BUSY
-CAS, and control-line locking only as part of the matched replacement.
+The matched replacement removes thread-prefix translation, the preemption
+control cache line, READY/BUSY CAS, and control-line locking. Components use
+direct ECI address and ownership names; no parallel legacy implementation is retained.
+
+An unauthorized fresh read is a fatal violation by the requesting domain. Kill
+that domain and forbid subsequent activation, fence its claims, and mark the
+session reset-required while retaining unresolved resources. Do not attribute
+the violation to the worker’s current owner or treat legitimate old-address
+writebacks and LCIA as violations. DCS can complete a rejected AXI read as
+cacheable data, so returning zero data alone is insufficient for later freshness.
 
 Allocate PA lifetime codes monotonically, fail at exhaustion, and preserve the
 allocator across driver reload. Reset allocation only at a full coherence-reset

@@ -9,10 +9,10 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axi._
 import spinal.lib.bus.misc.SizeMapping
 
-case class FixedWorkerIngressFixture() extends Component {
+case class EciIngressFixture() extends Component {
   val cfg = Axi4Config(addressWidth = 38, dataWidth = 512, idWidth = 3,
     useRegion = false, useQos = false)
-  val ingress = FixedWorkerAxiIngress(cfg, 1)
+  val ingress = EciAxiIngress(cfg, 1)
   val io = new Bundle {
     val input = slave(Axi4(cfg))
     val owner = in UInt(19 bits)
@@ -33,9 +33,9 @@ case class FixedWorkerIngressFixture() extends Component {
   io.endpoints.zip(xbar.m_axi).foreach { case (out, port) => out << port }
 }
 
-class FixedWorkerAxiIngressSim extends DutSimFunSuite[FixedWorkerIngressFixture] {
+class EciAxiIngressSim extends DutSimFunSuite[EciIngressFixture] {
   val dut = Config.sim.addSimulatorFlag("-Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-LATCH -Wno-ASCRANGE -Wno-INITIALDLY")
-    .compile(FixedWorkerIngressFixture())
+    .compile(EciIngressFixture())
   test("accepted original addresses survive crossbar backpressure and owner changes") { implicit dut =>
     SimTimeout(100000)
     dut.clockDomain.forkStimulus(10)
@@ -78,7 +78,7 @@ class FixedWorkerAxiIngressSim extends DutSimFunSuite[FixedWorkerIngressFixture]
     def step(n: Int = 1): Unit = { dut.clockDomain.waitSampling(n); sleep(1) }
     val target = dut.io.endpoints(1)
     val code = (1 << 18) | 1
-    val original = FixedWorkerMap.encode(1, 0, code, 0x300)
+    val original = EciAddressMap.encode(1, 0, code, 0x300)
     dut.io.owner #= code
     a.ar.addr #= original
     a.ar.valid #= true
@@ -113,7 +113,7 @@ class FixedWorkerAxiIngressSim extends DutSimFunSuite[FixedWorkerIngressFixture]
     assert(!dut.io.busy.toBoolean)
 
     // Late RX writeback must still reach the independent RX sink while fenced.
-    val oldRx = FixedWorkerMap.encode(1, 0, code, 0x380)
+    val oldRx = EciAddressMap.encode(1, 0, code, 0x380)
     a.aw.addr #= oldRx
     a.aw.valid #= true
     dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
@@ -144,7 +144,7 @@ class FixedWorkerAxiIngressSim extends DutSimFunSuite[FixedWorkerIngressFixture]
     assert(!dut.io.busy.toBoolean)
 
     // Old-owner TX writes receive DECERR, never reach the successor endpoint.
-    a.aw.addr #= FixedWorkerMap.encode(1, 0, code, 0x1300)
+    a.aw.addr #= EciAddressMap.encode(1, 0, code, 0x1300)
     a.aw.valid #= true
     dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
     a.aw.valid #= false
