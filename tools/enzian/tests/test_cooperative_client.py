@@ -1,4 +1,5 @@
 import importlib.util
+import csv
 import json
 from pathlib import Path
 import socket
@@ -14,7 +15,7 @@ spec.loader.exec_module(client)
 
 
 class ClientTests(unittest.TestCase):
-    def run_peer(self, mode):
+    def run_peer(self, mode, **options):
         stop = threading.Event()
         errors = []
         received = []
@@ -60,7 +61,7 @@ class ClientTests(unittest.TestCase):
             try:
                 output = Path(temp)/'run'
                 with patch.object(client, 'request', redirected):
-                    rc = client.load('127.0.0.1', '127.0.0.1', ['add', 'mul', 'echo', 'bypass'], .05, 1, .1, output)
+                    rc = client.load('127.0.0.1', '127.0.0.1', ['add', 'mul', 'echo', 'bypass'], .1, 1, .1, output, **options)
                 summary = json.loads((output/'summary.json').read_text())
                 rows = (output/'completions.csv').read_text().splitlines()
             finally:
@@ -81,6 +82,22 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn('mismatch', summary['error'])
         self.assertEqual(summary['completions'], {})
+
+    def test_alternating_rpc_preserves_gap_and_independent_bypass(self):
+        rc, summary, rows, _ = self.run_peer('reply', alternate_rpc=True, rpc_gap_us=1000)
+        self.assertEqual(rc, 0)
+        records = list(csv.DictReader(rows))
+        rpc = [r for r in records if r['stream'] != 'bypass']
+        self.assertGreaterEqual(len(rpc), 3)
+        self.assertEqual([r['stream'] for r in rpc],
+                         [('add', 'mul', 'echo')[i % 3] for i in range(len(rpc))])
+        for previous, current in zip(rpc, rpc[1:]):
+            self.assertGreaterEqual(int(current['send_monotonic_ns']) -
+                                    int(previous['receive_monotonic_ns']), 1_000_000)
+        self.assertTrue(any(r['stream'] == 'bypass' and
+                            int(rpc[0]['receive_monotonic_ns']) < int(r['receive_monotonic_ns']) <
+                            int(rpc[-1]['receive_monotonic_ns']) for r in records))
+        self.assertEqual(summary['pending'], 0)
 
     def test_timeout_preserves_pending_without_retry(self):
         rc, summary, _, received = self.run_peer('drop')

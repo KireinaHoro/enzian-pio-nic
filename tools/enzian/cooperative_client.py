@@ -36,11 +36,14 @@ def request(kind, ident):
     return port, words(ident, 0, 2, program, version, procedure, 0, 0, 0, 0) + payload, words(ident, 1, 0, 0, 0, 0) + result
 
 
-def load(nic, bind, kinds, seconds, window, timeout, output):
+def load(nic, bind, kinds, seconds, window, timeout, output,
+         alternate_rpc=False, rpc_gap_us=0):
     output.mkdir(parents=True, exist_ok=False)
     pending, counts, active = {}, Counter(), Counter()
     ident = secrets.randbelow(0x7fffffff) + 1
     started = time.monotonic_ns()
+    rpc_kinds = [kind for kind in kinds if kind != 'bypass']
+    rpc_cursor, next_rpc = 0, started
     end = started + int(seconds * 1e9)
     failure = None
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock, (output/'completions.csv').open('w') as log:
@@ -52,7 +55,14 @@ def load(nic, bind, kinds, seconds, window, timeout, output):
                 now = time.monotonic_ns()
                 if now < end:
                     for kind in kinds:
-                        while active[kind] < window:
+                        if alternate_rpc and kind != 'bypass':
+                            if (kind != rpc_kinds[rpc_cursor] or now < next_rpc
+                                    or any(active[k] for k in rpc_kinds)):
+                                continue
+                            limit = 1
+                        else:
+                            limit = window
+                        while active[kind] < limit:
                             ident = (ident + 1) & 0xffffffff
                             if ident in pending:
                                 raise RuntimeError('request identity collision')
@@ -62,6 +72,8 @@ def load(nic, bind, kinds, seconds, window, timeout, output):
                             pending[ident] = (kind, stamp, port, expected)
                             active[kind] += 1
                 if not pending:
+                    if alternate_rpc and now < next_rpc:
+                        time.sleep(min((next_rpc-now)/1e9, .001))
                     continue
                 earliest = min(value[1] for value in pending.values())
                 left = timeout - (time.monotonic_ns() - earliest) / 1e9
@@ -80,6 +92,9 @@ def load(nic, bind, kinds, seconds, window, timeout, output):
                     raise ValueError(f'{kind}: response source or bytes mismatch')
                 del pending[key]
                 active[kind] -= 1
+                if alternate_rpc and kind != 'bypass':
+                    rpc_cursor = (rpc_cursor + 1) % len(rpc_kinds)
+                    next_rpc = stamp + rpc_gap_us * 1000
                 counts[kind] += 1
                 rows.writerow([kind, key, sent, stamp, len(packet)])
         except (OSError, ValueError, RuntimeError) as exc:
@@ -89,6 +104,7 @@ def load(nic, bind, kinds, seconds, window, timeout, output):
     result = dict(passed=failure is None and all(counts[k] for k in kinds), error=failure,
                   nic=nic, bind=bind, streams=kinds, window=window, requested_seconds=seconds,
                   elapsed_seconds=(time.monotonic_ns()-started)/1e9, completions=dict(counts),
+                  alternate_rpc=alternate_rpc, rpc_gap_us=rpc_gap_us,
                   pending=len(pending), retries=0,
                   scope='Finite application and bypass completions; verify simultaneous holds, handoffs and all TADs independently.')
     (output/'summary.json').write_text(json.dumps(result, indent=2)+'\n')
@@ -104,12 +120,18 @@ def main():
     p.add_argument('--seconds', type=float, default=30)
     p.add_argument('--window', type=int, default=1)
     p.add_argument('--timeout', type=float, default=5)
+    p.add_argument('--alternate-rpc', action='store_true',
+                   help='one RPC in flight, rotating streams; bypass retains its independent window')
+    p.add_argument('--rpc-gap-us', type=int, default=0,
+                   help='minimum reply-to-next-request gap with --alternate-rpc')
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--bypass-server', action='store_true', help='DUT kernel UDP echo on port 32345; no NIC-domain registration')
     a = p.parse_args()
     kinds = a.streams.split(',')
     if a.seconds <= 0 or a.timeout <= 0 or not 1 <= a.window <= 256 or len(set(kinds)) != len(kinds) or set(kinds) - {'add', 'mul', 'echo', 'bypass'}:
         p.error('positive durations, window 1..256 and distinct supported streams required')
+    if a.rpc_gap_us < 0 or (a.rpc_gap_us and not a.alternate_rpc) or (a.alternate_rpc and not set(kinds) - {'bypass'}):
+        p.error('RPC alternation requires an RPC stream; a nonnegative gap requires --alternate-rpc')
     socket.inet_aton(a.nic)
     socket.inet_aton(a.bind)
     if a.bypass_server:
@@ -121,7 +143,8 @@ def main():
                 packet, peer = sock.recvfrom(65536)
                 if len(packet) == 64 and packet[:4] == b'LHBP':
                     sock.sendto(packet, peer)
-    return load(a.nic, a.bind, kinds, a.seconds, a.window, a.timeout, a.output)
+    return load(a.nic, a.bind, kinds, a.seconds, a.window, a.timeout, a.output,
+                a.alternate_rpc, a.rpc_gap_us)
 
 
 if __name__ == '__main__':

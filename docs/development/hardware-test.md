@@ -332,3 +332,12 @@ of **simultaneously** stalled workers whose completed intervals meet
 ordinary `YieldAccepted` events are distinguished from initial activation.
 Use these overlap counts together with client completions and TAD assessment.
 They do not prove progress outside the recorded window.
+
+For the active-peer handoff phase, `cooperative_client.py --streams add,echo,bypass
+--alternate-rpc --rpc-gap-us 2000` keeps one application RPC in flight and rotates
+its destination after each validated reply. Bypass retains an independent window.
+The completion CSV records the actual request spacing. This workload encourages
+cooperative handoffs; verify physical-worker placement and simultaneous holds in
+the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
+alone do not establish that placement. The pinned loopback test verifies RPC
+alternation, the minimum gap and bypass completions between RPCs.
