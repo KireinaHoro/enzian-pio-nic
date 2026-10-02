@@ -1,6 +1,11 @@
 # Scheduler design pivot (September 2026)
 
 Status (2026-10-02): **selected design contract; production pivot not implemented**.
+The current stage is fixed addresses and cooperative PREEMPT/yield, with idle-only
+kick IRQs. HOST_WAKE and full kill/exit recovery are deferred. The
+[current control contract](../software/scheduling-control-interface.md) supersedes
+the host-event and recovery proposals retained below. Preparatory address and
+control checks are recorded in the [implementation evidence](../hardware/fixed-worker-implementation.md).
 The [bounded scheduling composition](../hardware/scheduling-composition.md) has
 completed its selected checks. Hardware service/refinement assumptions and the
 [kmod/HW implementation checks](../software/scheduling-implementation-checks.md)
@@ -52,13 +57,15 @@ assignment. See the [control and retirement interface](../software/scheduling-co
 for MMIO boundaries, response fields, snapshot lifetime and close races.
 
 On success, `lh_yield(&activation)` returns 0 with this calling thread's **new**
-worker index, RX/TX next parity and `has_host_work`. It does not return the domain
+worker index and RX/TX next parity. It does not return the domain
 that replaced the caller. Bootstrap provides the same activation record. Kernel
 thread selection, affinity and resumption are local steps after the info response.
 All domain threads are initialized before NIC capacity publication; assignments
 plus reservations cannot exceed that fixed pool. Only whole-domain teardown can
-end the guarantee. Idle dispatch discovery is a kernel-service implementation
-obligation; normal scheduling uses no NIC IRQ.
+end the guarantee. Initial/idle dispatch uses a sticky NIC notification and kick
+IRQ to wake one pinned kernel dispatch thread per worker. That thread checks the
+notification under reader serialization before issuing the side-effecting read;
+duplicate IRQs cannot authorize another read. Ordinary handoff uses no IRQ.
 
 Ordinary blocking syscalls retain the core/QP assignment and onehot affinity,
 including their contribution to assigned parallelism. Strongly recommend
@@ -67,16 +74,19 @@ waits: a sleeping syscall may strand reserved capacity for an unbounded interval
 This candidate targets cooperative allocation; fairness under load and general
 work-conserving multiplexing are separate policies.
 
-Start the cooperation timeout at the committed idle-preemption decision; account
-for transport delivery and kernel scheduling delay before diagnosing failure to
-yield. Timeout escalates to kill IRQ; execution watchdog policy is separate.
-**Signals and futex integration are deferred.** Termination/recovery is lower
-priority: fence new access and complete RX/TX protocol cleanup before reusing
-worker state. Retained old-domain PAs need not be generally flushed; domain-code
-reuse is deferred. Validate that ordering when implementing
-recovery; see the [existing recovery design](../software/process-recovery.md).
+**Signals, futex integration and complete kill/exit recovery are deferred.**
+Unsupported exit or fatal activation failure fences claims and marks the session
+reset-required; unresolved resources and identities are not recycled. Existing
+deadline-kick/watchdog behavior is not an activation interface for this stage.
+Retained old-domain PAs need not be generally flushed; domain-code reuse is
+deferred. See the [existing recovery design](../software/process-recovery.md)
+for historical implementation, not the ordinary cooperative path.
 
 ### HOST_WAKE: epoll subscriptions and delivery
+
+Historical follow-on proposal only. Do not implement or design this interface
+in the fixed-address/PREEMPT stage; the current activation has no host-work field,
+cookie or subscription API. The following detail is retained for a later round.
 
 Each worker may subscribe to **at most one epoll instance** through the RT API;
 multiple workers may share an instance. The kernel retains its file reference
@@ -286,5 +296,5 @@ control/transport composition.
 
 The [implementation checks](../software/scheduling-implementation-checks.md) distinguish
 concurrent races from local sequencing and list required kmod/HW assertions.
-Normal handoff uses no scheduling IRQ; NIC scheduling interrupts are reserved
-for application kill/recovery.
+Normal handoff uses no scheduling IRQ. Initial/idle activation uses a kick IRQ;
+full application kill/recovery integration remains deferred.

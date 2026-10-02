@@ -1,5 +1,13 @@
 # Software runtime and datapath
 
+October 2 scheduling replacement: the fixed-pool declaration, explicit ready
+registration, bootstrap `lh_yield()` and per-activation alias/parity selection
+are specified in the [control contract](scheduling-control-interface.md), but
+are **not implemented in this runtime yet**. The
+[preparatory checks](../hardware/fixed-worker-implementation.md) do not establish
+runtime integration. HOST_WAKE is excluded; the existing deadline-kick mechanism
+below must not be treated as replacement parked-domain timeout activation.
+
 Current branch: `feat/nested-rpc`, September 17, 2026. The runtime dispatches
 managed request outcomes over ECI, with cooperative fibers for explicitly
 deferred work. See the [programming contract](programming-model.md),
