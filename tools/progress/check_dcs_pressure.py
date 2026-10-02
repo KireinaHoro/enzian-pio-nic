@@ -21,7 +21,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--rom', type=Path, help='Nix-generated Lauberhorn ROM directory; run active-variant DCU checks')
-    p.add_argument('--rx-router', type=Path, help='generated RxWritebackFixture.v; reproduce RX writeback obstruction with --rom')
+    p.add_argument('--rx-router', type=Path, help='generated RxWritebackFixture.v; check RX writeback completion with --rom')
     p.add_argument('--trace', action='store_true', help='test real DCU debug port with full resident and local-lock sets')
     p.add_argument('--directory', action='store_true', help='populate actual TSU/tag RAM via protocol events; use test XPM primitive model')
     p.add_argument('--no-auto-lock', action='store_true', help='test the alternative table/controller, excluding the UL decoder')
@@ -68,7 +68,7 @@ def main():
         summary.update(protocol='lauberhorn_lci_only', interpretation='generated-ROM DCU integration',
                        scope='Actual DCU and directory; test XPM; not full slice, THX or NIC composition')
     if a.rx_router:
-        summary.update(interpretation='expected RX writeback obstruction reproduced; test-only completion sink releases it',
+        summary.update(interpretation='production RX writeback completes; delayed test-sink B holds and then releases LCI',
                        scope='Actual DCU, axi_wr_cl and RX router; test RAM, synthetic returned data/read completions and direct LCIA-to-invDone wiring; not full DCS/NIC/THX simulation')
     if a.trace:
         summary['interpretation'] = 'trace-only: full-miss backpressure preserved for resident and all-locked sets'

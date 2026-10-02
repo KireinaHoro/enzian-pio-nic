@@ -97,8 +97,50 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // initialization to avoid latches
   nackSent := False
   rxDesc.setBlocked()
-  dcsQ.setBlocked()
+  dcsQ.ar.setBlocked()
+  dcsQ.r.setIdle()
   pktBufAxi.setIdle()
+
+  // An exclusive RX load can return data on invalidation even without a CPU
+  // store. Complete those writes independently of the read FSM: the next RX
+  // read may be waiting for the LCIA which itself waits for this write's B.
+  // For now discard the returned bytes. RxTxDecoupledProtocol could instead
+  // use this half-cycle for a command/status or a response that fits in the RX
+  // CL (including intentional CPU stores). Feasibility and latency/throughput
+  // benefits remain to be analysed; see docs/hardware/rx-writeback.md.
+  val writeActive = Reg(Bool()) init False
+  val writeSecondBeat = Reg(Bool()) init False
+  val writeResponse = Reg(Bool()) init False
+  val writeId = Reg(dcsQ.aw.id.clone)
+  dcsQ.aw.ready := !writeActive && !writeResponse
+  when(dcsQ.aw.fire) {
+    writeId := dcsQ.aw.id
+    writeActive := True
+    writeSecondBeat := False
+  }
+  dcsQ.w.ready := writeActive
+  when(dcsQ.w.fire) {
+    assert(dcsQ.w.last === writeSecondBeat, "RX writeback must contain two beats")
+    when(writeSecondBeat) {
+      writeActive := False
+      writeResponse := True
+    } otherwise {
+      writeSecondBeat := True
+    }
+  }
+  dcsQ.b.valid := writeResponse
+  dcsQ.b.id := writeId
+  dcsQ.b.setOKAY()
+  when(dcsQ.b.fire) { writeResponse := False }
+
+  // Count at the external boundary, including AWs still inside the queue and
+  // responses held under backpressure. AW queue (8) + one active transaction.
+  val pendingWrites = Reg(UInt(4 bits)) init 0
+  when(dcsAxi.aw.fire =/= dcsAxi.b.fire) {
+    when(dcsAxi.aw.fire) { pendingWrites := pendingWrites + 1 }
+      .otherwise { pendingWrites := pendingWrites - 1 }
+  }
+  when(dcsAxi.b.fire) { assert(pendingWrites =/= 0) }
 
   // command saved from DCS in AR
   val readCmd: Axi4Ar = Reg(dcsAxi.ar.payload.clone)
@@ -283,7 +325,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
   }
   fsm.build()
-  quiescent := fsm.isActive(fsm.idle) && !dcsQ.ar.valid
+  quiescent := fsm.isActive(fsm.idle) && !dcsQ.ar.valid &&
+    pendingWrites === 0 && !dcsAxi.aw.valid && !dcsAxi.w.valid
 
   val stateOut = out(fsm.stateReg.clone)
   stateOut := fsm.stateReg

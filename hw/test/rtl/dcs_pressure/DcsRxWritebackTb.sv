@@ -155,13 +155,14 @@ module DcsRxWritebackTb;
      send(local_cmd(LCL_CMD_MFWD_CLEAN_INV,40'h100));ack(40'h100,1);
      assert(trace_req==A31d && trace_action==WDD) else $fatal(1,"wrong HAKD decode/action");
      repeat(200) @(negedge clk);
-     assert(write_requests==1 && write_responses==0 && lcias==0 && read_beats==2)
-       else $fatal(1,"expected WDD dependency not reproduced");
-     assert(aw_count==1 && w_count==(sink ? 2 : 0)) else $fatal(1,"unexpected AXI acceptance");
+     assert(aw_count==1 && w_count==2) else $fatal(1,"unexpected AXI acceptance");
      if(!sink) begin
-       assert(wvalid && !wready && !router_bvalid) else $fatal(1,"RX unexpectedly serviced writeback");
-       $display("PASS obstruction reproduced: RX queued AW but WREADY stays low; no B/WDDA/LCIA; control 0x80 blocked for 200 cycles");
+       assert(write_requests==1 && write_responses==1 && lcias==1 && read_beats==4)
+         else $fatal(1,"production RX writeback did not release LCI and next read");
+       $display("PASS production RX drains returned data, completes WDDA/LCIA and releases control 0x80");
      end else begin
+       assert(write_requests==1 && write_responses==0 && lcias==0 && read_beats==2)
+         else $fatal(1,"expected delayed-B dependency not reproduced");
        $display("PASS independent test sink accepts full burst but delayed B still blocks WDDA/LCIA/read");
        release_b=1;repeat(80) @(negedge clk);
        assert(write_responses==1 && lcias==1 && read_beats==4)
