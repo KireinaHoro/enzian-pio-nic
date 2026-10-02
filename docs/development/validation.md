@@ -185,3 +185,29 @@ the Nix output. Cases are separately cacheable derivations, each with four TLC
 workers and a 4 GiB heap. Timeouts are two hours, or six hours for the larger
 `full-stalled-progress` case. See its report for current
 validation status and finite bounds.
+
+### RX writeback regression reproducer
+
+The October 2 board failure is reproduced by connecting the actual generated RX
+AXI router to the actual DCU and `axi_wr_cl` using the selected ROM. Run from the
+repository root; output directories must be new:
+
+```sh
+nix build .#dcsRom --out-link out/rx-writeback-rom
+nix develop -c mill gen.test.runMainLocal \
+  lauberhorn.host.eci.GenRxWritebackFixture "$PWD/out/rx-writeback-rtl"
+nix develop -c python3 tools/progress/check_dcs_pressure.py \
+  --rom out/rx-writeback-rom \
+  --rx-router out/rx-writeback-rtl/RxWritebackFixture.v \
+  --output out/rx-writeback-check
+```
+
+A passing diagnostic means the **obstruction was reproduced**, not that the
+production design is fixed: AW queues, WREADY remains low, and B/WDDA/LCIA and
+the next RX control read do not complete over 200 cycles. Controls check a
+no-data HAKD and an independent test write sink; the latter accepts both beats,
+withholds B, then releases B and observes WDDA, LCIA and the pending read finish.
+The test uses synthetic returned data, manual initial DC read completion, test
+XPM RAM and direct LCIA-to-`invDone` wiring. It excludes the full slice data
+buffer/crossbar, THX and higher-level RX protocol. The sink is not a proposed
+production data-disposition policy. See the [board comparison](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).

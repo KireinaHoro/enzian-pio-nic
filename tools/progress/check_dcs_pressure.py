@@ -21,16 +21,18 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--rom', type=Path, help='Nix-generated Lauberhorn ROM directory; run active-variant DCU checks')
+    p.add_argument('--rx-router', type=Path, help='generated RxWritebackFixture.v; reproduce RX writeback obstruction with --rom')
     p.add_argument('--trace', action='store_true', help='test real DCU debug port with full resident and local-lock sets')
     p.add_argument('--directory', action='store_true', help='populate actual TSU/tag RAM via protocol events; use test XPM primitive model')
     p.add_argument('--no-auto-lock', action='store_true', help='test the alternative table/controller, excluding the UL decoder')
     a=p.parse_args()
+    if a.rx_router and not a.rom: p.error('--rx-router requires --rom')
     if a.rom and (a.directory or a.trace or a.no_auto_lock): p.error('--rom selects the Lauberhorn harness')
     if a.directory and a.trace: p.error('select directory or trace harness')
     if (a.directory or a.trace) and a.no_auto_lock: p.error('directory reachability test uses active auto_lock only')
     out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     sources = [Path(str(f).replace('dc_stmc_auto_lock/', 'dc_stmc_auto_no_lock/')) if a.no_auto_lock else f for f in SOURCES]
-    top = 'DcsLauberhornTb' if a.rom else 'DcsTraceTb' if a.trace else 'DcsDirectoryTb' if a.directory else 'DcsPressureTb'
+    top = 'DcsRxWritebackTb' if a.rx_router else 'DcsLauberhornTb' if a.rom else 'DcsTraceTb' if a.trace else 'DcsDirectoryTb' if a.directory else 'DcsPressureTb'
     if a.directory or a.trace or a.rom:
         sources = SOURCES[:3] + SOURCES[4:7] + [
             DCS/'dcs/dcu/dcu_tsu/rtl/dcu_tsu.sv',
@@ -44,6 +46,8 @@ def main():
         sources.append(Path('hw/test/rtl/dcs_pressure') / (top + '.sv'))
     if a.rom:
         sources = [a.rom.resolve()/f.name if f.name in ('eci_cc_defs.sv', 'eci_cc_table.sv') else f for f in sources]
+    if a.rx_router:
+        sources += [a.rx_router.resolve(), DCS/'desc_to_axi/axi_wr_cl/rtl/axi_wr_cl.sv']
     cmd=['verilator','--binary','--timing','--assert','-Wno-fatal','--top-module',top,
          '--Mdir',str(out/'obj'),'-o','test', *map(lambda f:str(ROOT/f),sources)]
     if a.rom: cmd.append('+define+DCS_LAUBERHORN')
@@ -54,7 +58,7 @@ def main():
         print('\n'.join((out/'build.log').read_text().splitlines()[-30:])); return 1
     result=subprocess.run([str(out/'obj/test')],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
     (out/'run.log').write_text(result.stdout)
-    passed=result.returncode==0 and result.stdout.count('PASS ')==(5 if a.no_auto_lock else 6)
+    passed=result.returncode==0 and result.stdout.count('PASS ')==(4 if a.rx_router else 5 if a.no_auto_lock else 6)
     summary={'passed':passed, 'trace_test': a.trace, 'directory_test': a.directory, 'primitive_model': 'test-only common-clock XPM RAM' if a.directory or a.trace or a.rom else None,'interpretation': 'expected unsafe full-miss write reproduced; not a viable drop-in' if a.no_auto_lock else 'active auto-lock allocation dependency reproduced', 'protocol': 'auto_no_lock' if a.no_auto_lock else 'auto_lock', 'scope':__doc__, 'command':cmd,
         'verilator':subprocess.check_output(['verilator','--version'],text=True).strip(),
         'sources':{str(f):hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in sources},
@@ -63,6 +67,9 @@ def main():
     if a.rom:
         summary.update(protocol='lauberhorn_lci_only', interpretation='generated-ROM DCU integration',
                        scope='Actual DCU and directory; test XPM; not full slice, THX or NIC composition')
+    if a.rx_router:
+        summary.update(interpretation='expected RX writeback obstruction reproduced; test-only completion sink releases it',
+                       scope='Actual DCU, axi_wr_cl and RX router; test RAM, synthetic returned data/read completions and direct LCIA-to-invDone wiring; not full DCS/NIC/THX simulation')
     if a.trace:
         summary['interpretation'] = 'trace-only: full-miss backpressure preserved for resident and all-locked sets'
         summary['scope'] = 'Actual DCU debug outputs and shared slice address-selection helper; XPM primitive model; not full trace mux/DMA or board validation'

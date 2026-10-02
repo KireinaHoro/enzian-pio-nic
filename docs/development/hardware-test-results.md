@@ -573,8 +573,9 @@ Source inspection identifies the corresponding integration gap:
 AXI write adapter waits for B completion before returning write completion. The
 selected endpoint therefore exposes an RX writeback dependency the application
 router cannot service. This is not a captured forbidden ROM transition. Actual
-AXI handshakes are not traced here; add a directed real-DC/RX-router regression
-and establish correct RX writeback disposition before claiming a fix.
+AXI handshakes are not traced on the board; the subsequent directed
+[real-DC/RX-router diagnostic](validation.md#rx-writeback-regression-reproducer)
+reproduces the missing service. Correct RX writeback disposition remains open.
 
 This also makes the model's independent writeback-service premise a concrete
 implementation blocker. The bounded model result remains conditional on that
@@ -582,3 +583,50 @@ premise. No addr/PREEMPT implementation or workaround was added during this test
 The DUT remains programmed with tracing frozen; original VIO values and all
 artifacts/logs are retained in `out/board/20261002-lci/` and matching shared/ba2
 paths recorded there. Preserve that state before further board work.
+
+### RX regression comparison: RA2 to RA3 — 2026-10-02
+
+The RX failure is newly exposed by the **R12 → RA3 permission change**, not by
+new software stores or a newly introduced FLDX opcode. Re-decoding the final
+September 28 successful capture (`5cda901`, DC `7b5cc87`) gives three complete
+exchanges for bypass RX overflow `0x100`:
+
+| Build | Read response | LCI forward | CPU response |
+| --- | --- | --- | --- |
+| September 28 successful baseline | `PSHA` / RA2 (shared) | `SINV_H`, dmask 0 | `HAKD`, dmask 0 |
+| October 2 selected simplified DC | `PEMD` / RA3 (exclusive) | `FLDX_EH`, dmask 15 | `HAKD`, dmask 15 |
+
+The first older exchange is at trace ticks 32493095802 (RLDD), 32493095903
+(PSHA), 32493097336 (SINV_H), 32493097375 (HAKD). The failing exchange is at
+32981670372 (RLDD), 32981670476 (PEMD), 32981671951 (FLDX_EH), 32981671998
+(HAKD). These are different captures' clocks, not comparable wall times.
+[Retained excerpts and provenance](../../data/eci/board-evidence/rx-ra3-comparison-20261002.json)
+include an additional older RX exchange and TX `0x8000` exchange: TX already
+used FLDX_EH/data-bearing HAKD after acquiring exclusive permission.
+
+The older build selected `gen_dc_protocol/dc_stmc_auto_lock/cc_rom_from_cc_tbl`
+through `create_project.tcl`. Its R12 miss enters `s1__2pRA2`, then RDDA emits
+RA2/PSHA. The historical `replyRA3` branch was not the selected baseline.
+The new `dc_stmc_lauberhorn` generator instead enters `s1__3pRA3`, then emits
+RA3/PEMD. Both implementations already map F31 to FLDX_EH. Shared RX previously
+used F21/SINV_H, so it did not request the returned data now seen on RX.
+
+A data-bearing HAKD here is **not evidence of a CPU store**. The local THX
+`legacy/remote_fsm.txt` admits the load-only sequence `LS → IS_d`, `AE_d → E`,
+`FE_d → FA_d`; a home forward requests data from the exclusive owner. That FSM
+does not distinguish payload cleanliness. The kernel RX source is unchanged
+between these two revisions. The causal integration mismatch is exclusive RX
+permission plus data-returning invalidation against an RX AXI endpoint with no
+write completion service. Calling this merely a “dirty CPU line” obscures the
+change that exposed it.
+
+The directed RTL diagnostic subsequently passed all four expected observations:
+no-data HAKD completes without a write, data-bearing HAKD on RX queues AW but
+stalls W for 200 cycles, a test sink withholding B preserves the wait, and
+releasing B completes WDDA/LCIA and the pending RX control read. It connects the
+actual DCU, AXI write adapter and generated RX router, with the environment
+limitations listed in the [reproduction instructions](validation.md#rx-writeback-regression-reproducer).
+The six existing selected-ROM DCU checks were also rerun. The four diagnostic
+passes establish the obstruction and intervention, not production acceptance.
+[Run evidence](../../data/eci/board-evidence/rx-writeback-rtl-20261002.json) records
+source hashes and the observed outcomes.
