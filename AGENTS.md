@@ -36,8 +36,11 @@ CMAC trace path uses F_MAC1; revision `5cda901` passed 300 RPCs and three full
 
 The selected bounded Goal 2 modeling round is complete; see the
 [scheduling composition report](docs/hardware/scheduling-composition.md). The
-source build selects the simplified LCI-only DC with UL removed, but the
-router-free 8 KiB address layout and cooperative PREEMPT ABI remain unimplemented.
+source build selects the simplified LCI-only DC with UL removed. The 8 KiB
+physical-worker address layout and cooperative PREEMPT ABI are the sole ECI
+implementation on `feat/cooperative-yield`; see the [implementation evidence](docs/hardware/eci-implementation.md).
+Local model, simulation and software checks passed. Pipeline 515944 (`8cc9ad58`)
+is the matched hardware candidate; fresh board acceptance remains outstanding.
 The initial October 2 simplified-DC trial exposed missing RX AXI write service.
 The independent RX write sink at `a51139e` passed pipeline 515802 and two
 cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
@@ -47,8 +50,8 @@ Timing remains open: WNS −0.005 ns, one failing setup endpoint. The
 DC/THX endpoint checks and remaining race/refinement gaps.
 DUT zuestoll14 remains on `a51139e` with its four-worker adder service running
 and tracing active after the second trial; recheck reservation before access.
-The prior failing capture is preserved. Implementation planning can proceed;
-retain the documented hardware-service assumptions and implementation checks.
+The prior failing capture is preserved. Continue the matched CI/board acceptance
+campaign, retaining the documented hardware-service assumptions.
 
 ## Confirmed research and scheduling scope
 
@@ -58,7 +61,8 @@ Planned applications: Dandelion, RPC server, userspace NFS, memcached, and
 consensus such as etcd/Raft. Read [Dandelion](docs/research/dandelion.md) before
 porting student runtime work from `../sven-dandelion`; its evaluation uses a
 software mock. Tasks run to finish on isolated RPC worker cores, never shared
-with ordinary tasks. Timeout/kill recovery and QP/DCU coloring remain open.
+with ordinary tasks. Complete timeout/kill recovery remains open. The selected QP/DCU coloring is
+implemented; board progress acceptance is still required.
 Finished TCP/Protobuf student work lives in `../flavian-tcp` and
 `../elena-protobuf`; merge soon to limit drift, below first-paper application
 priority. Fully offloaded gRPC is a potential follow-on paper.

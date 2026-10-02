@@ -5,6 +5,7 @@ import lauberhorn.Global._
 import lauberhorn.NicEngine
 import lauberhorn.sim._
 import org.pcap4j.packet.{EthernetPacket, IpV4Packet, UdpPacket}
+import org.pcap4j.packet.namednumber.EtherType
 import org.scalatest.tagobjects.Slow
 import spinal.core.sim._
 import spinal.core.{BigIntToSInt => _, BigIntToUInt => _}
@@ -615,11 +616,13 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     waitUntil(allDone)
   }
 
-  for (stalledCount <- Seq(1, 2)) {
+  for (stalledCount <- Seq(1, 2, 3)) {
     testWithDB(s"rx-independent-progress-$stalledCount-stalls")(Rx) { implicit dut =>
       // Finite RTL correspondence using the selected physical aliases.
       // This does not establish a silicon stall-timeout bound.
-      val (csrMaster, axisMaster, dcsMaster) = rxDutSetup(50000)
+      val (csrMaster, axisMaster, axisSlave, dcsMaster) = commonDutSetup(50000)
+      csrMaster.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+      setBypassCore(() => ())
       val procs = (0 to stalledCount).map { idx =>
         val thr = ThreadDef(100 + idx)
         val proc = ProcDef(100 + idx, Seq(thr))
@@ -664,18 +667,35 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
         assert(tryReadPacketDesc(dcsMaster, peerTid).result.nonEmpty)
         assert(returned.forall(x => !x), "peer waited for an unrelated RX to time out")
       }
-      // Independent bypass RX probes exercise both parities while workers stall.
-      // Current bypass placement cannot support the proposed full-duplex contract.
+      // Simultaneous bypass RX/TX, including both control parities, while every
+      // stalled worker still has an outstanding DCS read.
+      val (_, _, clientMac) = enzianIpMacAddrs(0)
+      val (_, _, serverMac) = enzianIpMacAddrs(1)
+      val etherType = EtherType.getInstance(0x88b5.toShort)
       for (_ <- 0 until 2) {
-        assert(tryReadPacketDesc(dcsMaster, -1, maxTries = 1).result.isEmpty)
+        val bytes = simRandom.nextBytes(160).toList
+        val incoming = ethernetPacket(etherType, rawPayloadBuilder(bytes.toArray)).getBuilder
+          .srcAddr(clientMac).dstAddr(serverMac).build()
+        val outgoing = incoming.getBuilder.srcAddr(serverMac).dstAddr(clientMac).build()
+        var txDone = false
+        fork {
+          check(outgoing.getRawData.toList, axisSlave.recv())
+          txDone = true
+        }
+        fork { txSendSingle(dcsMaster, TxEthernetCmdSim(bytes.length, clientMac, etherType.value), bytes, -1) }
+        axisMaster.send(incoming.getRawData.toList)
+        val (desc, payload) = tryReadPacketDesc(dcsMaster, -1, maxTries = 100).result.get
+        assert(desc.isInstanceOf[BypassCtrlInfoSim])
+        check(bytes, readPayload(dcsMaster, payload, desc.len).take(bytes.length))
+        waitUntil(txDone)
       }
       assert(returned.forall(x => !x), "stalled reads must remain outstanding through the observation window")
       CoherenceEventChecks.check(traceConsumer.snapshot)
     }
   }
 
-  // FIXME: rework the address map (from Jasmin) and re-enable this for CI!
-  testWithDB("rx-tx-interleaved")(Rx, Tx, Slow) { implicit dut =>
+  // Separate RX/TX control colors permit TX admission while RX is held.
+  testWithDB("rx-tx-interleaved")(Rx, Tx) { implicit dut =>
     // The bypass core can have RX and TX happening simultaneously, so it's
     // important that the interconnects can allow unrelated reads/writes to
     // interleave.  However, we can't directly check on bypass, since no
@@ -697,7 +717,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // - the address map not placing the RX and TX control CLs on the same
     //   DCU, since each DCU can have one read and one write in-flight
     //   (DcsAppMaster emulates this behaviour)
-    //   => TODO
+    //   => selected 8 KiB physical-worker layout
     // - the downsize adapter allowing more in-flight requests than possible
     //   number of stalled requests (i.e. number of workers)
     //   (DcsAppMaster emulates this behaviour)

@@ -606,8 +606,8 @@ Plan:
 
 - do not make this a spill target initially;
 - keep fully-connected while core count is small;
-- if scaling core/thread mappings becomes necessary, redesign as direct
-  prefix/index maps rather than a generic multi-cycle associative RAM.
+- the current physical-worker decoder and indexed ownership table do not need
+  an associative spill path.
 
 ## Lookup Table Implementation Plan
 
@@ -621,7 +621,7 @@ replacement for every `LookupTable` user.
    - current behavior;
    - explicit name for small fully-connected tables;
    - 3-cycle pipelined lookup;
-   - useful for `listenDb` and `threadDb`.
+   - useful for `listenDb`.
 
 2. `LookupTableRamScan`
 

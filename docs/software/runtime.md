@@ -87,8 +87,8 @@ Runtime-managed Raft services and
 resident memcached workers are [documented follow-on designs](service-execution-design.md)
 only. Neither is implemented by this batch.
 
-Per-request CSV tracing from the old synchronous runtime has not been restored
-in this branch. Do not infer current tracing support from historical logs.
+Per-request CSV tracing is available through the optional interface below.
+Historical trace results do not validate this scheduling/address revision.
 Hardware module-load reliability, worker placement and matched-checkpoint
 acceptance remain separate tracked gates.
 

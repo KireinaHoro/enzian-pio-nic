@@ -227,3 +227,23 @@ Run `nix build .#checks.x86_64-linux.coherence-layers` for generated DC/THX
 line exchanges, repeated worker operations, fault cases and the detailed
 steady-state projection. `tla-modules` enforces layer imports and parses every
 module. See [bounds, optional products and remaining obligations](../hardware/layered-verification.md).
+
+## Cooperative scheduling and slice routing
+
+`checks.x86_64-linux.scheduling-cooperative` checks the idle notification,
+interrupt-free handoff, claim exchange and pool-bootstrap models. The focused
+`CooperativeYieldSim` and `CooperativeAllocationSim` suites cover delayed cleanup,
+shared AXI-Lite contention, zero ordinary IRQs, idle-first allocation and migration.
+`OncRpcSim` checks one/two/three stalled workers with independent worker and
+simultaneous bypass RX/TX progress. See the [evidence ledger](../hardware/eci-implementation.md)
+for current results and remaining hardware obligations.
+
+The pinned `dcs-lauberhorn` check now runs both the real DCU tests and
+`tools/progress/check_slice_routing.py`. The latter sends 812 selected-map
+address trials through the production 32-DCU slice control array, routers and
+arbiters. It verifies address/ID preservation through read completion, dirty
+write completion and backpressured LCIA. The XPM RAM and passive trace outputs
+are test models; the payload datapath and ThunderX are not instantiated. The
+runner removes one unmatched `%d` from an upstream unsupported-size diagnostic
+in a temporary compile copy; it does not alter protocol logic or the dependency.
+Source hashes and that normalization are recorded in `slice-summary.json`.
