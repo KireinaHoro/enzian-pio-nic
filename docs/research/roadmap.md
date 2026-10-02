@@ -33,13 +33,21 @@ planning is now the next step, as requested.
 
 ## Next steps after the bounded modeling round
 
+Implementation has started on `feat/fixed-worker-cooperative-yield`, with
+generated address arithmetic, a standalone owner-validating decoder, and focused
+idle-kick/ordinary-handoff checks. See [evidence and remaining integration](../hardware/fixed-worker-implementation.md).
+Production routing, cooperative RTL/kernel/runtime integration, CI and the fresh
+Enzian RX-stall timeout probe remain outstanding. HOST_WAKE interface design and
+implementation, deadline-kick integration, and complete kill/exit recovery are
+explicitly outside this stage; step 4 below is later work.
+
 The selected scheduling matrix and initial three-layer checks are complete.
 Carry their assumptions into implementation as explicit service contracts and
 local checks; full THX/RTL refinement and every larger model product are not
 prerequisites for starting implementation. Close any newly exposed dependency
 that invalidates those contracts before relying on the affected mechanism.
-Detailed implementation planning remains the next plan-mode task; the
-existing-design RX-fix board trial has passed. The sequence below does not start production changes.
+The existing-design RX-fix board trial has passed. The sequence below separates
+the replacement integration from deferred follow-on work.
 
 | Order | Work | Completion checkpoint |
 | --- | --- | --- |
