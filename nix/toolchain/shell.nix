@@ -44,7 +44,8 @@ mkShell {
     sby
     yices
     jdk
-    python3
+    # Enzian boot/test helpers drive the serial consoles through pexpect.
+    (python3.withPackages (p: [ p.pexpect ]))
     (perl.withPackages (p: [ p.autovivification ]))
     tlc
     mill
