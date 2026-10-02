@@ -14,6 +14,15 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+LAYERS = {
+    'common': {'common'},
+    'contracts': {'common', 'contracts'},
+    'worker': {'common', 'contracts', 'worker'},
+    'steady': {'common', 'contracts', 'steady'},
+    'scheduling': {'common', 'contracts', 'scheduling'},
+    'composition': {'common', 'contracts', 'worker', 'steady', 'scheduling', 'composition'},
+    'legacy': {'legacy'},
+}
 STANDARD = {'Naturals', 'Integers', 'Sequences', 'FiniteSets', 'Bags'}
 
 
@@ -52,8 +61,15 @@ def main():
     inventory_path = ROOT / 'model/config/modules.json'
     inventory = json.loads(inventory_path.read_text())
     paths = [ROOT / 'model/legacy/tla/lauberhorn.tla']
-    paths += sorted((ROOT / 'model/tla/steady').glob('*.tla'))
-    paths += sorted((ROOT / 'model/tla/scheduling').glob('*.tla'))
+    paths += sorted((ROOT / 'model/tla').glob('*/*.tla'))
+    contracts_path = ROOT / 'model/config/contracts.json'
+    contracts = json.loads(contracts_path.read_text())
+    for name, contract in contracts.items():
+        for module in [contract['interface'], *contract['providers'], *contract['consumers']]:
+            if module not in inventory:
+                raise ValueError(f'{name}: missing contract module {module}')
+        if not contract['assumptions'] or not contract['checked_properties']:
+            raise ValueError(f'{name}: empty contract obligations')
     names = {p.stem for p in paths}
     if len(names) != len(paths) or names != set(inventory):
         raise ValueError(f'module inventory mismatch: {names ^ set(inventory)}')
@@ -67,10 +83,16 @@ def main():
             raise ValueError(f'module/file name mismatch: {path}')
         if 'legacy' not in path.parts and re.search(r'\b(?:unlockQ|Unlock|Unlocked|DeliverUnlock|Nonlocking|AllocateOnInvalidate)\b', uncomment(source)):
             raise ValueError(f'legacy endpoint leaked into active module: {path}')
+        layer = inventory[path.stem]['layer']
+        if layer != ('legacy' if 'legacy' in path.parts else path.parent.name):
+            raise ValueError(f'{path}: wrong layer {layer}')
         actual = imports(source)
         expected = set(inventory[path.stem]['imports'])
         if actual - STANDARD != expected or actual - STANDARD - names:
             raise ValueError(f'{path.stem}: expected imports {expected}, got {actual - STANDARD}')
+        for child in expected:
+            if inventory[child]['layer'] not in LAYERS[layer]:
+                raise ValueError(f'illegal layer edge: {path.stem} -> {child}')
         shutil.copyfile(path, work / path.name)
     # Exact import allow-lists also prevent generic resources importing harnesses.
     def visit(name, stack):
@@ -83,6 +105,7 @@ def main():
     result = {'kind': 'inventory/import boundaries and SANY; no TLC properties',
               'jar_sha256': hashlib.sha256(Path(jar).read_bytes()).hexdigest(),
               'inventory_sha256': hashlib.sha256(inventory_path.read_bytes()).hexdigest(),
+              'contracts_sha256': hashlib.sha256(contracts_path.read_bytes()).hexdigest(),
               'modules': {}}
     for path in paths:
         command = ['java', '-cp', str(Path(jar).resolve()), 'tla2sany.SANY', path.name]
@@ -94,7 +117,7 @@ def main():
         passed = passed and not re.search(r'\*\*\* (?:Errors|Abort messages)|Fatal errors|Exception', run.stdout)
         result['modules'][path.stem] = {
             'passed': passed, 'source_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
-            'role': inventory[path.stem]['role'], 'imports': inventory[path.stem]['imports']}
+            'layer': inventory[path.stem]['layer'], 'role': inventory[path.stem]['role'], 'imports': inventory[path.stem]['imports']}
         print(f'{path.stem}: {"PASS" if passed else "FAIL"}', flush=True)
         if not passed:
             print(run.stdout)

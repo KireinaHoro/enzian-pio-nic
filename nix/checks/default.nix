@@ -37,6 +37,7 @@ in
         bash ${src}/deps/blocks/deps/verilog-axi/tb/axi_crossbar/run_decerr.sh
         touch $out
       '';
+  coherence-layers = pkgs.callPackage ./coherence-layers.nix { inherit tlc dcsRom; };
   tla-modules = pkgs.callPackage ./tla-modules.nix { inherit tlc; };
   scheduling-kill-transport = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; killTransportOnly = true; };
   scheduling-full = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; fullOnly = true; };

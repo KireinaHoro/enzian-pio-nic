@@ -41,6 +41,10 @@ router-free 8 KiB address layout and cooperative PREEMPT ABI remain unimplemente
 The October 2 simplified-DC board trial failed at RX writeback: DC `WDD` waits
 on an RX AXI router that does not service writes. See the
 [board failure](docs/development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02).
+The RX write sink fix is now committed at `a51139e`; pipeline 515796 builds it,
+with board revalidation pending. The [layered verification report](docs/hardware/layered-verification.md)
+records generated DC/THX endpoint checks, public contract projections and the
+remaining low-level race/refinement gaps.
 DUT zuestoll14 was left programmed with tracing frozen; recheck reservation and
 preserve the failure before resetting. Retain the documented hardware-service
 assumptions and implementation checks.

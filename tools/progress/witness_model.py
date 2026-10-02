@@ -80,8 +80,8 @@ Admission == System!Admission
        case_function('a', [('"0x%x"' % a, c) for a, c in colors.items()]), stalls, case_function('c', allowed),
        case_function('c', controls), case_function('c', dependencies), len(clients)+1, len(clients)+1)
     output.mkdir(parents=True, exist_ok=False)
-    for module in ('ProgressSystem', 'DcsResources', 'ThxResources', 'TwoFClient', 'Coherence'):
-        shutil.copyfile(ROOT/f'model/tla/steady/{module}.tla', output/f'{module}.tla')
+    for source in (ROOT/'model/tla').glob('*/*.tla'):
+        shutil.copyfile(source, output/source.name)
     (output/'Witness.tla').write_text(text)
     (output/'Witness.cfg').write_text('SPECIFICATION Spec\nINVARIANTS Settled NoReadDependencyCycle\nPROPERTIES Progress Admission\nCHECK_DEADLOCK FALSE\n')
     (output/'manifest.json').write_text(json.dumps(dict(configuration=config, selected_domains=domains,

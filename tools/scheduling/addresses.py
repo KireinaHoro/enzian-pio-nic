@@ -34,7 +34,7 @@ def render():
             '=============================================================================\n')
 
 if __name__ == '__main__':
-    target = ROOT / 'model/tla/scheduling/SelectedAddresses.tla'
+    target = ROOT / 'model/tla/composition/SelectedAddresses.tla'
     if '--check' in sys.argv:
         assert target.read_text() == render(), 'regenerate selected addresses'
         print('Selected Goal 2 addresses match the Goal 1 encoder')

@@ -1,0 +1,176 @@
+{
+  "cases": {
+    "bad-retained-cache-hol": {
+      "config_sha256": "8d26da09e69724c1fa9747ab7a3cca6185babe23109acceb4f3b9347e4a34ff7",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 1.817,
+      "expected_violation": "Progress",
+      "log_sha256": "6e1dfe25c810fc232cf78d1f1ebf2611439ad1e4f43557c99c7037d79a48202c",
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(43) at 2026-10-02 09:25:38: 9,682 states generated, 4,364 distinct states found, 0 states left on queue.",
+        "9682 states generated, 4364 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 43."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "bad-retained-cache-no-replacement": {
+      "config_sha256": "e2d61a161b4a4530b79206b2c9a9213d0b5ab55ed62a34e2c3a0430ab11ebf09",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 0.866,
+      "expected_violation": "Progress",
+      "log_sha256": "b76fbdb0d570a413c7363ab6ece9e7051a5d5b48b3d8193e514bb2196791287a",
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(3) at 2026-10-02 09:25:39: 12 states generated, 8 distinct states found, 0 states left on queue.",
+        "12 states generated, 8 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 3."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "handoff": {
+      "config_sha256": "e626824613809eb5f616abab78ec30cef9291677bfaf2a38bb6018e8824ddb25",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 26.211,
+      "expected_violation": null,
+      "log_sha256": "d0f76e66fc8f80db65d1fbe57d0fd751ad5ffe07574cbdbdd12be2035b4aaf91",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(20) at 2026-10-02 09:18:00: 7,861 states generated (7,861 s/min), 3,729 distinct states found (3,729 ds/min), 380 states left on queue.",
+        "Progress(38) at 2026-10-02 09:18:04: 20,936 states generated, 8,256 distinct states found, 0 states left on queue.",
+        "20936 states generated, 8256 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 38."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "handoff-rx-tx": {
+      "config_sha256": "5c223fdc2c3a190aea06521a72cfea1c9332beb39fe5ce92a0015ced15e9c22f",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 180.767,
+      "expected_violation": null,
+      "log_sha256": "7f247ee1df8604f4414a48be77f6e4292d6a9d97d53db8a85125c6f8312d0f74",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(14) at 2026-10-02 09:22:30: 6,595 states generated (6,595 s/min), 3,244 distinct states found (3,244 ds/min), 560 states left on queue.",
+        "Progress(50) at 2026-10-02 09:22:56: 86,424 states generated, 28,800 distinct states found, 0 states left on queue.",
+        "86424 states generated, 28800 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 50."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "handoff-stalled-peer": {
+      "config_sha256": "a80f8c448de1a2db163f876d8007049c5c31be992fad1b56c933940806e9f713",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 244.128,
+      "expected_violation": null,
+      "log_sha256": "5eaca7c61ebaad316a62efc308b2f89bea6576ba2b0384f970897e5ce671e219",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(11) at 2026-10-02 09:18:26: 7,012 states generated (7,012 s/min), 3,144 distinct states found (3,144 ds/min), 668 states left on queue.",
+        "Progress(39) at 2026-10-02 09:18:58: 100,240 states generated, 33,024 distinct states found, 0 states left on queue.",
+        "100240 states generated, 33024 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 39."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "reachable-cache": {
+      "config_sha256": "b1370cef6ded7dee9cc416719f6f5c17b7cab52f18ad08220ae949e7fa7e5952",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 3.274,
+      "expected_violation": null,
+      "log_sha256": "54ce249426d131369a40bdf27cdb53af9e1e3f0083b234072e1b0cb6e6c969f8",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(44) at 2026-10-02 09:25:33: 37,398 states generated, 8,616 distinct states found, 0 states left on queue.",
+        "37398 states generated, 8616 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 44."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "retained-cache": {
+      "config_sha256": "31256ad89b78803c8d960c4f628429a3adb9afb3761171389dc136ca35cd0b68",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 3.17,
+      "expected_violation": null,
+      "log_sha256": "053af10de3a04f831aa9a315cfd14459d78ecc04ab1965f4aacc1236dbb862ff",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(32) at 2026-10-02 09:25:30: 37,374 states generated, 8,592 distinct states found, 0 states left on queue.",
+        "37374 states generated, 8592 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 32."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    },
+    "retained-cache-independent-queues": {
+      "config_sha256": "78fbb3e802216ea5ce85dd20938674871dc21a4e8c25383d1cc2303584f0a03b",
+      "directory_contract": "LCI-only: release on LCIA acceptance",
+      "elapsed_seconds": 3.22,
+      "expected_violation": null,
+      "log_sha256": "8fe550f70922a999a9d2a641fd1bd717f6ddb58b3b4e326d0a1724e3062986e9",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(32) at 2026-10-02 09:25:36: 24,326 states generated, 8,592 distinct states found, 0 states left on queue.",
+        "24326 states generated, 8592 distinct states found, 0 states left on queue.",
+        "The depth of the complete state graph search is 32."
+      ],
+      "verification_kind": "configured invariants and temporal properties"
+    }
+  },
+  "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+  "java_version": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-nixos)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-nixos, mixed mode, sharing)\n",
+  "sources": {
+    "model/config/scheduling/suite.json": "35258c2b2b62a227cf5415f7cf4540d508cc6e3347c63962f04aaeecb325f3d6",
+    "model/data/selected-8k.json": "384ede5508ce643508aff9abb5dc3a36393c2cf099874c9f56e8c3a39d4d64d5",
+    "model/tla/common/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+    "model/tla/common/LciBatch.tla": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed",
+    "model/tla/common/PacketResources.tla": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d",
+    "model/tla/common/ReadResponses.tla": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86",
+    "model/tla/composition/AxiReloadGate.tla": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7",
+    "model/tla/composition/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+    "model/tla/composition/DetailedSteady.tla": "146b5bb1aa6c8adbff51e3e30679ba6bfd7e43c083a355260a14b762f1eb556e",
+    "model/tla/composition/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+    "model/tla/composition/KillTransport.tla": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242",
+    "model/tla/composition/SchedulingComposition.tla": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107",
+    "model/tla/composition/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+    "model/tla/composition/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+    "model/tla/contracts/InvalidationPort.tla": "c3dc698f7599c82255ad1fde0ce6259d3c872ed17362b4a4d6f8297ef269828f",
+    "model/tla/contracts/TwoFClient.tla": "7fdaed318a9364ae2bc1b9037550ce155129e58066362d902923d4849749f56f",
+    "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+    "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+    "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+    "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+    "model/tla/scheduling/KillExit.tla": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7",
+    "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+    "model/tla/scheduling/ThreadClaim.tla": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b",
+    "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+    "model/tla/scheduling/WakeAckRace.tla": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72",
+    "model/tla/scheduling/WakeReassignment.tla": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e",
+    "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+    "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+    "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+    "model/tla/steady/DcsResources.tla": "21371bdb0131231df05223c5dcf514a28cd2d8a1198bcbdab853da9c6248aa4c",
+    "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+    "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+    "model/tla/steady/ProgressSystem.tla": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8",
+    "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+    "model/tla/steady/Steady.tla": "d2898fb7059a25af856a11532221af8282e64a68d739de9d45328da86940d53d",
+    "model/tla/steady/SteadyGeometry.tla": "5acc9155689cc4a5da22e11212ce55cadbcdea7bd7dcef29a25ac33f1120c346",
+    "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+    "model/tla/worker/DcMachine.tla": "64165f069bbed5f1202b8edb0c79cff6bc72ac324f056ed47cd4ce4cb5bee578",
+    "model/tla/worker/LineEndpoint.tla": "7da293cad892c6449836ce8e7d1d530c71bce4052ca7063df7066bc1e33959c3",
+    "model/tla/worker/SingleWorker.tla": "b70ad0b2a52b176bea099e8116b5f99e18ea995fec93b25924b8e8c79542c8b6",
+    "model/tla/worker/ThxMachine.tla": "65011d0f91eb43a532c5aca443788170816121dbaddd131629a006cc58f2436e",
+    "tools/progress/capacity.py": "d93b4779d525dc29b0a10bdf31126a2f6cc216981cb36c4696a1da8fc0a216bd",
+    "tools/scheduling/addresses.py": "27623398e2111c2cff42807b4d7172ab5e4b1681cb23fbbadf7a84e336b8299b",
+    "tools/scheduling/check_models.py": "f35df60d4ed6d841bc0f71c86030967de8993142316c9cf32b42eb8d2c2c05cf"
+  },
+  "verification_kind": "state invariants and temporal properties"
+}

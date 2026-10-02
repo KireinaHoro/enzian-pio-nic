@@ -1,25 +1,32 @@
 # TLA+ models
 
-The active model is the **LCI-only endpoint** with cooperative scheduling. Start
-with [ProgressSystem](tla/steady/ProgressSystem.tla), then
-[CachedTransport](tla/steady/CachedTransport.tla), then
-[Handoff](tla/scheduling/Handoff.tla) and
-[SchedulingComposition](tla/scheduling/SchedulingComposition.tla). The
-[completed bounded report](../docs/hardware/scheduling-composition.md) distinguishes
-checked cases from larger combinations and hardware assumptions.
-[CombinedScheduling](tla/scheduling/CombinedScheduling.tla) retains separate
-historical/two-worker coverage.
+The active LCI-only model has three verification layers. Start with
+[`LineEndpoint`](tla/worker/LineEndpoint.tla) and
+[`SingleWorker`](tla/worker/SingleWorker.tla), then
+[`ProgressSystem`](tla/steady/ProgressSystem.tla), then
+[`SchedulingComposition`](tla/composition/SchedulingComposition.tla).
+The [layered verification report](../docs/hardware/layered-verification.md)
+explains checked projections, assumptions, optional detailed products and gaps.
+The [scheduling report](../docs/hardware/scheduling-composition.md) retains the
+historical larger bounds; moving modules does not rerun those checks.
 
 | Directory | Contents |
 | --- | --- |
-| [`tla/steady`](tla/steady) | Resource components and steady-state harnesses; TLA+ source only |
-| [`tla/scheduling`](tla/scheduling) | Assignment component, focused race contracts and composition harnesses; TLA+ source only |
-| [`config/steady`](config/steady) | TLC configurations for steady-state bounds and fault cases |
-| [`config/scheduling/suite.json`](config/scheduling/suite.json) | Scheduling bounds, fault injections, checked properties and named suites; the runner emits each effective `.cfg` |
+| [`tla/worker`](tla/worker) | Selected DC/THX table interpreters, single-line exchanges and repeated half-duplex worker operations |
+| [`tla/steady`](tla/steady) | Generic finite resource/cache components and fixed-assignment progress harnesses |
+| [`tla/scheduling`](tla/scheduling) | Focused assignment, wake, kill and control contracts; no concrete coherence state |
+| [`tla/contracts`](tla/contracts) | Shared invalidation and serialized worker-operation interfaces |
+| [`tla/common`](tla/common) | Generic typed messages, ordered channels and buffer ownership |
+| [`tla/composition`](tla/composition) | Cross-layer adapters and optional detailed endpoint products |
+| [`config`](config) | Bounds, TLC properties, import policy and the [contract ledger](config/contracts.json) |
 | [`data`](data) | Selected address-layout input, independent of verification results |
-| [`evidence`](evidence) | Recorded results and provenance; old source paths/hashes remain historical |
-| [`legacy/tla`](legacy/tla) | Frozen original model and Toolbox source snapshots, outside the active import graph |
-| [`config/modules.json`](config/modules.json) | Reviewed import allow-list and role of every canonical module |
+| [`evidence`](evidence) | Recorded results and provenance; old paths/hashes remain historical |
+| [`legacy/tla`](legacy/tla) | Frozen original model and Toolbox snapshots, outside the active import graph |
+
+Worker, steady and scheduling layers cannot import each other. The structural
+check enforces the reviewed import policy; explicit compositions join them.
+Generated ROM/THX table data comes from the selected Nix ROM and extracted THX
+JSON, not handwritten replacement transitions.
 
 Generated TLC states, logs, emitted configurations and counterexamples go under
 ignored `out/`, not beside the source. The historical Toolbox configurations are
@@ -131,7 +138,8 @@ combined harness remain stronger than the selected monotonic-allocation kill
 policy. They assume endpoint retirement; `KillExit` permits cached old lines to
 remain. Neither a kernel cache flush nor an activation commit write is implied.
 
-Single-line protocol correctness, independent THX replacement/response service,
+The new low-level suites check selected single-line histories and repeated worker
+operations, not every THX race. General single-line correctness, independent THX replacement/response service,
 exact writeback/data-buffer timing and hardware correspondence of kill TX/overflow cleanup, and hardware conformance to the
 [AXI response contracts](../docs/hardware/axi-response-contract.md) remain undischarged. See the
 [review and current evidence](../docs/hardware/model-review.md) and
@@ -143,6 +151,7 @@ All commands use the locked Nix `tlaplus18` toolchain:
 
 ```sh
 nix build .#checks.x86_64-linux.tla-modules
+nix build .#checks.x86_64-linux.coherence-layers
 nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-transport
 nix build .#checks.x86_64-linux.scheduling-axi
@@ -156,6 +165,6 @@ nix develop -c python3 tools/scheduling/check_models.py \
 ```
 
 The module check validates inventory, imports, absence of the legacy endpoint,
-and SANY semantics. It is not a model check. TLC suites test their configured
+layer boundaries, the contract inventory, and SANY semantics. It is not a model check. TLC suites test their configured
 properties only; `--safety-only` omits temporal properties, including snapshot
 stability. Full combined liveness remains open.

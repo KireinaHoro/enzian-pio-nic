@@ -8,6 +8,24 @@ record accepted timing limitations, the cross-process late-reply race to test,
 and the startup workflow explanation. Dandelion validation is reserved until
 the maintainer's scheduler/critical-section design changes are integrated.
 
+## Active coherence verification follow-up — October 2
+
+The [three-layer model](../hardware/layered-verification.md) now separates
+single-worker coherence, steady-state shared-resource progress, and scheduling.
+Its generated DC/THX tables reproduce the missing RX write-service dependency;
+public contracts and optional detailed products connect the layers. Remaining
+modeling is broader CPU eviction/request races and independent VC ordering,
+finite shared response/data resources, and justified full-product fairness.
+These are distinct from the historical bounded scheduling completion milestone.
+
+RX writebacks are now drained and discarded by the RTL, with a
+[design note](../hardware/rx-writeback.md) retaining command/status/fast-response
+use as an open feasibility/performance study. Pipeline
+[515796](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515796)
+builds that fix at `a51139e`; board validation is still pending. Keep the existing
+router and address ABI for this trial. Router-free address/PREEMPT implementation
+planning follows that hardware check, as requested.
+
 ## Work supported by repository evidence
 
 | Work | Current evidence / gap | Completion evidence to seek |

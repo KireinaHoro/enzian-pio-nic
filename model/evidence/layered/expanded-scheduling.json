@@ -1,0 +1,76 @@
+{
+  "cases": {
+    "expanded-scheduling-safety": {
+      "config_sha256": "1c05f10fa9757d162d74075f5ca8cbd938887fde8b3023c5f4591e83da270e77",
+      "elapsed_seconds": 125.699,
+      "expected_violation": null,
+      "log_sha256": "b351d17946db1f523e21cfbf00e5cf11c1df5cb7184933b68d5a1e46369ae627",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(7) at 2026-10-02 09:24:12: 1,969 states generated (1,969 s/min), 654 distinct states found (654 ds/min), 317 states left on queue.",
+        "Progress(26) at 2026-10-02 09:25:12: 50,972 states generated (49,003 s/min), 11,640 distinct states found (10,986 ds/min), 495 states left on queue.",
+        "Progress(67) at 2026-10-02 09:26:12: 98,625 states generated (47,653 s/min), 23,246 distinct states found (11,606 ds/min), 116 states left on queue.",
+        "99889 states generated, 23612 distinct states found, 0 states left on queue."
+      ]
+    }
+  },
+  "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+  "scope": "Bounded low-level guarantees and optional endpoint expansion; not a general refinement proof.",
+  "sources": {
+    "model/config/scheduling/suite.json": "35258c2b2b62a227cf5415f7cf4540d508cc6e3347c63962f04aaeecb325f3d6",
+    "model/config/worker/suite.json": "d8cd56cee84b88d186c19e99728ddfd4da04b22fd133d107576a7f45d81bda74",
+    "model/tla/common/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+    "model/tla/common/LciBatch.tla": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed",
+    "model/tla/common/PacketResources.tla": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d",
+    "model/tla/common/ReadResponses.tla": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86",
+    "model/tla/composition/AxiReloadGate.tla": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7",
+    "model/tla/composition/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+    "model/tla/composition/DetailedSteady.tla": "146b5bb1aa6c8adbff51e3e30679ba6bfd7e43c083a355260a14b762f1eb556e",
+    "model/tla/composition/ExpandedScheduling.tla": "e6a84270e6eecb7f2e7b59c850232a9f7bb9535336ca26a2d90d8b88ab71f524",
+    "model/tla/composition/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+    "model/tla/composition/KillTransport.tla": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242",
+    "model/tla/composition/SchedulingComposition.tla": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107",
+    "model/tla/composition/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+    "model/tla/composition/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+    "model/tla/contracts/InvalidationPort.tla": "c3dc698f7599c82255ad1fde0ce6259d3c872ed17362b4a4d6f8297ef269828f",
+    "model/tla/contracts/TwoFClient.tla": "7fdaed318a9364ae2bc1b9037550ce155129e58066362d902923d4849749f56f",
+    "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+    "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+    "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+    "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+    "model/tla/scheduling/KillExit.tla": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7",
+    "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+    "model/tla/scheduling/ThreadClaim.tla": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b",
+    "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+    "model/tla/scheduling/WakeAckRace.tla": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72",
+    "model/tla/scheduling/WakeReassignment.tla": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e",
+    "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+    "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+    "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+    "model/tla/steady/DcsResources.tla": "21371bdb0131231df05223c5dcf514a28cd2d8a1198bcbdab853da9c6248aa4c",
+    "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+    "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+    "model/tla/steady/ProgressSystem.tla": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8",
+    "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+    "model/tla/steady/Steady.tla": "d2898fb7059a25af856a11532221af8282e64a68d739de9d45328da86940d53d",
+    "model/tla/steady/SteadyGeometry.tla": "5acc9155689cc4a5da22e11212ce55cadbcdea7bd7dcef29a25ac33f1120c346",
+    "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+    "model/tla/worker/DcMachine.tla": "64165f069bbed5f1202b8edb0c79cff6bc72ac324f056ed47cd4ce4cb5bee578",
+    "model/tla/worker/LineEndpoint.tla": "7da293cad892c6449836ce8e7d1d530c71bce4052ca7063df7066bc1e33959c3",
+    "model/tla/worker/SingleWorker.tla": "161a4aaef4891a7052738180fda799e17b2507abefc05f5e0bcf1cc76939caf4",
+    "model/tla/worker/ThxMachine.tla": "65011d0f91eb43a532c5aca443788170816121dbaddd131629a006cc58f2436e",
+    "tools/model/check_layers.py": "4406828364e4a5878bd8e2714772e8905333fc6916f3685797b1bd53b0db42c3"
+  },
+  "tables": {
+    "dc_entries": 252,
+    "dc_states": 14,
+    "scope": "Translate selected generated DC ROM and unmodified THX JSON into TLA data.\nNo handwritten replacement equations. These tables do not model RTL pipelines.\n",
+    "sources": {
+      "/local/home/pengxu/work-local/lauberhorn/platform/deps/thx-fsms/specifications/remote_fsm.json": "18c7e2920afafab0bf19dbf0a37ef1056b7ba8ca37f186279da1dc89b4c78bd8",
+      "/local/home/pengxu/work-local/lauberhorn/platform/tools/model/coherence_tables.py": "a8df78dd1e810c591e7583ac3342c8635d7db718c5233996702c27a40984adf5",
+      "/nix/store/gk2d69c6bwl8ixky0khmj6vnjb823n30-lauberhorn-dcs-rom/eci_cc_table.sv": "5f21a130f820444575d2383d961835c1d236e883c61d55654515db3c03d0c40d"
+    },
+    "thx_transitions": 117
+  }
+}

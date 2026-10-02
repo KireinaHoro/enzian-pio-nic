@@ -266,7 +266,7 @@ In the nonlocking table, absent R12/R13 issue RDD and enter pending-response
 states; removing the post-LCIA lock does not remove this normal coherence
 transaction serialization. Holding AXI R therefore delays CPU acquisition.
 
-[`AxiReloadGate.tla`](../../model/tla/steady/AxiReloadGate.tla) checks the narrow
+[`AxiReloadGate.tla`](../../model/tla/composition/AxiReloadGate.tla) checks the narrow
 replacement contract: one held door read followed by a reload of either of two
 retired lines (control/overflow), arbitrary invalidation and acknowledgment order,
 and publication only after both acknowledgments. There are no local directory

@@ -1,0 +1,229 @@
+{
+  "cases": {
+    "absent-lci": {
+      "config_sha256": "a6c38eca0ea16d68cd84dc47fe0fbb54575728f168011baf079813906545b762",
+      "elapsed_seconds": 0.767,
+      "expected_violation": null,
+      "log_sha256": "7106a5a35c3fc32ceebb5c7393cb5764d1a6934cb3f64c2f81c97b5db9b42598",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(4) at 2026-10-02 07:31:59: 4 states generated, 4 distinct states found, 0 states left on queue.",
+        "4 states generated, 4 distinct states found, 0 states left on queue."
+      ]
+    },
+    "cold-rx": {
+      "config_sha256": "123b75ec8e1b1f8a4cd4bc488767c8b5b4903bfc25b6eff94293bbb8c3359d8e",
+      "elapsed_seconds": 0.917,
+      "expected_violation": null,
+      "log_sha256": "9bbacc2405604c488a54e30826412092448098681b58cf786a0033dcb02af658",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(14) at 2026-10-02 07:31:57: 14 states generated, 14 distinct states found, 0 states left on queue.",
+        "14 states generated, 14 distinct states found, 0 states left on queue."
+      ]
+    },
+    "cold-tx": {
+      "config_sha256": "ff7c9de4a1ef95716ae8c7a8de4d74972b90782672de29dee609041f9c572455",
+      "elapsed_seconds": 0.816,
+      "expected_violation": null,
+      "log_sha256": "74b170f2f4c38c29f47b6ff0bb1bc76cbe9fe234c102e6aa02f3cb3686f7efbb",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(14) at 2026-10-02 07:31:58: 14 states generated, 14 distinct states found, 0 states left on queue.",
+        "14 states generated, 14 distinct states found, 0 states left on queue."
+      ]
+    },
+    "early-ack": {
+      "config_sha256": "f6278aa5a70905e63b28907a662be83d9537d34fa447c9dbe7099f8b15ec8ea3",
+      "elapsed_seconds": 0.817,
+      "expected_violation": "CompletionSound",
+      "log_sha256": "fbe653f46b331ead2645eb3205f609f016f2bd98aa6a422299ce74ed3b12a999",
+      "passed": true,
+      "returncode": 12,
+      "statistics": [
+        "10 states generated, 10 distinct states found, 0 states left on queue."
+      ]
+    },
+    "expanded-steady": {
+      "config_sha256": "35f94e87c23de21b2738196e75b15dedc34ca5ee93ed16a39c9db4ab7d8d26c4",
+      "elapsed_seconds": 1.819,
+      "expected_violation": null,
+      "log_sha256": "65f1703ce2b32d4f665d5ebbd140b24680f3abca4ed27edce8bb0eed7901df9a",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(45) at 2026-10-02 07:32:13: 532 states generated, 352 distinct states found, 0 states left on queue.",
+        "532 states generated, 352 distinct states found, 0 states left on queue."
+      ]
+    },
+    "expanded-steady-blocked": {
+      "config_sha256": "d1d1461546b4d80672b8009a45e9539012a4f96d68009b689c08553937afa959",
+      "elapsed_seconds": 1.168,
+      "expected_violation": "Progress",
+      "log_sha256": "69a2539090eee524118f27cf9257d91c892408bf97619fa458835702ad900fbf",
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(9) at 2026-10-02 07:32:14: 92 states generated, 64 distinct states found, 0 states left on queue.",
+        "92 states generated, 64 distinct states found, 0 states left on queue."
+      ]
+    },
+    "half-duplex-worker": {
+      "config_sha256": "5a939d30c48342803896fdc5994567630673803978ff444166db74e52b1f5900",
+      "elapsed_seconds": 4.273,
+      "expected_violation": null,
+      "log_sha256": "77a47576e956ad99216ec4c9b45ca7f8a2503386a60cc6fff5c0c2c3473dc77a",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(132) at 2026-10-02 07:32:09: 1,983 states generated (1,983 s/min), 1,959 distinct states found (1,959 ds/min), 7 states left on queue.",
+        "Progress(172) at 2026-10-02 07:32:10: 2,320 states generated, 2,280 distinct states found, 0 states left on queue.",
+        "2320 states generated, 2280 distinct states found, 0 states left on queue."
+      ]
+    },
+    "load-only-data-witness": {
+      "config_sha256": "a79ed97670bec1b059daccd17de6c645337749e3775fa12455bbf9ec852df5f9",
+      "elapsed_seconds": 0.766,
+      "expected_violation": "NoReturnedData",
+      "log_sha256": "4667e23e4bd0819116585c725561dd526b900697e13176b121b02f342b05ec04",
+      "passed": true,
+      "returncode": 12,
+      "statistics": [
+        "9 states generated, 9 distinct states found, 0 states left on queue."
+      ]
+    },
+    "one-slot-links": {
+      "config_sha256": "f908dc8784b73ee0dc662e45f419e62a88e382d15f0cbc4a0b4f31fde6d83b4e",
+      "elapsed_seconds": 0.767,
+      "expected_violation": null,
+      "log_sha256": "da67b84f758f71418cdedb211ec572b97a2217011c767ccec77054d87f32c890",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(14) at 2026-10-02 07:32:02: 14 states generated, 14 distinct states found, 0 states left on queue.",
+        "14 states generated, 14 distinct states found, 0 states left on queue."
+      ]
+    },
+    "rx-no-write-service": {
+      "config_sha256": "b06c8d9352c4efd80690d7e6b5408384e9c1ef859aab9ef3b318ae40c6b00c2a",
+      "elapsed_seconds": 0.916,
+      "expected_violation": "Completes",
+      "log_sha256": "55a95cf561837a3b223246f4e5c7701f4d40e0285b75d33c55e5877165d13b53",
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(10) at 2026-10-02 07:32:02: 10 states generated, 10 distinct states found, 0 states left on queue.",
+        "10 states generated, 10 distinct states found, 0 states left on queue."
+      ]
+    },
+    "single-worker": {
+      "config_sha256": "0f228a6c97a57b1c90b1af966ffa2d582cfc1499b866698ce0bf6a3a07d1705f",
+      "elapsed_seconds": 1.368,
+      "expected_violation": null,
+      "log_sha256": "347f7ee387c39927eef49768de2737d03830b9ca3611cebe3e06f44e2b4a6ef4",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(125) at 2026-10-02 07:32:05: 252 states generated, 250 distinct states found, 0 states left on queue.",
+        "252 states generated, 250 distinct states found, 0 states left on queue."
+      ]
+    },
+    "single-worker-blocked": {
+      "config_sha256": "9e81d75d7973c7e0d6fa0b8131234870e6b52c588509e70f2d0b8f80813e0f51",
+      "elapsed_seconds": 1.018,
+      "expected_violation": "Progress",
+      "log_sha256": "3d0def5f26056477888940d43e35c77b0b9876d37ae0bdd5aff02c2f2f3d7b61",
+      "passed": true,
+      "returncode": 13,
+      "statistics": [
+        "Progress(14) at 2026-10-02 07:32:11: 28 states generated, 28 distinct states found, 0 states left on queue.",
+        "28 states generated, 28 distinct states found, 0 states left on queue."
+      ]
+    },
+    "warm-exclusive": {
+      "config_sha256": "6634ac0e70c8ee6b561682292fe1ab82c8cb4a4f011635ee79b1f4138db32cd3",
+      "elapsed_seconds": 0.817,
+      "expected_violation": null,
+      "log_sha256": "5a1a7f97aec07f3be04b3dbe23bbf1f9d58dd23fb360b929230b134446d54b33",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(9) at 2026-10-02 07:32:01: 9 states generated, 9 distinct states found, 0 states left on queue.",
+        "9 states generated, 9 distinct states found, 0 states left on queue."
+      ]
+    },
+    "warm-shared": {
+      "config_sha256": "4ad48ee7d23c7120353d5b0ea67f70e8c48ba5656e775e98a122ea779b0fb5fc",
+      "elapsed_seconds": 0.867,
+      "expected_violation": null,
+      "log_sha256": "15c7d588230f40b921b44f5d459677ab826627700035f0f4f85eda926b7cdff5",
+      "passed": true,
+      "returncode": 0,
+      "statistics": [
+        "Progress(6) at 2026-10-02 07:32:00: 6 states generated, 6 distinct states found, 0 states left on queue.",
+        "6 states generated, 6 distinct states found, 0 states left on queue."
+      ]
+    }
+  },
+  "jar_sha256": "397829775c6ecaf86f7ae9e5c9b062fcdea39f1b69fc9f0a9a9f0f617dde499e",
+  "scope": "Bounded low-level guarantees and optional endpoint expansion; not a general refinement proof.",
+  "sources": {
+    "model/config/scheduling/suite.json": "35258c2b2b62a227cf5415f7cf4540d508cc6e3347c63962f04aaeecb325f3d6",
+    "model/config/worker/suite.json": "b68ae30b38781f6eeba425da15da715f1aa523ebc967ebcb2117b9c96bd68f0b",
+    "model/tla/common/Coherence.tla": "c78b25da18936e85cabbab1c52b32dd3b10d244f554470a6056380949de1bdd8",
+    "model/tla/common/LciBatch.tla": "71853aadb937f3929c8d98a3fd939823724e5da3ed6eb43eb83a9278a85339ed",
+    "model/tla/common/PacketResources.tla": "0868dbaf08f3d677951f879132810949c14216995a96a0bd7836df5bd38bc49d",
+    "model/tla/common/ReadResponses.tla": "2a374b4574e4a259bfe7f874520e0d640119bab2ea3ac8cde94b7e780222cf86",
+    "model/tla/composition/AxiReloadGate.tla": "8ea67e9bb710b86209e5e203ad6cbd8b3a9595b07f6cb06f3ff13d252dd9e8c7",
+    "model/tla/composition/CombinedScheduling.tla": "605fdc0042c552d870194be95ef58d7749bf24798e0e8783050c4fafc4334ab1",
+    "model/tla/composition/DetailedSteady.tla": "146b5bb1aa6c8adbff51e3e30679ba6bfd7e43c083a355260a14b762f1eb556e",
+    "model/tla/composition/ExpandedScheduling.tla": "e6a84270e6eecb7f2e7b59c850232a9f7bb9535336ca26a2d90d8b88ab71f524",
+    "model/tla/composition/Handoff.tla": "ebe8a771ae3886e4a3ecf59e7f70f09b13def4a0c2980fc8f7a24a21e6366732",
+    "model/tla/composition/KillTransport.tla": "e4de0111b1825c171c7f2b444fe44538cf8075799f68b3e3c8c9477e1112e242",
+    "model/tla/composition/SchedulingComposition.tla": "71effb6d13e39b309dd388de467c0fa88c91805620e6248e33976686ff94c107",
+    "model/tla/composition/SelectedAddresses.tla": "0ca801b2c7c2b6b98ae56634f7ce0bb09db9792104b3b7959472dfda2207a8c1",
+    "model/tla/composition/WakeHandoff.tla": "349feb3e294b8868c584c961dc27673a152a75f7a6135f113e4abff3f7da7d0e",
+    "model/tla/contracts/InvalidationPort.tla": "c3dc698f7599c82255ad1fde0ce6259d3c872ed17362b4a4d6f8297ef269828f",
+    "model/tla/contracts/TwoFClient.tla": "7fdaed318a9364ae2bc1b9037550ce155129e58066362d902923d4849749f56f",
+    "model/tla/scheduling/Assignment.tla": "eec06e3bb87e4d6532af96156261bc3d5b99756f99b135cfa0c3219b300d2d8c",
+    "model/tla/scheduling/ControlRetirement.tla": "4c5d9aa94de2c1caf6720ffaefd400b4f5f49b414d3b60ac244850a8ebeb29f0",
+    "model/tla/scheduling/HostWake.tla": "28bdaa9a3330d1dc9db44d19b7aae8e62c7427cdeabcdb912cbab8324b22c5da",
+    "model/tla/scheduling/InterruptGate.tla": "e332cafbdac4de4db83b43eaa346909cb63067500f292b29cd16110f474a17b3",
+    "model/tla/scheduling/KillExit.tla": "454d0b9f5aaf752ef8075911aa417cb285980c087eb1cb6a0c2b8e094a19a2c7",
+    "model/tla/scheduling/Reservation.tla": "7bca19a3da8476b56588f2c72ea3f5b0f3980c0b2bd0197b5a1d69320da429e0",
+    "model/tla/scheduling/ThreadClaim.tla": "d0eaeb657c9e9c3513fde181069e9a45a5835b8a31d3abebd62cb586c5b0e35b",
+    "model/tla/scheduling/TimerMirror.tla": "5dc32c3d94ceec44df5ca30ba50aea0956e53c7a663ca27b16c5f89b8598c435",
+    "model/tla/scheduling/WakeAckRace.tla": "baa5002faeae51728daaa069dea2ac2439d97c006d87737b43f18f7fd1713c72",
+    "model/tla/scheduling/WakeReassignment.tla": "cc668b895b2e72da1e28c46ab331ee4500278c83aa3fc2a2f5ed76aa96af579e",
+    "model/tla/scheduling/WakeRetirement.tla": "be726ba4dfc489ace216f141dd8ebd2212bababb7733fdecbb8ab7ea44144adb",
+    "model/tla/steady/CachedProgress.tla": "684f267b82a92693b79a3461ff68ccb18d612b6acede4f4031e16874d9b52df4",
+    "model/tla/steady/CachedTransport.tla": "b21da7b27a4447373fb51f1266532c994ea6cb5700b092554af4dcbd54876ee0",
+    "model/tla/steady/DcsResources.tla": "21371bdb0131231df05223c5dcf514a28cd2d8a1198bcbdab853da9c6248aa4c",
+    "model/tla/steady/DirectoryAdmission.tla": "6f64477304bd52fce0e514a22755aa41780fb89bac0bf76bad4bd9311e379e3e",
+    "model/tla/steady/Probe.tla": "8f8521f7a2eccec9f086b212bf41b5c0dd92d11ab650521f448e5f3e54a29ffe",
+    "model/tla/steady/ProgressSystem.tla": "e57f7643c851557596f91a10f4ece208739878ce53c4425131d603f2dcc432b8",
+    "model/tla/steady/RetainedCache.tla": "1af0995d72efc13453076380271730c06a751682c4fd3d0843da85b608826a80",
+    "model/tla/steady/Steady.tla": "d2898fb7059a25af856a11532221af8282e64a68d739de9d45328da86940d53d",
+    "model/tla/steady/SteadyGeometry.tla": "5acc9155689cc4a5da22e11212ce55cadbcdea7bd7dcef29a25ac33f1120c346",
+    "model/tla/steady/ThxResources.tla": "bdc4bf23543e3a207e2ae9ca296b0c3dc969cb1704d55c077035417488f84127",
+    "model/tla/worker/DcMachine.tla": "64165f069bbed5f1202b8edb0c79cff6bc72ac324f056ed47cd4ce4cb5bee578",
+    "model/tla/worker/LineEndpoint.tla": "a2f75ea563a04328f2d5852d9b1ce22120df68ef43d23825ea21de8d226b5524",
+    "model/tla/worker/SingleWorker.tla": "4a4431e22a5c7ee042bc73cdc179fd73335d6ab4e70481fec7bd41bf40795dfb",
+    "model/tla/worker/ThxMachine.tla": "65011d0f91eb43a532c5aca443788170816121dbaddd131629a006cc58f2436e",
+    "tools/model/check_layers.py": "4406828364e4a5878bd8e2714772e8905333fc6916f3685797b1bd53b0db42c3"
+  },
+  "tables": {
+    "dc_entries": 252,
+    "dc_states": 14,
+    "scope": "Translate selected generated DC ROM and unmodified THX JSON into TLA data.\nNo handwritten replacement equations. These tables do not model RTL pipelines.\n",
+    "sources": {
+      "/build/deps/thx-fsms/specifications/remote_fsm.json": "18c7e2920afafab0bf19dbf0a37ef1056b7ba8ca37f186279da1dc89b4c78bd8",
+      "/build/tools/model/coherence_tables.py": "a8df78dd1e810c591e7583ac3342c8635d7db718c5233996702c27a40984adf5",
+      "/nix/store/w6f2dr158xys603xg3d9czcnyglssny6-lauberhorn-dcs-rom/eci_cc_table.sv": "5f21a130f820444575d2383d961835c1d236e883c61d55654515db3c03d0c40d"
+    },
+    "thx_transitions": 117
+  }
+}

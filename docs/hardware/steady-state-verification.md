@@ -1,5 +1,9 @@
 # Settled progress verification
 
+October 2 follow-up: [layered coherence verification](layered-verification.md)
+adds generated DC/THX endpoint checks and explicit contract projections. The
+results below retain their original scope and assumptions.
+
 **Current status (2026-10-02):** the selected build uses the
 [LCI-only non-locking DC](lauberhorn-rom.md). The auto-lock findings below are
 historical failure evidence, not the current endpoint contract. The
@@ -318,8 +322,8 @@ binds its full addresses, both control parities, and all 12 overflow lines to
 [ProgressSystem.tla](../../model/tla/steady/ProgressSystem.tla), composing the unchanged
 [DCS resources](../../model/tla/steady/DcsResources.tla),
 [THX resources](../../model/tla/steady/ThxResources.tla), and
-[2F2F client](../../model/tla/steady/TwoFClient.tla). The
-[single-transaction vocabulary/assumption](../../model/tla/steady/Coherence.tla)
+[2F2F client](../../model/tla/contracts/TwoFClient.tla). The
+[single-transaction vocabulary/assumption](../../model/tla/common/Coherence.tla)
 remains an undischarged replacement boundary.
 
 Initial checks for this selection at `f9981d5`, September 30, before the Nix

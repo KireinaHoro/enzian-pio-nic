@@ -4,6 +4,7 @@ CONSTANTS Clients, Addresses, Colors, ColorOf, Queues, QueueOf, QueueDepth, Slic
 VARIABLES reads, invQ
 vars == <<reads, invQ>>
 V == INSTANCE Coherence
+E == INSTANCE InvalidationPort WITH queues <- invQ
 Messages == V!InvalidationMessages
 ReadMessages == V!ReadMessages
 Init == /\ reads = [c \in Colors |-> <<>>]
@@ -26,20 +27,18 @@ CompleteRead(m) == /\ reads[ColorOf[m.address]] = <<m>>
                    /\ UNCHANGED invQ
 SendInvalidate(m) ==
     LET q == QueueOf[ColorOf[m.address]] IN
-    /\ Len(invQ[q]) < QueueDepth
-    /\ invQ' = [invQ EXCEPT ![q] = Append(@, m)]
+    /\ E!Submit(q,m)
     /\ UNCHANGED reads
 Process(q) ==
     /\ Len(invQ[q]) > 0
-    /\ Head(invQ[q]).type = "Invalidate"
     /\ Len(reads[ColorOf[Head(invQ[q]).address]]) = 0
-    /\ invQ' = [invQ EXCEPT ![q][1].type = "Ack"]
+    /\ E!Complete(q)
     /\ UNCHANGED reads
 HasAck(c, a) == LET q == QueueOf[ColorOf[a]] IN
     /\ Len(invQ[q]) > 0
     /\ Head(invQ[q]) = [type |-> "Ack", txn |-> c, address |-> a]
 ReceiveAck(c, a) == LET q == QueueOf[ColorOf[a]] IN
     /\ HasAck(c, a)
-    /\ invQ' = [invQ EXCEPT ![q] = Tail(@)]
+    /\ E!Accept(q, [type |-> "Ack", txn |-> c, address |-> a])
     /\ UNCHANGED reads
 =============================================================================

@@ -73,7 +73,7 @@ def main():
     if not jar: p.error('run through nix develop: TLA2TOOLS_JAR is required')
     if min(args.timeout,args.heap_mib,args.workers) <= 0: p.error('bounds must be positive')
     args.output.mkdir(parents=True,exist_ok=False)
-    sources = sorted((ROOT/'model/tla/scheduling').glob('*.tla')) + sorted((ROOT/'model/tla/steady').glob('*.tla'))
+    sources = sorted((ROOT/'model/tla').glob('*/*.tla'))
     sources += [SUITE] + sorted((ROOT/'tools/scheduling').glob('*.py')) + [ROOT/'model/data/selected-8k.json', ROOT/'tools/progress/capacity.py']
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     snapshot = {f: f.read_bytes() for f in sources}
