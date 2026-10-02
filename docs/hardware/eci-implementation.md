@@ -2,12 +2,19 @@
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
-incomplete: local regression and deployment checks passed, but the Enzian timeout campaign has not run. Hardware pipeline 515944 is running for `8cc9ad58`. At the October 2 19:38 CEST
-preflight, all 14 gates and preparation job 2864672 passed; hardware job 2864673
-was running. The required five-hour collection is scheduled for October 3
-00:39 CEST. No CI polling is scheduled within that interval. Pipeline 515941 (`23561fa3`) is superseded
-and must not supply acceptance artifacts. Both pipeline refs are retained. Do not merge or substitute
-historical board evidence for these gates.
+incomplete: pipelines 515941 and 515944 both passed all gates, preparation and
+hardware/report jobs. Candidate 515944 is `8cc9ad58`, with WNS −0.089 ns and
+474 failing setup endpoints; no timing closure is claimed. Its first verified
+cold boot passed all ECI lanes, then driver initialization failed before RPCs:
+the kernel used datapath indices 1–4 for a four-entry, zero-based preemption
+register table. UBSAN diagnosed index 4, followed by the MMIO bounds BUG.
+The failed trial was frozen before reset with no trace loss/DMA error. Its full
+132,491,136-byte F_MAC1 capture matches the write pointer and peer/local SHA-256
+`f5b27ef4b1e65c40df6b9d802fcd0d901127c1622e6d01b1d6265cef81c61e99`.
+No RX-hold threshold was measured. The corrected kernel uses the physical worker
+index and executes a generated-register selection check before every module
+build. Retain candidate refs while acceptance remains incomplete.
+
 
 ## Implementation
 
