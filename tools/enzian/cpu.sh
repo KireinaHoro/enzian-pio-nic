@@ -8,6 +8,12 @@ case ${1:-} in
 mount)
     [[ $# == 2 ]] || exit 2
     image=$2
+    # The golden image marks this NFS mount nofail; boot can finish before
+    # it succeeds. Use its existing fstab entry before allocating a loop.
+    if [[ $image == /scratch/* ]] && ! mountpoint -q /scratch; then
+        mount /scratch
+    fi
+    [[ -r $image ]] || { echo "Deployment image is not readable: $image" >&2; exit 1; }
     if mountpoint -q /nix/store; then
     echo '/nix/store already mounted; inspect and unmount explicitly before this script' >&2
     exit 1
