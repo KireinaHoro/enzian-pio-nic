@@ -153,7 +153,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     assert(desc.addr % DATAPATH_WIDTH.get == 0, "tx buffer not aligned!")
     println(s"Tx packet desc: $desc")
 
-    val toSend = Random.nextBytes(256).toList
+    val toSend = simRandom.nextBytes(256).toList
     assert(toSend.length <= desc.size, s"packet to send too big: requested ${toSend.length}, actual: ${desc.size}")
 
     // write packet data
@@ -294,7 +294,7 @@ class NicSim extends DutSimFunSuite[NicEngine] with DbFactory with OncRpcSuiteFa
     val coreBlock = ALLOC.readBack("core")
     val pktBufAddr = ALLOC.readBack("pkt")("buffer")
 
-    val toSend = Random.nextBytes(256).toList
+    val toSend = simRandom.nextBytes(256).toList
     val desc = readTxBufDesc(master, coreBlock).get
     val delayed = 500
 

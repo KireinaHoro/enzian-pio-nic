@@ -40,12 +40,20 @@ nix develop -c mill 'blocks[2.13.12].test'
 nix develop -c repeat-test rx-tx-interleaved lauberhorn.host.eci.OncRpcSim
 ```
 
-This loops until failure; bound/stop it deliberately. ScalaTest parallel execution is available with `mill gen.test -P8`; Mill module-level test parallelism is disabled to avoid repeat Verilator compilation. Start with one reproducer when investigating nondeterminism.
+This loops until failure and exits nonzero, retaining the failing workspace.
+Set `REPEAT_TEST_LIMIT=100` for a bounded campaign. Compiled Verilator models
+are cached outside Mill's disposable test sandbox in
+`out/repeat-test-verilator-cache` (`LAUBERHORN_VERILATOR_CACHE` overrides it);
+each repetition still starts a fresh test JVM. Mill module-level test
+parallelism being disabled does not serialize `ParallelTestExecution` suites:
+CI logs show overlapping simulations. Start with one reproducer, then verify
+that selecting sibling tests does not alter its stimulus.
 
 ## Evidence to retain from a failure
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.
-- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Preserve both seeds, test name, revision/submodule revisions, and generated config.
+- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Seed format 2 passes `simSeed` directly to Spinal; DCS stimulus uses that simulation's `simRandom`, not the JVM-global RNG. Invocation-local configuration prevents sibling suites from overwriting seed/log settings. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. A seed is not a substitute for matching source/toolchain inputs.
+- `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts. Pipeline 516080 lost its simulation artifacts because the old collector searched only the former location.
 - ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
 - PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
 - For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. Blocks regression gates every pipeline; see the [CI checks](ci.md#pipeline-and-handoff).
@@ -77,9 +85,11 @@ A local instrumented reproduction observed capture occupancy 4 and overflow.
 The blocks test fix waits for ten reset-qualified sampling cycles instead,
 leaving RTL, traffic generation and all data/loss assertions unchanged.
 
-The fixture seeds Scala's RNG; Spinal derives its default simulator seed from
-that RNG (1193543006 for this reproducer). The printed fixture seed is therefore
-not the simulator's displayed seed. No seed-handling change was required.
+At that revision the fixture seeded Scala's global RNG; Spinal derived its
+default simulator seed from it (1193543006 for this reproducer). The printed
+fixture seed was not the simulator's displayed seed. That historical reproducer
+uses seed format 1; format 2 deliberately changes this contract to remove
+shared-RNG interference. See the [October seed investigation](simulation-seeds.md).
 
 ### Settled progress checks
 

@@ -55,6 +55,30 @@ class ArtifactTests(unittest.TestCase):
         for name in ('../escape', '/tmp/escape', '.', ''):
             self.assertEqual(self.run_script('nix-build.sh', name, '.#x').returncode, 2)
 
+    def test_failure_collects_reported_nix_directory_and_replay_evidence(self):
+        for idx, location in enumerate(('nix/var/nix/builds/nix-123-456',
+                                        'tmp/nix-build-lauberhorn-example.drv-0')):
+            with self.subTest(location=location):
+                failed = self.work / location
+                artifacts = failed / 'source/out/test with spaces'
+                artifacts.mkdir(parents=True)
+                names = ('sim_transcript.log.gz', 'wave.fst', 'simulation-seeds.txt',
+                         'simulation-runtime.txt', 'simulation-inputs.sha256',
+                         'lauberhorn_trace.pcapng', 'test-report.xml')
+                for name in names:
+                    (artifacts / name).write_text(name)
+                (artifacts / 'compiler-product.o').write_text('omit')
+                self.env['FAILED_DIR'] = str(failed)
+                self.tool('nix', '''printf 'note: keeping build directory "%s"\\n' "$FAILED_DIR"
+exit 7
+''')
+                result = self.run_script('nix-build.sh', f'retained-{idx}', '.#x')
+                self.assertNotEqual(result.returncode, 0)
+                dest = self.work / f'out/ci/retained-{idx}/failed/source/out/test with spaces'
+                self.assertEqual(sorted(p.name for p in dest.iterdir()), sorted(names))
+                for name in names:
+                    self.assertEqual((dest / name).read_text(), name)
+
     def prepare_tool(self):
         self.env['CI_COMMIT_SHA'] = 'a' * 40
         self.env['BUNDLE_REV'] = 'a' * 40

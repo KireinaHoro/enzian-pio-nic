@@ -9,7 +9,10 @@ let
   # hammer a test that failed on CI but can't be easily reproduced locally
   repeatTest = writeShellApplication {
     name = "repeat-test";
-    runtimeInputs = [ mill ];
+    runtimeInputs = [
+      mill
+      coreutils
+    ];
     text = ''
       test_name="$1"
       if [[ $# == 2 ]]; then
@@ -17,8 +20,23 @@ let
       else
         test_suite="lauberhorn.host.eci.OncRpcSim"
       fi
-      while mill gen.test.testOnly "$test_suite" -- -t "$test_name"; do
-        echo "Test succeeded, retrying..."
+      # Mill clears a command's sandbox between invocations. Keep compiled RTL
+      # outside it, but continue starting a fresh test JVM for each seed.
+      export LAUBERHORN_VERILATOR_CACHE="''${LAUBERHORN_VERILATOR_CACHE:-$PWD/out/repeat-test-verilator-cache}"
+      mkdir -p "$LAUBERHORN_VERILATOR_CACHE"
+      max_runs="''${REPEAT_TEST_LIMIT:-0}"
+      runs=0
+      while true; do
+        if ! mill gen.test.testOnly "$test_suite" -- -t "$test_name"; then
+          echo "Test failed; preserving the failing workspace."
+          exit 1
+        fi
+        runs=$((runs + 1))
+        if (( max_runs > 0 && runs >= max_runs )); then
+          echo "$runs repetitions passed."
+          break
+        fi
+        echo "Test succeeded ($runs), retrying..."
       done
     '';
   };

@@ -29,7 +29,7 @@ object Config {
       outDir = ".",  // relative to sim target in out/
       blackboxPolicy = blackboxOnlyIfRequested
     ).includeSimulation)
-    .cachePath("verilator-cache") // relative to sim target in out/
+    .cachePath(sys.env.getOrElse("LAUBERHORN_VERILATOR_CACHE", "verilator-cache"))
     .withFstWave
     .withVerilator
     .allOptimisation
