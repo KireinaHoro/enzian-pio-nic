@@ -269,11 +269,11 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
 
   # Create pins
   create_bd_pin -dir I -type clk app_clk
-  create_bd_pin -dir I -from 19 -to 0 -type data core0_states
-  create_bd_pin -dir I -from 19 -to 0 -type data core1_states
-  create_bd_pin -dir I -from 19 -to 0 -type data core2_states
-  create_bd_pin -dir I -from 19 -to 0 -type data core3_states
-  create_bd_pin -dir I -from 19 -to 0 -type data core4_states
+  create_bd_pin -dir I -from 20 -to 0 -type data core0_states
+  create_bd_pin -dir I -from 20 -to 0 -type data core1_states
+  create_bd_pin -dir I -from 20 -to 0 -type data core2_states
+  create_bd_pin -dir I -from 20 -to 0 -type data core3_states
+  create_bd_pin -dir I -from 20 -to 0 -type data core4_states
   create_bd_pin -dir I -from 75 -to 0 -type data lci_even
   create_bd_pin -dir I -from 75 -to 0 -type data lcia_even
   create_bd_pin -dir I -from 75 -to 0 -type data lci_odd
@@ -300,7 +300,7 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_MON_TYPE {MIX} \
     CONFIG.C_NUM_MONITOR_SLOTS {2} \
     CONFIG.C_NUM_OF_PROBES {16} \
-    CONFIG.C_PROBE0_WIDTH {20} \
+    CONFIG.C_PROBE0_WIDTH {21} \
     CONFIG.C_PROBE9_WIDTH {48} \
     CONFIG.C_PROBE10_WIDTH {42} \
     CONFIG.C_PROBE11_WIDTH {42} \
@@ -309,10 +309,10 @@ proc create_hier_cell_hier_ilas { parentCell nameHier } {
     CONFIG.C_PROBE13_WIDTH {3} \
     CONFIG.C_PROBE14_WIDTH {35} \
     CONFIG.C_PROBE15_WIDTH {17} \
-    CONFIG.C_PROBE1_WIDTH {20} \
-    CONFIG.C_PROBE2_WIDTH {20} \
-    CONFIG.C_PROBE3_WIDTH {20} \
-    CONFIG.C_PROBE4_WIDTH {20} \
+    CONFIG.C_PROBE1_WIDTH {21} \
+    CONFIG.C_PROBE2_WIDTH {21} \
+    CONFIG.C_PROBE3_WIDTH {21} \
+    CONFIG.C_PROBE4_WIDTH {21} \
     CONFIG.C_PROBE5_WIDTH {76} \
     CONFIG.C_PROBE6_WIDTH {76} \
     CONFIG.C_PROBE7_WIDTH {76} \
@@ -959,11 +959,11 @@ proc create_root_design { parentCell } {
  ] $trace_txclk
   set_property CONFIG.ASSOCIATED_BUSIF.VALUE_SRC DEFAULT $trace_txclk
 
-  set core0_states [ create_bd_port -dir I -from 19 -to 0 -type data core0_states ]
-  set core1_states [ create_bd_port -dir I -from 19 -to 0 -type data core1_states ]
-  set core2_states [ create_bd_port -dir I -from 19 -to 0 -type data core2_states ]
-  set core3_states [ create_bd_port -dir I -from 19 -to 0 -type data core3_states ]
-  set core4_states [ create_bd_port -dir I -from 19 -to 0 -type data core4_states ]
+  set core0_states [ create_bd_port -dir I -from 20 -to 0 -type data core0_states ]
+  set core1_states [ create_bd_port -dir I -from 20 -to 0 -type data core1_states ]
+  set core2_states [ create_bd_port -dir I -from 20 -to 0 -type data core2_states ]
+  set core3_states [ create_bd_port -dir I -from 20 -to 0 -type data core3_states ]
+  set core4_states [ create_bd_port -dir I -from 20 -to 0 -type data core4_states ]
   set lci_even [ create_bd_port -dir I -from 75 -to 0 -type data lci_even ]
   set lci_odd [ create_bd_port -dir I -from 75 -to 0 -type data lci_odd ]
   set lcia_even [ create_bd_port -dir I -from 75 -to 0 -type data lcia_even ]

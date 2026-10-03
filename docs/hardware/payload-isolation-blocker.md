@@ -99,3 +99,14 @@ retains the command, log hash, live 515944 CI status, reservation check and
 pre-existing local THX submodule difference. No board operation was performed
 in this source-correction round. Resume board acceptance only after the
 corrected matched build passes CI; retain the old candidate and failure captures.
+
+Pipeline 516077 (`42b5fead`) passed all 13 gates and `prepare-eci` (2865570),
+but hardware job 2865571 failed synthesis: the TX scrub FSM debug output grew
+from three to four bits while the VHDL wrapper retained a three-bit slice.
+The wrapper and all five application ILA state probes now use 21-bit packing,
+with later fields shifted by one bit. The preparation-time interface checker
+now verifies generated debug widths, nonoverlapping complete packing, both
+block-design port levels and ILA widths. It passes against the exact failed
+pipeline's generated RTL and rejects the old wrapper with the observed mismatch.
+This is debug wiring only; the payload fix and software/address ABI are unchanged.
+No bitstream or board result was produced by 516077; a replacement build is required.
