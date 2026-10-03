@@ -40,7 +40,8 @@ def event(sample, trace_map):
 
 def activation_audit(records):
     """Check only complete, loss-free activation-to-first-access observations."""
-    expected, locations = {}, {}
+    expected, owners, departed = {}, {}, {}
+    locations = defaultdict(set)
     history = defaultdict(lambda: deque(maxlen=3))
     checks, pairs, migrations, reuse = Counter(), Counter(), Counter(), Counter()
     mismatches = []
@@ -49,6 +50,8 @@ def activation_audit(records):
         if name == 'Lost' and fields['count']:
             expected.clear()
             locations.clear()
+            owners.clear()
+            departed.clear()
             history.clear()
         elif name == 'ActivationCommitted':
             expected[core] = dict(rx=fields['RxNext'], tx=fields['TxNext'],
@@ -56,9 +59,18 @@ def activation_audit(records):
             pairs[f"rx={fields['RxNext']}:tx={fields['TxNext']}"] += 1
         elif name == 'ActivationDelivered':
             domain = fields['DomainCode']
-            if domain in locations and locations[domain] != core:
-                migrations[f'domain={domain}:{locations[domain]}->{core}'] += 1
-            locations[domain] = core
+            previous = owners.get(core)
+            if previous is not None and previous != domain:
+                locations[previous].discard(core)
+                if not locations[previous]:
+                    departed[previous] = core
+            # Multiple workers can serve one domain concurrently. Expansion is
+            # not migration: require a fully observed departure from its last
+            # worker, then activation on a different worker without trace loss.
+            if not locations[domain] and domain in departed and departed[domain] != core:
+                migrations[f'domain={domain}:{departed[domain]}->{core}'] += 1
+            locations[domain].add(core)
+            owners[core] = domain
             history[core].append(domain)
             if len(history[core]) == 3 and history[core][0] == domain and history[core][1] != domain:
                 reuse[str(core)] += 1
