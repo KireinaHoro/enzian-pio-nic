@@ -9,7 +9,7 @@ and reads the payload half of its own valid TX control alias. All 64 returned
 bytes are A's `0x5a` bytes. No stale address, foreign PID or unauthorized read is
 needed. Killing unauthorized readers therefore does not fix this failure.
 
-Reproduce with the pinned environment:
+The original reproducer at `c2728ee2` used the pinned environment:
 
 ```sh
 nix develop -c mill gen.test.testOnly lauberhorn.host.eci.CooperativeYieldSim -- \
@@ -21,7 +21,8 @@ The [machine-readable record](../../data/eci/board-evidence/cooperative-20261003
 records seeds, log hash, timeout disposition and the stale CI follow-up.
 The test failed twice, including the deterministic run above. Its assertion
 prints the 64 disclosed bytes. This is simulation evidence, not a board exploit.
-The regression is intentionally failing until the implementation is corrected.
+At that revision the regression intentionally failed. The source correction and
+expanded checks are described below.
 
 `DmaControlPlugin` assigns one TX buffer per physical worker.
 `DcsTxAxiRouter.doPreempt` clears the saved descriptor but not payload storage;
@@ -54,3 +55,47 @@ and relevant transport/ownership checks, build matched hardware and software,
 and repeat board acceptance. The earlier baseline kernel lockup and open timing
 remain separately unresolved. No HOST_WAKE or legacy thread-router design is
 introduced by this finding.
+
+## Source correction — October 3 follow-up
+
+The follow-up keeps the address and software ABI unchanged. TX now scrubs all
+1536 bytes of the physical worker's allocation after the drained PREEMPT event,
+including initial activation. Successor TX reads and writes wait until every
+scrub write response has completed. Ownership installation and RX service may
+proceed while this internal TX scrub runs; the scrub does not access host cache
+lines or require an additional host action. Outstanding old-owner transport
+must already be drained at PREEMPT, and a local assertion checks router
+quiescence. The next preemption also waits for scrub completion. Progress retains the
+existing assumption of eventual packet-buffer AXI write-response service; the
+scrub itself never waits for successor host traffic.
+
+Clearing the backing store protects partial writes and DMA transmission of
+unwritten bytes, as well as host reads. Each allocation is 1536 bytes, whereas
+the mapped control payload plus twelve overflow lines covers 1600 bytes. TX
+now splits these accesses into single packet-buffer beats: reads of the final
+64-byte padding return zero, and writes there issue a zero-strobe beat to the
+same worker's allocation instead of reaching the adjacent allocation. DCS still
+receives its original two-beat read or single write response with retained ID.
+
+RX now retains the actual DMA-written packet length (`HostReq.len`), rather than
+the larger allocation size. It masks the final partial beat and synthesizes
+zero beats beyond that length. Single-beat packet-buffer reads avoid crossing
+an allocation boundary. The independent RX writeback sink remains in place.
+This also removes the previous 32-byte shifts from the 64-byte beat accounting.
+
+Directed validation covers repeated A→B→A handoffs and all TX aliases, actual
+DMA transmission of an unwritten successor payload through the neighbor-miss
+path, partial AXI strobes, delayed scrub B responses, stable backpressured R/B
+responses, final-overflow access with an adjacent-allocation sentinel, and RX
+padding with deliberately stale backing bytes. These are RTL checks, not board
+acceptance. The correction introduces scrub traffic and splits packet-buffer
+bursts; its latency and routed timing still require measurement on a new build.
+Pipeline 515944 remains the old, vulnerable image and must not be substituted
+for the corrected source when collecting acceptance evidence.
+
+The full fast ECI regression passed **50 tests**, with one existing ignored test,
+after this correction. The [follow-up evidence record](../../data/eci/board-evidence/cooperative-20261003-isolation-correction.json)
+retains the command, log hash, live 515944 CI status, reservation check and
+pre-existing local THX submodule difference. No board operation was performed
+in this source-correction round. Resume board acceptance only after the
+corrected matched build passes CI; retain the old candidate and failure captures.

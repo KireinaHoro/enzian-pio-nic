@@ -1,0 +1,35 @@
+{
+  "recorded_utc": "2026-10-03T07:23:47.679870+00:00",
+  "base_revision": "c2728ee28f0cf782ee34f3167bba081f495a2c6e",
+  "status": "source_corrected_local_regression_passed_hardware_pending",
+  "pipeline_515944": {
+    "sha": "8cc9ad584a5bf6b32284ef04746d9f3497fc1a74",
+    "live_status": "success",
+    "build_job": 2864673,
+    "report_job": 2864674,
+    "disposition": "vulnerable historical image; no new board test"
+  },
+  "reservations_rechecked": {
+    "zuestoll14": "pengxu",
+    "zuestoll12": "pengxu"
+  },
+  "validation": {
+    "command": "nix develop -c mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci",
+    "passed": 50,
+    "failed": 0,
+    "ignored": 1,
+    "log": "out/isolation-20261003-followup/fast-eci.log",
+    "log_sha256": "acc08978945b702c3992d6f259a224133c5bee2fccaf130133a6d862a1abb06e"
+  },
+  "preexisting_thx_fsms_change": {
+    "index": "a137b8287c776e827f64b30356625db478a4c4c0",
+    "worktree": "d923900cee2fb11d9d626a59049328efbd3a027d",
+    "included_in_commit": false
+  },
+  "board_operations_this_round": [],
+  "remaining": [
+    "Matched replacement CI, bitstream, software and trace map",
+    "Two-cold-boot functional and cooperative stress acceptance",
+    "Measure scrub cost and routed timing; no closure claimed"
+  ]
+}

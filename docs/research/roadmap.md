@@ -4,7 +4,8 @@
 a newly activated domain can read the previous owner's TX payload through its
 own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
 The board campaign is paused; earlier functional results do not discharge this
-isolation failure.
+isolation failure. The follow-up source adds TX allocation scrubbing and bounds
+checks plus RX packet-tail masking; corrected-build acceptance is still required.
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
