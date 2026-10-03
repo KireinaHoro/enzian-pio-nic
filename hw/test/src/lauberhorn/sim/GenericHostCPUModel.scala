@@ -3,17 +3,12 @@ package lauberhorn.sim
 import jsteward.blocks.DutSimFunSuite
 import jsteward.blocks.misc.sim.{BigIntParser, IntRicherEndianAware}
 import lauberhorn.Global.{ALLOC, NUM_CORES, NUM_WORKER_CORES, PID_WIDTH}
-import lauberhorn.sim.CoreState.threadDbMtx
 import lauberhorn.{AsSimBusMaster, NicEngine}
 import org.scalatest.Assertions.fail
 import spinal.core.sim.{SimMutex, simRandom, waitUntil}
 import spinal.lib.BytesRicher
 
 import scala.collection.mutable
-
-object CoreState {
-  val threadDbMtx = SimMutex(randomized = true)
-}
 
 trait CoreState {
   def cid: Int
@@ -123,6 +118,8 @@ trait BypassCoreState extends CoreState {
 }
 
 trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
+  // A SimMutex holds simulation threads and must never be shared by suites.
+  private val threadDbMtx = SimMutex(randomized = true)
   // needed since NUM_WORKER_CORES is only available in test context
   def numWorkerCores: Int
   def numCores = numWorkerCores + 1

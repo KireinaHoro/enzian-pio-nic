@@ -115,7 +115,7 @@ and fixed-output fetches prevent implicit dependency updates.
 | build-hw-eci | `out/eci/generateVerilog.dest/`: ABI/trace collateral at the existing downloader path |
 | build-hw-eci | `out/eci/vivadoProject.dest/shell_lauberhorn-eci.{bit,ltx}`, `shell_lauberhorn-eci_routed.dcp` |
 | build-hw-eci / report-hw-eci | `out/physical/` raw STA reports / `summary.json` |
-| Nix test jobs | `out/ci/JOB/` build log, JUnit XML; failed-build transcripts/waves when available |
+| Nix test jobs | `out/ci/JOB/` build log, JUnit XML; retained failed-build transcripts, waves, traces and simulation seed/input/runtime metadata |
 
 The bundle materializes internal source symlinks for ZIP portability and omits
 broken links in unused DCS examples. Every actual project input must still resolve
@@ -141,7 +141,10 @@ Git marker; use a clean committed checkout for board-testable matching artifacts
 `ci-build NAME INSTALLABLE` requires a fresh `out/ci/NAME` directory. `prepare-eci`
 also refuses existing published artifacts before starting either build. Choose a
 new name/workspace or explicitly remove old outputs; failures retain diagnostics
-and never silently publish a previous result.
+and never silently publish a previous result. The failure collector follows the
+`keeping build directory` path reported by that Nix invocation, including recent
+`/nix/var/nix/builds/` locations. See the [seed investigation](simulation-seeds.md)
+for the pipeline 516080 evidence-loss correction.
 
 After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
 before generating the lock. `mif codegen` inventories everything in that cache,

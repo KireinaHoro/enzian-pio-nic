@@ -58,9 +58,12 @@ DC/THX endpoint checks and remaining race/refinement gaps.
 DUT zuestoll14 and capture peer zuestoll12 are in the cooperative acceptance
 campaign. Consult `out/board/cooperative-515944-refine/summary.json` and the
 evidence ledger before access; do not assume a healthy service or reset a frozen
-failure. Recheck reservations. The isolation correction passed all 50 fast ECI
-tests (one existing ignored); resume board acceptance only with its corrected
-matched build after CI passes, never with vulnerable 515944. Retain documented
+failure. Recheck reservations. The isolation correction and simulation fixes
+passed 53 fast ECI tests (one existing ignored). Pipeline 516080 stopped before
+hardware on a reproduced testbench TX-call overlap; the
+[seed investigation](docs/development/simulation-seeds.md) records the fix and the
+shared RNG that made CI seeds insufficient. Resume board acceptance only with a
+corrected matched build after CI passes, never with vulnerable 515944. Retain documented
 hardware-service assumptions.
 
 ## Confirmed research and scheduling scope

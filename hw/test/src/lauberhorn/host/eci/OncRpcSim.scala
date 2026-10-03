@@ -682,12 +682,16 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           check(outgoing.getRawData.toList, axisSlave.recv())
           txDone = true
         }
-        fork { txSendSingle(dcsMaster, TxEthernetCmdSim(bytes.length, clientMac, etherType.value), bytes, -1) }
+        val txCall = fork { txSendSingle(dcsMaster, TxEthernetCmdSim(bytes.length, clientMac, etherType.value), bytes, -1) }
         axisMaster.send(incoming.getRawData.toList)
         val (desc, payload) = tryReadPacketDesc(dcsMaster, -1, maxTries = 100).result.get
         assert(desc.isInstanceOf[BypassCtrlInfoSim])
         check(bytes, readPayload(dcsMaster, payload, desc.len).take(bytes.length))
         waitUntil(txDone)
+        // Network completion precedes the host's control-line reload checks.
+        // Reusing this QP before the call returns races those reads with the
+        // next descriptor write (and can deadlock the simulated DCS).
+        txCall.join()
       }
       assert(returned.forall(x => !x), "stalled reads must remain outstanding through the observation window")
       CoherenceEventChecks.check(traceConsumer.snapshot)

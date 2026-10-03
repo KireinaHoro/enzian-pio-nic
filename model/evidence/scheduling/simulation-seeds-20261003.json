@@ -1,0 +1,508 @@
+{
+  "pipeline": 516080,
+  "pipeline_sha": "dae5cf2386d4f3731e67c8c0780c63363bfd8423",
+  "failed_job": 2865583,
+  "original_seed": {
+    "setup": -1760455454,
+    "printed_sim": 1699615821,
+    "isolated_actual_spinal": 367665076,
+    "full_suite_actual_spinal": 725543570,
+    "both_local_runs_passed": true
+  },
+  "base_platform": "bfe91472",
+  "base_blocks": "a21d410828bcdd3ebefe53a5928dbfed6746b10c",
+  "counterexamples": [
+    {
+      "setup_seed": 339593329,
+      "sim_seed": 1107897168,
+      "failure": "CL voluntary reload mismatch",
+      "successful_repetitions_before_failure": 14,
+      "identical_replays": 2,
+      "trace_sha256": "00397343488fea0abd58fda9a0936035708513cc02ad42c62a75b1eb95e4d6c8"
+    },
+    {
+      "setup_seed": -1202280656,
+      "sim_seed": 1024428291,
+      "failure": "timeout waiting for CL reload on addr 0x1300 (aliased 0x1780)",
+      "successful_repetitions_before_failure": 48,
+      "identical_replays": 1,
+      "trace_sha256": "87dc3bb5b2e9f1aba813891aa2a63ce8bba7cc4dad5c24e7ea2a8496ad58db14"
+    }
+  ],
+  "validation": {
+    "fixed_failure_seeds": "both passed",
+    "repeat_test": "100 passed before host-mutex isolation edit",
+    "seed_contract": "passed",
+    "ci_artifact_tests": "6 passed",
+    "fast_eci": "53 passed, 1 existing ignored; repeated with original CI seed after final host-mutex isolation edit",
+    "recovery": "4 passed",
+    "blocks": "19 passed",
+    "full_context_comparison": "same original printed seed now gives same actual seed and identical target trace alone vs full ECI scope"
+  },
+  "limitations": [
+    "CI simulation transcript missing; exact CI interleaving and derived seed unavailable",
+    "Local full-suite experiment proves original seed does not specify stimulus, but did not fail",
+    "Finite simulation only; hardware acceptance still outstanding",
+    "Spinal AXI-memory and Wishbone global RNGs remain outside this fixture"
+  ],
+  "logs": {
+    "out/seed-reproduction/pipeline-sha-before.log": {
+      "sha256": "9dbafd79f3b42f5a2dd296b338ff06325a9c16a6f138d757bbc342a468400407"
+    },
+    "out/seed-reproduction/legacy-ci-seed-suite.log": {
+      "sha256": "f301235e6fc361948d7e8105b36404dddcdcdde331756bb48cbed3a6d999db7c"
+    },
+    "out/seed-reproduction/fixed-replays.log": {
+      "sha256": "8520a527085c5b95750b39f6f3c008c21f422d8bd56ff052fcba3a27dc6a07fd"
+    },
+    "out/seed-reproduction/fixed-repeat-100.log": {
+      "sha256": "21ee6e688ab9281b4db3fd65f847dfcd637e4bf437a545f3eeeda0bf4dd5f59c"
+    },
+    "out/seed-reproduction/ci-artifact-files.json": {
+      "sha256": "7c55f3652f9b93decbd64a1ba9b07cf787b680b5701fa5874743fd2dd32e3582"
+    },
+    "out/seed-reproduction/timeout-search/campaign-1.log": {
+      "sha256": "6f482fba2e73f6983f3efda8e9b00b390e881de33810477c39b07cc62bc81894"
+    },
+    "out/seed-reproduction/fixed-gates.log": {
+      "sha256": "de3a62a01666181fbf18eac2912659915a1a829159032a58ea31c5e525e0e17d"
+    },
+    "out/seed-reproduction/fixed-ci-scope.log": {
+      "sha256": "23fb0ca1235360fde0bd9e72ee9207301158aad58f156f6d400da9a8eb1862d0"
+    },
+    "out/seed-reproduction/fixed-context-comparison.json": {
+      "sha256": "2a2c492e5bb1f6d58bc2de074dcf87a92f628a91a23f187c24aaecfe31237288"
+    }
+  },
+  "blocks_commit": "5845335d914127de1e0c2c068ff44888318f179b",
+  "blocks_private_ref": "deps/simulation-seed-isolation-20261003",
+  "spinalhdl_commit": "cc1226ccae0734407ecb9f8f7ad7e06d52fcf854",
+  "local_thx_note": "Pre-existing local d923900 differs from pinned a137b82; preserved and not staged. Scala simulation checks do not exercise THX ROM generation.",
+  "repeat_seeds": [
+    {
+      "setup": 1387997709,
+      "sim": 1676794960
+    },
+    {
+      "setup": 674695079,
+      "sim": 1495311158
+    },
+    {
+      "setup": -1214564400,
+      "sim": -157130705
+    },
+    {
+      "setup": 385469979,
+      "sim": -1860572378
+    },
+    {
+      "setup": -1979728668,
+      "sim": -845425462
+    },
+    {
+      "setup": 2036910632,
+      "sim": 699274690
+    },
+    {
+      "setup": 512725581,
+      "sim": -307169533
+    },
+    {
+      "setup": 484097118,
+      "sim": -2127093953
+    },
+    {
+      "setup": 1004640933,
+      "sim": -1680751421
+    },
+    {
+      "setup": -436088591,
+      "sim": -153943549
+    },
+    {
+      "setup": -1076646512,
+      "sim": 719080589
+    },
+    {
+      "setup": -1435998534,
+      "sim": 1934334812
+    },
+    {
+      "setup": 162930349,
+      "sim": -1508039429
+    },
+    {
+      "setup": -1838826832,
+      "sim": 1454005804
+    },
+    {
+      "setup": 449382099,
+      "sim": -1281803745
+    },
+    {
+      "setup": 101041291,
+      "sim": 292557926
+    },
+    {
+      "setup": -36708078,
+      "sim": 2065795318
+    },
+    {
+      "setup": -178245557,
+      "sim": 455918254
+    },
+    {
+      "setup": -1098009146,
+      "sim": 482722915
+    },
+    {
+      "setup": -831487795,
+      "sim": 2104781173
+    },
+    {
+      "setup": -143041448,
+      "sim": 1761564138
+    },
+    {
+      "setup": 1702408546,
+      "sim": -1281617647
+    },
+    {
+      "setup": -180718979,
+      "sim": 419029453
+    },
+    {
+      "setup": 387496900,
+      "sim": -896265228
+    },
+    {
+      "setup": -852060447,
+      "sim": -1580497934
+    },
+    {
+      "setup": -1590195856,
+      "sim": 1689547517
+    },
+    {
+      "setup": 2111444245,
+      "sim": 119534186
+    },
+    {
+      "setup": -2013453194,
+      "sim": 1165478769
+    },
+    {
+      "setup": -1706620460,
+      "sim": -1410060991
+    },
+    {
+      "setup": 1818556767,
+      "sim": -1153675989
+    },
+    {
+      "setup": -1799532200,
+      "sim": -1668549155
+    },
+    {
+      "setup": 864856960,
+      "sim": 440780719
+    },
+    {
+      "setup": 1919606303,
+      "sim": -631475752
+    },
+    {
+      "setup": -170987048,
+      "sim": 1277685468
+    },
+    {
+      "setup": -2011791971,
+      "sim": 51613342
+    },
+    {
+      "setup": 1410830283,
+      "sim": 1807065524
+    },
+    {
+      "setup": -547234272,
+      "sim": 1498050289
+    },
+    {
+      "setup": -698817096,
+      "sim": -857794045
+    },
+    {
+      "setup": -1616113558,
+      "sim": -1734810000
+    },
+    {
+      "setup": -38345880,
+      "sim": 846581893
+    },
+    {
+      "setup": 155838779,
+      "sim": -1549767380
+    },
+    {
+      "setup": -1179652347,
+      "sim": 431766456
+    },
+    {
+      "setup": -1620111277,
+      "sim": 860254054
+    },
+    {
+      "setup": 516745633,
+      "sim": -2042319794
+    },
+    {
+      "setup": 795909721,
+      "sim": 1853325875
+    },
+    {
+      "setup": 1119371487,
+      "sim": -1124042070
+    },
+    {
+      "setup": 1487071695,
+      "sim": -203628947
+    },
+    {
+      "setup": -115579013,
+      "sim": -179449825
+    },
+    {
+      "setup": -1432928677,
+      "sim": -1159016817
+    },
+    {
+      "setup": -2068387728,
+      "sim": -868717154
+    },
+    {
+      "setup": 1228572059,
+      "sim": -1036303047
+    },
+    {
+      "setup": 895694365,
+      "sim": 1149560314
+    },
+    {
+      "setup": -790935352,
+      "sim": -186299790
+    },
+    {
+      "setup": 100850985,
+      "sim": 1428862634
+    },
+    {
+      "setup": 858048297,
+      "sim": -141119364
+    },
+    {
+      "setup": 1434593667,
+      "sim": -1438385259
+    },
+    {
+      "setup": 1377488076,
+      "sim": -890110590
+    },
+    {
+      "setup": 1847260653,
+      "sim": -507496225
+    },
+    {
+      "setup": 1745655222,
+      "sim": 45163244
+    },
+    {
+      "setup": -935515274,
+      "sim": 32792036
+    },
+    {
+      "setup": 479866923,
+      "sim": 1935063629
+    },
+    {
+      "setup": 1997764545,
+      "sim": -1136274540
+    },
+    {
+      "setup": -1708654575,
+      "sim": 1745921510
+    },
+    {
+      "setup": 1496014251,
+      "sim": -1719592238
+    },
+    {
+      "setup": 1934463154,
+      "sim": -1988081908
+    },
+    {
+      "setup": -188485774,
+      "sim": 529190306
+    },
+    {
+      "setup": -1863264813,
+      "sim": 1980994358
+    },
+    {
+      "setup": -625181501,
+      "sim": -1877837243
+    },
+    {
+      "setup": 1358745519,
+      "sim": 1259128683
+    },
+    {
+      "setup": -2019324312,
+      "sim": -1305342488
+    },
+    {
+      "setup": -322461530,
+      "sim": -1195130085
+    },
+    {
+      "setup": 1969524749,
+      "sim": 327044005
+    },
+    {
+      "setup": -1236867992,
+      "sim": 646356559
+    },
+    {
+      "setup": 1263393170,
+      "sim": -1618419158
+    },
+    {
+      "setup": 473039606,
+      "sim": 1363967164
+    },
+    {
+      "setup": 1861619541,
+      "sim": -325364003
+    },
+    {
+      "setup": -625868763,
+      "sim": -245049923
+    },
+    {
+      "setup": -1150922572,
+      "sim": 785150662
+    },
+    {
+      "setup": 1554104921,
+      "sim": -233552808
+    },
+    {
+      "setup": -2075349768,
+      "sim": 205971965
+    },
+    {
+      "setup": -488255979,
+      "sim": 223796459
+    },
+    {
+      "setup": -1219071238,
+      "sim": -1598865791
+    },
+    {
+      "setup": -1240834266,
+      "sim": 814038157
+    },
+    {
+      "setup": -808752964,
+      "sim": 1254892534
+    },
+    {
+      "setup": 41264716,
+      "sim": -1738262400
+    },
+    {
+      "setup": 334429494,
+      "sim": -1476665996
+    },
+    {
+      "setup": 1475069456,
+      "sim": -1181257346
+    },
+    {
+      "setup": 1283031392,
+      "sim": 595177521
+    },
+    {
+      "setup": 1583501282,
+      "sim": 274682702
+    },
+    {
+      "setup": -513487896,
+      "sim": 1546942690
+    },
+    {
+      "setup": -833373197,
+      "sim": -1702588841
+    },
+    {
+      "setup": 2050536795,
+      "sim": 1339000881
+    },
+    {
+      "setup": -176199896,
+      "sim": -1986370361
+    },
+    {
+      "setup": -1139736595,
+      "sim": 206088301
+    },
+    {
+      "setup": 2145826377,
+      "sim": 128257758
+    },
+    {
+      "setup": 1468503276,
+      "sim": -1154070916
+    },
+    {
+      "setup": 373160889,
+      "sim": -150337131
+    },
+    {
+      "setup": -405911055,
+      "sim": 1587345956
+    },
+    {
+      "setup": -668137499,
+      "sim": -216915792
+    },
+    {
+      "setup": 589767096,
+      "sim": -2135291192
+    }
+  ],
+  "legacy_context_traces": {
+    "short_siblings": "c014c153b5ae23acbbbbd8076f4425ec3ae5958f74e18a652a744047dac9f2a6",
+    "full_oncrpc_suite": "18c79f0ffc2d7c7d22b25d17746e203e47e388d2a7038b13465ec102d124ad2c"
+  },
+  "fixed_context_trace_sha256": "0c1daf2385adf245d35ee877ad2d6f78a83f86f982ad8324f4d9e1a466bbf56d",
+  "fixed_context_comparison": [
+    {
+      "name": "fixed-isolated",
+      "returncode": 0,
+      "trace_sha256": "0c1daf2385adf245d35ee877ad2d6f78a83f86f982ad8324f4d9e1a466bbf56d",
+      "seed": "format=2\nsetupSeed=-1760455454\nsimSeed=1699615821\n",
+      "actual_seed": [
+        "[0] [Progress] Start NicEngine rx-independent-progress-2-stalls simulation with seed 1699615821"
+      ]
+    },
+    {
+      "name": "fixed-ci-scope",
+      "returncode": 0,
+      "trace_sha256": "0c1daf2385adf245d35ee877ad2d6f78a83f86f982ad8324f4d9e1a466bbf56d",
+      "seed": "format=2\nsetupSeed=-1760455454\nsimSeed=1699615821\n",
+      "actual_seed": [
+        "[0] [Progress] Start NicEngine rx-independent-progress-2-stalls simulation with seed 1699615821"
+      ]
+    }
+  ]
+}
