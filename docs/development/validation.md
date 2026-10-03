@@ -265,3 +265,27 @@ nix build -L --impure --file tools/address-map/worker-builds.nix \
 The helper resets the descriptor-emission guard between elaborations because
 the production CLI normally elaborates only once per JVM. Do not hand-edit
 headers to make a configuration compile.
+
+### Payload isolation across cooperative ownership changes
+
+Run the focused router and full-engine checks before building a replacement for
+pipeline 515944:
+
+```sh
+nix develop -c mill gen.test.testOnly \
+  lauberhorn.host.eci.TxPayloadIsolationSim \
+  lauberhorn.host.eci.RxPayloadIsolationSim \
+  lauberhorn.host.eci.CooperativeYieldSim
+```
+
+The direct TX fixture poisons backing storage and checks scrub completion under
+B backpressure, partial strobes, response stability, repeated clearing and the
+last mapped overflow line against an adjacent-allocation sentinel. The RX
+fixture poisons padding, then checks 65-byte and one-byte packets in a 128-byte
+allocation, including reads beyond the packet. The full-engine test checks
+A→B→A reuse, every TX alias, RX tails and DMA transmission of unwritten successor
+bytes through the neighbor-miss path. The coherent host model alone does not
+exercise partial AXI write strobes; keep the direct fixture too.
+
+These tests belong to the normal fast ECI suite. See the [isolation correction
+and board-acceptance boundary](../hardware/payload-isolation-blocker.md#source-correction--october-3-follow-up).

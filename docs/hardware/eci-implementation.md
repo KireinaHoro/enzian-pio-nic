@@ -4,7 +4,8 @@
 a newly activated domain can read the previous owner's TX payload through its
 own valid alias. See the [reproducer and required isolation work](payload-isolation-blocker.md).
 The board campaign is paused; earlier functional results do not discharge this
-isolation failure.
+isolation failure. The follow-up source adds TX allocation scrubbing and bounds
+checks plus RX packet-tail masking; corrected-build acceptance is still required.
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains

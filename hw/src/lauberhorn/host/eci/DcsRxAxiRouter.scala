@@ -151,9 +151,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // packet buffer slot that the descriptor carried
   val currentPktBuf = Reg(new Bundle {
     val addr = PacketAddr()
-    val numBeats = UInt(PKT_BUF_LEN_WIDTH - 5 bits) // divided by 64
+    val validBytes = UInt(PKT_BUF_LEN_WIDTH bits)
   })
-  currentPktBuf.numBeats init 0
+  currentPktBuf.validBytes init 0
 
   // packet buffer read dimensions, as decoded from DCS AXI request
   // length will be filtered to fit to packet buffer slot
@@ -168,7 +168,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   savedControl.valid init False
 
   when (doPreempt) {
-    currentPktBuf.numBeats := 0
+    currentPktBuf.validBytes := 0
     savedControl.valid := False
   }
 
@@ -237,13 +237,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // when a packet is present, read from slot in packet buffer
           when (rxDesc.fire) {
             currentPktBuf.addr := rxDesc.buffer.addr
-            // buffer size is the actual length of packet --
-            // calculate size of actual packet buffer
-            currentPktBuf.numBeats := rxDesc.buffer.size.bits >> 5
+            // Allocation size includes stale padding; only DMA-written bytes
+            // from this packet may be returned to its owner.
+            currentPktBuf.validBytes := rxDesc.len.bits
           } otherwise {
             // clear buffer length so we don't leak the previous
             // packet (already freed) on a NACK
-            currentPktBuf.numBeats := 0
+            currentPktBuf.validBytes := 0
           }
 
           when (!savedControl.valid) {
@@ -279,20 +279,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        val startBeatNum = pktBufReadOff >> 5
-        val startInside = startBeatNum < currentPktBuf.numBeats
-        val endInside = startBeatNum + pktBufReadBeats <= currentPktBuf.numBeats
-        // packet buffer slots should be aligned, so we don't have
-        // to save partial dummy data
-        assert(!(startInside && !endInside), "packet buffer slot not aligned properly!")
-
-        when (!startInside) {
+        when (pktBufReadOff >= currentPktBuf.validBytes) {
           // trying to read beyond current packet buffer slot, return dummy data
           goto(sendDummyData)
         } otherwise {
           // send read request to pkt buf axi
           pktBufAxi.ar.valid := True
-          pktBufAxi.ar.len := (pktBufReadBeats - 1).resized
+          pktBufAxi.ar.len := 0
           pktBufAxi.ar.addr := pktBufReadOff + currentPktBuf.addr.bits.resized
           pktBufAxi.ar.id := readCmd.id
           pktBufAxi.ar.setFullSize()
@@ -321,11 +314,19 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val sendPktData: State = new State {
       whenIsActive {
         pktBufAxi.r >> dcsQ.r
+        dcsQ.r.last.allowOverride
+        dcsQ.r.last := pktBufReadBeats === 1
+        for (byte <- 0 until 64) {
+          when(pktBufReadOff + byte >= currentPktBuf.validBytes) {
+            dcsQ.r.data(byte * 8, 8 bits) := 0
+          }
+        }
         when (pktBufAxi.r.fire) {
           assert(pktBufAxi.r.isOKAY(), "packet buffer AXI resp not OKAY")
-          assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer AXI last not match")
-          when (pktBufAxi.r.last) {
-            goto(idle)
+          assert(pktBufAxi.r.last, "expected single-beat packet buffer read")
+          when (pktBufReadBeats === 1) { goto(idle) } otherwise {
+            pktBufReadOff := pktBufReadOff + 64
+            goto(readPktBuf)
           }
           pktBufReadBeats := pktBufReadBeats - 1
         }

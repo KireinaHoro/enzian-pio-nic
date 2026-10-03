@@ -144,13 +144,58 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val pktBufWriteOff = Reg(pktBufAxi.aw.addr.clone)
   val pktBufWriteBeats = Reg(UInt(2 bits))
 
+  // Ownership changes only after old traffic has drained. Clear the physical
+  // allocation before servicing any successor TX access (including partial
+  // writes); this also protects DMA reads of bytes the successor never wrote.
+  val scrubPending = RegInit(False)
+  val scrubOffset = Reg(pktBufAxi.aw.addr.clone) init 0
+  when(doPreempt) { scrubPending := True; scrubOffset := 0 }
+  val txBytes = Global.ROUNDED_MTU.get
+  require(txBytes % 64 == 0)
+
   val writeFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsQ.aw.freeRun()
-        when (dcsQ.aw.valid) {
+        dcsQ.aw.ready := !scrubPending && !doPreempt
+        when(scrubPending) { goto(scrubCmd) }
+        when (dcsQ.aw.fire) {
           writeCmd := dcsQ.aw.payload
           goto(decodeCmd)
+        }
+      }
+    }
+    val scrubCmd: State = new State {
+      whenIsActive {
+        pktBufAxi.aw.valid := True
+        pktBufAxi.aw.addr := txAddr.bits.resized + scrubOffset
+        pktBufAxi.aw.len := 0
+        pktBufAxi.aw.id := 0
+        pktBufAxi.aw.setFullSize()
+        pktBufAxi.aw.setBurstINCR()
+        when(pktBufAxi.aw.fire) { goto(scrubData) }
+      }
+    }
+    val scrubData: State = new State {
+      whenIsActive {
+        pktBufAxi.w.valid := True
+        pktBufAxi.w.data := 0
+        pktBufAxi.w.strb.setAll()
+        pktBufAxi.w.last := True
+        when(pktBufAxi.w.fire) { goto(scrubResp) }
+      }
+    }
+    val scrubResp: State = new State {
+      whenIsActive {
+        pktBufAxi.b.ready := True
+        when(pktBufAxi.b.fire) {
+          assert(pktBufAxi.b.isOKAY(), "TX scrub failed")
+          when(scrubOffset === txBytes - 64) {
+            scrubPending := False
+            goto(idle)
+          } otherwise {
+            scrubOffset := scrubOffset + 64
+            goto(scrubCmd)
+          }
         }
       }
     }
@@ -196,8 +241,13 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val writePktBufCmd: State = new State {
       whenIsActive {
         pktBufAxi.aw.valid := True
-        pktBufAxi.aw.len := (pktBufWriteBeats - 1).resized
-        pktBufAxi.aw.addr := pktBufWriteOff + txAddr.bits.resized
+        pktBufAxi.aw.len := 0
+        // The final mapped CL extends past the allocation. Redirect its
+        // padding beat to this slot with zero strobes, never into its neighbor.
+        pktBufAxi.aw.addr := txAddr.bits.resized
+        when(pktBufWriteOff < txBytes) {
+          pktBufAxi.aw.addr := pktBufWriteOff + txAddr.bits.resized
+        }
         pktBufAxi.aw.id := writeCmd.id
         pktBufAxi.aw.setFullSize()
         pktBufAxi.aw.setBurstINCR()
@@ -209,8 +259,12 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val writePktBufData: State = new State {
       whenIsActive {
         pktBufAxi.w << dcsQ.w
+        pktBufAxi.w.last.allowOverride
+        pktBufAxi.w.last := True
+        when(pktBufWriteOff >= txBytes) { pktBufAxi.w.strb := 0 }
 
-        when (pktBufAxi.w.fire && pktBufAxi.w.last) {
+        when (pktBufAxi.w.fire) {
+          assert(dcsQ.w.last === (pktBufWriteBeats === 1))
           goto(writePktBufResp)
         }
       }
@@ -218,9 +272,17 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     val writePktBufResp: State = new State {
       whenIsActive {
         pktBufAxi.b >> dcsQ.b
-        when (dcsQ.b.fire) {
+        when(pktBufWriteBeats =/= 1) {
+          dcsQ.b.valid := False
+          pktBufAxi.b.ready := True
+        }
+        when (pktBufAxi.b.fire) {
           assert(pktBufAxi.b.isOKAY(), "error BRESP from packet buffer")
-          goto(idle)
+          when(pktBufWriteBeats === 1) { goto(idle) } otherwise {
+            pktBufWriteBeats := pktBufWriteBeats - 1
+            pktBufWriteOff := pktBufWriteOff + 64
+            goto(writePktBufCmd)
+          }
         }
       }
     }
@@ -230,10 +292,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val readFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsQ.ar.freeRun()
+        dcsQ.ar.ready := !scrubPending && !doPreempt
         hostReq.foreach(_ := False)
         invFinished.clear()
-        when (dcsQ.ar.valid) {
+        when (dcsQ.ar.fire) {
           readCmd := dcsQ.ar.payload
           goto(decodeCmd)
         }
@@ -286,27 +348,45 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        // no need to filter read (as in DcsRxAxiRouter), since there's only
-        // one tx buffer
+        // Split the DCS line into beats so the final padding beat cannot
+        // reach the adjacent physical worker's allocation.
         pktBufAxi.ar.valid := True
-        pktBufAxi.ar.len := (pktBufReadBeats - 1).resized
+        pktBufAxi.ar.len := 0
         pktBufAxi.ar.addr := pktBufReadOff + txAddr.bits.resized
         pktBufAxi.ar.id := readCmd.id
         pktBufAxi.ar.setFullSize()
         pktBufAxi.ar.setBurstINCR()
-        when (pktBufAxi.ar.ready) {
-          goto(sendPktData)
+        when (pktBufAxi.ar.ready) { goto(sendPktData) }
+        when(pktBufReadOff >= txBytes) {
+          pktBufAxi.ar.valid := False
+          goto(sendPadding)
+        }
+      }
+    }
+    val sendPadding: State = new State {
+      whenIsActive {
+        dcsQ.r.valid := True
+        dcsQ.r.data := 0
+        dcsQ.r.id := readCmd.id
+        dcsQ.r.setOKAY()
+        dcsQ.r.last := pktBufReadBeats === 1
+        when(dcsQ.r.fire) {
+          pktBufReadBeats := pktBufReadBeats - 1
+          when(pktBufReadBeats === 1) { goto(idle) }
         }
       }
     }
     val sendPktData: State = new State {
       whenIsActive {
         pktBufAxi.r >> dcsQ.r
+        dcsQ.r.last.allowOverride
+        dcsQ.r.last := pktBufReadBeats === 1
         when (pktBufAxi.r.fire) {
           assert(pktBufAxi.r.isOKAY(), "error RRESP from packet buffer")
-          assert(pktBufAxi.r.last === (pktBufReadBeats === 1), "packet buffer read last not match")
-          when (pktBufAxi.r.last) {
-            goto(idle)
+          assert(pktBufAxi.r.last, "expected single-beat packet buffer read")
+          when (pktBufReadBeats === 1) { goto(idle) } otherwise {
+            pktBufReadOff := pktBufReadOff + 64
+            goto(readPktBuf)
           }
           pktBufReadBeats := pktBufReadBeats - 1
         }
@@ -341,7 +421,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   }
   readFsm.build()
   quiescent := readFsm.isActive(readFsm.idle) && writeFsm.isActive(writeFsm.idle) &&
-    !dcsQ.ar.valid && !dcsQ.aw.valid
+    !dcsQ.ar.valid && !dcsQ.aw.valid && !scrubPending
+  when(doPreempt) { assert(quiescent, "TX scrub requires drained old-owner traffic") }
 
   val readStateOut = out(readFsm.stateReg.clone)
   readStateOut := readFsm.stateReg

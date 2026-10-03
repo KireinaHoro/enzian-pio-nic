@@ -24,28 +24,52 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
     val worker = workerCore(0)
     send(0)
     worker.waitUser()
-    val old = worker.currThread.get
-    assert(tryReadPacketDesc(dcs, old.tid).result.nonEmpty)
-    fork { output.recv() }
-    val secret = List.fill(64)(0x5a.toByte)
-    val call = TxOncRpcCallSim(ONCRPC_NESTED_CALL_INLINE_BYTES.get + secret.size,
-      domains(0).pid, 1, 2, BigInt("c0a88101", 16), 12345, 12346, 1, 1, 1, 0)
-    txSendSingle(dcs, call, secret, old.tid)
-    send(1)
-    val previous = getEciThreadData(old.tid)
-    var preempt = false
-    while (!preempt) {
-      val control = dcs.read(previous.baseAddr + ECI_RX_BASE.get + previous.rxNextCl * 128, 64).bytesToBigInt
-      previous.flipRx()
-      preempt = (control & 3) == 2
-    }
-    cooperativeYield(csr, 1)
-    assert(worker.currThread.get.proc == domains(1))
     assert(tryReadPacketDesc(dcs, worker.currThread.get.tid).result.nonEmpty)
-    val current = getEciThreadData(worker.currThread.get.tid)
-    val bytes = dcs.read(current.baseAddr + ECI_TX_BASE.get + current.txNextCl * 128 + 64, 64)
-    assert(bytes.forall(_ == 0),
-      s"new owner's valid TX alias exposed previous owner's payload: ${bytes.map(b => f"${b & 0xff}%02x").mkString}")
+    var expectedDmaTail = List.empty[Byte]
+    var dmaChecked = false
+    setBypassCore(() => {
+      val (info, payload) = tryReadPacketDesc(dcs, tid = -1, maxTries = 1).result.get
+      val miss = info.asInstanceOf[TxNeighborMissSim]
+      val bytes = readPayload(dcs, payload, miss.len)
+      assert(bytes.takeRight(expectedDmaTail.size) == expectedDmaTail,
+        "DMA transmitted bytes outside the current owner's writes")
+      dmaChecked = true
+    })
+    for (destination <- Seq(1, 0, 1)) {
+      val old = worker.currThread.get
+      val secret = List.fill(1400)((0x50 + destination).toByte)
+      val call = TxOncRpcCallSim(ONCRPC_NESTED_CALL_INLINE_BYTES.get + secret.size,
+        old.proc.pid, 1, old.proc.pid, BigInt("c0a88101", 16), 12345, 12346, 1, 1, 1, 0)
+      expectedDmaTail = secret
+      dmaChecked = false
+      txSendSingle(dcs, call, secret, old.tid)
+      waitUntil(dmaChecked)
+      send(destination)
+      val previous = getEciThreadData(old.tid)
+      var preempt = false
+      while (!preempt) {
+        val control = dcs.read(previous.baseAddr + ECI_RX_BASE.get + previous.rxNextCl * 128, 64).bytesToBigInt
+        previous.flipRx()
+        preempt = (control & 3) == 2
+      }
+      cooperativeYield(csr, 1)
+      assert(worker.currThread.get.proc == domains(destination))
+      val (rxDesc, rxPayload) = tryReadPacketDesc(dcs, worker.currThread.get.tid).result.get
+      val rxBytes = readPayload(dcs, rxPayload, 64 + 12 * 128)
+      assert(rxBytes.drop(rxDesc.len).forall(_ == 0), "RX exposed bytes beyond the received packet")
+      val current = getEciThreadData(worker.currThread.get.tid)
+      val bytes = dcs.read(current.baseAddr + ECI_TX_BASE.get + current.txNextCl * 128 + 64, 64) ++
+        dcs.read(current.baseAddr + ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET, 12 * 128)
+      assert(bytes.forall(_ == 0),
+        s"new owner's valid TX aliases exposed stale payload: ${bytes.map(b => f"${b & 0xff}%02x").mkString}")
+      expectedDmaTail = List.fill(64)(0.toByte)
+      dmaChecked = false
+      val unwritten = TxOncRpcCallSim(ONCRPC_NESTED_CALL_INLINE_BYTES.get + 64,
+        domains(destination).pid, 2, domains(destination).pid + 1000,
+        BigInt("c0a88101", 16), 12345, 12346, 1, 1, 1, 0)
+      txSendSingle(dcs, unwritten, Nil, worker.currThread.get.tid)
+      waitUntil(dmaChecked)
+    }
   }
 
   testWithDB("ordinary-handoff-delays-control-without-irq-and-preserves-a-b-a")(Rx) { implicit dut =>

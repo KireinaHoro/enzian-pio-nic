@@ -44,8 +44,9 @@ passed all 13 gates and hardware/report jobs. Its first driver load exposed a
 preemption-table index bug, fixed at `336c65d6`. A corrected module built against
 the exact candidate headers passed 100 RPCs. The campaign is paused after a full-engine RTL reproducer confirmed cross-domain
 TX payload disclosure through the new owner's valid alias. See the
-[payload isolation blocker](docs/hardware/payload-isolation-blocker.md). Full
-board acceptance remains outstanding.
+[payload isolation blocker](docs/hardware/payload-isolation-blocker.md). The follow-up
+source adds TX scrubbing/bounds checks and RX tail masking; a corrected matched
+build and full board acceptance remain outstanding.
 The initial October 2 simplified-DC trial exposed missing RX AXI write service.
 The independent RX write sink at `a51139e` passed pipeline 515802 and two
 cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
@@ -57,8 +58,10 @@ DC/THX endpoint checks and remaining race/refinement gaps.
 DUT zuestoll14 and capture peer zuestoll12 are in the cooperative acceptance
 campaign. Consult `out/board/cooperative-515944-refine/summary.json` and the
 evidence ledger before access; do not assume a healthy service or reset a frozen
-failure. Recheck reservations. Do not resume board acceptance until the payload-isolation blocker is resolved;
-retain documented hardware-service assumptions.
+failure. Recheck reservations. The isolation correction passed all 50 fast ECI
+tests (one existing ignored); resume board acceptance only with its corrected
+matched build after CI passes, never with vulnerable 515944. Retain documented
+hardware-service assumptions.
 
 ## Confirmed research and scheduling scope
 
