@@ -753,7 +753,7 @@ signal app_clk, app_clk_reset : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
-signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(19 downto 0);
+signal core0_states, core1_states, core2_states, core3_states, core4_states : std_logic_vector(20 downto 0);
 
 -- Trace DMA wires
 signal trace_dma_axi : TRACE_AXI;
@@ -2501,44 +2501,44 @@ NicEngine_inst : entity work.NicEngine
     -- Debug interfaces
     core0_rxRouter_state => core0_states(3 downto 0),
     core0_txRouter_read_state => core0_states(7 downto 4),
-    core0_txRouter_write_state => core0_states(10 downto 8),
-    core0_rxFsm_state => core0_states(14 downto 11),
-    core0_txFsm_state => core0_states(17 downto 15),
+    core0_txRouter_write_state => core0_states(11 downto 8),
+    core0_rxFsm_state => core0_states(15 downto 12),
+    core0_txFsm_state => core0_states(18 downto 16),
     core0_irqFsm_state => open,
-    core0_rxClIdx => core0_states(18),
-    core0_txClIdx => core0_states(19),
+    core0_rxClIdx => core0_states(19),
+    core0_txClIdx => core0_states(20),
 
     core1_rxRouter_state => core1_states(3 downto 0),
     core1_txRouter_read_state => core1_states(7 downto 4),
-    core1_txRouter_write_state => core1_states(10 downto 8),
-    core1_rxFsm_state => core1_states(14 downto 11),
-    core1_txFsm_state => core1_states(17 downto 15),
-    core1_rxClIdx => core1_states(18),
-    core1_txClIdx => core1_states(19),
+    core1_txRouter_write_state => core1_states(11 downto 8),
+    core1_rxFsm_state => core1_states(15 downto 12),
+    core1_txFsm_state => core1_states(18 downto 16),
+    core1_rxClIdx => core1_states(19),
+    core1_txClIdx => core1_states(20),
 
     core2_rxRouter_state => core2_states(3 downto 0),
     core2_txRouter_read_state => core2_states(7 downto 4),
-    core2_txRouter_write_state => core2_states(10 downto 8),
-    core2_rxFsm_state => core2_states(14 downto 11),
-    core2_txFsm_state => core2_states(17 downto 15),
-    core2_rxClIdx => core2_states(18),
-    core2_txClIdx => core2_states(19),
+    core2_txRouter_write_state => core2_states(11 downto 8),
+    core2_rxFsm_state => core2_states(15 downto 12),
+    core2_txFsm_state => core2_states(18 downto 16),
+    core2_rxClIdx => core2_states(19),
+    core2_txClIdx => core2_states(20),
 
     core3_rxRouter_state => core3_states(3 downto 0),
     core3_txRouter_read_state => core3_states(7 downto 4),
-    core3_txRouter_write_state => core3_states(10 downto 8),
-    core3_rxFsm_state => core3_states(14 downto 11),
-    core3_txFsm_state => core3_states(17 downto 15),
-    core3_rxClIdx => core3_states(18),
-    core3_txClIdx => core3_states(19),
+    core3_txRouter_write_state => core3_states(11 downto 8),
+    core3_rxFsm_state => core3_states(15 downto 12),
+    core3_txFsm_state => core3_states(18 downto 16),
+    core3_rxClIdx => core3_states(19),
+    core3_txClIdx => core3_states(20),
 
     core4_rxRouter_state => core4_states(3 downto 0),
     core4_txRouter_read_state => core4_states(7 downto 4),
-    core4_txRouter_write_state => core4_states(10 downto 8),
-    core4_rxFsm_state => core4_states(14 downto 11),
-    core4_txFsm_state => core4_states(17 downto 15),
-    core4_rxClIdx => core4_states(18),
-    core4_txClIdx => core4_states(19),
+    core4_txRouter_write_state => core4_states(11 downto 8),
+    core4_rxFsm_state => core4_states(15 downto 12),
+    core4_txFsm_state => core4_states(18 downto 16),
+    core4_rxClIdx => core4_states(19),
+    core4_txClIdx => core4_states(20),
 
     alloc_free_valid => alloc_free(41),
     alloc_free_ready => alloc_free(40),

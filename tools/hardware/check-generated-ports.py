@@ -29,3 +29,26 @@ connections = list(map(int, re.findall(r'ila_app/probe(\d+)\]', tcl)))
 assert widths == set(range(count)) and sorted(connections) == list(range(count))
 assert not re.search(r'\bul_(?:even|odd)\b', tcl)
 print(f'ILA: {count} probe declarations match connections; no unlock probes')
+
+# Debug FSM encodings can grow when states are added. Check every packed bit
+# against the generated RTL and both levels of the block-design ILA wiring.
+source = (a.generated / 'NicEngine.v').read_text().split('module NicEngine', 1)[1].split(');', 1)[0]
+port_widths = {}
+for hi, lo, name in re.findall(r'\boutput\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*(\w+)', source):
+    port_widths[name] = int(hi) - int(lo) + 1 if hi else 1
+state_hi = int(re.search(r'signal core0_states[^;]*std_logic_vector\((\d+) downto 0\)', vhdl)[1])
+for core in range(5):
+    used = set()
+    bindings = re.findall(rf'(core{core}_\w+)\s*=>\s*core{core}_states\((\d+)(?: downto (\d+))?\)', vhdl)
+    assert bindings, core
+    for port, hi, lo in bindings:
+        bits = set(range(int(lo or hi), int(hi) + 1))
+        assert port_widths[port] == len(bits), (port, 'generated width', port_widths[port], 'wrapper width', len(bits))
+        assert not used & bits, (port, 'overlapping debug bits')
+        used |= bits
+    assert used == set(range(state_hi + 1)), (core, 'incomplete debug packing')
+    bd_widths = re.findall(rf'create_bd_(?:pin|port) -dir I -from (\d+) -to 0 -type data core{core}_states', tcl)
+    assert len(bd_widths) == 2 and all(int(hi) == state_hi for hi in bd_widths), (core, 'BD debug width')
+    probe_width = int(re.search(rf'C_PROBE{core}_WIDTH \{{(\d+)\}}', ila)[1])
+    assert probe_width == state_hi + 1, (core, 'ILA debug width', probe_width)
+print(f'Debug: five {state_hi + 1}-bit state probes match generated RTL, packing and BD ports')
