@@ -80,7 +80,7 @@ class HoldTests(unittest.TestCase):
         def emit(name, **fields):
             records.append((len(records), name, fields))
         for core, domain, rx, tx in ((1, 7, 0, 1), (1, 8, 1, 0),
-                                     (1, 7, 1, 1), (2, 7, 0, 0)):
+                                     (1, 7, 1, 1), (1, 9, 0, 0), (2, 7, 0, 0)):
             emit('ActivationCommitted', CoreID=core, DomainCode=domain, RxNext=rx, TxNext=tx)
             emit('ActivationDelivered', CoreID=core, DomainCode=domain)
             emit('EciRxReadFirst', CoreID=core, CacheLineIndex=rx)
@@ -93,12 +93,21 @@ class HoldTests(unittest.TestCase):
         emit('EciTxAcquire', CoreID=2, CacheLineIndex=1)
         emit('ActivationDelivered', CoreID=3, DomainCode=7)
         result = holds.summarize(records, 1)['activation_audit']
-        self.assertEqual(result['first_access_parity_checks'], {'rx': 5, 'tx': 4})
+        self.assertEqual(result['first_access_parity_checks'], {'rx': 6, 'tx': 5})
         self.assertEqual(len(result['parity_mismatches']), 1)
         self.assertEqual(result['parity_mismatches'][0]['direction'], 'rx')
         self.assertEqual(result['observed_aba_by_core'], {'1': 1})
         self.assertEqual(result['observed_domain_migrations'], {'domain=7:1->2': 1})
         self.assertEqual(len(result['committed_parity_pairs']), 4)
+
+    def test_domain_expansion_is_not_migration(self):
+        records = [(1, 'ActivationDelivered', {'CoreID': 1, 'DomainCode': 7}),
+                   (2, 'ActivationDelivered', {'CoreID': 2, 'DomainCode': 7}),
+                   (3, 'ActivationDelivered', {'CoreID': 1, 'DomainCode': 8}),
+                   (4, 'ActivationDelivered', {'CoreID': 3, 'DomainCode': 7}),
+                   (5, 'Lost', {'count': 1}),
+                   (6, 'ActivationDelivered', {'CoreID': 4, 'DomainCode': 7})]
+        self.assertEqual(holds.summarize(records, 1)['activation_audit']['observed_domain_migrations'], {})
 
 if __name__ == '__main__':
     unittest.main()
