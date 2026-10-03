@@ -76,6 +76,13 @@
     "layer": "steady",
     "role": "matched-cache contract diagnostic"
   },
+  "DomainIsolation": {
+    "imports": [
+      "SelectedAddresses"
+    ],
+    "layer": "composition",
+    "role": "multi-PA admission, sticky kill, delayed TX and byte provenance contract"
+  },
   "ExpandedScheduling": {
     "imports": [
       "LineEndpoint",

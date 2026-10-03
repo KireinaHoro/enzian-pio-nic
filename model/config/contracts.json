@@ -30,5 +30,13 @@
     "checked_properties": ["DetailedSteady!AbstractBehavior", "DetailedSteady!EndpointSafety", "DetailedSteady!Progress", "DetailedSteady!Admission"],
     "assumptions": ["Resident exclusive target at each detailed exchange entry", "Environment re-establishes warm entry between accepted exchanges", "Resource-layer admission and fairness"],
     "scope": "Bounded safety projection and direct liveness checking, not an unbounded compositional proof or full scheduling+coherence liveness result"
+  },
+  "domain-pa-isolation": {
+    "interface": "DomainIsolation",
+    "providers": ["DomainIsolation"],
+    "consumers": [],
+    "checked_properties": ["DomainIsolation!DistinctPAs", "DomainIsolation!SharedColor", "DomainIsolation!FaultRecorded", "DomainIsolation!NoWrongKill", "DomainIsolation!NoIdleFence", "DomainIsolation!NoLeak", "DomainIsolation!NoNewTxAfterFault", "DomainIsolation!InactivePaKilled"],
+    "assumptions": ["Trusted mappings expose only the caller's lifetime PAs", "Drained accepted AXI and LCIA obligations before ownership installation", "Fair fault notification and kernel SIGKILL service", "TX fault cutoff is the registered sticky fault at metadata admission"],
+    "scope": "Two domains/workers, separate RX/TX PAs, one handoff, representative byte provenance and idle-peer variant; no full coherence/RTL/kernel refinement or proof of arbitrary cached histories"
   }
 }

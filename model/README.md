@@ -100,6 +100,7 @@ are compositions, **not proofs that one specification refines another**.
 | `Handoff`, `SelectedAddresses` | Handoff to the exact Goal 1 predicate using generated selected-layout control addresses |
 | `HostWake`, `WakeHandoff`, `WakeRetirement` | Notification ownership, joined host-driven handoff, and callback lifetime; the retirement harness assumes endpoint retirement |
 | `WakeReassignment`, `WakeAckRace` | Delayed stale routing hints across A→B→A, and notification versus command acknowledgment. These are different races |
+| `DomainIsolation` | [Multiple domain PAs per worker, inactive access to kill, delayed TX admission and payload provenance](../docs/hardware/domain-isolation-model.md) |
 | `IdleDispatch`, `HandoffClaims`, `PoolBootstrap` | Current idle/ordinary activation, simultaneous domain exchange, fresh return and immutable pool publication |
 | `ThreadClaim` | Fixed preinitialized thread pool, NIC reservation and atomic kernel claim/retry |
 | `ControlRetirement` | Immutable MMIO response and close/callback ordering, with abstract endpoint readiness |

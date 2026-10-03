@@ -97,7 +97,9 @@ class EciOwnership extends FiberPlugin {
     faultIrq.affLvl1 := 0
     allocator.io.fatal := faults.io.failed.orR
     for (w <- 0 until workers) {
-      failedWorkers(w) := (1 to NUM_PROCS.get).map(s =>
+      // Reset owner bits are not an assignment. In particular, code zero is a
+      // real first lifetime: its failure must not fence never-installed workers.
+      failedWorkers(w) := enabled(w) && (1 to NUM_PROCS.get).map(s =>
         faults.io.failed(s) && domainBound(s) && owners(w) === domainCodes(s)).reduce(_ || _)
     }
     ingress.foreach { port =>
