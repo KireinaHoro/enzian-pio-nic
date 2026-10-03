@@ -5,7 +5,7 @@ These intervals include protocol/response overhead, not just timer cycles.
 Transport event counts are not application RPC completion counts.
 """
 import argparse
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 import hashlib
 import json
 from pathlib import Path
@@ -38,13 +38,54 @@ def event(sample, trace_map):
     return name, values
 
 
+def activation_audit(records):
+    """Check only complete, loss-free activation-to-first-access observations."""
+    expected, locations = {}, {}
+    history = defaultdict(lambda: deque(maxlen=3))
+    checks, pairs, migrations, reuse = Counter(), Counter(), Counter(), Counter()
+    mismatches = []
+    for timestamp, name, fields in records:
+        core = fields.get('CoreID')
+        if name == 'Lost' and fields['count']:
+            expected.clear()
+            locations.clear()
+            history.clear()
+        elif name == 'ActivationCommitted':
+            expected[core] = dict(rx=fields['RxNext'], tx=fields['TxNext'],
+                                  domain=fields['DomainCode'])
+            pairs[f"rx={fields['RxNext']}:tx={fields['TxNext']}"] += 1
+        elif name == 'ActivationDelivered':
+            domain = fields['DomainCode']
+            if domain in locations and locations[domain] != core:
+                migrations[f'domain={domain}:{locations[domain]}->{core}'] += 1
+            locations[domain] = core
+            history[core].append(domain)
+            if len(history[core]) == 3 and history[core][0] == domain and history[core][1] != domain:
+                reuse[str(core)] += 1
+        elif name in ('EciRxReadFirst', 'EciRxReadNew', 'EciTxAcquire'):
+            direction = 'tx' if name == 'EciTxAcquire' else 'rx'
+            if core in expected and direction in expected[core]:
+                value = expected[core].pop(direction)
+                actual = fields['CacheLineIndex']
+                checks[direction] += 1
+                if value != actual:
+                    mismatches.append(dict(cycle=timestamp, core=core,
+                                           domain=expected[core]['domain'],
+                                           direction=direction, expected=value, observed=actual))
+    return dict(first_access_parity_checks=dict(checks), parity_mismatches=mismatches,
+                committed_parity_pairs=dict(pairs), observed_domain_migrations=dict(migrations),
+                observed_aba_by_core=dict(reuse),
+                scope='CoreID is worker_index + 1, not Linux CPU ID. Only fully observed pairs are checked; migration and A-B-A events alone do not prove cache freshness.')
+
+
 def summarize(records, clock_hz, minimum_hold_cycles=0):
+    records = sorted(records, key=lambda row: row[0])
     pending, preempt = {}, set()
     holds, unmatched = [], Counter()
     counts, losses = Counter(), 0
     activations, dispatches = Counter(), Counter()
     peer_events = []
-    for timestamp, name, fields in sorted(records, key=lambda row: row[0]):
+    for timestamp, name, fields in records:
         counts[name] += 1
         core = fields.get('CoreID')
         if name == 'Lost':
@@ -115,6 +156,7 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
                 peer_events_by_simultaneously_stalled_workers={str(n): dict(events) for n, events in concurrency.items()},
                 lost_samples=losses, event_counts=dict(counts),
                 accepted_activations=dict(activations), process_worker_dispatches=dict(dispatches),
+                activation_audit=activation_audit(records),
                 unmatched=dict(unmatched), holds=holds,
                 scope='Finite request-to-NACK intervals include transport overhead; event counts do not prove application completion or infinite-stall progress.')
 
