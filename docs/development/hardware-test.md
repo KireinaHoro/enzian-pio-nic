@@ -286,7 +286,10 @@ First establish a passing setting on the new image. Increase hold duration to
 an exception or the register limit, then refine at timer resolution. Preserve
 traces and fault state before every failing-trial reset. Repeat the highest
 passing candidate under contention across two cold boots; record exposure,
-nearest failing bound, actual hold durations and peer completions. Include
+nearest failing bound, actual hold durations and peer completions. The boot
+summary retains available firmware clock declarations verbatim; distinguish
+these and the matched routed clock constraints from an independent frequency
+measurement. Include
 one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
 simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
 do not substitute a historical threshold or weaken architectural protection.

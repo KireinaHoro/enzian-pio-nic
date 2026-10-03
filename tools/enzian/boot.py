@@ -60,6 +60,12 @@ class EciBringupError(RuntimeError):
     """BDK did not establish all CPU-FPGA lanes; a cold reset may recover."""
 
 
+def clock_report(transcript):
+    """Retain firmware clock declarations verbatim, without treating them as measurements."""
+    return [line.strip() for line in transcript.splitlines()
+            if re.search(r'(?:MHz|GHz)\b|\b(?:[RSD]CLK|[Cc]lock)\b', line)]
+
+
 def validate_eci_bringup(transcript):
     qlm_lines = re.findall(r'CDR lock[^\r\n]*', transcript)
     lane_lines = re.findall(r'N0\.CCPI Lanes\(\[\] is good\):([^\r\n]*)', transcript)
@@ -124,6 +130,7 @@ def boot_once(args, command, logs):
         return child
     try:
         cpu = console('console')
+        firmware_clocks = []
         def program_and_boot():
             with (logs / 'program.log').open('w') as log:
                 if args.negative_no_bitstream:
@@ -135,6 +142,7 @@ def boot_once(args, command, logs):
             evidence = None
             if not args.negative_no_bitstream:
                 evidence, login_ready = expect_eci_bringup(cpu)
+                evidence['firmware_clock_report'] = firmware_clocks + clock_report(cpu.before)
                 print('ECI_BRINGUP_VERIFIED ' + json.dumps(evidence), flush=True)
             else:
                 login_ready = False
@@ -169,6 +177,7 @@ def boot_once(args, command, logs):
         def hold_cpu():
             try:
                 cpu.expect(r"Press[^\r\n]*[Bb][^\r\n]*for boot menu", timeout=180)
+                firmware_clocks.extend(clock_report(cpu.before))
                 cpu.send('b')
                 cpu.expect('Boot Options')
                 cpu.expect('Choice:')
