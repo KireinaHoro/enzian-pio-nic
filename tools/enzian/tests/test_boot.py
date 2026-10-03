@@ -16,6 +16,10 @@ LANES = 'N0.CCPI Lanes([] is good):' + ''.join(f'[{i}]' for i in range(24)) + '\
 
 
 class BootTests(unittest.TestCase):
+    def test_firmware_clock_declarations_are_preserved(self):
+        self.assertEqual(boot.clock_report('Boot menu\r\n RCLK=2000MHz SCLK=800MHz\r\nClock source: reference\r\n'),
+                         ['RCLK=2000MHz SCLK=800MHz', 'Clock source: reference'])
+
     def test_complete_bdk_initialization(self):
         self.assertIn('ccpi_lanes', boot.validate_eci_bringup('Starting ECI links\r\n' + QLM + LANES))
 
