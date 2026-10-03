@@ -259,6 +259,16 @@ for the tested revisions. Current unsupported exit and fatal faults kill and
 fence the affected domain, retaining resources until a full coherence reset.
 Complete recovery and parked-domain deadline activation remain deferred.
 
+## Serial command integrity
+
+The console runner paces input in small UART bursts, acknowledges shell input
+lines and verifies the complete decoded script with SHA-256 before execution.
+Its interactive-shell tests cover long payloads, literal shell characters, exit
+status, noninteractive stdin and corrupted-payload rejection. Interrupted input
+framing cancels only the unexecuted compound command; a running board command is
+not automatically interrupted or retried. Preserve the failed console log and
+check whether a requested setting was actually programmed before resuming.
+
 ## Cooperative RX hold campaign
 
 The matched module exposes root-only parameters:

@@ -6,11 +6,13 @@ Without assertions, require a zero command exit status. No boot or reset occurs.
 """
 import argparse
 import base64
+import hashlib
 import os
 import pathlib
 import re
 import shlex
 import uuid
+import time
 
 import pexpect
 from console import attach, login_root, require_reservation
@@ -18,17 +20,39 @@ from console import attach, login_root, require_reservation
 
 def make_payload(body, marker):
     encoded = base64.b64encode(body.encode()).decode()
-    # Receive the completion command before starting the script. Keep serial
-    # input bursts short, and wait for the shell to consume each line below.
-    payload = "base64 -d <<'ENZIAN_PAYLOAD' | bash; printf '\\n" + marker + ":%s\\n' \"$?\"\n"
-    payload += '\n'.join(encoded[i:i+128] for i in range(0, len(encoded), 128))
-    return payload + "\nENZIAN_PAYLOAD\n"
+    digest = hashlib.sha256(body.encode()).hexdigest()
+    # Parse the whole group before running it. A dropped serial byte must not
+    # turn a partial script into board actions: verify decoded bytes first.
+    lines = ['{', 'lh_payload=$(mktemp)',
+             "base64 -d >\"$lh_payload\" <<'ENZIAN_PAYLOAD'"]
+    lines += [encoded[i:i+128] for i in range(0, len(encoded), 128)]
+    lines += ['ENZIAN_PAYLOAD',
+              "if printf '%s  %s\\n' " + digest + ' "$lh_payload" | sha256sum --check --status; then',
+              'bash "$lh_payload" </dev/null', 'lh_status=$?',
+              'else', 'lh_status=125', 'echo PAYLOAD_CHECKSUM_MISMATCH', 'fi',
+              'rm -f "$lh_payload"',
+              "printf '\\n" + marker + ":%s\\n' \"$lh_status\"", '}']
+    return '\n'.join(lines) + '\n'
+
+
+def send_line(cpu, line):
+    # Keep bursts below a small UART FIFO. Prompt acknowledgments and the
+    # complete-script checksum establish receipt; pacing alone cannot do so.
+    previous = cpu.delaybeforesend
+    cpu.delaybeforesend = 0
+    try:
+        for offset in range(0, len(line), 8):
+            cpu.send(line[offset:offset+8])
+            time.sleep(.02)
+        cpu.send('\n')
+    finally:
+        cpu.delaybeforesend = previous
 
 
 def send_payload(cpu, payload, prompt):
     lines = payload.splitlines()
     for index, line in enumerate(lines):
-        cpu.sendline(line)
+        send_line(cpu, line)
         if index != len(lines) - 1:
             # Kernel printk can stall serial input. A fixed delay between
             # writes does not establish that the shell received the last line.
@@ -66,10 +90,12 @@ def main():
         with attach(args.gateway, args.machine, 'console', log) as cpu:
             login_root(cpu, args.user, os.environ.get(args.password_env, 'enzian'))
             # Suppress command echo so assertions can only match actual output.
-            cpu.sendline('stty -echo; PS2=' + shlex.quote(input_prompt))
+            send_line(cpu, 'stty -echo; PS2=' + shlex.quote(input_prompt))
             cpu.expect(r'[^\r\n]+# ')
+            command_started = False
             try:
                 send_payload(cpu, payload, input_prompt)
+                command_started = True
                 if args.expect:
                     for expression in args.expect:
                         cpu.expect(expression, timeout=args.timeout)
@@ -82,7 +108,11 @@ def main():
                         raise RuntimeError(f'Remote command exited {status}')
                     print('COMMAND_SUCCEEDED')
             finally:
-                cpu.sendline("PS2='> '; stty echo")
+                if not command_started:
+                    # Only an unexecuted compound command can be cancelled here.
+                    cpu.sendcontrol('c')
+                    cpu.expect(r'[^\r\n]+# ', timeout=10)
+                send_line(cpu, "PS2='> '; stty echo")
 
 
 if __name__ == '__main__':
