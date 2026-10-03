@@ -42,8 +42,10 @@ implementation on `feat/cooperative-yield`; see the [implementation evidence](do
 Local model, simulation and software checks passed. Pipeline 515944 (`8cc9ad58`)
 passed all 13 gates and hardware/report jobs. Its first driver load exposed a
 preemption-table index bug, fixed at `336c65d6`. A corrected module built against
-the exact candidate headers passed 100 RPCs. Fresh RX-timeout boundary refinement
-is running; full board acceptance remains outstanding.
+the exact candidate headers passed 100 RPCs. The campaign is paused after a full-engine RTL reproducer confirmed cross-domain
+TX payload disclosure through the new owner's valid alias. See the
+[payload isolation blocker](docs/hardware/payload-isolation-blocker.md). Full
+board acceptance remains outstanding.
 The initial October 2 simplified-DC trial exposed missing RX AXI write service.
 The independent RX write sink at `a51139e` passed pipeline 515802 and two
 cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
@@ -55,8 +57,8 @@ DC/THX endpoint checks and remaining race/refinement gaps.
 DUT zuestoll14 and capture peer zuestoll12 are in the cooperative acceptance
 campaign. Consult `out/board/cooperative-515944-refine/summary.json` and the
 evidence ledger before access; do not assume a healthy service or reset a frozen
-failure. Recheck reservations. Continue acceptance while retaining documented
-hardware-service assumptions.
+failure. Recheck reservations. Do not resume board acceptance until the payload-isolation blocker is resolved;
+retain documented hardware-service assumptions.
 
 ## Confirmed research and scheduling scope
 

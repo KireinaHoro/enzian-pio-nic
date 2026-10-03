@@ -1,0 +1,251 @@
+{
+  "status": "acceptance_blocked_by_cross_owner_tx_payload_disclosure",
+  "rtl_revision": "8cc9ad584a5bf6b32284ef04746d9f3497fc1a74",
+  "kernel_revision": "336c65d69ba471a58d09ed7aa5a075b9de879d6c",
+  "test": "lauberhorn.host.eci.CooperativeYieldSim new-owner-cannot-read-previous-owner-tx-payload",
+  "setup_seed": -869944361,
+  "simulation_seed": 1089418806,
+  "previous_owner_payload_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+  "new_owner_read_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+  "reproductions": 2,
+  "simulation_log_sha256": "9286b1f768c2fdd7b3caf344ee6726657f49fe8de8704dc39d330f4e0a1fc50d",
+  "rx_padding_concern": "source-derived; not independently reproduced",
+  "boundary_search": {
+    "lower_pass_cycles": 26857015,
+    "upper_fail_cycles": 26857032,
+    "clock_hz": 200000000,
+    "minimum_screen_seconds": 180,
+    "adjacent_tick_boundary": false,
+    "latest_candidate_two_boot_contention_qualified": false,
+    "last_trial": {
+      "cycles": 26857015,
+      "passed": true,
+      "boot": 26,
+      "directory": "out/board/cooperative-515944-refine/cooperative-refine-48-26857015",
+      "probe_exit": 0,
+      "probe_passed": true,
+      "client_exit": 0
+    }
+  },
+  "normal_timeout_restored_cycles": 10000,
+  "restore_assessment": {
+    "passed": true,
+    "errors": [],
+    "before": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      }
+    },
+    "after": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      }
+    },
+    "kernel_faults": [],
+    "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+    "input_sha256": {
+      "before": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+      "after": "5107c66edc902db794ebab94594abb468c986b30bab948dcc5e4fb2d6ad3cae3",
+      "kernel_before": "b977f08b5e03732d1f6ecd19538323911c921583d179d41476a695ce61153145",
+      "kernel_after": "b977f08b5e03732d1f6ecd19538323911c921583d179d41476a695ce61153145"
+    }
+  },
+  "stale_515941_followup": {
+    "checked_utc": "2026-10-03T04:31:13.793379+00:00",
+    "pipeline": {
+      "id": 515941,
+      "sha": "23561fa38ebf04cb5801540b1fa43a6ece28b34d",
+      "status": "success",
+      "ref": "feat/cooperative-yield"
+    },
+    "jobs": [
+      {
+        "id": 2864656,
+        "name": "report-hw-eci",
+        "stage": "report",
+        "status": "success"
+      },
+      {
+        "id": 2864655,
+        "name": "build-hw-eci",
+        "stage": "build-hw",
+        "status": "success"
+      },
+      {
+        "id": 2864654,
+        "name": "prepare-eci",
+        "stage": "prepare",
+        "status": "success"
+      },
+      {
+        "id": 2864653,
+        "name": "scheduling-cooperative",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864652,
+        "name": "eci-address-map",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864651,
+        "name": "runtime-tests",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864650,
+        "name": "runtime-interface",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864649,
+        "name": "interactive",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864648,
+        "name": "workflow-tools",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864647,
+        "name": "eci-toolkit-rx",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864646,
+        "name": "trace-fifo-tests",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864645,
+        "name": "trace-tests",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864644,
+        "name": "blocks-tests",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864643,
+        "name": "dcs-lauberhorn",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864642,
+        "name": "dcs-rom-thx",
+        "stage": "test",
+        "status": "success"
+      },
+      {
+        "id": 2864641,
+        "name": "fast-tests-eci",
+        "stage": "test",
+        "status": "success"
+      }
+    ],
+    "disposition": "Completed superseded candidate; do not replace tested 515944 hardware. Acceptance blocked by reproduced TX payload disclosure."
+  }
+}

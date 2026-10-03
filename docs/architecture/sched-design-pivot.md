@@ -1,5 +1,11 @@
 # Cooperative scheduling and worker addresses
 
+**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
+a newly activated domain can read the previous owner's TX payload through its
+own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
+The board campaign is paused; earlier functional results do not discharge this
+isolation failure.
+
 The selected design is the sole ECI implementation. Work is on
 `feat/cooperative-yield`; software builds and focused simulations have passed,
 but full acceptance remains outstanding. See the [control contract](../software/scheduling-control-interface.md),

@@ -1,5 +1,11 @@
 # ECI implementation and evidence
 
+**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
+a newly activated domain can read the previous owner's TX payload through its
+own valid alias. See the [reproducer and required isolation work](payload-isolation-blocker.md).
+The board campaign is paused; earlier functional results do not discharge this
+isolation failure.
+
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
 incomplete: pipelines 515941 and 515944 both passed all gates, preparation and
