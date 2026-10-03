@@ -1,0 +1,1175 @@
+{
+  "status": "Finite contention at 26656301 cycles passed across two cold boots; maximum boundary refinement remains incomplete",
+  "maximum_search_complete": false,
+  "artifact": {
+    "pipeline": 515944,
+    "hardware_runtime_app_revision": "8cc9ad584a5bf6b32284ef04746d9f3497fc1a74",
+    "module_revision": "336c65d69ba471a58d09ed7aa5a075b9de879d6c",
+    "bit_sha256": "5b0821b300187dd2de09da3f73110715b2425df457b8fc0c0401cd63dd1313ad",
+    "ltx_sha256": "14fac7ed15d94bda27bad5938f9c407ae12ce408713754bc0f6b83945e2ae941",
+    "map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+    "image_sha256": "8dac17d20850e5edae297a3a414cfd0cb512f611e9a8cae2246fad0d97ed8adc",
+    "application_clock_hz": 200000000,
+    "eci_clock_hz": 322265625,
+    "firmware_rclk_mhz": 2000,
+    "firmware_sclk_mhz": 800
+  },
+  "cases": [
+    {
+      "label": "cooperative-515944-contention-boot20-one-retry",
+      "programmed_cycles": 26656301,
+      "requested_hold_ms": 133.281505,
+      "client": {
+        "passed": true,
+        "error": null,
+        "nic": "192.168.129.200",
+        "bind": "192.168.129.129",
+        "streams": [
+          "add",
+          "echo",
+          "bypass"
+        ],
+        "window": 1,
+        "requested_seconds": 15.0,
+        "elapsed_seconds": 15.008575118,
+        "completions": {
+          "add": 2701,
+          "bypass": 55004,
+          "echo": 2700
+        },
+        "alternate_rpc": true,
+        "rpc_gap_us": 2000,
+        "pending": 0,
+        "retries": 0,
+        "scope": "Finite application and bypass completions; verify simultaneous holds, handoffs and all TADs independently."
+      },
+      "control": {
+        "passed": true,
+        "reads": 133222,
+        "seconds": 180.008519948,
+        "error": null
+      },
+      "control_read_latency_ns": {
+        "count": 133222,
+        "maximum": 680202,
+        "median": 253331,
+        "scope": "End-to-end sysfs read, including software/descheduling; not isolated AXI-Lite latency"
+      },
+      "tad_assessment": {
+        "passed": true,
+        "errors": [],
+        "before": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "after": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "kernel_faults": [],
+        "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+        "input_sha256": {
+          "before": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+          "after": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+          "kernel_before": "c03186940c16b76e055f2c19715cedde8fbc43079de48ed248d15f9ac4540b8b",
+          "kernel_after": "4404b4efd41e9235b83e624b24df5b43f4ec1483a3eef49ee6ff49856ba814dc"
+        }
+      },
+      "boot_id": "19b513a0-254d-4c47-ac64-4fc9b810d103",
+      "ordinary_activations": 0,
+      "irq_deltas": {
+        "Lauberhorn idle dispatch": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        },
+        "Lauberhorn domain fault": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        }
+      },
+      "overlap_events": {
+        "3": {
+          "EciRxDescSent:core=0": 65,
+          "EciTxSubmit:core=0": 14,
+          "TxCmacExit:core=None": 14
+        },
+        "1": {
+          "EciRxDescSent:core=1": 2696,
+          "EciTxSubmit:core=1": 2700,
+          "TxCmacExit:core=None": 54371,
+          "EciRxDescSent:core=0": 48971,
+          "EciTxSubmit:core=0": 48971,
+          "EciRxDescSent:core=3": 2696,
+          "EciTxSubmit:core=3": 2700
+        },
+        "2": {
+          "EciRxDescSent:core=0": 2114,
+          "EciTxSubmit:core=0": 2110,
+          "TxCmacExit:core=None": 2111,
+          "EciRxDescSent:core=3": 4,
+          "EciRxDescSent:core=1": 5,
+          "EciTxSubmit:core=1": 1
+        }
+      },
+      "activation_audit": {
+        "first_access_parity_checks": {},
+        "parity_mismatches": [],
+        "committed_parity_pairs": {},
+        "observed_domain_migrations": {},
+        "observed_aba_by_core": {},
+        "scope": "CoreID is worker_index + 1, not Linux CPU ID. Only fully observed pairs are checked; migration and A-B-A events alone do not prove cache freshness."
+      },
+      "lost_samples_in_measured_range": 0,
+      "full_length_hold_cycles_counts": {
+        "26656303": 54,
+        "26656304": 1652,
+        "26656305": 1660,
+        "26656301": 6,
+        "26656306": 18,
+        "26656302": 19,
+        "26656308": 3,
+        "26656307": 5,
+        "281475003366961": 1,
+        "985162445143600": 5,
+        "492581235899953": 5,
+        "562949980077616": 7,
+        "703687468432945": 9,
+        "211106259189297": 1,
+        "774056212610609": 4,
+        "422212491722288": 6,
+        "633318724255281": 8,
+        "844424956788272": 3,
+        "1055531189321265": 2,
+        "774056212610608": 8,
+        "985162445143598": 1,
+        "562949980077617": 9,
+        "703687468432944": 6,
+        "844424956788273": 6,
+        "914793700965936": 4,
+        "703687468432943": 1,
+        "633318724255280": 10,
+        "422212491722289": 4,
+        "914793700965937": 3,
+        "492581235899952": 1,
+        "1055531189321264": 1,
+        "351843747544624": 2,
+        "140737515011633": 1,
+        "281475003366960": 1,
+        "211106259189296": 1,
+        "70368770833969": 1,
+        "26656309": 3,
+        "26656311": 1,
+        "26656310": 1,
+        "70368744187668": 222,
+        "70368744187667": 234,
+        "70368744187665": 1,
+        "70368744187669": 1
+      },
+      "capture": {
+        "bytes": 528327744,
+        "sha256": "7a2b3e45c80ed7764cbf0d8c8e9c4829bb828b50739edb2ae354dea03be7a53b",
+        "vio": {
+          "trace_write_slot_1": 8255121,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "before_freeze": {
+          "trace_write_slot_1": 8255121,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "full_unwrapped_buffer": true
+      },
+      "measurement_range": {
+        "source_offset": 153480320,
+        "bytes": 374847424,
+        "sha256": "2b0313b54428fabc69d47088531cf43c638acb3bb0e8dab05d25710ac7632fb0"
+      },
+      "evidence_directory": "out/board/cooperative-515944-contention-boot20-one-retry"
+    },
+    {
+      "label": "cooperative-515944-contention-boot20-two-retry",
+      "programmed_cycles": 26656301,
+      "requested_hold_ms": 133.281505,
+      "client": {
+        "passed": true,
+        "error": null,
+        "nic": "192.168.129.200",
+        "bind": "192.168.129.129",
+        "streams": [
+          "add",
+          "echo",
+          "bypass"
+        ],
+        "window": 1,
+        "requested_seconds": 15.0,
+        "elapsed_seconds": 15.456958855,
+        "completions": {
+          "add": 2148,
+          "bypass": 54335,
+          "echo": 2148
+        },
+        "alternate_rpc": true,
+        "rpc_gap_us": 2000,
+        "pending": 0,
+        "retries": 0,
+        "scope": "Finite application and bypass completions; verify simultaneous holds, handoffs and all TADs independently."
+      },
+      "control": {
+        "passed": true,
+        "reads": 133582,
+        "seconds": 180.00906697,
+        "error": null
+      },
+      "control_read_latency_ns": {
+        "count": 133582,
+        "maximum": 18651585,
+        "median": 254241,
+        "scope": "End-to-end sysfs read, including software/descheduling; not isolated AXI-Lite latency"
+      },
+      "tad_assessment": {
+        "passed": true,
+        "errors": [],
+        "before": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "after": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 256,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 256,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 256,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "kernel_faults": [],
+        "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+        "input_sha256": {
+          "before": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+          "after": "3151b93140a1342f0fb3b7d108b78f125c8e6479ae6f92b9018bb209bcac2a62",
+          "kernel_before": "182b904386035b8f51ddc85d3f5d45ac07ce50d3008c45ed04ff25039cdbe9af",
+          "kernel_after": "8990e7a86dab1f44045a0d9ca1533af8a0b3ec95c7c35cbe8ce22c1b7ccbe5d9"
+        }
+      },
+      "boot_id": "19b513a0-254d-4c47-ac64-4fc9b810d103",
+      "ordinary_activations": 0,
+      "irq_deltas": {
+        "Lauberhorn idle dispatch": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        },
+        "Lauberhorn domain fault": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        }
+      },
+      "overlap_events": {
+        "2": {
+          "EciRxDescSent:core=0": 35293,
+          "EciRxDescSent:core=4": 1968,
+          "EciTxSubmit:core=4": 1968,
+          "TxCmacExit:core=None": 39217,
+          "EciTxSubmit:core=0": 35283,
+          "EciRxDescSent:core=3": 1962,
+          "EciTxSubmit:core=3": 1966
+        },
+        "3": {
+          "EciRxDescSent:core=0": 3573,
+          "EciTxSubmit:core=0": 3568,
+          "TxCmacExit:core=None": 3568,
+          "EciRxDescSent:core=3": 6,
+          "EciRxDescSent:core=4": 1
+        },
+        "1": {
+          "EciRxDescSent:core=0": 2788,
+          "EciTxSubmit:core=4": 1,
+          "TxCmacExit:core=None": 2771,
+          "EciTxSubmit:core=0": 2768,
+          "EciTxSubmit:core=3": 2
+        },
+        "4": {
+          "EciRxDescSent:core=0": 41,
+          "EciTxSubmit:core=0": 3,
+          "TxCmacExit:core=None": 3
+        }
+      },
+      "activation_audit": {
+        "first_access_parity_checks": {},
+        "parity_mismatches": [],
+        "committed_parity_pairs": {},
+        "observed_domain_migrations": {},
+        "observed_aba_by_core": {},
+        "scope": "CoreID is worker_index + 1, not Linux CPU ID. Only fully observed pairs are checked; migration and A-B-A events alone do not prove cache freshness."
+      },
+      "lost_samples_in_measured_range": 0,
+      "full_length_hold_cycles_counts": {
+        "26656304": 3124,
+        "26656305": 3140,
+        "26656303": 33,
+        "26656306": 23,
+        "26656307": 8,
+        "26656302": 24,
+        "26656309": 3,
+        "281475003366961": 2,
+        "281475003366960": 2,
+        "492581235899952": 8,
+        "492581235899953": 10,
+        "633318724255281": 8,
+        "633318724255280": 9,
+        "774056212610608": 15,
+        "844424956788272": 8,
+        "844424956788273": 8,
+        "422212491722289": 10,
+        "422212491722288": 9,
+        "703687468432944": 13,
+        "703687468432945": 14,
+        "1548112398564913": 1,
+        "1548112398564912": 1,
+        "562949980077617": 10,
+        "562949980077616": 11,
+        "422212491722286": 1,
+        "774056212610609": 10,
+        "351843747544624": 3,
+        "351843747544625": 3,
+        "985162445143600": 6,
+        "985162445143601": 6,
+        "914793700965937": 2,
+        "914793700965936": 1,
+        "1055531189321265": 1,
+        "1055531189321264": 1,
+        "1125899933498928": 1,
+        "1125899933498929": 1,
+        "26656301": 2,
+        "26656310": 2,
+        "26656308": 2,
+        "70368744187667": 283,
+        "70368744187668": 371,
+        "70368744187665": 4,
+        "70368744187669": 1,
+        "70368744187666": 2
+      },
+      "capture": {
+        "bytes": 1748958336,
+        "sha256": "63f5e2ffae445fe612a2e298de5096cb0c7b41d76f3790dc4a84f5c45aa05beb",
+        "vio": {
+          "trace_write_slot_1": 27327474,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "before_freeze": {
+          "trace_write_slot_1": 27327474,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "full_unwrapped_buffer": true
+      },
+      "measurement_range": {
+        "source_offset": 1288509632,
+        "bytes": 460448704,
+        "sha256": "385bccc9bf90260f2d517d1965fffa77209813274382e8a82b9a215ef5dacd41"
+      },
+      "evidence_directory": "out/board/cooperative-515944-contention-boot20-two-retry"
+    },
+    {
+      "label": "cooperative-515944-contention-boot21-three",
+      "programmed_cycles": 26656301,
+      "requested_hold_ms": 133.281505,
+      "client": {
+        "passed": true,
+        "error": null,
+        "nic": "192.168.129.200",
+        "bind": "192.168.129.129",
+        "streams": [
+          "add",
+          "echo",
+          "bypass"
+        ],
+        "window": 1,
+        "requested_seconds": 15.0,
+        "elapsed_seconds": 15.007538678,
+        "completions": {
+          "bypass": 54629,
+          "add": 2964,
+          "echo": 2963
+        },
+        "alternate_rpc": true,
+        "rpc_gap_us": 2000,
+        "pending": 0,
+        "retries": 0,
+        "scope": "Finite application and bypass completions; verify simultaneous holds, handoffs and all TADs independently."
+      },
+      "control": {
+        "passed": true,
+        "reads": 132888,
+        "seconds": 180.007527571,
+        "error": null
+      },
+      "control_read_latency_ns": {
+        "scope": "End-to-end sysfs read, including software/descheduling; not isolated AXI-Lite latency",
+        "count": 132888,
+        "maximum": 18641078,
+        "median": 254990
+      },
+      "tad_assessment": {
+        "passed": true,
+        "errors": [],
+        "before": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "after": {
+          "0": {
+            "bar": 149397484601344,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "1": {
+            "bar": 149397501378560,
+            "interrupt": 0,
+            "status": 256,
+            "timeout": 0
+          },
+          "2": {
+            "bar": 149397518155776,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "3": {
+            "bar": 149397534932992,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "4": {
+            "bar": 149397551710208,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "5": {
+            "bar": 149397568487424,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "6": {
+            "bar": 149397585264640,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          },
+          "7": {
+            "bar": 149397602041856,
+            "interrupt": 0,
+            "status": 0,
+            "timeout": 0
+          }
+        },
+        "kernel_faults": [],
+        "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+        "input_sha256": {
+          "before": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+          "after": "c0e7d6fca3e56692e70739c9c916e791e277f784c042b3e35dd63f3b3a4b747c",
+          "kernel_before": "709d57f4825c7b80eae10447500f9b9c4876be0efb62175707707a4c35672063",
+          "kernel_after": "3e895dd41c0e88bb31220a04d924dc28a726d36e2aca60317bb87c308fbfdac1"
+        }
+      },
+      "boot_id": "add2a240-f6ce-48ab-af04-654335630fd6",
+      "ordinary_activations": 5926,
+      "irq_deltas": {
+        "Lauberhorn idle dispatch": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        },
+        "Lauberhorn domain fault": {
+          "CPU0": 0,
+          "CPU1": 0,
+          "CPU2": 0,
+          "CPU3": 0,
+          "CPU4": 0,
+          "CPU5": 0,
+          "CPU6": 0,
+          "CPU7": 0,
+          "CPU8": 0,
+          "CPU9": 0,
+          "CPU10": 0,
+          "CPU11": 0,
+          "CPU12": 0,
+          "CPU13": 0,
+          "CPU14": 0,
+          "CPU15": 0,
+          "CPU16": 0,
+          "CPU17": 0,
+          "CPU18": 0,
+          "CPU19": 0,
+          "CPU20": 0,
+          "CPU21": 0,
+          "CPU22": 0,
+          "CPU23": 0,
+          "CPU24": 0,
+          "CPU25": 0,
+          "CPU26": 0,
+          "CPU27": 0,
+          "CPU28": 0,
+          "CPU29": 0,
+          "CPU30": 0,
+          "CPU31": 0,
+          "CPU32": 0,
+          "CPU33": 0,
+          "CPU34": 0,
+          "CPU35": 0,
+          "CPU36": 0,
+          "CPU37": 0,
+          "CPU38": 0,
+          "CPU39": 0,
+          "CPU40": 0,
+          "CPU41": 0,
+          "CPU42": 0,
+          "CPU43": 0,
+          "CPU44": 0,
+          "CPU45": 0,
+          "CPU46": 0,
+          "CPU47": 0
+        }
+      },
+      "overlap_events": {
+        "4": {
+          "EciRxDescSent:core=0": 63,
+          "EciTxSubmit:core=0": 7,
+          "TxCmacExit:core=None": 7
+        },
+        "2": {
+          "EciRxDescSent:core=1": 3,
+          "EciTxSubmit:core=1": 4,
+          "TxCmacExit:core=None": 8,
+          "EciTxSubmit:core=0": 4,
+          "EciRxDescSent:core=0": 7
+        },
+        "3": {
+          "EciRxDescSent:core=0": 42670,
+          "EciTxSubmit:core=0": 42660,
+          "TxCmacExit:core=None": 47373,
+          "YieldAccepted:core=1": 4710,
+          "ActivationDelivered:core=1": 4710,
+          "EciRxDescSent:core=1": 4713,
+          "EciTxSubmit:core=1": 4713
+        },
+        "1": {
+          "EciRxDescSent:core=0": 1
+        }
+      },
+      "activation_audit": {
+        "first_access_parity_checks": {
+          "rx": 5926,
+          "tx": 5926
+        },
+        "parity_mismatches": [],
+        "committed_parity_pairs": {
+          "rx=1:tx=1": 2963,
+          "rx=1:tx=0": 2963
+        },
+        "observed_domain_migrations": {},
+        "observed_aba_by_core": {
+          "1": 5924
+        },
+        "scope": "CoreID is worker_index + 1, not Linux CPU ID. Only fully observed pairs are checked; migration and A-B-A events alone do not prove cache freshness."
+      },
+      "lost_samples_in_measured_range": 0,
+      "full_length_hold_cycles_counts": {
+        "26656305": 2219,
+        "26656304": 2195,
+        "26656303": 117,
+        "26656307": 5,
+        "26656301": 40,
+        "26656302": 71,
+        "26656310": 1,
+        "26656306": 20,
+        "985162445143600": 7,
+        "985162445143601": 7,
+        "422212491722289": 12,
+        "422212491722288": 14,
+        "492581235899952": 21,
+        "492581235899953": 21,
+        "281475003366960": 3,
+        "281475003366961": 6,
+        "562949980077617": 12,
+        "562949980077616": 14,
+        "633318724255280": 13,
+        "633318724255281": 18,
+        "774056212610609": 8,
+        "774056212610608": 7,
+        "914793700965937": 7,
+        "914793700965936": 5,
+        "1266637421854256": 2,
+        "1266637421854257": 1,
+        "351843747544625": 9,
+        "351843747544624": 9,
+        "703687468432944": 11,
+        "703687468432945": 12,
+        "844424956788273": 5,
+        "844424956788272": 10,
+        "211106259189297": 5,
+        "211106259189296": 4,
+        "562949980077615": 2,
+        "562949980077614": 2,
+        "703687468432943": 1,
+        "633318724255278": 1,
+        "633318724255276": 1,
+        "422212491722287": 1,
+        "844424956788271": 3,
+        "492581235899950": 2,
+        "985162445143599": 1,
+        "70368770833969": 1,
+        "70368770833968": 2,
+        "1125899933498928": 1,
+        "1125899933498929": 2,
+        "492581235899954": 1,
+        "26656311": 1,
+        "26656308": 1,
+        "70368754177668": 3,
+        "70368754177667": 1
+      },
+      "capture": {
+        "bytes": 339819200,
+        "sha256": "6df0a6732feb9027a01dbae3556e1c0b81060c5cec02c618193b4983ab18eddd",
+        "vio": {
+          "trace_write_slot_1": 5309675,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "before_freeze": {
+          "trace_write_slot_1": 5309675,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 0,
+          "trace_dma_error_1": 0
+        },
+        "full_unwrapped_buffer": true
+      },
+      "measurement_range": {
+        "source_offset": 179040576,
+        "bytes": 160778624,
+        "sha256": "98b03add138d3fe5204e0e85277c875e1d8e23109e9f959881309b8a214424df"
+      },
+      "evidence_directory": "out/board/cooperative-515944-contention-boot21-three"
+    }
+  ],
+  "fresh_boot_full_trace": {
+    "label": "cooperative-515944-contention-boot21-three",
+    "lost_samples": 0,
+    "accepted_activations": {
+      "idle:core=1:domain=0": 1,
+      "idle:core=2:domain=1": 1,
+      "idle:core=3:domain=1": 1,
+      "idle:core=4:domain=1": 1,
+      "ordinary:core=1:domain=2": 2963,
+      "ordinary:core=1:domain=0": 2963
+    },
+    "activation_audit": {
+      "first_access_parity_checks": {
+        "rx": 5930,
+        "tx": 5930
+      },
+      "parity_mismatches": [],
+      "committed_parity_pairs": {
+        "rx=0:tx=0": 4,
+        "rx=1:tx=1": 2963,
+        "rx=1:tx=0": 2963
+      },
+      "observed_domain_migrations": {},
+      "observed_aba_by_core": {
+        "1": 5925
+      },
+      "scope": "CoreID is worker_index + 1, not Linux CPU ID. Only fully observed pairs are checked; migration and A-B-A events alone do not prove cache freshness."
+    }
+  },
+  "thread_migration": {
+    "boot": "cooperative-515944-qualification-boot20",
+    "linux_tgid": 1670,
+    "linux_tid": 1674,
+    "before_linux_cpu": 44,
+    "after_linux_cpu": 47,
+    "corresponding_nic_datapaths": [
+      1,
+      4
+    ],
+    "corresponding_worker_indices": [
+      0,
+      3
+    ],
+    "before_tasks": "out/board/cooperative-515944-contention-boot20-one-retry/evidence/tasks-before.txt",
+    "after_tasks": "out/board/cooperative-515944-boot20-two-diagnose/evidence/tasks",
+    "supporting_trace": "out/board/cooperative-515944-contention-boot20-two/trace/allocation-range.bin",
+    "scope": "Same live thread observed on different isolated CPUs; later trace delivers its domain on datapath 4 with matching first-access parity and a correct add response. Freeze/resume gap prevents a continuous intermediate-history claim."
+  },
+  "limitations": [
+    "Finite board observations do not prove infinite-stall progress.",
+    "Three-peer overlap applies to counted trace intervals, not necessarily every instant of the run.",
+    "The isolated measurement ranges exclude preceding capture gaps; full boot21 capture has no decoded loss.",
+    "Earlier short timeout passes were withdrawn after late faults.",
+    "One prior baseline lscpu kernel soft lockup remains unexplained.",
+    "Timing is not closed: candidate WNS -0.089 ns."
+  ]
+}

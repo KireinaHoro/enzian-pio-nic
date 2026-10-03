@@ -232,3 +232,24 @@ The campaign therefore pauses fine-resolution screening to qualify a lower
 setting with longer exposure and contention. A narrow interval between a short
 pass and a later failure does not establish a usable timeout boundary. No
 maximum exception-free setting is accepted yet.
+
+The [finite contention record](../../data/eci/board-evidence/cooperative-20261003-contention.json)
+now records 26,656,301 cycles (133.281505 ms) across two verified cold boots.
+One- and two-peer measured intervals passed RPC/bypass correctness, three-minute
+control-register readers and all eight TAD/kernel checks. The fresh-boot
+all-but-one trial completed 2,964 add, 2,963 echo and 54,629 bypass replies without
+retries. Its loss-free measured trace contains 5,926 ordinary handoffs and no
+scheduling IRQ counter change. Of these, 4,710 handoffs overlap three other
+full-length stalled worker reads, alongside independent RX/TX and bypass
+progress. All 5,926 first-RX and first-TX parity comparisons match, with repeated
+A→B→A reuse. The complete fresh-boot trace also has no decoded loss.
+
+The same live add thread on the first boot was observed on Linux CPUs 44 and 47;
+the later trace delivers its domain on NIC datapath 4 (worker index 3), with
+matching first-access parity and a correct response. The intervening capture
+gap prevents a continuous-history claim. The audit now requires a fully observed
+departure before reporting domain migration, so concurrent expansion to multiple
+workers does not count as migration. Seven focused cases and the pinned workflow
+gate pass. Boundary refinement above this qualified finite setting remains open;
+these results do not establish an infinite-stall guarantee or resolve the earlier
+baseline kernel lockup.
