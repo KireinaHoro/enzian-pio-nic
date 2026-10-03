@@ -1,5 +1,11 @@
 # Software runtime and datapath
 
+**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
+a newly activated domain can read the previous owner's TX payload through its
+own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
+The board campaign is paused; earlier functional results do not discharge this
+isolation failure.
+
 October 2: the sole ECI runtime declares its pool with
 `lauberhorn_set_worker_count()` before creating threads. Each thread completes
 its initialization callback and fiber setup, registers explicitly and enters

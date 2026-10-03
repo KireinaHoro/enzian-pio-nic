@@ -11,6 +11,43 @@ import spinal.lib.BytesRicher
 class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
   override def numWorkerCores = 1
 
+  testWithDB("new-owner-cannot-read-previous-owner-tx-payload")(Rx) { implicit dut =>
+    val (csr, packets, output, dcs) = commonDutSetup(100000)
+    csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
+    dcs.voluntaryInvProb = 0
+    val domains = Seq.fill(2)(mkRandomProc(1))
+    val factories = oncRpcCallPacketFactory(csr, domains.map(_ -> Seq(RpcSrvDef.mkRandom)))
+    def send(domain: Int): Unit = {
+      val (packet, _, _) = factories(domain)._2()
+      packets.send(packet.getRawData.toList)
+    }
+    val worker = workerCore(0)
+    send(0)
+    worker.waitUser()
+    val old = worker.currThread.get
+    assert(tryReadPacketDesc(dcs, old.tid).result.nonEmpty)
+    fork { output.recv() }
+    val secret = List.fill(64)(0x5a.toByte)
+    val call = TxOncRpcCallSim(ONCRPC_NESTED_CALL_INLINE_BYTES.get + secret.size,
+      domains(0).pid, 1, 2, BigInt("c0a88101", 16), 12345, 12346, 1, 1, 1, 0)
+    txSendSingle(dcs, call, secret, old.tid)
+    send(1)
+    val previous = getEciThreadData(old.tid)
+    var preempt = false
+    while (!preempt) {
+      val control = dcs.read(previous.baseAddr + ECI_RX_BASE.get + previous.rxNextCl * 128, 64).bytesToBigInt
+      previous.flipRx()
+      preempt = (control & 3) == 2
+    }
+    cooperativeYield(csr, 1)
+    assert(worker.currThread.get.proc == domains(1))
+    assert(tryReadPacketDesc(dcs, worker.currThread.get.tid).result.nonEmpty)
+    val current = getEciThreadData(worker.currThread.get.tid)
+    val bytes = dcs.read(current.baseAddr + ECI_TX_BASE.get + current.txNextCl * 128 + 64, 64)
+    assert(bytes.forall(_ == 0),
+      s"new owner's valid TX alias exposed previous owner's payload: ${bytes.map(b => f"${b & 0xff}%02x").mkString}")
+  }
+
   testWithDB("ordinary-handoff-delays-control-without-irq-and-preserves-a-b-a")(Rx) { implicit dut =>
     val (csr, packets, _, dcs) = commonDutSetup(100000)
     csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)

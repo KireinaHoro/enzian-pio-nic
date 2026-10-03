@@ -1,5 +1,11 @@
 # Pending features and design decisions
 
+**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
+a newly activated domain can read the previous owner's TX payload through its
+own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
+The board campaign is paused; earlier functional results do not discharge this
+isolation failure.
+
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
 The nested RPC integration is approved for master as of 2026-09-23. Its
@@ -39,7 +45,7 @@ Pinned checks and pipeline 515944 passed. A kernel preemption-table indexing
 fix built against its exact headers passed the baseline. Two cold boots now
 pass finite contention at a 133.281505 ms RX hold, including 5,926 ordinary
 handoffs with no scheduling IRQs and trace-confirmed three-peer overlap.
-The fresh Enzian maximum-stall boundary search is still in progress, and one
+The fresh Enzian maximum-stall boundary search is paused by the isolation blocker, and one
 earlier baseline kernel lockup remains unexplained. HOST_WAKE interface design and
 implementation, deadline-kick integration, and complete kill/exit recovery are
 explicitly outside this stage; step 4 below is later work.
