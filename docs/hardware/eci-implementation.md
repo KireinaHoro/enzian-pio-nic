@@ -188,3 +188,30 @@ region was preserved; it contains one completed 100,000,003-cycle hold and a
 loss marker associated with the earlier freeze/resume gap. No continuous-history
 claim spans that gap. A fresh cold-boot 55,000,000-cycle probe also failed;
 refinement and final contention/two-boot acceptance are still in progress.
+
+Subsequent five-second screens were insufficient: 27,204,589 cycles passed the
+first snapshot but faulted during the following RPC check, and 27,193,602 cycles
+faulted after its short checks finished. Those passes were withdrawn. The search
+now uses sixty-second exposure, another 100 RPCs and a post-client assessment of
+all eight TAD units and the continuous kernel log. It has observed a passing
+26,924,951-cycle screen and failing 26,992,113-cycle screen; these are provisional
+observations, not an accepted maximum. Full failure buffers and their SHA-256
+digests are retained under `out/board/cooperative-515944-refine/` and on the shared
+scratch filesystem before each reset. No architectural timeout protection was
+changed.
+
+One cold-boot baseline also stopped in `lscpu` before application startup, with a
+kernel soft lockup in `find_inode_fast`. Its complete 132,696,064-byte trace has
+SHA-256 `de51121b463c8ac129a8cba416488979cc8b79fb3152dbef8dfcdcf48898b054`.
+It contains no application activation, only bypass traffic, 347 LCI requests and
+347 completions, no decoded loss and no reported DCS errors. A post-failure
+all-TAD snapshot was unavailable. Forty stock-Linux `lscpu` queries at concurrency
+four passed after a full power cycle without an FPGA image or driver; that
+bounded control does not establish the lockup's cause. The following matched
+cold-boot baseline, including the same `lscpu` operation, passed. This remains an
+unresolved observation. Acceptance checks now reject kernel BUG/Oops, UBSAN,
+lockup and RCU-stall diagnostics as well as TAD exceptions.
+
+The matched cold boot reports firmware RCLK 2000 MHz and SCLK 800 MHz. Routed
+constraints specify ECI at 322.265625 MHz and the application at 200 MHz; these
+are provenance and firmware reports, not instantaneous oscillator measurements.
