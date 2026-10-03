@@ -9,6 +9,12 @@ Mapping never registers or parks threads. The shared parity page and transport
 READY/BUSY helpers are removed. See the [control contract](scheduling-control-interface.md)
 and [evidence ledger](../hardware/eci-implementation.md); board acceptance is pending.
 
+October 3 finite board tests observe 5,926 ordinary activations with matching
+first-RX and first-TX parities, repeated A→B→A reuse, correct RPC replies and
+zero scheduling IRQ changes. Separate same-thread observations establish
+cross-worker movement. The evidence ledger distinguishes these results from
+the unfinished maximum-timeout search and the unresolved baseline lockup.
+
 The runtime dispatches
 managed request outcomes over ECI, with cooperative fibers for explicitly
 deferred work. See the [programming contract](programming-model.md),

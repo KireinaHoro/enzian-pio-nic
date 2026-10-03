@@ -6,6 +6,12 @@ but full acceptance remains outstanding. See the [control contract](../software/
 [current scheduler](../software/scheduler.md) and [evidence ledger](../hardware/eci-implementation.md).
 Superseded router, polling and activation proposals remain in Git history.
 
+October 3 board evidence now includes two cold boots at a 133.281505 ms RX hold,
+with concurrent stalled peers and bypass traffic. A loss-free measured interval
+contains 5,926 ordinary handoffs without scheduling IRQs and matching activation
+parities. Maximum-timeout refinement and the documented baseline-lockup question
+remain open; see the linked evidence ledger for the finite scope.
+
 ## Execution boundary
 
 RX means the calling worker has exhausted runnable local work. Handlers run to

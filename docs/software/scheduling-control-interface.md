@@ -5,6 +5,13 @@ implement this sole ECI design on `feat/cooperative-yield`. Validation is in
 progress; [the evidence ledger](../hardware/eci-implementation.md) records its
 limits. Superseded designs remain available in Git history.
 
+The October 3 [finite board record](../../data/eci/board-evidence/cooperative-20261003-contention.json)
+observes 5,926 ordinary handoffs with zero scheduling IRQ counter change,
+including 4,710 handoffs overlapping three full-length peer stalls. Concurrent
+control-register reads and bypass traffic completed, with clean TAD/kernel
+checks. This supports the two-path contract under recorded finite exposure;
+it does not establish an infinite-stall or latency guarantee.
+
 ## Activation and handoff
 
 There are two entry paths with one kernel activation helper:
