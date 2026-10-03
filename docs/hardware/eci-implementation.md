@@ -215,3 +215,9 @@ lockup and RCU-stall diagnostics as well as TAD exceptions.
 The matched cold boot reports firmware RCLK 2000 MHz and SCLK 800 MHz. Routed
 constraints specify ECI at 322.265625 MHz and the application at 200 MHz; these
 are provenance and firmware reports, not instantaneous oscillator measurements.
+
+`tools/enzian/analyze_rx_holds.py` now also checks each fully observed activation
+snapshot against its first RX/TX access and counts domain migration and A→B→A
+reuse. Trace loss clears pending comparisons and history. Six focused cases and
+the pinned `workflow-tools` check passed after this addition. These counters are
+coverage evidence; observing reuse alone is not proof of cache freshness.
