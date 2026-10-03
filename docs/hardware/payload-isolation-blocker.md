@@ -110,3 +110,13 @@ block-design port levels and ILA widths. It passes against the exact failed
 pipeline's generated RTL and rejects the old wrapper with the observed mismatch.
 This is debug wiring only; the payload fix and software/address ABI are unchanged.
 No bitstream or board result was produced by 516077; a replacement build is required.
+
+## Multi-PA and fatal-domain follow-up
+
+The [domain isolation model and RTL findings](domain-isolation-model.md) now
+cover inactive domain PAs, asynchronous kill and byte provenance. Directed RTL
+reproducers exposed two further missing checks: TX metadata admission after a
+sticky domain fault, and fault attribution to never-installed workers whose
+reset owner matched lifetime zero. Both have source corrections and regression
+coverage. Pipeline 516080 predates those changes; it is not final acceptance
+for this follow-up.

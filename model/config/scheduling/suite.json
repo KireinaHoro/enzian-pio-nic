@@ -131,6 +131,18 @@
     "PoolBootstrap": {
       "InitFails": false,
       "BadEarlyPublish": false
+    },
+    "DomainIsolation": {
+      "BadReadAdmission": false,
+      "BadNoFault": false,
+      "BadNoKill": false,
+      "BadTxFaultGate": false,
+      "BadScrub": false,
+      "BadRxMask": false,
+      "BadWriteAdmission": false,
+      "IdlePeer": false,
+      "BadIdleFence": false,
+      "BadFaultOwner": false
     }
   },
   "invariants": {
@@ -251,6 +263,16 @@
       "CapacitySafe",
       "InitializedClaim",
       "FailClosed"
+    ],
+    "DomainIsolation": [
+      "TypeOK",
+      "DistinctPAs",
+      "SharedColor",
+      "FaultRecorded",
+      "NoWrongKill",
+      "NoLeak",
+      "NoNewTxAfterFault",
+      "NoIdleFence"
     ]
   },
   "properties": {
@@ -346,6 +368,9 @@
     ],
     "PoolBootstrap": [
       "Completes"
+    ],
+    "DomainIsolation": [
+      "InactivePaKilled"
     ]
   },
   "cases": {
@@ -1247,6 +1272,82 @@
       "module": "IdleDispatch",
       "options": {},
       "expected_violation": "NoDelayedKickDuringHandoff"
+    },
+    "domain-isolation": {
+      "module": "DomainIsolation",
+      "options": {},
+      "expected_violation": null
+    },
+    "bad-domain-read": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadReadAdmission": true
+      },
+      "expected_violation": "NoLeak"
+    },
+    "bad-domain-no-fault": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadNoFault": true
+      },
+      "expected_violation": "FaultRecorded"
+    },
+    "bad-domain-no-kill": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadNoKill": true
+      },
+      "expected_violation": "InactivePaKilled"
+    },
+    "bad-domain-tx-fault": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadTxFaultGate": true
+      },
+      "expected_violation": "NoNewTxAfterFault"
+    },
+    "bad-domain-no-scrub": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadScrub": true
+      },
+      "expected_violation": "NoLeak"
+    },
+    "bad-domain-rx-tail": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadRxMask": true
+      },
+      "expected_violation": "NoLeak"
+    },
+    "bad-domain-old-write": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadWriteAdmission": true
+      },
+      "expected_violation": "NoLeak"
+    },
+    "domain-isolation-idle-peer": {
+      "module": "DomainIsolation",
+      "options": {
+        "IdlePeer": true
+      },
+      "expected_violation": null
+    },
+    "bad-domain-idle-fence": {
+      "module": "DomainIsolation",
+      "options": {
+        "IdlePeer": true,
+        "BadIdleFence": true
+      },
+      "expected_violation": "NoIdleFence"
+    },
+    "bad-domain-fault-owner": {
+      "module": "DomainIsolation",
+      "options": {
+        "BadFaultOwner": true
+      },
+      "expected_violation": "NoWrongKill"
     }
   },
   "groups": {
@@ -1427,7 +1528,18 @@
       "pool-bootstrap",
       "pool-initialization-fails",
       "bad-pool-early-publication",
-      "witness-delayed-idle-kick"
+      "witness-delayed-idle-kick",
+      "domain-isolation",
+      "bad-domain-read",
+      "bad-domain-no-fault",
+      "bad-domain-no-kill",
+      "bad-domain-tx-fault",
+      "bad-domain-no-scrub",
+      "bad-domain-rx-tail",
+      "bad-domain-old-write",
+      "domain-isolation-idle-peer",
+      "bad-domain-idle-fence",
+      "bad-domain-fault-owner"
     ]
   },
   "witnesses": {

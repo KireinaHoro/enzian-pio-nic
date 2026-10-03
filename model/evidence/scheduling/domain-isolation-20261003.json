@@ -1,0 +1,457 @@
+{
+  "recorded_utc": "2026-10-03T08:53:00.414558+00:00",
+  "branch": "feat/cooperative-yield",
+  "parent_commit": "dae5cf2386d4f3731e67c8c0780c63363bfd8423",
+  "scope": "Bounded multi-PA domain isolation, sticky faults/kill, payload provenance and two reproduced RTL admission/fence corrections; no board operation",
+  "rtl_reproductions": {
+    "post_fault_tx": {
+      "baseline": "dae5cf2386d4f3731e67c8c0780c63363bfd8423 plus regression",
+      "observed": "TX admission status 1, expected 3",
+      "setup_seed": 1873271421,
+      "sim_seed": -76065858
+    },
+    "idle_reset_owner": {
+      "baseline": "same parent plus TX fault-admission fix and expanded regression",
+      "observed": "failed reset owner stranded an unused worker",
+      "setup_seed": -1677123058,
+      "sim_seed": -1749626999
+    }
+  },
+  "logs": {
+    "tx_before": {
+      "path": "out/domain-isolation/tx-before.log",
+      "sha256": "6e258bb7700cfb19d8f9235ae82e03ba35ed018b8496892b169ee145be3e019b"
+    },
+    "idle_before": {
+      "path": "out/domain-isolation/idle-before.log",
+      "sha256": "d2551351fa0abd13f987879849f71a48d6883c8fcdd52003aac59ece63c481c5"
+    },
+    "directed_after": {
+      "path": "out/domain-isolation/directed-after.log",
+      "sha256": "7c5ba891a7774da543e00b6828424c04259276d49783eb723121c628b110e45e"
+    },
+    "fast_eci": {
+      "path": "out/domain-isolation/fast-eci.log",
+      "sha256": "23db2aab9cd2abb5a9b179bbc968f85c4487b3dfce7126f1f57607d6ca95809d"
+    },
+    "ci_seed": {
+      "path": "out/domain-isolation/ci-seed.log",
+      "sha256": "4e638d3308c03a19fd09fffc4d552412d58f827d7a69d188fc41955e50133d92"
+    },
+    "failed_ci_gate": {
+      "path": "out/domain-isolation/fast-tests-eci-2865583.log",
+      "sha256": "8ffe93979199378a6ccff2e804e0b77d57246ef6e87bb8579a0d758239cc7498"
+    }
+  },
+  "models": {
+    "summary_path": "out/domain-isolation/validation/summary.json",
+    "summary_sha256": "ecf0348dafa71c592f341509ca1e0d3f990ab9067e4a9409056d28b033ed1abe",
+    "cases": {
+      "bad-domain-fault-owner": {
+        "passed": true,
+        "expected_violation": "NoWrongKill",
+        "statistics": [
+          "575 states generated, 185 distinct states found, 153 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ]
+      },
+      "bad-domain-idle-fence": {
+        "passed": true,
+        "expected_violation": "NoIdleFence",
+        "statistics": [
+          "4 states generated, 3 distinct states found, 1 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-domain-no-fault": {
+        "passed": true,
+        "expected_violation": "FaultRecorded",
+        "statistics": [
+          "4 states generated, 3 distinct states found, 1 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-domain-no-kill": {
+        "passed": true,
+        "expected_violation": "InactivePaKilled",
+        "statistics": [
+          "Progress(12) at 2026-10-03 10:49:11: 435,097 states generated (435,097 s/min), 43,258 distinct states found (43,258 ds/min), 8,747 states left on queue.",
+          "Progress(17) at 2026-10-03 10:49:13: 635,225 states generated, 54,864 distinct states found, 0 states left on queue.",
+          "635225 states generated, 54864 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 17."
+        ]
+      },
+      "bad-domain-no-scrub": {
+        "passed": true,
+        "expected_violation": "NoLeak",
+        "statistics": [
+          "238 states generated, 76 distinct states found, 63 states left on queue.",
+          "The depth of the complete state graph search is 3."
+        ]
+      },
+      "bad-domain-old-write": {
+        "passed": true,
+        "expected_violation": "NoLeak",
+        "statistics": [
+          "234 states generated, 83 distinct states found, 72 states left on queue.",
+          "The depth of the complete state graph search is 3."
+        ]
+      },
+      "bad-domain-read": {
+        "passed": true,
+        "expected_violation": "NoLeak",
+        "statistics": [
+          "4 states generated, 3 distinct states found, 1 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-domain-rx-tail": {
+        "passed": true,
+        "expected_violation": "NoLeak",
+        "statistics": [
+          "2 states generated, 2 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-domain-tx-fault": {
+        "passed": true,
+        "expected_violation": "NoNewTxAfterFault",
+        "statistics": [
+          "1202 states generated, 303 distinct states found, 237 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ]
+      },
+      "bad-handoff-control-cycle": {
+        "passed": true,
+        "expected_violation": "Completes",
+        "statistics": [
+          "Progress(13) at 2026-10-03 10:48:48: 146 states generated, 63 distinct states found, 0 states left on queue.",
+          "146 states generated, 63 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 13."
+        ]
+      },
+      "bad-handoff-late-release": {
+        "passed": true,
+        "expected_violation": "Completes",
+        "statistics": [
+          "Progress(6) at 2026-10-03 10:48:50: 43 states generated, 18 distinct states found, 0 states left on queue.",
+          "43 states generated, 18 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 6."
+        ]
+      },
+      "bad-handoff-unrelated-wake": {
+        "passed": true,
+        "expected_violation": "FreshReturn",
+        "statistics": [
+          "4 states generated, 4 distinct states found, 2 states left on queue.",
+          "The depth of the complete state graph search is 2."
+        ]
+      },
+      "bad-idle-duplicate": {
+        "passed": true,
+        "expected_violation": "AuthorizedReader",
+        "statistics": [
+          "37 states generated, 24 distinct states found, 5 states left on queue.",
+          "The depth of the complete state graph search is 8."
+        ]
+      },
+      "bad-idle-lost-kick": {
+        "passed": true,
+        "expected_violation": "StickyNotification",
+        "statistics": [
+          "4 states generated, 4 distinct states found, 1 states left on queue.",
+          "The depth of the complete state graph search is 3."
+        ]
+      },
+      "bad-ordinary-irq": {
+        "passed": true,
+        "expected_violation": "NoOrdinaryIrq",
+        "statistics": [
+          "30 states generated, 21 distinct states found, 4 states left on queue.",
+          "The depth of the complete state graph search is 7."
+        ]
+      },
+      "bad-pool-early-publication": {
+        "passed": true,
+        "expected_violation": "PublicationReady",
+        "statistics": [
+          "10 states generated, 9 distinct states found, 4 states left on queue.",
+          "The depth of the complete state graph search is 4."
+        ]
+      },
+      "domain-isolation": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(11) at 2026-10-03 10:48:58: 386,349 states generated (386,349 s/min), 47,782 distinct states found (47,782 ds/min), 16,884 states left on queue.",
+          "Progress(19) at 2026-10-03 10:49:02: 1,016,921 states generated, 105,984 distinct states found, 0 states left on queue.",
+          "1016921 states generated, 105984 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 19."
+        ]
+      },
+      "domain-isolation-idle-peer": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(10) at 2026-10-03 10:49:20: 362,148 states generated (362,148 s/min), 52,248 distinct states found (52,248 ds/min), 22,191 states left on queue.",
+          "Progress(22) at 2026-10-03 10:49:37: 2,558,521 states generated, 274,050 distinct states found, 0 states left on queue.",
+          "2558521 states generated, 274050 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 22."
+        ]
+      },
+      "handoff-claims": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(10) at 2026-10-03 10:48:49: 71 states generated, 30 distinct states found, 0 states left on queue.",
+          "71 states generated, 30 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      },
+      "handoff-copy-fails": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(10) at 2026-10-03 10:48:50: 71 states generated, 30 distinct states found, 0 states left on queue.",
+          "71 states generated, 30 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      },
+      "idle-dispatch": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(15) at 2026-10-03 10:48:45: 197 states generated, 83 distinct states found, 0 states left on queue.",
+          "197 states generated, 83 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 15."
+        ]
+      },
+      "pool-bootstrap": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(14) at 2026-10-03 10:48:52: 171 states generated, 84 distinct states found, 0 states left on queue.",
+          "171 states generated, 84 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 14."
+        ]
+      },
+      "pool-initialization-fails": {
+        "passed": true,
+        "expected_violation": null,
+        "statistics": [
+          "Progress(5) at 2026-10-03 10:48:52: 8 states generated, 8 distinct states found, 0 states left on queue.",
+          "8 states generated, 8 distinct states found, 0 states left on queue.",
+          "The depth of the complete state graph search is 5."
+        ]
+      },
+      "witness-delayed-idle-kick": {
+        "passed": true,
+        "expected_violation": "NoDelayedKickDuringHandoff",
+        "statistics": [
+          "91 states generated, 47 distinct states found, 11 states left on queue.",
+          "The depth of the complete state graph search is 10."
+        ]
+      }
+    }
+  },
+  "ci_preflight": {
+    "checked_utc": "2026-10-03T08:43:03.790929+00:00",
+    "pipeline": {
+      "id": 516080,
+      "sha": "dae5cf2386d4f3731e67c8c0780c63363bfd8423",
+      "ref": "feat/cooperative-yield",
+      "status": "failed",
+      "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/516080"
+    },
+    "jobs": [
+      {
+        "id": 2865598,
+        "name": "report-hw-eci",
+        "stage": "report",
+        "status": "skipped",
+        "started_at": null,
+        "finished_at": null,
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865598"
+      },
+      {
+        "id": 2865597,
+        "name": "build-hw-eci",
+        "stage": "build-hw",
+        "status": "skipped",
+        "started_at": null,
+        "finished_at": null,
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865597"
+      },
+      {
+        "id": 2865596,
+        "name": "prepare-eci",
+        "stage": "prepare",
+        "status": "skipped",
+        "started_at": null,
+        "finished_at": null,
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865596"
+      },
+      {
+        "id": 2865595,
+        "name": "scheduling-cooperative",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:08:31.522+02:00",
+        "finished_at": "2026-10-03T10:09:59.094+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865595"
+      },
+      {
+        "id": 2865594,
+        "name": "eci-address-map",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:08:14.815+02:00",
+        "finished_at": "2026-10-03T10:09:16.221+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865594"
+      },
+      {
+        "id": 2865593,
+        "name": "runtime-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:07:35.311+02:00",
+        "finished_at": "2026-10-03T10:09:46.938+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865593"
+      },
+      {
+        "id": 2865592,
+        "name": "runtime-interface",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:07:06.603+02:00",
+        "finished_at": "2026-10-03T10:09:27.609+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865592"
+      },
+      {
+        "id": 2865591,
+        "name": "interactive",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:07:05.844+02:00",
+        "finished_at": "2026-10-03T10:08:12.105+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865591"
+      },
+      {
+        "id": 2865590,
+        "name": "workflow-tools",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:07:04.774+02:00",
+        "finished_at": "2026-10-03T10:08:40.015+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865590"
+      },
+      {
+        "id": 2865589,
+        "name": "eci-toolkit-rx",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:52.727+02:00",
+        "finished_at": "2026-10-03T10:07:02.064+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865589"
+      },
+      {
+        "id": 2865588,
+        "name": "trace-fifo-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:52.045+02:00",
+        "finished_at": "2026-10-03T10:07:03.132+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865588"
+      },
+      {
+        "id": 2865587,
+        "name": "trace-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:51.847+02:00",
+        "finished_at": "2026-10-03T10:11:27.086+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865587"
+      },
+      {
+        "id": 2865586,
+        "name": "blocks-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:51.550+02:00",
+        "finished_at": "2026-10-03T10:08:28.817+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865586"
+      },
+      {
+        "id": 2865585,
+        "name": "dcs-lauberhorn",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:50.790+02:00",
+        "finished_at": "2026-10-03T10:07:32.530+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865585"
+      },
+      {
+        "id": 2865584,
+        "name": "dcs-rom-thx",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-03T10:05:50.436+02:00",
+        "finished_at": "2026-10-03T10:07:03.904+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865584"
+      },
+      {
+        "id": 2865583,
+        "name": "fast-tests-eci",
+        "stage": "test",
+        "status": "failed",
+        "started_at": "2026-10-03T10:05:50.043+02:00",
+        "finished_at": "2026-10-03T10:13:56.176+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2865583"
+      }
+    ]
+  },
+  "limitations": [
+    "Bounded contract, not complete RTL/cache/kernel refinement",
+    "Trusted MMU mappings expose only own lifetime PAs",
+    "Registered sticky fault is the TX admission cutoff; already-admitted DMA drains",
+    "IRQ/workqueue/SIGKILL fairness assumed; no board kill test",
+    "Coherence/AXI drain and cached-history obligations remain separate",
+    "Timing closure and matched revised hardware acceptance outstanding",
+    "Pre-existing deps/thx-fsms worktree difference retained and not committed"
+  ],
+  "thx_worktree_revision": "d923900cee2fb11d9d626a59049328efbd3a027d",
+  "thx_recorded_gitlink": "160000 commit a137b8287c776e827f64b30356625db478a4c4c0\tdeps/thx-fsms",
+  "source_sha256": {
+    "hw/src/lauberhorn/DmaControlPlugin.scala": "c3eaf8c94873f18e7cbafc4d53e3c28ecef1ea5e0d592a30fbf994149ed7a907",
+    "hw/src/lauberhorn/host/eci/EciOwnership.scala": "59a922c4cf376ea5f151206140cdd03fae092c091f6fa8fcc635ca770385f080",
+    "hw/test/src/lauberhorn/host/eci/DomainIngressSim.scala": "587c9b82ceac4c3a09034bf4e317fd1c621e9d0de43d843d3c9749c3bc3d3fcb",
+    "hw/test/src/lauberhorn/host/eci/InactivePaSim.scala": "fec736bd6959fff7bcbb29255eeaf5bd07e87c2d3671c9eeefdd14e6fb1c8c9f",
+    "model/tla/composition/DomainIsolation.tla": "ad7d0e69b67020fd9aed0e95772dd799af8da1b73e8d1c4c921f40e3fe95a96b",
+    "model/config/scheduling/suite.json": "a7a7a26a0b8a45f46207718894edde8e1f088fbbcc1d3372f91a2a37c7e63d4d",
+    "model/config/contracts.json": "37fb5d3fe569f523763337dffc7891ec8d9ea376a81729f7f2b747c0394b295f"
+  },
+  "fast_eci_result": {
+    "passed": 52,
+    "failed": 0,
+    "ignored": 1,
+    "elapsed_seconds": 570,
+    "command": "nix develop -c mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci"
+  },
+  "ci_seed_result": {
+    "passed": 1,
+    "failed": 0,
+    "command": "nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim -- -t rx-independent-progress-2-stalls -DsetupSeed=-1760455454 -DsimSeed=1699615821 -DprintSimLog=true",
+    "limitation": "Current revised worktree, not an exact pipeline-SHA reproduction; does not resolve the failed CI gate or establish its cause."
+  },
+  "directed_after_result": {
+    "passed": 2,
+    "failed": 0,
+    "command": "nix develop -c mill gen.test.testOnly lauberhorn.host.eci.InactivePaSim lauberhorn.host.eci.DomainIngressSim"
+  },
+  "model_structure": {
+    "path": "out/domain-isolation/structure-validation/summary.json",
+    "sha256": "810a63d18a506d1b3bef43f68b62f063031de0f5a0e9b5fd70507c55da26ae6e",
+    "passed": true
+  },
+  "hardware_action": "None. Pipeline 516080 failed a gate; preparation/hardware/report skipped. No results timer or replacement hardware pipeline armed; unresolved CI failure retained."
+}

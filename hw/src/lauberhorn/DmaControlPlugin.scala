@@ -321,9 +321,22 @@ class DmaControlPlugin extends FiberPlugin {
         trustedTxOwner := sched.logic.processPids(sched.logic.coreResident(worker)).bits
       }
     }
+    // A valid trigger may precede a fatal access on another worker PA. Dirty
+    // cache-line collection can finish after that fault, before kernel SIGKILL.
+    // Recheck the sticky hardware fence at metadata admission; already accepted
+    // DMA transactions retain their completion path and buffer obligations.
+    val trustedTxLive = Bool()
+    trustedTxLive := True
+    host.list[lauberhorn.host.eci.EciOwnership].headOption.foreach { ownership =>
+      for (worker <- 0 until NUM_WORKER_CORES.get) {
+        when(acceptedTxCore === worker + 1) {
+          trustedTxLive := !ownership.logic.failedWorkers(worker)
+        }
+      }
+    }
     val txAuthorized = Bool()
     txAuthorized := (acceptedTxCore === 0 && txReqMuxed.req.ty === HostReqType.bypass) ||
-      (acceptedTxCore =/= 0 && trustedTxOwner =/= 0 &&
+      (acceptedTxCore =/= 0 && trustedTxOwner =/= 0 && trustedTxLive &&
         (txReqMuxed.req.ty === HostReqType.oncRpcReplyTx ||
          txReqMuxed.req.ty === HostReqType.executionControl ||
          (txReqMuxed.req.ty === HostReqType.oncRpcCallTx &&
