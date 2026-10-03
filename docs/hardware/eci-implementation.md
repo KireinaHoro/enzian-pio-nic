@@ -221,3 +221,14 @@ snapshot against its first RX/TX access and counts domain migration and A→B→
 reuse. Trace loss clears pending comparisons and history. Six focused cases and
 the pinned `workflow-tools` check passed after this addition. These counters are
 coverage evidence; observing reuse alone is not proof of cache freshness.
+
+Longer observation also withdrew a fresh-boot 26,925,213-cycle pass: the
+sixty-second probe, 100 RPCs and post-client checks passed, but a preflight check
+before contention setup found an LFB timeout at approximately 84.45 seconds
+after programming. No contention services were started on that failing boot.
+The full 147,335,360-byte trace was preserved without loss; SHA-256 is
+`619876b45b2142c2e0bcf0b3bb405afe2dc987a55c36dcfb9e94b570b88a7cd0`.
+The campaign therefore pauses fine-resolution screening to qualify a lower
+setting with longer exposure and contention. A narrow interval between a short
+pass and a later failure does not establish a usable timeout boundary. No
+maximum exception-free setting is accepted yet.
