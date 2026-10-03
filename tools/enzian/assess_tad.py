@@ -11,6 +11,7 @@ ROW = re.compile(r'TAD(\d+) BAR=(?:0x)?([0-9a-fA-F]+) INT=([0-9a-fA-F]+) STAT=([
 # register does not erase a logged fault. Avoid matching module initialization's
 # ordinary "mapped ... STAT=... TIMEOUT=..." address report.
 FAULT = re.compile(r'Internal error:|Kernel panic|SError|external abort|'
+                   r'BUG:|Oops:|UBSAN:|(?:soft|hard) lockup|rcu:.*stall|'
                    r'L2C_(?:TAD|CBC|MCI)_INT|LFB entry timeout|Global sync CCPI timeout|'
                    r'EDAC.*(?:\bCE\b|\bUE\b|error)', re.IGNORECASE)
 

@@ -32,6 +32,12 @@ class TadTests(unittest.TestCase):
     def test_log_loss_cannot_look_clean(self):
         self.assertFalse(tad.assess(rows(), rows(), 'old boot\n', 'new tail\n')['passed'])
 
+    def test_kernel_lockup_cannot_pass_with_clean_tad_registers(self):
+        for fault in ('watchdog: BUG: soft lockup - CPU#31 stuck for 26s!',
+                      'rcu: INFO: rcu_preempt detected stalls on CPUs/tasks:',
+                      'UBSAN: array-index-out-of-bounds'):
+            self.assertFalse(tad.assess(rows(), rows(), 'boot\n', 'boot\n'+fault+'\n')['passed'])
+
 
 if __name__ == '__main__':
     unittest.main()
