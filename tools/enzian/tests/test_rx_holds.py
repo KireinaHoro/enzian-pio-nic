@@ -75,5 +75,30 @@ class HoldTests(unittest.TestCase):
         self.assertEqual(result['unmatched']['nack_without_read'], 1)
         self.assertEqual(result['unmatched']['open_read_at_capture_end'], 1)
 
+    def test_activation_parity_reuse_migration_and_loss(self):
+        records = []
+        def emit(name, **fields):
+            records.append((len(records), name, fields))
+        for core, domain, rx, tx in ((1, 7, 0, 1), (1, 8, 1, 0),
+                                     (1, 7, 1, 1), (2, 7, 0, 0)):
+            emit('ActivationCommitted', CoreID=core, DomainCode=domain, RxNext=rx, TxNext=tx)
+            emit('ActivationDelivered', CoreID=core, DomainCode=domain)
+            emit('EciRxReadFirst', CoreID=core, CacheLineIndex=rx)
+            emit('EciTxAcquire', CoreID=core, CacheLineIndex=tx)
+            # Later accesses toggle parity and must not be checked against the snapshot.
+            emit('EciRxReadNew', CoreID=core, CacheLineIndex=1-rx)
+        emit('ActivationCommitted', CoreID=2, DomainCode=7, RxNext=1, TxNext=0)
+        emit('EciRxReadNew', CoreID=2, CacheLineIndex=0)
+        emit('Lost', count=1)
+        emit('EciTxAcquire', CoreID=2, CacheLineIndex=1)
+        emit('ActivationDelivered', CoreID=3, DomainCode=7)
+        result = holds.summarize(records, 1)['activation_audit']
+        self.assertEqual(result['first_access_parity_checks'], {'rx': 5, 'tx': 4})
+        self.assertEqual(len(result['parity_mismatches']), 1)
+        self.assertEqual(result['parity_mismatches'][0]['direction'], 'rx')
+        self.assertEqual(result['observed_aba_by_core'], {'1': 1})
+        self.assertEqual(result['observed_domain_migrations'], {'domain=7:1->2': 1})
+        self.assertEqual(len(result['committed_parity_pairs']), 4)
+
 if __name__ == '__main__':
     unittest.main()
