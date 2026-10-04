@@ -235,3 +235,10 @@ records artifact hashes, job IDs, command inputs, corrected analysis, interrupte
 attempts and limitations. The DUT retains `sched_rt_runtime_us=-1`, a safe
 post-exposure hold of 10,000,000 cycles, and the existing services. Tracing is
 frozen after the final successful capture; no reset followed it.
+
+## Controlled GSYNC reproduction
+
+The [worker-local permission-change experiment](gsync-worker-reproduction.md)
+reproduced hold-dependent tails in 80 RPCs with 160 matching PPVID-47 GSYNCs.
+It strengthens the synchronization hypothesis without identifying the trigger
+of the historical two outliers.

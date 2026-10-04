@@ -1,0 +1,541 @@
+{
+  "pipeline": 516112,
+  "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+  "dut": "zuestoll14",
+  "peer": "zuestoll07",
+  "released_peer": "zuestoll12",
+  "client_kernel": "6.8.0-146-generic",
+  "probe_cpu": 47,
+  "rx_hold_cycles": [
+    10000000,
+    2000000,
+    200000,
+    10000000
+  ],
+  "boot": [
+    {
+      "case": "gsync-repro-baseline-01",
+      "round": 1,
+      "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/gsync-repro-20261004/dut-boot/01-gsync-repro-baseline-01/boot",
+          "status": "eci_bringup_failed",
+          "error": "Missing BDK CCPI lane initialization report"
+        },
+        {
+          "attempt": 2,
+          "logs": "out/gsync-repro-20261004/dut-boot/01-gsync-repro-baseline-01/boot/retry-02",
+          "status": "eci_bringup_failed",
+          "error": "Missing BDK CCPI lane initialization report"
+        },
+        {
+          "attempt": 3,
+          "logs": "out/gsync-repro-20261004/dut-boot/01-gsync-repro-baseline-01/boot/retry-03",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}",
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}",
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 488.1
+    }
+  ],
+  "probe_provenance": {
+    "pipeline": 516112,
+    "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+    "application_only_probe": true,
+    "hashes": {
+      "tools/enzian/gsync_probe.c": "3c7f08e31cf1ef2f83325fa60767149a6a2cee23bc28d57e2141d01d4ff3488c",
+      "tools/enzian/gsync_probe_client.py": "51c247514c879b69924320e2acdb75315055a2dc10c78aa309346339cf72f01f",
+      "out/gsync-repro-20261004/gsync-probe": "09ff88d0ebc839b23fec33451c7fe1f79729f3a6e2d729d2940046d9e614946e",
+      "out/gsync-repro-20261004/matched-runtime/12zn09rqaf6r2ni9cclxn0ykkihkrpzy-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1/lib/liblauberhorn.so": "0133ab7daf7f5d01e772abd143e225bbbca16dd29c97e4f6a6bbd68da3ce1a60"
+    },
+    "header_diff_from_pipeline": "",
+    "notes": [
+      "Probe linked against exact runtime extracted from pipeline deploy.img; current public headers have empty diff against pipeline SHA.",
+      "Client argument validation was added locally after staging; the executed remote client remains the earlier hash recorded above.",
+      "Synthetic permission changes do not establish which instruction triggered historical GSYNCs."
+    ]
+  },
+  "capture": {
+    "bytes": 184771456,
+    "sha256": "f4f6bcb67741b948b7898413d3285f0e17f4f7f221053de30003d16225a274fd",
+    "vio": {
+      "trace_write_slot_1": 2887054,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "before_freeze": {
+      "trace_write_slot_1": 2886988,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "full_unwrapped_buffer": true
+  },
+  "health": {
+    "passed": true,
+    "errors": [],
+    "before": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      }
+    },
+    "after": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      }
+    },
+    "kernel_faults": [],
+    "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+    "input_sha256": {
+      "before": "5107c66edc902db794ebab94594abb468c986b30bab948dcc5e4fb2d6ad3cae3",
+      "after": "7462f310b7ae0f7fb2630443647b632ae5c5cc5d4fa1f2e0ca2e07719548c08b",
+      "kernel_before": "2ae2eaadc6fc2265b7c114142175751dcf1198dbf3eec0d6f2e118b193509b80",
+      "kernel_after": "062f174fac192eef7362868781e706f36d6c09787b1ebac03390ffe6211a6b0c"
+    }
+  },
+  "summaries": {
+    "hold50ms-a": {
+      "0": {
+        "operation_ns": {
+          "min_us": 0.05,
+          "median_us": 0.05,
+          "max_us": 0.07
+        },
+        "restore_ns": {
+          "min_us": 0.05,
+          "median_us": 0.06,
+          "max_us": 0.16
+        },
+        "e2e_ns": {
+          "min_us": 107.231,
+          "median_us": 114.3565,
+          "max_us": 44767.162
+        }
+      },
+      "1": {
+        "operation_ns": {
+          "min_us": 3.97,
+          "median_us": 4.05,
+          "max_us": 9.79
+        },
+        "restore_ns": {
+          "min_us": 0.11,
+          "median_us": 0.12,
+          "max_us": 0.2
+        },
+        "e2e_ns": {
+          "min_us": 107.832,
+          "median_us": 108.821,
+          "max_us": 129.942
+        }
+      },
+      "2": {
+        "operation_ns": {
+          "min_us": 40268.7,
+          "median_us": 40332.575,
+          "max_us": 43469.75
+        },
+        "restore_ns": {
+          "min_us": 47642.83,
+          "median_us": 50003.855,
+          "max_us": 50019.03
+        },
+        "e2e_ns": {
+          "min_us": 88096.504,
+          "median_us": 90449.627,
+          "max_us": 92899.259
+        }
+      }
+    },
+    "hold10ms": {
+      "0": {
+        "operation_ns": {
+          "min_us": 0.05,
+          "median_us": 0.05,
+          "max_us": 0.06
+        },
+        "restore_ns": {
+          "min_us": 0.05,
+          "median_us": 0.06,
+          "max_us": 0.09
+        },
+        "e2e_ns": {
+          "min_us": 109.981,
+          "median_us": 111.681,
+          "max_us": 173.302
+        }
+      },
+      "1": {
+        "operation_ns": {
+          "min_us": 3.97,
+          "median_us": 4.04,
+          "max_us": 7.33
+        },
+        "restore_ns": {
+          "min_us": 0.11,
+          "median_us": 0.12,
+          "max_us": 0.12
+        },
+        "e2e_ns": {
+          "min_us": 108.141,
+          "median_us": 111.011,
+          "max_us": 125.111
+        }
+      },
+      "2": {
+        "operation_ns": {
+          "min_us": 1945.21,
+          "median_us": 9071.285,
+          "max_us": 9958.84
+        },
+        "restore_ns": {
+          "min_us": 10003.66,
+          "median_us": 10003.81,
+          "max_us": 10017.07
+        },
+        "e2e_ns": {
+          "min_us": 12056.636,
+          "median_us": 19187.9755,
+          "max_us": 20070.44
+        }
+      }
+    },
+    "hold1ms": {
+      "0": {
+        "operation_ns": {
+          "min_us": 0.05,
+          "median_us": 0.05,
+          "max_us": 0.06
+        },
+        "restore_ns": {
+          "min_us": 0.05,
+          "median_us": 0.06,
+          "max_us": 0.32
+        },
+        "e2e_ns": {
+          "min_us": 96.511,
+          "median_us": 110.941,
+          "max_us": 170.802
+        }
+      },
+      "1": {
+        "operation_ns": {
+          "min_us": 3.96,
+          "median_us": 4.01,
+          "max_us": 7.33
+        },
+        "restore_ns": {
+          "min_us": 0.11,
+          "median_us": 0.12,
+          "max_us": 0.12
+        },
+        "e2e_ns": {
+          "min_us": 108.001,
+          "median_us": 109.726,
+          "max_us": 142.822
+        }
+      },
+      "2": {
+        "operation_ns": {
+          "min_us": 325.08,
+          "median_us": 357.845,
+          "max_us": 453.07
+        },
+        "restore_ns": {
+          "min_us": 1004.1,
+          "median_us": 1004.215,
+          "max_us": 1004.26
+        },
+        "e2e_ns": {
+          "min_us": 1436.054,
+          "median_us": 1471.905,
+          "max_us": 1579.906
+        }
+      }
+    },
+    "hold50ms-b": {
+      "0": {
+        "operation_ns": {
+          "min_us": 0.05,
+          "median_us": 0.05,
+          "max_us": 0.06
+        },
+        "restore_ns": {
+          "min_us": 0.05,
+          "median_us": 0.06,
+          "max_us": 0.09
+        },
+        "e2e_ns": {
+          "min_us": 110.531,
+          "median_us": 113.201,
+          "max_us": 166.942
+        }
+      },
+      "1": {
+        "operation_ns": {
+          "min_us": 3.97,
+          "median_us": 4.065,
+          "max_us": 10.32
+        },
+        "restore_ns": {
+          "min_us": 0.11,
+          "median_us": 0.12,
+          "max_us": 0.12
+        },
+        "e2e_ns": {
+          "min_us": 108.391,
+          "median_us": 111.291,
+          "max_us": 145.991
+        }
+      },
+      "2": {
+        "operation_ns": {
+          "min_us": 3070.6,
+          "median_us": 40313.625,
+          "max_us": 40577.47
+        },
+        "restore_ns": {
+          "min_us": 49811.48,
+          "median_us": 50003.81,
+          "max_us": 50017.52
+        },
+        "e2e_ns": {
+          "min_us": 53198.845,
+          "median_us": 90423.935,
+          "max_us": 90705.486
+        }
+      }
+    }
+  },
+  "rpc_count": 240,
+  "permission_change_rpcs": 80,
+  "worker_gsync_count": 161,
+  "permission_change_gsync_count": 160,
+  "getpid_gsync_count": 0,
+  "loss_events": [
+    {
+      "cycle": 112832012979,
+      "count": 107228
+    }
+  ],
+  "loss_during_probe": 0,
+  "first_probe_cycle": 139187685250,
+  "last_probe_cycle": 152558257293,
+  "last_peer_nack_to_commit_us": {
+    "min": 4.51,
+    "median": 4.64,
+    "max": 40.18
+  },
+  "first_noop": {
+    "id": 1,
+    "mode": 0,
+    "cpu": 47,
+    "client_start_ns": 1025801881329,
+    "e2e_ns": 44767162,
+    "op_start_ns": 578505288810,
+    "op_end_ns": 578505288880,
+    "restore_end_ns": 578505289040,
+    "operation_ns": 70,
+    "restore_ns": 160,
+    "value": 0,
+    "phase": "hold50ms-a",
+    "trace": {
+      "start": 139187685250,
+      "end": 139196567584,
+      "duration_us": 44411.67
+    },
+    "gsync": [
+      {
+        "cycle": 139187689723,
+        "header": "0xc0000000000003af",
+        "ppvid": 47,
+        "offset_us": 22.365,
+        "peers": [
+          {
+            "core": 2,
+            "remaining_us": 23952.24,
+            "nack_to_commit_us": 20437.065
+          },
+          {
+            "core": 3,
+            "remaining_us": 41964.485,
+            "nack_to_commit_us": 2424.82
+          },
+          {
+            "core": 1,
+            "remaining_us": 44383.275,
+            "nack_to_commit_us": 6.03
+          }
+        ]
+      }
+    ]
+  },
+  "activations": [
+    {
+      "cycle": 131392500502,
+      "fields": {
+        "CoreID": 2,
+        "DomainCode": 2,
+        "QueueIndex": 3
+      }
+    },
+    {
+      "cycle": 131392513124,
+      "fields": {
+        "CoreID": 3,
+        "DomainCode": 2,
+        "QueueIndex": 3
+      }
+    },
+    {
+      "cycle": 139187656570,
+      "fields": {
+        "CoreID": 4,
+        "DomainCode": 1,
+        "QueueIndex": 2
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic mprotect establishes a repeatable worker-side synchronization delay, not the interrupt or instruction causing the historical outliers.",
+    "Global CPU GSYNC retirement is inferred from completion timing, not directly traced.",
+    "Sequential socket client used for reproduction; no four-worker DPDK E2E breakdown measured yet.",
+    "Single DUT cold boot after two recovered CCPI initialization failures; two 50ms phases on that boot.",
+    "FPGA timing remains open for pipeline 516112.",
+    "Full trace includes an intentional setup-preservation freeze gap; no decoded loss during probe window."
+  ],
+  "retained_state": "Tracing frozen, hold 10000000 cycles, existing add/mul/probe services retained; no reset after final capture.",
+  "inputs": {
+    "out/gsync-repro-20261004/analysis.json": "890c1649fd7c4cb26f942a49727b61541f12b9b2b653f5e0c30e17d783f4afc1",
+    "out/gsync-repro-20261004/analyze-trials.py": "15573db98860b6860c918200eb0394e11d6c2fcd0f49026daa8d3c201a84d98f",
+    "out/gsync-repro-20261004/run-trials-retry.py": "a37335e72d47bc4dc7d1da59af619e190d3ba09c98439796cee5b264ce564964",
+    "out/gsync-repro-20261004/probe-provenance.json": "f3c6ad8b5591761f2e23c0dd19bb7b449754b51f9628658710d9a6a4481d6ea9",
+    "out/gsync-repro-20261004/capture-trials/trace/trace-dram.bin": "f4f6bcb67741b948b7898413d3285f0e17f4f7f221053de30003d16225a274fd",
+    "out/gsync-repro-20261004/hold50ms-a/requests.csv": "4120629f5098ec456c6186373a81cd86898d5610b3e3164468852f44b83bbb2f",
+    "out/gsync-repro-20261004/hold10ms/requests.csv": "110b1649016a9eaf0432565c5dc2c5439d3568d6790b197a9d1c525f50cb1a48",
+    "out/gsync-repro-20261004/hold1ms/requests.csv": "9565e81ead9e5954d6983d585a31b87f772a53ad8ef71e9620cef3d9919b254c",
+    "out/gsync-repro-20261004/hold50ms-b/requests.csv": "97891c42c112993cd0e0b8729f7c4017bec1e15c7305d90f63d013154201010a"
+  }
+}
