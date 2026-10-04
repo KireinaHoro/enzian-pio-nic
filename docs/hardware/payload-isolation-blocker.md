@@ -120,3 +120,14 @@ sticky domain fault, and fault attribution to never-installed workers whose
 reset owner matched lifetime zero. Both have source corrections and regression
 coverage. Pipeline 516080 predates those changes; it is not final acceptance
 for this follow-up.
+
+## Matched corrected-build baseline — October 4
+
+Pipeline 516112 (`b2117e96`) contains these corrections and the subsequent
+simulation seed/TX-call fixes. All 13 gates, preparation, hardware and reports
+passed. The matched deployment passed two cold-boot trials of 100 correct RPCs
+each; see the [board result](../development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
+This establishes a functional baseline for resuming the isolation campaign,
+not adversarial multi-domain acceptance. WNS is −0.396 ns with 7,227 failing
+setup endpoints; timing remains open. Prior vulnerable-image failure captures
+remain preserved.

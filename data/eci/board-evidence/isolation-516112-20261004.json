@@ -1,0 +1,395 @@
+{
+  "pipeline": 516112,
+  "sha": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+  "jobs": {
+    "prepare": 2865917,
+    "hardware": 2865918,
+    "report": 2865919
+  },
+  "artifacts": {
+    "out/ci-followup/516112/prepare/out/deploy.img": "599097f3d4130beeb3d13136fbe30b3987e9d36fedd22664ee4adab69570999c",
+    "out/ci-followup/516112/hardware/shell_lauberhorn-eci.bit": "2dcdcf9bb5b05a90c458bce190d173aa868d975f78f8545bfc37432f75ceadcd",
+    "out/ci-followup/516112/hardware/shell_lauberhorn-eci.ltx": "752f0b8d6b10b6dff364123d57a690dfbd56dd584f913dcfba299a74a9ae06c4",
+    "out/ci-followup/516112/hardware/lauberhorn_trace_dma_map.json": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c"
+  },
+  "timing": {
+    "wns": -0.396,
+    "tns": -917.034,
+    "setup_failing": 7227.0,
+    "setup_total": 1350921.0,
+    "whs": 0.0,
+    "ths": 0.0,
+    "hold_failing": 0.0,
+    "hold_total": 1348913.0,
+    "wpws": 0.039,
+    "tpws": 0.0,
+    "pulse_failing": 0.0,
+    "pulse_total": 605786.0
+  },
+  "prior_state": "All prior failure captures preserved; fresh precheck TAD/kernel assessment passed; hold=10000; management route cpu40g0.",
+  "pipeline_jobs": [
+    {
+      "id": 2865919,
+      "name": "report-hw-eci",
+      "stage": "report",
+      "status": "success",
+      "started_at": "2026-10-04T05:31:47.177+02:00",
+      "finished_at": "2026-10-04T05:32:51.001+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 397383
+      }
+    },
+    {
+      "id": 2865918,
+      "name": "build-hw-eci",
+      "stage": "build-hw",
+      "status": "success",
+      "started_at": "2026-10-04T00:14:09.086+02:00",
+      "finished_at": "2026-10-04T05:31:46.954+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 356843026
+      }
+    },
+    {
+      "id": 2865917,
+      "name": "prepare-eci",
+      "stage": "prepare",
+      "status": "success",
+      "started_at": "2026-10-04T00:07:34.649+02:00",
+      "finished_at": "2026-10-04T00:14:08.824+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 215038176
+      }
+    },
+    {
+      "id": 2865916,
+      "name": "scheduling-cooperative",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:59:48.284+02:00",
+      "finished_at": "2026-10-04T00:01:28.949+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 62878
+      }
+    },
+    {
+      "id": 2865915,
+      "name": "eci-address-map",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:59:34.476+02:00",
+      "finished_at": "2026-10-04T00:00:38.892+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 1333
+      }
+    },
+    {
+      "id": 2865914,
+      "name": "runtime-tests",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:59:14.615+02:00",
+      "finished_at": "2026-10-04T00:04:47.647+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 13415
+      }
+    },
+    {
+      "id": 2865913,
+      "name": "runtime-interface",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:59:06.883+02:00",
+      "finished_at": "2026-10-04T00:01:24.472+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 24975
+      }
+    },
+    {
+      "id": 2865912,
+      "name": "interactive",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:58:48.603+02:00",
+      "finished_at": "2026-10-04T00:00:01.341+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 1296
+      }
+    },
+    {
+      "id": 2865911,
+      "name": "workflow-tools",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:58:37.970+02:00",
+      "finished_at": "2026-10-04T00:00:10.929+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 3190
+      }
+    },
+    {
+      "id": 2865910,
+      "name": "eci-toolkit-rx",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:27.283+02:00",
+      "finished_at": "2026-10-03T23:58:45.898+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 8038
+      }
+    },
+    {
+      "id": 2865909,
+      "name": "trace-fifo-tests",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:26.737+02:00",
+      "finished_at": "2026-10-03T23:59:11.901+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 2147
+      }
+    },
+    {
+      "id": 2865908,
+      "name": "trace-tests",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:26.394+02:00",
+      "finished_at": "2026-10-03T23:59:45.566+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 13877
+      }
+    },
+    {
+      "id": 2865907,
+      "name": "blocks-tests",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:26.153+02:00",
+      "finished_at": "2026-10-03T23:59:31.767+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 14914
+      }
+    },
+    {
+      "id": 2865906,
+      "name": "dcs-lauberhorn",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:25.755+02:00",
+      "finished_at": "2026-10-03T23:59:04.177+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 7671
+      }
+    },
+    {
+      "id": 2865905,
+      "name": "dcs-rom-thx",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:25.704+02:00",
+      "finished_at": "2026-10-03T23:58:35.254+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 11863
+      }
+    },
+    {
+      "id": 2865904,
+      "name": "fast-tests-eci",
+      "stage": "test",
+      "status": "success",
+      "started_at": "2026-10-03T23:57:25.409+02:00",
+      "finished_at": "2026-10-04T00:07:34.381+02:00",
+      "failure_reason": null,
+      "artifacts_file": {
+        "filename": "artifacts.zip",
+        "size": 33059
+      }
+    }
+  ],
+  "trials": [
+    {
+      "case": "isolation-516112",
+      "round": 1,
+      "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/isolation-516112/01-isolation-516112/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 259.5
+    },
+    {
+      "case": "isolation-516112",
+      "round": 2,
+      "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/isolation-516112/02-isolation-516112/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 257.2
+    }
+  ],
+  "clients": [
+    {
+      "path": "out/board/isolation-516112/client-results/round-01.csv",
+      "correct_replies": 100,
+      "sha256": "c9e1b74adf6f3923dad9514dedda9f183f9bdd6203df997f8e5fa08994637c04"
+    },
+    {
+      "path": "out/board/isolation-516112/client-results/round-02.csv",
+      "correct_replies": 100,
+      "sha256": "8d2fe42e7e26d97e5d42149513f93fa2e292f148314318bde3410322fff95e93"
+    }
+  ],
+  "software_manifest": {
+    "applications": {
+      "microbenchmarks": {
+        "entryPoint": "/nix/store/v2mgxlk3w8qaa3n9mh9gmnnnkd8yj4gj-lauberhorn-app-microbenchmarks-aarch64-unknown-linux-gnu-0.0.1/bin/microbenchmarks",
+        "path": "/nix/store/v2mgxlk3w8qaa3n9mh9gmnnnkd8yj4gj-lauberhorn-app-microbenchmarks-aarch64-unknown-linux-gnu-0.0.1",
+        "source": {
+          "local": false,
+          "narHash": "sha256-Rm47NkgbGhMvHBJ/mAZ5Ffi5VgDzk/YaOZbrcsa9V+U=",
+          "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622"
+        }
+      },
+      "nested-validation": {
+        "entryPoint": "/nix/store/6c15xf41dvbhbd4kb7dl898zjc2gp6jx-lauberhorn-nested-validation-aarch64-unknown-linux-gnu-0.0.1/bin/nested-validation",
+        "path": "/nix/store/6c15xf41dvbhbd4kb7dl898zjc2gp6jx-lauberhorn-nested-validation-aarch64-unknown-linux-gnu-0.0.1",
+        "source": {
+          "local": false,
+          "narHash": "sha256-Rm47NkgbGhMvHBJ/mAZ5Ffi5VgDzk/YaOZbrcsa9V+U=",
+          "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622"
+        }
+      },
+      "recovery-test": {
+        "entryPoint": "/nix/store/fnr0mjvhr425104lz8d2klxcx7jz6309-lauberhorn-recovery-test-aarch64-unknown-linux-gnu-0.0.1/bin/recovery-test",
+        "path": "/nix/store/fnr0mjvhr425104lz8d2klxcx7jz6309-lauberhorn-recovery-test-aarch64-unknown-linux-gnu-0.0.1",
+        "source": {
+          "local": false,
+          "narHash": "sha256-Rm47NkgbGhMvHBJ/mAZ5Ffi5VgDzk/YaOZbrcsa9V+U=",
+          "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622"
+        }
+      }
+    },
+    "collateral": {
+      "devices": "/nix/store/mg29pjyj2xk8ilycw5r8jd98ay92jj9s-lauberhorn-hw-rtl-config-devices",
+      "headers": "/nix/store/21xdq4jnd0sdz1skqc59d370xsi1asdr-lauberhorn-hw-rtl-config-headers",
+      "mackerel": "/nix/store/4achbr4kiwf1frn1gdkd3p8v6mfm8vgb-lauberhorn-dev-hdrs",
+      "rtl": "/nix/store/8pfa28sm5n14rybrhl8wsvna41q6iv85-lauberhorn-hw-rtl-config"
+    },
+    "kernelRelease": "6.8.0-64-generic",
+    "packages": {
+      "module": "/nix/store/k8f0fn84w2p7clx2f8341p0jjvszccq3-lauberhorn-kmod-aarch64-unknown-linux-gnu/lauberhorn.ko",
+      "runtime": "/nix/store/12zn09rqaf6r2ni9cclxn0ykkihkrpzy-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1"
+    },
+    "platform": {
+      "local": false,
+      "narHash": "sha256-Rm47NkgbGhMvHBJ/mAZ5Ffi5VgDzk/YaOZbrcsa9V+U=",
+      "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622"
+    },
+    "schemaVersion": 1
+  },
+  "postcheck": {
+    "passed": true,
+    "errors": [],
+    "kernel_faults": []
+  },
+  "postcheck_scope": "Single final snapshot and full kernel log; not a before/after endurance comparison.",
+  "rx_hold_cycles": 10000,
+  "trace": "Trace stop explicitly set to 0 and static ECI edge ILA armed after each programming, before boot/module load. No failure occurred and no new DDR dump was required.",
+  "remaining_limitations": [
+    "Timing remains open: WNS -0.396 ns, TNS -917.034 ns, 7227 setup endpoints failing.",
+    "200 baseline single-worker adder RPCs do not establish adversarial multi-PA isolation, contention progress, or full cooperative acceptance.",
+    "No RX-hold threshold or timing/RTL/address-layout/PREEMPT changes in this follow-up."
+  ],
+  "final_state": "zuestoll14 serving add on corrected pipeline 516112; tracing enabled; branch feat/cooperative-yield retained; pre-existing THX checkout difference preserved.",
+  "evidence_sha256": {
+    "out/board/isolation-516112/summary.json": "559268921915178fb3be936b6ae9aa22d91817f0cb28485b43555a122b7a40ee",
+    "out/board/isolation-516112/manifest.json": "0a100b049ab9928d34548692086328ac9bb4c3b4735291394f6a73b79ae270a4",
+    "out/board/isolation-516112/postcheck-assessment.json": "82a1b72f49b0176c1e8d0678669db4ee818f81f82ef8c41f14f272d35fb6da37",
+    "out/board/isolation-516112/postcheck-evidence/kernel.txt": "84937372549dc00c4d12cbf629ae79599e0687ee07155d0cb1f36d3fd328a8f2",
+    "out/board/isolation-516112-setup/program-arm.tcl": "ff3c1297d63eb61dbe5675170775ae646f698ae8ed076fd110aa7b203c547a67"
+  }
+}

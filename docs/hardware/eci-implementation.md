@@ -1,11 +1,13 @@
 # ECI implementation and evidence
 
-**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
-a newly activated domain can read the previous owner's TX payload through its
-own valid alias. See the [reproducer and required isolation work](payload-isolation-blocker.md).
-The board campaign is paused; earlier functional results do not discharge this
-isolation failure. The follow-up source adds TX allocation scrubbing and bounds
-checks plus RX packet-tail masking; corrected-build acceptance is still required.
+**Corrected-build baseline (October 4):** pipeline 516112 (`b2117e96`)
+includes the payload-isolation and multi-PA fault corrections and passed all CI
+jobs. Two verified cold boots each passed module/version checks and 100 correct
+RPCs. See the [matched board result](../development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
+Adversarial domain-isolation and contention acceptance remain outstanding; this
+functional baseline does not discharge those obligations. Timing also remains
+open: WNS −0.396 ns, 7,227 failing setup endpoints. The old vulnerable 515944
+image must not be substituted for this corrected build.
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
 cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains

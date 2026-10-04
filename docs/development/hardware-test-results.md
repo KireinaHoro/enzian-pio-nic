@@ -679,3 +679,32 @@ The deferred CI timer was canceled when the user requested immediate collection.
 The DUT remains on `a51139e` with the four-worker adder service running after
 trial two; the fresh image's tracing remains active. No address/PREEMPT changes
 were made. Implementation planning may now follow the roadmap.
+
+## Isolation correction baseline — 516112 — 2026-10-04
+
+Pipeline **516112**, revision `b2117e9625cca7ce256b44db34a5f2a46a952622`,
+passed all 13 gates and preparation **2865917**, hardware **2865918**, and report
+**2865919**. The exact CI deployment image, bitstream, LTX and trace map were
+used together; the client was built from the same revision. Hashes, manifest,
+job IDs and trial summaries are retained in the
+[evidence ledger](../../data/eci/board-evidence/isolation-516112-20261004.json).
+
+The standard `tools/enzian/test.py` harness ran two cold-boot trials on reserved
+zuestoll14. Each verified core power-off, QLM8..13 lock and all 24 ECI lanes,
+then passed module/version checks and **100 correct adder RPCs** (one worker).
+Both boots succeeded on their first attempt. CSV checks independently confirmed
+all 200 arithmetic results and echoed request IDs. Tracing was explicitly enabled
+and the static ECI edge ILA armed before each boot/module load. Previous failing
+campaign captures were already preserved; a fresh pre-reset TAD/kernel check was
+clean. The final snapshot also found no TAD interrupts or kernel fault diagnostics.
+That final snapshot is not a before/after endurance comparison.
+
+The DUT remains on this corrected image serving add, with tracing enabled and
+the default 10,000-cycle RX hold. Logs and structured results are under
+`out/board/isolation-516112/`; matching artifacts are under
+`out/ci-followup/516112/`. No failure reset or new trace dump was required.
+
+Timing remains open: **WNS −0.396 ns, TNS −917.034 ns, 7,227 failing setup
+endpoints**, with no failing hold endpoints. This is a functional baseline for
+resuming the corrected-image campaign, not adversarial multi-PA isolation,
+contention progress, a new RX-hold threshold, or full cooperative acceptance.
