@@ -86,6 +86,8 @@ class ActivationBreakdownTests(unittest.TestCase):
             result=json.loads((d/'result.json').read_text())
             self.assertEqual(len(result['rows']),4)
             self.assertEqual(result['metrics_ns']['all']['roundtrip']['count'],4)
+            subprocess.run(command+['--expected-total','4'],check=True,capture_output=True)
+            self.assertNotEqual(subprocess.run(command+['--expected-total','5'],capture_output=True).returncode,0)
             (d/'capture.json').write_text(json.dumps(dict(loss_free=False,returncode=0)))
             self.assertNotEqual(subprocess.run(command,capture_output=True).returncode,0)
 

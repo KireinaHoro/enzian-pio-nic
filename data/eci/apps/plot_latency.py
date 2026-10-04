@@ -835,7 +835,7 @@ def attach_trace_segments(
         row["trace_segments"] = segments
 
 
-def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float]) -> None:
+def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None) -> None:
     events_by_name = build_event_index(events)
     ipi_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -860,7 +860,9 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
         ]
         rec_events.append(first_event_after(events_by_name, "EciRxDescSent", dispatch["time_ns"], core_match, max_delta_ns=1_000_000))
 
-        rec: Dict[str, Any] = {"host_msg_id": host_id, "events": []}
+        queued = rec_events[1]
+        rec: Dict[str, Any] = {"host_msg_id": host_id, "events": [],
+            "process_id": queued["data"].get("ProcessID") if queued else None}
         seen = set()
         for ev in sorted((ev for ev in rec_events if ev is not None), key=lambda item: item["time_ns"]):
             key = (ev["event"], ev["time_ns"], tuple(sorted(ev["data"].items())))
@@ -875,6 +877,13 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
         recs.sort(key=lambda rec: rec["SchedulerRequestDispatched"])
         for rec, following in zip(recs, recs[1:]):
             rec["next_dispatch_ns"] = following["SchedulerRequestDispatched"]
+    # Preserve next-dispatch bounds across *all* domains before selecting the
+    # measured domain, so a later flush request cannot supply missing TX events.
+    if process_id is not None:
+        for core, recs in dispatches_by_core.items():
+            if any(rec["process_id"] is None for rec in recs):
+                raise ValueError("process filtering requires ProcessID on every queued dispatch")
+            dispatches_by_core[core] = [rec for rec in recs if rec["process_id"] == process_id]
     for recs in ipi_by_core.values():
         recs.sort(key=lambda ev: ev["time_ns"])
 
@@ -1591,6 +1600,8 @@ def main() -> int:
     parser.add_argument("--worker-cpu-base", type=int, help="first isolated Linux worker CPU (required for new CSV/hardware correlation)")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
+    parser.add_argument("--trace-process-id", type=int,
+                        help="hardware ProcessID of measured domain; excludes flush-domain dispatches")
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
     args = parser.parse_args()
 
@@ -1636,7 +1647,7 @@ def main() -> int:
             print(f"estimated ECI FLDX_EH->HAKD RTT={eci_rtt_ns:.0f} ns; using half RTT={eci_half_rtt_ns:.0f} ns for 2F2F RX HW")
         else:
             print("warning: could not estimate ECI FLDX_EH->HAKD RTT from trace")
-        correlate_trace(rows, events, eci_half_rtt_ns)
+        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id)
         matched_rows = [row for row in rows if "trace_host_msg_id" in row]
         matched = len(matched_rows)
         print(f"matched {matched}/{len(rows)} rows with sys_trace HostMsgID/CoreID events")
@@ -1692,7 +1703,7 @@ def main() -> int:
             "server_sha256": hashlib.sha256(args.server_csv.read_bytes()).hexdigest()}
         if args.trace_dump:
             provenance.update(trace_dump=str(args.trace_dump), trace_map=str(args.trace_map),
-                trace_cycle_ns=args.trace_cycle_ns,
+                trace_cycle_ns=args.trace_cycle_ns, trace_process_id=args.trace_process_id,
                 trace_map_sha256=hashlib.sha256(args.trace_map.read_bytes()).hexdigest(),
                 allow_partial_trace=args.allow_partial_trace)
         args.audit_json.write_text(json.dumps({"metrics": metrics, "provenance": provenance,

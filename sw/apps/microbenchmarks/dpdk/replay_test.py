@@ -39,9 +39,10 @@ def main():
         ('wrong-result', 'add', [packet(19)], 1, None),
         ('stale-xid', 'add', [packet(18, 42)], 1, None),
         ('timeout', 'add', [], 1, None),
-        ('flush-add', 'add', [packet(77,0x80000000+i,12346) for i in range(16)]+[packet(18)], 0, 'flush:1'),
-        ('flush-duplicate', 'add', [packet(77,0x80000000,12346)]*16, 1, 'flush:1'),
-        ('flush-timeout', 'add', [], 1, 'flush:1'),
+        ('flush-add', 'add', [packet(77,0x80000000+i,12346) for i in range(16)]+[packet(18)], 0, 'flush:1:1'),
+        ('flush-unrelated', 'add', [packet(18,99,9998)]+[packet(77,0x80000000+i,12346) for i in range(16)]+[packet(18)], 0, 'flush:1:1'),
+        ('flush-duplicate', 'add', [packet(77,0x80000000,12346)]*16, 1, 'flush:1:1'),
+        ('flush-timeout', 'add', [], 1, 'flush:1:1'),
     ]:
         rx, tx, out = [args.output / (name+suffix) for suffix in ('.rx.pcap', '.tx.pcap', '.csv')]
         with rx.open('wb') as f:

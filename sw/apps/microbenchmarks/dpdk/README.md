@@ -168,14 +168,15 @@ for clock domains, trace boundaries and the external-residual contract.
 ## Controlled cold preparation
 
 With one `add` thread in the measured domain and four `mul` threads in a
-separate domain, the optional final argument `flush:N` sends a 16-request mul
-burst before every Nth add request (including warmup). Set
+separate domain, the optional final argument `flush:N[:ROUNDS]` sends two 16-request mul
+bursts before every Nth add request (including warmup). Set
 `LH_BENCH_FLUSH_SPIN_US=100` only on the mul server to keep its workers occupied
 while the queue fills; the maximum accepted setting is 10000 us. The measured
 add handler is unchanged. `flush:1` prepares every attempted cold request; a
 larger N permits a cold first request followed by hot requests.
 
 Every flush response is checked and drained before the measured add starts.
+Set ROUNDS to 1..8 to vary preparation; retain all attempts and verify eviction.
 Preparation is outside the timed roundtrip and is recorded in
 `OUTPUT.csv.flush.csv`; any invalid response or timeout fails the run. This is
 a preparation mechanism, not proof of eviction: require kernel/runtime and
