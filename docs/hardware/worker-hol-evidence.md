@@ -199,6 +199,27 @@ tracing or a controlled reproduction is still needed to distinguish causes.
 The [additional evidence](../../data/eci/board-evidence/echo-outlier-516112-20261004.json)
 retains capture provenance, surrounding event counts and accepted GSYNC headers.
 
+Scanning the entire loss-free measurement range strengthens the issuer-specific
+hypothesis. Of 7,094 accepted GSYNC requests, exactly one has PPVID 44 and one
+has PPVID 45; none has PPVID 46 or 47. The two occur inside the delayed echo
+service intervals on datapaths 1 and 2 (Linux CPUs 44 and 45). Both have other
+workers in long RX holds. These are also the only two of 6,256 descriptor-to-TX
+commit intervals exceeding 1 ms; the next longest is 35.205 microseconds.
+Thus the proposed equivalence has no counterexample in this measured window,
+with only two positive observations. The GSYNC field layout establishes PPVID
+as header bits 5:0; direct equivalence to Linux CPU numbering has not been
+independently calibrated, though both observed IDs match the delayed workers.
+
+There are 5,630 GSYNC requests during fully observed near-timeout RX holds.
+Some are followed by promptly completed worker requests before a peer's held
+RX completes. Those originate from non-worker PPVIDs and do not contradict a
+stall of the issuing core. The third GSYNC inside an outlier has PPVID 42.
+The [scan evidence and reproduction script](../../data/eci/board-evidence/gsync-worker-tail-516112-20261004.json)
+record the ID histogram and examples. Neither CPU-side global retirement nor
+the interrupt/TLB-maintenance trigger is visible in this FPGA trace. A matching
+GSYNC ID is stronger evidence than temporal proximity alone, but does not prove
+that exact initiating instruction or a universal causal equivalence.
+
 ## Outcome and retained state
 
 The finite all-but-one checks passed on two cold boots of corrected 516112,

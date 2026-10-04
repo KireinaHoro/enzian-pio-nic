@@ -1,0 +1,201 @@
+{
+  "pipeline": 516112,
+  "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+  "capture": "out/board/hol-516112-boot02-three-retry/trace/measurement-range.bin",
+  "capture_sha256": "434be615dc5b71cb6c0d06cffe4eae2f25166a73bedec7f8c6f9288778a540d3",
+  "scope": "Loss-free measurement range only. Long RX holds are complete read-to-NACK pairs >=26656301 cycles. Service is worker RX descriptor to TX commit, not E2E. PPVID decoding is established; equality to Linux CPU number is supported by these observations, not independently calibrated here.",
+  "gsync_count": 7094,
+  "ppvid_counts": {
+    "3": 1655,
+    "4": 485,
+    "7": 471,
+    "38": 17,
+    "9": 17,
+    "0": 626,
+    "1": 378,
+    "2": 612,
+    "6": 486,
+    "14": 34,
+    "42": 588,
+    "10": 20,
+    "19": 124,
+    "40": 97,
+    "20": 11,
+    "41": 641,
+    "39": 63,
+    "8": 142,
+    "5": 22,
+    "15": 1,
+    "43": 586,
+    "44": 1,
+    "45": 1,
+    "13": 16
+  },
+  "gsync_during_long_rx_hold": 5630,
+  "worker_ppvid_gsync": [
+    {
+      "cycle": 326204302826,
+      "channel": "gsync_req_odd",
+      "header": "0xc00000000000022c",
+      "holds": [
+        {
+          "core": 4,
+          "remaining_us": 28499.735,
+          "end": 326210002773
+        },
+        {
+          "core": 3,
+          "remaining_us": 28763.705,
+          "end": 326210055567
+        },
+        {
+          "core": 2,
+          "remaining_us": 123751.03,
+          "end": 326229053032
+        }
+      ],
+      "active_services": [
+        {
+          "core": 1,
+          "duration_us": 123790.335,
+          "commit_after_gsync_us": 123774.69
+        }
+      ],
+      "completed_new_services_before_peer_release": 0,
+      "first_new_service": null,
+      "ppvid": 44,
+      "rtad": 4
+    },
+    {
+      "cycle": 327891455549,
+      "channel": "gsync_req_even",
+      "header": "0xc0000000000002ad",
+      "holds": [
+        {
+          "core": 4,
+          "remaining_us": 122961.39,
+          "end": 327916047827
+        },
+        {
+          "core": 3,
+          "remaining_us": 123226.395,
+          "end": 327916100828
+        }
+      ],
+      "active_services": [
+        {
+          "core": 2,
+          "duration_us": 123252.49,
+          "commit_after_gsync_us": 123244.035
+        }
+      ],
+      "completed_new_services_before_peer_release": 0,
+      "first_new_service": null,
+      "ppvid": 45,
+      "rtad": 5
+    }
+  ],
+  "service_count": 6256,
+  "service_over_1ms": 2,
+  "largest_other_service_us": 35.205,
+  "negative_examples": [
+    {
+      "cycle": 326236813211,
+      "channel": "gsync_req_odd",
+      "header": "0xc00000000000012a",
+      "holds": [
+        {
+          "core": 2,
+          "remaining_us": 94484.095,
+          "end": 326255710030
+        },
+        {
+          "core": 4,
+          "remaining_us": 132517.755,
+          "end": 326263316762
+        },
+        {
+          "core": 3,
+          "remaining_us": 132781.765,
+          "end": 326263369564
+        }
+      ],
+      "active_services": [],
+      "completed_new_services_before_peer_release": 57,
+      "first_new_service": {
+        "core": 1,
+        "start": 326237015218,
+        "end": 326237016262,
+        "duration_us": 5.22,
+        "start_after_gsync_us": 1010.035
+      },
+      "ppvid": 42
+    },
+    {
+      "cycle": 326263395675,
+      "channel": "gsync_req_odd",
+      "header": "0xc00000000000012a",
+      "holds": [
+        {
+          "core": 2,
+          "remaining_us": 94854.59,
+          "end": 326282366593
+        },
+        {
+          "core": 4,
+          "remaining_us": 132888.26,
+          "end": 326289973327
+        },
+        {
+          "core": 3,
+          "remaining_us": 133152.255,
+          "end": 326290026126
+        }
+      ],
+      "active_services": [],
+      "completed_new_services_before_peer_release": 57,
+      "first_new_service": {
+        "core": 1,
+        "start": 326263652614,
+        "end": 326263653473,
+        "duration_us": 4.295,
+        "start_after_gsync_us": 1284.695
+      },
+      "ppvid": 42
+    },
+    {
+      "cycle": 326316722885,
+      "channel": "gsync_req_odd",
+      "header": "0xc00000000000012a",
+      "holds": [
+        {
+          "core": 2,
+          "remaining_us": 94788.48,
+          "end": 326335680581
+        },
+        {
+          "core": 4,
+          "remaining_us": 132822.165,
+          "end": 326343287318
+        },
+        {
+          "core": 3,
+          "remaining_us": 133086.205,
+          "end": 326343340126
+        }
+      ],
+      "active_services": [],
+      "completed_new_services_before_peer_release": 57,
+      "first_new_service": {
+        "core": 1,
+        "start": 326316937258,
+        "end": 326316938414,
+        "duration_us": 5.78,
+        "start_after_gsync_us": 1071.865
+      },
+      "ppvid": 42
+    }
+  ],
+  "gsync_with_new_service_before_peer_release": 67,
+  "reproduction_script": "import sys,json,pathlib,collections,bisect\nsys.path.insert(0,'tools/enzian')\nimport analyze_rx_holds as h\nimport eci_state_output as e\np=pathlib.Path('out/board/hol-516112-boot02-three-retry/trace/measurement-range.bin');m=e.enrich_trace_map(h.dma.load_map(pathlib.Path('out/ci-followup/516112/hardware/lauberhorn_trace_dma_map.json')))\nr=sorted(h.read_records(p,m),key=lambda x:x[0]);pending={};active={};holds=[];services=[];incomplete=collections.Counter()\nfor t,n,f in r:\n c=f.get('CoreID')\n if n=='Lost':assert not f['count']\n if not c:continue\n if n in ('EciRxReadFirst','EciRxReadNew'):\n  if c in pending:incomplete['replaced_read']+=1\n  pending[c]=t\n if n in ('EciRxDescSent','EciRxNackSent'):\n  a=pending.pop(c,None)\n  if a is not None and n=='EciRxNackSent' and t-a>=26656301:holds.append(dict(core=c,start=a,end=t))\n if n=='EciRxDescSent':\n  if c in active:incomplete['replaced_descriptor']+=1\n  active[c]=t\n if n=='EciTxCommitRead' and c in active:services.append(dict(core=c,start=active.pop(c),end=t))\ng=[]\nfor _,sample in h.dma.iter_sample_range(p,m,0):\n source=h.dma.sample_source(sample,m);info=h.dma.source_info(m,source)\n if not info.get('channel','').startswith('gsync_req'):continue\n payload=h.dma.sample_payload(sample,m)\n if not e._is_accepted_eci_payload(payload,m):continue\n t=h.dma.adjust_timestamp(h.dma.raw_sample_timestamp(sample,m),sample,m)\n g.append(dict(cycle=t,channel=info['channel'],header=hex(e._field(payload,m,'eci_header'))))\ng.sort(key=lambda x:x['cycle']);services.sort(key=lambda x:x['start']);starts=[x['start'] for x in services]\nfor v in g:\n t=v['cycle'];v['holds']=[dict(core=x['core'],remaining_us=(x['end']-t)/200,end=x['end']) for x in holds if x['start']<=t<x['end']]\n v['active_services']=[dict(core=x['core'],duration_us=(x['end']-x['start'])/200,commit_after_gsync_us=(x['end']-t)/200) for x in services if x['start']<=t<x['end']]\n end=max((x['end'] for x in v['holds']),default=t)\n upcoming=services[bisect.bisect_left(starts,t):bisect.bisect_left(starts,end)]\n good=[x for x in upcoming if x['end']<end and any(y['core']!=x['core'] and y['end']>x['end'] for y in v['holds'])]\n v['completed_new_services_before_peer_release']=len(good)\n v['first_new_service']=dict(good[0],duration_us=(good[0]['end']-good[0]['start'])/200,start_after_gsync_us=(good[0]['start']-t)/200) if good else None\nsummary=dict(gsync_requests=len(g),with_long_peer_hold=sum(bool(x['holds']) for x in g),with_active_service=sum(bool(x['active_services']) for x in g),active_service_cases=[x for x in g if x['active_services']],with_new_service_before_peer_release=sum(bool(x['completed_new_services_before_peer_release']) for x in g),incomplete=dict(incomplete),service_count=len(services),hold_count=len(holds))\npathlib.Path('out/benchmark-four-worker-20261004/gsync-negative-results.json').write_text(json.dumps(dict(summary=summary,events=g),indent=2)+'\\n')\nprint(json.dumps(summary,indent=2))\nprint('NEGATIVE_EXAMPLES',json.dumps([x for x in g if x['completed_new_services_before_peer_release'] and not x['active_services']][:3],indent=2))\n"
+}
