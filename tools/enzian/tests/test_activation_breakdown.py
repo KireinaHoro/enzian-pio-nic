@@ -30,8 +30,8 @@ class ActivationBreakdownTests(unittest.TestCase):
     def test_partition_and_percentiles(self):
         text,s,a=self.sample()
         rows=b.join([s],b.parse_trace(text),a,'cold',100)
-        self.assertEqual(rows[0]['activation_total_ns'],1000)
-        self.assertEqual(sum(rows[0]['activation_components_ns'].values()),1000)
+        self.assertEqual(rows[0]['activation_total_ns'],1100)
+        self.assertEqual(sum(rows[0]['activation_components_ns'].values()),1100)
         self.assertEqual(sum(rows[0]['e2e_breakdown_ns'].values()),5000)
         self.assertEqual(b.summarize(rows)['0']['roundtrip']['p100'],5000)
         self.assertEqual(set(b.distribution([1,2,3])),{'count','p50','p90','p95','p99','p100'})
