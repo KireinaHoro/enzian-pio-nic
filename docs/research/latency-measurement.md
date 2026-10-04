@@ -836,3 +836,107 @@ not worker latency. Selected-CPU buffer allocation avoids resizing unrelated
 FIFO-worker buffers; pause workers when resizing their own buffers.
 An on/off comparison is still required to quantify the broader
 kernel tracing cost; cheap timestamp reads do not make event recording free.
+
+
+DPDK fresh-boot prerequisite: populate the DUT's neighbor entry for the traffic
+source before handing the peer interface to DPDK. This client filters ARP rather
+than answering it. For the recorded zuestoll07 source, after checking its actual
+MAC, run on the DUT:
+`ip neigh replace 192.168.128.225 lladdr 0c:53:31:03:00:e1 nud permanent dev lauberhorn0`.
+Otherwise a fresh FPGA neighbor-cache miss can hand the first reply to Linux,
+which cannot resolve the peer while its VF is owned by this DPDK client. Keep
+such setup failures in the attempt ledger; they are not latency samples.
+Use the same `dmesg` binary for before/after health snapshots: the Nix and Ubuntu
+versions format syslog priorities differently, so mixing them fails strict log
+continuity even when the underlying records are unchanged.
+
+
+## Buffered hot/cold baseline — October 5
+
+[Report/provenance](../../data/eci/board-evidence/dpdk-buffered-hot-cold-20261005.json)
+and [all component percentiles](../../data/eci/board-evidence/dpdk-buffered-hot-cold-20261005.csv)
+record four 1,000-request cohorts on zuestoll14 with the Nix-cross-built DPDK
+client on zuestoll07. Hardware remains pipeline **516112**, `b2117e96`; runtime
+buffering/IPG instrumentation is `7bc9302b`, with the ABI-matched `209a6cb4` module.
+One measured add thread ran on Linux CPU44 / physical worker0 / NIC datapath1;
+a separate four-thread mul domain forced cold activation (four rounds of 16
+flush requests, 100 us handlers). This is not four concurrent measured workers.
+The RT bandwidth limit was disabled and RX hold remained 10,000 cycles (50 us).
+
+The main E2E results disable kernel event tracing, retain runtime timestamps and
+buffering, and keep FPGA tracing active. Values are microseconds:
+
+| Condition | P50 | P90 | P95 | P99 | P100 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hot | 12.240 | 12.280 | 12.320 | 12.600 | 19.500 |
+| Cold | 43.150 | 46.141 | 46.330 | 51.135 | 106.640 |
+
+All four cohorts (including the kernel-on profiles) have 1,000/1,000 correct,
+fully correlated measured requests. Hot has one activation; each cold cohort
+has 1,000 distinct activations and passes the arrival/activation timing check.
+Every E2E partition is nonnegative and conserves its corrected total. That is
+an arithmetic check, not a claim that the external residual is causally resolved.
+The observed maximum is not a bound on future tails.
+
+Selected component medians with kernel tracing off (us; component percentiles
+must not be added to manufacture a total):
+
+| Component | Hot | Cold |
+| --- | ---: | ---: |
+| FPGA enqueue-to-dispatch queue | 0.015 | 27.765 |
+| RX 2F2F hardware estimate | 0.123 | 0.123 |
+| RX software | 0.090 | 0.170 |
+| Runtime overhead | 0.965 | 1.720 |
+| XDR unmarshal | 0.240 | 1.110 |
+| Handler | 0.130 | 0.350 |
+| XDR marshal | 0.140 | 0.350 |
+| TX software | 0.688 | 1.613 |
+| TX 2F2F hardware | 0.950 | 0.950 |
+| Client packet preparation | 0.130 | 0.140 |
+| Client reply validation | 0.170 | 0.170 |
+| Remaining client/NIC/network contribution | 8.195 | 8.230 |
+
+The CSV contains P50/P90/P95/P99/P100 for **every** additive stage, plus separate
+nested client, TX, IPG and kernel activation diagnostics. RX hardware is inferred
+as half the measured 245 ns ECI handshake RTT; it is not an independently measured
+one-way latency. Kernel/FPGA boundary comparisons also depend on the clock fit.
+
+Buffering removes the apparent hot queue: compared with the earlier streaming
+baseline, median RTT falls from 34.550 to 12.240 us, FPGA queue from 20.470 us to
+15 ns, and TX-exit-to-next-RX-entry from 28.520 to 0.540 us. The hot kernel trace
+has no syscall intervals, and kernel-on/off hot medians are identical. This is a
+software/instrumentation comparison on the same bitstream, not new RTL TX evidence.
+The cold old/new comparison additionally changes flush-domain tracing and actual
+worker placement, so it is not an isolated attribution to buffering.
+
+Generic kernel tracing is materially intrusive for cold requests: its median
+is 51.280 us versus 43.150 us without it, a difference of 8.130 us in one
+sequential pair. FPGA queue medians shift from 27.765 to 35.885 us. Timestamp
+calibration itself is about 40–50 ns; that does not represent full trace-hook
+cost. Do not subtract a constant from individual samples or stages. The detailed
+kernel profile is labelled `cold_kernel_on` in the data, with these nested
+activation medians: preempt-info MMIO 1.640 us, claim 0.750, affinity 1.390,
+publication 0.190, publication-to-wait-return 15.410, copyout 0.470,
+kernel-to-userspace 6.560, runtime activation setup 0.390, and before-RX 0.940.
+These are not extra terms to add to the E2E stack.
+
+The cold tails contain a remaining userspace delay. Profile request700's
+126.010 us RTT includes 64.970 us from activation-ready to RX entry, with no
+recorded kernel interval overlapping that gap. The two long gaps in that cohort
+are about 1.00095 s apart; the kernel-off cohort also has two ~64 us gaps,
+about 1.00053 s apart. This is consistent with the 640-slot timeout sweep every
+second in `sw/rt/worker.c`/`sw/rt/rpc.c`, but that function has no direct span
+instrumentation yet, so retain it as a candidate rather than a proven attribution.
+The profiled hot maximum instead has a normal 3.695 us FPGA CMAC-to-CMAC interval
+and 15.975 us raw external residual; its remaining delay is outside that boundary.
+
+There was one failed initial ARP warmup, preserved with its hardware trace and
+client failure record. Permanent neighbor setup corrected it; no failed requests
+were filtered from accepted cohorts. The final runtime CSV was written **once,
+after all four workloads**, containing exactly 4,033 rows (4,000 measured,
+32 successful warmups and the failed warmup), with zero buffer drops. Kernel
+captures are loss-free, all complete hardware windows are saved and hashed, and
+final TAD/kernel health passed. The first boot was rejected for a missing CCPI
+lane report; the second passed all lane/lock gates. No timing, address-layout or
+PREEMPT implementation was changed. Pipeline516232/GSYNC-early-NACK comparison
+remains a separate scheduled follow-up.
