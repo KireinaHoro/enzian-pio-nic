@@ -1,0 +1,1047 @@
+{
+  "pipeline": 516112,
+  "revision": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+  "capture": "out/board/hol-516112-boot02-three-retry/trace/measurement-range.bin",
+  "capture_sha256": "434be615dc5b71cb6c0d06cffe4eae2f25166a73bedec7f8c6f9288778a540d3",
+  "surroundings": [
+    {
+      "interval": {
+        "core": 1,
+        "key": "1",
+        "start_cycle": 326204299697,
+        "end_cycle": 326229057764,
+        "ms": 123.790335
+      },
+      "counts": [
+        {
+          "core": 1,
+          "name": "EciRxDescSent",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciTxAcquire",
+          "count": 1
+        },
+        {
+          "core": null,
+          "name": "RxCmacEntry",
+          "count": 463
+        },
+        {
+          "core": null,
+          "name": "RxAfterCdcQueue",
+          "count": 463
+        },
+        {
+          "core": null,
+          "name": "EthernetDecoder",
+          "count": 463
+        },
+        {
+          "core": null,
+          "name": "IpDecoder",
+          "count": 463
+        },
+        {
+          "core": null,
+          "name": "UdpDecoder",
+          "count": 463
+        },
+        {
+          "core": null,
+          "name": "RxBypassEnqueueToHost",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "BypassIrqPending",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "BypassIrqIssued",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciRxReadNew",
+          "count": 926
+        },
+        {
+          "core": 0,
+          "name": "EciRxCtrlInvalidate",
+          "count": 926
+        },
+        {
+          "core": 0,
+          "name": "EciLclLciFire",
+          "count": 2313
+        },
+        {
+          "core": 0,
+          "name": "EciRxCtrlInvalidated",
+          "count": 926
+        },
+        {
+          "core": 0,
+          "name": "EciLclLciaFire",
+          "count": 2313
+        },
+        {
+          "core": 0,
+          "name": "EciRxDescSent",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciStart",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciDone",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciaDone",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciRxNackSent",
+          "count": 463
+        },
+        {
+          "core": 0,
+          "name": "EciTxCommitRead",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxCtrlInvalidate",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciStart",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciDone",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciaDone",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "TxHostReqAccepted",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxSubmit",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "EciTxAcquire",
+          "count": 462
+        },
+        {
+          "core": null,
+          "name": "EthernetEncoder",
+          "count": 462
+        },
+        {
+          "core": 0,
+          "name": "TxAfterDmaRead",
+          "count": 462
+        },
+        {
+          "core": null,
+          "name": "TxBeforeCdcQueue",
+          "count": 462
+        },
+        {
+          "core": null,
+          "name": "TxCmacExit",
+          "count": 462
+        },
+        {
+          "core": 4,
+          "name": "EciRxNackSent",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxNackSent",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciRxNackSent",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciTxCommitRead",
+          "count": 1
+        }
+      ],
+      "near_commit": [
+        {
+          "offset_us": -76.05,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": -76.04,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 2,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": -75.125,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 2,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": -75.11,
+          "name": "EciRxDescSent",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 0
+          }
+        },
+        {
+          "offset_us": -69.855,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -69.845,
+          "name": "EciRxDataLciStart",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": -69.835,
+          "name": "EciRxDataLciDone",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": -69.65,
+          "name": "EciRxDataLciaDone",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": -69.64,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -68.735,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -68.72,
+          "name": "EciRxNackSent",
+          "fields": {
+            "CoreID": 0
+          }
+        },
+        {
+          "offset_us": -23.66,
+          "name": "EciRxNackSent",
+          "fields": {
+            "CoreID": 2
+          }
+        },
+        {
+          "offset_us": -20.19,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 2,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -20.18,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 2,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -19.275,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 2,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 4.77,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 1,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 4.78,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 1,
+            "HostMsgID": 50,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 5.68,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 1,
+            "HostMsgID": 50,
+            "CacheLineIndex": 1
+          }
+        }
+      ],
+      "prior_reads": [
+        {
+          "core": 1,
+          "name": "EciRxReadNew",
+          "before_start_ms": 2.590065,
+          "fields": {
+            "CoreID": 1,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 2,
+          "name": "EciRxReadNew",
+          "before_start_ms": 9.51485,
+          "fields": {
+            "CoreID": 2,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "core": 4,
+          "name": "EciRxReadNew",
+          "before_start_ms": 104.76614,
+          "fields": {
+            "CoreID": 4,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 3,
+          "name": "EciRxReadNew",
+          "before_start_ms": 104.502175,
+          "fields": {
+            "CoreID": 3,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "core": 0,
+          "name": "EciRxReadNew",
+          "before_start_ms": 0.081085,
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 1,
+          "name": "ActivationDelivered",
+          "before_start_ms": 0.153685,
+          "fields": {
+            "CoreID": 1,
+            "DomainCode": 2,
+            "QueueIndex": 3
+          }
+        },
+        {
+          "core": 1,
+          "name": "EciRxReadFirst",
+          "before_start_ms": 2.5e-05,
+          "fields": {
+            "CoreID": 1,
+            "CacheLineIndex": 1
+          }
+        }
+      ]
+    },
+    {
+      "interval": {
+        "core": 2,
+        "key": "2",
+        "start_cycle": 327891453858,
+        "end_cycle": 327916104356,
+        "ms": 123.25249
+      },
+      "counts": [
+        {
+          "core": 2,
+          "name": "EciRxDescSent",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciTxAcquire",
+          "count": 1
+        },
+        {
+          "core": null,
+          "name": "RxCmacEntry",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "RxAfterCdcQueue",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "EthernetDecoder",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "IpDecoder",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "UdpDecoder",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "RxBypassEnqueueToHost",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "BypassIrqPending",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "BypassIrqIssued",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciRxReadNew",
+          "count": 902
+        },
+        {
+          "core": 0,
+          "name": "EciRxCtrlInvalidate",
+          "count": 902
+        },
+        {
+          "core": 0,
+          "name": "EciLclLciFire",
+          "count": 2255
+        },
+        {
+          "core": 0,
+          "name": "EciRxCtrlInvalidated",
+          "count": 902
+        },
+        {
+          "core": 0,
+          "name": "EciLclLciaFire",
+          "count": 2255
+        },
+        {
+          "core": 0,
+          "name": "EciRxDescSent",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciStart",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciDone",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciRxDataLciaDone",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciRxNackSent",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxCommitRead",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxCtrlInvalidate",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciStart",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciDone",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxDataLciaDone",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "TxHostReqAccepted",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxSubmit",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "EciTxAcquire",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "EthernetEncoder",
+          "count": 451
+        },
+        {
+          "core": 0,
+          "name": "TxAfterDmaRead",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "TxBeforeCdcQueue",
+          "count": 451
+        },
+        {
+          "core": null,
+          "name": "TxCmacExit",
+          "count": 451
+        },
+        {
+          "core": 1,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 1,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxNackSent",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 4,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxNackSent",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxReadNew",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxCtrlInvalidate",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciLclLciFire",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciRxCtrlInvalidated",
+          "count": 1
+        },
+        {
+          "core": 3,
+          "name": "EciLclLciaFire",
+          "count": 1
+        },
+        {
+          "core": 2,
+          "name": "EciTxCommitRead",
+          "count": 1
+        }
+      ],
+      "near_commit": [
+        {
+          "offset_us": -17.64,
+          "name": "EciRxNackSent",
+          "fields": {
+            "CoreID": 3
+          }
+        },
+        {
+          "offset_us": -14.17,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 3,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -14.16,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 3,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": -13.26,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 3,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 3.295,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 2,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 3.305,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 2,
+            "HostMsgID": 49,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 4.205,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 2,
+            "HostMsgID": 49,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 10.55,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": 10.56,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 53,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": 11.475,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 53,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "offset_us": 11.49,
+          "name": "EciRxDescSent",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 0
+          }
+        },
+        {
+          "offset_us": 16.415,
+          "name": "EciRxReadNew",
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 16.425,
+          "name": "EciRxDataLciStart",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": 16.435,
+          "name": "EciRxDataLciDone",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": 16.62,
+          "name": "EciRxDataLciaDone",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "OverflowCount": 1
+          }
+        },
+        {
+          "offset_us": 16.63,
+          "name": "EciRxCtrlInvalidate",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 17.53,
+          "name": "EciRxCtrlInvalidated",
+          "fields": {
+            "CoreID": 0,
+            "HostMsgID": 63,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "offset_us": 17.545,
+          "name": "EciRxNackSent",
+          "fields": {
+            "CoreID": 0
+          }
+        }
+      ],
+      "prior_reads": [
+        {
+          "core": 1,
+          "name": "EciRxReadNew",
+          "before_start_ms": 4.765515,
+          "fields": {
+            "CoreID": 1,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 2,
+          "name": "EciRxReadNew",
+          "before_start_ms": 47.905425,
+          "fields": {
+            "CoreID": 2,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 4,
+          "name": "EciRxReadNew",
+          "before_start_ms": 10.311675,
+          "fields": {
+            "CoreID": 4,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 3,
+          "name": "EciRxReadNew",
+          "before_start_ms": 10.046675,
+          "fields": {
+            "CoreID": 3,
+            "CacheLineIndex": 0
+          }
+        },
+        {
+          "core": 0,
+          "name": "EciRxReadNew",
+          "before_start_ms": 0.506245,
+          "fields": {
+            "CoreID": 0,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 1,
+          "name": "ActivationDelivered",
+          "before_start_ms": 2.54936,
+          "fields": {
+            "CoreID": 1,
+            "DomainCode": 0,
+            "QueueIndex": 1
+          }
+        },
+        {
+          "core": 1,
+          "name": "EciRxReadFirst",
+          "before_start_ms": 2.529125,
+          "fields": {
+            "CoreID": 1,
+            "CacheLineIndex": 1
+          }
+        },
+        {
+          "core": 2,
+          "name": "ActivationDelivered",
+          "before_start_ms": 0.03309,
+          "fields": {
+            "CoreID": 2,
+            "DomainCode": 2,
+            "QueueIndex": 3
+          }
+        },
+        {
+          "core": 2,
+          "name": "EciRxReadFirst",
+          "before_start_ms": 2.5e-05,
+          "fields": {
+            "CoreID": 2,
+            "CacheLineIndex": 1
+          }
+        }
+      ]
+    }
+  ],
+  "gsync": [
+    [
+      {
+        "cycle": 326204302826,
+        "from_start_us": 15.645,
+        "to_commit_us": 123774.69,
+        "channel": "gsync_req_odd",
+        "header": "0xc00000000000022c"
+      },
+      {
+        "cycle": 326204302828,
+        "from_start_us": 15.655,
+        "to_commit_us": 123774.68,
+        "channel": "gsync_rsp_odd",
+        "header": "0xc00020000000022c"
+      },
+      {
+        "cycle": 326210064730,
+        "from_start_us": 28825.165,
+        "to_commit_us": 94965.17,
+        "channel": "gsync_req_odd",
+        "header": "0xc00000000000012a"
+      },
+      {
+        "cycle": 326210064732,
+        "from_start_us": 28825.175,
+        "to_commit_us": 94965.16,
+        "channel": "gsync_rsp_odd",
+        "header": "0xc00020000000012a"
+      }
+    ],
+    [
+      {
+        "cycle": 327891455549,
+        "from_start_us": 8.455,
+        "to_commit_us": 123244.035,
+        "channel": "gsync_req_even",
+        "header": "0xc0000000000002ad"
+      },
+      {
+        "cycle": 327891455551,
+        "from_start_us": 8.465,
+        "to_commit_us": 123244.025,
+        "channel": "gsync_rsp_even",
+        "header": "0xc0002000000002ad"
+      }
+    ]
+  ],
+  "interpretation": "Echo commits follow a peer RX NACK by 23.660 and 17.640 us. Visible FPGA GSYNC responses take two app-clock cycles (10 ns). CPU-side synchronization is a hypothesis; neither the stalled instruction nor a causal dependency is established by this trace."
+}
