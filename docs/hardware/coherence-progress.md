@@ -831,6 +831,13 @@ check_assignment(layout, block_indices):
 
 ## Why The Deadlock Is Practical
 
+**Historical layout analysis:** this section describes the old RX/TX address
+map and the bypass `dp_lock` workaround that motivated coloring. The lock was
+removed in June (`bf20f8f5`); it is absent from corrected image 516112. The
+current 8 KiB worker layout is described above. See the
+[historical captures and current contention evidence](worker-hol-evidence.md)
+for the distinction between observed timeouts and the proposed dependency cycle.
+
 The proposed failure mode needs two properties:
 
 1. A doorbell read can remain outstanding while waiting for 2F2F invalidations.
@@ -874,7 +881,7 @@ RX control CL 0 color == TX control CL 0 color
 RX control CL 1 color == TX control CL 1 color
 ```
 
-So the bypass RX/TX spinlock is currently preventing two interrupt-context
+The historical bypass RX/TX spinlock prevented two interrupt-context
 routines from exercising the locally invalid RX/TX signature at the same time.
 The single-thread RPC worker runtime has a different local execution class:
 RX and TX are mutually exclusive because one userspace thread calls the two
@@ -965,6 +972,6 @@ A full trace should answer these before removing `dp_lock`:
 - Do the final unacked `SINV` or `SINV_H` messages, if any, correspond to the
   same DCU color as a blocked doorbell CL?
 
-Until those are answered, the bypass spinlock should be treated as a workaround
-for an unresolved DCU progress invariant, not as merely a software shared-state
-lock.
+These were the unanswered questions behind the historical bypass spinlock
+workaround. Its removal alone did not establish the DCU progress invariant;
+the replacement layout and independent-progress checks must supply that evidence.
