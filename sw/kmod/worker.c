@@ -4,6 +4,7 @@
 #include "common.h"
 #include "trace.h"
 #include <linux/sched/signal.h>
+#include <linux/timekeeping.h>
 
 #include "regblock_bases.h"
 #include "worker_regs.h"
@@ -113,6 +114,8 @@ static irqreturn_t domain_fault_handler(int irq, void *data)
 static irqreturn_t worker_fpi_handler(int irq, void *data)
 {
     struct worker_fpi_data *worker = data;
+    if (trace_activation_enabled() && !atomic_read(&worker->kick))
+        WRITE_ONCE(worker->irq_raw_ns, ktime_get_raw_ns());
     atomic_set(&worker->kick, 1);
     wake_up(&worker->dispatch_wait);
     return IRQ_HANDLED;

@@ -808,6 +808,7 @@ def attach_trace_segments(
         add_segment(segments, "lh_tx_output_queue", eth_encoder["time_ns"], tx_before_cdc["time_ns"] if tx_before_cdc else None)
         add_segment(segments, "lh_tx_cdc_to_cmac", tx_before_cdc["time_ns"] if tx_before_cdc else None, tx_cmac["time_ns"] if tx_cmac else None)
         if rx_cmac is not None and tx_cmac is not None:
+            row["trace_rx_cmac_entry_ns"] = float(rx_cmac["time_ns"])
             row["trace_lh_cmac_to_cmac_ns"] = float(tx_cmac["time_ns"] - rx_cmac["time_ns"])
 
     if tx_submit:

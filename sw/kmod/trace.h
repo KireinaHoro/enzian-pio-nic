@@ -4,8 +4,32 @@
 #if !defined(_LAUBERHORN_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _LAUBERHORN_TRACE_H
 #include <linux/tracepoint.h>
+#include "activation_timing.h"
 
-/* phase: 0 IRQ acknowledged, 1 old datapath drained, 2 dispatch/idle ready. */
+/* One record after a successful yield, with cheap raw-clock reads at each
+ * boundary. Enable this event before activation; disabled paths read no clocks.
+ * All ns fields use CLOCK_MONOTONIC_RAW, matching runtime probes.
+ */
+TRACE_EVENT(activation,
+    TP_PROTO(const struct lh_activation_timing *t, u32 domain, int tid),
+    TP_ARGS(t, domain, tid),
+    TP_STRUCT__entry(
+        __field(int, worker) __field(u64, sequence) __field(u32, domain)
+        __field(int, tid) __field(bool, cold)
+        __array(u64, ns, LH_ACT_STAMPS)
+    ),
+    TP_fast_assign(
+        __entry->worker = t->worker; __entry->sequence = t->sequence;
+        __entry->domain = domain; __entry->tid = tid; __entry->cold = t->cold;
+        memcpy(__entry->ns, t->ns, sizeof(__entry->ns));
+    ),
+    TP_printk("worker=%d sequence=%llu domain=%u tid=%d cold=%d irq=%llu dispatch=%llu read_begin=%llu read_end=%llu claim=%llu affinity=%llu wake=%llu resume=%llu return=%llu",
+        __entry->worker, __entry->sequence, __entry->domain, __entry->tid, __entry->cold,
+        __entry->ns[0], __entry->ns[1], __entry->ns[2], __entry->ns[3],
+        __entry->ns[4], __entry->ns[5], __entry->ns[6], __entry->ns[7], __entry->ns[8])
+);
+
+/* Legacy event: only phase 2 (activation published, before wake_up) is emitted. */
 TRACE_EVENT(worker_switch,
     TP_PROTO(int cpu, u64 old_lifetime, int old_pid, int old_tid,
              u64 next_lifetime, int next_pid, int next_tid, int phase, bool killed),

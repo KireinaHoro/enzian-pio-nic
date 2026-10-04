@@ -2,6 +2,7 @@
 #include "common.h"
 #include "trace.h"
 #include <linux/sched/signal.h>
+#include <linux/timekeeping.h>
 
 DEFINE_SPINLOCK(claim_lock);
 
@@ -44,9 +45,19 @@ static bool waiting_thread(struct proc_def *proc)
 
 /* Called with only this worker's reader mutex held. No claim/lifetime lock
  * crosses blocking MMIO, affinity installation or thread wait. */
-static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing)
+static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u64 irq_ns, u64 dispatch_ns)
 {
-    u64 info = lauberhorn_eci_preempt_preempt_info_rawrd(&worker->preempt_dev);
+    struct lh_activation_timing timing = { .enabled = trace_activation_enabled(),
+        .cold = !outgoing, .worker = worker->index };
+    u64 info;
+    if (timing.enabled) {
+        timing.sequence = ++worker->activation_sequence;
+        timing.ns[LH_ACT_IRQ] = irq_ns;
+        timing.ns[LH_ACT_DISPATCH] = dispatch_ns;
+        timing.ns[LH_ACT_READ_BEGIN] = ktime_get_raw_ns();
+    }
+    info = lauberhorn_eci_preempt_preempt_info_rawrd(&worker->preempt_dev);
+    if (timing.enabled) timing.ns[LH_ACT_READ_END] = ktime_get_raw_ns();
     u32 code = lauberhorn_eci_preempt_preempt_info_domain_code_extract(info);
     u32 slot = lauberhorn_eci_preempt_preempt_info_domain_slot_extract(info);
     struct proc_def *proc = find_proc_slot(slot);
@@ -89,7 +100,9 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing)
         ret = wait_event_killable(proc->claims, waiting_thread(proc));
         if (ret) { fail_domain(proc); return ret; }
     }
+    if (timing.enabled) timing.ns[LH_ACT_CLAIM] = ktime_get_raw_ns();
     ret = set_cpus_allowed_ptr(next->task, cpumask_of(worker->cpu));
+    if (timing.enabled) timing.ns[LH_ACT_AFFINITY] = ktime_get_raw_ns();
     if (ret) { fail_domain(proc); return ret; }
     spin_lock_irqsave(&claim_lock, flags);
     if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
@@ -99,6 +112,8 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing)
         .tx_next = lauberhorn_eci_preempt_preempt_info_tx_next_extract(info),
     };
     worker->thr = next;
+    if (timing.enabled) timing.ns[LH_ACT_WAKE] = ktime_get_raw_ns();
+    next->timing = timing;
     next->activation_ready = true;
     spin_unlock_irqrestore(&claim_lock, flags);
     trace_worker_switch(worker->cpu, outgoing ? outgoing->parent->lifetime : 0,
@@ -114,14 +129,17 @@ static int dispatch_thread(void *arg)
     struct worker_fpi_data *worker = arg;
     sched_set_fifo(current);
     while (!kthread_should_stop()) {
+        u64 irq_ns, dispatch_ns;
         wait_event_interruptible(worker->dispatch_wait,
             kthread_should_stop() || atomic_read(&worker->kick));
         if (kthread_should_stop()) break;
+        irq_ns = READ_ONCE(worker->irq_raw_ns);
+        dispatch_ns = trace_activation_enabled() ? ktime_get_raw_ns() : 0;
         mutex_lock(&worker->reader);
         atomic_set(&worker->kick, 0);
         if (!READ_ONCE(worker->thr) &&
             lauberhorn_eci_preempt_idle_notification_rd(&worker->preempt_dev))
-            activate(worker, NULL);
+            activate(worker, NULL, irq_ns, dispatch_ns);
         mutex_unlock(&worker->reader);
     }
     return 0;
@@ -170,7 +188,7 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
             return -EPROTO;
         }
         // The calling task is fenced inside this syscall before read acceptance.
-        ret = activate(worker, thr);
+        ret = activate(worker, thr, 0, 0);
         mutex_unlock(&worker->reader);
         if (ret) { fail_domain(proc); return ret; }
     }
@@ -183,6 +201,7 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
     ret = wait_event_killable(thr->wait,
         READ_ONCE(proc->failed) || READ_ONCE(thr->activation_ready));
     if (ret || READ_ONCE(proc->failed)) { fail_domain(proc); return -ESHUTDOWN; }
+    if (thr->timing.enabled) thr->timing.ns[LH_ACT_RESUME] = ktime_get_raw_ns();
     spin_lock_irqsave(&claim_lock, flags);
     activation = thr->activation;
     spin_unlock_irqrestore(&claim_lock, flags);
@@ -190,5 +209,32 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
         fail_domain(proc);
         return -EFAULT;
     }
+    if (thr->timing.enabled) {
+        thr->timing.ns[LH_ACT_RETURN] = ktime_get_raw_ns();
+        trace_activation(&thr->timing, proc->domain_code, current->pid);
+    }
     return 0;
 }
+
+/* Explicit, off-path calibration: adjacent raw-clock reads, not an estimate of
+ * total tracing overhead. Includes interrupts/preemption; retain max as well as
+ * the lower-cost observations. Never run this while collecting RPC samples. */
+static int activation_clock_cost_get(char *buffer, const struct kernel_param *kp)
+{
+    u64 low = U64_MAX, high = 0, total = 0;
+    int i;
+    for (i = 0; i < 256; ++i) {
+        u64 a = ktime_get_raw_ns();
+        u64 delta = ktime_get_raw_ns() - a;
+        low = min(low, delta);
+        high = max(high, delta);
+        total += delta;
+    }
+    return scnprintf(buffer, PAGE_SIZE,
+        "pairs=256 min_ns=%llu mean_ns=%llu max_ns=%llu\n", low, total / 256, high);
+}
+static const struct kernel_param_ops activation_clock_cost_ops = {
+    .get = activation_clock_cost_get,
+};
+module_param_cb(activation_clock_cost_ns, &activation_clock_cost_ops, NULL, 0400);
+MODULE_PARM_DESC(activation_clock_cost_ns, "Off-path raw-clock pair cost; read before/after, never during an RPC run");

@@ -11,6 +11,7 @@
 
 bool server_trace_enabled;
 __thread struct server_trace_row *server_trace_inline;
+__thread struct server_activation_trace server_activation;
 static FILE *output;
 static uint64_t overhead_ns;
 uint64_t server_trace_clock(void) {
@@ -43,7 +44,8 @@ void server_trace_init(void) {
     fputs("timestamp_overhead_ns,timestamp_call_count,request_id_valid,request_context,"
           "tx_worker_id,execution_kind,reply_status,transport_status,rx_cpu_id,tx_cpu_id,"
           "server_defer_enqueue_ns,server_forward_submit_ns,server_forward_complete_ns,"
-          "server_handler_active_ns,server_handler_wait_ns\n", output);
+          "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
+          "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns\n", output);
     server_trace_enabled = true;
 }
 void server_trace_fini(void) {
@@ -53,7 +55,8 @@ void server_trace_fini(void) {
 }
 void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
     *r = (struct server_trace_row){.enabled=server_trace_enabled, .ok=true,
-        .request_id=UINT64_MAX, .worker_id=worker_id, .tx_worker_id=-1};
+        .request_id=UINT64_MAX, .worker_id=worker_id, .tx_worker_id=-1,
+        .activation=server_activation};
     r->rx_enter_ns = server_trace_stamp(r);
 }
 static struct server_trace_row *current_trace(void) {
@@ -89,10 +92,11 @@ void server_trace_write(struct server_trace_row *r) {
 #define TRACE_VALUE(name) fprintf(output, "%" PRIu64 ",", r->name##_ns);
     SERVER_TRACE_TIMES(TRACE_VALUE)
 #undef TRACE_VALUE
-    fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n",
+    fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64 "\n",
             overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,
             r->tx_worker_id, r->kind, r->status, r->transport_status, r->rx_cpu_id, r->tx_cpu_id,
             r->defer_enqueue_ns, r->forward_submit_ns, r->forward_complete_ns,
-            r->handler_active_ns, wait);
+            r->handler_active_ns, wait, r->activation.tid, r->activation.index,
+            r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
     funlockfile(output);
 }

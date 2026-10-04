@@ -7,7 +7,13 @@
     X(rx_enter) X(rx_unblock) X(rx_exit) \
     X(unmarshal_enter) X(unmarshal_exit) X(handler_enter) X(handler_exit) \
     X(marshal_enter) X(marshal_exit) X(tx_enter) X(tx_exit)
+struct server_activation_trace {
+    uint64_t ioctl_exit_ns, ready_ns, index;
+    int tid, worker;
+};
+extern __thread struct server_activation_trace server_activation;
 struct server_trace_row {
+    struct server_activation_trace activation;
     bool enabled, id_valid, ok;
     uint64_t request_id;
     uint32_t request_context, request_bytes, response_bytes;

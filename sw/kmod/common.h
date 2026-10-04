@@ -93,6 +93,7 @@ struct srv_def {
 };
 
 /* Thread identity, scheduler slot, PA lifetime and CPU are separate. */
+#include "activation_timing.h"
 struct thr_def {
     bool enabled, waiting, activation_ready;
     u32 idx;
@@ -101,6 +102,7 @@ struct thr_def {
     struct task_struct *task;
     wait_queue_head_t wait;
     struct lh_activation activation;
+    struct lh_activation_timing timing;
 };
 struct proc_def {
     bool enabled, failed;
@@ -127,6 +129,7 @@ struct worker_fpi_data {
     struct mutex reader;
     wait_queue_head_t dispatch_wait;
     atomic_t kick;
+    u64 irq_raw_ns, activation_sequence;
     struct task_struct *dispatcher;
 };
 struct worker_fpi_data *worker_by_index(unsigned int index);
