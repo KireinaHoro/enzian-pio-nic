@@ -619,6 +619,7 @@ its old phase 0/1 comment was not evidence of those probes existing.
 | `yield_copyout` | Target wait return through activation copy to userspace |
 | `kernel_to_userspace` | Pre-return kernel stamp to first userspace stamp; includes the single trace-record emission, ioctl exit path and clock-read overhead |
 | `runtime_activation_setup` | First userspace stamp to alias/parity setup complete |
+| `runtime_before_rx` | Setup complete to the traced RX entry; includes intervening local runtime work and any earlier empty polls |
 
 Ordinary cooperative handoffs omit the first two components (no idle kick or
 dispatcher). The low-overhead default deliberately does **not** split runqueue
@@ -678,5 +679,20 @@ and AArch64 module/runtime builds passed. The module vermagic is
 `6.8.0-64-generic`. All 21 generated ABI input files were fetched from pipeline
 516232 prepare job 2866838 and match the local generation byte-for-byte.
 Artifacts and provenance are under `out/cold-activation/`; no FPGA rebuild is
-needed for this software-only overlay. Real activation capture and tracing
-on/off overhead remain board checks before accepting the full cold benchmark.
+needed for this software-only overlay. Tracing on/off overhead and the full four-worker dataset remain board checks.
+A real activation capture smoke test is recorded below.
+
+### Instrumentation smoke on baseline 516112
+
+The software overlay at `209a6cb4` passed 100/100 add RPCs on zuestoll14,
+with one complete activation record matching all runtime rows, no kernel trace
+loss, and clean kernel/TAD checks. All 21 generated ABI inputs match both
+516112 and 516232. The boot harness recovered one incomplete CCPI bring-up
+with a full cold-reset retry before loading the module. See the
+[provenance and results](../../data/eci/board-evidence/cold-activation-instrumentation-20261004.json).
+
+Adjacent kernel timestamp reads measured minimum 30–40 ns and mean 38–40 ns
+before/after traffic (256 pairs each). This measures clock reads, not the cost
+of emitting the event. The 100-request, one-worker socket-client smoke is
+functional validation, not the requested DPDK latency dataset or an overhead
+comparison. Matched tracing-off/on measurements remain required.

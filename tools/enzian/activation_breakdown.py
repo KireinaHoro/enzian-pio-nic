@@ -12,11 +12,11 @@ from collections import defaultdict
 from pathlib import Path
 
 STAGES = ['irq', 'dispatch', 'read_begin', 'read_end', 'claim', 'affinity',
-          'wake', 'resume', 'return', 'ioctl_exit', 'ready']
+          'wake', 'resume', 'return', 'ioctl_exit', 'ready', 'rx_enter']
 COMPONENTS = ['irq_to_dispatch', 'dispatch_to_mmio', 'preempt_info_mmio',
               'claim_wait', 'affinity_setup', 'activation_publish',
               'wake_to_wait_return', 'yield_copyout', 'kernel_to_userspace',
-              'runtime_activation_setup']
+              'runtime_activation_setup', 'runtime_before_rx']
 
 
 def distribution(values):
@@ -97,7 +97,7 @@ def join(server_rows, records, audit, condition, margin_ns=1000):
                           arrival <= r['return'] <= end]
             if len(candidates) != 1:
                 raise ValueError('missing or ambiguous kernel activation for cold request')
-            r = dict(candidates[0], ioctl_exit=end, ready=ready)
+            r = dict(candidates[0], ioctl_exit=end, ready=ready, rx_enter=int(s['server_rx_enter_ns']))
             key = (worker,r['sequence'])
             if key in cold_used:
                 raise ValueError('multiple cold requests attributed to one activation')
@@ -105,8 +105,8 @@ def join(server_rows, records, audit, condition, margin_ns=1000):
             start = 0 if r['cold'] else 2
             if any(r[b]<r[a] for a,b in zip(STAGES[start:],STAGES[start+1:])):
                 raise ValueError('reversed kernel/userspace boundary')
-            parts = {COMPONENTS[i]:r[STAGES[i+1]]-r[STAGES[i]] for i in range(start,10)}
-            assert sum(parts.values()) == ready-r[STAGES[start]]
+            parts = {COMPONENTS[i]:r[STAGES[i+1]]-r[STAGES[i]] for i in range(start,len(STAGES)-1)}
+            assert sum(parts.values()) == r['rx_enter']-r[STAGES[start]]
             output.update(activation_sequence=r['sequence'], domain=r['domain'],
                           activation_path='idle_dispatch' if r['cold'] else 'cooperative',
                           activation_components_ns=parts,
