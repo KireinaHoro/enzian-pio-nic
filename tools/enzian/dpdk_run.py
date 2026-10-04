@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import time
 
 
 def command(*args):
@@ -138,8 +139,14 @@ def main():
                 write(dev/'driver_override',original_driver)
                 write('/sys/bus/pci/drivers_probe',bdf)
                 write(dev/'driver_override','')
-                command('udevadm','settle')
-                names = list((dev/'net').iterdir())
+                # Wait for this VF's netdev rather than depending on the host's
+                # udev userspace. Binding is synchronous; naming can follow it.
+                deadline = time.monotonic() + 10
+                while True:
+                    names = list((dev/'net').iterdir()) if (dev/'net').exists() else []
+                    if len(names) == 1 or time.monotonic() >= deadline:
+                        break
+                    time.sleep(.05)
                 if len(names) != 1:
                     raise RuntimeError('restored VF has no unique network interface')
                 if names[0].name != interface:

@@ -37,25 +37,25 @@ sends `ADD_MCAST` first and uses Linux mailbox mode flags. This was confirmed by
 10,100 physical gateway echo exchanges and NIC loopback after the patch.
 Do not use an unpatched distribution PMD for measurements on this setup.
 
-For a native Ubuntu build, install GCC, make, pkg-config, Meson, Ninja,
-python3-pyelftools, libnuma-dev and libpcap-dev. Download the official
-[DPDK 23.11.4 source](https://fast.dpdk.org/rel/dpdk-23.11.4.tar.xz), then from
-a new build directory (`REPO` is the absolute platform checkout path):
+Build the client deployment image on the build host:
 
 ```sh
-tar --no-same-owner -xf dpdk-23.11.4.tar.xz
-patch -d dpdk-stable-23.11.4 -p1 < "$REPO/nix/software/patches/dpdk-thunderx-linux-cam.patch"
-meson setup dpdk-stable-23.11.4/build dpdk-stable-23.11.4 \
-  --prefix="$PWD/dpdk-install" --libdir=lib -Dplatform=generic \
-  -Denable_libs=ethdev -Denable_drivers=net/thunderx,net/pcap \
-  -Ddisable_apps='*' -Dtests=false -Dexamples= -Dbuildtype=release
-ninja -C dpdk-stable-23.11.4/build
-ninja -C dpdk-stable-23.11.4/build install
-export PKG_CONFIG_PATH="$PWD/dpdk-install/lib/pkgconfig"
-export LD_LIBRARY_PATH="$PWD/dpdk-install/lib"
-make -C "$REPO/sw/apps/microbenchmarks/dpdk" clean
-make -C "$REPO/sw/apps/microbenchmarks/dpdk" all check
+nix build .#trafficGeneratorDeployFs
+rsync -L result enzian-gateway:/scratch/USER/CLIENT.img
 ```
+
+The image contains the cross-built generator, pinned patched DPDK, Python,
+runner, trace receiver, summary/replay tools and their runtime utilities. It
+contains no compiler/toolchain. Do not build on the client or install Ubuntu
+packages to satisfy benchmark dependencies. Provision the kernel and root with
+`emg`; only kernel modules and privileged device access come from that host.
+
+After checking existing mounts, mount the image read-only at `/nix/store` on
+the client and use `/nix/store/lauberhorn-client/bin/lh-dpdk-run` (same arguments
+as `dpdk_run.py`) with `/nix/store/lauberhorn-client/bin/bench_dpdk`. The wrappers
+set an image-only utility PATH and clear inherited library/Python overrides.
+`manifest.json` in that environment records package paths, DPDK version and
+source hashes. Archive the image hash and manifest with each run.
 
 Test actual DPDK packet I/O without a physical port:
 
@@ -164,3 +164,20 @@ validation; it is an aggregate, not an additional stacked component.
 keep warmup rows in both through hardware correlation, then exclude them from
 reported metrics. See [latency measurement](../../../../docs/research/latency-measurement.md)
 for clock domains, trace boundaries and the external-residual contract.
+
+## Controlled cold preparation
+
+With one `add` thread in the measured domain and four `mul` threads in a
+separate domain, the optional final argument `flush:N` sends a 16-request mul
+burst before every Nth add request (including warmup). Set
+`LH_BENCH_FLUSH_SPIN_US=100` only on the mul server to keep its workers occupied
+while the queue fills; the maximum accepted setting is 10000 us. The measured
+add handler is unchanged. `flush:1` prepares every attempted cold request; a
+larger N permits a cold first request followed by hot requests.
+
+Every flush response is checked and drained before the measured add starts.
+Preparation is outside the timed roundtrip and is recorded in
+`OUTPUT.csv.flush.csv`; any invalid response or timeout fails the run. This is
+a preparation mechanism, not proof of eviction: require kernel/runtime and
+hardware activation evidence for every cold sample. Hardware core selection is
+not forced by this mode; report actual core attribution and sample counts.

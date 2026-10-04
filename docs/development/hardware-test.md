@@ -198,6 +198,11 @@ and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
 Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
 keep management/root storage on `cpu40g0`.
 
+Build `.#trafficGeneratorDeployFs` on the build host and deploy that runtime-only
+image to the client. Cross-build all client binaries and tools; do not ship
+compilers, build on Enzian, or rely on Ubuntu userspace packages for measurement.
+Keep host kernel/modules provisioned through `emg` and record their versions.
+
 For the reusable polling client and VF restoration runner, see the
 [DPDK generator](../../sw/apps/microbenchmarks/dpdk/README.md) and
 [measurement contract](../research/latency-measurement.md). The [client validation report](dpdk-benchmark-results.md) records kernel/PMD requirements and measured jitter. Its pcap replay
