@@ -4,6 +4,8 @@ import argparse
 import bisect
 import csv
 import math
+import json
+import hashlib
 import sys
 from collections import defaultdict
 from itertools import chain
@@ -25,6 +27,7 @@ try:
         sample_payload,
         sample_bytes,
         sample_source,
+        sample_lost_count,
         source_info,
     )
     from eci_state_output import (
@@ -155,6 +158,8 @@ def load_csv_by_request_id(path: Path, fallback_columns: Sequence[str] | Sequenc
 
 
 def corrected_delta(start: int, end: int, overhead_ns: int, timestamp_calls: int = 1) -> float:
+    if end < start or overhead_ns < 0 or timestamp_calls < 0:
+        raise ValueError("invalid timestamp interval or correction")
     return max(0.0, float(end - start - overhead_ns * timestamp_calls))
 
 
@@ -191,8 +196,11 @@ def build_rows(
     client_rows: Dict[int, Dict[str, str]],
     server_rows: Dict[int, Dict[str, str]],
 ) -> List[Dict[str, Any]]:
+    missing = set(client_rows) - set(server_rows)
+    if missing:
+        raise SystemExit(f"{len(missing)} client requests lack server rows; refusing survivor-only analysis")
     rows: List[Dict[str, Any]] = []
-    for request_id in sorted(set(client_rows) & set(server_rows)):
+    for request_id in sorted(client_rows):
         c = client_rows[request_id]
         s = server_rows[request_id]
         if "request_id_valid" in s and not int_field(s, "request_id_valid"):
@@ -251,12 +259,15 @@ def build_rows(
 
         rows.append({
             "request_id": request_id,
+            "warmup": int_field(c, "warmup"),
+            "transport": c.get("transport", "libtirpc"),
             "worker_id": int_field(s, "worker_id"),
             "rx_cpu_id": int_field(s, "rx_cpu_id", -1),
             "tx_cpu_id": int_field(s, "tx_cpu_id", -1),
             "client_ok": int_field(c, "ok"),
             "server_ok": int_field(s, "ok", 1),
             "e2e_ns": e2e_ns,
+            "e2e_raw_ns": int_field(c, "client_call_exit_ns") - int_field(c, "client_call_enter_ns"),
             "client_xdr_ns": client_xdr_ns,
             "server_unmarshal_ns": server_unmarshal_ns,
             "server_marshal_ns": server_marshal_ns,
@@ -401,7 +412,11 @@ def decode_trace_events(
     id_field = fmt["fields"]["event_id"]
     event_id_offset = int(id_field["offset"])
     event_id_width = int(id_field["width"])
-    event_ids = {int(k) for k, name in fmt["events"].items() if name in TRACE_EVENT_NAMES}
+    # Include legacy labels before decoding aliases. Filtering only canonical
+    # labels silently discarded these events from historical captures.
+    legacy = {"EciTxCtrlUnlocked", "EciTxDataLciaUlDone"}
+    event_ids = {int(k) for k, name in fmt["events"].items()
+                 if name in TRACE_EVENT_NAMES or name in legacy}
     event_sources = {
         int(src["source"])
         for src in trace_map.get("sources", [])
@@ -418,6 +433,10 @@ def decode_trace_events(
 
     def keep_sample(sample: int) -> bool:
         src = sample_source(sample, trace_map)
+        lost_source = int(trace_map["sample"].get("lost_source",
+                          (1 << int(trace_map["sample"]["source_width"])) - 1))
+        if src == lost_source and sample_lost_count(sample, trace_map):
+            raise ValueError("trace contains loss markers; sequence correlation is unsafe")
         if src in event_sources:
             event_id = bits(sample_payload(sample, trace_map), event_id_offset, event_id_width)
             return event_id in event_ids
@@ -543,7 +562,9 @@ def build_event_index(events: List[Dict[str, Any]]) -> Dict[str, Tuple[List[int]
     grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for ev in events:
         grouped[ev["event"]].append(ev)
-    return {name: ([ev["time_ns"] for ev in grouped_events], grouped_events) for name, grouped_events in grouped.items()}
+    for group in grouped.values():
+        group.sort(key=lambda ev: ev["time_ns"])
+    return {name: ([ev["time_ns"] for ev in group], group) for name, group in grouped.items()}
 
 
 def rec_event(rec: Dict[str, Any], event_name: str) -> Optional[Dict[str, Any]]:
@@ -554,8 +575,10 @@ def rec_event(rec: Dict[str, Any], event_name: str) -> Optional[Dict[str, Any]]:
 
 
 def add_segment(segments: Dict[str, float], name: str, start: Optional[int], end: Optional[int]) -> None:
-    if start is None or end is None or end < start:
+    if start is None or end is None:
         return
+    if end < start:
+        raise ValueError(f"reversed trace interval {name}: {start} -> {end}")
     segments[name] = float(end - start)
 
 
@@ -576,7 +599,11 @@ def attach_trace_segments(
     segments: Dict[str, float] = {}
     rx_enqueue = rec_event(rec, "RxRpcEnqueueToHost")
     queued = rec_event(rec, "SchedulerRequestQueued")
-    ipi = first_event_after(events_by_name, "PreemptCtrlIpiIssued", queued["time_ns"] if queued else rec["SchedulerRequestDispatched"], {"CoreID": core})
+    ipi = None
+    if queued:
+        ipi = first_event_after(events_by_name, "PreemptCtrlIpiIssued", queued["time_ns"],
+                                {"CoreID": core},
+                                max_delta_ns=rec["SchedulerRequestDispatched"] - queued["time_ns"])
     process_run = rec_event(rec, "SchedulerProcessRun")
     dispatched = rec_event(rec, "SchedulerRequestDispatched")
     delivered_ns = row.get("trace_core_delivery_ns")
@@ -607,23 +634,38 @@ def attach_trace_segments(
     add_segment(segments, "lh_rx_rpc_decode", udp_decoder["time_ns"] if udp_decoder else None, rpc_decoder["time_ns"] if rpc_decoder else None)
     add_segment(segments, "lh_rx_host_enqueue", rpc_decoder["time_ns"] if rpc_decoder else None, rx_enqueue["time_ns"] if rx_enqueue else None)
     add_segment(segments, "lh_scheduler_enqueue", rx_enqueue["time_ns"] if rx_enqueue else None, queued["time_ns"] if queued else None)
-    add_segment(segments, "lh_scheduler_preempt", queued["time_ns"] if queued else None, ipi["time_ns"] if ipi else None)
-    add_segment(segments, "kernel_wakeup", ipi["time_ns"] if ipi else None, process_run["time_ns"] if process_run else None)
-    add_segment(segments, "lh_scheduler_queue", process_run["time_ns"] if process_run else None, dispatched["time_ns"] if dispatched else None)
+    # Partition the queue interval; ProcessRun can predate this request when
+    # the worker is already active. Never charge that earlier activation again.
+    if queued and dispatched:
+        begin, end = queued["time_ns"], dispatched["time_ns"]
+        run = process_run["time_ns"] if process_run else None
+        if ipi and run is not None and begin <= ipi["time_ns"] <= run <= end:
+            add_segment(segments, "lh_scheduler_preempt", begin, ipi["time_ns"])
+            add_segment(segments, "kernel_wakeup", ipi["time_ns"], run)
+            add_segment(segments, "lh_scheduler_queue", run, end)
+        else:
+            add_segment(segments, "lh_scheduler_queue", begin, end)
     add_segment(segments, "lh_rx_eci_delivery", dispatched["time_ns"] if dispatched else None, delivered_ns)
+
+    def tx_event(name, start, match=None, max_delta_ns=100_000):
+        # Every TX stage must precede the next dispatch on this isolated core.
+        limit = min(max_delta_ns, rec.get("next_dispatch_ns", start + max_delta_ns + 1) - start - 1)
+        return (first_event_after(events_by_name, name, start, match, max_delta_ns=limit)
+                if limit >= 0 else None)
 
     tx_margin_ns = 25_000
     tx_window_start = int(row["server_tx_enter_ns"] - cpu_trace_offset_ns - tx_margin_ns)
     tx_window_end = int(row["server_tx_exit_ns"] - cpu_trace_offset_ns + tx_margin_ns)
-    tx_target = int(row["server_tx_exit_ns"] - cpu_trace_offset_ns)
-    tx_submit = closest_event_in_window(
-        events_by_name,
-        "EciTxSubmit",
-        tx_window_start,
-        tx_window_end,
-        tx_target,
-        {"CoreID": core},
-    )
+    # Closed-loop inline RPCs have one response submission between this
+    # delivery and the next dispatch. Reject ambiguity instead of choosing a
+    # neighboring request merely because it is near a fitted CPU timestamp.
+    tx_window_start = max(tx_window_start, int(delivered_ns or tx_window_start))
+    tx_window_end = min(tx_window_end, rec.get("next_dispatch_ns", tx_window_end))
+    candidates = events_in_window(events_by_name, "EciTxSubmit", tx_window_start,
+                                  tx_window_end, {"CoreID": core})
+    if len(candidates) > 1:
+        raise ValueError(f"request {row['request_id']}: ambiguous TX submissions")
+    tx_submit = candidates[0] if candidates else None
     tx_host_id = tx_submit["data"]["HostMsgID"] if tx_submit is not None else None
     reply_encode = udp_encoder = ip_encoder = eth_encoder = None
     tx_commit = tx_invalidate = tx_unlocked = tx_data_done = host_accept = tx_no_dma = tx_after_dma = tx_dma_done = None
@@ -637,50 +679,46 @@ def attach_trace_segments(
         )
         match = {"CoreID": core, "HostMsgID": tx_host_id}
         tx_commit = last_event_before(events_by_name, "EciTxCommitRead", tx_submit["time_ns"] + 1, match)
-        tx_invalidate = first_event_after(
-            events_by_name,
+        if tx_commit and tx_commit["time_ns"] < tx_window_start:
+            tx_commit = None
+        tx_invalidate = tx_event(
             "EciTxCtrlInvalidate",
             tx_commit["time_ns"] if tx_commit else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,
         )
-        tx_unlocked = first_event_after(
-            events_by_name,
+        tx_unlocked = tx_event(
             "EciTxCtrlInvalidated",
             tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,
         )
-        tx_data_done = first_event_after(
-            events_by_name,
+        tx_data_done = tx_event(
             "EciTxDataLciaDone",
             tx_invalidate["time_ns"] if tx_invalidate else tx_submit["time_ns"],
             match,
             max_delta_ns=100_000,
         )
-        host_accept = first_event_after(events_by_name, "TxHostReqAccepted", tx_submit["time_ns"], {"HostMsgID": tx_host_id})
-        tx_no_dma = first_event_after(events_by_name, "TxNoDmaRead", tx_submit["time_ns"], {"HostMsgID": tx_host_id})
-        tx_after_dma = first_event_after(events_by_name, "TxAfterDmaRead", tx_submit["time_ns"], {"HostMsgID": tx_host_id})
+        host_accept = tx_event("TxHostReqAccepted", tx_submit["time_ns"], match)
+        tx_no_dma = tx_event("TxNoDmaRead", tx_submit["time_ns"], match)
+        tx_after_dma = tx_event("TxAfterDmaRead", tx_submit["time_ns"], match)
         if tx_submit is not None:
             tx_dma_done = tx_no_dma if tx_no_dma is not None else tx_after_dma
             encoder_start_ns = tx_submit["time_ns"]
-            reply_encode = first_event_after(
-                events_by_name,
+            reply_encode = tx_event(
                 "OncRpcReplyEncode",
                 encoder_start_ns,
                 max_delta_ns=100_000,
             )
             response_rpc_id = reply_encode["data"]["RpcID"] if reply_encode is not None else None
-            udp_encoder = first_event_after(
-                events_by_name,
+            udp_encoder = tx_event(
                 "UdpEncoder",
                 reply_encode["time_ns"] if reply_encode is not None else tx_submit["time_ns"],
                 {"RpcID": response_rpc_id} if response_rpc_id is not None else None,
                 max_delta_ns=100_000,
             )
             response_packet_id = udp_encoder["data"]["PacketID"] if udp_encoder is not None else None
-            ip_encoder = first_event_after(
-                events_by_name,
+            ip_encoder = tx_event(
                 "IpEncoder",
                 udp_encoder["time_ns"] if udp_encoder is not None else tx_submit["time_ns"],
                 max_delta_ns=1_000,
@@ -694,15 +732,18 @@ def attach_trace_segments(
                     row["trace_tx_udp_to_ip_ns"] = float(ip_encoder["time_ns"] - udp_encoder["time_ns"])
                     if ip_packet_id != response_packet_id:
                         row["trace_tx_udp_ip_packet_id_mismatch"] = True
-            eth_encoder = first_event_after(
-                events_by_name,
+            eth_encoder = tx_event(
                 "EthernetEncoder",
                 ip_encoder["time_ns"] if ip_encoder is not None else tx_submit["time_ns"],
                 {"PacketID": ip_encoder["data"]["PacketID"]} if ip_encoder is not None else None,
                 max_delta_ns=1_000,
             )
 
-    tx_2f2f_done = tx_unlocked if tx_unlocked is not None else tx_data_done
+    # Completion must belong to this commit, not a later reuse of the 6-bit ID.
+    completions = [ev for ev in (tx_unlocked, tx_data_done)
+                   if ev and tx_commit and tx_submit
+                   and tx_commit["time_ns"] <= ev["time_ns"] <= tx_submit["time_ns"]]
+    tx_2f2f_done = max(completions, key=lambda ev: ev["time_ns"], default=None)
     if delivered_ns is not None and tx_commit is not None:
         turnaround_ns = max(0.0, float(tx_commit["time_ns"] - delivered_ns))
         rx_return_ns = int(row["server_rx_exit_ns"] - cpu_trace_offset_ns)
@@ -728,6 +769,9 @@ def attach_trace_segments(
         server_unmarshal_ns = float(row.get("server_unmarshal_ns", 0.0))
         handler_ns = float(row.get("handler_ns", 0.0))
         server_marshal_ns = float(row.get("server_marshal_ns", 0.0))
+        if (rx_2f2f_sw_ns + rx_2f2f_hw_ns + server_unmarshal_ns + handler_ns
+                + server_marshal_ns + tx_2f2f_sw_ns > turnaround_ns + 1e-6):
+            raise ValueError(f"request {row['request_id']}: overlapping CPU/FPGA attribution")
         server_rt_ns = max(
             0.0,
             turnaround_ns
@@ -755,9 +799,8 @@ def attach_trace_segments(
     if eth_encoder is not None:
         if eth_decoder is not None:
             row["trace_eth_decoder_to_encoder_ns"] = float(eth_encoder["time_ns"] - eth_decoder["time_ns"])
-        tx_before_cdc = first_event_after(events_by_name, "TxBeforeCdcQueue", eth_encoder["time_ns"], max_delta_ns=10_000)
-        tx_cmac = first_event_after(
-            events_by_name,
+        tx_before_cdc = tx_event("TxBeforeCdcQueue", eth_encoder["time_ns"], max_delta_ns=10_000)
+        tx_cmac = tx_event(
             "TxCmacExit",
             tx_before_cdc["time_ns"] if tx_before_cdc else eth_encoder["time_ns"],
             max_delta_ns=10_000,
@@ -767,6 +810,26 @@ def attach_trace_segments(
         if rx_cmac is not None and tx_cmac is not None:
             row["trace_lh_cmac_to_cmac_ns"] = float(tx_cmac["time_ns"] - rx_cmac["time_ns"])
 
+    if tx_submit:
+        milestones = {ev["event"]: ev["time_ns"] - tx_submit["time_ns"]
+                      for ev in (host_accept, tx_no_dma, tx_after_dma, reply_encode,
+                                 udp_encoder, ip_encoder, eth_encoder)
+                      if ev is not None}
+        row["trace_tx_milestones_after_submit_ns"] = milestones
+    if tx_commit and tx_submit:
+        row["trace_tx_commit_to_submit_ns"] = tx_submit["time_ns"] - tx_commit["time_ns"]
+    if eth_encoder is not None and tx_commit and tx_cmac:
+        row["trace_tx_commit_to_cmac_ns"] = tx_cmac["time_ns"] - tx_commit["time_ns"]
+    if "trace_lh_cmac_to_cmac_ns" in row:
+        unexplained = row["trace_lh_cmac_to_cmac_ns"] - sum(segments.values())
+        if unexplained < -1e-6:
+            raise ValueError(f"request {row['request_id']}: trace segments exceed CMAC interval by {-unexplained} ns")
+        segments["lh_unattributed"] = max(0.0, unexplained)
+        # Same-clock durations only: no CPU/FPGA/client epoch fit required.
+        row["external_residual_ns"] = row["e2e_ns"] - row["trace_lh_cmac_to_cmac_ns"]
+        row["external_residual_raw_ns"] = row["e2e_raw_ns"] - row["trace_lh_cmac_to_cmac_ns"]
+        if row["external_residual_ns"] < 0:
+            raise ValueError(f"request {row['request_id']}: CMAC interval exceeds client E2E")
     if segments:
         row["trace_segments"] = segments
 
@@ -809,6 +872,8 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
 
     for recs in dispatches_by_core.values():
         recs.sort(key=lambda rec: rec["SchedulerRequestDispatched"])
+        for rec, following in zip(recs, recs[1:]):
+            rec["next_dispatch_ns"] = following["SchedulerRequestDispatched"]
     for recs in ipi_by_core.values():
         recs.sort(key=lambda ev: ev["time_ns"])
 
@@ -909,24 +974,29 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
 
 def breakdown(row: Dict[str, Any]) -> Dict[str, float]:
     sw_xdr_runtime = row["client_xdr_ns"] + row["server_unmarshal_ns"] + row["server_marshal_ns"]
-    kernel = row.get("kernel_wakeup_ns", 0.0)
 
     if row.get("trace_segments"):
         ret = dict(row["trace_segments"])
         ret["client_xdr_runtime"] = row["client_xdr_ns"]
         known = sum(ret.values())
         outside = row["e2e_ns"] - known
+        if outside < -1e-6:
+            raise ValueError(f"request {row['request_id']}: attributed {known} ns exceeds E2E {row['e2e_ns']} ns")
         ret["outside_lh_client_network"] = max(0.0, outside)
         return ret
 
-    hw_dispatch = row.get("trace_hw_queue_dispatch_ns", 0.0) + row.get("trace_hw_core_delivery_ns", 0.0)
-    if hw_dispatch == 0.0:
-        hw_dispatch = row["server_rx_ns"] + row["server_tx_ns"]
-    known = sw_xdr_runtime + hw_dispatch + kernel + row["handler_ns"]
+    # A blocking receive includes pre-arrival idle time. Without hardware
+    # correlation only the post-receive CPU interval is known to be service.
+    service = max(0.0, row["server_tx_exit_ns"] - row["server_rx_exit_ns"])
+    known = row["client_xdr_ns"] + service
+    if known > row["e2e_ns"] + 1e-6:
+        raise ValueError(f"request {row['request_id']}: software service exceeds E2E")
+    work = row["server_unmarshal_ns"] + row["server_marshal_ns"] + row["handler_ns"]
+    if work > service + 1e-6:
+        raise ValueError("server intervals exceed post-receive service interval")
     return {
         "network_or_residual": max(0.0, row["e2e_ns"] - known),
-        "hw_dispatch": hw_dispatch,
-        "kernel_wakeup": kernel,
+        "server_rt_overhead": service - work,
         "sw_xdr_runtime": sw_xdr_runtime,
         "handler": row["handler_ns"],
     }
@@ -1512,6 +1582,10 @@ def main() -> int:
         type=Path,
         help="render the breakdown PDF directly from an existing breakdown CSV and exit",
     )
+    parser.add_argument("--audit-json", type=Path, help="write all rows, conservation checks and residual distribution")
+    parser.add_argument("--no-plots", action="store_true")
+    parser.add_argument("--allow-partial-trace", action="store_true",
+                        help="diagnostic use only: permit missing/legacy mismatched trace correlations")
     parser.add_argument("--trace-dump", type=Path, help="optional raw sys_trace dump, optionally .gz")
     parser.add_argument("--worker-cpu-base", type=int, help="first isolated Linux worker CPU (required for new CSV/hardware correlation)")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
@@ -1588,7 +1662,43 @@ def main() -> int:
         if matched == 1:
             print("warning: only one trace-matched request; kernel_wakeup cannot be baseline-estimated and will be 0")
 
-    plot(rows, args.output_prefix)
+    if args.trace_dump and not args.allow_partial_trace:
+        incomplete = [row for row in rows if not row.get("trace_lh_cmac_to_cmac_ns")
+                      or "trace_tx_commit_to_cmac_ns" not in row
+                      or row.get("trace_tx_udp_ip_packet_id_mismatch")]
+        if incomplete:
+            raise SystemExit(f"{len(incomplete)} incomplete/ambiguous traced requests; refusing a performance breakdown")
+    rows = [row for row in rows if not row.get("warmup")]
+    if not rows:
+        raise SystemExit("no measured requests after warmup")
+    for row in rows:
+        breakdown(row)  # Validate every row, not just selected percentile rows.
+    if args.audit_json:
+        metrics = {}
+        for field in ("e2e_ns", "e2e_raw_ns", "trace_lh_cmac_to_cmac_ns",
+                      "external_residual_ns", "external_residual_raw_ns",
+                      "trace_tx_commit_to_submit_ns", "trace_tx_commit_to_cmac_ns",
+                      "server_tx_ns"):
+            values = sorted(float(row[field]) for row in rows if field in row)
+            if values:
+                median = percentile(values, 50)
+                metrics[field] = {"count": len(values), "min": values[0],
+                    "p50": median, "p90": percentile(values, 90),
+                    "p99": percentile(values, 99), "max": values[-1],
+                    "p99_minus_p50": percentile(values, 99)-median}
+        provenance = {"client_csv": str(args.client_csv), "server_csv": str(args.server_csv),
+            "client_sha256": hashlib.sha256(args.client_csv.read_bytes()).hexdigest(),
+            "server_sha256": hashlib.sha256(args.server_csv.read_bytes()).hexdigest()}
+        if args.trace_dump:
+            provenance.update(trace_dump=str(args.trace_dump), trace_map=str(args.trace_map),
+                trace_cycle_ns=args.trace_cycle_ns,
+                trace_map_sha256=hashlib.sha256(args.trace_map.read_bytes()).hexdigest(),
+                allow_partial_trace=args.allow_partial_trace)
+        args.audit_json.write_text(json.dumps({"metrics": metrics, "provenance": provenance,
+            "correlation": "sequence/offset heuristic; isolated one-outstanding workload required",
+            "rows": [dict(row, breakdown=breakdown(row)) for row in rows]}, indent=2)+"\n")
+    if not args.no_plots:
+        plot(rows, args.output_prefix)
     return 0
 
 
