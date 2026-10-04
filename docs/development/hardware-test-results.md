@@ -708,3 +708,24 @@ Timing remains open: **WNS −0.396 ns, TNS −917.034 ns, 7,227 failing setup
 endpoints**, with no failing hold endpoints. This is a functional baseline for
 resuming the corrected-image campaign, not adversarial multi-PA isolation,
 contention progress, a new RX-hold threshold, or full cooperative acceptance.
+
+
+## Near-timeout worker contention — 516112 — 2026-10-04
+
+Corrected `b2117e96` passed finite three-peer contention on two verified cold
+boots of zuestoll14, using zuestoll12 for traffic and trace capture. Both runs
+used 26,656,301-cycle holds (133.281505 ms) and passed 180-second control/TAD/kernel
+checks. Corrected, loss-free measurement ranges show peer descriptor/reply
+progress during three simultaneous holds. The second run disabled RT bandwidth
+throttling; this is now applied and checked by `cpu load` on every test boot.
+
+The hold analyzer's recorder-bubble timestamp bug was fixed and the older
+515944 ranges reprocessed. A serial setup failure was captured before recovery.
+The recurring 50 ms add delays disappeared after disabling throttling, but two
+approximately 124 ms echo outliers remain between promptly answered TX
+acquisition and the later commit request. See the
+[full interpretation and limits](../hardware/worker-hol-evidence.md) and
+[matched evidence ledger](../../data/eci/board-evidence/worker-hol-516112-20261004.json).
+These are finite progress checks, not four-worker tail-latency or adversarial
+isolation acceptance. Timing remains open. The final healthy service is retained
+with RT throttling disabled, a 50 ms RX hold and tracing frozen after capture.
