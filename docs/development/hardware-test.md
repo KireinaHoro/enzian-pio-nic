@@ -18,6 +18,14 @@ emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
   -g 2025-07-28
 ```
 
+Named volumes persist after release, but their iSCSI export is shared by
+**user + volume name**, not by reservation. Do not reuse an active machine's
+named root volume for another reservation. The current gateway backend removes
+the common TGT configuration and attempts target deletion on release, without
+checking for another reservation using it. Distinct PXE initiator names do not
+create distinct targets. Prefer generated volumes for fresh clients; an accidental
+shared reservation needs admin cleanup that preserves the active export.
+
 Tested setup: kernel `6.8.0-64-generic`; CPU credentials `enzian/enzian`
 (`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc` (`ENZIAN_BMC_PASSWORD` supplies it noninteractively).
 The BMC helper prompts if login is needed and that environment variable is absent.
@@ -173,6 +181,12 @@ kernel arguments to the client machine. Verify its reservation, boot Linux,
 and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
 Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
 keep management/root storage on `cpu40g0`.
+
+For the reusable polling client and VF restoration runner, see the
+[DPDK generator](../../sw/apps/microbenchmarks/dpdk/README.md) and
+[measurement contract](../research/latency-measurement.md). The [client validation report](dpdk-benchmark-results.md) records kernel/PMD requirements and measured jitter. Its pcap replay
+checks are functional tests; require physical packet validation before collecting
+network latency data.
 
 The client does not need a programmed FPGA or the Lauberhorn kernel module.
 `boot.py --machine MACHINE --negative-no-bitstream` can boot it without
