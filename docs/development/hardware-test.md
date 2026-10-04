@@ -204,6 +204,11 @@ For the reusable polling client and VF restoration runner, see the
 checks are functional tests; require physical packet validation before collecting
 network latency data.
 
+The controlled [worker-issued GSYNC reproduction](../hardware/gsync-worker-reproduction.md)
+uses a separate instrumented RPC probe to test whether worker-local permission
+changes wait behind peer RX holds. Its socket client measures reproduction
+outcomes; it is not a replacement for the DPDK latency benchmark.
+
 The client does not need a programmed FPGA or the Lauberhorn kernel module.
 `boot.py --machine MACHINE --negative-no-bitstream` can boot it without
 programming. This mode's log label describes the absent FPGA image; no negative
