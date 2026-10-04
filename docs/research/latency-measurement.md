@@ -6,6 +6,109 @@ also documents what the breakdown can and cannot prove. Source-reviewed on
 2026-09-08; the numeric example below is historical and was not rerun for this
 survey. See [paper goals](paper-goals.md) for the broader evaluation plan.
 
+## DPDK benchmark infrastructure and accounting audit (2026-10-04)
+
+The reusable [traffic generator](../../sw/apps/microbenchmarks/dpdk/README.md)
+replaces the client UDP/RPC stack with direct polling through a DPDK PMD.
+The common engine owns timing, warmup, request IDs, timeouts and CSV output;
+benchmark codecs supply payload encoding/validation. Add and multiply use the
+existing `bench.x` wire contract. Echo is a transport diagnostic. See the [Enzian validation results](../development/dpdk-benchmark-results.md) for the physical client evidence and remaining comparison.
+
+For each **matched request**, compute the external residual as:
+
+```text
+external_residual = client_E2E - (TxCmacExit - RxCmacEntry)
+```
+
+Both terms are durations in their own clock domains; no epoch subtraction or
+CPU/FPGA offset fit is needed. Report the raw and one-probe-corrected client
+E2E definitions separately. This residual includes client processing/NIC,
+link/switch, server transceiver/CMAC portions outside the trace boundary, and
+boundary-instrumentation uncertainty. It is not a tunable Lauberhorn component.
+Do not subtract percentile values to form it: pair each request first, then
+summarize the residual's distribution, tails and first/last-quarter drift.
+A negative residual fails validation. Stable external cost is a measurement
+hypothesis, not something achieved by forcing a constant into the breakdown.
+
+`MacInterface.scala` emits all four CMAC/CDC markers at **lastFire**, i.e. the
+end of the frame. `RxCmacEntry` and `TxCmacExit` traverse `PulseCCByToggle` into
+the application clock. The trace map corrects source-to-recorder pipeline
+stages, not the phase-dependent pulse synchronizer delay or PHY serialization.
+Keep packet sizes and clocks fixed for comparisons; do not claim these markers
+measure first-bit wire latency or exact transceiver delay.
+
+The October audit found and corrected:
+
+- Historical completion labels were normalized in the decoder but excluded by
+  the earlier event-ID filter. Both `EciTxCtrlUnlocked` and
+  `EciTxDataLciaUlDone` now reach the canonical decoder.
+- Scheduler attribution could select a later request's IPI or a process-run
+  marker predating the current queue entry. The queued-to-dispatched interval
+  is now partitioned once; wakeup detail is used only for an ordered chain.
+- TX completion searches could see a later reuse of the six-bit host ID.
+  Completion must be between this commit and submit. Current RTL emits
+  `EciTxCtrlInvalidated` for inline replies **or** `EciTxDataLciaDone` for
+  overflow replies. The legacy aliases remain supported.
+- TX submission correlation now requires a unique candidate bounded by the
+  request's delivery and next dispatch, plus the CPU window. It does not select
+  the nearest among ambiguous candidates. Every later TX stage is bounded by
+  the next dispatch too, so a missing stage cannot borrow the next response.
+- TX host-accept, no-DMA/DMA completion and encoder milestones are retained
+  relative to submission in each audit row. DMA completion can overlap encoding
+  (`sendDesc` precedes `waitDma`); these milestones are not summed as independent
+  additive latency. The submit-to-UDP interval remains one partition.
+- The no-trace fallback incorrectly counted pre-arrival blocking RX as service.
+  It now attributes only the CPU interval from RX return through TX return,
+  plus client XDR, leaving the remainder explicitly unclassified.
+- Clamping negative residuals hid over-attribution. Every measured row now
+  checks E2E conservation; reversed intervals and excessive CPU/FPGA attribution
+  fail. Missing client/server joins fail instead of selecting only survivors.
+- Gaps **inside** a matched CMAC interval become `lh_unattributed`, not external
+  latency. The detailed stacked components plus that gap equal the complete
+  CMAC interval. Raw trace loss markers reject sequence-based correlation.
+
+Performance breakdowns require complete CMAC and TX commit paths for every row.
+`--allow-partial-trace` is diagnostic only. Request matching remains a
+sequence/offset heuristic without an application XID at all hardware boundaries:
+use one outstanding inline request and an isolated service, retain warmup in
+both CSVs during matching, and preserve a loss-free complete capture with the
+exact build's map. This is not a general loaded/multi-service trace correlator.
+
+For TX comparisons report the same-clock CPU `server_tx_ns`, FPGA
+`EciTxCommitRead → EciTxSubmit`, and FPGA `EciTxCommitRead → TxCmacExit`
+distributions. These avoid the inferred epoch offset used by the detailed
+software/hardware split. Half of FLDX_EH→HAKD median RTT remains a modeling
+assumption, not a direct measurement of one-way RX delivery. In particular,
+do not use that estimate to establish a small R12→RA3 improvement by itself.
+An old/new image comparison also includes all other intervening RTL/runtime
+changes; isolating the permission change requires a matched controlled pair.
+
+```sh
+python3 data/eci/apps/plot_latency.py CLIENT.csv SERVER.csv \
+  --worker-cpu-base 44 --trace-dump TRACE.bin --trace-map MATCHING_MAP.json \
+  --audit-json NEW-audit.json --no-plots
+python3 tools/enzian/benchmark_summary.py CLIENT.csv \
+  --audit NEW-audit.json --baseline-audit OLD-audit.json --output NEW-summary.json
+```
+
+The audit retains all measured rows, trace components and input CSV/map hashes.
+The summary checks trace coverage and reports residual drift. Preserve the
+bitstream/software hashes, kernel, DPDK version, source revision, EAL core,
+PCI VF, topology, packet sizes, worker count, tracing mode and FPGA period with
+the run. CSV-writing server instrumentation changes the workload; compare
+traced runs with traced runs and collect uninstrumented E2E separately.
+
+A fresh software-only analysis of the checked-in **June 20** CSVs excludes
+request 0 explicitly: that ID appears twice at the server, and its client call
+includes a roughly 15-second startup/retry interval. IDs 1–9999 pass correctness
+and conservation checks. Corrected E2E P50 is **73.320 µs**, P90 **76.390 µs**,
+and P99 **93.971 µs** (70 ns client probe correction). This does not reproduce
+the separate 87.290 µs prose example below. A matching historical trace map has
+not been established, so these CSVs alone cannot establish historical TX
+hardware latency or prove an R12→RA3 improvement. The historical same-clock
+CPU TX-call median is 2.580 µs (P99 2.630 µs); this is also not a new FPGA TX
+measurement.
+
 ## E2E Definition
 
 For the microbenchmarks add benchmark, end-to-end latency means the elapsed time in the client process

@@ -78,6 +78,15 @@
               ciEnvironment
               ciDependencies
               ;
+            trafficGenerator = pkgs.pkgsCross.aarch64-multiplatform.callPackage
+              ./sw/apps/microbenchmarks/dpdk/package.nix {
+                dpdk = pkgs.pkgsCross.aarch64-multiplatform.callPackage
+                  ./nix/software/dpdk-thunderx.nix { };
+              };
+            trafficGeneratorNative = pkgs.callPackage
+              ./sw/apps/microbenchmarks/dpdk/package.nix {
+                dpdk = pkgs.callPackage ./nix/software/dpdk-thunderx.nix { };
+              };
             recovery-test = platform.applications.recovery-test;
             nested-validation = platform.applications.nested-validation;
             dummy-app-build-with-nix = platform.applications.nix-build-demo;
