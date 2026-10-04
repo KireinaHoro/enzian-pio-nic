@@ -1,5 +1,5 @@
 {
-  "status": "measurement-in-progress",
+  "status": "hot-and-cold-correlated",
   "pipeline": 516112,
   "pipeline_sha": "b2117e9625cca7ce256b44db34a5f2a46a952622",
   "client_infrastructure_revision": "07802f9a",
@@ -29,10 +29,7 @@
     "worker_distribution": {
       "0": 1000
     },
-    "remaining": [
-      "FPGA correlation",
-      "instrumentation overhead"
-    ]
+    "remaining": []
   },
   "cold": {
     "pipeline": 516112,
@@ -48,11 +45,7 @@
     },
     "kernel_returncode": 0,
     "kernel_loss_free": true,
-    "remaining": [
-      "FPGA correlation and arrival-time cold classification",
-      "kernel tracing off/on comparison",
-      "hot condition measurements"
-    ],
+    "remaining": [],
     "raw_roundtrip_ns": {
       "count": 1000,
       "p50": 52145.0,
@@ -150,10 +143,14 @@
   },
   "evidence_directory": "out/baseline-latency-516112",
   "limitations": [
-    "FPGA correlation not yet complete; no final additive component claim",
-    "Kernel tracing off/on comparison pending",
-    "Runtime CSV off/on comparison pending",
-    "Current FPGA has no GSYNC early-NACK fix; comparison against 516232 pending"
+    "RPC decode and host enqueue are combined because metadata events can overlap; other ordered stages remain separate",
+    "Client/NIC/network residual is accounted for but cannot be separated into physical subcomponents with these traces",
+    "Runtime CSV logging remained enabled; runtime logging off/on remains unmeasured",
+    "Kernel tracing comparison is one sequential pair, not a constant overhead correction",
+    "Current FPGA has no GSYNC early-NACK fix; matched 516232 comparison pending",
+    "Single measured thread only; this is not the later four-worker simultaneous-load tail test",
+    "All kernel samples used cooperative activation; this does not measure idle-core IRQ activation",
+    "Baseline timing remains open: WNS -0.396 ns; functional measurements are not timing closure"
   ],
   "measured_linux_tgid": 1672,
   "measured_linux_tid": 1676,
@@ -178,5 +175,647 @@
     },
     "bounded_window": true,
     "pipeline": 516112
+  },
+  "results": {
+    "hot": {
+      "metrics_ns": {
+        "roundtrip": {
+          "count": 1000,
+          "p50": 34550.0,
+          "p90": 35350.0,
+          "p95": 47610.0,
+          "p99": 48100.0,
+          "p100": 57980.0
+        },
+        "e2e_breakdown_ns": {
+          "client_packet_prepare": {
+            "count": 1000,
+            "p50": 130.0,
+            "p90": 140.0,
+            "p95": 140.0,
+            "p99": 140.0,
+            "p100": 170.0
+          },
+          "client_reply_validate": {
+            "count": 1000,
+            "p50": 170.0,
+            "p90": 170.0,
+            "p95": 170.0,
+            "p99": 170.0,
+            "p100": 180.0
+          },
+          "handler": {
+            "count": 1000,
+            "p50": 300.0,
+            "p90": 320.0,
+            "p95": 330.0,
+            "p99": 330.0,
+            "p100": 330.0
+          },
+          "lh_rx_2f2f_hw": {
+            "count": 1000,
+            "p50": 120.0,
+            "p90": 120.0,
+            "p95": 120.0,
+            "p99": 120.0,
+            "p100": 120.0
+          },
+          "lh_rx_cmac_to_cdc": {
+            "count": 1000,
+            "p50": 20.0,
+            "p90": 20.0,
+            "p95": 20.0,
+            "p99": 20.049999999999955,
+            "p100": 45.0
+          },
+          "lh_rx_eci_delivery": {
+            "count": 1000,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 915.0,
+            "p100": 925.0
+          },
+          "lh_rx_eth_decode": {
+            "count": 1000,
+            "p50": 10.0,
+            "p90": 10.0,
+            "p95": 10.0,
+            "p99": 15.0,
+            "p100": 25.0
+          },
+          "lh_rx_ip_decode": {
+            "count": 1000,
+            "p50": 35.0,
+            "p90": 35.0,
+            "p95": 35.0,
+            "p99": 35.0,
+            "p100": 45.0
+          },
+          "lh_rx_rpc_decode_and_host_enqueue": {
+            "count": 1000,
+            "p50": 55.0,
+            "p90": 55.0,
+            "p95": 55.0,
+            "p99": 55.0,
+            "p100": 65.0
+          },
+          "lh_rx_udp_decode": {
+            "count": 1000,
+            "p50": 55.0,
+            "p90": 55.0,
+            "p95": 55.0,
+            "p99": 55.0,
+            "p100": 80.0
+          },
+          "lh_scheduler_enqueue": {
+            "count": 1000,
+            "p50": 15.0,
+            "p90": 15.0,
+            "p95": 15.0,
+            "p99": 20.0,
+            "p100": 35.0
+          },
+          "lh_scheduler_queue": {
+            "count": 1000,
+            "p50": 20470.0,
+            "p90": 21245.5,
+            "p95": 33426.0,
+            "p99": 33950.95,
+            "p100": 43770.0
+          },
+          "lh_tx_2f2f_hw": {
+            "count": 1000,
+            "p50": 950.0,
+            "p90": 960.0,
+            "p95": 960.0,
+            "p99": 965.0,
+            "p100": 985.0
+          },
+          "lh_tx_cdc_to_cmac": {
+            "count": 1000,
+            "p50": 35.0,
+            "p90": 35.0,
+            "p95": 35.0,
+            "p99": 40.049999999999955,
+            "p100": 55.0
+          },
+          "lh_tx_eth_encode": {
+            "count": 1000,
+            "p50": 10.0,
+            "p90": 10.0,
+            "p95": 10.0,
+            "p99": 10.0,
+            "p100": 20.0
+          },
+          "lh_tx_host_submit": {
+            "count": 1000,
+            "p50": 15.0,
+            "p90": 15.0,
+            "p95": 15.0,
+            "p99": 25.0,
+            "p100": 40.0
+          },
+          "lh_tx_ip_encode": {
+            "count": 1000,
+            "p50": 25.0,
+            "p90": 25.0,
+            "p95": 25.0,
+            "p99": 25.0,
+            "p100": 40.0
+          },
+          "lh_tx_output_queue": {
+            "count": 1000,
+            "p50": 60.0,
+            "p90": 60.0,
+            "p95": 60.0,
+            "p99": 60.0,
+            "p100": 80.0
+          },
+          "lh_tx_submit_to_udp_encode": {
+            "count": 1000,
+            "p50": 25.0,
+            "p90": 25.0,
+            "p95": 25.0,
+            "p99": 45.0,
+            "p100": 80.0
+          },
+          "lh_unattributed": {
+            "count": 1000,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "p100": 0.0
+          },
+          "outside_lh_client_network": {
+            "count": 1000,
+            "p50": 8230.0,
+            "p90": 8300.0,
+            "p95": 8335.0,
+            "p99": 8645.15,
+            "p100": 15735.0
+          },
+          "server_2f2f_rx_sw": {
+            "count": 1000,
+            "p50": 110.0,
+            "p90": 120.0,
+            "p95": 120.0,
+            "p99": 120.0,
+            "p100": 140.0
+          },
+          "server_2f2f_tx_sw": {
+            "count": 1000,
+            "p50": 845.0,
+            "p90": 870.0,
+            "p95": 870.0,
+            "p99": 885.0,
+            "p100": 890.0
+          },
+          "server_rt_overhead": {
+            "count": 1000,
+            "p50": 2010.0,
+            "p90": 2035.0,
+            "p95": 2050.0,
+            "p99": 2100.0,
+            "p100": 2135.0
+          },
+          "server_xdr_marshal": {
+            "count": 1000,
+            "p50": 220.0,
+            "p90": 230.0,
+            "p95": 230.0,
+            "p99": 230.0,
+            "p100": 230.0
+          },
+          "server_xdr_unmarshal": {
+            "count": 1000,
+            "p50": 540.0,
+            "p90": 540.0,
+            "p95": 550.0,
+            "p99": 560.0,
+            "p100": 630.0
+          }
+        },
+        "activation_components_ns": {}
+      },
+      "workers": {
+        "0": 1000
+      },
+      "activation_paths": {
+        "already_active": 1000
+      },
+      "audit_sha256": "24479df923fe8773283245012050608c16b2dfd60174f32c6e23d7032232c7eb",
+      "trace_sha256": "a01a0c6c68a2741e4f234b64019159231965ce09b31815724e616a1f307ea1aa",
+      "trace_unattributed_max_ns": 0.0
+    },
+    "cold": {
+      "metrics_ns": {
+        "roundtrip": {
+          "count": 1000,
+          "p50": 52145.0,
+          "p90": 54821.0,
+          "p95": 55340.5,
+          "p99": 58201.7,
+          "p100": 137100.0
+        },
+        "e2e_breakdown_ns": {
+          "client_packet_prepare": {
+            "count": 1000,
+            "p50": 180.0,
+            "p90": 190.0,
+            "p95": 220.0,
+            "p99": 230.0,
+            "p100": 1010.0
+          },
+          "client_reply_validate": {
+            "count": 1000,
+            "p50": 170.0,
+            "p90": 170.0,
+            "p95": 170.0,
+            "p99": 170.0,
+            "p100": 1190.0
+          },
+          "handler": {
+            "count": 1000,
+            "p50": 320.0,
+            "p90": 330.0,
+            "p95": 330.0,
+            "p99": 330.0999999999999,
+            "p100": 740.0
+          },
+          "lh_rx_2f2f_hw": {
+            "count": 1000,
+            "p50": 120.0,
+            "p90": 120.0,
+            "p95": 120.0,
+            "p99": 120.0,
+            "p100": 120.0
+          },
+          "lh_rx_cmac_to_cdc": {
+            "count": 1000,
+            "p50": 20.0,
+            "p90": 20.0,
+            "p95": 20.0,
+            "p99": 20.0,
+            "p100": 40.0
+          },
+          "lh_rx_eci_delivery": {
+            "count": 1000,
+            "p50": 10.0,
+            "p90": 10.0,
+            "p95": 10.0,
+            "p99": 15.0,
+            "p100": 20.0
+          },
+          "lh_rx_eth_decode": {
+            "count": 1000,
+            "p50": 10.0,
+            "p90": 10.0,
+            "p95": 10.0,
+            "p99": 10.0,
+            "p100": 20.0
+          },
+          "lh_rx_ip_decode": {
+            "count": 1000,
+            "p50": 35.0,
+            "p90": 35.0,
+            "p95": 35.0,
+            "p99": 35.0,
+            "p100": 50.0
+          },
+          "lh_rx_rpc_decode_and_host_enqueue": {
+            "count": 1000,
+            "p50": 55.0,
+            "p90": 55.0,
+            "p95": 55.0,
+            "p99": 55.0,
+            "p100": 70.0
+          },
+          "lh_rx_udp_decode": {
+            "count": 1000,
+            "p50": 55.0,
+            "p90": 55.0,
+            "p95": 55.0,
+            "p99": 55.0,
+            "p100": 60.0
+          },
+          "lh_scheduler_enqueue": {
+            "count": 1000,
+            "p50": 15.0,
+            "p90": 15.0,
+            "p95": 15.0,
+            "p99": 20.0,
+            "p100": 30.0
+          },
+          "lh_scheduler_queue": {
+            "count": 1000,
+            "p50": 36650.0,
+            "p90": 37846.5,
+            "p95": 38696.0,
+            "p99": 41531.049999999996,
+            "p100": 121635.0
+          },
+          "lh_tx_2f2f_hw": {
+            "count": 1000,
+            "p50": 950.0,
+            "p90": 960.0,
+            "p95": 960.0,
+            "p99": 965.0,
+            "p100": 980.0
+          },
+          "lh_tx_cdc_to_cmac": {
+            "count": 1000,
+            "p50": 35.0,
+            "p90": 35.0,
+            "p95": 35.0,
+            "p99": 35.0,
+            "p100": 35.0
+          },
+          "lh_tx_eth_encode": {
+            "count": 1000,
+            "p50": 10.0,
+            "p90": 10.0,
+            "p95": 10.0,
+            "p99": 10.0,
+            "p100": 20.0
+          },
+          "lh_tx_host_submit": {
+            "count": 1000,
+            "p50": 15.0,
+            "p90": 15.0,
+            "p95": 15.0,
+            "p99": 15.0,
+            "p100": 30.0
+          },
+          "lh_tx_ip_encode": {
+            "count": 1000,
+            "p50": 25.0,
+            "p90": 25.0,
+            "p95": 25.0,
+            "p99": 25.0,
+            "p100": 30.0
+          },
+          "lh_tx_output_queue": {
+            "count": 1000,
+            "p50": 60.0,
+            "p90": 60.0,
+            "p95": 60.0,
+            "p99": 60.0,
+            "p100": 60.0
+          },
+          "lh_tx_submit_to_udp_encode": {
+            "count": 1000,
+            "p50": 25.0,
+            "p90": 25.0,
+            "p95": 25.0,
+            "p99": 30.0,
+            "p100": 40.0
+          },
+          "lh_unattributed": {
+            "count": 1000,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "p100": 0.0
+          },
+          "outside_lh_client_network": {
+            "count": 1000,
+            "p50": 8230.0,
+            "p90": 11125.5,
+            "p95": 11305.0,
+            "p99": 11385.0,
+            "p100": 12095.0
+          },
+          "server_2f2f_rx_sw": {
+            "count": 1000,
+            "p50": 130.0,
+            "p90": 140.0,
+            "p95": 140.0,
+            "p99": 140.0,
+            "p100": 150.0
+          },
+          "server_2f2f_tx_sw": {
+            "count": 1000,
+            "p50": 1660.0,
+            "p90": 1670.0,
+            "p95": 1675.0,
+            "p99": 1680.05,
+            "p100": 1730.0
+          },
+          "server_rt_overhead": {
+            "count": 1000,
+            "p50": 1585.0,
+            "p90": 1600.0,
+            "p95": 1610.0,
+            "p99": 1650.0,
+            "p100": 2930.0
+          },
+          "server_xdr_marshal": {
+            "count": 1000,
+            "p50": 300.0,
+            "p90": 310.0,
+            "p95": 310.0,
+            "p99": 310.0999999999999,
+            "p100": 1220.0
+          },
+          "server_xdr_unmarshal": {
+            "count": 1000,
+            "p50": 1350.0,
+            "p90": 1370.0,
+            "p95": 1430.0,
+            "p99": 1450.0,
+            "p100": 3440.0
+          }
+        },
+        "activation_components_ns": {
+          "activation_publish": {
+            "count": 1000,
+            "p50": 200.0,
+            "p90": 210.0,
+            "p95": 210.0,
+            "p99": 220.0,
+            "p100": 380.0
+          },
+          "affinity_setup": {
+            "count": 1000,
+            "p50": 3240.0,
+            "p90": 3501.0,
+            "p95": 4480.999999999999,
+            "p99": 5760.999999999999,
+            "p100": 7600.0
+          },
+          "claim_wait": {
+            "count": 1000,
+            "p50": 790.0,
+            "p90": 820.0,
+            "p95": 840.0,
+            "p99": 880.0,
+            "p100": 920.0
+          },
+          "kernel_to_userspace": {
+            "count": 1000,
+            "p50": 7310.0,
+            "p90": 7560.0,
+            "p95": 8261.0,
+            "p99": 8970.1,
+            "p100": 10610.0
+          },
+          "preempt_info_mmio": {
+            "count": 1000,
+            "p50": 1620.0,
+            "p90": 1660.0,
+            "p95": 1680.0,
+            "p99": 1700.0,
+            "p100": 1770.0
+          },
+          "runtime_activation_setup": {
+            "count": 1000,
+            "p50": 500.0,
+            "p90": 520.0,
+            "p95": 620.0,
+            "p99": 630.0,
+            "p100": 750.0
+          },
+          "runtime_before_rx": {
+            "count": 1000,
+            "p50": 970.0,
+            "p90": 971.0000000000002,
+            "p95": 980.0,
+            "p99": 1000.0999999999999,
+            "p100": 84730.0
+          },
+          "wake_to_wait_return": {
+            "count": 1000,
+            "p50": 15710.0,
+            "p90": 16161.0,
+            "p95": 16350.0,
+            "p99": 17160.1,
+            "p100": 22210.0
+          },
+          "yield_copyout": {
+            "count": 1000,
+            "p50": 500.0,
+            "p90": 531.0000000000002,
+            "p95": 560.0,
+            "p99": 590.3999999999996,
+            "p100": 670.0
+          },
+          "activation_total": {
+            "count": 1000,
+            "p50": 30890.0,
+            "p90": 32061.0,
+            "p95": 32890.5,
+            "p99": 34684.1,
+            "p100": 116010.0
+          }
+        }
+      },
+      "workers": {
+        "0": 514,
+        "2": 171,
+        "1": 309,
+        "3": 6
+      },
+      "activation_paths": {
+        "cooperative": 1000
+      },
+      "audit_sha256": "e09d35ebdd05c72e3b43e89ef25a401e73a3c999fa1191493230a324a98c590b",
+      "trace_sha256": "7d247e1f06483458fe0f2db6dd49f3dd28152020343d2230f89d504cde0a53a1",
+      "trace_unattributed_max_ns": 0.0
+    }
+  },
+  "kernel_tracing_comparison": {
+    "on": {
+      "count": 1000,
+      "p50": 52145.0,
+      "p90": 54821.0,
+      "p95": 55340.5,
+      "p99": 58201.7,
+      "p100": 137100.0
+    },
+    "off": {
+      "count": 1000,
+      "p50": 48260.0,
+      "p90": 50832.0,
+      "p95": 51451.0,
+      "p99": 53270.8,
+      "p100": 118930.0
+    },
+    "on_minus_off_ns": {
+      "p50": 3885.0,
+      "p90": 3989.0,
+      "p95": 3889.5,
+      "p99": 4930.899999999994,
+      "p100": 18170.0
+    },
+    "scope": "One sequential pair of 1000 cold RPCs each; raw percentile differences, not paired per-request overhead or a correction constant. Both have 1000 distinct activations and complete FPGA correlations; both classify cold with the 1000 ns guard. Runtime CSV enabled in both.",
+    "off_classification_min_ready_after_arrival_ns": 27745.0,
+    "off_trace": {
+      "bytes": 1239001088,
+      "sha256": "c816099994a8a741de34bccf846c8ecfedee85b675a7308d635038ff10b375ef",
+      "offset": 7031258816,
+      "start": {
+        "trace_write_slot_1": 109863419,
+        "trace_wrapped_1": 1,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "end": {
+        "trace_write_slot_1": 129222811,
+        "trace_wrapped_1": 1,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "bounded_window": true,
+      "pipeline": 516112
+    }
+  },
+  "percentiles_csv": "data/eci/board-evidence/dpdk-hot-cold-baseline-20261004.csv",
+  "jobs": {
+    "prepare": 2865917,
+    "hardware": 2865918,
+    "report": 2865919
+  },
+  "hardware_artifacts": {
+    "out/ci-followup/516112/hardware/shell_lauberhorn-eci.bit": "2dcdcf9bb5b05a90c458bce190d173aa868d975f78f8545bfc37432f75ceadcd",
+    "out/ci-followup/516112/hardware/shell_lauberhorn-eci.ltx": "752f0b8d6b10b6dff364123d57a690dfbd56dd584f913dcfba299a74a9ae06c4",
+    "out/ci-followup/516112/hardware/lauberhorn_trace_dma_map.json": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c"
+  },
+  "timing": {
+    "wns": -0.396,
+    "tns": -917.034,
+    "setup_failing": 7227.0,
+    "setup_total": 1350921.0,
+    "whs": 0.0,
+    "ths": 0.0,
+    "hold_failing": 0.0,
+    "hold_total": 1348913.0,
+    "wpws": 0.039,
+    "tpws": 0.0,
+    "pulse_failing": 0.0,
+    "pulse_total": 605786.0
+  },
+  "percentiles_sha256": "6c3d4b04b78d7e82a8e335033014a17214d7b47ce7df15fbd92e52927063c743",
+  "analyzer_sha256": "4376dda1690d002c49fbf160e40c341f2f5fdf9326d48f1d159cd7a2fe8d7453",
+  "instrumentation_smoke_provenance": "data/eci/board-evidence/cold-activation-instrumentation-20261004.json",
+  "runtime_configuration": {
+    "rx_hold_cycles": 10000,
+    "hardware_clock_hz": 200000000,
+    "rt_bandwidth_us": -1,
+    "runtime_csv_enabled": true
+  },
+  "validation": {
+    "native_dpdk_replay_passed": 10,
+    "aarch64_dpdk_replay_passed": 10,
+    "latency_analysis_tests_passed": 11,
+    "activation_analysis_tests_passed": 6,
+    "hot_correct": 1000,
+    "cold_correct": 1000,
+    "kernel_trace_off_cold_correct": 1000,
+    "hot_complete_correlations": 1000,
+    "cold_complete_correlations": 1000,
+    "kernel_trace_off_complete_correlations": 1000
   }
 }
