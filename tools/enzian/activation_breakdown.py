@@ -138,10 +138,16 @@ def main():
     p.add_argument('--condition', choices=['hot','cold'], required=True)
     p.add_argument('--margin-ns', type=int, default=1000)
     p.add_argument('--expected-per-worker', type=int, default=1000)
+    p.add_argument('--expected-workers', type=int, nargs='+', default=list(range(4)),
+                   help='physical worker IDs required in this campaign (default: 0 1 2 3)')
+    p.add_argument('--expected-total', type=int,
+                   help='require this total across observed workers instead of per-worker counts')
     p.add_argument('--output', type=Path, required=True)
     a = p.parse_args()
     if a.margin_ns < 0 or a.expected_per_worker <= 0:
         p.error('nonnegative margin and positive expected sample count required')
+    if len(set(a.expected_workers)) != len(a.expected_workers) or any(w not in range(4) for w in a.expected_workers):
+        p.error('expected workers must be distinct physical IDs in 0..3')
     metadata = json.loads((a.capture/'capture.json').read_text())
     if not metadata.get('loss_free') or metadata.get('returncode') != 0:
         raise ValueError('kernel capture is incomplete or its command failed')
@@ -152,8 +158,11 @@ def main():
     records = parse_trace((a.capture/'trace.txt').read_text())
     with a.server.open() as f:
         rows = join(list(csv.DictReader(f)),records,audit,a.condition,a.margin_ns)
-    counts = {w:sum(r['worker']==w for r in rows) for w in range(4)}
-    if set(r['worker'] for r in rows) != set(range(4)) or any(v != a.expected_per_worker for v in counts.values()):
+    counts = {w:sum(r['worker']==w for r in rows) for w in sorted(set(r['worker'] for r in rows))}
+    if a.expected_total is not None:
+        if a.expected_total <= 0 or len(rows) != a.expected_total:
+            raise ValueError('expected total measured request count not met: '+str(counts))
+    elif set(counts) != set(a.expected_workers) or any(v != a.expected_per_worker for v in counts.values()):
         raise ValueError('expected measured request count per physical worker not met: '+str(counts))
     output = {'condition':a.condition,'metrics_ns':summarize(rows),'rows':rows,
               'kernel_clock':'embedded CLOCK_MONOTONIC_RAW; no cross-clock subtraction for components',

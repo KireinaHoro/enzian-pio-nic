@@ -648,6 +648,13 @@ python3 tools/enzian/activation_breakdown.py \
 `RUN_ONE_PHASE.sh` is the campaign's service/client orchestration, not a supplied
 script. The collector uses its own tracefs instance, enables only this event,
 preserves per-CPU loss counters, and disables/removes its instance on exit.
+Allocate/resize and enable the kernel buffers before starting FIFO workers.
+Resizing a tracefs instance with an active FIFO worker can wait indefinitely
+for per-CPU ring-buffer work: the baseline pilot observed
+`ring_buffer_resize` blocked until the measured process was paused. For an
+already running service, pause it only during capture setup, resume before
+traffic and exclude that preparation from measurements. Preserve the failed
+setup and do not relabel it as an RPC timeout.
 The normal FPGA trace must independently stay armed through module load. Run
 `plot_latency.py` first with matching full hardware traces and CSVs (including
 warmup during matching); pass its audit to the activation analyzer. The latter
@@ -696,3 +703,20 @@ before/after traffic (256 pairs each). This measures clock reads, not the cost
 of emitting the event. The 100-request, one-worker socket-client smoke is
 functional validation, not the requested DPDK latency dataset or an overhead
 comparison. Matched tracing-off/on measurements remain required.
+
+For the one-thread measured domain plus four-thread flush domain campaign,
+pass `--trace-process-id` to `plot_latency.py` with the measured hardware
+ProcessID (not a Linux PID). This excludes interleaved flush dispatches from
+request matching while retaining their next-dispatch boundaries for TX event
+attribution. Require the queued event's ProcessID; missing identity is an error.
+Drain and validate every flush reply before starting a measured RPC, and check
+activation indices to establish eviction. A successful flush alone does not
+prove the measured thread became inactive.
+
+For the single measured thread plus four flushing threads campaign, use
+`activation_breakdown.py --expected-total 1000`: the measured thread can migrate
+between physical workers. Keep the actual worker attribution in every row and
+report its distribution. The default remains 1,000 samples on each of four
+workers for campaigns that explicitly require that coverage. Successful flush
+replies alone do not prove eviction: require a fresh activation for every cold
+request and validate activation readiness against request arrival.

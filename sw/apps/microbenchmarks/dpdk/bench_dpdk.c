@@ -29,13 +29,14 @@ static void check(int rc, const char *what) {
 }
 /* Preparation traffic is outside the measured RPC. Preserve every reply and
  * fail the run if eviction preparation times out; state is verified by traces. */
-struct flush_sample { uint64_t enter, exit; unsigned received; int ok; };
+struct flush_sample { uint64_t enter, exit; unsigned received, unrelated; int ok; };
 static struct flush_sample flush_domain(uint16_t port, struct rte_mempool *pool,
         struct endpoint src, struct endpoint dst, uint32_t first, uint64_t timeout) {
     enum { WINDOW = 16 };
     const struct benchmark *bench=benchmark_find("mul");
     struct flush_sample result={.enter=now()};
     uint32_t seen=0;
+    struct rte_mbuf *packets[WINDOW];
     dst.port=12346;
     for (unsigned k=0;k<WINDOW;k++) {
         struct rte_mbuf *tx=rte_pktmbuf_alloc(pool);
@@ -45,8 +46,16 @@ static struct flush_sample flush_domain(uint16_t port, struct rte_mempool *pool,
         uint8_t *p=(uint8_t *)rte_pktmbuf_append(tx,42+n);
         if (!p) rte_exit(1,"flush append failed\n");
         make_udp(p,&src,&dst,payload,n);
-        while (!rte_eth_tx_burst(port,0,&tx,1)) {
-            if (now()-result.enter>=timeout) { rte_pktmbuf_free(tx); goto done; }
+        packets[k]=tx;
+    }
+    /* Enqueue the prepared packets together: per-packet encoding between TX
+     * calls allowed resident workers to drain the queue before it could evict. */
+    unsigned sent=0;
+    while (sent<WINDOW) {
+        sent+=rte_eth_tx_burst(port,0,packets+sent,WINDOW-sent);
+        if (sent<WINDOW && now()-result.enter>=timeout) {
+            for(unsigned k=sent;k<WINDOW;k++) rte_pktmbuf_free(packets[k]);
+            goto done;
         }
     }
     while (result.received<WINDOW && now()-result.enter<timeout) {
@@ -58,9 +67,12 @@ static struct flush_sample flush_domain(uint16_t port, struct rte_mempool *pool,
             size_t length=rte_pktmbuf_pkt_len(rx[k]);
             const uint8_t *data=length<=sizeof(scratch)?rte_pktmbuf_read(rx[k],0,length,scratch):NULL;
             const uint8_t *reply=NULL; size_t size=0;
-            if (data && parse_udp(data,length,&src,&dst,&reply,&size)==1 && size>=4) {
+            int parsed=data?parse_udp(data,length,&src,&dst,&reply,&size):0;
+            if (!parsed) result.unrelated++; /* e.g. ARP after VF rebinding */
+            else if (parsed==1 && size>=4) {
                 uint32_t id=get32(reply), offset=id-first;
-                if (offset<WINDOW && !(seen&(1u<<offset)) && bench->validate(reply,size,id)==1) {
+                if (offset>=WINDOW) result.unrelated++;
+                else if (!(seen&(1u<<offset)) && bench->validate(reply,size,id)==1) {
                     seen |= 1u<<offset; result.received++;
                 } else invalid=1;
             } else invalid=1;
@@ -78,7 +90,7 @@ int main(int argc, char **argv) {
     if(consumed<0) return 1;
     argc-=consumed; argv+=consumed;
     if(argc!=10 && argc!=11) rte_exit(1,
-        "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback|flush:N]\n"
+        "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback|flush:N[:ROUNDS]]\n"
         "Use exactly one EAL lcore and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
     if(rte_lcore_count()!=1 || rte_eth_dev_count_avail()!=1)
         rte_exit(1,"require exactly one lcore and one port\n");
@@ -103,12 +115,17 @@ int main(int argc, char **argv) {
     struct rte_eth_dev_info info;
     check(rte_eth_dev_info_get(port,&info),"device info");
     struct rte_eth_conf config={0};
-    unsigned flush_every=0;
+    unsigned flush_every=0, flush_rounds=2;
     if(argc==11 && !strncmp(argv[10],"flush:",6)) {
-        flush_every=number(argv[10]+6,10000000);
+        char *spec=strdup(argv[10]+6);
+        if(!spec) rte_exit(1,"flush option allocation failed\n");
+        char *rounds=strchr(spec,':');
+        if(rounds) { *rounds++=0; flush_rounds=number(rounds,8); }
+        flush_every=number(spec,10000000);
+        free(spec);
         if(strcmp(bench->name,"add")) rte_exit(1,"flush mode requires add\n");
     }
-    struct flush_sample *flushes=flush_every?calloc(count+warmup,sizeof(*flushes)):NULL;
+    struct flush_sample *flushes=flush_every?calloc((size_t)(count+warmup)*flush_rounds,sizeof(*flushes)):NULL;
     if(flush_every && !flushes) rte_exit(1,"flush result allocation failed\n");
     if(argc==11 && !flush_every) {
         if(strcmp(argv[10],"loopback") || strcmp(bench->name,"echo") ||
@@ -151,8 +168,11 @@ int main(int argc, char **argv) {
     unsigned prepared=0;
     for(unsigned i=0;i<count+warmup;i++) {
         if(flush_every && i%flush_every==0) {
-            flushes[prepared]=flush_domain(port,pool,src,dst,0x80000000u+prepared*16,timeout_ns);
-            if(!flushes[prepared++].ok) { failed++; break; }
+            for(unsigned round=0;round<flush_rounds;round++) {
+                flushes[prepared]=flush_domain(port,pool,src,dst,0x80000000u+prepared*16,timeout_ns);
+                if(!flushes[prepared++].ok) { failed++; break; }
+            }
+            if(failed) break;
         }
         struct rte_mbuf *tx=rte_pktmbuf_alloc(pool);
         if(!tx) rte_exit(1,"TX allocation failed\n");
@@ -205,9 +225,9 @@ int main(int argc, char **argv) {
         snprintf(path,size,"%s.flush.csv",argv[9]);
         FILE *f=fopen(path,"wx");
         if(!f) rte_exit(1,"cannot create flush evidence\n");
-        fprintf(f,"first_request_id,enter_ns,exit_ns,expected,received,ok\n");
-        for(unsigned i=0;i<prepared;i++) fprintf(f,"%u,%"PRIu64",%"PRIu64",16,%u,%d\n",
-            0x80000000u+i*16,flushes[i].enter,flushes[i].exit,flushes[i].received,flushes[i].ok);
+        fprintf(f,"first_request_id,enter_ns,exit_ns,expected,received,ok,unrelated\n");
+        for(unsigned i=0;i<prepared;i++) fprintf(f,"%u,%"PRIu64",%"PRIu64",16,%u,%d,%u\n",
+            0x80000000u+i*16,flushes[i].enter,flushes[i].exit,flushes[i].received,flushes[i].ok,flushes[i].unrelated);
         if(ferror(f)) io_error=1;
         if(fclose(f)) io_error=1;
         free(path); free(flushes);

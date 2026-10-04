@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('latency', pathlib.Path(__file__).resolve().parents[1] / 'plot_latency.py')
 m = importlib.util.module_from_spec(spec)
@@ -58,6 +59,22 @@ class LatencyAccounting(unittest.TestCase):
         self.assertEqual(row['trace_segments']['lh_scheduler_queue'],50)
         self.assertNotIn('lh_scheduler_preempt',row['trace_segments'])
         self.assertNotIn('kernel_wakeup',row['trace_segments'])
+
+    def test_interleaved_flush_domain_is_excluded_but_bounds_tx(self):
+        events=[]
+        for index, pid in enumerate([1,0,1,0]):
+            for name,delta in [('SchedulerRequestQueued',0),('SchedulerRequestDispatched',10),('EciRxDescSent',20)]:
+                events.append(dict(event=name,time_ns=100*index+delta,
+                    data=dict(CoreID=1,HostMsgID=10+index,ProcessID=pid)))
+        rows=[dict(self.row(),request_id=i+1,worker_id=0,server_rx_enter_ns=1000,
+                   server_rx_exit_ns=2000+200*i) for i in range(2)]
+        with patch.object(m,'attach_trace_segments') as attach:
+            m.correlate_trace(rows,events,None,process_id=0)
+        self.assertEqual([r['trace_host_msg_id'] for r in rows],[11,13])
+        self.assertEqual(attach.call_args_list[0].args[1]['next_dispatch_ns'],210)
+        events[0]['data'].pop('ProcessID')
+        with self.assertRaisesRegex(ValueError,'ProcessID'):
+            m.correlate_trace(rows,events,None,process_id=0)
 
     def test_complete_trace_conserves_and_retains_dma_milestones(self):
         chain = [('RxCmacEntry',0), ('RxAfterCdcQueue',10),
