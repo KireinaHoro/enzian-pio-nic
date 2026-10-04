@@ -1,12 +1,47 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import tempfile
 
 spec = importlib.util.spec_from_file_location('holds', Path(__file__).resolve().parents[1] / 'analyze_rx_holds.py')
 holds = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(holds)
 
 class HoldTests(unittest.TestCase):
+    def test_capture_bubble_does_not_extend_hold_by_counter_period(self):
+        trace_map = {
+            'sample': {'payload_width': 8, 'source_width': 2,
+                       'timestamp_width': 8, 'sample_width': 32,
+                       'axi_data_width': 128, 'byte_order': 'little',
+                       'lost_source': 3, 'lost_count_width': 8},
+            'sources_by_id': {1: {'type': 'lauberhorn_event', 'pipeline_stages': 3}},
+            'payload_formats': {'lauberhorn_event': {
+                'fields': {'event_id': {'offset': 0, 'width': 2}},
+                'events': {'0': 'EciRxReadNew', '1': 'EciRxNackSent',
+                           '2': 'EciRxDescSent'},
+                'event_data': {'0': ['CoreID'], '1': ['CoreID'], '2': ['CoreID']},
+                'trace_data_keys': {'CoreID': {'width': 2}}}}
+        }
+        def event(t, kind, core):
+            return (t << 10) | (1 << 8) | (core << 2) | kind
+        with tempfile.TemporaryDirectory() as directory:
+            capture = Path(directory) / 'trace.bin'
+            # A recorder bubble has no lost samples, but an older timestamp.
+            samples = [event(10, 0, 1), (1 << 10) | (3 << 8),
+                       event(20, 2, 2), event(30, 1, 1)]
+            capture.write_bytes(b''.join(v.to_bytes(4, 'little') for v in samples))
+            records = holds.read_records(capture, trace_map)
+            self.assertEqual([r[0] for r in records], [7, 17, 27])
+            result = holds.summarize(records, 200_000_000, 15)
+            self.assertEqual(result['holds'][0]['cycles'], 20)
+            self.assertEqual(result['peer_events_by_simultaneously_stalled_workers'],
+                             {'1': {'EciRxDescSent:core=2': 1}})
+            # Unsupported real counter wrap must not silently become a pass.
+            capture.write_bytes(b''.join(v.to_bytes(4, 'little') for v in
+                [event(250, 0, 1), event(10, 1, 1)]))
+            with self.assertRaisesRegex(ValueError, 'timestamp wrap'):
+                holds.read_records(capture, trace_map)
+
     def test_generated_field_widths_and_reserved_header(self):
         trace_map = {
             'sample': {'payload_width': 40, 'source_width': 2},

@@ -173,6 +173,31 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
                 scope='Finite request-to-NACK intervals include transport overhead; event counts do not prove application completion or infinite-stall progress.')
 
 
+def read_records(capture, trace_map):
+    def selected(sample):
+        source = dma.source_info(trace_map, dma.sample_source(sample, trace_map))
+        return source.get('type') == 'lauberhorn_event' or dma.sample_source(sample, trace_map) == trace_map['sample']['lost_source']
+    rows = dma.filtered_adjusted_chronological_samples(capture, trace_map, 0, selected)
+    records = []
+    for _, _, sample, timestamp, _ in rows:
+        source = dma.sample_source(sample, trace_map)
+        if source == trace_map['sample']['lost_source']:
+            count = dma.sample_lost_count(sample, trace_map)
+            if count:
+                records.append((timestamp, 'Lost', {'count': count}))
+        else:
+            decoded = event(sample, trace_map)
+            if decoded:
+                records.append((timestamp, *decoded))
+    # The decoder's adjusted timestamp is source-delay corrected already.
+    # Its internal unwrapped raw timestamp can acquire false epochs at bubble
+    # markers. Never derive durations from that value. This analyzer supports
+    # short captures away from a real counter wrap; fail closed otherwise.
+    if records and max(r[0] for r in records) - min(r[0] for r in records) >= dma.timestamp_modulus(trace_map) // 2:
+        raise ValueError('capture crosses timestamp wrap or spans half the counter period')
+    return records
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('capture', type=Path)
@@ -185,22 +210,7 @@ def main():
     if args.clock_hz <= 0 or args.minimum_hold_cycles < 0:
         parser.error('positive clock frequency and nonnegative minimum hold required')
     trace_map = dma.load_map(args.map)
-    def selected(sample):
-        source = dma.source_info(trace_map, dma.sample_source(sample, trace_map))
-        return source.get('type') == 'lauberhorn_event' or dma.sample_source(sample, trace_map) == trace_map['sample']['lost_source']
-    rows = dma.filtered_adjusted_chronological_samples(args.capture, trace_map, 0, selected)
-    records = []
-    for _, _, sample, _, raw_timestamp in rows:
-        source = dma.sample_source(sample, trace_map)
-        timestamp = raw_timestamp - dma.source_pipeline_stages(source, trace_map)
-        if source == trace_map['sample']['lost_source']:
-            count = dma.sample_lost_count(sample, trace_map)
-            if count:
-                records.append((timestamp, 'Lost', {'count': count}))
-        else:
-            decoded = event(sample, trace_map)
-            if decoded:
-                records.append((timestamp, *decoded))
+    records = read_records(args.capture, trace_map)
     result = summarize(records, args.clock_hz, args.minimum_hold_cycles)
     result['capture_sha256'] = hashlib.file_digest(args.capture.open('rb'), 'sha256').hexdigest()
     result['map_sha256'] = hashlib.sha256(args.map.read_bytes()).hexdigest()

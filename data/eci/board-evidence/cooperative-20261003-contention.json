@@ -305,49 +305,17 @@
       },
       "lost_samples_in_measured_range": 0,
       "full_length_hold_cycles_counts": {
-        "26656303": 54,
-        "26656304": 1652,
-        "26656305": 1660,
+        "26656303": 55,
+        "26656304": 1707,
+        "26656305": 1714,
         "26656301": 6,
         "26656306": 18,
-        "26656302": 19,
+        "26656302": 20,
         "26656308": 3,
         "26656307": 5,
-        "281475003366961": 1,
-        "985162445143600": 5,
-        "492581235899953": 5,
-        "562949980077616": 7,
-        "703687468432945": 9,
-        "211106259189297": 1,
-        "774056212610609": 4,
-        "422212491722288": 6,
-        "633318724255281": 8,
-        "844424956788272": 3,
-        "1055531189321265": 2,
-        "774056212610608": 8,
-        "985162445143598": 1,
-        "562949980077617": 9,
-        "703687468432944": 6,
-        "844424956788273": 6,
-        "914793700965936": 4,
-        "703687468432943": 1,
-        "633318724255280": 10,
-        "422212491722289": 4,
-        "914793700965937": 3,
-        "492581235899952": 1,
-        "1055531189321264": 1,
-        "351843747544624": 2,
-        "140737515011633": 1,
-        "281475003366960": 1,
-        "211106259189296": 1,
-        "70368770833969": 1,
         "26656309": 3,
         "26656311": 1,
-        "26656310": 1,
-        "70368744187668": 222,
-        "70368744187667": 234,
-        "70368744187665": 1,
-        "70368744187669": 1
+        "26656310": 1
       },
       "capture": {
         "bytes": 528327744,
@@ -371,7 +339,12 @@
         "bytes": 374847424,
         "sha256": "2b0313b54428fabc69d47088531cf43c638acb3bb0e8dab05d25710ac7632fb0"
       },
-      "evidence_directory": "out/board/cooperative-515944-contention-boot20-one-retry"
+      "evidence_directory": "out/board/cooperative-515944-contention-boot20-one-retry",
+      "corrected_analysis": {
+        "path": "out/board/cooperative-515944-contention-boot20-one-retry/rx-holds-corrected-20261004.json",
+        "sha256": "f1f81e61ba077f01d559b0f17fa2128c2ad258ada800945d8ca1f26d6e149384",
+        "max_hold_cycles": 26656311
+      }
     },
     {
       "label": "cooperative-515944-contention-boot20-two-retry",
@@ -669,50 +642,16 @@
       },
       "lost_samples_in_measured_range": 0,
       "full_length_hold_cycles_counts": {
-        "26656304": 3124,
-        "26656305": 3140,
+        "26656304": 3212,
+        "26656305": 3226,
         "26656303": 33,
         "26656306": 23,
         "26656307": 8,
-        "26656302": 24,
+        "26656302": 25,
         "26656309": 3,
-        "281475003366961": 2,
-        "281475003366960": 2,
-        "492581235899952": 8,
-        "492581235899953": 10,
-        "633318724255281": 8,
-        "633318724255280": 9,
-        "774056212610608": 15,
-        "844424956788272": 8,
-        "844424956788273": 8,
-        "422212491722289": 10,
-        "422212491722288": 9,
-        "703687468432944": 13,
-        "703687468432945": 14,
-        "1548112398564913": 1,
-        "1548112398564912": 1,
-        "562949980077617": 10,
-        "562949980077616": 11,
-        "422212491722286": 1,
-        "774056212610609": 10,
-        "351843747544624": 3,
-        "351843747544625": 3,
-        "985162445143600": 6,
-        "985162445143601": 6,
-        "914793700965937": 2,
-        "914793700965936": 1,
-        "1055531189321265": 1,
-        "1055531189321264": 1,
-        "1125899933498928": 1,
-        "1125899933498929": 1,
         "26656301": 2,
         "26656310": 2,
-        "26656308": 2,
-        "70368744187667": 283,
-        "70368744187668": 371,
-        "70368744187665": 4,
-        "70368744187669": 1,
-        "70368744187666": 2
+        "26656308": 2
       },
       "capture": {
         "bytes": 1748958336,
@@ -736,7 +675,12 @@
         "bytes": 460448704,
         "sha256": "385bccc9bf90260f2d517d1965fffa77209813274382e8a82b9a215ef5dacd41"
       },
-      "evidence_directory": "out/board/cooperative-515944-contention-boot20-two-retry"
+      "evidence_directory": "out/board/cooperative-515944-contention-boot20-two-retry",
+      "corrected_analysis": {
+        "path": "out/board/cooperative-515944-contention-boot20-two-retry/rx-holds-corrected-20261004.json",
+        "sha256": "9be5be1d88ba2c2c937270b48876e2af1187a11bca129817c1b4bc566d5c4ef8",
+        "max_hold_cycles": 26656310
+      }
     },
     {
       "label": "cooperative-515944-contention-boot21-three",
@@ -1001,20 +945,22 @@
           "TxCmacExit:core=None": 7
         },
         "2": {
-          "EciRxDescSent:core=1": 3,
-          "EciTxSubmit:core=1": 4,
-          "TxCmacExit:core=None": 8,
-          "EciTxSubmit:core=0": 4,
-          "EciRxDescSent:core=0": 7
+          "EciRxDescSent:core=1": 60,
+          "EciTxSubmit:core=1": 61,
+          "TxCmacExit:core=None": 517,
+          "EciTxSubmit:core=0": 456,
+          "EciRxDescSent:core=0": 459,
+          "YieldAccepted:core=1": 57,
+          "ActivationDelivered:core=1": 57
         },
         "3": {
-          "EciRxDescSent:core=0": 42670,
-          "EciTxSubmit:core=0": 42660,
-          "TxCmacExit:core=None": 47373,
-          "YieldAccepted:core=1": 4710,
-          "ActivationDelivered:core=1": 4710,
-          "EciRxDescSent:core=1": 4713,
-          "EciTxSubmit:core=1": 4713
+          "EciRxDescSent:core=0": 42218,
+          "EciTxSubmit:core=0": 42208,
+          "TxCmacExit:core=None": 46864,
+          "YieldAccepted:core=1": 4653,
+          "ActivationDelivered:core=1": 4653,
+          "EciRxDescSent:core=1": 4656,
+          "EciTxSubmit:core=1": 4656
         },
         "1": {
           "EciRxDescSent:core=0": 1
@@ -1038,58 +984,16 @@
       },
       "lost_samples_in_measured_range": 0,
       "full_length_hold_cycles_counts": {
-        "26656305": 2219,
-        "26656304": 2195,
-        "26656303": 117,
+        "26656305": 2345,
+        "26656304": 2318,
+        "26656303": 125,
         "26656307": 5,
         "26656301": 40,
-        "26656302": 71,
+        "26656302": 76,
         "26656310": 1,
-        "26656306": 20,
-        "985162445143600": 7,
-        "985162445143601": 7,
-        "422212491722289": 12,
-        "422212491722288": 14,
-        "492581235899952": 21,
-        "492581235899953": 21,
-        "281475003366960": 3,
-        "281475003366961": 6,
-        "562949980077617": 12,
-        "562949980077616": 14,
-        "633318724255280": 13,
-        "633318724255281": 18,
-        "774056212610609": 8,
-        "774056212610608": 7,
-        "914793700965937": 7,
-        "914793700965936": 5,
-        "1266637421854256": 2,
-        "1266637421854257": 1,
-        "351843747544625": 9,
-        "351843747544624": 9,
-        "703687468432944": 11,
-        "703687468432945": 12,
-        "844424956788273": 5,
-        "844424956788272": 10,
-        "211106259189297": 5,
-        "211106259189296": 4,
-        "562949980077615": 2,
-        "562949980077614": 2,
-        "703687468432943": 1,
-        "633318724255278": 1,
-        "633318724255276": 1,
-        "422212491722287": 1,
-        "844424956788271": 3,
-        "492581235899950": 2,
-        "985162445143599": 1,
-        "70368770833969": 1,
-        "70368770833968": 2,
-        "1125899933498928": 1,
-        "1125899933498929": 2,
-        "492581235899954": 1,
+        "26656306": 21,
         "26656311": 1,
-        "26656308": 1,
-        "70368754177668": 3,
-        "70368754177667": 1
+        "26656308": 1
       },
       "capture": {
         "bytes": 339819200,
@@ -1113,7 +1017,12 @@
         "bytes": 160778624,
         "sha256": "98b03add138d3fe5204e0e85277c875e1d8e23109e9f959881309b8a214424df"
       },
-      "evidence_directory": "out/board/cooperative-515944-contention-boot21-three"
+      "evidence_directory": "out/board/cooperative-515944-contention-boot21-three",
+      "corrected_analysis": {
+        "path": "out/board/cooperative-515944-contention-boot21-three/rx-holds-corrected-20261004.json",
+        "sha256": "c5890b2b1a280cab271514323ecfd09ae9eabd04646025dda59ae63d986fd2a4",
+        "max_hold_cycles": 26656311
+      }
     }
   ],
   "fresh_boot_full_trace": {
@@ -1171,5 +1080,6 @@
     "Earlier short timeout passes were withdrawn after late faults.",
     "One prior baseline lscpu kernel soft lockup remains unexplained.",
     "Timing is not closed: candidate WNS -0.089 ns."
-  ]
+  ],
+  "timestamp_reanalysis_20261004": "Reprocessed all three measurement ranges with corrected analyze_rx_holds.py. The former use of decoder-internal raw timestamp epochs inflated some intervals at recorder bubbles. Overlap counts and duration histograms above replace those earlier values; captures and independent client/TAD results are unchanged. Full-boot activation audit is historical and not reprocessed here."
 }
