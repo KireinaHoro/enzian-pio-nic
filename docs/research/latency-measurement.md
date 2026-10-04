@@ -595,3 +595,88 @@ counts, correctness filtering, seeds/workload parameters, CPU/core mapping,
 software/FPGA revisions, and correlation warnings with exported figures. Half of
 median ECI round-trip time assumes a directional split; it is an estimate, not an
 independently measured one-way latency. CSV tracing itself perturbs execution.
+
+## Optional cold-activation timestamps (October 4)
+
+The `lauberhorn:activation` kernel event contains **one buffered record per
+successful traced activation**, rather than one event at every boundary. It is
+disabled by default. Enabled cold activation takes nine `ktime_get_raw_ns()`
+samples; the runtime adds two `CLOCK_MONOTONIC_RAW` samples when server CSV
+tracing is enabled. Kernel samples are stored in private per-thread state and
+emitted just before the yield handler returns. No hardware or public activation
+ABI fields change. The legacy `worker_switch` event still only emits phase 2;
+its old phase 0/1 comment was not evidence of those probes existing.
+
+| Partition | Exact boundaries / included work |
+| --- | --- |
+| `irq_to_dispatch` | Idle-kick handler timestamp to dispatcher returning from its wait; excludes exception entry before the handler |
+| `dispatch_to_mmio` | Dispatcher wait return to just before `PreemptInfo`; includes reader mutex and notification read |
+| `preempt_info_mmio` | Blocking `PreemptInfo` read start to completion |
+| `claim_wait` | Snapshot completion to thread claim; includes validation, claim lock and any wait for a thread |
+| `affinity_setup` | Around `set_cpus_allowed_ptr` |
+| `activation_publish` | Affinity completion to activation-ready publication timestamp |
+| `wake_to_wait_return` | Publication to target thread returning from its wait; includes wakeup, scheduling/context switch and wait-exit work |
+| `yield_copyout` | Target wait return through activation copy to userspace |
+| `kernel_to_userspace` | Pre-return kernel stamp to first userspace stamp; includes the single trace-record emission, ioctl exit path and clock-read overhead |
+| `runtime_activation_setup` | First userspace stamp to alias/parity setup complete |
+
+Ordinary cooperative handoffs omit the first two components (no idle kick or
+dispatcher). The low-overhead default deliberately does **not** split runqueue
+wait from context-switch/restore instructions with broad scheduler/function
+tracing. Component differences use a common raw monotonic epoch; the tracefs
+record's own clock is not used. No assumption that tracing is free is made.
+
+The runtime CSV retains TID, physical worker index, per-thread activation index,
+and both activation timestamps with every request, including across NACKs.
+This metadata is copied with each request's trace ownership. TIDs, hardware
+worker indices and domain codes are distinct. The analyzer matches a cold row
+to exactly one kernel record, rejects ambiguity, and never charges one
+activation to multiple cold requests. Hot rows do not recharge old activation.
+
+After loading the instrumented module, wrap the finite traffic phase **on the
+DUT**, starting capture before activating the test service:
+
+```sh
+sudo python3 tools/enzian/activation_trace.py --output NEW_CAPTURE_DIR -- \
+  bash RUN_ONE_PHASE.sh
+python3 tools/enzian/activation_breakdown.py \
+  --capture NEW_CAPTURE_DIR --server SERVER.csv --audit TRACE_AUDIT.json \
+  --condition cold --expected-per-worker 1000 --output COLD_KERNEL.json
+```
+
+`RUN_ONE_PHASE.sh` is the campaign's service/client orchestration, not a supplied
+script. The collector uses its own tracefs instance, enables only this event,
+preserves per-CPU loss counters, and disables/removes its instance on exit.
+The normal FPGA trace must independently stay armed through module load. Run
+`plot_latency.py` first with matching full hardware traces and CSVs (including
+warmup during matching); pass its audit to the activation analyzer. The latter
+requires exactly the requested measured count on each of four physical workers
+and reports P50/P90/P95/P99/P100 for roundtrip, existing E2E components, and the
+separate kernel activation partition. P100 is the observed maximum.
+
+**Do not add the activation partition to the E2E stack.** It refines time already
+included in the scheduler/delivery/runtime intervals. Its uncorrected durations
+also retain instrumentation cost. The existing E2E stack uses its documented
+probe corrections; raw roundtrip is reported separately. Hot/cold classification
+compares userspace readiness with FPGA arrival using the existing inferred clock
+offset; `--margin-ns` rejects nearby boundaries (default 1000 ns). This margin is
+an ambiguity guard, not a proven bound on clock-fit error. Preserve the hardware
+activation trace to verify the intended parked/active condition independently.
+
+Before/after each phase the collector reads
+`/sys/module/lauberhorn/parameters/activation_clock_cost_ns`: 256 adjacent kernel
+clock-read pairs summarized as minimum/mean/maximum. This is an **off-path**
+clock-cost calibration, not the total instrumentation cost. Do not run it during
+RPC measurement. Compare matched DPDK roundtrip runs with kernel tracing off/on
+while keeping runtime tracing constant, and separately compare runtime CSV off/on.
+Retain raw differences and tails; do not subtract a guessed constant from every
+kernel component. Only the board experiment can establish actual Enzian overhead.
+
+Local validation: native runtime activation and RPC/CSV ownership tests,
+six analyzer/CLI/loss-accounting tests, eight existing latency-analysis tests,
+and AArch64 module/runtime builds passed. The module vermagic is
+`6.8.0-64-generic`. All 21 generated ABI input files were fetched from pipeline
+516232 prepare job 2866838 and match the local generation byte-for-byte.
+Artifacts and provenance are under `out/cold-activation/`; no FPGA rebuild is
+needed for this software-only overlay. Real activation capture and tracing
+on/off overhead remain board checks before accepting the full cold benchmark.

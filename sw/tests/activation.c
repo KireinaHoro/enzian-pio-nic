@@ -12,6 +12,10 @@ static struct lauberhorn_worker worker;
 static lauberhorn_t context;
 static struct lh_activation offered;
 static int ioctl_error, calls;
+bool server_trace_enabled;
+__thread struct server_activation_trace server_activation;
+static uint64_t tick;
+uint64_t server_trace_clock(void) { return ++tick; }
 lauberhorn_worker_t worker_get_current(void) { return &worker; }
 int lauberhorn_stop(lauberhorn_t *ctx) { assert(ctx == &context); return 0; }
 int ioctl(int fd, unsigned long command, ...)
@@ -36,6 +40,8 @@ int main(void)
     assert(!lh_yield(&result));
     assert(worker.dp_base == (char *)context._aliases + offered.worker_index * LAUBERHORN_ECI_CORE_OFFSET);
     assert(worker.rx_next == 1 && worker.tx_next == 0);
+    assert(tick == 0 && server_activation.index == 0);
+    server_trace_enabled = true;
     // Migration must replace both parities, even after arbitrary previous state.
     worker.rx_next = worker.tx_next = 1;
     offered = (struct lh_activation){0, 0, 1};
@@ -43,9 +49,13 @@ int main(void)
     assert(worker.dp_base == context._aliases);
     assert(worker.rx_next == 0 && worker.tx_next == 1);
     assert(result.worker_index == 0 && result.rx_next == 0 && result.tx_next == 1);
+    assert(server_activation.tid == getpid());
+    assert(server_activation.worker == 0 && server_activation.index == 1);
+    assert(server_activation.ioctl_exit_ns == 1 && server_activation.ready_ns == 2);
     ioctl_error = ESHUTDOWN;
     assert(lh_yield(&result) == -1 && errno == ESHUTDOWN);
     assert(worker.dp_base == context._aliases && worker.rx_next == 0 && worker.tx_next == 1);
+    assert(tick == 2 && server_activation.index == 1);
     int previous = calls;
     assert(lh_yield(NULL) == -1 && errno == EINVAL && calls == previous);
     ioctl_error = 0;

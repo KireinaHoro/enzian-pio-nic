@@ -282,6 +282,9 @@ int main(void) {
     assert(!setenv("LAUBERHORN_SERVER_TRACE_CSV", path, 1));
     server_trace_init(); assert(server_trace_enabled);
     for (mode = 0; mode < 3; ++mode) {
+        server_activation = (struct server_activation_trace) {
+            .tid=900, .worker=1, .index=7, .ioctl_exit_ns=100, .ready_ns=110
+        };
         input = 100 + mode; memcpy(rx, &input, 4);
         server_trace_rx_begin(&worker.rx_trace, 2);
         worker.rx_trace.rx_unblock_ns = server_trace_stamp(&worker.rx_trace);
@@ -289,6 +292,7 @@ int main(void) {
         worker.worker_id = 2;
         rpc_handle_packet(&worker, &req);
         memset(&worker.rx_trace, 0, sizeof(worker.rx_trace));
+        memset(&server_activation, 0, sizeof(server_activation));
         worker.worker_id = 3;
         if (mode == 1) fiber_sched_run_ready();
         if (mode == 2) {
@@ -309,6 +313,7 @@ int main(void) {
         /* RX worker is retained; deferred/forwarded TX uses the completing worker. */
         snprintf(expected, sizeof(expected), ",1,4660,%d,%d,0,", i ? 3 : 2, i);
         assert(strstr(line, expected));
+        assert(strstr(line, ",900,7,1,100,110\n"));
     }
     assert(!fgets(line, sizeof(line), csv)); fclose(csv); unlink(path);
 
