@@ -5,12 +5,23 @@ let
   dpdk = target.callPackage ../software/dpdk-thunderx.nix { };
   generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
-  scripts = {
-    lh-dpdk-run = ../../tools/enzian/dpdk_run.py;
-    lh-benchmark-summary = ../../tools/enzian/benchmark_summary.py;
-    lh-trace-dump = ../../data/eci/sys_trace/dump_trace_udp.py;
-    lh-dpdk-replay = ../../sw/apps/microbenchmarks/dpdk/replay_test.py;
+  scriptPaths = {
+    lh-dpdk-run = "tools/enzian/dpdk_run.py";
+    lh-benchmark-summary = "tools/enzian/benchmark_summary.py";
+    lh-trace-dump = "data/eci/sys_trace/dump_trace_udp.py";
+    lh-dpdk-replay = "sw/apps/microbenchmarks/dpdk/replay_test.py";
   };
+  sourceRoot = ../..;
+  scriptSource = pkgs.lib.cleanSourceWith {
+    src = pkgs.lib.cleanSource sourceRoot;
+    filter = path: type:
+      let relative = pkgs.lib.removePrefix (toString sourceRoot + "/") (toString path);
+      in if type == "directory" then
+        pkgs.lib.any (name: pkgs.lib.hasPrefix (relative + "/") name)
+          (builtins.attrValues scriptPaths)
+      else type == "regular" && builtins.elem relative (builtins.attrValues scriptPaths);
+  };
+  scripts = pkgs.lib.mapAttrs (_: relative: scriptSource + "/${relative}") scriptPaths;
   wrappers = pkgs.runCommand "lauberhorn-client-commands" { } ''
     mkdir -p $out/bin
     ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: source: ''
@@ -32,7 +43,7 @@ let
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (../../sw/apps/microbenchmarks/dpdk + "/${name}");
+      value = builtins.hashFile "sha256" (generator.src + "/${name}");
     }) [ "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });

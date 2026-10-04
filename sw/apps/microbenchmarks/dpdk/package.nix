@@ -3,9 +3,11 @@ stdenv.mkDerivation {
   pname = "lauberhorn-traffic-generator";
   version = "0.1";
   src = lib.cleanSourceWith {
-    src = ./.;
-    filter = path: type: type == "directory" ||
-      lib.any (suffix: lib.hasSuffix suffix path) [ ".c" ".h" "/Makefile" ];
+    src = lib.cleanSource ./.;
+    # Only direct build inputs: exclude binaries, captures and nested trees.
+    filter = path: type: type == "regular" && builtins.elem (baseNameOf path) [
+      "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "wire_test.c" "Makefile"
+    ];
   };
   nativeBuildInputs = [ pkg-config ];
   buildInputs = [ dpdk ];

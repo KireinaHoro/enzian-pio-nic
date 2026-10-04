@@ -11,7 +11,25 @@ let
 in dpdk.overrideAttrs (old: {
   # This package serves the benchmark, not every DPDK application/PMD.
   # Avoid the large unrelated driver and Sphinx builds on the build host.
-  outputs = [ "out" ];
+  # Keep SDK metadata and Python setup tools out of the client runtime closure.
+  outputs = [ "out" "dev" "tools" ];
+  nativeBuildInputs = builtins.filter
+    (package: !(lib.hasInfix "sphinx" (lib.getName package)) && lib.getName package != "doxygen")
+    (old.nativeBuildInputs or [ ]);
+  postInstall = (old.postInstall or "") + ''
+    moveToOutput bin "$tools"
+    if [ -d "$out/share/dpdk" ]; then
+      moveToOutput share/dpdk "$tools"
+    fi
+    for archive in "$out"/lib/*.a "$out"/lib/dpdk/pmds-*/*.a; do
+      if [ -f "$archive" ]; then moveToOutput "''${archive#"$out/"}" "$dev"; fi
+    done
+  '';
+  postFixup = (old.postFixup or "") + ''
+    # Static users still find the archives after separating the SDK output.
+    substituteInPlace "$dev/lib/pkgconfig/libdpdk.pc" \
+      --replace-fail "Libs.private: " "Libs.private: -L$dev/lib "
+  '';
   mesonFlags = (old.mesonFlags or []) ++ [
     "-Denable_docs=false" "-Denable_libs=ethdev"
     "-Denable_drivers=net/thunderx,net/pcap" "-Ddisable_apps=*"

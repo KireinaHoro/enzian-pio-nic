@@ -56,3 +56,17 @@ Evidence: [`build.mill`](../../build.mill), [`flake.nix`](../../flake.nix), [CI]
 
 For routed checkpoint analysis and source-level timing closure, use the
 [physical implementation guide](../hardware/physical-implementation.md).
+
+## Nix source and client closure hygiene
+
+Use `lib.cleanSource` plus an explicit `cleanSourceWith` allowlist (or the
+existing source filesets) for new derivations. Do not pass the whole checkout
+as a build input: exclude generated `result`/`out` trees, captures, build
+products and unrelated submodules. Audit the actual store source contents;
+filtering a derivation cannot undo an earlier full-checkout flake snapshot.
+
+The DPDK generator admits six direct build files; its client image admits four
+Python tools. Build `.#trafficGeneratorDeployFs` on the build host and deploy
+the cross-built runtime closure. DPDK headers/static archives and Python setup
+tools have separate `dev`/`tools` outputs, which are not shipped to the client.
+Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.

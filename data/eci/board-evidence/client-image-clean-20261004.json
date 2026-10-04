@@ -1,0 +1,102 @@
+{
+  "image_sha256": "19ccdcb80e03e1f4c710b1a904143c2a83f26999a2977b39b8758db87636423b",
+  "image_bytes": 88449024,
+  "image_store_path": "/nix/store/fca7w7v3karc53ajhc4mkvd57dz3qfwi-lauberhorn-client.img",
+  "generator_source_files": [
+    "Makefile",
+    "bench_dpdk.c",
+    "benchmark.h",
+    "benchmarks.c",
+    "wire.h",
+    "wire_test.c"
+  ],
+  "generator_source_bytes": 18510,
+  "script_source_files": [
+    "data/eci/sys_trace/dump_trace_udp.py",
+    "sw/apps/microbenchmarks/dpdk/replay_test.py",
+    "tools/enzian/benchmark_summary.py",
+    "tools/enzian/dpdk_run.py"
+  ],
+  "script_source_bytes": 27002,
+  "prior_image_bytes": 156459008,
+  "runtime_only": true,
+  "excluded": [
+    "compiler and binutils",
+    "DPDK headers and static archives",
+    "DPDK setup tools and build-host Python",
+    "unrelated repository files and generated output"
+  ],
+  "board": "zuestoll07",
+  "replay": [
+    {
+      "case": "add",
+      "returncode": 0,
+      "passed": true
+    },
+    {
+      "case": "mul",
+      "returncode": 0,
+      "passed": true
+    },
+    {
+      "case": "wrong-result",
+      "returncode": 1,
+      "passed": true
+    },
+    {
+      "case": "stale-xid",
+      "returncode": 1,
+      "passed": true
+    },
+    {
+      "case": "timeout",
+      "returncode": 1,
+      "passed": true
+    },
+    {
+      "case": "flush-add",
+      "returncode": 0,
+      "passed": true
+    },
+    {
+      "case": "flush-duplicate",
+      "returncode": 1,
+      "passed": true
+    },
+    {
+      "case": "flush-timeout",
+      "returncode": 1,
+      "passed": true
+    }
+  ],
+  "manifest": {
+    "dpdkVersion": "26.03",
+    "hostRequirements": [
+      "compatible Enzian kernel and nicvf/vfio-pci modules",
+      "root access"
+    ],
+    "identity": {
+      "revision": null
+    },
+    "packages": {
+      "dpdk": "/nix/store/xazqgkkkn3d3yb1d2j7c5srn9qciklsj-dpdk-aarch64-unknown-linux-gnu-26.03",
+      "generator": "/nix/store/p13q7lywfvyqngmcc56agl97fhc1dp2h-lauberhorn-traffic-generator-aarch64-unknown-linux-gnu-0.1"
+    },
+    "schemaVersion": 1,
+    "scripts": {
+      "lh-benchmark-summary": "1269bcc17f0d054b61422d463cbc5977c0183e63d9f24c4f3e039bfea7a74de0",
+      "lh-dpdk-replay": "d00ac41eb204016661b0bfb59526e4d2f981d6c0917384288d1febee142cda8d",
+      "lh-dpdk-run": "44651851a1a3ce0e50ed9182a57d3bdf9162c9459a1db4562e059823dfcce0a5",
+      "lh-trace-dump": "6ad2e996d56d15099cb93aa28dad6668ce18235fae12b300fb01b8ab38adca03"
+    },
+    "sourceHashes": {
+      "Makefile": "6752a387244edff7b2e9e21e71744323d34e00bb8ba18e899d529c23121a6dca",
+      "bench_dpdk.c": "7c71b1f22afa539efdcc7fbd6c5566828d4da9ec57e15e473c855c4c347f4aff",
+      "benchmark.h": "d2b8ef14ac5803d927e0652c6caeb90e2f3fc3dc79c3506e4488eba347fd7703",
+      "benchmarks.c": "edfe5d17a344d9e2dd0d9995eb922d64fb7a7d964955217e30b1444f111b108b",
+      "wire.h": "4f75be3347d79629ffbf0ac1f92cbb25932b8e40b3e49b56c3531fafe3a2235d"
+    },
+    "system": "aarch64-unknown-linux-gnu"
+  },
+  "closure_audit": "passed: exact tool names, runtime DPDK file list, and target-only Python"
+}
