@@ -128,6 +128,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxRouter.doPreempt := preemptReq.fire
     rxRouter.yieldRequested := logic.yieldRequested
     rxRouter.fatalRelease := logic.fatalRelease
+    rxRouter.gsyncRelease := host[EciInterfacePlugin].hostIfCtrl.gsyncRelease
     logic.rxRouterQuiescent := rxRouter.quiescent
     logic.rxSentNack := rxRouter.nackSent
     logic.rxReqs := rxRouter.hostReq

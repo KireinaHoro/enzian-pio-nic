@@ -31,6 +31,7 @@ case class RxPayloadIsolationFixture() extends Component {
   router.doPreempt := False
   router.yieldRequested := False
   router.fatalRelease := False
+  router.gsyncRelease := False
   router.invDone := True
 }
 

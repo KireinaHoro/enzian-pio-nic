@@ -694,6 +694,18 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
         txCall.join()
       }
       assert(returned.forall(x => !x), "stalled reads must remain outstanding through the observation window")
+      // One notification must release every waiting worker through the full
+      // DCS/AXI/invalidation path, far before the 50000-cycle RX timeout.
+      val release = dut.host[EciInterfacePlugin].hostIfCtrl.gsyncRelease
+      release #= true
+      dut.clockDomain.waitSampling()
+      release #= false
+      var releaseCycles = 0
+      while (!returned.forall(identity) && releaseCycles < 1000) {
+        dut.clockDomain.waitSampling()
+        releaseCycles += 1
+      }
+      assert(returned.forall(identity), "GSYNC failed to release all stalled workers")
       CoherenceEventChecks.check(traceConsumer.snapshot)
     }
   }

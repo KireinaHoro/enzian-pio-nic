@@ -122,6 +122,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 add_files -fileset [get_filesets sources_1] -norecurse \
     "$src_dir/rtl/dcs_2_axi.sv" \
     "$src_dir/rtl/dcs_cdc.sv" \
+    "$src_dir/rtl/gsync_release_cdc.vhd" \
     "$src_dir/rtl/${top_module}.vhd" \
     "$src_dir/rtl/axil_regs_interconnect.v" \
     "$src_dir/rtl/gt_loopback_gen.v" \
@@ -147,6 +148,7 @@ set_property include_dirs "$hw_deps_dir/pulp/axi/include $hw_deps_dir/pulp/commo
 
 # Add constraints from us necessary for synthesis
 set synth_constrs [list \
+    "$src_dir/xdc/gsync_release_cdc.tcl" \
     "$hw_deps_dir/verilog-axis/syn/vivado/axis_async_fifo.tcl" \
     "$hw_deps_dir/verilog-axi/syn/vivado/axil_cdc.tcl"]
 add_files -fileset [get_filesets constrs_1] -norecurse $synth_constrs

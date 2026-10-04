@@ -115,3 +115,41 @@ Raw CSVs, exact executed scripts and trace analysis remain under
 validation were improved after execution; the ledger retains the tested binary
 and source hashes. FPGA timing remains open. The four-worker DPDK breakdown and
 an interrupt-origin reproduction remain separate outstanding measurements.
+
+## One-shot early NACK implementation
+
+The GSYNC monitor observes accepted VC6/VC7 requests from **all PPVIDs** without
+changing either immediate GSDN responder. A coalescing request/acknowledgement
+CDC transfers notifications from the system clock to the application clock;
+each delivery emits one application-clock pulse. Arrivals during a CDC
+handshake are retained/coalesced for a subsequent delivery, not counted as
+individual GSYNC responses. The handshake never backpressures the responder.
+
+All five RX routers (bypass and four workers) use that pulse alongside their
+normal timeout condition, **only in `waitDesc`**. An available descriptor still
+wins, just as at timeout. Otherwise the router selects an ordinary NACK with
+zero payload, retaining the existing invalidation and AXI response sequencing.
+No per-router sticky release is retained: idle notifications, accepted
+responses and same-line replays are unaffected, and later RX reads retain the
+configured timeout. PREEMPT/fatal-release priority is unchanged.
+
+This addresses the observed case of peers already waiting for RX descriptors.
+It does not promise to catch a read that only reaches `waitDesc` after the pulse,
+or bound DCS/AXI/invalidation backpressure. CPU global synchronization retirement
+is still not directly observed. Hardware confirmation must repeat the controlled
+permission-change experiment on the new matched image and check whether the
+hold-dependent tails disappear; no such new-image result is recorded yet.
+
+Local validation covers all five routers, idle pulses, subsequent normal waits,
+descriptor priority, replay, invalidation, response backpressure and zero NACK
+payload. The standalone GHDL CDC regression exercises isolated pulses at varied
+clock phases and bursts during acknowledgement; it runs in the existing
+`eci-toolkit-rx` CI gate. The full-engine independent-progress tests additionally
+pulse GSYNC after their observation window and require every stalled worker to
+return within 1000 cycles rather than the configured 50000-cycle timeout.
+
+The October 4 local run passed `GsyncReleaseSim`, `RxPayloadIsolationSim`, the
+GHDL CDC test, ECI RTL/trace-map generation, `OncRpcSim -- -t rx-allcores`, and all three
+`OncRpcSim -- -z rx-independent-progress` cases.
+These are simulation/elaboration results, not a new routed timing or board
+result. Logs are retained under `out/gsync-early-nack-validation/`.
