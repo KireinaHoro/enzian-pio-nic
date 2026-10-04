@@ -1,0 +1,59 @@
+{
+  "kernel_smoke": {
+    "command": [
+      "python3",
+      "-c",
+      "import os; [os.getpid() for _ in range(20)]"
+    ],
+    "clock": "mono_raw",
+    "events": [
+      "lauberhorn:activation",
+      "raw_syscalls:sys_enter",
+      "raw_syscalls:sys_exit",
+      "irq:irq_handler_entry",
+      "irq:irq_handler_exit",
+      "irq:softirq_entry",
+      "irq:softirq_exit",
+      "sched:sched_switch",
+      "ipi:ipi_entry",
+      "ipi:ipi_exit"
+    ],
+    "buffer_kb_per_cpu": 128,
+    "cpus": [
+      0
+    ],
+    "timestamp_quantum_ns": 1000,
+    "limitations": [
+      "text timestamps quantized to microseconds",
+      "untraced exceptions and faults remain unattributed"
+    ],
+    "missing_optional_events": [],
+    "clock_cost_before": "pairs=256 min_ns=40 mean_ns=40 max_ns=100",
+    "returncode": 0,
+    "per_cpu_stats": {
+      "cpu0": "entries: 1500\noverrun: 0\ncommit overrun: 0\nbytes: 66348\noldest event ts: 10458.414071\nnow ts: 10458.581873\ndropped events: 0\nread events: 0\n"
+    },
+    "clock_cost_after": "pairs=256 min_ns=40 mean_ns=50 max_ns=100",
+    "loss_free": true
+  },
+  "paired_intervals": {
+    "syscall": 617,
+    "irq": 100,
+    "softirq": 28,
+    "off_cpu": 5
+  },
+  "incomplete_boundary_intervals": 5,
+  "runtime_store": "/nix/store/2j5l25p9qia48ij3hfla5443c0mfjlr3-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1",
+  "runtime_sha256": "d4cd4ed56a9f87d63fe98bbc7d45391917ecf994fd9075440d3a157729c6a7a7",
+  "native_runtime_suite": "passed",
+  "python_tests": 11,
+  "hardware_pipeline_unchanged": 516112,
+  "worker_measurement": "not run with new runtime yet",
+  "first_smoke": "timed out in ring_buffer_resize while FIFO workers active; recovered by STOP/CONT without reset; selected-CPU allocation fixed it",
+  "scope": "software instrumentation and non-worker CPU collector smoke; not a new RPC latency result",
+  "artifacts": {
+    "trace": "out/buffered-trace/kernel-smoke-selected.trace",
+    "capture": "out/buffered-trace/kernel-smoke-selected.json",
+    "cross_build_log": "out/buffered-trace/build.log"
+  }
+}

@@ -82,6 +82,8 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     if (init_worker(w) < 0) worker_fail(w);
 
+    server_trace_thread_init();
+
     // initialize scheduler context
     fiber_sched_init();
     fiber_sched_set_execution_hooks(execution_begin, execution_end, execution_flush);
