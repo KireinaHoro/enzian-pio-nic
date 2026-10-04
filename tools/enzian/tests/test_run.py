@@ -20,6 +20,7 @@ class SerialPayloadTests(unittest.TestCase):
             shell.expect(r'[$#] ')
             shell.sendline("stty -echo; PS1='TEST_READY# '; PS2='TEST_INPUT> '")
             shell.expect_exact('TEST_READY# ')
+            runner.prepare_input(shell, 'TEST_INPUT> ')
             payload = runner.make_payload(body, 'TEST_DONE')
             if corrupt:
                 lines = payload.splitlines()

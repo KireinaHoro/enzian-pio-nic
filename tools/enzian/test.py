@@ -105,6 +105,11 @@ def main():
                 result['cpu_exit'] = rc
                 transcript = (root/'cpu'/'console.log').read_text(errors='replace') if (root/'cpu'/'console.log').exists() else ''
                 result['cpu_stages'] = re.findall(r'TEST_STAGE:(\w+)', transcript)
+                rt_settings = re.findall(r'RT_BANDWIDTH previous_runtime_us=(-?\d+) runtime_us=(-?\d+) period_us=(\d+)', transcript)
+                if rt_settings:
+                    previous, runtime, period = map(int, rt_settings[-1])
+                    result['rt_bandwidth'] = dict(previous_runtime_us=previous,
+                                                 runtime_us=runtime, period_us=period)
                 result['faults'] = re.findall(r'(?:Internal error:[^\r\n]*|pc : [^\r\n]*|Kernel panic[^\r\n]*)', transcript)
             if not rc and case.get('client'):
                 print(json.dumps({'case': name, 'stage': 'rpc'}), flush=True)

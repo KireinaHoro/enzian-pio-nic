@@ -35,18 +35,27 @@ def make_payload(body, marker):
     return '\n'.join(lines) + '\n'
 
 
-def send_line(cpu, line):
+def send_line(cpu, line, chunk_size=8):
     # Keep bursts below a small UART FIFO. Prompt acknowledgments and the
     # complete-script checksum establish receipt; pacing alone cannot do so.
     previous = cpu.delaybeforesend
     cpu.delaybeforesend = 0
     try:
-        for offset in range(0, len(line), 8):
-            cpu.send(line[offset:offset+8])
+        for offset in range(0, len(line), chunk_size):
+            cpu.send(line[offset:offset+chunk_size])
             time.sleep(.02)
         cpu.send('\n')
     finally:
         cpu.delaybeforesend = previous
+
+
+def prepare_input(cpu, prompt):
+    # The initial setup is outside the checksummed payload. A dropped PS2
+    # assignment makes every subsequent continuation acknowledgment fail.
+    # Keep commands short, send one byte at a time, and await each root prompt.
+    for command in ('stty -echo', 'PS2=' + shlex.quote(prompt)):
+        send_line(cpu, command, chunk_size=1)
+        cpu.expect(r'[^\r\n]+# ')
 
 
 def send_payload(cpu, payload, prompt):
@@ -83,15 +92,14 @@ def main():
         body = shlex.join(command)
     marker = 'ENZIAN_DONE_' + uuid.uuid4().hex
     payload = make_payload(body, marker)
-    input_prompt = 'ENZIAN_INPUT_' + uuid.uuid4().hex + '> '
+    input_prompt = 'LH_' + uuid.uuid4().hex[:8] + '> '
     require_reservation(args.gateway, args.machine)
     args.logs.mkdir(parents=True, exist_ok=False)
     with (args.logs / 'console.log').open('w') as log:
         with attach(args.gateway, args.machine, 'console', log) as cpu:
             login_root(cpu, args.user, os.environ.get(args.password_env, 'enzian'))
             # Suppress command echo so assertions can only match actual output.
-            send_line(cpu, 'stty -echo; PS2=' + shlex.quote(input_prompt))
-            cpu.expect(r'[^\r\n]+# ')
+            prepare_input(cpu, input_prompt)
             command_started = False
             try:
                 send_payload(cpu, payload, input_prompt)
