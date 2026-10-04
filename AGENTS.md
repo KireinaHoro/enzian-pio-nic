@@ -58,17 +58,19 @@ That historical image had WNS −0.005 ns. Historical candidate 515944 has WNS
 −0.089 ns and 474 failing setup endpoints; timing remains open. The
 [layered verification report](docs/hardware/layered-verification.md) records
 DC/THX endpoint checks and remaining race/refinement gaps.
-The maintainer ended the current reservations on October 4: zuestoll07/10/12/14
-were released and no machines remain acquired by pengxu. The DPDK benchmark
-merged into master; see the [client report](docs/development/dpdk-benchmark-results.md).
-Future acceptance requires fresh reservations and matched artifact staging. Consult `out/board/cooperative-515944-refine/summary.json` and the
-evidence ledger before access; do not assume a healthy service or reset a frozen
-failure. Recheck reservations. The isolation correction and simulation fixes
+On October 5, reservations were rechecked: zuestoll14 (DUT) and zuestoll07
+(client) belong to pengxu. Pipeline 516232 passed CI; its matched two-repeat
+board campaign passed once, then stalled on the first idle activation despite
+an IRQ reaching CPU44. The DUT remains frozen; its complete failure trace is
+saved. Read the [current failure handoff](docs/hardware/gsync-worker-reproduction.md#pipeline-516232-board-follow-up--october-5)
+and evidence before access. Recheck reservations and never reset an unpreserved
+failure. GSYNC early-NACK acceptance and new-image latency measurements remain
+blocked by this failure. The isolation correction and simulation fixes
 passed 53 fast ECI tests (one existing ignored). Pipeline 516080 stopped before
 hardware on a reproduced testbench TX-call overlap; the
 [seed investigation](docs/development/simulation-seeds.md) records the fix and the
-shared RNG that made CI seeds insufficient. The last tested DUT image was corrected
-516112; resume expanded acceptance with matched artifacts, never vulnerable 515944.
+shared RNG that made CI seeds insufficient. The current DUT image is 516232; 516112 remains the buffered latency baseline.
+Resume expanded acceptance with matched artifacts, never vulnerable 515944.
 Retain documented hardware-service assumptions.
 
 ## Confirmed research and scheduling scope

@@ -1,0 +1,335 @@
+{
+  "pipeline": 516232,
+  "revision": "6f5fa076adbad2002681d3051c7056522929b7a1",
+  "jobs": [
+    {
+      "id": 2866840,
+      "name": "report-hw-eci",
+      "status": "success"
+    },
+    {
+      "id": 2866839,
+      "name": "build-hw-eci",
+      "status": "success"
+    },
+    {
+      "id": 2866838,
+      "name": "prepare-eci",
+      "status": "success"
+    },
+    {
+      "id": 2866837,
+      "name": "scheduling-cooperative",
+      "status": "success"
+    },
+    {
+      "id": 2866836,
+      "name": "eci-address-map",
+      "status": "success"
+    },
+    {
+      "id": 2866835,
+      "name": "runtime-tests",
+      "status": "success"
+    },
+    {
+      "id": 2866834,
+      "name": "runtime-interface",
+      "status": "success"
+    },
+    {
+      "id": 2866833,
+      "name": "interactive",
+      "status": "success"
+    },
+    {
+      "id": 2866832,
+      "name": "workflow-tools",
+      "status": "success"
+    },
+    {
+      "id": 2866831,
+      "name": "eci-toolkit-rx",
+      "status": "success"
+    },
+    {
+      "id": 2866830,
+      "name": "trace-fifo-tests",
+      "status": "success"
+    },
+    {
+      "id": 2866829,
+      "name": "trace-tests",
+      "status": "success"
+    },
+    {
+      "id": 2866828,
+      "name": "blocks-tests",
+      "status": "success"
+    },
+    {
+      "id": 2866827,
+      "name": "dcs-lauberhorn",
+      "status": "success"
+    },
+    {
+      "id": 2866826,
+      "name": "dcs-rom-thx",
+      "status": "success"
+    },
+    {
+      "id": 2866825,
+      "name": "fast-tests-eci",
+      "status": "success"
+    }
+  ],
+  "checked_at": "2026-10-04T23:23:57.527710+00:00",
+  "artifacts": {
+    "out/ci-followup/516232/prepare/deploy.img": {
+      "sha256": "7f23fdf9f076c822a0c0e649584b5b5fd6d540d34b1e97cfaa785c6166a45fec",
+      "bytes": 164573184
+    },
+    "out/ci-followup/516232/hardware/shell_lauberhorn-eci.bit": {
+      "sha256": "8b154fff940e032004fbb6a733bf26bf2bdd8a07faf0947bf10a5a974154ec82",
+      "bytes": 62156730
+    },
+    "out/ci-followup/516232/hardware/shell_lauberhorn-eci.ltx": {
+      "sha256": "9fb7a96842094ac61d016c48e4b1f2eb45204287940f377bd2abf86b2d1a5cce",
+      "bytes": 2727587
+    },
+    "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json": {
+      "sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+      "bytes": 35427
+    }
+  },
+  "boards": {
+    "DUT": "zuestoll14",
+    "client": "zuestoll07",
+    "reservation_owner": "pengxu"
+  },
+  "test_manifest": "out/ci-followup/516232/manifest.json",
+  "test_summary": "out/board/gsync-516232/summary.json",
+  "timing": {
+    "wns": -0.102,
+    "tns": -37.731,
+    "setup_failing": 893.0,
+    "setup_total": 1346933.0,
+    "whs": 0.0,
+    "ths": 0.0,
+    "hold_failing": 0.0,
+    "hold_total": 1344925.0,
+    "wpws": 0.039,
+    "tpws": 0.0,
+    "pulse_failing": 0.0,
+    "pulse_total": 604063.0
+  },
+  "prior_captures": "All five buffered baseline windows saved and hashed before reset; see measurement-plan.json",
+  "limits": [
+    "Only one of two cold-boot RPC trials passed; board acceptance failed",
+    "Controlled GSYNC early-NACK validation not run because second trial failed",
+    "New-image hot/cold latency comparison not run",
+    "No timing closure: WNS -0.102 ns, 893 failing setup endpoints",
+    "Postfailure TAD snapshot only; no paired pretraffic TAD snapshot for these harness runs",
+    "No implementation changes or reset after failure; frozen full trace saved"
+  ],
+  "test_outcomes": [
+    {
+      "case": "gsync-516232",
+      "round": 1,
+      "revision": "6f5fa076adbad2002681d3051c7056522929b7a1",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/gsync-516232/01-gsync-516232/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_machine": "zuestoll07",
+      "client_exit": 0,
+      "seconds": 277.2
+    },
+    {
+      "case": "gsync-516232",
+      "round": 2,
+      "revision": "6f5fa076adbad2002681d3051c7056522929b7a1",
+      "status": "fail",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/board/gsync-516232/02-gsync-516232/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_machine": "zuestoll07",
+      "client_exit": 1,
+      "seconds": 277.3
+    }
+  ],
+  "clients": {
+    "1": {
+      "rows": 116,
+      "correct": 116,
+      "warmup": 16,
+      "csv_sha256": "9ed5693385f608ae4b8351e2cdbe22ed85aab245d63504bfa8f5bd12bd97cae6"
+    },
+    "2": {
+      "rows": 1,
+      "correct": 0,
+      "warmup": 1,
+      "csv_sha256": "33a483c03b828ab288e9e651b62437df01925a76cc27f765da2fcda11fc52a85"
+    }
+  },
+  "failure_capture": {
+    "bytes": 136535296,
+    "sha256": "60925cdb512c25614bbacacd98391ec7c242fb4eaebf3710bfb9f97e06e5e2c3",
+    "vio": {
+      "trace_write_slot_1": 2133364,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 0,
+      "trace_dma_error_1": 0
+    },
+    "before_freeze": {
+      "trace_write_slot_1": 2133364,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 0,
+      "trace_dma_error_1": 0
+    },
+    "full_unwrapped_buffer": true,
+    "path": "out/board/gsync-516232-trial2-capture"
+  },
+  "diagnosis": {
+    "request_id": 1,
+    "stage": "first warmup RPC",
+    "client_timeout_ms": 100,
+    "packet_dropped": false,
+    "trace_scheduler_queued_cycle": 36731389319,
+    "trace_scheduler_preempt_cycle": 36731389322,
+    "target_datapath": 1,
+    "target_worker_index": 0,
+    "target_linux_cpu": 44,
+    "target_tgid": 1651,
+    "target_tid": 1655,
+    "intc_accepted_cycle": 36731389330,
+    "idle_dispatch_irq_count_by_cpu": {
+      "44": 1
+    },
+    "activation_events": 0,
+    "worker_wait": "worker_yield",
+    "dispatcher_wait": "dispatch_thread",
+    "neighbor": "192.168.128.225 PERMANENT 0c:53:31:03:00:e1 on lauberhorn0",
+    "TAD": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      }
+    },
+    "kernel_faults": [],
+    "interpretation": "Idle activation failed to progress after the IRQ reached CPU44; exact reason not established. No evidence yet ties this failure to GSYNC early release."
+  },
+  "board_state": {
+    "DUT": "zuestoll14",
+    "client": "zuestoll07",
+    "trace_frozen": true,
+    "failure_preserved": true,
+    "reset_after_failure": false,
+    "service_stalled": true,
+    "pipeline_branch_retained": true
+  }
+}
