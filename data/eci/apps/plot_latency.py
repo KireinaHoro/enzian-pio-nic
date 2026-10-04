@@ -880,6 +880,11 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
     # Preserve next-dispatch bounds across *all* domains before selecting the
     # measured domain, so a later flush request cannot supply missing TX events.
     if process_id is not None:
+        available = sorted({rec['process_id'] for recs in dispatches_by_core.values()
+                            for rec in recs if rec['process_id'] is not None})
+        if process_id not in available:
+            raise ValueError(f'ProcessID {process_id} absent; available scheduler ProcessIDs: {available}; '
+                             'current driver uses Linux TGID, not ECI domain code')
         for core, recs in dispatches_by_core.items():
             if any(rec["process_id"] is None for rec in recs):
                 raise ValueError("process filtering requires ProcessID on every queued dispatch")
@@ -1601,7 +1606,7 @@ def main() -> int:
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
     parser.add_argument("--trace-process-id", type=int,
-                        help="hardware ProcessID of measured domain; excludes flush-domain dispatches")
+                        help="scheduler ProcessID (Linux TGID with current driver), not ECI domain code")
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
     args = parser.parse_args()
 

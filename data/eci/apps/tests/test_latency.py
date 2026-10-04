@@ -62,19 +62,21 @@ class LatencyAccounting(unittest.TestCase):
 
     def test_interleaved_flush_domain_is_excluded_but_bounds_tx(self):
         events=[]
-        for index, pid in enumerate([1,0,1,0]):
+        for index, pid in enumerate([1894,1672,1894,1672]):
             for name,delta in [('SchedulerRequestQueued',0),('SchedulerRequestDispatched',10),('EciRxDescSent',20)]:
                 events.append(dict(event=name,time_ns=100*index+delta,
                     data=dict(CoreID=1,HostMsgID=10+index,ProcessID=pid)))
         rows=[dict(self.row(),request_id=i+1,worker_id=0,server_rx_enter_ns=1000,
                    server_rx_exit_ns=2000+200*i) for i in range(2)]
         with patch.object(m,'attach_trace_segments') as attach:
-            m.correlate_trace(rows,events,None,process_id=0)
+            m.correlate_trace(rows,events,None,process_id=1672)
         self.assertEqual([r['trace_host_msg_id'] for r in rows],[11,13])
         self.assertEqual(attach.call_args_list[0].args[1]['next_dispatch_ns'],210)
+        with self.assertRaisesRegex(ValueError, '1672, 1894.*TGID'):
+            m.correlate_trace(rows,events,None,process_id=0)
         events[0]['data'].pop('ProcessID')
         with self.assertRaisesRegex(ValueError,'ProcessID'):
-            m.correlate_trace(rows,events,None,process_id=0)
+            m.correlate_trace(rows,events,None,process_id=1672)
 
     def test_complete_trace_conserves_and_retains_dma_milestones(self):
         chain = [('RxCmacEntry',0), ('RxAfterCdcQueue',10),

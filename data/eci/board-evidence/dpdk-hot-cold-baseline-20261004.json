@@ -1,0 +1,182 @@
+{
+  "status": "measurement-in-progress",
+  "pipeline": 516112,
+  "pipeline_sha": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+  "client_infrastructure_revision": "07802f9a",
+  "instrumentation_overlay_revision": "209a6cb4",
+  "DUT": "zuestoll14",
+  "traffic_generator": "zuestoll07",
+  "measured_domain_threads": 1,
+  "flush_domain_threads": 4,
+  "flush_rounds_per_cold_request": 4,
+  "flush_requests_per_round": 16,
+  "flush_handler_spin_us": 100,
+  "hot": {
+    "pipeline": 516112,
+    "sample_count": 1000,
+    "correct": 1000,
+    "raw_roundtrip_ns": {
+      "count": 1000,
+      "p50": 34550.0,
+      "p90": 35350.0,
+      "p95": 47610.0,
+      "p99": 48100.0,
+      "p100": 57980.0
+    },
+    "kernel_returncode": 0,
+    "kernel_loss_free": true,
+    "health": true,
+    "worker_distribution": {
+      "0": 1000
+    },
+    "remaining": [
+      "FPGA correlation",
+      "instrumentation overhead"
+    ]
+  },
+  "cold": {
+    "pipeline": 516112,
+    "pipeline_sha": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+    "infrastructure_revision": "07802f9a",
+    "sample_count": 1000,
+    "unique_activations": 1000,
+    "worker_distribution": {
+      "0": 514,
+      "2": 171,
+      "1": 309,
+      "3": 6
+    },
+    "kernel_returncode": 0,
+    "kernel_loss_free": true,
+    "remaining": [
+      "FPGA correlation and arrival-time cold classification",
+      "kernel tracing off/on comparison",
+      "hot condition measurements"
+    ],
+    "raw_roundtrip_ns": {
+      "count": 1000,
+      "p50": 52145.0,
+      "p90": 54821.0,
+      "p95": 55340.5,
+      "p99": 58201.7,
+      "p100": 137100.0
+    }
+  },
+  "client_image": {
+    "image_path": "/nix/store/57l63a82zx2ddprwfcmnrr32askd4n6s-lauberhorn-client.img",
+    "image_bytes": 88453120,
+    "image_sha256": "9c59d6adc30f954c7e88a91b2af56d48ce9e9d1f955b1ffbb19c0b61e103396c",
+    "source_revision": "07802f9a",
+    "target": "aarch64-linux",
+    "nixpkgs_revision": "9fb87d6858d2cb6ab95d61691a1cbde6bb6a7c72",
+    "DUT_pipeline": 516112,
+    "DUT_pipeline_sha": "b2117e9625cca7ce256b44db34a5f2a46a952622",
+    "instrumentation_overlay_revision": "209a6cb4",
+    "client_machine": "zuestoll07",
+    "DUT_machine": "zuestoll14",
+    "native_replay": [
+      {
+        "case": "add",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "mul",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "start-barrier",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "wrong-result",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "stale-xid",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "timeout",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "flush-add",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "flush-unrelated",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "flush-duplicate",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "flush-timeout",
+        "returncode": 1,
+        "passed": true
+      }
+    ],
+    "source_filter": "six generator files; four runtime scripts; cleanSource plus allowlists",
+    "client_build": "cross-built on host; no client toolchain"
+  },
+  "cold_trace": {
+    "bytes": 1237854784,
+    "sha256": "7d247e1f06483458fe0f2db6dd49f3dd28152020343d2230f89d504cde0a53a1",
+    "offset": 4166282240,
+    "start": {
+      "trace_write_slot_1": 65098160,
+      "trace_wrapped_1": 1,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "end": {
+      "trace_write_slot_1": 84439641,
+      "trace_wrapped_1": 1,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "bounded_window": true,
+    "pipeline": 516112
+  },
+  "evidence_directory": "out/baseline-latency-516112",
+  "limitations": [
+    "FPGA correlation not yet complete; no final additive component claim",
+    "Kernel tracing off/on comparison pending",
+    "Runtime CSV off/on comparison pending",
+    "Current FPGA has no GSYNC early-NACK fix; comparison against 516232 pending"
+  ],
+  "measured_linux_tgid": 1672,
+  "measured_linux_tid": 1676,
+  "flush_linux_tgid": 1894,
+  "measured_eci_domain_code": 0,
+  "flush_eci_domain_code": 1,
+  "hot_trace": {
+    "bytes": 1545081856,
+    "sha256": "a01a0c6c68a2741e4f234b64019159231965ce09b31815724e616a1f307ea1aa",
+    "offset": 5445183552,
+    "start": {
+      "trace_write_slot_1": 85080993,
+      "trace_wrapped_1": 1,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "end": {
+      "trace_write_slot_1": 109222897,
+      "trace_wrapped_1": 1,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "bounded_window": true,
+    "pipeline": 516112
+  }
+}

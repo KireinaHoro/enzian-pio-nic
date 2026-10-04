@@ -658,8 +658,9 @@ setup and do not relabel it as an RPC timeout.
 The normal FPGA trace must independently stay armed through module load. Run
 `plot_latency.py` first with matching full hardware traces and CSVs (including
 warmup during matching); pass its audit to the activation analyzer. The latter
-requires exactly the requested measured count on each of four physical workers
-and reports P50/P90/P95/P99/P100 for roundtrip, existing E2E components, and the
+requires the configured sample count (`--expected-total 1000` for the single
+measured thread, or the default per-worker mode for four-worker coverage) and
+reports P50/P90/P95/P99/P100 for roundtrip, existing E2E components, and the
 separate kernel activation partition. P100 is the observed maximum.
 
 **Do not add the activation partition to the E2E stack.** It refines time already
@@ -686,7 +687,7 @@ and AArch64 module/runtime builds passed. The module vermagic is
 `6.8.0-64-generic`. All 21 generated ABI input files were fetched from pipeline
 516232 prepare job 2866838 and match the local generation byte-for-byte.
 Artifacts and provenance are under `out/cold-activation/`; no FPGA rebuild is
-needed for this software-only overlay. Tracing on/off overhead and the full four-worker dataset remain board checks.
+needed for this software-only overlay. Tracing on/off overhead and the complete hot/cold dataset remain board checks.
 A real activation capture smoke test is recorded below.
 
 ### Instrumentation smoke on baseline 516112
@@ -720,3 +721,7 @@ report its distribution. The default remains 1,000 samples on each of four
 workers for campaigns that explicitly require that coverage. Successful flush
 replies alone do not prove eviction: require a fresh activation for every cold
 request and validate activation readiness against request arrival.
+
+The scheduler trace `ProcessID` filter uses Linux TGID with the current driver
+(`sw/kmod/chrdev.c:update_proc_hw`), not the separately allocated ECI domain
+code. Record both identities; a filter with no matching dispatches is an error.
