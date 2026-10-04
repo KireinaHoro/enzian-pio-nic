@@ -182,6 +182,8 @@ def nearest_request(rows: List[Dict[str, Any]], target_ns: float) -> Dict[str, A
 
 
 def client_timestamp_count(row: Dict[str, str]) -> int:
+    if row.get("transport") == "dpdk":
+        return 5  # recorded probes; excludes unrecorded timeout-poll clock reads
     xdr_call_count = int_field(row, "xdr_call_count")
     xdr_resp_count = int_field(row, "xdr_resp_count")
     count = 2
@@ -257,7 +259,18 @@ def build_rows(
             s_oh,
         )
 
+        dpdk_parts = {}
+        if c.get("transport") == "dpdk":
+            stamps = [int_field(c,k) for k in ("client_call_enter_ns", "client_tx_ready_ns",
+                "client_tx_submit_ns", "client_rx_burst_ns", "client_call_exit_ns")]
+            if any(t <= 0 for t in stamps) or stamps != sorted(stamps):
+                raise ValueError(f"request {request_id}: missing/reversed DPDK timestamps")
+            dpdk_parts = dict(client_packet_prepare_ns=corrected_delta(stamps[0],stamps[1],c_oh),
+                client_reply_validate_ns=corrected_delta(stamps[3],stamps[4],c_oh),
+                client_tx_submit_observed_ns=stamps[2]-stamps[1],
+                client_poll_wait_observed_ns=stamps[3]-stamps[2])
         rows.append({
+            **dpdk_parts,
             "request_id": request_id,
             "warmup": int_field(c, "warmup"),
             "transport": c.get("transport", "libtirpc"),
@@ -544,6 +557,16 @@ def events_in_window(
     return ret
 
 
+def unique_nearby_event(index, name, timestamp, data_match=None, radius_ns=1000):
+    # Isolated measured requests only. Metadata and synchronized notification
+    # events may arrive on either side of a sibling producer's timestamp.
+    candidates = events_in_window(index, name, timestamp-radius_ns,
+                                 timestamp+radius_ns, data_match)
+    if len(candidates) > 1:
+        raise ValueError(f'ambiguous nearby {name} at {timestamp}: {len(candidates)} candidates')
+    return candidates[0] if candidates else None
+
+
 def closest_event_in_window(
     events_by_name: Dict[str, Tuple[List[int], List[Dict[str, Any]]]],
     event_name: str,
@@ -595,6 +618,7 @@ def attach_trace_segments(
     core: int,
     cpu_trace_offset_ns: int,
     eci_half_rtt_ns: Optional[float],
+    combine_rpc_ingress: bool = False,
 ) -> None:
     segments: Dict[str, float] = {}
     rx_enqueue = rec_event(rec, "RxRpcEnqueueToHost")
@@ -610,12 +634,8 @@ def attach_trace_segments(
 
     rpc_decoder = None
     if rx_enqueue is not None:
-        rpc_decoder = last_event_before(
-            events_by_name,
-            "OncRpcCallDecoder",
-            rx_enqueue["time_ns"] + 1,
-            {"RpcID": rx_enqueue["data"]["RpcID"]},
-        )
+        rpc_decoder = unique_nearby_event(events_by_name, "OncRpcCallDecoder",
+            rx_enqueue["time_ns"], {"RpcID": rx_enqueue["data"]["RpcID"]})
 
     packet_id = rpc_decoder["data"]["PacketID"] if rpc_decoder is not None else None
     eth_decoder = ip_decoder = udp_decoder = rx_cmac = rx_after_cdc = None
@@ -624,15 +644,22 @@ def attach_trace_segments(
         ip_decoder = last_event_before(events_by_name, "IpDecoder", rpc_decoder["time_ns"] + 1, {"PacketID": packet_id})
         udp_decoder = last_event_before(events_by_name, "UdpDecoder", rpc_decoder["time_ns"] + 1, {"PacketID": packet_id})
         if eth_decoder is not None:
-            rx_after_cdc = last_event_before(events_by_name, "RxAfterCdcQueue", eth_decoder["time_ns"] + 1)
-            rx_cmac = last_event_before(events_by_name, "RxCmacEntry", eth_decoder["time_ns"] + 1)
+            rx_after_cdc = unique_nearby_event(events_by_name, "RxAfterCdcQueue", eth_decoder["time_ns"])
+            rx_cmac = unique_nearby_event(events_by_name, "RxCmacEntry", eth_decoder["time_ns"])
 
+    if rx_cmac is not None and rx_after_cdc is not None:
+        row["trace_rx_cmac_to_cdc_observed_ns"] = rx_after_cdc["time_ns"] - rx_cmac["time_ns"]
     add_segment(segments, "lh_rx_cmac_to_cdc", rx_cmac["time_ns"] if rx_cmac else None, rx_after_cdc["time_ns"] if rx_after_cdc else None)
     add_segment(segments, "lh_rx_eth_decode", rx_after_cdc["time_ns"] if rx_after_cdc else None, eth_decoder["time_ns"] if eth_decoder else None)
     add_segment(segments, "lh_rx_ip_decode", eth_decoder["time_ns"] if eth_decoder else None, ip_decoder["time_ns"] if ip_decoder else None)
     add_segment(segments, "lh_rx_udp_decode", ip_decoder["time_ns"] if ip_decoder else None, udp_decoder["time_ns"] if udp_decoder else None)
-    add_segment(segments, "lh_rx_rpc_decode", udp_decoder["time_ns"] if udp_decoder else None, rpc_decoder["time_ns"] if rpc_decoder else None)
-    add_segment(segments, "lh_rx_host_enqueue", rpc_decoder["time_ns"] if rpc_decoder else None, rx_enqueue["time_ns"] if rx_enqueue else None)
+    if rpc_decoder is not None and rx_enqueue is not None:
+        row["trace_rpc_decode_to_host_observed_ns"] = rx_enqueue["time_ns"] - rpc_decoder["time_ns"]
+    if combine_rpc_ingress:
+        add_segment(segments, "lh_rx_rpc_decode_and_host_enqueue", udp_decoder["time_ns"] if udp_decoder else None, rx_enqueue["time_ns"] if rx_enqueue else None)
+    else:
+        add_segment(segments, "lh_rx_rpc_decode", udp_decoder["time_ns"] if udp_decoder else None, rpc_decoder["time_ns"] if rpc_decoder else None)
+        add_segment(segments, "lh_rx_host_enqueue", rpc_decoder["time_ns"] if rpc_decoder else None, rx_enqueue["time_ns"] if rx_enqueue else None)
     add_segment(segments, "lh_scheduler_enqueue", rx_enqueue["time_ns"] if rx_enqueue else None, queued["time_ns"] if queued else None)
     # Partition the queue interval; ProcessRun can predate this request when
     # the worker is already active. Never charge that earlier activation again.
@@ -835,7 +862,7 @@ def attach_trace_segments(
         row["trace_segments"] = segments
 
 
-def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None) -> None:
+def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None, combine_rpc_ingress: bool = False) -> None:
     events_by_name = build_event_index(events)
     ipi_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -984,7 +1011,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
             row["trace_hw_core_delivery_ns"] = max(0.0, delivered - dispatched)
         if delivered is not None:
             row["kernel_wakeup_ns"] = max(0.0, row["server_rx_enter_ns"] - (delivered + offset))
-        attach_trace_segments(row, rec, events_by_name, core, offset, eci_half_rtt_ns)
+        attach_trace_segments(row, rec, events_by_name, core, offset, eci_half_rtt_ns, combine_rpc_ingress)
 
 
 def breakdown(row: Dict[str, Any]) -> Dict[str, float]:
@@ -992,7 +1019,11 @@ def breakdown(row: Dict[str, Any]) -> Dict[str, float]:
 
     if row.get("trace_segments"):
         ret = dict(row["trace_segments"])
-        ret["client_xdr_runtime"] = row["client_xdr_ns"]
+        if row.get("transport") == "dpdk":
+            ret["client_packet_prepare"] = row["client_packet_prepare_ns"]
+            ret["client_reply_validate"] = row["client_reply_validate_ns"]
+        else:
+            ret["client_xdr_runtime"] = row["client_xdr_ns"]
         known = sum(ret.values())
         outside = row["e2e_ns"] - known
         if outside < -1e-6:
@@ -1021,11 +1052,14 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
     preferred = [
         "network_or_residual",
         "outside_lh_client_network",
+        "client_packet_prepare",
+        "client_reply_validate",
         "client_xdr_runtime",
         "lh_rx_cmac_to_cdc",
         "lh_rx_eth_decode",
         "lh_rx_ip_decode",
         "lh_rx_udp_decode",
+        "lh_rx_rpc_decode_and_host_enqueue",
         "lh_rx_rpc_decode",
         "lh_rx_host_enqueue",
         "lh_scheduler_enqueue",
@@ -1605,6 +1639,8 @@ def main() -> int:
     parser.add_argument("--worker-cpu-base", type=int, help="first isolated Linux worker CPU (required for new CSV/hardware correlation)")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
+    parser.add_argument("--combine-rpc-ingress", action="store_true",
+                        help="combine RPC decode and host enqueue; retain signed metadata observation")
     parser.add_argument("--trace-process-id", type=int,
                         help="scheduler ProcessID (Linux TGID with current driver), not ECI domain code")
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
@@ -1652,7 +1688,7 @@ def main() -> int:
             print(f"estimated ECI FLDX_EH->HAKD RTT={eci_rtt_ns:.0f} ns; using half RTT={eci_half_rtt_ns:.0f} ns for 2F2F RX HW")
         else:
             print("warning: could not estimate ECI FLDX_EH->HAKD RTT from trace")
-        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id)
+        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id, args.combine_rpc_ingress)
         matched_rows = [row for row in rows if "trace_host_msg_id" in row]
         matched = len(matched_rows)
         print(f"matched {matched}/{len(rows)} rows with sys_trace HostMsgID/CoreID events")
@@ -1704,11 +1740,14 @@ def main() -> int:
                     "p99": percentile(values, 99), "max": values[-1],
                     "p99_minus_p50": percentile(values, 99)-median}
         provenance = {"client_csv": str(args.client_csv), "server_csv": str(args.server_csv),
+            "analyzer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "client_sha256": hashlib.sha256(args.client_csv.read_bytes()).hexdigest(),
             "server_sha256": hashlib.sha256(args.server_csv.read_bytes()).hexdigest()}
         if args.trace_dump:
             provenance.update(trace_dump=str(args.trace_dump), trace_map=str(args.trace_map),
+                trace_dump_sha256=hashlib.file_digest(args.trace_dump.open("rb"), "sha256").hexdigest(),
                 trace_cycle_ns=args.trace_cycle_ns, trace_process_id=args.trace_process_id,
+                combine_rpc_ingress=args.combine_rpc_ingress,
                 trace_map_sha256=hashlib.sha256(args.trace_map.read_bytes()).hexdigest(),
                 allow_partial_trace=args.allow_partial_trace)
         args.audit_json.write_text(json.dumps({"metrics": metrics, "provenance": provenance,

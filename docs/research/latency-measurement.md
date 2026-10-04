@@ -725,3 +725,67 @@ request and validate activation readiness against request arrival.
 The scheduler trace `ProcessID` filter uses Linux TGID with the current driver
 (`sw/kmod/chrdev.c:update_proc_hw`), not the separately allocated ECI domain
 code. Record both identities; a filter with no matching dispatches is an error.
+
+### Metadata reordering in the October 4 DPDK campaign
+
+`OncRpcCallDecoder` is a metadata-consumer handshake, not a guaranteed earlier
+event than the sibling `RxRpcEnqueueToHost` producer. In both 1,000-request
+datasets one matching decoder event arrived 10 ns after host enqueue. A
+last-before lookup incorrectly selected an older reuse of the small RPC ID,
+creating a false multi-millisecond CMAC interval. The analyzer now requires a
+unique matching decoder event within ±1,000 ns of enqueue. Untagged CMAC/CDC
+notifications likewise require a unique nearby marker; ambiguity fails closed.
+This is appropriate only for isolated foreground requests, including foreground
+requests after fully drained flush traffic. It is not a general concurrent
+packet-identity solution.
+
+For these captures, use `--combine-rpc-ingress` to report UDP-decode completion
+through host enqueue as `lh_rx_rpc_decode_and_host_enqueue`. The individual
+RPC metadata/host-enqueue difference remains a signed diagnostic; it is not
+clamped or counted as another additive duration. All other ordered RX stages
+remain separate. Producer overlap prevents an exact independent split of those
+two stages with the existing events. The false CDC reversal seen during the
+failed correlation disappeared after fixing RPC identity matching.
+
+DPDK CSVs contribute packet preparation and reply validation as separate
+additive client intervals. TX-burst submission and receive polling are retained
+as nested diagnostics: hardware can run before submission returns, and polling
+includes hardware/network time, so neither is added again. The residual still
+combines client NIC, remaining polling/submission, switch/link and boundary
+uncertainty; the present instrumentation cannot separate those physical pieces.
+The five recorded DPDK timestamps exclude unrecorded timeout-poll clock reads.
+
+### DPDK baseline, October 4 (pipeline 516112)
+
+The [recorded results and provenance](../../data/eci/board-evidence/dpdk-hot-cold-baseline-20261004.json)
+and [complete percentile table](../../data/eci/board-evidence/dpdk-hot-cold-baseline-20261004.csv)
+cover 1,000 hot and 1,000 cold requests to one measured thread. A separate
+four-thread domain evicts it before each cold request using four drained rounds
+of 16 requests, with 100 µs work per flush handler. All replies, full trace
+correlations and condition checks passed; each cold request had a distinct
+activation. Cold samples used cooperative activation, not idle-core IRQ wakeup.
+The additive FPGA interval has zero unattributed time; the separate kernel
+partition is nested and must not be added to it.
+
+Raw RTT in µs:
+
+| Condition | P50 | P90 | P95 | P99 | P100 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hot | 34.550 | 35.350 | 47.610 | 48.100 | 57.980 |
+| Cold, kernel tracing on | 52.145 | 54.821 | 55.341 | 58.202 | 137.100 |
+| Cold, kernel tracing off | 48.260 | 50.832 | 51.451 | 53.271 | 118.930 |
+
+The off/on comparison is one sequential pair with runtime CSV logging unchanged,
+not a per-request correction constant. Its median difference is 3.885 µs. The
+30–40 ns adjacent-clock calibration therefore does not establish total tracing
+cost. Runtime CSV off/on remains unmeasured; row logging after each reply can
+affect readiness for the next request. Hot median scheduler queue time was
+20.470 µs and cold median was 36.650 µs. The maximum cold sample included
+84.730 µs between activation-ready and the RX-enter probe; its cause has not
+been established.
+
+The runtime and client images were cross-built with the pinned Nix toolchain.
+The runtime-only client image is 88,453,120 bytes and passed ten replay checks
+on both the build host and the AArch64 client. Baseline timing remains open.
+The GSYNC early-NACK comparison on pipeline 516232 and the later simultaneous
+four-worker load experiment remain separate work.

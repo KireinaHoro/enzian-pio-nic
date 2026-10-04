@@ -78,6 +78,33 @@ class LatencyAccounting(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'ProcessID'):
             m.correlate_trace(rows,events,None,process_id=1672)
 
+    def test_dpdk_components_are_outside_hardware_not_poll_wait(self):
+        c=dict(transport='dpdk',client_call_enter_ns='100',client_tx_ready_ns='200',
+               client_tx_submit_ns='250',client_rx_burst_ns='900',client_call_exit_ns='1000',
+               timestamp_overhead_ns='10',ok='1')
+        row=m.build_rows({1:c},{1:{}})[0]
+        row['trace_segments']={'hardware':500}
+        parts=m.breakdown(row)
+        self.assertEqual(parts['client_packet_prepare'],90)
+        self.assertEqual(parts['client_reply_validate'],90)
+        self.assertEqual(parts['outside_lh_client_network'],210)
+        self.assertEqual(sum(parts.values()),890)
+        self.assertNotIn('client_poll_wait',parts)
+        self.assertEqual(row['client_poll_wait_observed_ns'],650)
+        self.assertEqual(row['client_timestamp_count'],5)
+        c['client_tx_ready_ns']='300'
+        with self.assertRaisesRegex(ValueError,'DPDK timestamps'):
+            m.build_rows({1:c},{1:{}})
+
+    def test_metadata_after_enqueue_does_not_select_prior_id_reuse(self):
+        events=[dict(event='OncRpcCallDecoder',time_ns=t,data={'RpcID':3})
+                for t in (100,100010)]
+        index=m.build_event_index(events)
+        self.assertEqual(m.unique_nearby_event(index,'OncRpcCallDecoder',100000,{'RpcID':3})['time_ns'],100010)
+        events.append(dict(event='OncRpcCallDecoder',time_ns=100020,data={'RpcID':3}))
+        with self.assertRaisesRegex(ValueError,'ambiguous'):
+            m.unique_nearby_event(m.build_event_index(events),'OncRpcCallDecoder',100000,{'RpcID':3})
+
     def test_complete_trace_conserves_and_retains_dma_milestones(self):
         chain = [('RxCmacEntry',0), ('RxAfterCdcQueue',10),
                  ('EthernetDecoder',20), ('IpDecoder',30), ('UdpDecoder',40),
@@ -103,6 +130,18 @@ class LatencyAccounting(unittest.TestCase):
         self.assertEqual(row['trace_tx_commit_to_cmac_ns'],220)
         self.assertEqual(row['trace_tx_milestones_after_submit_ns']['TxAfterDmaRead'],70)
         self.assertEqual(sum(m.breakdown(row).values()),1000)
+        delayed = [dict(ev,time_ns=15) if ev['event']=='RxCmacEntry' else ev for ev in events]
+        with self.assertRaisesRegex(ValueError,'reversed trace interval'):
+            m.attach_trace_segments(dict(row),rec,m.build_event_index(delayed),1,0,None,True)
+        combined = dict(row)
+        reordered = [dict(ev,time_ns=70) if ev['event']=='OncRpcCallDecoder' else ev for ev in events]
+        m.attach_trace_segments(combined,rec,m.build_event_index(reordered),1,0,None,True)
+        self.assertEqual(combined['trace_rpc_decode_to_host_observed_ns'],-10)
+        self.assertEqual(combined['trace_segments']['lh_rx_rpc_decode_and_host_enqueue'],20)
+        self.assertNotIn('lh_rx_rpc_decode',combined['trace_segments'])
+        self.assertNotIn('lh_rx_host_enqueue',combined['trace_segments'])
+        self.assertEqual(sum(combined['trace_segments'].values()),520)
+        self.assertEqual(sum(m.breakdown(combined).values()),1000)
         # A missing TX completion must not be borrowed from the next request.
         later = [dict(ev, time_ns=700) if ev['event']=='TxCmacExit' else ev for ev in events]
         clean = self.row()
