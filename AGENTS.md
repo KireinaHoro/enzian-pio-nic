@@ -45,13 +45,16 @@ preemption-table index bug, fixed at `336c65d6`. A corrected module built agains
 the exact candidate headers passed 100 RPCs. The campaign is paused after a full-engine RTL reproducer confirmed cross-domain
 TX payload disclosure through the new owner's valid alias. See the
 [payload isolation blocker](docs/hardware/payload-isolation-blocker.md). The follow-up
-source adds TX scrubbing/bounds checks and RX tail masking; a corrected matched
-build and full board acceptance remain outstanding.
+source adds TX scrubbing/bounds checks and RX tail masking. Corrected pipeline
+516112 (`b2117e96`) passed all CI jobs and two cold-boot 100-RPC trials; see the
+[matched baseline](docs/development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
+Adversarial isolation/contention acceptance remains outstanding. Its WNS is
+−0.396 ns with 7,227 failing setup endpoints; timing remains open.
 The initial October 2 simplified-DC trial exposed missing RX AXI write service.
 The independent RX write sink at `a51139e` passed pipeline 515802 and two
 cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
 stuck RX writeback now completes. See the [board evidence](docs/development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
-That historical image had WNS −0.005 ns. Current candidate 515944 has WNS
+That historical image had WNS −0.005 ns. Historical candidate 515944 has WNS
 −0.089 ns and 474 failing setup endpoints; timing remains open. The
 [layered verification report](docs/hardware/layered-verification.md) records
 DC/THX endpoint checks and remaining race/refinement gaps.
@@ -62,9 +65,9 @@ failure. Recheck reservations. The isolation correction and simulation fixes
 passed 53 fast ECI tests (one existing ignored). Pipeline 516080 stopped before
 hardware on a reproduced testbench TX-call overlap; the
 [seed investigation](docs/development/simulation-seeds.md) records the fix and the
-shared RNG that made CI seeds insufficient. Resume board acceptance only with a
-corrected matched build after CI passes, never with vulnerable 515944. Retain documented
-hardware-service assumptions.
+shared RNG that made CI seeds insufficient. The DUT now runs corrected 516112;
+resume expanded acceptance with matched artifacts, never vulnerable 515944.
+Retain documented hardware-service assumptions.
 
 ## Confirmed research and scheduling scope
 
