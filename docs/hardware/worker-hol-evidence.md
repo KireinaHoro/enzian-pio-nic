@@ -181,6 +181,24 @@ Linux scheduling/page-fault/instruction traces were not captured. The second
 event follows the observed echo-worker migration. Do not label the remaining
 tails as resolved or infer their exact cause from FPGA events alone.
 
+A further review of the same saved measurement range finds that each echo
+commit follows another physical worker's long RX hold completing: datapath 2
+returns a NACK 23.660 microseconds before the first commit, and datapath 3
+returns one 17.640 microseconds before the second. Bypass submits 462 and 451
+responses respectively during the two descriptor-to-commit gaps. GSYNC requests
+appear 15.645 and 8.455 microseconds after echo descriptor delivery; each visible
+FPGA GSYNC response follows in two application-clock cycles (10 ns). A further
+GSYNC pair in the first gap also responds in two cycles. Thus the visible FPGA
+GSYNC responder is not holding these requests for 123 ms.
+
+This temporal association makes CPU-side cross-core synchronization a candidate
+for investigation, including barriers or translation maintenance. It does not
+prove which instruction stalls or that the peer NACK causes its release. The
+matched TX path contains `dmb sy` before its commit read; instruction/kernel
+tracing or a controlled reproduction is still needed to distinguish causes.
+The [additional evidence](../../data/eci/board-evidence/echo-outlier-516112-20261004.json)
+retains capture provenance, surrounding event counts and accepted GSYNC headers.
+
 ## Outcome and retained state
 
 The finite all-but-one checks passed on two cold boots of corrected 516112,
