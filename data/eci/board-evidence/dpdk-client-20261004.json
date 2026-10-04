@@ -1,0 +1,842 @@
+{
+  "date": "2026-10-04",
+  "branch": "feat/dpdk-latency-benchmark",
+  "base_revision": "c3ed9803",
+  "status": "client validated; Lauberhorn traced old/new comparison outstanding",
+  "client": {
+    "pci": "0002:01:00.2",
+    "driver": "nicvf",
+    "addresses": {
+      "ifindex": 3,
+      "ifname": "cpu40g1",
+      "flags": [
+        "BROADCAST",
+        "MULTICAST",
+        "UP",
+        "LOWER_UP"
+      ],
+      "mtu": 1500,
+      "qdisc": "mq",
+      "operstate": "UP",
+      "group": "default",
+      "txqlen": 1000,
+      "link_type": "ether",
+      "address": "0c:53:31:03:00:e1",
+      "broadcast": "ff:ff:ff:ff:ff:ff",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "192.168.128.225",
+          "prefixlen": 18,
+          "broadcast": "192.168.191.255",
+          "scope": "global",
+          "label": "cpu40g1",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet6",
+          "local": "fe80::e53:31ff:fe03:e1",
+          "prefixlen": 64,
+          "scope": "link",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    },
+    "routes": [
+      {
+        "dst": "192.168.128.0/18",
+        "protocol": "kernel",
+        "scope": "link",
+        "prefsrc": "192.168.128.225",
+        "flags": []
+      }
+    ],
+    "kernel": "6.8.0-146-generic",
+    "no_iommu": true,
+    "lcore": 6,
+    "binary_sha256": "a84ee3497a35207b4f5228cad051c363c745660629e6af3ebdf1461d08e8b33f",
+    "kernel_cmdline": "BOOT_IMAGE=/userkernels/pengxu/dpdk-zs07-6.8.0-146/vmlinuz-6.8.0-146-generic ip=:::::enP2p1s0v0:dhcp iscsi_initiator=iqn.2022-05.systems.enzian:zuestoll07 iscsi_target_name=iqn.2022-05.systems.enzian.zuestoll:pengxu-generated-b78c7e9057 iscsi_target_ip=192.168.255.254 iscsi_target_port=3260 root=UUID=461f0ce7-5a56-439d-8850-a92447d8028f rw isolcpus=nohz,domain,managed_irq,6 nohz_full=6 rcu_nocbs=6 irqaffinity=0-5,7-47 kthread_cpus=0-5,7-47 rcu_nocb_poll",
+    "isolated_cpus": "6",
+    "nohz_full_cpus": "6"
+  },
+  "dpdk_version": "23.11.4 with Linux CAM mailbox patch",
+  "dpdk_source_tar_sha256": "8973d1cf132fa99807442a89840f406184afb360442a0ab94ba5cb3315f6f4dd",
+  "source_hashes": {
+    "sw/apps/microbenchmarks/dpdk/bench_dpdk.c": "65ea84861d680d6e576e0d980d55078a7daa1f8384dbf00e942166b3903c5acc",
+    "sw/apps/microbenchmarks/dpdk/benchmarks.c": "edfe5d17a344d9e2dd0d9995eb922d64fb7a7d964955217e30b1444f111b108b",
+    "sw/apps/microbenchmarks/dpdk/benchmark.h": "d2b8ef14ac5803d927e0652c6caeb90e2f3fc3dc79c3506e4488eba347fd7703",
+    "sw/apps/microbenchmarks/dpdk/wire.h": "4f75be3347d79629ffbf0ac1f92cbb25932b8e40b3e49b56c3531fafe3a2235d",
+    "nix/software/patches/dpdk-thunderx-linux-cam.patch": "cfa0b65a00a01f5bc6c0b2525acac8380b915b3db43c6b97947dde5a531fbd8e"
+  },
+  "native_binary_hashes": [
+    "a84ee3497a35207b4f5228cad051c363c745660629e6af3ebdf1461d08e8b33f  src/bench_dpdk",
+    "7ba49f2316d3889edef7fb64ab1479aaf0e26dc6e31c4accb86ba9e0af0ec797  patched-dpdk/lib/dpdk/pmds-24.0/librte_net_thunderx.so.24.0"
+  ],
+  "kernel_and_gateway_provenance": [
+    "6001f54164a5201cd5a80e0a09bb05c43fa6e910a0abfe0f5a4e8d7d781cc737  /scratch/pengxu/dpdk-benchmark/kernel-6.8.0-146/vmlinuz-6.8.0-146-generic",
+    "e3381e6ca2147729f3cfb837cf3512cc2da744be3573770e031ce084c2cb5e5d  /scratch/pengxu/dpdk-benchmark/kernel-6.8.0-146/initrd.img-6.8.0-146-generic",
+    "5259f9259ac789dcddf04371a80cf8f29066b3ff8b4df1e996736f77cb3b040e  /usr/share/emg/management-script.sh"
+  ],
+  "physical_gateway_echo": {
+    "source": "out/benchmark-zs07/physical-echo-patched.csv",
+    "sha256": "ded5e514c59c16e1f025cfdba1859034bf4c2fbb1c596f738e7cbffe5a7037fe",
+    "rows": 10100,
+    "warmup": 100,
+    "failures": [],
+    "valid": true,
+    "metrics_ns": {
+      "e2e_raw": {
+        "count": 10000,
+        "minimum": 29220,
+        "p50": 35580.0,
+        "p90": 46340.0,
+        "p99": 63230.70000000001,
+        "maximum": 412750,
+        "p99_minus_p50": 27650.70000000001
+      },
+      "encode": {
+        "count": 10000,
+        "minimum": 190,
+        "p50": 200.0,
+        "p90": 200.0,
+        "p99": 370.0,
+        "maximum": 15120,
+        "p99_minus_p50": 170.0
+      },
+      "tx_submit": {
+        "count": 10000,
+        "minimum": 130,
+        "p50": 140.0,
+        "p90": 150.0,
+        "p99": 280.0,
+        "maximum": 16220,
+        "p99_minus_p50": 140.0
+      },
+      "poll_to_receive": {
+        "count": 10000,
+        "minimum": 28230,
+        "p50": 34750.0,
+        "p90": 45532.00000000001,
+        "p99": 62320.3,
+        "maximum": 412080,
+        "p99_minus_p50": 27570.300000000003
+      },
+      "validate": {
+        "count": 10000,
+        "minimum": 330,
+        "p50": 330.0,
+        "p90": 340.0,
+        "p99": 760.0,
+        "maximum": 32420,
+        "p99_minus_p50": 430.0
+      },
+      "client_software": {
+        "count": 10000,
+        "minimum": 660,
+        "p50": 680.0,
+        "p90": 690.0,
+        "p99": 1110.0,
+        "maximum": 32760,
+        "p99_minus_p50": 430.0
+      },
+      "e2e_corrected": {
+        "count": 10000,
+        "minimum": 29170,
+        "p50": 35530.0,
+        "p90": 46290.0,
+        "p99": 63180.70000000001,
+        "maximum": 412700,
+        "p99_minus_p50": 27650.70000000001
+      }
+    },
+    "drift_ns": {
+      "first_quarter": {
+        "count": 2500,
+        "minimum": 30120,
+        "p50": 35340.0,
+        "p90": 42991.0,
+        "p99": 51300.2,
+        "maximum": 85500,
+        "p99_minus_p50": 15960.199999999997
+      },
+      "last_quarter": {
+        "count": 2500,
+        "minimum": 39980,
+        "p50": 45250.0,
+        "p90": 61045.99999999999,
+        "p99": 70690.69999999998,
+        "maximum": 412700,
+        "p99_minus_p50": 25440.699999999983
+      }
+    }
+  },
+  "initial_nic_loopback": {
+    "source": "out/benchmark-zs07/loopback-patched.csv",
+    "sha256": "a44988c1ba0dcbfc9ed39b1773b4db5446cc47de7f58bc9405892d84b690b146",
+    "rows": 10100,
+    "warmup": 100,
+    "failures": [],
+    "valid": true,
+    "metrics_ns": {
+      "e2e_raw": {
+        "count": 10000,
+        "minimum": 2050,
+        "p50": 2140.0,
+        "p90": 2230.0,
+        "p99": 4840.300000000007,
+        "maximum": 36850,
+        "p99_minus_p50": 2700.3000000000065
+      },
+      "encode": {
+        "count": 10000,
+        "minimum": 190,
+        "p50": 200.0,
+        "p90": 200.0,
+        "p99": 210.0,
+        "maximum": 17300,
+        "p99_minus_p50": 10.0
+      },
+      "tx_submit": {
+        "count": 10000,
+        "minimum": 130,
+        "p50": 140.0,
+        "p90": 150.0,
+        "p99": 150.0,
+        "maximum": 17200,
+        "p99_minus_p50": 10.0
+      },
+      "poll_to_receive": {
+        "count": 10000,
+        "minimum": 1290,
+        "p50": 1570.0,
+        "p90": 1660.0,
+        "p99": 1960.0,
+        "maximum": 35690,
+        "p99_minus_p50": 390.0
+      },
+      "validate": {
+        "count": 10000,
+        "minimum": 220,
+        "p50": 230.0,
+        "p90": 230.0,
+        "p99": 230.0,
+        "maximum": 17350,
+        "p99_minus_p50": 0.0
+      },
+      "client_software": {
+        "count": 10000,
+        "minimum": 550,
+        "p50": 570.0,
+        "p90": 570.0,
+        "p99": 610.0,
+        "maximum": 18220,
+        "p99_minus_p50": 40.0
+      },
+      "e2e_corrected": {
+        "count": 10000,
+        "minimum": 2000,
+        "p50": 2090.0,
+        "p90": 2180.0,
+        "p99": 4790.300000000007,
+        "maximum": 36800,
+        "p99_minus_p50": 2700.3000000000065
+      }
+    },
+    "drift_ns": {
+      "first_quarter": {
+        "count": 2500,
+        "minimum": 2030,
+        "p50": 2090.0,
+        "p90": 2180.0,
+        "p99": 4680.699999999983,
+        "maximum": 19900,
+        "p99_minus_p50": 2590.6999999999834
+      },
+      "last_quarter": {
+        "count": 2500,
+        "minimum": 2000,
+        "p50": 2040.0,
+        "p90": 2120.0,
+        "p99": 4770.799999999981,
+        "maximum": 21840,
+        "p99_minus_p50": 2730.799999999981
+      }
+    }
+  },
+  "isolated_nic_loopback": [
+    {
+      "source": "out/benchmark-zs07/isolated-loopback-1.csv",
+      "sha256": "4473c4743354e9364ec7f41ed32daf49857ee8aafbf2fffdf856b77582cb2e2c",
+      "rows": 101000,
+      "warmup": 1000,
+      "failures": [],
+      "valid": true,
+      "metrics_ns": {
+        "e2e_raw": {
+          "count": 100000,
+          "minimum": 2040,
+          "p50": 2080.0,
+          "p90": 2170.0,
+          "p99": 2430.0,
+          "maximum": 7790,
+          "p99_minus_p50": 350.0
+        },
+        "encode": {
+          "count": 100000,
+          "minimum": 190,
+          "p50": 200.0,
+          "p90": 200.0,
+          "p99": 200.0,
+          "maximum": 450,
+          "p99_minus_p50": 0.0
+        },
+        "tx_submit": {
+          "count": 100000,
+          "minimum": 140,
+          "p50": 140.0,
+          "p90": 140.0,
+          "p99": 150.0,
+          "maximum": 3650,
+          "p99_minus_p50": 10.0
+        },
+        "poll_to_receive": {
+          "count": 100000,
+          "minimum": 1360,
+          "p50": 1510.0,
+          "p90": 1600.0,
+          "p99": 1670.0,
+          "maximum": 5930,
+          "p99_minus_p50": 160.0
+        },
+        "validate": {
+          "count": 100000,
+          "minimum": 220,
+          "p50": 230.0,
+          "p90": 230.0,
+          "p99": 230.0,
+          "maximum": 420,
+          "p99_minus_p50": 0.0
+        },
+        "client_software": {
+          "count": 100000,
+          "minimum": 550,
+          "p50": 570.0,
+          "p90": 570.0,
+          "p99": 580.0,
+          "maximum": 4080,
+          "p99_minus_p50": 10.0
+        },
+        "e2e_corrected": {
+          "count": 100000,
+          "minimum": 1990,
+          "p50": 2030.0,
+          "p90": 2120.0,
+          "p99": 2380.0,
+          "maximum": 7740,
+          "p99_minus_p50": 350.0
+        }
+      },
+      "drift_ns": {
+        "first_quarter": {
+          "count": 25000,
+          "minimum": 2000,
+          "p50": 2050.0,
+          "p90": 2140.0,
+          "p99": 2450.0,
+          "maximum": 6440,
+          "p99_minus_p50": 400.0
+        },
+        "last_quarter": {
+          "count": 25000,
+          "minimum": 2000,
+          "p50": 2030.0,
+          "p90": 2110.0,
+          "p99": 2170.0,
+          "maximum": 7740,
+          "p99_minus_p50": 140.0
+        }
+      }
+    },
+    {
+      "source": "out/benchmark-zs07/isolated-loopback-2.csv",
+      "sha256": "a6ef6d25e27f639596751b211e2e2b8d43fc9765be8bd5ed3c9702b65157add1",
+      "rows": 101000,
+      "warmup": 1000,
+      "failures": [],
+      "valid": true,
+      "metrics_ns": {
+        "e2e_raw": {
+          "count": 100000,
+          "minimum": 2040,
+          "p50": 2080.0,
+          "p90": 2210.0,
+          "p99": 2420.0,
+          "maximum": 7780,
+          "p99_minus_p50": 340.0
+        },
+        "encode": {
+          "count": 100000,
+          "minimum": 190,
+          "p50": 200.0,
+          "p90": 200.0,
+          "p99": 210.0,
+          "maximum": 520,
+          "p99_minus_p50": 10.0
+        },
+        "tx_submit": {
+          "count": 100000,
+          "minimum": 140,
+          "p50": 140.0,
+          "p90": 140.0,
+          "p99": 150.0,
+          "maximum": 3640,
+          "p99_minus_p50": 10.0
+        },
+        "poll_to_receive": {
+          "count": 100000,
+          "minimum": 1340,
+          "p50": 1510.0,
+          "p90": 1640.0,
+          "p99": 1690.0,
+          "maximum": 6220,
+          "p99_minus_p50": 180.0
+        },
+        "validate": {
+          "count": 100000,
+          "minimum": 220,
+          "p50": 230.0,
+          "p90": 230.0,
+          "p99": 230.0,
+          "maximum": 440,
+          "p99_minus_p50": 0.0
+        },
+        "client_software": {
+          "count": 100000,
+          "minimum": 550,
+          "p50": 570.0,
+          "p90": 570.0,
+          "p99": 580.0,
+          "maximum": 4060,
+          "p99_minus_p50": 10.0
+        },
+        "e2e_corrected": {
+          "count": 100000,
+          "minimum": 1990,
+          "p50": 2030.0,
+          "p90": 2160.0,
+          "p99": 2370.0,
+          "maximum": 7730,
+          "p99_minus_p50": 340.0
+        }
+      },
+      "drift_ns": {
+        "first_quarter": {
+          "count": 25000,
+          "minimum": 1990,
+          "p50": 2070.0,
+          "p90": 2160.0,
+          "p99": 2460.0,
+          "maximum": 6740,
+          "p99_minus_p50": 390.0
+        },
+        "last_quarter": {
+          "count": 25000,
+          "minimum": 1990,
+          "p50": 2020.0,
+          "p90": 2160.0,
+          "p99": 2170.0,
+          "maximum": 7730,
+          "p99_minus_p50": 150.0
+        }
+      }
+    },
+    {
+      "source": "out/benchmark-zs07/isolated-loopback-3.csv",
+      "sha256": "67f850f60621cc7a0fb16400d9f6d28fcbdf22f3cdbc78616ab96719b1cc5e26",
+      "rows": 101000,
+      "warmup": 1000,
+      "failures": [],
+      "valid": true,
+      "metrics_ns": {
+        "e2e_raw": {
+          "count": 100000,
+          "minimum": 2030,
+          "p50": 2140.0,
+          "p90": 2200.0,
+          "p99": 2440.0,
+          "maximum": 7940,
+          "p99_minus_p50": 300.0
+        },
+        "encode": {
+          "count": 100000,
+          "minimum": 190,
+          "p50": 200.0,
+          "p90": 200.0,
+          "p99": 210.0,
+          "maximum": 430,
+          "p99_minus_p50": 10.0
+        },
+        "tx_submit": {
+          "count": 100000,
+          "minimum": 130,
+          "p50": 140.0,
+          "p90": 140.0,
+          "p99": 150.0,
+          "maximum": 3630,
+          "p99_minus_p50": 10.0
+        },
+        "poll_to_receive": {
+          "count": 100000,
+          "minimum": 1340,
+          "p50": 1580.0,
+          "p90": 1640.0,
+          "p99": 1700.0,
+          "maximum": 6090,
+          "p99_minus_p50": 120.0
+        },
+        "validate": {
+          "count": 100000,
+          "minimum": 220,
+          "p50": 220.0,
+          "p90": 230.0,
+          "p99": 230.0,
+          "maximum": 450,
+          "p99_minus_p50": 10.0
+        },
+        "client_software": {
+          "count": 100000,
+          "minimum": 550,
+          "p50": 560.0,
+          "p90": 570.0,
+          "p99": 580.0,
+          "maximum": 4050,
+          "p99_minus_p50": 20.0
+        },
+        "e2e_corrected": {
+          "count": 100000,
+          "minimum": 1980,
+          "p50": 2090.0,
+          "p90": 2150.0,
+          "p99": 2390.0,
+          "maximum": 7890,
+          "p99_minus_p50": 300.0
+        }
+      },
+      "drift_ns": {
+        "first_quarter": {
+          "count": 25000,
+          "minimum": 1980,
+          "p50": 2090.0,
+          "p90": 2160.0,
+          "p99": 2500.099999999984,
+          "maximum": 6610,
+          "p99_minus_p50": 410.099999999984
+        },
+        "last_quarter": {
+          "count": 25000,
+          "minimum": 1980,
+          "p50": 2090.0,
+          "p90": 2150.0,
+          "p99": 2170.0,
+          "maximum": 7890,
+          "p99_minus_p50": 80.0
+        }
+      }
+    }
+  ],
+  "isolated_restoration": [
+    {
+      "status": "pass",
+      "returncode": 0,
+      "restored": true,
+      "argv": [
+        "/scratch/pengxu/dpdk-benchmark/src/bench_dpdk",
+        "-l",
+        "6",
+        "-a",
+        "0002:01:00.2",
+        "--file-prefix=lh-bench-1881",
+        "--iova-mode=pa",
+        "--no-telemetry",
+        "--legacy-mem",
+        "-m",
+        "512",
+        "--",
+        "192.168.128.225",
+        "192.168.128.225",
+        "0c:53:31:03:00:e1",
+        "49152",
+        "100000",
+        "1000",
+        "100000",
+        "echo",
+        "/scratch/pengxu/dpdk-benchmark/isolated-loopback-1.csv",
+        "loopback"
+      ]
+    },
+    {
+      "status": "pass",
+      "returncode": 0,
+      "restored": true,
+      "argv": [
+        "/scratch/pengxu/dpdk-benchmark/src/bench_dpdk",
+        "-l",
+        "6",
+        "-a",
+        "0002:01:00.2",
+        "--file-prefix=lh-bench-1934",
+        "--iova-mode=pa",
+        "--no-telemetry",
+        "--legacy-mem",
+        "-m",
+        "512",
+        "--",
+        "192.168.128.225",
+        "192.168.128.225",
+        "0c:53:31:03:00:e1",
+        "49152",
+        "100000",
+        "1000",
+        "100000",
+        "echo",
+        "/scratch/pengxu/dpdk-benchmark/isolated-loopback-2.csv",
+        "loopback"
+      ]
+    },
+    {
+      "status": "pass",
+      "returncode": 0,
+      "restored": true,
+      "argv": [
+        "/scratch/pengxu/dpdk-benchmark/src/bench_dpdk",
+        "-l",
+        "6",
+        "-a",
+        "0002:01:00.2",
+        "--file-prefix=lh-bench-1971",
+        "--iova-mode=pa",
+        "--no-telemetry",
+        "--legacy-mem",
+        "-m",
+        "512",
+        "--",
+        "192.168.128.225",
+        "192.168.128.225",
+        "0c:53:31:03:00:e1",
+        "49152",
+        "100000",
+        "1000",
+        "100000",
+        "echo",
+        "/scratch/pengxu/dpdk-benchmark/isolated-loopback-3.csv",
+        "loopback"
+      ]
+    }
+  ],
+  "final_exact_restoration": {
+    "status": "pass",
+    "returncode": 0,
+    "restored": true,
+    "argv": [
+      "/scratch/pengxu/dpdk-benchmark/src/bench_dpdk",
+      "-l",
+      "6",
+      "-a",
+      "0002:01:00.2",
+      "--file-prefix=lh-bench-2096",
+      "--iova-mode=pa",
+      "--no-telemetry",
+      "--legacy-mem",
+      "-m",
+      "512",
+      "--",
+      "192.168.128.225",
+      "192.168.128.225",
+      "0c:53:31:03:00:e1",
+      "49152",
+      "100",
+      "10",
+      "100000",
+      "echo",
+      "/scratch/pengxu/dpdk-benchmark/restore-check2.csv",
+      "loopback"
+    ]
+  },
+  "final_interface": [
+    {
+      "ifindex": 9,
+      "ifname": "cpu40g1",
+      "flags": [
+        "BROADCAST",
+        "MULTICAST",
+        "UP",
+        "LOWER_UP"
+      ],
+      "mtu": 1500,
+      "qdisc": "mq",
+      "operstate": "UP",
+      "group": "default",
+      "txqlen": 1000,
+      "link_type": "ether",
+      "address": "0c:53:31:03:00:e1",
+      "broadcast": "ff:ff:ff:ff:ff:ff",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "192.168.128.225",
+          "prefixlen": 18,
+          "broadcast": "192.168.191.255",
+          "scope": "global",
+          "label": "cpu40g1",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet6",
+          "local": "fe80::e53:31ff:fe03:e1",
+          "prefixlen": 64,
+          "scope": "link",
+          "tentative": true,
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "arm64_pcap_replay": [
+      {
+        "case": "add",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "mul",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "wrong-result",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "stale-xid",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "timeout",
+        "returncode": 1,
+        "passed": true
+      }
+    ],
+    "x86_pcap_replay": [
+      {
+        "case": "add",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "mul",
+        "returncode": 0,
+        "passed": true
+      },
+      {
+        "case": "wrong-result",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "stale-xid",
+        "returncode": 1,
+        "passed": true
+      },
+      {
+        "case": "timeout",
+        "returncode": 1,
+        "passed": true
+      }
+    ],
+    "latency_unit_tests": 8,
+    "summary_unit_tests": 5,
+    "nix_native_package": "/nix/store/mm3lfyxk3if93alr69x9m7jn6rnfljps-lauberhorn-traffic-generator-0.1",
+    "nix_cross_package": "/nix/store/wlpjqkv0cc66dw7phax5ngvkpgxkdqgh-lauberhorn-traffic-generator-aarch64-unknown-linux-gnu-0.1",
+    "nix_dpdk_version": "26.03 with the same CAM patch",
+    "limitations": [
+      "Final packages built via equivalent pinned nixpkgs expressions; full flake snapshot ran out of local space.",
+      "Only Ubuntu-native DPDK 23.11.4 binary ran on the physical NIC; Nix AArch64 package was cross-built.",
+      "No new hardware CI or Lauberhorn FPGA experiment."
+    ]
+  },
+  "historical": {
+    "source": "data/eci/apps/adder-demo/2026-06-20",
+    "exclusion": "Request 0 explicitly excluded from both inputs: duplicate server ID and approximately 15-second client startup/retry.",
+    "input_hashes": {
+      "adder_latency_breakdown.csv": "4ab7c296514e48208a18c198c8e959e7b102714f610c6b19631690b2018e2545",
+      "adder_client_timestamps.csv": "2c29592caca699ad7b7e76251b93473a3b27fffc68f92054114c77cbc0ad4540",
+      "adder_server_timestamps.csv": "f23d10fe7d42d9d4d9893655773bd5bbc9ed14e4ead1af6086bf230c67d742ea"
+    },
+    "filtered_metrics": {
+      "e2e_ns": {
+        "count": 9999,
+        "min": 55010.0,
+        "p50": 73320.0,
+        "p90": 76390.0,
+        "p99": 93970.6,
+        "max": 114280.0,
+        "p99_minus_p50": 20650.600000000006
+      },
+      "e2e_raw_ns": {
+        "count": 9999,
+        "min": 55080.0,
+        "p50": 73390.0,
+        "p90": 76460.0,
+        "p99": 94040.6,
+        "max": 114350.0,
+        "p99_minus_p50": 20650.600000000006
+      },
+      "server_tx_ns": {
+        "count": 9999,
+        "min": 2530.0,
+        "p50": 2580.0,
+        "p90": 2610.0,
+        "p99": 2630.0,
+        "max": 2930.0,
+        "p99_minus_p50": 50.0
+      }
+    },
+    "trace_map_verified": false
+  },
+  "reservations": {
+    "released_unused": [
+      "zuestoll03",
+      "zuestoll04"
+    ],
+    "retained_used": [
+      "zuestoll07"
+    ],
+    "unused_blocked": "zuestoll10: shared named iSCSI export with zuestoll14; never booted; normal release blocked by automatic approval review; admin-only reservation cleanup requested.",
+    "protected": [
+      "zuestoll12",
+      "zuestoll14"
+    ]
+  },
+  "artifacts": {
+    "local": "out/benchmark-zs07",
+    "remote": "enzian-gateway:/scratch/pengxu/dpdk-benchmark",
+    "boot_logs": [
+      "out/board/dpdk-zs07-kernel146-boot",
+      "out/board/dpdk-zs07-isolated-boot"
+    ],
+    "plot": "out/benchmark-zs07/client-calibration.pdf"
+  },
+  "interpretation": [
+    "NIC loopback is a 64-byte echo client calibration, not Lauberhorn or switch latency.",
+    "Gateway echo includes the gateway software responder; do not treat it as fixed network cost.",
+    "Do not subtract calibration percentiles from RPC E2E; external residuals require request-paired CMAC trace durations.",
+    "R12-to-RA3 TX improvement has not been measured by this campaign."
+  ]
+}
