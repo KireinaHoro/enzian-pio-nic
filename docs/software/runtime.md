@@ -118,3 +118,18 @@ deferred/forwarded ownership and record actual Linux RX/TX CPUs. See
 [latency measurement](../research/latency-measurement.md#server-csv) for the
 schema, nested timing semantics and plotting restrictions. Tracing is disabled
 by default.
+
+Tracing now uses preallocated, prefaulted per-thread append-only buffers;
+`LAUBERHORN_TRACE_CAPACITY` sets rows per thread (default 16384). The request
+path copies a fixed-size record and publishes its count; it does no CSV
+formatting, locking, allocation, or file I/O. Timestamp probes still have cost.
+Initialize tracing before creating application threads: the opt-in tracing mode
+reserves and blocks SIGUSR2, inherited by workers. A control thread waits for it.
+After **all measured traffic has drained**, send `kill -USR2 SERVER_PID` once.
+Wait for `CSV.status.json`, require `loss_free: true`, and verify the CSV count
+and expected request IDs. Both CSV and completion manifest appear only at export;
+existing output files are never overwritten. Export is a single snapshot for the
+process lifetime, not a rearm operation. Size the buffer for all warmups and
+measurement phases; duplicate request IDs across phases need external phase
+boundaries. Overflow invalidates the capture. SIGTERM/SIGINT still use the
+unsupported-exit/fencing path and must not be used to flush traces.

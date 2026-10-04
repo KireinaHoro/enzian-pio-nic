@@ -95,8 +95,9 @@ The audit retains all measured rows, trace components and input CSV/map hashes.
 The summary checks trace coverage and reports residual drift. Preserve the
 bitstream/software hashes, kernel, DPDK version, source revision, EAL core,
 PCI VF, topology, packet sizes, worker count, tracing mode and FPGA period with
-the run. CSV-writing server instrumentation changes the workload; compare
-traced runs with traced runs and collect uninstrumented E2E separately.
+the run. Timestamp and buffering instrumentation still changes the workload;
+compare like-for-like traced runs and collect uninstrumented E2E separately.
+Historical streaming-CSV runs include additional inter-request file I/O.
 
 A fresh software-only analysis of the checked-in **June 20** CSVs excludes
 request 0 explicitly: that ID appears twice at the server, and its client call
@@ -186,15 +187,16 @@ from `<lauberhorn/trace.h>`; the runtime is independent of application encoding.
 The microbenchmarks do this automatically. Wire XID is unavailable under the
 opaque request-context ABI, so its legacy CSV column is empty.
 
-A trace row follows request ownership through defer and forward, and is written
+A trace row follows request ownership through defer and forward, and is buffered
 once at terminal reply/failure submission. `execution_kind` is a bitmask
 (deferred=1, forwarded=2); defer enqueue and forward submit/completion have
 separate timestamps. Deferred handler active time sums scheduled fiber execution
 intervals; wait time is the remaining handler wall time. This is instrumentation
 of runtime scheduling, not exact CPU accounting across OS preemption. Errors
 record reply and transport status. A process killed before replying has no
-terminal row. CSV output itself is outside the measured TX interval and perturbs
-throughput.
+terminal row. CSV formatting and output happen only at the explicit end-of-run
+export; the record copy after TX still contributes to the following IPG.
+Historical streaming captures formatted and flushed each row in that gap.
 
 The existing latency plotter accepts inline rows only, requires application IDs,
 and rejects duplicate IDs. It does not interpret nested waiting as inline handler
@@ -789,3 +791,48 @@ The runtime-only client image is 88,453,120 bytes and passed ten replay checks
 on both the build host and the AArch64 client. Baseline timing remains open.
 The GSYNC early-NACK comparison on pipeline 516232 and the later simultaneous
 four-worker load experiment remain separate work.
+
+
+## Buffered export and kernel IPG attribution
+
+The runtime CSV is exported only at campaign end; see the
+[runtime export contract](../software/runtime.md#optional-per-request-latency-tracing).
+Do not tail a CSV during traffic. The DPDK client also retains its records until
+measurement ends. Freeze kernel/FPGA recording before requesting runtime export,
+so export syscalls are outside the measurement window.
+
+For kernel coverage, `tools/enzian/activation_trace.py --ipg-cpus 44,45,46,47`
+enables syscall entry/exit, IRQ, softirq and context-switch tracepoints in a
+private instance; paired IPI events are enabled when available. The collector
+requires `mono_raw`, saves event formats and coverage, and exports trace text
+and per-CPU loss counters **after** the command finishes and recording stops.
+Allocate buffers before starting FIFO workers (or while they are paused), resume
+before measurement, and stop traffic before the command returns. There is no
+streaming trace reader. Any overrun/drop invalidates the capture. The existing
+activation event retains its embedded raw-nanosecond timestamps; ordinary trace
+text timestamps have microsecond quantization.
+
+`python3 tools/enzian/ipg_breakdown.py --capture CAPTURE --server SERVER.csv
+--output IPG.json` partitions previous TX-exit to next RX-entry for serial inline
+RPCs. Off-CPU time takes precedence over IRQ, IPI, softirq, then syscall time,
+so a syscall interrupted or descheduled is not charged twice. Other tasks' IRQs
+are not charged to the measured TID. Unpaired boundary events receive no causal
+attribution; missing coverage and untraced faults/exceptions remain limitations.
+The tool rejects runtime loss, missing required events, CPUs outside coverage,
+and worker migration between adjacent requests. The first request has no prior
+TX boundary. The resulting intervals are diagnostics, **not additional E2E
+components**: only their overlap after a request's arrival contributes to RTT.
+Without kernel evidence, label the gap **unattributed IPG**, not Linux scheduler
+time. FPGA enqueue-to-dispatch time is a distinct hardware observation.
+
+Validation for this change: concurrent runtime export/overflow/duplicate-write
+checks, existing native runtime tests and an AArch64 cross-build with the matched
+516112/516232 ABI headers. Kernel event coverage was checked on zuestoll14,
+Linux 6.8.0-64-generic: all requested events, including both IPIs, and mono_raw
+are available. A CPU-0 collector smoke test passed with no lost events; its trace
+parsed into 617 syscall, 100 IRQ, 28 softirq and five off-CPU intervals, with
+five incomplete boundary intervals left unattributed. This validates capture,
+not worker latency. Selected-CPU buffer allocation avoids resizing unrelated
+FIFO-worker buffers; pause workers when resizing their own buffers.
+An on/off comparison is still required to quantify the broader
+kernel tracing cost; cheap timestamp reads do not make event recording free.

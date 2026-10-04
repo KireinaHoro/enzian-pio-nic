@@ -8,11 +8,107 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdatomic.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 bool server_trace_enabled;
 __thread struct server_trace_row *server_trace_inline;
 __thread struct server_activation_trace server_activation;
+/* Append-only, single-producer buffers. Registration and export happen off path. */
+#define TRACE_MAX_THREADS 64
+struct trace_buffer {
+    struct server_trace_row *rows;
+    size_t count, dropped_count;
+    _Atomic size_t published, dropped;
+    int tid;
+} __attribute__((aligned(64)));
+static struct trace_buffer buffers[TRACE_MAX_THREADS];
+static __thread struct trace_buffer *local_buffer;
+static size_t capacity, registered;
+static _Atomic size_t unregistered_drops;
+static pthread_mutex_t control_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t dump_thread;
+static bool dump_thread_started, dumped;
+static _Atomic bool stopping;
+static char *output_path;
 static FILE *output;
+static void write_header(void);
+static void write_row(const struct server_trace_row *r);
+static void dump_records(void) {
+    pthread_mutex_lock(&control_lock);
+    if (dumped || !output_path) goto done;
+    /* No traffic may remain when export is requested. Snapshot committed rows;
+     * never race a writer's next slot or silently overwrite a previous dump. */
+    size_t counts[TRACE_MAX_THREADS], drops = atomic_load(&unregistered_drops);
+    for (size_t i=0;i<registered;i++) {
+        counts[i] = atomic_load_explicit(&buffers[i].published, memory_order_acquire);
+        drops += atomic_load_explicit(&buffers[i].dropped, memory_order_acquire);
+    }
+    output = fopen(output_path, "wx");
+    if (!output) { perror("server trace export"); goto done; }
+    write_header();
+    size_t total = 0;
+    for (size_t i=0;i<registered;i++) {
+        for (size_t j=0;j<counts[i];j++) write_row(&buffers[i].rows[j]);
+        total += counts[i];
+    }
+    int failed = ferror(output);
+    if (fclose(output)) failed = 1;
+    output = NULL;
+    char *status_path;
+    if (asprintf(&status_path, "%s.status.json", output_path) < 0) abort();
+    char *status_temp;
+    if (asprintf(&status_temp, "%s.tmp", status_path) < 0) abort();
+    FILE *status = fopen(status_temp, "wx");
+    if (!status) { perror("server trace export status"); failed = 1; }
+    else {
+        fprintf(status, "{\"rows\":%zu,\"dropped\":%zu,\"threads\":%zu,\"capacity_per_thread\":%zu,\"loss_free\":%s,\"snapshot_only\":true}\n",
+                total, drops, registered, capacity, !failed && !drops ? "true" : "false");
+        int status_failed = ferror(status);
+        if (fclose(status)) status_failed = 1;
+        /* Publish completion atomically, without replacing an earlier capture. */
+        if (status_failed || link(status_temp, status_path)) failed = 1;
+        unlink(status_temp);
+    }
+    free(status_temp);
+    free(status_path);
+    dumped = true;
+    if (failed || drops) fprintf(stderr,"server trace capture failed: dropped=%zu io_error=%d\n",drops,failed);
+done:
+    pthread_mutex_unlock(&control_lock);
+}
+static void *dump_control(void *unused) {
+    (void)unused;
+    sigset_t set;
+    sigemptyset(&set); sigaddset(&set, SIGUSR2);
+    for (;;) {
+        int signo;
+        if (sigwait(&set, &signo)) abort();
+        if (atomic_load(&stopping)) break;
+        dump_records();
+    }
+    return NULL;
+}
+void server_trace_thread_init(void) {
+    if (!server_trace_enabled || local_buffer) return;
+    pthread_mutex_lock(&control_lock);
+    if (registered == TRACE_MAX_THREADS) abort();
+    struct trace_buffer *b = &buffers[registered++];
+    b->rows = calloc(capacity, sizeof(*b->rows));
+    if (!b->rows) abort();
+    /* Fault in every page on the startup path, before registering/activating. */
+    volatile unsigned char *bytes = (volatile unsigned char *)b->rows;
+    size_t size = capacity * sizeof(*b->rows);
+    for (size_t i=0;i<size;i+=4096) bytes[i] = 0;
+    bytes[size-1] = 0;
+    b->tid = (int)syscall(SYS_gettid);
+    local_buffer = b;
+    pthread_mutex_unlock(&control_lock);
+}
 static uint64_t overhead_ns;
 uint64_t server_trace_clock(void) {
     struct timespec t;
@@ -27,16 +123,33 @@ uint64_t server_trace_stamp(struct server_trace_row *row) {
 void server_trace_init(void) {
     const char *path = getenv("LAUBERHORN_SERVER_TRACE_CSV");
     if (!path || !*path) path = getenv("ADDER_SERVER_TRACE_CSV");
-    if (!path || !*path || output) return;
-    output = fopen(path, "w");
-    if (!output) { perror("server trace CSV"); return; }
-    setvbuf(output, NULL, _IOLBF, 0);
+    if (!path || !*path || output_path) return;
+    output_path = strdup(path);
+    if (!output_path) abort();
+    capacity = 16384;
+    const char *configured = getenv("LAUBERHORN_TRACE_CAPACITY");
+    if (configured) {
+        char *end; errno=0;
+        unsigned long n = strtoul(configured, &end, 10);
+        if (errno || !*configured || *end || !n || n>1000000) abort();
+        capacity=n;
+    }
+    /* Reserve the dump signal before creating workers; they inherit the mask.
+     * No signal handler or I/O on workers; allocation/locks are startup-only. */
+    sigset_t set;
+    sigemptyset(&set); sigaddset(&set, SIGUSR2);
+    if (pthread_sigmask(SIG_BLOCK, &set, NULL)) abort();
+    if (pthread_create(&dump_thread, NULL, dump_control, NULL)) abort();
+    dump_thread_started = true;
     overhead_ns = UINT64_MAX;
     for (int i = 0; i < 256; ++i) {
         uint64_t a = server_trace_clock(), b = server_trace_clock();
         if (b > a && b-a < overhead_ns) overhead_ns = b-a;
     }
     if (overhead_ns == UINT64_MAX) overhead_ns = 0;
+    server_trace_enabled = true;
+}
+static void write_header(void) {
     fputs("request_id,xid,worker_id,ok,request_bytes,response_bytes,", output);
 #define TRACE_HEADER(name) fputs("server_" #name "_ns,", output);
     SERVER_TRACE_TIMES(TRACE_HEADER)
@@ -46,12 +159,20 @@ void server_trace_init(void) {
           "server_defer_enqueue_ns,server_forward_submit_ns,server_forward_complete_ns,"
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
           "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns\n", output);
-    server_trace_enabled = true;
 }
 void server_trace_fini(void) {
+    /* Caller must have stopped all trace producers. Unsupported process exit
+     * still uses _exit and is NOT an export mechanism. */
+    if (!output_path) return;
     server_trace_enabled = false;
-    if (output) fclose(output);
-    output = NULL;
+    dump_records();
+    atomic_store(&stopping, true);
+    if (dump_thread_started) {
+        pthread_kill(dump_thread, SIGUSR2);
+        pthread_join(dump_thread, NULL);
+    }
+    for (size_t i=0;i<registered;i++) { free(buffers[i].rows); buffers[i].rows=NULL; }
+    free(output_path); output_path=NULL;
 }
 void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
     *r = (struct server_trace_row){.enabled=server_trace_enabled, .ok=true,
@@ -82,10 +203,19 @@ void server_trace_run_end(struct server_trace_row *r) {
 void server_trace_write(struct server_trace_row *r) {
     if (!r || !r->enabled) return;
     r->enabled = false; /* terminal event: never write this ownership twice */
+    struct trace_buffer *b = local_buffer;
+    if (!b) { atomic_fetch_add_explicit(&unregistered_drops,1,memory_order_relaxed); return; }
+    if (b->count == capacity) {
+        atomic_store_explicit(&b->dropped,++b->dropped_count,memory_order_release);
+        return;
+    }
+    b->rows[b->count] = *r;
+    atomic_store_explicit(&b->published,++b->count,memory_order_release);
+}
+static void write_row(const struct server_trace_row *r) {
     uint64_t elapsed = r->handler_exit_ns - r->handler_enter_ns;
-    if (r->handler_active_ns > elapsed) r->handler_active_ns = elapsed;
-    uint64_t wait = elapsed > r->handler_active_ns ? elapsed-r->handler_active_ns : 0;
-    flockfile(output);
+    uint64_t active = r->handler_active_ns < elapsed ? r->handler_active_ns : elapsed;
+    uint64_t wait = elapsed-active;
     /* Wire XID is unavailable in the opaque-context ABI: leave it empty. */
     fprintf(output, "%" PRIu64 ",,%d,%u,%u,%u,", r->request_id, r->worker_id,
             r->ok, r->request_bytes, r->response_bytes);
@@ -96,7 +226,6 @@ void server_trace_write(struct server_trace_row *r) {
             overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,
             r->tx_worker_id, r->kind, r->status, r->transport_status, r->rx_cpu_id, r->tx_cpu_id,
             r->defer_enqueue_ns, r->forward_submit_ns, r->forward_complete_ns,
-            r->handler_active_ns, wait, r->activation.tid, r->activation.index,
+            active, wait, r->activation.tid, r->activation.index,
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
-    funlockfile(output);
 }

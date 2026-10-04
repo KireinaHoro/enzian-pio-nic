@@ -28,6 +28,8 @@ struct server_trace_row {
 extern bool server_trace_enabled;
 extern __thread struct server_trace_row *server_trace_inline;
 void server_trace_init(void);
+/* Call once per worker before registration/activation; allocates and prefaults. */
+void server_trace_thread_init(void);
 void server_trace_fini(void);
 uint64_t server_trace_clock(void);
 uint64_t server_trace_stamp(struct server_trace_row *row);

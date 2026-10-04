@@ -278,9 +278,10 @@ int main(void) {
     /* Trace ownership survives deferred scheduling and forwarded completions.
      * Reusing the worker RX scratch must not overwrite either parent's row. */
     char path[] = "/tmp/lauberhorn-trace-XXXXXX";
-    int fd = mkstemp(path); assert(fd >= 0); close(fd);
+    int fd = mkstemp(path); assert(fd >= 0); close(fd); unlink(path);
     assert(!setenv("LAUBERHORN_SERVER_TRACE_CSV", path, 1));
     server_trace_init(); assert(server_trace_enabled);
+    server_trace_thread_init();
     for (mode = 0; mode < 3; ++mode) {
         server_activation = (struct server_activation_trace) {
             .tid=900, .worker=1, .index=7, .ioctl_exit_ns=100, .ready_ns=110
@@ -316,5 +317,8 @@ int main(void) {
         assert(strstr(line, ",900,7,1,100,110\n"));
     }
     assert(!fgets(line, sizeof(line), csv)); fclose(csv); unlink(path);
+    char status_path[sizeof(path)+32];
+    snprintf(status_path, sizeof(status_path), "%s.status.json", path);
+    unlink(status_path);
 
 }
