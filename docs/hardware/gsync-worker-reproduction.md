@@ -153,3 +153,10 @@ GHDL CDC test, ECI RTL/trace-map generation, `OncRpcSim -- -t rx-allcores`, and 
 `OncRpcSim -- -z rx-independent-progress` cases.
 These are simulation/elaboration results, not a new routed timing or board
 result. Logs are retained under `out/gsync-early-nack-validation/`.
+
+Pipeline 516230 (`4a3f29ca`) exposed a test-packaging error in job 2866815:
+`eci-toolkit-rx` received the Scala-only source bundle, so GHDL could not open
+the new VHDL input. The follow-up passes the two VHDL files directly as Nix
+inputs. A standalone `nix-build` of that check passed both the toolkit RX cases
+and the CDC case (using the local `<nixpkgs>` package set); CI will validate the
+repository-locked environment. No RTL change was needed for this correction.
