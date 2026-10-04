@@ -160,3 +160,47 @@ the new VHDL input. The follow-up passes the two VHDL files directly as Nix
 inputs. A standalone `nix-build` of that check passed both the toolkit RX cases
 and the CDC case (using the local `<nixpkgs>` package set); CI will validate the
 repository-locked environment. No RTL change was needed for this correction.
+
+
+## Pipeline 516232 board follow-up — October 5
+
+Pipeline **516232**, revision `6f5fa076adbad2002681d3051c7056522929b7a1`,
+passed all 13 test gates, prepare **2866838**, hardware **2866839** and report
+**2866840**. Exact CI bitstream, probes, trace map and deployment image were
+staged. WNS is **−0.102 ns**, with **893 failing setup endpoints**; timing remains
+open. The [evidence ledger](../../data/eci/board-evidence/gsync-516232-results-20261005.json)
+records hashes, job IDs, harness results and failure preservation.
+
+Reservations were rechecked: zuestoll14 (DUT) and zuestoll07 (client) belong to
+pengxu. All prior buffered-baseline capture windows were saved before reset.
+The repository harness ran two cold-boot trials with tracing armed before boot
+and through module load. Both passed on their first boot attempt, including
+QLM8..13 lock, CCPI lanes 0..23, exact deployment revision and driver verification.
+Both disabled RT bandwidth throttling. The cross-built Nix DPDK client used
+CPU6; no client compilation or Ubuntu runtime dependency was introduced.
+
+Trial 1 passed **100 measured + 16 warmup RPCs**. Trial 2 failed its first
+warmup request after **100 ms**, with one transmitted packet and none received.
+The harness stopped without another reset. The full **136,535,296-byte** trace
+was frozen and saved over F_MAC1, with matching local/remote SHA256, no wrap,
+no DMA error and no decoded loss. The DUT remains frozen in this failed state.
+
+The failed request was decoded and enqueued without a drop. At trace cycle
+36731389322, `SchedulerPreemptCore` selected datapath 1 / physical worker 0
+from idle for TGID 1651. An accepted interrupt-channel response follows eight
+cycles later; Linux reports exactly one idle-dispatch IRQ on CPU44. There is
+no `YieldAccepted`, `ActivationCommitted` or `ActivationDelivered` event and
+no worker RX descriptor. The dispatcher is asleep in `dispatch_thread`; the
+application thread TID1655 is waiting in `worker_yield`. The permanent neighbor
+and route are correct. All eight postfailure TAD INT/STAT/TIMEOUT values are
+zero, and the saved kernel log has no fault signatures. No paired pretraffic
+TAD snapshot was taken for these harness trials.
+
+This localizes the stall to idle activation after interrupt delivery, but does
+not establish the exact cause or a causal connection to GSYNC early release.
+Do not report two successful trials or early-NACK acceptance. Controlled GSYNC
+and new-image hot/cold measurements are blocked pending diagnosis; the
+[buffered 516112 baseline](../research/latency-measurement.md#buffered-hotcold-baseline--october-5)
+remains historical comparison data. No timing, address-layout or PREEMPT
+implementation change was made. Raw evidence is in `out/board/gsync-516232*`
+and `out/ci-followup/516232/`; the pipeline branch is retained.
