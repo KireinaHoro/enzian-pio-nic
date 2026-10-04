@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import time
 
 
 def packet(result, xid=1, port=9999):
@@ -36,6 +37,7 @@ def main():
     for name, codec, frames, expected, mode in [
         ('add', 'add', [packet(18)], 0, None),
         ('mul', 'mul', [packet(77)], 0, None),
+        ('start-barrier', 'add', [packet(18)], 0, None),
         ('wrong-result', 'add', [packet(19)], 1, None),
         ('stale-xid', 'add', [packet(18, 42)], 1, None),
         ('timeout', 'add', [], 1, None),
@@ -56,7 +58,24 @@ def main():
                '1', '0', '10000', codec, str(out.resolve())]
         if mode: cmd.append(mode)
         with (args.output / (name+'.log')).open('w') as log:
-            proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=30)
+            if name == 'start-barrier':
+                ready = (args.output/'barrier-ready').resolve()
+                start = (args.output/'barrier-start').resolve()
+                env = dict(os.environ, LH_BENCH_READY_FILE=str(ready), LH_BENCH_START_FILE=str(start))
+                proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
+                try:
+                    deadline = time.monotonic()+20
+                    while not ready.exists() and proc.poll() is None and time.monotonic()<deadline:
+                        time.sleep(.01)
+                    if not ready.exists() or proc.poll() is not None or (out.exists() and out.stat().st_size):
+                        raise RuntimeError('client failed to wait at start barrier')
+                    start.touch()
+                    proc.wait(timeout=30)
+                finally:
+                    if proc.poll() is None:
+                        proc.kill(); proc.wait()
+            else:
+                proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=30)
         rows = []
         if out.exists():
             with out.open() as f:

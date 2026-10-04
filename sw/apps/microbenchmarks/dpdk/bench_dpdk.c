@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -165,6 +166,22 @@ int main(int argc, char **argv) {
     unsigned completed=0;
     fprintf(stderr,"dpdk=%s driver=%s lcore=%u link_mbps=%u rx_desc=%u tx_desc=%u clock=CLOCK_MONOTONIC_RAW overhead_ns=%"PRIu64"\n",
         rte_version(),info.driver_name,rte_lcore_id(),link.link_speed,nrx,ntx,overhead);
+    /* Optional campaign barrier after NIC setup, outside every timed RPC. */
+    const char *ready_file=getenv("LH_BENCH_READY_FILE");
+    const char *start_file=getenv("LH_BENCH_START_FILE");
+    if (!!ready_file != !!start_file) rte_exit(1,"both campaign barrier paths required\n");
+    if (ready_file) {
+        if (!access(ready_file,F_OK) || !access(start_file,F_OK))
+            rte_exit(1,"stale campaign barrier file\n");
+        FILE *ready=fopen(ready_file,"wx");
+        if (!ready || fclose(ready)) rte_exit(1,"cannot publish campaign readiness\n");
+        uint64_t deadline=now()+300000000000ULL;
+        while (access(start_file,F_OK)) {
+            if (errno!=ENOENT || now()>=deadline)
+                rte_exit(1,"campaign start barrier failed or timed out\n");
+            rte_delay_us_sleep(10000);
+        }
+    }
     unsigned prepared=0;
     for(unsigned i=0;i<count+warmup;i++) {
         if(flush_every && i%flush_every==0) {
