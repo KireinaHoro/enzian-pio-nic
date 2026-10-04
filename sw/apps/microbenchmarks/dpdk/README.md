@@ -119,7 +119,9 @@ The stock `6.8.0-64-generic` image failed VFIO device open/info on this board.
 The observed return paths matched the upstream
 [PCI runtime-PM initialization regression](https://lore.kernel.org/all/20250611233117.61810-1-superm1@kernel.org/).
 Client-only Ubuntu `6.8.0-146-generic` fixed access; no PF reset or DUT kernel
-change was needed. Keep the original PXE entry when changing a client kernel.
+change was needed. Provision the client and select its kernel through `emg`;
+never edit PXE/GRUB configuration or iSCSI/TGT exports directly. Follow the
+[Enzian provisioning rules](../../../../docs/development/hardware-test.md#1-check-access-and-reserve).
 
 For lower jitter, isolate the chosen generator CPU (Linux CPU 6 in the recorded
 trial), not the DUT's worker IDs. The tested client kernel supports NO_HZ_FULL:

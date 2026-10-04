@@ -7,6 +7,14 @@ requires correct RPC replies through `lauberhorn0`, not just successful boot or
 
 ## 1. Check access and reserve
 
+Use `emg` exclusively for Enzian provisioning, including reservations, boot-image
+and kernel selection, kernel arguments, and root-volume setup. Never edit PXE/GRUB
+configuration or iSCSI/TGT exports directly, or manage their backing volumes by
+hand. This applies to both DUTs and traffic-generator/capture peers. If the needed
+operation is unclear, inspect the supported `emg` workflow rather than bypassing
+it. Continue to use the repository harness for BMC power sequencing, FPGA
+programming, boot validation and tests.
+
 Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
 `enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
 assume the previous reservation persists. For an unreserved zuestoll14, run on

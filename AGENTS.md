@@ -116,6 +116,11 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   barriers, preemption ordering or ownership. Local address arithmetic alone does
   not establish coherence progress or isolation.
 - After launching hardware CI, follow the [scheduled CI workflow](docs/development/ci.md#scheduled-hardware-build-follow-up): check tests/preparation and HW start after 30 minutes, then wait five hours before collecting results and testing on Enzian. Inspect failed gates; fix only trivial causes, otherwise report the diagnosis and stop. Keep pipeline refs until every job finishes.
+- Provision Enzian DUTs and traffic-generator/capture peers exclusively through
+  `emg`, including boot-image/kernel selection, kernel arguments and root volumes.
+  Never edit PXE/GRUB configuration or iSCSI/TGT exports directly, or manage their
+  backing volumes by hand. Use the repository harness for power sequencing,
+  FPGA programming, boot validation and tests.
 - Use `nix develop` and source-defined Mill targets. Choose targeted validation
   from the [validation guide](docs/development/validation.md); for real hardware use
   the [automated test routine](docs/development/hardware-test.md). Vivado and
