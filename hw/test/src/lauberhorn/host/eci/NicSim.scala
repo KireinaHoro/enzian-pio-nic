@@ -65,6 +65,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
 
   def commonDutSetup(rxBlockCycles: Int)(implicit dut: NicEngine) = {
     val eciIf = dut.host[EciInterfacePlugin].logic.get
+    dut.host[EciInterfacePlugin].hostIfCtrl.gsyncRelease #= false
     val csrMaster = AxiLite4Master(eciIf.s_axil_ctrl, dut.clockDomain)
     val dcsAppMaster = DcsAppMaster(eciIf.dcsEven, eciIf.dcsOdd, dut.clockDomain,
       readGetsExclusive = true)

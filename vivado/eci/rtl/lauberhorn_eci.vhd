@@ -750,6 +750,7 @@ signal trace_dump_txclk, trace_dump_rxclk : std_logic;
 signal trace_dump_txclk_reset, trace_dump_rxclk_reset : std_logic;
 
 signal app_clk, app_clk_reset : std_logic;
+signal gsync_release : std_logic;
 
 signal dcs_even_axi, dcs_odd_axi : DCS_AXI;
 
@@ -1037,6 +1038,16 @@ port map (
     m_axis_tdata    => intc_cmd_cdc,
     m_axis_tvalid   => intc_cmd_cdc_valid,
     m_axis_tready   => intc_cmd_cdc_ready
+);
+
+-- Observe both accepted request channels without changing GSDN backpressure.
+gsync_release_monitor : entity work.gsync_release_cdc
+port map (
+    sys_clk => clk, sys_reset => reset,
+    observed => (link_eci_packet_rx.c7_gsync.valid and link_eci_packet_rx.c7_gsync_ready)
+             or (link_eci_packet_rx.c6_gsync.valid and link_eci_packet_rx.c6_gsync_ready),
+    app_clk => app_clk, app_reset => app_clk_reset,
+    release_rx => gsync_release
 );
 
 -- GSYNC response handler, sends GSDN.
@@ -2245,6 +2256,7 @@ i_trace_dma : entity work.lauberhorn_trace_dma
 
 NicEngine_inst : entity work.NicEngine
   port map (
+    gsyncRelease => gsync_release,
     clk => app_clk,
     reset => app_clk_reset,
 

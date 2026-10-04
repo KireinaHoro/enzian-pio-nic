@@ -57,6 +57,9 @@ class EciInterfacePlugin extends FiberPlugin {
   )
 
   val hostIfCtrl = during setup new Area {
+    // Coalesced one-shot notification from the system-clock GSYNC monitor.
+    val gsyncRelease = in Bool()
+    gsyncRelease.setName("gsyncRelease")
     val rxBlockCycles = Reg(UInt(REG_WIDTH bits)) init 10000
   }
 

@@ -58,6 +58,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   /** Number of cycles to block for before returning NACK. */
   val blockCycles = in UInt(REG_WIDTH bits)
 
+  // One application-clock pulse: use the timeout path only while waiting for
+  // a descriptor. Do not retain the notification for a later RX request.
+  val gsyncRelease = in Bool()
+
   /** Pulse: the host just started a new request on a CL */
   val hostReq = out(Vec(Bool(), 2))
 
@@ -222,7 +226,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         // block up to blockCycles
         blockTimer.increment()
         rxDesc.ready := !yieldRequested && !fatalRelease
-        when (blockTimer >= blockCycles || rxDesc.valid || yieldRequested || fatalRelease) {
+        when (blockTimer >= blockCycles || rxDesc.valid || yieldRequested || fatalRelease || gsyncRelease) {
           // one of two outcomes:
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
