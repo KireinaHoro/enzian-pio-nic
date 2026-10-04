@@ -838,5 +838,29 @@
     "Gateway echo includes the gateway software responder; do not treat it as fixed network cost.",
     "Do not subtract calibration percentiles from RPC E2E; external residuals require request-paired CMAC trace durations.",
     "R12-to-RA3 TX improvement has not been measured by this campaign."
-  ]
+  ],
+  "reservation_closeout": {
+    "date": "2026-10-04",
+    "authorization": "Maintainer explicitly requested merge to master and release all zuestolls, including 12/14.",
+    "merge_commit": "f7150422",
+    "released": [
+      "zuestoll14",
+      "zuestoll10",
+      "zuestoll12",
+      "zuestoll07"
+    ],
+    "remaining_owned_reservations": 0,
+    "graceful_shutdown_accepted": [
+      "zuestoll07",
+      "zuestoll12",
+      "zuestoll14"
+    ],
+    "named_volume_preserved": true,
+    "export_cleanup_warning": "Named target 13 remained active; tgtadm refused target deletion. EMG removed export configuration and reservations.",
+    "generated_volumes_deleted": [
+      "pengxu-generated-4ff5952818",
+      "pengxu-generated-b78c7e9057"
+    ],
+    "final_listing": "out/benchmark-zs07/release-all-final.txt"
+  }
 }

@@ -58,15 +58,17 @@ That historical image had WNS −0.005 ns. Historical candidate 515944 has WNS
 −0.089 ns and 474 failing setup endpoints; timing remains open. The
 [layered verification report](docs/hardware/layered-verification.md) records
 DC/THX endpoint checks and remaining race/refinement gaps.
-DUT zuestoll14 and capture peer zuestoll12 are in the cooperative acceptance
-campaign. Consult `out/board/cooperative-515944-refine/summary.json` and the
+The maintainer ended the current reservations on October 4: zuestoll07/10/12/14
+were released and no machines remain acquired by pengxu. The DPDK benchmark
+merged into master; see the [client report](docs/development/dpdk-benchmark-results.md).
+Future acceptance requires fresh reservations and matched artifact staging. Consult `out/board/cooperative-515944-refine/summary.json` and the
 evidence ledger before access; do not assume a healthy service or reset a frozen
 failure. Recheck reservations. The isolation correction and simulation fixes
 passed 53 fast ECI tests (one existing ignored). Pipeline 516080 stopped before
 hardware on a reproduced testbench TX-call overlap; the
 [seed investigation](docs/development/simulation-seeds.md) records the fix and the
-shared RNG that made CI seeds insufficient. The DUT now runs corrected 516112;
-resume expanded acceptance with matched artifacts, never vulnerable 515944.
+shared RNG that made CI seeds insufficient. The last tested DUT image was corrected
+516112; resume expanded acceptance with matched artifacts, never vulnerable 515944.
 Retain documented hardware-service assumptions.
 
 ## Confirmed research and scheduling scope

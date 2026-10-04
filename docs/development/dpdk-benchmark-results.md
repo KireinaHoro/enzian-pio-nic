@@ -1,7 +1,7 @@
 # DPDK client validation — 2026-10-04
 
-The reusable generator and trace accounting audit are on
-`feat/dpdk-latency-benchmark`. Physical client validation passed on newly reserved
+The reusable generator and trace accounting audit merged into master at
+`f7150422`; the feature branch was removed. Physical client validation passed on newly reserved
 **zuestoll07**. No FPGA was programmed and no Lauberhorn driver was loaded on
 this client. zuestoll12/14 were not used for the campaign.
 
@@ -76,7 +76,7 @@ is not an isolated causal estimate of the effect of one kernel option.
 
 Unused generated-volume reservations **zuestoll03 and zuestoll04 were released**.
 03 had an attached console and 04's BMC console was unavailable; neither was
-repurposed. 07 is retained as the tested client.
+repurposed. 07 was retained through client validation, then released below.
 
 An accidental unused reservation of **zuestoll10** selected the same named root
 volume as 14. It was never booted or mounted by this campaign. Read-only backend
@@ -84,11 +84,23 @@ inspection confirmed both reservations reference the same target
 `iqn.2022-05.systems.enzian.zuestoll:pengxu-lauberhorn-linux-6.8`.
 Named LVs survive release, but release removes the shared export configuration
 and attempts to delete that target without checking other reservations.
-Automatic approval review blocked release. Admin cleanup must remove only 10's
-reservation/PXE entry while preserving 14's volume and export. No normal release
-or workaround was attempted after this finding.
+Automatic approval review initially blocked release while 14 had to remain
+reserved. The maintainer subsequently explicitly authorized releasing **all**
+zuestolls, including 12/14, superseding that preservation constraint.
 
-A usable separate DUT is still needed. Once available:
+After accepted graceful shutdown requests on 07/12/14 and their management
+interfaces stopped responding, normal EMG release removed reservations for
+**14, 10, 12 and 07**. A fresh listing confirmed **zero pengxu reservations**.
+Generated root volumes for 07/12 were deleted by EMG; the named
+`lauberhorn-linux-6.8` volume was retained. EMG removed its export configuration,
+but `tgtadm` reported the target was still active and refused target deletion
+on both releases. Reservation removal nevertheless completed. No named-volume
+deletion or reacquisition was performed to force export cleanup. Raw benchmark
+artifacts remain on shared scratch and in the local ignored output directory.
+
+Future measurements require new client and DUT reservations; the generated
+client root volume is no longer retained. Recreate it from the documented recipe.
+Once available:
 
 1. Acquire a **fresh generated root volume** and stage a complete matched image,
    bitstream, LTX and trace map; corrected 516112 is the documented current
@@ -98,7 +110,7 @@ A usable separate DUT is still needed. Once available:
    (`LAUBERHORN_SERVER_TRACE_CSV`, or the application's third argument). Keep
    tracing active through module load, then capture a bounded loss-free workload
    with one outstanding request and all warmup rows retained.
-3. Run the DPDK client on 07 with the DUT's exact IP/port/MAC. Freeze tracing,
+3. Run the DPDK client on the newly reserved client with the DUT's exact IP/port/MAC. Freeze tracing,
    restore the client's kernel VF, and collect F_MAC1 trace DDR using the
    [CMAC-first procedure](tracing.md#default-agent-capture-pipeline). Preserve
    artifacts and topology with every run.
