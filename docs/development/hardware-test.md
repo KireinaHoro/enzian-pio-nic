@@ -93,6 +93,14 @@ python3 tools/enzian/test.py /tmp/cases.json --logs /tmp/test-UNIQUE_RUN --repea
 cat /tmp/test-UNIQUE_RUN/summary.json
 ```
 
+`cpu load` disables Linux RT bandwidth throttling by setting
+`kernel.sched_rt_runtime_us=-1` and checking readback before loading the module.
+This prevents the default 950 ms-per-second budget from pausing the SCHED_FIFO
+workers for roughly 50 ms. The setting applies to the DUT for the current boot;
+it is reapplied by the routine after every cold reset and recorded in
+`summary.json` as `rt_bandwidth`. It does not change the matched deployment image
+or ordinary scheduler/worker synchronization locks.
+
 The manifest is a list of cases: `name`, full `revision`, CPU-visible `image`,
 programmer argv `program`, post-verification shell commands `cpu`, and
 shell command `client` (gateway by default). Set `client_machine` (for example `zuestoll12`) to

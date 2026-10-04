@@ -23,6 +23,14 @@ mount)
 ;;
 load)
     [[ $# == 1 ]] || exit 2
+    # Workers use SCHED_FIFO and may spend most of a second polling ECI.
+    # The default 950 ms RT budget introduces a 50 ms stall each second.
+    # Apply on every test boot; the matched deployment image stays unchanged.
+    previous_rt_runtime=$(cat /proc/sys/kernel/sched_rt_runtime_us)
+    printf '%s\n' -1 > /proc/sys/kernel/sched_rt_runtime_us
+    test "$(cat /proc/sys/kernel/sched_rt_runtime_us)" = -1
+    printf 'RT_BANDWIDTH previous_runtime_us=%s runtime_us=-1 period_us=%s\n' \
+        "$previous_rt_runtime" "$(cat /proc/sys/kernel/sched_rt_period_us)"
     "$LH/bin/lh-test" load
 ;;
 verify)
