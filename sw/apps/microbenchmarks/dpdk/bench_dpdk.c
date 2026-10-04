@@ -27,12 +27,58 @@ static unsigned number(const char *s, unsigned limit) {
 static void check(int rc, const char *what) {
     if(rc<0) rte_exit(1,"%s: %s\n",what,strerror(-rc));
 }
+/* Preparation traffic is outside the measured RPC. Preserve every reply and
+ * fail the run if eviction preparation times out; state is verified by traces. */
+struct flush_sample { uint64_t enter, exit; unsigned received; int ok; };
+static struct flush_sample flush_domain(uint16_t port, struct rte_mempool *pool,
+        struct endpoint src, struct endpoint dst, uint32_t first, uint64_t timeout) {
+    enum { WINDOW = 16 };
+    const struct benchmark *bench=benchmark_find("mul");
+    struct flush_sample result={.enter=now()};
+    uint32_t seen=0;
+    dst.port=12346;
+    for (unsigned k=0;k<WINDOW;k++) {
+        struct rte_mbuf *tx=rte_pktmbuf_alloc(pool);
+        if (!tx) rte_exit(1,"flush allocation failed\n");
+        uint8_t payload[64];
+        size_t n=bench->encode(payload,sizeof(payload),first+k);
+        uint8_t *p=(uint8_t *)rte_pktmbuf_append(tx,42+n);
+        if (!p) rte_exit(1,"flush append failed\n");
+        make_udp(p,&src,&dst,payload,n);
+        while (!rte_eth_tx_burst(port,0,&tx,1)) {
+            if (now()-result.enter>=timeout) { rte_pktmbuf_free(tx); goto done; }
+        }
+    }
+    while (result.received<WINDOW && now()-result.enter<timeout) {
+        struct rte_mbuf *rx[32];
+        uint16_t n=rte_eth_rx_burst(port,0,rx,WINDOW-result.received);
+        int invalid=0;
+        for (uint16_t k=0;k<n;k++) {
+            uint8_t scratch[2048];
+            size_t length=rte_pktmbuf_pkt_len(rx[k]);
+            const uint8_t *data=length<=sizeof(scratch)?rte_pktmbuf_read(rx[k],0,length,scratch):NULL;
+            const uint8_t *reply=NULL; size_t size=0;
+            if (data && parse_udp(data,length,&src,&dst,&reply,&size)==1 && size>=4) {
+                uint32_t id=get32(reply), offset=id-first;
+                if (offset<WINDOW && !(seen&(1u<<offset)) && bench->validate(reply,size,id)==1) {
+                    seen |= 1u<<offset; result.received++;
+                } else invalid=1;
+            } else invalid=1;
+            rte_pktmbuf_free(rx[k]);
+        }
+        if (invalid) goto done;
+    }
+    result.ok=result.received==WINDOW;
+done:
+    result.exit=now();
+    return result;
+}
 int main(int argc, char **argv) {
     int consumed=rte_eal_init(argc,argv);
     if(consumed<0) return 1;
     argc-=consumed; argv+=consumed;
     if(argc!=10 && argc!=11) rte_exit(1,
-        "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback]\n"
+        "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback|flush:N]\n"
         "Use exactly one EAL lcore and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
     if(rte_lcore_count()!=1 || rte_eth_dev_count_avail()!=1)
         rte_exit(1,"require exactly one lcore and one port\n");
@@ -57,7 +103,14 @@ int main(int argc, char **argv) {
     struct rte_eth_dev_info info;
     check(rte_eth_dev_info_get(port,&info),"device info");
     struct rte_eth_conf config={0};
-    if(argc==11) {
+    unsigned flush_every=0;
+    if(argc==11 && !strncmp(argv[10],"flush:",6)) {
+        flush_every=number(argv[10]+6,10000000);
+        if(strcmp(bench->name,"add")) rte_exit(1,"flush mode requires add\n");
+    }
+    struct flush_sample *flushes=flush_every?calloc(count+warmup,sizeof(*flushes)):NULL;
+    if(flush_every && !flushes) rte_exit(1,"flush result allocation failed\n");
+    if(argc==11 && !flush_every) {
         if(strcmp(argv[10],"loopback") || strcmp(bench->name,"echo") ||
            memcmp(src.ip,dst.ip,4) || src.port!=dst.port)
             rte_exit(1,"loopback requires echo with identical IP/port endpoints\n");
@@ -95,7 +148,12 @@ int main(int argc, char **argv) {
     unsigned completed=0;
     fprintf(stderr,"dpdk=%s driver=%s lcore=%u link_mbps=%u rx_desc=%u tx_desc=%u clock=CLOCK_MONOTONIC_RAW overhead_ns=%"PRIu64"\n",
         rte_version(),info.driver_name,rte_lcore_id(),link.link_speed,nrx,ntx,overhead);
+    unsigned prepared=0;
     for(unsigned i=0;i<count+warmup;i++) {
+        if(flush_every && i%flush_every==0) {
+            flushes[prepared]=flush_domain(port,pool,src,dst,0x80000000u+prepared*16,timeout_ns);
+            if(!flushes[prepared++].ok) { failed++; break; }
+        }
         struct rte_mbuf *tx=rte_pktmbuf_alloc(pool);
         if(!tx) rte_exit(1,"TX allocation failed\n");
         uint8_t payload[1472];
@@ -140,6 +198,20 @@ int main(int argc, char **argv) {
             s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup);
     }
     int io_error=ferror(csv); if(fclose(csv)) io_error=1;
+    if(flush_every) {
+        size_t size=strlen(argv[9])+32;
+        char *path=malloc(size);
+        if(!path) rte_exit(1,"flush output allocation failed\n");
+        snprintf(path,size,"%s.flush.csv",argv[9]);
+        FILE *f=fopen(path,"wx");
+        if(!f) rte_exit(1,"cannot create flush evidence\n");
+        fprintf(f,"first_request_id,enter_ns,exit_ns,expected,received,ok\n");
+        for(unsigned i=0;i<prepared;i++) fprintf(f,"%u,%"PRIu64",%"PRIu64",16,%u,%d\n",
+            0x80000000u+i*16,flushes[i].enter,flushes[i].exit,flushes[i].received,flushes[i].ok);
+        if(ferror(f)) io_error=1;
+        if(fclose(f)) io_error=1;
+        free(path); free(flushes);
+    }
     struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"stats");
     fprintf(stderr,"completed=%u warmup=%u failures=%"PRIu64" unrelated=%"PRIu64" ipackets=%"PRIu64" opackets=%"PRIu64" imissed=%"PRIu64" ierrors=%"PRIu64" oerrors=%"PRIu64"\n",
         completed,warmup,failed,unrelated,stats.ipackets,stats.opackets,stats.imissed,stats.ierrors,stats.oerrors);

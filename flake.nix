@@ -78,6 +78,10 @@
               ciEnvironment
               ciDependencies
               ;
+            trafficGeneratorDeployFs = (import ./nix/images/traffic-generator.nix {
+              inherit pkgs;
+              identity = { revision = self.rev or "dirty"; };
+            }).image;
             trafficGenerator = pkgs.pkgsCross.aarch64-multiplatform.callPackage
               ./sw/apps/microbenchmarks/dpdk/package.nix {
                 dpdk = pkgs.pkgsCross.aarch64-multiplatform.callPackage

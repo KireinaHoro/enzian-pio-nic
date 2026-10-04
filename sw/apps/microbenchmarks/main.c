@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
+#include <time.h>
 
 #include "lauberhorn.h"
 #include "lauberhorn/oncrpc.h"
@@ -27,6 +28,12 @@ struct bench_def {
 
 // Handlers execute on multiple worker threads.
 thread_local bench_resp resp;
+static unsigned flush_spin_us;
+static uint64_t raw_ns(void) {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &t);
+  return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+}
 
 static int compute_add(int a, int b) { return a + b; }
 
@@ -81,6 +88,10 @@ static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
   (void)context;
   lauberhorn_trace_request_id(bench_request_id(req));
 
+  if (flush_spin_us) {
+    uint64_t end = raw_ns() + (uint64_t)flush_spin_us * 1000;
+    while (raw_ns() < end) { }
+  }
   resp.request_id = call->request_id;
   resp.result = def->compute(call->a, call->b);
 
@@ -143,6 +154,14 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  const char *spin = getenv("LH_BENCH_FLUSH_SPIN_US");
+  if (spin && *spin) {
+    flush_spin_us = parse_positive_int(spin, "LH_BENCH_FLUSH_SPIN_US");
+    if (strcmp(def->name, "mul") || flush_spin_us > 10000) {
+      fprintf(stderr, "flush spin requires mul and at most 10000 us\n");
+      return EXIT_FAILURE;
+    }
+  }
   if (argc >= 3)
     workers_count = parse_positive_int(argv[2], "workers");
 

@@ -13,9 +13,9 @@ import struct
 import subprocess
 
 
-def packet(result, xid=1):
-    rpc = struct.pack('!8I', xid, 1, 0, 0, 0, 0, 1, result)
-    udp = struct.pack('!4H', 9999, 49152, 8 + len(rpc), 0) + rpc
+def packet(result, xid=1, port=9999):
+    rpc = struct.pack('!8I', xid, 1, 0, 0, 0, 0, xid, result)
+    udp = struct.pack('!4H', port, 49152, 8 + len(rpc), 0) + rpc
     ip = bytearray(struct.pack('!BBHHHBBH4s4s', 0x45, 0, 20+len(udp), 0,
                               0x4000, 64, 17, 0, bytes([192,0,2,2]), bytes([192,0,2,1])))
     total = sum(struct.unpack('!10H', ip))
@@ -33,12 +33,15 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     results = []
     core = min(os.sched_getaffinity(0))
-    for name, codec, frames, expected in [
-        ('add', 'add', [packet(18)], 0),
-        ('mul', 'mul', [packet(77)], 0),
-        ('wrong-result', 'add', [packet(19)], 1),
-        ('stale-xid', 'add', [packet(18, 42)], 1),
-        ('timeout', 'add', [], 1),
+    for name, codec, frames, expected, mode in [
+        ('add', 'add', [packet(18)], 0, None),
+        ('mul', 'mul', [packet(77)], 0, None),
+        ('wrong-result', 'add', [packet(19)], 1, None),
+        ('stale-xid', 'add', [packet(18, 42)], 1, None),
+        ('timeout', 'add', [], 1, None),
+        ('flush-add', 'add', [packet(77,0x80000000+i,12346) for i in range(16)]+[packet(18)], 0, 'flush:1'),
+        ('flush-duplicate', 'add', [packet(77,0x80000000,12346)]*16, 1, 'flush:1'),
+        ('flush-timeout', 'add', [], 1, 'flush:1'),
     ]:
         rx, tx, out = [args.output / (name+suffix) for suffix in ('.rx.pcap', '.tx.pcap', '.csv')]
         with rx.open('wb') as f:
@@ -50,13 +53,21 @@ def main():
                '--vdev', f'net_pcap0,rx_pcap={rx.resolve()},tx_pcap={tx.resolve()}', '--',
                '192.0.2.1', '192.0.2.2', '02:00:00:00:00:02', '9999',
                '1', '0', '10000', codec, str(out.resolve())]
+        if mode: cmd.append(mode)
         with (args.output / (name+'.log')).open('w') as log:
             proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=30)
         rows = []
         if out.exists():
             with out.open() as f:
                 rows = list(csv.DictReader(f))
-        passed = proc.returncode == expected and len(rows) == 1 and int(rows[0]['ok']) == (expected == 0)
+        expected_rows = 0 if mode and expected else 1
+        passed = proc.returncode == expected and len(rows) == expected_rows
+        if rows: passed = passed and int(rows[0]['ok']) == (expected == 0)
+        if mode:
+            with Path(str(out)+'.flush.csv').open() as f:
+                preparation = list(csv.DictReader(f))
+            passed = passed and len(preparation)==1 and int(preparation[0]['ok'])==(expected==0)
+            if expected==0: passed = passed and int(preparation[0]['received'])==16
         if passed and expected == 0:
             stamps = [int(rows[0][key]) for key in (
                 'client_call_enter_ns', 'client_tx_ready_ns', 'client_tx_submit_ns',
