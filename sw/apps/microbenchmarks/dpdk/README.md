@@ -182,3 +182,9 @@ Preparation is outside the timed roundtrip and is recorded in
 a preparation mechanism, not proof of eviction: require kernel/runtime and
 hardware activation evidence for every cold sample. Hardware core selection is
 not forced by this mode; report actual core attribution and sample counts.
+
+For synchronized capture, set both `LH_BENCH_READY_FILE` and
+`LH_BENCH_START_FILE` to unique shared paths. After NIC initialization and clock
+calibration the client creates READY exclusively, then waits up to 300 seconds
+for START. Arm tracing after READY and create START to release the workload.
+Existing markers are rejected; no filesystem checks occur inside timed RPCs.
