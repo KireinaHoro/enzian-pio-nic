@@ -1,0 +1,163 @@
+{
+  "software_revision": "af0f64fe07fa3e2ef6bbfd619423d4bda027b615",
+  "hardware_pipeline": 516232,
+  "hardware_sha": "6f5fa076adbad2002681d3051c7056522929b7a1",
+  "module": "/nix/store/nvknwbbrmh5812wsfd2c511dwms558k1-lauberhorn-kmod-aarch64-unknown-linux-gnu",
+  "module_sha256": "dbb3fbf3590d0cc809742cb0a679722b94bed809ed211e8acf8756ca7711c3d5",
+  "image_sha256": "85e3b5e3197e5e2d7af6cb5e26dcd21bf8572a43986c7e441ca1addfd12a2586",
+  "headers": "out/cold-activation/header-provenance.json",
+  "build_checks": [
+    "native worker register test with UBSan",
+    "target vermagic check",
+    "target exact .data..percpu section; reject orphan subsections"
+  ],
+  "negative_check": "out/percpu-fix-516232/guard-test.json",
+  "hardware_changes": false,
+  "jobs": {
+    "prepare": 2866838,
+    "hardware": 2866839,
+    "report": 2866840
+  },
+  "acceptance": {
+    "repeats": 2,
+    "measured_rpcs": 200,
+    "warmup_rpcs": 32,
+    "all_passed": true,
+    "summary": "out/board/percpu-fixed-516232/summary.json"
+  },
+  "gsync": {
+    "probe_cpu": 46,
+    "probe_core": 3,
+    "loss": 0,
+    "loss_during_probe": 0,
+    "services": 240,
+    "client_rows": 240,
+    "mprotect_gsyncs": 160,
+    "peer_counts": {
+      "2": 89,
+      "1": 18,
+      "0": 53
+    },
+    "gsync_to_peer_nack_us": {
+      "min": 0.01,
+      "median": 0.01,
+      "max": 0.035
+    },
+    "peer_cores": {
+      "1": 89,
+      "2": 107
+    },
+    "hold50ms-a": {
+      "mprotect": {
+        "operation_ns": {
+          "min_us": 18.29,
+          "median_us": 18.455,
+          "max_us": 56.19
+        },
+        "restore_ns": {
+          "min_us": 17.85,
+          "median_us": 17.94,
+          "max_us": 30.16
+        },
+        "e2e_ns": {
+          "min_us": 143.951,
+          "median_us": 146.1965,
+          "max_us": 199.862
+        }
+      },
+      "peer_hold_max_us": 9762.5,
+      "peer_hold_median_us": 3315.9075
+    },
+    "hold10ms": {
+      "mprotect": {
+        "operation_ns": {
+          "min_us": 18.16,
+          "median_us": 18.34,
+          "max_us": 21.41
+        },
+        "restore_ns": {
+          "min_us": 17.86,
+          "median_us": 17.925,
+          "max_us": 19.48
+        },
+        "e2e_ns": {
+          "min_us": 143.171,
+          "median_us": 145.471,
+          "max_us": 174.541
+        }
+      },
+      "peer_hold_max_us": 9767.725,
+      "peer_hold_median_us": 233.0125
+    },
+    "hold1ms": {
+      "mprotect": {
+        "operation_ns": {
+          "min_us": 18.25,
+          "median_us": 18.655,
+          "max_us": 20.98
+        },
+        "restore_ns": {
+          "min_us": 17.85,
+          "median_us": 17.935,
+          "max_us": 18.14
+        },
+        "e2e_ns": {
+          "min_us": 143.811,
+          "median_us": 146.391,
+          "max_us": 183.281
+        }
+      },
+      "peer_hold_max_us": 1000.02,
+      "peer_hold_median_us": 1000.015
+    },
+    "hold50ms-b": {
+      "mprotect": {
+        "operation_ns": {
+          "min_us": 18.21,
+          "median_us": 18.365,
+          "max_us": 21.11
+        },
+        "restore_ns": {
+          "min_us": 17.84,
+          "median_us": 17.925,
+          "max_us": 18.75
+        },
+        "e2e_ns": {
+          "min_us": 144.091,
+          "median_us": 146.681,
+          "max_us": 175.881
+        }
+      },
+      "peer_hold_max_us": 9760.51,
+      "peer_hold_median_us": 15.192499999999999
+    },
+    "probe_ppvid": 46,
+    "capture": {
+      "bytes": 864557952,
+      "sha256": "cb69ae762e03990325c1c4bd25554e87baa643ffb5c544cf956e8ea6aaf94633",
+      "vio": {
+        "trace_write_slot_1": 13508718,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "before_freeze": {
+        "trace_write_slot_1": 13508668,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 0,
+        "trace_dma_error_1": 0
+      },
+      "full_unwrapped_buffer": true
+    },
+    "health_passed": true,
+    "all_240_rpc_replies_correct": true
+  },
+  "limitations": [
+    "Probe ran on Linux CPU46 / physical worker2 / NIC datapath3. Only peer datapaths1 and2 have overlapping stalled RX observations; this run does not establish three simultaneous stalled peers.",
+    "All 160 mprotect GSYNCs have PPVID46; 107 overlap one or two complete observed peer holds, 53 do not.",
+    "Trace-adjusted GSYNC-to-peer-NACK is 10\u201335 ns for the observed overlaps, not CPU global-retirement time.",
+    "Normal 1 ms peer holds still occur after early releases. Longer 50 ms settings encounter other GSYNCs and are not a clean full-timeout nonstickiness check.",
+    "No new FPGA build; timing remains open at WNS -0.102 ns / 893 failing setup endpoints.",
+    "Socket-client probe latency is not DPDK benchmark latency."
+  ]
+}
