@@ -1,0 +1,558 @@
+{
+  "inputs": {
+    "runtime": {
+      "path": "/nix/store/2j5l25p9qia48ij3hfla5443c0mfjlr3-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1/lib/liblauberhorn.so",
+      "sha256": "d4cd4ed56a9f87d63fe98bbc7d45391917ecf994fd9075440d3a157729c6a7a7"
+    },
+    "app": {
+      "path": "out/static-hot-count/bin/microbenchmarks",
+      "sha256": "9a74fff63fc6229f1533c68f6c1200726131b9e7695ab56ab1a8d0ff65914fec"
+    },
+    "tirpc": {
+      "path": "/nix/store/191657kpgbibfks4rgw35fgy16k4d3w7-libtirpc-aarch64-unknown-linux-gnu-1.3.7/lib/libtirpc.so.3.0.0",
+      "sha256": "77b30e1aef925f2d373cfae8d0f8bf016f8a24c346b3deca5a45ca3c05cebaab"
+    },
+    "libc": {
+      "path": "/nix/store/s9d9h9hr9b19rjynvxh4klcljlaf2b5h-glibc-aarch64-unknown-linux-gnu-2.42-84/lib/libc.so.6",
+      "sha256": "c54edc70428274a5bb47b3113171ff43930ba801480f14cdf80e8c10411a4f1b"
+    },
+    "loader": {
+      "path": "/nix/store/s9d9h9hr9b19rjynvxh4klcljlaf2b5h-glibc-aarch64-unknown-linux-gnu-2.42-84/lib/ld-linux-aarch64.so.1",
+      "sha256": "ed4efdea3c76c2ef512eaceb49a5ef74a9fbacdb9cbdbd5ba2c5d966e3b31ce6"
+    },
+    "vdso": {
+      "path": "out/static-hot-count/bin/vdso.so",
+      "sha256": "43e2c3ebe33e74238464f05bb4cb475de62c8f05f2c93c2a1f7b4b435d265497"
+    }
+  },
+  "root": "iteration",
+  "nodes": {
+    "iteration": {
+      "image": "runtime",
+      "ranges": [
+        "86a8-86ec",
+        "8704-877c"
+      ],
+      "calls": {
+        "86bc": "clock_mono"
+      },
+      "stage": "loop and dispatch"
+    },
+    "fiber_sched_run_ready": {
+      "image": "runtime",
+      "ranges": [
+        "9158-9194",
+        "9324-934c"
+      ],
+      "calls": {
+        "9184": "tls",
+        "9330": "tls",
+        "934c": "execution_flush"
+      }
+    },
+    "fiber_queue_pop": {
+      "image": "runtime",
+      "ranges": [
+        "8dc8-8ddc",
+        "8e40-8e60"
+      ],
+      "calls": {}
+    },
+    "fiber_queue_is_empty": {
+      "image": "runtime",
+      "ranges": [
+        "8da0-8dc0"
+      ],
+      "calls": {}
+    },
+    "execution_flush": {
+      "image": "runtime",
+      "ranges": [
+        "83b0-83c4",
+        "83d4-83f8"
+      ],
+      "calls": {}
+    },
+    "worker_get_current": {
+      "image": "runtime",
+      "ranges": [
+        "8380-83a8"
+      ],
+      "calls": {
+        "8394": "tls"
+      }
+    },
+    "server_trace_rx_begin": {
+      "image": "runtime",
+      "ranges": [
+        "7bb0-7c74"
+      ],
+      "calls": {
+        "7be4": "tls"
+      },
+      "stage": "trace probes and recording"
+    },
+    "core_eci_rx_traced": {
+      "image": "runtime",
+      "ranges": [
+        "80f8-81a4",
+        "81f0-8200",
+        "8328-8338",
+        "822c-8254",
+        "81ac-81e8"
+      ],
+      "calls": {
+        "8160": "server_trace_clock"
+      },
+      "stage": "RX transport"
+    },
+    "rpc_handle_packet": {
+      "image": "runtime",
+      "ranges": [
+        "69e0-6a08",
+        "6b20-6b40"
+      ],
+      "calls": {},
+      "stage": "runtime dispatch"
+    },
+    "rpc_handle_call": {
+      "image": "runtime",
+      "ranges": [
+        "65b0-6778",
+        "67d0-67ec",
+        "677c-67cc"
+      ],
+      "calls": {
+        "6600": "memset288",
+        "66ec": "tls",
+        "6728": "bench_handler",
+        "67e8": "xdr_free_func"
+      },
+      "stage": "runtime dispatch"
+    },
+    "decode": {
+      "image": "runtime",
+      "ranges": [
+        "5838-587c",
+        "58d0-58ec",
+        "58a0-58cc"
+      ],
+      "calls": {
+        "5868": "xdr_alloc_func",
+        "58e4": "xdr_unmarshal_call"
+      },
+      "stage": "decode and allocation"
+    },
+    "xdr_alloc_func": {
+      "image": "runtime",
+      "ranges": [
+        "50b8-50c0",
+        "50f8-5104"
+      ],
+      "calls": {}
+    },
+    "calloc": {
+      "image": "libc",
+      "ranges": [
+        "a69a0-a69f8",
+        "a6b20-a6b80",
+        "a6bbc-a6be4"
+      ],
+      "calls": {}
+    },
+    "xdr_unmarshal_call": {
+      "image": "runtime",
+      "ranges": [
+        "4f00-4f94"
+      ],
+      "calls": {
+        "4f4c": "call_decode"
+      }
+    },
+    "xdrmem_create": {
+      "image": "tirpc",
+      "ranges": [
+        "20080-200c4"
+      ],
+      "calls": {}
+    },
+    "call_decode": {
+      "image": "app",
+      "ranges": [
+        "1878-1890",
+        "18a0-18cc"
+      ],
+      "calls": {
+        "188c": "uint_decode",
+        "18a8": "int_decode",
+        "18b8": "int_decode"
+      }
+    },
+    "call_free": {
+      "image": "app",
+      "ranges": [
+        "1878-1890",
+        "18a0-18cc"
+      ],
+      "calls": {
+        "188c": "uint_free",
+        "18a8": "int_free",
+        "18b8": "int_free"
+      }
+    },
+    "resp_encode": {
+      "image": "app",
+      "ranges": [
+        "18d0-1908"
+      ],
+      "calls": {
+        "18e4": "uint_encode",
+        "18f4": "int_encode"
+      }
+    },
+    "int_decode": {
+      "image": "tirpc",
+      "ranges": [
+        "1d580-1d5ac",
+        "1d614-1d638",
+        "1d5d4-1d610"
+      ],
+      "calls": {
+        "1d624": "xdrmem_getlong_aligned"
+      }
+    },
+    "int_free": {
+      "image": "tirpc",
+      "ranges": [
+        "1d580-1d5b4",
+        "1d634-1d638",
+        "1d5d4-1d610"
+      ],
+      "calls": {}
+    },
+    "int_encode": {
+      "image": "tirpc",
+      "ranges": [
+        "1d580-1d610"
+      ],
+      "calls": {
+        "1d5d0": "xdrmem_putlong_aligned"
+      }
+    },
+    "uint_decode": {
+      "image": "tirpc",
+      "ranges": [
+        "1d648-1d674",
+        "1d6dc-1d700",
+        "1d69c-1d6d8"
+      ],
+      "calls": {
+        "1d6ec": "xdrmem_getlong_aligned"
+      }
+    },
+    "uint_free": {
+      "image": "tirpc",
+      "ranges": [
+        "1d648-1d67c",
+        "1d6fc-1d700",
+        "1d69c-1d6d8"
+      ],
+      "calls": {}
+    },
+    "uint_encode": {
+      "image": "tirpc",
+      "ranges": [
+        "1d648-1d6d8"
+      ],
+      "calls": {
+        "1d698": "xdrmem_putlong_aligned"
+      }
+    },
+    "xdrmem_getlong_aligned": {
+      "image": "tirpc",
+      "ranges": [
+        "1ff60-1ffa4"
+      ],
+      "calls": {}
+    },
+    "xdrmem_putlong_aligned": {
+      "image": "tirpc",
+      "ranges": [
+        "1ff08-1ff48"
+      ],
+      "calls": {}
+    },
+    "xdrmem_getpos": {
+      "image": "tirpc",
+      "ranges": [
+        "1fd10-1fd28"
+      ],
+      "calls": {}
+    },
+    "bench_handler": {
+      "image": "app",
+      "ranges": [
+        "1788-1818"
+      ],
+      "calls": {
+        "17d8": "compute_add",
+        "17ec": "add_check"
+      },
+      "stage": "handler"
+    },
+    "compute_add": {
+      "image": "app",
+      "ranges": [
+        "1628-1638"
+      ],
+      "calls": {}
+    },
+    "add_check": {
+      "image": "app",
+      "ranges": [
+        "1658-166c",
+        "1680-169c"
+      ],
+      "calls": {}
+    },
+    "lauberhorn_trace_request_id": {
+      "image": "runtime",
+      "ranges": [
+        "7c78-7cb8",
+        "7cf8-7d0c",
+        "7cc0-7cf0"
+      ],
+      "calls": {
+        "7c90": "tls",
+        "7cac": "tls",
+        "7d04": "tls"
+      },
+      "stage": "trace probes and recording"
+    },
+    "lauberhorn_trace_result": {
+      "image": "runtime",
+      "ranges": [
+        "7d10-7d50",
+        "7d90-7da4",
+        "7d58-7d88"
+      ],
+      "calls": {
+        "7d28": "tls",
+        "7d44": "tls",
+        "7d9c": "tls"
+      },
+      "stage": "trace probes and recording"
+    },
+    "consume_outcome": {
+      "image": "runtime",
+      "ranges": [
+        "6208-6268",
+        "6370-63dc",
+        "6290-6294",
+        "62a0-62f4"
+      ],
+      "calls": {
+        "63a4": "xdr_marshal_resp"
+      },
+      "stage": "runtime dispatch"
+    },
+    "xdr_marshal_resp": {
+      "image": "runtime",
+      "ranges": [
+        "4e48-4eec"
+      ],
+      "calls": {
+        "4e94": "resp_encode",
+        "4ea8": "xdrmem_getpos"
+      },
+      "stage": "encode"
+    },
+    "send_reply": {
+      "image": "runtime",
+      "ranges": [
+        "5db0-5e08",
+        "5e1c-5e34",
+        "5f28-5f30",
+        "5e38-5eec"
+      ],
+      "calls": {},
+      "stage": "TX wrapper"
+    },
+    "core_eci_tx": {
+      "image": "runtime",
+      "ranges": [
+        "5a70-5ad4",
+        "5bb0-5c1c",
+        "5af4",
+        "5b2c-5b7c"
+      ],
+      "calls": {
+        "5c08": "memcpy8"
+      },
+      "stage": "TX transport"
+    },
+    "memcpy8": {
+      "image": "libc",
+      "ranges": [
+        "b1800-b1820",
+        "b1838-b184c"
+      ],
+      "calls": {}
+    },
+    "memset288": {
+      "image": "libc",
+      "ranges": [
+        "b2240-b2258",
+        "b22c0-b22c8",
+        "b22e0-b22fc",
+        "b2338-b233c",
+        "b2340-b2350",
+        "b2340-b2350",
+        "b2340-b2350",
+        "b2340-b235c"
+      ],
+      "calls": {}
+    },
+    "server_trace_stamp": {
+      "image": "runtime",
+      "ranges": [
+        "7898-78a8",
+        "78c8-78d8"
+      ],
+      "calls": {},
+      "stage": "trace probes and recording"
+    },
+    "server_trace_clock": {
+      "image": "runtime",
+      "ranges": [
+        "7818-7890"
+      ],
+      "calls": {
+        "7844": "clock_raw"
+      },
+      "stage": "trace probes and recording"
+    },
+    "server_trace_write": {
+      "image": "runtime",
+      "ranges": [
+        "7e88-7f84"
+      ],
+      "calls": {
+        "7eac": "tls"
+      },
+      "stage": "trace probes and recording"
+    },
+    "sched_getcpu": {
+      "image": "libc",
+      "ranges": [
+        "f14c0-f1538"
+      ],
+      "calls": {},
+      "stage": "trace probes and recording"
+    },
+    "xdr_free_func": {
+      "image": "runtime",
+      "ranges": [
+        "5040-504c",
+        "5098-50b0"
+      ],
+      "calls": {},
+      "stage": "cleanup"
+    },
+    "xdr_free": {
+      "image": "tirpc",
+      "ranges": [
+        "1d4e0-1d550"
+      ],
+      "calls": {
+        "1d510": "call_free"
+      }
+    },
+    "free": {
+      "image": "libc",
+      "ranges": [
+        "a5ea0-a5f70"
+      ],
+      "calls": {}
+    },
+    "clock_mono": {
+      "image": "libc",
+      "ranges": [
+        "ce5c0-ce5f8"
+      ],
+      "calls": {
+        "ce5d8": "vdso_mono"
+      }
+    },
+    "clock_raw": {
+      "image": "libc",
+      "ranges": [
+        "ce5c0-ce5f8"
+      ],
+      "calls": {
+        "ce5d8": "vdso_raw"
+      }
+    },
+    "vdso_mono": {
+      "image": "vdso",
+      "ranges": [
+        "7d0-7f4"
+      ],
+      "calls": {
+        "7dc": "vdso_mono_impl"
+      }
+    },
+    "vdso_raw": {
+      "image": "vdso",
+      "ranges": [
+        "7d0-7f4"
+      ],
+      "calls": {
+        "7dc": "vdso_raw_impl"
+      }
+    },
+    "vdso_mono_impl": {
+      "image": "vdso",
+      "ranges": [
+        "4d0-558",
+        "57c-5b8"
+      ],
+      "calls": {}
+    },
+    "vdso_raw_impl": {
+      "image": "vdso",
+      "ranges": [
+        "4d0-4ec",
+        "614-628",
+        "4f0-558",
+        "57c-5b8"
+      ],
+      "calls": {}
+    },
+    "tls": {
+      "image": "loader",
+      "ranges": [
+        "14e30-14e38"
+      ],
+      "calls": {}
+    }
+  },
+  "terminal_edges": {
+    "iteration:877c": "86a8"
+  },
+  "aliases": {
+    "clock_gettime": "clock_raw",
+    "memset": "memset288",
+    "memcpy": "memcpy8"
+  },
+  "scope": "One successful steady-state inline add RPC, 12-byte arguments / 8-byte reply, pre-PMU baseline 7bc9302b; selected fast paths, not an observed retired-instruction count.",
+  "assumptions": [
+    "Tracing enabled with available preallocated row",
+    "Valid inline ONCRPC call, successful scalar XDR, synchronous REPLY, accepted TX, no PREEMPT",
+    "Watchdog disabled; ready-fiber queue empty; timeout sweep not due",
+    "Warm PLT and static TLSDESC; 12-byte calloc tcache hit and matching free",
+    "Aligned XDR buffers; memcpy8; zero memset288 with destination mod16=8 and four loop iterations",
+    "rseq CPU lookup; vDSO system counter, no seqlock retry or nanosecond normalization carry",
+    "No interrupts, faults, signals, cold allocator initialization or kernel scheduling included"
+  ]
+}

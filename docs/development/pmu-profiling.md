@@ -126,3 +126,7 @@ the accepted summary; raw snapshots and standalone diagnostics are preserved.
 Evidence: [summary/provenance](../../data/eci/board-evidence/hot-pmu-516232-20261005.json).
 Local full records: `out/pmu-hot-516232/data/{server/server.csv,per-request.csv,pmu-summary.json}`;
 independent probes and matched boot evidence are under `out/pmu-hot-516232/`.
+
+The follow-up [static executed-path count](hot-static-instructions.md) uses the
+exact pre-PMU binaries and successful hot `add` branch directions. It provides
+instruction counts independently of the blocked retired-instruction counter.
