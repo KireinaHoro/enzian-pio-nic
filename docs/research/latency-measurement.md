@@ -1093,3 +1093,13 @@ python3 data/eci/apps/plot_hot_cold.py \
   --trace-map out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json \
   --output out/buffered-latency-516232/figures
 ```
+
+### Hot-path PMU follow-up — October 5
+
+The [PMU campaign](../development/pmu-profiling.md#october-5-pipeline-516232)
+collected 1,000 hot RPCs each with counter snapshots off, coarse and detailed.
+It found two median L1D refills and two L2D refills per RX-entry → TX-return
+interval, concentrated in RX and TX. Independent tests invalidated the retired
+instruction counter on this setup, including kernel perf reads; instruction
+percentiles are withheld. The report includes instrumentation overhead, stage
+cache/cycle counts, exact measurement boundaries and the remaining blocker.

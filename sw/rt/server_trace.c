@@ -29,6 +29,8 @@ struct trace_buffer {
 static struct trace_buffer buffers[TRACE_MAX_THREADS];
 static __thread struct trace_buffer *local_buffer;
 static size_t capacity, registered;
+static bool pmu_enabled;
+static size_t pmu_skip_rows, pmu_whole_rows;
 static _Atomic size_t unregistered_drops;
 static pthread_mutex_t control_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t dump_thread;
@@ -108,6 +110,7 @@ void server_trace_thread_init(void) {
     b->tid = (int)syscall(SYS_gettid);
     local_buffer = b;
     pthread_mutex_unlock(&control_lock);
+    if (pmu_enabled) lh_pmu_init();
 }
 static uint64_t overhead_ns;
 uint64_t server_trace_clock(void) {
@@ -120,10 +123,30 @@ uint64_t server_trace_stamp(struct server_trace_row *row) {
     row->timestamp_calls++;
     return server_trace_clock();
 }
+uint64_t server_trace_stage(struct server_trace_row *row, enum lh_pmu_stage stage) {
+    if (row && row->enabled && row->pmu_mode &&
+        (row->pmu_mode == 2 || stage == LH_PMU_rx_enter ||
+         stage == LH_PMU_rx_exit || stage == LH_PMU_tx_exit)) {
+        lh_pmu_read(&row->pmu[stage]);
+        row->pmu_mask |= 1u << stage;
+    }
+    return server_trace_stamp(row);
+}
+static size_t pmu_rows(const char *name) {
+    const char *s=getenv(name);
+    if (!s) return 0;
+    char *end; errno=0;
+    unsigned long n=strtoul(s,&end,10);
+    if (errno || !*s || *end || n>1000000) abort();
+    return n;
+}
 void server_trace_init(void) {
     const char *path = getenv("LAUBERHORN_SERVER_TRACE_CSV");
     if (!path || !*path) path = getenv("ADDER_SERVER_TRACE_CSV");
     if (!path || !*path || output_path) return;
+    pmu_enabled = getenv("LAUBERHORN_PMU") && !strcmp(getenv("LAUBERHORN_PMU"),"1");
+    pmu_skip_rows = pmu_rows("LAUBERHORN_PMU_SKIP_ROWS");
+    pmu_whole_rows = pmu_rows("LAUBERHORN_PMU_WHOLE_ROWS");
     output_path = strdup(path);
     if (!output_path) abort();
     capacity = 16384;
@@ -158,7 +181,12 @@ static void write_header(void) {
           "tx_worker_id,execution_kind,reply_status,transport_status,rx_cpu_id,tx_cpu_id,"
           "server_defer_enqueue_ns,server_forward_submit_ns,server_forward_complete_ns,"
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
-          "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns\n", output);
+          "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns", output);
+    fputs(",pmu_mode,pmu_mask",output);
+#define PMU_HEADER(name) for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",pmu_" #name "_%u",i);
+    SERVER_TRACE_TIMES(PMU_HEADER)
+#undef PMU_HEADER
+    fputc('\n',output);
 }
 void server_trace_fini(void) {
     /* Caller must have stopped all trace producers. Unsupported process exit
@@ -178,7 +206,9 @@ void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
     *r = (struct server_trace_row){.enabled=server_trace_enabled, .ok=true,
         .request_id=UINT64_MAX, .worker_id=worker_id, .tx_worker_id=-1,
         .activation=server_activation};
-    r->rx_enter_ns = server_trace_stamp(r);
+    if (pmu_enabled && local_buffer && local_buffer->count >= pmu_skip_rows)
+        r->pmu_mode = local_buffer->count - pmu_skip_rows < pmu_whole_rows ? 1 : 2;
+    r->rx_enter_ns = server_trace_stage(r, LH_PMU_rx_enter);
 }
 static struct server_trace_row *current_trace(void) {
     return fiber_in_context() ? current_fiber->trace : server_trace_inline;
@@ -222,10 +252,14 @@ static void write_row(const struct server_trace_row *r) {
 #define TRACE_VALUE(name) fprintf(output, "%" PRIu64 ",", r->name##_ns);
     SERVER_TRACE_TIMES(TRACE_VALUE)
 #undef TRACE_VALUE
-    fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64 "\n",
+    fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64,
             overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,
             r->tx_worker_id, r->kind, r->status, r->transport_status, r->rx_cpu_id, r->tx_cpu_id,
             r->defer_enqueue_ns, r->forward_submit_ns, r->forward_complete_ns,
             active, wait, r->activation.tid, r->activation.index,
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
+    fprintf(output,",%u,%u",r->pmu_mode,r->pmu_mask);
+    for (unsigned j=0;j<LH_PMU_STAGES;j++)
+        for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",%"PRIu64,r->pmu[j].value[i]);
+    fputc('\n',output);
 }

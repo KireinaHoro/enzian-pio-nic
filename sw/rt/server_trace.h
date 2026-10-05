@@ -3,10 +3,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "pmu.h"
 #define SERVER_TRACE_TIMES(X) \
     X(rx_enter) X(rx_unblock) X(rx_exit) \
     X(unmarshal_enter) X(unmarshal_exit) X(handler_enter) X(handler_exit) \
     X(marshal_enter) X(marshal_exit) X(tx_enter) X(tx_exit)
+#define PMU_ENUM(name) LH_PMU_##name,
+enum lh_pmu_stage { SERVER_TRACE_TIMES(PMU_ENUM) LH_PMU_STAGES };
+#undef PMU_ENUM
 struct server_activation_trace {
     uint64_t ioctl_exit_ns, ready_ns, index;
     int tid, worker;
@@ -18,6 +22,8 @@ struct server_trace_row {
     uint64_t request_id;
     uint32_t request_context, request_bytes, response_bytes;
     int worker_id, tx_worker_id, rx_cpu_id, tx_cpu_id, status, transport_status;
+    unsigned pmu_mode, pmu_mask;
+    struct lh_pmu_snapshot pmu[LH_PMU_STAGES];
     unsigned kind, timestamp_calls; /* kind bits: deferred=1, forwarded=2 */
 #define TRACE_FIELD(name) uint64_t name##_ns;
     SERVER_TRACE_TIMES(TRACE_FIELD)
@@ -33,6 +39,7 @@ void server_trace_thread_init(void);
 void server_trace_fini(void);
 uint64_t server_trace_clock(void);
 uint64_t server_trace_stamp(struct server_trace_row *row);
+uint64_t server_trace_stage(struct server_trace_row *row, enum lh_pmu_stage stage);
 void server_trace_rx_begin(struct server_trace_row *row, int worker_id);
 void server_trace_write(struct server_trace_row *row);
 void server_trace_run_begin(struct server_trace_row *row);
