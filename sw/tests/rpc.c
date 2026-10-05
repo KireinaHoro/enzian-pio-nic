@@ -314,7 +314,7 @@ int main(void) {
         /* RX worker is retained; deferred/forwarded TX uses the completing worker. */
         snprintf(expected, sizeof(expected), ",1,4660,%d,%d,0,", i ? 3 : 2, i);
         assert(strstr(line, expected));
-        assert(strstr(line, ",900,7,1,100,110\n"));
+        assert(strstr(line, ",900,7,1,100,110,0,0,"));
     }
     assert(!fgets(line, sizeof(line), csv)); fclose(csv); unlink(path);
     char status_path[sizeof(path)+32];

@@ -107,7 +107,7 @@ static void *lauberhorn_worker_loop(void *arg) {
             received = core_eci_rx_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
             w->rx_trace.timestamp_calls++; /* RX-unblock probe */
-            w->rx_trace.rx_exit_ns = server_trace_stamp(&w->rx_trace);
+            w->rx_trace.rx_exit_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_exit);
             w->rx_trace.rx_cpu_id = sched_getcpu();
         } else {
             received = core_eci_rx(w->dp_base, &w->dp, &desc);

@@ -1,0 +1,424 @@
+{
+  "count_per_cohort": 1000,
+  "warmup_per_cohort": 16,
+  "counter_events": {
+    "instructions": "0x08",
+    "cycles": "0x11",
+    "l1d_refill": "0x03",
+    "l2d_refill": "0x17"
+  },
+  "user_only": true,
+  "raw_instrumented_counts": true,
+  "multiplexing": false,
+  "excluded_events": [
+    "instructions"
+  ],
+  "quantiles": {
+    "off": {
+      "rtt_ns": {
+        "p50": 12240.0,
+        "p90": 12400.0,
+        "p95": 12470.0,
+        "p99": 16261.8,
+        "p100": 19160.0
+      }
+    },
+    "coarse": {
+      "rtt_ns": {
+        "p50": 12400.0,
+        "p90": 12430.0,
+        "p95": 12490.5,
+        "p99": 12673.599999999997,
+        "p100": 19280.0
+      },
+      "rx_call_including_wait.cycles": {
+        "p50": 16523.0,
+        "p90": 16606.0,
+        "p95": 16691.25,
+        "p99": 17090.22,
+        "p100": 38404.0
+      },
+      "rx_call_including_wait.l1d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 2.009999999999991,
+        "p100": 5.0
+      },
+      "rx_call_including_wait.l2d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 1.0
+      },
+      "service_after_rx.cycles": {
+        "p50": 6825.0,
+        "p90": 6848.0,
+        "p95": 6851.05,
+        "p99": 6878.01,
+        "p100": 7939.0
+      },
+      "service_after_rx.l1d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 5.0
+      },
+      "service_after_rx.l2d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 1.0
+      },
+      "rx_enter_to_tx_exit.cycles": {
+        "p50": 23346.5,
+        "p90": 23438.1,
+        "p95": 23536.2,
+        "p99": 23935.02,
+        "p100": 45251.0
+      },
+      "rx_enter_to_tx_exit.l1d_refill": {
+        "p50": 2.0,
+        "p90": 2.0,
+        "p95": 2.0,
+        "p99": 4.0,
+        "p100": 6.0
+      },
+      "rx_enter_to_tx_exit.l2d_refill": {
+        "p50": 2.0,
+        "p90": 2.0,
+        "p95": 2.0,
+        "p99": 2.0,
+        "p100": 2.0
+      }
+    },
+    "detailed": {
+      "rtt_ns": {
+        "p50": 13350.0,
+        "p90": 13360.0,
+        "p95": 13390.0,
+        "p99": 13670.1,
+        "p100": 20360.0
+      },
+      "rx_call_including_wait.cycles": {
+        "p50": 16583.0,
+        "p90": 16794.0,
+        "p95": 16820.05,
+        "p99": 17358.21,
+        "p100": 38656.0
+      },
+      "rx_call_including_wait.l1d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 2.009999999999991,
+        "p100": 4.0
+      },
+      "rx_call_including_wait.l2d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 1.0
+      },
+      "service_after_rx.cycles": {
+        "p50": 8553.0,
+        "p90": 8569.0,
+        "p95": 8576.0,
+        "p99": 8620.0,
+        "p100": 9255.0
+      },
+      "service_after_rx.l1d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 5.0
+      },
+      "service_after_rx.l2d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 1.0
+      },
+      "rx_enter_to_tx_exit.cycles": {
+        "p50": 25141.0,
+        "p90": 25354.0,
+        "p95": 25381.15,
+        "p99": 25889.54,
+        "p100": 47182.0
+      },
+      "rx_enter_to_tx_exit.l1d_refill": {
+        "p50": 2.0,
+        "p90": 2.0,
+        "p95": 2.0,
+        "p99": 4.0,
+        "p100": 6.0
+      },
+      "rx_enter_to_tx_exit.l2d_refill": {
+        "p50": 2.0,
+        "p90": 2.0,
+        "p95": 2.0,
+        "p99": 2.0,
+        "p100": 2.0
+      },
+      "runtime_dispatch.cycles": {
+        "p50": 829.0,
+        "p90": 836.0,
+        "p95": 837.0,
+        "p99": 846.0,
+        "p100": 1533.0
+      },
+      "runtime_dispatch.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 4.0
+      },
+      "runtime_dispatch.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "unmarshal.cycles": {
+        "p50": 838.0,
+        "p90": 839.0,
+        "p95": 840.0,
+        "p99": 844.0,
+        "p100": 919.0
+      },
+      "unmarshal.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 2.0
+      },
+      "unmarshal.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "before_handler.cycles": {
+        "p50": 445.0,
+        "p90": 453.0,
+        "p95": 453.0,
+        "p99": 453.0,
+        "p100": 453.0
+      },
+      "before_handler.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "before_handler.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "handler.cycles": {
+        "p50": 614.0,
+        "p90": 614.0,
+        "p95": 614.0,
+        "p99": 614.0,
+        "p100": 631.0
+      },
+      "handler.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "handler.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "before_marshal.cycles": {
+        "p50": 487.0,
+        "p90": 487.0,
+        "p95": 487.0,
+        "p99": 487.0,
+        "p100": 529.0
+      },
+      "before_marshal.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 1.0
+      },
+      "before_marshal.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "marshal.cycles": {
+        "p50": 653.0,
+        "p90": 653.0,
+        "p95": 653.0,
+        "p99": 653.0,
+        "p100": 838.0
+      },
+      "marshal.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 3.0
+      },
+      "marshal.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "before_tx.cycles": {
+        "p50": 525.0,
+        "p90": 525.0,
+        "p95": 525.0,
+        "p99": 525.0,
+        "p100": 525.0
+      },
+      "before_tx.l1d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "before_tx.l2d_refill": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "tx.cycles": {
+        "p50": 4163.0,
+        "p90": 4178.0,
+        "p95": 4181.05,
+        "p99": 4190.05,
+        "p100": 4239.0
+      },
+      "tx.l1d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 2.0
+      },
+      "tx.l2d_refill": {
+        "p50": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "p100": 1.0
+      }
+    }
+  },
+  "input_sha256": {
+    "out/pmu-hot-516232/data/server/server.csv": "ecf4bcb4364b3b740c689b8050d4cbb0c93322f03a01d54cb54e0f5e782e8457",
+    "out/pmu-hot-516232/data/server/server.csv.status.json": "437f1356ae5d76a74747e74e1f70e63a97ca9cd605db6223332634684a5698d0",
+    "out/pmu-hot-516232/data/off.csv": "d285f196f18c95da350e78c75a52f4e2f19ae0512b367414cc8521ee43bd0c39",
+    "out/pmu-hot-516232/data/coarse.csv": "3b43d6f2e8f2c0b488c56149e5de296be51e1f6123629858589c889f6858105e",
+    "out/pmu-hot-516232/data/detailed.csv": "89ab12d753c0d6c68b9e17ac9d67ebc3ae04ec57aa48f1f1ef9fefb62f53bc28"
+  },
+  "pipeline": 516232,
+  "pipeline_sha": "6f5fa076adbad2002681d3051c7056522929b7a1",
+  "jobs": {
+    "prepare": 2866838,
+    "hardware": 2866839,
+    "report": 2866840
+  },
+  "hardware_artifacts": {
+    "out/percpu-fix-516232/deploy.img": "85e3b5e3197e5e2d7af6cb5e26dcd21bf8572a43986c7e441ca1addfd12a2586",
+    "out/ci-followup/516232/hardware/shell_lauberhorn-eci.ltx": "9fb7a96842094ac61d016c48e4b1f2eb45204287940f377bd2abf86b2d1a5cce",
+    "out/ci-followup/516232/hardware/shell_lauberhorn-eci.bit": "8b154fff940e032004fbb6a733bf26bf2bdd8a07faf0947bf10a5a974154ec82",
+    "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c"
+  },
+  "timing": {
+    "wns": -0.102,
+    "tns": -37.731,
+    "setup_failing": 893,
+    "hold_failing": 0,
+    "pulse_failing": 0
+  },
+  "module_source": "af0f64fe07fa3e2ef6bbfd619423d4bda027b615",
+  "module_sha256": "dbb3fbf3590d0cc809742cb0a679722b94bed809ed211e8acf8756ca7711c3d5",
+  "application_sha256": "9a74fff63fc6229f1533c68f6c1200726131b9e7695ab56ab1a8d0ff65914fec",
+  "runtime_store": "/nix/store/77c4j3n640lyjpg9rps2baanwn4fv71v-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1",
+  "runtime_overlay": "Optional buffered PMU snapshots; immutable build source retained by Nix derivation. Later commits extend only standalone probe diagnostics and packaging.",
+  "dut": "zuestoll14",
+  "client": "zuestoll07",
+  "worker": 0,
+  "cpu": 44,
+  "measured_threads": 1,
+  "flush_threads_registered": 4,
+  "flush_traffic": false,
+  "correct_measured_rpcs": 3000,
+  "correct_warmup_rpcs": 48,
+  "export_rows": 3048,
+  "export_dropped": 0,
+  "boot_passed": true,
+  "health_passed": true,
+  "kernel_tracing": false,
+  "instruction_validation": "FAIL: independent selected/direct userspace readers and kernel perf reads; exclude entire event, not only negative samples",
+  "negative_rpc_instruction_intervals": 7,
+  "trace": {
+    "armed_through_module_load": true,
+    "final_frozen": true,
+    "sample_lost_flag": 1,
+    "dma_error": 0,
+    "used_for_pmu_attribution": false
+  },
+  "calibration_cycles_pair_min": 206,
+  "limitations": [
+    "No valid retired-instruction counts or IPC. Root cause not isolated.",
+    "Counts include probes, timestamps and runtime bookkeeping; no per-request subtraction.",
+    "RX call includes pre-arrival blocking; post-TX cleanup and inter-request work excluded.",
+    "L1D/L2D refill events overlap; no address or instruction-pointer samples.",
+    "L1I/TLB misses not measured in this group.",
+    "Sequential cohorts, not randomized or paired overhead trials.",
+    "One hot thread on CPU44; no four-worker concurrency or cold-path claim.",
+    "FPGA trace sample-lost flag set at freeze; no loss-free FPGA trace claim.",
+    "Hardware setup timing remains open."
+  ],
+  "artifacts_sha256": {
+    "out/pmu-hot-516232/data/server/server.csv": "ecf4bcb4364b3b740c689b8050d4cbb0c93322f03a01d54cb54e0f5e782e8457",
+    "out/pmu-hot-516232/data/server/server.csv.status.json": "437f1356ae5d76a74747e74e1f70e63a97ca9cd605db6223332634684a5698d0",
+    "out/pmu-hot-516232/data/per-request.csv": "c28ac55143c29f67990469c4c6b7cdf82c5c0b7b5b8aaedfb190706a510d6c9f",
+    "out/pmu-hot-516232/data/pmu-summary.json": "87719560947306e855d315435b37097c2e68b4f63c2a663671d0b834156f7535",
+    "out/pmu-hot-516232/data/probe.txt": "e5fdf82e59210fc881c35ce19464f1f6c4b5562382fcc2b4d4da37edba37dad8",
+    "out/pmu-hot-516232/data/final-health.json": "ca0bea194e8aa601f0660bde40fdf344c8f8bf2ba46a9e69c1944a9e3df99c0d",
+    "out/pmu-hot-516232/boot/summary.json": "9f05ec08c642614de439cc991db15945be663ec2bccf9681a81194725a085d97",
+    "out/pmu-hot-516232/freeze.log": "2bdc56f1526fa6cda610fb862768f7bdcf3def5ee5145c3dfbe8c8a7be1e976b",
+    "out/pmu-hot-516232/diagnostics/kernel-crosscheck.txt": "260c3034839a4f581e4ce36660c625cb0502badc9c28b07f5b97cad0594836bc",
+    "out/pmu-hot-516232/diagnostics/direct.txt": "e333c79f54d28e26c910812010f2dd4827bf2cc527de40c30538288e23cfc07e",
+    "out/pmu-hot-516232/diagnostics/capabilities.txt": "e2a114c3920bfa0dc48cc6be98fc1378195346ea8a3f27e793d5942e92df4412",
+    "out/pmu-hot-516232/diagnostics/final-probe.txt": "94a0004720805bf95eddd2a63de7115aedabe3bea5442754ee3aecf488acce8f",
+    "out/pmu-hot-516232/diagnostics/selected.txt": "3377c11a04e56cde9eb62b44d89f1e8a0f454905744d26b2992fdd3deb58e523",
+    "out/pmu-hot-516232/diagnostics/probe.txt": "28e7e37a427e2f61e589c9391be052019b10f6a24cec5c87347c9c1dde3cdeb7",
+    "out/pmu-hot-516232/runtime/lib/liblauberhorn.so": "e1f2b3aba56281cd88a3583f2d6ede107d30bb84ca2dd702e658c8c0ec79e1b7",
+    "out/pmu-hot-516232/runtime/bin/pmu-probe": "73ed297dc5103af7488edab671fc9b656e75a8f01c6b90b42cd4e33d59e859eb"
+  }
+}

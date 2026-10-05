@@ -41,9 +41,9 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
                            .status = status}
     };
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
-    trace->tx_enter_ns = server_trace_stamp(trace);
+    trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
     int result = core_eci_tx(w->dp_base, &w->dp, &desc);
-    trace->tx_exit_ns = server_trace_stamp(trace);
+    trace->tx_exit_ns = server_trace_stage(trace, LH_PMU_tx_exit);
     trace->tx_worker_id = w->worker_id;
     trace->response_bytes = len;
     trace->status = status;
@@ -158,10 +158,10 @@ int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
 static bool consume_outcome(struct request *, lauberhorn_outcome_t, bool);
 static void deferred_start(void *arg) {
     struct deferred_request *d = arg;
-    d->request.trace.handler_enter_ns = server_trace_stamp(&d->request.trace);
+    d->request.trace.handler_enter_ns = server_trace_stage(&d->request.trace, LH_PMU_handler_enter);
     d->result = d->defer.run(d->defer.data, d->request.args,
                             d->request.desc.oncrpc_call_rx.request_token);
-    d->request.trace.handler_exit_ns = server_trace_stamp(&d->request.trace);
+    d->request.trace.handler_exit_ns = server_trace_stage(&d->request.trace, LH_PMU_handler_exit);
 }
 static void deferred_done(void *arg) {
     struct deferred_request *d = arg;
@@ -174,10 +174,10 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     lauberhorn_worker_t w = worker_get_current();
     switch (o.kind) {
     case LAUBERHORN_REPLY: {
-        r->trace.marshal_enter_ns = server_trace_stamp(&r->trace);
+        r->trace.marshal_enter_ns = server_trace_stage(&r->trace, LH_PMU_marshal_enter);
         int len = r->codec->ops->marshal_resp(o.data, w->dp.tx_buf, o.len,
                                              REPLY_CAPACITY, r->codec->priv);
-        r->trace.marshal_exit_ns = server_trace_stamp(&r->trace);
+        r->trace.marshal_exit_ns = server_trace_stage(&r->trace, LH_PMU_marshal_exit);
         if (len < 0 || len > REPLY_CAPACITY) fail_request(&r->desc, 5, &r->trace);
         else send_reply(&r->desc, 0, len, &r->trace);
         break;
@@ -231,16 +231,16 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     struct request r = {.desc = *desc, .codec = &hw->srv->codec, .trace = w->rx_trace};
     r.trace.request_context = desc->oncrpc_call_rx.request_token;
     r.trace.request_bytes = desc->payload_len;
-    r.trace.unmarshal_enter_ns = server_trace_stamp(&r.trace);
+    r.trace.unmarshal_enter_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_enter);
     r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
-    r.trace.unmarshal_exit_ns = server_trace_stamp(&r.trace);
+    r.trace.unmarshal_exit_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_exit);
     if (!r.args) { fail_request(desc, errno == ENOMEM ? 5 : 4, &r.trace); return; }
     struct server_trace_row *previous = server_trace_inline;
     server_trace_inline = &r.trace;
-    r.trace.handler_enter_ns = server_trace_stamp(&r.trace);
+    r.trace.handler_enter_ns = server_trace_stage(&r.trace, LH_PMU_handler_enter);
     lauberhorn_outcome_t outcome = hw->handler.func(hw->handler.data, r.args,
                                                  desc->oncrpc_call_rx.request_token);
-    r.trace.handler_exit_ns = server_trace_stamp(&r.trace);
+    r.trace.handler_exit_ns = server_trace_stage(&r.trace, LH_PMU_handler_exit);
     r.trace.handler_active_ns = r.trace.handler_exit_ns - r.trace.handler_enter_ns;
     server_trace_inline = previous;
     if (!consume_outcome(&r, outcome, true)) release_request(&r);
