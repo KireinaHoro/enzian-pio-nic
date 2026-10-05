@@ -1034,3 +1034,62 @@ the external residual. See the preceding correlation note for five explicitly
 recovered sentinel descriptor IDs and one incomplete excluded warmup. The
 future trace-ID latch correction, four-worker concurrent-tail acceptance and
 FPGA timing closure remain outstanding.
+
+
+### Outgoing domain → kernel and waterfall figures
+
+The preserved 516232 cold capture also contains outgoing `raw_syscalls:sys_enter`
+events for the yield ioctl. The [handoff analysis](../../tools/enzian/handoff_breakdown.py)
+joins each incoming activation to exactly one active outgoing yield syscall on
+the same CPU and one cooperative FPGA PREEMPT request. It verifies the incoming
+audit hash, loss-free capture, temporal ordering and per-request conservation.
+Missing/ambiguous syscalls or PREEMPT events fail rather than disappearing.
+All 1,000 cold requests correlate; four focused regressions pass.
+
+[Handoff distributions and provenance](../../data/eci/board-evidence/cold-outgoing-handoff-516232-20261005.json)
+and [all percentiles](../../data/eci/board-evidence/cold-outgoing-handoff-516232-20261005.csv)
+add **3.677 us median PREEMPT-request-to-outgoing-syscall-entry** and
+**3.770 us median outgoing-syscall-entry-to-MMIO** before the prior activation
+components. Queue-to-PREEMPT is 20 ns median. The first interval includes FPGA
+notification, outgoing userspace and exception entry; it does not isolate the
+exception instruction. Generic entry timestamps have 1 us resolution and use
+the audited CPU/FPGA epoch fit. These nested intervals retain kernel tracing
+cost and must not be added to E2E or spliced into the kernel-off cohort.
+
+[The plotting tool](../../data/eci/apps/plot_hot_cold.py) produces:
+
+- Actual median-nearest-request waterfalls, with RX MAC arrival at zero and an
+  already-pending RX read entering from outside the left edge. Hot shows the
+  active measured worker; cold shows the outgoing worker on the same core, its
+  yield into the kernel, and the incoming worker after activation. Read start
+  and FPGA response boundaries are confirmed in the matching raw trace. Bars
+  overlap and are observations, not an additive stack. FPGA reply emission is
+  distinguished from CPU completion.
+- Violins for every additive component across all four 1,000-request cohorts,
+  including kernel tracing on/off; a separate cold-handoff panel includes the
+  outgoing path. Additional violins show RTT, MAC-to-MAC and overlapping TX/
+  client intervals. Each panel keeps its full observed range on a linear scale;
+  constant observations are lines, not fabricated densities.
+
+The waterfall uses the kernel-on cohorts so that its kernel detail is observed:
+hot request 18 has RTT 12.25 us / MAC-to-MAC 3.705 us; cold request 12 has RTT
+51.35 us / MAC-to-MAC 42.730 us. These are actual requests nearest the median,
+not a sum of marginal medians. The combined external residual is deliberately
+not positioned before or after MAC events: its directional split is unknown.
+Generated PNG/SVG/PDF figures, a combined PDF and exact selected intervals are
+under `out/buffered-latency-516232/figures/`.
+
+```sh
+python3 tools/enzian/handoff_breakdown.py \
+  --audit out/baseline-latency-516232/bufcold1-audit.json \
+  --activation out/baseline-latency-516232/bufcold1-activation.json \
+  --capture out/baseline-latency-516232/bufcold1-kernel \
+  --events out/baseline-latency-516232/bufcold1-dump/trace/latency-events.json \
+  --output out/buffered-latency-516232/handoff.json
+# Use a host Python environment with matplotlib and numpy.
+python3 data/eci/apps/plot_hot_cold.py \
+  --captures out/baseline-latency-516232 \
+  --handoff out/buffered-latency-516232/handoff.json \
+  --trace-map out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json \
+  --output out/buffered-latency-516232/figures
+```

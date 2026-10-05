@@ -1,0 +1,128 @@
+{
+  "count": 1000,
+  "components_ns": {
+    "queued_to_preempt_request": {
+      "count": 1000,
+      "p50": 20.0,
+      "p90": 20.0,
+      "p95": 20.0,
+      "p99": 20.0,
+      "p100": 1365.0
+    },
+    "preempt_request_to_outgoing_syscall_entry": {
+      "count": 1000,
+      "p50": 3677.0,
+      "p90": 4102.0,
+      "p95": 4812.0,
+      "p99": 6142.9,
+      "p100": 7492.0
+    },
+    "outgoing_syscall_entry_to_mmio": {
+      "count": 1000,
+      "p50": 3770.0,
+      "p90": 4210.0,
+      "p95": 4270.0,
+      "p99": 4850.2,
+      "p100": 7530.0
+    },
+    "preempt_info_mmio": {
+      "count": 1000,
+      "p50": 1640.0,
+      "p90": 1690.0,
+      "p95": 1700.0,
+      "p99": 1700.0,
+      "p100": 2430.0
+    },
+    "claim_wait": {
+      "count": 1000,
+      "p50": 750.0,
+      "p90": 790.0,
+      "p95": 800.0,
+      "p99": 840.0,
+      "p100": 1360.0
+    },
+    "affinity_setup": {
+      "count": 1000,
+      "p50": 1420.0,
+      "p90": 1460.0,
+      "p95": 1490.0,
+      "p99": 1710.0,
+      "p100": 3710.0
+    },
+    "activation_publish": {
+      "count": 1000,
+      "p50": 200.0,
+      "p90": 210.0,
+      "p95": 210.0,
+      "p99": 210.0,
+      "p100": 1510.0
+    },
+    "wake_to_wait_return": {
+      "count": 1000,
+      "p50": 15360.0,
+      "p90": 15550.0,
+      "p95": 15830.5,
+      "p99": 17200.3,
+      "p100": 31220.0
+    },
+    "yield_copyout": {
+      "count": 1000,
+      "p50": 480.0,
+      "p90": 480.0,
+      "p95": 490.0,
+      "p99": 570.0,
+      "p100": 650.0
+    },
+    "kernel_to_userspace": {
+      "count": 1000,
+      "p50": 6590.0,
+      "p90": 6690.0,
+      "p95": 7340.0,
+      "p99": 7780.1,
+      "p100": 13520.0
+    },
+    "runtime_activation_setup": {
+      "count": 1000,
+      "p50": 390.0,
+      "p90": 390.0,
+      "p95": 390.0,
+      "p99": 610.0,
+      "p100": 630.0
+    },
+    "runtime_before_rx": {
+      "count": 1000,
+      "p50": 940.0,
+      "p90": 940.0,
+      "p95": 940.0,
+      "p99": 1020.0,
+      "p100": 63980.0
+    }
+  },
+  "limitations": [
+    "Nested queue/handoff partition, not additional E2E components.",
+    "PREEMPT-to-entry combines FPGA notification, outgoing runtime and kernel entry; no isolated exception-instruction measurement.",
+    "Syscall text timestamps have 1 us resolution; FPGA alignment uses the inferred audit offset.",
+    "Kernel tracing overhead retained; do not splice these values into untraced RTT."
+  ],
+  "provenance": {
+    "out/baseline-latency-516232/bufcold1-audit.json": "227a841572cc7590091f778754b8afd8ab8e2b1892e56db75381c70f7453009b",
+    "out/baseline-latency-516232/bufcold1-activation.json": "0186de46752cce3541b00dd70555b6c1d10979d3c0e08987cd7cf957cd281a55",
+    "out/baseline-latency-516232/bufcold1-kernel/trace.txt": "c9238a6c073f12334855492b4219eaf07e552698390b31854cd8a01e0a07f62a",
+    "out/baseline-latency-516232/bufcold1-kernel/capture.json": "397b2e12c414c7025e549f152a4e5f34c1a9a94ee574c992a75bb56649a44d5a",
+    "out/baseline-latency-516232/bufcold1-dump/trace/latency-events.json": "ac78f9d47fd3bbf51a591edb4a5231de7035080544a2d3765d0a068471618d44"
+  },
+  "pipeline": 516232,
+  "row_evidence": "out/buffered-latency-516232/handoff.json",
+  "row_evidence_sha256": "3d58200f39d5ff0b155f32f237df05d4acb52dae48bbb58fb0acd2e1137509e4",
+  "incoming_tgids": [
+    1659
+  ],
+  "outgoing_tgids": [
+    1664
+  ],
+  "outgoing_tids": [
+    1666,
+    1668
+  ],
+  "analysis_tests": "4 targeted handoff regressions passed"
+}

@@ -1,0 +1,13 @@
+component,count,p50_us,p90_us,p95_us,p99_us,p100_us
+queued_to_preempt_request,1000,0.02,0.02,0.02,0.02,1.365
+preempt_request_to_outgoing_syscall_entry,1000,3.677,4.102,4.812,6.1429,7.492
+outgoing_syscall_entry_to_mmio,1000,3.77,4.21,4.27,4.8502,7.53
+preempt_info_mmio,1000,1.64,1.69,1.7,1.7,2.43
+claim_wait,1000,0.75,0.79,0.8,0.84,1.36
+affinity_setup,1000,1.42,1.46,1.49,1.71,3.71
+activation_publish,1000,0.2,0.21,0.21,0.21,1.51
+wake_to_wait_return,1000,15.36,15.55,15.8305,17.2003,31.22
+yield_copyout,1000,0.48,0.48,0.49,0.57,0.65
+kernel_to_userspace,1000,6.59,6.69,7.34,7.7801,13.52
+runtime_activation_setup,1000,0.39,0.39,0.39,0.61,0.63
+runtime_before_rx,1000,0.94,0.94,0.94,1.02,63.98
