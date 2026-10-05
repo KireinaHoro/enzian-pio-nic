@@ -862,7 +862,7 @@ def attach_trace_segments(
         row["trace_segments"] = segments
 
 
-def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None, combine_rpc_ingress: bool = False) -> None:
+def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None, combine_rpc_ingress: bool = False, rx_trace_invalid_host_id: Optional[int] = None) -> None:
     events_by_name = build_event_index(events)
     ipi_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -885,7 +885,6 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
             last_event_before(events_by_name, "SchedulerProcessRun", dispatch["time_ns"] + 1, core_match),
             dispatch,
         ]
-        rec_events.append(first_event_after(events_by_name, "EciRxDescSent", dispatch["time_ns"], core_match, max_delta_ns=1_000_000))
 
         queued = rec_events[1]
         rec: Dict[str, Any] = {"host_msg_id": host_id, "events": [],
@@ -904,6 +903,29 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
         recs.sort(key=lambda rec: rec["SchedulerRequestDispatched"])
         for rec, following in zip(recs, recs[1:]):
             rec["next_dispatch_ns"] = following["SchedulerRequestDispatched"]
+    for core, recs in dispatches_by_core.items():
+        for rec in recs:
+            start = rec["SchedulerRequestDispatched"]
+            end = min(start + 1_000_000, rec.get("next_dispatch_ns", start + 1_000_001) - 1)
+            candidates = events_in_window(events_by_name, "EciRxDescSent", start, end, {"CoreID": core})
+            # Never borrow a later reuse of the finite HostMsgID. Historical
+            # RTL can clear the trace-only ID while the next descriptor is
+            # buffered. Opt-in recovery requires exactly one delivery on this
+            # core before its next dispatch; preserve the observed ID in audit.
+            if len(candidates) > 1:
+                raise ValueError("ambiguous RX descriptor within dispatch interval")
+            if candidates:
+                desc = candidates[0]
+                observed = desc["data"].get("HostMsgID")
+                if observed != rec["host_msg_id"]:
+                    if rx_trace_invalid_host_id is None or observed != rx_trace_invalid_host_id:
+                        raise ValueError("RX descriptor trace ID mismatch within dispatch interval")
+                    rec["rx_trace_id_recovered"] = True
+                rec["rx_trace_observed_host_id"] = observed
+                rec["EciRxDescSent"] = desc["time_ns"]
+                rec["events"].append(desc)
+            else:
+                raise ValueError("missing RX descriptor within dispatch interval")
     # Preserve next-dispatch bounds across *all* domains before selecting the
     # measured domain, so a later flush request cannot supply missing TX events.
     if process_id is not None:
@@ -963,6 +985,8 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
             continue
         rec = recs[idx]
         row["trace_host_msg_id"] = rec["host_msg_id"]
+        row["trace_rx_observed_host_id"] = rec.get("rx_trace_observed_host_id")
+        row["trace_rx_id_recovered"] = rec.get("rx_trace_id_recovered", False)
         row["trace_rx_enqueue_ns"] = rec.get("RxRpcEnqueueToHost")
         row["trace_request_queued_ns"] = rec.get("SchedulerRequestQueued")
         row["trace_request_dispatched_ns"] = rec.get("SchedulerRequestDispatched")
@@ -1644,6 +1668,8 @@ def main() -> int:
     parser.add_argument("--trace-process-id", type=int,
                         help="scheduler ProcessID (Linux TGID with current driver), not ECI domain code")
     parser.add_argument("--trace-samples", default=None, help="optional Python slice, e.g. -1000000:")
+    parser.add_argument("--rx-trace-invalid-host-id", type=int,
+                        help="explicit sentinel-ID recovery: require a unique same-core descriptor before next dispatch")
     args = parser.parse_args()
 
     if args.breakdown_csv:
@@ -1688,7 +1714,7 @@ def main() -> int:
             print(f"estimated ECI FLDX_EH->HAKD RTT={eci_rtt_ns:.0f} ns; using half RTT={eci_half_rtt_ns:.0f} ns for 2F2F RX HW")
         else:
             print("warning: could not estimate ECI FLDX_EH->HAKD RTT from trace")
-        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id, args.combine_rpc_ingress)
+        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id, args.combine_rpc_ingress, args.rx_trace_invalid_host_id)
         matched_rows = [row for row in rows if "trace_host_msg_id" in row]
         matched = len(matched_rows)
         print(f"matched {matched}/{len(rows)} rows with sys_trace HostMsgID/CoreID events")
@@ -1716,11 +1742,17 @@ def main() -> int:
             print("warning: only one trace-matched request; kernel_wakeup cannot be baseline-estimated and will be 0")
 
     if args.trace_dump and not args.allow_partial_trace:
-        incomplete = [row for row in rows if not row.get("trace_lh_cmac_to_cmac_ns")
+        incomplete = [row for row in rows if not row.get("warmup") and (not row.get("trace_lh_cmac_to_cmac_ns")
                       or "trace_tx_commit_to_cmac_ns" not in row
-                      or row.get("trace_tx_udp_ip_packet_id_mismatch")]
+                      or row.get("trace_tx_udp_ip_packet_id_mismatch"))]
         if incomplete:
             raise SystemExit(f"{len(incomplete)} incomplete/ambiguous traced requests; refusing a performance breakdown")
+    warmup_trace = {"count": sum(bool(row.get("warmup")) for row in rows),
+                    "incomplete_request_ids": [row["request_id"] for row in rows
+                        if row.get("warmup") and args.trace_dump and
+                        (not row.get("trace_lh_cmac_to_cmac_ns") or
+                         "trace_tx_commit_to_cmac_ns" not in row or
+                         row.get("trace_tx_udp_ip_packet_id_mismatch"))]}
     rows = [row for row in rows if not row.get("warmup")]
     if not rows:
         raise SystemExit("no measured requests after warmup")
@@ -1742,14 +1774,16 @@ def main() -> int:
         provenance = {"client_csv": str(args.client_csv), "server_csv": str(args.server_csv),
             "analyzer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "client_sha256": hashlib.sha256(args.client_csv.read_bytes()).hexdigest(),
-            "server_sha256": hashlib.sha256(args.server_csv.read_bytes()).hexdigest()}
+            "server_sha256": hashlib.sha256(args.server_csv.read_bytes()).hexdigest(),
+            "excluded_warmup": warmup_trace}
         if args.trace_dump:
             provenance.update(trace_dump=str(args.trace_dump), trace_map=str(args.trace_map),
                 trace_dump_sha256=hashlib.file_digest(args.trace_dump.open("rb"), "sha256").hexdigest(),
                 trace_cycle_ns=args.trace_cycle_ns, trace_process_id=args.trace_process_id,
                 combine_rpc_ingress=args.combine_rpc_ingress,
                 trace_map_sha256=hashlib.sha256(args.trace_map.read_bytes()).hexdigest(),
-                allow_partial_trace=args.allow_partial_trace)
+                allow_partial_trace=args.allow_partial_trace,
+                rx_trace_invalid_host_id=args.rx_trace_invalid_host_id)
         args.audit_json.write_text(json.dumps({"metrics": metrics, "provenance": provenance,
             "correlation": "sequence/offset heuristic; isolated one-outstanding workload required",
             "rows": [dict(row, breakdown=breakdown(row)) for row in rows]}, indent=2)+"\n")
