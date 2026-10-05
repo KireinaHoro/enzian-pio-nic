@@ -78,6 +78,31 @@ class LatencyAccounting(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'ProcessID'):
             m.correlate_trace(rows,events,None,process_id=1672)
 
+    def test_sentinel_rx_id_cannot_borrow_later_reuse(self):
+        events = []
+        for index, host_id in enumerate((6, 6)):
+            for name, delta in [('SchedulerRequestQueued', 0), ('SchedulerRequestDispatched', 10), ('EciRxDescSent', 20)]:
+                observed = 63 if index == 0 and name == 'EciRxDescSent' else host_id
+                events.append(dict(event=name, time_ns=100*index+delta,
+                                   data=dict(CoreID=1, HostMsgID=observed, ProcessID=7)))
+        rows = [dict(self.row(), request_id=i+1, worker_id=0,
+                     server_rx_enter_ns=1000, server_rx_exit_ns=2000+100*i)
+                for i in range(2)]
+        with patch.object(m, 'attach_trace_segments'):
+            with self.assertRaisesRegex(ValueError, 'ID mismatch'):
+                m.correlate_trace(rows, events, None, process_id=7)
+            m.correlate_trace(rows, events, None, process_id=7, rx_trace_invalid_host_id=63)
+        self.assertEqual(rows[0]['trace_core_delivery_ns'], 20)
+        self.assertEqual(rows[1]['trace_core_delivery_ns'], 120)
+        self.assertTrue(rows[0]['trace_rx_id_recovered'])
+        self.assertFalse(rows[1]['trace_rx_id_recovered'])
+        duplicate = dict(events[2], time_ns=25)
+        with self.assertRaisesRegex(ValueError, 'ambiguous RX'):
+            m.correlate_trace(rows, events+[duplicate], None, process_id=7, rx_trace_invalid_host_id=63)
+        with self.assertRaisesRegex(ValueError, 'missing RX'):
+            m.correlate_trace(rows, [e for e in events if e is not events[2]], None,
+                              process_id=7, rx_trace_invalid_host_id=63)
+
     def test_dpdk_components_are_outside_hardware_not_poll_wait(self):
         c=dict(transport='dpdk',client_call_enter_ns='100',client_tx_ready_ns='200',
                client_tx_submit_ns='250',client_rx_burst_ns='900',client_call_exit_ns='1000',

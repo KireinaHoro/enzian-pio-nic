@@ -940,3 +940,30 @@ final TAD/kernel health passed. The first boot was rejected for a missing CCPI
 lane report; the second passed all lane/lock gates. No timing, address-layout or
 PREEMPT implementation was changed. Pipeline516232/GSYNC-early-NACK comparison
 remains a separate scheduled follow-up.
+
+
+### Bounded descriptor correlation for historical trace IDs
+
+`plot_latency.py` bounds descriptor delivery by the next dispatch on the same
+physical worker, across all domains. It must never borrow a later reuse of the
+finite HostMsgID to fit the CPU/FPGA epoch. Missing, multiple, or mismatched
+bounded descriptor events fail validation.
+
+Pipeline 516232 exposed a trace-only identity race: `rxHostMsgId` can be cleared
+by RX invalidation after a new slot is buffered but before `EciRxDescSent`.
+Five hot requests recorded sentinel 63 instead of their dispatched IDs.
+For this known capture, `--rx-trace-invalid-host-id 63` explicitly permits only a
+unique same-core descriptor between the current and next dispatch. Every such
+recovery records its observed ID and recovery flag in the audit. This is an
+isolated, one-outstanding-workload compatibility option, not proof of arbitrary
+concurrent packet identity. It does not modify the tested FPGA or repair its
+trace metadata. A future RTL trace-latch correction remains outstanding.
+
+Warmups remain in sequence/clock alignment, then are excluded explicitly from
+performance validation and percentiles. Audits record excluded counts and any
+incomplete warmup IDs; no measured request is silently dropped. The 516232 first
+hot warmup has no correlated IP/CMAC completion despite a correct client reply;
+its exact trace discrepancy remains unresolved. All 1,000 measured hot requests
+have complete downstream events. Twelve correlator regressions pass, including
+sentinel recovery, later-ID reuse, missing/ambiguous delivery, domain filtering
+and additive accounting.
