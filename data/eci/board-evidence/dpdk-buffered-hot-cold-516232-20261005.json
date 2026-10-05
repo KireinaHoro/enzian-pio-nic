@@ -1,0 +1,1863 @@
+{
+  "limitations": [
+    "Kernel IPG intervals use microsecond text timestamps and the FPGA/runtime clock fit; diagnostics, not extra E2E terms.",
+    "Incomplete boundary pairs receive no attribution.",
+    "A single-thread measured domain, separate four-thread flush domain; not four concurrent measured requests.",
+    "Pipeline 516232 contains GSYNC early NACK; timing remains open.",
+    "No traces are exported during each timed request sequence.",
+    "Kernel on/off comparison is sequential; use kernel-off cohorts for main E2E values.",
+    "One measured thread; the separate flush domain has four threads.",
+    "External residual combines client NIC/network/host contributions, not independently measured one-way delays.",
+    "Five kernel-on hot descriptor IDs required explicit, audited sentinel-63 recovery bounded by same-core dispatches; tested RTL trace metadata remains unfixed.",
+    "First hot warmup has incomplete downstream trace correlation despite a correct reply; excluded as a declared warmup, retained in sequence/clock alignment. All 4000 measured requests are complete.",
+    "Cold requests use cooperative reactivation after the four-thread flush domain; this is not an idle-IRQ activation component measurement.",
+    "Cold condition includes rare worker migration: kernel-on CPU44=999, CPU45=1; kernel-off CPU44=997, CPU45=2, CPU46=1.",
+    "The ~64 us cold userspace pre-RX tail remains; runtime timeout-sweep causation has not been independently established.",
+    "No four-concurrently-measured-worker tail guarantee follows from this one-thread campaign.",
+    "Component percentiles are marginal distributions; never sum percentiles. Per-request additive terms conserve timestamp-corrected E2E; raw RTT is reported separately."
+  ],
+  "cold_kernel_on": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 51350.0,
+      "p90": 54350.0,
+      "p95": 54670.0,
+      "p99": 61712.5,
+      "p100": 114450.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 20.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 35945.0,
+        "p90": 36843.0,
+        "p95": 37205.0,
+        "p99": 42722.35,
+        "p100": 99130.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 20.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 160.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 200.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1749.5,
+        "p90": 1760.0,
+        "p95": 1769.5,
+        "p99": 1884.55,
+        "p100": 2624.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 1120.0,
+        "p90": 1130.0,
+        "p95": 1140.0,
+        "p99": 1540.0,
+        "p100": 3040.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 340.0,
+        "p90": 340.0,
+        "p95": 340.0,
+        "p99": 360.0,
+        "p100": 890.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 350.0,
+        "p90": 350.0,
+        "p95": 350.0,
+        "p99": 360.0,
+        "p100": 1460.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1598.0,
+        "p90": 1608.0,
+        "p95": 1613.0,
+        "p99": 1653.0,
+        "p100": 14643.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 952.5,
+        "p90": 965.0,
+        "p95": 975.0,
+        "p99": 985.0,
+        "p100": 995.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 30.0,
+        "p95": 35.0,
+        "p99": 40.0,
+        "p100": 45.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 60.0,
+        "p95": 65.0,
+        "p99": 80.0,
+        "p100": 85.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 35.0,
+        "p95": 40.0,
+        "p99": 50.0,
+        "p100": 60.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 20.0,
+        "p100": 25.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 65.0,
+        "p95": 75.0,
+        "p99": 85.0,
+        "p100": 100.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 50.0,
+        "p95": 55.0,
+        "p99": 60.0,
+        "p100": 75.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 190.0,
+        "p90": 220.0,
+        "p95": 230.0,
+        "p99": 230.0,
+        "p100": 1130.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 1240.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8220.0,
+        "p90": 11122.0,
+        "p95": 11315.0,
+        "p99": 11410.05,
+        "p100": 12305.0
+      }
+    },
+    "workers": {
+      "44": 999,
+      "45": 1
+    },
+    "kernel_queue_before_rx_ns": {
+      "off_cpu": {
+        "count": 1000,
+        "p50": 22677.0,
+        "p90": 23172.0,
+        "p95": 23832.0,
+        "p99": 27922.55,
+        "p100": 43287.0
+      },
+      "irq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "ipi": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "softirq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "syscall": {
+        "count": 1000,
+        "p50": 7000.0,
+        "p90": 7000.0,
+        "p95": 8000.0,
+        "p99": 8000.0,
+        "p100": 15000.0
+      },
+      "unattributed_ipg": {
+        "count": 1000,
+        "p50": 5620.0,
+        "p90": 6070.0,
+        "p95": 6140.0,
+        "p99": 6790.5,
+        "p100": 69010.0
+      }
+    },
+    "pre_rx_queue_ns": {
+      "count": 1000,
+      "p50": 35207.0,
+      "p90": 36105.5,
+      "p95": 36462.0,
+      "p99": 41964.299999999996,
+      "p100": 98372.0
+    },
+    "kernel_incomplete_boundary_intervals": 13,
+    "activation_ns": {
+      "preempt_info_mmio": {
+        "count": 1000,
+        "p50": 1640.0,
+        "p90": 1690.0,
+        "p95": 1700.0,
+        "p99": 1700.0,
+        "p100": 2430.0
+      },
+      "claim_wait": {
+        "count": 1000,
+        "p50": 750.0,
+        "p90": 790.0,
+        "p95": 800.0,
+        "p99": 840.0,
+        "p100": 1360.0
+      },
+      "affinity_setup": {
+        "count": 1000,
+        "p50": 1420.0,
+        "p90": 1460.0,
+        "p95": 1490.0,
+        "p99": 1710.0,
+        "p100": 3710.0
+      },
+      "activation_publish": {
+        "count": 1000,
+        "p50": 200.0,
+        "p90": 210.0,
+        "p95": 210.0,
+        "p99": 210.0,
+        "p100": 1510.0
+      },
+      "wake_to_wait_return": {
+        "count": 1000,
+        "p50": 15360.0,
+        "p90": 15550.0,
+        "p95": 15830.5,
+        "p99": 17200.3,
+        "p100": 31220.0
+      },
+      "yield_copyout": {
+        "count": 1000,
+        "p50": 480.0,
+        "p90": 480.0,
+        "p95": 490.0,
+        "p99": 570.0,
+        "p100": 650.0
+      },
+      "kernel_to_userspace": {
+        "count": 1000,
+        "p50": 6590.0,
+        "p90": 6690.0,
+        "p95": 7340.0,
+        "p99": 7780.1,
+        "p100": 13520.0
+      },
+      "runtime_activation_setup": {
+        "count": 1000,
+        "p50": 390.0,
+        "p90": 390.0,
+        "p95": 390.0,
+        "p99": 610.0,
+        "p100": 630.0
+      },
+      "runtime_before_rx": {
+        "count": 1000,
+        "p50": 940.0,
+        "p90": 940.0,
+        "p95": 940.0,
+        "p99": 1020.0,
+        "p100": 63980.0
+      }
+    },
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 3010.0,
+        "p95": 3260.0,
+        "p99": 3290.0,
+        "p100": 3300.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 50740.0,
+        "p90": 51690.0,
+        "p95": 52171.0,
+        "p99": 58437.99999999999,
+        "p100": 113850.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 42715.0,
+        "p90": 43666.0,
+        "p95": 43980.75,
+        "p99": 50363.19999999999,
+        "p100": 105900.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 970.0,
+        "p90": 990.0,
+        "p95": 1000.0,
+        "p99": 1010.0,
+        "p100": 1020.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 1125.0,
+        "p90": 1155.5,
+        "p95": 1165.0,
+        "p99": 1190.0,
+        "p100": 1215.0
+      }
+    }
+  },
+  "hot_kernel_on": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 12250.0,
+      "p90": 12290.0,
+      "p95": 12420.0,
+      "p99": 16130.4,
+      "p100": 19910.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 20.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 40.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 60.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 1810.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 920.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 90.0,
+        "p90": 90.0,
+        "p95": 100.0,
+        "p99": 130.0,
+        "p100": 590.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 939.5,
+        "p90": 959.5,
+        "p95": 964.5,
+        "p99": 1704.55,
+        "p100": 3179.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 240.0,
+        "p90": 240.0,
+        "p95": 240.0,
+        "p99": 1530.1,
+        "p100": 1780.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 130.0,
+        "p95": 130.0,
+        "p99": 350.0,
+        "p100": 400.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 340.0999999999999,
+        "p100": 2240.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 713.0,
+        "p90": 718.0,
+        "p95": 718.0,
+        "p99": 948.05,
+        "p100": 968.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 950.0,
+        "p90": 955.0,
+        "p95": 960.0,
+        "p99": 960.0,
+        "p100": 970.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 25.0,
+        "p100": 25.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 25.0,
+        "p100": 25.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 60.0,
+        "p90": 60.0,
+        "p95": 60.0,
+        "p99": 60.0,
+        "p100": 60.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 150.0,
+        "p95": 150.0,
+        "p99": 150.0,
+        "p100": 180.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 230.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8190.0,
+        "p90": 8230.0,
+        "p95": 8285.0,
+        "p99": 8515.15,
+        "p100": 15790.0
+      }
+    },
+    "workers": {
+      "44": 1000
+    },
+    "kernel_queue_before_rx_ns": {
+      "off_cpu": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "irq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "ipi": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "softirq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "syscall": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "unattributed_ipg": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 1052.0
+      }
+    },
+    "pre_rx_queue_ns": {
+      "count": 1000,
+      "p50": 0.0,
+      "p90": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "p100": 1052.0
+    },
+    "kernel_incomplete_boundary_intervals": 3,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 170.0,
+        "p100": 4070.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 11700.0,
+        "p90": 11750.0,
+        "p95": 11860.0,
+        "p99": 15530.599999999999,
+        "p100": 19300.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 3700.0,
+        "p90": 3710.0,
+        "p95": 3715.0,
+        "p99": 6500.1,
+        "p100": 9230.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 965.0,
+        "p90": 970.0,
+        "p95": 975.0,
+        "p99": 975.0,
+        "p100": 985.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 1120.0,
+        "p90": 1125.0,
+        "p95": 1130.0,
+        "p99": 1130.0,
+        "p100": 1140.0
+      }
+    },
+    "ipg_ns": {
+      "count": 1000,
+      "p50": 540.0,
+      "p90": 550.0,
+      "p95": 570.0,
+      "p99": 2179.799999999991,
+      "p100": 12990.0
+    }
+  },
+  "hot_kernel_off": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 12240.0,
+      "p90": 12280.0,
+      "p95": 12370.5,
+      "p99": 12610.2,
+      "p100": 19480.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 45.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 25.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.049999999999955,
+        "p100": 70.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 90.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 60.0,
+        "p100": 90.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 30.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 25.0,
+        "p100": 45.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 20.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 90.0,
+        "p90": 90.0,
+        "p95": 100.0,
+        "p99": 110.0,
+        "p100": 180.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 969.5,
+        "p90": 989.5,
+        "p95": 994.5,
+        "p99": 999.5,
+        "p100": 1019.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 240.0,
+        "p90": 240.0,
+        "p95": 240.0,
+        "p99": 240.0,
+        "p100": 240.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 130.0,
+        "p95": 130.0,
+        "p99": 130.0,
+        "p100": 250.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 140.0,
+        "p100": 140.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 683.0,
+        "p90": 688.0,
+        "p95": 688.0,
+        "p99": 693.0,
+        "p100": 713.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 950.0,
+        "p90": 955.0,
+        "p95": 960.0,
+        "p99": 965.0,
+        "p100": 1005.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 25.0,
+        "p100": 45.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 45.049999999999955,
+        "p100": 75.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 25.0,
+        "p100": 55.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 60.0,
+        "p90": 60.0,
+        "p95": 60.0,
+        "p99": 60.0,
+        "p100": 90.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 40.0,
+        "p100": 65.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 140.0,
+        "p100": 220.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 240.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8190.0,
+        "p90": 8230.0,
+        "p95": 8290.25,
+        "p99": 8555.15,
+        "p100": 15425.0
+      }
+    },
+    "workers": {
+      "44": 1000
+    },
+    "unique_activations": 1,
+    "condition_validated": true,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 230.0,
+        "p100": 4110.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 11700.0,
+        "p90": 11740.0,
+        "p95": 11801.0,
+        "p99": 12030.0,
+        "p100": 18950.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 3700.0,
+        "p90": 3710.0,
+        "p95": 3715.0,
+        "p99": 3750.0,
+        "p100": 3850.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 965.0,
+        "p90": 970.0,
+        "p95": 975.0,
+        "p99": 990.05,
+        "p100": 1020.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 1120.0,
+        "p90": 1125.0,
+        "p95": 1130.0,
+        "p99": 1150.0,
+        "p100": 1185.0
+      }
+    },
+    "ipg_ns": {
+      "count": 1000,
+      "p50": 540.0,
+      "p90": 550.0,
+      "p95": 570.0,
+      "p99": 580.0,
+      "p100": 640.0
+    }
+  },
+  "cold_kernel_off": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 43360.0,
+      "p90": 46300.0,
+      "p95": 46510.5,
+      "p99": 53111.4,
+      "p100": 106170.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 20.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 15.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 120.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 80.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 27915.0,
+        "p90": 28145.0,
+        "p95": 28445.5,
+        "p99": 37070.15,
+        "p100": 90850.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 160.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 600.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1729.5,
+        "p90": 1749.5,
+        "p95": 1754.5,
+        "p99": 1869.5,
+        "p100": 3069.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 1120.0,
+        "p90": 1130.0,
+        "p95": 1140.0,
+        "p99": 1540.0,
+        "p100": 3300.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 330.0,
+        "p90": 330.0,
+        "p95": 330.0,
+        "p99": 350.0,
+        "p100": 790.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 350.0,
+        "p90": 350.0,
+        "p95": 350.0,
+        "p99": 360.0,
+        "p100": 480.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1613.0,
+        "p90": 1618.0,
+        "p95": 1623.0,
+        "p99": 1663.05,
+        "p100": 10903.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 950.0,
+        "p90": 955.0,
+        "p95": 955.0,
+        "p99": 960.0,
+        "p100": 990.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 25.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 25.0,
+        "p100": 55.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 25.0,
+        "p90": 25.0,
+        "p95": 25.0,
+        "p99": 25.0,
+        "p100": 25.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 60.0,
+        "p90": 60.0,
+        "p95": 60.0,
+        "p99": 60.0,
+        "p100": 65.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 180.0,
+        "p90": 190.0,
+        "p95": 190.0,
+        "p99": 190.0,
+        "p100": 860.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 180.0,
+        "p90": 180.0,
+        "p95": 180.0,
+        "p99": 180.0,
+        "p100": 880.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8235.0,
+        "p90": 11131.5,
+        "p95": 11330.0,
+        "p99": 11400.1,
+        "p100": 12000.0
+      }
+    },
+    "workers": {
+      "44": 997,
+      "46": 1,
+      "45": 2
+    },
+    "unique_activations": 1000,
+    "condition_validated": true,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 3011.0,
+        "p95": 3260.0,
+        "p99": 3290.0,
+        "p100": 3310.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 42675.0,
+        "p90": 42940.0,
+        "p95": 43341.5,
+        "p99": 52490.3,
+        "p100": 105570.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 34660.0,
+        "p90": 34895.5,
+        "p95": 35230.0,
+        "p99": 44450.05,
+        "p100": 97605.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 965.0,
+        "p90": 970.0,
+        "p95": 970.0,
+        "p99": 975.0,
+        "p100": 1005.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 1120.0,
+        "p90": 1125.0,
+        "p95": 1125.0,
+        "p99": 1130.0,
+        "p100": 1160.0
+      }
+    }
+  },
+  "kernel_tracing_comparison": {
+    "hot": {
+      "median_delta_ns": 10.0,
+      "scope": "one sequential pair, runtime buffering and FPGA tracing retained; not a per-request correction"
+    },
+    "cold": {
+      "median_delta_ns": 7990.0,
+      "scope": "one sequential pair, runtime buffering and FPGA tracing retained; not a per-request correction"
+    }
+  },
+  "provenance": {
+    "pipeline": 516232,
+    "sha": "6f5fa076adbad2002681d3051c7056522929b7a1",
+    "jobs": {
+      "prepare": 2866838,
+      "hardware": 2866839,
+      "report": 2866840
+    },
+    "artifacts": {
+      "out/percpu-fix-516232/deploy.img": "85e3b5e3197e5e2d7af6cb5e26dcd21bf8572a43986c7e441ca1addfd12a2586",
+      "out/ci-followup/516232/hardware/shell_lauberhorn-eci.ltx": "9fb7a96842094ac61d016c48e4b1f2eb45204287940f377bd2abf86b2d1a5cce",
+      "out/ci-followup/516232/hardware/shell_lauberhorn-eci.bit": "8b154fff940e032004fbb6a733bf26bf2bdd8a07faf0947bf10a5a974154ec82",
+      "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c"
+    },
+    "timing": {
+      "wns": -0.102,
+      "tns": -37.731,
+      "setup_failing": 893,
+      "hold_failing": 0,
+      "pulse_failing": 0
+    },
+    "prior_state": "Two corrected-module cold-boot acceptance repeats passed; 240 controlled GSYNC RPCs passed and full trace preserved before reset.",
+    "runtime_source": "7bc9302b",
+    "runtime_sha256": "d4cd4ed56a9f87d63fe98bbc7d45391917ecf994fd9075440d3a157729c6a7a7",
+    "module_source": "af0f64fe07fa3e2ef6bbfd619423d4bda027b615",
+    "runtime_export": "once after all phases",
+    "flush_runtime_tracing": false,
+    "measured_threads": 1,
+    "flush_threads": 4,
+    "measurements": [
+      "bufhot2",
+      "bufcold1",
+      "bufhotoff1",
+      "bufcoldoff1"
+    ],
+    "kernel_ipg_cpus": [
+      44,
+      45,
+      46,
+      47
+    ],
+    "kernel_buffer_kb_per_cpu": 16384,
+    "export_expected_rows": 4032,
+    "runtime_buffer_capacity": 16384,
+    "overlay_hashes": {
+      "activation_trace.py": "2cc1d5ffe09bfe6a0df92b8ea3b8e29ca74a87904414601eb82d846a46a2018e",
+      "assess_tad.py": "3379a52270c78becefebc81eb8675fad3e9fcf30d2012b39c1ad0a04c16000a6",
+      "lauberhorn.ko": "dbb3fbf3590d0cc809742cb0a679722b94bed809ed211e8acf8756ca7711c3d5",
+      "liblauberhorn.so": "d4cd4ed56a9f87d63fe98bbc7d45391917ecf994fd9075440d3a157729c6a7a7",
+      "microbenchmarks": "9a74fff63fc6229f1533c68f6c1200726131b9e7695ab56ab1a8d0ff65914fec"
+    },
+    "network_setup": "permanent client neighbor 192.168.128.225 -> 0c:53:31:03:00:e1",
+    "setup_template": "out/buffered-latency-516232/setup.sh",
+    "setup_executed_sha256": "cbb949ed5b892379205dbda201c766f3ff5aa37b29ac280aaeeb958a2e5885b0",
+    "boot": [
+      {
+        "attempt": 1,
+        "logs": "out/buffered-latency-516232/boot",
+        "status": "pass",
+        "eci": {
+          "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+          "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+          "firmware_clock_report": [
+            "RCLK:  2000 Mhz",
+            "SCLK:  800 Mhz",
+            "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+          ]
+        }
+      }
+    ],
+    "runtime_export_sha256": "1cf4fc380a38d1954774b03e9d0dcc0bf1cdfb9309a564961b6b031306ae1935",
+    "analyzer_revision": "31c79879",
+    "measured_tgid": 1659,
+    "flush_tgid": 1664
+  },
+  "export": {
+    "rows": 4032,
+    "dropped": 0,
+    "threads": 1,
+    "capacity_per_thread": 16384,
+    "loss_free": true,
+    "snapshot_only": true
+  },
+  "final_health": true,
+  "phase_ranges": {
+    "bufhot2": {
+      "runtime_rows": 1016,
+      "first_runtime_row": 0,
+      "past_last_runtime_row": 1016,
+      "workers": {
+        "44": 1016
+      },
+      "unique_activations": 1,
+      "runtime_failed": 0,
+      "client_rows": 1016,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "bufcold1": {
+      "runtime_rows": 1000,
+      "first_runtime_row": 1016,
+      "past_last_runtime_row": 2016,
+      "workers": {
+        "44": 999,
+        "45": 1
+      },
+      "unique_activations": 1000,
+      "runtime_failed": 0,
+      "client_rows": 1000,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "bufhotoff1": {
+      "runtime_rows": 1016,
+      "first_runtime_row": 2016,
+      "past_last_runtime_row": 3032,
+      "workers": {
+        "44": 1016
+      },
+      "unique_activations": 1,
+      "runtime_failed": 0,
+      "client_rows": 1016,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "bufcoldoff1": {
+      "runtime_rows": 1000,
+      "first_runtime_row": 3032,
+      "past_last_runtime_row": 4032,
+      "workers": {
+        "44": 997,
+        "46": 1,
+        "45": 2
+      },
+      "unique_activations": 1000,
+      "runtime_failed": 0,
+      "client_rows": 1000,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    }
+  },
+  "artifacts": {
+    "bufhot2": {
+      "audit": "out/baseline-latency-516232/bufhot2-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/baseline-latency-516232/bufhot2.csv",
+        "server_csv": "out/baseline-latency-516232/bufhot2-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "9100fbc42d2d5b604d51a832ccf775dbcb450c3523c04c5fd9dbc109deb988e9",
+        "server_sha256": "a46aa43470cf67d588d346ca9f7e445e318c53c9fae29013291052363520b8aa",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": [
+            1
+          ]
+        },
+        "trace_dump": "out/baseline-latency-516232/bufhot2-dump/trace/trace-dram.bin",
+        "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "6fd1ed8402c1587c140c6d7011d5c1d7e2afc5164ec23e1366e9889d8578f7c0",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1659,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 15029696,
+        "sha256": "6fd1ed8402c1587c140c6d7011d5c1d7e2afc5164ec23e1366e9889d8578f7c0",
+        "offset": 142021632,
+        "start": {
+          "trace_write_slot_1": 2219088,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 0,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 2453927,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 516232
+      },
+      "health": true
+    },
+    "bufcold1": {
+      "audit": "out/baseline-latency-516232/bufcold1-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/baseline-latency-516232/bufcold1.csv",
+        "server_csv": "out/baseline-latency-516232/bufcold1-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "0d7fb4e9d1379b22d1417e177b10a9da0611b15a66c70da0925ecf6ea320ea94",
+        "server_sha256": "0da3c2d1d151a326e43019bf15446ec0e1373fca181edbb1611851f2861cab50",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/baseline-latency-516232/bufcold1-dump/trace/trace-dram.bin",
+        "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "d5495e5997f6de46ec0de9b813b4e367cc6b504883346129c00875a95f9bc54d",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1659,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 350179456,
+        "sha256": "d5495e5997f6de46ec0de9b813b4e367cc6b504883346129c00875a95f9bc54d",
+        "offset": 167479232,
+        "start": {
+          "trace_write_slot_1": 2616863,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 8088417,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 516232
+      },
+      "health": true
+    },
+    "bufhotoff1": {
+      "audit": "out/baseline-latency-516232/bufhotoff1-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/baseline-latency-516232/bufhotoff1.csv",
+        "server_csv": "out/baseline-latency-516232/bufhotoff1-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "89eb6cd0517369e92f7bc1a85d85c0f0b001923bf941a0cfff33daf753ec8bcc",
+        "server_sha256": "9404f43df9411aa4f4166f789c158c0f1b0fdc39bd8c31c470cff652e54acd76",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/baseline-latency-516232/bufhotoff1-dump/trace/trace-dram.bin",
+        "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "a755deb06e88889b64cbbc1b45e97431647e17d04d46ee919c1f3c3f3bda0477",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1659,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 1153749952,
+        "sha256": "a755deb06e88889b64cbbc1b45e97431647e17d04d46ee919c1f3c3f3bda0477",
+        "offset": 560543168,
+        "start": {
+          "trace_write_slot_1": 8758487,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 26785830,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 516232
+      },
+      "health": true
+    },
+    "bufcoldoff1": {
+      "audit": "out/baseline-latency-516232/bufcoldoff1-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/baseline-latency-516232/bufcoldoff1.csv",
+        "server_csv": "out/baseline-latency-516232/bufcoldoff1-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "53546bed9ddcfa7fe78bef86a9e2651e7437e656bd88eb3875e9122be7a2aa74",
+        "server_sha256": "f7428d53f487e098a943ec6582398a8a241cb6e2738c86b2cbe1909e260b79fb",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/baseline-latency-516232/bufcoldoff1-dump/trace/trace-dram.bin",
+        "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "9c68a731ef7e052db6dfc285a52ef4c2896939f57c7171eaa0fd727f772326df",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1659,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 584202240,
+        "sha256": "9c68a731ef7e052db6dfc285a52ef4c2896939f57c7171eaa0fd727f772326df",
+        "offset": 1755355072,
+        "start": {
+          "trace_write_slot_1": 27427423,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 36555583,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 516232
+      },
+      "health": true
+    }
+  },
+  "outliers": {
+    "hot_kernel_on": {
+      "request_id": 219,
+      "e2e_raw_ns": 19910,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 15.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 90.0,
+        "server_rt_overhead": 954.5,
+        "server_xdr_unmarshal": 230.0,
+        "handler": 130.0,
+        "server_xdr_marshal": 130.0,
+        "server_2f2f_tx_sw": 718.0,
+        "lh_tx_2f2f_hw": 940.0,
+        "lh_tx_host_submit": 15.0,
+        "lh_tx_submit_to_udp_encode": 25.0,
+        "lh_tx_ip_encode": 25.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 60.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 140.0,
+        "client_reply_validate": 230.0,
+        "outside_lh_client_network": 15790.0
+      }
+    },
+    "cold_kernel_on": {
+      "request_id": 263,
+      "e2e_raw_ns": 114450,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 99130.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 160.0,
+        "server_rt_overhead": 1759.5,
+        "server_xdr_unmarshal": 1120.0,
+        "handler": 330.0,
+        "server_xdr_marshal": 350.0,
+        "server_2f2f_tx_sw": 1603.0,
+        "lh_tx_2f2f_hw": 955.0,
+        "lh_tx_host_submit": 15.0,
+        "lh_tx_submit_to_udp_encode": 25.0,
+        "lh_tx_ip_encode": 25.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 60.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 190.0,
+        "client_reply_validate": 170.0,
+        "outside_lh_client_network": 8140.0
+      }
+    },
+    "hot_kernel_off": {
+      "request_id": 219,
+      "e2e_raw_ns": 19480,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 15.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 90.0,
+        "server_rt_overhead": 964.5,
+        "server_xdr_unmarshal": 240.0,
+        "handler": 130.0,
+        "server_xdr_marshal": 140.0,
+        "server_2f2f_tx_sw": 683.0,
+        "lh_tx_2f2f_hw": 950.0,
+        "lh_tx_host_submit": 15.0,
+        "lh_tx_submit_to_udp_encode": 25.0,
+        "lh_tx_ip_encode": 25.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 60.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 140.0,
+        "client_reply_validate": 160.0,
+        "outside_lh_client_network": 15425.0
+      }
+    },
+    "cold_kernel_off": {
+      "request_id": 716,
+      "e2e_raw_ns": 106170,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 90850.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 160.0,
+        "server_rt_overhead": 1734.5,
+        "server_xdr_unmarshal": 1130.0,
+        "handler": 330.0,
+        "server_xdr_marshal": 340.0,
+        "server_2f2f_tx_sw": 1623.0,
+        "lh_tx_2f2f_hw": 945.0,
+        "lh_tx_host_submit": 15.0,
+        "lh_tx_submit_to_udp_encode": 25.0,
+        "lh_tx_ip_encode": 25.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 60.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 180.0,
+        "client_reply_validate": 180.0,
+        "outside_lh_client_network": 8155.0
+      }
+    }
+  },
+  "status": "four-cohorts-correlated-and-condition-validated",
+  "comparison_to_516112": {
+    "hot_kernel_off": {
+      "rtt_percentile_delta_ns": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 50.5,
+        "p99": 10.200000000000728,
+        "p100": -20.0
+      },
+      "tx_hardware_median_delta_ns": 0.0
+    },
+    "cold_kernel_off": {
+      "rtt_percentile_delta_ns": {
+        "p50": 210.0,
+        "p90": 159.0,
+        "p95": 180.5,
+        "p99": 1976.5000000000073,
+        "p100": -470.0
+      },
+      "tx_hardware_median_delta_ns": 0.0
+    }
+  },
+  "trace_id_recovery": {
+    "bufhot2": {
+      "request_ids": [
+        123,
+        126,
+        127,
+        132,
+        135
+      ],
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": [
+          1
+        ]
+      }
+    },
+    "bufcold1": {
+      "request_ids": [],
+      "excluded_warmup": {
+        "count": 0,
+        "incomplete_request_ids": []
+      }
+    },
+    "bufhotoff1": {
+      "request_ids": [],
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      }
+    },
+    "bufcoldoff1": {
+      "request_ids": [],
+      "excluded_warmup": {
+        "count": 0,
+        "incomplete_request_ids": []
+      }
+    }
+  },
+  "cold_activation_paths": {
+    "cooperative": 1000
+  }
+}

@@ -967,3 +967,70 @@ its exact trace discrepancy remains unresolved. All 1,000 measured hot requests
 have complete downstream events. Twelve correlator regressions pass, including
 sentinel recovery, later-ID reuse, missing/ambiguous delivery, domain filtering
 and additive accounting.
+
+
+## Corrected-module 516232 comparison — October 5
+
+[Full report and provenance](../../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.json)
+and [all 153 component percentile rows](../../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.csv)
+record the completed comparison. Pipeline 516232 (`6f5fa076`) uses module overlay
+`af0f64fe`, the same buffered runtime `7bc9302b` and cross-built Nix DPDK client
+as the baseline. Zuestoll14 is the DUT and zuestoll07 the client. No new FPGA
+build, timing, address-layout or PREEMPT implementation change was made.
+
+One measured add thread and a separate four-thread mul flush domain ran four
+cohorts. All **4,000 measured RPCs plus 32 warmups** passed. Runtime tracing
+exported once at the end: 4,032 rows, no drops. All measured requests have full
+hardware/runtime correlation and per-request additive conservation. Cold
+classification verifies 1,000 distinct cooperative activations per cohort.
+Hot requests stayed on CPU44. Cold traced placement was CPU44=999, CPU45=1;
+untraced placement CPU44=997, CPU45=2, CPU46=1. Kernel and TAD health checks
+passed; all four FPGA windows were saved before any reset. The board remains
+reserved, with services running and FPGA tracing frozen.
+
+Raw roundtrip percentiles, microseconds:
+
+| Condition (1,000 each) | P50 | P90 | P95 | P99 | P100 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hot, kernel tracing off | 12.240 | 12.280 | 12.371 | 12.610 | 19.480 |
+| Cold, kernel tracing off | 43.360 | 46.300 | 46.511 | 53.111 | 106.170 |
+| Hot, kernel tracing on | 12.250 | 12.290 | 12.420 | 16.130 | 19.910 |
+| Cold, kernel tracing on | 51.350 | 54.350 | 54.670 | 61.713 | 114.450 |
+
+Kernel tracing adds **7.99 us** at the cold median in this sequential pair,
+versus 8.13 us previously. Do not subtract a constant from individual samples.
+The kernel-off hot median is unchanged from 516112; cold rises 0.21 us.
+TX hardware remains **0.950 us median in both conditions**, unchanged from the
+baseline. This comparison shows no further TX reduction and is not a new
+R12-versus-RA3 experiment. The separate controlled GSYNC experiment demonstrates
+removal of its hold-dependent tails; ordinary short-run percentiles alone do not
+prove their absence under arbitrary interrupts or four simultaneous requests.
+
+Selected component medians, microseconds (kernel tracing off):
+
+| Component | Hot | Cold |
+| --- | ---: | ---: |
+| FPGA queue residence | 0.015 | 27.915 |
+| RX hardware estimate | 0.123 | 0.123 |
+| RX software | 0.090 | 0.160 |
+| Runtime overhead | 0.970 | 1.730 |
+| Unmarshal / handler / marshal | 0.240 / 0.130 / 0.140 | 1.120 / 0.330 / 0.350 |
+| TX software | 0.683 | 1.613 |
+| TX hardware | 0.950 | 0.950 |
+| Combined client/NIC/network residual | 8.190 | 8.235 |
+
+Cold queue residence contains the reactivation wait; it is not pure FPGA
+scheduler execution. Nested traced activation medians are: preempt-info MMIO
+1.64 us, claim 0.75 us, affinity 1.42 us, publication 0.20 us, wake-to-wait-return
+15.36 us, yield copyout 0.48 us, kernel-to-userspace 6.59 us, runtime activation
+setup 0.39 us, and runtime-before-RX 0.94 us. These measured activation paths are
+cooperative; idle IRQ entry/dispatcher stages are not present. These intervals
+are nested diagnostics, not additional E2E terms, and include tracing overhead.
+
+The longest traced cold request is 114.45 us and includes a 63.98 us
+runtime-before-RX interval. The untraced maximum remains 106.17 us. The earlier
+runtime timeout-sweep hypothesis remains unproven. Hot maxima are dominated by
+the external residual. See the preceding correlation note for five explicitly
+recovered sentinel descriptor IDs and one incomplete excluded warmup. The
+future trace-ID latch correction, four-worker concurrent-tail acceptance and
+FPGA timing closure remain outstanding.
