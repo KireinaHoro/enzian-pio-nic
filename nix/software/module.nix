@@ -27,13 +27,17 @@ stdenv.mkDerivation {
     make V=1 KERNELRELEASE=${kernelRelease} \
       MACKEREL_DEV_HDRS=${devHdrs} \
       HW_CFG_HDRS=${genVerilog.headers}
-  '';
-  doCheck = true;
-  checkPhase = ''
-    runHook preCheck
+    # Cross derivations can skip checkPhase; validate the target ELF here.
     aarch64-unknown-linux-gnu-readelf -p .modinfo lauberhorn.ko \
       | grep -F 'vermagic=${kernelRelease} '
-    runHook postCheck
+    # The loader recognizes only this exact section. In particular,
+    # DEFINE_PER_CPU_READ_MOSTLY can leave an unallocated orphan subsection.
+    aarch64-unknown-linux-gnu-readelf -SW lauberhorn.ko > module-sections.txt
+    grep -E '\] +\.data\.\.percpu +PROGBITS' module-sections.txt
+    if grep -E '\] +\.data\.\.percpu\.' module-sections.txt; then
+      echo "Unsupported module per-CPU subsection" >&2
+      exit 1
+    fi
   '';
   installPhase = ''
     mkdir -p $out

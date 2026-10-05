@@ -15,7 +15,15 @@
 
 // [lo, hi) bound of CPU cores used to handle RPC requests
 int worker_lo, worker_hi;
-static DEFINE_PER_CPU_READ_MOSTLY(struct worker_fpi_data, fpi_percpu_data);
+/* Keep module per-CPU state in the exact .data..percpu section. Linux's
+ * module loader does not allocate .data..percpu..read_mostly, emitted by
+ * DEFINE_PER_CPU_READ_MOSTLY (still true upstream at a90ee4305c4a).
+ * That leaves per_cpu_ptr() accessing unallocated storage: on Enzian a stray
+ * thr pointer suppressed idle dispatch even though SGI8 arrived. Built-in
+ * kernel linking handles that subsection, but loadable modules do not.
+ * The Nix module check rejects orphan per-CPU subsections in the final ELF.
+ */
+static DEFINE_PER_CPU(struct worker_fpi_data, fpi_percpu_data);
 static u64 irq_no;
 
 static lauberhorn_eci_ownership_t ownership_dev;
