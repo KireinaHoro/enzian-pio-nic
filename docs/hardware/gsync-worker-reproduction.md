@@ -204,3 +204,71 @@ and new-image hot/cold measurements are blocked pending diagnosis; the
 remains historical comparison data. No timing, address-layout or PREEMPT
 implementation change was made. Raw evidence is in `out/board/gsync-516232*`
 and `out/ci-followup/516232/`; the pipeline branch is retained.
+
+
+## Per-CPU module correction — October 5
+
+The idle-activation failure above was traced to the module's use of
+`DEFINE_PER_CPU_READ_MOSTLY`. Its final ELF had an orphan
+`.data..percpu..read_mostly` section and no `.data..percpu`. Linux's module loader
+allocates only the exact latter section; the former therefore did not provide
+valid per-CPU storage. A stray worker-owner value suppressed the delivered idle
+interrupt. This was not a lost ECI interrupt: the accepted SGI8 was visible at
+the controller and outgoing link boundary, and Linux counted it on CPU44.
+The trace records header word zero, so it does not independently verify every
+payload word or static-shell internal hop.
+
+A separate minimal build against stock x86 Ubuntu 5.15 headers reproduced the
+section difference without Lauberhorn, ARM or Nix. Plain `DEFINE_PER_CPU`
+produced the correct section. Upstream Linux at `a90ee4305c4a` still has the
+same macro/loader mismatch; a quick prior-report search found no matching report,
+which is not proof that none exists. No independent probe module was loaded.
+
+Commit `af0f64fe` uses plain `DEFINE_PER_CPU`, documents the reason beside the
+state declaration, and checks final module section layout and vermagic during
+the Nix build. The negative guard rejects the independently built orphan-section
+probe. The corrected module was cross-built against the exact 516232 ABI and
+kernel headers; no FPGA change was needed. Its deployment overlay preserves the
+original CI image contents and records the new module separately.
+
+Two fresh repository-harness cold-boot repeats passed with this overlay:
+**200 measured plus 32 warmup RPCs**, complete QLM/CCPI bring-up on the first
+attempt each, and no detected kernel faults. RT throttling was disabled.
+The historical failed trial and its full capture remain preserved. Detailed
+local build and board provenance is under `out/percpu-fix-516232/` and
+`out/board/percpu-fixed-516232/`. Controlled GSYNC and latency follow-up results
+are recorded separately; these two passes alone do not establish them.
+
+
+## Corrected-module early-NACK measurement — October 5
+
+With the same 516232 FPGA and the corrected module, all **240 controlled RPCs**
+passed, including 80 permission changes and 80 syscall controls. The probe ran
+on **Linux CPU46 / physical worker2 / NIC datapath3**. All 160 permission-change
+GSYNCs had PPVID46; 107 overlapped one or two fully observed peer RX holds,
+while 53 had no such overlap. The observed peers were datapaths 1 and 2, so this
+run does not establish three simultaneously stalled peers.
+
+| RX hold setting | First mprotect median | Restore median | Socket RPC median |
+| --- | ---: | ---: | ---: |
+| 50 ms, first | 18.455 us | 17.940 us | 146.197 us |
+| 10 ms | 18.340 us | 17.925 us | 145.471 us |
+| 1 ms | 18.655 us | 17.935 us | 146.391 us |
+| 50 ms, repeated | 18.365 us | 17.925 us | 146.681 us |
+
+The prior hold-dependent millisecond waits disappeared in these requests.
+For the 196 observed peer overlaps, trace-adjusted GSYNC-to-NACK was **10–35 ns**
+(median 10 ns). This is the FPGA event interval, not CPU synchronization
+retirement or complete coherent-read latency. Subsequent full 1 ms peer holds
+were observed, confirming that release did not remain sticky in that phase.
+Other GSYNCs interrupted longer holds; do not interpret this as a clean test
+that every later 50 ms read retains its full timeout.
+
+All 240 descriptor-to-commit spans correlate with client replies, with no decoded
+loss during the experiment. The complete unwrapped **864,557,952-byte** capture
+was saved and hash-verified before resetting for latency measurements. DMA status
+was clear and pre-freeze loss status was zero. Paired kernel/TAD assessment passed.
+The [correction and GSYNC ledger](../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
+records provenance, distributions and limits. Raw evidence remains in
+`out/gsync-516232-fixed/`. These socket-client results are separate from the DPDK
+latency comparison. FPGA timing remains open.
