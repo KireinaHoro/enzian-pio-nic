@@ -4,6 +4,11 @@ See the [registered endpoint and internal-loopback contract](../software/nested-
 
 ## Active integration — October 8
 
+For the separately requested unmodified pre-port/paper-client baseline, see
+[baseline measurements](dandelion-baseline.md): 8,000 requests passed on the
+two existing reserved machines after authorization, with unchanged upstream
+server/client sources. The paper's latency numbers were not reproduced.
+
 The maintainer has resumed Dandelion after closing the dedicated multi-worker
 campaign. HOST_WAKE remains on hold; additional four-worker coverage belongs to
 application testing as concrete cases arise. Earlier B6 reservation notes are
