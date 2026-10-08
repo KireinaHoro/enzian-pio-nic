@@ -53,9 +53,12 @@ HOST_WAKE, service events/timers and complete kill/exit resource recovery remain
 follow-on work. Timing optimization is paused; tested 516232 has WNS −0.102 ns
 and 893 failing setup endpoints, not closure.
 
-As of this October 8 documentation pass, corrections and measurements through
-`3ce4a73f` are on `feat/four-worker-latency-baseline`; master consolidation is
-still separate. No fresh board/reservation check was made. Last recorded DUT
+October 8 maintainer direction: merge the completed measurement/correction
+branch and conclude the dedicated multi-worker campaign at its recorded finite
+coverage. Further four-worker cases move into application validation; do not
+claim those unrun cases passed. HOST_WAKE is on hold. Resume Dandelion using the
+[active integration plan](docs/research/dandelion.md#active-integration--october-8).
+No fresh board/reservation check was made. Last recorded DUT
 and client were zuestoll14 and zuestoll07, with services running and tracing
 frozen after successful capture. Recheck reservations and actual state before
 access; do not treat a dated note as a live reservation or reset an unpreserved

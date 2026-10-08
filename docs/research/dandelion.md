@@ -2,6 +2,29 @@
 
 See the [registered endpoint and internal-loopback contract](../software/nested-rpc-endpoints.md) for the B2/B6 batch.
 
+## Active integration — October 8
+
+The maintainer has resumed Dandelion after closing the dedicated multi-worker
+campaign. HOST_WAKE remains on hold; additional four-worker coverage belongs to
+application testing as concrete cases arise. Earlier B6 reservation notes are
+superseded by this direction, not by a claim of completed application acceptance.
+
+The starting point is the pinned `69c3088` source plus four tracked patches in
+`sw/apps/dandelion/`, including cooperative worker-pool registration. This is an
+existing adapter, not a new import of the student's old C runtime. First run the
+fixture reference calculator, cross-build the app and packaged server tests,
+and execute the bounded codec tests. Then use matching runtime/module/FPGA
+artifacts for atomic matmul/matmac, DAG, sharding and concurrent nested cases.
+Check actual isolated CPU placement and request progress, retaining traces and
+correctness results; only then collect application performance distributions.
+Build success and the old single-function smoke do not establish composition
+support on the current address/PREEMPT implementation.
+
+The later sections distinguish the historical student/mock design from the
+managed-outcome adapter. Runtime recovery limitations remain those of the
+[current programming contract](../software/programming-model.md), not blanket
+assumptions copied from the thesis. See the [build/run recipe](../../sw/apps/dandelion/README.md).
+
 Surveyed 2026-09-08. External sibling workspace: `../sven-dandelion/` from the platform root; it is not vendored here. Report: **Sven Glinz, _Porting Dandelion to the Lauberhorn smart NIC_**, bachelor thesis, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected commits: report `ec49e8a`, platform `9e25181`, Dandelion `69c3088`. The report identifies upstream Dandelion `98c4968` (2026-03-09) as its port base; these are distinct revision identities.
 
 **Hardware update, 2026-09-10:** the external `69c3088` application builds for
@@ -111,6 +134,6 @@ installed runtime's pkg-config metadata, install default config/assets under
 `$out/share`, and default that variable to the installed config while respecting
 user overrides. Keep writable function/state directories and logs external.
 The root recipe can expose the latency executable or runnable test packages
-separately. This establishes packaging requirements only: the sibling's nested
-RPC/fiber API changes remain unmerged and its application has not been built
-against this checkout's simpler runtime.
+separately. These were the September 15 packaging requirements. The tracked managed-outcome
+and cooperative-worker adapters now build against the installed runtime; current
+composition/placement acceptance is the active work above.
