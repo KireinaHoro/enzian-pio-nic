@@ -218,3 +218,13 @@ passed. Local logs are retained under ignored `out/native-udp/`; CI is the
 revision-pinned, shareable evidence. No local dirty-tree image should be substituted
 for the CI image when programming the board. Slow bypass sweeps were not completed
 in this focused run; CI retains its source-defined test selection.
+
+CI pipeline 517943 (`03b1fe04`) passed all fourteen test gates, including
+memcached-adapter job 2879263, after application job-token access was enabled.
+Preparation job 2879255 then caught a maintained-wrapper omission: generated
+native UDP tracing added port 52, while the VHDL wrapper ended at 51. The wrapper
+now connects that port at both NicEngine and trace DMA and widens the connecting
+arrays. The complete local `nix build .#eciVivadoInputs` preparation check passes,
+including generated ports and debug widths. Synthesis and board acceptance still
+require a successful replacement pipeline; this correction changes no timing
+constraints, address layout or PREEMPT behavior.
