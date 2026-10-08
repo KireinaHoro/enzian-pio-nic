@@ -69,6 +69,9 @@ interactive:
 runtime-interface:
   extends: .test-nix
 
+memcached-adapter:
+  extends: .test-nix
+
 runtime-tests:
   extends: .test-nix
 
@@ -102,6 +105,8 @@ prepare-eci:
       artifacts: false
     - job: runtime-interface
       artifacts: false
+    - job: memcached-adapter
+      artifacts: false
     - job: runtime-tests
       artifacts: false
     - job: eci-address-map
@@ -116,6 +121,7 @@ prepare-eci:
       - out/eci/vivado-inputs/
       - out/eci/generateVerilog.dest/
       - out/deploy.img
+      - out/memcached-deploy.img
       - out/ci/**/build.log
 
 build-hw-eci:
