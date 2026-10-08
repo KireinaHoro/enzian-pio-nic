@@ -74,7 +74,7 @@ RX wait beginning before request arrival, and preserve exact artifact provenance
 Build checks alone do not complete either hardware gate. HOST_WAKE remains on
 hold; no timing or address/PREEMPT redesign is part of this goal.
 
-### Active follow-up: wide Dandelion fan-out
+### Completed bounded follow-up: wide Dandelion fan-out
 
 Exercise 32 independent matrix tasks and a sum reduction on all four workers,
 including compute on the core whose parent composition is suspended. Reuse the
@@ -82,8 +82,10 @@ existing graph walker and its submit-until-capacity / await / resume mechanism;
 do not substitute a benchmark-specific scheduler. Check the distinction between
 outgoing-call admission and incoming loopback reply-context capacity before
 claiming that a larger graph works. Plot worker lanes as well as parent/child
-correlation. Work is on `feat/dandelion-wide-fanout` until the hardware result is
-validated; the earlier three-child results remain the completed baseline.
+correlation. Two corrected requests now complete all 63 children each, reach
+four concurrent executions, and demonstrate compute on the parent’s waiting
+core. See the [wide-graph evidence](dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8).
+This bounded probe supplements the earlier three-child measurement cohorts.
 
 The first 32-way probe on the old runtime failed: parent plus 15 children
 occupied the 16 incoming reply contexts; receive-side rejection surfaces as
@@ -92,7 +94,7 @@ occupied the 16 incoming reply contexts; receive-side rejection surfaces as
 `out/dandelion-resume/wide-failure-trace/` (SHA-256
 `13cb7df01abfdc8fa09053f73c684d3c9f578ada30ef5570aad0e9cf9856c5b3`).
 Dandelion `f95d33d` retains/requeues the rejected loopback shard; the platform
-runtime preserves SYSTEM_ERR as future status 4. Other errors drain accepted
+runtime preserves SYSTEM_ERR as future status 4. Other future errors drain accepted
 calls and fail the composition. Native runtime status tests, AArch64/QEMU
 capacity-policy tests, cross-build and image packaging passed. The first corrected
 board probe handled four SYSTEM_ERR retries but still lost 13 completions between
@@ -107,7 +109,7 @@ credit reuse and 32 concurrent submitters. This is a **temporary UDP/small-table
 workaround**, not the intended architectural limit; see the
 [table scaling and spill plan](../hardware/lookup-spill.md#temporary-udp-evaluation-workaround--october-8).
 Many current capacity restrictions should eventually be lifted. The corrected
-bounded board gate remains pending on FPGA 516232; no new bitstream is needed.
+bounded board gate passed on FPGA 516232; no new bitstream was needed.
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 

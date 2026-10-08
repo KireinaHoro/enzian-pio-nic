@@ -57,7 +57,7 @@ This is a temporary workaround for evaluation, not the scaling design. Lift the
 small-table restrictions as software-backed spill and reliable admission/delivery
 are implemented. Preserve completion ownership until delivery is guaranteed;
 raising table sizes or retrying indeterminate failures alone does not establish
-correctness. The current bounded workaround still needs its recorded board gate.
+correctness. The bounded workaround passed the [two-request wide-graph board gate](../research/dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8); broader reliability remains open.
 
 ## Existing Slow Paths
 

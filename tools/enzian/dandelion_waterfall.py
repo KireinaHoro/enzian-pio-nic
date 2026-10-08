@@ -136,7 +136,7 @@ def plot(path,root,client,requests,events,children,hardware=None,worker_lanes=Fa
     cpus=sorted({cpu_by_id[key] for key in ids})
     lanes=({root:0,**{key:cpus.index(cpu_by_id[key])+1 for key in ids if key!=root}}
            if worker_lanes else {key:i for i,key in enumerate(ids)})
-    labels=([f'parent fiber {root}\nCPU {cpu_by_id[root]}']+[f'children on CPU {cpu}' for cpu in cpus]
+    labels=([f'parent fiber {root}\nRX CPU {cpu_by_id[root]}']+[f'children on CPU {cpu}' for cpu in cpus]
             if worker_lanes else [])
     lane_count=len(cpus)+1 if worker_lanes else len(ids)
     fig,ax=plt.subplots(figsize=(15 if worker_lanes else 13,max(4,1.0*lane_count+1.8)))

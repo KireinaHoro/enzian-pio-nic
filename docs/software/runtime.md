@@ -77,7 +77,7 @@ An accepted local send is not application success or proof of network delivery.
 
 ## Limits and lifecycle
 
-There are 320 shared fibers (64 KiB each), 640 software pending slots and a
+There are 320 shared fibers (64 KiB each), 640 software pending backing slots and
 separate generated hardware limits (16 outgoing operations and 16 incoming
 reply contexts by default). Incoming admission rejects before host dispatch
 when full, with best-effort hardware error replies and no live-entry overwrite.
@@ -152,3 +152,9 @@ each submitted child with its received request. The ordinary untagged envelope
 is unchanged; tagged payload size and event-probe cost must be included in
 measurement overhead controls. FPGA and CPU clocks still require an explicit
 alignment with stated uncertainty; client RTT is a duration on another host.
+
+The current UDP evaluation temporarily admits at most 16 live calls per process,
+including ready futures until consumption. This prevents a submit burst from
+reusing hardware-retired slots faster than software drains completions. It is a
+[small-table workaround](programming-model.md#loopback-composition-receive-side-backpressure),
+not the intended scalable limit; see the [spill plan](../hardware/lookup-spill.md).
