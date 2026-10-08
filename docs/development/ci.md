@@ -167,6 +167,12 @@ Do not run other Mill jobs against this cache during regeneration. Review added
 old Mill versions is a signal to repeat from a clean cache. Then run the Nix
 checks offline; a warm interactive build is not evidence of lock completeness.
 `nix run .#ciBuild -- NAME INSTALLABLE` reproduces the CI logging wrapper.
+Private application inputs must allow the platform project (30605) in the
+application repository’s **Settings → CI/CD → Job token permissions** allowlist.
+The CI setup uses the ephemeral job token for Nix Git fetches; local SSH access
+does not establish this permission. For memcached (project 38276), job 2879237
+failed before compilation because platform job-token access was denied. Keep the
+read-only diagnostic token out of source-fetch credentials.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; use the [30-minute / five-hour follow-up](#scheduled-hardware-build-follow-up) above rather than frequent polling.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
