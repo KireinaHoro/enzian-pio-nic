@@ -2,6 +2,18 @@
 
 See the [registered endpoint and internal-loopback contract](../software/nested-rpc-endpoints.md) for the B2/B6 batch.
 
+## Current disposition — October 8 closeout
+
+Dandelion is paused at the maintainer's request; memcached is the next
+application in a new thread. The [roadmap closeout](roadmap.md#dandelion-closeout-limited-scope-and-deferred-work--october-8)
+consolidates the 32-way graph/four-worker evidence and the aligned vanilla 1×1
+comparison, defines the limited programming-model/communication-overhead claim,
+and records two deferred extensions: BSON chunking in XDR RPC payloads and
+communication functions mapped to nested RPC calls. Reproducing the full paper
+suite is out of scope. CHERI benefits remain a projection to be established,
+not measured results. The integration directions below are historical context,
+not authorization to resume testing.
+
 ## Active integration — October 8
 
 For the separately requested unmodified pre-port/paper-client baseline, see
@@ -58,7 +70,7 @@ composition support and actual isolated placement remain unvalidated. See the
 ## Direct repository integration — October 8
 
 The active evaluation target is a correlated nested-composition waterfall;
-see the [roadmap goal](roadmap.md#active-goal-dandelion-nested-composition-waterfall--october-8).
+see the [roadmap goal](roadmap.md#completed-goal-dandelion-nested-composition-waterfall--october-8).
 Use Sven's actual evaluation workloads after the atomic/composition correctness
 gates: 2×2 atomic matmul, depth 2 (three independent matrix squares feeding a
 matmac), and depth 4 (four sequential matrix squares). The report uses 100 warmup
