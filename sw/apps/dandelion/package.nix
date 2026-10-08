@@ -19,6 +19,7 @@ let
       ./0002-configurable-state-directory.patch
       ./0003-explicit-request-outcomes.patch
       ./0004-cooperative-worker-pool.patch
+      ./0005-portable-bounded-test-client.patch
     ];
   };
   target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
