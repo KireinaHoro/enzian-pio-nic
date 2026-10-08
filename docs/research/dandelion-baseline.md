@@ -184,10 +184,99 @@ Its SHA-256 is
 Build expressions, paths, logs and `validation.json` are retained in
 `out/dandelion-parity-results/` in the primary platform worktree.
 
-**Not deployed or tested on Enzian.** The maintainer assigned the machines to
+**Initial local closeout (superseded by the authorized rerun below):** The maintainer assigned the machines to
 another thread and explicitly paused machine testing. Before that instruction,
 a read-only console preflight found an existing attachment and exited without
 running a board command. No new latency result or explanation of the earlier
 1.264 ms execution gap is claimed. The next board comparison should use fresh
 registrations, matching 8 MiB contexts, static workers and explicit 1x1/2x2
 cohorts, with CPU placement and warmup recorded separately.
+
+
+## Aligned atomic rerun — October 8
+
+After renewed authorization, the aligned image passed a fresh harness-controlled
+cold boot and **3,000 measured atomic requests**, plus 240 concurrent residency
+warmup requests and 200 serial warmups. Every reply's full matrix, RPC status,
+source address and XID passed the client checks. All six QLMs and CCPI/ECI lanes
+0–23 passed bring-up on the first attempt. RT bandwidth throttling was disabled.
+FPGA 516232, corrected module `af0f64fe`, and the original atomic-four runtime
+`ce271135` were reused. The image and static worker are the audited artifacts
+above; there is no claim here about the subsequent runtime credit changes.
+
+Each cohort has 1,000 measured requests. The first starts with a fresh registry
+and no explicit client warmup. Then twelve concurrent clients × twenty requests
+make four workers resident, followed by 100 serial warmups per measured cohort.
+All use 8 MiB contexts, the static worker and unchanged function ELF.
+
+| Cohort | RTT mean / median (µs) | Setup mean (µs) | Process execution mean (µs) |
+| --- | ---: | ---: | ---: |
+| 1x1, initial serial, no warmup | 3147.822 / 3174.897 | 733.062 | 2288.474 |
+| 1x1, four resident workers, prewarmed | 2772.709 / 2771.143 | 432.098 | 2236.109 |
+| 2x2, four resident workers, prewarmed | 2776.033 / 2774.558 | 431.970 | 2238.570 |
+
+The initial serial cohort retains a 129.575 ms maximum; no request was trimmed.
+Its setup median is 887.815 µs and process median 2183.690 µs. It is not valid
+to silently substitute the prewarmed cohort for a no-warmup upstream comparison.
+Initial serial requests all ran on CPU44. The prewarmed 1x1 requests ran
+990/9/1 times on CPUs44/45/46; 2x2 ran 990/10 on CPUs44/45. Final thread placement
+and the concurrent warmup confirm resident workers on CPUs44–47. Four resident
+workers do not mean four workers execute a single atomic function.
+
+### Comparison with the original atomic-four run
+
+Means over 1,000 requests, both 2x2 and prewarmed on zuestoll14:
+
+| Component | Original port (µs) | Aligned port (µs) | Difference (µs) |
+| --- | ---: | ---: | ---: |
+| Function setup | 435.388 | 431.970 | −3.418 |
+| Process execution | 3407.754 | 2238.570 | −1169.184 |
+| Request decode | 9.828 | 9.834 | +0.006 |
+| Result encode | 7.919 | 8.133 | +0.214 |
+| RX-unblock → TX-return | 3882.680 | 2710.598 | −1172.082 |
+| Client RTT | 3950.322 | 2776.033 | −1174.289 |
+
+The 29.7% RTT reduction is almost entirely within process execution; setup
+barely changed. Static linking and context size changed together, so this
+comparison alone does not isolate their individual effects. This is a separate
+boot/cohort, not an interleaved randomized experiment.
+
+### Comparison with unchanged upstream
+
+On the same Enzian, means for 1x1:
+
+| Interval | Upstream (µs) | Aligned port, prewarmed (µs) | Difference (µs) |
+| --- | ---: | ---: | ---: |
+| Parsing + context load + input transfer / port setup | 329.595 | 432.098 | +102.503 |
+| Process execution | 2145.418 | 2236.109 | +90.691 |
+
+The engine gap is now 4.2%, versus the earlier roughly 59% excess in the 2x2
+comparison. The 2x2 upstream engine mean is 2143.910 µs versus aligned 2238.570
+µs. Port setup includes engine selection/locking and surrounding preparation,
+so the setup correspondence is approximate. Upstream timestamps came from
+separate no-explicit-warmup diagnostic cohorts on CPU3; port workers use
+CPUs44–47. Do not interpret the residual as transport overhead or subtract the
+original client's HTTP-header timings from the port's full-response RTT.
+
+Within aligned 1x1, setup contributes 15.6% and process execution 80.6% of mean
+client RTT. Other measured means are RX return 1.006, decode 9.829,
+entry/classification 2.231, encode 6.725 and TX call 4.012 µs. RX-unblock to
+TX-return is 2707.298 µs; 15.287 µs inside it is outside the named phase spans.
+The remaining 65.411 µs between this server span and client RTT includes
+transport/client/boundary costs; it is not isolated network time.
+
+### Evidence and current state
+
+`out/dandelion-aligned-atomic/` contains the manifest, scripts, successful
+`trial/summary.json`, `provenance.json`, `comparison.json`, raw request/event
+CSVs under `results/`, and updated `figures/atomic1-four` and `atomic2-four`
+SVG/PNG/JSON waterfalls. The shared copy is
+`/scratch/pengxu/dandelion-aligned-atomic-20261008`. The software export has
+3,440 successful request rows and 24,080 events, **zero dropped records**.
+
+The successful aligned server remains running, with software buffers already
+exported. FPGA tracing is frozen: loss was clear before freeze, asserted after
+freeze; wrap and DMA error stayed clear. The buffer remains on the FPGA and
+has not been downloaded or correlated. These breakdowns are independently
+validated software timings, with no new FPGA clock-alignment claim. Existing
+wide-fanout success/failure captures remain preserved on disk.

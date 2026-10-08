@@ -268,3 +268,14 @@ zuestoll14, with software already exported and FPGA tracing frozen. The complete
 selected FPGA window is saved locally and on shared storage. Recheck state and
 reservations before reuse; do not reuse this already-exported software buffer
 for another claimed loss-free measurement.
+
+
+## Aligned process-backend atomic follow-up — October 8
+
+The later [aligned atomic rerun](dandelion-baseline.md#aligned-atomic-rerun--october-8)
+passed 3,000 measured 1x1/2x2 requests with the static worker and 8 MiB contexts.
+For prewarmed 2x2, mean RTT fell from 3950.322 to 2776.033 µs; process execution
+fell from 3407.754 to 2238.570 µs, while setup remained about 432 µs.
+Historical figures above retain their original configuration and measurements.
+The latest DUT state is the successful aligned server with software exported
+and FPGA tracing frozen, as recorded in that follow-up.
