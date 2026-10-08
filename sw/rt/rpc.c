@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "lauberhorn.h"
+#include "lauberhorn/trace.h"
 #include "fiber/scheduler.h"
 #include "lauberhorn_state.h"
 #include "log.h"
@@ -118,7 +119,9 @@ static int submit_call(struct pending_call *pc, int len) {
             .prog_num = ep->prog_num, .proc_num = ep->proc_num, .prog_ver = ep->prog_ver}
     };
     pending_call_arm_timeout(pc, 0);
+    lauberhorn_trace_event(LH_TRACE_CALL_SUBMIT, cookie, len);
     int result = core_eci_tx(w->dp_base, &w->dp, &desc);
+    lauberhorn_trace_event(LH_TRACE_CALL_SUBMITTED, cookie, result);
     if (result == CORE_TX_RETRY) {
         /* This proves no hardware reservation/packet exists. */
         pc->hardware_done = true;
@@ -238,9 +241,12 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     struct server_trace_row *previous = server_trace_inline;
     server_trace_inline = &r.trace;
     r.trace.handler_enter_ns = server_trace_stage(&r.trace, LH_PMU_handler_enter);
+    r.trace.entry_enter_ns = r.trace.handler_enter_ns;
     lauberhorn_outcome_t outcome = hw->handler.func(hw->handler.data, r.args,
                                                  desc->oncrpc_call_rx.request_token);
+    server_trace_event(&r.trace, LH_TRACE_ENTRY_RETURN, outcome.kind, 0);
     r.trace.handler_exit_ns = server_trace_stage(&r.trace, LH_PMU_handler_exit);
+    r.trace.entry_exit_ns = r.trace.handler_exit_ns;
     r.trace.handler_active_ns = r.trace.handler_exit_ns - r.trace.handler_enter_ns;
     server_trace_inline = previous;
     if (!consume_outcome(&r, outcome, true)) release_request(&r);
@@ -281,6 +287,11 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
     pending_call_settle(c, &result);
 }
 void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+    /* Record every delivered call/completion, so FPGA dispatch order can be
+     * joined without confusing a nested completion with a new incoming call. */
+    uint32_t identity = desc->type == TY_ONCRPC_CALL_RX ?
+        desc->oncrpc_call_rx.request_token : desc->oncrpc_reply_rx.xid;
+    server_trace_event(&w->rx_trace, LH_TRACE_RX_PACKET, desc->type, identity);
     switch (desc->type) {
     case TY_ONCRPC_CALL_RX: rpc_handle_call(w, desc); break;
     case TY_ONCRPC_REPLY_RX: rpc_handle_reply(w, desc); break;
