@@ -239,6 +239,8 @@ def main():
     selected=sorted(measured,key=lambda r:r['roundtrip_ns'])[(len(measured)-1)//2]
     result={'roundtrip_ns':distribution([r['roundtrip_ns'] for r in measured]),
             'child_execution_peak':distribution(peaks),
+            'receive_busy_retries':sum(e['event']==111 for c in measured
+                                       for key in tree(c['request_id'],children) for e in events[key]),
             'components_ns_per_span':{k:distribution(v) for k,v in components.items()},
             'selected_request':selected,'selected_tree':tree(selected['request_id'],children),
             'selected_spans':{key:{'rx_cpu':requests[key]['rx_cpu_id'],

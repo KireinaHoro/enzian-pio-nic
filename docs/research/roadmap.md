@@ -94,8 +94,20 @@ occupied the 16 incoming reply contexts; receive-side rejection surfaces as
 Dandelion `f95d33d` retains/requeues the rejected loopback shard; the platform
 runtime preserves SYSTEM_ERR as future status 4. Other errors drain accepted
 calls and fail the composition. Native runtime status tests, AArch64/QEMU
-capacity-policy tests, cross-build and image packaging passed. Board validation
-of the correction is pending on matched FPGA 516232; no new bitstream is needed.
+capacity-policy tests, cross-build and image packaging passed. The first corrected
+board probe handled four SYSTEM_ERR retries but still lost 13 completions between
+host enqueue and scheduler queue admission (88 versus 75 descriptors), then
+returned failure without aborting the server. Its 139,149,632-byte trace is saved
+under `out/dandelion-resume/retry-failure-trace/`, SHA-256
+`afdd4109dfc12155a0707a19d52e68440506988c47d9b87b4a55c5247723d43c`.
+
+A process-wide runtime credit now retains the 16-call bound through software
+consumption, including ready futures. Native tests cover full-table admission,
+credit reuse and 32 concurrent submitters. This is a **temporary UDP/small-table
+workaround**, not the intended architectural limit; see the
+[table scaling and spill plan](../hardware/lookup-spill.md#temporary-udp-evaluation-workaround--october-8).
+Many current capacity restrictions should eventually be lifted. The corrected
+bounded board gate remains pending on FPGA 516232; no new bitstream is needed.
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
