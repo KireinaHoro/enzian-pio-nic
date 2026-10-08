@@ -2,11 +2,13 @@
 
 Inspected 2026-09-08. “Present” means source exists and is wired into the generator; it does not certify current simulation, timing closure, or board validation. No hardware builds or simulations were run for this documentation pass.
 
-**2026-10-02 update:** the selected build now uses the [LCI-only non-locking
-DC](lauberhorn-rom.md), with UL removed through the application interfaces. The
-[bounded scheduling model](scheduling-composition.md) is checked; the router-free
-8 KiB layout and cooperative PREEMPT ABI are now the sole ECI source implementation; validation and board acceptance remain in progress. The source survey
-below predates this change; hardware-service/refinement obligations remain open.
+**October 8 consolidation:** the selected build uses the LCI-only non-locking
+DC, 8 KiB physical-worker map and cooperative PREEMPT. Corrected isolation,
+516232 module bring-up, GSYNC early NACK and hot/cold microbenchmarks have finite
+board evidence. The [roadmap status table](../research/roadmap.md#current-status--october-8-consolidation)
+is the consolidated claim/evidence index. The source survey below is older;
+expanded acceptance, hardware-service/refinement obligations and timing remain
+open. No fresh hardware build or test accompanies this documentation pass.
 
 ## Present in the main source tree
 
@@ -18,7 +20,7 @@ below predates this change; hardware-service/refinement obligations remain open.
 
 | Topic | Evidence and implication |
 | --- | --- |
-| DCU progress/concurrent QPs | [Progress analysis](coherence-progress.md), the selected 8 KiB map separates active control colors from overflow colors and supports full-duplex bypass. Production slice control routing and completion checks supplement the bounded models; finite board progress and the RX hold limit still require fresh measurements. |
+| DCU progress/concurrent QPs | [Progress analysis](coherence-progress.md), the selected 8 KiB map separates active control colors from overflow colors and supports full-duplex bypass. Production slice control routing and completion checks supplement the bounded models; finite board progress is recorded, but simultaneous four-worker tail behavior, three stalled peers and corrected-image RX hold qualification remain open. |
 | Ownership and activation | [ECI ownership](queue-pair-design.md) is implemented by the decoder, ownership table and cooperative yield path. See [current evidence](eci-implementation.md) for validation limits. |
 | Table scaling and spill | `Global.scala` explicitly attributes small tables to fully connected lookup routing/placement cost. [Lookup spill design](lookup-spill.md) is a proposal for hardware caches and typed software slow paths, not implemented general spill support. |
 | TCP/HTTP/gRPC | `hw/src/lauberhorn/net/{Tcp,Http,Grpc}.scala` are empty classes. Finished external [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects exist; they are unmerged. Integration follows first-paper application work; see [gRPC roadmap](../research/grpc-roadmap.md). |

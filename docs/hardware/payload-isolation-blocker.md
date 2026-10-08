@@ -1,4 +1,13 @@
-# Payload isolation blocks cooperative scheduling acceptance
+# Payload isolation: original blocker and correction
+
+**October 8 disposition:** the original disclosure and subsequent multi-PA
+faults have source corrections, regression coverage and a matched 516112
+functional board baseline. The blanket campaign stop below applied to vulnerable
+515944; it no longer blocks corrected-image testing. Adversarial multi-domain
+acceptance remains open. See the [current claims](../research/roadmap.md#current-status--october-8-consolidation)
+and [corrected-build result](#matched-corrected-build-baseline--october-4).
+
+## Historical finding — October 3
 
 October 3, 2026, `feat/cooperative-yield`, candidate RTL `8cc9ad58`.
 
@@ -39,7 +48,7 @@ beat accounting uses shifts by five. This RX concern is source-derived and has
 not yet been independently reproduced; do not report it as a measured failure.
 
 The hardware campaign stopped after trial 48 completed normally, before any
-next board operation. The current single-worker screening bracket is
+next board operation. The then-current single-worker screening bracket was
 26,857,015 passing cycles (134.285075 ms) and 26,857,032 failing cycles
 (134.285160 ms), at 200 MHz. Passing exposure is at least 180 seconds plus the
 100-RPC postcheck. This is not an adjacent-tick boundary and the latest passing
@@ -48,9 +57,11 @@ value has not passed two-boot contention qualification. The previously recorded
 observation of the old candidate; it cannot establish isolation or acceptance.
 All failing board trials were captured before reset. The DUT was then restored
 to 10,000 cycles (50 microseconds), with readback and clean checks of all eight
-TAD units and kernel logs. No reset was needed; tracing remains enabled.
+TAD units and kernel logs. No reset was needed at that point; tracing was left enabled. This is not a
+live board-state handoff.
 
-Do not merge this candidate. Correct payload isolation, rerun the regression
+The instruction at this finding was: do not merge vulnerable `8cc9ad58`.
+Correct payload isolation, rerun the regression
 and relevant transport/ownership checks, build matched hardware and software,
 and repeat board acceptance. The earlier baseline kernel lockup and open timing
 remain separately unresolved. No HOST_WAKE or legacy thread-router design is

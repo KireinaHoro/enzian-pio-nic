@@ -2,6 +2,16 @@
 
 See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
 
+## Reading this ledger — October 8 consolidation
+
+The merge disposition below supersedes the older B1–B6 merge gates. Generic
+nested-runtime checks were accepted on their recorded revisions; Dandelion
+acceptance, the replacement-process late-reply race and broader overload checks
+remain follow-up work. The replacement address/PREEMPT campaign has separate
+[acceptance obligations](../research/roadmap.md#current-status--october-8-consolidation).
+Timing optimization is now paused; the older recommendation to continue it does
+not authorize new timing work.
+
 ## Merge disposition — 2026-09-23
 
 The maintainer approved merging `feat/nested-rpc` into `master` on the strength
