@@ -2,6 +2,13 @@
 
 See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
 
+## October 8 application resumption
+
+The maintainer has lifted the B6/Dandelion validation hold and closed the
+standalone multi-worker campaign at its documented coverage. Continue with
+[Dandelion application validation](../research/dandelion.md#active-integration--october-8);
+HOST_WAKE is on hold. The September 23 instruction reserving B6 work is historical.
+
 ## Reading this ledger — October 8 consolidation
 
 The merge disposition below supersedes the older B1–B6 merge gates. Generic

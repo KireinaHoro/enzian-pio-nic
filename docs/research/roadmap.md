@@ -5,8 +5,8 @@
 This summary reconciles recorded results through October 5; no new CI query,
 board run or reservation check accompanies this documentation pass. Detailed
 historical sections below retain their original evidence and assumptions.
-The completed measurement/correction commits through `3ce4a73f` are on
-`feat/four-worker-latency-baseline`; consolidation into master remains separate.
+The completed correction/measurement campaign through `d21aef52` is approved
+for consolidation into master by the October 8 closeout below.
 
 | Area | Established evidence | Remaining claim or work |
 | --- | --- | --- |
@@ -19,40 +19,38 @@ The completed measurement/correction commits through `3ce4a73f` are on
 | TX latency | 516232 TX hardware median 0.950 us, unchanged from 516112. | This comparison is not a controlled R12-versus-RA3 experiment and establishes no new TX reduction. |
 | Timing | Latest tested 516232 report: WNS −0.102 ns, 893 failing setup endpoints. | Timing closure remains open; optimization remains paused. |
 
-### Open work and next sequence
+### Maintainer closeout and next application — October 8
 
-1. Close four-worker acceptance: measure all four workers concurrently, include
-   three stalled peers, bypass RX/TX and deliberately triggered GSYNC; preserve
-   per-worker tail distributions and actual hold durations. Repeat appropriate
-   contention cases across cold boots. The old vulnerable-image stall bracket
-   is historical evidence, not a certified limit for the corrected image.
-2. Consolidate completed correction/measurement work into master, preserving
-   artifact provenance and unrelated dependency changes.
-3. Design and implement HOST_WAKE / host-event activation and service-owned
-   events/timers. This remains follow-on work, not an implemented interface.
-   Validate wake/PREEMPT/close races and parked-service progress.
-4. Complete kill/exit recovery and resource reclamation; broaden adversarial
-   isolation, overload and coherence-service validation. Monotonic domain IDs
-   and fatal fencing are not reusable-resource recovery.
-5. Resume Dandelion and the first-paper application evaluation, including the
-   selected Demikernel baseline. Application-specific acceptance and version/
-   resource-budget choices remain open. TCP/Protobuf integration follows this
-   priority; fully offloaded gRPC remains later scope.
+The maintainer closed the dedicated multi-worker campaign at its recorded finite
+coverage and authorized merging the completed correction/measurement branch.
+Additional simultaneous four-worker, three-stalled-peer and application-driven
+tail cases move into application validation; they are no longer prerequisites
+for starting Dandelion. This is a scope decision, not evidence those cases passed.
+The isolation/progress limitations in the table above remain explicit.
 
-This is the recommended sequence, not authorization to start deferred features.
-Cold-path Linux scheduling optimization remains deferred at the maintainer's
-request. Broader models and actual-DCS stress should follow mechanisms being
-changed; finite passing tests do not prove infinite-stall liveness. Historical
-nested-RPC validation is recorded in its [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23);
-new address/PREEMPT acceptance must not silently inherit every old-image claim.
+**HOST_WAKE is on hold. Dandelion is the active next task.** Start with the
+existing pinned adapter and fixtures: validate the build/ABI, atomic functions,
+DAGs, sharding and concurrent nested compositions on matching hardware. Carry
+worker placement, progress, correctness and tail observations into that campaign.
+See the [Dandelion integration plan](dandelion.md#active-integration--october-8).
+Do not introduce HOST_WAKE or change the address/PREEMPT contract merely to begin
+the port; investigate and report any concrete application dependency first.
+
+Complete kill/exit resource recovery, broader adversarial isolation/overload,
+and full-system refinement remain open claims. Cold-path Linux scheduler
+optimization and timing optimization remain deferred. Subsequent first-paper
+applications and Demikernel comparison follow Dandelion; TCP/Protobuf and gRPC
+retain their documented lower priority. Historical nested-runtime results are
+recorded in the [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23),
+not a substitute for current Dandelion composition acceptance.
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
 The nested RPC integration is approved for master as of 2026-09-23. Its
 [merge disposition and remaining tests](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23)
 record accepted timing limitations, the cross-process late-reply race to test,
-and the startup workflow explanation. Dandelion validation is reserved until
-the maintainer's scheduler/critical-section design changes are integrated.
+and the startup workflow explanation. The earlier Dandelion validation hold is superseded by the October 8 direction
+to resume the application on the integrated scheduler/critical-section design.
 
 ## Active coherence verification follow-up — October 2
 
