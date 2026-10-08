@@ -330,7 +330,9 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 	case LAUBERHORN_IOCTL_RETIRE_CALL:
 		return retire_call(fp, (void __user *)arg);
 	case LAUBERHORN_IOCTL_REG_ENDPOINT:
-		return register_endpoint(fp, (void __user *)arg);
+		return register_endpoint(fp, (void __user *)arg, false);
+    case LAUBERHORN_IOCTL_REG_UDP_ENDPOINT:
+        return register_endpoint(fp, (void __user *)arg, true);
 	case LAUBERHORN_IOCTL_DEREG_ENDPOINT:
 		return deregister_endpoint(fp, (void __user *)arg);
 	case LAUBERHORN_IOCTL_REG_SRV:

@@ -17,7 +17,7 @@ import scala.language.postfixOps
 
 /** What service is on this port? */
 object UdpNextProto extends SpinalEnum {
-  val disabled, oncRpcCall, oncRpcReply = newElement()
+  val disabled, oncRpcCall, oncRpcReply, nativeUdp = newElement()
 
   def addMackerel() = {
     ALLOC.addMackerelEpilogue(
@@ -26,6 +26,7 @@ object UdpNextProto extends SpinalEnum {
          |  listen_disabled      = 0b00 "Disabled";
          |  listen_onc_rpc_call  = 0b01 "ONC-RPC Call";
          |  listen_onc_rpc_reply = 0b10 "ONC-RPC Reply";
+         |  listen_native_udp = 0b11 "Native UDP";
          |};""".stripMargin)
   }
 }
@@ -33,6 +34,8 @@ object UdpNextProto extends SpinalEnum {
 case class UdpListenDef() extends Bundle {
   val port = Bits(16 bits)
   val nextProto = UdpNextProto()
+  val pid = PID()
+  val endpoint = Bits(32 bits)
 }
 
 case class UdpListenLookupUserData() extends Bundle {
@@ -44,12 +47,14 @@ case class UdpRxMeta() extends Bundle with DecoderMetadata {
   override def clone = UdpRxMeta()
 
   val nextProto = UdpNextProto()
+  val pid = PID()
+  val endpoint = Bits(32 bits)
   val hdr = UdpHeader()
   val ipMeta = IpRxMeta()
 
   def packetId: UInt = ipMeta.packetId
   def getType = PacketDescType.udp
-  def getPayloadSize: UInt = ipMeta.getPayloadSize - hdr.getBitsWidth / 8
+  def getPayloadSize: UInt = (nextProto === UdpNextProto.nativeUdp) ? (EndiannessSwap(hdr.len).asUInt - 8) | (ipMeta.getPayloadSize - hdr.getBitsWidth / 8)
   def collectHeaders: Bits = hdr.asBits ## ipMeta.collectHeaders
   def asUnion: PacketDescData = {
     val ret = PacketDescData().assignDontCare()
@@ -87,6 +92,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
       logic.listenDb.update.idx := idx
       logic.listenDb.update.value.port := EndiannessSwap(writePort.port)
       logic.listenDb.update.value.nextProto := writePort.nextProto
+      logic.listenDb.update.value.pid := writePort.pid
+      logic.listenDb.update.value.endpoint := writePort.endpoint
     }
 
     // TODO: interface is write-only.  Provide readback port as well (like scheduler)
@@ -107,6 +114,9 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     val (dbLookup, dbResult, dbLat) = listenDb.makePort(Bits(16 bits), UdpListenLookupUserData(),
       singleMatch = true) { (v, q, _) =>
       v.nextProto =/= UdpNextProto.disabled && v.port === q
+    }
+    val (txLookup, txResult, _) = listenDb.makePort(Bits(32 bits), PID(), "nativeTx", singleMatch = true) {
+      (entry, handle, _) => entry.nextProto === UdpNextProto.nativeUdp && entry.endpoint === handle
     }
     val ipHeader = Stream(IpRxMeta())
     val ipPayload = Axi4Stream(macIf.axisConfig)
@@ -220,6 +230,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     }
 
     metadata.translateFrom(dbResult) { case (md, lr) =>
+      md.pid := lr.value.pid
+      md.endpoint := lr.value.endpoint
       md.hdr := lr.userData.hdr
       md.ipMeta := lr.userData.ipMeta
 

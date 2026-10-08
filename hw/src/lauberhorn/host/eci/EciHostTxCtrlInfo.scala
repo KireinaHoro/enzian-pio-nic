@@ -13,19 +13,28 @@ import scala.language.postfixOps
 case class EciHostTxCtrlInfo() extends Bundle {
   override def clone: EciHostTxCtrlInfo = EciHostTxCtrlInfo()
 
-  val ty = HostReqType() // 3 bits
+  val ty = HostReqType() // 4 bits
   val len = PacketLength() // 16 bits
   val data = new Union {
+    case class NativeUdpBundle() extends Bundle {
+      val execution = Bits(2 bits)
+      val padding = Bits(10 bits)
+      val endpoint = Bits(32 bits)
+      val daddr = Bits(32 bits)
+      val dport = Bits(16 bits)
+      val reserved = Bits(16 bits)
+    }
+    val nativeUdp = newElement(NativeUdpBundle())
     case class BypassBundle() extends Bundle {
       val ty = PacketDescType() // 3 bits
-      val xb10 = Bits(10 bits) /* make sure header is word aligned */
+      val xb9 = Bits(9 bits) /* make sure header is word aligned */
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
 
     case class OncRpcReplyTxBundle() extends Bundle {
       val execution = Bits(2 bits) // end=1, begin=2, end/begin=3
-      val xb3 = Bits(3 bits)
+      val xb2 = Bits(2 bits)
       val status = Bits(8 bits) // byte aligned, no payload offset change
       val requestToken = Bits(32 bits)
       val xb64 = Bits(64 bits)
@@ -35,7 +44,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
 
     case class OncRpcCallTxBundle() extends Bundle {
       val execution = Bits(2 bits)
-      val xb11 = Bits(11 bits) /* make sure RPC fields are aligned */
+      val xb10 = Bits(10 bits) /* make sure RPC fields are aligned */
       val pid = PID()
       val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
       val cookie = Bits(32 bits)
@@ -57,6 +66,12 @@ case class EciHostTxCtrlInfo() extends Bundle {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
+      is (HostReqType.nativeUdpTx) {
+        desc.data.nativeUdp.endpoint := data.nativeUdp.endpoint
+        desc.data.nativeUdp.daddr := EndiannessSwap(data.nativeUdp.daddr)
+        desc.data.nativeUdp.dport := EndiannessSwap(data.nativeUdp.dport)
+        desc.buffer.size := len
+      }
       is (HostReqType.executionControl) { desc.buffer.size.bits := 0 }
       is (HostReqType.bypass) {
         desc.data.bypassMeta.assignSomeByName(data.bypass)
@@ -102,11 +117,22 @@ object EciHostTxCtrlInfo {
   def addMackerel() = {
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_ctrl_info_native_udp_tx lsbfirst(64) "Native UDP TX" {
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_tx";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "UDP payload bytes";
+         |  execution 2 "Execution interval";
+         |  _ 10 rsvd;
+         |  endpoint 32 "Kernel endpoint handle";
+         |  daddr 32 "Destination IPv4 address, host order";
+         |  dport 16 "Destination UDP port, host order";
+         |  _ 16 rsvd;
+         |};
+         |
          |datatype host_ctrl_info_bypass_tx lsbfirst(64) "ECI Host Control Info (Bypass TX)" {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        10 rsvd;
+         |  _        9 rsvd;
          |  // hdr follows -- need to calculate address manually
          |};
          |
@@ -114,14 +140,14 @@ object EciHostTxCtrlInfo {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "execution_control";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Must be zero";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         43 rsvd;
+         |  _         42 rsvd;
          |};
          |
          |datatype host_ctrl_info_onc_rpc_reply_tx lsbfirst(64) "ECI Host Control Info (ONC-RPC Server Reply TX)" {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload, including inlined bytes";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         3 rsvd;
+         |  _         2 rsvd;
          |  status    8 "ONC-RPC accept status (host order)";
          |  request_token 32 "Opaque incoming request context token";
          |  _         64 rsvd;
@@ -132,7 +158,7 @@ object EciHostTxCtrlInfo {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_tx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of call args, including inlined bytes";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         11 rsvd;
+         |  _         10 rsvd;
          |  pid       ${PID_WIDTH.get} "Destination process for eventual reply completion";
          |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";

@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl = newElement()
+    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl, nativeUdpRx, nativeUdpTx = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -25,6 +25,8 @@ package object host {
            |  onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
            |  onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
            |  execution_control = 0b111 "Local execution interval notification";
+           |  native_udp_rx = 8 "Native UDP receive";
+           |  native_udp_tx = 9 "Native UDP transmit";
            |};""".stripMargin)
     }
   }
@@ -97,7 +99,17 @@ package object host {
     val proto = Bits(8 bits)
   }
 
+  case class HostReqNativeUdp() extends Bundle {
+    val pid = PID()
+    val endpoint = Bits(32 bits)
+    val saddr = Bits(32 bits)
+    val daddr = Bits(32 bits)
+    val sport = Bits(16 bits)
+    val dport = Bits(16 bits)
+  }
+
   case class HostReqData() extends Union {
+    val nativeUdp = newElement(HostReqNativeUdp())
     val bypassMeta = newElement(HostReqBypassHeaders())
     val oncRpcCallRx = newElement(HostReqOncRpcCallRx())
     val oncRpcReplyTx = newElement(HostReqOncRpcReplyTx())

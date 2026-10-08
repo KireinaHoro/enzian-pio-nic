@@ -125,6 +125,9 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     encoder.io.header.valid := False
 
     outMd.payload.setAsReg()
+    outMd.native := False
+    outMd.coreId := 0
+    outMd.hostMsgId := 0
     outMd.valid := False
     pld.ready := False
     encoder.io.input.setIdle()

@@ -19,6 +19,7 @@ enum lauberhorn_trace_event {
     LH_TRACE_COLLECT_BEGIN, LH_TRACE_COLLECT_RESULT, LH_TRACE_COLLECT_END,
     LH_TRACE_COMPOSITION_DONE,
     LH_TRACE_CHILD_RETRY,
+    LH_TRACE_UDP_TX_BEGIN = 200, LH_TRACE_UDP_TX_END,
 };
 bool lauberhorn_trace_events_enabled(void);
 uint64_t lauberhorn_trace_new_id(void);

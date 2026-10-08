@@ -157,6 +157,16 @@ class DmaControlPlugin extends FiberPlugin {
               pktToEnqueue.data.bypassMeta.hdr := incomingDesc.desc.collectHeaders
             } otherwise {
               switch (incomingDesc.desc.ty) {
+                is (PacketDescType.udp) {
+                  val udp = incomingDesc.desc.metadata.udpRx
+                  pktToEnqueue.ty := HostReqType.nativeUdpRx
+                  pktToEnqueue.data.nativeUdp.pid := udp.pid
+                  pktToEnqueue.data.nativeUdp.endpoint := udp.endpoint
+                  pktToEnqueue.data.nativeUdp.saddr := udp.ipMeta.hdr.saddr
+                  pktToEnqueue.data.nativeUdp.daddr := udp.ipMeta.hdr.daddr
+                  pktToEnqueue.data.nativeUdp.sport := udp.hdr.sport
+                  pktToEnqueue.data.nativeUdp.dport := udp.hdr.dport
+                }
                 is (PacketDescType.oncRpcCallRx) {
                   pktToEnqueue.ty := HostReqType.oncRpcCallRx
 
@@ -270,6 +280,7 @@ class DmaControlPlugin extends FiberPlugin {
             rxTp.trace(
               "RxRpcEnqueueToHost",
               RpcID(rxTraceRpcId),
+              PacketID(rxTracePacketId),
               HostMsgID(rxTraceHostMsgId),
               PacketDropped(!hostRx.ready)
             ) := !rxEnqueueTraceEmitted
@@ -339,6 +350,7 @@ class DmaControlPlugin extends FiberPlugin {
       (acceptedTxCore =/= 0 && trustedTxOwner =/= 0 && trustedTxLive &&
         (txReqMuxed.req.ty === HostReqType.oncRpcReplyTx ||
          txReqMuxed.req.ty === HostReqType.executionControl ||
+         txReqMuxed.req.ty === HostReqType.nativeUdpTx ||
          (txReqMuxed.req.ty === HostReqType.oncRpcCallTx &&
           txReqMuxed.req.data.oncRpcCallTx.pid.bits === trustedTxOwner)))
 
@@ -364,6 +376,11 @@ class DmaControlPlugin extends FiberPlugin {
     reserve.pid := call.pid
     reserve.cookie := call.cookie
     reserve.active := True
+
+    val udp = host[lauberhorn.net.udp.UdpDecoder].logic
+    udp.txLookup.setIdle()
+    udp.txResult.setBlocked()
+    val udpOwner = Reg(PID())
 
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -392,6 +409,19 @@ class DmaControlPlugin extends FiberPlugin {
                 txPacketDesc.metadata.oncRpcReplyTx.replyLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen
                 txLogicalLen := txReqMuxed.req.data.oncRpcReplyTx.replyLen.bits
                 txPacketDescTy := PacketDescType.oncRpcReplyTx.asBits
+              }
+              is (HostReqType.nativeUdpTx) {
+                txPacketDesc.ty := PacketDescType.udp
+                txPacketDesc.metadata.assignDontCare()
+                txPacketDesc.metadata.udpTx.rpcId := invalidTraceId(RpcID.width)
+                txPacketDesc.metadata.udpTx.native := True
+                txPacketDesc.metadata.udpTx.coreId := acceptedTxCore
+                txPacketDesc.metadata.udpTx.hostMsgId := txReqMuxed.hostMsgId
+                txPacketDesc.metadata.udpTx.daddr := txReqMuxed.req.data.nativeUdp.daddr
+                txPacketDesc.metadata.udpTx.dport := txReqMuxed.req.data.nativeUdp.dport
+                txPacketDesc.metadata.udpTx.pldLen := txReqMuxed.req.buffer.size.bits
+                udpOwner.bits := trustedTxOwner
+                txPacketDescTy := PacketDescType.udp.asBits
               }
               is (HostReqType.oncRpcCallTx) {
                 txPacketDesc.ty := PacketDescType.oncRpcCallTx
@@ -430,9 +460,31 @@ class DmaControlPlugin extends FiberPlugin {
               goto(rejectDescriptor)
             } elsewhen (txReqMuxed.req.ty === HostReqType.executionControl) {
               goto(completeControl)
+            } elsewhen (txReqMuxed.req.ty === HostReqType.nativeUdpTx) {
+              goto(lookupUdp)
             } elsewhen (txReqMuxed.req.ty === HostReqType.oncRpcCallTx) {
               goto(reserveNested)
             } otherwise { goto(sendDmaCmd) }
+          }
+        }
+      }
+      val lookupUdp: State = new State {
+        whenIsActive {
+          udp.txLookup.valid := True
+          udp.txLookup.query := txReqBuffered.req.data.nativeUdp.endpoint
+          udp.txLookup.userData := udpOwner
+          when(udp.txLookup.fire) { goto(authorizeUdp) }
+        }
+      }
+      val authorizeUdp: State = new State {
+        whenIsActive {
+          udp.txResult.ready := True
+          when(udp.txResult.fire) {
+            when(udp.txResult.matched && udp.txResult.value.pid === udp.txResult.userData &&
+              txReqBuffered.req.buffer.size.bits <= 1472) {
+              txPacketDesc.metadata.udpTx.sport := udp.txResult.value.port
+              goto(sendDmaCmd)
+            } otherwise { goto(rejectDescriptor) }
           }
         }
       }

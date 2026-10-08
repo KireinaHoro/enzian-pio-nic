@@ -52,7 +52,12 @@ static int kernel_bind(struct socket *s, struct sockaddr *addr, int n) {
     return ntohs(((struct sockaddr_in *)addr)->sin_port) == busy_port ? -EADDRINUSE : 0;
 }
 static void __module_get(int m) { pins++; }
-enum { lauberhorn_eci_listen_onc_rpc_reply = 2, lauberhorn_eci_listen_disabled = 0 };
+#define CAP_NET_BIND_SERVICE 10
+static bool privileged;
+static bool capable(int cap) { return privileged; }
+enum { lauberhorn_eci_listen_native_udp = 3, lauberhorn_eci_listen_onc_rpc_reply = 2, lauberhorn_eci_listen_disabled = 0 };
+static void lauberhorn_eci_UdpDecoder_ctrl_listen_pid_wr(int *d, int v) {}
+static void lauberhorn_eci_UdpDecoder_ctrl_listen_endpoint_wr(int *d, int v) {}
 static void lauberhorn_eci_UdpDecoder_ctrl_listen_port_wr(int *d, int v) {}
 static void lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(int *d, int v) {}
 static void lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(int *d, int v) {}
@@ -81,19 +86,19 @@ int main(void) {
     lauberhorn_reg_endpoint_t cmd = {0};
     int other_net;
     nsproxy.net_ns = &other_net;
-    assert(register_endpoint(&fp, &cmd) == -EXDEV);
+    assert(register_endpoint(&fp, &cmd, false) == -EXDEV);
     nsproxy.net_ns = &init_net;
     proc.num_rdy_thrs = 1;
-    assert(register_endpoint(&fp, &cmd) == -EBUSY);
+    assert(register_endpoint(&fp, &cmd, false) == -EBUSY);
     proc.num_rdy_thrs = 0;
     fail_socket = 1;
-    assert(register_endpoint(&fp, &cmd) == -ENOMEM && !sockets);
+    assert(register_endpoint(&fp, &cmd, false) == -ENOMEM && !sockets);
     fail_socket = 0;
     fail_copy = 1;
-    assert(register_endpoint(&fp, &cmd) == -EFAULT && !sockets && !listen_occupied[0]);
+    assert(register_endpoint(&fp, &cmd, false) == -EFAULT && !sockets && !listen_occupied[0]);
     fail_copy = 0;
     srv_defs[0].enabled = true; srv_defs[0].port = 49153;
-    assert(!register_endpoint(&fp, &cmd));
+    assert(!register_endpoint(&fp, &cmd, false));
     assert(cmd.pid == 123 && cmd.port == 49154 && sockets == 1);
     lauberhorn_retire_call_t retire = {.endpoint_handle = cmd.handle, .cookie = 0x12345678};
     assert(retire_call(&other, &retire) == -ENOENT && !retire_count);
@@ -109,11 +114,29 @@ int main(void) {
     assert(deregister_endpoint(&fp, &dereg) == -EBUSY && sockets == 1);
     hw_active = 0;
     cmd = (lauberhorn_reg_endpoint_t){0};
-    assert(!register_endpoint(&fp, &cmd) && cmd.port == 49155);
+    assert(!register_endpoint(&fp, &cmd, false) && cmd.port == 49155);
     cmd = (lauberhorn_reg_endpoint_t){0};
-    assert(register_endpoint(&fp, &cmd) == -ENOSPC && sockets == 2);
+    assert(register_endpoint(&fp, &cmd, false) == -ENOSPC && sockets == 2);
     assert(!deregister_endpoint(&fp, &dereg) && sockets == 1);
     for (int i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
         if (fp.endpoints[i]) release_endpoint(&fp, i);
     assert(!sockets && !pins && !endpoint_port_reserved(49155));
+    cmd = (lauberhorn_reg_endpoint_t){.port = 53};
+    assert(register_endpoint(&fp, &cmd, true) == -EACCES);
+    cmd.port = 11211;
+    assert(!register_endpoint(&fp, &cmd, true));
+    assert(cmd.port == 11211 && cmd.pid == proc.tgid);
+    lauberhorn_reg_endpoint_t duplicate = {.port = 11211};
+    assert(register_endpoint(&other, &duplicate, true) == -EADDRINUSE);
+    duplicate.port = srv_defs[0].port;
+    assert(register_endpoint(&other, &duplicate, true) == -EADDRINUSE);
+    duplicate.port = busy_port;
+    assert(register_endpoint(&other, &duplicate, true) == -EADDRINUSE);
+    assert(sockets == 1);
+    dereg.handle = cmd.handle;
+    assert(!deregister_endpoint(&fp, &dereg));
+    next_endpoint_handle = U32_MAX;
+    duplicate.port = 11212;
+    assert(register_endpoint(&other, &duplicate, true) == -ENOSPC);
+    assert(!sockets);
 }
