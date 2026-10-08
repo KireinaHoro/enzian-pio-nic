@@ -91,3 +91,13 @@ XID to an opaque 32-bit context token. Dandelion ignores it; client messages and
 BJSON envelopes are unchanged. Hardware retains the wire XID and UDP reply
 address. Possible client-metadata query APIs are documented in
 [reply contexts](../../../docs/software/reply-contexts.md), not implemented.
+
+October 8 resumption: HOST_WAKE is on hold and the existing application adapter
+is the active validation target. The peer test client now accepts
+`LAUBERHORN_CLIENT_IP` (default `0.0.0.0`, letting routing select its source)
+instead of binding to the student's fixed `10.0.0.5`. Set it to the peer's
+data-interface IPv4 address when management and data routes coexist. HTTP
+registration/control calls have a 5-second connect timeout and 30-second total
+timeout; UDP replies retain their 5-second timeout. These limits bound failed
+fixtures, not application execution policy. Run the suite serially, including
+its internally concurrent nested requests.
