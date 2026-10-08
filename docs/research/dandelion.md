@@ -9,8 +9,10 @@ campaign. HOST_WAKE remains on hold; additional four-worker coverage belongs to
 application testing as concrete cases arise. Earlier B6 reservation notes are
 superseded by this direction, not by a claim of completed application acceptance.
 
-The starting point is the pinned `69c3088` source plus four tracked patches in
-`sw/apps/dandelion/`, including cooperative worker-pool registration. This is an
+The project now lives at [the transferred Dandelion repository](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion).
+The integration based on `69c3088` now lives directly in that repository,
+including cooperative worker-pool registration and its root `package.nix`.
+The platform consumes the pinned source recipe without a downstream patch stack. This is an
 existing adapter, not a new import of the student's old C runtime. First run the
 fixture reference calculator, cross-build the app and packaged server tests,
 and execute the bounded codec tests. Then use matching runtime/module/FPGA
@@ -47,6 +49,25 @@ nested expected answers. The packaged nested test includes concurrent distinct
 inputs. These tests have **not** been executed against this batch on Enzian;
 composition support and actual isolated placement remain unvalidated. See the
 [build/run recipe](../../sw/apps/dandelion/README.md).
+
+## Direct repository integration — October 8
+
+Dandelion `ccf1a36072b9933d0dceb10b90b9ac69917d3d62` incorporates the five former
+platform patches and the installed-runtime `package.nix` directly. The platform
+now calls the pinned input's recipe and supplies `lauberhornRuntime`, `crane` and
+the target package set. No Dandelion patch files or package recipe remain here.
+The historical student replay helper resolves its old adapter from an archived
+platform revision only; it is not used by the maintained application build.
+
+The direct-source AArch64 application and packaged server-test harness built
+against saved pipeline 516232 generated headers. The bounded codec capacity test
+passed under target emulation (one test); the independent DAG/sharding/concurrent
+fixture reference calculation passed. The filtered source contained 167 files,
+11,170,406 bytes, and no `.git`, `target`, `out` or `result` trees. Build logs and
+exact outputs are retained in `out/dandelion-resume/`. No application composition
+was run on the board in this migration check; atomic/DAG/sharding/nested hardware
+acceptance remains the next campaign. Reservations were rechecked for zuestoll14
+and zuestoll07, and the DUT was inspected without reset or service replacement.
 
 ## September 17 managed request integration
 
@@ -134,6 +155,6 @@ installed runtime's pkg-config metadata, install default config/assets under
 `$out/share`, and default that variable to the installed config while respecting
 user overrides. Keep writable function/state directories and logs external.
 The root recipe can expose the latency executable or runnable test packages
-separately. These were the September 15 packaging requirements. The tracked managed-outcome
+separately. These were the September 15 packaging requirements. The directly integrated managed-outcome
 and cooperative-worker adapters now build against the installed runtime; current
 composition/placement acceptance is the active work above.

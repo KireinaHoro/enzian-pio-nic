@@ -19,18 +19,18 @@
     "dandelion": {
       "flake": false,
       "locked": {
-        "lastModified": 1785345825,
-        "narHash": "sha256-cbdRWEN6sGxncm0UbX+m5d3O1C+LjJ2PDPV9G832g6s=",
+        "lastModified": 1791451152,
+        "narHash": "sha256-Cnvbk+cHJpFZcTearEtMn1MXx3vUYHZ7tnAxJV6UDHc=",
         "ref": "refs/heads/main",
-        "rev": "69c3088f8f5333eab653ed5c9bd2f6da8f7f944a",
-        "revCount": 283,
+        "rev": "ccf1a36072b9933d0dceb10b90b9ac69917d3d62",
+        "revCount": 284,
         "type": "git",
-        "url": "ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git"
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       },
       "original": {
-        "rev": "69c3088f8f5333eab653ed5c9bd2f6da8f7f944a",
+        "rev": "ccf1a36072b9933d0dceb10b90b9ac69917d3d62",
         "type": "git",
-        "url": "ssh://git@gitlab.inf.ethz.ch/OU-ROSCOE/Students/2026-bsc-sglinz/dandelion.git"
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       }
     },
     "flake-parts": {
