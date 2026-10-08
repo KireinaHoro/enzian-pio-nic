@@ -1,9 +1,9 @@
 package lauberhorn.net
 
-import jsteward.blocks.axi.AxiStreamArbMux
+import jsteward.blocks.axi.{AxiStreamArbMux, AxiStreamMux}
 import lauberhorn.{LauberhornTraceDma, TracePlugin}
 import spinal.core._
-import spinal.lib.{Stream, StreamArbiterFactory}
+import spinal.lib._
 import spinal.lib.bus.amba4.axis.Axi4Stream.Axi4Stream
 import spinal.lib.misc.plugin.FiberPlugin
 
@@ -62,7 +62,7 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
     * @param payload payload data stream consumed by this stage
     * @param acceptHostPackets whether to allow packets from host (e.g. as bypass)
     */
-  protected def collectInto(metadata: Stream[T], payload: Axi4Stream, acceptHostPackets: Boolean = false): Unit = new Composite(this, "consume") {
+  protected def collectInto(metadata: Stream[T], payload: Axi4Stream, acceptHostPackets: Boolean = false, payloadBytes: T => UInt = null): Unit = new Composite(this, "consume") {
     val descUpstreams = mutable.ListBuffer.from(producers.map(_._2))
     val payloadUpstreams = mutable.ListBuffer.from(producers.map(_._3))
 
@@ -92,6 +92,23 @@ trait Encoder[T <: EncoderMetadata] extends FiberPlugin {
     if (payloadUpstreams.length == 1) {
       metadata <-/< descUpstreams.head
       payload <-/< payloadUpstreams.head
+    } else if (payloadBytes != null) new Area {
+      // Select payload by accepted metadata, including header-only packets.
+      // Independent arbiters can reorder delayed payloads from different inputs.
+      val arbiter = StreamArbiterFactory().roundRobin.buildOn(descUpstreams)
+      val busy = RegInit(False)
+      val selected = Reg(UInt(log2Up(payloadUpstreams.length) bits)) init 0
+      metadata << arbiter.io.output.haltWhen(busy)
+      val mux = new AxiStreamMux(payload.config, payloadUpstreams.length)
+      mux.s_axis.zip(payloadUpstreams).foreach { case (sink, source) => sink << source }
+      mux.io.select := selected
+      mux.io.enable := busy
+      payload << mux.m_axis
+      when(metadata.fire) {
+        selected := arbiter.io.chosen
+        busy := payloadBytes(metadata.payload) =/= 0
+      }
+      when(payload.lastFire) { busy := False }
     } else new Area {
       metadata <-/< StreamArbiterFactory(s"${Encoder.this.getName()}_descMux").roundRobin.on(descUpstreams)
       val axisMux = new AxiStreamArbMux(payload.config, payloadUpstreams.length)

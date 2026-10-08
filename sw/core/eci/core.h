@@ -32,6 +32,8 @@ typedef enum {
   TY_ONCRPC_CALL_TX,
   TY_ONCRPC_REPLY_RX,
   TY_EXECUTION_CONTROL,
+  TY_NATIVE_UDP_RX,
+  TY_NATIVE_UDP_TX,
   TY_PREEMPT, /* RX status only: no application payload */
 } lauberhorn_pkt_desc_type_t;
 
@@ -41,6 +43,7 @@ typedef struct {
   uint8_t execution; /* local interval end=1, begin=2, combined=3 */
   // transaction metadata (packet header, RPC session data, etc.)
   union {
+    struct { uint32_t endpoint, saddr, daddr; uint16_t sport, dport; } udp;
     struct {
       enum {
         HDR_ERROR,
@@ -230,6 +233,15 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
+    case lauberhorn_eci_native_udp_rx:
+      desc->type = TY_NATIVE_UDP_RX;
+      desc->udp.endpoint = lauberhorn_eci_host_ctrl_info_native_udp_rx_endpoint_extract(rx_ctrl);
+      desc->udp.saddr = lauberhorn_eci_host_ctrl_info_native_udp_rx_saddr_extract(rx_ctrl);
+      desc->udp.daddr = lauberhorn_eci_host_ctrl_info_native_udp_rx_daddr_extract(rx_ctrl);
+      desc->udp.sport = lauberhorn_eci_host_ctrl_info_native_udp_rx_sport_extract(rx_ctrl);
+      desc->udp.dport = lauberhorn_eci_host_ctrl_info_native_udp_rx_dport_extract(rx_ctrl);
+      desc->payload_len = 0;
+      break;
     case lauberhorn_eci_onc_rpc_call_rx:
       desc->type = TY_ONCRPC_CALL_RX;
       desc->oncrpc_call_rx.func_ptr = (void *)
@@ -370,6 +382,14 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     break;
 
 #else // ! __KERNEL__
+  case TY_NATIVE_UDP_TX:
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_ty_insert(tx_ctrl, lauberhorn_eci_native_udp_tx);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_len_insert(tx_ctrl, payload_len);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_execution_insert(tx_ctrl, desc->execution);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_endpoint_insert(tx_ctrl, desc->udp.endpoint);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_daddr_insert(tx_ctrl, desc->udp.daddr);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_dport_insert(tx_ctrl, desc->udp.dport);
+    break;
   case TY_EXECUTION_CONTROL:
     lauberhorn_eci_host_ctrl_info_execution_tx_ty_insert(tx_ctrl, lauberhorn_eci_execution_control);
     lauberhorn_eci_host_ctrl_info_execution_tx_len_insert(tx_ctrl, 0);

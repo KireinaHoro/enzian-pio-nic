@@ -9,7 +9,7 @@ import lauberhorn.net._
 import lauberhorn.net.ethernet.{EthernetDecoder, EthernetEncoder}
 import lauberhorn.net.ip.{IpDecoder, IpEncoder}
 import lauberhorn.net.oncrpc.{OncRpcCallDecoder, OncRpcCallEncoder, OncRpcReplyDecoder, OncRpcReplyEncoder}
-import lauberhorn.net.udp.{UdpDecoder, UdpEncoder}
+import lauberhorn.net.udp.{UdpDecoder, UdpEncoder, NativeUdpDecoder}
 import spinal.core.{FixedFrequency, IntToBuilder}
 import spinal.lib.BinaryBuilder2
 import spinal.lib.eda._
@@ -30,6 +30,7 @@ object GenEngineVerilog {
       new EthernetDecoder,
       new IpDecoder,
       new UdpDecoder,
+      new NativeUdpDecoder,
       new OncRpcCallDecoder,
       new OncRpcReplyDecoder,
       new DecoderSink,

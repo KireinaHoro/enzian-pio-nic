@@ -357,6 +357,7 @@ class Scheduler extends FiberPlugin {
       ret.bits.assignDontCare()
       switch (req.ty) {
         import HostReqType._
+        is (nativeUdpRx) { ret := req.data.nativeUdp.pid }
         is (oncRpcCallRx) { ret := req.data.oncRpcCallRx.pid }
         is (oncRpcReplyRx) { ret := req.data.oncRpcReplyRx.pid }
         default { ret.bits := 0 }
@@ -369,8 +370,8 @@ class Scheduler extends FiberPlugin {
     }
     when (rxMeta.valid) {
       assert(
-        rxMeta.req.ty === HostReqType.oncRpcCallRx || rxMeta.req.ty === HostReqType.oncRpcReplyRx,
-        "scheduler only supports ONC-RPC call RX and reply RX requests")
+        rxMeta.req.ty === HostReqType.nativeUdpRx || rxMeta.req.ty === HostReqType.oncRpcCallRx || rxMeta.req.ty === HostReqType.oncRpcReplyRx,
+        "scheduler requires a routable request")
     }
 
     val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
@@ -499,7 +500,8 @@ class Scheduler extends FiberPlugin {
     // Ownership starts when decoding admits a descriptor, before DMA/payload
     // storage. Retain it through the pipelined process lookup even after disable.
     val admissions = Seq(host[OncRpcCallDecoder].logic.admission,
-      host[OncRpcReplyDecoder].logic.admission)
+      host[OncRpcReplyDecoder].logic.admission,
+      host[lauberhorn.net.udp.NativeUdpDecoder].logic.admission)
     // DecoderSink has one FULL (two-record) stage for each RPC decoder,
     // DmaControl has one active record, and LookupTable exports its stage count.
     // One additional record covers a departure waiting in the accounting stage.

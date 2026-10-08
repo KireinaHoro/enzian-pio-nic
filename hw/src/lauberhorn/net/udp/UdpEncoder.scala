@@ -1,7 +1,7 @@
 package lauberhorn.net.udp
 
 import jsteward.blocks.axi.AxiStreamInjectHeader
-import lauberhorn.{MacInterfaceService, PacketID, RpcID}
+import lauberhorn.{CoreID, HostMsgID, LauberhornTraceDma, MacInterfaceService, PacketID, RpcID, TracePlugin}
 import lauberhorn.net.ip.{IpEncoder, IpTxMeta}
 import lauberhorn.net.{Encoder, EncoderMetadata, PacketDescType}
 import spinal.core._
@@ -12,6 +12,9 @@ import scala.language.postfixOps
 
 case class UdpTxMeta() extends Bundle with EncoderMetadata {
   val rpcId = UInt(RpcID.width bits)
+  val native = Bool()
+  val hostMsgId = UInt(HostMsgID.width bits)
+  val coreId = UInt(CoreID.width bits)
   val daddr = Bits(32 bits)
   val dport = Bits(16 bits)
   val sport = Bits(16 bits)
@@ -30,6 +33,8 @@ class UdpEncoder extends Encoder[UdpTxMeta] {
 
   lazy val axisConfig = host[MacInterfaceService].axisConfig
 
+  val nativeTp = during setup host[TracePlugin].makePort("udp_host_packet", LauberhornTraceDma.NicDecoderSlr)
+
   val logic = during setup new Area {
     val md = Stream(UdpTxMeta())
     val pld = Axi4Stream(axisConfig)
@@ -41,9 +46,11 @@ class UdpEncoder extends Encoder[UdpTxMeta] {
 
     awaitBuild()
 
-    collectInto(md, pld)
+    collectInto(md, pld, acceptHostPackets = true, payloadBytes = _.pldLen)
 
-    val encoder = AxiStreamInjectHeader(axisConfig, UdpHeader().getBitsWidth / 8)
+    val forkedEmpty = Bool()
+    val encoder = lauberhorn.net.oncrpc.RpcHeaderInjector(axisConfig, UdpHeader().getBitsWidth / 8)
+    encoder.io.empty := forkedEmpty
     encoder.io.input << pld
     encoder.io.output >> outPld
 
@@ -52,11 +59,14 @@ class UdpEncoder extends Encoder[UdpTxMeta] {
       tagged.packetId := nextPacketId
       tagged.udp := input
     }
+    nativeTp.trace("UdpHostPacket", PacketID(taggedMd.packetId), HostMsgID(taggedMd.udp.hostMsgId), CoreID(taggedMd.udp.coreId)) :=
+      taggedMd.fire && taggedMd.udp.native
     when (taggedMd.fire) {
       nextPacketId := nextPacketId + 1
     }
 
     val forkedCmds = StreamFork(taggedMd, 2)
+    forkedEmpty := forkedCmds(0).udp.pldLen === 0
     forkedCmds(0).translateInto(encoder.io.header) { case (h, md) =>
       val hdr = UdpHeader()
       // assumes upstream always passes port in big endian
