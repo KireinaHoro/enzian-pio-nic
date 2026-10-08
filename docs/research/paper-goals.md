@@ -26,13 +26,13 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |
-| Dandelion | Composition graphs and nested calls; tail-call design is deferred pending later work; student mock-based port and runtime in `../sven-dandelion/`, described in [Dandelion reference](dandelion.md) |
+| Dandelion | Bounded Enzian composition/four-worker and aligned atomic measurements complete; paused. Scope is programming-model support and communication overhead, with lightweight-isolation projections distinguished from measurements. [Closeout and two deferred extensions](roadmap.md#dandelion-closeout-limited-scope-and-deferred-work--october-8). |
 | RPC server | Basic request dispatch, payload/handler sweeps and multi-service load; current microbenchmarks are a starting point |
 | Userspace NFS server | Stateful service and larger data movement; implementation/version and filesystem semantics to select |
-| memcached | Key-value service, mixed operations, concurrency and skew; port remains planned |
+| memcached | Next application, in a new thread: key-value service, mixed operations, concurrency and skew; port remains planned |
 | Consensus, e.g. etcd/Raft | Chained peer RPCs and stateful coordination; exact implementation and durability/failure semantics to select |
 
-These are planned applications, not claims that five ports run on the current FPGA. The Dandelion student report evaluates a software mock; its results do not establish real-ECI speedups.
+These are planned applications, not claims that five ports run on the current FPGA. The historical Dandelion student report evaluates a software mock. The newer Enzian reports establish bounded implementation results, not a controlled end-to-end speedup over vanilla Dandelion or measured CHERI gains.
 
 ## Follow-on scope
 
