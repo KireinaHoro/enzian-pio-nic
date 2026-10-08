@@ -28,6 +28,21 @@ class CorrelationTests(unittest.TestCase):
         for kwargs in [{'missing':True},{'duplicate':True}]:
             with tempfile.TemporaryDirectory() as tmp:
                 with self.assertRaises(ValueError): w.load(*self.fixture(Path(tmp),**kwargs))
+    def test_explicit_busy_attempt_is_not_an_executed_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths=self.fixture(Path(tmp))
+            with paths[1].open('a') as f:
+                f.write('1,12,106,3\n1,20,111,3\n')
+            r,e,c=w.load(*paths)
+            self.assertEqual(w.tree(1,c),[1,2])
+
+    def test_retry_cannot_hide_execution_or_missing_submission(self):
+        for line in ['1,40,111,2\n', '1,40,111,3\n']:
+            with tempfile.TemporaryDirectory() as tmp:
+                paths=self.fixture(Path(tmp))
+                with paths[1].open('a') as f: f.write(line)
+                with self.assertRaises(ValueError): w.load(*paths)
+
     def test_cycle_rejected(self):
         with self.assertRaises(ValueError): w.tree(1,{1:[2],2:[1]})
     def test_classification_does_not_include_process_execution(self):

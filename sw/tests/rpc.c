@@ -104,7 +104,12 @@ static void future_pair(void *ctx) {
     lauberhorn_future_t *all[] = {&a, &b};
     assert(!lauberhorn_future_join(all, 2));
     if (!reply_status) assert(*(int *)a.result.data == av && *(int *)b.result.data == bv);
-    else assert(a.result.code == LAUBERHORN_RPC_ERROR && !a.result.data);
+    else {
+        lauberhorn_rpc_status_t expected = reply_status == 5 ?
+            LAUBERHORN_RPC_SYSTEM_ERROR : LAUBERHORN_RPC_ERROR;
+        assert(a.result.code == expected && !a.result.data);
+        assert(b.result.code == expected && !b.result.data);
+    }
     lauberhorn_free_result(&a.result); lauberhorn_free_result(&b.result);
     assert(lauberhorn_future_await(&a) == -1 && errno == EINVAL);
 }
@@ -207,7 +212,7 @@ int main(void) {
     for (int i = 0; i < NUM_FIBERS; ++i) { fiber_prepare(held[i], noop, NULL, NULL); fiber_sched_submit(held[i]); }
     fiber_sched_run_ready();
     immediate = true;
-    for (reply_status = 0; reply_status <= 5; reply_status += 5) {
+    for (reply_status = 0; reply_status <= 5; ++reply_status) {
         struct fiber *f = fiber_sched_acquire(); assert(f);
         int before = decoded_count;
         fiber_prepare(f, future_pair, NULL, NULL); fiber_sched_submit(f); fiber_sched_run_ready();

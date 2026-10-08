@@ -283,7 +283,9 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
     void *data = desc->oncrpc_reply_rx.status ? NULL :
         decode(w->dp.rx_buf, desc->payload_len, c->codec, false);
     rpc_result_t result = {.data = data, .codec = c->codec,
-        .code = data ? LAUBERHORN_RPC_SUCCESS : LAUBERHORN_RPC_ERROR};
+        .code = data ? LAUBERHORN_RPC_SUCCESS :
+            desc->oncrpc_reply_rx.status == LAUBERHORN_RPC_SYSTEM_ERR ?
+                LAUBERHORN_RPC_SYSTEM_ERROR : LAUBERHORN_RPC_ERROR};
     pending_call_settle(c, &result);
 }
 void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {

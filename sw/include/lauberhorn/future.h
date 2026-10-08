@@ -13,6 +13,8 @@ typedef enum {
     LAUBERHORN_RPC_TIMEOUT,
     LAUBERHORN_RPC_ERROR,
     LAUBERHORN_RPC_CANCELLED,
+    /* Preserve ONC RPC SYSTEM_ERR; loopback callers may treat it as busy. */
+    LAUBERHORN_RPC_SYSTEM_ERROR,
 } lauberhorn_rpc_status_t;
 
 typedef struct {

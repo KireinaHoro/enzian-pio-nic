@@ -74,6 +74,29 @@ RX wait beginning before request arrival, and preserve exact artifact provenance
 Build checks alone do not complete either hardware gate. HOST_WAKE remains on
 hold; no timing or address/PREEMPT redesign is part of this goal.
 
+### Active follow-up: wide Dandelion fan-out
+
+Exercise 32 independent matrix tasks and a sum reduction on all four workers,
+including compute on the core whose parent composition is suspended. Reuse the
+existing graph walker and its submit-until-capacity / await / resume mechanism;
+do not substitute a benchmark-specific scheduler. Check the distinction between
+outgoing-call admission and incoming loopback reply-context capacity before
+claiming that a larger graph works. Plot worker lanes as well as parent/child
+correlation. Work is on `feat/dandelion-wide-fanout` until the hardware result is
+validated; the earlier three-child results remain the completed baseline.
+
+The first 32-way probe on the old runtime failed: parent plus 15 children
+occupied the 16 incoming reply contexts; receive-side rejection surfaces as
+`SYSTEM_ERR`, and the old walker unwrapped a missing child result. The frozen
+336,433,472-byte failure window is preserved under
+`out/dandelion-resume/wide-failure-trace/` (SHA-256
+`13cb7df01abfdc8fa09053f73c684d3c9f578ada30ef5570aad0e9cf9856c5b3`).
+Dandelion `f95d33d` retains/requeues the rejected loopback shard; the platform
+runtime preserves SYSTEM_ERR as future status 4. Other errors drain accepted
+calls and fail the composition. Native runtime status tests, AArch64/QEMU
+capacity-policy tests, cross-build and image packaging passed. Board validation
+of the correction is pending on matched FPGA 516232; no new bitstream is needed.
+
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
 The nested RPC integration is approved for master as of 2026-09-23. Its

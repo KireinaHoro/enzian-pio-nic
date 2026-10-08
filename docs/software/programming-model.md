@@ -144,3 +144,19 @@ hardware drain; callers should expect process termination. SIGINT/SIGTERM and
 fatal process exits also initiate cleanup, including parked workers. See the
 [recovery contract](process-recovery.md). Matching-bitstream recovery and module
 startup reliability remain explicit [acceptance gates](nested-rpc-blockers.md).
+
+### Loopback composition receive-side backpressure
+
+The runtime preserves ONC RPC `SYSTEM_ERR` (wire status 5) as the distinct
+future result `LAUBERHORN_RPC_SYSTEM_ERROR` (4), with no result data. Other
+nonzero wire statuses and decode failures remain `LAUBERHORN_RPC_ERROR`.
+This adds an enum value without changing the future layout; rebuild consumers
+such as Dandelion with the matching runtime.
+
+Dandelion's local-loopback composition interprets this result as receive-side
+busy, equivalent to `EAGAIN`: it retains and requeues only the rejected shard.
+This is an application-specific assumption approved for this workload, not an
+automatic retry policy for remote RPCs or arbitrary handlers. `SYSTEM_ERR` can
+also represent a handler failure. Timeouts and other failures are not retried;
+the composition drains accepted children and returns failure. Retry attempts
+receive distinct trace IDs and emit `LH_TRACE_CHILD_RETRY` (111).
