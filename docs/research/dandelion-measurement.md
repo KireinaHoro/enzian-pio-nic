@@ -191,9 +191,80 @@ separately. Full exit/kill recovery, loaded multi-domain behavior, sharding
 performance, DPDK application traffic, process-launch optimization and comparisons
 against the student's software-mock timings are outside this finite result.
 
-At closeout the tracing-off Dandelion server remains running on zuestoll14.
+At the earlier cohort closeout the tracing-off Dandelion server remained running on zuestoll14.
 Its FPGA trace is frozen, unwrapped, with no DMA error and loss clear before
 freeze (`control-freeze.log`). This successful control buffer remains on the
 FPGA and has not been exported/analyzed; the two instrumented measurement
 windows are fully preserved on shared storage and locally. Recheck reservations
 and state before further board access.
+
+## Wide fan-out and temporary UDP backpressure — October 8
+
+The follow-up `fanout32_sum` graph has 32 independent 2×2 matrix squarings and
+31 balanced binary sum-reduction nodes. Reduction uses the existing matmac
+fixture (`I × left + right`), for 63 child calls in one composition. Both checked
+requests returned all four matrix elements equal to 64. This is a finite
+correctness/parallelism probe with two samples and no warmup, not a latency
+percentile campaign.
+
+| Request | RTT (ms) | Child executions on CPUs 44 / 45 / 46 / 47 | Peak simultaneous children | Busy replies retried |
+| --- | ---: | --- | ---: | ---: |
+| 800001 | 86.678 | 18 / 16 / 15 / 14 | 4 | 3 |
+| 800002 | 86.296 | 15 / 17 / 16 / 15 | 4 | 2 |
+
+Both parents entered on CPU44. In request 800002, the parent suspended at
+107569519550 ns and resumed at 107586176260 ns on the DUT's MONOTONIC_RAW
+clock. CPU44 executed child 4294967398 from 107570267270 to 107573800060 ns,
+then more children during the same wait. Thus the waiting parent's core really
+executes compute. The parent fiber later resumes on other workers too; the
+waterfall's parent row denotes a logical fiber, not a permanently reserved CPU.
+
+The software exports contain 129 successful request rows (one atomic smoke,
+two roots, 126 children), 2,231 buffered events, and zero dropped records.
+The selected FPGA window excludes the smoke. The checked join covers 128
+requests, 259 RX descriptors and 259 TX commits, with exact per-worker counts.
+Conditional clock alignment uncertainty is ±981 ns, with 10 ns quantization
+slack. The decoder found no trace loss markers. The VIO loss flag was clear
+before freeze and asserted after freeze; the DMA error and wrap flags stayed
+clear. Full window: 68,986,240 bytes, SHA-256
+`287a98a78e9c9588c5ac9686b0ea82132d10699907621fb5b39e5f40430c5dd4`.
+
+Provenance: same FPGA 516232 and corrected module as above; Dandelion
+`f95d33d05d7ce0091962758b78e425a2ced60458`, runtime code `445e67d1` (image built
+before its comment-only workaround wording). Cross-built application image:
+`/nix/store/cg63f1vd54a9fdahl96pxkd1vy8jhjij-dandelion-instrumented.img`.
+The subsequent upstream-process-parity Dandelion revision `1a9eb8f` descends
+from this source, but its changed process packaging/context sizing was not used
+for these two measurements. Do not attribute these timings to that newer pin.
+
+Two failures preceded this result. The old dispatcher aborted when an incoming
+reply-context rejection completed a child without result data. Preserving
+SYSTEM_ERR and requeuing the local-loopback shard fixed that panic, but an
+unbounded submit burst still lost 13 completions at the process queue. Hardware
+had retired outgoing entries before software consumed their replies. The runtime
+now holds admission credit through future consumption, limiting live calls to
+16 per process; the existing graph walker stops on EAGAIN and resumes after a
+completion. Only explicit loopback SYSTEM_ERR is retried; other failed futures
+are drained and fail the composition.
+
+This is a **temporary workaround for UDP and small hardware tables**, not the
+intended architecture. See the existing
+[table-size restrictions and scaling/spill plan](../hardware/lookup-spill.md#temporary-udp-evaluation-workaround--october-8).
+Many limits should eventually be lifted. Neither this cap nor retrying SYSTEM_ERR
+provides general UDP reliability or safe retries for arbitrary side-effecting
+handlers, concurrent external traffic, or deeply nested compositions.
+
+Evidence under `out/dandelion-resume/`: `bounded-smoke/summary.json`,
+`bounded-results/`, `bounded-trace/`, `bounded-hardware.json`,
+`bounded-worker-proof.json`, `bounded-provenance.json`. The five-lane waterfall
+(parent fiber plus four worker lanes) is `figures/fanout32-bounded.{svg,png,json}`;
+use `dandelion_waterfall.py --worker-lanes` with the validated hardware join.
+Native debug/release runtime tests, all wire reply statuses, ready-future credit
+retention, 32 concurrent submitters, AArch64/QEMU retry-policy checks, deployment
+builds and nine analysis tests passed. No hardware redesign was required.
+
+At this follow-up's closeout the bounded Dandelion server remains running on
+zuestoll14, with software already exported and FPGA tracing frozen. The complete
+selected FPGA window is saved locally and on shared storage. Recheck state and
+reservations before reuse; do not reuse this already-exported software buffer
+for another claimed loss-free measurement.
