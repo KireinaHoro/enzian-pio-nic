@@ -15,7 +15,7 @@ CORE_TX_ACCEPTED = 1  # sw/core/eci/core.h
 EVENT = {1:'entry_return',2:'fiber_resume',3:'fiber_suspend',4:'call_submit',
          5:'call_submitted',6:'rx_packet',100:'entry',101:'resolved',
          102:'prepare',103:'execute',104:'executed',105:'child_begin',
-         106:'child_sent',107:'collect_begin',108:'collected',109:'collect_end',110:'done'}
+         106:'child_sent',107:'collect_begin',108:'collected',109:'collect_end',110:'done',111:'child_retry'}
 
 def rows(path):
     with path.open() as f:
@@ -52,11 +52,24 @@ def load(server,events):
         for e in ev:
             if e['event']!=106: continue
             child=e['arg0']
-            if not child or child not in requests: raise ValueError(f'missing child {child}')
+            if not child: raise ValueError('missing child ID')
             if child in owners: raise ValueError(f'duplicate child submission {child}')
-            owners[child]=parent; children[parent].append(child)
+            owners[child]=parent
+            retry=[r for r in ev if r['event']==111 and r['arg0']==child]
+            if retry:
+                if len(retry)!=1 or retry[0]['timestamp_ns']<e['timestamp_ns']:
+                    raise ValueError(f'ambiguous retry {child}')
+                if child in requests or any(r['event']==108 and r['arg0']==child for r in ev):
+                    raise ValueError(f'retried child also executed or collected: {child}')
+                continue
+            if child not in requests: raise ValueError(f'missing child {child}')
+            children[parent].append(child)
             collected=[c for c in ev if c['event']==108 and c['arg0']==child]
             if len(collected)!=1: raise ValueError(f'child not collected exactly once: {child}')
+    for parent,ev in by_id.items():
+        for e in ev:
+            if e['event']==111 and owners.get(e['arg0'])!=parent:
+                raise ValueError(f'retry without submission: {e["arg0"]}')
     return requests,by_id,children
 
 def spans(row,ev):
@@ -101,7 +114,7 @@ def tree(root,children):
         for child in children.get(key,[]): visit(child)
     visit(root); return result
 
-def plot(path,root,client,requests,events,children,hardware=None):
+def plot(path,root,client,requests,events,children,hardware=None,worker_lanes=False):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -119,12 +132,20 @@ def plot(path,root,client,requests,events,children,hardware=None):
             'fiber preparation':'#c5abd7','function setup':'#e4bb69',
             'process execution':'#df805d','child submission':'#749ad1','await result':'#e0e5ea',
             'collect result':'#8aad75','encode':'#48918b','final TX':'#5377a1'}
-    fig,ax=plt.subplots(figsize=(13,max(4,1.0*len(ids)+1.8)))
-    labels=[]; shown=set()
-    for lane,key in enumerate(ids):
+    cpu_by_id={key:next((e['cpu'] for e in events[key] if e['event']==103),requests[key]['rx_cpu_id']) for key in ids}
+    cpus=sorted({cpu_by_id[key] for key in ids})
+    lanes=({root:0,**{key:cpus.index(cpu_by_id[key])+1 for key in ids if key!=root}}
+           if worker_lanes else {key:i for i,key in enumerate(ids)})
+    labels=([f'parent fiber {root}\nCPU {cpu_by_id[root]}']+[f'children on CPU {cpu}' for cpu in cpus]
+            if worker_lanes else [])
+    lane_count=len(cpus)+1 if worker_lanes else len(ids)
+    fig,ax=plt.subplots(figsize=(15 if worker_lanes else 13,max(4,1.0*lane_count+1.8)))
+    shown=set()
+    for key in ids:
+        lane=lanes[key]
         r=requests[key]; ev=events[key]
         cpu=next((e['cpu'] for e in ev if e['event']==103),r['rx_cpu_id'])
-        labels.append(('parent' if key==root else 'child')+f' {key}\nCPU {cpu}')
+        if not worker_lanes:labels.append(('parent' if key==root else 'child')+f' {key}\nCPU {cpu}')
         a=(r['server_rx_unblock_ns']-origin)/1000; b=(r['server_tx_exit_ns']-origin)/1000
         ax.broken_barh([(a,b-a)],(lane-.32,.64),facecolors='#f1f2f4',edgecolor='#a4a4a4',linewidth=.5)
         for name,start,stop in spans(r,ev):
@@ -139,7 +160,8 @@ def plot(path,root,client,requests,events,children,hardware=None):
             left=max(left,-prelude)
             ax.broken_barh([(left,max(0,right-left))],(lane-.27,.54),facecolors=colors[name])
             shown.add(name)
-    lanes={key:i for i,key in enumerate(ids)}
+            if worker_lanes and name=='process execution' and key!=root:
+                ax.text((left+right)/2,lane,f'C{ids.index(key)}',ha='center',va='center',fontsize=6,clip_on=True)
     for parent in ids:
         for child in children.get(parent,[]):
             launched=next(e for e in events[parent] if e['event']==105 and e['arg0']==child)
@@ -148,8 +170,8 @@ def plot(path,root,client,requests,events,children,hardware=None):
                 (launched['timestamp_ns'],lanes[parent],requests[child]['server_rx_unblock_ns'],lanes[child]),
                 (requests[child]['server_tx_enter_ns'],lanes[child],got['timestamp_ns'],lanes[parent])]:
                 ax.annotate('',xy=((x1-origin)/1000,y1),xytext=((x0-origin)/1000,y0),
-                            arrowprops={'arrowstyle':'->','lw':.7,'color':'#777','alpha':.65})
-    ticks=list(range(len(ids)))
+                            arrowprops={'arrowstyle':'->','lw':.7,'color':'#777','alpha':.13 if worker_lanes else .65})
+    ticks=list(range(lane_count))
     hardware_handles=[]
     if hw:
         ticks.insert(0,-1);labels.insert(0,'FPGA / ECI')
@@ -195,6 +217,7 @@ def main():
     p.add_argument('--server',type=Path,required=True); p.add_argument('--events',type=Path,required=True)
     p.add_argument('--client',type=Path,required=True); p.add_argument('--out',type=Path,required=True)
     p.add_argument('--hardware',type=Path,help='validated dandelion_hardware.py output')
+    p.add_argument('--worker-lanes',action='store_true',help='Group children by execution CPU, keeping parent fiber separate')
     p.add_argument('--no-plot',action='store_true'); args=p.parse_args()
     requests,events,children=load(args.server,args.events)
     measured=[r for r in rows(args.client) if r['warmup']=='false']
@@ -241,7 +264,7 @@ def main():
         result['limitations'].extend(hardware['assumptions'])
     args.out.parent.mkdir(parents=True,exist_ok=True)
     args.out.with_suffix('.json').write_text(json.dumps(result,indent=2)+'\n')
-    if not args.no_plot: plot(args.out,selected['request_id'],selected,requests,events,children,hardware)
+    if not args.no_plot: plot(args.out,selected['request_id'],selected,requests,events,children,hardware,args.worker_lanes)
     print(json.dumps({'requests':len(measured),'selected':selected['request_id'],'out':str(args.out)}))
 
 if __name__=='__main__': main()
