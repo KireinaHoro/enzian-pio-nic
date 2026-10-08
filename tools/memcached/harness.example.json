@@ -1,0 +1,10 @@
+[
+  {
+    "name": "memcached-UNIQUE_RUN",
+    "revision": "REPLACE_WITH_FULL_PLATFORM_REVISION",
+    "image": "/scratch/pengxu/memcached-MATCHING_PIPELINE.img",
+    "program": ["REPLACE_WITH_MATCHED_HARNESS_FPGA_PROGRAM_COMMAND"],
+    "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\n/nix/store/lauberhorn/apps/memcached-tools/bin/memcached-launch --manifest /scratch/pengxu/memcached-matrix.json --case 0 --output /scratch/pengxu/memcached-{run} --ordinary-cpus 0-43 --worker-cpus 44 45 46 47\n",
+    "client": "/nix/store/lauberhorn/apps/memcached-tools/bin/memcached-compatibility --host 192.168.129.200 --port 11211 --output /scratch/pengxu/memcached-{run}/compatibility.json"
+  }
+]

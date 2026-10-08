@@ -97,6 +97,42 @@
         "url": "https://gitlab.inf.ethz.ch/project-opensockeye/mackerel2"
       }
     },
+    "memcached": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791485607,
+        "narHash": "sha256-tb79jHbGViWWrX+VkNfVcn/x41+U7UaSItsDiV6V1kE=",
+        "ref": "feat/lauberhorn-native-udp",
+        "rev": "b6aaba9a05b5c7f59d86090b271d1881235c71d5",
+        "revCount": 2227,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
+      },
+      "original": {
+        "ref": "feat/lauberhorn-native-udp",
+        "rev": "b6aaba9a05b5c7f59d86090b271d1881235c71d5",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
+      }
+    },
+    "memcachedUpstream": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1740084259,
+        "narHash": "sha256-MhUfF1oDYrboaBG/AlRMImJ4AjmrKPfGky5ccl1r0lI=",
+        "ref": "feat/lauberhorn-native-udp",
+        "rev": "0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e",
+        "revCount": 2225,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
+      },
+      "original": {
+        "ref": "feat/lauberhorn-native-udp",
+        "rev": "0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
+      }
+    },
     "mill-ivy-fetcher": {
       "inputs": {
         "flake-parts": "flake-parts",
@@ -140,6 +176,8 @@
         "dandelion": "dandelion",
         "flake-utils": "flake-utils",
         "mackerel": "mackerel",
+        "memcached": "memcached",
+        "memcachedUpstream": "memcachedUpstream",
         "mill-ivy-fetcher": "mill-ivy-fetcher",
         "nixpkgs": "nixpkgs"
       }
