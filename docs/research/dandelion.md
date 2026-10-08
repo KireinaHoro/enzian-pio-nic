@@ -62,6 +62,17 @@ is named `graph`, and the depth-4 chain is named `graph_2`; do not infer graph
 depth from those names. The existing integration-test DAG is a different fixture.
 Show measured parallel overlap rather than assuming it from DAG independence.
 
+The first October 8 launch on the existing DUT session stopped before any RPC:
+terminating the old benchmark domains asserted the ownership reset-required
+gate, and `lauberhorn_init` returned `ENOSPC`. `allocate_domain_code` explicitly
+rejects that state. This is the documented process-lifetime recovery limitation,
+not an atomic-function or loopback result. The prior full frozen buffer and the
+410,681,920-byte newly appended startup window were preserved; the latter's
+SHA-256 is `b40614c0e3588a09d340fff0a3c35fe14446458775e5cb35024867ba8af96138`.
+Continue with Dandelion as the first application after a matched cold boot.
+Evidence and the test manifest are under `out/dandelion-resume/`; the cold-boot
+trial has not yet supplied an acceptance result at this checkpoint.
+
 Dandelion `ccf1a36072b9933d0dceb10b90b9ac69917d3d62` incorporates the five former
 platform patches and the installed-runtime `package.nix` directly. The platform
 now calls the pinned input's recipe and supplies `lauberhornRuntime`, `crane` and
