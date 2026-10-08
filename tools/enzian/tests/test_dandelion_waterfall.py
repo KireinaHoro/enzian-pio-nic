@@ -13,7 +13,7 @@ class CorrelationTests(unittest.TestCase):
         server=d/'server.csv'; events=d/'events.csv'
         with server.open('w') as f:
             wr=csv.writer(f); wr.writerow(['request_id','request_id_valid','ok','reply_status','transport_status'])
-            for key in ([1] if missing else [1,2]): wr.writerow([key,1,1,0,0])
+            for key in ([1] if missing else [1,2]): wr.writerow([key,1,1,0,w.CORE_TX_ACCEPTED])
         with events.open('w') as f:
             wr=csv.writer(f);wr.writerow(['request_id','timestamp_ns','event','arg0'])
             wr.writerow([1,10,106,2]);wr.writerow([1,30,108,2])
