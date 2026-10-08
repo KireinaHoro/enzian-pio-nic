@@ -1,11 +1,50 @@
 # Pending features and design decisions
 
-**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
-a newly activated domain can read the previous owner's TX payload through its
-own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
-The board campaign is paused; earlier functional results do not discharge this
-isolation failure. The follow-up source adds TX allocation scrubbing and bounds
-checks plus RX packet-tail masking; corrected-build acceptance is still required.
+## Current status — October 8 consolidation
+
+This summary reconciles recorded results through October 5; no new CI query,
+board run or reservation check accompanies this documentation pass. Detailed
+historical sections below retain their original evidence and assumptions.
+The completed measurement/correction commits through `3ce4a73f` are on
+`feat/four-worker-latency-baseline`; consolidation into master remains separate.
+
+| Area | Established evidence | Remaining claim or work |
+| --- | --- | --- |
+| Physical-worker addressing and cooperative PREEMPT | Selected 8 KiB layout implemented; bounded models, targeted RTL and finite handoff/board checks passed. [Implementation ledger](../hardware/eci-implementation.md). | Full-system refinement and adversarial progress/isolation acceptance are not established. |
+| Payload isolation and inactive-domain access | TX scrub/bounds, RX tail masking and multi-PA fault corrections implemented; pipeline 516112 passed all CI jobs and two cold-boot 100-RPC trials. [Correction record](../hardware/payload-isolation-blocker.md#matched-corrected-build-baseline--october-4). | The original disclosure is a corrected defect, not an active campaign stop. Adversarial multi-domain board stress remains open. |
+| 516232 idle activation | Module per-CPU storage corrected at `af0f64fe`; two fresh cold boots passed 200 measured + 32 warmup RPCs. [Diagnosis and correction](../hardware/gsync-worker-reproduction.md#per-cpu-module-correction--october-5). | Preserve the original failure capture; do not describe the board as still frozen by that failure or claim an independently confirmed upstream kernel bug. |
+| GSYNC early NACK | 240 controlled RPCs passed; 160 permission-change GSYNCs, 107 overlapping one/two fully observed peer holds. Hold-dependent millisecond stalls disappeared. [Board evidence](../hardware/gsync-worker-reproduction.md#corrected-module-early-nack-measurement--october-5). | Three simultaneously stalled peers and arbitrary-interrupt tail guarantees remain untested by this campaign. |
+| Hot/cold benchmark | Cross-built Nix DPDK client, buffered runtime/kernel tracing, 1,000 requests per hot/cold × kernel-tracing on/off cohort; all 4,000 measured RPCs passed. Kernel-off median RTT: 12.24 us hot, 43.36 us cold. [Breakdowns, percentiles and figures](latency-measurement.md#corrected-module-516232-comparison--october-5). | One measured thread plus a separate four-thread flush domain is not four measured workers concurrently. Kernel tracing adds measured overhead; residual latency is not all wire time. |
+| Hot CPU work | Cache-refill campaign and exact-binary selected-path instruction audit complete. [Static counts](../development/hot-static-instructions.md): 1,865 instructions per nominal untraced iteration, 3,434 with buffered tracing. | Retired-instruction PMU counter was unreliable; static counts exclude rare retries/interrupts and do not measure cycles. |
+| TX latency | 516232 TX hardware median 0.950 us, unchanged from 516112. | This comparison is not a controlled R12-versus-RA3 experiment and establishes no new TX reduction. |
+| Timing | Latest tested 516232 report: WNS −0.102 ns, 893 failing setup endpoints. | Timing closure remains open; optimization remains paused. |
+
+### Open work and next sequence
+
+1. Close four-worker acceptance: measure all four workers concurrently, include
+   three stalled peers, bypass RX/TX and deliberately triggered GSYNC; preserve
+   per-worker tail distributions and actual hold durations. Repeat appropriate
+   contention cases across cold boots. The old vulnerable-image stall bracket
+   is historical evidence, not a certified limit for the corrected image.
+2. Consolidate completed correction/measurement work into master, preserving
+   artifact provenance and unrelated dependency changes.
+3. Design and implement HOST_WAKE / host-event activation and service-owned
+   events/timers. This remains follow-on work, not an implemented interface.
+   Validate wake/PREEMPT/close races and parked-service progress.
+4. Complete kill/exit recovery and resource reclamation; broaden adversarial
+   isolation, overload and coherence-service validation. Monotonic domain IDs
+   and fatal fencing are not reusable-resource recovery.
+5. Resume Dandelion and the first-paper application evaluation, including the
+   selected Demikernel baseline. Application-specific acceptance and version/
+   resource-budget choices remain open. TCP/Protobuf integration follows this
+   priority; fully offloaded gRPC remains later scope.
+
+This is the recommended sequence, not authorization to start deferred features.
+Cold-path Linux scheduling optimization remains deferred at the maintainer's
+request. Broader models and actual-DCS stress should follow mechanisms being
+changed; finite passing tests do not prove infinite-stall liveness. Historical
+nested-RPC validation is recorded in its [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23);
+new address/PREEMPT acceptance must not silently inherit every old-image claim.
 
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
@@ -46,8 +85,10 @@ Pinned checks and pipeline 515944 passed. A kernel preemption-table indexing
 fix built against its exact headers passed the baseline. Two cold boots now
 pass finite contention at a 133.281505 ms RX hold, including 5,926 ordinary
 handoffs with no scheduling IRQs and trace-confirmed three-peer overlap.
-The fresh Enzian maximum-stall boundary search is paused by the isolation blocker, and one
-earlier baseline kernel lockup remains unexplained. HOST_WAKE interface design and
+The old-image maximum-stall search stopped at the original isolation finding.
+Corrected-build functional testing has since resumed; qualification of the stall
+boundary under expanded contention remains open. One earlier baseline kernel
+lockup remains unexplained. HOST_WAKE interface design and
 implementation, deadline-kick integration, and complete kill/exit recovery are
 explicitly outside this stage; step 4 below is later work.
 
@@ -62,11 +103,11 @@ the replacement integration from deferred follow-on work.
 | Order | Work | Completion checkpoint |
 | --- | --- | --- |
 | 1 (complete, bounded regression) | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Pipeline 515802 passed two cold-reset trials / 200 RPCs; a repeated-hash trace shows RX WDDA/LCIA and the next read. Broader stress remains in step 5. |
-| 2 | Plan and implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
-| 3 | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
+| 2 (implemented; expanded acceptance open) | Implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
+| 3 (implemented; expanded acceptance open) | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
 | 4 (deferred) | Design host-event activation and complete whole-domain recovery in a later round. | Neither interface design nor reusable-resource recovery is part of this stage. |
-| 5 | Validate the integrated replacement with targeted actual-DCS RTL simulations and matched board stress. | Run the [whole-slice cases below](#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available), stalled peers plus bypass, repeated handoffs, wakes and kill cleanup. Add model-derived assertions/event monitors as each component lands, rather than postponing all validation to this stage. Record finite observations separately from liveness assumptions. |
-| 6 | Integrate the first-paper applications and collect performance data, then evaluate coupled RX/TX where measurements justify it. | Reproducible functional workloads and baseline comparisons; quantify scheduling costs and application bottlenecks before selecting another transport optimization. |
+| 5 (partial) | Validate the integrated replacement with targeted actual-DCS RTL simulations and matched board stress. | Run the [whole-slice cases below](#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available), stalled peers plus bypass, repeated handoffs, wakes and kill cleanup. Add model-derived assertions/event monitors as each component lands, rather than postponing all validation to this stage. Record finite observations separately from liveness assumptions. |
+| 6 (microbenchmark baseline complete; applications open) | Integrate the first-paper applications and collect performance data, then evaluate coupled RX/TX where measurements justify it. | Reproducible functional workloads and baseline comparisons; quantify scheduling costs and application bottlenecks before selecting another transport optimization. |
 
 Continue targeted modeling alongside these steps: competing CPU requests and
 evictions, independent VC ordering, shared response/data-resource contention,
@@ -105,7 +146,7 @@ or PREEMPT work and not a selected replacement protocol.
 | --- | --- | --- |
 | Scheduling robustness under pressure | `hw/src/lauberhorn/Scheduler.scala`: queue-full drop has buffer-free FIXME; fairness and non-retrying-core recovery TODOs | No buffer leak under saturation; bounded progress/recovery; documented policy and multi-process stress |
 | Scalable service/process/session tables | `docs/hardware/lookup-spill.md` proposes hardware caches and typed software spill ownership | End-to-end admission, eviction, ownership and packet lifetime tests beyond table capacity |
-| Nested RPC usable from applications | Call encoder/reply decoder and nested simulation exist; hardware support does not imply C-runtime completion support | Runtime API and continuation lifetime, reply dispatch, error/timeout cleanup, application demo |
+| Nested RPC usable from applications | Managed C-runtime outcomes, futures and nested completion are implemented with historical generic board validation; this is not current application acceptance | Generic runtime/outcome checks passed in the historical nested campaign; application-specific acceptance and revalidation on the replacement scheduling ABI remain |
 | Coherence progress and queue-pair placement | Goal 1 complete as a bounded modeling/layout milestone: selected 8 KiB physical-worker blocks, domain encoding and reproducible positive/negative models | Selected bounded Goal 2 matrix complete; replacement implementation and targeted DCS RTL validation below, followed by adversarial board traces |
 | TCP and Protobuf integration | Finished external student projects in `../flavian-tcp` and `../elena-protobuf`; unmerged here | Adapt code/dependencies and validate host contracts after higher-priority applications; [follow-on roadmap](grpc-roadmap.md) |
 | Data movement and decode extensions | Current C runtime performs XDR; generator TODO suggests coupled worker protocol | Chosen ABI and workloads; measured benefit; large-message strategy independently validated |
@@ -182,7 +223,7 @@ PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activat
 commit write. Ordinary handoffs have no scheduling IRQ. Initial/idle activation uses a sticky
 notification and kick IRQ; fatal-domain notification is separate.
 
-#### Resume here: implementation planning after RX-fix board acceptance
+#### Historical starting point: implementation after RX-fix board acceptance
 
 Hardware validation used revision `2699f58`,
 [pipeline 515621](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515621).
@@ -302,7 +343,7 @@ model checks, THX credit assumptions and eventual board conformance separately.
 
 ## Remaining decisions
 
-1. Implement the selected physical-worker/domain design using the completed bounded scheduling models and the next-step sequence above. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
+1. Complete expanded acceptance of the implemented physical-worker/domain design using the completed bounded scheduling models and the next-step sequence above. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
 2. Specify receive-critical-section versus whole-application timeout, timer start/reset points, kill granularity and safe resource/reply cleanup. Define service allocation fairness if a guarantee is needed; run-to-finish alone does not define it.
 3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../software/service-execution-design.md) in later runs.
 4. Consensus targets a runtime-managed raft-rs embedding; memcached uses resident transport-only adoption. Select NFS implementation, Demikernel backend/version and comparison platform, target venue/cycle, and ordered feature milestones.

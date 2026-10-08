@@ -1,5 +1,13 @@
 # Worker-issued GSYNC behind a peer RX hold
 
+**October 8 disposition:** the controlled 516232 follow-up with corrected
+module verified one-shot early NACK and removed the hold-dependent millisecond
+waits within the tested scope. The initial activation failure was diagnosed and
+corrected; it is not an active test blocker. See the [correction](#per-cpu-module-correction--october-5),
+[early-NACK results](#corrected-module-early-nack-measurement--october-5) and
+[remaining acceptance claims](../research/roadmap.md#current-status--october-8-consolidation).
+Board-state statements in the dated experiments describe those moments only.
+
 On October 4, an application-only probe on matched pipeline **516112**
 (`b2117e9625cca7ce256b44db34a5f2a46a952622`) reproducibly generated RPC tails by
 changing a populated page's permissions on a worker while other workers waited
@@ -183,7 +191,8 @@ Trial 1 passed **100 measured + 16 warmup RPCs**. Trial 2 failed its first
 warmup request after **100 ms**, with one transmitted packet and none received.
 The harness stopped without another reset. The full **136,535,296-byte** trace
 was frozen and saved over F_MAC1, with matching local/remote SHA256, no wrap,
-no DMA error and no decoded loss. The DUT remains frozen in this failed state.
+no DMA error and no decoded loss. The DUT was frozen in this failed state until the capture was preserved and
+the corrected-module follow-up below began.
 
 The failed request was decoded and enqueued without a drop. At trace cycle
 36731389322, `SchedulerPreemptCore` selected datapath 1 / physical worker 0
@@ -198,8 +207,9 @@ TAD snapshot was taken for these harness trials.
 
 This localizes the stall to idle activation after interrupt delivery, but does
 not establish the exact cause or a causal connection to GSYNC early release.
-Do not report two successful trials or early-NACK acceptance. Controlled GSYNC
-and new-image hot/cold measurements are blocked pending diagnosis; the
+At this initial failed-trial stage, two successful trials and early-NACK
+acceptance could not be reported. Controlled GSYNC and new-image hot/cold
+measurements were blocked until the correction below; the
 [buffered 516112 baseline](../research/latency-measurement.md#buffered-hotcold-baseline--october-5)
 remains historical comparison data. No timing, address-layout or PREEMPT
 implementation change was made. Raw evidence is in `out/board/gsync-516232*`

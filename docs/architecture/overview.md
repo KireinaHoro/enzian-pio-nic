@@ -1,6 +1,11 @@
 # System map
 
-**Integration status (2026-09-23):** the nested RPC runtime is approved for
+For current implementation, board results and remaining acceptance, start with
+the [October 8 consolidated status](../research/roadmap.md#current-status--october-8-consolidation).
+It supersedes stale campaign-stop language in dated evidence, without promoting
+historical finite tests into full-system guarantees.
+
+**Historical integration status (2026-09-23):** the nested RPC runtime is approved for
 master after the recorded Enzian functional campaign. See
 [integration scope and follow-up work](../software/nested-rpc-integration.md).
 Descriptions below of the former synchronous runtime are historical.

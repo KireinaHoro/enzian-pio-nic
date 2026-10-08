@@ -1,14 +1,14 @@
 # Cooperative scheduling control
 
-**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
-a newly activated domain can read the previous owner's TX payload through its
-own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
-The board campaign is paused; earlier functional results do not discharge this
-isolation failure.
+**October 8 status:** the original payload-isolation blocker has source
+corrections and a matched functional baseline. Corrected 516232 bring-up,
+GSYNC early NACK and hot/cold measurements passed within their recorded scope.
+Expanded adversarial isolation and four-worker acceptance remain open; see the
+[consolidated claims and results](../research/roadmap.md#current-status--october-8-consolidation).
 
 Selected implementation contract, October 2, 2026. RTL, kernel and runtime
-implement this sole ECI design on `feat/cooperative-yield`. Validation is in
-progress; [the evidence ledger](../hardware/eci-implementation.md) records its
+implement this sole ECI design, originally on `feat/cooperative-yield`. Expanded
+acceptance remains open; [the evidence ledger](../hardware/eci-implementation.md) records its
 limits. Superseded designs remain available in Git history.
 
 The October 3 [finite board record](../../data/eci/board-evidence/cooperative-20261003-contention.json)

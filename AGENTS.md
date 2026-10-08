@@ -34,44 +34,34 @@ CMAC trace path uses F_MAC1; revision `5cda901` passed 300 RPCs and three full
 322 MB dumps, with WNS -0.062 ns (not closure). See the
 [CMAC board evidence](docs/development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
 
-The selected bounded Goal 2 modeling round is complete; see the
-[scheduling composition report](docs/hardware/scheduling-composition.md). The
-source build selects the simplified LCI-only DC with UL removed. The 8 KiB
-physical-worker address layout and cooperative PREEMPT ABI are the sole ECI
-implementation on `feat/cooperative-yield`; see the [implementation evidence](docs/hardware/eci-implementation.md).
-Local model, simulation and software checks passed. Pipeline 515944 (`8cc9ad58`)
-passed all 13 gates and hardware/report jobs. Its first driver load exposed a
-preemption-table index bug, fixed at `336c65d6`. A corrected module built against
-the exact candidate headers passed 100 RPCs. The campaign is paused after a full-engine RTL reproducer confirmed cross-domain
-TX payload disclosure through the new owner's valid alias. See the
-[payload isolation blocker](docs/hardware/payload-isolation-blocker.md). The follow-up
-source adds TX scrubbing/bounds checks and RX tail masking. Corrected pipeline
-516112 (`b2117e96`) passed all CI jobs and two cold-boot 100-RPC trials; see the
-[matched baseline](docs/development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
-Adversarial isolation/contention acceptance remains outstanding. Its WNS is
-−0.396 ns with 7,227 failing setup endpoints; timing remains open.
-The initial October 2 simplified-DC trial exposed missing RX AXI write service.
-The independent RX write sink at `a51139e` passed pipeline 515802 and two
-cold-reset Enzian trials (200 correct RPCs); a matched trace confirms the formerly
-stuck RX writeback now completes. See the [board evidence](docs/development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
-That historical image had WNS −0.005 ns. Historical candidate 515944 has WNS
-−0.089 ns and 474 failing setup endpoints; timing remains open. The
-[layered verification report](docs/hardware/layered-verification.md) records
-DC/THX endpoint checks and remaining race/refinement gaps.
-On October 5, reservations were rechecked: zuestoll14 (DUT) and zuestoll07
-(client) belong to pengxu. Pipeline 516232 passed CI; its matched two-repeat
-board campaign passed once, then stalled on the first idle activation despite
-an IRQ reaching CPU44. The DUT remains frozen; its complete failure trace is
-saved. Read the [current failure handoff](docs/hardware/gsync-worker-reproduction.md#pipeline-516232-board-follow-up--october-5)
-and evidence before access. Recheck reservations and never reset an unpreserved
-failure. GSYNC early-NACK acceptance and new-image latency measurements remain
-blocked by this failure. The isolation correction and simulation fixes
-passed 53 fast ECI tests (one existing ignored). Pipeline 516080 stopped before
-hardware on a reproduced testbench TX-call overlap; the
-[seed investigation](docs/development/simulation-seeds.md) records the fix and the
-shared RNG that made CI seeds insufficient. The current DUT image is 516232; 516112 remains the buffered latency baseline.
-Resume expanded acceptance with matched artifacts, never vulnerable 515944.
-Retain documented hardware-service assumptions.
+The selected bounded Goal 2 models, 8 KiB physical-worker address layout and
+cooperative PREEMPT implementation are complete within their documented scope.
+The original payload disclosure and inactive-domain faults have corrections;
+516112 passed all CI jobs and two cold-boot 100-RPC trials. Never substitute
+vulnerable 515944. The corrected 516232 module (`af0f64fe`) resolved its first
+idle-activation failure and passed two fresh cold boots (200 measured + 32
+warmup RPCs). The original failure capture remains preserved.
+
+The October 5 follow-up verified GSYNC one-shot early NACK with 240 controlled
+RPCs and one/two observed stalled peers. Buffered DPDK hot/cold cohorts passed
+4,000 measured RPCs; kernel-off median RTT was 12.24 us hot / 43.36 us cold.
+Hot CPU-work analysis and reproducible static counting are recorded. Read the
+[consolidated status and open claims](docs/research/roadmap.md#current-status--october-8-consolidation)
+for evidence links and remaining acceptance: four measured workers concurrently,
+three stalled peers, adversarial isolation/recovery and full-system progress.
+HOST_WAKE, service events/timers and complete kill/exit resource recovery remain
+follow-on work. Timing optimization is paused; tested 516232 has WNS −0.102 ns
+and 893 failing setup endpoints, not closure.
+
+As of this October 8 documentation pass, corrections and measurements through
+`3ce4a73f` are on `feat/four-worker-latency-baseline`; master consolidation is
+still separate. No fresh board/reservation check was made. Last recorded DUT
+and client were zuestoll14 and zuestoll07, with services running and tracing
+frozen after successful capture. Recheck reservations and actual state before
+access; do not treat a dated note as a live reservation or reset an unpreserved
+failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and
+[latency record](docs/research/latency-measurement.md#corrected-module-516232-comparison--october-5)
+distinguish the historical failure from completed follow-up tests.
 
 ## Confirmed research and scheduling scope
 

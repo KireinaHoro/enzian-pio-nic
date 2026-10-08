@@ -1,10 +1,12 @@
 # Software runtime and datapath
 
-**Acceptance blocked (October 3):** a full-engine RTL regression confirms that
-a newly activated domain can read the previous owner's TX payload through its
-own valid alias. See the [reproducer and required isolation work](../hardware/payload-isolation-blocker.md).
-The board campaign is paused; earlier functional results do not discharge this
-isolation failure.
+**October 8 status:** the payload-isolation and multi-PA faults have source
+corrections and a matched functional board baseline. The cooperative PREEMPT
+path, corrected 516232 module, GSYNC early NACK and buffered hot/cold benchmarks
+have recorded finite validation. Expanded adversarial isolation and concurrent
+four-worker acceptance remain open. See the [consolidated status and open
+claims](../research/roadmap.md#current-status--october-8-consolidation).
+The dated implementation notes below preserve their original scope.
 
 October 2: the sole ECI runtime declares its pool with
 `lauberhorn_set_worker_count()` before creating threads. Each thread completes

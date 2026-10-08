@@ -1,5 +1,13 @@
 # ECI implementation and evidence
 
+**October 8 consolidation:** the latest recorded board campaign uses pipeline
+516232 with corrected module `af0f64fe`: two fresh cold boots, controlled GSYNC
+early-NACK tests and buffered hot/cold measurements passed. See the
+[consolidated evidence and remaining claims](../research/roadmap.md#current-status--october-8-consolidation).
+Expanded adversarial isolation, four-worker contention and stall-limit
+qualification remain open. The dated candidate notes below are historical;
+their launch/frozen-state instructions are not current tasks.
+
 **Corrected-build baseline (October 4):** pipeline 516112 (`b2117e96`)
 includes the payload-isolation and multi-PA fault corrections and passed all CI
 jobs. Two verified cold boots each passed module/version checks and 100 correct
@@ -112,8 +120,9 @@ is preserved and excluded from platform commits.
   Delayed-LCIA, retained-address, final-control invalidation and A→B→A tests
   check the corresponding concrete boundaries separately; they do not prove
   full-system refinement or infinite-stall silicon progress.
-- Launch hardware CI with matched artifacts, retain its refs and follow the
-  30-minute/five-hour collection workflow.
+- A matched corrected image is already available (516232 with module overlay).
+  Inspect current artifacts/state before duplicating builds. Any future hardware
+  CI follows the 30-minute/five-hour workflow and retains active refs.
 - Recheck Enzian reservation. Record artifacts, clocks, programmed RX hold and
   every exposed L2C_TAD status. Find the exception boundary or register limit at
   implemented timer resolution; preserve trace/fault evidence before reset.
@@ -122,7 +131,8 @@ is preserved and excluded from platform commits.
   stalled peers, all-but-one stalls, active-peer cooperative handoffs and
   simultaneous bypass RX/TX. Verify hold durations and peer completions in traces.
 
-No current RX stall threshold, board acceptance or timing closure is claimed.
+No certified RX stall threshold, complete adversarial board acceptance or timing
+closure is claimed; the finite functional and GSYNC campaigns above did pass.
 Host-event interface design, deadline activation, full exit recovery, PCIe
 scheduling and timing optimization remain outside this stage.
 

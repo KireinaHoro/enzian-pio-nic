@@ -2,6 +2,16 @@
 
 Survey: 2026-09-08, base `b86c68c`. The system objective, application portfolio, baseline and scheduling scope below are maintainer-confirmed. Experiments are proposals; venue/cycle and exact application versions remain unspecified.
 
+## Evaluation status — October 8 consolidation
+
+The [current evidence index](roadmap.md#current-status--october-8-consolidation)
+records completed hot/cold DPDK microbenchmarks, GSYNC mitigation and CPU-work
+analysis. These are a baseline, not the full paper evaluation: concurrent
+four-worker tails, application ports/composition workloads, Demikernel controls,
+recovery and broader adversarial acceptance remain open. HOST_WAKE/events and
+complete resource recovery are still follow-on implementation work. The
+experiment matrix below is an evidence plan, not a list of completed features.
+
 ## Starting claim
 
 The coherent datapath/2F2F is published groundwork: [Rethinking Programmed I/O for Fast Devices, Cheap Cores, and Coherent Interconnects](https://arxiv.org/html/2409.08141v3). The [HotOS paper](https://arxiv.org/pdf/2501.10138) supplies the OS-integrated NIC direction. The full paper's contribution is an efficient, low-latency RPC **system built on 2F2F**, retaining the flexibility and security guarantees of OS ownership. Do not present 2F2F itself as the new contribution or infer system guarantees from transport measurements.
@@ -35,7 +45,7 @@ The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should b
 | Using the RX return half improves application performance | After baseline application measurements, compare independent TX with a coupled RX-return prototype; measure fitting-response fraction, latency/tails, throughput, CPU work and coherence contention, including large-response fallback | [Evaluation placement and decision criteria](roadmap.md#application-performance-and-coupled-rxtx-analysis); [protocol design questions](../hardware/rx-writeback.md) |
 | Benefits come from integration | Ablate dynamic scheduling, compare pinned service workers, separate coherent transport effects from scheduling effects | Same workload and hardware across configurations; implementations of controls still need auditing |
 | Mechanism scales beyond tiny tables | Sweep services/processes/in-flight calls through capacity; account for spills, queueing, drops and hardware area/timing | `docs/hardware/lookup-spill.md`, hardware status doc |
-| RPC composition is practical | Remote nested calls, concurrent continuations, reply reordering, saturation, local calls if supported | `hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala`; C runtime completion remains separate work |
+| RPC composition is practical | Remote nested calls, concurrent continuations, reply reordering, saturation, local calls if supported | `hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala`; generic runtime completion has historical board validation; application composition on the replacement scheduling ABI remains separate acceptance |
 | Coherence and isolation remain correct | Worker handoff at protocol boundaries, stale mappings, process exit, receive-critical-section timeout and overload; model plus directed simulation and board stress | `model/`, router/preemption RTL, ECI simulations |
 
 Security/flexibility evidence must accompany latency: define the trusted NIC/kernel boundary, per-process mappings and registration authority, validate cross-process isolation and stale-pointer/ownership handling, and show resource reclamation on exit and timeout. Bound exhaustion effects across services. These are proof and test obligations for the system claim, not guarantees already demonstrated by the prototype. Run-to-finish does not promise bounded latency for an unbounded handler; the application timeout policy remains open.
