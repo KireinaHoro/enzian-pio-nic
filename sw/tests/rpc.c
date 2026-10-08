@@ -280,6 +280,9 @@ int main(void) {
     char path[] = "/tmp/lauberhorn-trace-XXXXXX";
     int fd = mkstemp(path); assert(fd >= 0); close(fd); unlink(path);
     assert(!setenv("LAUBERHORN_SERVER_TRACE_CSV", path, 1));
+    char event_path[sizeof(path)+40];
+    snprintf(event_path,sizeof(event_path),"%s.events",path);
+    assert(!setenv("LAUBERHORN_EVENT_TRACE_CSV",event_path,1));
     server_trace_init(); assert(server_trace_enabled);
     server_trace_thread_init();
     for (mode = 0; mode < 3; ++mode) {
@@ -320,5 +323,23 @@ int main(void) {
     char status_path[sizeof(path)+32];
     snprintf(status_path, sizeof(status_path), "%s.status.json", path);
     unlink(status_path);
+    FILE *events = fopen(event_path,"r"); assert(events);
+    assert(fgets(line,sizeof(line),events));
+    bool resumed=false, suspended=false;
+    while (fgets(line,sizeof(line),events)) {
+        unsigned long long stamp,id,a,b;
+        unsigned context,event; int tid,cpu;
+        assert(sscanf(line,"%llu,%llu,%u,%d,%d,%u,%llu,%llu",
+                      &stamp,&id,&context,&tid,&cpu,&event,&a,&b)==8);
+        if (event==LH_TRACE_FIBER_RESUME || event==LH_TRACE_FIBER_SUSPEND) {
+            assert(id==101 && context==4660 && stamp>0);
+            resumed |= event==LH_TRACE_FIBER_RESUME;
+            suspended |= event==LH_TRACE_FIBER_SUSPEND;
+        }
+    }
+    assert(resumed && suspended);
+    fclose(events); unlink(event_path);
+    snprintf(event_path,sizeof(event_path),"%s.events.status.json",path);
+    unlink(event_path);
 
 }

@@ -29,6 +29,7 @@ struct server_trace_row {
     SERVER_TRACE_TIMES(TRACE_FIELD)
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
+    uint64_t entry_enter_ns, entry_exit_ns;
     uint64_t handler_active_ns, run_start_ns;
 };
 extern bool server_trace_enabled;
@@ -44,4 +45,6 @@ void server_trace_rx_begin(struct server_trace_row *row, int worker_id);
 void server_trace_write(struct server_trace_row *row);
 void server_trace_run_begin(struct server_trace_row *row);
 void server_trace_run_end(struct server_trace_row *row);
+void server_trace_event(struct server_trace_row *row, unsigned event,
+                        uint64_t arg0, uint64_t arg1);
 #endif

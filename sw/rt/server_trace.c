@@ -20,11 +20,20 @@ __thread struct server_trace_row *server_trace_inline;
 __thread struct server_activation_trace server_activation;
 /* Append-only, single-producer buffers. Registration and export happen off path. */
 #define TRACE_MAX_THREADS 64
+struct trace_event {
+    uint64_t ns, request_id, arg0, arg1;
+    uint32_t context;
+    int cpu;
+    unsigned event;
+};
 struct trace_buffer {
     struct server_trace_row *rows;
     size_t count, dropped_count;
     _Atomic size_t published, dropped;
     int tid;
+    struct trace_event *events;
+    size_t event_count, event_drops;
+    _Atomic size_t events_published, events_dropped;
 } __attribute__((aligned(64)));
 static struct trace_buffer buffers[TRACE_MAX_THREADS];
 static __thread struct trace_buffer *local_buffer;
@@ -37,6 +46,9 @@ static pthread_t dump_thread;
 static bool dump_thread_started, dumped;
 static _Atomic bool stopping;
 static char *output_path;
+static char *event_path;
+static size_t event_capacity;
+static _Atomic uint64_t next_trace_id = UINT64_C(1) << 32;
 static FILE *output;
 static void write_header(void);
 static void write_row(const struct server_trace_row *r);
@@ -80,6 +92,34 @@ static void dump_records(void) {
     free(status_path);
     dumped = true;
     if (failed || drops) fprintf(stderr,"server trace capture failed: dropped=%zu io_error=%d\n",drops,failed);
+    if (event_path) {
+        FILE *events = fopen(event_path, "wx");
+        size_t lost = atomic_load(&unregistered_drops), total_events = 0;
+        if (!events) { perror("event trace export"); goto done; }
+        fputs("timestamp_ns,request_id,request_context,tid,cpu,event,arg0,arg1\n", events);
+        for (size_t i=0;i<registered;i++) {
+            struct trace_buffer *b = &buffers[i];
+            size_t n = atomic_load_explicit(&b->events_published, memory_order_acquire);
+            lost += atomic_load_explicit(&b->events_dropped, memory_order_acquire);
+            for (size_t j=0;j<n;j++) {
+                const struct trace_event *e = &b->events[j];
+                fprintf(events,"%" PRIu64 ",%" PRIu64 ",%u,%d,%d,%u,%" PRIu64 ",%" PRIu64 "\n",
+                        e->ns,e->request_id,e->context,b->tid,e->cpu,e->event,e->arg0,e->arg1);
+            }
+            total_events += n;
+        }
+        int event_failed = ferror(events);
+        if (fclose(events)) event_failed = 1;
+        char *name;
+        if (asprintf(&name,"%s.status.json",event_path)<0) abort();
+        FILE *status = fopen(name,"wx");
+        if (status) {
+            fprintf(status,"{\"events\":%zu,\"dropped\":%zu,\"loss_free\":%s,\"clock\":\"CLOCK_MONOTONIC_RAW\"}\n",
+                    total_events,lost,!lost && !event_failed ? "true":"false");
+            fclose(status);
+        } else perror("event trace status");
+        free(name);
+    }
 done:
     pthread_mutex_unlock(&control_lock);
 }
@@ -107,6 +147,14 @@ void server_trace_thread_init(void) {
     size_t size = capacity * sizeof(*b->rows);
     for (size_t i=0;i<size;i+=4096) bytes[i] = 0;
     bytes[size-1] = 0;
+    if (event_path) {
+        b->events = calloc(event_capacity, sizeof(*b->events));
+        if (!b->events) abort();
+        volatile unsigned char *p = (volatile unsigned char *)b->events;
+        size_t n = event_capacity * sizeof(*b->events);
+        for (size_t i=0;i<n;i+=4096) p[i]=0;
+        p[n-1]=0;
+    }
     b->tid = (int)syscall(SYS_gettid);
     local_buffer = b;
     pthread_mutex_unlock(&control_lock);
@@ -157,6 +205,12 @@ void server_trace_init(void) {
         if (errno || !*configured || *end || !n || n>1000000) abort();
         capacity=n;
     }
+    const char *events = getenv("LAUBERHORN_EVENT_TRACE_CSV");
+    if (events && *events) {
+        event_path = strdup(events);
+        if (!event_path) abort();
+        event_capacity = capacity * 32;
+    }
     /* Reserve the dump signal before creating workers; they inherit the mask.
      * No signal handler or I/O on workers; allocation/locks are startup-only. */
     sigset_t set;
@@ -183,6 +237,7 @@ static void write_header(void) {
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
           "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns", output);
     fputs(",pmu_mode,pmu_mask",output);
+    fputs(",server_entry_enter_ns,server_entry_exit_ns",output);
 #define PMU_HEADER(name) for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",pmu_" #name "_%u",i);
     SERVER_TRACE_TIMES(PMU_HEADER)
 #undef PMU_HEADER
@@ -199,7 +254,11 @@ void server_trace_fini(void) {
         pthread_kill(dump_thread, SIGUSR2);
         pthread_join(dump_thread, NULL);
     }
-    for (size_t i=0;i<registered;i++) { free(buffers[i].rows); buffers[i].rows=NULL; }
+    for (size_t i=0;i<registered;i++) {
+        free(buffers[i].rows); buffers[i].rows=NULL;
+        free(buffers[i].events); buffers[i].events=NULL;
+    }
+    free(event_path); event_path=NULL;
     free(output_path); output_path=NULL;
 }
 void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
@@ -213,6 +272,26 @@ void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
 static struct server_trace_row *current_trace(void) {
     return fiber_in_context() ? current_fiber->trace : server_trace_inline;
 }
+bool lauberhorn_trace_events_enabled(void) { return event_path != NULL; }
+uint64_t lauberhorn_trace_new_id(void) {
+    return event_path ? atomic_fetch_add_explicit(&next_trace_id,1,memory_order_relaxed) : 0;
+}
+void server_trace_event(struct server_trace_row *r, unsigned event, uint64_t a, uint64_t b) {
+    if (!event_path || !r || !r->enabled) return;
+    struct trace_buffer *buf = local_buffer;
+    if (!buf) { atomic_fetch_add_explicit(&unregistered_drops,1,memory_order_relaxed); return; }
+    if (buf->event_count == event_capacity) {
+        atomic_store_explicit(&buf->events_dropped,++buf->event_drops,memory_order_release);
+        return;
+    }
+    struct trace_event *e = &buf->events[buf->event_count];
+    *e = (struct trace_event){.ns=server_trace_stamp(r),.request_id=r->request_id,
+        .context=r->request_context,.cpu=sched_getcpu(),.event=event,.arg0=a,.arg1=b};
+    atomic_store_explicit(&buf->events_published,++buf->event_count,memory_order_release);
+}
+void lauberhorn_trace_event(enum lauberhorn_trace_event event, uint64_t a, uint64_t b) {
+    server_trace_event(current_trace(),event,a,b);
+}
 void lauberhorn_trace_request_id(uint64_t id) {
     struct server_trace_row *r = current_trace();
     if (r && r->enabled) { r->request_id=id; r->id_valid=true; }
@@ -222,9 +301,11 @@ void lauberhorn_trace_result(bool ok) {
     if (r && r->enabled) r->ok &= ok;
 }
 void server_trace_run_begin(struct server_trace_row *r) {
+    server_trace_event(r,LH_TRACE_FIBER_RESUME,0,0);
     if (r && r->enabled) r->run_start_ns = server_trace_stamp(r);
 }
 void server_trace_run_end(struct server_trace_row *r) {
+    server_trace_event(r,LH_TRACE_FIBER_SUSPEND,0,0);
     if (r && r->enabled && r->run_start_ns) {
         r->handler_active_ns += server_trace_stamp(r) - r->run_start_ns;
         r->run_start_ns = 0;
@@ -259,6 +340,7 @@ static void write_row(const struct server_trace_row *r) {
             active, wait, r->activation.tid, r->activation.index,
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
     fprintf(output,",%u,%u",r->pmu_mode,r->pmu_mask);
+    fprintf(output,",%" PRIu64 ",%" PRIu64,r->entry_enter_ns,r->entry_exit_ns);
     for (unsigned j=0;j<LH_PMU_STAGES;j++)
         for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",%"PRIu64,r->pmu[j].value[i]);
     fputc('\n',output);

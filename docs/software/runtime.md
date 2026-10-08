@@ -135,3 +135,20 @@ process lifetime, not a rearm operation. Size the buffer for all warmups and
 measurement phases; duplicate request IDs across phases need external phase
 boundaries. Overflow invalidates the capture. SIGTERM/SIGINT still use the
 unsupported-exit/fencing path and must not be used to flush traces.
+
+`LAUBERHORN_EVENT_TRACE_CSV`, together with the request CSV setting, enables
+an additional buffered stream for entry returns, fiber resume/suspend, nested
+submissions and every delivered call/completion. Applications can annotate
+execution/collection phases with `lauberhorn_trace_event`. Events retain the
+request-context token, application correlation ID, TID, actual CPU and raw
+monotonic timestamp. Capacity is 32 events per configured request slot per thread;
+overflow is reported separately in `EVENT_CSV.status.json`. Wait for both export
+manifests and require both to be loss-free. Entry-handler timestamps are retained
+separately from deferred-handler timestamps. Fiber-active and child spans overlap
+and must not be summed as independent end-to-end components.
+
+Dandelion optionally carries a correlation ID in its BSON arguments to connect
+each submitted child with its received request. The ordinary untagged envelope
+is unchanged; tagged payload size and event-probe cost must be included in
+measurement overhead controls. FPGA and CPU clocks still require an explicit
+alignment with stated uncertainty; client RTT is a duration on another host.
