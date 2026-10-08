@@ -72,8 +72,12 @@ def spans(row,ev):
     resolved=next((e['timestamp_ns'] for e in ev if e['event']==101),0)
     add('entry / classify',row.get('server_entry_enter_ns',0),resolved)
     if row['execution_kind'] & 1:
+        add('return to runtime',resolved,row.get('server_entry_exit_ns',0))
+        add('fiber admission',row.get('server_entry_exit_ns',0),row['server_defer_enqueue_ns'])
         resume=next((e['timestamp_ns'] for e in ev if e['event']==2),0)
         add('defer queue',row['server_defer_enqueue_ns'],resume)
+        first_child=next((e['timestamp_ns'] for e in ev if e['event']==105),0)
+        add('fiber preparation',resume,first_child)
     field('encode','marshal_enter','marshal_exit')
     field('final TX','tx_enter','tx_exit')
     active={}
@@ -110,7 +114,9 @@ def plot(path,root,client,requests,events,children,hardware=None):
     prelude=min(50,max(5,duration*.025))
     rightmost=max(duration,(hw['tx_mac_ns']-origin)/1000) if hw else duration
     colors={'RX blocked':'#c3cbd4','RX return':'#78a6c8','decode':'#58a5a1',
-            'entry / classify':'#bb86c7','defer queue':'#bcbcbc','function setup':'#e4bb69',
+            'entry / classify':'#bb86c7','return to runtime':'#a979a2',
+            'fiber admission':'#927fb1','defer queue':'#bcbcbc',
+            'fiber preparation':'#c5abd7','function setup':'#e4bb69',
             'process execution':'#df805d','child submission':'#749ad1','await result':'#e0e5ea',
             'collect result':'#8aad75','encode':'#48918b','final TX':'#5377a1'}
     fig,ax=plt.subplots(figsize=(13,max(4,1.0*len(ids)+1.8)))
@@ -136,11 +142,11 @@ def plot(path,root,client,requests,events,children,hardware=None):
     lanes={key:i for i,key in enumerate(ids)}
     for parent in ids:
         for child in children.get(parent,[]):
-            sent=next(e for e in events[parent] if e['event']==106 and e['arg0']==child)
+            launched=next(e for e in events[parent] if e['event']==105 and e['arg0']==child)
             got=next(e for e in events[parent] if e['event']==108 and e['arg0']==child)
             for x0,y0,x1,y1 in [
-                (sent['timestamp_ns'],lanes[parent],requests[child]['server_rx_unblock_ns'],lanes[child]),
-                (requests[child]['server_tx_exit_ns'],lanes[child],got['timestamp_ns'],lanes[parent])]:
+                (launched['timestamp_ns'],lanes[parent],requests[child]['server_rx_unblock_ns'],lanes[child]),
+                (requests[child]['server_tx_enter_ns'],lanes[child],got['timestamp_ns'],lanes[parent])]:
                 ax.annotate('',xy=((x1-origin)/1000,y1),xytext=((x0-origin)/1000,y0),
                             arrowprops={'arrowstyle':'->','lw':.7,'color':'#777','alpha':.65})
     ticks=list(range(len(ids)))
@@ -212,6 +218,10 @@ def main():
             'child_execution_peak':distribution(peaks),
             'components_ns_per_span':{k:distribution(v) for k,v in components.items()},
             'selected_request':selected,'selected_tree':tree(selected['request_id'],children),
+            'selected_spans':{key:{'rx_cpu':requests[key]['rx_cpu_id'],
+                                  'spans':[{'name':n,'start_ns':a,'end_ns':b}
+                                           for n,a,b in spans(requests[key],events[key])]}
+                              for key in tree(selected['request_id'],children)},
             'limitations':['Client and DUT clocks are not directly subtracted.',
                 'RX blocked may begin before the visible frame.',
                 'Overlapping child spans and fiber-active spans are not additive E2E components.',
@@ -225,6 +235,8 @@ def main():
             if hardware.get('software_inputs',{}).get(name)!=digest:
                 raise ValueError(f'hardware/software provenance mismatch: {name}')
         result['hardware_clock']=hardware['clock']
+        result['selected_hardware']={str(key):hardware['requests'][str(key)]
+                                     for key in result['selected_tree']}
         result['limitations'].remove('MAC/ECI clock correlation is not included in this software-only view.')
         result['limitations'].extend(hardware['assumptions'])
     args.out.parent.mkdir(parents=True,exist_ok=True)

@@ -81,9 +81,10 @@ finite atomic/DAG/local-loopback/fiber progress on Dandelion `b5dcd7c`, not a
 performance result. The post-run affinity snapshot shows one active worker on
 CPU 44 and parked workers on housekeeping CPUs; simultaneous child execution
 and actual per-request placement still require event-level measurement.
-Summary: `out/dandelion-resume/cold-atomic/summary.json`; fixture results:
-`out/dandelion-resume/cold-results/*-summary.json`. Instrumentation and waterfalls
-remain the active next step.
+The subsequent [measurement report](dandelion-measurement.md) records actual
+parallel placement and correlated waterfalls. Summary:
+`out/dandelion-resume/cold-atomic/summary.json`; fixture results:
+`out/dandelion-resume/cold-results/*-summary.json`.
 
 The first instrumented cohorts (`17fbaff`, runtime `ce271135`) passed 100 warmups
 and 1,000 checked requests each for 2×2 atomic matmul, depth 2 and depth 4.
@@ -96,7 +97,11 @@ capacity (`2 * fill >= 16`); a three-child fanout and serial warmups never reach
 that threshold. This is a concrete allocation-policy limitation, not evidence
 that fibers or loopback failed. A separately labelled four-resident-worker case
 uses a bounded concurrent atomic warmup to trigger allocation, without changing
-RTL. Its result and instrumentation-overhead control remain pending here.
+RTL. That run passed 1,000 measured requests per workload: depth-2 median RTT
+was 8,508.60 us, with three overlapping children in every measured request.
+Atomic and sequential depth-4 medians were 3,947.33 and 15,944.41 us. See the
+[consolidated measurement report](dandelion-measurement.md) for waterfalls,
+clock uncertainty, controls and remaining limits.
 The measured FPGA window was loss-free before freeze and preserved as
 1,968,793,792 bytes, SHA-256
 `d8e456bf36440029d2cf3b10e0a20115e7224535db6028379d8504b9e4302898`;

@@ -28,10 +28,11 @@ tail cases move into application validation; they are no longer prerequisites
 for starting Dandelion. This is a scope decision, not evidence those cases passed.
 The isolation/progress limitations in the table above remain explicit.
 
-**HOST_WAKE is on hold. Dandelion is the active next task.** Start with the
-existing pinned adapter and fixtures: validate the build/ABI, atomic functions,
-DAGs, sharding and concurrent nested compositions on matching hardware. Carry
-worker placement, progress, correctness and tail observations into that campaign.
+**HOST_WAKE is on hold. Dandelion is the active application.** Its first atomic,
+composition and correlated-waterfall campaign is now complete; see the
+[measurement report](dandelion-measurement.md). Broader application validation
+still includes sharding acceptance and loaded multi-domain/overload cases. Carry
+worker placement, progress, correctness and tail observations into those cases.
 See the [Dandelion integration plan](dandelion.md#active-integration--october-8).
 Do not introduce HOST_WAKE or change the address/PREEMPT contract merely to begin
 the port; investigate and report any concrete application dependency first.
@@ -45,6 +46,17 @@ recorded in the [merge disposition](../software/nested-rpc-blockers.md#merge-dis
 not a substitute for current Dandelion composition acceptance.
 
 ### Active goal: Dandelion nested-composition waterfall — October 8
+
+**Completed within the bounded October 8 scope.** Atomic/DAG/concurrent-chain
+correctness passed; three 1,000-request cohorts were measured with one and four
+resident workers, plus a four-worker tracing-off control. All 1,000 depth-2
+requests showed three overlapping children after bounded allocation warmup.
+Correlated FPGA/software waterfalls and launch/collection/return zooms are
+available; cross-clock uncertainty is ±0.97 µs. See the
+[results, provenance and limits](dandelion-measurement.md). This does not close
+recovery, sharding, loaded multi-domain or full-paper evaluation claims.
+
+The goal as requested was:
 
 Reproduce Sven's evaluation compositions on real Enzian hardware and produce
 high-resolution latency waterfalls: blocked RX → request arrival/launch →

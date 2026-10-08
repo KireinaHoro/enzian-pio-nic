@@ -101,3 +101,12 @@ registration/control calls have a 5-second connect timeout and 30-second total
 timeout; UDP replies retain their 5-second timeout. These limits bound failed
 fixtures, not application execution policy. Run the suite serially, including
 its internally concurrent nested requests.
+
+The October 8 atomic/DAG/concurrent-chain hardware gates and subsequent nested
+latency cohorts are recorded in the [measurement report](../../../docs/research/dandelion-measurement.md).
+For buffered waterfalls, set `LAUBERHORN_SERVER_TRACE_CSV`,
+`LAUBERHORN_EVENT_TRACE_CSV` and a sufficient `LAUBERHORN_TRACE_CAPACITY` before
+starting the server. Export once with SIGUSR2 only after traffic drains. Require
+both status files to report loss-free output. `DANDELION_TRACE_IDS=1` preserves
+correlation fields for a tracing-disabled wire-equivalent control. Do not
+interpret the minimum timestamp-pair cost as total instrumentation overhead.

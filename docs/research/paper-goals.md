@@ -6,8 +6,10 @@ Survey: 2026-09-08, base `b86c68c`. The system objective, application portfolio,
 
 The [current evidence index](roadmap.md#current-status--october-8-consolidation)
 records completed hot/cold DPDK microbenchmarks, GSYNC mitigation and CPU-work
-analysis. These are a baseline, not the full paper evaluation: concurrent
-four-worker tails, application ports/composition workloads, Demikernel controls,
+analysis. The [Dandelion campaign](dandelion-measurement.md) adds checked
+atomic/composition execution and correlated waterfalls, including three parallel
+children on real hardware. These are bounded results, not the full paper
+evaluation: loaded four-worker tails, broader application workloads, Demikernel controls,
 recovery and broader adversarial acceptance remain open. HOST_WAKE/events and
 complete resource recovery are still follow-on implementation work. The
 experiment matrix below is an evidence plan, not a list of completed features.
