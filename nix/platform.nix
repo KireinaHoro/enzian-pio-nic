@@ -106,7 +106,7 @@ let
     configHeaders = genVerilog.headers;
     deviceHeaders = devHdrs;
   };
-  dandelion = callPackage (source + "/sw/apps/dandelion/package.nix") {
+  dandelion = callPackage (inputs.dandelion + "/package.nix") {
     crane = inputs.crane;
     source = inputs.dandelion;
   };

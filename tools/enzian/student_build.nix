@@ -47,10 +47,13 @@ let
  crane = builtins.getFlake "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
  # Historical ABI/flat runtime recipe, intentionally isolated from the current
  # installed-runtime contract. This helper reproduces the September 10 campaign.
+ # The removed downstream adapter is available only in the historical platform
+ # snapshot. Do not apply it to the maintained Dandelion input/source.
+ historicalAdapter = builtins.getFlake "git+file://${toString platformRoot}?rev=f0b6301b83a1c39f75456bf3b380c1e059929dfd&submodules=1";
  dandelionPatched = pkgs.applyPatches {
    name = "historical-dandelion-source";
    src = dandelionSource;
-   patches = [ ../../sw/apps/dandelion/0001-registered-endpoint-and-worker-placement.patch ];
+   patches = [ (historicalAdapter.outPath + "/sw/apps/dandelion/0001-registered-endpoint-and-worker-placement.patch") ];
  };
  dandelion = cross.callPackage (dandelionPatched + "/package.nix") { inherit crane; runtimePkg = rt; };
  platform = ((import (platformRoot + "/flake.nix")).outputs (ci.inputs // {self=ci;})).packages.x86_64-linux;

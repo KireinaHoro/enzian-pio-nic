@@ -1,11 +1,11 @@
 # Pinned Dandelion integration
 
-The flake pins the student's `69c3088f8f5333eab653ed5c9bd2f6da8f7f944a`
-snapshot. `package.nix` applies the tracked patch to that source. The patch
-updates C/Rust layouts, stores the context and shared endpoint at stable
-addresses, retains address/codec ownership, initializes the endpoint before
-workers, and uses the executing RPC worker's actual Linux CPU for process
-execution. Logical engine slots remain indices into the engine array.
+The flake pins the maintained [Dandelion repository](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion).
+Its source contains the endpoint, managed-outcome, cooperative-worker and
+portable test-client integration directly. Its root `package.nix` owns the
+cross-build and packaging contract. The platform supplies the matching installed
+runtime and target package set; it carries no Dandelion patches or package recipe.
+The exact revision and content hash are recorded in `flake.lock`.
 
 ```sh
 nix build .#runtimeTests .#dandelion .#dandelionDeployFs
@@ -64,7 +64,7 @@ These were dirty-tree packaging builds, not deployable revision evidence; no
 Vivado implementation or board campaign ran.
 
 
-September 17 API migration: patch `0003-explicit-request-outcomes.patch` makes
+Historical September 17 API migration (now incorporated in Dandelion source) makes
 registry resolution precede fiber admission. Atomic functions return a reply
 inline; compositions return a deferred function plus owned, resolved registry
 state. The wire procedure/envelope is unchanged. C/Rust outcome layout assertions
