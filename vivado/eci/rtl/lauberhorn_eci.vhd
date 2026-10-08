@@ -782,8 +782,8 @@ signal trace_dump_last_header : std_logic_vector(255 downto 0);
 signal trace_dump_state : std_logic_vector(15 downto 0);
 
 signal trace_stop : std_logic;
-signal lauberhorn_trace_valid : std_logic_vector(51 downto 0);
-signal lauberhorn_trace_payload : trace_payload_array(51 downto 0);
+signal lauberhorn_trace_valid : std_logic_vector(52 downto 0);
+signal lauberhorn_trace_payload : trace_payload_array(52 downto 0);
 signal credit_return_trace_valid : std_logic_vector(1 downto 0);
 signal credit_return_trace_payload : trace_payload_array(1 downto 0);
 
@@ -1907,6 +1907,8 @@ i_trace_dma : entity work.lauberhorn_trace_dma
     lauberhornTraceIn_50_payload => lauberhorn_trace_payload(50),
     lauberhornTraceIn_51_valid => lauberhorn_trace_valid(51),
     lauberhornTraceIn_51_payload => lauberhorn_trace_payload(51),
+    lauberhornTraceIn_52_valid => lauberhorn_trace_valid(52),
+    lauberhornTraceIn_52_payload => lauberhorn_trace_payload(52),
 
     axi_aw_valid => trace_dma_axi.awvalid,
     axi_aw_ready => trace_dma_axi.awready,
@@ -2509,6 +2511,8 @@ NicEngine_inst : entity work.NicEngine
     trace_50_payload => lauberhorn_trace_payload(50),
     trace_51_valid => lauberhorn_trace_valid(51),
     trace_51_payload => lauberhorn_trace_payload(51),
+    trace_52_valid => lauberhorn_trace_valid(52),
+    trace_52_payload => lauberhorn_trace_payload(52),
 
     -- Debug interfaces
     core0_rxRouter_state => core0_states(3 downto 0),
