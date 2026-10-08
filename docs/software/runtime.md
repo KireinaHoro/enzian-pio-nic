@@ -97,9 +97,9 @@ NACK timing lets an assigned worker regain control. Parked-domain deadline
 activation and execution-watchdog integration are deferred; the former deadline
 housekeeping thread is removed. HOST_WAKE and its interface are outside this
 stage. The [failure policy](process-recovery.md) retains unresolved resources.
-Runtime-managed Raft services and
-resident memcached workers are [documented follow-on designs](service-execution-design.md)
-only. Neither is implemented by this batch.
+Runtime-managed Raft services remain a [follow-on design](service-execution-design.md).
+Native UDP memcached adaptation and its bounded maintenance scope are tracked in
+the [canonical design](../research/memcached.md); board acceptance is separate.
 
 Per-request CSV tracing is available through the optional interface below.
 Historical trace results do not validate this scheduling/address revision.
