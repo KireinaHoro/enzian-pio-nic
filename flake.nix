@@ -3,7 +3,7 @@
   inputs = {
     self.submodules = true;
     dandelion = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?rev=b5dcd7cd40b28a09dcec47e87b62a4f493451c95";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?rev=17fbaffbc268610211b1c8469f0b90a1aacf8337";
       flake = false;
     };
     crane = {

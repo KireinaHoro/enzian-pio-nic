@@ -19,16 +19,16 @@
     "dandelion": {
       "flake": false,
       "locked": {
-        "lastModified": 1791451905,
-        "narHash": "sha256-SOnQUywfSFNCM4huCmWAnS7kR3w6sesyk9pxlrX+5h0=",
+        "lastModified": 1791456438,
+        "narHash": "sha256-A7MJ3uM9thhoifgrE4ffPdW/Ualk/HYiSCdKOYvq0Jo=",
         "ref": "refs/heads/main",
-        "rev": "b5dcd7cd40b28a09dcec47e87b62a4f493451c95",
-        "revCount": 285,
+        "rev": "17fbaffbc268610211b1c8469f0b90a1aacf8337",
+        "revCount": 286,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       },
       "original": {
-        "rev": "b5dcd7cd40b28a09dcec47e87b62a4f493451c95",
+        "rev": "17fbaffbc268610211b1c8469f0b90a1aacf8337",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       }
