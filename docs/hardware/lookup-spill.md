@@ -42,6 +42,23 @@ The design goal is:
 - hardware table capacity affects hit rate and latency, not correctness;
 - lookup-table storage and lookup logic become easier to place and route.
 
+## Temporary UDP evaluation workaround — October 8
+
+Wide Dandelion loopback fan-out exposed the distinction between hardware
+retirement and software consumption: a returned error can release an outgoing
+slot while its completion is still queued for the application. Reusing that slot
+in a burst can overflow the small process RX queue and lose UDP completions.
+The runtime now bounds live calls, including ready but unconsumed futures, to
+`NUM_SESSIONS` (16); Dandelion treats local-loopback `SYSTEM_ERR` as busy and
+requeues the affected shard. See the
+[contract and limitations](../software/programming-model.md#loopback-composition-receive-side-backpressure).
+
+This is a temporary workaround for evaluation, not the scaling design. Lift the
+small-table restrictions as software-backed spill and reliable admission/delivery
+are implemented. Preserve completion ownership until delivery is guaranteed;
+raising table sizes or retrying indeterminate failures alone does not establish
+correctness. The current bounded workaround still needs its recorded board gate.
+
 ## Existing Slow Paths
 
 The existing kernel bypass slow path is `BypassCmdSink`.

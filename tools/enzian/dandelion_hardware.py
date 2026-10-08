@@ -69,7 +69,11 @@ def main():
     submissions={(e['tid'],e['arg0']):e for e in flat if e['event']==4}
     completed={(e['tid'],e['arg0']):e for e in flat if e['event']==5}
     if submissions.keys()!=completed.keys():raise ValueError('unpaired nested submission')
-    cookies={e['arg0'] for e in submissions.values()}
+    # A definite TX-capacity rejection still has a commit-read bracket,
+    # but cannot produce a completion packet. Receive-side SYSTEM_ERR replies
+    # belong to accepted TX submissions and do remain in this cookie set.
+    cookies={e['arg0'] for identity,e in submissions.items()
+             if completed[identity]['arg1']==sw.CORE_TX_ACCEPTED}
     swrx=defaultdict(list);swtx=defaultdict(list)
     for e in sw.rows(args.events):
         if e['event']!=6:continue
@@ -81,7 +85,8 @@ def main():
             'end':r['server_tx_exit_ns'],'request_id':key,'reply':True})
     for identity,e in submissions.items():
         done=completed[identity]
-        if done['arg1']!=sw.CORE_TX_ACCEPTED:raise ValueError('nonaccepted submission in measurement')
+        if done['arg1'] not in (sw.CORE_TX_ACCEPTED, 2):
+            raise ValueError('indeterminate submission in measurement')
         swtx[e['cpu']-43].append({'start':e['timestamp_ns'],'end':done['timestamp_ns'],
             'request_id':e['request_id'],'reply':False})
     provenance={str(path):hashlib.file_digest(path.open('rb'),'sha256').hexdigest()

@@ -94,8 +94,10 @@ exits. Cancellation leaves a result to consume; ordinary handler return does not
 
 Submission returning zero means local transport admission, not remote execution
 or application success. A full software table or a definite hardware capacity
-rejection returns `EAGAIN`. The software table has 640 slots with generation-tagged
-cookies. Hardware capacity is independent and shared (16 entries per table by default).
+rejection returns `EAGAIN`. The software table has 640 backing slots with generation-tagged
+cookies, but admits at most `LAUBERHORN_NUM_SESSIONS` (16) live calls per process.
+Ready futures retain admission credit until consumed: hardware retirement alone
+does not mean that software drained the reply. Hardware capacity is independent and shared (16 entries per table by default).
 Incoming request contexts are independently bounded: a full table rejects before
 host dispatch and attempts a hardware `SYSTEM_ERR` reply. Its bounded error queue
 may drop error replies under congestion; it never overwrites live contexts. A hardware rejection
@@ -160,3 +162,17 @@ automatic retry policy for remote RPCs or arbitrary handlers. `SYSTEM_ERR` can
 also represent a handler failure. Timeouts and other failures are not retried;
 the composition drains accepted children and returns failure. Retry attempts
 receive distinct trace IDs and emit `LH_TRACE_CHILD_RETRY` (111).
+
+The process-wide 16-call admission bound and this loopback busy-retry policy are
+**temporary workarounds for the UDP prototype and its small hardware tables**,
+not intended architectural limits. UDP does not recover a completion discarded
+by a full process RX queue; therefore the current bound includes ready but
+unconsumed futures. It is not a general reliability guarantee for arbitrary
+concurrent incoming traffic, packet loss, or deeply nested compositions.
+
+See the existing [lookup-table scaling and spill design](../hardware/lookup-spill.md):
+these limits should eventually be lifted through scalable table backing, explicit
+ownership on spill, and reliable end-to-end admission/backpressure. Hardware
+capacity should affect fast-path hit rate and latency rather than impose permanent
+application or graph-size limits. Merely raising the constant without addressing
+completion delivery would reintroduce the failure.

@@ -8,11 +8,19 @@
 // atomically acquire a free packet slot
 // must be released with pending_call_table_release
 struct pending_call * pending_call_acquire(struct pending_call_table *tbl) {
+    unsigned used = atomic_load_explicit(&tbl->in_use, memory_order_relaxed);
+    do {
+        if (used >= PENDING_CALL_LIMIT) return NULL;
+    } while (!atomic_compare_exchange_weak_explicit(&tbl->in_use, &used, used + 1,
+                 memory_order_acquire, memory_order_relaxed));
     struct pending_call *c;
     int idx;
     for (;;) {
         idx = bitmap_acquire(&tbl->bitmap);
-        if (idx < 0) return NULL;
+        if (idx < 0) {
+            atomic_fetch_sub_explicit(&tbl->in_use, 1, memory_order_release);
+            return NULL;
+        }
         c = &tbl->pkts[idx];
         pthread_spin_lock(&c->lock);
         if (c->gen != UINT16_MAX) break;
@@ -72,6 +80,7 @@ void pending_call_release(struct pending_call_table *tbl,
     atomic_store(&p->timeout_ms, 0);
     atomic_store(&p->state, SLOT_FREE);
     bitmap_release(&tbl->bitmap, p->idx);
+    atomic_fetch_sub_explicit(&tbl->in_use, 1, memory_order_release);
 }
 
 struct pending_call *pending_call_get_by_cookie(struct pending_call_table *table, uint32_t xid) {
@@ -112,6 +121,7 @@ void pending_call_init(struct pending_call *c, int idx) {
 }
 
 void pending_call_table_init(struct pending_call_table *tbl) {
+    atomic_init(&tbl->in_use, 0);
     for (int i = 0; i < PENDING_CALL_TABLE_SIZE; i++) {
         tbl->pkts[i].idx = i;
         pending_call_init(&tbl->pkts[i], i);

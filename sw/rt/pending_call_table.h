@@ -14,6 +14,13 @@
 #include "vstate.h"
 
 #define PENDING_CALL_TABLE_SIZE (64 * 10)
+/* Temporary UDP/small-HW-table workaround, not an architectural call limit.
+ * Hardware retirement precedes software consumption. Bound pending and ready
+ * futures so a submit burst cannot overrun the process RX queue. Lift this
+ * with reliable backpressure / software-backed spill; see
+ * docs/hardware/lookup-spill.md and docs/software/programming-model.md. */
+#define PENDING_CALL_LIMIT LAUBERHORN_NUM_SESSIONS
+_Static_assert(PENDING_CALL_LIMIT <= PENDING_CALL_TABLE_SIZE, "pending-call backing capacity");
 
 #define pending_call_table_for_each(tbl, entry)                                \
     for (int __i = 0;                                                          \
@@ -83,6 +90,7 @@ struct pending_call {
 struct pending_call_table {
     struct pending_call pkts[PENDING_CALL_TABLE_SIZE];
     bitmap_t bitmap;
+    _Atomic unsigned in_use;
 };
 
 void pending_call_release(struct pending_call_table *tbl,

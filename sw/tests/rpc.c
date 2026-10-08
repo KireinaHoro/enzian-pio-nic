@@ -230,13 +230,13 @@ int main(void) {
     }
     // Only the fixture resets this quarantine. Production requires B4 retirement.
     ep._transport.unresolved = 0;
-    struct pending_call *held_calls[PENDING_CALL_TABLE_SIZE];
-    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i) {
+    struct pending_call *held_calls[PENDING_CALL_LIMIT];
+    for (int i = 0; i < PENDING_CALL_LIMIT; ++i) {
         held_calls[i] = pending_call_acquire(&pending_call_table); assert(held_calls[i]);
     }
     mode = 2; rpc_handle_packet(&worker, &req);
     assert(sent.oncrpc_reply_tx.status == 5 && !ep._transport.unresolved && !allocated);
-    for (int i = 0; i < PENDING_CALL_TABLE_SIZE; ++i)
+    for (int i = 0; i < PENDING_CALL_LIMIT; ++i)
         pending_call_release(&pending_call_table, held_calls[i]);
     int before_destroy = destroyed;
     mode = 4; rpc_handle_packet(&worker, &req);
