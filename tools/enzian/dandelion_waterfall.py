@@ -97,14 +97,18 @@ def tree(root,children):
         for child in children.get(key,[]): visit(child)
     visit(root); return result
 
-def plot(path,root,client,requests,events,children):
+def plot(path,root,client,requests,events,children,hardware=None):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
     ids=tree(root,children); origin=requests[root]['server_rx_unblock_ns']
+    hw=hardware['requests'][str(root)] if hardware else None
+    if hw: origin=hw['rx_mac_ns']
     end=requests[root]['server_tx_exit_ns']; duration=(end-origin)/1000
     prelude=min(50,max(5,duration*.025))
+    rightmost=max(duration,(hw['tx_mac_ns']-origin)/1000) if hw else duration
     colors={'RX blocked':'#c3cbd4','RX return':'#78a6c8','decode':'#58a5a1',
             'entry / classify':'#bb86c7','defer queue':'#bcbcbc','function setup':'#e4bb69',
             'process execution':'#df805d','child submission':'#749ad1','await result':'#e0e5ea',
@@ -139,36 +143,73 @@ def plot(path,root,client,requests,events,children):
                 (requests[child]['server_tx_exit_ns'],lanes[child],got['timestamp_ns'],lanes[parent])]:
                 ax.annotate('',xy=((x1-origin)/1000,y1),xytext=((x0-origin)/1000,y0),
                             arrowprops={'arrowstyle':'->','lw':.7,'color':'#777','alpha':.65})
-    ax.set_yticks(range(len(ids)),labels); ax.invert_yaxis()
-    ax.set_xlim(-prelude,max(duration,1)*1.025)
+    ticks=list(range(len(ids)))
+    hardware_handles=[]
+    if hw:
+        ticks.insert(0,-1);labels.insert(0,'FPGA / ECI')
+        for name,a,b,color in [
+            ('MAC → enqueue','rx_mac_ns','enqueue_ns','#58a5a1'),
+            ('queue → dispatch','enqueue_ns','dispatch_ns','#bb86c7'),
+            ('dispatch → descriptor','dispatch_ns','rx_desc_ns','#78a6c8'),
+            ('TX commit → MAC','tx_commit_ns','tx_mac_ns','#5377a1')]:
+            hardware_handles.append(Patch(color=color,label='FPGA: '+name))
+            if hw[b]<hw[a]:raise ValueError(f'reversed hardware span {name}')
+            ax.broken_barh([((hw[a]-origin)/1000,(hw[b]-hw[a])/1000)],(-1.27,.54),facecolors=color)
+    ax.set_yticks(ticks,labels); ax.invert_yaxis()
+    ax.set_xlim(-prelude,max(rightmost,1)*1.025)
     ax.axvline(0,color='#555',lw=.7,ls='--')
-    ax.set_xlabel('Time from parent RX unblock (µs; shared DUT MONOTONIC_RAW clock)')
-    ax.set_title(f'Actual request nearest median RTT: {client["roundtrip_ns"]/1000:.2f} µs\n'
-                 f'DUT RX-unblock → TX-return: {duration:.2f} µs; process spans include launch/wait')
+    anchor='RX MAC arrival' if hw else 'parent RX unblock'
+    ax.set_xlabel(f'Time from {anchor} (µs; process spans include launch/wait)')
+    title=f'Actual request nearest median RTT: {client["roundtrip_ns"]/1000:.2f} µs'
+    if hw:
+        title+=f'\nMAC → MAC: {(hw["tx_mac_hw_ns"]-hw["rx_mac_hw_ns"])/1000:.2f} µs; clock alignment ±{hardware["clock"]["uncertainty_ns"]:.0f} ns'
+    else:title+=f'\nDUT RX-unblock → TX-return: {duration:.2f} µs'
+    ax.set_title(title)
     ax.grid(axis='x',alpha=.2)
     handles=[Patch(color=colors[n],label=n) for n in colors if n in shown]
     handles.append(Patch(color='#f1f2f4',label='other runtime / coordination'))
+    handles.append(Line2D([0],[0],color="#404040",lw=2,label="fiber running"))
+    handles.extend(hardware_handles)
     ax.legend(handles=handles,ncol=4,loc='upper center',bbox_to_anchor=(.5,-.17),fontsize=8)
     fig.tight_layout(); fig.savefig(path.with_suffix('.svg'),bbox_inches='tight')
-    fig.savefig(path.with_suffix('.png'),dpi=180,bbox_inches='tight'); plt.close(fig)
+    fig.savefig(path.with_suffix('.png'),dpi=180,bbox_inches='tight')
+    views=[('launch',(-5,160)),('return',(rightmost-100,rightmost+5))]
+    first_collection=next((e['timestamp_ns'] for e in events[root] if e['event']==108),None)
+    if first_collection is not None:
+        x=(first_collection-origin)/1000
+        views.append(('collection',(x-30,x+200)))
+    for name,limits in views:
+        ax.set_xlim(*limits);ax.set_title(title+'\n'+name.capitalize()+' detail')
+        for extension in ('svg','png'):
+            fig.savefig(path.parent/(path.name+'-'+name+'.'+extension),dpi=180,bbox_inches='tight')
+    plt.close(fig)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--server',type=Path,required=True); p.add_argument('--events',type=Path,required=True)
     p.add_argument('--client',type=Path,required=True); p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--hardware',type=Path,help='validated dandelion_hardware.py output')
     p.add_argument('--no-plot',action='store_true'); args=p.parse_args()
     requests,events,children=load(args.server,args.events)
     measured=[r for r in rows(args.client) if r['warmup']=='false']
     if not measured: raise ValueError('no measured clients')
     components=defaultdict(list)
+    peaks=[]
     for c in measured:
         root=c['request_id']; ids=tree(root,children)
         if root not in requests: raise ValueError(f'missing root {root}')
+        edges=[]
         for key in ids:
             for name,a,b in spans(requests[key],events[key]):
                 if name!='RX blocked': components[name].append(b-a)
+                if key!=root and name=='process execution':edges.extend([(a,1),(b,-1)])
+        concurrent=peak=0
+        for _,delta in sorted(edges):
+            concurrent+=delta;peak=max(peak,concurrent)
+        peaks.append(peak)
     selected=sorted(measured,key=lambda r:r['roundtrip_ns'])[(len(measured)-1)//2]
     result={'roundtrip_ns':distribution([r['roundtrip_ns'] for r in measured]),
+            'child_execution_peak':distribution(peaks),
             'components_ns_per_span':{k:distribution(v) for k,v in components.items()},
             'selected_request':selected,'selected_tree':tree(selected['request_id'],children),
             'limitations':['Client and DUT clocks are not directly subtracted.',
@@ -178,9 +219,17 @@ def main():
                 'MAC/ECI clock correlation is not included in this software-only view.'],
             'inputs':{str(f):hashlib.file_digest(f.open('rb'),'sha256').hexdigest()
                       for f in (args.server,args.events,args.client)}}
+    hardware=json.loads(args.hardware.read_text()) if args.hardware else None
+    if hardware:
+        for name,digest in result['inputs'].items():
+            if hardware.get('software_inputs',{}).get(name)!=digest:
+                raise ValueError(f'hardware/software provenance mismatch: {name}')
+        result['hardware_clock']=hardware['clock']
+        result['limitations'].remove('MAC/ECI clock correlation is not included in this software-only view.')
+        result['limitations'].extend(hardware['assumptions'])
     args.out.parent.mkdir(parents=True,exist_ok=True)
     args.out.with_suffix('.json').write_text(json.dumps(result,indent=2)+'\n')
-    if not args.no_plot: plot(args.out,selected['request_id'],selected,requests,events,children)
+    if not args.no_plot: plot(args.out,selected['request_id'],selected,requests,events,children,hardware)
     print(json.dumps({'requests':len(measured),'selected':selected['request_id'],'out':str(args.out)}))
 
 if __name__=='__main__': main()
