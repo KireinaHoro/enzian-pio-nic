@@ -52,6 +52,16 @@ composition support and actual isolated placement remain unvalidated. See the
 
 ## Direct repository integration — October 8
 
+The active evaluation target is a correlated nested-composition waterfall;
+see the [roadmap goal](roadmap.md#active-goal-dandelion-nested-composition-waterfall--october-8).
+Use Sven's actual evaluation workloads after the atomic/composition correctness
+gates: 2×2 atomic matmul, depth 2 (three independent matrix squares feeding a
+matmac), and depth 4 (four sequential matrix squares). The report uses 100 warmup
+and 1,000 measured iterations. In the packaged latency source the depth-2 graph
+is named `graph`, and the depth-4 chain is named `graph_2`; do not infer graph
+depth from those names. The existing integration-test DAG is a different fixture.
+Show measured parallel overlap rather than assuming it from DAG independence.
+
 Dandelion `ccf1a36072b9933d0dceb10b90b9ac69917d3d62` incorporates the five former
 platform patches and the installed-runtime `package.nix` directly. The platform
 now calls the pinned input's recipe and supplies `lauberhornRuntime`, `crane` and
