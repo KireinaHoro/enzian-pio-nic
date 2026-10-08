@@ -69,6 +69,16 @@ was run on the board in this migration check; atomic/DAG/sharding/nested hardwar
 acceptance remains the next campaign. Reservations were rechecked for zuestoll14
 and zuestoll07, and the DUT was inspected without reset or service replacement.
 
+The follow-up `b5dcd7c` replaces numeric outcome tags and accepted-error codes
+with named Rust ABI variants and typed `reply`/`defer`/`fail` constructors.
+`SystemError` is ONC-RPC status 5 and `ProcedureUnavailable` is status 3;
+non-failure outcomes no longer use a dummy failure initializer. Protocol helper
+version/authentication/reply tags are named as well. The platform C runtime
+uses its existing named accepted-error enum at the same failure sites. Target
+application/harness builds, existing Rust layout assertions, the codec capacity
+check and native runtime regressions passed; no hardware behavior change or
+new board validation is claimed.
+
 ## September 17 managed request integration
 
 The platform adapter now uses the generic outcome API. Its single incoming
