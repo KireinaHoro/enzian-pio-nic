@@ -146,3 +146,48 @@ including its mappings/status; its shared-memory backing was renamed to
 killing the process. The existing wide-fanout failure capture remains intact.
 No FPGA trace controls, driver state, reservations or boot configuration were
 changed by this campaign.
+
+
+## Port parity correction — October 8
+
+The port now builds the process worker separately with the same static-link
+and AArch64 image-base flags as this upstream baseline. Its latency client and
+functional fixtures register 8 MiB contexts. Atomic latency defaults to 1x1;
+`--matmul-size 2` selects the historical report workload, and
+`--context-size BYTES` permits explicit context controls. The existing
+`dandelion-cohort.sh` now selects size 2 explicitly to preserve its atomic/DAG
+workload shapes. Re-register functions before changing context size; skipping
+registration retains old registry values. The matmul ELF is unchanged.
+
+Source correction `1a9eb8f6bafef9be497d7677951bac192dfe3f6d` is published on
+Dandelion branch `fix/upstream-process-parity`, based on the other thread's
+already committed `f95d33d` changes. The platform pins this exact source.
+The branch is retained because the source main worktree belongs to that other
+thread; it can be merged there without dropping the concurrent changes.
+This correction does not change scheduling policy, CPU placement or transports.
+
+Local validation passed: AArch64 release builds, five existing codec/capacity
+checks under the cross runner, and 48 checked native requests through real
+process execution using the corrected native static worker with the unchanged
+upstream HTTP server. The native run used private namespaces and namespace-local
+ptrace capability. This validates the worker/bootstrap path, not Lauberhorn
+hardware or composition execution at the smaller context size.
+The target worker has no ELF interpreter or dynamic segment and loads at
+`0xaaaaaaaa0000`; the packaged matmul hash matches the original fixture.
+
+The deployment image reuses the measured runtime closure
+`/nix/store/cm5kzyviqllgvfxm1aiz9p8ifkin51v0-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1`
+and is available at
+`/nix/store/0rpis5mwq2dsiayb0rdam575ksgfvly4-dandelion-process-parity.img`.
+Its SHA-256 is
+`399f629537b272340504d079e25c23ab2e7a5bd8bdc86d634d8459a83a0ced74`.
+Build expressions, paths, logs and `validation.json` are retained in
+`out/dandelion-parity-results/` in the primary platform worktree.
+
+**Not deployed or tested on Enzian.** The maintainer assigned the machines to
+another thread and explicitly paused machine testing. Before that instruction,
+a read-only console preflight found an existing attachment and exited without
+running a board command. No new latency result or explanation of the earlier
+1.264 ms execution gap is claimed. The next board comparison should use fresh
+registrations, matching 8 MiB contexts, static workers and explicit 1x1/2x2
+cohorts, with CPU placement and warmup recorded separately.
