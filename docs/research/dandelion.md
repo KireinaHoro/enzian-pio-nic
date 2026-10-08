@@ -85,6 +85,23 @@ Summary: `out/dandelion-resume/cold-atomic/summary.json`; fixture results:
 `out/dandelion-resume/cold-results/*-summary.json`. Instrumentation and waterfalls
 remain the active next step.
 
+The first instrumented cohorts (`17fbaff`, runtime `ce271135`) passed 100 warmups
+and 1,000 checked requests each for 2×2 atomic matmul, depth 2 and depth 4.
+Software export was loss-free (12,106 request rows including preceding smoke
+tests, 172,782 events). Median RTTs were 3,914.137 / 15,794.189 / 15,753.449 us.
+These are **one-resident-worker, tracing-enabled, socket-client baselines**:
+the representative depth-2 children all ran serially on CPU 44.
+The current scheduler only expands an already-resident service at half queue
+capacity (`2 * fill >= 16`); a three-child fanout and serial warmups never reach
+that threshold. This is a concrete allocation-policy limitation, not evidence
+that fibers or loopback failed. A separately labelled four-resident-worker case
+uses a bounded concurrent atomic warmup to trigger allocation, without changing
+RTL. Its result and instrumentation-overhead control remain pending here.
+The measured FPGA window was loss-free before freeze and preserved as
+1,968,793,792 bytes, SHA-256
+`d8e456bf36440029d2cf3b10e0a20115e7224535db6028379d8504b9e4302898`;
+see `out/dandelion-resume/measurement-{results,trace}/`.
+
 Dandelion `ccf1a36072b9933d0dceb10b90b9ac69917d3d62` incorporates the five former
 platform patches and the installed-runtime `package.nix` directly. The platform
 now calls the pinned input's recipe and supplies `lauberhornRuntime`, `crane` and

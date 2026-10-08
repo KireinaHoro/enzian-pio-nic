@@ -10,6 +10,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+CORE_TX_ACCEPTED = 1  # sw/core/eci/core.h
+
 EVENT = {1:'entry_return',2:'fiber_resume',3:'fiber_suspend',4:'call_submit',
          5:'call_submitted',6:'rx_packet',100:'entry',101:'resolved',
          102:'prepare',103:'execute',104:'executed',105:'child_begin',
@@ -38,7 +40,7 @@ def load(server,events):
         if not r['request_id_valid']: raise ValueError('request missing correlation ID')
         key=r['request_id']
         if key in requests: raise ValueError(f'duplicate request ID {key}')
-        if not r['ok'] or r['reply_status'] or r['transport_status']:
+        if not r['ok'] or r['reply_status'] or r['transport_status'] != CORE_TX_ACCEPTED:
             raise ValueError(f'failed request {key}')
         requests[key]=r
     by_id=defaultdict(list)
