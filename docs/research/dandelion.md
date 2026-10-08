@@ -70,8 +70,20 @@ not an atomic-function or loopback result. The prior full frozen buffer and the
 410,681,920-byte newly appended startup window were preserved; the latter's
 SHA-256 is `b40614c0e3588a09d340fff0a3c35fe14446458775e5cb35024867ba8af96138`.
 Continue with Dandelion as the first application after a matched cold boot.
-Evidence and the test manifest are under `out/dandelion-resume/`; the cold-boot
-trial has not yet supplied an acceptance result at this checkpoint.
+Evidence and the test manifest are under `out/dandelion-resume/`.
+
+The subsequent matched 516232 cold boot passed on its first attempt, with all
+QLM8–13 CDR locks and CCPI/ECI lanes 0–23 verified, corrected module loaded,
+and RT bandwidth throttling disabled. Peer-driven `test_matmul`,
+`test_matmul_matmac_composition` and `test_chained_composition` all passed;
+the last includes four concurrent distinct-input invocations. This establishes
+finite atomic/DAG/local-loopback/fiber progress on Dandelion `b5dcd7c`, not a
+performance result. The post-run affinity snapshot shows one active worker on
+CPU 44 and parked workers on housekeeping CPUs; simultaneous child execution
+and actual per-request placement still require event-level measurement.
+Summary: `out/dandelion-resume/cold-atomic/summary.json`; fixture results:
+`out/dandelion-resume/cold-results/*-summary.json`. Instrumentation and waterfalls
+remain the active next step.
 
 Dandelion `ccf1a36072b9933d0dceb10b90b9ac69917d3d62` incorporates the five former
 platform patches and the installed-runtime `package.nix` directly. The platform
