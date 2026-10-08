@@ -98,58 +98,13 @@ Primary design references: [raft-rs](https://github.com/tikv/raft-rs),
 [`RawNode`](https://github.com/tikv/raft-rs/blob/master/src/raw_node.rs).
 Pin the chosen revision before implementation and recheck those contracts.
 
-## Resident-worker transport adapter: memcached
+## Memcached native UDP adoption
 
-This is partial adoption: Lauberhorn accelerates transport demultiplexing and
-marshal/unmarshal while **the real memcached implementation remains resident on
-its worker core**. Preserve its dispatch/state machine, connection ownership,
-item lifetime, event loop, internal callbacks and background work. The runtime
-cannot reassign that core until the resident worker exits. Do not present this
-mode as dynamically deschedulable or replace memcached with a compatible rewrite.
-
-### Proposed lower-level interface
-
-Keep this adapter separate from managed `REPLY/FAIL/DEFER/FORWARD` handlers. Bind
-a registered worker/QP to a resident worker with explicit reservation and
-teardown. Provide receive/poll, retain-request, reply/fail, TX admission and
-completion-drain operations. A received descriptor and its payload have explicit
-ownership: copying or retaining is required before the reusable RX buffer is
-polled again. Reply tokens can survive a handler/event-loop turn and are consumed
-exactly once. Serialize ECI access on the owning thread.
-
-Route delayed I/O results back to the memcached worker owning the connection,
-using a bounded queue plus its existing notification mechanism. Keep memcached's
-callbacks: removing `lauberhorn_call_cb` does not remove application callbacks.
-Retain response/item/iovec storage until the transport has consumed or copied
-all bytes. Define local TX rejection without consuming the reply token, so the
-owning loop can retry. Reserve completion capacity before admitting async work;
-shutdown cannot discard retained buffers or response tokens silently.
-
-Integrate NIC readiness, existing socket readiness, timers and background
-notifications into the resident event loop. An initial adapter can poll the NIC
-with a bounded budget between normal event-loop iterations; a later wakeable
-wait must account for all event sources without losing notifications. Do not
-block indefinitely in NIC RX while socket or extstore completions are pending.
-The worker cannot run unrelated managed handlers or ordinary Linux tasks during
-residency. Background maintenance threads retain their ordinary scheduling.
-
-### Implementation prerequisites and validation
-
-Add and validate an explicit kernel/FPGA reservation lifecycle; registration of
-a normal worker alone does not prove residency. Define policy for worker death,
-QP retirement and reclaim only after transport ownership is fenced. Decide and
-record the supported memcached release and wire protocol before writing the
-adapter; RPC-marshaled commands alone do not establish native TCP compatibility.
-Proxy/extstore support requires the same delayed-I/O ownership review and is not
-implied by a basic in-memory build.
-
-Test against actual memcached dispatch: delayed replies, multiple outstanding
-operations, partial output, `noreply`, mixed socket/NIC/timer readiness, background
-completion routing and response storage retention. Verify no core reassignment
-while resident, then clean teardown/reclaim. Test exhaustion and disconnects
-with pending replies. Report compatibility and transport gains separately from
-full-adoption scheduling gains. No memcached adapter or harness is implemented
-as part of B3.
-
-Primary references: [memcached worker loop](https://github.com/memcached/memcached/blob/master/thread.c),
-[connection state machine](https://github.com/memcached/memcached/blob/master/memcached.c).
+The former resident-worker proposal is superseded by the
+[native UDP memcached design](../research/memcached.md). The selected application
+uses cooperative request workers shared among domains, with main and independent
+maintenance on ordinary CPUs. Native UDP retains real memcached parsing, storage
+and segmented responses. Bounded pre-sized hashing excludes expansion and
+worker-notification-dependent administration until HOST_WAKE is designed.
+Implementation and acceptance status belong to that canonical note; the Raft
+proposal above remains design-only.
