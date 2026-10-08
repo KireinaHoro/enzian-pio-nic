@@ -44,6 +44,24 @@ retain their documented lower priority. Historical nested-runtime results are
 recorded in the [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23),
 not a substitute for current Dandelion composition acceptance.
 
+### Active goal: Dandelion nested-composition waterfall — October 8
+
+Reproduce Sven's evaluation compositions on real Enzian hardware and produce
+high-resolution latency waterfalls: blocked RX → request arrival/launch →
+deferral to a fiber → nested-call submission → parallel child execution →
+result collection → final reply. Show each child on its own lane so overlapping
+execution is visible and is not double-counted as serial latency.
+
+Proceed in order: validate one atomic function with checked output and actual
+worker placement; validate a composition through local FPGA loopback; then add
+buffered timestamp instrumentation, measure, and plot. Correlate parent/child
+identities, runtime/fiber events and matched FPGA traces, retaining clock
+alignment uncertainty, missing intervals and tracing overhead. Dump software
+records after the run. Reuse the hot/cold waterfall conventions, including the
+RX wait beginning before request arrival, and preserve exact artifact provenance.
+Build checks alone do not complete either hardware gate. HOST_WAKE remains on
+hold; no timing or address/PREEMPT redesign is part of this goal.
+
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
 The nested RPC integration is approved for master as of 2026-09-23. Its
