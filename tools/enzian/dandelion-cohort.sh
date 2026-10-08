@@ -22,7 +22,7 @@ for i in $(seq 1 12); do
  (
   while ! test -f "$run/residency-warmup-sustained/go"; do sleep 0.05; done
   export DANDELION_TRACE_ID_BASE=$((500000+i*1000))
-  "$app/bin/latency" --rpc --function matmul --niters 20 --nwarmup 0 \
+  "$app/bin/latency" --rpc --function matmul --matmul-size 2 --niters 20 --nwarmup 0 \
    --lauberhorn-ip "$LAUBERHORN_IP" --dandelion-ip "$DANDELION_SERVER" \
    --isolation mmu --binary-arch aarch64 --binary-path "$suite/share/dandelion-tests/binaries" \
    --dump-path "$run/residency-warmup-sustained/$i/" > "$run/residency-warmup-sustained/$i/client.log" 2>&1
@@ -41,7 +41,7 @@ for function in matmul graph graph_2; do
   mkdir "$dir"
   export DANDELION_TRACE_ID_BASE="$base"
   set +e
-  "$app/bin/latency" --rpc --function "$function" --niters 1000 --nwarmup 100 \
+  "$app/bin/latency" --rpc --function "$function" --matmul-size 2 --niters 1000 --nwarmup 100 \
     --lauberhorn-ip "$LAUBERHORN_IP" --lauberhorn-port 12345 \
     --dandelion-ip "$DANDELION_SERVER" --dandelion-port 6000 --isolation mmu \
     --binary-arch aarch64 --binary-path "$suite/share/dandelion-tests/binaries" \
