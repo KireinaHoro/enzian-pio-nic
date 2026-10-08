@@ -39,4 +39,13 @@ class CorrelationTests(unittest.TestCase):
         self.assertIn(('entry / classify',10,20),spans)
         self.assertIn(('process execution',30,90),spans)
 
+    def test_deferred_return_admission_and_queue_are_disjoint(self):
+        r={'server_entry_enter_ns':10,'server_entry_exit_ns':35,
+           'server_defer_enqueue_ns':40,'execution_kind':1}
+        spans=w.spans(r,[{'event':101,'timestamp_ns':20},
+                         {'event':2,'timestamp_ns':50}])
+        self.assertIn(('return to runtime',20,35),spans)
+        self.assertIn(('fiber admission',35,40),spans)
+        self.assertIn(('defer queue',40,50),spans)
+
 if __name__=='__main__': unittest.main()

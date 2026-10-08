@@ -58,9 +58,14 @@ branch and conclude the dedicated multi-worker campaign at its recorded finite
 coverage. Further four-worker cases move into application validation; do not
 claim those unrun cases passed. HOST_WAKE is on hold. Resume Dandelion using the
 [active integration plan](docs/research/dandelion.md#active-integration--october-8).
-No fresh board/reservation check was made. Last recorded DUT
-and client were zuestoll14 and zuestoll07, with services running and tracing
-frozen after successful capture. Recheck reservations and actual state before
+The October 8 Dandelion campaign on reserved zuestoll14/zuestoll07 passed
+atomic/DAG/concurrent-chain gates and 9,000 measured requests across allocation
+and tracing controls. Depth-2 children overlap on CPUs 45–47 with their parent
+on CPU 44 after bounded allocation warmup. See the
+[waterfalls, provenance and limits](docs/research/dandelion-measurement.md).
+The DUT currently runs the tracing-off Dandelion control, with FPGA tracing
+frozen after success; both instrumented measurement windows are preserved.
+Recheck reservations and actual state before
 access; do not treat a dated note as a live reservation or reset an unpreserved
 failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and
 [latency record](docs/research/latency-measurement.md#corrected-module-516232-comparison--october-5)
