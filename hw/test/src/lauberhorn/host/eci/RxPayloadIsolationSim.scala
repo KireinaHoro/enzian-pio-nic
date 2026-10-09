@@ -85,8 +85,8 @@ class RxPayloadIsolationSim extends DutSimFunSuite[RxPayloadIsolationFixture] {
         data
       }.toList
     }
-    assert(read(0x300)(1) == poison)
-    assert(read(0x400) == List(BigInt(0x5a), BigInt(0)))
+    assert(read(0x300)(1) == 0) // large payload never occupies the control half
+    assert(read(0x400) == List(poison, BigInt(0x5a)))
     assert(read(0x480) == List(BigInt(0), BigInt(0)))
     dut.length #= 1
     assert(read(0x380)(1) == 0x5a)

@@ -24,9 +24,9 @@ int main(void)
     lauberhorn_eci_host_rx_status_preempt_insert(control, 1);
     assert(control[0] == 2);
     assert(!lauberhorn_eci_host_rx_status_valid_extract(control));
-    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size == 16, "reply inline offset");
-    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size == 16, "completion inline offset");
-    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size == 16, "call inline offset");
+    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size == 16, "reply metadata size");
+    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size == 16, "completion metadata size");
+    _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size == 16, "call metadata size");
     unsigned char descriptor[16];
     memset(descriptor, 0xa5, sizeof(descriptor));
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_status_insert(descriptor, 5);
@@ -44,18 +44,14 @@ int main(void)
     assert(descriptor[3] == 5 && descriptor[4] == 0xcd && descriptor[8] == 0xa5);
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size == 64, "nested call descriptor width");
     unsigned char nested_descriptor[64] = {0};
-    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_data0_insert(nested_descriptor, UINT64_C(0x12345678));
-    assert(nested_descriptor[40] == 0x78 && nested_descriptor[43] == 0x12);
-    unsigned char payload[24];
-    for (unsigned i = 0; i < sizeof(payload); ++i) payload[i] = 0x31 + 7*i;
-    unsigned char cl[128];
-    for (unsigned len = 1; len <= sizeof(payload); ++len) {
-        memset(cl, 0xa5, sizeof(cl));
-        core_eci_copy_nested_inline(cl, payload, len);
-        assert(!memcmp(cl + 40, payload, len));
-        for (unsigned i = 0; i < sizeof(cl); ++i)
-            if (i < 40 || i >= 40 + len) assert(cl[i] == 0xa5);
-    }
+    lauberhorn_eci_host_tx_placement_inline_payload_insert(nested_descriptor, 1);
+    assert(nested_descriptor[2] == 0x80);
+    lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_insert(nested_descriptor, 3);
+    assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(nested_descriptor) == 1);
+    lauberhorn_eci_host_tx_reservation_overflow_lines_insert(nested_descriptor, 12);
+    assert(nested_descriptor[56] == 12);
+    lauberhorn_eci_host_tx_placement_inline_payload_insert(nested_descriptor, 0);
+    assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_extract(nested_descriptor) == 3);
     xdr_adapter_t adapter = {.call_size = 64, .resp_size = 64,
         .call_xdrproc = (xdrproc_t)string_xdr, .resp_xdrproc = (xdrproc_t)string_xdr};
     rpc_codec_t codec = oncrpc_codec(&adapter);

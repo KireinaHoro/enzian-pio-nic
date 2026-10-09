@@ -26,6 +26,14 @@ See [packet processing](packet-processing.md) for ingress/egress stages, metadat
 
 `EciDecoupledRxTxProtocol.scala` implements alternating control lines and twelve overflow lines per direction. The selected 8 KiB layout places RX controls at `0x300/0x380`, TX controls at `0x1300/0x1380`, and overflow at `0x400/0x1400`. `EciAddressMap` and the generated C helper encode color-neutral 19-bit lifetime codes separately from worker identities.
 
+Payload-layout version 2 uses the control CL upper half only for complete
+payloads up to 64 bytes. Larger RX payloads start at overflow byte zero, including
+reconstructed RPC prefixes and bypass headers. TX uses explicit inline placement
+(bit 23) and reserved overflow count (byte 56), allowing a short commit from a
+large reservation. Mutable RX writebacks are retained privately for replay until
+retirement. See [RX writeback](rx-writeback.md) and the
+[runtime ownership contract](../software/runtime.md#request-and-transport-ownership).
+
 `EciPreemptionControlPlugin.scala` delivers payload-free PREEMPT through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md); board acceptance remains outstanding.
 
 ## Defaults and invariants

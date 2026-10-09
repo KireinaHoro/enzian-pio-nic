@@ -25,6 +25,7 @@ static bool reject_tx, dma_error;
 lauberhorn_worker_t worker_get_current(void) { return &worker; }
 static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_pkt_desc_t *desc) {
     sent = *desc; sends++;
+    state->tx_reserved = false;
     if (!worker.ctx->_watchdog_enabled) assert(!desc->execution && desc->type != TY_EXECUTION_CONTROL);
     if (desc->type == TY_ONCRPC_REPLY_TX) { replies++; return CORE_TX_ACCEPTED; }
     if (reject_tx) return CORE_TX_RETRY;
@@ -38,7 +39,15 @@ static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_
     }
     return dma_error ? CORE_TX_ERROR : CORE_TX_ACCEPTED;
 }
-#define core_eci_tx test_tx
+static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capacity) {
+    assert(!state->tx_reserved);
+    state->tx_reserved = true;
+    state->tx_capacity = capacity;
+    return state->tx_buf;
+}
+#define core_eci_tx_abort core_eci_tx_finish
+#define core_eci_tx_get_buffer test_tx_get
+#define core_eci_tx_commit test_tx
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl

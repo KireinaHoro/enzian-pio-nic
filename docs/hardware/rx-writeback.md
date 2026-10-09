@@ -7,18 +7,21 @@ for B before completing WDDA and LCIA. The next RX control read can already
 be waiting for that LCIA. RX write service therefore must run independently
 of the RX read state machine.
 
-`DcsRxAxiRouter` now accepts each 128-byte write as two 512-bit beats, discards
-the returned bytes and sends OKAY with the accepted AW ID only after both
+`DcsRxAxiRouter` now accepts each 128-byte write as two 512-bit beats and sends OKAY with the accepted AW ID only after both
 beats. It checks WLAST framing, retains B under backpressure and includes
 queued/in-flight writes and held B responses in its quiescence accounting.
-No packet-buffer contents are changed by this temporary discard policy.
+The contiguous borrowed-RX implementation retains payload bytes in a per-packet
+shadow with byte strobes. Dirty eviction/reload must preserve parser mutations;
+discarding returned bytes would revert those edits. Descriptor writes remain
+ignored. Retirement clears validity after old-line invalidation completes, and
+no packet-buffer contents are changed. This is private replay storage, not a
+command or response channel.
 
 The returned half of **RxTxDecoupledProtocol** is useful protocol capacity.
 Software could intentionally dirty the RX line with a command, status, or a
 small response; a response fitting there could provide a very fast TX path.
-Discarding writes is the current implementation choice, not a claim that
-RX lines must remain clean or that their returned bytes are intrinsically
-irrelevant. Before using those bytes, analyse:
+The replay shadow does not interpret these writes as messages. Before adding
+command/response semantics, analyse:
 
 - Which fields/lines carry the return payload, byte validity and framing;
   distinguish intentional messages from unchanged cache contents and reloads.
@@ -34,9 +37,13 @@ is selected here. Schedule it alongside [application performance collection](../
 after measuring the independent RX/TX baseline. Application benefit determines
 whether to adopt it; it does not gate the address/PREEMPT implementation.
 
-## Related performance opportunity: borrow RX payload instead of staging it
+## Historical proposal: borrow RX payload instead of staging it
 
-October 9 source inspection identifies a separate optimization to evaluate
+This initial two-span sketch is superseded by the contiguous layout and mutable
+replay implementation described above and in the [runtime contract](../software/runtime.md#request-and-transport-ownership).
+The following records the earlier layout and reasoning, not the current API.
+
+October 9 source inspection identified a separate optimization to evaluate
 alongside response transmission through the invalidate/return half-cycle:
 remove the full-packet copy from 2F2F cache lines into the worker's `rx_buf`.
 This is a proposal, not an implemented or measured improvement.

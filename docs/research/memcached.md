@@ -431,7 +431,8 @@ on both RX and TX.
 Keep the small-message fast path: a complete host payload of **0–64 bytes** is
 in the selected control CL's upper half; a payload **over 64 bytes** starts at
 the direction-relative offset **0x100**, the third CL. Large messages do not place a prefix in the
-control CL. The descriptor length selects the location; it describes the entire
+control CL. RX descriptor length selects the location; TX reservation capacity selects it
+and the explicit placement bit preserves that choice. RX length describes the entire
 host-visible buffer, including reconstructed bypass headers and RPC argument
 bytes previously embedded in metadata. The existing twelve overflow CLs provide
 1,536 bytes, sufficient for the configured 1,518-byte frame maximum and
@@ -449,8 +450,9 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   padding after the logical length. Replay of either control/data line must be
   stable until retirement; no speculative out-of-range read may disclose data.
 - Count RX overflow invalidations as zero for lengths <=64 and ceil(length/128)
-  otherwise. Apply the same placement and invalidation rule to TX, including
-  descriptor-only execution controls with no payload. Preserve cancellation, cooperative
+  otherwise. TX uses its explicit placement bit and reserved overflow-line count for
+  invalidation, independently of actual send length. Abort drains dirty reserved
+  lines with a descriptor-only execution no-op before reuse. Preserve cancellation, cooperative
   PREEMPT, write-return service, ownership and quiescence behavior.
 - Update generated descriptor documentation and an explicit RX/TX layout marker,
   C runtime/kernel readers and simulation CPU readers together. Never deploy
@@ -460,7 +462,10 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   and no staging copy. Existing core_eci_rx APIs remain compatibility wrappers
   that copy this view into their owned rx_buf, release the view, and preserve
   the old copied-buffer lifetime. Payload writes are permitted: current RX
-  return writes are serviced and discarded, not committed to storage.
+  return writes must survive conflict eviction/reload. The router retains payload
+  writebacks in a per-packet shadow until retirement; descriptor stores remain
+  ignored and packet-buffer storage is not modified. Discard-only writeback
+  handling is insufficient for a mutable parser borrow.
 - Enforce one outstanding borrow. Local repeated readiness checks do not call
   RX again. Explicit release means every user of the packet has finished with
   its bytes; it does not itself advance the hardware handshake. Reject another
@@ -484,17 +489,26 @@ whether its transport length excludes the generated Ethernet header, and keep
 kernel framing consistent with that choice. Do not silently change wire output.
 
 The default runtime must not allocate or fill a worker-local tx_buf staging
-allocation. Provide a bounded mutable TX reservation pointing directly into the
-selected transport region: tx_get_buffer(exact_payload_length, &reservation),
-followed by commit(reservation, metadata) or abort(reservation). The reserved
-length determines placement and is the committed length; commit cannot silently
-relocate the payload. This length is the encoded transport payload length, not
-application object size or encoder capacity. RPC codecs must obtain the exact
-encoded size before reserving (XDR can use its sizing operation), then encode
-within that exact bound and reject size mismatches before commit. Do not silently
-stage a full packet or relocate a short encoding from overflow into inline CLs. Datagram sendv already knows its total size
-and can copy its source iovecs directly into the reserved CL region. Those
-application-source copies remain necessary and are not transport staging.
+allocation. tx_get_buffer(capacity, &reservation) selects inline storage for
+capacity <=64 and overflow otherwise. Commit takes actual_length <= capacity.
+A common TX control-header inline_payload bit records the reservation's placement:
+hardware must never infer TX placement from actual length. An overflow reservation
+committed with 1–64 bytes remains in overflow, without relocation or padding the
+wire length. Inline placement with actual_length >64 is invalid. Zero-length
+commits transmit no payload regardless of placement; execution controls are
+always descriptor-only. RX continues to select placement by received length.
+
+An upper bound is sufficient for codecs to reserve; exact-size codecs can still
+select the smallest region, but a sizing pass is not mandatory. Encode directly
+within capacity and commit the returned size. UDP sendv sums its iovecs and copies
+them directly into reserved CLs. These source copies are not transport staging.
+Set placement before writes can evict the control CL. Overflow-mode control-half
+writeback must never overwrite payload byte zero; replay of that unused half is
+zero. Invalidation uses the reserved-line count in control byte 56: inline has no
+overflow; overflow has ceil(capacity/128), even for short sends. Commit and abort
+clean the entire reservation before reuse. Do not leak or
+transmit bytes outside actual_length. Test reserve 65/128/1472 -> commit 0/1/64,
+as well as exact-capacity sends, both parities, rejection/retry and buffer reuse.
 
 A reservation is bound to the current assignment and parity. Reject overlapping
 reservations and yield/reassignment while reserved. Commit publishes metadata
@@ -504,7 +518,8 @@ with valid payload ownership at the new parity. Do not retain a pointer into an
 old control CL or assume an invalidated CL still contains its old contents.
 Indeterminate failure must not be retried. Descriptor-only notifications must
 not clobber an active data reservation. RPC codec failure and pending-call
-allocation failure must abort cleanly before any descriptor becomes visible.
+allocation failure abort through a payload-free local no-op; no failed request
+is emitted on the network.
 
 Keep the old copied RX wrapper lifetime. A kernel/legacy copied TX wrapper may
 remain for compatibility, but it must use the new layout and must not hide a
@@ -540,15 +555,15 @@ stays guarded; ordinary main/independent maintenance threads remain enabled.
 ### Migrate current consumers without transport staging
 
 Migrate all current consumers of the default runtime to borrowed RX and
-exact-length direct TX. Application handler signatures need not change merely
+capacity-reserved direct TX. Application handler signatures need not change merely
 to remove transport staging. Audit each codec and every pointer retained across
 callbacks, nested waits, fibers, queues and futures.
 
 - RPC/XDR: decode directly from RX CLs into the existing owned argument/result
-  objects; determine encoded size and marshal directly into the TX reservation.
-- Nested-validation: update codec sizing and keep owned decoded messages across
+  objects; reserve a validated encoded-size bound and marshal directly into TX CLs.
+- Nested-validation: update codec capacity handling and keep owned decoded messages across
   deferred execution. Never substitute a borrowed RX pointer for that ownership.
-- Dandelion: update the pinned codec and Rust FFI with the reservation/sizing
+- Dandelion: update the pinned codec and Rust FFI with the reservation/capacity
   contract; audit BSON/XDR intermediates separately from transport staging.
 - Memcached: parse the borrowed mutable contiguous payload, keep stored values
   owned by items, and gather response iovecs directly into reserved TX CLs.
@@ -589,3 +604,66 @@ not acceptance evidence. This plan supersedes its split-span and separate
 wait/consume API designs and the proposal to linearize large parity-0 packets
 in memcached. The remaining uncommitted split-copy code must be adapted or
 removed before validation; none of those interfaces is the accepted final API.
+
+### October 9 implementation checkpoint: contiguous transport
+
+The foundation is implemented on `feat/memcached-rx-wait`. Generated
+`ECI_PAYLOAD_LAYOUT_VERSION=2` selects the new contract; the C transport refuses
+old headers. TX bit 23 records inline placement and control byte 56 records the
+reserved overflow-line count. No worker address-map or PREEMPT change is needed.
+
+The default RPC runtime decodes directly from borrowed RX and encodes directly
+into TX reservations, without worker RX/TX staging allocations. Existing codec
+signatures are unchanged. Generic RPC codecs reserve their safe maximum wire
+capacity, so small encoded RPCs can use overflow; this is correct but does not
+claim optimal small-message performance. Exact-capacity callers retain inline
+placement. Kernel bypass copies directly between transport and owned skbs.
+Native UDP exposes `lauberhorn_udp_receive_view`/`lauberhorn_udp_release` and
+`lauberhorn_tx_get_buffer`/`lauberhorn_udp_send_buffer`/`lauberhorn_tx_abort`.
+The copied receive and sendv compatibility paths remain available.
+
+RX writeback needs a per-packet byte-masked replay shadow: simply discarding
+returned bytes loses parser mutations after eviction. A directed test exposed
+and corrected shadow indexing relative to the RX control base. TX commit and
+abort drain the whole reservation, including dirty bytes beyond actual length;
+malformed placement uses ordinary bounded descriptor rejection. Unused RX
+regions and out-of-range TX accesses preserve zero masking and adjacent-slot
+isolation. The ownership fixture now probes the inline half and twelve overflow
+CLs separately; treating the new overflow region as 1,600 bytes correctly trips
+the address firewall and is not a legal test access.
+
+Local validation through `nix develop` and Nix package targets:
+
+- Full fast ECI run: 55 executed, 51 initially passed, four failures diagnosed;
+  one explicitly ignored test remained ignored. Corrected cooperative ownership,
+  oversized TX rejection, RX padding and TX allocation-boundary cases all passed
+  focused reruns. The other passing coverage includes RPC/nested RPC, concurrent
+  workers, GSYNC, ownership/firewall checks, bypass and captured-packet replay.
+  A fresh full run after the final corrections is delegated to hardware CI.
+- Native UDP covers 0/1/63/64/65/127/128/129/1024/1472-byte boundaries, both
+  placements, full-capacity dirty reservations committed short, abort-to-inline
+  reuse, explicit mutable-RX eviction/reload, endpoint ownership and bad packets.
+  The original failing replay seed (`setup=-1275007138`, `sim=-1104709226`)
+  passed after correction; the final focused UDP rerun also passed.
+- Production C ownership, copied-wrapper lifetime, stale TX handles, rejection,
+  codec/future/activation tests and buffer/codec ASan+UBSan checks passed.
+  Final `eci.generateVerilog` and regenerated Mackerel-header C checks passed.
+- Nix built the AArch64 kernel/runtime, microbenchmark and Dandelion deployment
+  images and runtime-interface example; the existing memcached adapter
+  compatibility check passed. The pinned Dandelion `1a9eb8f6` codec already
+  respects output capacity and decodes into owned strings/BSON objects.
+
+Reproduction: `mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci`
+inside `nix develop`; focused suites are `CooperativeYieldSim`,
+`RxPayloadIsolationSim`, `TxPayloadIsolationSim` and `NativeUdpSim`.
+Package targets are `runtimeTests`, `deployFs`, `dandelionDeployFs`,
+`checks.x86_64-linux.runtime-interface` and
+`checks.x86_64-linux.memcached-adapter`. Local transcripts, preserved failure
+captures and Nix output manifests are under `out/contiguous-transport/`.
+The final runtime-test output is
+`/nix/store/ba4w27kzcr9xja60f7bsryc72inalmps-lauberhorn-runtime-tests`.
+
+No new Enzian run, timing result or throughput claim is established by these
+local checks. Deploy only new, matched CI artifacts. Memcached's event-wait/
+receive-hook adaptation and borrowed connection-buffer lifecycle remain the
+next application change; HOST_WAKE and host-only yield remain deferred.

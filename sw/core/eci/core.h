@@ -13,15 +13,12 @@
 #include "core-common.h"
 #include "lauberhorn_eci_dev.h"
 
+#if !defined(LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION) || LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION != 2
+#error "ECI runtime requires contiguous payload-layout version 2 headers"
+#endif
+
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)
-
-/* The nested datatype includes its inline data fields, unlike reply TX. */
-static inline void core_eci_copy_nested_inline(void *control, const void *payload,
-                                               size_t len) {
-  memcpy((uint8_t *)control + lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_size
-         - LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES, payload, len);
-}
 
 typedef enum {
   TY_ERROR,
@@ -97,6 +94,20 @@ typedef struct {
   uint8_t *rx_buf;
   int rx_buf_size;
 
+  /* One outstanding view. No next RX or assignment release until consumed.
+   * These addresses belong to the current physical worker, not to a thread
+   * after reassignment. Advancing the RX handshake retires their backing slot. */
+  struct {
+    uint8_t *data;
+    size_t length;
+    bool pending;
+  } rx_view;
+
+  bool tx_reserved;
+  size_t tx_capacity;
+  void *tx_reservation_base;
+  uint64_t tx_generation;
+
   uint8_t *tx_next_cl;
   uint8_t *tx_buf;
 } lauberhorn_core_state_t;
@@ -137,10 +148,14 @@ static_assert(LAUBERHORN_ECI_CORE_OFFSET >=
 
 typedef uint64_t (*lauberhorn_trace_now_fn_t)(void);
 
-static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
+static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_t *ctx,
                                       lauberhorn_pkt_desc_t *desc,
                                       uint64_t *rx_unblock_ns,
                                       lauberhorn_trace_now_fn_t trace_now) {
+
+  /* Check even in release builds: a second acquisition would retire live data. */
+  if (ctx->rx_view.pending) return false;
+  memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
 
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
@@ -187,7 +202,6 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
     switch (ty) {
 #ifdef __KERNEL__
     case lauberhorn_eci_bypass:
-      size_t bypass_hdr_len;
 
       desc->type = TY_BYPASS;
 
@@ -195,29 +209,22 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       switch (lauberhorn_eci_host_ctrl_info_bypass_rx_hdr_ty_extract(rx_ctrl)) {
       case lauberhorn_eci_hdr_ethernet:
         desc->bypass.header_type = HDR_ETHERNET;
-        bypass_hdr_len = 14;
         break;
       case lauberhorn_eci_hdr_ip:
         desc->bypass.header_type = HDR_IP;
-        bypass_hdr_len = 14 + 20;
         break;
       case lauberhorn_eci_hdr_udp:
         desc->bypass.header_type = HDR_UDP;
-        bypass_hdr_len = 14 + 20 + 8;
         break;
       default:
         pr_err("unexpected bypass packet type: %s\n",
                lauberhorn_eci_packet_desc_type_describe(ty));
         desc->bypass.header_type = HDR_ERROR;
-        bypass_hdr_len = LAUBERHORN_BYPASS_HDR_SIZE;
       }
 
-      // parsed bypass header is aligned after the descriptor header (still
-      // inside ctrl CL)
-      memcpy(ctx->rx_buf,
-             rx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_rx_size,
-             bypass_hdr_len);
-      desc->payload_len = bypass_hdr_len;
+      // The borrowed payload includes the complete bypass header.
+
+      desc->payload_len = 0;
 
       break;
     case lauberhorn_eci_neighbor_miss:
@@ -250,12 +257,9 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->oncrpc_call_rx.request_token =
           lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_request_token_extract(rx_ctrl);
 
-      // parsed oncrpc arguments are aligned after the descriptor header
-      // XXX: we don't have the actual count of args, copy maximum
-      memcpy(ctx->rx_buf,
-             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_call_rx_size,
-             LAUBERHORN_ONCRPC_INLINE_BYTES);
-      desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
+      // Short RPC arguments retain the hardware decoder's 48-byte padding.
+
+      desc->payload_len = 0;
 
       break;
     case lauberhorn_eci_onc_rpc_reply_rx:
@@ -270,10 +274,8 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->oncrpc_reply_rx.xid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_xid_extract(rx_ctrl);
 
-      memcpy(ctx->rx_buf,
-             rx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_size,
-             LAUBERHORN_ONCRPC_INLINE_BYTES);
-      desc->payload_len = LAUBERHORN_ONCRPC_INLINE_BYTES;
+
+      desc->payload_len = 0;
 
       break;
 #endif
@@ -282,29 +284,13 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
       desc->payload_len = 0;
     }
 
-    if (pkt_len > 0) {
-      uint8_t *copy_dest = ctx->rx_buf + desc->payload_len;
-      desc->payload_len += pkt_len;
-      if (desc->payload_len > ctx->rx_buf_size) {
-        pr_err("payload length %" PRIu64 " too big! buffer size %" PRIu32 "\n",
-               desc->payload_len, ctx->rx_buf_size);
-        assert(false);
-      }
+    desc->payload_len = pkt_len;
+    ctx->rx_view.data = pkt_len <= LAUBERHORN_ECI_INLINE_DATA_SIZE
+        ? rx_ctrl + LAUBERHORN_ECI_INLINE_DATA_OFFSET
+        : rx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET;
+    ctx->rx_view.length = pkt_len;
+    ctx->rx_view.pending = true; /* includes zero-length packets */
 
-      int first_read_size = pkt_len > LAUBERHORN_ECI_INLINE_DATA_SIZE
-                                ? LAUBERHORN_ECI_INLINE_DATA_SIZE
-                                : pkt_len;
-      memcpy(copy_dest, rx_ctrl + LAUBERHORN_ECI_INLINE_DATA_OFFSET,
-             first_read_size);
-      copy_dest += first_read_size;
-      pkt_len -= first_read_size;
-
-      if (pkt_len > 0) {
-        memcpy(copy_dest, rx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, pkt_len);
-      }
-    }
-
-    // All payload bytes are now in the calling worker’s RX buffer.
   }
 
   BARRIER; // Complete transport memory accesses before returning
@@ -316,6 +302,42 @@ static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
   return valid;
 }
 
+/* Copy/discard never reads the next control CL. The next acquire retires it. */
+static inline bool core_eci_rx_consume(lauberhorn_core_state_t *ctx,
+                                     void *buffer, size_t capacity) {
+  if (!ctx->rx_view.pending || ctx->rx_view.length > capacity ||
+      (ctx->rx_view.length && !buffer)) return false;
+  if (ctx->rx_view.length) memcpy(buffer, ctx->rx_view.data, ctx->rx_view.length);
+  BARRIER;
+  memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
+  return true;
+}
+
+static inline void core_eci_rx_discard(lauberhorn_core_state_t *ctx) {
+  BARRIER;
+  memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
+}
+
+static inline bool core_eci_rx_acquire(void *base, lauberhorn_core_state_t *ctx,
+                                     lauberhorn_pkt_desc_t *desc) {
+  return core_eci_rx_acquire_traced(base, ctx, desc, NULL, NULL);
+}
+
+/* Compatibility operation: existing callers continue to receive copied data. */
+static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
+                                    lauberhorn_pkt_desc_t *desc,
+                                    uint64_t *stamp, lauberhorn_trace_now_fn_t clock) {
+  if (!core_eci_rx_acquire_traced(base, ctx, desc, stamp, clock)) return false;
+  if (desc->type == TY_PREEMPT) return true;
+  if (!core_eci_rx_consume(ctx, ctx->rx_buf, ctx->rx_buf_size)) {
+    pr_err("RX payload exceeds receive buffer\n");
+    assert(false);
+    core_eci_rx_discard(ctx);
+    return false;
+  }
+  return true;
+}
+
 static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
                                lauberhorn_pkt_desc_t *desc) {
   return core_eci_rx_traced(base, ctx, desc, NULL, NULL);
@@ -324,9 +346,42 @@ static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
 /* Doorbell acknowledgement: accepted/consumed, rejected before reservation,
  * or indeterminate DMA failure. This is not remote/application success. */
 enum { CORE_TX_ACCEPTED = 1, CORE_TX_RETRY = 2, CORE_TX_ERROR = 3 };
-static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
+/* Reservation fixes placement, not actual send length. A short overflow send
+ * remains in overflow. No staging allocation and no transport-pointer escape
+ * across another commit or assignment change. */
+static inline void *core_eci_tx_get_buffer(void *base, lauberhorn_core_state_t *ctx,
+                                          size_t capacity) {
+  if (ctx->tx_reserved || capacity > LAUBERHORN_MTU) return NULL;
+  uint8_t *start = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE;
+  uint8_t *control = start + *ctx->tx_next_cl * LAUBERHORN_ECI_CL_SIZE;
+  ctx->tx_reserved = true;
+  ctx->tx_capacity = capacity;
+  ctx->tx_reservation_base = base;
+  ++ctx->tx_generation;
+  lauberhorn_eci_host_tx_placement_inline_payload_insert(control, capacity <= 64);
+  BARRIER;
+  return capacity <= 64 ? control + LAUBERHORN_ECI_INLINE_DATA_OFFSET
+                       : start + LAUBERHORN_ECI_OVERFLOW_OFFSET;
+}
+
+static inline void core_eci_tx_finish(lauberhorn_core_state_t *ctx) {
+  BARRIER;
+  ctx->tx_reserved = false;
+  ctx->tx_reservation_base = NULL;
+}
+
+static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
                                lauberhorn_pkt_desc_t *desc) {
   int tx_result = CORE_TX_ERROR;
+  if (!ctx->tx_reserved || ctx->tx_reservation_base != base) return CORE_TX_ERROR;
+  size_t requested = desc->payload_len;
+#ifdef __KERNEL__
+  if (desc->type == TY_BYPASS) {
+    if (requested < 14) return CORE_TX_ERROR;
+    requested -= 14;
+  }
+#endif
+  if (requested > ctx->tx_capacity) return CORE_TX_ERROR;
   // ECI backend: do not release payload_buf
 
   // make sure previous RX/TX actually took effect before we attempt to RX
@@ -339,12 +394,12 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
   uint8_t *tx_base = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE;
   uint8_t *tx_ctrl = tx_base + tx_parity * LAUBERHORN_ECI_CL_SIZE;
 
+#ifdef __KERNEL__
   uint8_t *copy_from = ctx->tx_buf;
+#endif
   size_t payload_len = desc->payload_len;
 
-#ifndef __KERNEL__
-  size_t oncrpc_inlined_bytes = 0;
-#endif
+
 
   switch (desc->type) {
 #ifdef __KERNEL__
@@ -374,7 +429,6 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     // EtherType
     memcpy(tx_cmd + 6, copy_from + 12, 2);
 
-    copy_from += 14;
     payload_len -= 14;
 
     // tx bypass len field does not include header
@@ -407,21 +461,11 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_request_token_insert(
         tx_ctrl, desc->oncrpc_reply_tx.request_token);
 
-    // tx RPC len field INCLUDES inlined words
+    // TX RPC length covers the complete contiguous argument stream
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,
                                                               payload_len);
 
-    if (payload_len > LAUBERHORN_ONCRPC_INLINE_BYTES) {
-      oncrpc_inlined_bytes = LAUBERHORN_ONCRPC_INLINE_BYTES;
-    } else {
-      oncrpc_inlined_bytes = payload_len;
-    }
 
-    // inlined ONCRPC words
-    memcpy(tx_ctrl + lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size,
-           copy_from, oncrpc_inlined_bytes);
-    copy_from += oncrpc_inlined_bytes;
-    payload_len -= oncrpc_inlined_bytes;
     break;
 
   case TY_ONCRPC_CALL_TX:
@@ -451,40 +495,20 @@ static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_len_insert(tx_ctrl,
                                                              payload_len);
 
-    if (payload_len > LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES) {
-      oncrpc_inlined_bytes = LAUBERHORN_ONCRPC_NESTED_CALL_INLINE_BYTES;
-    } else {
-      oncrpc_inlined_bytes = payload_len;
-    }
 
-    core_eci_copy_nested_inline(tx_ctrl, copy_from, oncrpc_inlined_bytes);
-    copy_from += oncrpc_inlined_bytes;
-    payload_len -= oncrpc_inlined_bytes;
     break;
 
 #endif
   default:
     pr_err("eci_tx: unhandled host request type %d\n", desc->type);
-    break;
+    return CORE_TX_ERROR;
   }
 
-  if (payload_len > 0) {
-    assert(payload_len <=
-           LAUBERHORN_ECI_INLINE_DATA_SIZE +
-               LAUBERHORN_ECI_NUM_OVERFLOW_CL * LAUBERHORN_ECI_CL_SIZE);
-
-    // fill second half-CL in control CL first
-    int first_write_size = min(LAUBERHORN_ECI_INLINE_DATA_SIZE, payload_len);
-    memcpy(tx_ctrl + LAUBERHORN_ECI_INLINE_DATA_OFFSET, copy_from,
-           first_write_size);
-    copy_from += first_write_size;
-    payload_len -= first_write_size;
-
-    // fill overflow CLs
-    if (payload_len > 0) {
-      memcpy(tx_base + LAUBERHORN_ECI_OVERFLOW_OFFSET, copy_from, payload_len);
-    }
-  }
+  lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
+      desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
+  /* A codec may touch all capacity bytes before committing a short result. */
+  lauberhorn_eci_host_tx_reservation_overflow_lines_insert(tx_ctrl,
+      ctx->tx_capacity <= 64 ? 0 : (ctx->tx_capacity + 127) / 128);
   BARRIER; // make sure all data is written before we ring the doorbell
 
   // Flip the parity
@@ -502,7 +526,42 @@ out:
 #endif
   BARRIER; // Complete transport memory accesses before returning
 
+  core_eci_tx_finish(ctx);
   return tx_result;
+}
+
+/* Flush an abandoned reservation with a descriptor-only no-op before its
+ * storage is reused. Otherwise an old dirty overflow line could later overwrite
+ * the first bytes of a new inline packet in the shared packet-buffer slot. */
+static inline void core_eci_tx_abort(lauberhorn_core_state_t *ctx) {
+  if (!ctx->tx_reserved) return;
+  lauberhorn_pkt_desc_t noop = {.type = TY_EXECUTION_CONTROL};
+#ifdef __KERNEL__
+  /* The copied bypass wrapper never exposes an application reservation. */
+  core_eci_tx_finish(ctx);
+#else
+  (void)core_eci_tx_commit(ctx->tx_reservation_base, ctx, &noop);
+#endif
+}
+
+/* Compatibility TX copies directly from caller-owned data into transport CLs.
+ * Default userspace runtime calls get_buffer/commit instead. */
+static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
+                              lauberhorn_pkt_desc_t *desc) {
+  size_t size = desc->payload_len;
+  const uint8_t *source = ctx->tx_buf;
+#ifdef __KERNEL__
+  if (desc->type == TY_BYPASS) {
+    if (size < 14 || desc->bypass.header_type != HDR_ETHERNET) return CORE_TX_ERROR;
+    size -= 14; source += 14;
+  }
+#endif
+  void *out = core_eci_tx_get_buffer(base, ctx, size);
+  if (!out) return CORE_TX_ERROR;
+  if (size) memcpy(out, source, size);
+  int result = core_eci_tx_commit(base, ctx, desc);
+  if (ctx->tx_reserved) core_eci_tx_abort(ctx);
+  return result;
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H

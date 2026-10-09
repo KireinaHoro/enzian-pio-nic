@@ -50,7 +50,7 @@ class NativeUdpSim extends NicSim {
     }
     for ((size, padding) <- Seq((0, false), (0, true), (1, true), (7, true),
         (16, true), (17, true), (18, true), (19, true), (21, true), (22, true),
-        (23, true), (63, true), (64, true), (65, true), (1024, true), (1472, true))) {
+        (23, true), (63, true), (64, true), (65, true), (127, true), (128, true), (129, true), (1024, true), (1472, true))) {
       val bytes = List.tabulate(size)(i => (i * 7).toByte)
       val wire = packet(bytes).getBuilder.paddingAtBuild(padding).build().getRawData.toList
       // Corrupt UDP checksum, IP checksum, fragmentation and lengths. None may
@@ -81,14 +81,25 @@ class NativeUdpSim extends NicSim {
       val udp = desc.asInstanceOf[RxNativeUdpSim]
       assert(udp.len == size && udp.endpoint == 42 && udp.sport == 32123 && udp.dport == 11211)
       assert(udp.saddr == BigInt(1, clientIp.getAddress) && udp.daddr == BigInt(1, serverIp.getAddress))
-      if (size > 0) check(bytes, readPayload(dcs, payload, size))
+      if (size > 0) {
+        check(bytes, readPayload(dcs, payload, size))
+        // Parser edits must survive dirty eviction and reload until retirement.
+        val modified = bytes.map(b => (b ^ 0x5a).toByte)
+        dcs.write(if (size <= 64) payload.firstReadAddr else payload.overflowAddr, modified)
+        val dataStart = if (size <= 64) payload.firstReadAddr else payload.overflowAddr
+        for (offset <- 0 until size by 128) dcs.drop(dataStart + offset)
+        check(modified, readPayload(dcs, payload, size))
+      }
       // A valid handle from another domain and an unknown handle must reject.
       txSendSingle(dcs, TxNativeUdpSim(size, 43, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
       txSendSingle(dcs, TxNativeUdpSim(size, 99, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
       if (size == 1472) txSendSingle(dcs, TxNativeUdpSim(1473, 42, udp.saddr, udp.sport), bytes :+ 0.toByte, tid, expectedStatus = 3)
+      // Abort a dirty full-size reservation through the runtime's local no-op.
+      // The next inline response must not be overwritten by late dirty returns.
+      txSendSingle(dcs, TxExecutionSim(0), Nil, tid, reservationCapacity = 1472, dirtyReservation = true)
       // Two replies from a single receive exercise stateless response ownership.
       val before = replies.size
-      for (_ <- 0 until 2) txSendSingle(dcs, TxNativeUdpSim(size, 42, udp.saddr, udp.sport), bytes, tid)
+      for (forceOverflow <- Seq(false, true)) txSendSingle(dcs, TxNativeUdpSim(size, 42, udp.saddr, udp.sport), bytes, tid, forceOverflow = forceOverflow, reservationCapacity = if (forceOverflow) 1472 else size, dirtyReservation = true)
       waitUntil(replies.size == before + 2)
       for (raw <- replies.drop(before)) {
         // The CMAC appends FCS but does not pad undersized Ethernet frames.

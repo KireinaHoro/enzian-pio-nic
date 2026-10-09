@@ -41,9 +41,12 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
         .oncrpc_reply_tx = {.request_token = parent->oncrpc_call_rx.request_token,
                            .status = status}
     };
+    if (!w->dp.tx_reserved && !core_eci_tx_get_buffer(w->dp_base, &w->dp, len)) {
+        LOG("Cannot reserve reply TX"); return;
+    }
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
     trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
-    int result = core_eci_tx(w->dp_base, &w->dp, &desc);
+    int result = core_eci_tx_commit(w->dp_base, &w->dp, &desc);
     trace->tx_exit_ns = server_trace_stage(trace, LH_PMU_tx_exit);
     trace->tx_worker_id = w->worker_id;
     trace->response_bytes = len;
@@ -81,11 +84,13 @@ static struct pending_call *prepare_call(lauberhorn_rpc_endpoint_t *ep,
     if (!ep || ep->_transport.self != ep || !w || ep->_transport.owner != w->ctx) {
         errno = EINVAL; return NULL;
     }
+    w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, CALL_CAPACITY);
+    if (!w->dp.tx_buf) { errno = EBUSY; return NULL; }
     *encoded = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf, len,
                                                CALL_CAPACITY, ep->rpc_codec->priv);
-    if (*encoded < 0 || *encoded > CALL_CAPACITY) { errno = EMSGSIZE; return NULL; }
+    if (*encoded < 0 || *encoded > CALL_CAPACITY) { core_eci_tx_abort(&w->dp); errno = EMSGSIZE; return NULL; }
     struct pending_call *pc = pending_call_acquire(&pending_call_table);
-    if (!pc) { errno = EAGAIN; return NULL; }
+    if (!pc) { core_eci_tx_abort(&w->dp); errno = EAGAIN; return NULL; }
     pc->codec = ep->rpc_codec;
     pc->endpoint = ep;
     pc->result = (rpc_result_t){0};
@@ -120,7 +125,7 @@ static int submit_call(struct pending_call *pc, int len) {
     };
     pending_call_arm_timeout(pc, 0);
     lauberhorn_trace_event(LH_TRACE_CALL_SUBMIT, cookie, len);
-    int result = core_eci_tx(w->dp_base, &w->dp, &desc);
+    int result = core_eci_tx_commit(w->dp_base, &w->dp, &desc);
     lauberhorn_trace_event(LH_TRACE_CALL_SUBMITTED, cookie, result);
     if (result == CORE_TX_RETRY) {
         /* This proves no hardware reservation/packet exists. */
@@ -178,10 +183,15 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     switch (o.kind) {
     case LAUBERHORN_REPLY: {
         r->trace.marshal_enter_ns = server_trace_stage(&r->trace, LH_PMU_marshal_enter);
+        w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, REPLY_CAPACITY);
+        if (!w->dp.tx_buf) { LOG("Cannot reserve response TX"); break; }
         int len = r->codec->ops->marshal_resp(o.data, w->dp.tx_buf, o.len,
                                              REPLY_CAPACITY, r->codec->priv);
         r->trace.marshal_exit_ns = server_trace_stage(&r->trace, LH_PMU_marshal_exit);
-        if (len < 0 || len > REPLY_CAPACITY) fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, &r->trace);
+        if (len < 0 || len > REPLY_CAPACITY) {
+            core_eci_tx_abort(&w->dp);
+            fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, &r->trace);
+        }
         else send_reply(&r->desc, 0, len, &r->trace);
         break;
     }
@@ -274,6 +284,8 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
         if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status, &c->parent_trace);
         else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, &c->parent_trace);
         else {
+            w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, desc->payload_len);
+            if (!w->dp.tx_buf) { pending_call_release(&pending_call_table, c); return; }
             memcpy(w->dp.tx_buf, w->dp.rx_buf, desc->payload_len);
             send_reply(&c->completion.parent, 0, desc->payload_len, &c->parent_trace);
         }

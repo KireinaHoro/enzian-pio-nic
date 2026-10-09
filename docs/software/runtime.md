@@ -47,7 +47,22 @@ configuration are regenerated from the matching hardware, not edited by hand.
 
 ## Request and transport ownership
 
-RX copies into reusable worker storage. Decoding allocates an independently
+RX borrows one contiguous mutable transport region until explicit release.
+Lengths up to 64 bytes occupy the control line payload half; larger packets
+start at offset 0x100. The next acquisition retires the previous packet, and
+acquisition/yield are rejected while a borrow is outstanding. Queuing a pointer
+is not release: codecs and deferred work must own anything retained. The
+legacy copied RX wrapper preserves its previous owned-buffer lifetime.
+
+TX reserves a contiguous region by capacity, then commits an actual length no
+larger than that capacity. The placement bit records the reservation, so a
+short commit from overflow needs no relocation. Cleanup covers every reserved
+line, including on abort. Default RPC codecs encode directly into this region;
+there is no runtime RX/TX staging allocation. Kernel skb and decoded application
+objects retain their necessary ownership copies. This is payload-layout version
+2 in generated configuration; deploy only matching hardware/software artifacts.
+
+Decoding allocates an independently
 owned request; inline handlers borrow it. `REPLY`/`FAIL` consume that request.
 `DEFER` reserves a fiber and moves it into an owned context on the existing
 ready queue. `FORWARD` serializes the child and keeps only parent reply metadata
@@ -125,6 +140,9 @@ Tracing now uses preallocated, prefaulted per-thread append-only buffers;
 `LAUBERHORN_TRACE_CAPACITY` sets rows per thread (default 16384). The request
 path copies a fixed-size record and publishes its count; it does no CSV
 formatting, locking, allocation, or file I/O. Timestamp probes still have cost.
+With borrowed RX, receive exit marks descriptor/view acquisition; payload cache
+misses occur during decoding or application access. Compare these stages with
+that boundary in mind when using older copied-RX traces.
 Initialize tracing before creating application threads: the opt-in tracing mode
 reserves and blocks SIGUSR2, inherited by workers. A control thread waits for it.
 After **all measured traffic has drained**, send `kill -USR2 SERVER_PID` once.

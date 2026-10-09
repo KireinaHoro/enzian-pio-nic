@@ -38,13 +38,9 @@ trait RxHelpers { this: NicSim =>
   def checkSingle(expectedPacket: Packet, expectedProto: PacketType, gotPacket: List[Byte], gotDesc: BypassCtrlInfoSim): Boolean = {
     Try {
       assert(expectedProto.id == gotDesc.packetType, s"proto mismatch: expected $expectedProto, got ${PacketType(gotDesc.packetType.toInt)}")
-      checkHeader(expectedProto, expectedPacket, gotDesc.hdrP4jPacket)
-
-      // check payload length
-      val payload = getPayloadAndCheckLen(expectedPacket, expectedProto, gotDesc.len)
-
-      // we have already checked length, truncate the received data to expected len
-      check(payload, gotPacket.take(payload.length))
+      val raw = expectedPacket.getRawData.toList
+      assert(gotDesc.len == raw.length)
+      check(raw, gotPacket)
     } match {
       case Failure(a: AssertionError) =>
         println(s"Check single packet failed with assertion $a")

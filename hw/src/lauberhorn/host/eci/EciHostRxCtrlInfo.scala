@@ -127,34 +127,29 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
          |  _        8 rsvd;
          |  // hdr follows -- need to calculate address manually
-         |  // TODO: actually define args in the datatype.  Possible approach:
-         |  // - as an address-only field, so no hdr+size pointer calculation in user code
          |};
          |
          |datatype host_ctrl_info_onc_rpc_call_rx lsbfirst(64) "ECI Host Control Info (ONC-RPC Server Call RX)" {
          |  valid     1 "RX descriptor valid";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet overflow, not including inlined bytes";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Complete contiguous argument buffer length";
          |  _         11 rsvd;
          |  request_token 32 "Opaque incoming request context token";
          |  func_ptr  64 "Function pointer for RPC call handler";
-         |  // args follows -- need to calculate address manually
-         |  // TODO: actually define args in the datatype.  Two possible approaches:
-         |  // - as an address-only field, so no hdr+size pointer calculation in user code
-         |  // - as an array, so Mackerel would emit access functions
+         |  // Payload is inline at byte 64 when len <= 64, otherwise at overflow offset.
          |};
          |
          |datatype host_ctrl_info_onc_rpc_reply_rx lsbfirst(64) "ECI Host Control Info (ONC-RPC Nested Reply RX)" {
          |  valid     1 "RX descriptor valid";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_rx)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload overflow, not including inlined bytes";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Complete contiguous reply buffer length";
          |  _         3 rsvd;
          |  status    8 "ONC-RPC accept status (host order)";
          |  pid       ${PID_WIDTH.get} "Destination process for reply completion";
          |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";
          |  xid       32 "XID of incoming reply (host order)";
-         |  // reply data follows -- need to calculate address manually
+         |  // Payload is inline at byte 64 when len <= 64, otherwise at overflow offset.
          |};
          |
          |datatype host_ctrl_info_neighbor_miss lsbfirst(64) "ECI Host Control Info (Neighbor Miss for bypass core)" {
@@ -173,6 +168,40 @@ case class EciHostRxCtrlInfo() extends Bundle {
 }
 
 object EciHostRxCtrlInfo {
+  /** Bytes carried in internal metadata that are part of the host byte buffer. */
+  def prefixLength(desc: HostReq): UInt = {
+    val n = UInt(PKT_BUF_LEN_WIDTH bits)
+    n := 0
+    switch(desc.ty) {
+      is(HostReqType.oncRpcCallRx, HostReqType.oncRpcReplyRx) { n := ONCRPC_INLINE_BYTES.get }
+      is(HostReqType.bypass) {
+        switch(desc.data.bypassMeta.ty) {
+          is(PacketDescType.ethernet) { n := 14 }
+          is(PacketDescType.ip) { n := 34 }
+          is(PacketDescType.udp) { n := 42 }
+          default { n := BYPASS_HDR_WIDTH.get / 8 }
+        }
+      }
+    }
+    n
+  }
+  def prefixData(desc: HostReq): Bits = {
+    val bytes = Bits(512 bits)
+    bytes := 0
+    switch(desc.ty) {
+      is(HostReqType.oncRpcCallRx) { bytes := desc.data.oncRpcCallRx.data.resized }
+      is(HostReqType.oncRpcReplyRx) { bytes := desc.data.oncRpcReplyRx.data.resized }
+      is(HostReqType.bypass) {
+        switch(desc.data.bypassMeta.ty) {
+          is(PacketDescType.ethernet) { bytes := desc.data.bypassMeta.hdr(111 downto 0).resized }
+          is(PacketDescType.ip) { bytes := desc.data.bypassMeta.hdr(271 downto 0).resized }
+          default { bytes := desc.data.bypassMeta.hdr.resized }
+        }
+      }
+    }
+    bytes
+  }
+
   /** Convert a [[HostReq]] from the decoder pipeline into a [[EciHostRxCtrlInfo]] to send to a CPU core */
   def packFrom(desc: HostReq) = new Area {
     val ret = EciHostRxCtrlInfo()
@@ -190,11 +219,12 @@ object EciHostRxCtrlInfo {
       is (HostReqType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
         ret.data.bypass.xb8 := 0
+        ret.data.bypass.hdr := 0
       }
       is (HostReqType.oncRpcCallRx) {
         // Request token and handler pointer are opaque; payload bytes are unchanged.
         ret.data.oncRpcCallRx.funcPtr := desc.data.oncRpcCallRx.funcPtr
-        ret.data.oncRpcCallRx.data := desc.data.oncRpcCallRx.data
+        ret.data.oncRpcCallRx.data := 0
         ret.data.oncRpcCallRx.requestToken := desc.data.oncRpcCallRx.requestToken
         ret.data.oncRpcCallRx.xb11 := 0
       }
@@ -202,7 +232,7 @@ object EciHostRxCtrlInfo {
         // XID is numeric at the ECI boundary; payload and opaque metadata are unchanged.
         ret.data.oncRpcReplyRx.pid := desc.data.oncRpcReplyRx.pid
         ret.data.oncRpcReplyRx.cookie := desc.data.oncRpcReplyRx.cookie
-        ret.data.oncRpcReplyRx.data := desc.data.oncRpcReplyRx.data
+        ret.data.oncRpcReplyRx.data := 0
         ret.data.oncRpcReplyRx.xid := EndiannessSwap(desc.data.oncRpcReplyRx.xid)
         ret.data.oncRpcReplyRx.xb3 := 0
         ret.data.oncRpcReplyRx.status := desc.data.oncRpcReplyRx.status
@@ -214,6 +244,6 @@ object EciHostRxCtrlInfo {
         ret.data.neighborMiss.xb24 := 0
       }
     }
-    ret.len := desc.len
+    ret.len.bits := desc.len.bits + prefixLength(desc)
   }.ret
 }
