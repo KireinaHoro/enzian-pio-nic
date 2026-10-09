@@ -5,6 +5,7 @@ import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn.Global.ECI_TX_BASE
 import lauberhorn.{Global, PacketAddr, PacketLength}
 import lauberhorn.host.{HostReq, HostReqType}
+import lauberhorn.Global.{HOST_REQ_TY_WIDTH, PKT_BUF_LEN_WIDTH}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -89,9 +90,9 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val executionOnly = out Bool()
   executionOnly := txDesc.ty === HostReqType.executionControl
   val executionType = txDesc.ty === HostReqType.oncRpcReplyTx ||
-    txDesc.ty === HostReqType.oncRpcCallTx || executionOnly
+    txDesc.ty === HostReqType.oncRpcCallTx || txDesc.ty === HostReqType.nativeUdpTx || executionOnly
   execution.valid := txDesc.fire && executionType
-  execution.payload := executionType ? savedControl(20 downto 19) | B(0, 2 bits)
+  execution.payload := executionType ? savedControl(HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get + 1 downto HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
   val requestedInvLen = PacketLength()

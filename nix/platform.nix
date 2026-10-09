@@ -90,7 +90,7 @@ let
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
       }
     // {
-      inherit dandelion;
+      inherit dandelion memcached;
     };
   runtimeTests = import ./checks/runtime.nix {
     inherit pkgs;
@@ -110,6 +110,17 @@ let
     crane = inputs.crane;
     source = inputs.dandelion;
   };
+  memcached = callPackage (inputs.memcached + "/package.nix") {
+    source = inputs.memcached;
+  };
+  memcachedTools = pkgs.callPackage ./software/memcached-tools.nix {
+    inherit source identity;
+    inherit (deploymentTarget) python3 bash;
+  };
+  memcachedReference = pkgs.callPackage (inputs.memcached + "/package.nix") {
+    source = inputs.memcachedUpstream;
+    enableLauberhorn = false;
+  };
   deployment = pkgs.callPackage ./images/default.nix {
     target = deploymentTarget;
     inherit
@@ -128,6 +139,8 @@ in
     dcsRom
     runtimeTests
     dandelion
+    memcached
+    memcachedReference
     target
     callPackage
     applications
@@ -149,12 +162,16 @@ in
       dandelion-tests = dandelion.interactiveTests.smoke;
     };
   };
+  memcachedDeployFs = deployment.mkTestImage {
+    name = "memcached";
+    applications = { inherit memcached; memcached-tools = memcachedTools; };
+  };
   eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
     inherit genVerilog staticShell dcsRom dcsRomCheck dcsRtlCheck;
     source = sources.vivado;
     gitRev = identity.revision;
   };
-  checks = import ./checks {
+  checks = (import ./checks {
     inherit pkgs tlc dcsRom;
     src = sources.spinal [
       "build.mill"
@@ -166,6 +183,12 @@ in
     runtimeInterface = applications.nix-build-demo;
     inherit runtimeTests;
     eciToolkit = pkgs.lib.cleanSource (source + "/vivado/eci/eci-toolkit");
+  }) // {
+    memcached-adapter = import ./checks/memcached.nix {
+      inherit pkgs source;
+      appSource = inputs.memcached;
+      upstreamSource = inputs.memcachedUpstream;
+    };
   };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel tlc; };
   ciDependencies = import ./ci/dependencies.nix {

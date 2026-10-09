@@ -81,6 +81,9 @@ typedef struct {
 #define LAUBERHORN_IOCTL_DEREG_ENDPOINT \
     _IOW(LAUBERHORN_IOCTL_MAGIC, 5, lauberhorn_dereg_endpoint_t)
 
+#define LAUBERHORN_IOCTL_REG_UDP_ENDPOINT \
+    _IOWR(LAUBERHORN_IOCTL_MAGIC, 13, lauberhorn_reg_endpoint_t)
+
 /* Slow-path cancellation/timeout control; never used to submit or receive RPCs. */
 typedef struct {
     u32 endpoint_handle;

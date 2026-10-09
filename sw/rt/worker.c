@@ -204,3 +204,36 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
     free(w->dp.tx_buf);
     free(w);
 }
+
+/* Native application workers finish their own initialization before joining. */
+int lauberhorn_udp_attach(lauberhorn_t *ctx, uint32_t index) {
+    if (!ctx || current_worker || index >= ctx->_declared_workers) {
+        errno = EINVAL;
+        return -1;
+    }
+    lauberhorn_worker_t w = calloc(1, sizeof(*w));
+    if (!w) return -1;
+    w->ctx = ctx;
+    w->worker_id = index;
+    w->thread = pthread_self();
+    w->dp.rx_next_cl = &w->rx_next;
+    w->dp.tx_next_cl = &w->tx_next;
+    w->dp.rx_buf_size = LAUBERHORN_MTU;
+    w->dp.rx_buf = malloc(LAUBERHORN_MTU);
+    w->dp.tx_buf = malloc(LAUBERHORN_MTU);
+    if (!w->dp.rx_buf || !w->dp.tx_buf) {
+        free(w->dp.rx_buf); free(w->dp.tx_buf); free(w);
+        errno = ENOMEM;
+        return -1;
+    }
+    server_trace_thread_init();
+    if (ioctl(ctx->fd, LAUBERHORN_IOCTL_REGISTER_THREAD, &index)) {
+        free(w->dp.rx_buf); free(w->dp.tx_buf); free(w);
+        return -1;
+    }
+    current_worker = w;
+    __atomic_add_fetch(&ctx->_workers, 1, __ATOMIC_RELAXED);
+    struct lh_activation activation;
+    if (lh_yield(&activation)) worker_fail(w);
+    return 0;
+}

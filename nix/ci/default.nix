@@ -7,6 +7,7 @@ let
       bash
       coreutils
       findutils
+      gnused
     ];
     text = ''exec bash ${../../tools/ci/nix-build.sh} "$@"'';
   };
