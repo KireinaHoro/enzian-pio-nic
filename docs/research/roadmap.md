@@ -267,6 +267,11 @@ commands/status and responses carried by intentionally dirtying an RX CL.
 This is an experiment to establish benefit, not a prerequisite for the address
 or PREEMPT work and not a selected replacement protocol.
 
+- Evaluate [borrowed RX payload spans](../hardware/rx-writeback.md#related-performance-opportunity-borrow-rx-payload-instead-of-staging-it)
+  alongside this study: remove worker RX staging where possible, account for
+  the parity-0 gap before overflow, and preserve ownership across receives and
+  yields. Memcached can first copy directly into its parser buffer; RPC codecs
+  need direct or segmented decoding with owned deferred arguments/results.
 - First measure response-size distributions, the fraction fitting in the usable
   return payload, handler time, and the share of latency/CPU work spent on TX.
 - Compare the independent path with a coupled prototype on the same hardware,
