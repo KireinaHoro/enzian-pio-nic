@@ -183,34 +183,33 @@ trait NicSim extends DutSimFunSuite[NicEngine]
   def hasAssignment(tid: Int): Boolean = tid == -1 || threads(tid).runningOn.nonEmpty
 
   def readPayload(dcsMaster: DcsAppMaster, pldDesc: RxPayloadDesc, len: Int): List[Byte] = {
-    // calculate where are the overflow cachelines
-    val firstReadSize = Math.min(len, 64)
-    println(s"Reading payload in control CL: $firstReadSize bytes")
-    var data = dcsMaster.read(pldDesc.firstReadAddr, firstReadSize)
-    if (len > 64) {
-      val overflowLen = len - 64
-      println(s"Reading payload in overflow CL: $overflowLen bytes")
-      data ++= dcsMaster.read(pldDesc.overflowAddr, overflowLen)
-    }
-    data
+    if (len == 0) Nil
+    else dcsMaster.read(if (len <= 64) pldDesc.firstReadAddr else pldDesc.overflowAddr, len)
   }
 
   /** Send one descriptor, optionally with a tail payload. */
-  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, expectedStatus: Int = 1)(implicit dut: NicEngine): Unit = {
+  def txSendSingle(dcsMaster: DcsAppMaster, txDesc: EciHostCtrlInfoSim, toSend: List[Byte], tid: Int, expectedStatus: Int = 1, forceOverflow: Boolean = false, reservationCapacity: Int = 0, dirtyReservation: Boolean = false)(implicit dut: NicEngine): Unit = {
     assert(hasAssignment(tid), "TX requires a current assignment")
     val etd = getEciThreadData(tid)
     val coreBase = etd.baseAddr
     def clAddr = etd.txNextCl * 0x80 + ECI_TX_BASE.get + coreBase
 
     etd.log(f"sending packet with desc $txDesc, writing packet desc to $clAddr%#x...")
-    dcsMaster.write(clAddr, txDesc.toTxDesc)
-
-    val firstWriteSize = if (toSend.size > 64) 64 else toSend.size
-    dcsMaster.write(clAddr + 0x40, toSend.take(firstWriteSize))
-    if (toSend.size > 64) {
-      val overflowAddr = ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + coreBase
-      dcsMaster.write(overflowAddr, toSend.drop(firstWriteSize))
+    // Legacy test constructors carry RPC prefix bytes separately; the wire
+    // representation now places the complete argument stream in one region.
+    val bytes = txDesc match {
+      case r: TxOncRpcReplySim => spinal.core.sim.SimBigIntPimper(r.args).toBytes(ONCRPC_INLINE_BYTES * 8).toList.take(r.len) ++ toSend
+      case r: TxOncRpcCallSim => spinal.core.sim.SimBigIntPimper(r.args).toBytes(ONCRPC_NESTED_CALL_INLINE_BYTES * 8).toList.take(r.len) ++ toSend
+      case _ => toSend
     }
+    val capacity = Seq(bytes.length, scala.math.min(txDesc.len, MTU.get), reservationCapacity).max
+    val inline = capacity <= 64 && !forceOverflow && !txDesc.isInstanceOf[TxExecutionSim]
+    val control = txDesc.toTxDesc.toArray
+    control(56) = (if (inline) 0 else (capacity + 127) / 128).toByte
+    control(2) = ((control(2) & 0x7f) | (if (inline) 0x80 else 0)).toByte
+    dcsMaster.write(clAddr, control.toList)
+    if (capacity > 0) dcsMaster.write(
+      if (inline) clAddr + 0x40 else ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + coreBase, bytes ++ (if (dirtyReservation) List.fill(capacity - bytes.length)(0xa5.toByte) else Nil))
 
     // trigger a read on the next cacheline to actually send the packet
     etd.log(f"sent packet at $clAddr%#x")

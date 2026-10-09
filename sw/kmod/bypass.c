@@ -491,26 +491,31 @@ static poll_result_t poll_once(struct napi_struct *n)
 	struct net_device *dev = priv->dev;
 	lauberhorn_pkt_desc_t desc;
 
-	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	bool got_req = core_eci_rx_acquire(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 
 	if (!got_req) {
 		dev_dbg(&dev->dev, "finished polling, no more packets\n");
 		return POLL_NACK;
 	}
 
+	priv->ctx.rx_buf = priv->ctx.rx_view.data;
+	poll_result_t result = POLL_WORK_DONE;
 	switch (desc.type) {
 	case TY_BYPASS:
 		if (!rx_bypass_pkt(&desc, n, dev))
-			return POLL_ALLOC_FAIL;
+			result = POLL_ALLOC_FAIL;
 		break;
 	case TY_NEIGHBOR_MISS:
-		return rx_handle_neighbor_miss(&desc, priv);
+		result = rx_handle_neighbor_miss(&desc, priv);
+		break;
 	default:
 		dev_warn(&dev->dev, "unsupported host req type %d\n",
 			 desc.type);
 	}
 
-	return POLL_WORK_DONE;
+	core_eci_rx_discard(&priv->ctx);
+	priv->ctx.rx_buf = NULL;
+	return result;
 }
 
 static int napi_poll(struct napi_struct *n, int budget)
@@ -812,10 +817,9 @@ int init_bypass(void)
 	dev_dbg(&netdev->dev, "Initial RX parity %u, TX parity %u\n",
 		priv->rx_parity, priv->tx_parity);
 
-	// Allocate buffer for receive
-	// We directly read out of the skb for TX, not allocating here
+	// Borrow RX transport storage; TX copies directly from the owned skb.
 	priv->ctx.rx_buf_size = LAUBERHORN_MTU;
-	priv->ctx.rx_buf = kmalloc(priv->ctx.rx_buf_size, GFP_KERNEL);
+	priv->ctx.rx_buf = NULL; /* borrowed only during poll_once */
 
 
 	// Invalidate control and bypass CLs
@@ -879,9 +883,6 @@ void deinit_bypass(void)
 	// Deregister various callbacks
 	unregister_inetaddr_notifier(&inetaddr_notifier);
 	unregister_netevent_notifier(&arp_notifier);
-
-	// Free RX buffer
-	kfree(priv->ctx.rx_buf);
 
 	// Destroy netdev
 	unregister_netdev(netdev);

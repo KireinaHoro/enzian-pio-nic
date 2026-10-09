@@ -28,7 +28,8 @@ import scala.language.postfixOps
   *  - 0x40 - 0x 80: packet buffer 0x0 - 0x40 (aliased)
   *  - 0x80 - 0x c0: control header #2
   *  - 0xc0 - 0x100: packet buffer 0x0 - 0x40 (aliased)
-  *  - 0x100+      : packet buffer 0x40+
+  *  - 0x100+      : contiguous payload byte zero for lengths >64
+  * Control payload halves are zero for lengths >64.
   *
   * @param axiConfig AXI parameters of upstream and downstream nodes
   */
@@ -110,22 +111,37 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // An exclusive RX load can return data on invalidation even without a CPU
   // store. Complete those writes independently of the read FSM: the next RX
   // read may be waiting for the LCIA which itself waits for this write's B.
-  // For now discard the returned bytes. RxTxDecoupledProtocol could instead
-  // use this half-cycle for a command/status or a response that fits in the RX
-  // CL (including intentional CPU stores). Feasibility and latency/throughput
-  // benefits remain to be analysed; see docs/hardware/rx-writeback.md.
+  // Preserve payload mutations in the per-packet replay shadow below.
   val writeActive = Reg(Bool()) init False
   val writeSecondBeat = Reg(Bool()) init False
   val writeResponse = Reg(Bool()) init False
   val writeId = Reg(dcsQ.aw.id.clone)
+  // Borrowed payloads may be mutated by parsers. Preserve returned bytes for
+  // conflict-miss replay until this packet retires; never write them to packet
+  // storage or interpret descriptor-field stores as commands.
+  val shadowWords = 4 + EciAddressMap.overflow_lines * 2
+  val shadow = Mem(Bits(512 bits), shadowWords)
+  val shadowMask = Vec.fill(shadowWords)(Reg(Bits(64 bits)) init 0)
+  val writeWord = Reg(UInt(log2Up(shadowWords) bits))
+  val writeInRange = Reg(Bool())
+  val clearShadow = Bool()
+  clearShadow := False
   dcsQ.aw.ready := !writeActive && !writeResponse
+  val writeOffset = dcsQ.aw.addr(12 downto 0) - EciAddressMap.rx_control
   when(dcsQ.aw.fire) {
     writeId := dcsQ.aw.id
+    writeWord := (writeOffset >> 6).resized
+    writeInRange := (writeOffset >> 6) < shadowWords
     writeActive := True
     writeSecondBeat := False
   }
   dcsQ.w.ready := writeActive
+  val shadowWrite = dcsQ.w.fire && writeInRange && writeWord < shadowWords &&
+    (writeWord === 1 || writeWord === 3 || writeWord >= 4)
+  shadow.write(writeWord, dcsQ.w.data, shadowWrite, dcsQ.w.strb)
+  when(shadowWrite) { shadowMask(writeWord) := shadowMask(writeWord) | dcsQ.w.strb }
   when(dcsQ.w.fire) {
+    writeWord := writeWord + 1
     assert(dcsQ.w.last === writeSecondBeat, "RX writeback must contain two beats")
     when(writeSecondBeat) {
       writeActive := False
@@ -158,6 +174,14 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val validBytes = UInt(PKT_BUF_LEN_WIDTH bits)
   })
   currentPktBuf.validBytes init 0
+  val prefixBytes = Reg(UInt(PKT_BUF_LEN_WIDTH bits)) init 0
+  val prefixData = Reg(Bits(512 bits)) init 0
+  val payloadBytes = currentPktBuf.validBytes + prefixBytes
+  val firstBody = Reg(Bits(512 bits)) init 0
+  val secondBody = Reg(Bits(512 bits)) init 0
+  val sourceOffset = Reg(pktBufAxi.ar.addr.clone)
+  val sourceShift = Reg(UInt(6 bits))
+  val sourceSecond = RegInit(False)
 
   // packet buffer read dimensions, as decoded from DCS AXI request
   // length will be filtered to fit to packet buffer slot
@@ -171,8 +195,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val savedControl = Reg(Flow(Bits(512 bits)))
   savedControl.valid init False
 
+  when(clearShadow || doPreempt) { shadowMask.foreach(_ := 0) }
+  val newPayload = RegInit(False)
   when (doPreempt) {
+    newPayload := False
     currentPktBuf.validBytes := 0
+    prefixBytes := 0
+    prefixData := 0
     savedControl.valid := False
   }
 
@@ -215,9 +244,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           }
         } otherwise {
           // host reading an overflow CL
-          pktBufReadOff := (readOffset - 0xc0).resized
+          pktBufReadOff := (readOffset - 0x100).resized
           pktBufReadBeats := 2
-          goto(readPktBuf)
+          when(payloadBytes <= 64) { goto(sendDummyData) } otherwise { goto(readPktBuf) }
         }
       }
     }
@@ -231,6 +260,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           // - timer expired or cancelled: respond NACK
           //   - will drop rxDesc.ready
           // - got a descriptor: respond with descriptor
+          newPayload := True
           savedControl.payload := B(0, 512 bits)
           when(rxDesc.fire) {
             savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload) ## True
@@ -244,10 +274,14 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
             // Allocation size includes stale padding; only DMA-written bytes
             // from this packet may be returned to its owner.
             currentPktBuf.validBytes := rxDesc.len.bits
+            prefixBytes := EciHostRxCtrlInfo.prefixLength(rxDesc.payload)
+            prefixData := EciHostRxCtrlInfo.prefixData(rxDesc.payload)
           } otherwise {
             // clear buffer length so we don't leak the previous
             // packet (already freed) on a NACK
             currentPktBuf.validBytes := 0
+            prefixBytes := 0
+            prefixData := 0
           }
 
           when (!savedControl.valid) {
@@ -270,6 +304,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val sendDesc: State = new State {
       whenIsActive {
         assert(savedControl.valid, "saved CL not valid")
+        when(newPayload) { clearShadow := True; newPayload := False }
         dcsQ.r.data := savedControl.payload
         dcsQ.r.valid := True
         dcsQ.r.setOKAY()
@@ -277,65 +312,97 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         dcsQ.r.id := readCmd.id
         when (dcsQ.r.ready) {
           nackSent := !savedControl.payload(0)
-          goto(readPktBuf)
+          when(payloadBytes <= 64) { goto(readPktBuf) } otherwise { goto(sendDummyData) }
         }
       }
     }
+    // Assemble the logical host stream from a metadata prefix and aligned
+    // packet-buffer words. Prefix bytes never occupy host descriptor fields.
     val readPktBuf: State = new State {
       whenIsActive {
-        when (pktBufReadOff >= currentPktBuf.validBytes) {
-          // trying to read beyond current packet buffer slot, return dummy data
-          goto(sendDummyData)
+        firstBody := 0
+        secondBody := 0
+        sourceSecond := False
+        val relative = pktBufReadOff - prefixBytes.resized
+        sourceOffset := relative & U(~BigInt(63) & ((BigInt(1) << sourceOffset.getWidth) - 1), sourceOffset.getWidth bits)
+        sourceShift := relative.resize(6)
+        when(pktBufReadOff === 0) { sourceOffset := 0; sourceShift := 0 }
+        when(pktBufReadOff >= payloadBytes) { goto(sendDummyData) } otherwise { goto(readBody) }
+      }
+    }
+    val readBody: State = new State {
+      whenIsActive {
+        when(sourceOffset >= currentPktBuf.validBytes) {
+          when(!sourceSecond) { goto(nextBody) } otherwise { goto(sendPktData) }
         } otherwise {
-          // send read request to pkt buf axi
           pktBufAxi.ar.valid := True
           pktBufAxi.ar.len := 0
-          pktBufAxi.ar.addr := pktBufReadOff + currentPktBuf.addr.bits.resized
+          pktBufAxi.ar.addr := sourceOffset + currentPktBuf.addr.bits.resized
           pktBufAxi.ar.id := readCmd.id
           pktBufAxi.ar.setFullSize()
           pktBufAxi.ar.setBurstINCR()
-          when(pktBufAxi.ar.ready) {
-            goto(sendPktData)
-          }
+          when(pktBufAxi.ar.fire) { goto(receiveBody) }
+        }
+      }
+    }
+    val receiveBody: State = new State {
+      whenIsActive {
+        pktBufAxi.r.ready := True
+        when(pktBufAxi.r.fire) {
+          assert(pktBufAxi.r.isOKAY() && pktBufAxi.r.last)
+          when(sourceSecond) { secondBody := pktBufAxi.r.data; goto(sendPktData) }
+            .otherwise { firstBody := pktBufAxi.r.data; goto(nextBody) }
+        }
+      }
+    }
+    val nextBody: State = new State {
+      whenIsActive {
+        when(pktBufReadOff === 0 || sourceShift === 0) { goto(sendPktData) }
+          .otherwise { sourceSecond := True; sourceOffset := sourceOffset + 64; goto(readBody) }
+      }
+    }
+    def finishBeat(): Unit = {
+      when(dcsQ.r.fire) {
+        when(pktBufReadBeats === 1) { goto(idle) } otherwise {
+          pktBufReadOff := pktBufReadOff + 64
+          pktBufReadBeats := pktBufReadBeats - 1
+          goto(readPktBuf)
         }
       }
     }
     val sendDummyData: State = new State {
       whenIsActive {
         dcsQ.r.valid := True
-        dcsQ.r.data := B(0)
+        dcsQ.r.data := 0
         dcsQ.r.id := readCmd.id
         dcsQ.r.setOKAY()
         dcsQ.r.last := pktBufReadBeats === 1
-        when (dcsQ.r.ready) {
-          when (pktBufReadBeats === 1) {
-            goto(idle)
-          }
-          pktBufReadBeats := pktBufReadBeats - 1
-        }
+        finishBeat()
       }
     }
     val sendPktData: State = new State {
       whenIsActive {
-        pktBufAxi.r >> dcsQ.r
-        dcsQ.r.last.allowOverride
+        dcsQ.r.valid := True
+        dcsQ.r.data := ((secondBody ## firstBody) |>> (sourceShift * 8)).resize(512)
+        when(pktBufReadOff === 0) {
+          dcsQ.r.data := (firstBody |<< (prefixBytes * 8)).resize(512) | prefixData
+        }
+        val word = UInt(log2Up(shadowWords) bits)
+        word := ((readOffset >> 6) + (2 - pktBufReadBeats)).resized
+        val replay = shadow.readAsync(word)
+        for(byte <- 0 until 64) {
+          when(word < shadowWords && shadowMask(word)(byte)) {
+            dcsQ.r.data(byte * 8, 8 bits) := replay(byte * 8, 8 bits)
+          }
+          when(pktBufReadOff + byte >= payloadBytes) { dcsQ.r.data(byte * 8, 8 bits) := 0 }
+        }
+        dcsQ.r.id := readCmd.id
+        dcsQ.r.setOKAY()
         dcsQ.r.last := pktBufReadBeats === 1
-        for (byte <- 0 until 64) {
-          when(pktBufReadOff + byte >= currentPktBuf.validBytes) {
-            dcsQ.r.data(byte * 8, 8 bits) := 0
-          }
-        }
-        when (pktBufAxi.r.fire) {
-          assert(pktBufAxi.r.isOKAY(), "packet buffer AXI resp not OKAY")
-          assert(pktBufAxi.r.last, "expected single-beat packet buffer read")
-          when (pktBufReadBeats === 1) { goto(idle) } otherwise {
-            pktBufReadOff := pktBufReadOff + 64
-            goto(readPktBuf)
-          }
-          pktBufReadBeats := pktBufReadBeats - 1
-        }
+        finishBeat()
       }
     }
+
   }
   fsm.build()
   quiescent := fsm.isActive(fsm.idle) && !dcsQ.ar.valid &&

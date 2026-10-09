@@ -57,6 +57,12 @@ int main(void)
     assert(worker.dp_base == context._aliases && worker.rx_next == 0 && worker.tx_next == 1);
     assert(tick == 2 && server_activation.index == 1);
     int previous = calls;
+    worker.dp.rx_view.pending = true;
+    assert(lh_yield(&result) == -1 && errno == EBUSY && calls == previous);
+    worker.dp.rx_view.pending = false;
+    worker.dp.tx_reserved = true;
+    assert(lh_yield(&result) == -1 && errno == EBUSY && calls == previous);
+    worker.dp.tx_reserved = false;
     assert(lh_yield(NULL) == -1 && errno == EINVAL && calls == previous);
     ioctl_error = 0;
     offered.worker_index = LAUBERHORN_NUM_WORKER_CORES;

@@ -137,10 +137,14 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     write(0x1400, 1)
     ar(0x1400)
     assert(readResult() == List(BigInt(255), BigInt(255)))
-    // Last overflow CL contains only one in-bounds beat.
+    // Contiguous layout uses both beats of the last overflow CL.
     write(0x1980, (BigInt(1) << 64) - 1)
     ar(0x1980)
-    assert(readResult() == List((BigInt(1) << 512) - 1, BigInt(0)))
+    assert(readResult() == List.fill(2)((BigInt(1) << 512) - 1))
+    // The next CL must neither expose nor modify the adjacent allocation.
+    write(0x1a00, (BigInt(1) << 64) - 1)
+    ar(0x1a00)
+    assert(readResult() == List(BigInt(0), BigInt(0)))
     assert(bytes.drop(4096+1536).forall(_ == 0x5a.toByte), "padding write corrupted adjacent slot")
     while (!dut.quiet.toBoolean) step()
     dut.preempt #= true; step(); dut.preempt #= false

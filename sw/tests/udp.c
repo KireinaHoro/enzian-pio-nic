@@ -26,6 +26,7 @@ static int test_ioctl(int fd, unsigned long request, void *arg) {
     return 0;
 }
 static int test_tx(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_desc_t *desc) {
+    state->tx_reserved = false;
     sent = *desc;
     sends++;
     return tx_status;
@@ -37,7 +38,10 @@ static bool test_rx(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_d
     *desc = (lauberhorn_pkt_desc_t){.type = TY_NATIVE_UDP_RX,
         .udp = {.endpoint=55, .saddr=0xc0000201, .daddr=0xc0000202, .sport=32123, .dport=11211},
         .payload_len = mode == 2 ? 0 : 3};
-    memcpy(state->rx_buf, "abc", 3);
+    memcpy(rx, "abc", 3);
+    state->rx_view.data = rx;
+    state->rx_view.length = desc->payload_len;
+    state->rx_view.pending = true;
     return true;
 }
 static bool test_rx_traced(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_desc_t *desc,
@@ -45,11 +49,21 @@ static bool test_rx_traced(void *base, lauberhorn_core_state_t *state, lauberhor
     *stamp = clock();
     return test_rx(base, state, desc);
 }
-#define core_eci_rx_traced test_rx_traced
+static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capacity) {
+    if (state->tx_reserved) return NULL;
+    state->tx_reserved = true;
+    ++state->tx_generation;
+    state->tx_capacity = capacity;
+    return tx;
+}
+#define core_eci_tx_abort core_eci_tx_finish
+#define core_eci_tx_get_buffer test_tx_get
+#define core_eci_rx_acquire_traced test_rx_traced
 #define ioctl test_ioctl
-#define core_eci_tx test_tx
-#define core_eci_rx test_rx
+#define core_eci_tx_commit test_tx
+#define core_eci_rx_acquire test_rx
 #include "../rt/udp.c"
+#include "../rt/buffer.c"
 
 int main(void) {
     context.fd = 17;
@@ -64,10 +78,37 @@ int main(void) {
     assert(lauberhorn_udp_receive(&packet) == 0);
     receives = 0; mode = 1;
     assert(lauberhorn_udp_receive(&packet) == 1 && yields == 1);
-    assert(packet.data == rx && packet.length == 3 && packet.endpoint == 55);
+    assert(packet.data == worker.compat_rx_buf && packet.length == 3 && packet.endpoint == 55);
     assert(packet.saddr == 0xc0000201 && packet.sport == 32123);
     mode = 2;
     assert(lauberhorn_udp_receive(&packet) == 1 && packet.length == 0);
+    mode = 3;
+    int reads = receives;
+    assert(lauberhorn_udp_receive_view(&packet) == 1 && packet.data == rx);
+    assert(lauberhorn_udp_receive_view(&packet) == -1 && errno == EBUSY);
+    assert(receives == reads + 1);
+    assert(!lauberhorn_udp_release());
+    assert(lauberhorn_udp_release() == -1);
+    lauberhorn_tx_buffer_t buffer, stale;
+    assert(!lauberhorn_tx_get_buffer(1472, &buffer));
+    stale = buffer;
+    assert(lauberhorn_tx_get_buffer(1, &buffer) == -1 && errno == EBUSY);
+    assert(lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 1473) == -1 && errno == EMSGSIZE);
+    assert(worker.dp.tx_reserved);
+    memcpy(buffer.data, "short", 5);
+    assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 5));
+    assert(sent.payload_len == 5 && !memcmp(tx, "short", 5));
+    assert(!lauberhorn_tx_get_buffer(1, &buffer));
+    assert(lauberhorn_tx_abort(&stale) == -1 && errno == EINVAL);
+    assert(worker.dp.tx_reserved);
+    assert(!lauberhorn_tx_abort(&buffer));
+    assert(!worker.dp.tx_reserved);
+    assert(!lauberhorn_tx_get_buffer(128, &buffer));
+    tx_status = CORE_TX_RETRY;
+    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 0) == -1 && errno == EAGAIN);
+    assert(!worker.dp.tx_reserved && !buffer.data);
+    tx_status = CORE_TX_ACCEPTED;
+    sends = 0;
     struct iovec iov[] = {{"hello",5},{NULL,0},{" world",6}};
     assert(!lauberhorn_udp_sendv(&ep, 0xc0000201, 32123, iov, 3));
     assert(sent.type == TY_NATIVE_UDP_TX && sent.payload_len == 11 && sent.udp.endpoint == 55);

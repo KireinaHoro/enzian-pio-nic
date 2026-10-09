@@ -101,7 +101,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
   private def packetSizeToNumOverflowCls(s: UInt): UInt = {
     val clSize = EciCmdDefs.ECI_CL_SIZE_BYTES
-    ((s <= 64) ? U(0) | ((s - 64 + clSize - 1) / clSize)).resize(overflowCountWidth)
+    ((s <= 64) ? U(0) | ((s + clSize - 1) / clSize)).resize(overflowCountWidth)
   }
 
   private def overflowIdxToAddr(idx: UInt, isTx: Boolean = false): Bits = {
@@ -147,7 +147,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.invDone := logic.txInvDone
     txRouter.doPreempt := preemptReq.fire
     logic.txRouterQuiescent := txRouter.quiescent
-    logic.txInvLen := txRouter.currInvLen
+    logic.txReservedLines := txRouter.reservedLines
     logic.txReqs := txRouter.hostReq
 
     if (isBypass) {
@@ -195,6 +195,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     ECI_RX_BASE.set(EciAddressMap.rx_control)
     ECI_TX_BASE.set(EciAddressMap.tx_control)
+    ECI_PAYLOAD_LAYOUT_VERSION.set(2)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
@@ -237,9 +238,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val rxHostMsgId = Reg(UInt(HostMsgID.width bits)) init invalidTraceId(HostMsgID.width)
 
     val rxSlotCaptured = hostRx.toFlowFire.map(_.req.buffer).toReg()
+    val rxPayloadLen = Reg(UInt(PKT_BUF_LEN_WIDTH bits)) init 0
     val rxSlotCapturedValid = Reg(Bool()).setWhen(hostRx.fire).init(False)
     when (hostRx.fire) {
       rxHostMsgId := hostRx.hostMsgId
+      rxPayloadLen := hostRx.req.len.bits + EciHostRxCtrlInfo.prefixLength(hostRx.req)
     }
 
     val txOverflowInvIssued, txOverflowInvAcked = Counter(overflowCountWidth bits)
@@ -302,7 +305,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (rxSlotCapturedValid) {
             // A packet arrived in time.  Save the buffer that we sent to host and wait until
             // we need to invalidate the descriptor AND overflow data
-            rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxSlotCaptured.size.bits)
+            rxOverflowToInvalidate := packetSizeToNumOverflowCls(rxPayloadLen)
             rxSlotToFree := rxSlotCaptured
             rxSlotCapturedValid := False
             numReq.increment()
@@ -420,7 +423,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       hostTx.freeRun()
     }
     val savedTxAddr = hostTx.asFlow.toReg()
-    val txInvLen = PacketLength()
+    val txReservedLines = UInt(4 bits)
     val abandonTx = RegInit(False)
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -471,7 +474,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (txLcl.lcia.fire) {
             // we should've latched tx descriptor in savedTxDesc
             val toInvalidate = abandonTx ? U(numOverflowCls, overflowCountWidth bits) |
-              packetSizeToNumOverflowCls(txInvLen.bits)
+              txReservedLines.resize(overflowCountWidth)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
               txOverflowInvIssued.clear()
