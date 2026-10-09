@@ -693,3 +693,15 @@ This is a transient dependency-fetch failure; relaunch through the ordinary Git
 workflow with this documentation update, without changing sources or pins, and
 arm a new 30-minute preflight. Retain the branch and use the replacement
 pipeline's exact SHA for any later artifact collection and board tests.
+
+Replacement [pipeline 518400](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518400)
+uses exact SHA `cce9a36220313e75e8afb626e1937d65d7600e0b` on
+`feat/memcached-rx-wait`. At the October 9 preflight, all 14 gates
+(`2882603`–`2882616`) and preparation `2882617` passed; hardware `2882618`
+was running and report `2882619` was created. No retry jobs were present.
+Full status/provenance snapshots are in
+`out/contiguous-transport/preflight-518400-{pipeline,jobs}.json`.
+The five-hour results follow-up is armed for **October 10, 00:10:01 CEST**
+in thread `01a11cbc-4d8f-76f1-9945-f69de06ed22f`; do not poll during that
+interval. Keep the pipeline branch. Hardware completion, timing results and
+matched Enzian validation remain pending; no new board result is claimed.
