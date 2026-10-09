@@ -41,7 +41,6 @@ def main():
     os.sched_setaffinity(0, ordinary)
     for workers, port in zip(case['workers'], case['ports'], strict=True):
         env = os.environ.copy()
-        env['LAUBERHORN_UDP'] = '1'
         if a.trace:
             env['LAUBERHORN_SERVER_TRACE_CSV'] = str(a.output/f'server-{port}.csv')
             env['LAUBERHORN_EVENT_TRACE_CSV'] = str(a.output/f'events-{port}.csv')

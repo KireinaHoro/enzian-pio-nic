@@ -64,9 +64,11 @@ parking. PREEMPT immediately follows the existing yield path. RX NACK only
 returns control to an assigned worker; it cannot activate a parked worker.
 
 The adapter keeps upstream parsing, request IDs, framing, native UDP segmentation,
-item storage and the connection state machine. Set `LAUBERHORN_UDP=1`, disable TCP
-with `-p 0`, set `-U PORT`, and use `-t N`. Proxy/extstore are excluded. Upstream
-socket UDP remains available without the environment setting for controls.
+item storage and the connection state machine. A `HAVE_LAUBERHORN` build always
+uses native UDP: disable TCP with `-p 0`, set `-U PORT`, and use `-t N`. There is
+no environment switch or socket UDP fallback. Proxy/extstore are excluded.
+Socket UDP controls use a separate build without Lauberhorn support; the pinned
+upstream reference remains available through `memcachedReference`.
 
 Pre-size `hashpower` for the bounded dataset, above the item-lock hash power and
 with headroom below expansion's 1.5-items-per-bucket trigger. Record initial and
@@ -344,3 +346,21 @@ reproducer and passing run are retained as `padding-reproducer-2.log` and
 The local `nix build .#eciVivadoInputs` check also passed, regenerating the RTL
 and validating the Vivado wrapper handoff. Its dirty-tree artifact is validation
 only; deployment must use the replacement pipeline’s matched artifacts.
+
+### Compile-time transport selection, October 9
+
+Memcached revision `9c56666e64bb0ca48f3506e64fcfccd841785a3f` removes
+`lh_udp_enabled()` and the `LAUBERHORN_UDP` runtime switch. A Lauberhorn build
+unconditionally initializes the native endpoint and workers, uses native UDP
+receive/send, bypasses worker libevent dispatch and rejects unsupported pauses.
+Socket UDP receive/send and listener setup are selected only in non-Lauberhorn
+builds. The platform launcher no longer sets the removed switch.
+
+The pinned native adapter passed all 16 compatibility checks against upstream
+with the injected test transport, including three-datagram responses, and the
+expected expansion-scope rejection. Its AArch64 Nix package built successfully.
+The same patched source built without Lauberhorn also passed all 16 socket
+compatibility checks. Logs and summaries are under
+`out/native-udp/compile-time-*`. This does not add board acceptance. Pipeline
+518140 continues building the padding correction at `9a1f0438` with the previous
+adapter pin; its artifacts must not be represented as containing this cleanup.

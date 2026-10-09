@@ -17,10 +17,10 @@ def port():
         return s.getsockname()[1]
 
 
-def launch(binary, native, power=18):
+def launch(binary, power=18):
     number=port()
     env=os.environ.copy()
-    env['LAUBERHORN_UDP']='1' if native else '0'
+    env.pop('LAUBERHORN_UDP', None)
     process=subprocess.Popen([binary,'-p','0','-U',str(number),'-l','127.0.0.1','-t','2','-o',f'hashpower={power}'],
                              env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     for _ in range(100):
@@ -42,15 +42,15 @@ if __name__=='__main__':
     p.add_argument('--output',type=Path,required=True)
     args=p.parse_args()
     results={}
-    for name,binary,native in [('upstream',args.upstream,False),('adapter_socket_transport',args.adapter,True)]:
-        process,number=launch(binary,native)
+    for name,binary in [('upstream',args.upstream),('adapter_socket_transport',args.adapter)]:
+        process,number=launch(binary)
         try:
             results[name]=run('127.0.0.1',number)
         finally:
             process.terminate();process.wait(timeout=5)
             (args.output/f'{name}.log').write_bytes(process.stderr.read())
     assert results['upstream']['checks']==results['adapter_socket_transport']['checks']
-    process,number=launch(args.adapter,True,power=12)
+    process,number=launch(args.adapter,power=12)
     try:
         c=Client('127.0.0.1',number,timeout=0.1)
         for index in range(7500):
