@@ -42,3 +42,14 @@ Prioritize address-layout/progress validation, explicit QP ownership across sche
 The selected address and cooperative scheduling contract is the sole ECI design. Worker CPUs remain isolated. Complete exit recovery, deadline activation and PCIe scheduling are deferred. Unsupported exits and fatal activation failures fence the affected domain and require reset; identities are not recycled.
 
 Hardware acceptance still requires the fresh Enzian RX stall boundary campaign, concurrent peer progress and examination of every exposed L2C_TAD unit. Finite model and simulation results do not establish a board timeout limit.
+
+## CMAC register-control investigation (October 9)
+
+Master includes the `fix/cmac-axil-init` change restoring F_MAC0 register control and
+reset/link checks on interface UP and CMAC disable on DOWN. The historical
+AXI-Lite aperture excluded the RS-FEC bank; component tests reproduce the decode failure. Pipeline 518139
+passed two validated cold boots and 200 RPCs with register-controlled CMAC
+initialization before the later software-only UP/DOWN lifecycle restoration.
+Failed-UP retry and DOWN/UP pass local callback tests; that lifecycle has not
+yet been retested on hardware. One BMC power-up failure and one rejected ECI
+boot are recorded separately; timing remains unclosed. See the [investigation and checks](../development/cmac-axil-init.md).
