@@ -70,6 +70,7 @@ struct netdev_priv {
 	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
 	lauberhorn_eci_worker_t worker_dev;
+	cmac_t cmac_dev;
 
 	// Datapath state for bypass
 	lauberhorn_core_state_t ctx;
@@ -203,9 +204,17 @@ static void deinit_bypass_fpi(void)
 static int netdev_open(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
+	int err;
 
+	netif_carrier_off(dev);
+	err = start_cmac(&priv->cmac_dev, do_loopback);
+	if (err) {
+		netdev_err(dev, "CMAC link up failed: %d; retry interface UP\n", err);
+		return err;
+	}
 
 	napi_enable(&priv->napi);
+	netif_carrier_on(dev);
 	netif_start_queue(dev);
 
 	dev_dbg(&dev->dev, "netdev UP, disabling drop all\n");
@@ -266,21 +275,23 @@ static int netdev_stop(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	/* The physical CMAC is shared by bypass and RPC workers. */
+	netif_stop_queue(dev);
+	netif_carrier_off(dev);
+	/* DOWN stops the physical link, including RPC traffic. */
+	stop_cmac(&priv->cmac_dev);
 
 	dev_dbg(&dev->dev, "netdev DOWN, enabling drop all\n");
 	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 1);
 
 	if (force_poll) {
 		WRITE_ONCE(priv->poll_rearm, false);
-		timer_delete(&priv->poll_timer);
+		timer_delete_sync(&priv->poll_timer);
 	} else {
 		dev_dbg(&dev->dev, "disabling bypass IRQ\n");
 		lauberhorn_eci_bypassIrq_irq_en_wr(&priv->reg_dev, 0);
 	}
 
 	napi_disable(&priv->napi);
-	netif_stop_queue(dev);
 
 	return 0;
 }
@@ -690,18 +701,11 @@ int init_bypass(void)
 	int err, cl_id;
 	struct net_device *netdev;
 	struct netdev_priv *priv;
-	cmac_t cmac;
 
 	phys_addr_t rx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_RX_BASE);
 	phys_addr_t tx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
 
 	macaddr_cast_t mac_addr;
-
-	/* Initialize the physical link before exposing the bypass device. */
-	cmac_initialize(&cmac, CMAC_BASE);
-	err = start_cmac(&cmac, do_loopback);
-	if (err)
-		return err;
 
 	// Create netdev
 	bypass_dev = netdev = alloc_netdev(sizeof(struct netdev_priv),
@@ -714,6 +718,10 @@ int init_bypass(void)
 	}
 	priv = netdev_priv(netdev);
 	priv->dev = netdev;
+	cmac_initialize(&priv->cmac_dev, CMAC_BASE);
+	/* Register the device DOWN; alignment is checked on each UP request. */
+	stop_cmac(&priv->cmac_dev);
+	netif_carrier_off(netdev);
 
 	// Register netdev
 	err = register_netdev(netdev);
