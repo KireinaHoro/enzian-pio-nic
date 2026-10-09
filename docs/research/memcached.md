@@ -679,3 +679,17 @@ The required preflight timer is armed for **October 9, 18:36:53 CEST** in thread
 `01a11cbc-4d8f-76f1-9945-f69de06ed22f`. Follow the scheduled CI workflow, then test
 matched artifacts on Enzian; never substitute an older bitstream or the later
 documentation-only branch head for the pipeline SHA.
+
+October 9 preflight: pipeline `518395` at the SHA above passed all 14 test gates
+(jobs `2882561`–`2882574`), including the full fast ECI suite. Preparation
+`2882575` failed fetching the pinned Ubuntu kernel tag
+`Ubuntu-6.8.0-64.67` from Launchpad: four HTTP 504 responses (“Path translation
+timed out”). Hardware `2882576` and report `2882577` were skipped; there is no
+new bitstream or board result. The job trace and status snapshots are preserved
+under `out/contiguous-transport/prepare-2882575.log` and
+`preflight-518395-{pipeline,jobs}.json`. A subsequent read-only `git ls-remote`
+against the same URL/tag succeeded with `fb720c5872758f60e0fde7f53884bf0357b32912`.
+This is a transient dependency-fetch failure; relaunch through the ordinary Git
+workflow with this documentation update, without changing sources or pins, and
+arm a new 30-minute preflight. Retain the branch and use the replacement
+pipeline's exact SHA for any later artifact collection and board tests.
