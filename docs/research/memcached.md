@@ -362,5 +362,36 @@ expected expansion-scope rejection. Its AArch64 Nix package built successfully.
 The same patched source built without Lauberhorn also passed all 16 socket
 compatibility checks. Logs and summaries are under
 `out/native-udp/compile-time-*`. This does not add board acceptance. Pipeline
-518140 continues building the padding correction at `9a1f0438` with the previous
+518140 built the padding correction at `9a1f0438` with the previous
 adapter pin; its artifacts must not be represented as containing this cleanup.
+
+
+### Pipeline 518140 results and board deferral, October 9
+
+Pipeline **518140**, revision `9a1f0438c8af7fe771557bd365278a9a4360df8b`,
+passed all 14 gating jobs, preparation **2880999**, hardware **2881000** and
+report **2881001**. Matched RPC and memcached images, bitstream, LTX and trace
+map are collected under `out/native-udp/{ci-518140,hw-2881000}`; hashes and
+job provenance are in `out/native-udp/board-provenance-518140.json`.
+The hardware report records **WNS −0.462 ns, TNS −858.949 ns and 5,235 failing
+setup endpoints**; this is not timing closure. These images contain the older
+`b6aaba9a` adapter, not the subsequent compile-time transport cleanup.
+
+At the results check, both zuestoll14 and zuestoll07 were reserved to pengxu,
+but another campaign was actively running pipeline **518139** on zuestoll14
+(`out/cmac-ci-518139/board-rpc-retry`). The console was occupied and JTAG
+reported no device during that campaign's boot. No reset, programming or RPC
+test for 518140 was started. The earlier statement that the failed memcached
+DUT remains frozen is historical, not current board state. Its 682,201,600-byte
+local capture was rehashed successfully against
+`76450049ee7cbe01f0a0f8880d37afd980a53ed77aab6262f53831f2277748ba`.
+Any subsequent test must recheck reservations, active campaigns and preservation
+of the then-current board state. Shared scratch had only 494 MiB free; deployment
+and new failure capture need sufficient capacity without deleting evidence.
+
+Two matched cold-boot RPC trials remain pending, followed by native memcached
+compatibility and oversubscription acceptance. The adapter's no-work condition
+also remains under review: blocking RX inside the connection state machine does
+not establish that the entire worker has drained runnable work or reproduce
+libevent's notification wake behavior. Protocol mock tests do not validate that
+sleep/wake contract. HOST_WAKE remains deferred.
