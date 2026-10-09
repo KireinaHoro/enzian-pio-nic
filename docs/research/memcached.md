@@ -188,7 +188,7 @@ two responses per RX. Thirteen ONC-RPC/bypass regression cases passed. The runti
 ownership/retry test and pinned-upstream/application compatibility comparison
 passed; the application check injects a socket transport and therefore does not
 establish ECI scheduling. Deliberate hash expansion exited with the required
-scope-failure marker. Hardware synthesis, board compatibility, four simultaneous
+scope-failure marker. Native memcached board compatibility, four simultaneous
 workers and the complete oversubscription matrix remain acceptance gates.
 
 Enabled background-path audit at the pinned upstream revision: `assoc.c` is the
@@ -225,6 +225,46 @@ Preparation job 2879255 then caught a maintained-wrapper omission: generated
 native UDP tracing added port 52, while the VHDL wrapper ended at 51. The wrapper
 now connects that port at both NicEngine and trace DMA and widens the connecting
 arrays. The complete local `nix build .#eciVivadoInputs` preparation check passes,
-including generated ports and debug widths. Synthesis and board acceptance still
-require a successful replacement pipeline; this correction changes no timing
+including generated ports and debug widths. This correction changes no timing
 constraints, address layout or PREEMPT behavior.
+
+### Matched CI and board follow-up, October 9
+
+Pipeline [517951](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/517951)
+built platform `df6968b09972b456c006af16dab2d8f8e9cd9dba`, with memcached
+`b6aaba9a05b5c7f59d86090b271d1881235c71d5`. All fourteen test gates passed,
+including memcached-adapter 2879374 and fast-tests-eci 2879370; preparation
+2879460, hardware 2879346 and report 2879347 succeeded. The matched RPC and
+memcached deployment images, bitstream, LTX and trace map are retained under
+`out/native-udp/`, with hashes in `board-provenance.json`,
+`ci-517951/artifacts.json` and `hw-2879346/SHA256SUMS`.
+
+Vivado 2025.1 reported WNS **−0.691 ns**, TNS **−1630.849 ns** and **9,877**
+failing setup endpoints. Hold and pulse-width checks had no failing endpoints.
+This is not timing closure; no timing optimization was performed.
+
+Before the first reset, reservations for zuestoll14 and zuestoll07 were checked.
+The previous frozen aligned-Dandelion trace from pipeline 516232 was preserved:
+1,904,101,312 bytes, SHA-256
+`79b1853dff375e397cd09c5bc161a2f49f05093249c2dd5b9052286400cb4d5d`.
+A shared-storage quota interruption required an overlapping resumed read; the
+4,096-byte overlap matched exactly. Both pieces and the assembled capture are
+retained locally, with the original trace map and preservation record. The
+historical sticky loss flag limits event completeness despite a complete buffer
+read. No reset preceded this preservation.
+
+The matched RPC harness passed **two independent cold boots and 200 checked
+RPCs**, 100 per trial. Both boots passed on their first attempt, with verified
+power-off rails, QLM8–13 CDR lock and all 24 CCPI/ECI lanes. The matched module
+loaded and verified with tracing armed; both clients exited zero and the harness
+reported no faults. Trial durations were 275.2 and 274.6 seconds, including
+reset/program/boot and testing, not request latency. Compact results and client
+CSVs are in `out/native-udp/rpc-board-517951/`; the exact manifest is retained
+there. This validates ONC-RPC regression only. Native memcached board compatibility,
+oversubscription, throughput curves and correlated latency breakdowns remain
+unrun. The second successful RPC server is left running on the DUT with tracing
+enabled. Recheck live reservations and trace state before further work.
+
+Implementation remains on `feat/native-udp-memcached`; the upstream-based adapter
+remains on `feat/lauberhorn-native-udp` in the original memcached repository.
+The branches are retained for the remaining application acceptance work.
