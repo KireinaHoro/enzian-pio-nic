@@ -46,8 +46,10 @@ Hardware acceptance still requires the fresh Enzian RX stall boundary campaign, 
 ## CMAC register-control investigation (October 9)
 
 The separate `fix/cmac-axil-init` branch restores F_MAC0 register control and
-initialization-time reset/link checks. The historical AXI-Lite aperture excluded
-the RS-FEC bank; component tests reproduce the decode failure. Pipeline 518139
+reset/link checks on interface UP and CMAC disable on DOWN. The historical
+AXI-Lite aperture excluded the RS-FEC bank; component tests reproduce the decode failure. Pipeline 518139
 passed two validated cold boots and 200 RPCs with register-controlled CMAC
-initialization. One BMC power-up failure and one rejected ECI boot are recorded
-separately; timing remains unclosed. See the [investigation and checks](../development/cmac-axil-init.md).
+initialization before the later software-only UP/DOWN lifecycle restoration.
+Failed-UP retry and DOWN/UP pass local callback tests; that lifecycle has not
+yet been retested on hardware. One BMC power-up failure and one rejected ECI
+boot are recorded separately; timing remains unclosed. See the [investigation and checks](../development/cmac-axil-init.md).

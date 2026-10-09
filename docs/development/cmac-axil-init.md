@@ -1,7 +1,9 @@
 # CMAC AXI-Lite initialization investigation — October 9
 
 Branch: `fix/cmac-axil-init`. Pipeline 518139 built revision `79d5758f`.
-See the board evidence below; component checks alone do not establish alignment.
+The later UP/DOWN lifecycle restoration is a software-only change. The board
+evidence below tested startup at module load, before that restoration; it is
+not a board test of failed interface UP/retry.
 
 ## Failure mechanism
 
@@ -27,14 +29,24 @@ GT polarity. Register mode owns MAC/FEC controls; remove their external ties.
 F_MAC1 keeps autonomous control so driver initialization cannot disable the
 trace capture link. Static shell and toolkit sources are unchanged.
 
-`init_bypass()` now starts CMAC before publishing a netdev. Startup validates the
-version, pulses reset, enables FEC and checks its readback, enables RX with RFI,
-waits for alignment, enables TX and clears RFI, then checks both aligned/status
-bits in one status snapshot. Waits sleep rather than busy-wait. Each polling
-phase is bounded to approximately ten seconds. Failures disable RX/TX and
-report FEC/status/block-lock diagnostics. Netdev down does not stop the physical
-MAC shared with RPC workers. There is no periodic carrier monitor or automatic
-runtime recovery in this change.
+`init_bypass()` initializes the register handle, disables CMAC RX/TX and
+registers the interface with carrier off. It does not wait for alignment.
+Each interface UP request (`ndo_open`) validates the version, pulses reset,
+enables FEC and checks its readback, enables RX with RFI, waits for alignment,
+enables TX and clears RFI, then checks aligned/status in one snapshot. Only
+success enables carrier, NAPI, queues and bypass delivery. Waits sleep; each
+polling phase is bounded to approximately ten seconds.
+
+A timeout disables CMAC RX/TX and propagates `-ETIMEDOUT` to the UP operation.
+The interface stays DOWN and the module stays loaded. Fix the link and repeat
+`ip link set dev lauberhorn0 up` to run the complete startup sequence again;
+no module reload is needed. DOWN (`ndo_stop`) stops the queue, clears carrier,
+disables CMAC RX/TX and quiesces bypass delivery/NAPI. Polling-mode DOWN waits
+for the timer callback to finish before allowing another UP.
+
+This restores the historical lifecycle disabled in `47962914`. DOWN also stops
+physical RPC traffic, since bypass and RPC workers share F_MAC0. There is no
+periodic carrier monitor or automatic recovery after a later link loss.
 
 The status register is mixed latched-low/latched-high, not a plain live word.
 Polling consumes those latches. The restored generic width adapter can read a
@@ -48,7 +60,10 @@ still needs a separate audit. Startup reads status at `+0x204` (upper lane).
   work, and the next unmapped bank returns DECERR.
 - Production C startup with generated Mackerel accessors and fake MMIO passes
   success, inaccessible FEC, alignment timeout, status timeout, and invalid
-  version cases. These tests do not model analog alignment or reset timing.
+  version cases. The actual netdev callbacks are also tested for failed UP,
+  retry on the same device without clearing state, DOWN and another UP, in
+  both IRQ and polling modes. Failures must leave carrier/NAPI/queues disabled.
+  These tests do not model analog alignment, the Linux netdev core or reset timing.
 - Nix cross-build of the kernel module passes (Ubuntu arm64 6.8.0-64 ABI).
 
 Reproduce from the branch with recursive submodules:
@@ -125,3 +140,14 @@ fault=0. The final trace snapshot was unwrapped with sample-loss=0, DMA-error=0
 and trace-stop=0. Both saved client CSVs contain 100 correct results with matched
 request IDs. CMAC version-to-ready intervals were approximately 0.43 seconds
 on both validated boots; these are kernel log intervals, not RPC latencies.
+
+## UP/DOWN lifecycle restoration
+
+At the maintainer's request, startup moved from module initialization back to
+`ndo_open`, and `ndo_stop` again disables RX/TX. An alignment timeout therefore
+fails `ip link set dev lauberhorn0 up`, leaving the loaded module available for
+another UP attempt. The FEC address-window fix and FPGA RTL are unchanged.
+Local callback tests cover failure/retry and repeated DOWN/UP. Physical no-link
+failure followed by interface-UP recovery has not been rerun on the board for
+this software revision; pipeline 518139's two successful startup tests remain
+historical evidence of register-controlled alignment.
