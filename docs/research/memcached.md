@@ -430,7 +430,7 @@ RPC calls/replies, bypass and native UDP all expose one contiguous host buffer,
 on both RX and TX.
 Keep the small-message fast path: a complete host payload of **0–64 bytes** is
 in the selected control CL's upper half; a payload **over 64 bytes** starts at
-RX offset **0x100**, the third CL. Large messages do not place a prefix in the
+the direction-relative offset **0x100**, the third CL. Large messages do not place a prefix in the
 control CL. The descriptor length selects the location; it describes the entire
 host-visible buffer, including reconstructed bypass headers and RPC argument
 bytes previously embedded in metadata. The existing twelve overflow CLs provide
@@ -452,18 +452,25 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   otherwise. Apply the same placement and invalidation rule to TX, including
   descriptor-only execution controls with no payload. Preserve cancellation, cooperative
   PREEMPT, write-return service, ownership and quiescence behavior.
-- Update generated descriptor documentation and an explicit RX layout marker,
+- Update generated descriptor documentation and an explicit RX/TX layout marker,
   C runtime/kernel readers and simulation CPU readers together. Never deploy
   the changed software against 518140 or any other old-layout bitstream.
-- Introduce split wait/acquire and borrowed-view consumption. A view exposes
-  contiguous payload and length without a transport staging copy. Existing
-  core_eci_rx APIs remain wrappers that copy the view into their existing owned
-  rx_buf and preserve the old buffer lifetime. Payload writes are permitted:
-  current RX return writes are serviced and discarded, not committed to storage.
-- Enforce one outstanding packet: repeated readiness does not advance RX;
-  consumption does not itself acknowledge/retire hardware. Explicit release
-  ends borrowing before the next acquisition or assignment-releasing yield.
-  No raw RX pointer may survive that boundary. PREEMPT remains control-only.
+- RX wait/acquire returns the contiguous borrowed view directly: metadata,
+  mutable payload pointer and length. There is no separate runtime consume call
+  and no staging copy. Existing core_eci_rx APIs remain compatibility wrappers
+  that copy this view into their owned rx_buf, release the view, and preserve
+  the old copied-buffer lifetime. Payload writes are permitted: current RX
+  return writes are serviced and discarded, not committed to storage.
+- Enforce one outstanding borrow. Local repeated readiness checks do not call
+  RX again. Explicit release means every user of the packet has finished with
+  its bytes; it does not itself advance the hardware handshake. Reject another
+  acquisition or assignment-releasing yield while borrowed. PREEMPT remains
+  control-only and cannot coexist with an outstanding packet borrow.
+- Copying a pointer or view into a queue, callback, deferred request, fiber or
+  future does not consume the packet or transfer its backing storage. Such a
+  reference keeps the borrow live. Work that must survive release must first
+  decode/copy into genuinely owned application storage. No queued raw 2F2F
+  pointer may survive release, the next RX, or assignment release/reassignment.
 
 ### TX placement and default-runtime staging removal
 
@@ -478,11 +485,14 @@ kernel framing consistent with that choice. Do not silently change wire output.
 
 The default runtime must not allocate or fill a worker-local tx_buf staging
 allocation. Provide a bounded mutable TX reservation pointing directly into the
-selected transport region, followed by explicit commit or abort. The caller must
-know the final encoded length before choosing inline versus overflow placement;
-the codec API currently only reports that length after encoding. Resolve this
-with exact-size codec support before claiming copy-free serialization, rather
-than silently staging a full packet. Datagram sendv already knows its total size
+selected transport region: tx_get_buffer(exact_payload_length, &reservation),
+followed by commit(reservation, metadata) or abort(reservation). The reserved
+length determines placement and is the committed length; commit cannot silently
+relocate the payload. This length is the encoded transport payload length, not
+application object size or encoder capacity. RPC codecs must obtain the exact
+encoded size before reserving (XDR can use its sizing operation), then encode
+within that exact bound and reject size mismatches before commit. Do not silently
+stage a full packet or relocate a short encoding from overflow into inline CLs. Datagram sendv already knows its total size
 and can copy its source iovecs directly into the reserved CL region. Those
 application-source copies remain necessary and are not transport staging.
 
@@ -505,9 +515,13 @@ removed staging copies separately from unavoidable application/storage copies.
 
 ### Memcached follow-up after contiguous RX is validated
 
-Use the new split wait/view path, retaining separate event-wait and receive
-call sites. Point the native UDP parser at the mutable borrowed contiguous
-payload; skip its 8-byte UDP framing header by advancing a pointer, not memmove.
+Keep separate application event-wait and receive-hook call sites, but do not
+split the runtime RX API into wait and consume. Event-wait obtains the borrowed
+view and stores it in the worker's single pending slot. The receive hook hands
+that same view to the connection exactly once, without another transport call
+or copy. Track PENDING -> IN_USE -> RELEASED: handing the pointer to the parser
+clears local receive readiness but does not release transport ownership. Point
+the native UDP parser at the mutable borrowed contiguous payload; skip its 8-byte UDP framing header by advancing a pointer, not memmove.
 Keep the connection's owned allocation separately and restore it before cleanup;
 never free/realloc a borrowed RX address. Finish the acquired datagram, all local
 continuations and admitted response segments before releasing the view. Retry
@@ -523,6 +537,32 @@ host-only barrier-parking extension points, with injected HOST_WAKE/resume tests
 real HOST_WAKE and yield(on_host_only=True) remain deferred. Real hash expansion
 stays guarded; ordinary main/independent maintenance threads remain enabled.
 
+### Migrate current consumers without transport staging
+
+Migrate all current consumers of the default runtime to borrowed RX and
+exact-length direct TX. Application handler signatures need not change merely
+to remove transport staging. Audit each codec and every pointer retained across
+callbacks, nested waits, fibers, queues and futures.
+
+- RPC/XDR: decode directly from RX CLs into the existing owned argument/result
+  objects; determine encoded size and marshal directly into the TX reservation.
+- Nested-validation: update codec sizing and keep owned decoded messages across
+  deferred execution. Never substitute a borrowed RX pointer for that ownership.
+- Dandelion: update the pinned codec and Rust FFI with the reservation/sizing
+  contract; audit BSON/XDR intermediates separately from transport staging.
+- Memcached: parse the borrowed mutable contiguous payload, keep stored values
+  owned by items, and gather response iovecs directly into reserved TX CLs.
+- Kernel bypass: copy directly from RX CLs into the owned skb and directly from
+  skb data into TX CLs. Linux may retain the skb after the transport is released.
+- Forwarded RPC replies: copy directly from the borrowed RX region into reserved
+  TX CLs; independent RX/TX storage still requires this copy.
+
+Remove default-runtime rx_buf/tx_buf staging allocations after migrating their
+users. Keep copied compatibility wrappers only where explicitly requested by a
+caller; no hidden staging fallback in the default path. Serialization, item
+storage, skb ownership and RX-to-TX forwarding copies are not removed by this
+transport change and must not be reported as zero-copy application processing.
+
 ### Validation and delivery gates
 
 1. Exercise both parities and logical lengths 0, 1, 63, 64, 65, 127, 128, 129
@@ -531,10 +571,10 @@ stays guarded; ordinary main/independent maintenance threads remain enabled.
 2. Exercise overflow invalidation counts, RX writeback (including software-dirtied
    borrowed data), NACK/PREEMPT, release/reassignment and concurrent RX/TX progress.
    Keep ONC-RPC/TX/bypass regressions. Run source-defined targets through nix develop.
-3. Test view lifetime, double consumption/release, acquire/yield while borrowed,
+3. Test view lifetime, duplicate receive-hook delivery/release, acquire/yield while borrowed,
    old wrapper data lifetime and parity-independent contiguous pointers.
 4. Test memcached callback ordering, no RX while work/response retry is runnable,
-   pause-before/after-consume ordering and injected wake/resume. Compare supported
+   pause-before/after-processing ordering and injected wake/resume. Compare supported
    commands with pinned upstream, including CAS, expiry, append/prepend, no-reply,
    segmented replies and malformed requests. Build with the existing Nix packaging.
 5. Regenerate matched ABI collateral and launch a new hardware pipeline through
@@ -545,5 +585,7 @@ stays guarded; ordinary main/independent maintenance threads remain enabled.
    Report timing without optimization; record provenance and finite coverage.
 
 The earlier split-copy implementation was interrupted before validation; it is
-not acceptance evidence. This plan supersedes its split-span API design and the
-proposal to linearize large parity-0 packets in memcached.
+not acceptance evidence. This plan supersedes its split-span and separate
+wait/consume API designs and the proposal to linearize large parity-0 packets
+in memcached. The remaining uncommitted split-copy code must be adapted or
+removed before validation; none of those interfaces is the accepted final API.
