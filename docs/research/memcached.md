@@ -667,3 +667,15 @@ No new Enzian run, timing result or throughput claim is established by these
 local checks. Deploy only new, matched CI artifacts. Memcached's event-wait/
 receive-hook adaptation and borrowed connection-buffer lifecycle remain the
 next application change; HOST_WAKE and host-only yield remain deferred.
+
+Hardware handoff: [pipeline 518395](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518395)
+builds transport commit `8bb3afe222c92d57e09f6ca3833634ba67b4b6b2` on the retained
+`feat/memcached-rx-wait` branch. Initial jobs: fast ECI `2882561`, runtime tests
+`2882572`, memcached compatibility `2882571`, preparation `2882575`, hardware
+`2882576`, report `2882577`; the full initial job list is preserved in
+`out/contiguous-transport/ci-jobs-initial.json`. At launch, test gates were
+running/pending and preparation/hardware were created, not passed.
+The required preflight timer is armed for **October 9, 18:36:53 CEST** in thread
+`01a11cbc-4d8f-76f1-9945-f69de06ed22f`. Follow the scheduled CI workflow, then test
+matched artifacts on Enzian; never substitute an older bitstream or the later
+documentation-only branch head for the pipeline SHA.
