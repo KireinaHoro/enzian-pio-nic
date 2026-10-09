@@ -421,3 +421,90 @@ provenance. The final matched RPC server is left running. This completes the
 scheduled RPC regression check, not native memcached compatibility or the
 short-response board acceptance. Worker sleep/wake correction, memcached
 acceptance, oversubscription measurements and timing closure remain open.
+
+
+## Active plan: contiguous borrowed RX before the worker-wait adaptation
+
+Maintainer direction (October 9): first fix the RX hardware/software contract so
+RPC calls/replies, bypass and native UDP all expose one contiguous host buffer.
+Keep the small-message fast path: a complete host payload of **0–64 bytes** is
+in the selected control CL's upper half; a payload **over 64 bytes** starts at
+RX offset **0x100**, the third CL. Large messages do not place a prefix in the
+control CL. The descriptor length selects the location; it describes the entire
+host-visible buffer, including reconstructed bypass headers and RPC argument
+bytes previously embedded in metadata. The existing twelve overflow CLs provide
+1,536 bytes, sufficient for the configured 1,518-byte frame maximum and
+1,472-byte UDP payload. No worker address-layout expansion is needed.
+
+### Transport implementation and compatibility
+
+- Reconstruct each host payload in the RX router from descriptor-resident prefix
+  bytes plus packet-buffer bytes. Move bypass headers and the existing 48-byte
+  RPC argument/reply prefix into the contiguous data region; retain RPC tokens,
+  handler addresses and completion-routing fields as metadata. Preserve existing
+  RPC short-argument padding semantics unless separately changing the decoder.
+- Return zero in the control payload half for large messages. Map overflow byte
+  zero to host-payload byte zero, with byte-exact prefix/body joining and zero
+  padding after the logical length. Replay of either control/data line must be
+  stable until retirement; no speculative out-of-range read may disclose data.
+- Count RX overflow invalidations as zero for lengths <=64 and ceil(length/128)
+  otherwise. Keep TX's present inline/overflow contract unchanged; split any
+  helpers currently shared by RX and TX. Preserve cancellation, cooperative
+  PREEMPT, write-return service, ownership and quiescence behavior.
+- Update generated descriptor documentation and an explicit RX layout marker,
+  C runtime/kernel readers and simulation CPU readers together. Never deploy
+  the changed software against 518140 or any other old-layout bitstream.
+- Introduce split wait/acquire and borrowed-view consumption. A view exposes
+  contiguous payload and length without a transport staging copy. Existing
+  core_eci_rx APIs remain wrappers that copy the view into their existing owned
+  rx_buf and preserve the old buffer lifetime. Payload writes are permitted:
+  current RX return writes are serviced and discarded, not committed to storage.
+- Enforce one outstanding packet: repeated readiness does not advance RX;
+  consumption does not itself acknowledge/retire hardware. Explicit release
+  ends borrowing before the next acquisition or assignment-releasing yield.
+  No raw RX pointer may survive that boundary. PREEMPT remains control-only.
+
+### Memcached follow-up after contiguous RX is validated
+
+Use the new split wait/view path, retaining separate event-wait and receive
+call sites. Point the native UDP parser at the mutable borrowed contiguous
+payload; skip its 8-byte UDP framing header by advancing a pointer, not memmove.
+Keep the connection's owned allocation separately and restore it before cleanup;
+never free/realloc a borrowed RX address. Finish the acquired datagram, all local
+continuations and admitted response segments before releasing the view. Retry
+TX rejection without another RX. Malformed and no-reply requests must also
+release exactly once, including all error/cleanup paths.
+
+Restore worker event dispatch, IO submission and explicit local readiness.
+A receive without an acquired packet returns EAGAIN. Blocking RX belongs only
+at the worker idle boundary. If a host pause arrives with a packet acquired,
+finish that one datagram before acknowledging pause, and acquire no next packet.
+Do not add a spill queue. Keep adapter-local host-event registration and
+host-only barrier-parking extension points, with injected HOST_WAKE/resume tests;
+real HOST_WAKE and yield(on_host_only=True) remain deferred. Real hash expansion
+stays guarded; ordinary main/independent maintenance threads remain enabled.
+
+### Validation and delivery gates
+
+1. Exercise both parities and logical lengths 0, 1, 63, 64, 65, 127, 128, 129
+   and maximum sizes across native UDP, RPC calls/replies and bypass. Verify exact
+   contents, reconstructed-prefix boundaries, padding, replay and no disclosure.
+2. Exercise overflow invalidation counts, RX writeback (including software-dirtied
+   borrowed data), NACK/PREEMPT, release/reassignment and concurrent RX/TX progress.
+   Keep ONC-RPC/TX/bypass regressions. Run source-defined targets through nix develop.
+3. Test view lifetime, double consumption/release, acquire/yield while borrowed,
+   old wrapper data lifetime and parity-independent contiguous pointers.
+4. Test memcached callback ordering, no RX while work/response retry is runnable,
+   pause-before/after-consume ordering and injected wake/resume. Compare supported
+   commands with pinned upstream, including CAS, expiry, append/prepend, no-reply,
+   segmented replies and malformed requests. Build with the existing Nix packaging.
+5. Regenerate matched ABI collateral and launch a new hardware pipeline through
+   the scheduled CI workflow. Recheck reservations, preserve existing failures,
+   then test at least two cold-boot RPC repetitions plus bypass and native UDP
+   compatibility using matching artifacts. Do not substitute old hardware.
+6. Only then resume memcached compatibility and oversubscription measurements.
+   Report timing without optimization; record provenance and finite coverage.
+
+The earlier split-copy implementation was interrupted before validation; it is
+not acceptance evidence. This plan supersedes its split-span API design and the
+proposal to linearize large parity-0 packets in memcached.
