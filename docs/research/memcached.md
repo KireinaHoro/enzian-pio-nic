@@ -423,10 +423,11 @@ short-response board acceptance. Worker sleep/wake correction, memcached
 acceptance, oversubscription measurements and timing closure remain open.
 
 
-## Active plan: contiguous borrowed RX before the worker-wait adaptation
+## Active plan: contiguous borrowed RX and direct TX before worker-wait adaptation
 
 Maintainer direction (October 9): first fix the RX hardware/software contract so
-RPC calls/replies, bypass and native UDP all expose one contiguous host buffer.
+RPC calls/replies, bypass and native UDP all expose one contiguous host buffer,
+on both RX and TX.
 Keep the small-message fast path: a complete host payload of **0–64 bytes** is
 in the selected control CL's upper half; a payload **over 64 bytes** starts at
 RX offset **0x100**, the third CL. Large messages do not place a prefix in the
@@ -448,8 +449,8 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   padding after the logical length. Replay of either control/data line must be
   stable until retirement; no speculative out-of-range read may disclose data.
 - Count RX overflow invalidations as zero for lengths <=64 and ceil(length/128)
-  otherwise. Keep TX's present inline/overflow contract unchanged; split any
-  helpers currently shared by RX and TX. Preserve cancellation, cooperative
+  otherwise. Apply the same placement and invalidation rule to TX, including
+  descriptor-only execution controls with no payload. Preserve cancellation, cooperative
   PREEMPT, write-return service, ownership and quiescence behavior.
 - Update generated descriptor documentation and an explicit RX layout marker,
   C runtime/kernel readers and simulation CPU readers together. Never deploy
@@ -463,6 +464,44 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   consumption does not itself acknowledge/retire hardware. Explicit release
   ends borrowing before the next acquisition or assignment-releasing yield.
   No raw RX pointer may survive that boundary. PREEMPT remains control-only.
+
+### TX placement and default-runtime staging removal
+
+The same rule applies to TX: a complete transport payload <=64 bytes occupies
+only the selected control CL's upper half; larger payloads start at TX offset
+0x100 and occupy only overflow CLs. Descriptor metadata must not contain hidden
+RPC payload prefixes. Translate between the new contiguous host representation
+and network-encoder metadata/streams consistently, including nested calls and
+replies. Bypass's header-generation commands remain metadata: document explicitly
+whether its transport length excludes the generated Ethernet header, and keep
+kernel framing consistent with that choice. Do not silently change wire output.
+
+The default runtime must not allocate or fill a worker-local tx_buf staging
+allocation. Provide a bounded mutable TX reservation pointing directly into the
+selected transport region, followed by explicit commit or abort. The caller must
+know the final encoded length before choosing inline versus overflow placement;
+the codec API currently only reports that length after encoding. Resolve this
+with exact-size codec support before claiming copy-free serialization, rather
+than silently staging a full packet. Datagram sendv already knows its total size
+and can copy its source iovecs directly into the reserved CL region. Those
+application-source copies remain necessary and are not transport staging.
+
+A reservation is bound to the current assignment and parity. Reject overlapping
+reservations and yield/reassignment while reserved. Commit publishes metadata
+and payload with the established barriers, then advances the TX handshake.
+Accepted TX consumes the reservation; definite rejection may be retried only
+with valid payload ownership at the new parity. Do not retain a pointer into an
+old control CL or assume an invalidated CL still contains its old contents.
+Indeterminate failure must not be retried. Descriptor-only notifications must
+not clobber an active data reservation. RPC codec failure and pending-call
+allocation failure must abort cleanly before any descriptor becomes visible.
+
+Keep the old copied RX wrapper lifetime. A kernel/legacy copied TX wrapper may
+remain for compatibility, but it must use the new layout and must not hide a
+staging allocation in the default userspace runtime. Test direct encoding, both
+parities, 64/65-byte transitions, zero length, maximum sizes, rejection/retry,
+abort, codec-size mismatch, stale reservations and assignment release. Record
+removed staging copies separately from unavoidable application/storage copies.
 
 ### Memcached follow-up after contiguous RX is validated
 
