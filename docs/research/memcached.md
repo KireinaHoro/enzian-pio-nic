@@ -732,3 +732,44 @@ preparation `2882617` remain successful, with no retries. Snapshots are in
 The next 30-minute results recheck is armed for **October 10, 01:41:35 CEST**
 in the same thread. Branch retained; matched hardware artifacts and Enzian
 validation remain pending. No duplicate build or board test was started.
+
+### Pipeline 518400 matched RPC validation, October 10
+
+Pipeline **518400**, exact revision `cce9a36220313e75e8afb626e1937d65d7600e0b`,
+passed all 14 gates (`2882603`–`2882616`), preparation `2882617`, hardware
+`2882618` and reporting `2882619`, without retries. Collected bitstream, LTX and
+trace map are in `out/contiguous-transport/hw-2882618/`; matching RPC and
+memcached images plus the physical summary are in `ci-518400/` beneath that
+same output root. The RPC image SHA-256 is
+`9b0a8d5e337483d34693e86b886462c6a656b2ae56080127478b7b1852e5731d`, verified
+after staging. `board-provenance-518400.json` records artifact hashes and job IDs.
+Reported timing is **WNS −0.780 ns, TNS −7211.323 ns, 27,040 failing setup
+endpoints**; hold violations are zero. This is not timing closure; no timing,
+address-layout or PREEMPT change was made during the follow-up.
+
+Fresh reservations confirmed zuestoll14 and zuestoll07 belonged to pengxu.
+Before reset, the DUT still ran the successful 518140 RPC server, with tracing
+active, a wrapped buffer, no sticky sample loss and no DMA error. Earlier
+memcached failure captures remain preserved. A read-only setup command initially
+had incorrect shell argument quoting, then queried an absent module `version`
+sysfs file; neither diagnostic failure reset or changed the board. The successful
+state checks and VIO evidence are retained alongside the campaign artifacts.
+
+The repository harness passed **two fresh cold boots and 200/200 checked RPCs**
+against the pipeline SHA. Both boots succeeded on their first attempt, with
+verified power-off voltages, QLM8–13 CDR lock and CCPI lanes 0–23. Module loading,
+revision verification and both 100-call clients passed with no reported faults.
+Both CSVs independently passed response-value, echoed-request-ID and status
+checks. The programming script armed tracing and the static edge ILA before
+Linux/module load. End-to-end trial times were **282.7 s and 285.7 s**, including
+reset/programming/boot, not request-latency measurements.
+
+Compact results: `out/contiguous-transport/rpc-board-518400/summary.json`;
+manifest: `rpc-harness.json`; checked CSVs: `rpc-results-518400/{01,02}/client.csv`.
+The final matched RPC server remains running. All jobs are complete; retain
+`feat/memcached-rx-wait` while application work remains unfinished. This closes
+the scheduled RPC regression, not native UDP/memcached board acceptance,
+Dandelion validation, concurrent-worker coverage or oversubscription measurement.
+The memcached borrowed-buffer/event-wait adaptation, HOST_WAKE and host-only
+yield remain as previously scoped; no performance or unrestricted maintenance
+claim follows from these tests.
