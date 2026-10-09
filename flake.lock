@@ -100,17 +100,17 @@
     "memcached": {
       "flake": false,
       "locked": {
-        "lastModified": 1791485607,
-        "narHash": "sha256-tb79jHbGViWWrX+VkNfVcn/x41+U7UaSItsDiV6V1kE=",
+        "lastModified": 1791535003,
+        "narHash": "sha256-rCrrv/Zwew6dI0g8n30/Haxia/dS24GCXyTcJnuW9CM=",
         "ref": "feat/lauberhorn-native-udp",
-        "rev": "b6aaba9a05b5c7f59d86090b271d1881235c71d5",
-        "revCount": 2227,
+        "rev": "9c56666e64bb0ca48f3506e64fcfccd841785a3f",
+        "revCount": 2228,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
         "ref": "feat/lauberhorn-native-udp",
-        "rev": "b6aaba9a05b5c7f59d86090b271d1881235c71d5",
+        "rev": "9c56666e64bb0ca48f3506e64fcfccd841785a3f",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }
