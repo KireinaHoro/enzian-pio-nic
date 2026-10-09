@@ -63,8 +63,12 @@ atomic/DAG/concurrent-chain gates and 9,000 measured requests across allocation
 and tracing controls. Depth-2 children overlap on CPUs 45–47 with their parent
 on CPU 44 after bounded allocation warmup. See the
 [waterfalls, provenance and limits](docs/research/dandelion-measurement.md).
-The DUT currently runs the tracing-off Dandelion control, with FPGA tracing
-frozen after success; both instrumented measurement windows are preserved.
+That campaign left the tracing-off Dandelion control with FPGA tracing frozen
+after success; both instrumented measurement windows are preserved. The October 9
+[memcached follow-up](docs/research/memcached.md#first-native-board-attempt-after-merge)
+subsequently preserved that buffer and deployed matched pipeline 517951 artifacts.
+The DUT now retains a captured native memcached failure; the short-frame Ethernet
+padding correction requires a new matched hardware build and board validation.
 Recheck reservations and actual state before
 access; do not treat a dated note as a live reservation or reset an unpreserved
 failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and

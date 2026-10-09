@@ -48,7 +48,9 @@ class NativeUdpSim extends NicSim {
       val checksum = ~((first & 65535) + (first >>> 16)) & 65535
       clear.updated(24, (checksum >>> 8).toByte).updated(25, checksum.toByte)
     }
-    for ((size, padding) <- Seq((0, false), (0, true), (1, true), (7, true), (63, true), (64, true), (65, true), (1024, true), (1472, true))) {
+    for ((size, padding) <- Seq((0, false), (0, true), (1, true), (7, true),
+        (16, true), (17, true), (18, true), (19, true), (21, true), (22, true),
+        (23, true), (63, true), (64, true), (65, true), (1024, true), (1472, true))) {
       val bytes = List.tabulate(size)(i => (i * 7).toByte)
       val wire = packet(bytes).getBuilder.paddingAtBuild(padding).build().getRawData.toList
       // Corrupt UDP checksum, IP checksum, fragmentation and lengths. None may
@@ -89,6 +91,10 @@ class NativeUdpSim extends NicSim {
       for (_ <- 0 until 2) txSendSingle(dcs, TxNativeUdpSim(size, 42, udp.saddr, udp.sport), bytes, tid)
       waitUntil(replies.size == before + 2)
       for (raw <- replies.drop(before)) {
+        // The CMAC appends FCS but does not pad undersized Ethernet frames.
+        // STORED\r\n plus memcached framing is only 16 UDP payload bytes.
+        assert(raw.length == scala.math.max(60, 42 + size), s"invalid Ethernet frame length ${raw.length} for UDP payload $size")
+        assert(raw.drop(42 + size).forall(_ == 0), "Ethernet padding must not disclose stale data")
         val result = EthernetPacket.newPacket(raw.toArray, 0, raw.length).get(classOf[UdpPacket])
         assert(result.getHeader.getSrcPort.valueAsInt() == 11211)
         assert(result.getHeader.getDstPort.valueAsInt() == 32123)

@@ -80,8 +80,27 @@ class XilinxCmacPlugin extends FiberPlugin with MacInterfaceService {
 
     // Xilinx CMAC does not allow (TKEEP != 0 && !TLAST), use aligner here
     val txAligner = AxiStreamAligner(axisConfig)
+    // CMAC adds FCS, but does not pad short frames. After alignment a frame
+    // shorter than 60 bytes occupies one beat; only extend that first/last
+    // beat, never the short tail of a multi-beat frame. Zero every added byte
+    // rather than exposing unused DMA lanes.
+    require(axisConfig.dataWidth >= 60)
+    val txPadded = Axi4Stream(axisConfig)
+    txPadded << txAligner.io.output
+    val txFirstBeat = RegInit(True)
+    when(txAligner.io.output.fire) {
+      txFirstBeat := txAligner.io.output.last
+    }
+    when(txFirstBeat && txAligner.io.output.last) {
+      for (i <- 0 until 60) {
+        when(!txAligner.io.output.keep(i)) {
+          txPadded.data(i * 8 + 7 downto i * 8) := 0
+          txPadded.keep(i) := True
+        }
+      }
+    }
     val txFifo = AxiStreamAsyncFifo(axisConfig, frameFifo = true, depthBytes = ROUNDED_MTU)()(clockDomain, cmacTxClock)
-    txFifo.s_axis <-/< txAligner.io.output
+    txFifo.s_axis <-/< txPadded
     txFifo.m_axis >> m_axis_tx
 
     def cross(c: Counter) = {
