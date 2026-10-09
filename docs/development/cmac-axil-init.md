@@ -1,7 +1,7 @@
 # CMAC AXI-Lite initialization investigation — October 9
 
-Branch: `fix/cmac-axil-init`. Hardware validation is pending; do not merge or
-claim restored board alignment from these component checks.
+Branch: `fix/cmac-axil-init`. Pipeline 518139 built revision `79d5758f`.
+See the board evidence below; component checks alone do not establish alignment.
 
 ## Failure mechanism
 
@@ -60,9 +60,68 @@ nix develop -c python3 tools/cmac/check-startup.py out/cmac-dev-headers
 nix build .#kmod --out-link out/cmac-kmod
 ```
 
-Remaining: Vivado project/build, then matching-artifact cold boots with F_MAC0
-connected to the correctly configured peer. Require FEC readback, alignment,
-status and RPC traffic on at least two boots. Recheck reservations and actual
-state, retain tracing through module load, and preserve failed captures before
-reset according to the hardware test guide. A successful CI build alone is not
-proof of RX alignment or timing closure.
+Board results are recorded below. Long-duration link monitoring/recovery and
+comprehensive statistics-register semantics remain outside this initialization
+fix. Passing functional tests do not establish timing closure.
+
+## Pipeline 518139 and board follow-up
+
+Pipeline [518139](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518139)
+built `79d5758f86a9b891234519b46e49226e01cfbb3d`. All fourteen test gates,
+prepare job 2880982, hardware job 2880983 and report job 2880984 passed.
+Matched bitstream, probes, trace map, deployment image and manifests are retained
+in `/tmp/lauberhorn-cmac-axil/out/cmac-ci-518139/`. Deployment SHA-256:
+`c489cbe0b3f2fad1aba9313963d82638872e42c8da4e83e6df7d74f73c09ea76`.
+Hardware hashes and job metadata are in `hardware/`; `provenance.json` records
+both pipeline identity and preservation of the prior failure.
+
+Vivado reports WNS **−0.881 ns**, TNS **−2783.831 ns**, and **15,040** failing
+setup endpoints; hold and pulse-width checks have no failing endpoints.
+This is not timing closure. No timing optimization was performed.
+
+Before reset, current reservations and DUT state were checked. The frozen
+pipeline-517951 memcached failure pointer (`0xa2a648`, 682,201,600 bytes)
+matched its complete local capture and SHA-256
+`76450049ee7cbe01f0a0f8880d37afd980a53ed77aab6262f53831f2277748ba`.
+The capture remains in the main workspace at
+`out/native-udp/memcached-recovery-trace/trace-dram.bin`. Shared-storage quota
+prevented image staging; only the remote duplicate was removed, after verifying
+its identical hash, with a location note left beside the remote metadata.
+The old trace was frozen with sticky sample-loss set; its existing limitations
+remain unchanged.
+
+The first cold boot passed full power-off verification, QLM8–13 lock and all
+24 CCPI/ECI lanes. With FPGA tracing armed before module load, the driver reported
+CMAC version 3.1, loopback disabled, and RX aligned/ready. FEC readback, reset and
+both bounded link polls completed successfully; all 100 checked RPCs passed.
+The compact harness result is `board-rpc/summary.json`; selected CMAC startup
+lines and client CSV are retained in `trial-01-results/`.
+
+The second requested trial stopped before FPGA programming: BMC
+`fpga_power_up()` received `None` while reading `VCC1V8_FPGA`, causing a
+`TypeError` in its voltage comparison. The full failed-stage log is retained
+under `board-rpc/02-cmac-518139-rpc/boot/`. This is an infrastructure failure,
+not a driver/alignment result. A single bounded recovery trial uses unchanged
+artifacts and the normal full verified cold-reset harness.
+
+The recovery trial's first boot lacked the required CCPI lane-initialization
+report. The boot helper rejected it before module loading and automatically
+performed another full cold reset. Its second attempt passed all QLM/lane
+checks, CMAC startup and another 100 checked RPCs. Results are in
+`board-rpc-retry/summary.json` and `trial-02-results/`. No driver/kernel faults
+were reported in either passing trial. Total acceptance is **two validated cold
+boots and 200 checked RPCs**, with the BMC failure and rejected ECI boot counted
+separately, not as passes.
+
+The DUT is left on pipeline 518139 with the second successful RPC server running
+and FPGA tracing enabled. Recheck reservation and actual state before further
+access. This demonstrates external-link alignment and functional traffic with
+AXI registers enabled and initialization reset/readback checks; it does not
+validate every CMAC register or long-duration link recovery. The branch remains
+separate from the ongoing memcached/padding work.
+
+Ten final F_MAC0 VIO samples all showed aligned/status=1 and local/remote
+fault=0. The final trace snapshot was unwrapped with sample-loss=0, DMA-error=0
+and trace-stop=0. Both saved client CSVs contain 100 correct results with matched
+request IDs. CMAC version-to-ready intervals were approximately 0.43 seconds
+on both validated boots; these are kernel log intervals, not RPC latencies.
