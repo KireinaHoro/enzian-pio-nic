@@ -70,7 +70,6 @@ struct netdev_priv {
 	lauberhorn_eci_macIf_t macIf_dev;
 	lauberhorn_eci_decoderSink_t dec_dev;
 	lauberhorn_eci_worker_t worker_dev;
-	// cmac_t cmac_dev;
 
 	// Datapath state for bypass
 	lauberhorn_core_state_t ctx;
@@ -205,15 +204,6 @@ static int netdev_open(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	/*
-	int err;
-
-	err = start_cmac(&priv->cmac_dev, do_loopback);
-	if (err) {
-		dev_err(&dev->dev, "Failed to start CMAC!\n");
-		return err;
-	}
-	*/
 
 	napi_enable(&priv->napi);
 	netif_start_queue(dev);
@@ -276,7 +266,7 @@ static int netdev_stop(struct net_device *dev)
 {
 	struct netdev_priv *priv = netdev_priv(dev);
 
-	// stop_cmac(&priv->cmac_dev);
+	/* The physical CMAC is shared by bypass and RPC workers. */
 
 	dev_dbg(&dev->dev, "netdev DOWN, enabling drop all\n");
 	lauberhorn_eci_macIf_ctrl_rx_drop_all_wr(&priv->macIf_dev, 1);
@@ -700,13 +690,18 @@ int init_bypass(void)
 	int err, cl_id;
 	struct net_device *netdev;
 	struct netdev_priv *priv;
-	// cmac_core_version_t ver;
-	// u8 ver_maj, ver_min;
+	cmac_t cmac;
 
 	phys_addr_t rx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_RX_BASE);
 	phys_addr_t tx_base = mem_node1_off_to_phys(LAUBERHORN_ECI_TX_BASE);
 
 	macaddr_cast_t mac_addr;
+
+	/* Initialize the physical link before exposing the bypass device. */
+	cmac_initialize(&cmac, CMAC_BASE);
+	err = start_cmac(&cmac, do_loopback);
+	if (err)
+		return err;
 
 	// Create netdev
 	bypass_dev = netdev = alloc_netdev(sizeof(struct netdev_priv),
@@ -768,24 +763,9 @@ int init_bypass(void)
 					      LAUBERHORN_ECI_DECODER_SINK_BASE);
 	lauberhorn_eci_worker_initialize(&priv->worker_dev,
 					 LAUBERHORN_ECI_WORKER_BASE(0));
-	// cmac_initialize(&priv->cmac_dev, CMAC_BASE);
 
 	// Make sure the FPI handler can see these...
 	smp_wmb();
-
-	// Verify CMAC version
-	/*
-	ver = cmac_core_version_rd(&priv->cmac_dev);
-	ver_maj = cmac_core_version_major_extract(ver);
-	ver_min = cmac_core_version_minor_extract(ver);
-	if (ver == 0) {
-		dev_err(&netdev->dev, "CMAC version register all zero!\n");
-		err = -1;
-		goto del_netif;
-	}
-	dev_info(&netdev->dev, "CMAC version: %d.%d (raw %#x)\n", ver_maj,
-		 ver_min, ver);
-		 */
 
 	// Clear shadow ARP cache table
 	memset(priv->arp_cache, 0, sizeof(priv->arp_cache));
