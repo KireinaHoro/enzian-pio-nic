@@ -12,6 +12,8 @@ pkgs.stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
     flags="-pthread -I sw/include -I sw/rt -I sw/core -I ${configHeaders} -I ${deviceHeaders} $(pkg-config --cflags libtirpc)"
+    $CC $flags -I sw/kmod sw/tests/udp.c sw/rt/server_trace.c sw/rt/pmu.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o udp-test
+    ./udp-test
     $CC $flags sw/tests/endpoint.c sw/rt/endpoint.c -o endpoint-test
     $CC $flags sw/tests/pending-call.c sw/rt/pending_call_table.c sw/rt/utils/bitmap.c -o pending-call-test
     $CC $flags sw/tests/codec.c sw/rt/oncrpc.c $(pkg-config --libs libtirpc) -o codec-test

@@ -99,7 +99,8 @@ fi
         self.assertEqual(first.returncode, 0, first.stderr)
         second = self.run_script('prepare-eci.sh')
         self.assertNotEqual(second.returncode, 0)
-        self.assertEqual((self.work / 'calls').read_text().count('called'), 2)
+        self.assertEqual((self.work / 'calls').read_text().count('called'), 3)
+        self.assertEqual((self.work / 'out/memcached-deploy.img').read_text(), 'image\n')
         self.assertTrue((self.work / 'out/eci/vivado-inputs/generated/NicEngine.v').is_file())
         self.assertFalse((self.work / 'out/eci/vivado-inputs/output').exists())
 

@@ -40,25 +40,26 @@ object EciHostCtrlInfoSim {
         RxBypassCtrlInfoSim(
           len.toInt,
           dp.pop(PKT_DESC_TY_WIDTH),
-          dp.pop(BYPASS_HDR_WIDTH, skip = 9))
+          dp.pop(BYPASS_HDR_WIDTH, skip = 8))
       case 2 =>
         TxNeighborMissSim(
           len.toInt,
           dp.pop(log2Up(NUM_NEIGHBOR_ENTRIES)).toInt,
-          dp.pop(32, skip = 9).toInt,
+          dp.pop(32, skip = 8).toInt,
           dp.pop(32).toInt,
           dp.pop(8).toInt
         )
       case 3 =>
-        val token = dp.pop(32, skip = 12)
+        val token = dp.pop(32, skip = 11)
         RxOncRpcCallSim(
           len.toInt,
           dp.pop(64),
           token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
+      case 8 => RxNativeUdpSim(len.toInt, dp.pop(32, skip = 11), dp.pop(32), dp.pop(32), dp.pop(16), dp.pop(16))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
-        val status = dp.pop(8, skip = 4).toInt
+        val status = dp.pop(8, skip = 3).toInt
         val pid = dp.pop(PID_WIDTH)
         val cookie = dp.pop(32, skip = 16)
         val xid = dp.pop(32)
@@ -80,7 +81,7 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PKT_DESC_TY_WIDTH, packetType)
-      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 10)
+      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 9)
       .toBigInt
   }
 
@@ -122,7 +123,7 @@ case class TxOncRpcReplySim(len: Int, requestToken: BigInt, args: BigInt, status
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(2, execution)
-      .push(8, status, skip = 3)
+      .push(8, status, skip = 2)
       .push(32, requestToken)
       .push(64, 0)
       .push(ONCRPC_INLINE_BYTES * 8, args)
@@ -153,7 +154,7 @@ case class TxOncRpcCallSim(len: Int,
                            args: BigInt) extends EciHostCtrlInfoSim with OncRpcCallTxPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
-      .push(PID_WIDTH, pid, skip = 13)
+      .push(PID_WIDTH, pid, skip = 12)
       .push(32, cookie, skip = 16)
       .push(32, xid)
       .push(32, daddr)
@@ -185,4 +186,15 @@ case class TxExecutionSim(command: Int) extends EciHostCtrlInfoSim {
   def ty = 7
   def len = 0
   def encode = BigInt(command)
+}
+
+case class RxNativeUdpSim(len: Int, endpoint: BigInt, saddr: BigInt, daddr: BigInt,
+    sport: BigInt, dport: BigInt) extends EciHostCtrlInfoSim {
+  def ty = 8
+  def encode: BigInt = throw new UnsupportedOperationException("RX only")
+}
+case class TxNativeUdpSim(len: Int, endpoint: BigInt, daddr: BigInt, dport: BigInt) extends EciHostCtrlInfoSim {
+  def ty = 9
+  def encode: BigInt = (new BigIntBuilder).push(32, endpoint, skip = 12)
+    .push(32, daddr).push(16, dport).toBigInt
 }

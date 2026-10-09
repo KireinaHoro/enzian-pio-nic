@@ -6,6 +6,14 @@
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/upstream-process-parity&rev=1a9eb8f6bafef9be497d7677951bac192dfe3f6d";
       flake = false;
     };
+    memcached = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-native-udp&rev=b6aaba9a05b5c7f59d86090b271d1881235c71d5";
+      flake = false;
+    };
+    memcachedUpstream = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-native-udp&rev=0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e";
+      flake = false;
+    };
     crane = {
       url = "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
     };
@@ -72,6 +80,9 @@
               runtimeTests
               dandelion
               dandelionDeployFs
+              memcached
+              memcachedDeployFs
+              memcachedReference
               kmod
               deployFs
               eciVivadoInputs

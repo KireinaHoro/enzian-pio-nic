@@ -27,19 +27,28 @@ case class EciHostRxCtrlInfo() extends Bundle {
   override def clone: EciHostRxCtrlInfo = EciHostRxCtrlInfo()
 
   /* reserve one bit for valid in readStream */                       // [0 : 1)  = 1b
-  val ty = HostReqType()                                              // [1 : 4)  = 3b
-  val len = PacketLength()                                            // [4 : 20) = 16b
+  val ty = HostReqType()                                              // [1 : 5)  = 4b
+  val len = PacketLength()                                            // [5 : 21) = 16b
   val data = new Union {
+    case class NativeUdpBundle() extends Bundle {
+      val padding = Bits(11 bits)
+      val endpoint = Bits(32 bits)
+      val saddr = Bits(32 bits)
+      val daddr = Bits(32 bits)
+      val sport = Bits(16 bits)
+      val dport = Bits(16 bits)
+    }
+    val nativeUdp = newElement(NativeUdpBundle())
     case class BypassBundle() extends Bundle {
-      val ty = PacketDescType()                                       // [20: 23) = 3b
-      val xb9 = Bits(9 bits) /* make sure header is word aligned */   // [23: 32) = 9b
+      val ty = PacketDescType()                                       // [21: 24) = 3b
+      val xb8 = Bits(8 bits) /* make sure header is word aligned */   // [24: 32) = 8b
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
 
     /** ECI descriptor for server call RX. */
     case class OncRpcCallRxBundle() extends Bundle {
-      val xb12 = Bits(12 bits) /* make sure RPC fields are aligned */ // [20: 32) = 12 b
+      val xb11 = Bits(11 bits) /* make sure RPC fields are aligned */ // [21: 32) = 11b
       val requestToken = Bits(32 bits)
       val funcPtr = Bits(64 bits)
       val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
@@ -53,7 +62,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
       * metadata, but not the full network tuple.
       */
     case class OncRpcReplyRxBundle() extends Bundle {
-      val xb4 = Bits(4 bits)
+      val xb3 = Bits(3 bits)
       val status = Bits(8 bits) // byte aligned, no payload offset change
       val pid = PID()
       val xb16 = Bits(16 bits) /* align cookie and following 32-bit fields */
@@ -65,8 +74,8 @@ case class EciHostRxCtrlInfo() extends Bundle {
 
     /** ECI-specific version of [[lauberhorn.host.HostReqNeighborMiss]]. */
     case class NeighborMissBundle() extends Bundle {
-      val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [20: 23) = 3b
-      val xb9 = Bits(9 bits) /* make sure IP addr is aligned */       // [23: 32) = 9b
+      val neighTblIdx = Bits(log2Up(NUM_NEIGHBOR_ENTRIES) bits)       // [21: 24) = 3b
+      val xb8 = Bits(8 bits) /* make sure IP addr is aligned */       // [24: 32) = 8b
       val ipAddr = Bits(32 bits)
       val saddr = Bits(32 bits)
       val proto = Bits(8 bits)
@@ -86,6 +95,18 @@ case class EciHostRxCtrlInfo() extends Bundle {
 
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_ctrl_info_native_udp_rx lsbfirst(64) "Native UDP RX" {
+         |  valid 1 "RX descriptor valid";
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_rx";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "UDP payload bytes";
+         |  _ 11 rsvd;
+         |  endpoint 32 "Kernel endpoint handle";
+         |  saddr 32 "Source IPv4 address, host order";
+         |  daddr 32 "Local IPv4 address, host order";
+         |  sport 16 "Source UDP port, host order";
+         |  dport 16 "Local UDP port, host order";
+         |};
+         |
          |datatype host_rx_status lsbfirst(64) "ECI RX status when valid is zero" {
          |  valid 1 "Packet descriptor follows when set";
          |  preempt 1 "Yield immediately when valid is zero and this bit is set";
@@ -96,7 +117,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  valid 1 "RX descriptor valid";
          |  ty    ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be error)";
          |  len   ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
-         |  _     12 rsvd;
+         |  _     11 rsvd;
          |};
          |
          |datatype host_ctrl_info_bypass_rx lsbfirst(64) "ECI Host Control Info (Bypass RX)" {
@@ -104,7 +125,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        9 rsvd;
+         |  _        8 rsvd;
          |  // hdr follows -- need to calculate address manually
          |  // TODO: actually define args in the datatype.  Possible approach:
          |  // - as an address-only field, so no hdr+size pointer calculation in user code
@@ -114,7 +135,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  valid     1 "RX descriptor valid";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_rx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of packet overflow, not including inlined bytes";
-         |  _         12 rsvd;
+         |  _         11 rsvd;
          |  request_token 32 "Opaque incoming request context token";
          |  func_ptr  64 "Function pointer for RPC call handler";
          |  // args follows -- need to calculate address manually
@@ -127,7 +148,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  valid     1 "RX descriptor valid";
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_rx)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload overflow, not including inlined bytes";
-         |  _         4 rsvd;
+         |  _         3 rsvd;
          |  status    8 "ONC-RPC accept status (host order)";
          |  pid       ${PID_WIDTH.get} "Destination process for reply completion";
          |  _         16 rsvd;
@@ -141,7 +162,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be neighbor_miss)";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of raw IP payload";
          |  tbl_idx   ${log2Up(NUM_NEIGHBOR_ENTRIES)} "Index of INCOMPLETE entry in neighbor table";
-         |  _         9 rsvd;
+         |  _         8 rsvd;
          |  ip_addr   32 "IP address of the target host";
          |  saddr     32 "Source IPv4 address";
          |  proto     8  "IPv4 protocol";
@@ -158,16 +179,24 @@ object EciHostRxCtrlInfo {
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
+      is (HostReqType.nativeUdpRx) {
+        ret.data.nativeUdp.padding := 0
+        ret.data.nativeUdp.endpoint := desc.data.nativeUdp.endpoint
+        ret.data.nativeUdp.saddr := EndiannessSwap(desc.data.nativeUdp.saddr)
+        ret.data.nativeUdp.daddr := EndiannessSwap(desc.data.nativeUdp.daddr)
+        ret.data.nativeUdp.sport := EndiannessSwap(desc.data.nativeUdp.sport)
+        ret.data.nativeUdp.dport := EndiannessSwap(desc.data.nativeUdp.dport)
+      }
       is (HostReqType.bypass) {
         ret.data.bypass.assignSomeByName(desc.data.bypassMeta)
-        ret.data.bypass.xb9 := 0
+        ret.data.bypass.xb8 := 0
       }
       is (HostReqType.oncRpcCallRx) {
         // Request token and handler pointer are opaque; payload bytes are unchanged.
         ret.data.oncRpcCallRx.funcPtr := desc.data.oncRpcCallRx.funcPtr
         ret.data.oncRpcCallRx.data := desc.data.oncRpcCallRx.data
         ret.data.oncRpcCallRx.requestToken := desc.data.oncRpcCallRx.requestToken
-        ret.data.oncRpcCallRx.xb12 := 0
+        ret.data.oncRpcCallRx.xb11 := 0
       }
       is (HostReqType.oncRpcReplyRx) {
         // XID is numeric at the ECI boundary; payload and opaque metadata are unchanged.
@@ -175,13 +204,13 @@ object EciHostRxCtrlInfo {
         ret.data.oncRpcReplyRx.cookie := desc.data.oncRpcReplyRx.cookie
         ret.data.oncRpcReplyRx.data := desc.data.oncRpcReplyRx.data
         ret.data.oncRpcReplyRx.xid := EndiannessSwap(desc.data.oncRpcReplyRx.xid)
-        ret.data.oncRpcReplyRx.xb4 := 0
+        ret.data.oncRpcReplyRx.xb3 := 0
         ret.data.oncRpcReplyRx.status := desc.data.oncRpcReplyRx.status
         ret.data.oncRpcReplyRx.xb16 := 0
       }
       is (HostReqType.neighborMiss) {
         ret.data.neighborMiss.assignSomeByName(desc.data.neighborMiss)
-        ret.data.neighborMiss.xb9 := 0
+        ret.data.neighborMiss.xb8 := 0
         ret.data.neighborMiss.xb24 := 0
       }
     }

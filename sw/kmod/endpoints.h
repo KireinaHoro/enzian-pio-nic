@@ -5,6 +5,7 @@ struct endpoint_reservation {
     u32 handle;
     u16 port;
     unsigned int listen_idx;
+    bool native_udp;
 };
 static struct endpoint_reservation *endpoint_ports[LAUBERHORN_NUM_LISTEN_PORTS];
 static u32 next_endpoint_handle;
@@ -22,7 +23,9 @@ static void endpoint_listener(struct file_priv *fp,
 {
     lauberhorn_eci_UdpDecoder_ctrl_listen_port_wr(&fp->dev->UdpDecoder_dev, ep->port);
     lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(&fp->dev->UdpDecoder_dev,
-        enable ? lauberhorn_eci_listen_onc_rpc_reply : lauberhorn_eci_listen_disabled);
+        enable ? (ep->native_udp ? lauberhorn_eci_listen_native_udp : lauberhorn_eci_listen_onc_rpc_reply) : lauberhorn_eci_listen_disabled);
+    lauberhorn_eci_UdpDecoder_ctrl_listen_pid_wr(&fp->dev->UdpDecoder_dev, fp->pd->tgid);
+    lauberhorn_eci_UdpDecoder_ctrl_listen_endpoint_wr(&fp->dev->UdpDecoder_dev, ep->handle);
     lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&fp->dev->UdpDecoder_dev, ep->listen_idx);
 }
 
@@ -37,7 +40,7 @@ static void release_endpoint(struct file_priv *fp, int idx)
     fp->endpoints[idx] = NULL;
 }
 
-static long register_endpoint(struct file_priv *fp, void __user *arg)
+static long register_endpoint(struct file_priv *fp, void __user *arg, bool native_udp)
 {
     lauberhorn_reg_endpoint_t cmd;
     struct endpoint_reservation *ep;
@@ -48,7 +51,9 @@ static long register_endpoint(struct file_priv *fp, void __user *arg)
     if (!net_eq(current->nsproxy->net_ns, &init_net)) return -EXDEV;
     if (fp->pd->num_rdy_thrs) return -EBUSY;
     if (copy_from_user(&cmd, arg, sizeof(cmd))) return -EFAULT;
-    if (cmd.handle || cmd.pid || cmd.port || cmd.reserved) return -EINVAL;
+    if (cmd.handle || cmd.pid || (!native_udp && cmd.port) || cmd.reserved) return -EINVAL;
+    if (native_udp && !cmd.port) return -EINVAL;
+    if (native_udp && cmd.port < 1024 && !capable(CAP_NET_BIND_SERVICE)) return -EACCES;
     if (next_endpoint_handle == U32_MAX) return -ENOSPC;
     for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
         if (!listen_occupied[i]) break;
@@ -59,7 +64,7 @@ static long register_endpoint(struct file_priv *fp, void __user *arg)
     if (ret) goto free_ep;
     /* Explicitly scan the dynamic range so FPGA service collisions cannot
      * repeatedly select the same ephemeral port. No SO_REUSE* is enabled. */
-    for (j = 49152; j <= 65535; ++j) {
+    for (j = native_udp ? cmd.port : 49152; j <= (native_udp ? cmd.port : 65535); ++j) {
         int s;
         bool collision = endpoint_port_reserved(j);
         for (s = 0; s < LAUBERHORN_NUM_SERVICES; ++s)
@@ -70,7 +75,8 @@ static long register_endpoint(struct file_priv *fp, void __user *arg)
         if (!ret) break;
         if (ret != -EADDRINUSE) goto close_socket;
     }
-    if (j > 65535) { ret = -EADDRINUSE; goto close_socket; }
+    if (j > (native_udp ? cmd.port : 65535)) { ret = -EADDRINUSE; goto close_socket; }
+    ep->native_udp = native_udp;
     ep->port = j;
     ep->listen_idx = i;
     ep->handle = ++next_endpoint_handle;
