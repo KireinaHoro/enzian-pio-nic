@@ -705,3 +705,12 @@ The five-hour results follow-up is armed for **October 10, 00:10:01 CEST**
 in thread `01a11cbc-4d8f-76f1-9945-f69de06ed22f`; do not poll during that
 interval. Keep the pipeline branch. Hardware completion, timing results and
 matched Enzian validation remain pending; no new board result is claimed.
+
+October 10, 00:10 CEST results check: pipeline `518400` still uses
+`cce9a36220313e75e8afb626e1937d65d7600e0b`; hardware job `2882618` remains
+running, report `2882619` is created, and all 14 gates plus preparation
+`2882617` remain successful, with no retry jobs. Snapshots are preserved in
+`out/contiguous-transport/results-518400-{pipeline,jobs}.json`.
+The required 30-minute results recheck is armed for **00:40:32 CEST** in the
+same thread. No duplicate build or board test was started. Matched hardware
+artifacts, timing results and Enzian validation remain pending; retain the branch.
