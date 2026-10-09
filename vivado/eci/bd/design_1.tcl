@@ -806,6 +806,35 @@ proc create_root_design { parentCell } {
    CONFIG.FREQ_HZ {322265625} \
    ] $trace_gt_ref_clk
 
+  set cmac_regs_axil [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:aximm_rtl:1.0 cmac_regs_axil ]
+  set_property -dict [ list \
+   CONFIG.ADDR_WIDTH {32} \
+   CONFIG.ARUSER_WIDTH {0} \
+   CONFIG.AWUSER_WIDTH {0} \
+   CONFIG.BUSER_WIDTH {0} \
+   CONFIG.DATA_WIDTH {32} \
+   CONFIG.HAS_BRESP {1} \
+   CONFIG.HAS_BURST {0} \
+   CONFIG.HAS_CACHE {0} \
+   CONFIG.HAS_LOCK {0} \
+   CONFIG.HAS_PROT {0} \
+   CONFIG.HAS_QOS {0} \
+   CONFIG.HAS_REGION {0} \
+   CONFIG.HAS_RRESP {1} \
+   CONFIG.HAS_WSTRB {1} \
+   CONFIG.ID_WIDTH {0} \
+   CONFIG.NUM_READ_OUTSTANDING {1} \
+   CONFIG.NUM_READ_THREADS {1} \
+   CONFIG.NUM_WRITE_OUTSTANDING {1} \
+   CONFIG.NUM_WRITE_THREADS {1} \
+   CONFIG.PROTOCOL {AXI4LITE} \
+   CONFIG.READ_WRITE_MODE {READ_WRITE} \
+   CONFIG.RUSER_BITS_PER_BYTE {0} \
+   CONFIG.RUSER_WIDTH {0} \
+   CONFIG.WUSER_BITS_PER_BYTE {0} \
+   CONFIG.WUSER_WIDTH {0} \
+   ] $cmac_regs_axil
+
   set rx_axis [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:axis_rtl:1.0 rx_axis ]
 
   set tx_axis [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:axis_rtl:1.0 tx_axis ]
@@ -931,7 +960,7 @@ proc create_root_design { parentCell } {
   # Create ports
   set app_clk [ create_bd_port -dir O -type clk app_clk ]
   set_property -dict [ list \
-   CONFIG.ASSOCIATED_BUSIF {trace_ddr_axi} \
+   CONFIG.ASSOCIATED_BUSIF {trace_ddr_axi:cmac_regs_axil} \
    CONFIG.ASSOCIATED_RESET {app_clk_reset} \
  ] $app_clk
   set app_clk_reset [ create_bd_port -dir O -type rst app_clk_reset ]
@@ -1006,7 +1035,7 @@ proc create_root_design { parentCell } {
     CONFIG.ADD_GT_CNRL_STS_PORTS {1} \
     CONFIG.CMAC_CAUI4_MODE {1} \
     CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y1} \
-    CONFIG.ENABLE_AXI_INTERFACE {0} \
+    CONFIG.ENABLE_AXI_INTERFACE {1} \
     CONFIG.GT_DRP_CLK {100} \
     CONFIG.GT_GROUP_SELECT {X0Y8~X0Y11} \
     CONFIG.GT_REF_CLK_FREQ {322.265625} \
@@ -1283,13 +1312,6 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   connect_bd_net -net hier_clk_rst_peripheral_aresetn  [get_bd_pins hier_clk_rst/peripheral_aresetn] \
   [get_bd_pins jtag_axi_0/aresetn] \
   [get_bd_pins ila_jtag_master/resetn]
-  connect_bd_net -net ilconstant_2_dout  [get_bd_pins hier_cmac_ctrl_stat/hi] \
-  [get_bd_pins cmac_usplus_0/ctl_rx_enable] \
-  [get_bd_pins cmac_usplus_0/ctl_rsfec_ieee_error_indication_mode] \
-  [get_bd_pins cmac_usplus_0/ctl_rx_rsfec_enable] \
-  [get_bd_pins cmac_usplus_0/ctl_rx_rsfec_enable_correction] \
-  [get_bd_pins cmac_usplus_0/ctl_rx_rsfec_enable_indication] \
-  [get_bd_pins cmac_usplus_0/ctl_tx_rsfec_enable]
   connect_bd_net -net trace_ilconstant_2_dout  [get_bd_pins hier_trace_cmac_ctrl_stat/hi] \
   [get_bd_pins cmac_usplus_1/ctl_rx_enable] \
   [get_bd_pins cmac_usplus_1/ctl_rsfec_ieee_error_indication_mode] \
@@ -1372,18 +1394,18 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets trace_ddr_axi_1] [get_bd_intf_po
   connect_bd_net -net trace_xlconstant_0_dout  [get_bd_pins hier_trace_cmac_ctrl_stat/gt_polarity] \
   [get_bd_pins cmac_usplus_1/gt_rxpolarity] \
   [get_bd_pins cmac_usplus_1/gt_txpolarity]
-  connect_bd_net -net xpm_cdc_gen_1_dest_out  [get_bd_pins hier_cmac_ctrl_stat/stat_rx_aligned_txclk] \
-  [get_bd_pins cmac_usplus_0/ctl_tx_enable]
-  connect_bd_net -net xpm_cdc_gen_2_dest_out  [get_bd_pins hier_cmac_ctrl_stat/stat_rx_local_fault_txclk] \
-  [get_bd_pins cmac_usplus_0/ctl_tx_send_rfi]
-  connect_bd_net -net xpm_cdc_gen_3_dest_out  [get_bd_pins hier_cmac_ctrl_stat/stat_rx_remote_fault_txclk] \
-  [get_bd_pins cmac_usplus_0/ctl_tx_send_idle]
   connect_bd_net -net trace_xpm_cdc_gen_1_dest_out  [get_bd_pins hier_trace_cmac_ctrl_stat/stat_rx_aligned_txclk] \
   [get_bd_pins cmac_usplus_1/ctl_tx_enable]
   connect_bd_net -net trace_xpm_cdc_gen_2_dest_out  [get_bd_pins hier_trace_cmac_ctrl_stat/stat_rx_local_fault_txclk] \
   [get_bd_pins cmac_usplus_1/ctl_tx_send_rfi]
   connect_bd_net -net trace_xpm_cdc_gen_3_dest_out  [get_bd_pins hier_trace_cmac_ctrl_stat/stat_rx_remote_fault_txclk] \
   [get_bd_pins cmac_usplus_1/ctl_tx_send_idle]
+
+  # F_MAC0 software control; F_MAC1 stays autonomous for failure capture.
+  connect_bd_intf_net [get_bd_intf_ports cmac_regs_axil] [get_bd_intf_pins cmac_usplus_0/s_axi]
+  connect_bd_net [get_bd_pins hier_clk_rst/app_clk] [get_bd_pins cmac_usplus_0/s_axi_aclk]
+  connect_bd_net [get_bd_pins hier_clk_rst/app_clk_reset] [get_bd_pins cmac_usplus_0/s_axi_sreset]
+  assign_bd_address -offset 0x00000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces cmac_regs_axil] [get_bd_addr_segs cmac_usplus_0/s_axi/Reg] -force
 
   # Create address segments
   assign_bd_address -offset 0x00000000 -range 0x000800000000 -target_address_space [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs ddr4_4/C0_DDR4_MEMORY_MAP/C0_DDR4_ADDRESS_BLOCK] -force
