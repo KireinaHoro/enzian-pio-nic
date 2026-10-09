@@ -395,3 +395,29 @@ also remains under review: blocking RX inside the connection state machine does
 not establish that the entire worker has drained runnable work or reproduce
 libevent's notification wake behavior. Protocol mock tests do not validate that
 sleep/wake contract. HOST_WAKE remains deferred.
+
+
+### Pipeline 518140 matched RPC validation, October 9
+
+After the 518139 campaign completed, reservations and live state were rechecked.
+The previous memcached failure remained preserved; the live successful RPC
+server had active tracing, no sample loss and no DMA error. The matched 518140
+RPC image's SHA-256 was verified after staging:
+`89e2d04ea6c5702d8735f72ecefe6f2133892cf403a0fc9531b22044528eb657`.
+
+The repository harness passed **two fresh cold boots and 200/200 checked RPCs**
+using revision `9a1f0438c8af7fe771557bd365278a9a4360df8b`. Both boots passed
+on their first attempt, with verified power-off voltages, QLM8–13 CDR lock and
+all CCPI lanes 0–23. Module load and version verification passed without reported
+faults. Tracing and the static edge ILA were armed before Linux/module load.
+End-to-end harness durations were **282.7 s and 279.5 s**, including reset,
+programming and boot; these are not request-latency measurements.
+
+Compact results are in `out/native-udp/rpc-board-518140/summary.json`; both
+100-row client CSVs were checked for successful status and correct responses,
+and copied under `out/native-udp/rpc-results-518140/`. The updated
+`board-provenance-518140.json` records the trials alongside CI and artifact
+provenance. The final matched RPC server is left running. This completes the
+scheduled RPC regression check, not native memcached compatibility or the
+short-response board acceptance. Worker sleep/wake correction, memcached
+acceptance, oversubscription measurements and timing closure remain open.
