@@ -1,7 +1,9 @@
 # Native UDP memcached
 
-Implementation and acceptance work is on platform branch
-`feat/native-udp-memcached` and memcached branch `feat/lauberhorn-native-udp`.
+The transport and upstream adapter integration merged into platform `master`
+in `6b489de8`. Continuing board acceptance is on platform branch
+`feat/memcached-board-validation`; the application remains on memcached branch
+`feat/lauberhorn-native-udp`.
 Acceptance is pending; build and simulation results do not establish board
 compatibility, oversubscription performance or timing closure.
 
@@ -265,6 +267,80 @@ oversubscription, throughput curves and correlated latency breakdowns remain
 unrun. The second successful RPC server is left running on the DUT with tracing
 enabled. Recheck live reservations and trace state before further work.
 
-Implementation remains on `feat/native-udp-memcached`; the upstream-based adapter
-remains on `feat/lauberhorn-native-udp` in the original memcached repository.
-The branches are retained for the remaining application acceptance work.
+The maintainer subsequently authorized merging the platform integration. Merge
+`6b489de8` contains the tested implementation without changing its hardware or
+software; the continuing tests still use pipeline 517951 artifacts and its exact
+`df6968b0` manifest. The completed platform branch was removed after all pipeline
+jobs finished. Application acceptance continues on `feat/memcached-board-validation`;
+the upstream-based adapter remains on `feat/lauberhorn-native-udp` in the original
+memcached repository, preserving the legacy branch.
+
+### First native board attempt after merge
+
+The first native compatibility trial used the same `df6968b0` artifacts, one
+request worker, and hashpower 18. Cold boot, module verification and launch
+passed, but compatibility timed out before a result could be established.
+The harness stopped before its second reset. Memcached remained alive, with
+`lh-mc-0` parked in `worker_yield`; no kernel fault was reported.
+
+The preserved initial trace contains 139,942,016 bytes (2,186,594 slots), is
+unwrapped, and had no pre-freeze loss or DMA error. Its SHA-256 is
+`9a71c19456908d0a3d576adc53354f0f76d1a53970202c7526688c22c8712dad`.
+Decoding with the matching map found no RX events. Hardware ingress, Ethernet
+and UDP decoder counters were all zero. The peer's FPGA ARP entry was failed;
+a known-MAC static-neighbor retry and a separate gateway retry also timed out.
+Ten main F_MAC0 VIO samples consistently reported aligned/status=1, local
+fault=0, remote fault=1, with all reset/loopback controls deasserted. The separate
+F_MAC1 trace link transferred the full buffer successfully. These observations
+localize this attempt to the main receive/link path before native UDP admission;
+they do not identify the underlying physical fault or establish adapter failure.
+
+The retry trace was also preserved before cold recovery: SHA-256
+`77e785de75f7bab4b39e3367609756454146d3bbc88c25fb11678ef3484385c6`.
+Its sticky loss flag was set after the initial freeze/resume, so it is not a
+loss-free sequence record. Evidence is retained in `out/native-udp/` under
+`memcached-board-517951`, `memcached-failure-trace`, `memcached-retry-trace` and
+the corresponding preservation JSON files.
+
+Cold recovery cleared the main-link fault (ten healthy VIO samples), but native
+compatibility still timed out. The second boot received 109 Ethernet packets and
+two native UDP requests; the request worker ran on CPU 44. Its full preserved
+trace has SHA-256
+`76450049ee7cbe01f0a0f8880d37afd980a53ed77aab6262f53831f2277748ba`.
+The prefix ending at pre-freeze slot `0xa29b10` decoded without loss markers.
+The full buffer also retains the loss flag first observed after freezing.
+
+The trace shows two stats segments (1,400 and 828 UDP payload bytes) routed
+through neighbor resolution and Linux bypass, followed by a 16-byte native
+response reaching `TxCmacExit`. A peer raw-socket probe received valid VERSION
+and segmented STATS responses, but no short SET acknowledgement. A subsequent
+GET returned the value, establishing that the SET executed. Wire evidence is in
+`memcached-wire-probe.json` and `memcached-wire-short.json`. This isolates a
+missing Ethernet minimum-frame padding defect: memcached's framed `STORED`
+response is 58 bytes before FCS, below the required 60-byte minimum. The trace
+responder already pads its short ARP frames, but the main MAC path did not.
+
+The correction pads first-and-last aligned TX beats to 60 bytes with zeros before
+the CMAC adds FCS. Multi-beat tails and IPv4/UDP lengths are unchanged. The native
+UDP regression now checks exact frame length and zero padding, including payload
+sizes 0, 1, 7, 16–19 and 21–23 bytes, alongside the existing larger sizes. Before
+the correction, the new regression failed with a 42-byte empty UDP response
+where 60 bytes were required. New hardware is required before claiming native
+memcached compatibility; no throughput measurement has passed this gate yet.
+
+The second failed DUT remains running with its trace frozen. Both boot failures
+and the retry are preserved locally under `out/native-udp/`; temporary trace
+controls and the peer's static-neighbor override were restored. Bounded wire
+probes ran after freeze and are recorded separately, not in the frozen FPGA
+window. No timing constraints, address layout or PREEMPT behavior were changed.
+
+Local validation of the padding correction: `nix develop -c mill
+gen.test.testOnly lauberhorn.host.eci.NativeUdpSim
+lauberhorn.host.eci.OncRpcNestedSim lauberhorn.host.eci.TxBypassSim --
+-l org.scalatest.tags.Slow` passed all **nine** tests. The failing pre-correction
+reproducer and passing run are retained as `padding-reproducer-2.log` and
+`padding-validation.log`. This is simulation evidence, not board acceptance.
+
+The local `nix build .#eciVivadoInputs` check also passed, regenerating the RTL
+and validating the Vivado wrapper handoff. Its dirty-tree artifact is validation
+only; deployment must use the replacement pipeline’s matched artifacts.
