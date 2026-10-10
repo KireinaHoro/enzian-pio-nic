@@ -1,0 +1,2306 @@
+{
+  "limitations": [
+    "Kernel IPG intervals use microsecond text timestamps and the FPGA/runtime clock fit; diagnostics, not extra E2E terms.",
+    "Incomplete boundary pairs receive no attribution.",
+    "A single-thread measured domain, separate four-thread flush domain; not four concurrent measured requests.",
+    "Pipeline 518689 has contiguous RX/TX and length-limited TX invalidation; timing remains open.",
+    "No traces are exported during each timed request sequence.",
+    "Kernel on/off comparison is sequential; use kernel-off cohorts for main E2E values.",
+    "One measured thread; the separate flush domain has four threads.",
+    "External residual combines client NIC/network/host contributions, not independently measured one-way delays.",
+    "Matched 518689 software/hardware, not the subsequently merged master image.",
+    "Borrowed RX shifts payload reads into unmarshal; stage boundaries differ from copied-RX baseline.",
+    "RPC encoder reserves maximum response capacity and therefore uses overflow even for short responses; this run measures that default runtime path.",
+    "Not timing closed.",
+    "CPU/FPGA split uses the historical lower-envelope/half-ECI-RTT estimator; there is no independent bound on its systematic one-way error. MAC and TX hardware intervals stay within the FPGA clock.",
+    "Default short RPC replies use one overflow cache line; this campaign does not measure the inline reservation fast path."
+  ],
+  "cold_kernel_on": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 53850.0,
+      "p90": 56881.0,
+      "p95": 57932.0,
+      "p99": 65644.7,
+      "p100": 123320.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 20.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 36330.0,
+        "p90": 37371.5,
+        "p95": 37950.5,
+        "p99": 46066.099999999984,
+        "p100": 105510.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 15.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 100.0,
+        "p90": 110.0,
+        "p95": 110.0,
+        "p99": 110.0,
+        "p100": 530.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1969.5,
+        "p90": 1979.5,
+        "p95": 1984.5,
+        "p99": 2094.5,
+        "p100": 3959.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 1160.0,
+        "p90": 1160.0,
+        "p95": 1170.0,
+        "p99": 1580.0,
+        "p100": 3220.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 470.0,
+        "p90": 480.0,
+        "p95": 480.0,
+        "p99": 500.0,
+        "p100": 900.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 1090.0,
+        "p90": 1101.0000000000002,
+        "p95": 1110.0,
+        "p99": 1130.0,
+        "p100": 10370.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1588.0,
+        "p90": 1598.0,
+        "p95": 1603.0,
+        "p99": 1623.0,
+        "p100": 1998.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 1940.0,
+        "p90": 1950.0,
+        "p95": 1950.0,
+        "p99": 1955.0,
+        "p100": 1970.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 30.0,
+        "p90": 30.0,
+        "p95": 30.0,
+        "p99": 30.0,
+        "p100": 30.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 20.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 75.0,
+        "p90": 75.0,
+        "p95": 75.0,
+        "p99": 75.0,
+        "p100": 75.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 150.0,
+        "p90": 210.0,
+        "p95": 400.0,
+        "p99": 520.0,
+        "p100": 970.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 211.00000000000023,
+        "p95": 340.0,
+        "p99": 350.0,
+        "p100": 1210.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8250.0,
+        "p90": 11211.5,
+        "p95": 11415.25,
+        "p99": 12095.0,
+        "p100": 12400.0
+      }
+    },
+    "workers": {
+      "44": 1000
+    },
+    "kernel_queue_before_rx_ns": {
+      "off_cpu": {
+        "count": 1000,
+        "p50": 22487.0,
+        "p90": 23018.0,
+        "p95": 23502.5,
+        "p99": 29288.899999999998,
+        "p100": 37852.0
+      },
+      "irq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "ipi": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "softirq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "syscall": {
+        "count": 1000,
+        "p50": 7000.0,
+        "p90": 8000.0,
+        "p95": 8000.0,
+        "p99": 9000.0,
+        "p100": 15000.0
+      },
+      "unattributed_ipg": {
+        "count": 1000,
+        "p50": 6040.0,
+        "p90": 6440.0,
+        "p95": 6510.0,
+        "p99": 7120.4,
+        "p100": 70430.0
+      }
+    },
+    "pre_rx_queue_ns": {
+      "count": 1000,
+      "p50": 35557.0,
+      "p90": 36603.0,
+      "p95": 37187.25,
+      "p99": 45263.19999999998,
+      "p100": 104687.0
+    },
+    "kernel_incomplete_boundary_intervals": 11,
+    "activation_ns": {
+      "preempt_info_mmio": {
+        "count": 1000,
+        "p50": 1650.0,
+        "p90": 1680.0,
+        "p95": 1700.0,
+        "p99": 1710.0,
+        "p100": 1750.0
+      },
+      "claim_wait": {
+        "count": 1000,
+        "p50": 790.0,
+        "p90": 840.0,
+        "p95": 840.0,
+        "p99": 880.0,
+        "p100": 2000.0
+      },
+      "affinity_setup": {
+        "count": 1000,
+        "p50": 1390.0,
+        "p90": 1430.0,
+        "p95": 1450.4999999999995,
+        "p99": 1670.1,
+        "p100": 4000.0
+      },
+      "activation_publish": {
+        "count": 1000,
+        "p50": 200.0,
+        "p90": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "p100": 750.0
+      },
+      "wake_to_wait_return": {
+        "count": 1000,
+        "p50": 15460.0,
+        "p90": 15630.0,
+        "p95": 15901.499999999998,
+        "p99": 18009.799999999992,
+        "p100": 27920.0
+      },
+      "yield_copyout": {
+        "count": 1000,
+        "p50": 460.0,
+        "p90": 460.0,
+        "p95": 460.0,
+        "p99": 550.0,
+        "p100": 650.0
+      },
+      "kernel_to_userspace": {
+        "count": 1000,
+        "p50": 6670.0,
+        "p90": 7230.0,
+        "p95": 7931.499999999998,
+        "p99": 8387.199999999993,
+        "p100": 15200.0
+      },
+      "runtime_activation_setup": {
+        "count": 1000,
+        "p50": 420.0,
+        "p90": 430.0,
+        "p95": 430.0,
+        "p99": 650.0,
+        "p100": 670.0
+      },
+      "runtime_before_rx": {
+        "count": 1000,
+        "p50": 1260.0,
+        "p90": 1260.0,
+        "p95": 1270.0,
+        "p99": 1390.0,
+        "p100": 65520.0
+      }
+    },
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 3090.0,
+        "p95": 3310.0,
+        "p99": 3940.1,
+        "p100": 4150.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 53175.0,
+        "p90": 54291.0,
+        "p95": 54890.0,
+        "p99": 65084.7,
+        "p100": 122760.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 45150.0,
+        "p90": 46190.0,
+        "p95": 46775.25,
+        "p99": 57070.2,
+        "p100": 114790.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 1950.0,
+        "p90": 1960.0,
+        "p95": 1960.0,
+        "p99": 1965.0,
+        "p100": 1980.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 2115.0,
+        "p90": 2125.0,
+        "p95": 2125.0,
+        "p99": 2130.0,
+        "p100": 2145.0
+      }
+    }
+  },
+  "hot_kernel_on": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 14350.0,
+      "p90": 14410.0,
+      "p95": 14600.5,
+      "p99": 17050.1,
+      "p100": 22700.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 35.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 25.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 60.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 65.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 70.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 40.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 3820.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 920.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 80.0,
+        "p90": 90.0,
+        "p95": 90.0,
+        "p99": 100.0,
+        "p100": 110.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1109.5,
+        "p90": 1124.5,
+        "p95": 1129.5,
+        "p99": 1709.5,
+        "p100": 3804.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 250.0,
+        "p90": 250.0,
+        "p95": 250.0,
+        "p99": 710.0,
+        "p100": 1580.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 150.0,
+        "p90": 160.0,
+        "p95": 160.0,
+        "p99": 450.0,
+        "p100": 1630.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 200.0,
+        "p90": 200.0,
+        "p95": 200.0,
+        "p99": 330.39999999999964,
+        "p100": 1120.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1423.0,
+        "p90": 1433.0,
+        "p95": 1433.0,
+        "p99": 1513.05,
+        "p100": 1948.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 1945.0,
+        "p90": 1950.0,
+        "p95": 1950.0,
+        "p99": 1960.0,
+        "p100": 1975.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 35.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 30.0,
+        "p90": 30.0,
+        "p95": 30.0,
+        "p99": 35.0,
+        "p100": 40.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 20.0,
+        "p100": 30.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 15.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 75.0,
+        "p90": 75.0,
+        "p95": 75.0,
+        "p99": 75.0,
+        "p100": 80.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 65.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 140.0,
+        "p100": 380.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 280.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8340.0,
+        "p90": 8390.0,
+        "p95": 8510.25,
+        "p99": 8720.1,
+        "p100": 16690.0
+      }
+    },
+    "workers": {
+      "45": 1000
+    },
+    "kernel_queue_before_rx_ns": {
+      "off_cpu": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "irq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "ipi": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "softirq": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "syscall": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "unattributed_ipg": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 3052.0
+      }
+    },
+    "pre_rx_queue_ns": {
+      "count": 1000,
+      "p50": 0.0,
+      "p90": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "p100": 3052.0
+    },
+    "kernel_incomplete_boundary_intervals": 4,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 240.89999999999918,
+        "p100": 4090.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 13820.0,
+        "p90": 13870.0,
+        "p95": 14050.0,
+        "p99": 15930.2,
+        "p100": 22170.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 5665.0,
+        "p90": 5675.0,
+        "p95": 5680.0,
+        "p99": 7330.0,
+        "p100": 13295.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 1955.0,
+        "p90": 1960.0,
+        "p95": 1960.0,
+        "p99": 1970.0,
+        "p100": 1985.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 2115.0,
+        "p90": 2125.0,
+        "p95": 2125.0,
+        "p99": 2135.0,
+        "p100": 2150.0
+      }
+    },
+    "ipg_ns": {
+      "count": 1000,
+      "p50": 760.0,
+      "p90": 780.0,
+      "p95": 790.0,
+      "p99": 3550.2,
+      "p100": 11980.0
+    }
+  },
+  "hot_kernel_off": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 14350.0,
+      "p90": 14410.0,
+      "p95": 14620.0,
+      "p99": 15110.4,
+      "p100": 22860.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 25.0,
+        "p100": 45.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 15.0,
+        "p100": 25.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 65.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 75.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 60.0,
+        "p100": 75.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 20.0,
+        "p100": 45.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 25.0,
+        "p100": 40.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 80.0,
+        "p90": 90.0,
+        "p95": 90.0,
+        "p99": 90.0,
+        "p100": 110.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1109.5,
+        "p90": 1129.5,
+        "p95": 1134.5,
+        "p99": 1139.5,
+        "p100": 1564.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 250.0,
+        "p90": 250.0,
+        "p95": 250.0,
+        "p99": 260.0,
+        "p100": 690.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 150.0,
+        "p90": 160.0,
+        "p95": 160.0,
+        "p99": 160.0,
+        "p100": 160.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 200.0,
+        "p90": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "p100": 200.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1423.0,
+        "p90": 1433.0,
+        "p95": 1438.0,
+        "p99": 1443.0,
+        "p100": 1463.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 1945.0,
+        "p90": 1950.0,
+        "p95": 1950.0,
+        "p99": 1960.05,
+        "p100": 1990.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 20.0,
+        "p100": 30.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 30.0,
+        "p90": 30.0,
+        "p95": 30.0,
+        "p99": 40.0,
+        "p100": 55.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 30.0,
+        "p100": 50.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 20.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 75.0,
+        "p90": 75.0,
+        "p95": 75.0,
+        "p99": 75.0,
+        "p100": 95.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 65.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 130.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 160.0,
+        "p100": 530.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 170.0,
+        "p95": 170.0,
+        "p99": 170.0,
+        "p100": 810.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8335.0,
+        "p90": 8390.0,
+        "p95": 8550.0,
+        "p99": 8700.1,
+        "p100": 16830.0
+      }
+    },
+    "workers": {
+      "44": 1000
+    },
+    "unique_activations": 1,
+    "condition_validated": true,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 140.0,
+        "p95": 140.0,
+        "p99": 370.0,
+        "p100": 4130.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 13820.0,
+        "p90": 13870.0,
+        "p95": 14020.0,
+        "p99": 14160.0,
+        "p100": 22320.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 5670.0,
+        "p90": 5685.0,
+        "p95": 5690.0,
+        "p99": 5715.0,
+        "p100": 6140.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 1955.0,
+        "p90": 1960.0,
+        "p95": 1960.0,
+        "p99": 1980.0,
+        "p100": 2010.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 2115.0,
+        "p90": 2125.0,
+        "p95": 2125.0,
+        "p99": 2135.0,
+        "p100": 2160.0
+      }
+    },
+    "ipg_ns": {
+      "count": 1000,
+      "p50": 760.0,
+      "p90": 780.0,
+      "p95": 790.0,
+      "p99": 810.0,
+      "p100": 880.0
+    }
+  },
+  "cold_kernel_off": {
+    "roundtrip_ns": {
+      "count": 1000,
+      "p50": 45600.0,
+      "p90": 48660.0,
+      "p95": 49051.0,
+      "p99": 54944.299999999996,
+      "p100": 110410.0
+    },
+    "components_ns": {
+      "lh_rx_cmac_to_cdc": {
+        "count": 1000,
+        "p50": 20.0,
+        "p90": 20.0,
+        "p95": 20.0,
+        "p99": 20.0,
+        "p100": 20.0
+      },
+      "lh_rx_eth_decode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_ip_decode": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 35.0
+      },
+      "lh_rx_udp_decode": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_rx_rpc_decode_and_host_enqueue": {
+        "count": 1000,
+        "p50": 55.0,
+        "p90": 55.0,
+        "p95": 55.0,
+        "p99": 55.0,
+        "p100": 55.0
+      },
+      "lh_scheduler_enqueue": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 15.0,
+        "p100": 15.0
+      },
+      "lh_scheduler_queue": {
+        "count": 1000,
+        "p50": 28077.5,
+        "p90": 28280.5,
+        "p95": 28466.5,
+        "p99": 34490.05,
+        "p100": 89800.0
+      },
+      "lh_rx_eci_delivery": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 10.0
+      },
+      "lh_rx_2f2f_hw": {
+        "count": 1000,
+        "p50": 122.5,
+        "p90": 122.5,
+        "p95": 122.5,
+        "p99": 122.5,
+        "p100": 122.5
+      },
+      "server_2f2f_rx_sw": {
+        "count": 1000,
+        "p50": 100.0,
+        "p90": 110.0,
+        "p95": 110.0,
+        "p99": 110.0,
+        "p100": 540.0
+      },
+      "server_rt_overhead": {
+        "count": 1000,
+        "p50": 1949.5,
+        "p90": 1964.5,
+        "p95": 1964.5,
+        "p99": 2084.5,
+        "p100": 4929.5
+      },
+      "server_xdr_unmarshal": {
+        "count": 1000,
+        "p50": 1160.0,
+        "p90": 1160.0,
+        "p95": 1170.0,
+        "p99": 1580.0,
+        "p100": 3270.0
+      },
+      "handler": {
+        "count": 1000,
+        "p50": 470.0,
+        "p90": 480.0,
+        "p95": 480.0,
+        "p99": 500.0,
+        "p100": 850.0
+      },
+      "server_xdr_marshal": {
+        "count": 1000,
+        "p50": 1090.0,
+        "p90": 1090.0,
+        "p95": 1100.0,
+        "p99": 1120.0,
+        "p100": 3000.0
+      },
+      "server_2f2f_tx_sw": {
+        "count": 1000,
+        "p50": 1593.0,
+        "p90": 1603.0,
+        "p95": 1603.0,
+        "p99": 1608.0,
+        "p100": 1683.0
+      },
+      "lh_tx_2f2f_hw": {
+        "count": 1000,
+        "p50": 1945.0,
+        "p90": 1950.0,
+        "p95": 1950.0,
+        "p99": 1955.0,
+        "p100": 1970.0
+      },
+      "lh_tx_host_submit": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 20.0
+      },
+      "lh_tx_submit_to_udp_encode": {
+        "count": 1000,
+        "p50": 30.0,
+        "p90": 30.0,
+        "p95": 30.0,
+        "p99": 35.0,
+        "p100": 70.0
+      },
+      "lh_tx_ip_encode": {
+        "count": 1000,
+        "p50": 15.0,
+        "p90": 15.0,
+        "p95": 15.0,
+        "p99": 20.0,
+        "p100": 50.0
+      },
+      "lh_tx_eth_encode": {
+        "count": 1000,
+        "p50": 10.0,
+        "p90": 10.0,
+        "p95": 10.0,
+        "p99": 10.0,
+        "p100": 20.0
+      },
+      "lh_tx_output_queue": {
+        "count": 1000,
+        "p50": 75.0,
+        "p90": 75.0,
+        "p95": 75.0,
+        "p99": 75.0,
+        "p100": 85.0
+      },
+      "lh_tx_cdc_to_cmac": {
+        "count": 1000,
+        "p50": 35.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "p100": 40.0
+      },
+      "lh_unattributed": {
+        "count": 1000,
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "p100": 0.0
+      },
+      "client_packet_prepare": {
+        "count": 1000,
+        "p50": 190.0,
+        "p90": 390.0,
+        "p95": 400.49999999999955,
+        "p99": 550.0,
+        "p100": 1350.0
+      },
+      "client_reply_validate": {
+        "count": 1000,
+        "p50": 170.0,
+        "p90": 340.0,
+        "p95": 350.0,
+        "p99": 370.0,
+        "p100": 1110.0
+      },
+      "outside_lh_client_network": {
+        "count": 1000,
+        "p50": 8250.0,
+        "p90": 11235.0,
+        "p95": 11385.0,
+        "p99": 11995.05,
+        "p100": 12290.0
+      }
+    },
+    "workers": {
+      "44": 1000
+    },
+    "unique_activations": 1000,
+    "condition_validated": true,
+    "nested_observations_ns": {
+      "client_tx_submit_observed_ns": {
+        "count": 1000,
+        "p50": 140.0,
+        "p90": 3123.000000000001,
+        "p95": 3260.0,
+        "p99": 3850.2,
+        "p100": 4120.0
+      },
+      "client_poll_wait_observed_ns": {
+        "count": 1000,
+        "p50": 44930.0,
+        "p90": 45160.0,
+        "p95": 45371.5,
+        "p99": 52090.7,
+        "p100": 107030.0
+      },
+      "trace_lh_cmac_to_cmac_ns": {
+        "count": 1000,
+        "p50": 36880.0,
+        "p90": 37090.0,
+        "p95": 37315.25,
+        "p99": 43880.25,
+        "p100": 98970.0
+      },
+      "trace_tx_commit_to_submit_ns": {
+        "count": 1000,
+        "p50": 1955.0,
+        "p90": 1960.0,
+        "p95": 1960.0,
+        "p99": 1965.05,
+        "p100": 1980.0
+      },
+      "trace_tx_commit_to_cmac_ns": {
+        "count": 1000,
+        "p50": 2120.0,
+        "p90": 2125.0,
+        "p95": 2125.0,
+        "p99": 2130.0,
+        "p100": 2145.0
+      }
+    }
+  },
+  "kernel_tracing_comparison": {
+    "hot": {
+      "median_delta_ns": 0.0,
+      "scope": "one sequential pair, runtime buffering and FPGA tracing retained; not a per-request correction"
+    },
+    "cold": {
+      "median_delta_ns": 8250.0,
+      "scope": "one sequential pair, runtime buffering and FPGA tracing retained; not a per-request correction"
+    }
+  },
+  "provenance": {
+    "pipeline": 518689,
+    "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+    "prepare_job": 2884501,
+    "hardware_job": 2884502,
+    "report_job": 2884503,
+    "timing": {
+      "wns": -0.95,
+      "tns": -14578.675,
+      "setup_failing": 44830.0,
+      "setup_total": 1484873.0,
+      "whs": 0.001,
+      "ths": 0.0,
+      "hold_failing": 0.0,
+      "hold_total": 1482864.0,
+      "wpws": 0.039,
+      "tpws": 0.0,
+      "pulse_failing": 0.0,
+      "pulse_total": 641882.0
+    },
+    "analysis_revision": "2df65e862f4620d814cccdc332dd5d707a673bfd",
+    "measured_threads": 1,
+    "flush_threads": 4,
+    "measured_requests_per_cohort": 1000,
+    "phases": [
+      "hot-on2",
+      "cold-on",
+      "hot-off",
+      "cold-off"
+    ],
+    "runtime_export": {
+      "rows": 4032,
+      "dropped": 0,
+      "threads": 1,
+      "capacity_per_thread": 16384,
+      "loss_free": true,
+      "snapshot_only": true
+    },
+    "runtime_source": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+    "module_source": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+    "image_sha256": "3fa8b086bc77e611596d779da3d4706bca78997175aa01203a2eec17a0b5cc64",
+    "previous_capture": {
+      "path": "out/memcached-patterns/trace-batch/trace-dram.bin",
+      "sha256": "a64148b7cf20f5bb6222f5df6f8249d214e7feefbb03914f6ffc5717e4e06e00",
+      "verified_before_reset": true
+    },
+    "limitations": [
+      "Matched 518689 software/hardware, not the subsequently merged master image.",
+      "Borrowed RX shifts payload reads into unmarshal; stage boundaries differ from copied-RX baseline.",
+      "RPC encoder reserves maximum response capacity and therefore uses overflow even for short responses; this run measures that default runtime path.",
+      "Not timing closed."
+    ],
+    "artifacts": {
+      "out/nullrpc-contiguous/cases.json": "7c5b5c1d5c06ebf45bde11c2a27f5283fc129c4ee4f481adb4795bd6ca7a15fa",
+      "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7"
+    },
+    "boot": [
+      {
+        "case": "nullrpc-contiguous-setup",
+        "round": 1,
+        "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+        "status": "pass",
+        "boot_exit": 0,
+        "boot_attempts": [
+          {
+            "attempt": 1,
+            "logs": "out/nullrpc-contiguous/board/01-nullrpc-contiguous-setup/boot",
+            "status": "pass",
+            "eci": {
+              "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+              "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+              "firmware_clock_report": [
+                "RCLK:  2000 Mhz",
+                "SCLK:  800 Mhz",
+                "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+              ]
+            }
+          }
+        ],
+        "reset_evidence": [
+          "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+        ],
+        "cpu_exit": 0,
+        "cpu_stages": [
+          "mount",
+          "load",
+          "verify",
+          "ready"
+        ],
+        "rt_bandwidth": {
+          "previous_runtime_us": 950000,
+          "runtime_us": -1,
+          "period_us": 1000000
+        },
+        "faults": [],
+        "client_exit": 0,
+        "seconds": 298.8
+      }
+    ],
+    "rx_hold_cycles": 10000,
+    "measured_pid": 1661,
+    "deploy_manifest": {
+      "applications": {
+        "microbenchmarks": {
+          "entryPoint": "/nix/store/cnh5zkn7rasn3zr1phbm50ykz4m5r14i-lauberhorn-app-microbenchmarks-aarch64-unknown-linux-gnu-0.0.1/bin/microbenchmarks",
+          "path": "/nix/store/cnh5zkn7rasn3zr1phbm50ykz4m5r14i-lauberhorn-app-microbenchmarks-aarch64-unknown-linux-gnu-0.0.1",
+          "source": {
+            "local": false,
+            "narHash": "sha256-DxVsuQ11XdIfs48PSZbROEDldbxeiq50T7AOx7MmIHg=",
+            "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4"
+          }
+        },
+        "nested-validation": {
+          "entryPoint": "/nix/store/m2za9r5ah40jahvldzaxnxwwnvd67cxx-lauberhorn-nested-validation-aarch64-unknown-linux-gnu-0.0.1/bin/nested-validation",
+          "path": "/nix/store/m2za9r5ah40jahvldzaxnxwwnvd67cxx-lauberhorn-nested-validation-aarch64-unknown-linux-gnu-0.0.1",
+          "source": {
+            "local": false,
+            "narHash": "sha256-DxVsuQ11XdIfs48PSZbROEDldbxeiq50T7AOx7MmIHg=",
+            "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4"
+          }
+        },
+        "recovery-test": {
+          "entryPoint": "/nix/store/whd4pgarnvjv9qxgq3f90bgibcpmhywj-lauberhorn-recovery-test-aarch64-unknown-linux-gnu-0.0.1/bin/recovery-test",
+          "path": "/nix/store/whd4pgarnvjv9qxgq3f90bgibcpmhywj-lauberhorn-recovery-test-aarch64-unknown-linux-gnu-0.0.1",
+          "source": {
+            "local": false,
+            "narHash": "sha256-DxVsuQ11XdIfs48PSZbROEDldbxeiq50T7AOx7MmIHg=",
+            "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4"
+          }
+        }
+      },
+      "collateral": {
+        "devices": "/nix/store/kk0ja77xqdvq3af0jrwavj3v2aqmig7w-lauberhorn-hw-rtl-config-devices",
+        "headers": "/nix/store/i2ql5qji9d16dvmryyqhjszfi3hzx8s1-lauberhorn-hw-rtl-config-headers",
+        "mackerel": "/nix/store/d1gn7w50491gg0853h683ks74p7m0mkl-lauberhorn-dev-hdrs",
+        "rtl": "/nix/store/538jb3wy1y43bm6sbn8q8czbc9j6cyva-lauberhorn-hw-rtl-config"
+      },
+      "kernelRelease": "6.8.0-64-generic",
+      "packages": {
+        "module": "/nix/store/jz1k9pmf6gyvw8ir0nnc1mc8502z2f42-lauberhorn-kmod-aarch64-unknown-linux-gnu/lauberhorn.ko",
+        "runtime": "/nix/store/fx59rpvr48yrf8vn502aws2xnp1fga5i-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1"
+      },
+      "platform": {
+        "local": false,
+        "narHash": "sha256-DxVsuQ11XdIfs48PSZbROEDldbxeiq50T7AOx7MmIHg=",
+        "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4"
+      },
+      "schemaVersion": 1
+    },
+    "client_image": {
+      "path": "/nix/store/57l63a82zx2ddprwfcmnrr32askd4n6s-lauberhorn-client.img",
+      "remote": "/scratch/pengxu/baseline-latency-516112/client-barrier.img",
+      "sha256": "9c59d6adc30f954c7e88a91b2af56d48ce9e9d1f955b1ffbb19c0b61e103396c"
+    },
+    "failed_attempts": [
+      {
+        "phase": "hot-on",
+        "stage": "client initialization",
+        "measured_requests": 0,
+        "error": "DPDK executable inaccessible through stale SquashFS overlay; deleted image still referenced by overlay stack",
+        "recovery": "Verified original client image hash; mounted existing /dev/loop0 at /mnt/nullrpc-client and bind-mounted clean view over /nix/store; no peer reset or old overlay removal.",
+        "evidence": "hot-on-client-run/console.log, peer-image-state.txt, hot-on-kernel"
+      }
+    ],
+    "capture_incidents": [
+      {
+        "phase": "cold-on",
+        "controller_exit": 139,
+        "diagnosis": "Vivado segfault at exit after UDP_DUMP_TRIGGERED and status readback; receiver completed full 299190464-byte capture and SHA256SUMS",
+        "recovery": "Exported existing RAM capture without reset or duplicate trigger",
+        "sha256": "cb9fb94795135d7d617790d6ce01d97482bef3b9470c0441204bd65dccb33781"
+      }
+    ],
+    "trace_windows": {
+      "hot-on2": {
+        "bytes": 85381120,
+        "sha256": "e498ad47e2fccd206e838cdb92d844e9ebc41007e848273dc2ab2f22072257f0",
+        "offset": 2636756160,
+        "start": {
+          "trace_write_slot_1": 41199315,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 0,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 42533395,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "cold-on": {
+        "bytes": 299190464,
+        "sha256": "cb9fb94795135d7d617790d6ce01d97482bef3b9470c0441204bd65dccb33781",
+        "offset": 2744360640,
+        "start": {
+          "trace_write_slot_1": 42880635,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 47555486,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "hot-off": {
+        "bytes": 2338271744,
+        "sha256": "39ae29156661edc96df98e88c0be6e363a000981595988f52d600763e8e3559c",
+        "offset": 3087087872,
+        "start": {
+          "trace_write_slot_1": 48235748,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 84771244,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "cold-off": {
+        "bytes": 2442690944,
+        "sha256": "18dbde1219b479f28557a58fcc9f2c061a7c7b3a422d5d8c6c49272aba33b414",
+        "offset": 5469182080,
+        "start": {
+          "trace_write_slot_1": 85455970,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 123623016,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      }
+    },
+    "phase_rows": {
+      "hot-on2": {
+        "runtime_rows": 1016,
+        "first_runtime_row": 0,
+        "past_last_runtime_row": 1016,
+        "workers": {
+          "45": 1016
+        },
+        "unique_activations": 1,
+        "runtime_failed": 0,
+        "client_rows": 1016,
+        "client_fields": [
+          "request_id",
+          "rpc_status",
+          "ok",
+          "benchmark",
+          "client_call_enter_ns",
+          "client_call_exit_ns",
+          "timestamp_overhead_ns",
+          "client_tx_ready_ns",
+          "client_tx_submit_ns",
+          "client_rx_burst_ns",
+          "warmup",
+          "transport"
+        ]
+      },
+      "cold-on": {
+        "runtime_rows": 1000,
+        "first_runtime_row": 1016,
+        "past_last_runtime_row": 2016,
+        "workers": {
+          "44": 1000
+        },
+        "unique_activations": 1000,
+        "runtime_failed": 0,
+        "client_rows": 1000,
+        "client_fields": [
+          "request_id",
+          "rpc_status",
+          "ok",
+          "benchmark",
+          "client_call_enter_ns",
+          "client_call_exit_ns",
+          "timestamp_overhead_ns",
+          "client_tx_ready_ns",
+          "client_tx_submit_ns",
+          "client_rx_burst_ns",
+          "warmup",
+          "transport"
+        ]
+      },
+      "hot-off": {
+        "runtime_rows": 1016,
+        "first_runtime_row": 2016,
+        "past_last_runtime_row": 3032,
+        "workers": {
+          "44": 1016
+        },
+        "unique_activations": 1,
+        "runtime_failed": 0,
+        "client_rows": 1016,
+        "client_fields": [
+          "request_id",
+          "rpc_status",
+          "ok",
+          "benchmark",
+          "client_call_enter_ns",
+          "client_call_exit_ns",
+          "timestamp_overhead_ns",
+          "client_tx_ready_ns",
+          "client_tx_submit_ns",
+          "client_rx_burst_ns",
+          "warmup",
+          "transport"
+        ]
+      },
+      "cold-off": {
+        "runtime_rows": 1000,
+        "first_runtime_row": 3032,
+        "past_last_runtime_row": 4032,
+        "workers": {
+          "44": 1000
+        },
+        "unique_activations": 1000,
+        "runtime_failed": 0,
+        "client_rows": 1000,
+        "client_fields": [
+          "request_id",
+          "rpc_status",
+          "ok",
+          "benchmark",
+          "client_call_enter_ns",
+          "client_call_exit_ns",
+          "timestamp_overhead_ns",
+          "client_tx_ready_ns",
+          "client_tx_submit_ns",
+          "client_rx_burst_ns",
+          "warmup",
+          "transport"
+        ]
+      }
+    },
+    "health_passed": true,
+    "final_state": "Measured add and four-worker mul flush domains remain alive on reserved zuestoll14. FPGA tracing frozen; all four bounded windows preserved locally and in peer RAM.",
+    "client_binary_sha256": "9d582afc176ddda1eeb21f55e45f12ebdeb793f3cd2fd6b09bfb043a29692ea4",
+    "clock_contract": {
+      "fpga_cycle_ns": 5,
+      "fpga_frequency": "nominal 200 MHz, no independent oscillator calibration",
+      "cpu_fpga_alignment": "existing lower-envelope RX-unblock offset with half measured FLDX_EH-to-HAKD RTT estimate; conditional stage split, not an independently bounded one-way ECI delay",
+      "kernel_text_quantization_ns": 1000,
+      "client_cpu_clock": "monotonic raw; client RTT does not subtract remote timestamps",
+      "tracing_cost": "Kernel off/on controls retain buffered runtime probes and FPGA tracing; no all-instrumentation-off comparison"
+    },
+    "tx_path": {
+      "reservation": "Default RPC reserves maximum response capacity, selects overflow for short reply",
+      "hot_trace_tx_overflow_count": 1,
+      "evidence": "1016 EciTxDataLciStart and EciTxDataLciaDone events each report OverflowCount=1"
+    },
+    "source_comparison": "No differences in sw/rt/rpc.c or sw/rt/worker.c between tested 45cbfe52 and merged 2df65e86.",
+    "analysis_validation": {
+      "activation_tests": 6,
+      "handoff_tests": 4,
+      "command_scope": "nix develop; no implementation or hardware timing changes",
+      "plot_default_baseline": "passed; out/nullrpc-contiguous/plot-regression"
+    },
+    "plotter_revision": "038d6200",
+    "harness_script_hashes": {
+      "cases.json": "7c5b5c1d5c06ebf45bde11c2a27f5283fc129c4ee4f481adb4795bd6ca7a15fa",
+      "window.tcl": "3d9fb1c65edf0a33bb4e55e2fcb86cfa367caa7631214bb91a32ae914ea5a367",
+      "run-window.py": "11a14f246566645b2a21bd9d78c434d249417cf5124dbeaa0dea9ad0fca67bfa",
+      "dump-window.py": "e0ba8c1a9fd1383d3c0e87c3c5b0688f6d3f2ec256c8e838bd8c96d94749127b",
+      "capture-buffered.sh": "9a849c20848ee96b5601ef4c7df19e233012f8688bb674c88c36046c2ded47fc",
+      "capture-disabled.sh": "946fd77e7774e1e432d8ce2a2e701d8a51882db2740c8e01e3e48d8390a4c3ec",
+      "hot-on2-client.sh": "753faf5beda68df4a03523834009cc767118435c3d9c7b8a4b8663cfdd840a9a",
+      "cold-on-client.sh": "f27036035d500148e04b313f52c84cfad2098f9c2fc0c83d5279e733f266548d",
+      "hot-off-client.sh": "5c25bbd67bf900d040a6616a9cb0d6608e0adf4aa42ccba03f81176853d37b9e",
+      "cold-off-client.sh": "6061b22c6d04c66ff3f4a55afbf0f091feda7bde7acfb83310109ab1d6678806",
+      "export.sh": "8d2ec7ce279766e1899cf19edee66786cd934f60bb798bfd69236bccfe87fd0c"
+    },
+    "client_manifest": {
+      "dpdkVersion": "26.03",
+      "hostRequirements": [
+        "compatible Enzian kernel and nicvf/vfio-pci modules",
+        "root access"
+      ],
+      "identity": {
+        "revision": null
+      },
+      "packages": {
+        "dpdk": "/nix/store/xazqgkkkn3d3yb1d2j7c5srn9qciklsj-dpdk-aarch64-unknown-linux-gnu-26.03",
+        "generator": "/nix/store/27cnmrj8dks4708yr8nfxpjj208ix9r5-lauberhorn-traffic-generator-aarch64-unknown-linux-gnu-0.1"
+      },
+      "schemaVersion": 1,
+      "scripts": {
+        "lh-benchmark-summary": "1269bcc17f0d054b61422d463cbc5977c0183e63d9f24c4f3e039bfea7a74de0",
+        "lh-dpdk-replay": "5b8bbb1c6bbf312f6da443085c432c7a9ca4deb77dbf2f84c97621a33a5355bc",
+        "lh-dpdk-run": "44651851a1a3ce0e50ed9182a57d3bdf9162c9459a1db4562e059823dfcce0a5",
+        "lh-trace-dump": "6ad2e996d56d15099cb93aa28dad6668ce18235fae12b300fb01b8ab38adca03"
+      },
+      "sourceHashes": {
+        "Makefile": "6752a387244edff7b2e9e21e71744323d34e00bb8ba18e899d529c23121a6dca",
+        "bench_dpdk.c": "373f82615c778721252a14c21111386ace47ac6f035f61725eb1e22342a826cf",
+        "benchmark.h": "d2b8ef14ac5803d927e0652c6caeb90e2f3fc3dc79c3506e4488eba347fd7703",
+        "benchmarks.c": "edfe5d17a344d9e2dd0d9995eb922d64fb7a7d964955217e30b1444f111b108b",
+        "wire.h": "4f75be3347d79629ffbf0ac1f92cbb25932b8e40b3e49b56c3531fafe3a2235d"
+      },
+      "system": "aarch64-unknown-linux-gnu"
+    }
+  },
+  "export": {
+    "rows": 4032,
+    "dropped": 0,
+    "threads": 1,
+    "capacity_per_thread": 16384,
+    "loss_free": true,
+    "snapshot_only": true
+  },
+  "final_health": true,
+  "phase_ranges": {
+    "hot-on2": {
+      "runtime_rows": 1016,
+      "first_runtime_row": 0,
+      "past_last_runtime_row": 1016,
+      "workers": {
+        "45": 1016
+      },
+      "unique_activations": 1,
+      "runtime_failed": 0,
+      "client_rows": 1016,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "cold-on": {
+      "runtime_rows": 1000,
+      "first_runtime_row": 1016,
+      "past_last_runtime_row": 2016,
+      "workers": {
+        "44": 1000
+      },
+      "unique_activations": 1000,
+      "runtime_failed": 0,
+      "client_rows": 1000,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "hot-off": {
+      "runtime_rows": 1016,
+      "first_runtime_row": 2016,
+      "past_last_runtime_row": 3032,
+      "workers": {
+        "44": 1016
+      },
+      "unique_activations": 1,
+      "runtime_failed": 0,
+      "client_rows": 1016,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    },
+    "cold-off": {
+      "runtime_rows": 1000,
+      "first_runtime_row": 3032,
+      "past_last_runtime_row": 4032,
+      "workers": {
+        "44": 1000
+      },
+      "unique_activations": 1000,
+      "runtime_failed": 0,
+      "client_rows": 1000,
+      "client_fields": [
+        "request_id",
+        "rpc_status",
+        "ok",
+        "benchmark",
+        "client_call_enter_ns",
+        "client_call_exit_ns",
+        "timestamp_overhead_ns",
+        "client_tx_ready_ns",
+        "client_tx_submit_ns",
+        "client_rx_burst_ns",
+        "warmup",
+        "transport"
+      ]
+    }
+  },
+  "artifacts": {
+    "hot-on2": {
+      "audit": "out/nullrpc-contiguous/hot-on2-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/nullrpc-contiguous/hot-on2.csv",
+        "server_csv": "out/nullrpc-contiguous/hot-on2-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "0efd767d8b7cc6bd637f7337bef3e6ffb210dd3485d367d93f5aad3fbaacaf5a",
+        "server_sha256": "8cc0c3b008ad49f75bcb64503617eabc0efde06c943822fd50023288bc66c627",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": [
+            1
+          ]
+        },
+        "trace_dump": "out/nullrpc-contiguous/hot-on2-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "e498ad47e2fccd206e838cdb92d844e9ebc41007e848273dc2ab2f22072257f0",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 85381120,
+        "sha256": "e498ad47e2fccd206e838cdb92d844e9ebc41007e848273dc2ab2f22072257f0",
+        "offset": 2636756160,
+        "start": {
+          "trace_write_slot_1": 41199315,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 0,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 42533395,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "health": true
+    },
+    "cold-on": {
+      "audit": "out/nullrpc-contiguous/cold-on-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/nullrpc-contiguous/cold-on.csv",
+        "server_csv": "out/nullrpc-contiguous/cold-on-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "4593232e2bbecdb9710be4920291deb8cc7f07d30fa149e9e96d30723e09a108",
+        "server_sha256": "f9e4d9891bea45a411e35143dfa3b24692b4866b92f7e8d226293f0ac964a18f",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/cold-on-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "cb9fb94795135d7d617790d6ce01d97482bef3b9470c0441204bd65dccb33781",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 299190464,
+        "sha256": "cb9fb94795135d7d617790d6ce01d97482bef3b9470c0441204bd65dccb33781",
+        "offset": 2744360640,
+        "start": {
+          "trace_write_slot_1": 42880635,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 47555486,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "health": true
+    },
+    "hot-off": {
+      "audit": "out/nullrpc-contiguous/hot-off-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/nullrpc-contiguous/hot-off.csv",
+        "server_csv": "out/nullrpc-contiguous/hot-off-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "5ac55f960f247dc9d259cce2e8f5c94dd5050a72e38b96bad15331ea7949295f",
+        "server_sha256": "eaf02468334f80091b3a5d46f9c3b42e158fb4c7431ba26833f56c7b33f82f07",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/hot-off-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "39ae29156661edc96df98e88c0be6e363a000981595988f52d600763e8e3559c",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 2338271744,
+        "sha256": "39ae29156661edc96df98e88c0be6e363a000981595988f52d600763e8e3559c",
+        "offset": 3087087872,
+        "start": {
+          "trace_write_slot_1": 48235748,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 84771244,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "health": true
+    },
+    "cold-off": {
+      "audit": "out/nullrpc-contiguous/cold-off-audit.json",
+      "audit_provenance": {
+        "client_csv": "out/nullrpc-contiguous/cold-off.csv",
+        "server_csv": "out/nullrpc-contiguous/cold-off-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "1bc3bc67d732f1e55b9b6e9535a417d20e8d69bb147ee1f67e9bc9c9e77ab276",
+        "server_sha256": "e1ced5020b5ce236e86ea82d591e5a96ed427648ed3f9b30e839cb969f616926",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/cold-off-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "18dbde1219b479f28557a58fcc9f2c061a7c7b3a422d5d8c6c49272aba33b414",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      },
+      "trace": {
+        "bytes": 2442690944,
+        "sha256": "18dbde1219b479f28557a58fcc9f2c061a7c7b3a422d5d8c6c49272aba33b414",
+        "offset": 5469182080,
+        "start": {
+          "trace_write_slot_1": 85455970,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "end": {
+          "trace_write_slot_1": 123623016,
+          "trace_wrapped_1": 0,
+          "trace_sample_lost_1": 1,
+          "trace_dma_error_1": 0
+        },
+        "bounded_window": true,
+        "pipeline": 518689
+      },
+      "health": true
+    }
+  },
+  "outliers": {
+    "hot_kernel_on": {
+      "request_id": 223,
+      "e2e_raw_ns": 22700,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 15.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 15.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 80.0,
+        "server_rt_overhead": 1109.5,
+        "server_xdr_unmarshal": 250.0,
+        "handler": 150.0,
+        "server_xdr_marshal": 190.0,
+        "server_2f2f_tx_sw": 1433.0,
+        "lh_tx_2f2f_hw": 1945.0,
+        "lh_tx_host_submit": 10.0,
+        "lh_tx_submit_to_udp_encode": 30.0,
+        "lh_tx_ip_encode": 15.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 75.0,
+        "lh_tx_cdc_to_cmac": 30.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 130.0,
+        "client_reply_validate": 170.0,
+        "outside_lh_client_network": 16690.0
+      }
+    },
+    "cold_kernel_on": {
+      "request_id": 484,
+      "e2e_raw_ns": 123320,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 105510.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 110.0,
+        "server_rt_overhead": 2064.5,
+        "server_xdr_unmarshal": 1470.0,
+        "handler": 480.0,
+        "server_xdr_marshal": 1130.0,
+        "server_2f2f_tx_sw": 1583.0,
+        "lh_tx_2f2f_hw": 1950.0,
+        "lh_tx_host_submit": 10.0,
+        "lh_tx_submit_to_udp_encode": 30.0,
+        "lh_tx_ip_encode": 15.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 75.0,
+        "lh_tx_cdc_to_cmac": 30.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 150.0,
+        "client_reply_validate": 170.0,
+        "outside_lh_client_network": 8160.0
+      }
+    },
+    "hot_kernel_off": {
+      "request_id": 219,
+      "e2e_raw_ns": 22860,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 15.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 15.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 90.0,
+        "server_rt_overhead": 1099.5,
+        "server_xdr_unmarshal": 250.0,
+        "handler": 150.0,
+        "server_xdr_marshal": 200.0,
+        "server_2f2f_tx_sw": 1428.0,
+        "lh_tx_2f2f_hw": 1945.0,
+        "lh_tx_host_submit": 10.0,
+        "lh_tx_submit_to_udp_encode": 30.0,
+        "lh_tx_ip_encode": 15.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 75.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 130.0,
+        "client_reply_validate": 180.0,
+        "outside_lh_client_network": 16830.0
+      }
+    },
+    "cold_kernel_off": {
+      "request_id": 896,
+      "e2e_raw_ns": 110410,
+      "breakdown": {
+        "lh_rx_cmac_to_cdc": 20.0,
+        "lh_rx_eth_decode": 10.0,
+        "lh_rx_ip_decode": 35.0,
+        "lh_rx_udp_decode": 55.0,
+        "lh_rx_rpc_decode_and_host_enqueue": 55.0,
+        "lh_scheduler_enqueue": 15.0,
+        "lh_scheduler_queue": 89800.0,
+        "lh_rx_eci_delivery": 10.0,
+        "lh_rx_2f2f_hw": 122.5,
+        "server_2f2f_rx_sw": 110.0,
+        "server_rt_overhead": 2034.5,
+        "server_xdr_unmarshal": 1360.0,
+        "handler": 470.0,
+        "server_xdr_marshal": 1160.0,
+        "server_2f2f_tx_sw": 1588.0,
+        "lh_tx_2f2f_hw": 1950.0,
+        "lh_tx_host_submit": 10.0,
+        "lh_tx_submit_to_udp_encode": 30.0,
+        "lh_tx_ip_encode": 15.0,
+        "lh_tx_eth_encode": 10.0,
+        "lh_tx_output_queue": 75.0,
+        "lh_tx_cdc_to_cmac": 35.0,
+        "lh_unattributed": 0.0,
+        "client_packet_prepare": 190.0,
+        "client_reply_validate": 220.0,
+        "outside_lh_client_network": 10980.0
+      }
+    }
+  },
+  "status": "four-cohorts-correlated-and-condition-validated",
+  "trace_audit": {
+    "hot-on2": {
+      "measured_requests": 1000,
+      "loss_markers": 0,
+      "recovered_sentinel_ids": 2,
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": [
+          1
+        ]
+      },
+      "provenance": {
+        "client_csv": "out/nullrpc-contiguous/hot-on2.csv",
+        "server_csv": "out/nullrpc-contiguous/hot-on2-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "0efd767d8b7cc6bd637f7337bef3e6ffb210dd3485d367d93f5aad3fbaacaf5a",
+        "server_sha256": "8cc0c3b008ad49f75bcb64503617eabc0efde06c943822fd50023288bc66c627",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": [
+            1
+          ]
+        },
+        "trace_dump": "out/nullrpc-contiguous/hot-on2-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "e498ad47e2fccd206e838cdb92d844e9ebc41007e848273dc2ab2f22072257f0",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      }
+    },
+    "cold-on": {
+      "measured_requests": 1000,
+      "loss_markers": 0,
+      "recovered_sentinel_ids": 0,
+      "excluded_warmup": {
+        "count": 0,
+        "incomplete_request_ids": []
+      },
+      "provenance": {
+        "client_csv": "out/nullrpc-contiguous/cold-on.csv",
+        "server_csv": "out/nullrpc-contiguous/cold-on-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "4593232e2bbecdb9710be4920291deb8cc7f07d30fa149e9e96d30723e09a108",
+        "server_sha256": "f9e4d9891bea45a411e35143dfa3b24692b4866b92f7e8d226293f0ac964a18f",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/cold-on-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "cb9fb94795135d7d617790d6ce01d97482bef3b9470c0441204bd65dccb33781",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      }
+    },
+    "hot-off": {
+      "measured_requests": 1000,
+      "loss_markers": 0,
+      "recovered_sentinel_ids": 0,
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      },
+      "provenance": {
+        "client_csv": "out/nullrpc-contiguous/hot-off.csv",
+        "server_csv": "out/nullrpc-contiguous/hot-off-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "5ac55f960f247dc9d259cce2e8f5c94dd5050a72e38b96bad15331ea7949295f",
+        "server_sha256": "eaf02468334f80091b3a5d46f9c3b42e158fb4c7431ba26833f56c7b33f82f07",
+        "excluded_warmup": {
+          "count": 16,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/hot-off-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "39ae29156661edc96df98e88c0be6e363a000981595988f52d600763e8e3559c",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      }
+    },
+    "cold-off": {
+      "measured_requests": 1000,
+      "loss_markers": 0,
+      "recovered_sentinel_ids": 0,
+      "excluded_warmup": {
+        "count": 0,
+        "incomplete_request_ids": []
+      },
+      "provenance": {
+        "client_csv": "out/nullrpc-contiguous/cold-off.csv",
+        "server_csv": "out/nullrpc-contiguous/cold-off-server.csv",
+        "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+        "client_sha256": "1bc3bc67d732f1e55b9b6e9535a417d20e8d69bb147ee1f67e9bc9c9e77ab276",
+        "server_sha256": "e1ced5020b5ce236e86ea82d591e5a96ed427648ed3f9b30e839cb969f616926",
+        "excluded_warmup": {
+          "count": 0,
+          "incomplete_request_ids": []
+        },
+        "trace_dump": "out/nullrpc-contiguous/cold-off-dump/trace/trace-dram.bin",
+        "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+        "trace_dump_sha256": "18dbde1219b479f28557a58fcc9f2c061a7c7b3a422d5d8c6c49272aba33b414",
+        "trace_cycle_ns": 5,
+        "trace_process_id": 1661,
+        "combine_rpc_ingress": true,
+        "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+        "allow_partial_trace": false,
+        "rx_trace_invalid_host_id": 63
+      }
+    }
+  },
+  "baseline_comparison": {
+    "hot_kernel_off": {
+      "rtt": {
+        "old_p50_ns": 12240.0,
+        "new_p50_ns": 14350.0,
+        "delta_p50_ns": 2110.0
+      },
+      "mac_to_mac": {
+        "old_p50_ns": 3700.0,
+        "new_p50_ns": 5670.0,
+        "delta_p50_ns": 1970.0
+      },
+      "tx_hardware": {
+        "old_p50_ns": 950.0,
+        "new_p50_ns": 1945.0,
+        "delta_p50_ns": 995.0
+      },
+      "tx_software": {
+        "old_p50_ns": 683.0,
+        "new_p50_ns": 1423.0,
+        "delta_p50_ns": 740.0
+      }
+    },
+    "cold_kernel_off": {
+      "rtt": {
+        "old_p50_ns": 43360.0,
+        "new_p50_ns": 45600.0,
+        "delta_p50_ns": 2240.0
+      },
+      "mac_to_mac": {
+        "old_p50_ns": 34660.0,
+        "new_p50_ns": 36880.0,
+        "delta_p50_ns": 2220.0
+      },
+      "tx_hardware": {
+        "old_p50_ns": 950.0,
+        "new_p50_ns": 1945.0,
+        "delta_p50_ns": 995.0
+      },
+      "tx_software": {
+        "old_p50_ns": 1613.0,
+        "new_p50_ns": 1593.0,
+        "delta_p50_ns": -20.0
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "nullrpc-contiguous-setup",
+    "revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+    "image": "/scratch/pengxu/contiguous-518689/deploy.img",
+    "program": [
+      "ssh",
+      "enzian-ba2",
+      "/opt/Xilinx/Vivado/2023.2/bin/vivado",
+      "-mode",
+      "batch",
+      "-nojournal",
+      "-log",
+      "/tmp/lauberhorn-518689/program-rpc.log",
+      "-source",
+      "/tmp/lauberhorn-518689/program-arm.tcl",
+      "-tclargs",
+      "enzian-gateway.ethz.ch:3121",
+      "Digilent/210357B4B301A",
+      "/tmp/lauberhorn-518689/shell_lauberhorn-eci.bit",
+      "/tmp/lauberhorn-518689/shell_lauberhorn-eci.ltx"
+    ],
+    "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\ndmesg -n 4\nip neigh replace 192.168.128.225 lladdr 0c:53:31:03:00:e1 nud permanent dev lauberhorn0\nmountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing\nexport LAUBERHORN_TRACE_CAPACITY=16384\ncpu serve add 1 /scratch/pengxu/nullrpc-contiguous/server\nexport LH_BENCH_FLUSH_SPIN_US=100\nmkdir /scratch/pengxu/nullrpc-contiguous/flush\nnohup /nix/store/lauberhorn/apps/microbenchmarks/bin/microbenchmarks mul 4 > /scratch/pengxu/nullrpc-contiguous/flush/server.log 2>&1 < /dev/null &\necho $! > /scratch/pengxu/nullrpc-contiguous/flush/server.pid\nsleep 2\nkill -0 \"$(cat /scratch/pengxu/nullrpc-contiguous/flush/server.pid)\"\ncat /sys/module/lauberhorn/parameters/rx_hold_cycles > /scratch/pengxu/nullrpc-contiguous/rx-hold-cycles\ncat /nix/store/lauberhorn/manifest.json > /scratch/pengxu/nullrpc-contiguous/deploy-manifest.json\n",
+    "client": "timeout 90 /scratch/pengxu/contiguous-518689/rpc-client/bench_client 192.168.129.200 mul 10 /scratch/pengxu/nullrpc-contiguous/setup-client.csv"
+  }
+]
