@@ -1420,3 +1420,36 @@ workload-only derivative `switching-batch-workload.json`. Plots (PNG and PDF):
 Nix upstream/adapter/cohort checks and the strengthened cold/scale-up/assigned
 trace-classification tests passed. No hardware timing, address layout, PREEMPT,
 server implementation or HOST_WAKE behavior changed in this campaign.
+
+#### Separating hot/cold from backlog
+
+The earlier resident-worker distribution mixed immediate dispatch and backlog.
+`tools/memcached/latency_cases.py` reconstructs older requests still awaiting
+**dispatch** for the same PID at each enqueue, using the complete audited trace.
+This includes staged requests; it is not a literal reading of the FIFO fill
+register. It counts neither other tenants' requests nor requests already in
+execution. The five disjoint workload groups are:
+
+| Case | Requests | Median (µs) | p90 (µs) | p99 (µs) |
+| --- | ---: | ---: | ---: | ---: |
+| Assigned worker; no older request waiting | 3,200 | 0.015 | 6.461 | 17.506 |
+| Assigned worker; older requests waiting | 6,493 | 68.595 | 90.539 | 103.920 |
+| No worker assigned to tenant; no older request waiting | 618 | 28.190 | 30.727 | 31.895 |
+| No worker assigned to tenant; older requests waiting | 446 | 53.140 | 55.615 | 57.023 |
+| Tenant resident; eventual dispatch worker newly assigned | 4,603 | 72.875 | 85.239 | 97.174 |
+
+All values are **scheduler enqueue-to-dispatch**, not memcached response latency.
+“No older request waiting” is deliberately not called “no queueing”: a previously
+dispatched request may still occupy the worker. Of the 3,200 hot/no-backlog
+requests, 1,759 dispatch in two or three cycles (10–15 ns at nominal 200 MHz).
+Their remaining tail must not be presented as an idle-worker baseline. Exact
+idle/busy-at-arrival and end-to-end RTT per hardware case require additional
+state/correlation evidence; the existing client RTTs are not joined to these
+hardware cases. Assignment-hot does not mean cache-hot.
+
+The clearer case CDFs and exact percentiles, including p99.9 and maximum, are in
+`out/memcached-patterns/latency-cases.{png,pdf,json}`; the per-request classification
+is in `latency-cases-requests.json`. The tool accepts the full audit and the
+workload-only derivative and verifies their trace hashes match. Its regression
+checks cover tenant independence and dispatch-time removal from the backlog.
+No hardware rerun was needed for this reanalysis.
