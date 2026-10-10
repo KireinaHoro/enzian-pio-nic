@@ -88,9 +88,9 @@ static struct pending_call *prepare_call(lauberhorn_rpc_endpoint_t *ep,
     if (!w->dp.tx_buf) { errno = EBUSY; return NULL; }
     *encoded = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf, len,
                                                CALL_CAPACITY, ep->rpc_codec->priv);
-    if (*encoded < 0 || *encoded > CALL_CAPACITY) { core_eci_tx_abort(&w->dp); errno = EMSGSIZE; return NULL; }
+    if (*encoded < 0 || *encoded > CALL_CAPACITY) { core_eci_tx_cancel(&w->dp); errno = EMSGSIZE; return NULL; }
     struct pending_call *pc = pending_call_acquire(&pending_call_table);
-    if (!pc) { core_eci_tx_abort(&w->dp); errno = EAGAIN; return NULL; }
+    if (!pc) { core_eci_tx_cancel(&w->dp); errno = EAGAIN; return NULL; }
     pc->codec = ep->rpc_codec;
     pc->endpoint = ep;
     pc->result = (rpc_result_t){0};
@@ -189,7 +189,7 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
                                              REPLY_CAPACITY, r->codec->priv);
         r->trace.marshal_exit_ns = server_trace_stage(&r->trace, LH_PMU_marshal_exit);
         if (len < 0 || len > REPLY_CAPACITY) {
-            core_eci_tx_abort(&w->dp);
+            core_eci_tx_cancel(&w->dp);
             fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, &r->trace);
         }
         else send_reply(&r->desc, 0, len, &r->trace);

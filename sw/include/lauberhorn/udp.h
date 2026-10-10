@@ -41,7 +41,7 @@ int lauberhorn_udp_release(void);
  * reserve again and regenerate/copy bytes; the old pointer is no longer valid.
  * EIO is indeterminate: do not retry automatically. Success is local admission,
  * not remote delivery. Multiple sends per receive and zero-length sends are valid.
- * Validation errors before submission leave the reservation live for abort. */
+ * Validation errors before submission leave the reservation live for cancel. */
 int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *, uint32_t daddr,
     uint16_t dport, lauberhorn_tx_buffer_t *, size_t actual_length);
 #endif

@@ -450,9 +450,10 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   padding after the logical length. Replay of either control/data line must be
   stable until retirement; no speculative out-of-range read may disclose data.
 - Count RX overflow invalidations as zero for lengths <=64 and ceil(length/128)
-  otherwise. TX uses its explicit placement bit and reserved overflow-line count for
-  invalidation, independently of actual send length. Abort drains dirty reserved
-  lines with a descriptor-only execution no-op before reuse. Preserve cancellation, cooperative
+  otherwise. TX uses its explicit placement bit and actual send length: zero
+  overflow lines for inline, otherwise ceil(length/128). Cancel completes the
+  transaction without a packet. Full invalidation remains an ownership-handoff
+  operation. Preserve cancellation, cooperative
   PREEMPT, write-return service, ownership and quiescence behavior.
 - Update generated descriptor documentation and an explicit RX/TX layout marker,
   C runtime/kernel readers and simulation CPU readers together. Never deploy
@@ -500,13 +501,17 @@ always descriptor-only. RX continues to select placement by received length.
 
 An upper bound is sufficient for codecs to reserve; exact-size codecs can still
 select the smallest region, but a sizing pass is not mandatory. Encode directly
-within capacity and commit the returned size. UDP sendv sums its iovecs and copies
-them directly into reserved CLs. These source copies are not transport staging.
+within capacity and commit the returned size. UDP callers construct each response
+directly in the reservation; the old sendv API is retired.
 Set placement before writes can evict the control CL. Overflow-mode control-half
 writeback must never overwrite payload byte zero; replay of that unused half is
-zero. Invalidation uses the reserved-line count in control byte 56: inline has no
-overflow; overflow has ceil(capacity/128), even for short sends. Commit and abort
-clean the entire reservation before reuse. Do not leak or
+zero. Invalidation uses actual send length, not capacity: inline has no overflow;
+overflow uses ceil(length/128). Byte 56 is reserved again. Before the doorbell,
+voluntary overflow returns update the packet slot. The router retains control
+inline bytes separately, restores them after control invalidation and suppresses
+overflow writes until an inline TX completes. This includes a control line that
+was evicted before the doorbell. Same-domain stale readback is permitted; full
+invalidation and scrubbing remain at ownership handoff. Do not leak or
 transmit bytes outside actual_length. Test reserve 65/128/1472 -> commit 0/1/64,
 as well as exact-capacity sends, both parities, rejection/retry and buffer reuse.
 
@@ -518,14 +523,14 @@ with valid payload ownership at the new parity. Do not retain a pointer into an
 old control CL or assume an invalidated CL still contains its old contents.
 Indeterminate failure must not be retried. Descriptor-only notifications must
 not clobber an active data reservation. RPC codec failure and pending-call
-allocation failure abort through a payload-free local no-op; no failed request
+allocation failure cancel through a payload-free local no-op; no failed request
 is emitted on the network.
 
 Keep the old copied RX wrapper lifetime. A kernel/legacy copied TX wrapper may
 remain for compatibility, but it must use the new layout and must not hide a
 staging allocation in the default userspace runtime. Test direct encoding, both
 parities, 64/65-byte transitions, zero length, maximum sizes, rejection/retry,
-abort, codec-size mismatch, stale reservations and assignment release. Record
+cancel, codec-size mismatch, stale reservations and assignment release. Record
 removed staging copies separately from unavoidable application/storage copies.
 
 ### Memcached follow-up after contiguous RX is validated
@@ -607,7 +612,9 @@ removed before validation; none of those interfaces is the accepted final API.
 
 ### October 9 implementation checkpoint: contiguous transport
 
-The foundation is implemented on `feat/memcached-rx-wait`. Generated
+Historical version-2 checkpoint (superseded by the October 10 version-3
+transaction refinement below): the foundation was implemented on
+`feat/memcached-rx-wait`. Generated
 `ECI_PAYLOAD_LAYOUT_VERSION=2` selects the new contract; the C transport refuses
 old headers. TX bit 23 records inline placement and control byte 56 records the
 reserved overflow-line count. No worker address-map or PREEMPT change is needed.
@@ -815,3 +822,38 @@ passed `.#runtimeTests`, `.#checks.x86_64-linux.runtime-interface` and `.#deploy
 (including the AArch64 runtime, module and RPC applications). Evidence:
 `out/contiguous-transport/rx-api-cleanup.log`. Hardware layout is unchanged;
 memcached remains pending on this branch as documented above.
+
+
+### TX transaction refinement, October 10
+
+A buffer reservation belongs to exactly one 2F2F transaction, completed by send
+or cancel. Version 3 removes the capacity-derived cleanup field from byte 56;
+normal TX invalidates only the overflow lines covering actual payload length,
+with zero overflow invalidations for inline or descriptor-only transactions.
+The placement bit still selects the storage originally reserved, so a short
+send from overflow remains there. `core_eci_tx_cancel` and `lauberhorn_tx_cancel`
+replace the misleading abort names; cancel completes a control no-op, not a
+network packet, and need not drain unused same-domain overflow lines.
+
+Voluntary overflow writebacks before the doorbell update the packet slot.
+The router retains the inline half of control writebacks, restores it after
+control invalidation and masks subsequent overflow writebacks until completion.
+Retaining that half also handles control eviction before the doorbell and
+reloading it after an overlapping overflow write. Same-domain handlers may read
+stale transport bytes; preemption still fully invalidates and scrubs for the next
+owner. No worker-address-map or PREEMPT implementation change is included.
+This supersedes earlier capacity-based cleanup and abort wording above.
+
+Short sends no longer pay invalidation cost for unused reservation capacity.
+That is a protocol change, not a measured latency improvement: new matched
+hardware and board measurements are required. Never combine version-3 software
+with the tested version-2 pipeline 518400 bitstream. Memcached migration remains
+pending; its source and mock are untouched.
+
+Local version-3 validation through `nix develop` passed seven focused native-UDP,
+TX isolation and bypass simulations, `runtimeTests`, `deployFs` and the runtime
+interface check. Logs: `out/contiguous-transport/tx-length-focused.log` and
+`tx-length-runtime.log`. The opt-in `LAUBERHORN_SKIP_MEMCACHED=1` CI scope omits
+only the incompatible adapter gate/image and records that omission in the
+preparation manifest; all other gates remain required. CI helper tests passed
+15 cases (`out/contiguous-transport/ci-scope-tests.log`).

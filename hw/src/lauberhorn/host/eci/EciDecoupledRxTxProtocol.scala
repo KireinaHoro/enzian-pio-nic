@@ -147,7 +147,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.invDone := logic.txInvDone
     txRouter.doPreempt := preemptReq.fire
     logic.txRouterQuiescent := txRouter.quiescent
-    logic.txReservedLines := txRouter.reservedLines
+    logic.txPayloadLines := txRouter.payloadLines
     logic.txReqs := txRouter.hostReq
 
     if (isBypass) {
@@ -195,7 +195,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
     ECI_RX_BASE.set(EciAddressMap.rx_control)
     ECI_TX_BASE.set(EciAddressMap.tx_control)
-    ECI_PAYLOAD_LAYOUT_VERSION.set(2)
+    ECI_PAYLOAD_LAYOUT_VERSION.set(3)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
@@ -423,7 +423,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       hostTx.freeRun()
     }
     val savedTxAddr = hostTx.asFlow.toReg()
-    val txReservedLines = UInt(4 bits)
+    val txPayloadLines = UInt(4 bits)
     val abandonTx = RegInit(False)
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -474,7 +474,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (txLcl.lcia.fire) {
             // we should've latched tx descriptor in savedTxDesc
             val toInvalidate = abandonTx ? U(numOverflowCls, overflowCountWidth bits) |
-              txReservedLines.resize(overflowCountWidth)
+              txPayloadLines.resize(overflowCountWidth)
             txOverflowToInvalidate := toInvalidate
             when (toInvalidate > 0) {
               txOverflowInvIssued.clear()

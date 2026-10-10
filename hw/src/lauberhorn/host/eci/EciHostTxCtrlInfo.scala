@@ -113,12 +113,6 @@ object EciHostTxCtrlInfo {
   def addMackerel() = {
     ALLOC.addMackerelEpilogue(
       s"""
-         |datatype host_tx_reservation lsbfirst(64) "TX reserved storage cleanup" {
-         |  _ 448 rsvd;
-         |  overflow_lines 8 "Reserved overflow lines to invalidate, at most twelve";
-         |  _ 56 rsvd;
-         |};
-         |
          |datatype host_tx_placement lsbfirst(64) "Common TX payload placement" {
          |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Descriptor type";
          |  len ${PKT_BUF_LEN_WIDTH.get} "Actual payload length";
@@ -189,8 +183,7 @@ object EciHostTxCtrlInfo {
          |  proc      32 "ONC-RPC procedure number (host order)";
          |  _         32 rsvd;
          |  _         128 rsvd;
-         |  overflow_lines 8 "Reserved overflow lines to invalidate";
-         |  _         56 rsvd;
+         |  _         64 rsvd;
          |};
          |""".stripMargin)
   }

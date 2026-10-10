@@ -21,7 +21,7 @@ Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RT
 | Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures and fiber-free reply forwarding |
 
 All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`,
-`oncRpcReplyRx`) exist. ECI payload-layout version 2 reconstructs the decoder's
+`oncRpcReplyRx`) exist. ECI transport version 3 reconstructs the decoder's
 48-byte RPC prefix into the contiguous RX region. TX encoders consume the whole
 argument/reply stream from DMA; descriptor-resident TX argument fields are no
 longer used. Generated ABI, payload lengths and invalidation counts must agree.
@@ -39,7 +39,7 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 | ECI boundary structure | Convention and alignment |
 | --- | --- |
 | Server call RX / reply TX | Opaque request token at byte 4; RX handler pointer / TX reserved field at byte 8; payload is separate from descriptor metadata. Original XID stays wire-native in the hardware reply context. |
-| Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36; reserved overflow count at byte 56. ECI swaps XID/address/ports/program/version/procedure. |
+| Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36; bytes 56–63 reserved. ECI swaps XID/address/ports/program/version/procedure. |
 | Nested reply RX | Host-order PID at byte 4, padding at 6, cookie at 8 and XID at 12, payload is separate from metadata. ECI swaps XID. |
 | Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; TX header-generation command starts at byte 4, and TX length excludes that generated header. RX includes the complete header in its contiguous payload. |
 | Neighbor miss RX | Index shares the first word; IPv4 destination/source at bytes 4/8 are wire-native Linux `__be32` values, protocol at byte 12. Padding rounds metadata to 16 bytes. Kernel uses the addresses directly in IP headers, route lookup and ARP state. |
@@ -48,8 +48,9 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 
 Payloads occupy the control CL upper half at byte 64 when RX length or TX
 reservation capacity is <=64, otherwise the region at direction-relative 0x100.
-TX bit 23 records placement independently of actual length; byte 56 records the
-reserved overflow-line count for cleanup. Short overflow sends do not relocate.
+TX bit 23 records placement independently of actual length. Byte 56 is reserved;
+normal overflow invalidation uses ceil(actual_length/128), or zero for inline
+and descriptor-only sends. Short overflow sends do not relocate.
 The 64-byte descriptor bound, numeric field offsets and worker address map stay
 unchanged. Full-width 16/32/64-bit scalars remain naturally aligned.
 

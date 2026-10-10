@@ -48,8 +48,6 @@ int main(void)
     assert(nested_descriptor[2] == 0x80);
     lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_insert(nested_descriptor, 3);
     assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(nested_descriptor) == 1);
-    lauberhorn_eci_host_tx_reservation_overflow_lines_insert(nested_descriptor, 12);
-    assert(nested_descriptor[56] == 12);
     lauberhorn_eci_host_tx_placement_inline_payload_insert(nested_descriptor, 0);
     assert(lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_execution_extract(nested_descriptor) == 3);
     xdr_adapter_t adapter = {.call_size = 64, .resp_size = 64,

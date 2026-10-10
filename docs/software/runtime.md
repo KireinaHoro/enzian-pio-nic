@@ -55,13 +55,16 @@ slot. Acquisition and assignment-releasing yield are rejected while borrowed.
 Consumers must finish using the bytes, or copy them into owned storage, before
 release. This includes pointers retained by codecs or deferred work.
 
-TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_abort`.
+TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_cancel`.
 Capacity fixes placement; the committed length may be smaller. Submission
-consumes the reservation even when rejected. Abort cleans abandoned storage
-before reuse. RPC codecs encode directly into reservations; the kernel copies
-between transport storage and owned skbs.
+consumes the reservation even when rejected. Cancel finishes the transaction
+without emitting a packet. Normal TX invalidates only the overflow lines needed
+by actual length; inline and control-only transactions invalidate none. Unused
+same-domain cache contents may remain stale. Full cleanup belongs to ownership
+handoff. RPC codecs encode directly into reservations; the kernel copies between
+transport storage and owned skbs.
 
-Payload-layout version 2 places RX lengths or TX capacities up to 64 bytes in
+Transport version 3 places RX lengths or TX capacities up to 64 bytes in
 the current control line's payload half. Larger payloads occupy a contiguous
 region at direction-relative offset 0x100. TX records placement explicitly,
 so committing fewer bytes does not move the payload. Deploy matching hardware
