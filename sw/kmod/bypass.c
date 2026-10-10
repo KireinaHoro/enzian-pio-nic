@@ -319,7 +319,21 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	priv->ctx.tx_buf = skb->data;
 	tx_len = skb->len;
 
-	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	void *base = mem_node1_off_to_virt(0);
+	void *payload = core_eci_tx_get_buffer(base, &priv->ctx, tx_len - ETH_HLEN);
+	if (!payload) {
+		dev->stats.tx_dropped++;
+		dev_kfree_skb(skb);
+		return NETDEV_TX_OK;
+	}
+	memcpy(payload, skb->data + ETH_HLEN, tx_len - ETH_HLEN);
+	int result = core_eci_tx_commit(base, &priv->ctx, &desc);
+	if (priv->ctx.tx_reserved) core_eci_tx_abort(&priv->ctx);
+	if (result != CORE_TX_ACCEPTED) {
+		dev->stats.tx_dropped++;
+		dev_kfree_skb(skb);
+		return NETDEV_TX_OK;
+	}
 	l2c_tad_debug_print_tx(tx_len);
 
 	// free skb and return
@@ -818,7 +832,6 @@ int init_bypass(void)
 		priv->rx_parity, priv->tx_parity);
 
 	// Borrow RX transport storage; TX copies directly from the owned skb.
-	priv->ctx.rx_buf_size = LAUBERHORN_MTU;
 	priv->ctx.rx_buf = NULL; /* borrowed only during poll_once */
 
 

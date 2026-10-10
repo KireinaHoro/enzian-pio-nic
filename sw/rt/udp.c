@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #define _GNU_SOURCE
 #include <sched.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include "lauberhorn/udp.h"
@@ -90,21 +89,6 @@ int lauberhorn_udp_release(void) {
     return 0;
 }
 
-int lauberhorn_udp_receive(lauberhorn_udp_datagram_t *packet) {
-    lauberhorn_worker_t w = worker_get_current();
-    if (!w || !packet) { errno = EINVAL; return -1; }
-    if (!w->compat_rx_buf) {
-        w->compat_rx_buf = malloc(LAUBERHORN_MTU);
-        if (!w->compat_rx_buf) { errno = ENOMEM; return -1; }
-    }
-    int result = lauberhorn_udp_receive_view(packet);
-    if (result <= 0) return result;
-    if (packet->length) memcpy(w->compat_rx_buf, packet->data, packet->length);
-    packet->data = w->compat_rx_buf;
-    lauberhorn_udp_release();
-    return 1;
-}
-
 static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
     size_t length = desc->payload_len;
     uint16_t dport = desc->udp.dport;
@@ -142,33 +126,6 @@ int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *ep, uint32_t dad
         .udp = {.endpoint = ep->handle, .daddr = daddr, .dport = dport}};
     int result = udp_commit(w, &desc);
     memset(buffer, 0, sizeof(*buffer));
-    if (result == CORE_TX_ACCEPTED) return 0;
-    errno = result == CORE_TX_RETRY ? EAGAIN : EIO;
-    return -1;
-}
-
-int lauberhorn_udp_sendv(const lauberhorn_udp_endpoint_t *ep, uint32_t daddr,
-                         uint16_t dport, const struct iovec *iov, size_t count) {
-    lauberhorn_worker_t w = worker_get_current();
-    if (!w || !ep || ep->owner != w->ctx || !ep->handle || !dport ||
-        (count && !iov)) { errno = EINVAL; return -1; }
-    size_t length = 0;
-    for (size_t i = 0; i < count; ++i) {
-        if (iov[i].iov_len > LAUBERHORN_UDP_MAX_PAYLOAD - length) {
-            errno = EMSGSIZE; return -1;
-        }
-        length += iov[i].iov_len;
-    }
-    void *destination = core_eci_tx_get_buffer(w->dp_base, &w->dp, length);
-    if (!destination) { errno = EBUSY; return -1; }
-    size_t offset = 0;
-    for (size_t i = 0; i < count; ++i) {
-        if (iov[i].iov_len) memcpy((uint8_t *)destination + offset, iov[i].iov_base, iov[i].iov_len);
-        offset += iov[i].iov_len;
-    }
-    lauberhorn_pkt_desc_t desc = {.type = TY_NATIVE_UDP_TX, .payload_len = length,
-        .udp = {.endpoint = ep->handle, .daddr = daddr, .dport = dport}};
-    int result = udp_commit(w, &desc);
     if (result == CORE_TX_ACCEPTED) return 0;
     errno = result == CORE_TX_RETRY ? EAGAIN : EIO;
     return -1;

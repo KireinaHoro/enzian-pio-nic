@@ -7,10 +7,8 @@
 
 int main(void) {
     unsigned char *base = calloc(1, LAUBERHORN_ECI_CORE_OFFSET);
-    unsigned char owned[LAUBERHORN_MTU];
     uint8_t rx = 0, tx = 0;
-    lauberhorn_core_state_t state = {.rx_next_cl=&rx, .tx_next_cl=&tx,
-        .rx_buf=owned, .rx_buf_size=sizeof(owned)};
+    lauberhorn_core_state_t state = {.rx_next_cl=&rx, .tx_next_cl=&tx};
     const size_t lengths[] = {0,1,63,64,65,127,128,129,1472,1518};
     for (unsigned parity=0; parity<2; parity++) {
         for (unsigned i=0;i<sizeof(lengths)/sizeof(*lengths);i++) {
@@ -29,21 +27,13 @@ int main(void) {
             assert(state.rx_view.data==data && state.rx_view.length==length);
             assert(state.rx_view.pending && rx==!parity);
             assert(!core_eci_rx_acquire(base,&state,&desc) && rx==!parity);
-            if(length) {
-                assert(!core_eci_rx_consume(&state,owned,length-1));
-                assert(state.rx_view.pending);
+            for(size_t j=0;j<length;j++) assert(state.rx_view.data[j]==(unsigned char)j);
+            if (length) {
+                state.rx_view.data[length-1] = 0x42;
+                assert(data[length-1] == 0x42);
             }
-            assert(core_eci_rx_consume(&state,owned,sizeof(owned)));
+            core_eci_rx_discard(&state);
             assert(!state.rx_view.pending);
-            for(size_t j=0;j<length;j++) assert(owned[j]==(unsigned char)j);
-            memset(data,0,length); // copied compatibility storage is independent
-            for(size_t j=0;j<length;j++) assert(owned[j]==(unsigned char)j);
-            // Exercise the old public operation, not only its copy helper.
-            rx = parity;
-            memcpy(data, owned, length);
-            assert(core_eci_rx(base, &state, &desc) && !state.rx_view.pending);
-            memset(data, 0, length);
-            for(size_t j=0;j<length;j++) assert(owned[j]==(unsigned char)j);
         }
     }
     for(unsigned parity=0;parity<2;parity++) {

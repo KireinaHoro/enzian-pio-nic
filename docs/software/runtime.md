@@ -51,8 +51,8 @@ RX borrows one contiguous mutable transport region until explicit release.
 Lengths up to 64 bytes occupy the control line payload half; larger packets
 start at offset 0x100. The next acquisition retires the previous packet, and
 acquisition/yield are rejected while a borrow is outstanding. Queuing a pointer
-is not release: codecs and deferred work must own anything retained. The
-legacy copied RX wrapper preserves its previous owned-buffer lifetime.
+is not release: codecs and deferred work must own anything retained. The copying RX/TX compatibility APIs have been retired; callers needing owned
+bytes must copy explicitly before releasing the borrow.
 
 TX reserves a contiguous region by capacity, then commits an actual length no
 larger than that capacity. The placement bit records the reservation, so a

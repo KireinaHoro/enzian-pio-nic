@@ -2,7 +2,6 @@
 #ifndef LAUBERHORN_UDP_H
 #define LAUBERHORN_UDP_H
 #include <lauberhorn.h>
-#include <sys/uio.h>
 #include <lauberhorn/buffer.h>
 
 #define LAUBERHORN_UDP_MAX_PAYLOAD 1472
@@ -35,21 +34,11 @@ int lauberhorn_udp_attach(lauberhorn_t *, uint32_t index);
 int lauberhorn_udp_receive_view(lauberhorn_udp_datagram_t *);
 int lauberhorn_udp_release(void);
 
-/* 1 = datagram (including length zero), 0 = RX NACK, -1 = error.
- * Borrows worker-local copied storage until next receive; copy before retaining.
- * Call only after draining application work and responses. PREEMPT is handled
- * immediately through the existing yield contract before any further RX/TX. */
-int lauberhorn_udp_receive(lauberhorn_udp_datagram_t *);
 /* Consume a live TX reservation on submission, including rejection. On EAGAIN
  * reserve again and regenerate/copy bytes; the old pointer is no longer valid.
+ * EIO is indeterminate: do not retry automatically. Success is local admission,
+ * not remote delivery. Multiple sends per receive and zero-length sends are valid.
  * Validation errors before submission leave the reservation live for abort. */
 int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *, uint32_t daddr,
     uint16_t dport, lauberhorn_tx_buffer_t *, size_t actual_length);
-/* Synchronous local admission/consumption: 0 success, -1 with errno.
- * EAGAIN is definite rejection and permits retry of unchanged buffers.
- * EIO is indeterminate and must not be retried automatically. Success says
- * nothing about remote delivery. Storage is borrowed only during this call.
- * Multiple datagrams may be sent per receive, including zero-length sends. */
-int lauberhorn_udp_sendv(const lauberhorn_udp_endpoint_t *, uint32_t daddr,
-                         uint16_t dport, const struct iovec *, size_t count);
 #endif
