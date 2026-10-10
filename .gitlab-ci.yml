@@ -71,6 +71,10 @@ runtime-interface:
 
 memcached-adapter:
   extends: .test-nix
+  rules:
+    - if: '$LAUBERHORN_SKIP_MEMCACHED == "1"'
+      when: never
+    - when: on_success
 
 runtime-tests:
   extends: .test-nix
@@ -107,6 +111,7 @@ prepare-eci:
       artifacts: false
     - job: memcached-adapter
       artifacts: false
+      optional: true
     - job: runtime-tests
       artifacts: false
     - job: eci-address-map
@@ -122,6 +127,7 @@ prepare-eci:
       - out/eci/generateVerilog.dest/
       - out/deploy.img
       - out/memcached-deploy.img
+      - out/ci-scope.json
       - out/ci/**/build.log
 
 build-hw-eci:
