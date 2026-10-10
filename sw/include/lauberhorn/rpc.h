@@ -31,7 +31,9 @@ typedef struct rpc_ops {
 	/**
      * Deserializers called to deserialize incoming calls / replies
      *
-     * @in_buf: data to be deserialized
+     * @in_buf: borrowed transport bytes, valid only during this call. Do not
+     * retain this pointer or store aliases into out_buf. Decode/copy retained
+     * data into owned storage: deferred requests and futures outlive RX release.
      * @out_buf: data buffer to deserialize into
      * @in_buf_len: length of in_buf
      * @priv: filled by the runtime with `rpc_codec_t->priv`

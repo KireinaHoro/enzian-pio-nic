@@ -9,6 +9,7 @@
 #include "config.h"
 #include "eci/core.h"
 #include "lauberhorn.h"
+#include "lauberhorn/udp.h"
 #include "server_trace.h"
 
 lauberhorn_worker_t worker_get_current(); 
@@ -27,6 +28,9 @@ struct lauberhorn_worker {
     lauberhorn_user_cb_t init, fini;
     lauberhorn_core_state_t dp;
     uint8_t rx_next, tx_next;
+    /* Public UDP projection owned by this worker, never copied to callers.
+     * dp.rx_view is the private transport borrow/lifetime state. */
+    lauberhorn_udp_datagram_t udp_rx_view;
 
     void *dp_base;
     pthread_t thread;

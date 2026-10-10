@@ -55,8 +55,12 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
       cooperativeYield(csr, 1)
       assert(worker.currThread.get.proc == domains(destination))
       val (rxDesc, rxPayload) = tryReadPacketDesc(dcs, worker.currThread.get.tid).result.get
-      val rxBytes = readPayload(dcs, rxPayload, 64 + 12 * 128)
-      assert(rxBytes.drop(rxDesc.len).forall(_ == 0), "RX exposed bytes beyond the received packet")
+      val inlineBytes = dcs.read(rxPayload.firstReadAddr, 64)
+      val overflowBytes = dcs.read(rxPayload.overflowAddr, 12 * 128)
+      assert(inlineBytes.drop(if (rxDesc.len <= 64) rxDesc.len else 0).forall(_ == 0),
+        "RX exposed bytes in the inactive control payload half")
+      assert(overflowBytes.drop(if (rxDesc.len > 64) rxDesc.len else 0).forall(_ == 0),
+        "RX exposed bytes beyond the received packet")
       val current = getEciThreadData(worker.currThread.get.tid)
       val bytes = dcs.read(current.baseAddr + ECI_TX_BASE.get + current.txNextCl * 128 + 64, 64) ++
         dcs.read(current.baseAddr + ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET, 12 * 128)

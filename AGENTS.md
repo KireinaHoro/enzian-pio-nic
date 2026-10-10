@@ -63,8 +63,24 @@ atomic/DAG/concurrent-chain gates and 9,000 measured requests across allocation
 and tracing controls. Depth-2 children overlap on CPUs 45–47 with their parent
 on CPU 44 after bounded allocation warmup. See the
 [waterfalls, provenance and limits](docs/research/dandelion-measurement.md).
-The DUT currently runs the tracing-off Dandelion control, with FPGA tracing
-frozen after success; both instrumented measurement windows are preserved.
+That campaign left the tracing-off Dandelion control with FPGA tracing frozen
+after success; both instrumented measurement windows are preserved. The October 9
+[memcached follow-up](docs/research/memcached.md#first-native-board-attempt-after-merge)
+subsequently preserved that buffer and deployed matched pipeline 517951 artifacts.
+The October 10 pipeline 518689 follow-up passed two matched RPC trials (200 calls).
+Native memcached then passed two five-instance/one-worker cohorts sharing four
+physical workers, with trace-confirmed ordinary yields and process switching;
+see the [finite switching evidence](docs/research/memcached.md#five-instances-on-four-workers-october-10).
+A subsequent five-instance/four-workers-each synthetic campaign passed 61,440
+requests across single/pair/all-tenant bursts and tracing controls. Its complete
+batched trace confirms every tenant reached four assigned workers and 2,477
+process switches; see the [burst and latency evidence](docs/research/memcached.md#four-workers-per-tenant-and-variable-bursts-october-10).
+The bounded memcached campaign is closed; joined per-request client/application/
+hardware tracing and nullrpc-style latency breakdowns remain follow-on work.
+See the [closeout](docs/research/memcached.md#campaign-closeout-and-per-request-tracing-follow-up).
+The latest successful cohort remains alive with tracing frozen. Earlier failures
+are preserved. Full pool-size/performance measurements and HOST_WAKE remain open;
+518689 is not timing closed (WNS -0.950 ns).
 Recheck reservations and actual state before
 access; do not treat a dated note as a live reservation or reset an unpreserved
 failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and

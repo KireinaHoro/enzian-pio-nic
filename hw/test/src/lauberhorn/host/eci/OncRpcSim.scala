@@ -236,40 +236,40 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
       "disabled-process traffic leaked packet allocations")
   }
 
-  testWithDB("tx-rpc-inline-only-skips-dma")(Rx, Tx) { implicit dut =>
+  testWithDB("tx-rpc-inline-uses-contiguous-dma")(Rx, Tx) { implicit dut =>
     val replyData = simRandom.nextBytes(16).toList
-    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-inline-only-skips-dma")
+    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-inline-uses-contiguous-dma")
 
     assert(trace.first("TxHostReqAccepted", Map(
       "HostReqTy" -> BigInt(4),
       "PacketDescTy" -> BigInt(4),
       "LogicalLength" -> BigInt(replyData.length),
-      "DmaLength" -> BigInt(0),
+      "DmaLength" -> BigInt(replyData.length),
     ), traceStart).nonEmpty, s"missing inline-only TxHostReqAccepted; saw ${trace.dump(traceStart)}")
-    assert(trace.first("TxNoDmaRead", since = traceStart).nonEmpty,
-      s"inline-only ONC-RPC reply did not skip DMA; saw ${trace.dump(traceStart)}")
-    assert(trace.first("TxAfterDmaRead", since = traceStart).isEmpty,
-      s"inline-only ONC-RPC reply unexpectedly issued DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxNoDmaRead", since = traceStart).isEmpty,
+      s"inline ONC-RPC reply skipped its contiguous DMA; saw ${trace.dump(traceStart)}")
+    assert(trace.first("TxAfterDmaRead", since = traceStart).nonEmpty,
+      s"inline ONC-RPC reply did not finish DMA; saw ${trace.dump(traceStart)}")
     assert(trace.first("EciTxDataLciStart", since = traceStart).isEmpty,
       s"inline-only ONC-RPC reply unexpectedly invalidated packet data CLs; saw ${trace.dump(traceStart)}")
   }
 
-  testWithDB("tx-rpc-tail-without-overflow-does-not-invalidate-overflow")(Rx, Tx) { implicit dut =>
+  testWithDB("tx-rpc-overflow-invalidates-reserved-line")(Rx, Tx) { implicit dut =>
     val replyData = simRandom.nextBytes(ONCRPC_INLINE_BYTES.get + 32).toList
-    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-tail-without-overflow-does-not-invalidate-overflow")
+    val (trace, traceStart) = runSingleOncRpcTx(replyData, "tx-rpc-overflow-invalidates-reserved-line")
 
     assert(trace.first("TxHostReqAccepted", Map(
       "HostReqTy" -> BigInt(4),
       "PacketDescTy" -> BigInt(4),
       "LogicalLength" -> BigInt(replyData.length),
-      "DmaLength" -> BigInt(32),
+      "DmaLength" -> BigInt(replyData.length),
     ), traceStart).nonEmpty, s"missing tail TxHostReqAccepted; saw ${trace.dump(traceStart)}")
     assert(trace.first("TxAfterDmaRead", since = traceStart).nonEmpty,
       s"ONC-RPC reply tail did not complete DMA; saw ${trace.dump(traceStart)}")
     assert(trace.first("TxNoDmaRead", since = traceStart).isEmpty,
       s"ONC-RPC reply with packet-buffer tail skipped DMA; saw ${trace.dump(traceStart)}")
-    assert(trace.first("EciTxDataLciStart", since = traceStart).isEmpty,
-      s"ONC-RPC reply tail <= 64B unexpectedly invalidated overflow CLs; saw ${trace.dump(traceStart)}")
+    assert(trace.first("EciTxDataLciStart", Map("OverflowCount" -> BigInt(1)), traceStart).nonEmpty,
+      s"80-byte ONC-RPC reply did not invalidate one overflow CL; saw ${trace.dump(traceStart)}")
   }
 
   testWithDB("rx-allcores")(Rx, Tx) { implicit dut =>
@@ -686,7 +686,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
         axisMaster.send(incoming.getRawData.toList)
         val (desc, payload) = tryReadPacketDesc(dcsMaster, -1, maxTries = 100).result.get
         assert(desc.isInstanceOf[BypassCtrlInfoSim])
-        check(bytes, readPayload(dcsMaster, payload, desc.len).take(bytes.length))
+        check(incoming.getRawData.toList, readPayload(dcsMaster, payload, desc.len))
         waitUntil(txDone)
         // Network completion precedes the host's control-line reload checks.
         // Reusing this QP before the call returns races those reads with the

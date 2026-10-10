@@ -320,7 +320,21 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	priv->ctx.tx_buf = skb->data;
 	tx_len = skb->len;
 
-	core_eci_tx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	void *base = mem_node1_off_to_virt(0);
+	void *payload = core_eci_tx_get_buffer(base, &priv->ctx, tx_len - ETH_HLEN);
+	if (!payload) {
+		dev->stats.tx_dropped++;
+		dev_kfree_skb(skb);
+		return NETDEV_TX_OK;
+	}
+	memcpy(payload, skb->data + ETH_HLEN, tx_len - ETH_HLEN);
+	int result = core_eci_tx_commit(base, &priv->ctx, &desc);
+	if (priv->ctx.tx_reserved) core_eci_tx_cancel(&priv->ctx);
+	if (result != CORE_TX_ACCEPTED) {
+		dev->stats.tx_dropped++;
+		dev_kfree_skb(skb);
+		return NETDEV_TX_OK;
+	}
 	l2c_tad_debug_print_tx(tx_len);
 
 	// free skb and return
@@ -345,7 +359,7 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 	}
 	skb_reserve(skb, NET_IP_ALIGN);
 
-	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_buf,
+	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_view.data,
 	       desc->payload_len);
 
 	skb->protocol = eth_type_trans(skb, dev);
@@ -448,7 +462,7 @@ static poll_result_t rx_handle_neighbor_miss(lauberhorn_pkt_desc_t *desc,
 	iph->saddr = desc->neighbor_miss.saddr;
 	iph->daddr = dst;
 	iph->check = ip_fast_csum((u8 *)iph, iph->ihl);
-	skb_put_data(skb, priv->ctx.rx_buf, pld_len);
+	skb_put_data(skb, priv->ctx.rx_view.data, pld_len);
 
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_IP);
@@ -492,26 +506,29 @@ static poll_result_t poll_once(struct napi_struct *n)
 	struct net_device *dev = priv->dev;
 	lauberhorn_pkt_desc_t desc;
 
-	bool got_req = core_eci_rx(mem_node1_off_to_virt(0), &priv->ctx, &desc);
+	bool got_req = core_eci_rx_acquire(mem_node1_off_to_virt(0), &priv->ctx, &desc);
 
 	if (!got_req) {
 		dev_dbg(&dev->dev, "finished polling, no more packets\n");
 		return POLL_NACK;
 	}
 
+	poll_result_t result = POLL_WORK_DONE;
 	switch (desc.type) {
 	case TY_BYPASS:
 		if (!rx_bypass_pkt(&desc, n, dev))
-			return POLL_ALLOC_FAIL;
+			result = POLL_ALLOC_FAIL;
 		break;
 	case TY_NEIGHBOR_MISS:
-		return rx_handle_neighbor_miss(&desc, priv);
+		result = rx_handle_neighbor_miss(&desc, priv);
+		break;
 	default:
 		dev_warn(&dev->dev, "unsupported host req type %d\n",
 			 desc.type);
 	}
 
-	return POLL_WORK_DONE;
+	core_eci_rx_release(&priv->ctx);
+	return result;
 }
 
 static int napi_poll(struct napi_struct *n, int budget)
@@ -800,12 +817,6 @@ int init_bypass(void)
 	dev_dbg(&netdev->dev, "Initial RX parity %u, TX parity %u\n",
 		priv->rx_parity, priv->tx_parity);
 
-	// Allocate buffer for receive
-	// We directly read out of the skb for TX, not allocating here
-	priv->ctx.rx_buf_size = LAUBERHORN_MTU;
-	priv->ctx.rx_buf = kmalloc(priv->ctx.rx_buf_size, GFP_KERNEL);
-
-
 	// Invalidate control and bypass CLs
 	for (cl_id = 0; cl_id < 2; ++cl_id) {
 		cl_hit_inv(rx_base + 0x80 * cl_id);
@@ -867,9 +878,6 @@ void deinit_bypass(void)
 	// Deregister various callbacks
 	unregister_inetaddr_notifier(&inetaddr_notifier);
 	unregister_netevent_notifier(&arp_notifier);
-
-	// Free RX buffer
-	kfree(priv->ctx.rx_buf);
 
 	// Destroy netdev
 	unregister_netdev(netdev);

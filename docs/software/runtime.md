@@ -47,7 +47,47 @@ configuration are regenerated from the matching hardware, not edited by hand.
 
 ## Request and transport ownership
 
-RX copies into reusable worker storage. Decoding allocates an independently
+The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.
+`rx_view` holds the single contiguous mutable payload pointer, its length and
+whether the borrow is outstanding. This is private transport state, not an
+application-owned view. UDP exposes a const pointer to a worker-owned datagram
+view (protocol metadata plus the borrowed payload address); callers retain only
+that pointer. Release invalidates the UDP view and the payload together. There
+is no separate RX buffer. Release
+invalidates the pointer in software; the next acquisition retires the hardware
+slot. Acquisition and assignment-releasing yield are rejected while borrowed.
+Consumers must finish using the bytes, or copy them into owned storage, before
+release. This includes pointers retained by codecs or deferred work.
+
+TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_cancel`.
+Capacity fixes placement; the committed length may be smaller. Submission
+consumes the reservation even when rejected. Cancel finishes the transaction
+without emitting a packet. It is available in both kernel and userspace: worker
+control requests receive success; bypass control requests receive an authorization
+error acknowledgement that still completes the transaction without DMA. Cancel
+discards this status. Normal TX invalidates only the overflow lines needed
+by actual length; inline and control-only transactions invalidate none. Unused
+same-domain cache contents may remain stale. Full cleanup belongs to ownership
+handoff. RPC codecs encode directly into reservations; the kernel copies between
+transport storage and owned skbs.
+
+The consumer ownership audit found no other retained RX-view copies in active
+platform consumers. Kernel bypass copies into an owned skb before core release;
+RPC decodes into codec-owned objects before queueing deferred requests or settling
+futures; reply forwarding copies into a TX reservation before RX release.
+Pinned Dandelion decodes borrowed input into owned Rust strings/vectors and BSON
+objects. Its source does not retain a transport slice. Custom codecs must obey
+the same rule, now stated explicitly in `rpc.h`. Historical student runtime
+copies are separate implementations and were not changed.
+
+Transport version 3 places RX lengths or TX capacities up to 64 bytes in
+the current control line's payload half. Larger payloads occupy a contiguous
+region at direction-relative offset 0x100. TX records placement explicitly,
+so committing fewer bytes does not move the payload. Deploy matching hardware
+and generated headers. Application-facing UDP ownership is documented in the
+[programming model](programming-model.md#native-udp-buffers) and public headers.
+
+Decoding allocates an independently
 owned request; inline handlers borrow it. `REPLY`/`FAIL` consume that request.
 `DEFER` reserves a fiber and moves it into an owned context on the existing
 ready queue. `FORWARD` serializes the child and keeps only parent reply metadata
@@ -125,6 +165,9 @@ Tracing now uses preallocated, prefaulted per-thread append-only buffers;
 `LAUBERHORN_TRACE_CAPACITY` sets rows per thread (default 16384). The request
 path copies a fixed-size record and publishes its count; it does no CSV
 formatting, locking, allocation, or file I/O. Timestamp probes still have cost.
+With borrowed RX, receive exit marks descriptor/view acquisition; payload cache
+misses occur during decoding or application access. Compare these stages with
+that boundary in mind when using older copied-RX traces.
 Initialize tracing before creating application threads: the opt-in tracing mode
 reserves and blocks SIGUSR2, inherited by workers. A control thread waits for it.
 After **all measured traffic has drained**, send `kill -USR2 SERVER_PID` once.

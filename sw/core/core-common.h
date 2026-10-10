@@ -43,7 +43,12 @@
 
 #define pr_flush() fflush(stdout);
 
+#if defined(__aarch64__)
 #define BARRIER asm volatile("dmb sy" ::: "memory")
+#else
+/* Host-side transport tests and codec builds; Enzian retains dmb sy. */
+#define BARRIER __atomic_thread_fence(__ATOMIC_SEQ_CST)
+#endif
 
 
 #define min(a, b) ((a) < (b) ? (a) : (b))

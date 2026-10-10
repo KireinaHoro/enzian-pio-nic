@@ -39,6 +39,8 @@ in
 pkgs.runCommand "memcached-adapter-compatibility" { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ps.matplotlib ])) ]; } ''
   mkdir -p $out
   python3 ${source}/tools/memcached/test_measurements.py
+  python3 ${source}/tools/memcached/test_switching_trace.py
+  python3 ${source}/tools/memcached/test_cohort.py --upstream ${upstream}/bin/memcached
   python3 ${source}/tools/memcached/check_adapter.py \
     --adapter ${adapter}/bin/memcached --upstream ${upstream}/bin/memcached --output $out
 ''

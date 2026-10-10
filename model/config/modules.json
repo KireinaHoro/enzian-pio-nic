@@ -271,6 +271,11 @@
     "layer": "contracts",
     "role": "abstract 2F2F client"
   },
+  "TxPayloadLayout": {
+    "imports": [],
+    "layer": "composition",
+    "role": "bounded contiguous TX payload alias and cleanup contract"
+  },
   "WakeAckRace": {
     "imports": [],
     "layer": "scheduling",

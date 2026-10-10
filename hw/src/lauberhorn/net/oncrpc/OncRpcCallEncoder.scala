@@ -26,7 +26,7 @@ case class OncRpcCallTxMeta() extends Bundle with EncoderMetadata {
   val proc = Bits(32 bits)
   val data = Bits(ONCRPC_NESTED_CALL_INLINE_BYTES * 8 bits)
 
-  /** Total length of the call argument payload, including inlined bytes. */
+  /** Total length of the call argument payload, provided entirely by the payload stream. */
   val callLen = PacketLength()
 
   def getType: PacketDescType.E = PacketDescType.oncRpcCallTx
@@ -61,22 +61,11 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
     encoder.io.output >> outPld
 
 
-    assert(ONCRPC_NESTED_CALL_INLINE_BYTES <= axisConfig.dataWidth,
-      "we assumed the nested call inline bytes fit inside one AXIS beat")
-
-    val segmentLenWidth = log2Up(axisConfig.dataWidth) + 1
-    val inlinedLen = U(0, segmentLenWidth bits)
-    val inlinedMaskNext = ((U(1, axisConfig.dataWidth bits) |<< inlinedLen) - 1).asBits
-    val inlinedShiftNext = axisConfig.dataWidth - inlinedLen
-
-    val inlinedMask = Reg(Bits(axisConfig.dataWidth bits))
-    val inlinedShift = Reg(UInt(segmentLenWidth bits))
-    val inlinedData = Reg(Bits(axisConfig.dataWidth * 8 bits))
     val overflowPldPresent = Reg(Bool())
 
     val outHdr = Reg(OncRpcCallHeader())
 
-    encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
+    encoder.io.empty := !overflowPldPresent
     encoder.io.header.payload := outHdr.asBits
     encoder.io.header.valid := False
 
@@ -96,16 +85,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
           when (md.fire) {
             nextRpcId := nextRpcId + 1
 
-            inlinedShift := inlinedShiftNext
-            inlinedMask  := inlinedMaskNext
-            when (md.callLen.bits > ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
-              inlinedLen         := ONCRPC_NESTED_CALL_INLINE_BYTES.get
-              overflowPldPresent := True
-            } otherwise {
-              inlinedLen         := md.callLen.bits.resized
-              overflowPldPresent := False
-            }
-            inlinedData := (md.data.asBits << (inlinedShiftNext * 8)).resized
+            overflowPldPresent := md.callLen.bits =/= 0
 
             outHdr.xid      := md.xid
             outHdr.msgType  := 0
@@ -141,23 +121,7 @@ class OncRpcCallEncoder extends Encoder[OncRpcCallTxMeta] {
         whenIsActive {
           encoder.io.header.valid := True
           when (encoder.io.header.ready) {
-            when(encoder.io.empty) { goto(idle) } otherwise { goto(sendInlinedWords) }
-          }
-        }
-      }
-
-      val sendInlinedWords: State = new State {
-        whenIsActive {
-          encoder.io.input.valid := True
-          encoder.io.input.keep := inlinedMask |<< inlinedShift
-          encoder.io.input.data := inlinedData
-          encoder.io.input.last := !overflowPldPresent
-          when (encoder.io.input.ready) {
-            when (overflowPldPresent) {
-              goto(passthrough)
-            } otherwise {
-              goto(idle)
-            }
+            when(encoder.io.empty) { goto(idle) } otherwise { goto(passthrough) }
           }
         }
       }
