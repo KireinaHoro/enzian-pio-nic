@@ -87,6 +87,13 @@ failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and
 [latency record](docs/research/latency-measurement.md#corrected-module-516232-comparison--october-5)
 distinguish the historical failure from completed follow-up tests.
 
+October 10 null-RPC rerun on matched 518689 passed 4,000 measured hot/cold RPCs
+plus 32 warmups with complete measured-request breakdowns and healthy kernel/TAD
+checks. Default short replies use overflow and regress versus the old inline
+baseline; see the [rerun and TX-path limitation](docs/research/latency-measurement.md#contiguous-rxtx-null-rpc-rerun--october-10).
+The DUT now runs that RPC cohort with tracing frozen; all four windows are
+preserved. Recheck reservation and live state before reuse.
+
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,

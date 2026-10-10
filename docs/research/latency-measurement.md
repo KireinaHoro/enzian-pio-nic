@@ -1103,3 +1103,104 @@ interval, concentrated in RX and TX. Independent tests invalidated the retired
 instruction counter on this setup, including kernel perf reads; instruction
 percentiles are withheld. The report includes instrumentation overhead, stage
 cache/cycle counts, exact measurement boundaries and the remaining blocker.
+
+## Contiguous RX/TX null-RPC rerun — October 10
+
+[Report/provenance](../../data/eci/board-evidence/dpdk-contiguous-hot-cold-518689-20261010.json),
+[all component percentiles](../../data/eci/board-evidence/dpdk-contiguous-hot-cold-518689-20261010.csv), and
+[acquisition inputs](../../data/eci/board-evidence/dpdk-contiguous-hot-cold-518689-20261010-inputs/README.md)
+record the rerun on pipeline **518689**, hardware/software
+`45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` (prepare 2884501, hardware 2884502,
+report 2884503). The deployed image is the matched CI image, not current master.
+Its RPC/worker runtime sources match merged `2df65e86`. Timing is not closed:
+WNS −0.950 ns, TNS −14578.675 ns, 44,830 failing setup endpoints.
+
+The same small add/null-RPC fixture, one measured thread and separate four-thread
+mul flush domain were used with the original Nix DPDK client image. Cold requests
+follow fully drained `flush:1:4` preparation with 100 µs flush-handler work.
+All **4,000 measured requests plus 32 warmups** passed, with 4,032 buffered runtime
+rows and zero drops. Both cold cohorts have 1,000 distinct cooperative activations;
+both hot cohorts have one. Hot kernel-on used CPU45; all other cohorts used CPU44.
+All kernel/TAD assessments passed. This is one cold boot and four sequential
+cohorts, not a concurrent measured-worker benchmark.
+
+Raw RTT and MAC-marker-to-MAC-marker percentiles, microseconds:
+
+| Condition (1,000 each) | RTT median | RTT p99 | MAC median | MAC p99 |
+| --- | ---: | ---: | ---: | ---: |
+| hot kernel off | 14.350 | 15.110 | 5.670 | 5.715 |
+| cold kernel off | 45.600 | 54.944 | 36.880 | 43.880 |
+| hot kernel on | 14.350 | 17.050 | 5.665 | 7.330 |
+| cold kernel on | 53.850 | 65.645 | 45.150 | 57.070 |
+
+Selected additive component medians with kernel tracing off, microseconds.
+Do not sum independently computed medians; conservation is checked per request.
+
+| Component | Hot | Cold |
+| --- | ---: | ---: |
+| Queue / reactivation wait | 0.015 | 28.078 |
+| RX hardware estimate | 0.122 | 0.122 |
+| RX software | 0.080 | 0.100 |
+| Runtime overhead | 1.109 | 1.950 |
+| Unmarshal | 0.250 | 1.160 |
+| Handler | 0.150 | 0.470 |
+| Marshal | 0.200 | 1.090 |
+| TX software | 1.423 | 1.593 |
+| TX hardware | 1.945 | 1.945 |
+| External client/network residual | 8.335 | 8.250 |
+
+The default short-RPC path **regressed** against the October 5 516232 baseline:
+hot RTT rose from 12.24 to 14.35 µs, hot MAC interval from 3.700 to 5.670 µs,
+and hot TX hardware from 0.950 to 1.945 µs. This is a whole-revision comparison,
+not an isolated attribution of every difference to contiguous buffers. The
+current RPC encoder reserves maximum response capacity, selecting overflow even
+for the short response. All 1,016 hot traced TX invalidation starts/completions
+report one overflow CL. Thus length-limited invalidation is exercised, but the
+inline reservation fast path is not. Follow-up: measure an exact-size short-reply
+reservation before claiming an inline-TX benefit; do not silently repack a short
+send after a larger reservation. No runtime or hardware behavior changed here.
+
+All 4,000 measured requests have full correlation, additive conservation and
+zero unattributed time inside the MAC interval. The strict decoder rejects stored
+loss markers. VIO sticky loss was first observed after freeze and persists across
+windows; it is not a substitute for checking stored records. Two measured hot
+kernel-on RX descriptors carried sentinel HostMsgID 63; the established bounded
+single-delivery-between-dispatches recovery is explicitly audited. One initial
+hot kernel-on warmup lacks complete MAC correlation; it is retained in the
+warmup exception list, not counted among measured results.
+
+FPGA intervals use nominal 200 MHz / 5 ns quantization. CPU/FPGA alignment retains
+the earlier lower-envelope RX-unblock estimator and half measured ECI RTT; RX HW
+is an estimate, without an independent bound on systematic one-way error.
+Kernel trace text has 1 µs quantization. Borrowed RX moves payload reads into
+unmarshalling, so older copied-RX stage boundaries are not identical. External
+residual still combines client NIC, link/switch and polling contributions.
+Kernel-off controls retain buffered runtime probes and FPGA tracing; no
+all-instrumentation-off or independently calibrated one-way network claim is made.
+
+The first client startup failed before traffic because stale peer overlays
+referenced a deleted image. The original client image hash was verified and a
+clean read-only view restored without resetting the peer or deleting captures.
+Vivado later segfaulted at exit after triggering the cold-on dump; its receiver
+completed all bytes and checksum, and that existing capture was exported.
+Both incidents and their evidence are retained. The DUT remains on the successful
+RPC cohort with FPGA tracing frozen; all four bounded windows are preserved
+locally and in peer RAM. Recheck reservations and state before reuse.
+
+Plots are in `out/nullrpc-contiguous/figures/`: `median-waterfall`,
+`component-violins`, `handoff-violins`, `interval-violins` (PNG/SVG/PDF), and
+`hot-cold-latency.pdf`. Waterfalls use actual requests nearest median RTT, not
+synthetic sums of component medians. Reproduce from the retained audits:
+
+```sh
+nix develop -c python3 data/eci/apps/plot_hot_cold.py \
+  --captures out/nullrpc-contiguous \
+  --handoff out/nullrpc-contiguous/handoff.json \
+  --trace-map out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json \
+  --labels hot-off cold-off hot-on2 cold-on \
+  --output out/nullrpc-contiguous/figures
+```
+
+Nix activation (six tests) and handoff (four tests) regressions passed; the
+parameterized plotter reproduced the old baseline and generated this rerun.
+Timing, layout, PREEMPT and runtime implementations were unchanged.
