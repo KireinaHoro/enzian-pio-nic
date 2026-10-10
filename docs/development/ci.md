@@ -76,6 +76,16 @@ merged temporary ref only after its jobs finish. The read-only project token
 must not be used to retry or mutate CI; use the authorized Git workflow or a
 separately authorized write-capable interface.
 
+## Explicit transport-only application scope
+
+For transport work while the memcached adapter is being migrated, launch with
+`git push -o ci.variable=LAUBERHORN_SKIP_MEMCACHED=1 gitlab BRANCH`.
+This opt-in omits only `memcached-adapter` and the memcached deployment image;
+all other test gates, matching RPC software, RTL and hardware reporting remain
+required. Preparation publishes `out/ci-scope.json` with the exact revision and
+`memcached_omitted` flag. Never count an omitted application as passing.
+The default remains the full pipeline. Values other than 0 or 1 fail preparation.
+
 ## Pipeline and handoff
 
 1. `fast-tests-eci`, `dcs-rom-thx`, `dcs-lauberhorn`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,

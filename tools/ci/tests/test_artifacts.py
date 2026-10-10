@@ -1,4 +1,5 @@
 """Regression checks for fresh-output CI publication; no Nix builds are run."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -103,6 +104,24 @@ fi
         self.assertEqual((self.work / 'out/memcached-deploy.img').read_text(), 'image\n')
         self.assertTrue((self.work / 'out/eci/vivado-inputs/generated/NicEngine.v').is_file())
         self.assertFalse((self.work / 'out/eci/vivado-inputs/output').exists())
+
+    def test_prepare_transport_only_records_omission(self):
+        self.prepare_tool()
+        self.env['LAUBERHORN_SKIP_MEMCACHED'] = '1'
+        result = self.run_script('prepare-eci.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.work / 'calls').read_text().count('called'), 2)
+        self.assertTrue((self.work / 'out/deploy.img').exists())
+        self.assertFalse((self.work / 'out/memcached-deploy.img').exists())
+        scope = json.loads((self.work / 'out/ci-scope.json').read_text())
+        self.assertEqual(scope, {'revision': 'a' * 40, 'memcached_omitted': True})
+
+    def test_prepare_rejects_invalid_scope(self):
+        self.prepare_tool()
+        self.env['LAUBERHORN_SKIP_MEMCACHED'] = 'yes'
+        result = self.run_script('prepare-eci.sh')
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse((self.work / 'calls').exists())
 
     def test_prepare_rejects_wrong_revision_before_publishing(self):
         self.prepare_tool()
