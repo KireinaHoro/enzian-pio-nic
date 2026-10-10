@@ -52,7 +52,7 @@ int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **packet) {
     if (n<0) return -1;
     borrowed=true;
     view=(lauberhorn_udp_datagram_t){.endpoint=1,.saddr=ntohl(addr.sin_addr.s_addr),
-        .sport=ntohs(addr.sin_port),.daddr=INADDR_LOOPBACK,.dport=local_port,.data=payload,.length=n};
+        .trace_ref=0x803f,.sport=ntohs(addr.sin_port),.daddr=INADDR_LOOPBACK,.dport=local_port,.data=payload,.length=n};
     *packet=&view;
     return 1;
 }
@@ -82,8 +82,9 @@ int lauberhorn_tx_cancel(lauberhorn_tx_buffer_t *buffer) {
     return 0;
 }
 int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *ep,uint32_t address,
-        uint16_t port,lauberhorn_tx_buffer_t *buffer,size_t length) {
+        uint16_t port,lauberhorn_tx_buffer_t *buffer,size_t length,uint16_t related_rx) {
     assert(borrowed && reserved && buffer->_generation==generation);
+    assert(related_rx==view.trace_ref);
     assert(ep->owner==current && buffer->_worker==current && length<=buffer->capacity);
     struct sockaddr_in addr={.sin_family=AF_INET,.sin_port=htons(port),.sin_addr.s_addr=htonl(address)};
     /* Every datagram first gets a definite rejection. Its reservation is still
@@ -97,3 +98,8 @@ int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *ep,uint32_t addr
     return sent<0 ? -1 : 0;
 }
 void lauberhorn_trace_request_id(uint64_t id) { (void)id; }
+
+bool lauberhorn_trace_events_enabled(void) { return false; }
+void lauberhorn_trace_event(enum lauberhorn_trace_event event, uint64_t a, uint64_t b) {
+    (void)event; (void)a; (void)b;
+}

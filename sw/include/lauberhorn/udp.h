@@ -17,6 +17,9 @@ typedef struct {
 typedef struct {
     uint32_t endpoint, saddr, daddr;
     uint16_t sport, dport;
+    /* Trace-only reference: valid bit 15, wrapping RX HostMsgID bits 5:0.
+     * May be copied after release; does not retain the packet or confer authority. */
+    uint16_t trace_ref;
     void *data;
     size_t length;
 } lauberhorn_udp_datagram_t;
@@ -48,7 +51,9 @@ int lauberhorn_udp_release(void);
  * reserve again and regenerate/copy bytes; the old pointer is no longer valid.
  * EIO is indeterminate: do not retry automatically. Success is local admission,
  * not remote delivery. Multiple sends per receive and zero-length sends are valid.
+ * related_rx echoes the originating packet.trace_ref for every response segment;
+ * pass zero for unrelated sends. It is only an untrusted trace annotation.
  * Validation errors before submission leave the reservation live for cancel. */
 int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *, uint32_t daddr,
-    uint16_t dport, lauberhorn_tx_buffer_t *, size_t actual_length);
+    uint16_t dport, lauberhorn_tx_buffer_t *, size_t actual_length, uint16_t related_rx);
 #endif

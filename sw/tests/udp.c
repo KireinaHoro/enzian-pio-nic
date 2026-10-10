@@ -36,7 +36,7 @@ static bool test_rx(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_d
     if (mode == 0) return false;
     if (mode == 1 && receives == 1) { desc->type = TY_PREEMPT; return true; }
     *desc = (lauberhorn_pkt_desc_t){.type = TY_NATIVE_UDP_RX,
-        .udp = {.endpoint=55, .saddr=0xc0000201, .daddr=0xc0000202, .sport=32123, .dport=11211},
+        .udp = {.endpoint=55, .saddr=0xc0000201, .daddr=0xc0000202, .sport=32123, .dport=11211, .trace_ref=0x803f},
         .payload_len = mode == 2 ? 0 : 3};
     memcpy(rx, "abc", 3);
     state->rx_view.data = rx;
@@ -61,6 +61,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
 #define core_eci_rx_acquire_traced test_rx_traced
 #define ioctl test_ioctl
 #define core_eci_tx_commit test_tx
+#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) (*(stamp) = (clock)(), test_tx(base, state, desc))
 #define core_eci_rx_acquire test_rx
 #include "../rt/udp.c"
 #include "../rt/buffer.c"
@@ -78,6 +79,7 @@ int main(void) {
     assert(packet == NULL);
     receives = 0; mode = 1;
     assert(lauberhorn_udp_receive_view(&packet) == 1 && yields == 1);
+    assert(packet->trace_ref == 0x803f);
     assert(packet == &worker.udp_rx_view);
     assert(packet->data == rx && packet->length == 3 && packet->endpoint == 55);
     ((char *)packet->data)[0] = 'z';
@@ -95,6 +97,7 @@ int main(void) {
     assert(lauberhorn_udp_receive_view(&packet) == 1 && packet->data == rx);
     assert(lauberhorn_udp_receive_view(&packet) == -1 && errno == EBUSY);
     assert(receives == reads + 1);
+    assert(packet->trace_ref == 0x803f);
     assert(packet == &worker.udp_rx_view && packet->data == rx);
     assert(!lauberhorn_udp_release());
     assert(lauberhorn_udp_release() == -1);
@@ -102,10 +105,11 @@ int main(void) {
     assert(!lauberhorn_tx_get_buffer(false, &buffer));
     stale = buffer;
     assert(lauberhorn_tx_get_buffer(true, &buffer) == -1 && errno == EBUSY);
-    assert(lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 1473) == -1 && errno == EMSGSIZE);
+    assert(lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 1473, 0x803f) == -1 && errno == EMSGSIZE);
     assert(worker.dp.tx_reserved);
     memcpy(buffer.data, "short", 5);
-    assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 5));
+    assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 5, 0x803f));
+    assert(sent.udp.trace_ref == 0x803f);
     assert(sent.payload_len == 5 && !memcmp(tx, "short", 5));
     assert(!lauberhorn_tx_get_buffer(true, &buffer));
     assert(lauberhorn_tx_cancel(&stale) == -1 && errno == EINVAL);
@@ -114,29 +118,29 @@ int main(void) {
     assert(!worker.dp.tx_reserved);
     assert(!lauberhorn_tx_get_buffer(false, &buffer));
     tx_status = CORE_TX_RETRY;
-    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 0) == -1 && errno == EAGAIN);
+    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 0, 0x803f) == -1 && errno == EAGAIN);
     assert(!worker.dp.tx_reserved && !buffer.data);
     tx_status = CORE_TX_ACCEPTED;
     sends = 0;
     assert(!lauberhorn_tx_get_buffer(true, &buffer));
     memcpy(buffer.data, "hello world", 11);
-    assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 11));
+    assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 11, 0x803f));
     assert(sent.type == TY_NATIVE_UDP_TX && sent.payload_len == 11 && sent.udp.endpoint == 55);
     assert(sent.udp.daddr == 0xc0000201 && sent.udp.dport == 32123 && !memcmp(tx,"hello world",11));
     assert(!lauberhorn_tx_get_buffer(true, &buffer));
-    assert(!lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 0));
+    assert(!lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 0, 0x803f));
     assert(sent.payload_len == 0);
     assert(!lauberhorn_tx_get_buffer(true, &buffer));
     tx_status = CORE_TX_ERROR;
-    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 11) == -1 && errno == EIO);
+    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 11, 0x803f) == -1 && errno == EIO);
     assert(!worker.dp.tx_reserved && !buffer.data);
     int before = sends;
     assert(!lauberhorn_tx_get_buffer(true, &buffer));
     assert(buffer.capacity == 64);
-    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 65) == -1 && errno == EMSGSIZE);
+    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 65, 0x803f) == -1 && errno == EMSGSIZE);
     assert(worker.dp.tx_reserved);
     ep.owner = NULL;
-    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 11) == -1 && errno == EINVAL);
+    assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 11, 0x803f) == -1 && errno == EINVAL);
     assert(sends == before && worker.dp.tx_reserved);
     assert(!lauberhorn_tx_cancel(&buffer));
 }

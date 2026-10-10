@@ -18,6 +18,7 @@ case class GsyncReleaseFixture() extends Component {
   val axi = Vec.fill(5)(slave(Axi4(cfg)))
   for (a <- axi) {
     val r = DcsRxAxiRouter(cfg, cfg)
+  r.rxTraceId := 0
     r.dcsAxi <> a
     r.pktBufAxi.setBlocked()
     r.rxDesc.valid := descriptor && r.rxDesc.ready

@@ -227,3 +227,11 @@ including ready futures until consumption. This prevents a submit burst from
 reusing hardware-retired slots faster than software drains completions. It is a
 [small-table workaround](programming-model.md#loopback-composition-receive-side-backpressure),
 not the intended scalable limit; see the [spill plan](../hardware/lookup-spill.md).
+
+Native UDP trace metadata version 1 exposes the wrapping RX `HostMsgID` in
+`packet->trace_ref` (valid bit 15, ID bits 5:0). Pass that scalar as `related_rx`
+to `lauberhorn_udp_send_buffer` for each associated response, or zero for an
+unrelated send. The FPGA records it at TX submission; it grants no access and
+retains no packet. Use matching generated headers and hardware. Narrow IDs need
+lifetime/order validation in analysis, not global-ID joins. See the
+[memcached breakdown follow-up](../research/memcached.md#rxtx-trace-correlation-and-rtt-breakdown--active-october-10-follow-up).

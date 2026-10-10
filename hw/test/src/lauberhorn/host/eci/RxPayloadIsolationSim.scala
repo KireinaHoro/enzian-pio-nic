@@ -15,6 +15,7 @@ case class RxPayloadIsolationFixture() extends Component {
   val memory = master(Axi4(cfg))
   val length = in UInt(16 bits)
   val router = DcsRxAxiRouter(cfg, cfg)
+  router.rxTraceId := 0
   router.dcsAxi <> axi
   memory <> router.pktBufAxi
   router.rxDesc.valid := router.rxDesc.ready

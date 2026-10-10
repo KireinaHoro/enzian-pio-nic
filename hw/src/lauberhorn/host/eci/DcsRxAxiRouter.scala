@@ -45,6 +45,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     * should not wait for valid as a trigger.
     */
   val rxDesc = slave(Stream(HostReq()))
+  val rxTraceId = in UInt(lauberhorn.HostMsgID.width bits)
   // Only unaccepted descriptors may be cancelled. The scheduler retains their
   // allocation and returns it through its discard path; accepted ones drain here.
   val cancelRxDesc = in Bool()
@@ -263,7 +264,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           newPayload := True
           savedControl.payload := B(0, 512 bits)
           when(rxDesc.fire) {
-            savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload) ## True
+            savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload, rxTraceId) ## True
           } elsewhen(yieldRequested && !fatalRelease) {
             savedControl.payload(1) := True // valid=0, PREEMPT=1, no payload
           }
