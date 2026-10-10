@@ -907,6 +907,42 @@ Rearmed the same results-recheck timer for **16:10:20 CEST** (30 minutes).
 No duplicate build/test or board change; artifact collection and board acceptance
 remain pending, and the pipeline branch is retained.
 
+#### Pipeline 518689 hardware and RPC results, October 10
+
+The 16:10 CEST recheck found all thirteen enabled gates, preparation 2884501,
+hardware 2884502 and report 2884503 successful, without retries, at exact SHA
+`45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4`. Memcached was explicitly omitted
+from this CI pipeline. Matching bitstream/LTX/trace map are saved in
+`out/contiguous-transport/hw-2884502/`; CI software, scope and timing summary
+are in `ci-518689/` under the same root. The RPC image SHA-256 is
+`3fa8b086bc77e611596d779da3d4706bca78997175aa01203a2eec17a0b5cc64`.
+Reported timing: **WNS -0.950 ns, TNS -14578.675 ns, 44,830 failing setup
+endpoints**, zero hold violations. This is not timing closure. No timing,
+address-layout or PREEMPT implementation changed during this follow-up.
+
+Fresh reservations confirmed zuestoll14 and zuestoll07 belonged to pengxu.
+The DUT retained the successful 518400 RPC server; tracing was active, wrapped,
+with no sticky sample loss or DMA error. Earlier failure captures remain intact.
+The repository harness passed **two cold-boot trials and 200/200 checked RPCs**.
+Trial one rejected its first boot for a missing BDK CCPI lane report before
+module load, then passed its full cold-reset retry. The failed console showed
+QLM8–13 lock but no lane list, stopping after USB initialization; that log is
+retained. Trial two passed its first boot. Both successful boots verified all
+24 CCPI lanes, module/revision checks and response values/request IDs/statuses,
+with no reported kernel faults. Tracing and the static edge ILA were armed
+before module load. Trial durations were 419.3 s (including retry) and 286.3 s;
+these are end-to-end harness times, not request latency.
+
+Evidence: `rpc-board-518689/summary.json`, `rpc-518689-harness.json`,
+`rpc-518689-{first,second}.csv`, `rpc-518689-response-check.json` and
+`board-provenance-518689.json`, all under `out/contiguous-transport/`.
+The subsequent memcached image staging hit the shared scratch quota. Two old
+remote deployment copies (518140/518400) were removed only after verifying
+their hashes against retained local originals; no logs or captures were removed.
+`518689-quota-cleanup.json` records the retained paths and hashes. The updated
+memcached image below is staged and verified; its board trials are separate
+from this completed RPC regression.
+
 The previously running local fast ECI suite also completed: 55 tests passed,
 20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
 Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
@@ -1055,6 +1091,52 @@ kernel module and generated collateral remain from the hardware pipeline SHA.
 The image manifest records `platform.runtimeOverride` explicitly; it must not be
 reported as running the pipeline's original runtime. The scheduled RPC tests
 continue to use the original CI software image unchanged.
+
+**Board-discovered packaging correction:** the first matched-image helper omitted
+the AArch64 Python/Bash overrides that normal platform packaging already supplies.
+The first memcached board attempt passed module/revision checks after two rejected
+CCPI bring-up attempts, then failed before launching memcached with Python
+`Exec format error`. The harness stopped without a second trial or reset.
+Full frozen trace (130,695,872 bytes, no loss/DMA error), map, hash and provenance
+are preserved in `out/contiguous-transport/memcached-518689/launch-failure-trace/`;
+the failed harness summary is `out/contiguous-transport/memcached-board-518689/summary.json`.
+The helper now supplies target Python/Bash while writing wrappers on the build
+host. The rebuilt image's interpreters were verified as AArch64 ELF; its manifest
+matches the earlier image's platform, application, runtime, module and collateral.
+Use `out/contiguous-transport/memcached-518689-target-tools.img`, resolving to
+`/nix/store/pyira29gqx1z30bf9cq6bddapbfca6nf-lauberhorn-memcached.img`, SHA-256
+`cbe08b46e2327de8d1e2da1303c853137881c3586d66097000bd7df6231d1887`.
+Its manifest is `out/contiguous-transport/memcached-518689-target-tools-manifest.json`.
+This supersedes the faulty launcher image below; keep that image only as failure
+provenance. The fresh retry uses `cases-target-tools.json` and
+`out/contiguous-transport/memcached-target-tools-board-518689/`.
+
+The corrected-image trial passed its first cold boot, module/revision checks and
+application launch, but its first compatibility request returned
+`ConnectionRefusedError`. The harness stopped; its second repeat was not run.
+The complete 138,985,280-byte frozen trace, map, checksum and provenance are in
+`out/contiguous-transport/memcached-518689/compatibility-failure-trace/`.
+Pre/post-freeze loss and DMA-error flags were zero. The local capture hash and
+length match the successful peer receiver; the shared scratch copy is truncated
+by quota and must not be used as the full capture. The complete peer original is
+also retained under `/tmp/memcached-518689-compatibility-failure` on zuestoll07.
+The local transfer used a one-request management-network server after scratch
+copying failed. Additional removed remote deployment copies (517951 images and
+the faulty-launcher image) remain available locally; captures were not deleted.
+
+Decoded evidence (`memcached-518689/decoded-summary.json` and
+`compatibility-failure-events.json`) contains one UDP decode followed by bypass
+delivery, with no native UDP decode, scheduler dispatch or application RX event.
+Memcached remains alive; its renamed `lh-mc-0` worker is parked in `worker_yield`.
+The kernel recorded application registration, and no kernel fault was reported.
+**A startup readiness race is suspected, not confirmed:** the launcher waits only
+100 ms and explicitly reports readiness unverified. The initial request may have
+preceded endpoint registration. Investigate that ordering and establish a bounded
+readiness gate before retrying compatibility; do not count this trial as passing
+or silently retry measured requests. The board remains on the corrected image
+with tracing frozen after this failure. No reset followed capture, and no timing,
+address-layout or PREEMPT change was made. RPC regression is complete; memcached
+compatibility, oversubscription and performance acceptance remain open.
 
 The updated matched image build passed. Its manifest verifies the kernel module
 and all generated collateral paths are identical to the baseline matched image.
