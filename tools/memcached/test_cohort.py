@@ -50,7 +50,7 @@ def check(binary):
             assert len(result['compatibility']) == 5
             assert all(p.poll() is None for p in processes)
         with tempfile.TemporaryDirectory() as tmp:
-            result = patterns('127.0.0.1', ports, Path(tmp)/'patterns', count=24, window=8, repeats=1, idle=.001)
+            result = patterns('127.0.0.1', ports, Path(tmp)/'patterns', count=24, window=8, repeats=1, idle=.001, batch=True)
             assert result['passed'], result['errors']
             rows = list(csv.DictReader((Path(tmp)/'patterns/requests.csv').open()))
             assert len(rows) == 20*24 and all(r['status']=='ok' for r in rows)

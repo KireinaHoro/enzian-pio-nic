@@ -21,7 +21,7 @@ def plot(source, output):
         for label,color in [('entry','tab:red'),('sustained','tab:blue')]:
             selected=[r for r in good if int(r['port'])==port and r['class']==label]
             ax.scatter([(int(r['sent_ns'])-origin)/1e9 for r in selected],
-                       [float(r['rtt_us']) for r in selected],s=4,alpha=.65,label=label)
+                       [float(r['rtt_us']) for r in selected],s=4,alpha=.65,label=label,color=color)
         for phase in summary['phases']:
             ax.axvline((phase['start_ns']-origin)/1e9,color='gray',alpha=.2,lw=.5)
         ax.set_yscale('log'); ax.set_ylabel(f'{port}\nRTT (µs)'); ax.grid(alpha=.15)

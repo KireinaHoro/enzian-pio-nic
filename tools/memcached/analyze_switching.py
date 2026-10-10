@@ -100,8 +100,18 @@ if __name__ == '__main__':
     p.add_argument('--map', type=Path, required=True)
     p.add_argument('--launch', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--start-cycle', type=int, default=0, help='Explicit inclusive evidence window start')
+    p.add_argument('--end-cycle', type=int, help='Explicit exclusive evidence window end')
     a = p.parse_args()
-    result = analyze(read_records(a.trace, dma.load_map(a.map)), json.loads(a.launch.read_text()))
+    if a.start_cycle < 0 or (a.end_cycle is not None and a.end_cycle <= a.start_cycle):
+        p.error('invalid trace window')
+    records = read_records(a.trace, dma.load_map(a.map))
+    losses = [dict(timestamp=t, **f) for t,n,f in records if n == 'Lost' and f['count']]
+    window = [r for r in records if r[0] >= a.start_cycle and (a.end_cycle is None or r[0] < a.end_cycle)]
+    result = analyze(window, json.loads(a.launch.read_text()))
+    result['trace_window'] = dict(start_cycle=a.start_cycle,end_cycle=a.end_cycle,
+                                  full_capture_loss_markers=losses,
+                                  scope='Only the selected window is audited; excluded history is not validated')
     result['trace_sha256'] = hashlib.file_digest(a.trace.open('rb'), 'sha256').hexdigest()
     result['map_sha256'] = hashlib.sha256(a.map.read_bytes()).hexdigest()
     a.output.write_text(json.dumps(result, indent=2)+'\n')
