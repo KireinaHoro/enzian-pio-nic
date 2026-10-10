@@ -8,7 +8,7 @@ import socket
 import subprocess
 import time
 from compatibility import run
-from protocol import Client
+from protocol import Client, HEADER
 
 
 def port():
@@ -21,7 +21,7 @@ def launch(binary, power=18):
     number=port()
     env=os.environ.copy()
     env.pop('LAUBERHORN_UDP', None)
-    process=subprocess.Popen([binary,'-p','0','-U',str(number),'-l','127.0.0.1','-t','2','-o',f'hashpower={power}'],
+    process=subprocess.Popen([binary,'-p','0','-U',str(number),'-l','127.0.0.1','-t','2','-R','1','-o',f'hashpower={power}'],
                              env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     for _ in range(100):
         if process.poll() is not None:
@@ -50,6 +50,30 @@ if __name__=='__main__':
             process.terminate();process.wait(timeout=5)
             (args.output/f'{name}.log').write_bytes(process.stderr.read())
     assert results['upstream']['checks']==results['adapter_socket_transport']['checks']
+    process,number=launch(args.adapter)
+    try:
+        c=Client('127.0.0.1',number,timeout=1)
+        # Force conn_new_cmd's fairness yield with -R 1 while the same borrow
+        # still contains another command. Only the final command responds.
+        command=(b'set first 0 0 1 noreply\r\na\r\n'
+                 b'set second 0 0 1\r\nb\r\n')
+        assert c.request(command)==b'STORED\r\n'
+        assert c.request(b'get first\r\n')==b'VALUE first 0 1\r\na\r\nEND\r\n'
+        assert c.request(b'get second\r\n')==b'VALUE second 0 1\r\nb\r\nEND\r\n'
+        # Dropped input, including an incomplete item, must release and reset
+        # without contaminating the next datagram or freeing transport memory.
+        for raw in [b'', b'\x00'*7, HEADER.pack(60000,0,1,0),
+                    HEADER.pack(60001,0,2,0)+b'get first\r\n',
+                    HEADER.pack(60002,0,1,0)+b'get first',
+                    HEADER.pack(60003,0,1,0)+b'set broken 0 0 10\r\nx']:
+            c.socket.send(raw)
+            time.sleep(0.01)
+            assert c.request(b'get first\r\n')==b'VALUE first 0 1\r\na\r\nEND\r\n'
+        c.close()
+        results['borrow_lifetime_and_local_continuations']=True
+    finally:
+        process.terminate();process.wait(timeout=5)
+        (args.output/'borrow-lifetime.log').write_bytes(process.stderr.read())
     process,number=launch(args.adapter,power=12)
     try:
         c=Client('127.0.0.1',number,timeout=0.1)
