@@ -15,14 +15,32 @@ class SwitchingTraceTests(unittest.TestCase):
             add('ActivationCommitted', CoreID=core, DomainCode=pid, RxNext=0, TxNext=1)
             add('SchedulerProcessRun', CoreID=core, ProcessID=pid)
             add('ActivationDelivered', CoreID=core, DomainCode=pid)
-            add('SchedulerRequestDispatched', CoreID=core, ProcessID=pid)
+            add('SchedulerRequestQueued', HostMsgID=len(records), ProcessID=pid)
+            add('SchedulerRequestDispatched', CoreID=core, ProcessID=pid, HostMsgID=len(records)-1)
             add('EciRxReadFirst', CoreID=core, CacheLineIndex=0)
             add('EciTxAcquire', CoreID=core, CacheLineIndex=1)
         return launch, records
 
     def test_switches_and_rejection_of_missing_yield_loss_and_parity(self):
         launch, records = self.fixture()
-        self.assertEqual(len(analyze(records, launch)['transitions']), 2)
+        result = analyze(records, launch)
+        self.assertEqual(len(result['transitions']), 2)
+        self.assertEqual(result['peak_assigned_workers'], {100:1,101:1,102:1})
+        self.assertEqual(len(result['queue_latencies']), 4)
+        more = list(records)
+        more += [(20,'YieldAccepted',dict(CoreID=2,PreemptOutOfIdle=0)),
+                 (21,'ActivationCommitted',dict(CoreID=2,DomainCode=100,RxNext=0,TxNext=1)),
+                 (22,'SchedulerProcessRun',dict(CoreID=2,ProcessID=100)),
+                 (23,'ActivationDelivered',dict(CoreID=2,DomainCode=100)),
+                 (24,'EciRxReadFirst',dict(CoreID=2,CacheLineIndex=0)),
+                 (25,'EciTxAcquire',dict(CoreID=2,CacheLineIndex=1))]
+        # Place appended records after the original fixture.
+        more = records + [(t+100,n,f) for t,n,f in more[len(records):]]
+        with self.assertRaisesRegex(ValueError, 'declared parallelism'):
+            analyze(more, launch)
+        launch['processes'][0]['workers'] = 2
+        self.assertEqual(analyze(more, launch)['peak_assigned_workers'][100], 2)
+        launch['processes'][0]['workers'] = 1
         with self.assertRaisesRegex(ValueError, 'ordinary yield'):
             analyze([r for r in records if r[1] != 'YieldAccepted'], launch)
         with self.assertRaisesRegex(ValueError, 'loss'):

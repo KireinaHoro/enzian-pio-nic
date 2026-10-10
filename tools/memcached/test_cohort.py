@@ -9,6 +9,8 @@ import tempfile
 import threading
 from ready import wait_ready
 from switching import run
+from patterns import run as patterns
+import csv
 
 
 def check(binary):
@@ -28,7 +30,7 @@ def check(binary):
     def start():
         try:
             for port in ports:
-                command = [binary, '-p', '0', '-U', str(port), '-t', '1', '-m', '16',
+                command = [binary, '-p', '0', '-U', str(port), '-t', '4', '-m', '16',
                            '-o', 'hashpower=18']
                 if os.geteuid() == 0:
                     command += ['-u', 'root']
@@ -47,6 +49,12 @@ def check(binary):
             assert result['passed'], result.get('error')
             assert len(result['compatibility']) == 5
             assert all(p.poll() is None for p in processes)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = patterns('127.0.0.1', ports, Path(tmp)/'patterns', count=24, window=8, repeats=1, idle=.001)
+            assert result['passed'], result['errors']
+            rows = list(csv.DictReader((Path(tmp)/'patterns/requests.csv').open()))
+            assert len(rows) == 20*24 and all(r['status']=='ok' for r in rows)
+            assert {r['class'] for r in rows} == {'entry','sustained'}
         print('COHORT_TEST_PASS: delayed startup, deadline, five distinct instances, compatibility and traffic')
     finally:
         timer.join()
