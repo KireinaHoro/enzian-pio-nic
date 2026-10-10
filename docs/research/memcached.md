@@ -538,7 +538,8 @@ removed staging copies separately from unavoidable application/storage copies.
 
 Keep separate application event-wait and receive-hook call sites, but do not
 split the runtime RX API into wait and consume. Event-wait obtains the borrowed
-view and stores it in the worker's single pending slot. The receive hook hands
+view pointer and stores only that pointer in the worker's single pending slot.
+The runtime owns the view object and its lifetime. The receive hook hands
 that same view to the connection exactly once, without another transport call
 or copy. Track PENDING -> IN_USE -> RELEASED: handing the pointer to the parser
 clears local receive readiness but does not release transport ownership. Point
@@ -993,4 +994,66 @@ nix build --impure --file tools/memcached/matched-image.nix \
   --argstr platformRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4&submodules=1' \
   --argstr applicationRevision 9453656b629acc33728a18ad98d7320c8d7eed45 \
   --out-link out/contiguous-transport/memcached-518689-matched.img
+```
+
+
+### Runtime-owned UDP view, October 10
+
+The pointer-returning API in platform `aa1255b7c271769e67a84767a67ee57882140aa3`
+returns `const lauberhorn_udp_datagram_t **`: on success the caller receives a
+pointer to a worker-owned view, not a copy of that view. Its metadata is const;
+the referenced payload remains mutable. The worker retains one public UDP view
+instead of the redundant saved UDP descriptor. Core `rx_view` remains private
+transport borrow bookkeeping; it does not grant separate application ownership.
+NACK/error leaves the output pointer unchanged, including a rejected second
+acquisition. Release clears the runtime view and transport borrow; callers must
+clear their pointer and must not use either view or payload afterward.
+
+Memcached `2eaa2b84e7a6ed0a7d0489b6caad49c211649864` stores only the borrowed view
+pointer plus its PENDING/IN_USE delivery state and saved owned connection buffer.
+It clears the pointer after release. The mock has the same runtime-owned-view
+contract. Runtime tests check pointer identity, mutable payload access, NACK,
+zero-length packets, second-acquisition rejection and release invalidation.
+The RPC codec contract now explicitly forbids retaining borrowed input aliases.
+
+The active consumer audit found no further view copies: bypass copies into skbs;
+RPC calls/completions decode into owned objects; deferred requests/futures retain
+those objects; forwarding copies into a TX reservation before release. Pinned
+Dandelion's Rust codec constructs owned strings/vectors and BSON objects. Its
+old student/mock runtime tree is not the active platform consumer and is unchanged.
+
+Validation through `nix develop` passed runtimeTests, runtime-interface,
+memcached-adapter, memcachedDeployFs and dandelionDeployFs. Evidence:
+`out/contiguous-transport/runtime-owned-view-tests.log`; compatibility summary:
+`/nix/store/ar26gz0dzxg5smb941dbfp1f3g7aqv0j-memcached-adapter-compatibility/summary.json`.
+This is a software API change: rebuild application and runtime together. No
+hardware layout, descriptor encoding or PREEMPT change was made.
+
+The pending 518689 memcached test must use the updated image with the new runtime
+and application together, superseding the earlier application-only image above.
+`matched-image.nix` now accepts an immutable `runtimeRef`: only `sw/rt` and
+`sw/include` come from that revision. The transport core, ioctl/build contract,
+kernel module and generated collateral remain from the hardware pipeline SHA.
+The image manifest records `platform.runtimeOverride` explicitly; it must not be
+reported as running the pipeline's original runtime. The scheduled RPC tests
+continue to use the original CI software image unchanged.
+
+The updated matched image build passed. Its manifest verifies the kernel module
+and all generated collateral paths are identical to the baseline matched image.
+Use `out/contiguous-transport/memcached-518689-owned-view.img`, resolving to
+`/nix/store/9f97s2bc19pria8qjxb51il3kjz7rnc7-lauberhorn-memcached.img`, SHA-256
+`f9b1969f9b8b5d18fc537d8e8b667c7e736df54068d30d35005fd1ba3ef8e215`.
+Manifest: `out/contiguous-transport/memcached-518689-owned-view-manifest.json`;
+provenance: `out/contiguous-transport/memcached-518689/owned-view-provenance.json`.
+Stage this replacement image at the existing case's `deploy.img` path. The case
+remains unrun; board acceptance awaits the scheduled hardware results follow-up.
+
+Reproduce through `nix develop`:
+
+```sh
+nix build --impure --file tools/memcached/matched-image.nix \
+  --argstr platformRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4&submodules=1' \
+  --argstr applicationRevision 2eaa2b84e7a6ed0a7d0489b6caad49c211649864 \
+  --argstr runtimeRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=aa1255b7c271769e67a84767a67ee57882140aa3&submodules=1' \
+  --out-link out/contiguous-transport/memcached-518689-owned-view.img
 ```

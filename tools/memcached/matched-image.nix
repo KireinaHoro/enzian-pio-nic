@@ -1,24 +1,56 @@
-# Build only a new application against an immutable hardware-pipeline platform.
-# Unlike --override-input, retain the platform's original self.rev and collateral.
-{ platformRef, applicationRevision, applicationBranch ? "feat/lauberhorn-rx-wait" }:
+# Rebuild the application (and optionally userspace runtime) on immutable HW.
+# Kernel, transport core, ioctl contract and generated collateral stay pinned.
+{ platformRef, applicationRevision, applicationBranch ? "feat/lauberhorn-rx-wait",
+  runtimeRef ? null }:
 let
   platform = builtins.getFlake platformRef;
+  software = if runtimeRef == null then platform else builtins.getFlake runtimeRef;
+  pkgs = import platform.inputs.nixpkgs { system = "x86_64-linux"; };
+  hardware = platform.lib.mkPlatform { inherit pkgs; };
   application = builtins.fetchGit {
     url = "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git";
     ref = applicationBranch;
     rev = applicationRevision;
   };
-  definition = import (platform.outPath + "/flake.nix");
-  updated = (definition.outputs (platform.inputs // {
-    self = platform;
-    memcached = application;
-  })).packages.x86_64-linux;
-  baseline = platform.packages.x86_64-linux;
+  runtimeSource = pkgs.runCommand "lauberhorn-matched-runtime-source" { } ''
+    mkdir -p $out/sw/kmod
+    cp -r ${software.outPath}/sw/rt ${software.outPath}/sw/include $out/sw/
+    cp -r ${platform.outPath}/sw/core $out/sw/
+    cp ${platform.outPath}/sw/usr-common.mk $out/sw/
+    cp ${platform.outPath}/sw/kmod/ioctl.h $out/sw/kmod/
+  '';
+  runtime = if runtimeRef == null then hardware.runtime else
+    hardware.runtime.overrideAttrs (_: { src = runtimeSource; });
+  identity = {
+    revision = platform.rev;
+    local = false;
+    narHash = platform.narHash;
+  } // pkgs.lib.optionalAttrs (runtimeRef != null) {
+    runtimeOverride = {
+      revision = software.rev;
+      paths = [ "sw/rt" "sw/include" ];
+      transportCoreRevision = platform.rev;
+    };
+  };
+  memcached = hardware.target.callPackage (application + "/package.nix") {
+    source = application;
+    lauberhornRuntime = runtime;
+  };
+  memcachedTools = pkgs.callPackage (platform.outPath + "/nix/software/memcached-tools.nix") {
+    source = platform.outPath;
+    inherit identity;
+  };
+  deployment = pkgs.callPackage (platform.outPath + "/nix/images/default.nix") {
+    target = import platform.inputs.nixpkgs { system = "aarch64-linux"; };
+    inherit (hardware) kmod genVerilog devHdrs kernelRelease;
+    inherit runtime identity;
+  };
 in
-assert platform ? rev;
+assert platform ? rev && software ? rev;
 assert builtins.match "[0-9a-f]{40}" applicationRevision != null;
-assert toString updated.genVerilog == toString baseline.genVerilog;
-assert toString updated.devHdrs == toString baseline.devHdrs;
-assert toString updated.runtime == toString baseline.runtime;
-assert toString updated.kmod == toString baseline.kmod;
-updated.memcachedDeployFs
+assert toString runtime.genVerilog == toString hardware.genVerilog;
+assert toString runtime.devHdrs == toString hardware.devHdrs;
+deployment.mkTestImage {
+  name = "memcached";
+  applications = { inherit memcached; memcached-tools = memcachedTools; };
+}
