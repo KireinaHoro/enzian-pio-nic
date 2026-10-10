@@ -857,3 +857,12 @@ interface check. Logs: `out/contiguous-transport/tx-length-focused.log` and
 only the incompatible adapter gate/image and records that omission in the
 preparation manifest; all other gates remain required. CI helper tests passed
 15 cases (`out/contiguous-transport/ci-scope-tests.log`).
+
+Pipeline [518689](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518689)
+was launched for `45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` with memcached omitted.
+The 30-minute preflight is armed for October 10, 10:08 CEST in the existing thread.
+Hardware results and matched board tests remain pending; retain the branch.
+The [TX layout model](../../model/evidence/tx-payload-layout.md) passed its bounded
+positive case and three expected fault controls. It confirms the inline restore,
+late-write mask and preemption cleanup requirements, under the stated write
+completion assumptions; it is not a complete RTL refinement or RX lifetime proof.

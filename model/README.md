@@ -1,5 +1,10 @@
 # TLA+ models
 
+The version-3 contiguous TX payload contract is checked by
+[`TxPayloadLayout`](tla/composition/TxPayloadLayout.tla): length-based overflow
+invalidation, inline alias priority, cancellation and full preemption cleanup.
+See its [bounded results and assumptions](evidence/tx-payload-layout.md).
+
 The cooperative implementation is checked by [`IdleDispatch`](tla/scheduling/IdleDispatch.tla),
 [`HandoffClaims`](tla/scheduling/HandoffClaims.tla) and
 [`PoolBootstrap`](tla/scheduling/PoolBootstrap.tla). The pinned cooperative group
