@@ -65,7 +65,8 @@ static void execution_flush(void) {
     uint8_t command = worker_execution_take(w, false);
     if (!command) return;
     lauberhorn_pkt_desc_t desc = {.type = TY_EXECUTION_CONTROL, .execution = command};
-    if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
+    if (!core_eci_tx_get_buffer(w->dp_base, &w->dp, 0) ||
+        core_eci_tx_commit(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
 }
 static void execution_begin(void) {
     lauberhorn_worker_t w = worker_get_current();
@@ -104,13 +105,13 @@ static void *lauberhorn_worker_loop(void *arg) {
         bool received;
         if (server_trace_enabled) {
             server_trace_rx_begin(&w->rx_trace, w->worker_id);
-            received = core_eci_rx_traced(w->dp_base, &w->dp, &desc,
+            received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
             w->rx_trace.timestamp_calls++; /* RX-unblock probe */
             w->rx_trace.rx_exit_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_exit);
             w->rx_trace.rx_cpu_id = sched_getcpu();
         } else {
-            received = core_eci_rx(w->dp_base, &w->dp, &desc);
+            received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (received && desc.type == TY_PREEMPT) {
             if (lh_yield(&activation)) worker_fail(w);
@@ -118,6 +119,7 @@ static void *lauberhorn_worker_loop(void *arg) {
         }
         if (received) {
             rpc_handle_packet(w, &desc);
+            core_eci_rx_release(&w->dp);
         }
     }
     worker_fail(w); /* Individual withdrawal is unsupported. */
@@ -153,19 +155,6 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
 
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
-    w->dp.rx_buf_size = LAUBERHORN_MTU;
-
-    w->dp.rx_buf = malloc(LAUBERHORN_MTU);
-    w->dp.tx_buf = malloc(LAUBERHORN_MTU);
-
-    if (!w->dp.rx_buf || !w->dp.tx_buf) {
-        free(w->dp.rx_buf);
-        free(w->dp.tx_buf);
-        free(w);
-        lauberhorn_stop(ctx);
-        errno = ENOMEM;
-        return NULL;
-    }
 
     lauberhorn_is_running = 1;
 
@@ -176,8 +165,6 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
         errno = err;
         PERROR("create thread");
         lauberhorn_stop(ctx);
-        free(w->dp.tx_buf);
-        free(w->dp.rx_buf);
         free(w);
         return NULL;
     }
@@ -200,8 +187,6 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
     }
 
     ctx->_workers--;
-    free(w->dp.rx_buf);
-    free(w->dp.tx_buf);
     free(w);
 }
 
@@ -218,17 +203,9 @@ int lauberhorn_udp_attach(lauberhorn_t *ctx, uint32_t index) {
     w->thread = pthread_self();
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
-    w->dp.rx_buf_size = LAUBERHORN_MTU;
-    w->dp.rx_buf = malloc(LAUBERHORN_MTU);
-    w->dp.tx_buf = malloc(LAUBERHORN_MTU);
-    if (!w->dp.rx_buf || !w->dp.tx_buf) {
-        free(w->dp.rx_buf); free(w->dp.tx_buf); free(w);
-        errno = ENOMEM;
-        return -1;
-    }
     server_trace_thread_init();
     if (ioctl(ctx->fd, LAUBERHORN_IOCTL_REGISTER_THREAD, &index)) {
-        free(w->dp.rx_buf); free(w->dp.tx_buf); free(w);
+        free(w);
         return -1;
     }
     current_worker = w;

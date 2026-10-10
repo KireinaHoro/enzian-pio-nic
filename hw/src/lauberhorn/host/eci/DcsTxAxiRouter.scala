@@ -3,7 +3,7 @@ package lauberhorn.host.eci
 import jsteward.blocks.axi.RichAxi4
 import jsteward.blocks.eci.EciCmdDefs
 import lauberhorn.Global.ECI_TX_BASE
-import lauberhorn.{Global, PacketAddr, PacketLength}
+import lauberhorn.{Global, PacketAddr}
 import lauberhorn.host.{HostReq, HostReqType}
 import lauberhorn.Global.{HOST_REQ_TY_WIDTH, PKT_BUF_LEN_WIDTH}
 import spinal.core._
@@ -60,9 +60,6 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * from [[lauberhorn.host.DatapathPlugin.hostTx]] */
   val txAddr = in(PacketAddr())
 
-  /** Length of the packet to send, as captured in real time */
-  val currInvLen = out(PacketLength())
-
   /** Pulse: all dirty CLs have been flushed */
   val invDone = in Bool()
 
@@ -86,53 +83,46 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
   val savedControl = Reg(Bits(512 bits)) init 0
+  // Control may be evicted before the doorbell. Retain its payload independently
+  // of overflow aliases, then restore it after the control invalidation completes.
+  val savedInline = Reg(Bits(512 bits)) init 0
+  val inlinePending = RegInit(False)
+  val inlineCommitted = RegInit(False)
+  val invalidLayout = Bool()
   val execution = master(Flow(Bits(2 bits)))
   val executionOnly = out Bool()
   executionOnly := txDesc.ty === HostReqType.executionControl
   val executionType = txDesc.ty === HostReqType.oncRpcReplyTx ||
     txDesc.ty === HostReqType.oncRpcCallTx || txDesc.ty === HostReqType.nativeUdpTx || executionOnly
-  execution.valid := txDesc.fire && executionType
+  execution.valid := txDesc.fire && executionType && !invalidLayout
   execution.payload := executionType ? savedControl(HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get + 1 downto HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
-  val requestedInvLen = PacketLength()
-  requestedInvLen := aliasedHostCtrl.len
-
-  when(aliasedHostCtrl.ty === HostReqType.executionControl) { requestedInvLen.bits := 0 }
-
-  // RPC requests repurposed len to INCLUDE inlined bytes
-  // (see sw/core/eci/core.h:310)
-  // adjust len to get the correct number of CLs to invalidate
-  when (aliasedHostCtrl.ty === HostReqType.oncRpcReplyTx) {
-    when (aliasedHostCtrl.len.bits > Global.ONCRPC_INLINE_BYTES.get) {
-      requestedInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_INLINE_BYTES.get
-    } otherwise {
-      requestedInvLen.bits := 0
-    }
+  val payloadLines = out UInt(4 bits)
+  val controlOnly = aliasedHostCtrl.ty === HostReqType.executionControl
+  val neededLines = (aliasedHostCtrl.len.bits.resize(17) + 127) >> 7
+  payloadLines := neededLines.resized
+  when(aliasedHostCtrl.inlinePayload || controlOnly) { payloadLines := 0 }
+  when(neededLines > EciAddressMap.overflow_lines && !aliasedHostCtrl.inlinePayload && !controlOnly) {
+    payloadLines := EciAddressMap.overflow_lines
   }
-  when (aliasedHostCtrl.ty === HostReqType.oncRpcCallTx) {
-    when (aliasedHostCtrl.len.bits > Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
-      requestedInvLen.bits := aliasedHostCtrl.len.bits - Global.ONCRPC_NESTED_CALL_INLINE_BYTES.get
-    } otherwise {
-      requestedInvLen.bits := 0
-    }
+  invalidLayout := (aliasedHostCtrl.inlinePayload && aliasedHostCtrl.len.bits > 64) ||
+    aliasedHostCtrl.len.bits > Global.ROUNDED_MTU.get
+  when(invDone.rise(False) && aliasedHostCtrl.inlinePayload) {
+    inlinePending := True
+    inlineCommitted := True
   }
 
   when (doPreempt) {
     savedControl.clearAll()
+    savedInline.clearAll()
+    inlineCommitted := False
+    inlinePending := False
   }
 
   // invalidation can finish before we enter waitInv, store it here
   val invFinished = Reg(Bool()) init False
   invFinished.setWhen(invDone)
-
-  // offset and size to read from packet buffer, to serve CL fetch
-  // Invalid descriptors may request arbitrary lengths. Cleanup only addresses
-  // actual transport lines; the DMA boundary rejects oversized transmission.
-  currInvLen := requestedInvLen
-  when(requestedInvLen.bits > EciAddressMap.overflow_lines * 128 + 64) {
-    currInvLen.bits := EciAddressMap.overflow_lines * 128 + 64
-  }
 
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
 
@@ -157,11 +147,42 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val writeFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsQ.aw.ready := !scrubPending && !doPreempt
+        dcsQ.aw.ready := !scrubPending && !inlinePending && !doPreempt
         when(scrubPending) { goto(scrubCmd) }
+          .elsewhen(inlinePending) { goto(inlineCmd) }
         when (dcsQ.aw.fire) {
           writeCmd := dcsQ.aw.payload
           goto(decodeCmd)
+        }
+      }
+    }
+    val inlineCmd: State = new State {
+      whenIsActive {
+        pktBufAxi.aw.valid := True
+        pktBufAxi.aw.addr := txAddr.bits.resized
+        pktBufAxi.aw.len := 0
+        pktBufAxi.aw.id := 0
+        pktBufAxi.aw.setFullSize()
+        pktBufAxi.aw.setBurstINCR()
+        when(pktBufAxi.aw.fire) { goto(inlineData) }
+      }
+    }
+    val inlineData: State = new State {
+      whenIsActive {
+        pktBufAxi.w.valid := True
+        pktBufAxi.w.data := savedInline
+        pktBufAxi.w.strb.setAll()
+        pktBufAxi.w.last := True
+        when(pktBufAxi.w.fire) { goto(inlineResp) }
+      }
+    }
+    val inlineResp: State = new State {
+      whenIsActive {
+        pktBufAxi.b.ready := True
+        when(pktBufAxi.b.fire) {
+          assert(pktBufAxi.b.isOKAY(), "TX inline restore failed")
+          inlinePending := False
+          goto(idle)
         }
       }
     }
@@ -211,7 +232,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         } elsewhen (writeAddr === (1 - currCl) * 0x80) {
           report("write cannot happen on the inactive CL", FAILURE)
         } otherwise {
-          pktBufWriteOff := (writeAddr - 0xc0).resized
+          pktBufWriteOff := (writeAddr - 0x100).resized
           pktBufWriteBeats := 2
           goto(writePktBufCmd)
         }
@@ -243,8 +264,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         pktBufAxi.aw.valid := True
         pktBufAxi.aw.len := 0
-        // The final mapped CL extends past the allocation. Redirect its
-        // padding beat to this slot with zero strobes, never into its neighbor.
+        // Redirect any out-of-range beat to this slot with zero strobes,
+        // never into the neighboring allocation.
         pktBufAxi.aw.addr := txAddr.bits.resized
         when(pktBufWriteOff < txBytes) {
           pktBufAxi.aw.addr := pktBufWriteOff + txAddr.bits.resized
@@ -262,9 +283,14 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         pktBufAxi.w << dcsQ.w
         pktBufAxi.w.last.allowOverride
         pktBufAxi.w.last := True
-        when(pktBufWriteOff >= txBytes) { pktBufAxi.w.strb := 0 }
+        when(pktBufWriteOff >= txBytes ||
+            ((writeAddr === 0 || writeAddr === 0x80) && !aliasedHostCtrl.inlinePayload) ||
+            (writeAddr >= 0x100 && inlineCommitted)) {
+          pktBufAxi.w.strb := 0
+        }
 
         when (pktBufAxi.w.fire) {
+          when(writeAddr === 0 || writeAddr === 0x80) { captureWrite(savedInline) }
           assert(dcsQ.w.last === (pktBufWriteBeats === 1))
           goto(writePktBufResp)
         }
@@ -321,7 +347,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           }
         } otherwise {
           // accessing packet buffer via overflow cachelines
-          pktBufReadOff := (readAddr - 0xc0).resized
+          pktBufReadOff := (readAddr - 0x100).resized
           pktBufReadBeats := 2
 
           goto(readPktBuf)
@@ -343,14 +369,14 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         dcsQ.r.id := readCmd.id
         dcsQ.r.last := False
         when (dcsQ.r.ready) {
-          goto(readPktBuf)
+          when(aliasedHostCtrl.inlinePayload) { goto(sendInline) } otherwise { goto(sendPadding) }
         }
       }
     }
     val readPktBuf: State = new State {
       whenIsActive {
-        // Split the DCS line into beats so the final padding beat cannot
-        // reach the adjacent physical worker's allocation.
+        // Bound each beat so an out-of-range read cannot reach the
+        // adjacent physical worker's allocation.
         pktBufAxi.ar.valid := True
         pktBufAxi.ar.len := 0
         pktBufAxi.ar.addr := pktBufReadOff + txAddr.bits.resized
@@ -377,6 +403,16 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         }
       }
     }
+    val sendInline: State = new State {
+      whenIsActive {
+        dcsQ.r.valid := True
+        dcsQ.r.data := savedInline
+        dcsQ.r.id := readCmd.id
+        dcsQ.r.setOKAY()
+        dcsQ.r.last := True
+        when(dcsQ.r.fire) { goto(idle) }
+      }
+    }
     val sendPktData: State = new State {
       whenIsActive {
         pktBufAxi.r >> dcsQ.r
@@ -397,13 +433,19 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         // send assembled descriptor to encoder pipeline
         // the packet buffer has been fully written from invalidation
-        txDesc.valid := True
+        txDesc.valid := !inlinePending
 
         val ctrl = EciHostTxCtrlInfo()
         ctrl.assignFromBits(savedControl)
         ctrl.unpackTo(txDesc.payload, txAddr)
+        when(invalidLayout) {
+          // Use the DMA boundary's ordinary oversized-descriptor rejection.
+          // Preserve the known type and physical slot so rejection acknowledges
+          // this transaction without triggering an unsupported-type domain fault.
+          txDesc.buffer.size.bits := Global.ROUNDED_MTU.get + 1
+        }
 
-        when (txDesc.ready) {
+        when (txDesc.fire) {
           // we are in the middle of a read for next CL -- serve read
           goto(waitResult)
         }
@@ -413,6 +455,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       whenIsActive {
         when (resultPending) {
           resultPending := False
+          inlineCommitted := False
           // Preserve the acknowledgement across voluntary eviction/reload.
           savedControl := resultStatus.resize(512)
           goto(sendDesc)
@@ -422,7 +465,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   }
   readFsm.build()
   quiescent := readFsm.isActive(readFsm.idle) && writeFsm.isActive(writeFsm.idle) &&
-    !dcsQ.ar.valid && !dcsQ.aw.valid && !scrubPending
+    !dcsQ.ar.valid && !dcsQ.aw.valid && !scrubPending && !inlinePending
   when(doPreempt) { assert(quiescent, "TX scrub requires drained old-owner traffic") }
 
   val readStateOut = out(readFsm.stateReg.clone)

@@ -109,13 +109,10 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
     assert(info.xid.toInt == expectedXid,
       f"xid mismatch: got ${info.xid.toInt}%x, expected $expectedXid%x")
 
-    val inlineLen = ONCRPC_INLINE_BYTES.get
-    val overflowLen = Math.max(expectedPayload.length - inlineLen, 0)
-    assert(desc.len == overflowLen, s"reply overflow length mismatch: got ${desc.len}, expected $overflowLen")
-
-    val inlined = spinal.core.sim.SimBigIntPimper(info.args).toBytes().toList
-    check(expectedPayload.take(inlined.length), inlined)
-    check(expectedPayload.drop(inlineLen), readPayload(dcsMaster, pldDesc, desc.len))
+    assert(desc.len == Math.max(expectedPayload.length, ONCRPC_INLINE_BYTES.get))
+    val bytes = readPayload(dcsMaster, pldDesc, desc.len)
+    check(expectedPayload, bytes.take(expectedPayload.length))
+    assert(bytes.drop(expectedPayload.length).forall(_ == 0))
   }
 
   testWithDB("nested-rpc-call-tx-descriptor")(Tx) { implicit dut =>
@@ -211,7 +208,7 @@ class OncRpcNestedSim extends NicSim with OncRpcSuiteFactory {
       "HostReqTy" -> BigInt(5),
       "PacketDescTy" -> BigInt(5),
       "LogicalLength" -> BigInt(callPayload.length),
-      "DmaLength" -> BigInt(callTail.length),
+      "DmaLength" -> BigInt(callInline.length + callTail.length),
     ), traceStart).nonEmpty, s"missing nested call TX trace; saw ${trace.dump(traceStart)}")
     assert(trace.first("TxAfterDmaRead", since = traceStart).nonEmpty,
       s"nested call TX tail did not complete DMA; saw ${trace.dump(traceStart)}")

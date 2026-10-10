@@ -143,6 +143,11 @@
       "IdlePeer": false,
       "BadIdleFence": false,
       "BadFaultOwner": false
+    },
+    "TxPayloadLayout": {
+      "BadRestore": false,
+      "BadLateWrite": false,
+      "BadPreempt": false
     }
   },
   "invariants": {
@@ -273,6 +278,12 @@
       "NoLeak",
       "NoNewTxAfterFault",
       "NoIdleFence"
+    ],
+    "TxPayloadLayout": [
+      "TypeOK",
+      "PayloadCorrect",
+      "CancelNoPacket",
+      "OwnerClean"
     ]
   },
   "properties": {
@@ -371,7 +382,8 @@
     ],
     "DomainIsolation": [
       "InactivePaKilled"
-    ]
+    ],
+    "TxPayloadLayout": []
   },
   "cases": {
     "handoff": {
@@ -1348,6 +1360,32 @@
         "BadFaultOwner": true
       },
       "expected_violation": "NoWrongKill"
+    },
+    "tx-layout": {
+      "module": "TxPayloadLayout",
+      "options": {},
+      "expected_violation": null
+    },
+    "tx-layout-no-restore": {
+      "module": "TxPayloadLayout",
+      "options": {
+        "BadRestore": true
+      },
+      "expected_violation": "PayloadCorrect"
+    },
+    "tx-layout-late-write": {
+      "module": "TxPayloadLayout",
+      "options": {
+        "BadLateWrite": true
+      },
+      "expected_violation": "PayloadCorrect"
+    },
+    "tx-layout-no-cleanup": {
+      "module": "TxPayloadLayout",
+      "options": {
+        "BadPreempt": true
+      },
+      "expected_violation": "OwnerClean"
     }
   },
   "groups": {

@@ -12,6 +12,10 @@ pkgs.stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
     flags="-pthread -I sw/include -I sw/rt -I sw/core -I ${configHeaders} -I ${deviceHeaders} $(pkg-config --cflags libtirpc)"
+    $CC $flags sw/tests/eci-buffer.c -o eci-buffer-test
+    ./eci-buffer-test
+    $CC $flags -fsanitize=address,undefined -fno-sanitize-recover=all sw/tests/eci-buffer.c -o eci-buffer-sanitized-test
+    ASAN_OPTIONS=detect_leaks=0 ./eci-buffer-sanitized-test
     $CC $flags -I sw/kmod sw/tests/udp.c sw/rt/server_trace.c sw/rt/pmu.c sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o udp-test
     ./udp-test
     $CC $flags sw/tests/endpoint.c sw/rt/endpoint.c -o endpoint-test

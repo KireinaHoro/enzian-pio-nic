@@ -110,6 +110,14 @@ trait OncRpcSuiteFactory { this: DutSimFunSuite[NicEngine] =>
     val desc = hostDesc.asInstanceOf[OncRpcCallRxPacketDescSim]
     assert(funcPtr == desc.funcPtr, s"funcPtr mismatch: got ${desc.funcPtr}, expected $funcPtr")
 
+    if (hostDesc.isInstanceOf[lauberhorn.host.eci.EciHostCtrlInfoSim]) {
+      assert(overflowLen == Math.max(payload.length, lauberhorn.Global.ONCRPC_INLINE_BYTES.get))
+      val data = overflowData
+      check(payload, data.take(payload.length))
+      assert(data.drop(payload.length).forall(_ == 0))
+      return
+    }
+
     val inlineMaxLen = lauberhorn.Global.ONCRPC_INLINE_BYTES.get
 
     // check inline data

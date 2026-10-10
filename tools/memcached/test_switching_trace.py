@@ -1,0 +1,81 @@
+"""Synthetic trace rejection checks, not hardware evidence."""
+import unittest
+from analyze_switching import analyze
+
+
+class SwitchingTraceTests(unittest.TestCase):
+    def fixture(self):
+        launch = dict(case=dict(physical_workers=2), worker_cpus=[44,45],
+                      processes=[dict(pid=p,workers=1) for p in (100,101,102)])
+        records = []
+        def add(name, **fields):
+            records.append((len(records), name, fields))
+        for core,pid,idle in [(1,100,1),(2,101,1),(1,102,0),(1,100,0)]:
+            token = len(records)
+            add('SchedulerRequestQueued', HostMsgID=token, ProcessID=pid)
+            add('YieldAccepted', CoreID=core, DomainCode=pid, PreemptOutOfIdle=idle)
+            add('ActivationCommitted', CoreID=core, DomainCode=pid, RxNext=0, TxNext=1)
+            add('SchedulerProcessRun', CoreID=core, ProcessID=pid)
+            add('ActivationDelivered', CoreID=core, DomainCode=pid)
+            add('SchedulerRequestDispatched', CoreID=core, ProcessID=pid, HostMsgID=token)
+            add('SchedulerRequestQueued', HostMsgID=len(records), ProcessID=pid)
+            add('SchedulerRequestDispatched', CoreID=core, ProcessID=pid, HostMsgID=len(records)-1)
+            add('EciRxReadFirst', CoreID=core, CacheLineIndex=0)
+            add('EciTxAcquire', CoreID=core, CacheLineIndex=1)
+        return launch, records
+
+    def test_backlog_is_per_tenant_and_ends_at_dispatch(self):
+        from latency_cases import classify
+        def row(pid, start, end, resident=True, worker=True):
+            return dict(pid=pid,timestamp=start,dispatch_timestamp=end,
+                        resident_at_enqueue=resident,worker_assigned_at_enqueue=worker)
+        rows = [row(1,0,10),row(1,2,12),row(2,3,4),row(1,12,15),
+                row(3,20,30,False,False),row(3,21,31,False,False),
+                row(4,40,50,True,False)]
+        result = classify(rows, rows)
+        self.assertEqual([r['case'] for r in result],
+                         ['hot_empty','hot_backlog','hot_empty','hot_empty',
+                          'cold_empty','cold_backlog','scale_up'])
+        self.assertEqual([r['older_waiting'] for r in result], [0,1,0,0,0,1,0])
+
+    def test_switches_and_rejection_of_missing_yield_loss_and_parity(self):
+        launch, records = self.fixture()
+        result = analyze(records, launch)
+        self.assertEqual(len(result['transitions']), 2)
+        self.assertEqual(result['peak_assigned_workers'], {100:1,101:1,102:1})
+        self.assertEqual(len(result['queue_latencies']), 8)
+        self.assertEqual([r['resident_at_enqueue'] for r in result['queue_latencies']], [False,True]*4)
+        self.assertEqual([r['worker_assigned_at_enqueue'] for r in result['queue_latencies']], [False,True]*4)
+        more = list(records)
+        more += [(19,'SchedulerRequestQueued',dict(HostMsgID=777,ProcessID=100)),
+                 (20,'YieldAccepted',dict(CoreID=2,PreemptOutOfIdle=0)),
+                 (21,'ActivationCommitted',dict(CoreID=2,DomainCode=100,RxNext=0,TxNext=1)),
+                 (22,'SchedulerProcessRun',dict(CoreID=2,ProcessID=100)),
+                 (23,'ActivationDelivered',dict(CoreID=2,DomainCode=100)),
+                 (24,'EciRxReadFirst',dict(CoreID=2,CacheLineIndex=0)),
+                 (25,'EciTxAcquire',dict(CoreID=2,CacheLineIndex=1)),
+                 (26,'SchedulerRequestDispatched',dict(CoreID=2,ProcessID=100,HostMsgID=777))]
+        # Place appended records after the original fixture.
+        more = records + [(t+100,n,f) for t,n,f in more[len(records):]]
+        with self.assertRaisesRegex(ValueError, 'declared parallelism'):
+            analyze(more, launch)
+        launch['processes'][0]['workers'] = 2
+        scaled = analyze(more, launch)
+        self.assertEqual(scaled['peak_assigned_workers'][100], 2)
+        self.assertTrue(scaled['queue_latencies'][-1]['resident_at_enqueue'])
+        self.assertFalse(scaled['queue_latencies'][-1]['worker_assigned_at_enqueue'])
+        launch['processes'][0]['workers'] = 1
+        with self.assertRaisesRegex(ValueError, 'ordinary yield'):
+            analyze([r for r in records if r[1] != 'YieldAccepted'], launch)
+        with self.assertRaisesRegex(ValueError, 'loss'):
+            analyze(records+[(99,'Lost',dict(count=1))], launch)
+        with self.assertRaisesRegex(ValueError, 'incomplete activation'):
+            analyze([r for r in records if r[1] != 'ActivationDelivered'], launch)
+        broken = [(t,n,dict(f,CacheLineIndex=1) if n=='EciRxReadFirst' else f)
+                  for t,n,f in records]
+        with self.assertRaisesRegex(ValueError, 'parity'):
+            analyze(broken, launch)
+
+
+if __name__ == '__main__':
+    unittest.main()

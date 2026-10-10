@@ -13,20 +13,24 @@ Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RT
 | Mechanism | Implemented entry points |
 | --- | --- |
 | Server calls and replies | `hw/src/lauberhorn/net/oncrpc/OncRpcCallDecoder.scala`, `OncRpcReplyEncoder.scala`: service match and bounded per-request reply contexts |
-| Nested/client call TX | `OncRpcCallEncoder.scala`: ONC-RPC CALL header, inline/tail data, UDP metadata (admission now precedes encoding in `DmaControlPlugin`) |
+| Nested/client call TX | `OncRpcCallEncoder.scala`: ONC-RPC CALL header, contiguous DMA payload, UDP metadata (admission now precedes encoding in `DmaControlPlugin`) |
 | Nested/client reply RX | `OncRpcReplyDecoder.scala`: tuple lookup, PID/cookie completion, entry retirement and counters/CSR access |
 | Descriptor ABI | `hw/src/lauberhorn/host/package.scala`, `net/package.scala`, `host/eci/EciHostRxCtrlInfo.scala`, `EciHostTxCtrlInfo.scala` |
 | DMA and scheduling | `DmaControlPlugin.scala` translates call/reply metadata; `Scheduler.scala` queues both call RX and reply RX using the corresponding PID |
 | C transport | `sw/core/eci/core.h` packs `TY_ONCRPC_CALL_TX` and unpacks `TY_ONCRPC_REPLY_RX` |
 | Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures and fiber-free reply forwarding |
 
-All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`, `oncRpcReplyRx`) exist. They are no longer suggested renames. `Global.scala` sets normal inline data to 48 bytes and nested-call TX inline data to 24 bytes because endpoint/PID/cookie metadata must also fit. Generated ABI, DMA tail length and ECI invalidation length must agree.
+All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`,
+`oncRpcReplyRx`) exist. ECI transport version 3 reconstructs the decoder's
+48-byte RPC prefix into the contiguous RX region. TX encoders consume the whole
+argument/reply stream from DMA; descriptor-resident TX argument fields are no
+longer used. Generated ABI, payload lengths and invalidation counts must agree.
 
 The hardware in-flight key is `(xid, remoteAddr, remotePort, localPort)` and its value includes `(pid, cookie, active)`. Never replace it with XID-only matching: different UDP/IP tuples may reuse XIDs. On a matching reply, completion metadata carries PID/cookie and the entry is retired. Inspect malformed-reply and miss handling before extending accepted ONC-RPC formats.
 
 ## Endianness at the host boundary
 
-Contract updated 2026-09-13. Prefer host-order numeric metadata and perform
+Contract updated 2026-10-09 (contiguous ECI payloads). Prefer host-order numeric metadata and perform
 network conversion in hardware, where byte swaps are wiring. Keep scalar fields
 naturally aligned to avoid split accesses even though Mackerel supports them.
 Mackerel describes storage positions; the ECI pack/unpack RTL owns RPC byte-order
@@ -34,19 +38,21 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 
 | ECI boundary structure | Convention and alignment |
 | --- | --- |
-| Server call RX / reply TX | Opaque request token at byte 4; RX handler pointer / TX reserved field at byte 8; raw inline payload at byte 16. Original XID stays wire-native in the hardware reply context. |
-| Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36, raw inline payload at 40. ECI swaps XID/address/ports/program/version/procedure. |
-| Nested reply RX | Host-order PID at byte 4, padding at 6, cookie at 8 and XID at 12, raw inline payload at 16. ECI swaps XID. |
-| Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; raw packet header starts at byte 4. Header/payload bytes are copied unchanged. |
+| Server call RX / reply TX | Opaque request token at byte 4; RX handler pointer / TX reserved field at byte 8; payload is separate from descriptor metadata. Original XID stays wire-native in the hardware reply context. |
+| Nested call TX | Host-order PID at byte 4, padding at 6, cookie at 8, XID at 12, IPv4 address at 16, source/destination ports at 20/22, program/version/procedure at 24/28/32, padding at 36; bytes 56–63 reserved. ECI swaps XID/address/ports/program/version/procedure. |
+| Nested reply RX | Host-order PID at byte 4, padding at 6, cookie at 8 and XID at 12, payload is separate from metadata. ECI swaps XID. |
+| Bypass RX/TX | Packed type/length and header type fit the first 32-bit word; TX header-generation command starts at byte 4, and TX length excludes that generated header. RX includes the complete header in its contiguous payload. |
 | Neighbor miss RX | Index shares the first word; IPv4 destination/source at bytes 4/8 are wire-native Linux `__be32` values, protocol at byte 12. Padding rounds metadata to 16 bytes. Kernel uses the addresses directly in IP headers, route lookup and ARP state. |
 | Error RX, common descriptor fields | Valid/type/length are packed host bitfields contained in one 32-bit access. No network conversion. |
 | Worker activation snapshot | Domain lifetime, scheduler slot and RX/TX parity are host metadata; no network conversion. Cooperative yield returns the committed assignment without a control cache line. |
 
-The nested alignment repair moves existing padding after PID, retaining the
-64-byte descriptor bound, inline capacities (24-byte call, 48-byte reply),
-payload offsets, overflow addresses, ownership and barriers. Full-width 16/32/64
-bit scalar fields are naturally aligned; intentionally packed flags/lengths do
-not cross their scalar access boundary.
+Payloads occupy the control CL upper half at byte 64 when RX length or TX
+reservation capacity is <=64, otherwise the region at direction-relative 0x100.
+TX bit 23 records placement independently of actual length. Byte 56 is reserved;
+normal overflow invalidation uses ceil(actual_length/128), or zero for inline
+and descriptor-only sends. Short overflow sends do not relocate.
+The 64-byte descriptor bound, numeric field offsets and worker address map stay
+unchanged. Full-width 16/32/64-bit scalars remain naturally aligned.
 
 | Control registers exposed through ECI | Convention |
 | --- | --- |

@@ -61,6 +61,10 @@ case class EciHostTxCtrlInfo() extends Bundle {
     val oncRpcCallTx = newElement(OncRpcCallTxBundle())
   }
 
+  // Common bit 23: bypass header type occupies bits 20..22. Other variants
+  // reserve bit 22 and use bits 20..21 for execution notifications.
+  def inlinePayload: Bool = data.asBits(3)
+
   /** Convert an [[EciHostTxCtrlInfo]] to a [[HostReq]], to send out to the encoder pipeline. */
   def unpackTo(desc: HostReq, addr: PacketAddr) = {
     desc.ty := ty
@@ -80,13 +84,9 @@ case class EciHostTxCtrlInfo() extends Bundle {
       is (HostReqType.oncRpcReplyTx) {
         desc.data.oncRpcReplyTx.status := data.oncRpcReplyTx.status
         desc.data.oncRpcReplyTx.requestToken := data.oncRpcReplyTx.requestToken
-        desc.data.oncRpcReplyTx.data    := data.oncRpcReplyTx.data
+        desc.data.oncRpcReplyTx.data    := 0
         desc.data.oncRpcReplyTx.replyLen := len
-        when (len.bits > ONCRPC_INLINE_BYTES.get) {
-          desc.buffer.size.bits            := len.bits - ONCRPC_INLINE_BYTES.get
-        } otherwise {
-          desc.buffer.size.bits            := 0
-        }
+        desc.buffer.size := len
       }
       is (HostReqType.oncRpcCallTx) {
         desc.data.oncRpcCallTx.pid     := data.oncRpcCallTx.pid
@@ -98,13 +98,9 @@ case class EciHostTxCtrlInfo() extends Bundle {
         desc.data.oncRpcCallTx.progNum := EndiannessSwap(data.oncRpcCallTx.progNum)
         desc.data.oncRpcCallTx.progVer := EndiannessSwap(data.oncRpcCallTx.progVer)
         desc.data.oncRpcCallTx.proc    := EndiannessSwap(data.oncRpcCallTx.proc)
-        desc.data.oncRpcCallTx.data    := data.oncRpcCallTx.data
+        desc.data.oncRpcCallTx.data    := 0
         desc.data.oncRpcCallTx.callLen := len
-        when (len.bits > ONCRPC_NESTED_CALL_INLINE_BYTES.get) {
-          desc.buffer.size.bits            := len.bits - ONCRPC_NESTED_CALL_INLINE_BYTES.get
-        } otherwise {
-          desc.buffer.size.bits            := 0
-        }
+        desc.buffer.size := len
       }
     }
     desc.buffer.addr := addr
@@ -117,11 +113,21 @@ object EciHostTxCtrlInfo {
   def addMackerel() = {
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_tx_placement lsbfirst(64) "Common TX payload placement" {
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Descriptor type";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "Actual payload length";
+         |  _ 3 rsvd;
+         |  inline_payload 1 "Reservation is inline, independent of actual length";
+         |  _ 40 rsvd;
+         |};
+         |
          |datatype host_ctrl_info_native_udp_tx lsbfirst(64) "Native UDP TX" {
          |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_tx";
          |  len ${PKT_BUF_LEN_WIDTH.get} "UDP payload bytes";
          |  execution 2 "Execution interval";
-         |  _ 10 rsvd;
+         |  _ 1 rsvd;
+         |  inline_payload 1 "Payload resides in control CL upper half";
+         |  _ 8 rsvd;
          |  endpoint 32 "Kernel endpoint handle";
          |  daddr 32 "Destination IPv4 address, host order";
          |  dport 16 "Destination UDP port, host order";
@@ -132,7 +138,8 @@ object EciHostTxCtrlInfo {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        9 rsvd;
+         |  inline_payload 1 "Payload resides in control CL upper half";
+         |  _        8 rsvd;
          |  // hdr follows -- need to calculate address manually
          |};
          |
@@ -140,25 +147,30 @@ object EciHostTxCtrlInfo {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "execution_control";
          |  len       ${PKT_BUF_LEN_WIDTH.get} "Must be zero";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         42 rsvd;
+         |  _         1 rsvd;
+         |  inline_payload 1 "Must be zero for execution control";
+         |  _         40 rsvd;
          |};
          |
          |datatype host_ctrl_info_onc_rpc_reply_tx lsbfirst(64) "ECI Host Control Info (ONC-RPC Server Reply TX)" {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_reply_tx)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of reply payload, including inlined bytes";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of contiguous reply payload";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         2 rsvd;
+         |  _         1 rsvd;
+         |  inline_payload 1 "Payload resides in control CL upper half";
          |  status    8 "ONC-RPC accept status (host order)";
          |  request_token 32 "Opaque incoming request context token";
          |  _         64 rsvd;
-         |  // reply data follows -- need to calculate address manually
+         |  // Payload placement comes from host_tx_placement.
          |};
          |
          |datatype host_ctrl_info_onc_rpc_call_tx lsbfirst(64) "ECI Host Control Info (ONC-RPC Nested Call TX)" {
          |  ty        ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be onc_rpc_call_tx)";
-         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of call args, including inlined bytes";
+         |  len       ${PKT_BUF_LEN_WIDTH.get} "Length of contiguous call arguments";
          |  execution 2 "Execution interval: end=1, begin=2, end/begin=3";
-         |  _         10 rsvd;
+         |  _         1 rsvd;
+         |  inline_payload 1 "Payload resides in control CL upper half";
+         |  _         8 rsvd;
          |  pid       ${PID_WIDTH.get} "Destination process for eventual reply completion";
          |  _         16 rsvd;
          |  cookie    32 "Runtime completion cookie";
@@ -170,9 +182,8 @@ object EciHostTxCtrlInfo {
          |  prog_ver  32 "ONC-RPC program version (host order)";
          |  proc      32 "ONC-RPC procedure number (host order)";
          |  _         32 rsvd;
-         |  data0     64 "First 8 inline argument bytes";
-         |  data1     64 "Second 8 inline argument bytes";
-         |  data2     64 "Third 8 inline argument bytes";
+         |  _         128 rsvd;
+         |  _         64 rsvd;
          |};
          |""".stripMargin)
   }

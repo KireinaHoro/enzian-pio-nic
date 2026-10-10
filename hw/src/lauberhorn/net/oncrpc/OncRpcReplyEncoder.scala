@@ -22,7 +22,7 @@ case class OncRpcReplyTxMeta() extends Bundle with EncoderMetadata {
   val status = Bits(8 bits)
   val data = Bits(ONCRPC_INLINE_BYTES * 8 bits)
 
-  /** Total length of the entire reply message, including inlined bits */
+  /** Total length of the entire reply message, provided entirely by the payload stream */
   val replyLen = PacketLength()
 
   def getType = PacketDescType.oncRpcReplyTx
@@ -101,16 +101,6 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     // buffer if we have more words to send than what fits in the inline portion.
     // This creates arbitrary gaps at the beginning of the data stream, but
     // the encoder handles this just fine.
-    assert(ONCRPC_INLINE_BYTES <= axisConfig.dataWidth, "we assumed the inlined bytes fit inside one AXIS beat")
-
-    val segmentLenWidth = log2Up(axisConfig.dataWidth) + 1
-    val inlinedLen = U(0, segmentLenWidth bits)
-    val inlinedMaskNext = ((U(1, axisConfig.dataWidth bits) |<< inlinedLen) - 1).asBits
-    val inlinedShiftNext = axisConfig.dataWidth - inlinedLen
-
-    val inlinedMask = Reg(Bits(axisConfig.dataWidth bits))     // not yet shifted
-    val inlinedShift = Reg(UInt(segmentLenWidth bits))
-    val inlinedData = Reg(Bits(axisConfig.dataWidth * 8 bits)) // already shifted!
     val overflowPldPresent = Reg(Bool())
 
     contexts.io.replyToken := md.requestToken
@@ -120,7 +110,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
     val lastWasReject = RegInit(False)
 
     val outHdr = Reg(OncRpcReplyHeader())
-    encoder.io.empty := !overflowPldPresent && !inlinedMask.orR
+    encoder.io.empty := !overflowPldPresent
     encoder.io.header.payload := outHdr.asBits
     encoder.io.header.valid := False
 
@@ -150,7 +140,6 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             outMd.sport := route.serverPort
             outMd.rpcId := nextRpcId
             outMd.pldLen := outHdr.getBitsWidth / 8
-            inlinedMask := 0
             overflowPldPresent := False
             nextRpcId := nextRpcId + 1
             lastWasReject := True
@@ -159,16 +148,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             md.ready := True
             lastWasReject := False
             nextRpcId := nextRpcId + 1
-            inlinedShift := inlinedShiftNext
-            inlinedMask := inlinedMaskNext
-            when(md.replyLen.bits > ONCRPC_INLINE_BYTES.get) {
-              inlinedLen := ONCRPC_INLINE_BYTES.get
-              overflowPldPresent := True
-            } otherwise {
-              inlinedLen := md.replyLen.bits.resized
-              overflowPldPresent := False
-            }
-            inlinedData := (md.data << (inlinedShiftNext * 8)).resized
+            overflowPldPresent := md.replyLen.bits =/= 0
             when(contexts.io.replyValid) {
               // Capture all routing state before releasing the slot. The output
               // registers own it through any subsequent transport backpressure.
@@ -189,7 +169,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             } otherwise {
               dropped.increment()
               tp.trace("OncRpcReplyLookupMiss", RpcID(nextRpcId)) := True
-              when(md.replyLen.bits > ONCRPC_INLINE_BYTES.get) { goto(dropPld) }
+              when(md.replyLen.bits =/= 0) { goto(dropPld) }
             }
           }
         }
@@ -214,23 +194,8 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
         whenIsActive {
           encoder.io.header.valid := True
           when (encoder.io.header.ready) {
-            // send first beats (inlined beats) of payload to encoder
-            when(encoder.io.empty) { goto(idle) } otherwise { goto(sendInlinedWords) }
-          }
-        }
-      }
-      val sendInlinedWords: State = new State {
-        whenIsActive {
-          encoder.io.input.valid := True
-          encoder.io.input.keep := inlinedMask |<< inlinedShift
-          encoder.io.input.data := inlinedData
-          encoder.io.input.last := !overflowPldPresent
-          when (encoder.io.input.ready) {
-            when (overflowPldPresent) {
-              goto(passthrough)
-            } otherwise {
-              goto(idle)
-            }
+            // The DMA stream contains the complete contiguous payload.
+            when(encoder.io.empty) { goto(idle) } otherwise { goto(passthrough) }
           }
         }
       }

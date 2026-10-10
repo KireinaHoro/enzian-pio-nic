@@ -10,6 +10,7 @@ int lh_yield(struct lh_activation *result) {
     lauberhorn_worker_t w = worker_get_current();
     struct lh_activation activation;
     if (!w || !result) { errno = EINVAL; return -1; }
+    if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
     // Resolve TID before sleeping, not on the measured activation return path.
     if (server_trace_enabled && !server_activation.tid)
         server_activation.tid = (int)syscall(SYS_gettid);
