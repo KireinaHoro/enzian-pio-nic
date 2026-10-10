@@ -20,6 +20,7 @@ def analyze(records, launch):
         raise ValueError('cohort is not oversubscribed')
     owners = {}
     active = {}
+    assignment_time = {}
     peak = Counter()
     queued = {}
     queue_latencies = []
@@ -55,7 +56,8 @@ def analyze(records, launch):
                 if queued_pid != pid:
                     raise ValueError('queue/dispatch process mismatch')
                 queue_latencies.append(dict(timestamp=start, dispatch_timestamp=timestamp, pid=pid,
-                    datapath=core, cycles=timestamp-start, resident_at_enqueue=resident))
+                    datapath=core, cycles=timestamp-start, resident_at_enqueue=resident,
+                    worker_assigned_at_enqueue=assignment_time[core] <= start))
             if owners.get(core) != pid:
                 raise ValueError('dispatch without matching recorded assignment')
             continue
@@ -68,6 +70,7 @@ def analyze(records, launch):
             transitions.append(dict(row, previous_pid=previous))
         owners[core] = pid
         active[core] = pid
+        assignment_time[core] = timestamp
         peak[pid] = max(peak[pid], sum(p == pid for p in active.values()))
         consumed_yields[core] = yielded[core]
     if any(peak[p['pid']] > p['workers'] for p in launch['processes']):
