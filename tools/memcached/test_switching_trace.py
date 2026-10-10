@@ -24,6 +24,20 @@ class SwitchingTraceTests(unittest.TestCase):
             add('EciTxAcquire', CoreID=core, CacheLineIndex=1)
         return launch, records
 
+    def test_backlog_is_per_tenant_and_ends_at_dispatch(self):
+        from latency_cases import classify
+        def row(pid, start, end, resident=True, worker=True):
+            return dict(pid=pid,timestamp=start,dispatch_timestamp=end,
+                        resident_at_enqueue=resident,worker_assigned_at_enqueue=worker)
+        rows = [row(1,0,10),row(1,2,12),row(2,3,4),row(1,12,15),
+                row(3,20,30,False,False),row(3,21,31,False,False),
+                row(4,40,50,True,False)]
+        result = classify(rows, rows)
+        self.assertEqual([r['case'] for r in result],
+                         ['hot_empty','hot_backlog','hot_empty','hot_empty',
+                          'cold_empty','cold_backlog','scale_up'])
+        self.assertEqual([r['older_waiting'] for r in result], [0,1,0,0,0,1,0])
+
     def test_switches_and_rejection_of_missing_yield_loss_and_parity(self):
         launch, records = self.fixture()
         result = analyze(records, launch)
