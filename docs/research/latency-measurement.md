@@ -1400,3 +1400,64 @@ extra CL operation in those examples, but does not turn the 402 ns host/link
 interval into a calibrated CPU-only difference. The old 3.700 µs and new 4.165 µs
 MAC medians remain valid. No board reset, new measurement, hardware change or
 timing optimization was performed for this analysis.
+
+### Software localization of the 402 ns host-turnaround increase
+
+The [CPU-side comparison](../../data/eci/board-evidence/nullrpc-software-regression-20261010/summary.json)
+uses the same 1,000 measured hot kernel-off requests per revision. Raw CPU
+intervals from RX-read unblock to TX entry increase **356.930 ns**, directly
+accounting for most of the **401.845 ns** FPGA-observed host-turnaround growth.
+There is no CPU/FPGA clock fit in this subtraction. All eight adjacent CPU
+intervals conserve the CPU interval for every request.
+
+| Raw CPU interval | Old mean (ns) | New mean (ns) | Increase (ns) |
+| --- | ---: | ---: | ---: |
+| RX unpack after read unblock | 150.69 | 145.17 | −5.52 |
+| RX return → unmarshal entry | 291.12 | 362.27 | +71.15 |
+| Unmarshal | 295.72 | 304.53 | +8.81 |
+| Unmarshal exit → handler entry | 83.83 | 97.36 | +13.53 |
+| Handler-labelled interval | 189.63 | 245.64 | +56.01 |
+| Handler exit → marshal entry | 121.01 | 130.47 | +9.46 |
+| Marshal-labelled interval | 197.68 | 392.95 | +195.27 |
+| Marshal exit → TX entry | 134.43 | 142.65 | +8.22 |
+| **RX unblock → TX entry** | **1464.11** | **1821.04** | **+356.93** |
+
+Source and deployed AArch64 assembly identify substantial additional work:
+
+- **Marshalling now traverses the response twice.** `xdr_response_capacity()`
+  calls `xdr_sizeof`, then `xdr_marshal_resp()` encodes it. The marshal probes
+  also now enclose `core_eci_tx_get_buffer`, including its control-bit write and
+  `dmb sy`. The old code encoded directly into an already available staging
+  buffer. The measured +195 ns belongs to this whole interval; it is not an
+  isolated measurement of `xdr_sizeof`, and some work moved from the TX stage.
+- **Request setup copies much more tracing state.** `rpc_handle_call` zeroes
+  672 bytes instead of 288; the trace copy grows from 224 to 608 bytes and
+  changes from inline vector loads/stores to a `memcpy` call. The new row carries
+  eleven 32-byte PMU snapshots even though every measured row has `pmu_mode=0`
+  and `pmu_mask=0`. This extra setup lies in the +71 ns pre-unmarshal interval.
+- **The handler label includes added instrumentation.** The benchmark handler
+  source is unchanged. The runtime now calls
+  `server_trace_event(LH_TRACE_ENTRY_RETURN)` before the handler-exit timestamp,
+  even with event output disabled; the early-return call/check still executes.
+  Stage timestamps now pass through `server_trace_stage` PMU checks in mode zero,
+  and entry timestamp stores were added. Therefore the +56 ns is not evidence
+  that the arithmetic handler itself became slower.
+
+The remaining **44.915 ns** is the combined change outside these common CPU
+boundaries: RX response transit/completion/probe tail and TX entry-to-doorbell
+preparation/probe/request transit. The new pre-doorbell clock call is in that
+remainder, alongside savings and work moved out of the old copying TX path.
+The old capture has no pre-doorbell probe, so its individual contributions
+cannot be separated exactly from existing data.
+
+The per-run minimum clock-call calibration changed from 60 to 80 ns. The table
+intentionally uses raw deltas: this calibration does not remove disabled-PMU
+wrapper checks, row copying or the disabled event call, and subtracting it from
+some phases while comparing raw MAC latency would mix accounting conventions.
+These are instrumented runtime results, not tracing-free application latency.
+
+The concrete optimization candidates are a known encoded-size/bound for the
+fixed-size reply (avoiding the extra XDR sizing traversal), compact hot-path
+trace state without unused PMU arrays, and disabled-instrumentation fast paths.
+Exact nanosecond attribution to each candidate still needs an isolated control;
+this analysis neither implements those changes nor claims a new board result.

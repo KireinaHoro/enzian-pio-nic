@@ -1,0 +1,231 @@
+{
+  "old": {
+    "count": 1000,
+    "metrics": {
+      "rx_unpack": {
+        "mean": 150.69,
+        "median": 150.0,
+        "min": 150,
+        "max": 240
+      },
+      "before_unmarshal": {
+        "mean": 291.12,
+        "median": 290.0,
+        "min": 280,
+        "max": 320
+      },
+      "unmarshal": {
+        "mean": 295.72,
+        "median": 300.0,
+        "min": 290,
+        "max": 300
+      },
+      "before_handler": {
+        "mean": 83.83,
+        "median": 80.0,
+        "min": 80,
+        "max": 90
+      },
+      "handler": {
+        "mean": 189.63,
+        "median": 190.0,
+        "min": 180,
+        "max": 310
+      },
+      "before_marshal": {
+        "mean": 121.01,
+        "median": 120.0,
+        "min": 120,
+        "max": 140
+      },
+      "marshal": {
+        "mean": 197.68,
+        "median": 200.0,
+        "min": 190,
+        "max": 200
+      },
+      "before_tx": {
+        "mean": 134.43,
+        "median": 130.0,
+        "min": 130,
+        "max": 140
+      },
+      "rx_unblock_to_tx_enter": {
+        "mean": 1464.11,
+        "median": 1460.0,
+        "min": 1460,
+        "max": 1600
+      },
+      "tx_call": {
+        "mean": 1960.95,
+        "median": 1960.0,
+        "min": 1940,
+        "max": 1990
+      },
+      "probe_overhead": {
+        "mean": 60,
+        "median": 60.0,
+        "min": 60,
+        "max": 60
+      }
+    },
+    "provenance": {
+      "client_csv": "out/baseline-latency-516232/bufhotoff1.csv",
+      "server_csv": "out/baseline-latency-516232/bufhotoff1-server.csv",
+      "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+      "client_sha256": "89eb6cd0517369e92f7bc1a85d85c0f0b001923bf941a0cfff33daf753ec8bcc",
+      "server_sha256": "9404f43df9411aa4f4166f789c158c0f1b0fdc39bd8c31c470cff652e54acd76",
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      },
+      "trace_dump": "out/baseline-latency-516232/bufhotoff1-dump/trace/trace-dram.bin",
+      "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+      "trace_dump_sha256": "a755deb06e88889b64cbbc1b45e97431647e17d04d46ee919c1f3c3f3bda0477",
+      "trace_cycle_ns": 5,
+      "trace_process_id": 1659,
+      "combine_rpc_ingress": true,
+      "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+      "allow_partial_trace": false,
+      "rx_trace_invalid_host_id": 63
+    }
+  },
+  "new": {
+    "count": 1000,
+    "metrics": {
+      "rx_unpack": {
+        "mean": 145.17,
+        "median": 140.0,
+        "min": 140,
+        "max": 170
+      },
+      "before_unmarshal": {
+        "mean": 362.27,
+        "median": 360.0,
+        "min": 350,
+        "max": 370
+      },
+      "unmarshal": {
+        "mean": 304.53,
+        "median": 300.0,
+        "min": 290,
+        "max": 320
+      },
+      "before_handler": {
+        "mean": 97.36,
+        "median": 100.0,
+        "min": 90,
+        "max": 110
+      },
+      "handler": {
+        "mean": 245.64,
+        "median": 250.0,
+        "min": 240,
+        "max": 250
+      },
+      "before_marshal": {
+        "mean": 130.47,
+        "median": 130.0,
+        "min": 130,
+        "max": 140
+      },
+      "marshal": {
+        "mean": 392.95,
+        "median": 390.0,
+        "min": 390,
+        "max": 400
+      },
+      "before_tx": {
+        "mean": 142.65,
+        "median": 140.0,
+        "min": 140,
+        "max": 150
+      },
+      "rx_unblock_to_tx_enter": {
+        "mean": 1821.04,
+        "median": 1820.0,
+        "min": 1810,
+        "max": 1850
+      },
+      "tx_call": {
+        "mean": 2048.54,
+        "median": 2050.0,
+        "min": 2030,
+        "max": 2080
+      },
+      "probe_overhead": {
+        "mean": 80,
+        "median": 80.0,
+        "min": 80,
+        "max": 80
+      },
+      "tx_prepare_raw": {
+        "mean": 158.47,
+        "median": 160.0,
+        "min": 150,
+        "max": 160
+      }
+    },
+    "provenance": {
+      "client_csv": "out/nullrpc-inline/hot-off2.csv",
+      "server_csv": "out/nullrpc-inline/hot-off2-server.csv",
+      "analyzer_sha256": "c2f8a859ff04ddfa63b656a4577f3e5c07ad8f08bc75dae2398456ad0257e920",
+      "client_sha256": "9f7867a6c84592f215f06d85f6ab2b4a1978ea280fb0c1d2edd9152098e7bf89",
+      "server_sha256": "a2d958001afd5dc6211b88ce9770a35654b1a661fa57fffcc0ba6064ad693c7c",
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      },
+      "trace_dump": "out/nullrpc-inline/hot-off2-dump/trace/trace-dram.bin",
+      "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+      "trace_dump_sha256": "1094ec5c1a28c39ae3bf20602ce9fd147bed775f9b030d2609b7c9f7528d6141",
+      "trace_cycle_ns": 5,
+      "trace_process_id": 1668,
+      "combine_rpc_ingress": true,
+      "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+      "allow_partial_trace": false,
+      "rx_trace_invalid_host_id": 63,
+      "transport_anchors": "out/nullrpc-inline/hot-off2-anchors.json",
+      "transport_anchors_sha256": "ea4dd84b85d69d303e0c5f98167989774d0ebaba66c150d6b295b185009c86d3"
+    }
+  },
+  "cpu_stage_mean_delta_ns": {
+    "rx_unpack": -5.52000000000001,
+    "before_unmarshal": 71.14999999999998,
+    "unmarshal": 8.809999999999945,
+    "before_handler": 13.530000000000001,
+    "handler": 56.00999999999999,
+    "before_marshal": 9.459999999999994,
+    "marshal": 195.26999999999998,
+    "before_tx": 8.219999999999999,
+    "rx_unblock_to_tx_enter": 356.93000000000006,
+    "tx_call": 87.58999999999992,
+    "probe_overhead": 20
+  },
+  "fpga_host_turnaround_mean_delta_ns": 401.84500000000025,
+  "remaining_boundary_mean_delta_ns": 44.91500000000019,
+  "method": "Same 1000 measured hot kernel-off requests per revision; raw CPU timestamp differences, no CPU/FPGA epoch fit and no per-stage overhead subtraction. Eight adjacent CPU intervals conserve RX-unblock to TX-entry per request.",
+  "runtime_binaries": {
+    "old": {
+      "path": "/nix/store/2j5l25p9qia48ij3hfla5443c0mfjlr3-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1/lib/liblauberhorn.so",
+      "sha256": "d4cd4ed56a9f87d63fe98bbc7d45391917ecf994fd9075440d3a157729c6a7a7"
+    },
+    "new": {
+      "path": "/nix/store/n7nypyvcnfcndvc4rqjjnn1l5vfjd7x8-lauberhorn-rt-aarch64-unknown-linux-gnu-0.0.1/lib/liblauberhorn.so",
+      "sha256": "2bd1eb6c1c0bb8196cecdfd340ccd66791ceca27882587cbcb492affea9b600d"
+    }
+  },
+  "source_and_assembly_findings": {
+    "marshal": "New response_capacity calls xdr_sizeof before xdr_marshal_resp: a sizing traversal followed by encoding. core_eci_tx_get_buffer and its control-bit write/DMB are now inside the marshal interval. No isolated probe divides sizing, reservation, encoding or instrumentation.",
+    "before_unmarshal": "rpc_handle_call request zero initialization grows 288 to 672 bytes. Trace row copy grows 224 to 608 bytes; old inline vector copy becomes memcpy. PMU mode and mask are zero in every new cohort row, but the enlarged row still contains and copies 11x32-byte PMU snapshots.",
+    "handler": "Benchmark handler source is unchanged. New runtime calls server_trace_event(LH_TRACE_ENTRY_RETURN) before handler-exit timestamp, even with event output disabled; it returns early but pays the call/check. Stage timestamps now pass through server_trace_stage PMU checks even in mode zero; entry timestamp stores are also added.",
+    "timestamp": "Measured minimum clock-call overhead is 60 ns old / 80 ns new. This does not calibrate complete stage wrappers or row copies and must not be subtracted again from these raw additive intervals.",
+    "tx": "New extra pre-doorbell clock probe exists only in new capture. Old TX preparation also copied staged data, while new reservation is earlier. The 44.915 ns boundary remainder includes changes in RX completion transit/timestamp tail, TX preparation/probe and TX request transit. Old capture has no pre-doorbell timestamp, so it cannot isolate these terms without a controlled rerun."
+  },
+  "limitations": [
+    "Stage growth is measured; assigning an exact nanosecond cost to an individual added function requires isolated controls or finer probes.",
+    "These are instrumented runtimes with kernel tracing off; not all-instrumentation-off application performance.",
+    "Raw marshal boundary now includes reservation work that was not in the old marshal interval.",
+    "No new board experiment or software optimization was performed."
+  ]
+}
