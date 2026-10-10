@@ -1,0 +1,104 @@
+{
+  "hot-on": {
+    "runtime_rows": 1016,
+    "first_runtime_row": 0,
+    "past_last_runtime_row": 1016,
+    "workers": {
+      "45": 1016
+    },
+    "unique_activations": 1,
+    "runtime_failed": 0,
+    "client_rows": 1016,
+    "client_fields": [
+      "request_id",
+      "rpc_status",
+      "ok",
+      "benchmark",
+      "client_call_enter_ns",
+      "client_call_exit_ns",
+      "timestamp_overhead_ns",
+      "client_tx_ready_ns",
+      "client_tx_submit_ns",
+      "client_rx_burst_ns",
+      "warmup",
+      "transport"
+    ]
+  },
+  "cold-on": {
+    "runtime_rows": 1000,
+    "first_runtime_row": 1016,
+    "past_last_runtime_row": 2016,
+    "workers": {
+      "44": 999,
+      "45": 1
+    },
+    "unique_activations": 1000,
+    "runtime_failed": 0,
+    "client_rows": 1000,
+    "client_fields": [
+      "request_id",
+      "rpc_status",
+      "ok",
+      "benchmark",
+      "client_call_enter_ns",
+      "client_call_exit_ns",
+      "timestamp_overhead_ns",
+      "client_tx_ready_ns",
+      "client_tx_submit_ns",
+      "client_rx_burst_ns",
+      "warmup",
+      "transport"
+    ]
+  },
+  "hot-off2": {
+    "runtime_rows": 1016,
+    "first_runtime_row": 2016,
+    "past_last_runtime_row": 3032,
+    "workers": {
+      "44": 1016
+    },
+    "unique_activations": 1,
+    "runtime_failed": 0,
+    "client_rows": 1016,
+    "client_fields": [
+      "request_id",
+      "rpc_status",
+      "ok",
+      "benchmark",
+      "client_call_enter_ns",
+      "client_call_exit_ns",
+      "timestamp_overhead_ns",
+      "client_tx_ready_ns",
+      "client_tx_submit_ns",
+      "client_rx_burst_ns",
+      "warmup",
+      "transport"
+    ]
+  },
+  "cold-off": {
+    "runtime_rows": 1000,
+    "first_runtime_row": 3032,
+    "past_last_runtime_row": 4032,
+    "workers": {
+      "44": 999,
+      "47": 1
+    },
+    "unique_activations": 1000,
+    "runtime_failed": 0,
+    "client_rows": 1000,
+    "client_fields": [
+      "request_id",
+      "rpc_status",
+      "ok",
+      "benchmark",
+      "client_call_enter_ns",
+      "client_call_exit_ns",
+      "timestamp_overhead_ns",
+      "client_tx_ready_ns",
+      "client_tx_submit_ns",
+      "client_rx_burst_ns",
+      "warmup",
+      "transport"
+    ]
+  }
+}

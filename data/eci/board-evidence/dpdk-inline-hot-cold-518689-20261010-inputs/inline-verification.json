@@ -1,0 +1,66 @@
+{
+  "hot-on": {
+    "measured": 1000,
+    "events": {
+      "EciTxCommitRead": 1000,
+      "EciTxCtrlInvalidated": 1000,
+      "EciTxSubmit": 1000
+    },
+    "clock_offset_ns": -117539945447.5,
+    "causal_offset_bounds_ns": [
+      -117539945595,
+      -117539945325
+    ],
+    "all_conservation_checks_passed": true,
+    "rx_unblock_min_ns": 122.5,
+    "tx_return_min_ns": 182.5
+  },
+  "cold-on": {
+    "measured": 1000,
+    "events": {
+      "EciTxCommitRead": 1000,
+      "EciTxCtrlInvalidated": 1000,
+      "EciTxSubmit": 1000
+    },
+    "clock_offset_ns": -117539945432.5,
+    "causal_offset_bounds_ns": [
+      -117539945595,
+      -117539945310
+    ],
+    "all_conservation_checks_passed": true,
+    "rx_unblock_min_ns": 122.5,
+    "tx_return_min_ns": 167.5
+  },
+  "hot-off2": {
+    "measured": 1000,
+    "events": {
+      "EciTxCommitRead": 1000,
+      "EciTxCtrlInvalidated": 1000,
+      "EciTxSubmit": 1000
+    },
+    "clock_offset_ns": -117539945452.5,
+    "causal_offset_bounds_ns": [
+      -117539945590,
+      -117539945330
+    ],
+    "all_conservation_checks_passed": true,
+    "rx_unblock_min_ns": 122.5,
+    "tx_return_min_ns": 182.5
+  },
+  "cold-off": {
+    "measured": 1000,
+    "events": {
+      "EciTxCommitRead": 1000,
+      "EciTxCtrlInvalidated": 1000,
+      "EciTxSubmit": 1000
+    },
+    "clock_offset_ns": -117539945427.5,
+    "causal_offset_bounds_ns": [
+      -117539945590,
+      -117539945305
+    ],
+    "all_conservation_checks_passed": true,
+    "rx_unblock_min_ns": 122.5,
+    "tx_return_min_ns": 147.5
+  }
+}

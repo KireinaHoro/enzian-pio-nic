@@ -1169,6 +1169,9 @@ single-delivery-between-dispatches recovery is explicitly audited. One initial
 hot kernel-on warmup lacks complete MAC correlation; it is retained in the
 warmup exception list, not counted among measured results.
 
+The later [inline campaign](#inline-tx-and-pre-doorbell-probe-measurement--october-10)
+found a systematic bias in this historical CPU/FPGA fit; do not treat its TX
+software component as calibrated one-way latency. RTT/MAC/FPGA-only values remain valid.
 FPGA intervals use nominal 200 MHz / 5 ns quantization. CPU/FPGA alignment retains
 the earlier lower-envelope RX-unblock estimator and half measured ECI RTT; RX HW
 is an estimate, without an independent bound on systematic one-way error.
@@ -1230,6 +1233,114 @@ The 13 latency-accounting tests and buffered CSV writer test passed through
 `nix develop`; the four historical hot/cold plots rendered successfully.
 AArch64 disassembly confirms the doorbell `ldrb` is the first instruction after
 the clock callback returns, and the timestamp store follows that load. Logs
-and disassembly are retained under `out/nullrpc-inline-tx/`. Inline hardware latency and new-probe distributions remain to
-be measured. The preceding 4,000-request
+and disassembly are retained under `out/nullrpc-inline-tx/`. Inline hardware latency and new-probe distributions were measured in the
+following campaign. The preceding 4,000-request
 results describe the original overflow software, not this correction.
+
+## Inline TX and pre-doorbell probe measurement — October 10
+
+[Report and provenance](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json),
+[all percentiles](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.csv),
+and [reproduction inputs](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010-inputs/README.md)
+record **4,000 successful measured RPCs plus 32 warmups**, with no runtime-row
+loss. This measures the preceding correction: software `8a1521ee` against
+unchanged pipeline **518689** hardware `45cbfe52` and its headers/module/map.
+The pinned [Nix recipe](../../tools/enzian/nullrpc_inline_build.nix) rebuilds the
+runtime and application together; the deployment image SHA256 is
+`3e53382af002b176531f07a7885d9d4ca4fa5d790a06575f7d2b350d65a543c2`.
+Timing remains open (WNS −0.950 ns). No hardware, address layout or PREEMPT
+change was made for this measurement.
+
+The one-thread add/null-RPC service returns eight encoded bytes and now reserves
+inline storage. Every measured TX has one control invalidation completion and
+**no overflow invalidation start/completion**. DCS control-line joins additionally
+require exactly one forward and acknowledgement for each transaction. The
+separate four-thread mul service supplies cold flush work, as in the preceding
+campaign; measured requests remain closed-loop, one outstanding. Each cold
+cohort has 1,000 distinct activations; each hot cohort has one. Actual Linux CPU
+assignments and datapath IDs are retained separately in the report.
+
+Raw RTT and FPGA MAC-marker intervals, microseconds; 1,000 requests per row:
+
+| Condition | RTT median | RTT p99 | MAC median | MAC p99 |
+| --- | ---: | ---: | ---: | ---: |
+| Hot, kernel tracing off | 12.760 | 13.640 | 4.165 | 4.195 |
+| Cold, kernel tracing off | 44.440 | 53.861 | 35.770 | 44.746 |
+| Hot, kernel tracing on | 12.760 | 16.116 | 4.165 | 5.972 |
+| Cold, kernel tracing on | 52.610 | 63.656 | 43.870 | 54.179 |
+
+TX component medians (p99), **nanoseconds**, kernel tracing off:
+
+| Interval | Hot | Cold |
+| --- | ---: | ---: |
+| CPU TX preparation, corrected for timestamp overhead | 80 (80) | 130 (140) |
+| CPU pre-read probe → DCS request input, estimated | 147.5 (157.5) | 177.5 (187.5) |
+| DCS request input → internal commit event | 215 (220) | 215 (220) |
+| Internal commit → control invalidation completion | 955 (965) | 955 (965.1) |
+
+Preparation covers control construction, barriers and parity update before the
+probe. Its raw probe interval is 160 ns hot / 210 ns cold at the median; the
+per-row clock-probe overhead is 80 ns. Deployed AArch64 disassembly confirms
+that `ldrb` is the first instruction after the clock callback returns, with the
+probe store after the load. The CPU-to-DCS interval still includes the callback
+return tail. It is the request's **arrival**, not the total blocking load duration;
+the load returns after the FPGA completion response. DCS-input-to-commit and
+commit-to-completion are direct FPGA intervals. The latter falls from **1,945
+to 955 ns**; hot RTT falls by **1.590 µs** and hot MAC latency by **1.505 µs**
+relative to the preceding overflow-reservation campaign. These are sequential
+software-revision comparisons, not a claim that all improvements are caused by
+one hardware operation.
+
+### Clock alignment correction and limits
+
+The old fit incorrectly treated `EciRxDescSent` as the ECI response leaving DCS.
+It is an internal descriptor handoff: in the representative hot request the
+actual `PEMD` appears **290 ns later**. The old epoch even placed the CPU TX
+return before the FPGA sent its response. Therefore previous cross-clock TX
+software/arrival labels must not be interpreted as calibrated one-way latency.
+Their RTT, MAC and FPGA-only intervals remain valid.
+
+The new optional `--transport-anchors` path uses
+[transport_anchors.py](../../tools/enzian/transport_anchors.py) to join actual
+DCS RX `PEMD`, TX `RLDD`, and TX `PEMD` by core, domain, address/parity and bounded
+hardware timestamps. Joins must be unique and input hashes must match. The
+seed audit contributes hardware identities, never its fitted CPU epoch.
+Alignment is the lower envelope of `CPU_RX_unblock − DCS_RX_response − 122.5 ns`,
+using half the observed **245 ns** forward/ack RTT. Symmetric transit remains an
+assumption, not an independent one-way calibration. A constant epoch is also
+bounded by CPU-before-request and response-before-CPU causality across every
+request; an inconsistent fit fails rather than clipping negative intervals.
+The full causal intervals are recorded for each cohort. For kernel-off hot,
+the offset may range −137.5 to +122.5 ns around the selected fit; for cold,
+−162.5 to +122.5 ns. Thus the corresponding median probe-to-DCS arrival is
+bounded only to 10–270 ns hot / 15–300 ns cold without the symmetry assumption.
+These are systematic bounds under those ordering assumptions, not statistical
+confidence intervals.
+The RX descriptor-to-DCS interval is now a separate additive component; TX
+request arrival is separated from the FPGA ingress pipeline. Per-request MAC
+and RTT component conservation both pass.
+
+Kernel-off means kernel instrumentation off: runtime buffering and FPGA tracing
+remain active. Kernel-on cold RTT is 8.170 µs higher at the median in this
+sequential comparison. FPGA quantization is 5 ns; kernel trace text is 1 µs.
+No all-tracing-off control, precise wire-only ECI delay, concurrent measured
+worker throughput, or timing closure is claimed. Sticky VIO loss after freeze
+is recorded; stored capture records are checked for loss markers. One first
+hot-on warmup lacks complete MAC correlation and is excluded from measured
+statistics, with its exception retained.
+
+The boot harness preserved two failed ECI initialization attempts (CDR locks
+present, full CCPI lane list absent) and passed on its third cold-reset attempt;
+the module was not loaded on the failed attempts. One kernel-off client barrier
+prefix error produced zero requests, restored the VF, and was retried as
+`hot-off2`. An export precondition prefix error failed before exporting runtime
+rows and was corrected. Original failure logs, interrupted decoder recovery,
+all four complete captures and final passing health checks are preserved in
+`out/nullrpc-inline/`. The DUT remains running these services with tracing frozen;
+recheck reservations and live state before reuse.
+
+Plots in `out/nullrpc-inline/figures/` include `median-waterfall`,
+`component-violins`, `handoff-violins`, and `interval-violins`
+(PDF/PNG). They show full distributions and actual requests nearest median RTT;
+component medians must not be summed. The analysis tests cover causal rejection,
+legacy behavior and conservation with the new transport split.

@@ -1,0 +1,5 @@
+warning: Git tree '/local/home/pengxu/work-local/lauberhorn/platform' is dirty
+warning: Git tree '/local/home/pengxu/work-local/lauberhorn/platform' is dirty
+{"anchors": 1000, "output": "out/nullrpc-inline/cold-on-anchors-v2.json"}
+{"anchors": 1000, "output": "out/nullrpc-inline/hot-off2-anchors-v2.json"}
+FORWARD_CHECKS_PASSED
