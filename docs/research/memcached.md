@@ -1667,3 +1667,11 @@ arrays and connects sources 53–57 at both NicEngine and trace-DMA instances.
 port/debug checks and bundle preparation. No timing, address-layout or PREEMPT
 change was made. Failure log and snapshot are in `out/udp-trace/ci-preflight/`.
 There is no bitstream or Enzian result from 518832; relaunch is required.
+
+Replacement pipeline [518836](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518836)
+tests `8d291b7f00b701e7cd23ab02a75a78080d6e9e42` on the retained branch.
+Initial gates are 2885491–2885504, prepare 2885505, hardware 2885506 and report
+2885507. The read-only launch snapshot is `out/udp-trace/ci-relaunch/latest.json`.
+Its preflight is armed for October 10, 23:43:06 CEST in the same thread. Gates
+were running/pending at launch; no hardware result or new latency measurement
+is available. Use this pipeline SHA for subsequent matched artifacts.
