@@ -5,8 +5,11 @@ in `6b489de8`. Current transport and adapter follow-up is on platform branch
 `feat/memcached-rx-wait`; the upstream-based application worktree is on
 `feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform pins the borrowed
 adapter after local validation. Pipeline 518689 now has matched RPC validation
-and finite memcached acceptance with five one-worker instances sharing four
-physical workers; see [the switching results](#five-instances-on-four-workers-october-10).
+and finite memcached acceptance with five instances sharing four physical workers.
+Both one-worker pools and four-worker pools passed; the latter exercised
+single/pair/all-tenant bursts, every tenant reaching four assigned workers, and
+trace-verified switching. See [initial switching](#five-instances-on-four-workers-october-10)
+and [burst/latency results](#four-workers-per-tenant-and-variable-bursts-october-10).
 The full pool-size/performance matrix and timing closure remain open.
 
 The application starts from upstream
@@ -1253,3 +1256,167 @@ checks for missing yields, loss, incomplete activation and parity mismatches.
 The full 1–W/mixed-pool matrix, offered-load sweeps, tracing-off performance
 controls, HOST_WAKE and unrestricted maintenance remain follow-on work. Timing
 is unchanged from 518689 (WNS -0.950 ns); no timing closure is claimed.
+
+### Four workers per tenant and variable bursts, October 10
+
+The next synthetic cohort declares four request workers in each of five instances
+(20 declared workers sharing CPUs 44–47). It uses the same 518689 hardware,
+`aa1255b7` runtime, `2eaa2b8` application and target-tools image recorded above.
+The client/tool implementation starts at `c048ad9d`. Post-test `/proc` snapshots
+confirm four `lh-mc-*` threads per PID and main/background execution outside the
+worker CPUs; snapshots alone do not establish simultaneous assignments.
+
+`patterns.py` rotates through five isolated tenant bursts, five overlapping
+adjacent pairs (including last/first), and one all-five burst. It repeats that
+sequence three times, with 100 ms idle gaps. Each active tenant sends 256 requests
+per phase, with a bounded window of 16 outstanding requests on its own socket:
+244 GETs and 12 SETs, a distinct 1-KiB value per tenant under the same key. This
+window matches the 16-entry per-domain hardware queue and exceeds its eight-entry
+additional-core watermark without deliberately overflowing an unserved queue.
+All responses are checked, no workload request retries, and hash expansion is
+rejected. This is a finite diagnostic workload, not open-loop offered-load replay.
+
+Both the traced workload and subsequent tracing-frozen control passed all 15,360
+requests (33 phases each), with no client errors/timeouts or observed hash
+expansion. The post-test kernel diagnostic check passed. Every request's send and
+receive timestamps, tenant, phase, operation, request ID and RTT are retained in
+CSV. `plot_patterns.py` plots every sample and separate empirical CDFs, with
+per-phase/tenant percentiles in JSON. “Entry” means the first 16 requests of a
+burst; “sustained” means the remaining requests. These traffic labels are **not**
+proof of hardware hot/cold state, and residency is not proof of cache warmth.
+
+| Pattern | Traced sustained median / p99 (µs) | Tracing-frozen median / p99 (µs) |
+| --- | ---: | ---: |
+| Single tenant | 319.4 / 500.6 | 363.4 / 551.6 |
+| Pair | 738.8 / 1068.3 | 748.0 / 1262.7 |
+| All five | 1546.4 / 2673.6 | 1691.9 / 2977.8 |
+
+These are gateway Python/socket RTTs, including generator event-loop, socket and
+network overhead. The generator's receive ordering and bounded window affect the
+results. The control does not establish a causal tracing-overhead estimate; this
+is one boot with three pattern repetitions per run, not independent repetitions
+or a publication-quality NIC latency benchmark. Do not equate the entry/sustained
+RTT difference with activation cost. Hardware enqueue-to-dispatch delay uses its
+own nominal 200-MHz clock, without claiming client/FPGA clock correlation.
+
+The cold boot passed all QLM/CCPI gates, and module verification and server launch
+completed. Informational registration printks split the console runner's zero-exit
+marker, so the harness reported a setup timeout before running its client. The
+134,471,936-byte setup trace was frozen, captured and checksum-verified before
+resuming the same processes. `dmesg -n 4` suppressed informational console output;
+no reset or server restart followed. The harness failure remains recorded as a
+failure, separate from successful resumed workload results.
+
+The complete workload capture is 701,479,040 bytes, SHA-256
+`dedb6be8b8a0992762322dbadac1a519d4bf4055d0161253f5aefde6aef75339`.
+It has no wrap or DMA error, but contains stored trace loss: a setup/resume gap and
+a short loss burst during the first all-five phase. Thus the full capture is not
+a loss-free audit of the entire workload. Keep the full capture and explicit
+analysis-window limits; never remove loss markers from inside a claimed window.
+
+The explicitly bounded loss-free prefix ends before the first all-five phase
+(cycles `[91735818816, 96641756442)`). It audits 3,850 dispatches (ten setup
+requests plus the first ten workload phases), 17 assignments and 13 process
+changes, with 17 first-RX and 17 first-TX parity checks and no mismatch. One
+instance peaks at three simultaneous assignments; the other four peak at one.
+Declaring four workers did not make this socket-paced run exercise four-way
+scale-up for every tenant.
+
+Within that prefix, 15 requests arrived with no assigned worker: enqueue-to-
+dispatch median 31.235 µs, p99 84.459 µs. The 3,835 requests arriving with an
+assigned worker have median 0.015 µs but p99 177.108 µs. Residency therefore does
+not eliminate queueing, and a cold activation is not necessarily the largest
+delay. These are scheduler intervals, not application service time or client RTT.
+`switching-prefix.json` records the exact bounds; `queue-latencies-prefix` and
+`assignments-prefix` provide the corresponding PNG/PDF plots. Reproduce using
+`analyze_switching.py --start-cycle 91735818816 --end-cycle 96641756442` with the
+captured trace/map and `run-01/launch.json`; the default full-capture audit rejects
+this trace's loss. These prefix results do not validate the excluded all-five
+phase or subsequent repetitions.
+
+Evidence: `out/memcached-patterns/provenance.json`, `cases-01.json`,
+`board-01/summary.json`, `run-01/{client,control}/{summary.json,requests.csv}`,
+`trace-{setup,workload}/`, `capture-audit.json`, and
+`latencies-{01,control}{,-cdf}.{png,pdf}`. The setup capture SHA-256 is
+`62af27038596fdca2508695212bcca5cdeeda3c08a8a309cdc04a0117649b867`.
+All prior captures remain preserved. The cohort remains alive with trace
+collection frozen. Future multi-tenant dataset replay needs timestamped tenant
+arrivals, preserved burst/idle structure, an open-loop generator with pacing
+error accounting, and repeated tracing-off performance runs; this test does not
+select a dataset or establish paper benchmark performance.
+
+#### Kernel-batched bursts: complete scale-up and switching evidence
+
+The tightened variant (`patterns.py --batch`, tools at `a32f3cf9`) uses Linux
+`sendmmsg` to enqueue each bounded tenant burst in one syscall. It retains the
+16-request window and all 33 phases/15,360 requests. Each request in a batch is
+timestamped at the same client call-preparation start, so RTT includes ctypes
+preparation and kernel batch transmission; these are not individual wire-send
+timestamps. The batched variant and its matching tracing-frozen control both
+passed all 15,360 requests. Across the two variants and their controls, 61,440
+workload requests passed without errors/timeouts or hash expansion.
+
+This fresh cold boot passed the full harness on its first attempt in 302.2 s,
+including module verification, launch and client execution. Informational console
+messages were suppressed before server launch to avoid the earlier marker
+interleaving. The full 808,888,576-byte trace is checksum-verified, SHA-256
+`a64148b7cf20f5bb6222f5df6f8249d214e7feefbb03914f6ffc5717e4e06e00`.
+It has **no stored loss markers**, wrap or DMA error. The VIO loss flag was zero
+before freeze and one afterward; the stored-marker audit establishes the captured
+history's completeness.
+
+All five tenants individually reached **four simultaneous assigned workers**,
+and every tenant dispatched requests on every physical worker. The full audit
+proves 2,477 yield-preceded process changes and 2,481 assignments with matching
+committed/delivered activations. All 2,481 first-RX and 2,481 first-TX parity checks
+passed. Each PID has 3,075 dispatches (one readiness request, one preload, 3,072
+workload requests and one final stats request), totaling 15,375. The audit also
+observes 617 domain migrations and 1,475 A→B→A reuse sequences. These are finite
+correctness and scheduling observations, not fairness or latency-SLO guarantees.
+
+The hardware latency plot contains every one of the 15,360 workload requests.
+The two serialized initial requests and one final stats request per PID are
+explicitly excluded from these latency statistics, while remaining in the full
+trace audit. Requests are classified using assignment state at enqueue and the
+last assignment to their eventual dispatch core before dispatch:
+
+| Assignment state at enqueue | Requests | Queue median (µs) | Queue p99 (µs) |
+| --- | ---: | ---: | ---: |
+| No worker assigned to tenant | 1,064 | 30.518 | 56.630 |
+| Tenant resident, eventual dispatch worker assigned afterward | 4,603 | 72.875 | 97.174 |
+| Eventual dispatch worker already assigned | 9,693 | 20.230 | 100.905 |
+
+The middle class captures worker activation/scale-up while the tenant is already
+resident. The last class is the closest scheduling analogue of “hot,” but does
+not prove cache warmth; all three include queueing. Thus activation is visible,
+but simply labeling the first packet cold and the rest hot misses both scale-up
+and load-dependent queueing tails. FPGA intervals use nominal 200 MHz (5 ns
+quantization), without an independent oscillator or client-clock calibration.
+
+| Batched pattern | Traced sustained median / p99 (µs) | Tracing-frozen median / p99 (µs) |
+| --- | ---: | ---: |
+| Single tenant | 585.8 / 987.2 | 586.3 / 1004.7 |
+| Pair | 972.1 / 2053.0 | 966.3 / 2137.4 |
+| All five | 1744.4 / 5496.1 | 1914.2 / 2551.5 |
+
+These gateway RTTs have the client limitations described above. In particular,
+the different all-five tail in the two finite runs is not a causal estimate of
+tracing overhead. A paper benchmark needs the controlled generator/repetition
+work, and correlated clocks for a joined end-to-end breakdown.
+
+The post-test kernel/TAD records and CPU snapshots are preserved. The 59.935 s
+sampling window recorded main/background CPU time of 0.00/0.05 CPU-seconds at
+100 ticks/s resolution, with all observed main/background CPUs outside 44–47.
+Worker CPU time was 239.34 CPU-seconds, including long assigned RX waits; it is
+not useful-work utilization. Twenty request threads remain alive, four per
+instance. The latest cohort and its frozen trace remain on the DUT.
+
+Additional evidence under `out/memcached-patterns/`: `cases-batch.json`,
+`board-batch/summary.json`, `run-batch/{client,control}/{summary.json,requests.csv}`,
+`run-batch/cpu-summary.json`, `trace-batch/`, `switching-batch.json`, and the
+workload-only derivative `switching-batch-workload.json`. Plots (PNG and PDF):
+`latencies-batch`, `latencies-batch-cdf`, `latencies-batch-control`,
+`latencies-batch-control-cdf`, `queue-latencies-batch`, `assignments-batch`.
+Nix upstream/adapter/cohort checks and the strengthened cold/scale-up/assigned
+trace-classification tests passed. No hardware timing, address layout, PREEMPT,
+server implementation or HOST_WAKE behavior changed in this campaign.

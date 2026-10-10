@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import LogLocator, FuncFormatter, NullFormatter
 
 
 def plot(source, output):
@@ -40,7 +41,9 @@ def plot(source, output):
                 ax.step(values,np.arange(1,len(values)+1)/len(values),color=color,label=label)
                 stats.append(dict(pattern=pattern,classification=label,n=len(values),
                                   **{f'p{p}_us':float(np.percentile(values,p)) for p in [50,90,99,100]}))
-        ax.set_xscale('log');ax.set_title(pattern);ax.set_xlabel('RTT (µs)');ax.grid(alpha=.2);ax.legend()
+        ax.set_xscale('log');ax.xaxis.set_major_locator(LogLocator(base=10,subs=(1,2,5),numticks=6))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f'{x:g}'))
+        ax.xaxis.set_minor_formatter(NullFormatter());ax.set_title(pattern);ax.set_xlabel('RTT (µs)');ax.grid(alpha=.2);ax.legend()
     axes[0].set_ylabel('Empirical CDF')
     fig.savefig(output.parent/(output.name+'-cdf.png'),dpi=180)
     fig.savefig(output.parent/(output.name+'-cdf.pdf'));plt.close(fig)
