@@ -56,7 +56,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capa
     state->tx_capacity = capacity;
     return tx;
 }
-#define core_eci_tx_abort core_eci_tx_finish
+#define core_eci_tx_cancel core_eci_tx_finish
 #define core_eci_tx_get_buffer test_tx_get
 #define core_eci_rx_acquire_traced test_rx_traced
 #define ioctl test_ioctl
@@ -101,9 +101,9 @@ int main(void) {
     assert(!lauberhorn_udp_send_buffer(&ep, 0xc0000201, 32123, &buffer, 5));
     assert(sent.payload_len == 5 && !memcmp(tx, "short", 5));
     assert(!lauberhorn_tx_get_buffer(1, &buffer));
-    assert(lauberhorn_tx_abort(&stale) == -1 && errno == EINVAL);
+    assert(lauberhorn_tx_cancel(&stale) == -1 && errno == EINVAL);
     assert(worker.dp.tx_reserved);
-    assert(!lauberhorn_tx_abort(&buffer));
+    assert(!lauberhorn_tx_cancel(&buffer));
     assert(!worker.dp.tx_reserved);
     assert(!lauberhorn_tx_get_buffer(128, &buffer));
     tx_status = CORE_TX_RETRY;
@@ -129,5 +129,5 @@ int main(void) {
     ep.owner = NULL;
     assert(lauberhorn_udp_send_buffer(&ep, 1, 2, &buffer, 11) == -1 && errno == EINVAL);
     assert(sends == before && worker.dp.tx_reserved);
-    assert(!lauberhorn_tx_abort(&buffer));
+    assert(!lauberhorn_tx_cancel(&buffer));
 }

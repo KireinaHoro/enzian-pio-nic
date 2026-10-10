@@ -13,11 +13,11 @@ int lauberhorn_tx_get_buffer(size_t capacity, lauberhorn_tx_buffer_t *out) {
     *out = (lauberhorn_tx_buffer_t){data, capacity, w->dp.tx_generation, w};
     return 0;
 }
-int lauberhorn_tx_abort(lauberhorn_tx_buffer_t *buffer) {
+int lauberhorn_tx_cancel(lauberhorn_tx_buffer_t *buffer) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !buffer || buffer->_worker != w || !w->dp.tx_reserved ||
         buffer->_generation != w->dp.tx_generation) { errno = EINVAL; return -1; }
-    core_eci_tx_abort(&w->dp);
+    core_eci_tx_cancel(&w->dp);
     memset(buffer, 0, sizeof(*buffer));
     return 0;
 }

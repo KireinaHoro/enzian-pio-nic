@@ -94,7 +94,7 @@ class NativeUdpSim extends NicSim {
       txSendSingle(dcs, TxNativeUdpSim(size, 43, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
       txSendSingle(dcs, TxNativeUdpSim(size, 99, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
       if (size == 1472) txSendSingle(dcs, TxNativeUdpSim(1473, 42, udp.saddr, udp.sport), bytes :+ 0.toByte, tid, expectedStatus = 3)
-      // Abort a dirty full-size reservation through the runtime's local no-op.
+      // Cancel a dirty full-size reservation through the runtime's local no-op.
       // The next inline response must not be overwritten by late dirty returns.
       txSendSingle(dcs, TxExecutionSim(0), Nil, tid, reservationCapacity = 1472, dirtyReservation = true)
       // Two replies from a single receive exercise stateless response ownership.

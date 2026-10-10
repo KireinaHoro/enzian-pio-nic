@@ -13,8 +13,8 @@
 #include "core-common.h"
 #include "lauberhorn_eci_dev.h"
 
-#if !defined(LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION) || LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION != 2
-#error "ECI runtime requires contiguous payload-layout version 2 headers"
+#if !defined(LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION) || LAUBERHORN_ECI_PAYLOAD_LAYOUT_VERSION != 3
+#error "ECI runtime requires TX transaction version 3 headers"
 #endif
 
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
@@ -366,6 +366,13 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
   size_t payload_len = desc->payload_len;
 
   switch (desc->type) {
+  case TY_EXECUTION_CONTROL:
+    lauberhorn_eci_host_ctrl_info_execution_tx_ty_insert(tx_ctrl, lauberhorn_eci_execution_control);
+    lauberhorn_eci_host_ctrl_info_execution_tx_len_insert(tx_ctrl, 0);
+    lauberhorn_eci_host_ctrl_info_execution_tx_execution_insert(tx_ctrl, desc->execution);
+    payload_len = 0;
+    break;
+
 #ifdef __KERNEL__
   case TY_BYPASS:
     uint8_t *tx_cmd = tx_ctrl + lauberhorn_eci_host_ctrl_info_bypass_tx_size;
@@ -407,12 +414,6 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_native_udp_tx_endpoint_insert(tx_ctrl, desc->udp.endpoint);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_daddr_insert(tx_ctrl, desc->udp.daddr);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_dport_insert(tx_ctrl, desc->udp.dport);
-    break;
-  case TY_EXECUTION_CONTROL:
-    lauberhorn_eci_host_ctrl_info_execution_tx_ty_insert(tx_ctrl, lauberhorn_eci_execution_control);
-    lauberhorn_eci_host_ctrl_info_execution_tx_len_insert(tx_ctrl, 0);
-    lauberhorn_eci_host_ctrl_info_execution_tx_execution_insert(tx_ctrl, desc->execution);
-    payload_len = 0;
     break;
 
   case TY_ONCRPC_REPLY_TX:
@@ -468,9 +469,6 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
 
   lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
       desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
-  /* A codec may touch all capacity bytes before committing a short result. */
-  lauberhorn_eci_host_tx_reservation_overflow_lines_insert(tx_ctrl,
-      ctx->tx_capacity <= 64 ? 0 : (ctx->tx_capacity + 127) / 128);
   BARRIER; // make sure all data is written before we ring the doorbell
 
   // Flip the parity
@@ -492,18 +490,12 @@ out:
   return tx_result;
 }
 
-/* Flush an abandoned reservation with a descriptor-only no-op before its
- * storage is reused. Otherwise an old dirty overflow line could later overwrite
- * the first bytes of a new inline packet in the shared packet-buffer slot. */
-static inline void core_eci_tx_abort(lauberhorn_core_state_t *ctx) {
+/* Finish this 2F2F transaction without emitting a packet. Same-domain cache
+ * contents may remain stale; ownership handoff performs full cleanup. */
+static inline void core_eci_tx_cancel(lauberhorn_core_state_t *ctx) {
   if (!ctx->tx_reserved) return;
   lauberhorn_pkt_desc_t noop = {.type = TY_EXECUTION_CONTROL};
-#ifdef __KERNEL__
-  /* Kernel bypass reservations have no execution-control descriptor. */
-  core_eci_tx_finish(ctx);
-#else
   (void)core_eci_tx_commit(ctx->tx_reservation_base, ctx, &noop);
-#endif
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H

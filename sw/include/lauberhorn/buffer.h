@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 /* One contiguous mutable TX reservation, owned by the current worker.
- * data is valid until submission or abort. Do not yield while reserved.
+ * data is valid until submission or cancel. Do not yield while reserved.
  * Fields prefixed with _ are private; copying this struct does not transfer ownership. */
 typedef struct {
     void *data;
@@ -16,5 +16,5 @@ typedef struct {
  * EMSGSIZE if too large). Failure leaves the output unchanged. */
 int lauberhorn_tx_get_buffer(size_t capacity, lauberhorn_tx_buffer_t *);
 /* Abandon a live reservation and invalidate its handle: 0 success, -1 error. */
-int lauberhorn_tx_abort(lauberhorn_tx_buffer_t *);
+int lauberhorn_tx_cancel(lauberhorn_tx_buffer_t *);
 #endif

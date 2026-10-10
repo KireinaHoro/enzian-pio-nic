@@ -52,13 +52,12 @@ int main(void) {
             assert(!state.tx_reserved && tx==!parity);
             assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(ctrl)==(capacity<=64));
             assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_len_extract(ctrl)==desc.payload_len);
-            assert(lauberhorn_eci_host_tx_reservation_overflow_lines_extract(ctrl)==(capacity<=64?0:(capacity+127)/128));
         }
     }
     assert(!core_eci_tx_get_buffer(base,&state,LAUBERHORN_MTU+1));
     assert(core_eci_tx_get_buffer(base,&state,1));
     lauberhorn_pkt_desc_t too_big={.type=TY_NATIVE_UDP_TX,.payload_len=2};
     assert(core_eci_tx_commit(base,&state,&too_big)==CORE_TX_ERROR && state.tx_reserved);
-    core_eci_tx_abort(&state);
+    core_eci_tx_cancel(&state);
     free(base);
 }

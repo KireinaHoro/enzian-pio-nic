@@ -45,7 +45,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capa
     state->tx_capacity = capacity;
     return state->tx_buf;
 }
-#define core_eci_tx_abort core_eci_tx_finish
+#define core_eci_tx_cancel core_eci_tx_finish
 #define core_eci_tx_get_buffer test_tx_get
 #define core_eci_tx_commit test_tx
 #define ioctl test_ioctl

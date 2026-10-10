@@ -15,13 +15,16 @@ case class TxPayloadIsolationFixture() extends Component {
   val memory = master(Axi4(cfg))
   val preempt = in Bool()
   val quiet = out Bool()
+  val invalidateDone = in Bool()
+  val payloadLines = out UInt(4 bits)
   val router = DcsTxAxiRouter(cfg, cfg)
   router.dcsAxi <> axi
   memory <> router.pktBufAxi
   router.currCl := 0
   router.txAddr.bits := 4096
   router.doPreempt := preempt
-  router.invDone := False
+  router.invDone := invalidateDone
+  payloadLines := router.payloadLines
   router.txDesc.ready := False
   router.txResult.valid := False
   router.txResult.payload := 0
@@ -42,6 +45,7 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     var holdResponse = true
     var scrubWrites = 0
     dut.preempt #= false
+    dut.invalidateDone #= false
     a.ar.valid #= false; a.aw.valid #= false; a.w.valid #= false
     a.r.ready #= false; a.b.ready #= false
     for (c <- Seq(a.ar, a.aw)) {
@@ -118,12 +122,13 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     assert(bytes.slice(4096, 4096+1536).forall(_ == 0))
     assert(bytes.drop(4096+1536).forall(_ == 0x5a.toByte))
 
-    def write(address: Int, mask: BigInt): Unit = {
+    def write(address: Int, mask: BigInt, first: BigInt = (BigInt(1) << 512) - 1,
+              second: BigInt = (BigInt(1) << 512) - 1): Unit = {
       a.aw.addr #= address; a.aw.valid #= true
       dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
       a.aw.valid #= false
       for (i <- 0 until 2) {
-        a.w.data #= ((BigInt(1) << 512) - 1)
+        a.w.data #= (if (i == 0) first else second)
         a.w.strb #= mask; a.w.last #= (i == 1); a.w.valid #= true
         dut.clockDomain.waitSamplingWhere(a.w.ready.toBoolean)
         a.w.valid #= false
@@ -150,5 +155,30 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     dut.preempt #= true; step(); dut.preempt #= false
     ar(0x1400)
     assert(readResult() == List(BigInt(0), BigInt(0)))
+    // Voluntary overflow returns are accepted before commit, even after an
+    // inline control eviction. Commit restores the retained inline bytes.
+    val mask = (BigInt(1) << 64) - 1
+    def control(length: Int, inline: Boolean): BigInt =
+      (BigInt(length) << 4) | (if (inline) BigInt(1) << 23 else BigInt(0))
+    write(0x1300, mask, control(32, true), BigInt(0x42))
+    write(0x1400, mask, BigInt(0x99), BigInt(0x77))
+    assert(bytes(4096) == 0x99.toByte)
+    assert(dut.payloadLines.toInt == 0)
+    dut.invalidateDone #= true; step(3); dut.invalidateDone #= false
+    while (!dut.quiet.toBoolean) step()
+    assert(bytes(4096) == 0x42.toByte)
+    // Late overflow data must not overwrite the committed inline packet.
+    write(0x1400, mask, BigInt(0x33), BigInt(0x55))
+    assert(bytes(4096) == 0x42.toByte)
+    // Cleanup extent uses actual payload length, including short overflow sends.
+    for ((length, lines) <- Seq(0 -> 0, 1 -> 1, 64 -> 1, 128 -> 1, 129 -> 2, 1472 -> 12)) {
+      write(0x1300, mask, control(length, false), BigInt(0))
+      assert(dut.payloadLines.toInt == lines)
+    }
+    while (!dut.quiet.toBoolean) step()
+    dut.preempt #= true; step(); dut.preempt #= false
+    ar(0x1400)
+    assert(readResult() == List(BigInt(0), BigInt(0)))
+
   }
 }

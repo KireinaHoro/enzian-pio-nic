@@ -205,7 +205,6 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     val capacity = Seq(bytes.length, scala.math.min(txDesc.len, MTU.get), reservationCapacity).max
     val inline = capacity <= 64 && !forceOverflow && !txDesc.isInstanceOf[TxExecutionSim]
     val control = txDesc.toTxDesc.toArray
-    control(56) = (if (inline) 0 else (capacity + 127) / 128).toByte
     control(2) = ((control(2) & 0x7f) | (if (inline) 0x80 else 0)).toByte
     dcsMaster.write(clAddr, control.toList)
     if (capacity > 0) dcsMaster.write(
