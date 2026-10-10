@@ -338,8 +338,14 @@ static inline void core_eci_tx_finish(lauberhorn_core_state_t *ctx) {
   ctx->tx_reservation_base = NULL;
 }
 
-static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
-                               lauberhorn_pkt_desc_t *desc) {
+/* Optional probe immediately before the commit read, after descriptor stores
+ * and ordering. Save its value only after the read, avoiding a trace-buffer
+ * store between the timestamp and doorbell. The callback must order its clock
+ * read; its return overhead remains part of the measured arrival interval. */
+static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void *base, lauberhorn_core_state_t *ctx,
+                               lauberhorn_pkt_desc_t *desc,
+                               uint64_t *doorbell_ns,
+                               lauberhorn_trace_now_fn_t trace_now) {
   int tx_result = CORE_TX_ERROR;
   if (!ctx->tx_reserved || ctx->tx_reservation_base != base) return CORE_TX_ERROR;
   size_t requested = desc->payload_len;
@@ -477,7 +483,11 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
   // Ring the doorbell: read next CL to trigger send
   volatile uint8_t *tx_next_ctrl =
       tx_base + !tx_parity * LAUBERHORN_ECI_CL_SIZE;
+  uint64_t before_read = 0;
+  if (doorbell_ns && trace_now) before_read = trace_now();
+  asm volatile("" ::: "memory");
   tx_result = *tx_next_ctrl;
+  if (doorbell_ns) *doorbell_ns = before_read;
 
   pr_debug("eci_tx: finished tx\n");
 
@@ -488,6 +498,11 @@ out:
 
   core_eci_tx_finish(ctx);
   return tx_result;
+}
+
+static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
+                                     lauberhorn_pkt_desc_t *desc) {
+  return core_eci_tx_commit_traced(base, ctx, desc, NULL, NULL);
 }
 
 /* Finish this 2F2F transaction without emitting a packet. Same-domain cache

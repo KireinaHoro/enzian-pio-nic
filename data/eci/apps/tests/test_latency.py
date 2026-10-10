@@ -14,6 +14,19 @@ class LatencyAccounting(unittest.TestCase):
                     server_rx_ns=50000, server_tx_ns=40,
                     server_rx_exit_ns=100000, server_tx_exit_ns=100100)
 
+    def test_tx_probe_split(self):
+        row = dict(server_tx_enter_ns=1000, server_tx_doorbell_ns=1200,
+                   server_tx_exit_ns=2000, server_timestamp_overhead_ns=20,
+                   server_tx_ns=960)
+        self.assertEqual(m.tx_precommit_split(row, 430, 900), (180, 130))
+        with self.assertRaises(ValueError):
+            m.tx_precommit_split(row, 299, 900)
+        row['server_tx_doorbell_ns'] = 999
+        with self.assertRaises(ValueError):
+            m.tx_precommit_split(row, 430, 900)
+        row.pop('server_tx_doorbell_ns')
+        self.assertEqual(m.tx_precommit_split(row, 430, 900), (310, 0))
+
     def test_blocking_rx_not_service(self):
         row = self.row()
         result = m.breakdown(row)

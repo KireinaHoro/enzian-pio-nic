@@ -46,7 +46,10 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     }
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
     trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
-    int result = core_eci_tx_commit(w->dp_base, &w->dp, &desc);
+    int result = core_eci_tx_commit_traced(w->dp_base, &w->dp, &desc,
+        trace->enabled ? &trace->tx_doorbell_ns : NULL,
+        trace->enabled ? server_trace_clock : NULL);
+    if (trace->enabled && trace->tx_doorbell_ns) trace->timestamp_calls++;
     trace->tx_exit_ns = server_trace_stage(trace, LH_PMU_tx_exit);
     trace->tx_worker_id = w->worker_id;
     trace->response_bytes = len;
@@ -183,12 +186,20 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     switch (o.kind) {
     case LAUBERHORN_REPLY: {
         r->trace.marshal_enter_ns = server_trace_stage(&r->trace, LH_PMU_marshal_enter);
-        w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, REPLY_CAPACITY);
+        size_t capacity = r->codec->ops->response_capacity
+            ? r->codec->ops->response_capacity(o.data, o.len, r->codec->priv)
+            : REPLY_CAPACITY;
+        if (capacity > REPLY_CAPACITY) {
+            r->trace.marshal_exit_ns = server_trace_stage(&r->trace, LH_PMU_marshal_exit);
+            fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, &r->trace);
+            break;
+        }
+        w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, capacity);
         if (!w->dp.tx_buf) { LOG("Cannot reserve response TX"); break; }
         int len = r->codec->ops->marshal_resp(o.data, w->dp.tx_buf, o.len,
-                                             REPLY_CAPACITY, r->codec->priv);
+                                             capacity, r->codec->priv);
         r->trace.marshal_exit_ns = server_trace_stage(&r->trace, LH_PMU_marshal_exit);
-        if (len < 0 || len > REPLY_CAPACITY) {
+        if (len < 0 || (size_t)len > capacity) {
             core_eci_tx_cancel(&w->dp);
             fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, &r->trace);
         }

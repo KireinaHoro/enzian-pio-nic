@@ -30,6 +30,7 @@ struct server_trace_row {
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
     uint64_t entry_enter_ns, entry_exit_ns;
+    uint64_t tx_doorbell_ns; /* immediately before the commit CL read */
     uint64_t handler_active_ns, run_start_ns;
 };
 extern bool server_trace_enabled;

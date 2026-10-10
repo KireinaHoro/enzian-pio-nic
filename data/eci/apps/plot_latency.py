@@ -114,6 +114,26 @@ def int_field(row: Dict[str, str], name: str, default: int = 0) -> int:
     return int(value, 0)
 
 
+def tx_precommit_split(row, commit_ns, cpu_trace_offset_ns):
+    """CPU preparation and clock-correlated doorbell arrival; legacy stays combined.
+
+    Arrival is raw: clock-read return/probe tail is not independently calibrated.
+    Reject inconsistent alignment rather than clipping a negative one-way delay.
+    """
+    enter = int(row["server_tx_enter_ns"])
+    stamp = int(row.get("server_tx_doorbell_ns", 0))
+    overhead = int(row.get("server_timestamp_overhead_ns", 0))
+    if stamp:
+        if not enter <= stamp <= int(row["server_tx_exit_ns"]):
+            raise ValueError("TX doorbell timestamp outside TX call")
+        arrival = float(commit_ns - (stamp - cpu_trace_offset_ns))
+        if arrival < 0:
+            raise ValueError("TX doorbell arrival precedes CPU probe: check clock alignment")
+        return corrected_delta(enter, stamp, overhead), arrival
+    return min(float(row.get("server_tx_ns", 0)),
+               max(0.0, float(commit_ns - (enter - cpu_trace_offset_ns)) - overhead)), 0.0
+
+
 def fallback_schemas(fallback_columns: Sequence[str] | Sequence[Sequence[str]]) -> List[List[str]]:
     if not fallback_columns:
         return []
@@ -256,7 +276,7 @@ def build_rows(
         server_tx_ns = corrected_delta(
             int_field(s, "server_tx_enter_ns"),
             int_field(s, "server_tx_exit_ns"),
-            s_oh,
+            s_oh * (2 if int_field(s, "server_tx_doorbell_ns") else 1),
         )
 
         dpdk_parts = {}
@@ -290,6 +310,7 @@ def build_rows(
             "server_rx_enter_ns": int_field(s, "server_rx_enter_ns"),
             "server_rx_unblock_ns": int_field(s, "server_rx_unblock_ns"),
             "server_rx_exit_ns": int_field(s, "server_rx_exit_ns"),
+            "server_tx_doorbell_ns": int_field(s, "server_tx_doorbell_ns"),
             "server_tx_enter_ns": int_field(s, "server_tx_enter_ns"),
             "server_tx_exit_ns": int_field(s, "server_tx_exit_ns"),
             "client_timestamp_overhead_ns": c_oh,
@@ -774,7 +795,6 @@ def attach_trace_segments(
     if delivered_ns is not None and tx_commit is not None:
         turnaround_ns = max(0.0, float(tx_commit["time_ns"] - delivered_ns))
         rx_return_ns = int(row["server_rx_exit_ns"] - cpu_trace_offset_ns)
-        tx_enter_ns = int(row["server_tx_enter_ns"] - cpu_trace_offset_ns)
         timestamp_overhead = float(row.get("server_timestamp_overhead_ns", 0.0))
 
         rx_unblock = row.get("server_rx_unblock_ns", 0)
@@ -789,15 +809,14 @@ def attach_trace_segments(
             max(0.0, turnaround_ns - rx_2f2f_sw_ns),
             float(eci_half_rtt_ns) if eci_half_rtt_ns is not None else 0.0,
         )
-        tx_2f2f_sw_ns = min(
-            float(row.get("server_tx_ns", 0.0)),
-            max(0.0, float(tx_commit["time_ns"] - tx_enter_ns) - timestamp_overhead),
-        )
+        tx_2f2f_sw_ns, tx_doorbell_ns = tx_precommit_split(
+            row, tx_commit["time_ns"], cpu_trace_offset_ns)
+        row["trace_tx_doorbell_probe_present"] = bool(row.get("server_tx_doorbell_ns"))
         server_unmarshal_ns = float(row.get("server_unmarshal_ns", 0.0))
         handler_ns = float(row.get("handler_ns", 0.0))
         server_marshal_ns = float(row.get("server_marshal_ns", 0.0))
         if (rx_2f2f_sw_ns + rx_2f2f_hw_ns + server_unmarshal_ns + handler_ns
-                + server_marshal_ns + tx_2f2f_sw_ns > turnaround_ns + 1e-6):
+                + server_marshal_ns + tx_2f2f_sw_ns + tx_doorbell_ns > turnaround_ns + 1e-6):
             raise ValueError(f"request {row['request_id']}: overlapping CPU/FPGA attribution")
         server_rt_ns = max(
             0.0,
@@ -807,7 +826,8 @@ def attach_trace_segments(
             - server_unmarshal_ns
             - handler_ns
             - server_marshal_ns
-            - tx_2f2f_sw_ns,
+            - tx_2f2f_sw_ns
+            - tx_doorbell_ns,
         )
 
         add_duration(segments, "lh_rx_2f2f_hw", rx_2f2f_hw_ns)
@@ -817,6 +837,8 @@ def attach_trace_segments(
         add_duration(segments, "handler", handler_ns)
         add_duration(segments, "server_xdr_marshal", server_marshal_ns)
         add_duration(segments, "server_2f2f_tx_sw", tx_2f2f_sw_ns)
+        if row.get("server_tx_doorbell_ns"):
+            add_duration(segments, "lh_tx_doorbell_arrival", tx_doorbell_ns)
     add_segment(segments, "lh_tx_2f2f_hw", tx_commit["time_ns"] if tx_commit else None, tx_2f2f_done["time_ns"] if tx_2f2f_done else None)
     add_segment(segments, "lh_tx_host_submit", tx_2f2f_done["time_ns"] if tx_2f2f_done else None, tx_submit["time_ns"] if tx_submit else None)
     add_segment(segments, "lh_tx_submit_to_udp_encode", tx_submit["time_ns"] if tx_submit else None, udp_encoder["time_ns"] if udp_encoder else None)
@@ -1098,6 +1120,7 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "handler",
         "server_xdr_marshal",
         "server_2f2f_tx_sw",
+        "lh_tx_doorbell_arrival",
         "hw_dispatch",
         "sw_rpc_runtime",
         "sw_xdr_runtime",
@@ -1203,7 +1226,8 @@ def component_label(name: str) -> str:
         "server_xdr_unmarshal": "server unmarshal",
         "handler": "handler",
         "server_xdr_marshal": "server marshal",
-        "server_2f2f_tx_sw": "2F2F TX SW",
+        "server_2f2f_tx_sw": "TX preparation (legacy: includes doorbell)",
+        "lh_tx_doorbell_arrival": "TX doorbell arrival",
         "lh_tx_2f2f_hw": "2F2F TX HW",
         "lh_tx_host_submit": "TX submit",
         "lh_tx_submit_to_udp_encode": "TX submit -> UDP",

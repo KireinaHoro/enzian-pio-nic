@@ -11,7 +11,7 @@ static inline void mackerel_write_addr_64(mackerel_addr_t base, int offset, uint
 #include "eci/core.h"
 #include <assert.h>
 #include <string.h>
-static bool_t string_xdr(XDR *xdr, void *p) { return xdr_string(xdr, p, 32); }
+static bool_t string_xdr(XDR *xdr, void *p) { return xdr_string(xdr, p, 128); }
 int main(void)
 {
     uint64_t info = (UINT64_C(1) << 25) | (UINT64_C(1) << 24) |
@@ -55,11 +55,21 @@ int main(void)
     rpc_codec_t codec = oncrpc_codec(&adapter);
     unsigned char buffer[16];
     char *value = "12345678";
+    assert(codec.ops->response_capacity(&value, sizeof(value), codec.priv) == 12);
     memset(buffer, 0xa5, sizeof(buffer));
     assert(codec.ops->marshal_call(&value, buffer, sizeof(value), 7, codec.priv) == -1);
     for (int i = 7; i < sizeof(buffer); ++i) assert(buffer[i] == 0xa5);
     assert(codec.ops->marshal_resp(&value, buffer, sizeof(value), 12, codec.priv) == 12);
     for (int i = 12; i < sizeof(buffer); ++i) assert(buffer[i] == 0xa5);
+    /* Encoded size includes the length word and XDR padding, unlike sizeof. */
+    char text[62]; memset(text, 'x', sizeof(text)); text[60] = 0;
+    char *boundary = text;
+    unsigned char encoded[68];
+    assert(codec.ops->response_capacity(&boundary, sizeof(boundary), codec.priv) == 64);
+    assert(codec.ops->marshal_resp(&boundary, encoded, sizeof(boundary), 64, codec.priv) == 64);
+    text[60] = 'x'; text[61] = 0;
+    assert(codec.ops->response_capacity(&boundary, sizeof(boundary), codec.priv) == 68);
+    assert(codec.ops->marshal_resp(&boundary, encoded, sizeof(boundary), 68, codec.priv) == 68);
     for (int kind = RPC_ALLOC_CALL; kind <= RPC_ALLOC_RESP; ++kind) {
         void *p = codec.ops->alloc(kind, codec.priv);
         assert(p);

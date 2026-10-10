@@ -48,6 +48,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capa
 #define core_eci_tx_cancel core_eci_tx_finish
 #define core_eci_tx_get_buffer test_tx_get
 #define core_eci_tx_commit test_tx
+#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl
@@ -59,6 +60,7 @@ void lauberhorn_free_result(rpc_result_t *r) {
     if (r->data) { r->codec->ops->free(r->data, RPC_FREE_RESP, r->codec->priv); r->data = NULL; }
 }
 static int allocated, destroyed, encoded_count, decoded_count, marshal_error, alloc_error, ran;
+static size_t response_capacity(void *input, size_t len, void *priv) { return 4; }
 static void *allocate(rpc_alloc_kind_t kind, void *priv) { if (alloc_error) return NULL; allocated++; return calloc(1, 4); }
 static void release(void *p, rpc_free_kind_t kind, void *priv) { assert(p); allocated--; free(p); }
 static int encode(void *in, void *out, size_t len, size_t capacity, void *priv) {
@@ -188,11 +190,14 @@ int main(void) {
     memcpy(rx, &input, 4);
     rpc_handle_packet(&worker, &req);
     assert(replies == 1 && !allocated && !sent.oncrpc_reply_tx.status && *(int *)tx == input);
+    assert(worker.dp.tx_capacity == REPLY_CAPACITY); /* optional callback absent */
+    ops.response_capacity = response_capacity;
     mode = 1;
     rpc_handle_packet(&worker, &req);
     assert(allocated == 1 && !ran && !destroyed && replies == 1);
     fiber_sched_run_ready();
     assert(!allocated && ran == 1 && destroyed == 1 && replies == 2);
+    assert(worker.dp.tx_capacity == 4); /* encoded bound selects inline */
     struct fiber *held[NUM_FIBERS];
     for (int i = 0; i < NUM_FIBERS; ++i) { held[i] = fiber_sched_acquire(); assert(held[i]); }
     assert(!fiber_sched_acquire());
