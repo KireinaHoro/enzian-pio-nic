@@ -4,9 +4,10 @@ The transport and upstream adapter integration merged into platform `master`
 in `6b489de8`. Current transport and adapter follow-up is on platform branch
 `feat/memcached-rx-wait`; the upstream-based application worktree is on
 `feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform pins the borrowed
-adapter after local validation; matched hardware acceptance remains pending.
-Acceptance is pending; build and simulation results do not establish board
-compatibility, oversubscription performance or timing closure.
+adapter after local validation. Pipeline 518689 now has matched RPC validation
+and finite memcached acceptance with five one-worker instances sharing four
+physical workers; see [the switching results](#five-instances-on-four-workers-october-10).
+The full pool-size/performance matrix and timing closure remain open.
 
 The application starts from upstream
 `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, immediately before the PIONIC changes
@@ -48,9 +49,10 @@ No IP reassembly or options are supported. Unmatched UDP ports retain bypass;
 ONC-RPC listeners retain their existing path. UDP TX checksum is zero, as allowed
 for IPv4. Zero-length datagrams still transmit a UDP header.
 
-TX is synchronous through local admission and packet-buffer consumption. On
-success, caller storage is reusable; this does not establish network delivery.
-Definite retry retains caller ownership. Indeterminate errors must not trigger an
+TX is synchronous through local admission and packet-buffer consumption; success
+does not establish network delivery. Submission consumes the transport reservation
+even on definite rejection. The adapter retains its application response and
+rebuilds a fresh reservation for retry. Indeterminate errors must not trigger an
 automatic retry. Multiple responses can follow one request without session state.
 The adapter retains upstream response/item/iovec ownership until each native
 segmented datagram has been consumed. Backpressure must settle before blocking RX.
@@ -151,7 +153,12 @@ case is initially marked unrun. On a fresh initialized DUT, launch one case with
 This records application commands, PIDs, declared workers, CPU mapping and the
 full deployment manifest. Verify the actual module worker mapping and isolated
 CPU configuration against that explicit mapping. Launch success is not readiness:
-run `memcached-compatibility --host FPGA_IP --port PORT --output NEW_JSON` from
+first run `memcached-ready --host FPGA_IP --ports PORT... --output NEW_JSON`
+from the client. This has a bounded startup deadline, records each probe and
+retries only connection refusal/timeouts on fresh stats sockets. These probes
+are outside compatibility and measured traffic; malformed responses fail instead
+of being retried. Then run
+`memcached-compatibility --host FPGA_IP --port PORT --output NEW_JSON` from
 the reserved client for each endpoint. Then run `memcached-benchmark --manifest
 MATRIX.json --case INDEX --host FPGA_IP --output NEW_CLIENT_DIR --preload` and
 sample the recorded PIDs with `memcached-cpu_sample`. Keep instances alive across
@@ -166,6 +173,16 @@ not scheduler assignments. Record NIC counters separately: the client reports
 unanswered requests and leaves packet loss unknown rather than equating the two.
 The Python generator is a correctness-oriented starting point; pacing misses
 invalidate a server-saturation claim at that offered rate.
+
+For finite switching acceptance, `tools/memcached/switching.py` combines that
+startup gate with per-instance compatibility, distinct 1-KiB values, alternating
+requests, concurrent GET/SET traffic and idle-to-active traffic. Compatibility
+and workload requests never retry. Preserve the launch manifest and full frozen
+trace; `tools/memcached/analyze_switching.py` requires every recorded process and
+physical worker to receive dispatches, and process changes on a physical worker
+to follow ordinary yields. It rejects trace loss, unmatched assignment/dispatch
+identities and observed activation-parity mismatches. This finite correctness
+test is separate from the saturation/performance matrix above.
 
 For short trace controls, start a fresh cohort with `--trace`, use a bounded
 loss-free window without request-ID reuse, quiesce traffic, and export each
@@ -1157,3 +1174,82 @@ nix build --impure --file tools/memcached/matched-image.nix \
   --argstr runtimeRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=aa1255b7c271769e67a84767a67ee57882140aa3&submodules=1' \
   --out-link out/contiguous-transport/memcached-518689-owned-view.img
 ```
+
+### Five instances on four workers, October 10
+
+The preserved single-instance process passed all sixteen compatibility checks
+when tested after initialization, including three-datagram responses and unchanged
+hash power. The earlier first-request refusal is consistent with startup racing
+endpoint registration. A new, explicit startup gate now precedes compatibility:
+bounded stats probes may retry refusal/timeouts, on fresh sockets, with every
+attempt recorded. Compatibility and workload requests never retry. No RX wait,
+HOST_WAKE, hardware layout or PREEMPT semantics changed.
+
+Two fresh cold-boot cohorts used five instances, one declared request worker
+each, on the four physical workers mapped to Linux CPUs 44–47. Main and
+maintenance threads inherited CPUs 0–43. Both cohorts passed all 80 per-instance
+compatibility checks and 1,400 additional checked requests: 40 alternating,
+200 concurrent and 40 idle-to-active requests per instance. Each instance had
+a distinct 1-KiB value under the same key to expose cross-domain state or payload
+confusion. The concurrent and idle-to-active phases use 95/5 GET/SET. Hash
+expansion stayed inactive with hash power 18. This is finite functional
+acceptance, not a saturation or latency benchmark.
+
+The first trial's complete trace proves 404 process changes across the four
+physical workers, each preceded by an ordinary yield. All five PIDs have exactly
+302 dispatches, matching all readiness, compatibility, preload, workload and
+final stats requests (1,510 total). All 408 scheduler assignments have matching
+committed/delivered activations; 408 first-RX and 408 first-TX parity checks passed.
+The audit also observes 166 domain migrations and 275 A→B→A reuse sequences.
+No stored loss marker or parity mismatch was found. The initial boot lacked a
+CCPI lane report and was rejected before module load; its full cold-reset retry
+passed. The second cohort booted on its first attempt. Harness durations were
+449.1 s and 310.7 s, including programming/boot/workload, not request RTT.
+
+The second complete trace independently confirms 389 process changes and 393
+assignments with matching committed/delivered activations. Again, every instance
+has 302 dispatches and all four physical workers execute requests. All 393
+first-RX and 393 first-TX parity checks pass, with no stored loss marker or parity
+mismatch; it records 129 domain migrations and 291 A→B→A reuse sequences.
+Together the trials establish 793 yield-preceded process changes, 801 assignments
+and 3,020 dispatches, alongside 160 compatibility checks and 2,800 additional
+checked workload requests. Migration/reuse counts alone do not prove cache
+freshness; distinct per-instance payload checks provide finite functional coverage.
+
+The matched components remain pipeline SHA `45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4`,
+hardware job 2884502, runtime `aa1255b7c271769e67a84767a67ee57882140aa3`,
+application `2eaa2b84e7a6ed0a7d0489b6caad49c211649864`, and the corrected target-tools
+image above (SHA-256 `cbe08b46e2327de8d1e2da1303c853137881c3586d66097000bd7df6231d1887`).
+Client scripts are recorded separately by content hash; the readiness, workload
+and trace-analysis tools are committed at `abe5e073`. Evidence is under
+`out/memcached-switching/`: `provenance.json`, `cases-0{1,2}.json`,
+`board-0{1,2}/summary.json`, `run-0{1,2}/client/summary.json`, full traces/maps,
+switching audits, and `assignments-0{1,2}.{png,pdf}`. The plot shows recorded
+assignments using the nominal 200-MHz FPGA clock; it is not CPU utilization or
+correlated end-to-end latency.
+
+Both 40-second CPU-sampling windows found main/background threads outside the
+worker pool. Recorded main/background CPU time was 0.02/0.05 s in trial one
+and 0.00/0.05 s in trial two, at 100 ticks/s resolution. Worker totals were
+159.39/159.61 CPU-seconds; these snapshots include assigned workers awaiting RX
+and are not proof of useful-work utilization. Worker snapshots before activation
+can still show an ordinary CPU; hardware dispatch traces establish actual service
+placement. All four worker CPUs appear in both sampling windows.
+
+The first trace receiver exhausted the peer's root-filesystem `/tmp`; partial
+output was retained and the unchanged frozen buffer was reread into `/dev/shm`.
+Full captures and checksums were transferred directly over the management network
+to avoid shared scratch quota. The first complete capture is 1,607,767,296 bytes,
+SHA-256 `171eac634604abb4454d2dd2b930c788250492ffb4fac441a04d56a599621c13`.
+The second complete capture is 1,371,885,504 bytes, SHA-256
+`f29756198e9bb40b123539da67cc871092edaba40489cfa89d6d45c096d6a382`.
+Both freezes reported loss=0 before freeze and loss=1 afterward, with DMA error=0
+and no wrap; stored-marker checks, not the post-freeze flag alone, determine the
+analyzed window's validity. Historical failure captures remain preserved.
+
+Nix validation passed the adapter/upstream comparisons, delayed-start/deadline
+readiness tests and five-instance socket cohort, plus synthetic trace rejection
+checks for missing yields, loss, incomplete activation and parity mismatches.
+The full 1–W/mixed-pool matrix, offered-load sweeps, tracing-off performance
+controls, HOST_WAKE and unrestricted maintenance remain follow-on work. Timing
+is unchanged from 518689 (WNS -0.950 ns); no timing closure is claimed.
