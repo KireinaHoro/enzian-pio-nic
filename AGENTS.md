@@ -67,8 +67,13 @@ That campaign left the tracing-off Dandelion control with FPGA tracing frozen
 after success; both instrumented measurement windows are preserved. The October 9
 [memcached follow-up](docs/research/memcached.md#first-native-board-attempt-after-merge)
 subsequently preserved that buffer and deployed matched pipeline 517951 artifacts.
-The DUT now retains a captured native memcached failure; the short-frame Ethernet
-padding correction requires a new matched hardware build and board validation.
+The October 10 pipeline 518689 follow-up passed two matched RPC trials (200 calls).
+Native memcached then passed two five-instance/one-worker cohorts sharing four
+physical workers, with trace-confirmed ordinary yields and process switching;
+see the [finite switching evidence](docs/research/memcached.md#five-instances-on-four-workers-october-10).
+The latest successful cohort remains alive with tracing frozen. Earlier failures
+are preserved. Full pool-size/performance measurements and HOST_WAKE remain open;
+518689 is not timing closed (WNS -0.950 ns).
 Recheck reservations and actual state before
 access; do not treat a dated note as a live reservation or reset an unpreserved
 failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and
