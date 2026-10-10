@@ -49,7 +49,11 @@ configuration are regenerated from the matching hardware, not edited by hand.
 
 The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.
 `rx_view` holds the single contiguous mutable payload pointer, its length and
-whether the borrow is outstanding. There is no separate RX buffer. Release
+whether the borrow is outstanding. This is private transport state, not an
+application-owned view. UDP exposes a const pointer to a worker-owned datagram
+view (protocol metadata plus the borrowed payload address); callers retain only
+that pointer. Release invalidates the UDP view and the payload together. There
+is no separate RX buffer. Release
 invalidates the pointer in software; the next acquisition retires the hardware
 slot. Acquisition and assignment-releasing yield are rejected while borrowed.
 Consumers must finish using the bytes, or copy them into owned storage, before
@@ -66,6 +70,15 @@ by actual length; inline and control-only transactions invalidate none. Unused
 same-domain cache contents may remain stale. Full cleanup belongs to ownership
 handoff. RPC codecs encode directly into reservations; the kernel copies between
 transport storage and owned skbs.
+
+The consumer ownership audit found no other retained RX-view copies in active
+platform consumers. Kernel bypass copies into an owned skb before core release;
+RPC decodes into codec-owned objects before queueing deferred requests or settling
+futures; reply forwarding copies into a TX reservation before RX release.
+Pinned Dandelion decodes borrowed input into owned Rust strings/vectors and BSON
+objects. Its source does not retain a transport slice. Custom codecs must obey
+the same rule, now stated explicitly in `rpc.h`. Historical student runtime
+copies are separate implementations and were not changed.
 
 Transport version 3 places RX lengths or TX capacities up to 64 bytes in
 the current control line's payload half. Larger payloads occupy a contiguous

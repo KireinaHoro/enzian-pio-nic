@@ -179,6 +179,14 @@ completion delivery would reintroduce the failure.
 
 ## Native UDP buffers
 
+The runtime owns the UDP view. Use
+`const lauberhorn_udp_datagram_t *packet = NULL` and pass `&packet` to receive;
+do not copy the view into an application struct. Its metadata is read-only, but
+`packet->data` points to mutable packet bytes. After all uses finish, call
+`lauberhorn_udp_release()` and clear `packet`. Both pointers expire at release,
+even though the runtime may reuse the view object's address for another packet.
+Application readiness/delivery flags do not own or release transport storage.
+
 Initialize workers before `lauberhorn_udp_attach`. At the worker's idle boundary,
 after runnable work and pending responses have drained, call
 `lauberhorn_udp_receive_view`. It waits for network RX and handles PREEMPT through
