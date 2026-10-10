@@ -899,6 +899,14 @@ thread. No duplicate build or board test was started and no board state changed.
 Hardware artifacts, timing results and matched RPC/memcached board acceptance
 remain pending; retain the pipeline branch and do not poll before that recheck.
 
+The 15:40 CEST recheck found the same revision and job statuses, with no retries:
+hardware 2884502 still running, report 2884503 created, all thirteen gates and
+prepare-eci 2884501 successful. API evidence is in
+`out/contiguous-transport/518689-results-recheck-20261010-154012/`.
+Rearmed the same results-recheck timer for **16:10:20 CEST** (30 minutes).
+No duplicate build/test or board change; artifact collection and board acceptance
+remain pending, and the pipeline branch is retained.
+
 The previously running local fast ECI suite also completed: 55 tests passed,
 20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
 Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
