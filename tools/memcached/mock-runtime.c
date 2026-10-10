@@ -13,6 +13,7 @@
 static __thread lauberhorn_t *current;
 static __thread unsigned char *payload;
 static __thread unsigned char *tx;
+static __thread lauberhorn_udp_datagram_t view;
 static __thread bool borrowed, reserved, reject_next, nack_next;
 static __thread uint64_t generation;
 static uint16_t local_port;
@@ -40,7 +41,7 @@ int lauberhorn_udp_attach(lauberhorn_t *ctx,uint32_t index) {
     reject_next=true; nack_next=true;
     return 0;
 }
-int lauberhorn_udp_receive_view(lauberhorn_udp_datagram_t *packet) {
+int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **packet) {
     assert(!borrowed && !reserved);
     if (nack_next) { nack_next=false; return 0; }
     nack_next=true;
@@ -50,14 +51,16 @@ int lauberhorn_udp_receive_view(lauberhorn_udp_datagram_t *packet) {
     ssize_t n=recvfrom(current->fd,payload,LAUBERHORN_UDP_MAX_PAYLOAD,0,(struct sockaddr *)&addr,&length);
     if (n<0) return -1;
     borrowed=true;
-    *packet=(lauberhorn_udp_datagram_t){.endpoint=1,.saddr=ntohl(addr.sin_addr.s_addr),
+    view=(lauberhorn_udp_datagram_t){.endpoint=1,.saddr=ntohl(addr.sin_addr.s_addr),
         .sport=ntohs(addr.sin_port),.daddr=INADDR_LOOPBACK,.dport=local_port,.data=payload,.length=n};
+    *packet=&view;
     return 1;
 }
 int lauberhorn_udp_release(void) {
     assert(borrowed && !reserved);
     memset(payload,0xa5,4096);
     assert(!mprotect(payload,4096,PROT_NONE));
+    memset(&view,0,sizeof(view));
     borrowed=false;
     return 0;
 }

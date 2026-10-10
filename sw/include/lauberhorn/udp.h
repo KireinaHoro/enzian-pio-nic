@@ -12,7 +12,8 @@ typedef struct {
     uint32_t handle;
     uint16_t port;
 } lauberhorn_udp_endpoint_t;
-/* Metadata is copied; data borrows transport storage until udp_release. */
+/* Runtime-owned view. Callers borrow a const pointer to this metadata, while
+ * data points to mutable transport bytes. Neither object is caller-owned. */
 typedef struct {
     uint32_t endpoint, saddr, daddr;
     uint16_t sport, dport;
@@ -29,11 +30,17 @@ int lauberhorn_udp_attach(lauberhorn_t *, uint32_t index);
 /* Wait for one contiguous mutable borrowed datagram: 1 packet (including
  * zero length), 0 NACK, -1 error. No payload staging. Only call at the worker
  * idle boundary after prior work/responses drain. PREEMPT yields internally.
+ * On success, *packet points to the current worker's runtime-owned view. Keep
+ * only this pointer, not a copy of the view; neither it nor data may be freed.
+ * On NACK/error, *packet is unchanged (including EBUSY during a live borrow).
  * Release after every user of the bytes finishes, before another receive or
  * assignment-releasing yield. Queueing a pointer is NOT release. A second
  * receive while borrowed fails with EBUSY; keep readiness in application state. */
-int lauberhorn_udp_receive_view(lauberhorn_udp_datagram_t *);
-/* End the current borrow: 0 success, -1/EINVAL if none is outstanding. */
+int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **);
+/* End the current borrow, invalidating BOTH the view pointer and its data.
+ * Clear caller-held pointers after release. The runtime may reuse the view on
+ * a later receive; stale pointers are not handles to old packets.
+ * Returns 0 on success, -1/EINVAL if none is outstanding. */
 int lauberhorn_udp_release(void);
 
 /* Send actual_length <= capacity bytes: 0 success, -1 with errno.

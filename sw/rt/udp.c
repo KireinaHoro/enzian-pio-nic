@@ -52,7 +52,11 @@ static int udp_wait(void) {
             core_eci_rx_release(&w->dp);
             errno = EPROTO; return -1;
         }
-        w->udp_rx_desc = desc;
+        w->udp_rx_view = (lauberhorn_udp_datagram_t){
+            .endpoint = desc.udp.endpoint, .saddr = desc.udp.saddr,
+            .daddr = desc.udp.daddr, .sport = desc.udp.sport, .dport = desc.udp.dport,
+            .data = w->dp.rx_view.data, .length = w->dp.rx_view.length
+        };
         if (server_trace_enabled) {
             server_trace_inline = &w->rx_trace;
             w->rx_trace.request_bytes = desc.payload_len;
@@ -65,17 +69,12 @@ static int udp_wait(void) {
     }
 }
 
-int lauberhorn_udp_receive_view(lauberhorn_udp_datagram_t *packet) {
+int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **packet) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !packet) { errno = EINVAL; return -1; }
     int result = udp_wait();
     if (result <= 0) return result;
-    const lauberhorn_pkt_desc_t *desc = &w->udp_rx_desc;
-    *packet = (lauberhorn_udp_datagram_t){
-        .endpoint = desc->udp.endpoint, .saddr = desc->udp.saddr,
-        .daddr = desc->udp.daddr, .sport = desc->udp.sport, .dport = desc->udp.dport,
-        .data = w->dp.rx_view.data, .length = desc->payload_len
-    };
+    *packet = &w->udp_rx_view;
     if (server_trace_inline == &w->rx_trace)
         w->rx_trace.handler_enter_ns = server_trace_stamp(&w->rx_trace);
     return 1;
@@ -86,6 +85,7 @@ int lauberhorn_udp_release(void) {
     if (!w) { errno = EINVAL; return -1; }
     if (!w->dp.rx_view.pending) { errno = EINVAL; return -1; }
     core_eci_rx_release(&w->dp);
+    memset(&w->udp_rx_view, 0, sizeof(w->udp_rx_view));
     return 0;
 }
 

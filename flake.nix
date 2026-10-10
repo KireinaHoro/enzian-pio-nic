@@ -7,7 +7,7 @@
       flake = false;
     };
     memcached = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-rx-wait&rev=9453656b629acc33728a18ad98d7320c8d7eed45";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-rx-wait&rev=2eaa2b84e7a6ed0a7d0489b6caad49c211649864";
       flake = false;
     };
     memcachedUpstream = {
