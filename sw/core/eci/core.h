@@ -85,17 +85,16 @@ typedef struct {
     } oncrpc_reply_rx;
   };
 
-  // payload buffer in lauberhorn_core_state_t
+  // Number of bytes in the contiguous transport payload.
   size_t payload_len;
 } lauberhorn_pkt_desc_t;
 
 typedef struct {
   uint8_t *rx_next_cl;
-  uint8_t *rx_buf;
 
-  /* One outstanding view. No next RX or assignment release until consumed.
-   * These addresses belong to the current physical worker, not to a thread
-   * after reassignment. Advancing the RX handshake retires their backing slot. */
+  /* One contiguous RX borrow, including zero-length packets. data is valid
+   * until core_eci_rx_release(); no acquisition or yield while pending.
+   * The next acquisition retires the underlying hardware slot. */
   struct {
     uint8_t *data;
     size_t length;
@@ -147,6 +146,9 @@ static_assert(LAUBERHORN_ECI_CORE_OFFSET >=
 
 typedef uint64_t (*lauberhorn_trace_now_fn_t)(void);
 
+/* Wait for RX and decode its metadata. Packet success creates rx_view; PREEMPT
+ * succeeds without a borrow. NACK or an outstanding borrow returns false.
+ * The traced form optionally stamps the control-line read completion. */
 static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_t *ctx,
                                       lauberhorn_pkt_desc_t *desc,
                                       uint64_t *rx_unblock_ns,
@@ -158,7 +160,6 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
 
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
-
 
   bool rx_parity = *ctx->rx_next_cl;
   pr_debug("eci_rx: current cacheline ID: %d\n", rx_parity);
@@ -273,7 +274,6 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
       desc->oncrpc_reply_rx.xid =
           lauberhorn_eci_host_ctrl_info_onc_rpc_reply_rx_xid_extract(rx_ctrl);
 
-
       desc->payload_len = 0;
 
       break;
@@ -296,13 +296,12 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
 
   pr_debug("eci_rx: finished rx\n");
 
-
   // Done
   return valid;
 }
 
-/* Release never reads the next control CL. The next acquire retires it. */
-static inline void core_eci_rx_discard(lauberhorn_core_state_t *ctx) {
+/* End the software borrow without a control-line read or hardware handshake. */
+static inline void core_eci_rx_release(lauberhorn_core_state_t *ctx) {
   BARRIER;
   memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
 }
@@ -312,8 +311,8 @@ static inline bool core_eci_rx_acquire(void *base, lauberhorn_core_state_t *ctx,
   return core_eci_rx_acquire_traced(base, ctx, desc, NULL, NULL);
 }
 
-/* Doorbell acknowledgement: accepted/consumed, rejected before reservation,
- * or indeterminate DMA failure. This is not remote/application success. */
+/* Local TX result: accepted, definite rejection, or indeterminate error.
+ * A submitted descriptor consumes its reservation for all three results. */
 enum { CORE_TX_ACCEPTED = 1, CORE_TX_RETRY = 2, CORE_TX_ERROR = 3 };
 /* Reservation fixes placement, not actual send length. A short overflow send
  * remains in overflow. No staging allocation and no transport-pointer escape
@@ -351,11 +350,9 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
   }
 #endif
   if (requested > ctx->tx_capacity) return CORE_TX_ERROR;
-  // ECI backend: do not release payload_buf
 
   // make sure previous RX/TX actually took effect before we attempt to RX
   BARRIER;
-
 
   bool tx_parity = *ctx->tx_next_cl;
   pr_debug("eci_tx: current cacheline ID: %d\n", tx_parity);
@@ -367,8 +364,6 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
   uint8_t *copy_from = ctx->tx_buf;
 #endif
   size_t payload_len = desc->payload_len;
-
-
 
   switch (desc->type) {
 #ifdef __KERNEL__
@@ -434,7 +429,6 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
     lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_len_insert(tx_ctrl,
                                                               payload_len);
 
-
     break;
 
   case TY_ONCRPC_CALL_TX:
@@ -463,7 +457,6 @@ static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,
 
     lauberhorn_eci_host_ctrl_info_onc_rpc_call_tx_len_insert(tx_ctrl,
                                                              payload_len);
-
 
     break;
 

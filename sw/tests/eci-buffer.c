@@ -32,7 +32,7 @@ int main(void) {
                 state.rx_view.data[length-1] = 0x42;
                 assert(data[length-1] == 0x42);
             }
-            core_eci_rx_discard(&state);
+            core_eci_rx_release(&state);
             assert(!state.rx_view.pending);
         }
     }

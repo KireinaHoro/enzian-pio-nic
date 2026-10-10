@@ -22,7 +22,7 @@ int lauberhorn_udp_bind(lauberhorn_t *ctx, lauberhorn_udp_endpoint_t *ep, uint16
 static int udp_wait(void) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w) { errno = EINVAL; return -1; }
-    /* Readiness is level-triggered over exactly one borrowed packet. */
+    /* A new wait must not retire a packet or reservation still in use. */
     if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
     if (server_trace_inline == &w->rx_trace) {
         w->rx_trace.handler_exit_ns = server_trace_stamp(&w->rx_trace);
@@ -49,7 +49,7 @@ static int udp_wait(void) {
             continue;
         }
         if (desc.type != TY_NATIVE_UDP_RX || desc.payload_len > LAUBERHORN_UDP_MAX_PAYLOAD) {
-            core_eci_rx_discard(&w->dp);
+            core_eci_rx_release(&w->dp);
             errno = EPROTO; return -1;
         }
         w->udp_rx_desc = desc;
@@ -85,7 +85,7 @@ int lauberhorn_udp_release(void) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w) { errno = EINVAL; return -1; }
     if (!w->dp.rx_view.pending) { errno = EINVAL; return -1; }
-    core_eci_rx_discard(&w->dp);
+    core_eci_rx_release(&w->dp);
     return 0;
 }
 

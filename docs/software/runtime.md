@@ -47,20 +47,26 @@ configuration are regenerated from the matching hardware, not edited by hand.
 
 ## Request and transport ownership
 
-RX borrows one contiguous mutable transport region until explicit release.
-Lengths up to 64 bytes occupy the control line payload half; larger packets
-start at offset 0x100. The next acquisition retires the previous packet, and
-acquisition/yield are rejected while a borrow is outstanding. Queuing a pointer
-is not release: codecs and deferred work must own anything retained. The copying RX/TX compatibility APIs have been retired; callers needing owned
-bytes must copy explicitly before releasing the borrow.
+The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.
+`rx_view` holds the single contiguous mutable payload pointer, its length and
+whether the borrow is outstanding. There is no separate RX buffer. Release
+invalidates the pointer in software; the next acquisition retires the hardware
+slot. Acquisition and assignment-releasing yield are rejected while borrowed.
+Consumers must finish using the bytes, or copy them into owned storage, before
+release. This includes pointers retained by codecs or deferred work.
 
-TX reserves a contiguous region by capacity, then commits an actual length no
-larger than that capacity. The placement bit records the reservation, so a
-short commit from overflow needs no relocation. Cleanup covers every reserved
-line, including on abort. Default RPC codecs encode directly into this region;
-there is no runtime RX/TX staging allocation. Kernel skb and decoded application
-objects retain their necessary ownership copies. This is payload-layout version
-2 in generated configuration; deploy only matching hardware/software artifacts.
+TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_abort`.
+Capacity fixes placement; the committed length may be smaller. Submission
+consumes the reservation even when rejected. Abort cleans abandoned storage
+before reuse. RPC codecs encode directly into reservations; the kernel copies
+between transport storage and owned skbs.
+
+Payload-layout version 2 places RX lengths or TX capacities up to 64 bytes in
+the current control line's payload half. Larger payloads occupy a contiguous
+region at direction-relative offset 0x100. TX records placement explicitly,
+so committing fewer bytes does not move the payload. Deploy matching hardware
+and generated headers. Application-facing UDP ownership is documented in the
+[programming model](programming-model.md#native-udp-buffers) and public headers.
 
 Decoding allocates an independently
 owned request; inline handlers borrow it. `REPLY`/`FAIL` consume that request.

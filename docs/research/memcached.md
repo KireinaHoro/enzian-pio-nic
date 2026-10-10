@@ -802,3 +802,16 @@ kernel module, RPC consumers and pinned Dandelion build. Logs are
 output is `/nix/store/vwqg94zp7skh752767shcn7rv28l7ih8-lauberhorn-runtime-tests`.
 No new board run is claimed for this software-only retirement. Push with CI
 skipped while the intentionally unchanged memcached adapter is incompatible.
+
+October 10 API cleanup: removed the redundant `rx_buf` alias from core state;
+RPC decoding/forwarding and kernel bypass read `rx_view.data` directly. The one
+view records a contiguous borrow, not fragments or owned staging storage.
+Renamed core `rx_discard` to `rx_release` and updated all platform callers/tests.
+Public buffer/UDP headers and the runtime/programming-model notes now distinguish
+software release from hardware retirement, document handle lifetimes and local
+TX outcomes, and remove obsolete copied-buffer language from the active contract.
+No public UDP API rename or memcached change is included. `nix develop` validation
+passed `.#runtimeTests`, `.#checks.x86_64-linux.runtime-interface` and `.#deployFs`
+(including the AArch64 runtime, module and RPC applications). Evidence:
+`out/contiguous-transport/rx-api-cleanup.log`. Hardware layout is unchanged;
+memcached remains pending on this branch as documented above.
