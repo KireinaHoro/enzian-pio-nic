@@ -14,6 +14,20 @@ class LatencyAccounting(unittest.TestCase):
                     server_rx_ns=50000, server_tx_ns=40,
                     server_rx_exit_ns=100000, server_tx_exit_ns=100100)
 
+    def test_dcs_clock_fit_and_causal_bounds(self):
+        row = dict(server_rx_unblock_ns=1600, trace_rx_dcs_response_ns=500,
+                   server_tx_doorbell_ns=2000, trace_tx_dcs_request_ns=1150,
+                   server_tx_exit_ns=2600, trace_tx_dcs_response_ns=1500)
+        self.assertEqual(m.transport_clock_offset([row], 100), (1000, 850, 1100))
+        # An internal descriptor timestamp 300 ns earlier produces an
+        # impossible TX-return-before-response epoch; reject rather than clip.
+        with self.assertRaisesRegex(ValueError, 'causality'):
+            m.transport_clock_offset([dict(row, trace_rx_dcs_response_ns=200)], 100)
+        with self.assertRaises(ValueError):
+            m.transport_clock_offset([row], None)
+        with self.assertRaises(ValueError):
+            m.transport_clock_offset([dict(row, trace_tx_dcs_request_ns=500)], 100)
+
     def test_tx_probe_split(self):
         row = dict(server_tx_enter_ns=1000, server_tx_doorbell_ns=1200,
                    server_tx_exit_ns=2000, server_timestamp_overhead_ns=20,
@@ -168,6 +182,23 @@ class LatencyAccounting(unittest.TestCase):
         self.assertEqual(row['trace_tx_commit_to_cmac_ns'],220)
         self.assertEqual(row['trace_tx_milestones_after_submit_ns']['TxAfterDmaRead'],70)
         self.assertEqual(sum(m.breakdown(row).values()),1000)
+        anchored = self.row()
+        anchored.update(e2e_raw_ns=1005, trace_core_delivery_ns=200,
+            server_rx_unblock_ns=215, server_rx_exit_ns=230,
+            server_tx_enter_ns=280, server_tx_doorbell_ns=290,
+            server_tx_exit_ns=390, trace_rx_dcs_response_ns=205,
+            trace_tx_dcs_request_ns=295, trace_tx_dcs_response_ns=380,
+            trace_tx_commit_ns=300)
+        m.attach_trace_segments(anchored,rec,m.build_event_index(events),1,0,10)
+        self.assertEqual(anchored['trace_segments']['lh_rx_desc_to_dcs_response'],5)
+        self.assertEqual(anchored['trace_segments']['lh_tx_cpu_to_dcs_request'],5)
+        self.assertEqual(anchored['trace_segments']['lh_tx_dcs_request_to_commit'],5)
+        self.assertNotIn('lh_tx_doorbell_arrival',anchored['trace_segments'])
+        self.assertEqual(sum(anchored['trace_segments'].values()),520)
+        self.assertEqual(sum(m.breakdown(anchored).values()),1000)
+        with self.assertRaisesRegex(ValueError, 'commit mismatch'):
+            m.attach_trace_segments(dict(anchored,trace_tx_commit_ns=301),rec,
+                                    m.build_event_index(events),1,0,10)
         delayed = [dict(ev,time_ns=15) if ev['event']=='RxCmacEntry' else ev for ev in events]
         with self.assertRaisesRegex(ValueError,'reversed trace interval'):
             m.attach_trace_segments(dict(row),rec,m.build_event_index(delayed),1,0,None,True)
