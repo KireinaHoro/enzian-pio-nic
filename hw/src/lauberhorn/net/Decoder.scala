@@ -2,7 +2,7 @@ package lauberhorn.net
 
 import jsteward.blocks.misc.RegBlockAlloc
 import jsteward.blocks.axi._
-import lauberhorn.{MacInterfaceService, PacketDropped, TracePlugin}
+import lauberhorn.{LauberhornTraceDma, MacInterfaceService, PacketDropped, TracePlugin}
 import spinal.core._
 import spinal.lib.StreamPipe.{FULL, M2S}
 import spinal.lib._
@@ -31,6 +31,9 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     */
   private val consumers = mutable.ListBuffer[(String, T => Bool, Stream[T], Axi4Stream)]()
 
+  // Pipeline stages can accept different packets in the same cycle. Each needs
+  // its own trace source; a shared port would drop one event (and asserts in sim).
+  val decoderTrace = during setup host[TracePlugin].makePort(s"decoder_$decoderName", LauberhornTraceDma.NicDecoderSlr)
   val rxRg = during setup retains(host[DecoderSinkService].retainer)
 
   /**
@@ -59,7 +62,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     val filteredPayload = payload.clone
     val dropped = Bool()
 
-    host[DecoderSink].tp.trace(decoderName, (Seq(PacketDropped(dropped)) ++ metadata.payload.traceData): _*) := metadata.fire
+    decoderTrace.trace(decoderName, (Seq(PacketDropped(dropped)) ++ metadata.payload.traceData): _*) := metadata.fire
 
     if (drop != null) new Area {
       val pldFilter = AxiStreamFilter(host[MacInterfaceService].axisConfig)
@@ -130,7 +133,7 @@ trait Decoder[T <: DecoderMetadata] extends FiberPlugin {
     */
   protected def produceFinal(metadata: Stream[T], payload: Axi4Stream, payloadAck: Bool,
                              dropped: Bool = null): Unit = {
-    host[DecoderSink].tp.trace(decoderName, metadata.payload.traceData: _*) := metadata.fire
+    decoderTrace.trace(decoderName, metadata.payload.traceData: _*) := metadata.fire
 
     host[DecoderSinkService].consume(DecoderOutput(
       Int.MaxValue, decoderName,

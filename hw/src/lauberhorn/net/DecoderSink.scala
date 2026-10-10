@@ -49,7 +49,6 @@ class DecoderSink extends FiberPlugin with DecoderSinkService {
   val retainer = Retainer()
 
   // all decoders are serialized so we only need one trace port
-  val tp = during setup host[TracePlugin].makePort("decoder_sink", LauberhornTraceDma.NicDecoderSlr)
 
   // possible decoder upstreams for the scheduler (once for every protocol that called produceFinal)
   lazy val decoderOutputs = mutable.ListBuffer[DecoderOutput]()
