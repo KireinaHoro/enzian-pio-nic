@@ -3,8 +3,8 @@
 The transport and upstream adapter integration merged into platform `master`
 in `6b489de8`. Current transport and adapter follow-up is on platform branch
 `feat/memcached-rx-wait`; the upstream-based application worktree is on
-`feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform still pins the
-earlier `feat/lauberhorn-native-udp` adapter until migration is validated.
+`feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform pins the borrowed
+adapter after local validation; matched hardware acceptance remains pending.
 Acceptance is pending; build and simulation results do not establish board
 compatibility, oversubscription performance or timing closure.
 
@@ -921,3 +921,76 @@ and Nix deployment only after those checks pass; restore the normal memcached CI
 gate/image for that build. Preserve the bounded maintenance scope: no real
 HOST_WAKE or host-only parking implementation, no hash expansion acceptance, and
 no claim that polling can wake a parked worker.
+
+### Borrowed memcached adapter implementation, October 10
+
+Application commit `9453656b629acc33728a18ad98d7320c8d7eed45` on
+`feat/lauberhorn-rx-wait` implements the local worker-wait adaptation. Native
+workers dispatch ready libevent callbacks and submit IO before checking the
+connection's idle state. RX acquire occurs only there. A single pending borrow
+activates the existing connection event; `lh_udp_recv` consumes readiness once
+and otherwise returns EAGAIN without a transport call. The parser points directly
+into mutable RX storage and advances past the UDP header. At the idle/cleanup
+boundary, it restores the owned connection buffer and releases the borrow after
+response/item work drains. The application does not queue a transport pointer as
+if it were an owned packet. Unsupported asynchronous IO/teardown paths fail
+rather than entering RX while suspended.
+
+Each upstream UDP response segment is assembled into one TX reservation. Item
+and iovec ownership remains upstream; this avoids staging but still copies stored
+values into the outgoing packet. Definite rejection rebuilds the same segment in
+a fresh reservation. UDP sequence advancement now follows successful submission,
+so rejected attempts do not skip sequence numbers. No normal UDP socket fallback,
+HOST_WAKE, host-only barrier parking or hardware changes were added.
+
+The pinned `memcached-adapter` Nix check passed all 16 upstream command comparisons,
+including three-datagram response assembly; borrow/continuation tests and hash
+expansion scope rejection also passed. The socket mock returns NACK, rejects each
+first TX attempt, checks outstanding ownership and uses inaccessible pages after
+RX release/TX completion. Additional requests exercise fairness yield at `-R 1`,
+zero/truncated framing, multi-datagram rejection, incomplete commands and an
+incomplete SET followed by valid requests. A first boundary-test failure assumed
+multi-key replies formed one response; the corrected test queries the two stored
+keys separately. No application change was needed for that test correction.
+Evidence: `out/contiguous-transport/memcached-pinned-tests.log` and
+`/nix/store/wzzczksf9g1i727say7pymmhkrqp86hw-memcached-adapter-compatibility/summary.json`.
+The real AArch64 `memcachedDeployFs` build also passed. These are local software
+results, not ECI/scheduler/board acceptance. The normal CI configuration now has a
+compatible pinned adapter/image; pipeline 518689 itself still omits memcached.
+
+For the already running hardware pipeline, use
+`tools/memcached/matched-image.nix` with immutable platform revision
+`45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` and the application revision above.
+It preserves the platform identity and asserts unchanged RTL, generated headers,
+runtime and kernel-module derivations. A plain `--override-input` experiment
+produced a dirty platform identity; that image is explicitly retained as
+`memcached-518689-override-dirty.img` and must not be deployed.
+At the existing results follow-up, first complete the scheduled matched RPC
+checks, then run memcached compatibility with the matched application image and
+at least two harness repeats. Recheck reservations, preserve any frozen failure,
+keep tracing armed through module load and capture any failure before reset.
+Do not claim oversubscription or complete maintenance from this bounded test.
+
+The matched image build passed, including all four derivation-identity assertions.
+Its manifest verifies platform `45cbfe52` and application `9453656` separately.
+Image: `out/contiguous-transport/memcached-518689-matched.img`, resolving to
+`/nix/store/5brbwz7hrx7jsf0ykasliwcs8q7cyr1j-lauberhorn-memcached.img`, SHA-256
+`d5bb0331de0fce16bbded6a62633a3d4f7b3576173bccb29658bb1045064fbc6`.
+Manifest: `out/contiguous-transport/memcached-518689-manifest.json`.
+The unrun single-worker harness case, smoke matrix, client scripts and provenance
+are in `out/contiguous-transport/memcached-518689/`. Stage that image as
+`/scratch/pengxu/memcached-518689/deploy.img` and the case's client/matrix files
+under the same directory on the gateway. Its program command expects the results
+workflow's matched `/tmp/lauberhorn-518689/program-arm.tcl`, bitstream and LTX on
+ba2. Verify these inputs and reservations before running `tools/enzian/test.py`
+on `cases.json` with a fresh log directory and `--repeats 2`. The image and case
+are prepared locally only; no board state was changed during software work.
+
+Reproduce the matched build through `nix develop`:
+
+```sh
+nix build --impure --file tools/memcached/matched-image.nix \
+  --argstr platformRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4&submodules=1' \
+  --argstr applicationRevision 9453656b629acc33728a18ad98d7320c8d7eed45 \
+  --out-link out/contiguous-transport/memcached-518689-matched.img
+```
