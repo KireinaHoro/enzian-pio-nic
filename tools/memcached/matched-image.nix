@@ -6,6 +6,7 @@ let
   platform = builtins.getFlake platformRef;
   software = if runtimeRef == null then platform else builtins.getFlake runtimeRef;
   pkgs = import platform.inputs.nixpkgs { system = "x86_64-linux"; };
+  deploymentTarget = import platform.inputs.nixpkgs { system = "aarch64-linux"; };
   hardware = platform.lib.mkPlatform { inherit pkgs; };
   application = builtins.fetchGit {
     url = "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git";
@@ -39,9 +40,10 @@ let
   memcachedTools = pkgs.callPackage (platform.outPath + "/nix/software/memcached-tools.nix") {
     source = platform.outPath;
     inherit identity;
+    inherit (deploymentTarget) python3 bash;
   };
   deployment = pkgs.callPackage (platform.outPath + "/nix/images/default.nix") {
-    target = import platform.inputs.nixpkgs { system = "aarch64-linux"; };
+    target = deploymentTarget;
     inherit (hardware) kmod genVerilog devHdrs kernelRelease;
     inherit runtime identity;
   };
