@@ -3,11 +3,11 @@
   inputs = {
     self.submodules = true;
     dandelion = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/upstream-process-parity&rev=1a9eb8f6bafef9be497d7677951bac192dfe3f6d";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/explicit-inline-codec&rev=d74fb48a06c719296126d59ac5bb7cf4b423be63";
       flake = false;
     };
     memcached = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-rx-wait&rev=2eaa2b84e7a6ed0a7d0489b6caad49c211649864";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=feat/lauberhorn-rx-wait&rev=05c6b4831348f103058fefd37c27de64516016b1";
       flake = false;
     };
     memcachedUpstream = {

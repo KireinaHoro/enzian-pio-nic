@@ -53,9 +53,9 @@ int main(void)
     xdr_adapter_t adapter = {.call_size = 64, .resp_size = 64,
         .call_xdrproc = (xdrproc_t)string_xdr, .resp_xdrproc = (xdrproc_t)string_xdr};
     rpc_codec_t codec = oncrpc_codec(&adapter);
+    assert(!codec.response_inline);
     unsigned char buffer[16];
     char *value = "12345678";
-    assert(codec.ops->response_capacity(&value, sizeof(value), codec.priv) == 12);
     memset(buffer, 0xa5, sizeof(buffer));
     assert(codec.ops->marshal_call(&value, buffer, sizeof(value), 7, codec.priv) == -1);
     for (int i = 7; i < sizeof(buffer); ++i) assert(buffer[i] == 0xa5);
@@ -65,10 +65,11 @@ int main(void)
     char text[62]; memset(text, 'x', sizeof(text)); text[60] = 0;
     char *boundary = text;
     unsigned char encoded[68];
-    assert(codec.ops->response_capacity(&boundary, sizeof(boundary), codec.priv) == 64);
     assert(codec.ops->marshal_resp(&boundary, encoded, sizeof(boundary), 64, codec.priv) == 64);
     text[60] = 'x'; text[61] = 0;
-    assert(codec.ops->response_capacity(&boundary, sizeof(boundary), codec.priv) == 68);
+    memset(encoded, 0xa5, sizeof(encoded));
+    assert(codec.ops->marshal_resp(&boundary, encoded, sizeof(boundary), 64, codec.priv) == -1);
+    for (int i = 64; i < sizeof(encoded); ++i) assert(encoded[i] == 0xa5);
     assert(codec.ops->marshal_resp(&boundary, encoded, sizeof(boundary), 68, codec.priv) == 68);
     for (int kind = RPC_ALLOC_CALL; kind <= RPC_ALLOC_RESP; ++kind) {
         void *p = codec.ops->alloc(kind, codec.priv);

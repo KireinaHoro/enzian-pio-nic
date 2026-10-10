@@ -11,7 +11,7 @@
  * @call_xdrproc: rpcgen generated xdr serializer for calls
  * @resp_xdrproc: rpcgen generated xdr serializer for resps
  * @call_size: struct size of call argument
- * @resp_size: strut size of response argument
+ * @resp_size: struct size of response argument
  */
 typedef struct {
 	xdrproc_t call_xdrproc; 

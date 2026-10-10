@@ -141,6 +141,7 @@ int main(int argc, char *argv[]) {
       .resp_xdrproc = (xdrproc_t)xdr_bench_resp,
   };
   rpc_codec_t codec = oncrpc_codec(&adapter);
+  codec.response_inline = true; /* bench_resp is two XDR uint32s (8 bytes). */
   lauberhorn_worker_t *workers;
 
   if (argc < 2 || argc > 4) {

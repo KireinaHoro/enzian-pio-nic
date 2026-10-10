@@ -1499,3 +1499,35 @@ an idle-worker or queue-free baseline. Source: the recorded
 Full saturation sweeps, multi-tenant dataset replay, unrestricted maintenance
 and HOST_WAKE remain follow-on work. Preserve the captured evidence and pinned
 hardware/software provenance when merging this completed campaign.
+
+#### Explicit TX placement selection — October 10 follow-up
+
+TX reservation now takes `inline_payload`, not a byte count. True exposes
+64 writable bytes; false exposes the full transport capacity. The actual send
+length is checked separately against both that capacity and the protocol MTU.
+Short overflow sends stay in overflow. Unknown sizes use false, without a sizing
+pass. The bounded serializer still receives its output capacity.
+
+The memcached adapter at `05c6b4831348f103058fefd37c27de64516016b1`
+selects inline when the already-available iovec total is at most 64 bytes. The
+platform pin and mock transport use the same API. Dandelion is pinned to
+`d74fb48a06c719296126d59ac5bb7cf4b423be63`, with the corresponding Rust codec
+field initialized to false and C/Rust ABI checks. RPC codecs default to overflow;
+nullrpc explicitly enables inline replies, removing the per-reply `xdr_sizeof`
+traversal. This does not change the version-3 hardware layout or ownership rules.
+
+The per-request tracing acceptance above remains open. In particular, the
+existing application ID contains client IPv4/port and the 16-bit memcached ID,
+but no tenant destination or reuse generation. The analyzer currently rejects
+reused IDs globally and lacks client RTT joins; it must not be used to claim
+validated multi-tenant or wrapped-ID per-request breakdowns.
+
+Validation for this API change passed through `nix develop`: `runtimeTests`
+(including ASan/UBSan codec and core-buffer checks), `runtime`, `kmod`,
+`recovery-test`, `nested-validation`, `checks.x86_64-linux.runtime-interface`,
+`checks.x86_64-linux.memcached-adapter`, `memcached` and `dandelion`. The
+source-defined `applications.microbenchmarks` target also cross-built. Coverage
+includes both placement choices/parities, zero/short/full-length sends, 65-byte
+inline rejection, MTU overflow rejection, stale handles and bounded XDR writes.
+The adapter comparison passed against pinned upstream with injected transport.
+These are software/build checks; no new Enzian latency result is claimed.

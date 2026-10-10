@@ -64,8 +64,9 @@ int lauberhorn_udp_release(void) {
     borrowed=false;
     return 0;
 }
-int lauberhorn_tx_get_buffer(size_t capacity,lauberhorn_tx_buffer_t *buffer) {
-    assert(!reserved && capacity<=LAUBERHORN_UDP_MAX_PAYLOAD);
+int lauberhorn_tx_get_buffer(bool inline_payload,lauberhorn_tx_buffer_t *buffer) {
+    size_t capacity = inline_payload ? 64 : LAUBERHORN_UDP_MAX_PAYLOAD;
+    assert(!reserved);
     assert(!mprotect(tx,4096,PROT_READ|PROT_WRITE));
     reserved=true;
     *buffer=(lauberhorn_tx_buffer_t){.data=tx,.capacity=capacity,

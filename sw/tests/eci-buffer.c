@@ -39,30 +39,40 @@ int main(void) {
             assert(!state.rx_view.pending);
         }
     }
-    for(unsigned parity=0;parity<2;parity++) {
-        for(unsigned i=0;i<sizeof(lengths)/sizeof(*lengths);i++) {
-            size_t capacity=lengths[i]; tx=parity;
-            unsigned char *ctrl=base+LAUBERHORN_ECI_TX_BASE+parity*128;
-            unsigned char *next=base+LAUBERHORN_ECI_TX_BASE+(!parity)*128;
-            *next=CORE_TX_ACCEPTED;
-            void *data=core_eci_tx_get_buffer(base,&state,capacity);
-            assert(data==(capacity<=64?ctrl+64:base+LAUBERHORN_ECI_TX_BASE+256));
-            assert(!core_eci_tx_get_buffer(base,&state,capacity));
-            if(capacity) memset(data,0x73,capacity);
-            lauberhorn_pkt_desc_t desc={.type=TY_NATIVE_UDP_TX,
-                .payload_len=capacity?1:0,.udp={.endpoint=17,.dport=11211}};
-            uint64_t stamp = 0;
-            unsigned before = probes;
-            assert(core_eci_tx_commit_traced(base,&state,&desc,&stamp,before_doorbell)==CORE_TX_ACCEPTED);
-            assert(stamp == 123456 && probes == before + 1);
-            assert(!state.tx_reserved && tx==!parity);
-            assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(ctrl)==(capacity<=64));
-            assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_len_extract(ctrl)==desc.payload_len);
+    for (unsigned parity=0; parity<2; parity++) {
+        for (unsigned placement=0; placement<2; placement++) {
+            bool inline_payload = placement;
+            size_t capacity = inline_payload ? 64 : LAUBERHORN_MTU;
+            for (unsigned i=0; i<sizeof(lengths)/sizeof(*lengths); i++) {
+                size_t length = lengths[i];
+                if (length > capacity) continue;
+                tx = parity;
+                unsigned char *ctrl=base+LAUBERHORN_ECI_TX_BASE+parity*128;
+                unsigned char *next=base+LAUBERHORN_ECI_TX_BASE+(!parity)*128;
+                *next=CORE_TX_ACCEPTED;
+                void *data=core_eci_tx_get_buffer(base,&state,inline_payload);
+                assert(state.tx_capacity == capacity);
+                assert(data==(inline_payload?ctrl+64:base+LAUBERHORN_ECI_TX_BASE+256));
+                assert(!core_eci_tx_get_buffer(base,&state,inline_payload));
+                memset(data,0x73,capacity);
+                lauberhorn_pkt_desc_t desc={.type=TY_NATIVE_UDP_TX,
+                    .payload_len=length,.udp={.endpoint=17,.dport=11211}};
+                uint64_t stamp = 0;
+                unsigned before = probes;
+                assert(core_eci_tx_commit_traced(base,&state,&desc,&stamp,before_doorbell)==CORE_TX_ACCEPTED);
+                assert(stamp == 123456 && probes == before + 1);
+                assert(!state.tx_reserved && tx==!parity);
+                assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(ctrl)==inline_payload);
+                assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_len_extract(ctrl)==length);
+            }
         }
     }
-    assert(!core_eci_tx_get_buffer(base,&state,LAUBERHORN_MTU+1));
-    assert(core_eci_tx_get_buffer(base,&state,1));
-    lauberhorn_pkt_desc_t too_big={.type=TY_NATIVE_UDP_TX,.payload_len=2};
+    assert(core_eci_tx_get_buffer(base,&state,true));
+    lauberhorn_pkt_desc_t too_big={.type=TY_NATIVE_UDP_TX,.payload_len=65};
+    assert(core_eci_tx_commit(base,&state,&too_big)==CORE_TX_ERROR && state.tx_reserved);
+    core_eci_tx_cancel(&state);
+    assert(core_eci_tx_get_buffer(base,&state,false));
+    too_big.payload_len = LAUBERHORN_MTU + 1;
     assert(core_eci_tx_commit(base,&state,&too_big)==CORE_TX_ERROR && state.tx_reserved);
     core_eci_tx_cancel(&state);
     free(base);

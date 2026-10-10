@@ -14,12 +14,6 @@ int xdr_marshal_call(void *in_buf, void *out_buf, size_t in_buf_len,
     return xdr_getpos(&xdr);
 }
 
-static size_t xdr_response_capacity(void *input, size_t len, void *priv) {
-    xdr_adapter_t *p = priv;
-    /* A zero result can also indicate failure; bounded marshal checks it. */
-    return xdr_sizeof(p->resp_xdrproc, input);
-}
-
 int xdr_marshal_resp(void *in_buf, void *out_buf, size_t in_buf_len,
                      size_t out_capacity, void *priv) {
     xdr_adapter_t *p = priv;
@@ -85,7 +79,6 @@ rpc_codec_t oncrpc_codec(xdr_adapter_t *adapter) {
     static rpc_ops_t xdr_ops = {.marshal_call = xdr_marshal_call,
                                 .unmarshal_call = xdr_unmarshal_call,
                                 .marshal_resp = xdr_marshal_resp,
-                                .response_capacity = xdr_response_capacity,
                                 .unmarshal_resp = xdr_unmarshal_resp,
                                 .free = xdr_free_func,
                                 .alloc = xdr_alloc_func};
