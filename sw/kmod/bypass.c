@@ -358,7 +358,7 @@ static bool rx_bypass_pkt(lauberhorn_pkt_desc_t *desc, struct napi_struct *n,
 	}
 	skb_reserve(skb, NET_IP_ALIGN);
 
-	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_buf,
+	memcpy(skb_put(skb, desc->payload_len), priv->ctx.rx_view.data,
 	       desc->payload_len);
 
 	skb->protocol = eth_type_trans(skb, dev);
@@ -461,7 +461,7 @@ static poll_result_t rx_handle_neighbor_miss(lauberhorn_pkt_desc_t *desc,
 	iph->saddr = desc->neighbor_miss.saddr;
 	iph->daddr = dst;
 	iph->check = ip_fast_csum((u8 *)iph, iph->ihl);
-	skb_put_data(skb, priv->ctx.rx_buf, pld_len);
+	skb_put_data(skb, priv->ctx.rx_view.data, pld_len);
 
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_IP);
@@ -512,7 +512,6 @@ static poll_result_t poll_once(struct napi_struct *n)
 		return POLL_NACK;
 	}
 
-	priv->ctx.rx_buf = priv->ctx.rx_view.data;
 	poll_result_t result = POLL_WORK_DONE;
 	switch (desc.type) {
 	case TY_BYPASS:
@@ -527,8 +526,7 @@ static poll_result_t poll_once(struct napi_struct *n)
 			 desc.type);
 	}
 
-	core_eci_rx_discard(&priv->ctx);
-	priv->ctx.rx_buf = NULL;
+	core_eci_rx_release(&priv->ctx);
 	return result;
 }
 
@@ -830,10 +828,6 @@ int init_bypass(void)
 		lauberhorn_eci_worker_ctrl_tx_curr_cl_idx_rd(&priv->worker_dev);
 	dev_dbg(&netdev->dev, "Initial RX parity %u, TX parity %u\n",
 		priv->rx_parity, priv->tx_parity);
-
-	// Borrow RX transport storage; TX copies directly from the owned skb.
-	priv->ctx.rx_buf = NULL; /* borrowed only during poll_once */
-
 
 	// Invalidate control and bypass CLs
 	for (cl_id = 0; cl_id < 2; ++cl_id) {

@@ -68,7 +68,6 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, size_t capa
 int main(void) {
     context.fd = 17;
     worker.ctx = &context;
-    worker.dp.rx_buf = rx;
     worker.dp.tx_buf = tx;
     lauberhorn_udp_endpoint_t ep = {0};
     assert(!lauberhorn_udp_bind(&context, &ep, 11211));

@@ -31,7 +31,7 @@ static int test_tx(void *base, lauberhorn_core_state_t *state, const lauberhorn_
     if (reject_tx) return CORE_TX_RETRY;
     child = *desc;
     if (immediate) {
-        memcpy(worker.dp.rx_buf, worker.dp.tx_buf, 4);
+        memcpy(worker.dp.rx_view.data, worker.dp.tx_buf, 4);
         lauberhorn_pkt_desc_t reply = {.type = TY_ONCRPC_REPLY_RX, .payload_len = 4,
             .oncrpc_reply_rx = {.pid = desc->oncrpc_call_tx.pid, .status = reply_status,
                 .cookie = desc->oncrpc_call_tx.cookie, .xid = desc->oncrpc_call_tx.xid}};
@@ -164,7 +164,7 @@ int main(void) {
     fiber_sched_init();
     lauberhorn_t ctx = {0};
     char tx[LAUBERHORN_MTU], rx[LAUBERHORN_MTU];
-    worker.ctx = &ctx; worker.dp.tx_buf = tx; worker.dp.rx_buf = rx;
+    worker.ctx = &ctx; worker.dp.tx_buf = tx; worker.dp.rx_view.data = rx;
     rpc_ops_t ops = {.marshal_call = encode, .marshal_resp = encode,
         .unmarshal_call = decode_int, .unmarshal_resp = decode_int, .alloc = allocate, .free = release};
     rpc_codec_t codec = {.ops = &ops};

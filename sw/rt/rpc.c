@@ -245,7 +245,7 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     r.trace.request_context = desc->oncrpc_call_rx.request_token;
     r.trace.request_bytes = desc->payload_len;
     r.trace.unmarshal_enter_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_enter);
-    r.args = decode(w->dp.rx_buf, desc->payload_len, r.codec, true);
+    r.args = decode(w->dp.rx_view.data, desc->payload_len, r.codec, true);
     r.trace.unmarshal_exit_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_exit);
     if (!r.args) { fail_request(desc, errno == ENOMEM ? LAUBERHORN_RPC_SYSTEM_ERR : LAUBERHORN_RPC_GARBAGE_ARGS, &r.trace); return; }
     struct server_trace_row *previous = server_trace_inline;
@@ -286,14 +286,14 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
         else {
             w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, desc->payload_len);
             if (!w->dp.tx_buf) { pending_call_release(&pending_call_table, c); return; }
-            memcpy(w->dp.tx_buf, w->dp.rx_buf, desc->payload_len);
+            memcpy(w->dp.tx_buf, w->dp.rx_view.data, desc->payload_len);
             send_reply(&c->completion.parent, 0, desc->payload_len, &c->parent_trace);
         }
         pending_call_release(&pending_call_table, c);
         return;
     }
     void *data = desc->oncrpc_reply_rx.status ? NULL :
-        decode(w->dp.rx_buf, desc->payload_len, c->codec, false);
+        decode(w->dp.rx_view.data, desc->payload_len, c->codec, false);
     rpc_result_t result = {.data = data, .codec = c->codec,
         .code = data ? LAUBERHORN_RPC_SUCCESS :
             desc->oncrpc_reply_rx.status == LAUBERHORN_RPC_SYSTEM_ERR ?

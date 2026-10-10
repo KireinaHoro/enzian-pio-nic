@@ -118,10 +118,8 @@ static void *lauberhorn_worker_loop(void *arg) {
             continue;
         }
         if (received) {
-            w->dp.rx_buf = w->dp.rx_view.data; /* borrowed, never queued */
             rpc_handle_packet(w, &desc);
-            core_eci_rx_discard(&w->dp);
-            w->dp.rx_buf = NULL;
+            core_eci_rx_release(&w->dp);
         }
     }
     worker_fail(w); /* Individual withdrawal is unsupported. */
@@ -157,9 +155,6 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
 
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
-
-    /* RX aliases the borrowed transport view; TX aliases a live reservation.
-     * Neither pointer owns a heap allocation. */
 
     lauberhorn_is_running = 1;
 
