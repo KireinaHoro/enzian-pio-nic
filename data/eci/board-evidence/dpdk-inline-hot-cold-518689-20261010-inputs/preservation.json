@@ -1,0 +1,137 @@
+{
+  "previous_window": {
+    "bytes": 2442690944,
+    "sha256": "18dbde1219b479f28557a58fcc9f2c061a7c7b3a422d5d8c6c49272aba33b414",
+    "offset": 5469182080,
+    "start": {
+      "trace_write_slot_1": 85455970,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "end": {
+      "trace_write_slot_1": 123623016,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "bounded_window": true,
+    "pipeline": 518689
+  },
+  "current_pointer": 123623016,
+  "hash_verified": true,
+  "pre_health": {
+    "passed": false,
+    "errors": [
+      "kernel log continuity not established; possible ring loss or reset"
+    ],
+    "before": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      }
+    },
+    "after": {
+      "0": {
+        "bar": 149397484601344,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "1": {
+        "bar": 149397501378560,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "2": {
+        "bar": 149397518155776,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "3": {
+        "bar": 149397534932992,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "4": {
+        "bar": 149397551710208,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      },
+      "5": {
+        "bar": 149397568487424,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "6": {
+        "bar": 149397585264640,
+        "interrupt": 0,
+        "status": 256,
+        "timeout": 0
+      },
+      "7": {
+        "bar": 149397602041856,
+        "interrupt": 0,
+        "status": 0,
+        "timeout": 0
+      }
+    },
+    "kernel_faults": [],
+    "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+    "input_sha256": {
+      "before": "cb020f99052d801afb6d7792a341acf323648fc943f9263cb8c3defb90b68a53",
+      "after": "07caf37b00f8810b11be9d2a0cf83bdbb897f5e9e98dee2d37737784645c7b8b",
+      "kernel_before": "5ea2a321a95c1922ffb5c54cc68a1e714db528fd558e594b0947b7b928877689",
+      "kernel_after": "f36acb506fac8fa539dccdcec2a6627a3f034503282619fd79e0965e8e1a3598"
+    }
+  }
+}
