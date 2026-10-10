@@ -19,6 +19,10 @@ def analyze(records, launch):
     if sum(p['workers'] for p in launch['processes']) <= physical:
         raise ValueError('cohort is not oversubscribed')
     owners = {}
+    active = {}
+    peak = Counter()
+    queued = {}
+    queue_latencies = []
     yielded = Counter()
     consumed_yields = Counter()
     dispatch = defaultdict(Counter)
@@ -30,6 +34,13 @@ def analyze(records, launch):
         core = fields.get('CoreID')
         if name == 'Lost' and fields['count']:
             raise ValueError('trace contains loss')
+        if name == 'YieldAccepted':
+            active.pop(core, None)
+        if name == 'SchedulerRequestQueued':
+            token = fields['HostMsgID']
+            if token in queued:
+                raise ValueError('request ID reused before dispatch')
+            queued[token] = (timestamp, fields['ProcessID'], fields['ProcessID'] in active.values())
         if name == 'YieldAccepted' and not fields.get('PreemptOutOfIdle', 0):
             yielded[core] += 1
         if name not in ('SchedulerProcessRun', 'SchedulerRequestDispatched'):
@@ -39,6 +50,12 @@ def analyze(records, launch):
             raise ValueError(f'unexpected dispatch/assignment identity: core={core}, pid={pid}')
         if name == 'SchedulerRequestDispatched':
             dispatch[pid][core] += 1
+            if 'HostMsgID' in fields:
+                start, queued_pid, resident = queued.pop(fields['HostMsgID'])
+                if queued_pid != pid:
+                    raise ValueError('queue/dispatch process mismatch')
+                queue_latencies.append(dict(timestamp=start, dispatch_timestamp=timestamp, pid=pid,
+                    datapath=core, cycles=timestamp-start, resident_at_enqueue=resident))
             if owners.get(core) != pid:
                 raise ValueError('dispatch without matching recorded assignment')
             continue
@@ -50,7 +67,13 @@ def analyze(records, launch):
                 raise ValueError('process changed without an ordinary yield')
             transitions.append(dict(row, previous_pid=previous))
         owners[core] = pid
+        active[core] = pid
+        peak[pid] = max(peak[pid], sum(p == pid for p in active.values()))
         consumed_yields[core] = yielded[core]
+    if any(peak[p['pid']] > p['workers'] for p in launch['processes']):
+        raise ValueError('assignment exceeds declared parallelism')
+    if queued:
+        raise ValueError('queued requests without dispatch')
     if set(dispatch) != expected:
         raise ValueError('not all instances received dispatched requests')
     used = set().union(*(set(c) for c in dispatch.values()))
@@ -65,7 +88,7 @@ def analyze(records, launch):
         raise ValueError('missing first-access parity evidence')
     if audit['parity_mismatches']:
         raise ValueError('activation parity mismatch')
-    return dict(passed=True, process_worker_dispatches=dict(dispatch),
+    return dict(passed=True, peak_assigned_workers=dict(peak), queue_latencies=queue_latencies, process_worker_dispatches=dict(dispatch),
                 ordinary_yields=dict(yielded), transitions=transitions,
                 assignments=assignments, event_counts=dict(counts), activation_audit=audit,
                 datapath_to_linux_cpu={i+1:cpu for i,cpu in enumerate(launch['worker_cpus'])})
