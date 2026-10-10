@@ -1453,3 +1453,49 @@ is in `latency-cases-requests.json`. The tool accepts the full audit and the
 workload-only derivative and verifies their trace hashes match. Its regression
 checks cover tenant independence and dispatch-time removal from the backlog.
 No hardware rerun was needed for this reanalysis.
+
+#### Campaign closeout and per-request tracing follow-up
+
+The October 10 campaign completes bounded native memcached request processing
+and synthetic oversubscribed switching validation: five instances declare four
+workers each on four physical workers, all tenants reach four assignments, and
+61,440 workload requests across the recorded patterns and controls pass. This
+is finite correctness/scheduling evidence, not the full paper benchmark matrix.
+
+The remaining measurement task is to bridge client, application and hardware
+tracing and produce detailed per-request breakdowns comparable to the nullrpc
+microbenchmark. Client RTT samples exist for every workload request, but they
+are not joined to the hardware hot/cold/backlog classifications. MAC ingress
+and egress markers exist in the capture, but validated request-to-response
+pairing and MAC-to-MAC distributions for one, two and five active instances
+have not been established. Application tracing was disabled in these runs;
+`tools/memcached/latency.py` requires application records for its current joins.
+Do not present scheduler enqueue-to-dispatch intervals as response latency.
+
+Follow-up acceptance:
+
+- Establish an unambiguous request identity across tenant/socket request IDs,
+  RX/TX hardware IDs and worker ownership, including ID wrap, migration,
+  segmented responses and multiple outstanding requests. Reject ambiguous
+  joins and incomplete/lost trace windows rather than pairing by global order.
+- Correlate NIC arrival, scheduler enqueue/assignment, host receive, memcached
+  execution, TX admission and final response egress; retain per-request client
+  RTT and MAC-to-MAC intervals. Use the established clock-correlation procedure,
+  report uncertainty and distinguish overlapping from additive stages.
+- Produce per-request timelines and distributions by traffic pattern and actual
+  assignment/backlog state, with bounded traced windows and tracing-off controls.
+  Add a single registered instance with one outstanding request as the
+  low-concurrency baseline before increasing concurrency and offered load.
+
+For clarity, the existing batched RTT medians/p99s over **all** workload requests
+(including burst entry) are 591.2/1001.8 us for one active instance,
+980.2/2052.6 us for two, and 1771.5/5590.7 us for five. Tracing-frozen controls
+are 590.5/1016.7, 971.6/2136.5 and 1931.6/2540.5 us respectively. These include
+Python client/batch overhead. The single-active case still has five registered
+instances and up to 16 outstanding requests against four workers; it is not
+an idle-worker or queue-free baseline. Source: the recorded
+`run-batch/{client,control}/requests.csv` files (15,360 requests per run).
+
+Full saturation sweeps, multi-tenant dataset replay, unrestricted maintenance
+and HOST_WAKE remain follow-on work. Preserve the captured evidence and pinned
+hardware/software provenance when merging this completed campaign.

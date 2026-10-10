@@ -75,6 +75,9 @@ A subsequent five-instance/four-workers-each synthetic campaign passed 61,440
 requests across single/pair/all-tenant bursts and tracing controls. Its complete
 batched trace confirms every tenant reached four assigned workers and 2,477
 process switches; see the [burst and latency evidence](docs/research/memcached.md#four-workers-per-tenant-and-variable-bursts-october-10).
+The bounded memcached campaign is closed; joined per-request client/application/
+hardware tracing and nullrpc-style latency breakdowns remain follow-on work.
+See the [closeout](docs/research/memcached.md#campaign-closeout-and-per-request-tracing-follow-up).
 The latest successful cohort remains alive with tracing frozen. Earlier failures
 are preserved. Full pool-size/performance measurements and HOST_WAKE remain open;
 518689 is not timing closed (WNS -0.950 ns).
