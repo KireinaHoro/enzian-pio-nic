@@ -491,7 +491,9 @@ out:
 }
 
 /* Finish this 2F2F transaction without emitting a packet. Same-domain cache
- * contents may remain stale; ownership handoff performs full cleanup. */
+ * contents may remain stale; ownership handoff performs full cleanup.
+ * Bypass completes this descriptor with an authorization-error acknowledgement,
+ * also without DMA or a packet. Cancel needs completion, not admission success. */
 static inline void core_eci_tx_cancel(lauberhorn_core_state_t *ctx) {
   if (!ctx->tx_reserved) return;
   lauberhorn_pkt_desc_t noop = {.type = TY_EXECUTION_CONTROL};

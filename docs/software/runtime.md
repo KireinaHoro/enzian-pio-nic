@@ -58,7 +58,10 @@ release. This includes pointers retained by codecs or deferred work.
 TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_cancel`.
 Capacity fixes placement; the committed length may be smaller. Submission
 consumes the reservation even when rejected. Cancel finishes the transaction
-without emitting a packet. Normal TX invalidates only the overflow lines needed
+without emitting a packet. It is available in both kernel and userspace: worker
+control requests receive success; bypass control requests receive an authorization
+error acknowledgement that still completes the transaction without DMA. Cancel
+discards this status. Normal TX invalidates only the overflow lines needed
 by actual length; inline and control-only transactions invalidate none. Unused
 same-domain cache contents may remain stale. Full cleanup belongs to ownership
 handoff. RPC codecs encode directly into reservations; the kernel copies between
