@@ -866,3 +866,28 @@ The [TX layout model](../../model/evidence/tx-payload-layout.md) passed its boun
 positive case and three expected fault controls. It confirms the inline restore,
 late-write mask and preemption cleanup requirements, under the stated write
 completion assumptions; it is not a complete RTL refinement or RX lifetime proof.
+
+#### Pipeline 518689 preflight, October 10
+
+At 10:09 CEST, pipeline 518689 remained running at exact source revision
+`45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` on `feat/memcached-rx-wait`.
+All thirteen enabled test gates passed: fast-tests-eci 2884488, dcs-rom-thx
+2884489, dcs-lauberhorn 2884490, blocks-tests 2884491, trace-tests 2884492,
+trace-fifo-tests 2884493, eci-toolkit-rx 2884494, workflow-tools 2884495,
+interactive 2884496, runtime-interface 2884497, runtime-tests 2884498,
+eci-address-map 2884499 and scheduling-cooperative 2884500. Preparation
+2884501 passed; its downloaded `out/ci-scope.json` confirms that exact revision
+and `memcached_omitted: true`. Hardware job 2884502 was running and report job
+2884503 remained created. No retries were present in the retrieved job list.
+
+The results timer is armed for October 10 at 15:09:22 CEST, five hours after this
+check, in thread `01a11cbc-4d8f-76f1-9945-f69de06ed22f`. No intermediate polling
+or duplicate build/test was launched. Preserve the pipeline branch until every
+job finishes. Hardware results, timing and matched Enzian trials remain pending;
+memcached is omitted, not passing. API status and preparation manifest are saved
+under `out/contiguous-transport/518689-preflight/`.
+
+The previously running local fast ECI suite also completed: 55 tests passed,
+20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
+Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
+layout, PREEMPT or timing implementation was changed during this follow-up.
