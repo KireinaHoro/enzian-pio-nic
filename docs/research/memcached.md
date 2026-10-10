@@ -1,9 +1,10 @@
 # Native UDP memcached
 
 The transport and upstream adapter integration merged into platform `master`
-in `6b489de8`. Continuing board acceptance is on platform branch
-`feat/memcached-board-validation`; the application remains on memcached branch
-`feat/lauberhorn-native-udp`.
+in `6b489de8`. Current transport and adapter follow-up is on platform branch
+`feat/memcached-rx-wait`; the upstream-based application worktree is on
+`feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform still pins the
+earlier `feat/lauberhorn-native-udp` adapter until migration is validated.
 Acceptance is pending; build and simulation results do not establish board
 compatibility, oversubscription performance or timing closure.
 
@@ -27,8 +28,8 @@ specified in an application TX descriptor.
 
 RX includes the endpoint handle, remote IPv4 address/port, local address/port,
 exact payload length and unchanged payload. ECI converts numeric addresses and
-ports to host order. RX data is copied to worker-local storage and borrowed until
-the next receive; retaining it requires an application copy. TX takes endpoint,
+ports to host order. RX exposes one contiguous mutable transport borrow until
+explicit release; retaining data beyond release requires an application copy. TX takes endpoint,
 destination and payload. The endpoint owner is compared with the trusted domain
 installed on the physical worker, never with a domain supplied by userspace.
 There are no UDP sessions, peer handles or response retirement operations.
@@ -460,9 +461,9 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   the changed software against 518140 or any other old-layout bitstream.
 - RX wait/acquire returns the contiguous borrowed view directly: metadata,
   mutable payload pointer and length. There is no separate runtime consume call
-  and no staging copy. Existing core_eci_rx APIs remain compatibility wrappers
-  that copy this view into their owned rx_buf, release the view, and preserve
-  the old copied-buffer lifetime. Payload writes are permitted: current RX
+  and no staging copy. The old copying RX/TX compatibility APIs have been
+  retired; memcached must migrate to the borrowed-view/reservation APIs.
+  Payload writes are permitted: current RX
   return writes must survive conflict eviction/reload. The router retains payload
   writebacks in a per-packet shadow until retirement; descriptor stores remain
   ignored and packet-buffer storage is not modified. Discard-only writeback
@@ -891,3 +892,32 @@ The previously running local fast ECI suite also completed: 55 tests passed,
 20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
 Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
 layout, PREEMPT or timing implementation was changed during this follow-up.
+
+
+### Memcached restart checkpoint, October 10
+
+Transport version 3 and API cleanup are implemented and locally validated;
+pipeline 518689 hardware/board acceptance remains pending on its scheduled timer.
+The application checkout is clean on `feat/lauberhorn-rx-wait`. Inspection confirms
+that its worker still loops over `drive_machine`, blocks inside `lh_udp_recv`,
+copies the packet into `c->rbuf`, shifts the framing header with `memmove`, and
+uses the retired `lauberhorn_udp_receive`/`lauberhorn_udp_sendv` APIs.
+
+Next implement the worker-idle boundary and single pending borrow described above:
+run ready event callbacks, connection continuations and IO submissions before
+blocking in `lauberhorn_udp_receive_view`; the receive hook only consumes local
+readiness and returns EAGAIN otherwise. Bind the parser to the borrowed bytes,
+advance past the UDP header, and restore owned connection storage before cleanup.
+Keep the borrow until parser references and response work are drained, with exact
+release on malformed/no-reply/error paths. For each existing upstream response
+segment, reserve TX storage, gather its framing/iovecs directly into that region,
+and commit. This removes transport staging, not the necessary copy from stored
+items into the outgoing packet. A definite rejection consumes the reservation:
+reserve again and rebuild the same segment from retained upstream ownership.
+
+Validate the idle predicate and borrow lifetime with adapter tests, then rerun
+upstream command/framing/segmentation comparisons. Update the pinned application
+and Nix deployment only after those checks pass; restore the normal memcached CI
+gate/image for that build. Preserve the bounded maintenance scope: no real
+HOST_WAKE or host-only parking implementation, no hash expansion acceptance, and
+no claim that polling can wake a parked worker.
