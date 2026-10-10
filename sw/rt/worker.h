@@ -28,7 +28,6 @@ struct lauberhorn_worker {
     lauberhorn_core_state_t dp;
     uint8_t rx_next, tx_next;
     lauberhorn_pkt_desc_t udp_rx_desc;
-    uint8_t *compat_rx_buf; /* allocated only by legacy copied UDP receive */
 
     void *dp_base;
     pthread_t thread;

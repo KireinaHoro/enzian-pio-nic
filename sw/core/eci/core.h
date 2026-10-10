@@ -92,7 +92,6 @@ typedef struct {
 typedef struct {
   uint8_t *rx_next_cl;
   uint8_t *rx_buf;
-  int rx_buf_size;
 
   /* One outstanding view. No next RX or assignment release until consumed.
    * These addresses belong to the current physical worker, not to a thread
@@ -302,17 +301,7 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
   return valid;
 }
 
-/* Copy/discard never reads the next control CL. The next acquire retires it. */
-static inline bool core_eci_rx_consume(lauberhorn_core_state_t *ctx,
-                                     void *buffer, size_t capacity) {
-  if (!ctx->rx_view.pending || ctx->rx_view.length > capacity ||
-      (ctx->rx_view.length && !buffer)) return false;
-  if (ctx->rx_view.length) memcpy(buffer, ctx->rx_view.data, ctx->rx_view.length);
-  BARRIER;
-  memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
-  return true;
-}
-
+/* Release never reads the next control CL. The next acquire retires it. */
 static inline void core_eci_rx_discard(lauberhorn_core_state_t *ctx) {
   BARRIER;
   memset(&ctx->rx_view, 0, sizeof(ctx->rx_view));
@@ -321,26 +310,6 @@ static inline void core_eci_rx_discard(lauberhorn_core_state_t *ctx) {
 static inline bool core_eci_rx_acquire(void *base, lauberhorn_core_state_t *ctx,
                                      lauberhorn_pkt_desc_t *desc) {
   return core_eci_rx_acquire_traced(base, ctx, desc, NULL, NULL);
-}
-
-/* Compatibility operation: existing callers continue to receive copied data. */
-static inline bool core_eci_rx_traced(void *base, lauberhorn_core_state_t *ctx,
-                                    lauberhorn_pkt_desc_t *desc,
-                                    uint64_t *stamp, lauberhorn_trace_now_fn_t clock) {
-  if (!core_eci_rx_acquire_traced(base, ctx, desc, stamp, clock)) return false;
-  if (desc->type == TY_PREEMPT) return true;
-  if (!core_eci_rx_consume(ctx, ctx->rx_buf, ctx->rx_buf_size)) {
-    pr_err("RX payload exceeds receive buffer\n");
-    assert(false);
-    core_eci_rx_discard(ctx);
-    return false;
-  }
-  return true;
-}
-
-static inline bool core_eci_rx(void *base, lauberhorn_core_state_t *ctx,
-                               lauberhorn_pkt_desc_t *desc) {
-  return core_eci_rx_traced(base, ctx, desc, NULL, NULL);
 }
 
 /* Doorbell acknowledgement: accepted/consumed, rejected before reservation,
@@ -537,31 +506,11 @@ static inline void core_eci_tx_abort(lauberhorn_core_state_t *ctx) {
   if (!ctx->tx_reserved) return;
   lauberhorn_pkt_desc_t noop = {.type = TY_EXECUTION_CONTROL};
 #ifdef __KERNEL__
-  /* The copied bypass wrapper never exposes an application reservation. */
+  /* Kernel bypass reservations have no execution-control descriptor. */
   core_eci_tx_finish(ctx);
 #else
   (void)core_eci_tx_commit(ctx->tx_reservation_base, ctx, &noop);
 #endif
-}
-
-/* Compatibility TX copies directly from caller-owned data into transport CLs.
- * Default userspace runtime calls get_buffer/commit instead. */
-static inline int core_eci_tx(void *base, lauberhorn_core_state_t *ctx,
-                              lauberhorn_pkt_desc_t *desc) {
-  size_t size = desc->payload_len;
-  const uint8_t *source = ctx->tx_buf;
-#ifdef __KERNEL__
-  if (desc->type == TY_BYPASS) {
-    if (size < 14 || desc->bypass.header_type != HDR_ETHERNET) return CORE_TX_ERROR;
-    size -= 14; source += 14;
-  }
-#endif
-  void *out = core_eci_tx_get_buffer(base, ctx, size);
-  if (!out) return CORE_TX_ERROR;
-  if (size) memcpy(out, source, size);
-  int result = core_eci_tx_commit(base, ctx, desc);
-  if (ctx->tx_reserved) core_eci_tx_abort(ctx);
-  return result;
 }
 
 #endif // LAUBERHORN_CORE_ECI_CORE_H

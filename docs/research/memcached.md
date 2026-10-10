@@ -773,3 +773,32 @@ Dandelion validation, concurrent-worker coverage or oversubscription measurement
 The memcached borrowed-buffer/event-wait adaptation, HOST_WAKE and host-only
 yield remain as previously scoped; no performance or unrestricted maintenance
 claim follows from these tests.
+
+### Retire copying transport APIs, October 10
+
+Removed core `core_eci_rx`, `core_eci_rx_traced`, `core_eci_rx_consume` and
+`core_eci_tx`, plus public `lauberhorn_udp_receive` and `lauberhorn_udp_sendv`.
+The copied UDP receive allocation and obsolete receive capacity fields are gone.
+Platform consumers use borrowed acquire/release and TX reserve/commit;
+execution-control messages reserve zero bytes. Kernel bypass retains the
+necessary skb-to-NIC copy explicitly at the caller and counts failed TX
+admission as a dropped packet rather than successful transmission. RX tests now
+check direct mutable views, explicit release and outstanding-borrow exclusion;
+UDP tests retain zero-length, retry/error, capacity and ownership coverage.
+
+Memcached and its mock are deliberately unchanged at the maintainer's request.
+The pinned adapter still calls the removed public APIs, so memcached deployment
+and its adapter check are not acceptance gates that pass at this intermediate
+branch state. Migrate its wait/receive ownership and segmented TX next; do not
+restore compatibility shims or present the mock check as runtime integration.
+Keep this work on `feat/memcached-rx-wait` until that integration is complete.
+There is no hardware ABI, CL-layout or PREEMPT change in this API retirement.
+
+Validation through `nix develop`: `.#runtimeTests` (including ASan/UBSan core
+buffer and codec checks), `.#checks.x86_64-linux.runtime-interface`, `.#deployFs`
+and `.#dandelionDeployFs` all built successfully. This covers the AArch64 runtime,
+kernel module, RPC consumers and pinned Dandelion build. Logs are
+`out/contiguous-transport/retire-copy-{build,dandelion}.log`; the runtime test
+output is `/nix/store/vwqg94zp7skh752767shcn7rv28l7ih8-lauberhorn-runtime-tests`.
+No new board run is claimed for this software-only retirement. Push with CI
+skipped while the intentionally unchanged memcached adapter is incompatible.

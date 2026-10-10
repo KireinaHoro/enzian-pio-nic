@@ -65,7 +65,8 @@ static void execution_flush(void) {
     uint8_t command = worker_execution_take(w, false);
     if (!command) return;
     lauberhorn_pkt_desc_t desc = {.type = TY_EXECUTION_CONTROL, .execution = command};
-    if (core_eci_tx(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
+    if (!core_eci_tx_get_buffer(w->dp_base, &w->dp, 0) ||
+        core_eci_tx_commit(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
 }
 static void execution_begin(void) {
     lauberhorn_worker_t w = worker_get_current();
@@ -156,7 +157,6 @@ lauberhorn_worker_t lauberhorn_create_worker(lauberhorn_t *ctx,
 
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
-    w->dp.rx_buf_size = LAUBERHORN_MTU;
 
     /* RX aliases the borrowed transport view; TX aliases a live reservation.
      * Neither pointer owns a heap allocation. */
@@ -192,7 +192,6 @@ void lauberhorn_join_worker(lauberhorn_t *ctx, lauberhorn_worker_t w) {
     }
 
     ctx->_workers--;
-    free(w->compat_rx_buf);
     free(w);
 }
 
@@ -209,7 +208,6 @@ int lauberhorn_udp_attach(lauberhorn_t *ctx, uint32_t index) {
     w->thread = pthread_self();
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
-    w->dp.rx_buf_size = LAUBERHORN_MTU;
     server_trace_thread_init();
     if (ioctl(ctx->fd, LAUBERHORN_IOCTL_REGISTER_THREAD, &index)) {
         free(w);
