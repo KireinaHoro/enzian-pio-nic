@@ -19,17 +19,17 @@
     "dandelion": {
       "flake": false,
       "locked": {
-        "lastModified": 1791467994,
-        "narHash": "sha256-1ZTFjJDo9at0upZWkm2K1OS+Ujh4g1lR6Gu5tl3MfZQ=",
-        "ref": "fix/upstream-process-parity",
-        "rev": "1a9eb8f6bafef9be497d7677951bac192dfe3f6d",
-        "revCount": 288,
+        "lastModified": 1791662670,
+        "narHash": "sha256-0lq9qcr/UkjP46zU5Ynqz5TlyPu5mswEx06noPgnO/4=",
+        "ref": "fix/explicit-inline-codec",
+        "rev": "d74fb48a06c719296126d59ac5bb7cf4b423be63",
+        "revCount": 289,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       },
       "original": {
-        "ref": "fix/upstream-process-parity",
-        "rev": "1a9eb8f6bafef9be497d7677951bac192dfe3f6d",
+        "ref": "fix/explicit-inline-codec",
+        "rev": "d74fb48a06c719296126d59ac5bb7cf4b423be63",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       }
@@ -100,17 +100,17 @@
     "memcached": {
       "flake": false,
       "locked": {
-        "lastModified": 1791624323,
-        "narHash": "sha256-jo2E59B73ZUi28n45D+Gd9VbHdqSfeDlZ1hkpgqiWug=",
+        "lastModified": 1791662301,
+        "narHash": "sha256-Rp9f5GWhnJp3PXvtlMUyYEP+64P6P0A29ZCcMLfvxFs=",
         "ref": "feat/lauberhorn-rx-wait",
-        "rev": "2eaa2b84e7a6ed0a7d0489b6caad49c211649864",
-        "revCount": 2230,
+        "rev": "05c6b4831348f103058fefd37c27de64516016b1",
+        "revCount": 2231,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
         "ref": "feat/lauberhorn-rx-wait",
-        "rev": "2eaa2b84e7a6ed0a7d0489b6caad49c211649864",
+        "rev": "05c6b4831348f103058fefd37c27de64516016b1",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }

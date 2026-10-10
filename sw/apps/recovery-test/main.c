@@ -57,6 +57,7 @@ int main(int argc, char **argv)
     xdr_adapter_t adapter = {.call_size = sizeof(bench_call), .resp_size = sizeof(bench_resp),
         .call_xdrproc = (xdrproc_t)xdr_bench_call, .resp_xdrproc = (xdrproc_t)xdr_bench_resp};
     rpc_codec_t codec = oncrpc_codec(&adapter);
+    codec.response_inline = true; /* bench_resp is two XDR uint32s (8 bytes). */
     lauberhorn_handler_t handler = {.func = handle};
     if (lauberhorn_reg_srv(&ctx, handler, ADD_PROG, ADD_VERS, ADD, 12345, &codec) < 0) { perror("service"); return 1; }
     if (lauberhorn_set_worker_count(&ctx, workers)) { perror("declare worker pool"); return 1; }

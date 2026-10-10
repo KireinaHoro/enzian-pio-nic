@@ -314,21 +314,22 @@ static inline bool core_eci_rx_acquire(void *base, lauberhorn_core_state_t *ctx,
 /* Local TX result: accepted, definite rejection, or indeterminate error.
  * A submitted descriptor consumes its reservation for all three results. */
 enum { CORE_TX_ACCEPTED = 1, CORE_TX_RETRY = 2, CORE_TX_ERROR = 3 };
-/* Reservation fixes placement, not actual send length. A short overflow send
+/* inline_payload selects 64 bytes; false selects the full transport MTU.
+ * Reservation fixes placement, not actual send length. A short overflow send
  * remains in overflow. No staging allocation and no transport-pointer escape
  * across another commit or assignment change. */
 static inline void *core_eci_tx_get_buffer(void *base, lauberhorn_core_state_t *ctx,
-                                          size_t capacity) {
-  if (ctx->tx_reserved || capacity > LAUBERHORN_MTU) return NULL;
+                                          bool inline_payload) {
+  if (ctx->tx_reserved) return NULL;
   uint8_t *start = (uint8_t *)base + LAUBERHORN_ECI_TX_BASE;
   uint8_t *control = start + *ctx->tx_next_cl * LAUBERHORN_ECI_CL_SIZE;
   ctx->tx_reserved = true;
-  ctx->tx_capacity = capacity;
+  ctx->tx_capacity = inline_payload ? 64 : LAUBERHORN_MTU;
   ctx->tx_reservation_base = base;
   ++ctx->tx_generation;
-  lauberhorn_eci_host_tx_placement_inline_payload_insert(control, capacity <= 64);
+  lauberhorn_eci_host_tx_placement_inline_payload_insert(control, inline_payload);
   BARRIER;
-  return capacity <= 64 ? control + LAUBERHORN_ECI_INLINE_DATA_OFFSET
+  return inline_payload ? control + LAUBERHORN_ECI_INLINE_DATA_OFFSET
                        : start + LAUBERHORN_ECI_OVERFLOW_OFFSET;
 }
 

@@ -2,6 +2,7 @@
 #define LAUBERHORN_RT_RPC_TYPES_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef enum {
 	RPC_FREE_CALL = 0, // unmarshalled call
@@ -52,16 +53,15 @@ typedef struct rpc_ops {
 	void (*free)(void *ptr, rpc_free_kind_t kind, void *priv);
     void* (*alloc)(rpc_alloc_kind_t, void *priv);
 
-    /* Optional encoded reply size (or safe upper bound), not the C object size.
-     * Called before reservation; must not consume or mutate the input. Without
-     * this callback the runtime reserves the maximum overflow capacity. */
-    size_t (*response_capacity)(void *in_buf, size_t in_buf_len, void *priv);
 } rpc_ops_t; 
 
 
 typedef struct {
     rpc_ops_t *ops;
-    void *priv; 
+    void *priv;
+    /* Opt in only when encoded replies fit in 64 bytes. False reserves the
+     * full reply capacity; oversized inline replies fail bounded serialization. */
+    bool response_inline;
 } rpc_codec_t; 
 
 #endif // LAUBERHORN_RT_RPC_TYPES_H

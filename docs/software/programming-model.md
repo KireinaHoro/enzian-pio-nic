@@ -199,7 +199,10 @@ its lifetime; copying the pointer or queueing it does not transfer ownership.
 Another receive or assignment-releasing yield while borrowed fails with EBUSY.
 The application may retain its own readiness flag while it holds the packet.
 
-For each response, reserve capacity with `lauberhorn_tx_get_buffer`, write into
+For each response, select storage with `lauberhorn_tx_get_buffer(inline_payload, &buffer)`.
+Pass true only for sends of at most 64 bytes; false provides the full transport
+capacity, even when the eventual send is short. Unknown sizes should use false.
+Write no more than the returned `buffer.capacity` bytes into
 `buffer.data`, and call `lauberhorn_udp_send_buffer` with the actual length.
 Multiple responses and zero-length sends are supported. A submitted send
 consumes the reservation, including on rejection; EAGAIN requires a fresh

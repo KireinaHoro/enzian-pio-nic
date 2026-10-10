@@ -60,7 +60,9 @@ Consumers must finish using the bytes, or copy them into owned storage, before
 release. This includes pointers retained by codecs or deferred work.
 
 TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_cancel`.
-Capacity fixes placement; the committed length may be smaller. Submission
+The boolean `inline_payload` chooses 64-byte inline storage or full-MTU
+overflow storage. The committed length may be smaller; it cannot exceed the
+selected storage capacity. Submission
 consumes the reservation even when rejected. Cancel finishes the transaction
 without emitting a packet. It is available in both kernel and userspace: worker
 control requests receive success; bypass control requests receive an authorization
@@ -71,14 +73,17 @@ same-domain cache contents may remain stale. Full cleanup belongs to ownership
 handoff. RPC codecs encode directly into reservations; the kernel copies between
 transport storage and owned skbs.
 
-Reply codecs may provide `response_capacity`, a non-mutating encoded-size or
-upper-bound callback. The runtime rejects bounds above the reply MTU before
-reserving and enforces the chosen capacity during serialization. The XDR adapter
-uses `xdr_sizeof`: the nullrpc/adder fixture has an 8-byte response and therefore
-uses inline TX, without a staging copy or overflow invalidation. Sizing runs in
-the marshal interval. Codecs without this callback retain the maximum-capacity
-reservation; C object size is not a safe encoded-size bound. Rebuild applications
-with the updated `rpc_ops_t` public structure when updating the runtime.
+Reply codecs default to overflow storage. A codec may set
+`rpc_codec_t.response_inline = true` when its encoded replies fit in 64 bytes;
+nullrpc/adder opts in because its reply is two XDR uint32s (8 bytes). Serialization
+receives the chosen capacity and must fail without writing past it. An oversized
+inline response is cancelled and reported as an RPC error, never silently moved
+or re-encoded into overflow. XDR performs only the encoding pass, with no
+`xdr_sizeof` traversal. Unknown or variable sizes can simply leave the flag false.
+Rebuild applications with the updated public codec and reservation interfaces.
+The pinned Dandelion Rust FFI includes `response_inline` and leaves it false for
+variable BSON replies. Its Nix build checks the codec/ops layout against the
+installed C headers as well as Rust compile-time layout assertions.
 
 The consumer ownership audit found no other retained RX-view copies in active
 platform consumers. Kernel bypass copies into an owned skb before core release;
@@ -89,8 +94,8 @@ objects. Its source does not retain a transport slice. Custom codecs must obey
 the same rule, now stated explicitly in `rpc.h`. Historical student runtime
 copies are separate implementations and were not changed.
 
-Transport version 3 places RX lengths or TX capacities up to 64 bytes in
-the current control line's payload half. Larger payloads occupy a contiguous
+Transport version 3 places RX payloads up to 64 bytes and explicitly inline TX
+payloads in the current control line's payload half. Other payloads occupy a contiguous
 region at direction-relative offset 0x100. TX records placement explicitly,
 so committing fewer bytes does not move the payload. Deploy matching hardware
 and generated headers. Application-facing UDP ownership is documented in the

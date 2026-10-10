@@ -65,7 +65,7 @@ static void execution_flush(void) {
     uint8_t command = worker_execution_take(w, false);
     if (!command) return;
     lauberhorn_pkt_desc_t desc = {.type = TY_EXECUTION_CONTROL, .execution = command};
-    if (!core_eci_tx_get_buffer(w->dp_base, &w->dp, 0) ||
+    if (!core_eci_tx_get_buffer(w->dp_base, &w->dp, true) ||
         core_eci_tx_commit(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
 }
 static void execution_begin(void) {

@@ -321,7 +321,7 @@ static netdev_tx_t netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	tx_len = skb->len;
 
 	void *base = mem_node1_off_to_virt(0);
-	void *payload = core_eci_tx_get_buffer(base, &priv->ctx, tx_len - ETH_HLEN);
+	void *payload = core_eci_tx_get_buffer(base, &priv->ctx, tx_len - ETH_HLEN <= 64);
 	if (!payload) {
 		dev->stats.tx_dropped++;
 		dev_kfree_skb(skb);
