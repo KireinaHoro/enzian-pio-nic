@@ -9,7 +9,7 @@ import spinal.lib._
 import scala.collection.mutable
 
 class NativeUdpSim extends NicSim {
-  testWithDB("native-udp-lengths-checksums-ownership-and-segmentation", timeout = 500000000)(Rx, Tx) { implicit dut =>
+  testWithDB("native-udp-lengths-checksums-ownership-and-segmentation", timeout = 1500000000)(Rx, Tx) { implicit dut =>
     val (csr, input, output, dcs) = commonDutSetup(1000)
     csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
     val proc = mkRandomProc(1)
@@ -41,6 +41,8 @@ class NativeUdpSim extends NicSim {
     val replies = mutable.ArrayBuffer[List[Byte]]()
     fork { while (true) replies += output.recv() }
     var expectedDrops = 0
+    var lastTraceId: Option[Int] = None
+    var sawTraceWrap = false
     def ipChecksum(bytes: List[Byte]): List[Byte] = {
       val clear = bytes.updated(24, 0.toByte).updated(25, 0.toByte)
       val sum = clear.slice(14, 34).grouped(2).map(w => ((w.head & 255) << 8) | (w(1) & 255)).sum
@@ -50,7 +52,7 @@ class NativeUdpSim extends NicSim {
     }
     for ((size, padding) <- Seq((0, false), (0, true), (1, true), (7, true),
         (16, true), (17, true), (18, true), (19, true), (21, true), (22, true),
-        (23, true), (63, true), (64, true), (65, true), (127, true), (128, true), (129, true), (1024, true), (1472, true))) {
+        (23, true), (63, true), (64, true), (65, true), (127, true), (128, true), (129, true), (1024, true), (1472, true)) ++ Seq.fill(66)((8, true))) {
       val bytes = List.tabulate(size)(i => (i * 7).toByte)
       val wire = packet(bytes).getBuilder.paddingAtBuild(padding).build().getRawData.toList
       // Corrupt UDP checksum, IP checksum, fragmentation and lengths. None may
@@ -79,6 +81,13 @@ class NativeUdpSim extends NicSim {
       val tid = worker.currThread.get.tid
       val (desc, payload) = tryReadPacketDesc(dcs, tid).result.get
       val udp = desc.asInstanceOf[RxNativeUdpSim]
+      assert((udp.traceRef & 0xffc0) == 0x8000)
+      val traceId = (udp.traceRef & 63).toInt
+      lastTraceId.foreach { previous =>
+        assert(traceId == ((previous + 1) & 63))
+        if (traceId < previous) sawTraceWrap = true
+      }
+      lastTraceId = Some(traceId)
       assert(udp.len == size && udp.endpoint == 42 && udp.sport == 32123 && udp.dport == 11211)
       assert(udp.saddr == BigInt(1, clientIp.getAddress) && udp.daddr == BigInt(1, serverIp.getAddress))
       if (size > 0) {
@@ -91,16 +100,21 @@ class NativeUdpSim extends NicSim {
         check(modified, readPayload(dcs, payload, size))
       }
       // A valid handle from another domain and an unknown handle must reject.
-      txSendSingle(dcs, TxNativeUdpSim(size, 43, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
+      txSendSingle(dcs, TxNativeUdpSim(size, 43, udp.saddr, udp.sport, 0xffff), bytes, tid, expectedStatus = 3)
       txSendSingle(dcs, TxNativeUdpSim(size, 99, udp.saddr, udp.sport), bytes, tid, expectedStatus = 3)
       if (size == 1472) txSendSingle(dcs, TxNativeUdpSim(1473, 42, udp.saddr, udp.sport), bytes :+ 0.toByte, tid, expectedStatus = 3)
       // Cancel a dirty full-size reservation through the runtime's local no-op.
       // The next inline response must not be overwritten by late dirty returns.
       txSendSingle(dcs, TxExecutionSim(0), Nil, tid, reservationCapacity = 1472, dirtyReservation = true)
       // Two replies from a single receive exercise stateless response ownership.
+      val traceCursor = activeTraceConsumer.get.cursor
       val before = replies.size
-      for (forceOverflow <- Seq(false, true)) txSendSingle(dcs, TxNativeUdpSim(size, 42, udp.saddr, udp.sport), bytes, tid, forceOverflow = forceOverflow, reservationCapacity = if (forceOverflow) 1472 else size, dirtyReservation = true)
+      for (forceOverflow <- Seq(false, true)) txSendSingle(dcs, TxNativeUdpSim(size, 42, udp.saddr, udp.sport, udp.traceRef), bytes, tid, forceOverflow = forceOverflow, reservationCapacity = if (forceOverflow) 1472 else size, dirtyReservation = true)
       waitUntil(replies.size == before + 2)
+      sleepCycles(4)
+      val linked = activeTraceConsumer.get.eventsSince(traceCursor)
+        .filter(_.eventName == "EciTxSubmit")
+      assert(linked.size == 2 && linked.forall(_.data("RelatedRxTrace") == udp.traceRef))
       for (raw <- replies.drop(before)) {
         // The CMAC appends FCS but does not pad undersized Ethernet frames.
         // STORED\r\n plus memcached framing is only 16 UDP payload bytes.
@@ -113,5 +127,6 @@ class NativeUdpSim extends NicSim {
         check(bytes, data)
       }
     }
+    assert(sawTraceWrap, "RX trace reference must survive counter wrap")
   }
 }

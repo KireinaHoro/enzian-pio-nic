@@ -98,6 +98,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   execution.payload := executionType ? savedControl(HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get + 1 downto HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()
   aliasedHostCtrl.assignFromBits(savedControl)
+  val relatedRx = out Bits(16 bits)
+  relatedRx := (aliasedHostCtrl.ty === HostReqType.nativeUdpTx) ? aliasedHostCtrl.data.nativeUdp.relatedRx | B(0, 16 bits)
   val payloadLines = out UInt(4 bits)
   val controlOnly = aliasedHostCtrl.ty === HostReqType.executionControl
   val neededLines = (aliasedHostCtrl.len.bits.resize(17) + 127) >> 7

@@ -14,6 +14,7 @@ case class RxWritebackFixture() extends Component {
   val invDone = in Bool()
   val quiescent = out Bool()
   val router = DcsRxAxiRouter(axi.config, axi.config.copy(addressWidth = 24))
+  router.rxTraceId := 0
   router.dcsAxi <> axi
   router.rxDesc.valid := False
   router.rxDesc.payload.assignFromBits(B(0, router.rxDesc.payload.getBitsWidth bits))

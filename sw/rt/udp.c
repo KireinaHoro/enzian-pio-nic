@@ -36,6 +36,7 @@ static int udp_wait(void) {
             server_trace_rx_begin(&w->rx_trace, w->worker_id);
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
+            w->rx_trace.timestamp_calls++;
             w->rx_trace.rx_exit_ns = server_trace_stamp(&w->rx_trace);
         } else {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
@@ -55,10 +56,12 @@ static int udp_wait(void) {
         w->udp_rx_view = (lauberhorn_udp_datagram_t){
             .endpoint = desc.udp.endpoint, .saddr = desc.udp.saddr,
             .daddr = desc.udp.daddr, .sport = desc.udp.sport, .dport = desc.udp.dport,
-            .data = w->dp.rx_view.data, .length = w->dp.rx_view.length
+            .data = w->dp.rx_view.data, .length = w->dp.rx_view.length,
+            .trace_ref = desc.udp.trace_ref
         };
         if (server_trace_enabled) {
             server_trace_inline = &w->rx_trace;
+            w->rx_trace.request_context = desc.udp.trace_ref;
             w->rx_trace.request_bytes = desc.payload_len;
             w->rx_trace.rx_cpu_id = sched_getcpu();
             server_trace_event(&w->rx_trace, LH_TRACE_RX_PACKET,
@@ -97,12 +100,19 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
         row->tx_worker_id = w->worker_id;
         row->tx_cpu_id = sched_getcpu();
         row->tx_enter_ns = server_trace_stamp(row);
-        server_trace_event(row, LH_TRACE_UDP_TX_BEGIN, length, dport);
+        server_trace_event(row, LH_TRACE_UDP_TX_BEGIN, length,
+            ((uint64_t)desc->udp.trace_ref << 16) | dport);
     }
-    int result = core_eci_tx_commit(w->dp_base, &w->dp, desc);
+    uint64_t doorbell = 0;
+    int result = server_trace_inline
+        ? core_eci_tx_commit_traced(w->dp_base, &w->dp, desc, &doorbell, server_trace_clock)
+        : core_eci_tx_commit(w->dp_base, &w->dp, desc);
     if (server_trace_inline) {
         struct server_trace_row *row = server_trace_inline;
         row->tx_exit_ns = server_trace_stamp(row);
+        row->tx_doorbell_ns = doorbell;
+        row->timestamp_calls++;
+        server_trace_event(row, LH_TRACE_UDP_TX_DOORBELL, doorbell, row->tx_exit_ns);
         row->transport_status = result;
         if (result == CORE_TX_ACCEPTED) row->response_bytes += length;
         row->ok &= result == CORE_TX_ACCEPTED;
@@ -112,7 +122,7 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
 }
 
 int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *ep, uint32_t daddr,
-                               uint16_t dport, lauberhorn_tx_buffer_t *buffer, size_t length) {
+                               uint16_t dport, lauberhorn_tx_buffer_t *buffer, size_t length, uint16_t related_rx) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !ep || ep->owner != w->ctx || !ep->handle || !dport ||
         !buffer || buffer->_worker != w || !w->dp.tx_reserved ||
@@ -123,7 +133,7 @@ int lauberhorn_udp_send_buffer(const lauberhorn_udp_endpoint_t *ep, uint32_t dad
         errno = EMSGSIZE; return -1;
     }
     lauberhorn_pkt_desc_t desc = {.type = TY_NATIVE_UDP_TX, .payload_len = length,
-        .udp = {.endpoint = ep->handle, .daddr = daddr, .dport = dport}};
+        .udp = {.endpoint = ep->handle, .daddr = daddr, .dport = dport, .trace_ref = related_rx}};
     int result = udp_commit(w, &desc);
     memset(buffer, 0, sizeof(*buffer));
     if (result == CORE_TX_ACCEPTED) return 0;

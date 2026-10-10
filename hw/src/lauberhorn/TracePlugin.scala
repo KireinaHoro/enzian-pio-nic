@@ -38,6 +38,8 @@ case object RpcID         extends TraceDataKey { def width = 6 }
 /** ID of a message to/from host.  May correspond to one or more RPC messages (RpcID),
   * or synthesized requests (e.g. ARP resolve request from the IP encoder). */
 case object HostMsgID     extends TraceDataKey { def width = 6 }
+/** Untrusted software annotation: valid bit 15, related RX HostMsgID bits 5:0. */
+case object RelatedRxTrace extends TraceDataKey { def width = 16 }
 case object ThreadID      extends TraceDataKey { def width = log2Up(Global.NUM_THREADS.get) }
 case object ProcessID     extends TraceDataKey { def width = Global.PID_WIDTH.get }
 case object CoreID        extends TraceDataKey { def width = log2Up(Global.MAX_CORE_ID.get + 1) }

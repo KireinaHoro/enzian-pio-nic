@@ -22,7 +22,7 @@ case class EciHostTxCtrlInfo() extends Bundle {
       val endpoint = Bits(32 bits)
       val daddr = Bits(32 bits)
       val dport = Bits(16 bits)
-      val reserved = Bits(16 bits)
+      val relatedRx = Bits(16 bits)
     }
     val nativeUdp = newElement(NativeUdpBundle())
     case class BypassBundle() extends Bundle {
@@ -131,7 +131,7 @@ object EciHostTxCtrlInfo {
          |  endpoint 32 "Kernel endpoint handle";
          |  daddr 32 "Destination IPv4 address, host order";
          |  dport 16 "Destination UDP port, host order";
-         |  _ 16 rsvd;
+         |  related_rx 16 "Trace only: echoed RX trace_ref, zero if unrelated";
          |};
          |
          |datatype host_ctrl_info_bypass_tx lsbfirst(64) "ECI Host Control Info (Bypass TX)" {

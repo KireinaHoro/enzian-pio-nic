@@ -17,6 +17,10 @@
 #error "ECI runtime requires TX transaction version 3 headers"
 #endif
 
+#if !defined(LAUBERHORN_ECI_UDP_TRACE_VERSION) || LAUBERHORN_ECI_UDP_TRACE_VERSION != 1
+#error "ECI runtime requires UDP trace metadata version 1 headers"
+#endif
+
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)
 
@@ -40,7 +44,7 @@ typedef struct {
   uint8_t execution; /* local interval end=1, begin=2, combined=3 */
   // transaction metadata (packet header, RPC session data, etc.)
   union {
-    struct { uint32_t endpoint, saddr, daddr; uint16_t sport, dport; } udp;
+    struct { uint32_t endpoint, saddr, daddr; uint16_t sport, dport, trace_ref; } udp;
     struct {
       enum {
         HDR_ERROR,
@@ -242,6 +246,7 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
 #else // ! __KERNEL__
     case lauberhorn_eci_native_udp_rx:
       desc->type = TY_NATIVE_UDP_RX;
+      desc->udp.trace_ref = lauberhorn_eci_host_ctrl_info_native_udp_rx_trace_ref_extract(rx_ctrl);
       desc->udp.endpoint = lauberhorn_eci_host_ctrl_info_native_udp_rx_endpoint_extract(rx_ctrl);
       desc->udp.saddr = lauberhorn_eci_host_ctrl_info_native_udp_rx_saddr_extract(rx_ctrl);
       desc->udp.daddr = lauberhorn_eci_host_ctrl_info_native_udp_rx_daddr_extract(rx_ctrl);
@@ -421,6 +426,7 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void 
     lauberhorn_eci_host_ctrl_info_native_udp_tx_endpoint_insert(tx_ctrl, desc->udp.endpoint);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_daddr_insert(tx_ctrl, desc->udp.daddr);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_dport_insert(tx_ctrl, desc->udp.dport);
+    lauberhorn_eci_host_ctrl_info_native_udp_tx_related_rx_insert(tx_ctrl, desc->udp.trace_ref);
     break;
 
   case TY_ONCRPC_REPLY_TX:

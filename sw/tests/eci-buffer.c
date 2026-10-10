@@ -22,11 +22,12 @@ int main(void) {
             lauberhorn_eci_host_ctrl_info_native_udp_rx_ty_insert(ctrl,lauberhorn_eci_native_udp_rx);
             lauberhorn_eci_host_ctrl_info_native_udp_rx_len_insert(ctrl,length);
             lauberhorn_eci_host_ctrl_info_native_udp_rx_endpoint_insert(ctrl,17);
+            lauberhorn_eci_host_ctrl_info_native_udp_rx_trace_ref_insert(ctrl,0x803f);
             unsigned char *data=length<=64?ctrl+64:base+LAUBERHORN_ECI_RX_BASE+256;
             for(size_t j=0;j<length;j++) data[j]=(unsigned char)j;
             lauberhorn_pkt_desc_t desc;
             assert(core_eci_rx_acquire(base,&state,&desc));
-            assert(desc.payload_len==length && desc.udp.endpoint==17);
+            assert(desc.payload_len==length && desc.udp.endpoint==17 && desc.udp.trace_ref==0x803f);
             assert(state.rx_view.data==data && state.rx_view.length==length);
             assert(state.rx_view.pending && rx==!parity);
             assert(!core_eci_rx_acquire(base,&state,&desc) && rx==!parity);
@@ -56,7 +57,7 @@ int main(void) {
                 assert(!core_eci_tx_get_buffer(base,&state,inline_payload));
                 memset(data,0x73,capacity);
                 lauberhorn_pkt_desc_t desc={.type=TY_NATIVE_UDP_TX,
-                    .payload_len=length,.udp={.endpoint=17,.dport=11211}};
+                    .payload_len=length,.udp={.endpoint=17,.dport=11211,.trace_ref=0x803f}};
                 uint64_t stamp = 0;
                 unsigned before = probes;
                 assert(core_eci_tx_commit_traced(base,&state,&desc,&stamp,before_doorbell)==CORE_TX_ACCEPTED);
@@ -64,6 +65,7 @@ int main(void) {
                 assert(!state.tx_reserved && tx==!parity);
                 assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(ctrl)==inline_payload);
                 assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_len_extract(ctrl)==length);
+                assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_related_rx_extract(ctrl)==0x803f);
             }
         }
     }

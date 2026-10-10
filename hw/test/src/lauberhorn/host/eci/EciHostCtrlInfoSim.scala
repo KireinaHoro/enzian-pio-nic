@@ -56,7 +56,7 @@ object EciHostCtrlInfoSim {
           dp.pop(64),
           token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
-      case 8 => RxNativeUdpSim(len.toInt, dp.pop(32, skip = 11), dp.pop(32), dp.pop(32), dp.pop(16), dp.pop(16))
+      case 8 => RxNativeUdpSim(len.toInt, dp.pop(32, skip = 11), dp.pop(32), dp.pop(32), dp.pop(16), dp.pop(16), dp.pop(16))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
         val status = dp.pop(8, skip = 3).toInt
@@ -189,12 +189,12 @@ case class TxExecutionSim(command: Int) extends EciHostCtrlInfoSim {
 }
 
 case class RxNativeUdpSim(len: Int, endpoint: BigInt, saddr: BigInt, daddr: BigInt,
-    sport: BigInt, dport: BigInt) extends EciHostCtrlInfoSim {
+    sport: BigInt, dport: BigInt, traceRef: BigInt = 0) extends EciHostCtrlInfoSim {
   def ty = 8
   def encode: BigInt = throw new UnsupportedOperationException("RX only")
 }
-case class TxNativeUdpSim(len: Int, endpoint: BigInt, daddr: BigInt, dport: BigInt) extends EciHostCtrlInfoSim {
+case class TxNativeUdpSim(len: Int, endpoint: BigInt, daddr: BigInt, dport: BigInt, relatedRx: BigInt = 0) extends EciHostCtrlInfoSim {
   def ty = 9
   def encode: BigInt = (new BigIntBuilder).push(32, endpoint, skip = 12)
-    .push(32, daddr).push(16, dport).toBigInt
+    .push(32, daddr).push(16, dport).push(16, relatedRx).toBigInt
 }

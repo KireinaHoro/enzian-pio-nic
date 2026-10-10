@@ -20,6 +20,8 @@ enum lauberhorn_trace_event {
     LH_TRACE_COMPOSITION_DONE,
     LH_TRACE_CHILD_RETRY,
     LH_TRACE_UDP_TX_BEGIN = 200, LH_TRACE_UDP_TX_END,
+    LH_TRACE_UDP_TX_DOORBELL, /* arg0: CPU timestamp before commit read; arg1: immediate return timestamp */
+    LH_TRACE_UDP_TX_PREPARE, /* application: length and protocol framing before reservation/copy */
 };
 bool lauberhorn_trace_events_enabled(void);
 uint64_t lauberhorn_trace_new_id(void);

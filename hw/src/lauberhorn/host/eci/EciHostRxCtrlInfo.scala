@@ -37,6 +37,8 @@ case class EciHostRxCtrlInfo() extends Bundle {
       val daddr = Bits(32 bits)
       val sport = Bits(16 bits)
       val dport = Bits(16 bits)
+      val traceRef = Bits(16 bits)
+      val tracePadding = Bits(80 bits)
     }
     val nativeUdp = newElement(NativeUdpBundle())
     case class BypassBundle() extends Bundle {
@@ -105,6 +107,8 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  daddr 32 "Local IPv4 address, host order";
          |  sport 16 "Source UDP port, host order";
          |  dport 16 "Local UDP port, host order";
+         |  trace_ref 16 "Trace only: valid bit 15, RX HostMsgID bits 5:0";
+         |  _ 80 rsvd;
          |};
          |
          |datatype host_rx_status lsbfirst(64) "ECI RX status when valid is zero" {
@@ -203,13 +207,15 @@ object EciHostRxCtrlInfo {
   }
 
   /** Convert a [[HostReq]] from the decoder pipeline into a [[EciHostRxCtrlInfo]] to send to a CPU core */
-  def packFrom(desc: HostReq) = new Area {
+  def packFrom(desc: HostReq, traceId: UInt) = new Area {
     val ret = EciHostRxCtrlInfo()
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
       is (HostReqType.nativeUdpRx) {
         ret.data.nativeUdp.padding := 0
+        ret.data.nativeUdp.tracePadding := 0
+        ret.data.nativeUdp.traceRef := B(0x8000, 16 bits) | traceId.resize(16).asBits
         ret.data.nativeUdp.endpoint := desc.data.nativeUdp.endpoint
         ret.data.nativeUdp.saddr := EndiannessSwap(desc.data.nativeUdp.saddr)
         ret.data.nativeUdp.daddr := EndiannessSwap(desc.data.nativeUdp.daddr)

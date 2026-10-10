@@ -122,6 +122,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxRouter.rxDesc.translateFrom(hostRx) { case (rxDesc, hostReq) =>
       rxDesc := hostReq.req
     }
+    rxRouter.rxTraceId := hostRx.hostMsgId
     rxRouter.cancelRxDesc := (if(coreID == 0) False else host[Scheduler].logic.coreCancel(coreID - 1))
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
@@ -142,6 +143,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.txResult := hostTxResult
     logic.execution := txRouter.execution
     logic.executionOnly := txRouter.executionOnly
+    logic.txRelatedRx := txRouter.relatedRx
     txRouter.currCl := logic.txCurrClIdx.asUInt
     txRouter.txAddr := logic.savedTxAddr.addr
     txRouter.invDone := logic.txInvDone
@@ -196,6 +198,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ECI_RX_BASE.set(EciAddressMap.rx_control)
     ECI_TX_BASE.set(EciAddressMap.tx_control)
     ECI_PAYLOAD_LAYOUT_VERSION.set(3)
+    ECI_UDP_TRACE_VERSION.set(1)
     ECI_OVERFLOW_OFFSET.set(0x100)
     ECI_NUM_OVERFLOW_CL.set(numOverflowCls)
 
@@ -424,6 +427,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     }
     val savedTxAddr = hostTx.asFlow.toReg()
     val txPayloadLines = UInt(4 bits)
+    val txRelatedRx = Bits(16 bits)
     val abandonTx = RegInit(False)
     val txFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -527,7 +531,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
           when (hostTxAck.fire) {
             txCurrClIdx.toggleWhen(True)
             txTp.trace("EciTxSubmit", (txClTd ++ Seq(
-              ExecutionCommand(execution.payload))): _*)
+              ExecutionCommand(execution.payload), RelatedRxTrace(txRelatedRx))): _*)
             txHostMsgId := invalidTraceId(HostMsgID.width)
             goto(idle)
           }
