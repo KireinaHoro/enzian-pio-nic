@@ -889,6 +889,16 @@ job finishes. Hardware results, timing and matched Enzian trials remain pending;
 memcached is omitted, not passing. API status and preparation manifest are saved
 under `out/contiguous-transport/518689-preflight/`.
 
+At the scheduled results check on October 10 at 15:09 CEST, the same SHA and
+job IDs remained current: all thirteen gates and preparation passed, hardware
+2884502 was still running, and report 2884503 remained created, with no retries.
+Read-only API snapshots are saved under
+`out/contiguous-transport/518689-results/{pipeline,jobs}.json`.
+The 30-minute `results-recheck` timer is armed for **15:40 CEST**, in the same
+thread. No duplicate build or board test was started and no board state changed.
+Hardware artifacts, timing results and matched RPC/memcached board acceptance
+remain pending; retain the pipeline branch and do not poll before that recheck.
+
 The previously running local fast ECI suite also completed: 55 tests passed,
 20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
 Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
