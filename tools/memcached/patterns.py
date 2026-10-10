@@ -21,6 +21,8 @@ def schedule(ports, repeats):
     for repeat in range(repeats):
         for port in ports:
             yield repeat, 'single', [port]
+        if len(ports) == 1:
+            continue
         for index, port in enumerate(ports):
             yield repeat, 'pair', [port, ports[(index+1) % len(ports)]]
         yield repeat, 'all', ports
@@ -59,7 +61,7 @@ def run(host, ports, output, count=256, window=16, repeats=3, idle=0.1, timeout=
         result['origin_monotonic_ns'] = origin
         with (output/'requests.csv').open('w', newline='') as raw:
             writer = csv.DictWriter(raw, fieldnames=['phase','repeat','pattern','port','index','request_id',
-                'class','operation','sent_ns','received_ns','rtt_us','status'])
+                'class','operation','source_ip','source_port','sent_ns','received_ns','rtt_us','status'])
             writer.writeheader()
             for phase_id, (repeat, pattern, active) in enumerate(schedule(ports, repeats)):
                 time.sleep(idle)
@@ -88,6 +90,7 @@ def run(host, ports, output, count=256, window=16, repeats=3, idle=0.1, timeout=
                                 sockets[port].send(payload)
                             row = dict(phase=phase_id,repeat=repeat,pattern=pattern,port=port,index=index,
                                 request_id=rid,operation='SET' if is_set else 'GET',sent_ns=stamp,
+                                source_ip=sockets[port].getsockname()[0],source_port=sockets[port].getsockname()[1],
                                 received_ns='',rtt_us='',status='pending')
                             row['class'] = 'entry' if index < window else 'sustained'
                             if batch:
