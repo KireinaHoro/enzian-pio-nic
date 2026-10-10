@@ -1,0 +1,427 @@
+{
+  "request_id": 25,
+  "events": [
+    {
+      "time_ns": 755882733090,
+      "delta_ns": 205.0,
+      "event": "SchedulerRequestDispatched",
+      "data": {
+        "HostMsgID": 11,
+        "ProcessID": 1659,
+        "CoreID": 1
+      }
+    },
+    {
+      "time_ns": 755882733100,
+      "delta_ns": 215.0,
+      "event": "EciRxDescSent",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 11,
+        "OverflowCount": 0
+      }
+    },
+    {
+      "time_ns": 755882733240,
+      "delta_ns": 355.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2163328,
+        "state": "s1__3",
+        "action": "SEND_RA3",
+        "request": "RDDA",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 0,
+        "port": "appDcsTraceIn_0",
+        "pipeline_stages": 0,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "even",
+        "local_source": 0
+      }
+    },
+    {
+      "time_ns": 755882733375,
+      "delta_ns": 490.0,
+      "source": null,
+      "address": 2098048,
+      "data": {
+        "time": 755882733375,
+        "opcode_name": "ECI_CMD_MRSP_PEMD",
+        "dmask": 15,
+        "source": 34,
+        "channel": "rsp_wd_o",
+        "raw_header": "0x5007c00000210280"
+      }
+    },
+    {
+      "time_ns": 755882733385,
+      "delta_ns": 500.0,
+      "source": null,
+      "address": 2098048,
+      "data": {
+        "time": 755882733385,
+        "opcode_name": "opcode_10",
+        "dmask": 15,
+        "source": 49,
+        "channel": "link1_out_hi",
+        "raw_header": "0x5007c00000210280"
+      }
+    },
+    {
+      "time_ns": 755882733395,
+      "delta_ns": 510.0,
+      "source": null,
+      "address": 2098048,
+      "data": {
+        "time": 755882733395,
+        "opcode_name": "opcode_10",
+        "dmask": 15,
+        "source": 49,
+        "channel": "link1_out_hi",
+        "raw_header": "0x5007c00000210280"
+      }
+    },
+    {
+      "time_ns": 755882735250,
+      "delta_ns": 2365.0,
+      "source": null,
+      "address": 2102016,
+      "data": {
+        "time": 755882735250,
+        "opcode_name": "ECI_CMD_MREQ_RLDD",
+        "dmask": 15,
+        "source": 30,
+        "channel": "req_wod_i",
+        "raw_header": "0x0043e00000211680"
+      }
+    },
+    {
+      "time_ns": 755882735375,
+      "delta_ns": 2490.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2168448,
+        "state": "s1__3pRA3",
+        "action": "RDD",
+        "request": "R12",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 1,
+        "port": "appDcsTraceIn_1",
+        "pipeline_stages": 0,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "even",
+        "local_source": 1
+      }
+    },
+    {
+      "time_ns": 755882735455,
+      "delta_ns": 2570.0,
+      "event": "EciTxCommitRead",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "CacheLineIndex": 1
+      }
+    },
+    {
+      "time_ns": 755882735465,
+      "delta_ns": 2580.0,
+      "event": "EciTxCtrlInvalidate",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "CacheLineIndex": 1
+      }
+    },
+    {
+      "time_ns": 755882735465,
+      "delta_ns": 2580.0,
+      "event": "EciLclLciFire",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "LclAddress": 4992
+      }
+    },
+    {
+      "time_ns": 755882735610,
+      "delta_ns": 2725.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2168320,
+        "state": "s1pCI__1_A31d",
+        "action": "SEND_F31",
+        "request": "LCI",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 3,
+        "port": "appDcsTraceIn_3",
+        "pipeline_stages": 10,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "odd",
+        "local_source": 1
+      }
+    },
+    {
+      "time_ns": 755882735710,
+      "delta_ns": 2825.0,
+      "source": null,
+      "address": 2102144,
+      "data": {
+        "time": 755882735710,
+        "opcode_name": "ECI_CMD_MFWD_FLDX_EH",
+        "dmask": 15,
+        "source": 41,
+        "channel": "fwd_wod_o",
+        "raw_header": "0x48b3e40000211600"
+      }
+    },
+    {
+      "time_ns": 755882735735,
+      "delta_ns": 2850.0,
+      "source": null,
+      "address": 2102144,
+      "data": {
+        "time": 755882735735,
+        "opcode_name": "opcode_9",
+        "dmask": 15,
+        "source": 48,
+        "channel": "link1_out_lo",
+        "raw_header": "0x48b3e40000211600"
+      }
+    },
+    {
+      "time_ns": 755882735955,
+      "delta_ns": 3070.0,
+      "source": null,
+      "address": 2102144,
+      "data": {
+        "time": 755882735955,
+        "opcode_name": "ECI_CMD_MRSP_HAKD",
+        "dmask": 15,
+        "source": 38,
+        "channel": "rsp_wd_i",
+        "raw_header": "0x20b3e00000211600"
+      }
+    },
+    {
+      "time_ns": 755882736115,
+      "delta_ns": 3230.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2168320,
+        "state": "s1pCI__1_WDDA",
+        "action": "WDD",
+        "request": "A31d",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 3,
+        "port": "appDcsTraceIn_3",
+        "pipeline_stages": 10,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "odd",
+        "local_source": 1
+      }
+    },
+    {
+      "time_ns": 755882736370,
+      "delta_ns": 3485.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2168320,
+        "state": "s1__1",
+        "action": "SEND_LCIA",
+        "request": "WDDA",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 3,
+        "port": "appDcsTraceIn_3",
+        "pipeline_stages": 10,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "odd",
+        "local_source": 1
+      }
+    },
+    {
+      "time_ns": 755882736415,
+      "delta_ns": 3530.0,
+      "event": "EciTxCtrlInvalidated",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "CacheLineIndex": 1
+      }
+    },
+    {
+      "time_ns": 755882736415,
+      "delta_ns": 3530.0,
+      "event": "EciLclLciaFire",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "LclAddress": 4992
+      }
+    },
+    {
+      "time_ns": 755882736430,
+      "delta_ns": 3545.0,
+      "event": "TxHostReqAccepted",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "HostReqTy": 4,
+        "PacketDescTy": 4,
+        "LogicalLength": 8,
+        "DmaLength": 0
+      }
+    },
+    {
+      "time_ns": 755882736430,
+      "delta_ns": 3545.0,
+      "event": "EciTxSubmit",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5,
+        "CacheLineIndex": 1,
+        "ExecutionCommand": 0
+      }
+    },
+    {
+      "time_ns": 755882736445,
+      "delta_ns": 3560.0,
+      "event": "EciTxAcquire",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 6,
+        "CacheLineIndex": 0
+      }
+    },
+    {
+      "time_ns": 755882736455,
+      "delta_ns": 3570.0,
+      "event": "TxNoDmaRead",
+      "data": {
+        "CoreID": 1,
+        "HostMsgID": 5
+      }
+    },
+    {
+      "time_ns": 755882736455,
+      "delta_ns": 3570.0,
+      "event": "UdpEncoder",
+      "data": {
+        "PacketID": 56,
+        "RpcID": 56
+      }
+    },
+    {
+      "time_ns": 755882736480,
+      "delta_ns": 3595.0,
+      "event": "IpEncoder",
+      "data": {
+        "PacketID": 56
+      }
+    },
+    {
+      "time_ns": 755882736490,
+      "delta_ns": 3605.0,
+      "event": "EthernetEncoder",
+      "data": {
+        "PacketID": 56
+      }
+    },
+    {
+      "time_ns": 755882736550,
+      "delta_ns": 3665.0,
+      "event": "TxBeforeCdcQueue",
+      "data": {}
+    },
+    {
+      "time_ns": 755882736585,
+      "delta_ns": 3700.0,
+      "event": "TxCmacExit",
+      "data": {}
+    },
+    {
+      "time_ns": 755882736620,
+      "delta_ns": 3735.0,
+      "event": "DCS",
+      "data": {
+        "error": 0,
+        "cli": 2168448,
+        "state": "s1__3",
+        "action": "SEND_RA3",
+        "request": "RDDA",
+        "error_code": "ERR_NO_ERROR"
+      },
+      "source": {
+        "source": 1,
+        "port": "appDcsTraceIn_1",
+        "pipeline_stages": 0,
+        "type": "dcs_event",
+        "clock_domain": "app",
+        "dcs": "even",
+        "local_source": 1
+      }
+    },
+    {
+      "time_ns": 755882736755,
+      "delta_ns": 3870.0,
+      "source": null,
+      "address": 2102016,
+      "data": {
+        "time": 755882736755,
+        "opcode_name": "ECI_CMD_MRSP_PEMD",
+        "dmask": 15,
+        "source": 34,
+        "channel": "rsp_wd_o",
+        "raw_header": "0x5043c00000211680"
+      }
+    },
+    {
+      "time_ns": 755882736765,
+      "delta_ns": 3880.0,
+      "source": null,
+      "address": 2102016,
+      "data": {
+        "time": 755882736765,
+        "opcode_name": "opcode_10",
+        "dmask": 15,
+        "source": 49,
+        "channel": "link1_out_hi",
+        "raw_header": "0x5043c00000211680"
+      }
+    },
+    {
+      "time_ns": 755882736775,
+      "delta_ns": 3890.0,
+      "source": null,
+      "address": 2102016,
+      "data": {
+        "time": 755882736775,
+        "opcode_name": "opcode_10",
+        "dmask": 15,
+        "source": 49,
+        "channel": "link1_out_hi",
+        "raw_header": "0x5043c00000211680"
+      }
+    }
+  ]
+}

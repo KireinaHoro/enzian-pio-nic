@@ -1,0 +1,329 @@
+{
+  "old": {
+    "provenance": {
+      "client_csv": "out/baseline-latency-516232/bufhotoff1.csv",
+      "server_csv": "out/baseline-latency-516232/bufhotoff1-server.csv",
+      "analyzer_sha256": "a634db2e65eae599003918e168a4eccf1533367ec12cffb96f420f4eea52bec8",
+      "client_sha256": "89eb6cd0517369e92f7bc1a85d85c0f0b001923bf941a0cfff33daf753ec8bcc",
+      "server_sha256": "9404f43df9411aa4f4166f789c158c0f1b0fdc39bd8c31c470cff652e54acd76",
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      },
+      "trace_dump": "out/baseline-latency-516232/bufhotoff1-dump/trace/trace-dram.bin",
+      "trace_map": "out/ci-followup/516232/hardware/lauberhorn_trace_dma_map.json",
+      "trace_dump_sha256": "a755deb06e88889b64cbbc1b45e97431647e17d04d46ee919c1f3c3f3bda0477",
+      "trace_cycle_ns": 5,
+      "trace_process_id": 1659,
+      "combine_rpc_ingress": true,
+      "trace_map_sha256": "2620606221608963c48483588cc7de15618e9b556c79cb563c0137bbbeb1e49c",
+      "allow_partial_trace": false,
+      "rx_trace_invalid_host_id": 63
+    },
+    "anchor_sha256": "ccc40f91528564416ec138cf5f17a3aaa80acf711e50437b26b9cc9cf212f2b3",
+    "segments_ns": {
+      "mac_to_descriptor": {
+        "count": 1000,
+        "min": 200.0,
+        "median": 215.0,
+        "mean": 214.195,
+        "max": 260.0
+      },
+      "descriptor_to_dcs_response": {
+        "count": 1000,
+        "min": 240,
+        "median": 275.0,
+        "mean": 277.87,
+        "max": 320
+      },
+      "dcs_rx_response_to_tx_request": {
+        "count": 1000,
+        "min": 1835,
+        "median": 1880.0,
+        "mean": 1883.205,
+        "max": 2015
+      },
+      "dcs_tx_request_to_commit": {
+        "count": 1000,
+        "min": 180,
+        "median": 205.0,
+        "mean": 207.26,
+        "max": 240
+      },
+      "commit_to_invalidation_done": {
+        "count": 1000,
+        "min": 915.0,
+        "median": 950.0,
+        "mean": 950.49,
+        "max": 1005.0
+      },
+      "invalidation_done_to_submit": {
+        "count": 1000,
+        "min": 15.0,
+        "median": 15.0,
+        "mean": 15.25,
+        "max": 45.0
+      },
+      "submit_to_mac": {
+        "count": 1000,
+        "min": 130.0,
+        "median": 155.0,
+        "mean": 154.185,
+        "max": 210.0
+      }
+    },
+    "nested_ns": {
+      "forward_to_ack": {
+        "count": 1000,
+        "min": 185,
+        "median": 245.0,
+        "mean": 243.72,
+        "max": 295
+      },
+      "commit_to_forward": {
+        "count": 1000,
+        "min": 215,
+        "median": 250.0,
+        "mean": 248.735,
+        "max": 310
+      },
+      "ack_to_invalidation_done": {
+        "count": 1000,
+        "min": 415.0,
+        "median": 460.0,
+        "mean": 458.035,
+        "max": 505.0
+      },
+      "commit_to_dcs_response": {
+        "count": 1000,
+        "min": 1265,
+        "median": 1295.0,
+        "mean": 1294.17,
+        "max": 1345
+      }
+    },
+    "mac_ns": {
+      "count": 1000,
+      "min": 3680.0,
+      "median": 3700.0,
+      "mean": 3702.455,
+      "max": 3850.0
+    },
+    "app_boundaries_ns": {
+      "descriptor_to_app_response": {
+        "median": 175.0,
+        "mean": 174.685,
+        "min": 130,
+        "max": 200
+      },
+      "app_to_sys_rx_response": {
+        "median": 105.0,
+        "mean": 103.185,
+        "min": 70,
+        "max": 135
+      },
+      "sys_to_app_tx_request": {
+        "median": 40.0,
+        "mean": 39.71,
+        "min": 10,
+        "max": 80
+      },
+      "app_tx_request_to_commit": {
+        "median": 170.0,
+        "mean": 167.55,
+        "min": 135,
+        "max": 195
+      },
+      "app_to_sys_tx_response": {
+        "median": 100.0,
+        "mean": 103.375,
+        "min": 45,
+        "max": 135
+      }
+    }
+  },
+  "new": {
+    "provenance": {
+      "client_csv": "out/nullrpc-inline/hot-off2.csv",
+      "server_csv": "out/nullrpc-inline/hot-off2-server.csv",
+      "analyzer_sha256": "c2f8a859ff04ddfa63b656a4577f3e5c07ad8f08bc75dae2398456ad0257e920",
+      "client_sha256": "9f7867a6c84592f215f06d85f6ab2b4a1978ea280fb0c1d2edd9152098e7bf89",
+      "server_sha256": "a2d958001afd5dc6211b88ce9770a35654b1a661fa57fffcc0ba6064ad693c7c",
+      "excluded_warmup": {
+        "count": 16,
+        "incomplete_request_ids": []
+      },
+      "trace_dump": "out/nullrpc-inline/hot-off2-dump/trace/trace-dram.bin",
+      "trace_map": "out/contiguous-transport/hw-2884502/lauberhorn_trace_dma_map.json",
+      "trace_dump_sha256": "1094ec5c1a28c39ae3bf20602ce9fd147bed775f9b030d2609b7c9f7528d6141",
+      "trace_cycle_ns": 5,
+      "trace_process_id": 1668,
+      "combine_rpc_ingress": true,
+      "trace_map_sha256": "c665a6020d1b3d3f6972a2d57b9be6d2909b774cf652bbf447d2347c1683ccf7",
+      "allow_partial_trace": false,
+      "rx_trace_invalid_host_id": 63,
+      "transport_anchors": "out/nullrpc-inline/hot-off2-anchors.json",
+      "transport_anchors_sha256": "ea4dd84b85d69d303e0c5f98167989774d0ebaba66c150d6b295b185009c86d3"
+    },
+    "anchor_sha256": "e6680e24cae75afea28bb9e3a2ebcf655809411ab0795dceec4f026e74ee70a8",
+    "segments_ns": {
+      "mac_to_descriptor": {
+        "count": 1000,
+        "min": 200.0,
+        "median": 215.0,
+        "mean": 213.175,
+        "max": 250.0
+      },
+      "descriptor_to_dcs_response": {
+        "count": 1000,
+        "min": 250,
+        "median": 290.0,
+        "mean": 288.32,
+        "max": 305
+      },
+      "dcs_rx_response_to_tx_request": {
+        "count": 1000,
+        "min": 2260,
+        "median": 2285.0,
+        "mean": 2285.05,
+        "max": 2340
+      },
+      "dcs_tx_request_to_commit": {
+        "count": 1000,
+        "min": 185,
+        "median": 215.0,
+        "mean": 217.29,
+        "max": 235
+      },
+      "commit_to_invalidation_done": {
+        "count": 1000,
+        "min": 940.0,
+        "median": 955.0,
+        "mean": 955.24,
+        "max": 995.0
+      },
+      "invalidation_done_to_submit": {
+        "count": 1000,
+        "min": 30.0,
+        "median": 45.0,
+        "mean": 45.09,
+        "max": 75.0
+      },
+      "submit_to_mac": {
+        "count": 1000,
+        "min": 135.0,
+        "median": 165.0,
+        "mean": 163.12,
+        "max": 185.0
+      }
+    },
+    "nested_ns": {
+      "forward_to_ack": {
+        "count": 1000,
+        "min": 220,
+        "median": 245.0,
+        "mean": 242.745,
+        "max": 275
+      },
+      "commit_to_forward": {
+        "count": 1000,
+        "min": 225,
+        "median": 245.0,
+        "mean": 244.56,
+        "max": 265
+      },
+      "ack_to_invalidation_done": {
+        "count": 1000,
+        "min": 450.0,
+        "median": 470.0,
+        "mean": 467.935,
+        "max": 505.0
+      },
+      "commit_to_dcs_response": {
+        "count": 1000,
+        "min": 1300,
+        "median": 1320.0,
+        "mean": 1318.965,
+        "max": 1350
+      }
+    },
+    "mac_ns": {
+      "count": 1000,
+      "min": 4135.0,
+      "median": 4165.0,
+      "mean": 4167.285,
+      "max": 4220.0
+    },
+    "app_boundaries_ns": {
+      "descriptor_to_app_response": {
+        "median": 190.0,
+        "mean": 189.495,
+        "min": 150,
+        "max": 205
+      },
+      "app_to_sys_rx_response": {
+        "median": 100.0,
+        "mean": 98.825,
+        "min": 85,
+        "max": 130
+      },
+      "sys_to_app_tx_request": {
+        "median": 40.0,
+        "mean": 39.83,
+        "min": 20,
+        "max": 60
+      },
+      "app_tx_request_to_commit": {
+        "median": 177.5,
+        "mean": 177.46,
+        "min": 150,
+        "max": 200
+      },
+      "app_to_sys_tx_response": {
+        "median": 100.0,
+        "mean": 97.105,
+        "min": 65,
+        "max": 120
+      }
+    }
+  },
+  "delta_mean_ns": {
+    "mac_to_descriptor": -1.0199999999999818,
+    "descriptor_to_dcs_response": 10.449999999999989,
+    "dcs_rx_response_to_tx_request": 401.84500000000025,
+    "dcs_tx_request_to_commit": 10.030000000000001,
+    "commit_to_invalidation_done": 4.75,
+    "invalidation_done_to_submit": 29.840000000000003,
+    "submit_to_mac": 8.935000000000002
+  },
+  "delta_mac_mean_ns": 464.8299999999999,
+  "delta_outside_host_turnaround_mean_ns": 62.985000000000014,
+  "method": "1000 kernel-off hot requests per revision; matched DCS sys/app control events and Lauberhorn events; all intervals in source-delay-corrected FPGA trace time; no CPU clock fit. Every request conserves MAC-to-MAC time. Means add, independently computed medians need not.",
+  "hardware_revisions": {
+    "old": "6f5fa076",
+    "new": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4"
+  },
+  "scope": "Reanalysis of preserved captures; no new board run, hardware modification or timing work.",
+  "findings": [
+    "RX contiguous prefix assembly adds two FSM states on the metadata-only short RPC path; descriptor-to-app-response median increases 15 ns, descriptor-to-sys-response mean increases 10.45 ns.",
+    "Inline TX restore waits for packet RAM write response before descriptor submission: invalidation completion to submission grows 15 to 45 ns median.",
+    "Old 8-byte RPC reply has DmaLength=0 and TxNoDmaRead; current reply has DmaLength=8 and TxAfterDmaRead. Net submit-to-MAC grows 155 to 165 ns median; overlapping encoder stages must not be summed as an independent DMA duration.",
+    "DCS TX ingress grows 205 to 215 ns median. In the representative pair, R12/s1__3pRA3/RDD is identical, sys request to DCS RDD is 125 ns in both, and RDD-to-commit is 80 vs 90 ns. The endpoint read FSM and interface routing source have no corresponding added state; the remaining two-cycle cause is not proven by these trace points.",
+    "Control forward/ack median remains 245 ns. No extra control/overflow transaction occurs between RX response and TX request in the representative pair. The 401.845 ns mean growth in that interval is host/link turnaround, not evidence of a 402 ns FPGA processing regression."
+  ],
+  "limitations": [
+    "Separate historical cohorts and boots, not a controlled same-software bitstream A/B.",
+    "5 ns trace quantization and app/sys crossing observation uncertainty apply; source pipeline delays are corrected with each matching map.",
+    "Control invalidation interval includes coherent CPU response, not exclusively FPGA combinational logic.",
+    "No CPU-only or pure-wire attribution of the host-turnaround delta; old CPU epoch fit is not used.",
+    "No claimed exact RTL root cause for the small DCS RDD-to-commit increase.",
+    "No new timing-closure claim."
+  ],
+  "artifacts": {
+    "out/nullrpc-hw-regression/comparison.json": "bb86e91492a0f478ae7438a1765241da26bfe096330c675ddca5f6a53a4c4d9d",
+    "out/nullrpc-hw-regression/app-boundaries.json": "42433522cef13dead1f906f3f3c55aa2a05d8cd44f9bd6fd2fbbe02f62d198f3",
+    "out/nullrpc-hw-regression/old-hot-anchors.json": "ccc40f91528564416ec138cf5f17a3aaa80acf711e50437b26b9cc9cf212f2b3",
+    "out/nullrpc-hw-regression/old-dcs-spotcheck.json": "023ddb7d8f9d67c3ccca4741d1ba97659548cda7b634660cf3c32f4d8790f170",
+    "out/nullrpc-hw-regression/new-dcs-spotcheck.json": "30e56ea73c5cbe9434a86e0e0a12528b2ddcf67e8a91a2b78a6f5d8bed24db1a"
+  }
+}
