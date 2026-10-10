@@ -1675,3 +1675,11 @@ Initial gates are 2885491–2885504, prepare 2885505, hardware 2885506 and repor
 Its preflight is armed for October 10, 23:43:06 CEST in the same thread. Gates
 were running/pending at launch; no hardware result or new latency measurement
 is available. Use this pipeline SHA for subsequent matched artifacts.
+
+At the 518836 preflight, all 14 gates (2885491–2885504) and prepare 2885505
+passed; hardware 2885506 was running and report 2885507 had not started.
+The snapshot is `out/udp-trace/ci-518836-preflight/latest.json`, for pipeline SHA
+`8d291b7f00b701e7cd23ab02a75a78080d6e9e42`. Results collection is scheduled
+five hours later, October 11 at 04:43:42 CEST, in the same thread; no polling
+is scheduled during that interval. Keep the pipeline branch. No bitstream,
+Enzian validation or new RTT breakdown is available yet.
