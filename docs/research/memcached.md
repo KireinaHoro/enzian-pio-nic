@@ -1531,3 +1531,117 @@ includes both placement choices/parities, zero/short/full-length sends, 65-byte
 inline rejection, MTU overflow rejection, stale handles and bounded XDR writes.
 The adapter comparison passed against pinned upstream with injected transport.
 These are software/build checks; no new Enzian latency result is claimed.
+
+#### RX/TX trace correlation and RTT breakdown — active October 10 follow-up
+
+Active platform branch: `feat/memcached-trace-correlation`. The user authorized
+adding trace-only UDP descriptor metadata and measuring the roughly 500–600 µs
+client RTT. The earlier 591 µs figure was a Python/batched, 16-outstanding RTT;
+nullrpc's roughly 4 µs was a NIC MAC-to-MAC duration. Measure both boundaries on
+the same memcached requests before assigning the difference to the server.
+
+The RX UDP control descriptor exposes `trace_ref`: bit 15 is valid, bits 5:0
+are the existing RX `HostMsgID`, and other bits are zero. It occupies the aligned
+16-bit field at byte 20, padded to a 32-byte Mackerel datatype. RX enqueue
+tracing already links that ID to ingress `PacketID`. TX reuses the aligned
+16-bit reserved field at byte 14 for `related_rx`. Software echoes the RX
+reference on every response segment; zero means unrelated. `EciTxSubmit` emits
+`RelatedRxTrace` together with the existing TX `HostMsgID` and core. This is
+untrusted diagnostic metadata only: no effect on admission, destination,
+ownership, PREEMPT, packet retention or wire bytes. All 64 ID values are usable;
+validity is independent of the all-ones ID. Copying the scalar after RX release
+is permitted; copying or retaining the borrowed packet pointer is not.
+
+Payload layout remains version 3. Generated headers additionally declare
+`ECI_UDP_TRACE_VERSION=1`, required by the updated core runtime. Regenerate
+Mackerel/config/trace-map collateral and deploy matching hardware/software;
+existing 518689 hardware does not supply this metadata. No address layout or
+PREEMPT change is included.
+
+The pinned memcached adapter `b376490d303da13ba15ed0295190893c64d1d324`
+echoes the reference from its still-borrowed runtime view. Event 203 records the
+response preparation boundary before TX reservation/copy and the native
+request-ID/sequence/segment-count header. Runtime event 200 records admission
+entry plus the reference; event 202 retains the timestamp taken immediately
+before the commit CL read and the immediate return timestamp (before trace
+bookkeeping); event 201 records completion. RX `request_context`
+contains the trace reference. The request's client IPv4/port/memcached ID remains
+in `request_id`. Segment preparation and the blocking commit read are therefore
+separately observable. Tracing-off behavior performs no timestamp work.
+
+The new `tools/memcached/breakdown.py` uses narrow-ID lifetime constraints rather
+than pretending IDs are globally unique. It checks complete MAC/Ethernet order,
+RX enqueue/queue/dispatch identities, unique live per-process IDs, per-core RX
+sequences, related TX references, software thread intervals and native response
+segment headers. Different workers may dispatch out of process FIFO order.
+Repeated client wire IDs are allowed only with nonoverlapping client lifetimes;
+source IP/port are now recorded by `patterns.py`. Missing, duplicated, mismatched,
+failed, incomplete or ambiguous evidence is an error, not an inferred match.
+The current bounded analyzer requires responses to finish before that worker's
+next RX; it does not claim arbitrary delayed cross-worker UDP reply support.
+
+`clock_alignment.py` extracts actual DCS RX responses, TX requests and TX responses
+using the selected address map and trace-map source-delay corrections. It fits
+CPU/FPGA clocks only after packet identity joins, reports conditional uncertainty,
+and rejects fits needing more than 25 ns shared slack. It does not use internal
+RX descriptor emission as the ECI response time. Additive timelines partition
+MAC ingress to final segment egress; separate per-segment commit-read spans can
+overlap other work and must not be added again. Small negative stages within
+clock uncertainty remain visible. Figures show RTT and MAC latency ECDFs plus an
+actual median-RTT request's timeline, with per-request CSV and JSON evidence.
+
+Validation uncovered an existing shared `decoder_sink` trace-port collision:
+ONC-RPC and Ethernet metadata can fire simultaneously for different packets.
+The exact failing `OncRpcNestedSim` local-roundtrip seed was setup `-1697878308`,
+sim `-503111269`. Each decoder now has its own trace source. The exact seed
+passes after this correction, and the five native UDP/ONC-RPC/RX isolation cases
+pass together. Native UDP testing covers ID wrap, echoed trace fields on two
+responses in both placements and unchanged cross-domain rejection. Its extended
+wrap sequence required raising the simulation time limit from 500 million to
+1.5 billion units; the original progressing timeout is preserved under
+`out/udp-trace/initial-wrap-timeout`, and collision evidence under
+`out/udp-trace/decoder-port-collision`. Neither was a board run.
+
+Measurement sequence once the new CI hardware succeeds:
+
+1. Recheck reservation/live state and preserve frozen evidence. Collect the
+   pipeline's matching bitstream, module, runtime, memcached image and trace map.
+   Run the repository's matched RPC harness twice with tracing through module
+   load before replacing the RPC service with memcached.
+2. Use one registered instance declaring four workers and one outstanding
+   request first. Then use the same client/workload with window 16, followed by
+   five registered instances and single/pair/all-active bursts. Include both
+   ordinary sends and the original batched sends. Keep GET and SET distributions
+   separate. Main/maintenance remain outside the four-worker pool; retain hash
+   expansion scope checks and existing harness lifecycle restrictions.
+3. Start a bounded trace window while workers are quiescent before the first
+   memcached request (including readiness/setup); finish all RX/TX before freeze.
+   Enable loss-free buffered runtime and event CSVs with adequate capacity. Export
+   only after requests return to their wait boundaries, which publish trace rows.
+   Preserve the full setup/measurement/stats window; do not trim packets to make
+   counts match. Export client request CSVs with source endpoint identity.
+4. Run `nix develop -c python3 tools/memcached/breakdown.py --server SERVER.csv ...
+   --events EVENTS.csv ... --client requests.csv --trace trace.bin --map MAP.json
+   --capture-summary CAPTURE/summary.json --output NEW_DIR`, pairing server/event
+   paths by instance in the same order. Default CPU mapping is 44:1 through 47:4;
+   verify actual assignments. Retain raw captures and sidecar loss reports.
+5. Repeat with application/FPGA tracing off to quantify observation overhead.
+   Report RTT, MAC-to-MAC, their difference, queueing, CPU preparation, commit read,
+   and aligned additive stages with uncertainty. The outside-MAC difference
+   includes client processing, kernel/NIC queues and network in both directions;
+   it is not solely network latency. Entry/sustained traffic labels alone are not
+   evidence of hot/cold assignment. Do not optimize timing as part of this work.
+
+No new board breakdown or explanation of the 500 µs RTT has been measured yet.
+Hardware CI and matched captures remain the acceptance boundary.
+
+Local validation for this follow-up passed through `nix develop`: the five
+focused NativeUdp/OncRpcNested/RxPayloadIsolation cases, the exact decoder
+collision reproducer, and NativeUdp again with final generated-descriptor
+padding. Nix regenerated matching RTL/config/Mackerel headers and built
+`runtimeTests` (including ASan/UBSan), `memcached`, `kmod`,
+`checks.x86_64-linux.runtime-interface` and
+`checks.x86_64-linux.memcached-adapter`. The latter includes the upstream
+protocol comparison and five new analyzer tests for narrow-ID wrap, reordered
+dispatch, segmented replies, repeated client IDs, DCS clock bounds and plot
+export. These are local simulation/software results, not Enzian measurements.
