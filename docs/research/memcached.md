@@ -1645,3 +1645,14 @@ padding. Nix regenerated matching RTL/config/Mackerel headers and built
 protocol comparison and five new analyzer tests for narrow-ID wrap, reordered
 dispatch, segmented replies, repeated client IDs, DCS clock bounds and plot
 export. These are local simulation/software results, not Enzian measurements.
+
+Hardware pipeline [518832](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518832)
+was launched for `6551d0461dc8e4fd0ab28d185273a6054054378f` on
+`feat/memcached-trace-correlation`. Initial jobs: test gates 2885462–2885475,
+prepare 2885476, hardware 2885477, report 2885478. The launch snapshot is
+`out/udp-trace/ci-launch/latest.json`; local validation logs are under
+`out/udp-trace/validation/`. At launch, gates were running/pending and hardware
+was not started. A 30-minute preflight is armed for October 10, 23:10:36 CEST
+in thread `01a11cbc-4d8f-76f1-9945-f69de06ed22f`. Retain the branch until all
+jobs finish. After successful matched RPC bring-up, continue the bounded
+memcached breakdown sequence above; no new hardware result is implied here.
