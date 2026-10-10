@@ -1344,3 +1344,59 @@ Plots in `out/nullrpc-inline/figures/` include `median-waterfall`,
 (PDF/PNG). They show full distributions and actual requests nearest median RTT;
 component medians must not be summed. The analysis tests cover causal rejection,
 legacy behavior and conservation with the new transport split.
+
+### Where the remaining hardware regression sits
+
+The [FPGA-only comparison](../../data/eci/board-evidence/nullrpc-hardware-regression-20261010/summary.json)
+rejoins all **1,000 hot kernel-off requests from each revision** to the actual
+DCS control messages, using each capture's own map. No CPU epoch fit is used.
+Every request conserves its MAC interval. Mean MAC latency rises **464.830 ns**:
+**62.985 ns outside host turnaround**, and **401.845 ns between the DCS RX
+response and returning TX request**. Thus most of the remaining regression is
+not in the measured FPGA packet-processing intervals. The latter interval still
+contains CPU execution and ECI transit; it is not a pure CPU measurement.
+
+| FPGA-clock interval | Old median (ns) | New median (ns) | Mean delta (ns) |
+| --- | ---: | ---: | ---: |
+| RX MAC → internal descriptor | 215 | 215 | −1.020 |
+| Descriptor → DCS RX response | 275 | 290 | +10.450 |
+| DCS RX response → DCS TX request (host/link turnaround) | 1880 | 2285 | +401.845 |
+| DCS TX request → internal commit | 205 | 215 | +10.030 |
+| Commit → control invalidation complete | 950 | 955 | +4.750 |
+| Invalidation complete → TX submission | 15 | 45 | +29.840 |
+| TX submission → MAC | 155 | 165 | +8.935 |
+
+Means provide the additive comparison; independently computed medians do not.
+The source/trace findings are:
+
+- **RX prefix assembly:** the old metadata-only short RPC took `readPktBuf →
+  sendDummyData`; the contiguous implementation takes `readPktBuf → readBody →
+  nextBody → sendPktData`. Its extra two FSM states are in
+  [DcsRxAxiRouter](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala).
+  The app-side response interval rises 175 → 190 ns at the median; the measured
+  app/sys crossing interval partly offsets this in the mean.
+- **Inline restore:** [DcsTxAxiRouter](../../hw/src/lauberhorn/host/eci/DcsTxAxiRouter.scala)
+  now runs `inlineCmd/inlineData/inlineResp` after invalidation and gates
+  `txDesc.valid` with `!inlinePending`. Restoring the saved inline bytes gives
+  them priority over overflow aliases. This accounts for the clear **30 ns**
+  completion-to-submit increase; it is not an overflow CL invalidation.
+- **Short replies now traverse packet DMA:** old `EciHostTxCtrlInfo.unpackTo`
+  supplied the eight bytes in metadata with `buffer.size = 0`; the new version
+  sets `buffer.size = len`. The trace confirms `DmaLength=0 / TxNoDmaRead` before,
+  versus `DmaLength=8 / TxAfterDmaRead` now. RPC payload handling and UDP metadata/
+  payload arbitration also changed. Their net submission-to-MAC increase is
+  about **9 ns mean / 10 ns median**, not a separately additive DMA-roundtrip cost.
+- **Small DCS ingress increase:** source-delay-corrected app/sys joins place
+  almost all of its +10 ns after app-side request acceptance. A bounded DCS
+  state check shows the same `R12`, `s1__3pRA3`, `RDD` action in both revisions;
+  sys request-to-RDD is 125 ns in both representative requests, then RDD-to-commit
+  grows 80 → 90 ns. No corresponding added state was found in the unchanged
+  interface routing or the endpoint read FSM. Its exact two-cycle root cause
+  remains unresolved; the trace localizes it rather than proving a source cause.
+
+The forward/ack median is **245 ns in both**. Representative requests have no
+additional ECI request between RX response and TX doorbell. This rules out an
+extra CL operation in those examples, but does not turn the 402 ns host/link
+interval into a calibrated CPU-only difference. The old 3.700 µs and new 4.165 µs
+MAC medians remain valid. No board reset, new measurement, hardware change or
+timing optimization was performed for this analysis.

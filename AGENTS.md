@@ -87,12 +87,14 @@ failure. The [GSYNC record](docs/hardware/gsync-worker-reproduction.md) and
 [latency record](docs/research/latency-measurement.md#corrected-module-516232-comparison--october-5)
 distinguish the historical failure from completed follow-up tests.
 
-October 10 null-RPC rerun on matched 518689 passed 4,000 measured hot/cold RPCs
-plus 32 warmups with complete measured-request breakdowns and healthy kernel/TAD
-checks. Default short replies use overflow and regress versus the old inline
-baseline; see the [rerun and TX-path limitation](docs/research/latency-measurement.md#contiguous-rxtx-null-rpc-rerun--october-10).
-The DUT now runs that RPC cohort with tracing frozen; all four windows are
-preserved. Recheck reservation and live state before reuse.
+October 10 null-RPC inline-TX correction on unchanged 518689 hardware passed
+4,000 measured hot/cold RPCs plus 32 warmups, with one control forward/ack and
+no overflow invalidation per measured TX. Kernel-off hot RTT is 12.760 µs and
+MAC latency 4.165 µs, still above the old 3.700 µs MAC baseline. A conserved
+FPGA-clock comparison localizes about 63 ns mean growth outside host turnaround
+and 402 ns in host/link turnaround; see the [measurement and hardware comparison](docs/research/latency-measurement.md#inline-tx-and-pre-doorbell-probe-measurement--october-10).
+The DUT runs that RPC cohort with tracing frozen; all four windows are preserved.
+Recheck reservation and live state before reuse.
 
 ## Confirmed research and scheduling scope
 
