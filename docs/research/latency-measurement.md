@@ -1204,3 +1204,32 @@ nix develop -c python3 data/eci/apps/plot_hot_cold.py \
 Nix activation (six tests) and handoff (four tests) regressions passed; the
 parameterized plotter reproduced the old baseline and generated this rerun.
 Timing, layout, PREEMPT and runtime implementations were unchanged.
+
+
+### Inline nullrpc and pre-doorbell probe follow-up — October 10
+
+The preceding 518689 rerun used an overflow reservation despite its 8-byte XDR
+reply. The software correction sizes XDR replies before reservation and encodes
+directly into the inline half of the control CL when the bound is at most 64
+bytes. No FPGA, layout, timing or PREEMPT change is required. The encoded-size
+pass belongs to marshal time; it is not hidden in TX preparation.
+
+New CSVs include `server_tx_doorbell_ns`, sampled after the TX descriptor and
+barriers and immediately before the opposite-control-CL read. Analysis splits
+CPU preparation from doorbell arrival at FPGA `EciTxCommitRead`; hardware TX
+still ends at control/required-overflow invalidation completion. The CPU probe
+is saved after the load and adds no trace-buffer write before the doorbell.
+The cross-clock arrival interval includes clock-callback return overhead and
+clock-alignment uncertainty: do not force it to the estimated half ECI RTT.
+Negative arrival intervals fail analysis rather than being silently clipped.
+Legacy captures keep their old combined interval and are not new measurements.
+
+Validation: `nix develop -c nix build .#runtimeTests .#runtime --no-link -L`
+passed (including ASan/UBSan buffer/codec checks and debug/release RPC tests).
+The 13 latency-accounting tests and buffered CSV writer test passed through
+`nix develop`; the four historical hot/cold plots rendered successfully.
+AArch64 disassembly confirms the doorbell `ldrb` is the first instruction after
+the clock callback returns, and the timestamp store follows that load. Logs
+and disassembly are retained under `out/nullrpc-inline-tx/`. Inline hardware latency and new-probe distributions remain to
+be measured. The preceding 4,000-request
+results describe the original overflow software, not this correction.

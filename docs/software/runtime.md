@@ -71,6 +71,15 @@ same-domain cache contents may remain stale. Full cleanup belongs to ownership
 handoff. RPC codecs encode directly into reservations; the kernel copies between
 transport storage and owned skbs.
 
+Reply codecs may provide `response_capacity`, a non-mutating encoded-size or
+upper-bound callback. The runtime rejects bounds above the reply MTU before
+reserving and enforces the chosen capacity during serialization. The XDR adapter
+uses `xdr_sizeof`: the nullrpc/adder fixture has an 8-byte response and therefore
+uses inline TX, without a staging copy or overflow invalidation. Sizing runs in
+the marshal interval. Codecs without this callback retain the maximum-capacity
+reservation; C object size is not a safe encoded-size bound. Rebuild applications
+with the updated `rpc_ops_t` public structure when updating the runtime.
+
 The consumer ownership audit found no other retained RX-view copies in active
 platform consumers. Kernel bypass copies into an owned skb before core release;
 RPC decodes into codec-owned objects before queueing deferred requests or settling
@@ -160,6 +169,18 @@ deferred/forwarded ownership and record actual Linux RX/TX CPUs. See
 [latency measurement](../research/latency-measurement.md#server-csv) for the
 schema, nested timing semantics and plotting restrictions. Tracing is disabled
 by default.
+
+`core_eci_tx_commit_traced` optionally records `server_tx_doorbell_ns` after
+control descriptor writes, placement, ordering barriers and parity update,
+immediately before loading the opposite control CL. The timestamp is held
+locally and stored to the trace row after the load; there is no PMU sampling at
+this probe. TX-enter → doorbell-probe measures preparation on the CPU clock.
+Doorbell-probe → FPGA `EciTxCommitRead` measures clock-correlated request arrival,
+including the timestamp callback's return tail. It is not the full blocking
+load duration: control invalidation/forwarding and acknowledgement follow the
+FPGA event. Clock-offset uncertainty, probe perturbation and coherence queueing
+must accompany any comparison with a one-way ECI estimate. Historical rows
+without this probe retain the combined preparation/arrival attribution.
 
 Tracing now uses preallocated, prefaulted per-thread append-only buffers;
 `LAUBERHORN_TRACE_CAPACITY` sets rows per thread (default 16384). The request

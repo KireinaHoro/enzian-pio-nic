@@ -32,7 +32,8 @@ LABELS = {
  'lh_rx_eci_delivery':'Dispatch → RX descriptor', 'lh_rx_2f2f_hw':'RX 2F2F hardware estimate',
  'server_2f2f_rx_sw':'RX software', 'server_rt_overhead':'Runtime overhead',
  'server_xdr_unmarshal':'Unmarshal', 'handler':'Handler', 'server_xdr_marshal':'Marshal',
- 'server_2f2f_tx_sw':'TX software', 'lh_tx_2f2f_hw':'TX 2F2F hardware',
+ 'server_2f2f_tx_sw':'TX preparation (legacy: includes doorbell)',
+ 'lh_tx_doorbell_arrival':'TX doorbell arrival', 'lh_tx_2f2f_hw':'TX 2F2F hardware',
  'lh_tx_host_submit':'TX completion → submit', 'lh_tx_submit_to_udp_encode':'TX submit → UDP encode',
  'lh_tx_ip_encode':'TX IP encode', 'lh_tx_eth_encode':'TX Ethernet encode',
  'lh_tx_output_queue':'TX output queue', 'lh_tx_cdc_to_cmac':'TX CDC → MAC',
@@ -133,7 +134,11 @@ def waterfall(ax, condition, row, events, server, timing=None, handoff=None):
         bar(label,cpu(int(server[prefix+'_enter_ns'])),cpu(int(server[prefix+'_exit_ns'])),'user')
     commit=event('EciTxCommitRead',row['trace_core_delivery_ns'],zero+end*1000,True)
     submit=commit+row['trace_tx_commit_to_submit_ns']
-    bar('Userspace TX call',cpu(row['server_tx_enter_ns']),cpu(row['server_tx_exit_ns']),'user')
+    bar('Userspace TX call (overlapping)',cpu(row['server_tx_enter_ns']),cpu(row['server_tx_exit_ns']),'user')
+    if row.get('server_tx_doorbell_ns'):
+        probe=cpu(row['server_tx_doorbell_ns'])
+        bar('TX preparation (raw CPU probes)',cpu(row['server_tx_enter_ns']),probe,'user')
+        bar('Doorbell probe → FPGA commit read',probe,commit,'tx')
     bar('FPGA TX commit → submit',commit,submit,'tx')
     bar('TX encode / CDC → TX MAC',submit,zero+end*1000,'tx')
     left=-0.8 if condition=='hot' else -2.0
