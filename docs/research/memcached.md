@@ -1656,3 +1656,14 @@ was not started. A 30-minute preflight is armed for October 10, 23:10:36 CEST
 in thread `01a11cbc-4d8f-76f1-9945-f69de06ed22f`. Retain the branch until all
 jobs finish. After successful matched RPC bring-up, continue the bounded
 memcached breakdown sequence above; no new hardware result is implied here.
+
+The scheduled preflight for 518832 found all 14 test gates (2885462–2885475)
+successful, but prepare 2885476 failed; hardware 2885477 and report 2885478
+were skipped. The generated-port check caught five omitted wrapper connections:
+separate decoder sources increased the NIC trace count from 53 to 58, while
+`lauberhorn_eci.vhd` still declared/bound 53. The correction extends the trace
+arrays and connects sources 53–57 at both NicEngine and trace-DMA instances.
+`nix develop -c nix build .#eciVivadoInputs --no-link` passed, including generated
+port/debug checks and bundle preparation. No timing, address-layout or PREEMPT
+change was made. Failure log and snapshot are in `out/udp-trace/ci-preflight/`.
+There is no bitstream or Enzian result from 518832; relaunch is required.
