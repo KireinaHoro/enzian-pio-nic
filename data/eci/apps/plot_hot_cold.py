@@ -188,8 +188,11 @@ def main():
     parser.add_argument('--handoff',type=Path,required=True)
     parser.add_argument('--trace-map',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--labels', nargs=4, metavar=('HOT_OFF','COLD_OFF','HOT_ON','COLD_ON'),
+                        default=['bufhotoff1','bufcoldoff1','bufhot2','bufcold1'],
+                        help='Capture prefixes in hot-off, cold-off, hot-on, cold-on order')
     args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
-    labels={'hot off':'bufhotoff1','cold off':'bufcoldoff1','hot on':'bufhot2','cold on':'bufcold1'}
+    labels=dict(zip(('hot off','cold off','hot on','cold on'), args.labels))
     audits={name:read(args.captures/(label+'-audit.json')) for name,label in labels.items()}
     series={name:audit['rows'] for name,audit in audits.items()}
     for rows in series.values():
@@ -197,7 +200,7 @@ def main():
         assert all(abs(sum(r['breakdown'].values())-r['e2e_ns'])<1e-6 for r in rows)
     handoff=read(args.handoff);assert handoff['count']==1000
     trace_map=h.dma.load_map(args.trace_map)
-    timings=parse_trace((args.captures/'bufcold1-kernel/trace.txt').read_text())
+    timings=parse_trace((args.captures/(labels['cold on']+'-kernel/trace.txt')).read_text())
     selected={};fig,axes=plt.subplots(1,2,figsize=(21,12),gridspec_kw={'width_ratios':[1,1.5]})
     for condition,ax in zip(['hot','cold'],axes):
         rows=series[condition+' on'];median=np.median([r['e2e_raw_ns'] for r in rows])
@@ -207,7 +210,7 @@ def main():
         with (args.captures/(label+'-server.csv')).open() as file:
             server=next(r for r in csv.DictReader(file) if int(r['request_id'])==row['request_id'])
         hr=next((r for r in handoff['rows'] if r['request_id']==row['request_id']),None) if condition=='cold' else None
-        activation=read(args.captures/'bufcold1-activation.json') if condition=='cold' else None
+        activation=read(args.captures/(labels['cold on']+'-activation.json')) if condition=='cold' else None
         ar=next(r for r in activation['rows'] if r['request_id']==row['request_id']) if activation else None
         timing=next(r for r in timings if r['worker']==ar['worker'] and r['sequence']==ar['activation_sequence']) if ar else None
         lanes=waterfall(ax,condition,row,events,server,timing,hr)
@@ -217,7 +220,10 @@ def main():
     fig.text(.5,.945,'Actual requests nearest median RTT · kernel tracing ON in both panels · separate time scales',ha='center',fontsize=12)
     fig.subplots_adjust(left=.12,right=.93,bottom=.15,top=.84,wspace=.85)
     fig.text(.12,.075,'Bars are overlapping observations, not an additive stack. Blocked RX ends at the FPGA reply event; CPU completion follows.\nCold: outgoing worker and incoming thread share the physical core. Syscall-entry timing is quantized to 1 µs; CPU/FPGA epochs are fitted.',fontsize=10)
-    fig.text(.12,.032,'External residual is not placed on this timeline: its before-MAC / after-MAC split is unknown.\nKernel-OFF median RTT: hot 12.24 µs, cold 43.36 µs. Tracing increases cold median by 7.99 µs; the detailed cold panel includes that cost.',fontsize=10)
+    medians={name:np.median([r['e2e_raw_ns'] for r in rows])/1000 for name,rows in series.items()}
+    fig.text(.12,.032,'External residual is not placed on this timeline: its before-MAC / after-MAC split is unknown.\n'
+             f"Kernel-OFF median RTT: hot {medians['hot off']:.2f} µs, cold {medians['cold off']:.2f} µs. "
+             f"Cold kernel-ON/OFF median difference: {medians['cold on']-medians['cold off']:+.2f} µs (sequential cohorts).",fontsize=10)
     figures={'median-waterfall':fig}
     keys=list(series['hot off'][0]['breakdown'])
     figures['component-violins']=violin_grid(series,keys,lambda r,k:r['breakdown'][k],
