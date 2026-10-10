@@ -33,6 +33,9 @@ LABELS = {
  'server_2f2f_rx_sw':'RX software', 'server_rt_overhead':'Runtime overhead',
  'server_xdr_unmarshal':'Unmarshal', 'handler':'Handler', 'server_xdr_marshal':'Marshal',
  'server_2f2f_tx_sw':'TX preparation (legacy: includes doorbell)',
+ 'lh_rx_desc_to_dcs_response':'RX descriptor → DCS response',
+ 'lh_tx_cpu_to_dcs_request':'CPU → DCS request (estimate)',
+ 'lh_tx_dcs_request_to_commit':'DCS request → commit',
  'lh_tx_doorbell_arrival':'TX doorbell arrival', 'lh_tx_2f2f_hw':'TX 2F2F hardware',
  'lh_tx_host_submit':'TX completion → submit', 'lh_tx_submit_to_udp_encode':'TX submit → UDP encode',
  'lh_tx_ip_encode':'TX IP encode', 'lh_tx_eth_encode':'TX Ethernet encode',
@@ -128,7 +131,10 @@ def waterfall(ax, condition, row, events, server, timing=None, handoff=None):
         bar('Runtime before first RX',cpu(int(server['server_activation_ready_ns'])),cpu(row['server_rx_enter_ns']),'user')
         incoming=event('EciRxReadFirst',zero,row['trace_core_delivery_ns'],True)
         bar('Incoming worker: RX read',incoming,row['trace_core_delivery_ns'],'blocked')
-    bar('RX reply → userspace RX return',row['trace_core_delivery_ns'],cpu(row['server_rx_exit_ns']),'user')
+    rx_response=row.get('trace_rx_dcs_response_ns',row['trace_core_delivery_ns'])
+    if 'trace_rx_dcs_response_ns' in row:
+        bar('RX descriptor → DCS response',row['trace_core_delivery_ns'],rx_response,'packet')
+    bar('RX response → userspace RX return',rx_response,cpu(row['server_rx_exit_ns']),'user')
     bar('Runtime before unmarshal',cpu(row['server_rx_exit_ns']),cpu(int(server['server_unmarshal_enter_ns'])),'user')
     for label,prefix in [('Unmarshal','server_unmarshal'),('Handler','server_handler'),('Marshal','server_marshal')]:
         bar(label,cpu(int(server[prefix+'_enter_ns'])),cpu(int(server[prefix+'_exit_ns'])),'user')
@@ -138,7 +144,11 @@ def waterfall(ax, condition, row, events, server, timing=None, handoff=None):
     if row.get('server_tx_doorbell_ns'):
         probe=cpu(row['server_tx_doorbell_ns'])
         bar('TX preparation (raw CPU probes)',cpu(row['server_tx_enter_ns']),probe,'user')
-        bar('Doorbell probe → FPGA commit read',probe,commit,'tx')
+        if 'trace_tx_dcs_request_ns' in row:
+            bar('Doorbell probe → DCS request (estimate)',probe,row['trace_tx_dcs_request_ns'],'tx')
+            bar('DCS request → FPGA commit read',row['trace_tx_dcs_request_ns'],commit,'tx')
+        else:
+            bar('Doorbell probe → FPGA commit read',probe,commit,'tx')
     bar('FPGA TX commit → submit',commit,submit,'tx')
     bar('TX encode / CDC → TX MAC',submit,zero+end*1000,'tx')
     left=-0.8 if condition=='hot' else -2.0
@@ -224,7 +234,7 @@ def main():
     fig.suptitle('A request arriving while its core is blocked in RX',fontsize=21,fontweight='bold',y=.98)
     fig.text(.5,.945,'Actual requests nearest median RTT · kernel tracing ON in both panels · separate time scales',ha='center',fontsize=12)
     fig.subplots_adjust(left=.12,right=.93,bottom=.15,top=.84,wspace=.85)
-    fig.text(.12,.075,'Bars are overlapping observations, not an additive stack. Blocked RX ends at the FPGA reply event; CPU completion follows.\nCold: outgoing worker and incoming thread share the physical core. Syscall-entry timing is quantized to 1 µs; CPU/FPGA epochs are fitted.',fontsize=10)
+    fig.text(.12,.075,'Bars are overlapping observations, not an additive stack. Blocked RX ends at the internal descriptor/NACK event; CPU completion follows.\nCold: outgoing worker and incoming thread share the physical core. Syscall-entry timing is quantized to 1 µs; CPU/FPGA epochs are fitted.',fontsize=10)
     medians={name:np.median([r['e2e_raw_ns'] for r in rows])/1000 for name,rows in series.items()}
     fig.text(.12,.032,'External residual is not placed on this timeline: its before-MAC / after-MAC split is unknown.\n'
              f"Kernel-OFF median RTT: hot {medians['hot off']:.2f} µs, cold {medians['cold off']:.2f} µs. "

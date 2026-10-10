@@ -809,18 +809,22 @@ def attach_trace_segments(
             max(0.0, turnaround_ns - rx_2f2f_sw_ns),
             float(eci_half_rtt_ns) if eci_half_rtt_ns is not None else 0.0,
         )
+        rx_pipeline_ns = float(row.get("trace_rx_dcs_response_ns", delivered_ns) - delivered_ns)
+        if rx_pipeline_ns < 0:
+            raise ValueError("DCS RX response precedes descriptor")
         tx_2f2f_sw_ns, tx_doorbell_ns = tx_precommit_split(
             row, tx_commit["time_ns"], cpu_trace_offset_ns)
         row["trace_tx_doorbell_probe_present"] = bool(row.get("server_tx_doorbell_ns"))
         server_unmarshal_ns = float(row.get("server_unmarshal_ns", 0.0))
         handler_ns = float(row.get("handler_ns", 0.0))
         server_marshal_ns = float(row.get("server_marshal_ns", 0.0))
-        if (rx_2f2f_sw_ns + rx_2f2f_hw_ns + server_unmarshal_ns + handler_ns
+        if (rx_pipeline_ns + rx_2f2f_sw_ns + rx_2f2f_hw_ns + server_unmarshal_ns + handler_ns
                 + server_marshal_ns + tx_2f2f_sw_ns + tx_doorbell_ns > turnaround_ns + 1e-6):
             raise ValueError(f"request {row['request_id']}: overlapping CPU/FPGA attribution")
         server_rt_ns = max(
             0.0,
             turnaround_ns
+            - rx_pipeline_ns
             - rx_2f2f_sw_ns
             - rx_2f2f_hw_ns
             - server_unmarshal_ns
@@ -830,6 +834,7 @@ def attach_trace_segments(
             - tx_doorbell_ns,
         )
 
+        add_duration(segments, "lh_rx_desc_to_dcs_response", rx_pipeline_ns)
         add_duration(segments, "lh_rx_2f2f_hw", rx_2f2f_hw_ns)
         add_duration(segments, "server_2f2f_rx_sw", rx_2f2f_sw_ns)
         add_duration(segments, "server_rt_overhead", server_rt_ns)
@@ -838,7 +843,18 @@ def attach_trace_segments(
         add_duration(segments, "server_xdr_marshal", server_marshal_ns)
         add_duration(segments, "server_2f2f_tx_sw", tx_2f2f_sw_ns)
         if row.get("server_tx_doorbell_ns"):
-            add_duration(segments, "lh_tx_doorbell_arrival", tx_doorbell_ns)
+            if "trace_tx_dcs_request_ns" in row:
+                if row["trace_tx_commit_ns"] != tx_commit["time_ns"]:
+                    raise ValueError("DCS anchor commit mismatch")
+                ingress = tx_commit["time_ns"] - row["trace_tx_dcs_request_ns"]
+                arrival = tx_doorbell_ns - ingress
+                if min(ingress, arrival) < 0:
+                    raise ValueError("negative DCS TX interval")
+                row["trace_tx_doorbell_arrival_ns"] = tx_doorbell_ns
+                add_duration(segments, "lh_tx_cpu_to_dcs_request", arrival)
+                add_duration(segments, "lh_tx_dcs_request_to_commit", ingress)
+            else:
+                add_duration(segments, "lh_tx_doorbell_arrival", tx_doorbell_ns)
     add_segment(segments, "lh_tx_2f2f_hw", tx_commit["time_ns"] if tx_commit else None, tx_2f2f_done["time_ns"] if tx_2f2f_done else None)
     add_segment(segments, "lh_tx_host_submit", tx_2f2f_done["time_ns"] if tx_2f2f_done else None, tx_submit["time_ns"] if tx_submit else None)
     add_segment(segments, "lh_tx_submit_to_udp_encode", tx_submit["time_ns"] if tx_submit else None, udp_encoder["time_ns"] if udp_encoder else None)
@@ -884,7 +900,26 @@ def attach_trace_segments(
         row["trace_segments"] = segments
 
 
-def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None, combine_rpc_ingress: bool = False, rx_trace_invalid_host_id: Optional[int] = None) -> None:
+def transport_clock_offset(rows, half_rtt):
+    """Fit to DCS response output; bound the epoch by request/response causality.
+
+    Half the measured link RTT assumes symmetric transit. The bounds do not.
+    They include timestamp placement and clock drift, not statistical confidence.
+    """
+    if not rows or half_rtt is None:
+        raise ValueError("DCS alignment requires rows and measured ECI RTT")
+    if any(not r.get(k) for r in rows for k in ("server_rx_unblock_ns", "server_tx_doorbell_ns", "server_tx_exit_ns")):
+        raise ValueError("DCS alignment requires RX unblock and TX probe/return timestamps")
+    lower = max(r["server_tx_doorbell_ns"] - r["trace_tx_dcs_request_ns"] for r in rows)
+    upper = min(min(r["server_rx_unblock_ns"] - r["trace_rx_dcs_response_ns"],
+                    r["server_tx_exit_ns"] - r["trace_tx_dcs_response_ns"]) for r in rows)
+    offset = min(r["server_rx_unblock_ns"] - r["trace_rx_dcs_response_ns"] - half_rtt for r in rows)
+    if not lower <= offset <= upper:
+        raise ValueError(f"DCS clock fit violates causality: {lower} <= {offset} <= {upper}")
+    return offset, lower, upper
+
+
+def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], eci_half_rtt_ns: Optional[float], process_id: Optional[int] = None, combine_rpc_ingress: bool = False, rx_trace_invalid_host_id: Optional[int] = None, transport_anchors=None) -> None:
     events_by_name = build_event_index(events)
     ipi_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -1028,11 +1063,9 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
     if not matched:
         return
 
-    # The CPU monotonic clock and FPGA trace clock do not share an epoch.  With
-    # new traces, use the lower envelope at RX-control-read unblock: descriptor
-    # sent plus half an ECI FLDX_EH->HAKD RTT should be close to the CPU-side
-    # timestamp taken immediately after the read returns.  Legacy CSVs fall back
-    # to the lower envelope at core_eci_rx() return.
+    # Preserve the historical internal-descriptor epoch only for old captures.
+    # It includes unmeasured descriptor-to-DCS pipeline time and is unsuitable
+    # for precise one-way attribution. Supplied DCS anchors replace it below.
     offset_candidates = []
     for row, _rec in matched:
         delivered = row["trace_core_delivery_ns"]
@@ -1042,6 +1075,21 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
         else:
             offset_candidates.append(float(row["server_rx_exit_ns"] - delivered))
     offset = int(min(offset_candidates))
+    if transport_anchors is not None:
+        anchored = []
+        for row, _rec in matched:
+            anchor = transport_anchors["rows"].get(str(row["request_id"]))
+            if anchor is None:
+                if row.get("warmup"):
+                    continue
+                raise ValueError(f"missing DCS anchors for {row['request_id']}")
+            for key in ("rx_dcs_response_ns", "tx_dcs_request_ns", "tx_dcs_response_ns", "tx_commit_ns"):
+                row["trace_" + key] = anchor[key]
+            anchored.append(row)
+        offset, lower, upper = transport_clock_offset(anchored, eci_half_rtt_ns)
+        for row in anchored:
+            row["trace_clock_alignment"] = "DCS RX response + symmetric half RTT"
+            row["trace_clock_offset_bounds_ns"] = [lower, upper]
     for row, rec in matched:
         core = row.get("datapath_core", row["worker_id"] + 1)
         row["trace_cpu_offset_ns"] = offset
@@ -1113,6 +1161,7 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "kernel_wakeup",
         "lh_scheduler_queue",
         "lh_rx_eci_delivery",
+        "lh_rx_desc_to_dcs_response",
         "lh_rx_2f2f_hw",
         "server_2f2f_rx_sw",
         "server_rt_overhead",
@@ -1120,6 +1169,8 @@ def breakdown_names(selected: Dict[str, Dict[str, Any]]) -> List[str]:
         "handler",
         "server_xdr_marshal",
         "server_2f2f_tx_sw",
+        "lh_tx_cpu_to_dcs_request",
+        "lh_tx_dcs_request_to_commit",
         "lh_tx_doorbell_arrival",
         "hw_dispatch",
         "sw_rpc_runtime",
@@ -1227,6 +1278,9 @@ def component_label(name: str) -> str:
         "handler": "handler",
         "server_xdr_marshal": "server marshal",
         "server_2f2f_tx_sw": "TX preparation (legacy: includes doorbell)",
+        "lh_rx_desc_to_dcs_response": "RX descriptor → DCS response",
+        "lh_tx_cpu_to_dcs_request": "CPU → DCS request (estimate)",
+        "lh_tx_dcs_request_to_commit": "DCS request → commit",
         "lh_tx_doorbell_arrival": "TX doorbell arrival",
         "lh_tx_2f2f_hw": "2F2F TX HW",
         "lh_tx_host_submit": "TX submit",
@@ -1685,6 +1739,7 @@ def main() -> int:
                         help="diagnostic use only: permit missing/legacy mismatched trace correlations")
     parser.add_argument("--trace-dump", type=Path, help="optional raw sys_trace dump, optionally .gz")
     parser.add_argument("--worker-cpu-base", type=int, help="first isolated Linux worker CPU (required for new CSV/hardware correlation)")
+    parser.add_argument("--transport-anchors", type=Path, help="validated DCS control-line anchors from transport_anchors.py")
     parser.add_argument("--trace-map", type=Path, default=default_map_path())
     parser.add_argument("--trace-cycle-ns", type=int, default=5)
     parser.add_argument("--combine-rpc-ingress", action="store_true",
@@ -1695,6 +1750,8 @@ def main() -> int:
     parser.add_argument("--rx-trace-invalid-host-id", type=int,
                         help="explicit sentinel-ID recovery: require a unique same-core descriptor before next dispatch")
     args = parser.parse_args()
+    if args.transport_anchors and not args.trace_dump:
+        parser.error("--transport-anchors requires --trace-dump")
 
     if args.breakdown_csv:
         try:
@@ -1738,7 +1795,14 @@ def main() -> int:
             print(f"estimated ECI FLDX_EH->HAKD RTT={eci_rtt_ns:.0f} ns; using half RTT={eci_half_rtt_ns:.0f} ns for 2F2F RX HW")
         else:
             print("warning: could not estimate ECI FLDX_EH->HAKD RTT from trace")
-        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id, args.combine_rpc_ingress, args.rx_trace_invalid_host_id)
+        anchors = None
+        if args.transport_anchors:
+            anchors = json.loads(args.transport_anchors.read_text())
+            for key, path in (("raw_sha256", args.trace_dump), ("map_sha256", args.trace_map),
+                              ("client_sha256", args.client_csv), ("server_sha256", args.server_csv)):
+                if anchors[key] != hashlib.file_digest(path.open("rb"), "sha256").hexdigest():
+                    raise ValueError(f"DCS anchor provenance mismatch: {key}")
+        correlate_trace(rows, events, eci_half_rtt_ns, args.trace_process_id, args.combine_rpc_ingress, args.rx_trace_invalid_host_id, anchors)
         matched_rows = [row for row in rows if "trace_host_msg_id" in row]
         matched = len(matched_rows)
         print(f"matched {matched}/{len(rows)} rows with sys_trace HostMsgID/CoreID events")
@@ -1808,6 +1872,9 @@ def main() -> int:
                 trace_map_sha256=hashlib.sha256(args.trace_map.read_bytes()).hexdigest(),
                 allow_partial_trace=args.allow_partial_trace,
                 rx_trace_invalid_host_id=args.rx_trace_invalid_host_id)
+        if args.transport_anchors:
+            provenance.update(transport_anchors=str(args.transport_anchors),
+                transport_anchors_sha256=hashlib.sha256(args.transport_anchors.read_bytes()).hexdigest())
         args.audit_json.write_text(json.dumps({"metrics": metrics, "provenance": provenance,
             "correlation": "sequence/offset heuristic; isolated one-outstanding workload required",
             "rows": [dict(row, breakdown=breakdown(row)) for row in rows]}, indent=2)+"\n")
