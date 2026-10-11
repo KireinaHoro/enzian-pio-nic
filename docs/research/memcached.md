@@ -1699,10 +1699,11 @@ Snapshot history is under `out/udp-trace/ci-518836-rechecks/`; matched SHA remai
 armed for October 11, 05:44:48 CEST. No board action or new measurement was
 performed; retain the branch while jobs remain unfinished.
 
-At the 05:44, 06:15, 06:45 and 07:16 CEST rechecks, pipeline 518836 remained running at
+At the 05:44, 06:15, 06:45, 07:16 and 07:46 CEST rechecks, pipeline 518836
+remained running at
 `8d291b7f00b701e7cd23ab02a75a78080d6e9e42`: hardware 2885506 running,
 report 2885507 not started, prepare 2885505 and gates 2885491–2885504
 successful. The timestamped snapshot is retained under
 `out/udp-trace/ci-518836-rechecks/`. Re-armed results-recheck for October 11,
-07:46:53 CEST. No new build or board test was launched; completed hardware
+08:17:29 CEST. No new build or board test was launched; completed hardware
 artifacts and the memcached breakdown remain pending. The branch is retained.
