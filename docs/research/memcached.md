@@ -1691,3 +1691,10 @@ with report 2885507 not started. Snapshot:
 armed for 05:14:18 CEST, without restarting the five-hour delay. Provenance
 remains `8d291b7f00b701e7cd23ab02a75a78080d6e9e42`; the branch is retained.
 No completed hardware artifacts or new board tests/breakdown are available.
+
+The 05:14 CEST results-recheck still found 518836 hardware 2885506 running,
+report 2885507 not started, and all 14 gates plus prepare 2885505 successful.
+Snapshot history is under `out/udp-trace/ci-518836-rechecks/`; matched SHA remains
+`8d291b7f00b701e7cd23ab02a75a78080d6e9e42`. The next 30-minute recheck is
+armed for October 11, 05:44:48 CEST. No board action or new measurement was
+performed; retain the branch while jobs remain unfinished.
