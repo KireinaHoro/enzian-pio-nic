@@ -103,7 +103,9 @@ Software medians are about 12 µs RX-to-response preparation and 2.7 µs TX
 preparation. The Python generator dominates the observed client RTT. Hardware
 intervals are qualified: the matched recorder timestamps after an input FIFO,
 so queue residence distorts burst timings without sample loss. The correction is in pipeline 518922 (`cc19c428`);
-new hardware validation is required before precise burst breakdown claims.
+two matched cold-boot RPC trials passed (200 calls), with zero recorded trace
+loss markers. Corrected memcached measurements remain pending before precise
+burst breakdown claims; system-event CDC timestamp uncertainty also remains.
 See [evidence and timestamp limitation](docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
 The five-instance extension stopped after 2,688 requests on client ENOSPC;
 its frozen trace and software records are preserved, not a passing campaign.
@@ -112,7 +114,10 @@ The subsequent [vanilla Linux comparison](docs/research/memcached.md#vanilla-lin
 passed 384 traced and 384 control requests over the FPGA bypass/netdev. Sustained
 GET MAC p50 is 74.65 µs versus native 18.97 µs, with the same legacy timestamp
 caveat; this is not a CPU-NIC baseline. Its trace is now frozen and preserved,
-and the temporary upstream process was stopped. Native instances remain intact.
+and the temporary upstream process was stopped. The subsequent 518922 acceptance
+preserved that trace and cold-reset the DUT, ending the native instances. The DUT
+now runs the matched RPC service with tracing frozen and its full capture saved.
+See the [recorder board acceptance](docs/research/memcached.md#corrected-recorder-preflight-and-board-acceptance--october-11).
 
 ## Confirmed research and scheduling scope
 

@@ -1,0 +1,385 @@
+{
+  "pipeline": 518922,
+  "ci": {
+    "checked_at": "2026-10-11T18:01:52.410870+00:00",
+    "pipeline": {
+      "id": 518922,
+      "sha": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "ref": "feat/memcached-trace-correlation",
+      "status": "success",
+      "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518922"
+    },
+    "jobs": [
+      {
+        "id": 2886157,
+        "name": "report-hw-eci",
+        "stage": "report",
+        "status": "success",
+        "started_at": "2026-10-11T19:59:16.189+02:00",
+        "finished_at": "2026-10-11T20:00:19.320+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886157"
+      },
+      {
+        "id": 2886156,
+        "name": "build-hw-eci",
+        "stage": "build-hw",
+        "status": "success",
+        "started_at": "2026-10-11T11:42:29.967+02:00",
+        "finished_at": "2026-10-11T19:59:15.722+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886156"
+      },
+      {
+        "id": 2886155,
+        "name": "prepare-eci",
+        "stage": "prepare",
+        "status": "success",
+        "started_at": "2026-10-11T11:34:50.318+02:00",
+        "finished_at": "2026-10-11T11:42:29.465+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886155"
+      },
+      {
+        "id": 2886154,
+        "name": "scheduling-cooperative",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:24:36.401+02:00",
+        "finished_at": "2026-10-11T11:26:25.393+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886154"
+      },
+      {
+        "id": 2886153,
+        "name": "eci-address-map",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:24:22.328+02:00",
+        "finished_at": "2026-10-11T11:26:03.541+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886153"
+      },
+      {
+        "id": 2886152,
+        "name": "runtime-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:24:21.357+02:00",
+        "finished_at": "2026-10-11T11:26:33.009+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886152"
+      },
+      {
+        "id": 2886151,
+        "name": "memcached-adapter",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:24:10.314+02:00",
+        "finished_at": "2026-10-11T11:25:47.647+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886151"
+      },
+      {
+        "id": 2886150,
+        "name": "runtime-interface",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:23:45.686+02:00",
+        "finished_at": "2026-10-11T11:26:05.736+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886150"
+      },
+      {
+        "id": 2886149,
+        "name": "interactive",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:23:43.880+02:00",
+        "finished_at": "2026-10-11T11:24:46.598+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886149"
+      },
+      {
+        "id": 2886148,
+        "name": "workflow-tools",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:30.757+02:00",
+        "finished_at": "2026-10-11T11:24:18.652+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886148"
+      },
+      {
+        "id": 2886147,
+        "name": "eci-toolkit-rx",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:30.714+02:00",
+        "finished_at": "2026-10-11T11:24:19.623+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886147"
+      },
+      {
+        "id": 2886146,
+        "name": "trace-fifo-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:30.318+02:00",
+        "finished_at": "2026-10-11T11:23:41.163+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886146"
+      },
+      {
+        "id": 2886145,
+        "name": "trace-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:29.801+02:00",
+        "finished_at": "2026-10-11T11:25:29.724+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886145"
+      },
+      {
+        "id": 2886144,
+        "name": "blocks-tests",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:29.652+02:00",
+        "finished_at": "2026-10-11T11:24:33.701+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886144"
+      },
+      {
+        "id": 2886143,
+        "name": "dcs-lauberhorn",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:29.263+02:00",
+        "finished_at": "2026-10-11T11:24:07.607+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886143"
+      },
+      {
+        "id": 2886142,
+        "name": "dcs-rom-thx",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:29.222+02:00",
+        "finished_at": "2026-10-11T11:23:42.982+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886142"
+      },
+      {
+        "id": 2886141,
+        "name": "fast-tests-eci",
+        "stage": "test",
+        "status": "success",
+        "started_at": "2026-10-11T11:22:28.976+02:00",
+        "finished_at": "2026-10-11T11:34:50.006+02:00",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886141"
+      }
+    ]
+  },
+  "artifacts": {
+    "pipeline": 518922,
+    "revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+    "jobs": {
+      "prepare": 2886155,
+      "hardware": 2886156,
+      "report": 2886157
+    },
+    "hashes": {
+      "out/trace-recorder-518922/deploy.img": "9140a9caf6448938247fbc74758fd31cf809b373e303d2f7d53788a726cd52f4",
+      "out/trace-recorder-518922/memcached-deploy.img": "a2005c7f089da17413e4ef2f0170177bcae28330a9897294f5ec1fa0c61191e5",
+      "out/trace-recorder-518922/hw/shell_lauberhorn-eci.bit": "2a74d1e6f9b946915bf3c877672af1e9e513157c79258688cea789758127d492",
+      "out/trace-recorder-518922/hw/shell_lauberhorn-eci.ltx": "c50acd783b834ca987741b6a28dac91412138c9eca0aff690b6b5eb2b104ac1f",
+      "out/trace-recorder-518922/hw/lauberhorn_trace_dma_map.json": "f02311517bc18670ee6c055ad746ebb97356fa848324ee5d29b221b9e05cc002",
+      "out/trace-recorder-518922/program-arm.tcl": "b55630e704001ba3e9e8865c2fbb352ced2830ae84b6e9b4a9582a72128c480a",
+      "out/trace-recorder-518922/rpc-harness.json": "30ed687cf97e0d4ccdc48db5ebfa30d8addd67017bd45c944f84cb51b9eeff54",
+      "out/trace-recorder-518922/rpc-client/bench_client.c": "46419bb7a9f06f70938efb0e88fdfad9f6dc3b006d37c0eadfa5214c632a3be7",
+      "out/trace-recorder-518922/rpc-client/bench.x": "4d1a8ccd68a7ce1d6be225a4dd8ffb63b9fbf68e448e2ef8daa24c62e9996480"
+    },
+    "timing": {
+      "WNS_ns": -0.691,
+      "TNS_ns": -12390.621,
+      "failing_setup_endpoints": 48874,
+      "WHS_ns": 0.0,
+      "timing_closed": false
+    },
+    "timestamp_point": "trace_dma_input_before_batch_queue",
+    "remaining_clock_limitation": "System-domain ECI events cross an untimestamped asynchronous FIFO before recorder ingress."
+  },
+  "reservation": {
+    "machines": [
+      "zuestoll14",
+      "zuestoll07"
+    ],
+    "owner": "pengxu",
+    "verified_before_test": true
+  },
+  "prior_capture_preservation": {
+    "live_frozen_status": {
+      "trace_write_slot_1": 22448104,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "latest_preserved_trace": "out/memcached-vanilla/vanilla-dump/trace/trace-dram.bin",
+    "sha256": "f6156adfcfd97470699de72b71e5364c7ae06009a648d04c20ca06d41c45fc69",
+    "earlier_failure_capture": "out/memcached-breakdown/five-dump/summary.json",
+    "safe_to_reset": true
+  },
+  "harness": "out/trace-recorder-518922/rpc-harness.json",
+  "trials": [
+    {
+      "case": "trace-recorder-518922-rpc",
+      "round": 1,
+      "revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/trace-recorder-518922/rpc-board/01-trace-recorder-518922-rpc/boot",
+          "status": "eci_bringup_failed",
+          "error": "Missing BDK CCPI lane initialization report"
+        },
+        {
+          "attempt": 2,
+          "logs": "out/trace-recorder-518922/rpc-board/01-trace-recorder-518922-rpc/boot/retry-02",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}",
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 481.6
+    },
+    {
+      "case": "trace-recorder-518922-rpc",
+      "round": 2,
+      "revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/trace-recorder-518922/rpc-board/02-trace-recorder-518922-rpc/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 325.2
+    }
+  ],
+  "response_validation": {
+    "round1": {
+      "responses": 100,
+      "arithmetic_and_request_ids_checked": true
+    },
+    "round2": {
+      "responses": 100,
+      "arithmetic_and_request_ids_checked": true
+    }
+  },
+  "trace_arming": [
+    {
+      "round": 1,
+      "markers": {
+        "PROGRAM_SUCCESS": 1,
+        "TRACE_ENABLED_BEFORE_BOOT": 1,
+        "PROBE_FAILURE_ILA_ARMED": 1
+      },
+      "successful_boot_attempt": 2
+    },
+    {
+      "round": 2,
+      "markers": {
+        "PROGRAM_SUCCESS": 1,
+        "TRACE_ENABLED_BEFORE_BOOT": 1,
+        "PROBE_FAILURE_ILA_ARMED": 1
+      },
+      "successful_boot_attempt": 1
+    }
+  ],
+  "trace_export": {
+    "bytes": 412129920,
+    "sha256": "1876cc7ea817a92ce2ea49b81b9ca771aaaa046757c965cdb243b27db6a6c0f1",
+    "offset": 0,
+    "start": {
+      "trace_write_slot_1": 6437514,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 0,
+      "trace_dma_error_1": 0
+    },
+    "end": {
+      "trace_write_slot_1": 6439530,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "bounded_window": true,
+    "pipeline": 518922,
+    "full_valid_unwrapped_buffer": true,
+    "status_note": "start/end are pre-freeze/frozen VIO states; export starts at byte offset zero. Sticky loss rose after freeze; recorded buffer has zero loss markers."
+  },
+  "trace_validation": {
+    "timestamp_point": "trace_dma_input_before_batch_queue",
+    "bytes": 412129920,
+    "lost_markers": 0,
+    "reported_lost_samples": 0,
+    "event_counts": {
+      "EciTxCommitRead": 117,
+      "EciTxSubmit": 117,
+      "TxCmacExit": 116,
+      "RxCmacEntry": 191,
+      "OncRpcCallDecoder": 100,
+      "OncRpcReplyEncode": 100
+    },
+    "limitations": [
+      "RPC functional acceptance only; no corrected memcached latency campaign yet.",
+      "System ECI event CDC queue remains ahead of recorder timestamp point."
+    ]
+  },
+  "limitations": [
+    "Functional RPC acceptance; corrected memcached latency campaign remains pending.",
+    "System-domain ECI events still cross an untimestamped asynchronous FIFO before recorder ingress.",
+    "Negative setup slack: not timing closed.",
+    "Trace transfer hash checked; no independent JTAG comparison in this follow-up."
+  ],
+  "final_state": "Matched 518922 add RPC service left running; tracing frozen and full valid buffer preserved. No further CI timer required."
+}
