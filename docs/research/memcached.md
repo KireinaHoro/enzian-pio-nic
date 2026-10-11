@@ -1862,3 +1862,17 @@ and no kernel fault signatures. Hardware tracing remains frozen. Both failed
 attempts and all successful single-instance evidence are preserved before any
 future reset. The next hardware result must use its own matching revision and
 artifacts; do not combine a corrected map with the old 518836 bitstream.
+
+Replacement recorder pipeline [518922](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518922)
+uses platform `cc19c4285148db65c5b5517f6a02abd04b7f9142` and dependency
+`e24f2ef` (private ref `deps/blocks-trace-ingress-timestamps`). Test jobs are
+2886141–2886154, prepare 2886155, hardware 2886156 and report 2886157.
+The launch snapshot is `out/memcached-breakdown/recorder-ci-launch.json`.
+Preflight is armed for October 11, 11:53:16 CEST in thread
+`01a11cbc-4d8f-76f1-9945-f69de06ed22f`; follow the normal 30-minute gate check
+then five-hour hardware-results workflow. No corrected hardware result exists
+yet. Keep `feat/memcached-trace-correlation` and the dependency ref; do not merge
+this remaining recorder-validation work into master or start duplicate builds.
+After matched RPC validation, repeat the single-instance and five-instance
+breakdowns with client output under `/dev/shm`; recheck the system-CDC clock
+bounds instead of assuming the input-queue fix establishes all timestamp accuracy.
