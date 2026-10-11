@@ -1877,55 +1877,38 @@ After matched RPC validation, repeat the single-instance and five-instance
 breakdowns with client output under `/dev/shm`; recheck the system-CDC clock
 bounds instead of assuming the input-queue fix establishes all timestamp accuracy.
 
-### Corrected-recorder preflight — October 11
+### Corrected-recorder preflight and board acceptance — October 11
 
-The 11:56 CEST read-only check of pipeline 518922 confirmed all 14 test jobs
-2886141–2886154 and prepare job 2886155 passed, without retries. Hardware job
-2886156 started at 11:42:29 CEST and is running; report 2886157 remains created.
-The pipeline SHA is `cc19c4285148db65c5b5517f6a02abd04b7f9142`, not the later
-documentation-only branch head. The results follow-up is armed for **16:56:46
-CEST, October 11**, exactly five hours after scheduling; do not poll in between.
-No new build or board test was launched. Keep both pipeline/dependency refs;
-hardware timing and matched Enzian validation remain pending.
-[Full gate snapshot and timer provenance](../../data/eci/board-evidence/trace-recorder-518922-preflight-20261011.json).
+Pipeline **518922**, revision `cc19c4285148db65c5b5517f6a02abd04b7f9142`,
+completed successfully: gates 2886141–2886154, preparation 2886155,
+hardware 2886156 and report 2886157. The
+[CI history](../../data/eci/board-evidence/trace-recorder-518922-preflight-20261011.json)
+retains the scheduled checks. No further timer is needed.
 
-At the scheduled 16:57 CEST results check, hardware job 2886156 was still
-running and report 2886157 remained created; every gate and preparation stayed
-successful. A **30-minute** results recheck is armed for **17:27:25 CEST**.
-No artifacts were collected or board tests launched while the build is pending.
-The exact pipeline SHA and retained refs remain unchanged; this supplies no new
-timing or corrected-recorder board evidence. The snapshot is appended to the
-preflight evidence above.
+On reserved zuestoll14/zuestoll07, the matching bitstream, LTX, trace map and
+RPC deployment passed **two cold-boot trials, 100 RPCs each**. Arithmetic and
+request IDs were checked for all 200 replies. The first boot lacked the BDK
+CCPI lane report; its logs were retained and the harness performed a verified
+cold reset. Both successful boots passed all CDR/lane checks, with tracing and
+the static failure ILA armed before boot and module load. Previous frozen
+vanilla and failed five-instance evidence was preserved before resetting.
 
-The 17:28 CEST recheck found the same running hardware job 2886156, with
-all gates/preparation still passed and report 2886157 not yet started. The next
-30-minute results check is armed for **17:58:13 CEST**. No duplicate build,
-artifact substitution or board test was started; corrected-hardware validation
-remains pending. The gate snapshot is retained in the same evidence record.
+The final complete, unwrapped trace is saved under
+`out/trace-recorder-518922/rpc-final-dump/`: 412,129,920 bytes, transfer hash
+verified, 100 decoded calls and 100 replies, zero recorded loss markers.
+The sticky loss flag rose only after freezing. The matching map confirms
+`trace_dma_input_before_batch_queue`. System-domain ECI events still cross an
+untimestamped asynchronous FIFO before that point; this is functional RPC
+acceptance, not validation of precise memcached breakdowns. The corrected
+memcached measurement campaign remains pending.
 
-The 17:59 CEST check again confirmed hardware job 2886156 running on the
-same `cc19c428` pipeline SHA, all 14 gates and preparation passed, and report
-2886157 created. The next results recheck is **18:28:54 CEST** (30 minutes).
-Snapshot/provenance are appended above; no artifacts or new board results are
-available yet, and both pipeline/dependency refs remain retained.
-
-At 18:29 CEST, hardware job 2886156 was still running on `cc19c428`;
-all 14 gates and prepare 2886155 remained successful, with report 2886157
-still created. The next 30-minute recheck is **18:59:56 CEST**. No duplicate
-build or board test was launched; matched artifacts and hardware validation
-remain pending. The full snapshot is appended to the evidence record above.
-
-The 19:00 CEST recheck still found job 2886156 running on pipeline SHA
-`cc19c428`, all gates and prepare passed, and report 2886157 created. Re-armed
-the 30-minute check for **19:30:40 CEST**, retaining both refs and the exact
-job snapshot. Hardware artifacts and matched board tests remain pending; no
-duplicate work or hardware changes were launched.
-
-At 19:31 CEST, the same hardware job 2886156 remained running on `cc19c428`.
-All 14 gates and prepare 2886155 were successful; report 2886157 remained
-created. The next 30-minute check is **20:01:15 CEST**. The full snapshot is
-retained above; no new build, artifact collection or board test was launched.
-Timing and corrected-recorder board validation remain pending.
+[Board evidence and artifact hashes](../../data/eci/board-evidence/trace-recorder-518922-board-20261011.json)
+include the harness summaries and trace scan. Routed WNS is **−0.691 ns**, TNS
+−12390.621 ns, with 48,874 failing setup endpoints: **not timing closed**.
+No timing, address-layout or PREEMPT changes were made in this follow-up.
+The DUT now runs the matched RPC service with tracing frozen; the earlier
+memcached instances ended during the documented cold reset. The unmerged
+`feat/memcached-trace-correlation` branch and dependency refs remain intact.
 
 ### Vanilla Linux MAC comparison — October 11
 
