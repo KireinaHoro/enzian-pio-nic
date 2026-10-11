@@ -1683,3 +1683,11 @@ The snapshot is `out/udp-trace/ci-518836-preflight/latest.json`, for pipeline SH
 five hours later, October 11 at 04:43:42 CEST, in the same thread; no polling
 is scheduled during that interval. Keep the pipeline branch. No bitstream,
 Enzian validation or new RTT breakdown is available yet.
+
+At the October 11 five-hour results check, hardware job 2885506 in 518836
+was still running; all 14 gates and prepare 2885505 remained successful,
+with report 2885507 not started. Snapshot:
+`out/udp-trace/ci-518836-results/latest.json`. A 30-minute results-recheck is
+armed for 05:14:18 CEST, without restarting the five-hour delay. Provenance
+remains `8d291b7f00b701e7cd23ab02a75a78080d6e9e42`; the branch is retained.
+No completed hardware artifacts or new board tests/breakdown are available.
