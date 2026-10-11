@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import time
@@ -36,6 +37,12 @@ def main():
     a.output = a.output.resolve()
     a.output.mkdir(parents=True, exist_ok=False)
     records = []
+    # Memcached starts maintenance/request threads before lauberhorn_init().
+    # They must inherit the dump-signal mask too: a process-directed SIGUSR2
+    # otherwise terminates an unblocked early thread instead of reaching the
+    # runtime's sigwait dump thread. The runtime keeps this signal blocked.
+    if a.trace:
+        signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR2})
     # Affinity is inherited by main/maintenance threads. Registration assigns
     # request workers through the kernel's physical-worker mapping.
     os.sched_setaffinity(0, ordinary)

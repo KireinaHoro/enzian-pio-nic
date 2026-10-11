@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from breakdown import hardware_paths, join_clients, join_requests, software_rows
+from breakdown import independent_stages, hardware_paths, join_clients, join_requests, software_rows
 
 
 def fixture(count=70, segments=2):
@@ -37,6 +37,32 @@ def fixture(count=70, segments=2):
 
 
 class BreakdownTests(unittest.TestCase):
+    def test_bypass_descriptors_do_not_enter_worker_request_queues(self):
+        hw,_=fixture(count=1,segments=1)
+        for name,data in [('EciRxDescSent',{'HostMsgID':63}),
+                          ('EciTxCommitRead',{'HostMsgID':1}),
+                          ('EciTxSubmit',{'HostMsgID':1}),
+                          ('UdpHostPacket',{'HostMsgID':1})]:
+            hw.append(dict(event=name,time_ns=50,data=dict(CoreID=0,**data)))
+        self.assertEqual(len(hardware_paths(hw)),1)
+
+    def test_cleared_descriptor_id_requires_independent_software_identity(self):
+        hw,sw=fixture(count=1,segments=1)
+        next(e for e in hw if e['event']=='EciRxDescSent')['data']['HostMsgID']=63
+        result=join_requests(sw,hardware_paths(hw))
+        self.assertTrue(result[0]['hardware']['descriptor_id_cleared'])
+        sw[0]['rx_id']=7
+        with self.assertRaisesRegex(ValueError,'wrapping ID'):join_requests(sw,hardware_paths(hw))
+        next(e for e in hw if e['event']=='EciRxDescSent')['data']['HostMsgID']=7
+        with self.assertRaisesRegex(ValueError,'descriptor ID'):hardware_paths(hw)
+
+    def test_independent_clock_stages_conserve_mac_duration(self):
+        hw,sw=fixture(count=2,segments=2)
+        requests=join_requests(sw,hardware_paths(hw))
+        self.assertFalse(independent_stages(requests)['aligned'])
+        for r in requests:
+            self.assertEqual(sum(r['additive_ns'].values()),r['hardware']['mac_to_mac_ns'])
+
     def test_wrap_segments_and_interleaved_instances(self):
         hw,sw=fixture();r=join_requests(sw,hardware_paths(hw))
         self.assertEqual(len(r),70)
