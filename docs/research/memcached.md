@@ -1909,6 +1909,12 @@ same `cc19c428` pipeline SHA, all 14 gates and preparation passed, and report
 Snapshot/provenance are appended above; no artifacts or new board results are
 available yet, and both pipeline/dependency refs remain retained.
 
+At 18:29 CEST, hardware job 2886156 was still running on `cc19c428`;
+all 14 gates and prepare 2886155 remained successful, with report 2886157
+still created. The next 30-minute recheck is **18:59:56 CEST**. No duplicate
+build or board test was launched; matched artifacts and hardware validation
+remain pending. The full snapshot is appended to the evidence record above.
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
