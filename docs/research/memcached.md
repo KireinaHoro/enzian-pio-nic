@@ -1707,3 +1707,44 @@ successful. The timestamped snapshot is retained under
 `out/udp-trace/ci-518836-rechecks/`. Re-armed results-recheck for October 11,
 08:47:56 CEST. No new build or board test was launched; completed hardware
 artifacts and the memcached breakdown remain pending. The branch is retained.
+
+#### Matched trace hardware bring-up — October 11
+
+Pipeline 518836 completed successfully: all gates 2885491–2885504, prepare
+2885505, hardware 2885506 and report 2885507. Tested SHA is
+`8d291b7f00b701e7cd23ab02a75a78080d6e9e42`, not the later documentation-only
+branch head. Artifacts, hashes and the compact board results are recorded in
+[the provenance manifest](../../data/eci/board-evidence/udp-trace-518836-rpc-20261011.json).
+The hardware archive/digest is under `out/udp-trace/ci-518836-artifacts/2885506/`;
+bitstream, LTX, trace map and both matching deployment images are under
+`out/udp-trace/hw-2885506/`. Routed WNS is −0.724 ns with 42,712 failing setup
+endpoints: not timing closure. No timing, address-layout or PREEMPT change was
+made during this follow-up.
+
+Reservations for zuestoll14 and zuestoll07 were rechecked as pengxu. Before
+reset, the frozen pointer matched the prior successful nullrpc capture and its
+2,445,207,936-byte dump passed SHA-256 verification. Current TAD and kernel
+fault scan were clean, but continuity with the prior kernel log was not
+established; preserve that limitation rather than claiming a continuous clean
+interval. Evidence is in `out/udp-trace/preservation.json` and `pre-health.json`.
+
+The repository harness passed two matched cold-boot RPC trials, 100 checked
+responses each (arithmetic and echoed request IDs independently rechecked).
+Round 1 passed its first boot; round 2 required one full cold-reset retry after
+missing CCPI lane initialization, then passed with QLM8–13 locked and all 24
+lanes initialized. No module/RPC faults were reported. Tracing was armed during
+programming before module load; the post-test stop readback was zero before
+freezing. Harness: `out/udp-trace/rpc-harness.json`; compact results:
+`out/udp-trace/rpc-board-518836/summary.json`. DUT remains on the successful RPC
+cohort with tracing frozen. Post-freeze VIO: writeSlot `0x00722193`, no wrap or
+DMA error, sticky sample-loss flag set. This success trace was not dumped or
+claimed loss-free; it is not a memcached breakdown window.
+
+The RPC image was staged and its local/remote hash matched; the memcached image
+is collected locally but not deployed. Shared `/scratch` was nearly full, so
+only the RPC image was staged and no old evidence was deleted. The next work is
+the bounded native memcached correlation/RTT campaign above, using this matched
+hardware and the collected image after arranging staging space. There is still
+no new memcached latency result or measured explanation of the roughly 500 µs
+client RTT. All CI jobs have finished; the unmerged feature branch is retained
+for that remaining application validation. No further CI timer is needed.

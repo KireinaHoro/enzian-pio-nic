@@ -1,0 +1,172 @@
+{
+  "pipeline": 518836,
+  "revision": "8d291b7f00b701e7cd23ab02a75a78080d6e9e42",
+  "prepare_job": 2885505,
+  "hardware_job": 2885506,
+  "report_job": 2885507,
+  "gates": [
+    2885491,
+    2885492,
+    2885493,
+    2885494,
+    2885495,
+    2885496,
+    2885497,
+    2885498,
+    2885499,
+    2885500,
+    2885501,
+    2885502,
+    2885503,
+    2885504
+  ],
+  "artifacts": {
+    "out/udp-trace/hw-2885506/shell_lauberhorn-eci.ltx": {
+      "bytes": 2756497,
+      "sha256": "1811d08ea7289d6ab509c79d0f25a02bc25e6fc179332bd11ceabd93540ca96f"
+    },
+    "out/udp-trace/hw-2885506/SHA256SUMS": {
+      "bytes": 278,
+      "sha256": "ad1b425259cd982a023c5269cd28d3d348d3fa92ffa2e0b8746208a3bb87a4ab"
+    },
+    "out/udp-trace/hw-2885506/deploy.img": {
+      "bytes": 164691968,
+      "sha256": "20bbbe6eee7b73dc7e97a25c7fbd8a5af2287e067064f4f6322a52f7b61610ff"
+    },
+    "out/udp-trace/hw-2885506/lauberhorn_trace_dma_map.json": {
+      "bytes": 37120,
+      "sha256": "9476846c6bbf7e7f7c84c603c68b335bbf458071eb47ff32c7291f90581e7e10"
+    },
+    "out/udp-trace/hw-2885506/memcached-deploy.img": {
+      "bytes": 222539776,
+      "sha256": "0e15262fe381d7233711ff6e373728f20e5b32c3c25e3fe629cf88cb5a6951ac"
+    },
+    "out/udp-trace/hw-2885506/shell_lauberhorn-eci.bit": {
+      "bytes": 62684894,
+      "sha256": "8acd3e623bcb63bc33cd863b3354db66992a0fd2fda9283e3a9f0cb9d672b524"
+    }
+  },
+  "wns_ns": -0.724,
+  "failing_setup_endpoints": 42712,
+  "timing_closed": false,
+  "reservations": "zuestoll14 and zuestoll07 checked as pengxu before testing",
+  "preservation": "out/udp-trace/preservation.json",
+  "rpc_harness": "out/udp-trace/rpc-harness.json",
+  "rpc_results": [
+    {
+      "case": "udp-trace-518836-rpc",
+      "round": 1,
+      "revision": "8d291b7f00b701e7cd23ab02a75a78080d6e9e42",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/udp-trace/rpc-board-518836/01-udp-trace-518836-rpc/boot",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 320.5
+    },
+    {
+      "case": "udp-trace-518836-rpc",
+      "round": 2,
+      "revision": "8d291b7f00b701e7cd23ab02a75a78080d6e9e42",
+      "status": "pass",
+      "boot_exit": 0,
+      "boot_attempts": [
+        {
+          "attempt": 1,
+          "logs": "out/udp-trace/rpc-board-518836/02-udp-trace-518836-rpc/boot",
+          "status": "eci_bringup_failed",
+          "error": "Missing BDK CCPI lane initialization report"
+        },
+        {
+          "attempt": 2,
+          "logs": "out/udp-trace/rpc-board-518836/02-udp-trace-518836-rpc/boot/retry-02",
+          "status": "pass",
+          "eci": {
+            "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+            "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+            "firmware_clock_report": [
+              "RCLK:  2000 Mhz",
+              "SCLK:  800 Mhz",
+              "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+            ]
+          }
+        }
+      ],
+      "reset_evidence": [
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}",
+        "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+      ],
+      "cpu_exit": 0,
+      "cpu_stages": [
+        "mount",
+        "load",
+        "verify",
+        "ready"
+      ],
+      "rt_bandwidth": {
+        "previous_runtime_us": 950000,
+        "runtime_us": -1,
+        "period_us": 1000000
+      },
+      "faults": [],
+      "client_exit": 0,
+      "seconds": 469.2
+    }
+  ],
+  "response_checks": {
+    "round1": {
+      "responses": 100,
+      "arithmetic_and_request_ids_checked": true
+    },
+    "round2": {
+      "responses": 100,
+      "arithmetic_and_request_ids_checked": true
+    }
+  },
+  "limitations": [
+    "WNS -0.724 ns: not timing closed.",
+    "Second trial required one cold-boot retry after missing CCPI initialization.",
+    "Prior trace hash and frozen pointer verified; old kernel log continuity was not established.",
+    "No native UDP trace-correlation measurement or explanation of memcached RTT yet."
+  ],
+  "post_rpc_trace": {
+    "stop_before_freeze": 0,
+    "stop_after_freeze": 1,
+    "write_slot": 7479699,
+    "wrapped": 0,
+    "dma_error": 0,
+    "sticky_sample_lost": 1,
+    "raw_dump_collected": false
+  },
+  "board_state": "zuestoll14 runs second successful matched RPC cohort; tracing frozen after success."
+}
