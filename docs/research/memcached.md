@@ -1876,3 +1876,62 @@ this remaining recorder-validation work into master or start duplicate builds.
 After matched RPC validation, repeat the single-instance and five-instance
 breakdowns with client output under `/dev/shm`; recheck the system-CDC clock
 bounds instead of assuming the input-queue fix establishes all timestamp accuracy.
+
+### Vanilla Linux MAC comparison — October 11
+
+Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
+AArch64 with the existing Nix package (`enableLauberhorn = false`), ran on
+zuestoll14 Linux 6.8.0-64. Its four ordinary libevent request threads were pinned
+individually to CPUs 40–43; main/background threads were restricted to 0–39.
+The parked native instances on isolated CPUs 44–47 were retained. TCP and
+extstore were disabled; UDP port 11220, 128 MiB and hashpower 18 matched the
+bounded native setup. Application source was unmodified; the package's generated
+version label was unchanged. The standalone Nix closure was mounted separately
+and invoked through its own glibc loader/library path.
+
+The CPU `nicvf` interfaces advertise software timestamping only. Therefore this
+comparison uses **Linux UDP/libevent over Lauberhorn's FPGA bypass/netdev**, with
+the same F_MAC0 arrival/egress boundaries as the native result. It is not a
+conventional CPU-NIC baseline. FPGA pipeline 518836 and matching trace map stayed
+unchanged; no reboot, programming, timing or PREEMPT change occurred.
+
+Three 128-request bursts with one outstanding request and 1-KiB values passed:
+384 requests, no errors/timeouts, no hash expansion. Each burst has 122 GETs and
+six SETs (SET every twentieth request). Excluding the first GET of each burst,
+the **363 sustained GETs** compare as follows (recorder-observed microseconds):
+
+| Path | p50 | p90 | p99 |
+| --- | ---: | ---: | ---: |
+| Native, earlier `w1-send` capture | 18.970 | 21.248 | 26.106 |
+| Upstream Linux through FPGA bypass | 74.650 | 77.746 | 92.595 |
+
+All-command Linux MAC medians were 74.818, 74.773 and 74.623 µs across repeats.
+Client RTT median was 327.972 µs with tracing and 328.568 µs with tracing frozen;
+the identical 384-request control also passed. Neither client RTT is a MAC time.
+The peer AF_PACKET capture ran during both new cohorts; the older native cohort
+had no such capture. Different CPU sets and OS scheduling/interrupt behavior
+remain comparison limits. Sustained traffic and one outstanding request do not
+prove CPU-cache warmth or absence of Linux scheduling delays.
+
+All 387 IPv4 request MAC events and 389 response MAC events match the peer's
+complete IPv4 wire order; UDP port/request IDs select the 384 measured exchanges.
+The additional traffic is startup/stats, including two segmented stats replies.
+Two ARP frames captured outside the measured hardware window are excluded; every
+hardware RX Ethernet event in that window has an IPv4 decoder event. MAC/Ethernet
+counts, causal ordering, single-segment measured responses and full application
+reply validation are checked. The complete 58,684,672-byte bounded dump has no
+lost-sample markers (the live sticky loss bit was already set before this window).
+The legacy recorder queue-residence timestamp bias still applies: these are
+provisional hardware intervals, not corrected-recorder precision claims.
+
+[Compact evidence](../../data/eci/board-evidence/memcached-linux-bypass-518836-20261011.json)
+records artifact hashes, upstream/binary/closure provenance, thread affinities,
+per-repeat distributions and limitations. Local `out/memcached-vanilla/` contains
+`summary.json`, `joined.json`, wire/client records, `comparison.png`/`.svg`, the
+frozen dump and a hashed `reproduction.tar.gz` of exact scripts. Decode, joins and
+plot generation ran through `nix develop`. Shared scratch quota exhaustion was
+handled with temporary/RAM storage without deleting existing evidence. Vivado
+completed capture configuration but crashed during exit; verified frozen VIO
+state allowed export to resume without reset. The temporary upstream process
+was subsequently stopped; native instances and the frozen trace remain intact.
+The corrected-recorder CI follow-up remains separate and was not polled here.

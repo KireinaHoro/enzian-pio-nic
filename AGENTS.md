@@ -108,6 +108,11 @@ See [evidence and timestamp limitation](docs/research/memcached.md#first-joined-
 The five-instance extension stopped after 2,688 requests on client ENOSPC;
 its frozen trace and software records are preserved, not a passing campaign.
 Recheck live state/reservations; use RAM-backed peer output for the next run.
+The subsequent [vanilla Linux comparison](docs/research/memcached.md#vanilla-linux-mac-comparison--october-11)
+passed 384 traced and 384 control requests over the FPGA bypass/netdev. Sustained
+GET MAC p50 is 74.65 µs versus native 18.97 µs, with the same legacy timestamp
+caveat; this is not a CPU-NIC baseline. Its trace is now frozen and preserved,
+and the temporary upstream process was stopped. Native instances remain intact.
 
 ## Confirmed research and scheduling scope
 
