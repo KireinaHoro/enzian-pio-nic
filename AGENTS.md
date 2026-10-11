@@ -102,8 +102,8 @@ identical tracing-off control (and an earlier 1,536-request traced cohort).
 Software medians are about 12 µs RX-to-response preparation and 2.7 µs TX
 preparation. The Python generator dominates the observed client RTT. Hardware
 intervals are qualified: the matched recorder timestamps after an input FIFO,
-so queue residence distorts burst timings without sample loss. A correction
-and new hardware validation are required before precise burst breakdown claims.
+so queue residence distorts burst timings without sample loss. The correction is in pipeline 518922 (`cc19c428`);
+new hardware validation is required before precise burst breakdown claims.
 See [evidence and timestamp limitation](docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
 The five-instance extension stopped after 2,688 requests on client ENOSPC;
 its frozen trace and software records are preserved, not a passing campaign.
