@@ -1877,6 +1877,18 @@ After matched RPC validation, repeat the single-instance and five-instance
 breakdowns with client output under `/dev/shm`; recheck the system-CDC clock
 bounds instead of assuming the input-queue fix establishes all timestamp accuracy.
 
+### Corrected-recorder preflight — October 11
+
+The 11:56 CEST read-only check of pipeline 518922 confirmed all 14 test jobs
+2886141–2886154 and prepare job 2886155 passed, without retries. Hardware job
+2886156 started at 11:42:29 CEST and is running; report 2886157 remains created.
+The pipeline SHA is `cc19c4285148db65c5b5517f6a02abd04b7f9142`, not the later
+documentation-only branch head. The results follow-up is armed for **16:56:46
+CEST, October 11**, exactly five hours after scheduling; do not poll in between.
+No new build or board test was launched. Keep both pipeline/dependency refs;
+hardware timing and matched Enzian validation remain pending.
+[Full gate snapshot and timer provenance](../../data/eci/board-evidence/trace-recorder-518922-preflight-20261011.json).
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
