@@ -1903,6 +1903,12 @@ all gates/preparation still passed and report 2886157 not yet started. The next
 artifact substitution or board test was started; corrected-hardware validation
 remains pending. The gate snapshot is retained in the same evidence record.
 
+The 17:59 CEST check again confirmed hardware job 2886156 running on the
+same `cc19c428` pipeline SHA, all 14 gates and preparation passed, and report
+2886157 created. The next results recheck is **18:28:54 CEST** (30 minutes).
+Snapshot/provenance are appended above; no artifacts or new board results are
+available yet, and both pipeline/dependency refs remain retained.
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
