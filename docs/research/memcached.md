@@ -1921,6 +1921,12 @@ the 30-minute check for **19:30:40 CEST**, retaining both refs and the exact
 job snapshot. Hardware artifacts and matched board tests remain pending; no
 duplicate work or hardware changes were launched.
 
+At 19:31 CEST, the same hardware job 2886156 remained running on `cc19c428`.
+All 14 gates and prepare 2886155 were successful; report 2886157 remained
+created. The next 30-minute check is **20:01:15 CEST**. The full snapshot is
+retained above; no new build, artifact collection or board test was launched.
+Timing and corrected-recorder board validation remain pending.
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
