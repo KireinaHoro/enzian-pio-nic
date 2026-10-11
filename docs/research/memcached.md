@@ -1889,6 +1889,14 @@ No new build or board test was launched. Keep both pipeline/dependency refs;
 hardware timing and matched Enzian validation remain pending.
 [Full gate snapshot and timer provenance](../../data/eci/board-evidence/trace-recorder-518922-preflight-20261011.json).
 
+At the scheduled 16:57 CEST results check, hardware job 2886156 was still
+running and report 2886157 remained created; every gate and preparation stayed
+successful. A **30-minute** results recheck is armed for **17:27:25 CEST**.
+No artifacts were collected or board tests launched while the build is pending.
+The exact pipeline SHA and retained refs remain unchanged; this supplies no new
+timing or corrected-recorder board evidence. The snapshot is appended to the
+preflight evidence above.
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for
