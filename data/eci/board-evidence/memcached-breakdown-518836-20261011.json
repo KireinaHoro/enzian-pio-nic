@@ -963,11 +963,22 @@
     "server_directory": "out/memcached-breakdown/five-zuestoll14-export/files",
     "completed_requests": 2688,
     "error": "ENOSPC on peer client output",
-    "tracing_off_control": "not run after incomplete traced workload"
+    "tracing_off_control": "not run after incomplete traced workload",
+    "final_health": {
+      "pids": [
+        1669,
+        1670,
+        1671,
+        1672,
+        1673
+      ],
+      "faults": []
+    }
   },
   "recorder_fix": {
     "dependency_commit": "e24f2ef",
     "branch": "fix/trace-ingress-timestamps",
-    "tests": "6/6 passed; new timestamp test rejects original 5845335"
+    "tests": "6/6 passed; new timestamp test rejects original 5845335",
+    "prepare": "nix develop -c nix build .#eciVivadoInputs --no-link passed; generated map declares input timestamp point"
   }
 }

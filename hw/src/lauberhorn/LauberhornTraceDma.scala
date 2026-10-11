@@ -421,6 +421,8 @@ object LauberhornTraceDma {
         "payload_width" -> PayloadWidth,
         "source_width" -> layout.sourceWidth,
         "timestamp_width" -> tw,
+        "timestamp_point" -> "trace_dma_input_before_batch_queue",
+        "sys_cdc_timestamp_limit" -> "system sources cross an untimestamped asynchronous FIFO before trace DMA input",
         "sample_width" -> SampleWidth,
         "lost_source" -> ujson.Num(layout.lostSource.toDouble),
         "lost_count_width" -> LostCountWidth,

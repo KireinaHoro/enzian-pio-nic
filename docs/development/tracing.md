@@ -623,3 +623,31 @@ emitted until a different request or successful request service rearms reporting
 Do not infer stall clearance from absent samples. Correlate LC/LCI, LCIA, UL and
 CPU eviction events, preserving pre-freeze loss status and incomplete-history
 limitations. See the [allocation-trace contract and regression](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred).
+
+## Timestamp capture point and legacy queue bias
+
+The October 11 memcached campaign found that dependency `5845335` and earlier
+`TraceBufferDMA` implementations sampled `cycleCount` when a trace batch left
+the input FIFO. Serialization/backpressure could therefore add a variable delay
+to timestamps even when every sample was retained. A loss-free dump alone does
+not establish event-time accuracy. The preserved 518836 capture demonstrates
+contradictory CPU/DCS timing bounds under concurrent bursts; see the
+[memcached evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
+
+Correction `e24f2ef` captures the timestamp together with the batch at input and
+carries it through the queue. The generated map now declares
+`sample.timestamp_point = "trace_dma_input_before_batch_queue"`. Maps without
+that field describe legacy dequeue timestamping. The sample bit layout is
+unchanged, but maps and provenance must distinguish these contracts. The
+regression checks ingress-cycle spacing under multi-source serialization and
+rejects the original implementation.
+
+System-domain ECI sources still cross an untimestamped asynchronous FIFO before
+reaching the trace recorder. Fixed pipeline-delay subtraction does not bound
+variable CDC residence. Report CPU/FPGA fit uncertainty as conditional on that
+path and reject inconsistent fits; do not widen the acceptance threshold merely
+to obtain a breakdown. App-domain NIC/MAC events with the corrected recorder
+avoid the global batch-queue bias. New hardware validation is required before
+claiming corrected measurements; historical fine hardware intervals, including
+nullrpc comparisons, retain this newly identified limitation until reassessed.
+CPU-only intervals and client RTTs are unaffected by the recorder correction.

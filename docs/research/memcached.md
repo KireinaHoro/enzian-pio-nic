@@ -1849,4 +1849,16 @@ regression also rejected original `5845335` (one-cycle ingress spacing became
 four-cycle dequeue spacing). Fixed dependency commit is `e24f2ef` on
 `fix/trace-ingress-timestamps`, not toolkit master. Software validation passed
 three measurement tests and eight correlation tests. The corrected hardware
-bundle is being prepared; no new bitstream result is implied.
+bundle passed `nix develop -c nix build .#eciVivadoInputs --no-link`, including
+generated port/debug checks. The map declares input timestamping; no new
+bitstream result is implied.
+
+Peer diagnosis confirmed its 4.64 GB root filesystem was full, with inodes still
+available. `/dev/shm` had 51.7 GB free and passed a bounded 4-MiB write check.
+No old evidence was deleted. The next workload must place client output there.
+
+Final partial-cohort health check found all five servers alive (PIDs 1669–1673)
+and no kernel fault signatures. Hardware tracing remains frozen. Both failed
+attempts and all successful single-instance evidence are preserved before any
+future reset. The next hardware result must use its own matching revision and
+artifacts; do not combine a corrected map with the old 518836 bitstream.
