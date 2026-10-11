@@ -1,0 +1,973 @@
+{
+  "schema": 1,
+  "date": "2026-10-11",
+  "pipeline": 518836,
+  "revision": "8d291b7f00b701e7cd23ab02a75a78080d6e9e42",
+  "hardware_job": 2885506,
+  "memcached_revision": "b376490d303da13ba15ed0295190893c64d1d324",
+  "artifacts": {
+    "out/udp-trace/hw-2885506/shell_lauberhorn-eci.ltx": {
+      "bytes": 2756497,
+      "sha256": "1811d08ea7289d6ab509c79d0f25a02bc25e6fc179332bd11ceabd93540ca96f"
+    },
+    "out/udp-trace/hw-2885506/SHA256SUMS": {
+      "bytes": 278,
+      "sha256": "ad1b425259cd982a023c5269cd28d3d348d3fa92ffa2e0b8746208a3bb87a4ab"
+    },
+    "out/udp-trace/hw-2885506/deploy.img": {
+      "bytes": 164691968,
+      "sha256": "20bbbe6eee7b73dc7e97a25c7fbd8a5af2287e067064f4f6322a52f7b61610ff"
+    },
+    "out/udp-trace/hw-2885506/lauberhorn_trace_dma_map.json": {
+      "bytes": 37120,
+      "sha256": "9476846c6bbf7e7f7c84c603c68b335bbf458071eb47ff32c7291f90581e7e10"
+    },
+    "out/udp-trace/hw-2885506/memcached-deploy.img": {
+      "bytes": 222539776,
+      "sha256": "0e15262fe381d7233711ff6e373728f20e5b32c3c25e3fe629cf88cb5a6951ac"
+    },
+    "out/udp-trace/hw-2885506/shell_lauberhorn-eci.bit": {
+      "bytes": 62684894,
+      "sha256": "8acd3e623bcb63bc33cd863b3354db66992a0fd2fda9283e3a9f0cb9d672b524"
+    }
+  },
+  "scope": "One instance, four workers; four cases, 128 requests per burst, three repeats, 1024-byte values, SET every twentieth request.",
+  "measured_requests": {
+    "first_traced": 1536,
+    "repeated_traced": 1536,
+    "tracing_off": 1536
+  },
+  "errors": {
+    "completed_single_instance_requests": 0,
+    "hash_expansion": false
+  },
+  "cases": {
+    "w1-send": {
+      "label": "Window 1, individual sends",
+      "requests": 384,
+      "rtt_us": {
+        "n": 384,
+        "mean": 130.1329088541667,
+        "p50": 125.916,
+        "p90": 143.991,
+        "p95": 146.76364999999998,
+        "p99": 160.34969999999998,
+        "p100": 184.591
+      },
+      "control_rtt_us": {
+        "n": 384,
+        "mean": 130.43976302083334,
+        "p50": 126.091,
+        "p90": 144.4,
+        "p95": 147.63549999999998,
+        "p99": 160.93700000000004,
+        "p100": 182.601
+      },
+      "mac_us": {
+        "n": 384,
+        "mean": 20.048072916666666,
+        "p50": 18.98,
+        "p90": 24.197499999999998,
+        "p95": 26.383749999999996,
+        "p99": 30.07110000000003,
+        "p100": 35.13
+      },
+      "outside_mac_us": {
+        "n": 384,
+        "mean": 110.08483593749999,
+        "p50": 106.631,
+        "p90": 124.0365,
+        "p95": 127.90065,
+        "p99": 139.35065000000006,
+        "p100": 162.371
+      },
+      "stage_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "mean": 0.2279296875,
+          "p50": 0.22,
+          "p90": 0.22,
+          "p95": 0.22,
+          "p99": 0.39,
+          "p100": 0.39
+        },
+        "scheduler wait": {
+          "n": 384,
+          "mean": 0.49183593750000004,
+          "p50": 0.03,
+          "p90": 1.4864999999999995,
+          "p95": 4.4149999999999965,
+          "p99": 6.183150000000003,
+          "p100": 7.565
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "mean": 0.1280078125,
+          "p50": 0.01,
+          "p90": 0.905,
+          "p95": 0.9342499999999999,
+          "p99": 0.935,
+          "p100": 0.945
+        },
+        "host turnaround (CPU + ECI)": {
+          "n": 384,
+          "mean": 16.306901041666666,
+          "p50": 15.725,
+          "p90": 16.026,
+          "p95": 18.130999999999975,
+          "p99": 26.74585,
+          "p100": 28.15
+        },
+        "commit to submission": {
+          "n": 384,
+          "mean": 2.5964713541666664,
+          "p50": 2.665,
+          "p90": 2.69,
+          "p95": 2.695,
+          "p99": 2.7,
+          "p100": 2.7
+        },
+        "submission to final egress": {
+          "n": 384,
+          "mean": 0.29692708333333334,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.305,
+          "p99": 0.305,
+          "p100": 0.305
+        }
+      },
+      "cpu_rx_to_prepare_us": {
+        "n": 384,
+        "mean": 12.828281249999998,
+        "p50": 12.17,
+        "p90": 12.408,
+        "p95": 14.462499999999979,
+        "p99": 24.8017,
+        "p100": 26.22
+      },
+      "cpu_tx_prepare_us": {
+        "n": 384,
+        "mean": 2.6253125,
+        "p50": 2.69,
+        "p90": 2.75,
+        "p95": 2.78,
+        "p99": 2.8234000000000004,
+        "p100": 3.14
+      },
+      "cpu_commit_call_us": {
+        "n": 384,
+        "mean": 3.560807291666667,
+        "p50": 3.64,
+        "p90": 3.66,
+        "p95": 3.66,
+        "p99": 3.6617,
+        "p100": 3.67
+      },
+      "linux_cpus": [
+        44
+      ],
+      "hardware_cores": [
+        1
+      ],
+      "cleared_descriptor_ids": 51
+    },
+    "w1-batch": {
+      "label": "Window 1, batched sends",
+      "requests": 384,
+      "rtt_us": {
+        "n": 384,
+        "mean": 220.7595911458333,
+        "p50": 213.897,
+        "p90": 240.636,
+        "p95": 246.16785,
+        "p99": 272.90747000000016,
+        "p100": 641.216
+      },
+      "control_rtt_us": {
+        "n": 384,
+        "mean": 212.6429010416667,
+        "p50": 212.597,
+        "p90": 238.7113,
+        "p95": 243.0795,
+        "p99": 269.03837000000004,
+        "p100": 590.305
+      },
+      "mac_us": {
+        "n": 384,
+        "mean": 20.752096354166667,
+        "p50": 19.205,
+        "p90": 25.3045,
+        "p95": 27.654999999999998,
+        "p99": 28.47255,
+        "p100": 32.44
+      },
+      "outside_mac_us": {
+        "n": 384,
+        "mean": 200.00749479166666,
+        "p50": 194.102,
+        "p90": 220.762,
+        "p95": 226.95199999999997,
+        "p99": 250.58125000000004,
+        "p100": 621.111
+      },
+      "stage_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "mean": 0.22795572916666673,
+          "p50": 0.22,
+          "p90": 0.22,
+          "p95": 0.22424999999999984,
+          "p99": 0.39,
+          "p100": 0.39
+        },
+        "scheduler wait": {
+          "n": 384,
+          "mean": 0.9005208333333332,
+          "p50": 0.03,
+          "p90": 3.287,
+          "p95": 5.464999999999997,
+          "p99": 7.4351,
+          "p100": 7.52
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "mean": 0.29279947916666665,
+          "p50": 0.01,
+          "p90": 0.935,
+          "p95": 0.935,
+          "p99": 0.935,
+          "p100": 0.94
+        },
+        "host turnaround (CPU + ECI)": {
+          "n": 384,
+          "mean": 16.437109375000002,
+          "p50": 15.89,
+          "p90": 16.0805,
+          "p95": 17.697499999999994,
+          "p99": 26.8351,
+          "p100": 26.965
+        },
+        "commit to submission": {
+          "n": 384,
+          "mean": 2.596901041666667,
+          "p50": 2.67,
+          "p90": 2.69,
+          "p95": 2.695,
+          "p99": 2.7,
+          "p100": 2.7
+        },
+        "submission to final egress": {
+          "n": 384,
+          "mean": 0.29680989583333334,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.305,
+          "p99": 0.305,
+          "p100": 0.305
+        }
+      },
+      "cpu_rx_to_prepare_us": {
+        "n": 384,
+        "mean": 12.913932291666667,
+        "p50": 12.29,
+        "p90": 12.43,
+        "p95": 14.115999999999994,
+        "p99": 24.8685,
+        "p100": 24.99
+      },
+      "cpu_tx_prepare_us": {
+        "n": 384,
+        "mean": 2.672630208333333,
+        "p50": 2.74,
+        "p90": 2.77,
+        "p95": 2.82,
+        "p99": 2.84,
+        "p100": 2.89
+      },
+      "cpu_commit_call_us": {
+        "n": 384,
+        "mean": 3.560546875,
+        "p50": 3.64,
+        "p90": 3.66,
+        "p95": 3.66,
+        "p99": 3.67,
+        "p100": 3.67
+      },
+      "linux_cpus": [
+        44
+      ],
+      "hardware_cores": [
+        1
+      ],
+      "cleared_descriptor_ids": 127
+    },
+    "w16-send": {
+      "label": "Window 16, individual sends",
+      "requests": 384,
+      "rtt_us": {
+        "n": 384,
+        "mean": 1531.5779921875,
+        "p50": 1528.0325,
+        "p90": 1746.9289999999999,
+        "p95": 1777.7225,
+        "p99": 1791.588,
+        "p100": 1815.165
+      },
+      "control_rtt_us": {
+        "n": 384,
+        "mean": 1532.0171874999996,
+        "p50": 1526.663,
+        "p90": 1746.411,
+        "p95": 1774.8065,
+        "p99": 1803.9401,
+        "p100": 1817.805
+      },
+      "mac_us": {
+        "n": 384,
+        "mean": 20.2479296875,
+        "p50": 18.79,
+        "p90": 25.659,
+        "p95": 27.33975,
+        "p99": 35.40155000000001,
+        "p100": 36.685
+      },
+      "outside_mac_us": {
+        "n": 384,
+        "mean": 1511.3300625,
+        "p50": 1509.1225,
+        "p90": 1728.1435000000001,
+        "p95": 1758.8745,
+        "p99": 1772.8595,
+        "p100": 1788.024
+      },
+      "stage_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "mean": 0.22785156250000005,
+          "p50": 0.22,
+          "p90": 0.22,
+          "p95": 0.22,
+          "p99": 0.39,
+          "p100": 0.39
+        },
+        "scheduler wait": {
+          "n": 384,
+          "mean": 0.7844921875,
+          "p50": 0.03,
+          "p90": 5.047,
+          "p95": 6.319749999999999,
+          "p99": 7.448600000000001,
+          "p100": 7.545
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "mean": 0.13088541666666667,
+          "p50": 0.01,
+          "p90": 0.905,
+          "p95": 0.93,
+          "p99": 0.935,
+          "p100": 0.94
+        },
+        "host turnaround (CPU + ECI)": {
+          "n": 384,
+          "mean": 16.210364583333334,
+          "p50": 15.55,
+          "p90": 16.507,
+          "p95": 17.80874999999998,
+          "p99": 26.6667,
+          "p100": 26.825
+        },
+        "commit to submission": {
+          "n": 384,
+          "mean": 2.59765625,
+          "p50": 2.68,
+          "p90": 2.695,
+          "p95": 2.695,
+          "p99": 2.7,
+          "p100": 2.725
+        },
+        "submission to final egress": {
+          "n": 384,
+          "mean": 0.2966796875,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.305,
+          "p99": 0.305,
+          "p100": 0.305
+        }
+      },
+      "cpu_rx_to_prepare_us": {
+        "n": 384,
+        "mean": 12.759348958333334,
+        "p50": 12.03,
+        "p90": 12.947,
+        "p95": 14.20449999999998,
+        "p99": 24.77,
+        "p100": 24.88
+      },
+      "cpu_tx_prepare_us": {
+        "n": 384,
+        "mean": 2.5986197916666667,
+        "p50": 2.6550000000000002,
+        "p90": 2.76,
+        "p95": 2.77,
+        "p99": 2.84,
+        "p100": 2.87
+      },
+      "cpu_commit_call_us": {
+        "n": 384,
+        "mean": 3.5612760416666664,
+        "p50": 3.64,
+        "p90": 3.66,
+        "p95": 3.66,
+        "p99": 3.68,
+        "p100": 3.7
+      },
+      "linux_cpus": [
+        44
+      ],
+      "hardware_cores": [
+        1
+      ],
+      "cleared_descriptor_ids": 51
+    },
+    "w16-batch": {
+      "label": "Window 16, batched sends",
+      "requests": 384,
+      "rtt_us": {
+        "n": 384,
+        "mean": 1763.2568984375,
+        "p50": 1718.2640000000001,
+        "p90": 2457.7119999999995,
+        "p95": 2574.6639999999993,
+        "p99": 4052.7672700000016,
+        "p100": 4490.837
+      },
+      "control_rtt_us": {
+        "n": 384,
+        "mean": 1762.0382890624999,
+        "p50": 1724.134,
+        "p90": 2454.522,
+        "p95": 2560.3665,
+        "p99": 3921.4428700000017,
+        "p100": 4352.305
+      },
+      "mac_us": {
+        "n": 384,
+        "mean": 42.129140625,
+        "p50": 36.537499999999994,
+        "p90": 57.7765,
+        "p95": 63.70474999999999,
+        "p99": 248.14250000000004,
+        "p100": 267.355
+      },
+      "outside_mac_us": {
+        "n": 384,
+        "mean": 1721.1277578125,
+        "p50": 1676.6465,
+        "p90": 2394.056,
+        "p95": 2489.064349999999,
+        "p99": 4011.4918200000016,
+        "p100": 4436.292
+      },
+      "stage_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "mean": 0.23132812500000002,
+          "p50": 0.22,
+          "p90": 0.2669999999999999,
+          "p95": 0.3834999999999997,
+          "p99": 0.395,
+          "p100": 0.44
+        },
+        "scheduler wait": {
+          "n": 384,
+          "mean": 19.5466015625,
+          "p50": 14.877500000000001,
+          "p90": 35.7815,
+          "p95": 43.96899999999998,
+          "p99": 191.9518000000005,
+          "p100": 238.68
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "mean": 0.7767578125,
+          "p50": 0.92,
+          "p90": 1.17,
+          "p95": 1.3159999999999978,
+          "p99": 2.376050000000001,
+          "p100": 2.67
+        },
+        "host turnaround (CPU + ECI)": {
+          "n": 384,
+          "mean": 18.661341145833333,
+          "p50": 15.8325,
+          "p90": 25.2205,
+          "p95": 26.979999999999986,
+          "p99": 41.68255000000007,
+          "p100": 170.595
+        },
+        "commit to submission": {
+          "n": 384,
+          "mean": 2.611666666666667,
+          "p50": 2.675,
+          "p90": 2.71,
+          "p95": 2.94,
+          "p99": 3.3413500000000025,
+          "p100": 4.58
+        },
+        "submission to final egress": {
+          "n": 384,
+          "mean": 0.3014453125,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.3889999999999986,
+          "p99": 0.5984000000000003,
+          "p100": 0.68
+        }
+      },
+      "cpu_rx_to_prepare_us": {
+        "n": 384,
+        "mean": 15.082369791666665,
+        "p50": 12.19,
+        "p90": 21.497,
+        "p95": 24.597999999999995,
+        "p99": 39.63650000000007,
+        "p100": 158.56
+      },
+      "cpu_tx_prepare_us": {
+        "n": 384,
+        "mean": 2.728880208333333,
+        "p50": 2.68,
+        "p90": 2.85,
+        "p95": 2.88,
+        "p99": 3.4453000000000014,
+        "p100": 11.62
+      },
+      "cpu_commit_call_us": {
+        "n": 384,
+        "mean": 3.576328125,
+        "p50": 3.65,
+        "p90": 3.67,
+        "p95": 3.6784999999999997,
+        "p99": 4.0817000000000005,
+        "p100": 4.36
+      },
+      "linux_cpus": [
+        44,
+        45,
+        46,
+        47
+      ],
+      "hardware_cores": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "cleared_descriptor_ids": 284
+    }
+  },
+  "recorder_timestamp_point": "legacy_batch_queue_dequeue",
+  "clock_alignment": {
+    "w1-batch": {
+      "passed": true,
+      "clock": {
+        "anchor_hw_ns": 295229162025,
+        "base_offset_ns": -117476856580.0,
+        "offset_correction_us": 1.6399856503244088,
+        "rate_error_ppm": 0.0018920708952452348,
+        "slack_ns": 10.0,
+        "uncertainty_ns": 166.06005114069956,
+        "tx_bounds": 1152,
+        "anchors": "DCS RX response, TX request and TX response; CPU entry/return brackets"
+      },
+      "stages_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "p50": 0.22,
+          "p90": 0.22,
+          "p95": 0.22425000457763655,
+          "p99": 0.39,
+          "p100": 0.39
+        },
+        "scheduler wait": {
+          "n": 384,
+          "p50": 0.03,
+          "p90": 3.287,
+          "p95": 5.465000030517575,
+          "p99": 7.4351,
+          "p100": 7.52
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "p50": 0.01,
+          "p90": 0.935,
+          "p95": 0.935,
+          "p99": 0.9350000051879883,
+          "p100": 0.94
+        },
+        "descriptor to DCS response": {
+          "n": 384,
+          "p50": 0.32,
+          "p90": 0.33,
+          "p95": 0.33,
+          "p99": 0.33,
+          "p100": 0.33000003051757815
+        },
+        "RX response to CPU": {
+          "n": 384,
+          "p50": 0.15994064331054686,
+          "p90": 0.16499263305664064,
+          "p95": 0.16974439086914064,
+          "p99": 0.18078176452636727,
+          "p100": 0.18992864990234376
+        },
+        "runtime/libevent/parser/storage": {
+          "n": 384,
+          "p50": 12.29,
+          "p90": 12.43,
+          "p95": 14.115999999999994,
+          "p99": 24.8685,
+          "p100": 24.99
+        },
+        "response preparation and earlier segment commits": {
+          "n": 384,
+          "p50": 2.74,
+          "p90": 2.77,
+          "p95": 2.82,
+          "p99": 2.84,
+          "p100": 2.89
+        },
+        "TX request transit": {
+          "n": 384,
+          "p50": 0.16500486755371094,
+          "p90": 0.17001282348632812,
+          "p95": 0.17016259765625,
+          "p99": 0.170293235168457,
+          "p100": 0.17032696533203126
+        },
+        "DCS request to commit": {
+          "n": 384,
+          "p50": 0.205,
+          "p90": 0.21,
+          "p95": 0.21,
+          "p99": 0.21,
+          "p100": 0.21
+        },
+        "commit to submission": {
+          "n": 384,
+          "p50": 2.67,
+          "p90": 2.690000030517578,
+          "p95": 2.695,
+          "p99": 2.7,
+          "p100": 2.700000030517578
+        },
+        "submission to final egress": {
+          "n": 384,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.305,
+          "p99": 0.30500000518798825,
+          "p100": 0.3050000305175781
+        }
+      }
+    },
+    "w1-send": {
+      "passed": true,
+      "clock": {
+        "anchor_hw_ns": 294915708510,
+        "base_offset_ns": -117476856585.0,
+        "offset_correction_us": 1.6437646576149243,
+        "rate_error_ppm": 0.004860284157544914,
+        "slack_ns": 10.0,
+        "uncertainty_ns": 170.5613942470925,
+        "tx_bounds": 1152,
+        "anchors": "DCS RX response, TX request and TX response; CPU entry/return brackets"
+      },
+      "stages_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "p50": 0.22,
+          "p90": 0.22,
+          "p95": 0.22000003051757813,
+          "p99": 0.39,
+          "p100": 0.39000003051757814
+        },
+        "scheduler wait": {
+          "n": 384,
+          "p50": 0.03,
+          "p90": 1.4865000305175775,
+          "p95": 4.415000025939938,
+          "p99": 6.183150030517582,
+          "p100": 7.565000061035156
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "p50": 0.01,
+          "p90": 0.905,
+          "p95": 0.9342500045776366,
+          "p99": 0.9350000051879883,
+          "p100": 0.945
+        },
+        "descriptor to DCS response": {
+          "n": 384,
+          "p50": 0.3225000152587891,
+          "p90": 0.33,
+          "p95": 0.33,
+          "p99": 0.33,
+          "p100": 0.33000003051757815
+        },
+        "RX response to CPU": {
+          "n": 384,
+          "p50": 0.16117031860351563,
+          "p90": 0.1662228271484375,
+          "p95": 0.17111676177978516,
+          "p99": 0.18569048614501954,
+          "p100": 0.18614907836914063
+        },
+        "runtime/libevent/parser/storage": {
+          "n": 384,
+          "p50": 12.17,
+          "p90": 12.408,
+          "p95": 14.462499999999979,
+          "p99": 24.8017,
+          "p100": 26.22
+        },
+        "response preparation and earlier segment commits": {
+          "n": 384,
+          "p50": 2.69,
+          "p90": 2.75,
+          "p95": 2.78,
+          "p99": 2.8234000000000004,
+          "p100": 3.14
+        },
+        "TX request transit": {
+          "n": 384,
+          "p50": 0.16384214782714845,
+          "p90": 0.16890172729492187,
+          "p95": 0.1693364501953125,
+          "p99": 0.16947810607910158,
+          "p100": 0.1890355224609375
+        },
+        "DCS request to commit": {
+          "n": 384,
+          "p50": 0.205,
+          "p90": 0.21,
+          "p95": 0.21,
+          "p99": 0.21000003051757812,
+          "p100": 0.21000003051757812
+        },
+        "commit to submission": {
+          "n": 384,
+          "p50": 2.6650000305175783,
+          "p90": 2.690000030517578,
+          "p95": 2.695000030517578,
+          "p99": 2.700000030517578,
+          "p100": 2.700000030517578
+        },
+        "submission to final egress": {
+          "n": 384,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.305,
+          "p99": 0.3050000305175781,
+          "p100": 0.3050000305175781
+        }
+      }
+    },
+    "w16-batch": {
+      "passed": false,
+      "error": "clock fit requires more than 25 ns shared slack"
+    },
+    "w16-send": {
+      "passed": true,
+      "clock": {
+        "anchor_hw_ns": 295088341535,
+        "base_offset_ns": -117476856585.0,
+        "offset_correction_us": 1.6441015928122535,
+        "rate_error_ppm": 0.014423530386408867,
+        "slack_ns": 10.0,
+        "uncertainty_ns": 167.05207198464998,
+        "tx_bounds": 1152,
+        "anchors": "DCS RX response, TX request and TX response; CPU entry/return brackets"
+      },
+      "stages_us": {
+        "RX decode/DMA": {
+          "n": 384,
+          "p50": 0.22,
+          "p90": 0.22000003051757813,
+          "p95": 0.22000003051757813,
+          "p99": 0.39000003051757814,
+          "p100": 0.39000003051757814
+        },
+        "scheduler wait": {
+          "n": 384,
+          "p50": 0.03,
+          "p90": 5.047000070190429,
+          "p95": 6.319750091552733,
+          "p99": 7.448600096740725,
+          "p100": 7.545000091552734
+        },
+        "dispatch to descriptor": {
+          "n": 384,
+          "p50": 0.01,
+          "p90": 0.9050000305175782,
+          "p95": 0.9300000305175782,
+          "p99": 0.9350000305175781,
+          "p100": 0.9400000305175781
+        },
+        "descriptor to DCS response": {
+          "n": 384,
+          "p50": 0.32000003051757814,
+          "p90": 0.33,
+          "p95": 0.33,
+          "p99": 0.33000003051757815,
+          "p100": 0.33000003051757815
+        },
+        "RX response to CPU": {
+          "n": 384,
+          "p50": 0.16067596435546874,
+          "p90": 0.16939923706054688,
+          "p95": 0.17072050018310547,
+          "p99": 0.1864218319702149,
+          "p100": 0.1955856018066406
+        },
+        "runtime/libevent/parser/storage": {
+          "n": 384,
+          "p50": 12.03,
+          "p90": 12.947,
+          "p95": 14.20449999999998,
+          "p99": 24.77,
+          "p100": 24.88
+        },
+        "response preparation and earlier segment commits": {
+          "n": 384,
+          "p50": 2.6550000000000002,
+          "p90": 2.76,
+          "p95": 2.77,
+          "p99": 2.84,
+          "p100": 2.87
+        },
+        "TX request transit": {
+          "n": 384,
+          "p50": 0.16414729309082032,
+          "p90": 0.16929292907714844,
+          "p95": 0.17003692932128905,
+          "p99": 0.1707333432006836,
+          "p100": 0.18055972290039063
+        },
+        "DCS request to commit": {
+          "n": 384,
+          "p50": 0.20500003051757812,
+          "p90": 0.21,
+          "p95": 0.21,
+          "p99": 0.21000003051757812,
+          "p100": 0.21000003051757812
+        },
+        "commit to submission": {
+          "n": 384,
+          "p50": 2.680000030517578,
+          "p90": 2.695000030517578,
+          "p95": 2.6950000610351563,
+          "p99": 2.700000061035156,
+          "p100": 2.725000061035156
+        },
+        "submission to final egress": {
+          "n": 384,
+          "p50": 0.305,
+          "p90": 0.305,
+          "p95": 0.3050000305175781,
+          "p99": 0.3050000305175781,
+          "p100": 0.3050000305175781
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Recorder timestamp point: legacy_batch_queue_dequeue. Legacy dequeue timestamps include variable recorder queueing; clock-fit uncertainty does not bound this bias.",
+    "System ECI sources cross an untimestamped CDC FIFO; a successful clock fit is conditional on its delay.",
+    "Complete successful native-UDP window with quiet edges and in-order per-worker replies.",
+    "6-bit IDs resolved by stage lifetimes, live process queues and per-core sequences; mismatches fail.",
+    "RTT and MAC are durations on separate clocks; outside-MAC includes both network and client overhead.",
+    "Clock mode: independent; independent FPGA stages do not subdivide host turnaround across clocks.",
+    "Negative stages within uncertainty remain visible; per-segment commit-read spans overlap NIC work.",
+    "Entry/sustained are traffic labels, not proven hot/cold worker classifications.",
+    "The prior 591 us RTT is not reproduced by this client run; do not label current values a matched performance regression.",
+    "Recorder queue delay was not captured, so the approximately 19/37 us MAC figures are qualified observations, not precise burst wire timings.",
+    "Five-instance extension stopped at 2688 requests with client filesystem ENOSPC; incomplete campaign, not a transport failure or passing result."
+  ],
+  "evidence_root": "out/memcached-breakdown",
+  "capture": {
+    "bytes": 339883456,
+    "sha256": "afb56cd8cdb94d442acf7f24168bb9ad61ff31751d92a40d1d73e21c79eeee35",
+    "offset": 447397824,
+    "start": {
+      "trace_write_slot_1": 6990591,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 0,
+      "trace_dma_error_1": 0
+    },
+    "end": {
+      "trace_write_slot_1": 12301270,
+      "trace_wrapped_1": 0,
+      "trace_sample_lost_1": 1,
+      "trace_dma_error_1": 0
+    },
+    "bounded_window": true,
+    "pipeline": 518836
+  },
+  "launcher_overlay": {
+    "baseline_sha": "8d291b7f00b701e7cd23ab02a75a78080d6e9e42",
+    "changed_deployment_components": [
+      "measurement launcher only"
+    ],
+    "launcher_sha256": "1e0b3fb29a7029001c82bf1256377f4adc9bff3b6768f73f7a39eb6a279137a1",
+    "reason": "Block SIGUSR2 before memcached creates threads; native app/runtime/ABI unchanged"
+  },
+  "inputs": {
+    "out/memcached-breakdown/traced2-zuestoll14-export/files/server-11211.csv": "15303bcb9e3621e583470ce0775775f4d3d16fe308f51dafc4fba21f2fd16cee",
+    "out/memcached-breakdown/traced2-zuestoll14-export/files/events-11211.csv": "9c249710d7a04264f64f3731b96b039bd37a8356d79cadaf8e46cbdb2b5d62d4",
+    "out/memcached-breakdown/second-zuestoll07-export/files/w1-batch/requests.csv": "59c47b8a21dc57b6b5fa378724518c6de907f1d65acc47fa71e9c68d89688720",
+    "out/memcached-breakdown/second-zuestoll07-export/files/w1-send/requests.csv": "dfc1bd0f9b95a893e9b493b06a19df8bf6d24a92ca04c2255d7752b5d05e2408",
+    "out/memcached-breakdown/second-zuestoll07-export/files/w16-batch/requests.csv": "9c97ba08036abb76ae7011c40e895cb1b75bc4befb007a8ae8a0c94a9c84fe6d",
+    "out/memcached-breakdown/second-zuestoll07-export/files/w16-send/requests.csv": "5a858c263d9d6bda34b933775e763f7186278a1a3829b09e7755ce59f1b9943a",
+    "out/memcached-breakdown/cohort2-dump/trace/trace-dram.bin": "afb56cd8cdb94d442acf7f24168bb9ad61ff31751d92a40d1d73e21c79eeee35",
+    "out/udp-trace/hw-2885506/lauberhorn_trace_dma_map.json": "9476846c6bbf7e7f7c84c603c68b335bbf458071eb47ff32c7291f90581e7e10",
+    "out/memcached-breakdown/cohort2-dump/summary.json": "757abf137c6208fcc16dcf6ea4d610008b19a0bdec16902b5d88795bc9187622",
+    "/local/home/pengxu/work-local/lauberhorn/platform/model/data/selected-8k.json": "665f95ef1dd1c6bdf52b164ceb1e93a8372dfdfed5b8d249cf222b3f4a4f4cf6",
+    "out/memcached-breakdown/second-zuestoll07-export/files/warmup.json": "06a9c5da4266ce86795d343348f4ba355e1f04eac597d9b60f1db9d9ce1450f3"
+  },
+  "partial_five_instance": {
+    "capture": {
+      "bytes": 477408384,
+      "sha256": "7296d485ffeb89757d7547c1c8a050ec24cd3980ec62e3ae7f363acfd23c03a9",
+      "offset": 860448768,
+      "start": {
+        "trace_write_slot_1": 13444512,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 0,
+        "trace_dma_error_1": 0
+      },
+      "end": {
+        "trace_write_slot_1": 20904018,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "bounded_window": true,
+      "pipeline": 518836
+    },
+    "client_summary": "out/memcached-breakdown/five-zuestoll07-export/files/w16-send/summary.json",
+    "server_directory": "out/memcached-breakdown/five-zuestoll14-export/files",
+    "completed_requests": 2688,
+    "error": "ENOSPC on peer client output",
+    "tracing_off_control": "not run after incomplete traced workload"
+  },
+  "recorder_fix": {
+    "dependency_commit": "e24f2ef",
+    "branch": "fix/trace-ingress-timestamps",
+    "tests": "6/6 passed; new timestamp test rejects original 5845335"
+  }
+}

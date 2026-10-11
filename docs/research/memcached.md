@@ -1748,3 +1748,105 @@ hardware and the collected image after arranging staging space. There is still
 no new memcached latency result or measured explanation of the roughly 500 µs
 client RTT. All CI jobs have finished; the unmerged feature branch is retained
 for that remaining application validation. No further CI timer is needed.
+
+#### First joined RTT breakdown and recorder limitation — October 11
+
+The matched 518836 image (`8d291b7f`, memcached `b376490d`) completed two
+1,536-request traced single-instance runs and one 1,536-request tracing-off
+control. Each case uses four declared workers, three 128-request bursts,
+1-KiB values and SET every twentieth request. All completed cases passed reply
+checks and retained hashpower 18 without expansion. Main/background threads
+remain on CPUs 0–43. The joined cohort used all worker CPUs 44–47; one-outstanding
+and ordinary-send cases predominantly use CPU 44. This is a bounded latency
+experiment, not a saturation or hot/cold residency classification.
+
+[Compact results, hashes and provenance](../../data/eci/board-evidence/memcached-breakdown-518836-20261011.json)
+record the matching hardware/software artifacts. Raw evidence is under
+`out/memcached-breakdown/`. The repeated trace joins all 1,548 in-window requests
+(1,536 measured plus readiness/setup/statistics), with 1,550 software rows including
+two explicitly identified prewindow neighbor warmups. Software/event sidecars
+report zero drops. The 339,883,456-byte hardware window passed hash/length checks,
+contains no loss markers, and had no pre-freeze loss, wrap or DMA error. The
+post-freeze sticky loss flag is recorded separately.
+
+Median durations, microseconds:
+
+| Client case | Traced RTT | Tracing-off RTT | Recorder-observed MAC interval* | Observed scheduler wait* |
+| --- | ---: | ---: | ---: | ---: |
+| Window 1, individual sends | 125.916 | 126.091 | 18.980 | 0.030 |
+| Window 1, batched sends | 213.897 | 212.597 | 19.205 | 0.030 |
+| Window 16, individual sends | 1528.033 | 1526.663 | 18.790 | 0.030 |
+| Window 16, batched sends | 1718.264 | 1724.134 | 36.537 | 14.878 |
+
+*The recorder timestamp defect below qualifies hardware intervals, particularly
+under concurrency; these are not precise wire-time claims.* RTT p99s in the same
+row order are 160.35, 272.91, 1791.59 and 4052.77 µs. These client RTTs do not
+reproduce the historical 591 µs result, and are not a matched before/after
+performance regression. Both new traced cohorts agree closely, and the control
+shows that application/FPGA tracing is not responsible for the large RTTs.
+
+CPU-clock medians are about 12.0–12.3 µs from RX return to the first response
+preparation, 2.66–2.74 µs from preparation to the TX commit read, and 3.64–3.65 µs
+across the instrumented commit call. The first interval includes runtime,
+libevent dispatch, parsing and storage; it does not isolate the hash lookup.
+The TX preparation includes response assembly and runtime descriptor/barrier
+work. The commit-call interval overlaps NIC work and must not be added to a
+hardware TX interval as a separate sequential stage.
+
+Client timestamps show a median 1.16 ms span to issue 16 individual requests and
+about 1.66 ms to collect 16 responses, including Python bookkeeping/CSV processing
+between receives. Batched timestamps start before ctypes preparation, not at
+individual wire sends. The current large RTT is dominated by the generator's
+processing and socket/kernel/network path; `RTT - MAC` is not solely network
+latency. A native generator and kernel/wire client timestamps are needed for
+paper latency claims. The qualified plots are
+`out/memcached-breakdown/report-qualified/{distributions,breakdown}.{png,svg}`.
+The full join retains separate GET/SET, entry/sustained, port and workload groups.
+Mean stacked stages conserve durations; independent medians are not summed.
+
+Two measurement bugs were found and addressed:
+
+- The initial export sent SIGUSR2 after memcached had created threads before
+  `lauberhorn_init`. Those threads had not inherited the blocked signal, so the
+  process terminated instead of flushing. `memcached-launch --trace` now blocks
+  SIGUSR2 before exec; the runtime dump thread receives it through `sigwait`.
+  The matched app/runtime binary is unchanged. The failed cohort's logs, RTTs and
+  231,372,608-byte trace are preserved; the repeat exported every published row.
+- `EciRxDescSent.HostMsgID` can be cleared to 63 while the next router request is
+  already accepted. Only this explicit diagnostic sentinel is tolerated by the
+  parser; scheduler lifetime identity, per-core order, packed software RX
+  reference and every TX reference must independently agree. Bypass datapath 0
+  is excluded from worker queues while retaining its Ethernet/MAC wire order.
+
+**Recorder timing blocker:** matched dependency `5845335` samples `savedTs` on
+`bufferedPorts.fire`, after the trace input FIFO, rather than on input arrival.
+Consequently, variable recorder queue residence contaminates event timestamps
+without requiring any dropped sample. System ECI traces also cross an
+untimestamped asynchronous FIFO before reaching this recorder. The combined
+DCS/CPU fit needs 575.6 ns slack and is rejected by the 25 ns acceptance limit.
+Three isolated workload fits require only the existing 10 ns quantization slack
+and show conditional uncertainties around 166–171 ns, but that model does not
+bound recorder queue bias. The batched concurrent case is rejected. Do not
+promote the conditional fine splits to accurate wire measurements.
+
+The analysis now has explicit `--clock-mode independent` reporting: additive
+FPGA-recorder intervals plus separate CPU durations, with the timestamp contract
+and limitations in the output. It does not relax the aligned-mode acceptance
+threshold. `report_breakdown.py` compares all client samples with the tracing-off
+control. The recorder correction carries the timestamp into the input FIFO and
+adds an ingress-versus-dequeue regression. Its new map labels the timestamp point;
+system-CDC uncertainty remains explicit and must be rechecked on the new build.
+No timing optimization, address layout or PREEMPT change is part of this fix.
+
+The subsequent five-instance/four-workers-each extension reached 2,688 completed
+requests before the peer client output filesystem returned ENOSPC. The 477,408,384-byte frozen
+hardware window and all five loss-free software traces are preserved; it is not a
+passing oversubscription latency campaign. Use `/dev/shm` for future client output,
+retain existing evidence, and repeat on the corrected recorder hardware.
+
+The focused recorder suite passed all six tests through `nix develop`; the new
+regression also rejected original `5845335` (one-cycle ingress spacing became
+four-cycle dequeue spacing). Fixed dependency commit is `e24f2ef` on
+`fix/trace-ingress-timestamps`, not toolkit master. Software validation passed
+three measurement tests and eight correlation tests. The corrected hardware
+bundle is being prepared; no new bitstream result is implied.

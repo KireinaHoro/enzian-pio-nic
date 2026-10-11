@@ -96,6 +96,19 @@ and 402 ns in host/link turnaround; see the [measurement and hardware comparison
 The DUT runs that RPC cohort with tracing frozen; all four windows are preserved.
 Recheck reservation and live state before reuse.
 
+October 11 pipeline 518836 passed all gates and two matched RPC cold boots.
+The first joined memcached RTT campaign passed 1,536 traced requests plus an
+identical tracing-off control (and an earlier 1,536-request traced cohort).
+Software medians are about 12 µs RX-to-response preparation and 2.7 µs TX
+preparation. The Python generator dominates the observed client RTT. Hardware
+intervals are qualified: the matched recorder timestamps after an input FIFO,
+so queue residence distorts burst timings without sample loss. A correction
+and new hardware validation are required before precise burst breakdown claims.
+See [evidence and timestamp limitation](docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
+The five-instance extension stopped after 2,688 requests on client ENOSPC;
+its frozen trace and software records are preserved, not a passing campaign.
+Recheck live state/reservations; use RAM-backed peer output for the next run.
+
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,

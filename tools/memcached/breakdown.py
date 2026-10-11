@@ -53,6 +53,10 @@ def hardware_paths(events):
     result=[]; used_ethernet=set(); used_tx_ethernet=set()
     for e in events:
         n,d,t=e['event'],e['data'],e['time_ns']
+        # Datapath 0 carries bypass traffic, not a scheduled native-UDP worker.
+        # Keep its Ethernet/MAC events above for complete wire-order validation.
+        if d.get('CoreID') == 0:
+            continue
         if n=='RxRpcEnqueueToHost':
             require(not d.get('PacketDropped',0), 'RX enqueue dropped')
             native=predecessor('NativeUdpDecoder',e,{'PacketID':d['PacketID']})
@@ -77,7 +81,13 @@ def hardware_paths(events):
         elif n=='EciRxDescSent':
             core=d['CoreID'];require(core in dispatched,'RX without dispatch')
             r=dispatched.pop(core)
-            require(r['rx_id']==d['HostMsgID'],'RX descriptor ID mismatch')
+            # 518836's FSM clears its diagnostic ID when retiring the previous
+            # control line, potentially after the router accepted this request.
+            # Only that explicit invalid sentinel is allowed here. Dispatch and
+            # the software's independently packed RX reference still must agree.
+            require(d['HostMsgID'] in (r['rx_id'],63),'RX descriptor ID mismatch')
+            r['descriptor_rx_id']=d['HostMsgID']
+            r['descriptor_id_cleared']=d['HostMsgID']!=r['rx_id']
             if core in active:
                 require(bool(active[core]['tx']),'next RX before any response')
             r['rx_descriptor']=t;active[core]=r;result.append(r)
@@ -198,6 +208,7 @@ def join_clients(requests, client_paths):
     for path in client_paths:
         for c in rows(path):
             require(c['status']=='ok','client error/timeout')
+            c.setdefault('case',path.parent.name)
             key=(c['port'],int(ipaddress.IPv4Address(c['source_ip'])),c['source_port'],c['request_id'])
             client_groups[key].append(c)
     for key,clients in client_groups.items():
@@ -220,7 +231,7 @@ def summarize(requests):
     groups=defaultdict(list)
     for r in requests:
         if 'client' not in r:continue
-        c=r['client'];label=f"{c.get('pattern','single')}/port-{r['port']}/{c.get('class','all')}/{c.get('operation','request')}"
+        c=r['client'];label=f"{c.get('case','workload')}/{c.get('pattern','single')}/port-{r['port']}/{c.get('class','all')}/{c.get('operation','request')}"
         groups[label].append(r)
     return {label:{'requests':len(rs),
         'rtt_ns':distribution([r['rtt_ns'] for r in rs]),
@@ -233,6 +244,20 @@ def summarize(requests):
         for label,rs in groups.items()}
 
 
+def independent_stages(requests):
+    """Conserved FPGA-clock stages; CPU durations remain separate distributions."""
+    for r in requests:
+        h=r['hardware'];last=r['tx'][-1]
+        points=[('NIC arrival',h['nic_arrival']),('RX decode/DMA',h['enqueue']),
+                ('scheduler wait',h['assignment']),('dispatch to descriptor',h['rx_descriptor']),
+                ('host turnaround (CPU + ECI)',last['commit']),
+                ('commit to submission',last['submit']),('submission to final egress',last['egress'])]
+        r['additive_ns']={name:t-points[i-1][1] for i,(name,t) in enumerate(points) if i}
+        require(all(v>=0 for v in r['additive_ns'].values()),'noncausal FPGA stages')
+        require(sum(r['additive_ns'].values())==h['mac_to_mac_ns'],'FPGA duration conservation')
+    return dict(aligned=False,scope='FPGA-clock additive stages; CPU-clock durations reported separately')
+
+
 def plot(requests,clock,output):
     import matplotlib
     matplotlib.use('Agg')
@@ -240,7 +265,7 @@ def plot(requests,clock,output):
     groups=defaultdict(list)
     for r in requests:
         if 'client' in r:
-            c=r['client'];groups[f"{c.get('pattern','single')}, port {r['port']}, {c.get('class','all')}, {c.get('operation','request')}"].append(r)
+            c=r['client'];groups[f"{c.get('case','workload')}, {c.get('pattern','single')}, port {r['port']}, {c.get('class','all')}, {c.get('operation','request')}"].append(r)
     for index,(label,rs) in enumerate(groups.items()):
         fig,axes=plt.subplots(1,2,figsize=(13,4))
         for key,title in [('rtt_ns','Client RTT'),('mac_to_mac_ns','MAC-to-MAC')]:
@@ -250,10 +275,11 @@ def plot(requests,clock,output):
         selected=sorted(rs,key=lambda r:r['rtt_ns'])[len(rs)//2]
         spans={**selected['additive_ns'], 'Outside MAC (client/kernel/network)':selected['outside_mac_ns']}
         axes[1].barh(list(spans),[v/1000 for v in spans.values()])
-        axes[1].set(xlabel='Duration (µs)',title=f"Actual median-RTT request; clock ±{clock['uncertainty_ns']:.0f} ns")
+        axes[1].set(xlabel='Duration (µs)',title=(f"Actual median-RTT request; clock ±{clock['uncertainty_ns']:.0f} ns"
+                if clock.get('aligned',True) else "Actual median-RTT request; FPGA stages"))
         fig.tight_layout();fig.savefig(output/f'case-{index:02d}.svg');plt.close(fig)
     with (output/'requests.csv').open('w',newline='') as f:
-        records=[dict(key=r['key'],port=r['port'],pattern=r['client'].get('pattern','single'),
+        records=[dict(key=r['key'],case=r['client'].get('case','workload'),port=r['port'],pattern=r['client'].get('pattern','single'),
             rtt_us=r['rtt_ns']/1000,mac_to_mac_us=r['hardware']['mac_to_mac_ns']/1000,
             outside_mac_us=r['outside_mac_ns']/1000,core=r['core'],pid=r['hardware']['pid'],
             segments=len(r['tx'])) for r in requests if 'client' in r]
@@ -265,6 +291,9 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('server','events','client'):p.add_argument('--'+name,type=Path,nargs='+',required=True)
     for name in ('trace','map','capture-summary','output'):p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--clock-mode',choices=('aligned','independent'),default='aligned',
+                   help='Independent reports conserved FPGA stages and separate CPU durations without clock alignment')
+    p.add_argument('--prewindow-requests',type=Path,help='Exact wire identities of completed warmup requests before capture')
     p.add_argument('--address-map',type=Path,default=ROOT/'model/data/selected-8k.json')
     p.add_argument('--cpu-map',default='44:1,45:2,46:3,47:4')
     a=p.parse_args();cpu_map=dict(tuple(map(int,x.split(':'))) for x in a.cpu_map.split(','))
@@ -275,20 +304,40 @@ def main():
     lh.TRACE_EVENT_NAMES.update({'NativeUdpDecoder','UdpHostPacket'})
     lh.decode_relevant_eci_event=lambda *args:None
     hw,_=lh.decode_trace_events(a.trace,a.map,5,None) # scans loss markers too
-    requests=join_requests(software_rows(a.server,a.events,cpu_map),hardware_paths(hw))
+    software=software_rows(a.server,a.events,cpu_map)
+    excluded=[]
+    if a.prewindow_requests:
+        keys=[(r['port'],int(ipaddress.IPv4Address(r['source_ip'])),r['source_port'],r['request_id'])
+              for r in json.loads(a.prewindow_requests.read_text())]
+        require(len(keys)==len(set(keys)),'duplicate warmup wire identity')
+        for key in keys:
+            r=one([r for r in software if r['wire_key']==key],'prewindow software request')
+            excluded.append(r);software.remove(r)
+        require(software and excluded and max(r['software']['server_handler_exit_ns'] for r in excluded)
+                < min(r['software']['server_rx_unblock_ns'] for r in software),'warmup overlaps capture requests')
+    requests=join_requests(software,hardware_paths(hw))
     join_clients(requests,a.client)
-    from clock_alignment import extract_controls, align
-    controls=extract_controls(a.trace,a.map,a.address_map,
-        min(r['hardware']['nic_arrival'] for r in requests)-2000,
-        max(t['egress'] for r in requests for t in r['tx'])+10000)
-    clock=align(requests,controls)
+    if a.clock_mode=='aligned':
+        from clock_alignment import extract_controls, align
+        controls=extract_controls(a.trace,a.map,a.address_map,
+            min(r['hardware']['nic_arrival'] for r in requests)-2000,
+            max(t['egress'] for r in requests for t in r['tx'])+10000)
+        clock=align(requests,controls)
+        clock['aligned']=True
+    else:
+        clock=independent_stages(requests)
+    timestamp_point=json.loads(a.map.read_text())['sample'].get('timestamp_point','legacy_batch_queue_dequeue')
     result=dict(requests=requests,clock=clock,distributions=summarize(requests),
+        recorder_timestamp_point=timestamp_point,
+        prewindow_requests=excluded,
         inputs={str(path):hashlib.file_digest(path.open('rb'),'sha256').hexdigest()
-            for path in [*a.server,*a.events,*a.client,a.trace,a.map,a.capture_summary,a.address_map]},
-        limits=['Complete successful native-UDP window with quiet edges and in-order per-worker replies.',
+            for path in [*a.server,*a.events,*a.client,a.trace,a.map,a.capture_summary,a.address_map,*([a.prewindow_requests] if a.prewindow_requests else [])]},
+        limits=['Recorder timestamp point: '+timestamp_point+'. Legacy dequeue timestamps include variable recorder queueing; clock-fit uncertainty does not bound this bias.',
+                'System ECI sources cross an untimestamped CDC FIFO; a successful clock fit is conditional on its delay.',
+                'Complete successful native-UDP window with quiet edges and in-order per-worker replies.',
                 '6-bit IDs resolved by stage lifetimes, live process queues and per-core sequences; mismatches fail.',
                 'RTT and MAC are durations on separate clocks; outside-MAC includes both network and client overhead.',
-                'Additive timelines use DCS-constrained affine clock alignment; report its conditional uncertainty.',
+                'Clock mode: '+a.clock_mode+'; independent FPGA stages do not subdivide host turnaround across clocks.',
                 'Negative stages within uncertainty remain visible; per-segment commit-read spans overlap NIC work.',
                 'Entry/sustained are traffic labels, not proven hot/cold worker classifications.'])
     a.output.mkdir(parents=True,exist_ok=False)
