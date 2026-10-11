@@ -1915,6 +1915,12 @@ still created. The next 30-minute recheck is **18:59:56 CEST**. No duplicate
 build or board test was launched; matched artifacts and hardware validation
 remain pending. The full snapshot is appended to the evidence record above.
 
+The 19:00 CEST recheck still found job 2886156 running on pipeline SHA
+`cc19c428`, all gates and prepare passed, and report 2886157 created. Re-armed
+the 30-minute check for **19:30:40 CEST**, retaining both refs and the exact
+job snapshot. Hardware artifacts and matched board tests remain pending; no
+duplicate work or hardware changes were launched.
+
 ### Vanilla Linux MAC comparison — October 11
 
 Pinned upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, built for

@@ -861,6 +861,178 @@
         "delay_minutes": 30
       },
       "board_tests_run": false
+    },
+    {
+      "checked_at": "2026-10-11T17:00:25.785734+00:00",
+      "pipeline": {
+        "id": 518922,
+        "sha": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+        "ref": "feat/memcached-trace-correlation",
+        "status": "running",
+        "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/518922"
+      },
+      "jobs": [
+        {
+          "id": 2886157,
+          "name": "report-hw-eci",
+          "stage": "report",
+          "status": "created",
+          "started_at": null,
+          "finished_at": null,
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886157"
+        },
+        {
+          "id": 2886156,
+          "name": "build-hw-eci",
+          "stage": "build-hw",
+          "status": "running",
+          "started_at": "2026-10-11T11:42:29.967+02:00",
+          "finished_at": null,
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886156"
+        },
+        {
+          "id": 2886155,
+          "name": "prepare-eci",
+          "stage": "prepare",
+          "status": "success",
+          "started_at": "2026-10-11T11:34:50.318+02:00",
+          "finished_at": "2026-10-11T11:42:29.465+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886155"
+        },
+        {
+          "id": 2886154,
+          "name": "scheduling-cooperative",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:24:36.401+02:00",
+          "finished_at": "2026-10-11T11:26:25.393+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886154"
+        },
+        {
+          "id": 2886153,
+          "name": "eci-address-map",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:24:22.328+02:00",
+          "finished_at": "2026-10-11T11:26:03.541+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886153"
+        },
+        {
+          "id": 2886152,
+          "name": "runtime-tests",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:24:21.357+02:00",
+          "finished_at": "2026-10-11T11:26:33.009+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886152"
+        },
+        {
+          "id": 2886151,
+          "name": "memcached-adapter",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:24:10.314+02:00",
+          "finished_at": "2026-10-11T11:25:47.647+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886151"
+        },
+        {
+          "id": 2886150,
+          "name": "runtime-interface",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:23:45.686+02:00",
+          "finished_at": "2026-10-11T11:26:05.736+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886150"
+        },
+        {
+          "id": 2886149,
+          "name": "interactive",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:23:43.880+02:00",
+          "finished_at": "2026-10-11T11:24:46.598+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886149"
+        },
+        {
+          "id": 2886148,
+          "name": "workflow-tools",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:30.757+02:00",
+          "finished_at": "2026-10-11T11:24:18.652+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886148"
+        },
+        {
+          "id": 2886147,
+          "name": "eci-toolkit-rx",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:30.714+02:00",
+          "finished_at": "2026-10-11T11:24:19.623+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886147"
+        },
+        {
+          "id": 2886146,
+          "name": "trace-fifo-tests",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:30.318+02:00",
+          "finished_at": "2026-10-11T11:23:41.163+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886146"
+        },
+        {
+          "id": 2886145,
+          "name": "trace-tests",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:29.801+02:00",
+          "finished_at": "2026-10-11T11:25:29.724+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886145"
+        },
+        {
+          "id": 2886144,
+          "name": "blocks-tests",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:29.652+02:00",
+          "finished_at": "2026-10-11T11:24:33.701+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886144"
+        },
+        {
+          "id": 2886143,
+          "name": "dcs-lauberhorn",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:29.263+02:00",
+          "finished_at": "2026-10-11T11:24:07.607+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886143"
+        },
+        {
+          "id": 2886142,
+          "name": "dcs-rom-thx",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:29.222+02:00",
+          "finished_at": "2026-10-11T11:23:42.982+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886142"
+        },
+        {
+          "id": 2886141,
+          "name": "fast-tests-eci",
+          "stage": "test",
+          "status": "success",
+          "started_at": "2026-10-11T11:22:28.976+02:00",
+          "finished_at": "2026-10-11T11:34:50.006+02:00",
+          "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2886141"
+        }
+      ],
+      "followup": {
+        "unit": "lauberhorn-ci-518922-results-recheck.timer",
+        "scheduled_for": "2026-10-11T19:30:40+02:00",
+        "thread": "01a11cbc-4d8f-76f1-9945-f69de06ed22f",
+        "delay_minutes": 30
+      },
+      "board_tests_run": false
     }
   ]
 }
