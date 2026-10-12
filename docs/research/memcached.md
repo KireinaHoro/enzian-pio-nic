@@ -1978,10 +1978,9 @@ retaining their exact adapter and upstream-reference revisions and hashes.
 The platform memcached feature branches and completed GSYNC feature branch,
 and memcached `feat/lauberhorn-rx-wait` are retired after confirming no active
 pipelines depend on them. Both local memcached feature branches were removed.
-GitLab rejected deletion of remote `feat/lauberhorn-native-udp` because it is
-still the project default; change that setting to master before deleting the
-remaining remote ref. No write-capable project-settings interface is available
-in this session; the CI token is read-only. The legacy `pionic` branch is preserved.
+After the maintainer changed the memcached project default to master, remote
+`feat/lauberhorn-native-udp` was also deleted. All feature branches from this
+campaign are now retired. The legacy `pionic` branch is preserved.
 
 This supersedes the earlier branch-retention notes. Pipeline 518922's matched
 RPC acceptance is complete; corrected memcached latency measurements and the
