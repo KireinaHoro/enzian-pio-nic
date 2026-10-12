@@ -35,7 +35,7 @@ typedef enum {
   TY_EXECUTION_CONTROL,
   TY_NATIVE_UDP_RX,
   TY_NATIVE_UDP_TX,
-  TY_PREEMPT, /* RX status only: no application payload */
+  TY_DESCHED, /* RX status only: no application payload */
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
@@ -150,7 +150,7 @@ static_assert(LAUBERHORN_ECI_CORE_OFFSET >=
 
 typedef uint64_t (*lauberhorn_trace_now_fn_t)(void);
 
-/* Wait for RX and decode its metadata. Packet success creates rx_view; PREEMPT
+/* Wait for RX and decode its metadata. Packet success creates rx_view; DESCHED
  * succeeds without a borrow. NACK or an outstanding borrow returns false.
  * The traced form optionally stamps the control-line read completion. */
 static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_t *ctx,
@@ -181,8 +181,8 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
 
   // decode the packet
   if (!valid) {
-    if (lauberhorn_eci_host_rx_status_preempt_extract(rx_ctrl)) {
-      desc->type = TY_PREEMPT;
+    if (lauberhorn_eci_host_rx_status_desched_extract(rx_ctrl)) {
+      desc->type = TY_DESCHED;
       desc->payload_len = 0;
       return true;
     }

@@ -1,7 +1,7 @@
 # Software runtime and datapath
 
 **October 8 status:** the payload-isolation and multi-PA faults have source
-corrections and a matched functional board baseline. The cooperative PREEMPT
+corrections and a matched functional board baseline. The cooperative DESCHED
 path, corrected 516232 module, GSYNC early NACK and buffered hot/cold benchmarks
 have recorded finite validation. Expanded adversarial isolation and concurrent
 four-worker acceptance remain open. See the [consolidated status and open
@@ -11,7 +11,7 @@ The dated implementation notes below preserve their original scope.
 October 2: the sole ECI runtime declares its pool with
 `lauberhorn_set_worker_count()` before creating threads. Each thread completes
 its initialization callback and fiber setup, registers explicitly and enters
-bootstrap `lh_yield()`. PREEMPT causes the same yield before further RX/TX.
+bootstrap `lh_yield()`. DESCHED causes the same yield before further RX/TX.
 Activation replaces the selected mapped alias and both local parity bits.
 Mapping never registers or parks threads. The shared parity page and transport
 READY/BUSY helpers are removed. See the [control contract](scheduling-control-interface.md)

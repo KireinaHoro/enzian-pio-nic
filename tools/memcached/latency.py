@@ -97,7 +97,7 @@ def analyze(server_paths, event_paths, hw, cpu_map):
             spans['commit to NIC egress'].append(t['egress']-t['commit'])
     return dict(clock=model,counts=counts,requests=result,
         stages_ns={k:distribution(v) for k,v in spans.items()},
-        scheduling_events=[e for e in hw if 'Scheduler' in e['event'] or 'Preempt' in e['event']],
+        scheduling_events=[e for e in hw if 'Scheduler' in e['event'] or 'Desched' in e['event']],
         limits=['Exact per-datapath packet-order matching; no missing packets or reused request IDs.',
                 'MAC markers must be unique within 1 us; saturated ambiguous captures fail.',
                 'Execution span includes TX; TX admission overlaps commit-to-egress. Do not sum overlapping stages.',

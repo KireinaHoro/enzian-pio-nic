@@ -13,7 +13,7 @@ class SwitchingTraceTests(unittest.TestCase):
         for core,pid,idle in [(1,100,1),(2,101,1),(1,102,0),(1,100,0)]:
             token = len(records)
             add('SchedulerRequestQueued', HostMsgID=token, ProcessID=pid)
-            add('YieldAccepted', CoreID=core, DomainCode=pid, PreemptOutOfIdle=idle)
+            add('YieldAccepted', CoreID=core, DomainCode=pid, DeschedOutOfIdle=idle)
             add('ActivationCommitted', CoreID=core, DomainCode=pid, RxNext=0, TxNext=1)
             add('SchedulerProcessRun', CoreID=core, ProcessID=pid)
             add('ActivationDelivered', CoreID=core, DomainCode=pid)
@@ -48,7 +48,7 @@ class SwitchingTraceTests(unittest.TestCase):
         self.assertEqual([r['worker_assigned_at_enqueue'] for r in result['queue_latencies']], [False,True]*4)
         more = list(records)
         more += [(19,'SchedulerRequestQueued',dict(HostMsgID=777,ProcessID=100)),
-                 (20,'YieldAccepted',dict(CoreID=2,PreemptOutOfIdle=0)),
+                 (20,'YieldAccepted',dict(CoreID=2,DeschedOutOfIdle=0)),
                  (21,'ActivationCommitted',dict(CoreID=2,DomainCode=100,RxNext=0,TxNext=1)),
                  (22,'SchedulerProcessRun',dict(CoreID=2,ProcessID=100)),
                  (23,'ActivationDelivered',dict(CoreID=2,DomainCode=100)),

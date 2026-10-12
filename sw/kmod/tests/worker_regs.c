@@ -6,8 +6,8 @@
 int main(void)
 {
     for (unsigned int i = 0; i < LAUBERHORN_NUM_WORKER_CORES; ++i) {
-        uint64_t base = worker_preempt_base(i);
-        /* Production composition emits each worker's preemption block after
+        uint64_t base = worker_desched_base(i);
+        /* Production composition emits each worker's descheduling block after
          * its transport register block. Bypass has a separate IRQ block. */
         assert(base == LAUBERHORN_ECI_WORKER_BASE(i + 1) + 0x100);
         assert(base != LAUBERHORN_ECI_BYPASS_IRQ_BASE);

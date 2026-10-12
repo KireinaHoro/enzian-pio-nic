@@ -72,11 +72,11 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       alloc("stat", subName = "numReq", attr = RO, desc = "number of requests observed"))
     busCtrl.read(logic.numNack.value,
       alloc("stat", subName = "numNack", attr = RO, desc = "number of NACKs observed"))
-    busCtrl.read(logic.numPreempted.value,
-      alloc("stat", subName = "numPreempted", attr = RO, desc = "times this worker has been preempted"))
+    busCtrl.read(logic.numDescheduled.value,
+      alloc("stat", subName = "numDescheduled", attr = RO, desc = "times this worker has been descheduled"))
   }
 
-  // called for driving the non-existent preemption control for core#0
+  // called for driving the non-existent descheduling control for core#0
   def driveBypassIrqCtrl(bus: AxiLite4, alloc: RegBlockAlloc) = {
     val busCtrl = AxiLite4SlaveFactory(bus)
 
@@ -118,7 +118,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // RX router
     val rxRouter = DcsRxAxiRouter(dcsConfig, memConfig)
 
-    // PREEMPT is returned at idle RX without consuming a packet.
+    // DESCHED is returned at idle RX without consuming a packet.
     rxRouter.rxDesc.translateFrom(hostRx) { case (rxDesc, hostReq) =>
       rxDesc := hostReq.req
     }
@@ -126,7 +126,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     rxRouter.cancelRxDesc := (if(coreID == 0) False else host[Scheduler].logic.coreCancel(coreID - 1))
     rxRouter.currCl := logic.rxCurrClIdx.asUInt
     rxRouter.invDone := logic.rxInvDone
-    rxRouter.doPreempt := preemptReq.fire
+    rxRouter.doDesched := deschedReq.fire
     rxRouter.yieldRequested := logic.yieldRequested
     rxRouter.fatalRelease := logic.fatalRelease
     rxRouter.gsyncRelease := host[EciInterfacePlugin].hostIfCtrl.gsyncRelease
@@ -147,7 +147,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     txRouter.currCl := logic.txCurrClIdx.asUInt
     txRouter.txAddr := logic.savedTxAddr.addr
     txRouter.invDone := logic.txInvDone
-    txRouter.doPreempt := preemptReq.fire
+    txRouter.doDesched := deschedReq.fire
     logic.txRouterQuiescent := txRouter.quiescent
     logic.txPayloadLines := txRouter.payloadLines
     logic.txReqs := txRouter.hostReq
@@ -158,8 +158,8 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
       rxRouter.blockCycles := 0
     } else {
       // We use normal block cycles for all worker cores.
-      // No need to disable this on preemption: no read request will be in progress
-      // when the preemption request comes from [[EciPreemptionControlPlugin]]
+      // No need to disable this on descheduling: no read request will be in progress
+      // when the descheduling request comes from [[EciDeschedulingControlPlugin]]
       rxRouter.blockCycles := host[EciInterfacePlugin].hostIfCtrl.rxBlockCycles
     }
 
@@ -173,7 +173,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     ), Seq(rxRouter.pktBufAxi, txRouter.pktBufAxi))
   }.setCompositeName(this, "makeAccessPorts").ret
 
-  def preemptReq = logic.preemptReq
+  def deschedReq = logic.deschedReq
 
   val logic = during setup new Area {
     // Authoritative transport parities are returned in the activation snapshot.
@@ -183,7 +183,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // Cleanup starts after the outgoing thread has entered kernel yield.
     val execution = Flow(Bits(2 bits))
     val executionOnly = Bool()
-    val preemptReq = Event
+    val deschedReq = Event
     val yieldRequested, fatalRelease, externalQuiet = Bool()
     val rxRouterQuiescent, txRouterQuiescent = Bool()
     val rxDrained = Bool()
@@ -205,7 +205,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     val irqOut = isBypass generate Stream(EciIntcInterface())
     val irqEn = isBypass generate Bool()
 
-    val numRetired, numReq, numNack, numPreempted = Counter(REG_WIDTH bits)
+    val numRetired, numReq, numNack, numDescheduled = Counter(REG_WIDTH bits)
 
     awaitBuild()
 
@@ -279,13 +279,13 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
 
 
     val rxFsm = new StateMachine {
-      def handlePreempt() = {
-        when (preemptReq.valid && !rxReqs.orR) {
+      def handleDesched() = {
+        when (deschedReq.valid && !rxReqs.orR) {
           rxDrained := True
         }
-        when (preemptReq.fire) {
+        when (deschedReq.fire) {
           rxHostMsgId := invalidTraceId(HostMsgID.width)
-          numPreempted.increment()
+          numDescheduled.increment()
           goto(waitHostRead)
         }
       }
@@ -293,14 +293,14 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
         whenIsActive {
           // Wait for the very first read from host:
           // - after boot
-          // - after preemption
+          // - after descheduling
           // In other cases, first read for the next request IS the one triggering the switch,
           // so we'd always end in hostIssuedRead
           when (rxReqs(rxCurrClIdx.asUInt)) {
-            assert(!preemptReq.valid, "fresh RX read after relinquishment")
+            assert(!deschedReq.valid, "fresh RX read after relinquishment")
             rxTp.trace("EciRxReadFirst", rxReadTd: _*)
             goto(hostReadPending)
-          } otherwise { handlePreempt() }
+          } otherwise { handleDesched() }
         }
       }
       val hostReadPending: State = new State {
@@ -321,7 +321,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             numNack.increment()
             rxTp.trace("EciRxNackSent", coreTd)
             goto(repeatDesc)
-          } otherwise { handlePreempt() }
+          } otherwise { handleDesched() }
         }
       }
       val repeatDesc: State = new State {
@@ -336,7 +336,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             } otherwise {
               goto(freeSlot)
             }
-          } elsewhen(preemptReq.valid) {
+          } elsewhen(deschedReq.valid) {
             // The old thread is stopped. Retire its last delivered RX slot and
             // invalidate its cachelines before the kernel changes the mapping.
             when(rxSlotToFree.size.bits === 0) { goto(invalidateCtrl) }
@@ -414,7 +414,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             rxInvDone := True
             rxTp.trace("EciRxCtrlInvalidated", rxClTd: _*)
             rxHostMsgId := invalidTraceId(HostMsgID.width)
-            when(preemptReq.valid) { goto(waitHostRead) }
+            when(deschedReq.valid) { goto(waitHostRead) }
               .otherwise { goto(hostReadPending) }
           }
         }
@@ -451,7 +451,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
             // invalidate control first to know how many overflows do we need to invalidate
             txTp.trace("EciTxCommitRead", txClTd: _*)
             goto(invalidateCtrl)
-          } elsewhen(preemptReq.valid) {
+          } elsewhen(deschedReq.valid) {
             // A killed thread can leave a dirty, uncommitted TX. Flush it but
             // never turn the partially written descriptor into a packet.
             abandonTx := True
@@ -542,7 +542,7 @@ class EciDecoupledRxTxProtocol(coreID: Int) extends DatapathPlugin(coreID) with 
     // make rx and tx fsm states available to top for debug
     rxFsm.build()
     txFsm.build()
-    preemptReq.ready := rxDrained && txFsm.isActive(txFsm.idle) &&
+    deschedReq.ready := rxDrained && txFsm.isActive(txFsm.idle) &&
       rxRouterQuiescent && txRouterQuiescent && externalQuiet
 
     // if this is the bypass core, emit IRQ when the RX queue is not empty

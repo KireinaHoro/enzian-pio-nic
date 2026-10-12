@@ -2,7 +2,7 @@
 """Extend cold activation evidence backwards through the outgoing yield syscall.
 
 These intervals are nested in E2E queue residence, not additional RTT terms.
-Generic syscall timestamps are quantized; PREEMPT alignment uses the audited
+Generic syscall timestamps are quantized; DESCHED alignment uses the audited
 CPU/FPGA epoch fit. Neither boundary isolates the CPU exception instruction.
 """
 import argparse
@@ -42,7 +42,7 @@ def join(audit, activations, timings, entries, events, cpu_base=44):
     by_identity = {(row['worker'], row['sequence']): row for row in timings}
     preempts = {}
     for event in events:
-        if event['event'] == 'SchedulerPreemptCore':
+        if event['event'] in ('SchedulerDeschedCore', 'SchedulerPreemptCore'):
             preempts.setdefault(event['data']['CoreID'], []).append(event)
     for values in preempts.values():
         values.sort(key=lambda row: row['time_ns'])
@@ -66,8 +66,8 @@ def join(audit, activations, timings, entries, events, cpu_base=44):
         stop = begin-row['trace_cpu_offset_ns']
         lo, hi = bisect.bisect_left(times[core], start), bisect.bisect_right(times[core], stop)
         candidates = preempts[core][lo:hi]
-        if len(candidates) != 1 or candidates[0]['data']['PreemptOutOfIdle']:
-            raise ValueError('missing/ambiguous cooperative FPGA PREEMPT')
+        if len(candidates) != 1 or candidates[0]['data'].get('DeschedOutOfIdle', candidates[0]['data'].get('PreemptOutOfIdle', 0)):
+            raise ValueError('missing/ambiguous cooperative FPGA DESCHED')
         event = candidates[0]
         preempt_cpu = event['time_ns']+row['trace_cpu_offset_ns']
         parts = {
@@ -114,7 +114,7 @@ def main():
         key: distribution([row['components_ns'][key] for row in rows])
         for key in rows[0]['components_ns']},
         limitations=['Nested queue/handoff partition, not additional E2E components.',
-                      'PREEMPT-to-entry combines FPGA notification, outgoing runtime and kernel entry; no isolated exception-instruction measurement.',
+                      'DESCHED-to-entry combines FPGA notification, outgoing runtime and kernel entry; no isolated exception-instruction measurement.',
                       'Syscall text timestamps have 1 us resolution; FPGA alignment uses the inferred audit offset.',
                       'Kernel tracing overhead retained; do not splice these values into untraced RTT.'],
         provenance={str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in

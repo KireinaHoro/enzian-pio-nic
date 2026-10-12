@@ -42,7 +42,7 @@ def analyze(records, launch):
             if token in queued:
                 raise ValueError('request ID reused before dispatch')
             queued[token] = (timestamp, fields['ProcessID'], fields['ProcessID'] in active.values())
-        if name == 'YieldAccepted' and not fields.get('PreemptOutOfIdle', 0):
+        if name == 'YieldAccepted' and not fields.get('DeschedOutOfIdle', 0):
             yielded[core] += 1
         if name not in ('SchedulerProcessRun', 'SchedulerRequestDispatched'):
             continue

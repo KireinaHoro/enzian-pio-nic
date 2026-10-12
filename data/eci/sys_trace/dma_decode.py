@@ -27,6 +27,17 @@ def default_map_path() -> Path:
 def load_map(path: Path) -> Dict[str, Any]:
     with path.open() as f:
         trace_map = json.load(f)
+    # Historical captures retain their original maps on disk. Normalize only
+    # symbolic handoff names; IDs, field offsets and widths stay untouched.
+    def desched_names(value):
+        if isinstance(value, str):
+            return value.replace("Preempt", "Desched")
+        if isinstance(value, list):
+            return [desched_names(item) for item in value]
+        if isinstance(value, dict):
+            return {desched_names(key): desched_names(item) for key, item in value.items()}
+        return value
+    trace_map = desched_names(trace_map)
     trace_map["sources_by_id"] = {int(src["source"]): src for src in trace_map.get("sources", [])}
     return trace_map
 

@@ -161,7 +161,7 @@ trait NicSim extends DutSimFunSuite[NicEngine]
       // always toggle cacheline
       etd.flipRx()
       val ret = if ((control & 3) == 2) {
-        assert(tid != -1, "PREEMPT on bypass")
+        assert(tid != -1, "DESCHED on bypass")
         etd.td.runningOn.get.asInstanceOf[EciWorkerCoreState].yieldAssignment()
         done(None)
       } else if ((control & 1) == 0) {

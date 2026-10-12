@@ -13,7 +13,7 @@ October 3, 2026, `feat/cooperative-yield`, candidate RTL `8cc9ad58`.
 
 A focused full-engine RTL regression demonstrates cross-domain TX disclosure.
 Domain A sends a valid nested-call descriptor and 64 payload bytes of `0x5a`.
-After ordinary PREEMPT, cleanup and A→B activation, B receives its own packet
+After ordinary DESCHED, cleanup and A→B activation, B receives its own packet
 and reads the payload half of its own valid TX control alias. All 64 returned
 bytes are A's `0x5a` bytes. No stale address, foreign PID or unauthorized read is
 needed. Killing unauthorized readers therefore does not fix this failure.
@@ -34,7 +34,7 @@ At that revision the regression intentionally failed. The source correction and
 expanded checks are described below.
 
 `DmaControlPlugin` assigns one TX buffer per physical worker.
-`DcsTxAxiRouter.doPreempt` clears the saved descriptor but not payload storage;
+`DcsTxAxiRouter.doDesched` clears the saved descriptor but not payload storage;
 its packet-data response forwards the shared buffer without an ownership-epoch
 validity check. Address authorization and final cache invalidation do not erase
 that backing storage. A replacement must cover reads, partial write strobes,
@@ -70,12 +70,12 @@ introduced by this finding.
 ## Source correction — October 3 follow-up
 
 The follow-up keeps the address and software ABI unchanged. TX now scrubs all
-1536 bytes of the physical worker's allocation after the drained PREEMPT event,
+1536 bytes of the physical worker's allocation after the drained DESCHED event,
 including initial activation. Successor TX reads and writes wait until every
 scrub write response has completed. Ownership installation and RX service may
 proceed while this internal TX scrub runs; the scrub does not access host cache
 lines or require an additional host action. Outstanding old-owner transport
-must already be drained at PREEMPT, and a local assertion checks router
+must already be drained at DESCHED, and a local assertion checks router
 quiescence. The next preemption also waits for scrub completion. Progress retains the
 existing assumption of eventual packet-buffer AXI write-response service; the
 scrub itself never waits for successor host traffic.

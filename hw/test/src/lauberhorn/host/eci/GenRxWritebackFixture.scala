@@ -21,7 +21,7 @@ case class RxWritebackFixture() extends Component {
   router.cancelRxDesc := False
   router.blockCycles := 0
   router.currCl := 0
-  router.doPreempt := False
+  router.doDesched := False
   router.yieldRequested := False
   router.fatalRelease := False
   router.gsyncRelease := False

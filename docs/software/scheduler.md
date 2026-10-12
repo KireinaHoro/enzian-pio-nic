@@ -1,7 +1,7 @@
 # Scheduler and Linux integration
 
 The sole ECI design is physical-worker address decoding with cooperative
-PREEMPT/yield. Source integration is in progress on `feat/cooperative-yield`;
+DESCHED/yield. Source integration is in progress on `feat/cooperative-yield`;
 [implementation evidence](../hardware/eci-implementation.md) separates passing
 checks from outstanding board acceptance. The [control contract](scheduling-control-interface.md)
 is authoritative. Superseded implementations are available in Git history.
@@ -34,13 +34,13 @@ threads are ready. Mapping neither registers nor parks a thread.
 An initial packet reserves an idle worker and sets a sticky notification.
 SGI 8 only wakes its pinned kernel dispatcher. Under the worker's reader mutex,
 the dispatcher reconciles notification and ownership before consuming one
-`PreemptInfo` snapshot. Duplicate interrupts cannot authorize duplicate reads.
+`DeschedInfo` snapshot. Duplicate interrupts cannot authorize duplicate reads.
 The dispatcher sleeps while an application owns the worker; unassigned CPUs
 use Linux idle/WFI.
 
-For an ordinary handoff, idle RX returns payload-free PREEMPT. Runtime calls
+For an ordinary handoff, idle RX returns payload-free DESCHED. Runtime calls
 `lh_yield()` before further RX/TX. Kernel fences the outgoing task inside the
-syscall, checks that relinquishment is requested, and reads `PreemptInfo`.
+syscall, checks that relinquishment is requested, and reads `DeschedInfo`.
 Acceptance acknowledges relinquishment; autonomous NIC cleanup precedes the
 response. No scheduling IRQ is generated. Shared AXI-Lite accesses can wait
 behind this read, so cleanup must not require another control access.
@@ -62,6 +62,6 @@ retained. Full recovery and parked-domain deadline activation are deferred.
 See [failure policy](process-recovery.md).
 
 Sources: [scheduler](../../hw/src/lauberhorn/Scheduler.scala),
-[ECI handoff](../../hw/src/lauberhorn/host/eci/EciPreemptionControlPlugin.scala),
+[ECI handoff](../../hw/src/lauberhorn/host/eci/EciDeschedulingControlPlugin.scala),
 [kernel activation](../../sw/kmod/sched.c), [IRQs and lifetimes](../../sw/kmod/worker.c),
 [registration and mapping](../../sw/kmod/chrdev.c).

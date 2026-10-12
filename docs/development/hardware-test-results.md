@@ -579,7 +579,7 @@ reproduces the missing service. Correct RX writeback disposition remains open.
 
 This also makes the model's independent writeback-service premise a concrete
 implementation blocker. The bounded model result remains conditional on that
-premise. No addr/PREEMPT implementation or workaround was added during this test.
+premise. No addr/DESCHED implementation or workaround was added during this test.
 The DUT remains programmed with tracing frozen; original VIO values and all
 artifacts/logs are retained in `out/board/20261002-lci/` and matching shared/ba2
 paths recorded there. Preserve that state before further board work.
@@ -677,7 +677,7 @@ endpoint**, WHS +0.004 ns, no hold or pulse-width failures. This passing functio
 regression is not timing closure or a general progress/refinement proof.
 The deferred CI timer was canceled when the user requested immediate collection.
 The DUT remains on `a51139e` with the four-worker adder service running after
-trial two; the fresh image's tracing remains active. No address/PREEMPT changes
+trial two; the fresh image's tracing remains active. No address/DESCHED changes
 were made. Implementation planning may now follow the roadmap.
 
 ## Isolation correction baseline — 516112 — 2026-10-04

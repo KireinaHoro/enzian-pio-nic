@@ -48,7 +48,7 @@ remain scheduled for the replacement RTL. Main ECI suites substitute Scala
 
 | Component | Producer/consumer and event | Ownership, ordering and resource contract |
 | --- | --- | --- |
-| [Assignment](../../model/tla/scheduling/Assignment.tla) | NIC reservation/PREEMPT -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. PREEMPT is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
+| [Assignment](../../model/tla/scheduling/Assignment.tla) | NIC reservation/DESCHED -> runtime yield -> kernel acknowledgment | Owner remains old while destination capacity is reserved. DESCHED is latched until yield; ordinary syscall sleep retains owner and affinity identity. |
 | Assignment InfoAccept | Kernel no-return fence -> accepted MMIO read | Old task cannot resume; no kernel 2F2F CL access. |
 | Assignment InfoRespond | NIC-internal readiness -> MMIO response | Atomically installs reserved destination, consumes reservation and captures parity. No commit write follows. |
 | Assignment select/activate | Kernel-local claim -> userspace resume | Uses fixed initialized pool and returns the received activation snapshot. |
@@ -72,12 +72,12 @@ checks is not a full cross-product of every scheduling mechanism.
 The checked transition is:
 
 ```text
-Run -> reserved PREEMPT -> lh_yield / no-return fence
+Run -> reserved DESCHED -> lh_yield / no-return fence
     -> InfoAccept -> [NIC-internal readiness] -> InfoRespond / destination installed
     -> local kernel selection -> local userspace activation
 ```
 
-PREEMPT completes the old abstract RX operation and remains latched until yield.
+DESCHED completes the old abstract RX operation and remains latched until yield.
 The response guard checks retained transaction resources, including queued unlocks.
 This is NIC work, not a kernel drain/flush operation. Parity is captured at the
 response, not at a later commit. The separate `RetireDomain` ghost certificate

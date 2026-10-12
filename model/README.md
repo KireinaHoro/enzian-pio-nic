@@ -113,7 +113,7 @@ are compositions, **not proofs that one specification refines another**.
 | `KillTransport` | [Kill control plus RX/TX cleanup](../docs/hardware/kill-transport-composition.md), stalled worker and repeating peer; imports existing safety/progress properties |
 | `SchedulingComposition` | [Joined wake/claim/handoff/kill races](../docs/hardware/scheduling-composition.md), importing focused properties and resource-backed successor traffic |
 | `KillExit` | Whole-domain kill/exit, either IRQ/RX-release order, no prefix reuse, retained cache allowed. Tail cleanup is abstract |
-| `InterruptGate`, `TimerMirror` | Release-first interrupt diagnostic and ordered timer command delivery. Neither requires interrupts for cooperative PREEMPT |
+| `InterruptGate`, `TimerMirror` | Release-first interrupt diagnostic and ordered timer command delivery. Neither requires interrupts for cooperative DESCHED |
 | `CombinedScheduling` | Bounded joint control state plus the shared cached transport; see the limits below |
 
 For the historical joined race evidence, follow `SchedulingComposition` and its

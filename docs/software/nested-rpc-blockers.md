@@ -14,7 +14,7 @@ HOST_WAKE is on hold. The September 23 instruction reserving B6 work is historic
 The merge disposition below supersedes the older B1–B6 merge gates. Generic
 nested-runtime checks were accepted on their recorded revisions; Dandelion
 acceptance, the replacement-process late-reply race and broader overload checks
-remain follow-up work. The replacement address/PREEMPT campaign has separate
+remain follow-up work. The replacement address/DESCHED campaign has separate
 [acceptance obligations](../research/roadmap.md#current-status--october-8-consolidation).
 Timing optimization is now paused; the older recommendation to continue it does
 not authorize new timing work.

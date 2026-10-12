@@ -35,12 +35,12 @@ trait EciPioProtocol extends DatapathPlugin {
   /** Size of the DCS-facing address map for this protocol. */
   def sizePerCore: BigInt
 
-  /** Request to preempt a scheduled handler.
+  /** Request to desched a scheduled handler.
     *
     * FIXME: is this allowed to happen to a handler that's actually __running__?
     *
-    * This is forwarded from the [[lauberhorn.host.PreemptionService]] to allow the protocol
+    * This is forwarded from the [[lauberhorn.host.DeschedulingService]] to allow the protocol
     * to clean up state in the data path.
     */
-  def preemptReq: Event
+  def deschedReq: Event
 }

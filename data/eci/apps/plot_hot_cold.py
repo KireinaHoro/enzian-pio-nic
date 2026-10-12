@@ -42,10 +42,10 @@ LABELS = {
  'lh_tx_output_queue':'TX output queue', 'lh_tx_cdc_to_cmac':'TX CDC → MAC',
  'lh_unattributed':'Unattributed inside MAC interval', 'client_packet_prepare':'Client packet preparation',
  'client_reply_validate':'Client reply validation', 'outside_lh_client_network':'External residual',
- 'queued_to_preempt_request':'Queue → PREEMPT request',
- 'preempt_request_to_outgoing_syscall_entry':'PREEMPT request → outgoing syscall entry',
+ 'queued_to_preempt_request':'Queue → DESCHED request',
+ 'preempt_request_to_outgoing_syscall_entry':'DESCHED request → outgoing syscall entry',
  'outgoing_syscall_entry_to_mmio':'Outgoing syscall entry → MMIO',
- 'preempt_info_mmio':'Preempt-info MMIO', 'claim_wait':'Claim successor',
+ 'preempt_info_mmio':'Desched-info MMIO', 'claim_wait':'Claim successor',
  'affinity_setup':'Set affinity', 'activation_publish':'Publish activation',
  'wake_to_wait_return':'Wake → incoming wait returns', 'yield_copyout':'Yield copyout',
  'kernel_to_userspace':'Kernel → incoming userspace',
@@ -120,9 +120,9 @@ def waterfall(ax, condition, row, events, server, timing=None, handoff=None):
     bar('Request: RX MAC → queue',zero,row['trace_request_queued_ns'],'packet')
     bar('Request waiting in FPGA',row['trace_request_queued_ns'],row['trace_request_dispatched_ns'],'queue')
     if condition=='cold':
-        bar('PREEMPT reply → yield entry',nack,cpu(handoff['syscall_entry_ns']),'user')
+        bar('DESCHED reply → yield entry',nack,cpu(handoff['syscall_entry_ns']),'user')
         bar('Outgoing yield entry → MMIO',cpu(handoff['syscall_entry_ns']),cpu(timing['read_begin']),'kernel')
-        for label,a,b in [('Preempt-info MMIO','read_begin','read_end'),('Claim incoming thread','read_end','claim'),
+        for label,a,b in [('Desched-info MMIO','read_begin','read_end'),('Claim incoming thread','read_end','claim'),
                           ('Set incoming affinity','claim','affinity'),('Publish activation','affinity','wake'),
                           ('Wake → incoming wait returns','wake','resume'),('Yield copyout','resume','return')]:
             bar(label,cpu(timing[a]),cpu(timing[b]),'kernel')

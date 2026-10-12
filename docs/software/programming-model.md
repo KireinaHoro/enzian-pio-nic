@@ -189,7 +189,7 @@ Application readiness/delivery flags do not own or release transport storage.
 
 Initialize workers before `lauberhorn_udp_attach`. At the worker's idle boundary,
 after runnable work and pending responses have drained, call
-`lauberhorn_udp_receive_view`. It waits for network RX and handles PREEMPT through
+`lauberhorn_udp_receive_view`. It waits for network RX and handles DESCHED through
 the existing yield contract; HOST_WAKE is not implemented. A return of 1 lends
 one contiguous mutable datagram, including a zero-length datagram; 0 is NACK,
 and -1 reports an error through `errno`.

@@ -41,7 +41,7 @@ There are no UDP sessions, peer handles or response retirement operations.
 The host descriptor discriminator grows to four bits. Existing scalar and inline
 ONC-RPC offsets are preserved through padding changes; generated Mackerel and
 configuration headers must come from this hardware revision. Old images and new
-headers are incompatible. The 8 KiB alias map, parity exchange and PREEMPT/yield
+headers are incompatible. The 8 KiB alias map, parity exchange and DESCHED/yield
 contract are unchanged.
 
 The native RX buffer validates IPv4 version, fixed header length, header checksum,
@@ -66,7 +66,7 @@ Each instance declares 1–W initialized request workers. Multiple instances may
 declare more than W in aggregate. Main/clock and background maintenance threads
 run on ordinary CPUs outside the isolated physical-worker pool. Workers complete
 connection, logger and LRU-bump initialization before registration and bootstrap
-parking. PREEMPT immediately follows the existing yield path. RX NACK only
+parking. DESCHED immediately follows the existing yield path. RX NACK only
 returns control to an assigned worker; it cannot activate a parked worker.
 
 The adapter keeps upstream parsing, request IDs, framing, native UDP segmentation,
@@ -251,7 +251,7 @@ native UDP tracing added port 52, while the VHDL wrapper ended at 51. The wrappe
 now connects that port at both NicEngine and trace DMA and widens the connecting
 arrays. The complete local `nix build .#eciVivadoInputs` preparation check passes,
 including generated ports and debug widths. This correction changes no timing
-constraints, address layout or PREEMPT behavior.
+constraints, address layout or DESCHED behavior.
 
 ### Matched CI and board follow-up, October 9
 
@@ -355,7 +355,7 @@ The second failed DUT remains running with its trace frozen. Both boot failures
 and the retry are preserved locally under `out/native-udp/`; temporary trace
 controls and the peer's static-neighbor override were restored. Bounded wire
 probes ran after freeze and are recorded separately, not in the frozen FPGA
-window. No timing constraints, address layout or PREEMPT behavior were changed.
+window. No timing constraints, address layout or DESCHED behavior were changed.
 
 Local validation of the padding correction: `nix develop -c mill
 gen.test.testOnly lauberhorn.host.eci.NativeUdpSim
@@ -475,7 +475,7 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
   overflow lines for inline, otherwise ceil(length/128). Cancel completes the
   transaction without a packet. Full invalidation remains an ownership-handoff
   operation. Preserve cancellation, cooperative
-  PREEMPT, write-return service, ownership and quiescence behavior.
+  DESCHED, write-return service, ownership and quiescence behavior.
 - Update generated descriptor documentation and an explicit RX/TX layout marker,
   C runtime/kernel readers and simulation CPU readers together. Never deploy
   the changed software against 518140 or any other old-layout bitstream.
@@ -491,7 +491,7 @@ bytes previously embedded in metadata. The existing twelve overflow CLs provide
 - Enforce one outstanding borrow. Local repeated readiness checks do not call
   RX again. Explicit release means every user of the packet has finished with
   its bytes; it does not itself advance the hardware handshake. Reject another
-  acquisition or assignment-releasing yield while borrowed. PREEMPT remains
+  acquisition or assignment-releasing yield while borrowed. DESCHED remains
   control-only and cannot coexist with an outstanding packet borrow.
 - Copying a pointer or view into a queue, callback, deferred request, fiber or
   future does not consume the packet or transfer its backing storage. Such a
@@ -611,7 +611,7 @@ transport change and must not be reported as zero-copy application processing.
    and maximum sizes across native UDP, RPC calls/replies and bypass. Verify exact
    contents, reconstructed-prefix boundaries, padding, replay and no disclosure.
 2. Exercise overflow invalidation counts, RX writeback (including software-dirtied
-   borrowed data), NACK/PREEMPT, release/reassignment and concurrent RX/TX progress.
+   borrowed data), NACK/DESCHED, release/reassignment and concurrent RX/TX progress.
    Keep ONC-RPC/TX/bypass regressions. Run source-defined targets through nix develop.
 3. Test view lifetime, duplicate receive-hook delivery/release, acquire/yield while borrowed,
    old wrapper data lifetime and parity-independent contiguous pointers.
@@ -639,7 +639,7 @@ transaction refinement below): the foundation was implemented on
 `feat/memcached-rx-wait`. Generated
 `ECI_PAYLOAD_LAYOUT_VERSION=2` selects the new contract; the C transport refuses
 old headers. TX bit 23 records inline placement and control byte 56 records the
-reserved overflow-line count. No worker address-map or PREEMPT change is needed.
+reserved overflow-line count. No worker address-map or DESCHED change is needed.
 
 The default RPC runtime decodes directly from borrowed RX and encodes directly
 into TX reservations, without worker RX/TX staging allocations. Existing codec
@@ -774,7 +774,7 @@ same output root. The RPC image SHA-256 is
 after staging. `board-provenance-518400.json` records artifact hashes and job IDs.
 Reported timing is **WNS −0.780 ns, TNS −7211.323 ns, 27,040 failing setup
 endpoints**; hold violations are zero. This is not timing closure; no timing,
-address-layout or PREEMPT change was made during the follow-up.
+address-layout or DESCHED change was made during the follow-up.
 
 Fresh reservations confirmed zuestoll14 and zuestoll07 belonged to pengxu.
 Before reset, the DUT still ran the successful 518140 RPC server, with tracing
@@ -821,7 +821,7 @@ and its adapter check are not acceptance gates that pass at this intermediate
 branch state. Migrate its wait/receive ownership and segmented TX next; do not
 restore compatibility shims or present the mock check as runtime integration.
 Keep this work on `feat/memcached-rx-wait` until that integration is complete.
-There is no hardware ABI, CL-layout or PREEMPT change in this API retirement.
+There is no hardware ABI, CL-layout or DESCHED change in this API retirement.
 
 Validation through `nix develop`: `.#runtimeTests` (including ASan/UBSan core
 buffer and codec checks), `.#checks.x86_64-linux.runtime-interface`, `.#deployFs`
@@ -863,7 +863,7 @@ control invalidation and masks subsequent overflow writebacks until completion.
 Retaining that half also handles control eviction before the doorbell and
 reloading it after an overlapping overflow write. Same-domain handlers may read
 stale transport bytes; preemption still fully invalidates and scrubs for the next
-owner. No worker-address-map or PREEMPT implementation change is included.
+owner. No worker-address-map or DESCHED implementation change is included.
 This supersedes earlier capacity-based cleanup and abort wording above.
 
 Short sends no longer pay invalidation cost for unused reservation capacity.
@@ -938,7 +938,7 @@ are in `ci-518689/` under the same root. The RPC image SHA-256 is
 `3fa8b086bc77e611596d779da3d4706bca78997175aa01203a2eec17a0b5cc64`.
 Reported timing: **WNS -0.950 ns, TNS -14578.675 ns, 44,830 failing setup
 endpoints**, zero hold violations. This is not timing closure. No timing,
-address-layout or PREEMPT implementation changed during this follow-up.
+address-layout or DESCHED implementation changed during this follow-up.
 
 Fresh reservations confirmed zuestoll14 and zuestoll07 belonged to pengxu.
 The DUT retained the successful 518400 RPC server; tracing was active, wrapped,
@@ -966,7 +966,7 @@ from this completed RPC regression.
 The previously running local fast ECI suite also completed: 55 tests passed,
 20 suites completed, zero failures/aborts and one ignored test, in 11m11s.
 Evidence: `out/contiguous-transport/tx-length-eci-fast.log`. No hardware, address
-layout, PREEMPT or timing implementation was changed during this follow-up.
+layout, DESCHED or timing implementation was changed during this follow-up.
 
 
 ### Memcached restart checkpoint, October 10
@@ -1101,7 +1101,7 @@ memcached-adapter, memcachedDeployFs and dandelionDeployFs. Evidence:
 `out/contiguous-transport/runtime-owned-view-tests.log`; compatibility summary:
 `/nix/store/ar26gz0dzxg5smb941dbfp1f3g7aqv0j-memcached-adapter-compatibility/summary.json`.
 This is a software API change: rebuild application and runtime together. No
-hardware layout, descriptor encoding or PREEMPT change was made.
+hardware layout, descriptor encoding or DESCHED change was made.
 
 The pending 518689 memcached test must use the updated image with the new runtime
 and application together, superseding the earlier application-only image above.
@@ -1155,7 +1155,7 @@ preceded endpoint registration. Investigate that ordering and establish a bounde
 readiness gate before retrying compatibility; do not count this trial as passing
 or silently retry measured requests. The board remains on the corrected image
 with tracing frozen after this failure. No reset followed capture, and no timing,
-address-layout or PREEMPT change was made. RPC regression is complete; memcached
+address-layout or DESCHED change was made. RPC regression is complete; memcached
 compatibility, oversubscription and performance acceptance remain open.
 
 The updated matched image build passed. Its manifest verifies the kernel module
@@ -1186,7 +1186,7 @@ hash power. The earlier first-request refusal is consistent with startup racing
 endpoint registration. A new, explicit startup gate now precedes compatibility:
 bounded stats probes may retry refusal/timeouts, on fresh sockets, with every
 attempt recorded. Compatibility and workload requests never retry. No RX wait,
-HOST_WAKE, hardware layout or PREEMPT semantics changed.
+HOST_WAKE, hardware layout or DESCHED semantics changed.
 
 Two fresh cold-boot cohorts used five instances, one declared request worker
 each, on the four physical workers mapped to Linux CPUs 44–47. Main and
@@ -1418,7 +1418,7 @@ workload-only derivative `switching-batch-workload.json`. Plots (PNG and PDF):
 `latencies-batch`, `latencies-batch-cdf`, `latencies-batch-control`,
 `latencies-batch-control-cdf`, `queue-latencies-batch`, `assignments-batch`.
 Nix upstream/adapter/cohort checks and the strengthened cold/scale-up/assigned
-trace-classification tests passed. No hardware timing, address layout, PREEMPT,
+trace-classification tests passed. No hardware timing, address layout, DESCHED,
 server implementation or HOST_WAKE behavior changed in this campaign.
 
 #### Separating hot/cold from backlog
@@ -1548,7 +1548,7 @@ tracing already links that ID to ingress `PacketID`. TX reuses the aligned
 reference on every response segment; zero means unrelated. `EciTxSubmit` emits
 `RelatedRxTrace` together with the existing TX `HostMsgID` and core. This is
 untrusted diagnostic metadata only: no effect on admission, destination,
-ownership, PREEMPT, packet retention or wire bytes. All 64 ID values are usable;
+ownership, DESCHED, packet retention or wire bytes. All 64 ID values are usable;
 validity is independent of the all-ones ID. Copying the scalar after RX release
 is permitted; copying or retaining the borrowed packet pointer is not.
 
@@ -1556,7 +1556,7 @@ Payload layout remains version 3. Generated headers additionally declare
 `ECI_UDP_TRACE_VERSION=1`, required by the updated core runtime. Regenerate
 Mackerel/config/trace-map collateral and deploy matching hardware/software;
 existing 518689 hardware does not supply this metadata. No address layout or
-PREEMPT change is included.
+DESCHED change is included.
 
 The pinned memcached adapter `b376490d303da13ba15ed0295190893c64d1d324`
 echoes the reference from its still-borrowed runtime view. Event 203 records the
@@ -1664,7 +1664,7 @@ separate decoder sources increased the NIC trace count from 53 to 58, while
 `lauberhorn_eci.vhd` still declared/bound 53. The correction extends the trace
 arrays and connects sources 53–57 at both NicEngine and trace-DMA instances.
 `nix develop -c nix build .#eciVivadoInputs --no-link` passed, including generated
-port/debug checks and bundle preparation. No timing, address-layout or PREEMPT
+port/debug checks and bundle preparation. No timing, address-layout or DESCHED
 change was made. Failure log and snapshot are in `out/udp-trace/ci-preflight/`.
 There is no bitstream or Enzian result from 518832; relaunch is required.
 
@@ -1718,7 +1718,7 @@ branch head. Artifacts, hashes and the compact board results are recorded in
 The hardware archive/digest is under `out/udp-trace/ci-518836-artifacts/2885506/`;
 bitstream, LTX, trace map and both matching deployment images are under
 `out/udp-trace/hw-2885506/`. Routed WNS is −0.724 ns with 42,712 failing setup
-endpoints: not timing closure. No timing, address-layout or PREEMPT change was
+endpoints: not timing closure. No timing, address-layout or DESCHED change was
 made during this follow-up.
 
 Reservations for zuestoll14 and zuestoll07 were rechecked as pengxu. Before
@@ -1836,7 +1836,7 @@ threshold. `report_breakdown.py` compares all client samples with the tracing-of
 control. The recorder correction carries the timestamp into the input FIFO and
 adds an ingress-versus-dequeue regression. Its new map labels the timestamp point;
 system-CDC uncertainty remains explicit and must be rechecked on the new build.
-No timing optimization, address layout or PREEMPT change is part of this fix.
+No timing optimization, address layout or DESCHED change is part of this fix.
 
 The subsequent five-instance/four-workers-each extension reached 2,688 completed
 requests before the peer client output filesystem returned ENOSPC. The 477,408,384-byte frozen
@@ -1905,7 +1905,7 @@ memcached measurement campaign remains pending.
 [Board evidence and artifact hashes](../../data/eci/board-evidence/trace-recorder-518922-board-20261011.json)
 include the harness summaries and trace scan. Routed WNS is **−0.691 ns**, TNS
 −12390.621 ns, with 48,874 failing setup endpoints: **not timing closed**.
-No timing, address-layout or PREEMPT changes were made in this follow-up.
+No timing, address-layout or DESCHED changes were made in this follow-up.
 The DUT now runs the matched RPC service with tracing frozen; the earlier
 memcached instances ended during the documented cold reset. The unmerged
 `feat/memcached-trace-correlation` branch and dependency refs remain intact.
@@ -1926,7 +1926,7 @@ The CPU `nicvf` interfaces advertise software timestamping only. Therefore this
 comparison uses **Linux UDP/libevent over Lauberhorn's FPGA bypass/netdev**, with
 the same F_MAC0 arrival/egress boundaries as the native result. It is not a
 conventional CPU-NIC baseline. FPGA pipeline 518836 and matching trace map stayed
-unchanged; no reboot, programming, timing or PREEMPT change occurred.
+unchanged; no reboot, programming, timing or DESCHED change occurred.
 
 Three 128-request bursts with one outstanding request and 1-KiB values passed:
 384 requests, no errors/timeouts, no hash expansion. Each burst has 122 GETs and

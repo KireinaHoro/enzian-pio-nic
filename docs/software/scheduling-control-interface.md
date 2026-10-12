@@ -1,5 +1,25 @@
 # Cooperative scheduling control
 
+The idle-RX command is **DESCHED** (formerly PREEMPT): it asks an idle
+worker to relinquish its assignment at its next RX wait. It does not interrupt
+a running handler. This is a naming-only change: the status remains bit 1 with
+valid clear, and the cooperative yield/cleanup contract is unchanged. The
+handoff register is `DeschedInfo`; its field positions and MMIO offsets are
+unchanged. Generated headers and trace labels use the new names. Historical
+trace maps are normalized by the decoder without changing their numeric IDs
+or field layouts; saved evidence files remain unchanged.
+
+**October 12 naming validation:** regenerated `devHdrs`, built `kmod` and
+passed `runtime-tests`/`runtime-interface` through `nix develop`. All 23 generated
+headers match after symbol normalization (the earlier command-only rename
+already had the unchanged RX status bit). `CooperativeYieldSim` and
+`CooperativeAllocationSim` passed six tests. Enzian, memcached and latency
+analysis suites passed 69, 13 and 14 tests; focused historical-map and saved-event
+compatibility suites subsequently passed nine and five tests. No new board run
+or timing result is claimed for this rename. Historical analysis JSON metric
+keys retain their spelling for compatibility; displayed protocol labels use
+DESCHED/DeschedInfo.
+
 **October 8 status:** the original payload-isolation blocker has source
 corrections and a matched functional baseline. Corrected 516232 bring-up,
 GSYNC early NACK and hot/cold measurements passed within their recorded scope.
@@ -26,17 +46,17 @@ There are two entry paths with one kernel activation helper:
   worker CPUs use Linux idle/WFI. Packet-driven NIC reservation sets a sticky
   idle-dispatch notification and sends a kick IRQ. The hard handler wakes that
   worker's pinned kernel dispatch thread. Dispatch checks the notification under
-  per-worker reader serialization, reads `PreemptInfo`, atomically claims a
+  per-worker reader serialization, reads `DeschedInfo`, atomically claims a
   waiting thread, installs affinity, and delivers its activation snapshot.
-- Ordinary: NIC serves PREEMPT at idle RX. Runtime immediately yields without
+- Ordinary: NIC serves DESCHED at idle RX. Runtime immediately yields without
   further RX/TX. Kernel fences the outgoing task against returning to its old
-  assignment before reading `PreemptInfo`. Read acceptance acknowledges
+  assignment before reading `DeschedInfo`. Read acceptance acknowledges
   relinquishment. NIC finishes internal transport cleanup, commits the reserved
   destination, and responds. The same activation helper activates the incoming
   task; the outgoing task waits for its own later assignment. No scheduling IRQ
   or idle-dispatch notification participates in this handoff.
 
-`PreemptInfo` has **no valid bit**. Every authorized read returns the committed
+`DeschedInfo` has **no valid bit**. Every authorized read returns the committed
 destination and both parity bits. It must never be polled or read speculatively
 while idle. A pending IRQ or a local wake alone does not authorize a read:
 duplicate and delayed kicks must be reconciled with the sticky hardware
@@ -45,7 +65,7 @@ consumption. Ordinary handoff must not create it. The pinned dispatch thread
 sleeps while an application owns its worker. An ordinary yield checks the
 read-only `yieldRequested` register under the same reader lock before issuing
 the side-effecting read. This rejects an application calling yield without a
-pending handoff; it is not polled for work or a validity bit in `PreemptInfo`.
+pending handoff; it is not polled for work or a validity bit in `DeschedInfo`.
 
 Read acceptance and response consumption are distinct boundaries. The accepted
 transaction retains its destination and response identity under backpressure.
@@ -81,7 +101,7 @@ A successful bootstrap or subsequent yield returns the **calling thread's** new
 assignment, not its replacement's assignment. `worker_index` selects that
 domain's pre-mapped alias. Runtime replaces both local parity bits before any
 transport access. The shared parity page and kernel parity programming disappear.
-PREEMPT has no application payload or destination and consumes no network packet.
+DESCHED has no application payload or destination and consumes no network packet.
 
 Thread claims are atomic and lifetime-protected. Unrelated wakeups and signals
 cannot authorize return to an old assignment. Validate result arguments before

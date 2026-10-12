@@ -37,7 +37,7 @@ artifacts for atomic matmul/matmac, DAG, sharding and concurrent nested cases.
 Check actual isolated CPU placement and request progress, retaining traces and
 correctness results; only then collect application performance distributions.
 Build success and the old single-function smoke do not establish composition
-support on the current address/PREEMPT implementation.
+support on the current address/DESCHED implementation.
 
 The later sections distinguish the historical student/mock design from the
 managed-outcome adapter. Runtime recovery limitations remain those of the

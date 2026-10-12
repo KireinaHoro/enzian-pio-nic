@@ -26,7 +26,7 @@ case class GsyncReleaseFixture() extends Component {
     r.cancelRxDesc := False
     r.blockCycles := 1000
     r.currCl := parity
-    r.doPreempt := False
+    r.doDesched := False
     r.yieldRequested := False
     r.fatalRelease := False
     r.gsyncRelease := release

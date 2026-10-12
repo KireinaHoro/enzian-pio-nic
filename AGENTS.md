@@ -35,7 +35,7 @@ CMAC trace path uses F_MAC1; revision `5cda901` passed 300 RPCs and three full
 [CMAC board evidence](docs/development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
 
 The selected bounded Goal 2 models, 8 KiB physical-worker address layout and
-cooperative PREEMPT implementation are complete within their documented scope.
+cooperative DESCHED implementation are complete within their documented scope.
 The original payload disclosure and inactive-domain faults have corrections;
 516112 passed all CI jobs and two cold-boot 100-RPC trials. Never substitute
 vulnerable 515944. The corrected 516232 module (`af0f64fe`) resolved its first

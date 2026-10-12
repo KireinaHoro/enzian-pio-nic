@@ -60,7 +60,7 @@ def main():
         )
     prompt += (
         'Keep the pipeline branch until all jobs finish. Do not change timing, address '
-        'layout or PREEMPT implementation as part of this follow-up. Match the tested '
+        'layout or DESCHED implementation as part of this follow-up. Match the tested '
         'revision to the pipeline SHA, not the current master checkout. Record '
         'pipeline/job IDs, provenance, test outcomes and remaining limitations.'
     )

@@ -3,7 +3,7 @@
 Inspected 2026-09-08. “Present” means source exists and is wired into the generator; it does not certify current simulation, timing closure, or board validation. No hardware builds or simulations were run for this documentation pass.
 
 **October 8 consolidation:** the selected build uses the LCI-only non-locking
-DC, 8 KiB physical-worker map and cooperative PREEMPT. Corrected isolation,
+DC, 8 KiB physical-worker map and cooperative DESCHED. Corrected isolation,
 516232 module bring-up, GSYNC early NACK and hot/cold microbenchmarks have finite
 board evidence. The [roadmap status table](../research/roadmap.md#current-status--october-8-consolidation)
 is the consolidated claim/evidence index. The source survey below is older;
@@ -24,7 +24,7 @@ open. No fresh hardware build or test accompanies this documentation pass.
 | Ownership and activation | [ECI ownership](queue-pair-design.md) is implemented by the decoder, ownership table and cooperative yield path. See [current evidence](eci-implementation.md) for validation limits. |
 | Table scaling and spill | `Global.scala` explicitly attributes small tables to fully connected lookup routing/placement cost. [Lookup spill design](lookup-spill.md) is a proposal for hardware caches and typed software slow paths, not implemented general spill support. |
 | TCP/HTTP/gRPC | `hw/src/lauberhorn/net/{Tcp,Http,Grpc}.scala` are empty classes. Finished external [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects exist; they are unmerged. Integration follows first-paper application work; see [gRPC roadmap](../research/grpc-roadmap.md). |
-| PCIe parity | Legacy bridge/datapath/test sources exist, but `host/pcie/PciePreemptionControlPlugin.scala::preemptReq` is `???`, and `PcieDatapathPlugin.scala` flags unreliable TX triggering in a shared register word. Current PCIe generation/runtime parity needs validation and implementation work. |
+| PCIe parity | Legacy bridge/datapath/test sources exist, but `host/pcie/PcieDeschedulingControlPlugin.scala::preemptReq` is `???`, and `PcieDatapathPlugin.scala` flags unreliable TX triggering in a shared register word. Current PCIe generation/runtime parity needs validation and implementation work. |
 | Coupled worker protocol | Generator TODO proposes coupled worker RX/TX; all current datapaths use `EciDecoupledRxTxProtocol`. |
 | Network completeness | IPv4 validation/options, default-gateway behavior, malformed call handling, and richer argument handling have TODOs in `net/ip/{IpDecoder,IpEncoder}.scala` and `net/oncrpc/OncRpcCallDecoder.scala`. Existing ONC-RPC inline fields are not a general serialization engine. |
 | Resource exhaustion/lifetime | `PacketAlloc.scala` flags empty allocation behavior; `Scheduler.scala` flags packet-buffer release when a process RX queue is full. Inspect ownership and pressure behavior before claiming losslessness. |

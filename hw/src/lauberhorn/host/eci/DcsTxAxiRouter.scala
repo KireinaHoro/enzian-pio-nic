@@ -49,11 +49,11 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     * CL with the buffer captured so far.  */
   val currCl = in UInt(1 bit)
 
-  /** Whether a preemption happened.  We need to drop [[savedControl]] on preemption to
+  /** Whether a descheduling happened.  We need to drop [[savedControl]] on descheduling to
     * prevent a leak, when the new thread attempts to read back the packet sent by the
     * old thread.
     */
-  val doPreempt = in Bool()
+  val doDesched = in Bool()
   val quiescent = out Bool()
 
   /** Address to put the outgoing packet payload in the packet buffer.  Captured
@@ -115,7 +115,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
     inlineCommitted := True
   }
 
-  when (doPreempt) {
+  when (doDesched) {
     savedControl.clearAll()
     savedInline.clearAll()
     inlineCommitted := False
@@ -142,14 +142,14 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   // writes); this also protects DMA reads of bytes the successor never wrote.
   val scrubPending = RegInit(False)
   val scrubOffset = Reg(pktBufAxi.aw.addr.clone) init 0
-  when(doPreempt) { scrubPending := True; scrubOffset := 0 }
+  when(doDesched) { scrubPending := True; scrubOffset := 0 }
   val txBytes = Global.ROUNDED_MTU.get
   require(txBytes % 64 == 0)
 
   val writeFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsQ.aw.ready := !scrubPending && !inlinePending && !doPreempt
+        dcsQ.aw.ready := !scrubPending && !inlinePending && !doDesched
         when(scrubPending) { goto(scrubCmd) }
           .elsewhen(inlinePending) { goto(inlineCmd) }
         when (dcsQ.aw.fire) {
@@ -321,7 +321,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val readFsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        dcsQ.ar.ready := !scrubPending && !doPreempt
+        dcsQ.ar.ready := !scrubPending && !doDesched
         hostReq.foreach(_ := False)
         invFinished.clear()
         when (dcsQ.ar.fire) {
@@ -468,7 +468,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   readFsm.build()
   quiescent := readFsm.isActive(readFsm.idle) && writeFsm.isActive(writeFsm.idle) &&
     !dcsQ.ar.valid && !dcsQ.aw.valid && !scrubPending && !inlinePending
-  when(doPreempt) { assert(quiescent, "TX scrub requires drained old-owner traffic") }
+  when(doDesched) { assert(quiescent, "TX scrub requires drained old-owner traffic") }
 
   val readStateOut = out(readFsm.stateReg.clone)
   readStateOut := readFsm.stateReg

@@ -18,8 +18,8 @@ The persistent lifetime allocator resets only at full coherence reset. Applicati
 reset or module reload cannot silently restart the PA namespace.
 
 Ordinary scheduling does not use recovery machinery. Idle activation uses its
-sticky notification and pinned dispatcher; ordinary PREEMPT uses `lh_yield()`
-and one autonomous-cleanup `PreemptInfo` transaction with no scheduling IRQ.
+sticky notification and pinned dispatcher; ordinary DESCHED uses `lh_yield()`
+and one autonomous-cleanup `DeschedInfo` transaction with no scheduling IRQ.
 
 Per-call cancellation/timeout retirement remains a separate existing operation.
 Parked-domain deadline activation and execution-watchdog integration are outside

@@ -116,5 +116,5 @@ worktree; that is not a reproduction at the pipeline SHA and does not explain
 the CI failure. No replacement hardware build was launched for this unresolved
 nontrivial gate failure; this source correction is pushed with `ci.skip`.
 No address
-layout, timing pipeline, PREEMPT ABI or generated software header changed in
+layout, timing pipeline, DESCHED ABI or generated software header changed in
 this round. Matched revised hardware and board acceptance remain required.

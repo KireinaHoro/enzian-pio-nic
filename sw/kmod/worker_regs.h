@@ -5,15 +5,15 @@
 #include "config.h"
 #include "regblock_bases.h"
 
-/* The preemption table contains application workers only. Unlike datapath
+/* The descheduling table contains application workers only. Unlike datapath
  * indices, its zero-based index does not reserve entry zero for bypass. */
-static inline uint64_t worker_preempt_base(unsigned int worker_index)
+static inline uint64_t worker_desched_base(unsigned int worker_index)
 {
 #if LAUBERHORN_NUM_WORKER_CORES == 1
     (void)worker_index;
-    return LAUBERHORN_ECI_PREEMPT_BASE;
+    return LAUBERHORN_ECI_DESCHED_BASE;
 #else
-    return LAUBERHORN_ECI_PREEMPT_BASE(worker_index);
+    return LAUBERHORN_ECI_DESCHED_BASE(worker_index);
 #endif
 }
 

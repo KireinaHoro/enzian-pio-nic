@@ -36,8 +36,8 @@ import scala.collection.mutable
 class EciInterfacePlugin extends FiberPlugin {
   lazy val protos = host.list[EciPioProtocol]
 
-  // bypass core does not have preemption control; add null to allow one loop later
-  lazy val preempts = null +: host.list[EciPreemptionControlPlugin]
+  // bypass core does not have descheduling control; add null to allow one loop later
+  lazy val descheds = null +: host.list[EciDeschedulingControlPlugin]
 
   HOST_REQ_WIDTH.set(64 * 8)
 
@@ -166,7 +166,7 @@ class EciInterfacePlugin extends FiberPlugin {
       (address(11 downto 7).asUInt - (EciAddressMap.rx_control / 128)).resize(4)
 
     /** Bind the LCI commands from the 2F2F state machines to the odd and even DCS channels.  Takes a flattened
-      * list of LCI endpoints (incl. non-existent preemption control for bypass core).
+      * list of LCI endpoints (incl. non-existent descheduling control for bypass core).
       *
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
@@ -205,7 +205,7 @@ class EciInterfacePlugin extends FiberPlugin {
     }
 
     /** Bind the LCIA responses from the DCS channels to the 2F2F state machines.  Takes a flattened
-      * list of LCIA endpoints (incl. non-existent preemption control for bypass core).
+      * list of LCIA endpoints (incl. non-existent descheduling control for bypass core).
       *
       * This implements a mux-demux instead of a full crossbar; refer to [[ClLclPort]] for the rationale.
       */
@@ -295,7 +295,7 @@ class EciInterfacePlugin extends FiberPlugin {
     0 until NUM_CORES foreach { cid => new Area {
       val Seq(dataRxLcl, dataTxLcl) = coresLcl(cid)
       val proto = protos(cid)
-      val preempt = preempts(cid)
+      val desched = descheds(cid)
       val ipiCtrl = demuxedIpiIntfs(cid)
 
       val baseAddress = (1 + cid) * 0x1000
@@ -319,13 +319,13 @@ class EciInterfacePlugin extends FiberPlugin {
         allSlaveNodes.append((sn, map.copy(base = map.base + coreOffset * cid)))
       }
       if (cid != 0) {
-        drive(preempt.driveControl, "preempt", cid)
-        preempt.logic.ipiToIntc >> ipiCtrl
+        drive(desched.driveControl, "desched", cid)
+        desched.logic.ipiToIntc >> ipiCtrl
 
       } else {
-        assert(preempt == null)
-        // tie down preemption request for bypass
-        proto.preemptReq.setIdle()
+        assert(desched == null)
+        // tie down descheduling request for bypass
+        proto.deschedReq.setIdle()
         val bypass = proto.asInstanceOf[EciDecoupledRxTxProtocol]
         bypass.logic.yieldRequested := False
         bypass.logic.fatalRelease := False
@@ -357,7 +357,7 @@ class EciInterfacePlugin extends FiberPlugin {
         regions = Seq(sm),
         readFromSlaves = Seq.fill(numMasters)(true),
         writeFromSlaves = Seq.fill(numMasters)(true),
-        concurrentOps = 1,  // Rx/Tx router as well as preemption control can handle one concurrent request
+        concurrentOps = 1,  // Rx/Tx router as well as descheduling control can handle one concurrent request
       ) }.toSeq,
     )
     dcsXbar.s_axi zip translatedDcsAxi foreach { case (sp, m) => m >> sp }

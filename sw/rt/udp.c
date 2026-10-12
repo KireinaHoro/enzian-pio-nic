@@ -42,7 +42,7 @@ static int udp_wait(void) {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (!received) return 0;
-        if (desc.type == TY_PREEMPT) {
+        if (desc.type == TY_DESCHED) {
             /* A control-only response never leaves a borrowed packet. */
             if (w->dp.rx_view.pending) { errno = EPROTO; return -1; }
             struct lh_activation activation;

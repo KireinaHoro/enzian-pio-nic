@@ -28,7 +28,7 @@ typedef struct lauberhorn {
 
 /* Declare the immutable pool before creating any threads. */
 int lauberhorn_set_worker_count(lauberhorn_t *ctx, uint32_t count);
-/* Bootstrap or relinquish after PREEMPT; returns this thread's assignment. */
+/* Bootstrap or relinquish after DESCHED; returns this thread's assignment. */
 int lh_yield(struct lh_activation *result);
 
 /* Deadline/watchdog integration is deferred; only a zero limit is supported. */

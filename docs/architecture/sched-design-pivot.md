@@ -26,9 +26,9 @@ before blocking in RX/yield. Ordinary syscall sleep retains the assignment.
 Self-sustaining batch work is outside this cooperative execution contract.
 
 At idle RX the NIC supplies a packet, stalls, returns a finite NACK, or returns
-PREEMPT. PREEMPT carries no destination or application payload and consumes no
+DESCHED. DESCHED carries no destination or application payload and consumes no
 packet. Runtime immediately enters `lh_yield()` without further transport access.
-Kernel establishes its no-return fence and accepts one blocking `PreemptInfo`
+Kernel establishes its no-return fence and accepts one blocking `DeschedInfo`
 read. Autonomous transport cleanup completes before the destination/parity
 snapshot returns. No ordinary scheduling IRQ, kernel transport access, cache
 flush or activation commit write is involved.

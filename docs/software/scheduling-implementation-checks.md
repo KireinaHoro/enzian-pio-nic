@@ -7,7 +7,7 @@ separates completed checks from outstanding acceptance. Earlier designs are avai
 ## Kernel boundaries
 
 - Declare an immutable initialized thread pool before worker creation. Register each thread after its callback and runtime setup; publish NIC capacity only when all declared threads are ready. Mapping aliases does not register or park a thread.
-- Serialize side-effecting info reads with one reader mutex per worker. Idle dispatch requires a sticky notification and no application owner. Ordinary yield requires the calling owner and a pending yield request. Never poll PreemptInfo.
+- Serialize side-effecting info reads with one reader mutex per worker. Idle dispatch requires a sticky notification and no application owner. Ordinary yield requires the calling owner and a pending yield request. Never poll DeschedInfo.
 - Establish the outgoing task's no-return fence before read acceptance. Keep claim and lifetime locks outside blocking MMIO, affinity changes and waits.
 - Claim a waiting thread atomically under lifetime protection. Concurrent dispatchers cannot claim the same thread. Capacity reservations must guarantee an eventual backing thread.
 - Deliver one immutable activation snapshot containing worker index and both parities. Recheck the activation predicate after unrelated wakeups. Ordinary syscall sleep retains ownership.
@@ -17,7 +17,7 @@ separates completed checks from outstanding acceptance. Earlier designs are avai
 
 - Preserve packet-driven allocation, idle-first selection, the additional-core watermark and background discovery. Registration alone cannot activate a worker.
 - Only idle activation produces a scheduling IRQ. Keep its notification sticky until authorized consumption; duplicate IRQs cannot cause duplicate info reads.
-- PREEMPT contains no payload or destination and consumes no packet. Runtime yields before further transport access.
+- DESCHED contains no payload or destination and consumes no packet. Runtime yields before further transport access.
 - Info read acceptance acknowledges relinquishment. Its response may await autonomous cleanup, but cleanup cannot depend on another control access, a later kernel command or an interrupt on the blocked CPU.
 - Shared AXI-Lite accesses may wait behind that read. Check eventual completion under explicit cleanup fairness, rather than claiming ordinary handoff never delays control traffic.
 - Preserve full accepted addresses and ownership through AXI responses, invalidations, writebacks and LCIA. Current ownership cannot retag outstanding obligations. Reject unauthorized fresh access without blocking old cleanup.

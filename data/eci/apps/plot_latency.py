@@ -404,14 +404,14 @@ TRACE_EVENT_NAMES = {
     "OncRpcCallDecoder",
     "RxRpcEnqueueToHost",
     "SchedulerRequestQueued",
-    "SchedulerPreemptCore",
-    "PreemptCtrlBootstrap",
-    "PreemptCtrlIpiIssued",
-    "PreemptCtrlPreemptDatapath",
-    "PreemptCtrlFetchReady",
-    "PreemptCtrlAssertedReady",
+    "SchedulerDeschedCore",
+    "DeschedCtrlBootstrap",
+    "DeschedCtrlIpiIssued",
+    "DeschedCtrlDeschedDatapath",
+    "DeschedCtrlFetchReady",
+    "DeschedCtrlAssertedReady",
     "SchedulerProcessRun",
-    "PreemptCtrlDone",
+    "DeschedCtrlDone",
     "SchedulerRequestDispatched",
     "EciRxDescSent",
     "EciTxAcquire",
@@ -646,7 +646,7 @@ def attach_trace_segments(
     queued = rec_event(rec, "SchedulerRequestQueued")
     ipi = None
     if queued:
-        ipi = first_event_after(events_by_name, "PreemptCtrlIpiIssued", queued["time_ns"],
+        ipi = first_event_after(events_by_name, "DeschedCtrlIpiIssued", queued["time_ns"],
                                 {"CoreID": core},
                                 max_delta_ns=rec["SchedulerRequestDispatched"] - queued["time_ns"])
     process_run = rec_event(rec, "SchedulerProcessRun")
@@ -925,7 +925,7 @@ def correlate_trace(rows: List[Dict[str, Any]], events: List[Dict[str, Any]], ec
 
     for ev in events:
         data = ev["data"]
-        if "CoreID" in data and ev["event"] == "PreemptCtrlIpiIssued":
+        if "CoreID" in data and ev["event"] == "DeschedCtrlIpiIssued":
             ipi_by_core[data["CoreID"]].append(ev)
 
     dispatches_by_core: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
