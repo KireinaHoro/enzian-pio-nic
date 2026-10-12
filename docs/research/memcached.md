@@ -3,7 +3,7 @@
 The transport and upstream adapter integration merged into platform `master`
 in `6b489de8`. Current transport and adapter follow-up is on platform branch
 `feat/memcached-rx-wait`; the upstream-based application worktree is on
-`feat/lauberhorn-rx-wait` in `../memcached-legacy`. The platform pins the borrowed
+`feat/lauberhorn-rx-wait` in `../memcached`. The platform pins the borrowed
 adapter after local validation. Pipeline 518689 now has matched RPC validation
 and finite memcached acceptance with five instances sharing four physical workers.
 Both one-worker pools and four-worker pools passed; the latter exercised
@@ -14,7 +14,7 @@ The full pool-size/performance matrix and timing closure remain open.
 
 The application starts from upstream
 `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, immediately before the PIONIC changes
-in the existing `../memcached-legacy` repository. The `pionic` branch is preserved.
+in the existing `../memcached` repository. The `pionic` branch is preserved.
 The platform pins the application commit in `flake.nix` and `flake.lock`, calls
 its root `package.nix` with the matched `lauberhornRuntime`, and builds
 `memcachedDeployFs` through the same deployment environment as Dandelion.
