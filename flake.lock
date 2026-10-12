@@ -102,14 +102,14 @@
       "locked": {
         "lastModified": 1791663922,
         "narHash": "sha256-MlsLus5uXO/7H3qhu3U8pP/cnPUOdW2KuDhGX9wQtmE=",
-        "ref": "feat/lauberhorn-rx-wait",
+        "ref": "master",
         "rev": "b376490d303da13ba15ed0295190893c64d1d324",
         "revCount": 2233,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
-        "ref": "feat/lauberhorn-rx-wait",
+        "ref": "master",
         "rev": "b376490d303da13ba15ed0295190893c64d1d324",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
@@ -120,14 +120,14 @@
       "locked": {
         "lastModified": 1740084259,
         "narHash": "sha256-MhUfF1oDYrboaBG/AlRMImJ4AjmrKPfGky5ccl1r0lI=",
-        "ref": "feat/lauberhorn-native-udp",
+        "ref": "master",
         "rev": "0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e",
         "revCount": 2225,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
-        "ref": "feat/lauberhorn-native-udp",
+        "ref": "master",
         "rev": "0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
