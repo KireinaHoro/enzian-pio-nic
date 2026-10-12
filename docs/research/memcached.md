@@ -1968,3 +1968,20 @@ completed capture configuration but crashed during exit; verified frozen VIO
 state allowed export to resume without reset. The temporary upstream process
 was subsequently stopped; native instances and the frozen trace remain intact.
 The corrected-recorder CI follow-up remains separate and was not polled here.
+
+### Master integration and branch cleanup — October 12
+
+At the maintainer's request, the completed native UDP, tracing, recorder and
+DESCHED naming work is integrated into platform master. Memcached master now
+contains the adapter at `b376490`; both Nix inputs fetch through master while
+retaining their exact adapter and upstream-reference revisions and hashes.
+The platform memcached feature branches and completed GSYNC feature branch,
+and the two memcached adapter feature branches, are retired after confirming
+no active pipelines depend on them. The legacy `pionic` branch is preserved.
+
+This supersedes the earlier branch-retention notes. Pipeline 518922's matched
+RPC acceptance is complete; corrected memcached latency measurements and the
+system-event CDC timestamp bound remain follow-on work, not passing results.
+Private dependency refs, including `deps/blocks-trace-ingress-timestamps`, remain
+available for reproducible fetches. Unrelated experiments and toolkit branches
+awaiting owner approval are not merged or removed.
