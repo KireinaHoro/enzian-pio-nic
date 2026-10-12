@@ -91,7 +91,7 @@ opposite-line read at 8607400, followed by the DCS reload/LCI conflict.
 
 The fix joins each TX call before reusing its QP or ending the test, while
 preserving simultaneous RX/TX and unrelated stalled workers. It does not disable
-voluntary evictions, relax data assertions, or change RTL, layout or PREEMPT.
+voluntary evictions, relax data assertions, or change RTL, layout or DESCHED.
 Both failure seeds pass after this fix, as does a 100-seed `repeat-test` campaign.
 The final original-seed replay produces identical event-trace SHA-256
 `0c1daf2385adf245d35ee877ad2d6f78a83f86f982ad8324f4d9e1a466bbf56d`

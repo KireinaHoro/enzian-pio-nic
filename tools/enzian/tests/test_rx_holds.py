@@ -2,12 +2,28 @@ import importlib.util
 from pathlib import Path
 import unittest
 import tempfile
+import json
 
 spec = importlib.util.spec_from_file_location('holds', Path(__file__).resolve().parents[1] / 'analyze_rx_holds.py')
 holds = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(holds)
 
 class HoldTests(unittest.TestCase):
+    def test_historical_desched_names_preserve_wire_fields(self):
+        original = {'sources': [], 'payload_formats': {'lauberhorn_event': {
+            'events': {'7': 'SchedulerPreemptCore'},
+            'event_data': {'7': ['PreemptOutOfIdle']},
+            'trace_data_keys': {'PreemptOutOfIdle': {'width': 1, 'offset': 12}}}}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'map.json'
+            path.write_text(json.dumps(original))
+            fmt = holds.dma.load_map(path)['payload_formats']['lauberhorn_event']
+            self.assertEqual(fmt['events'], {'7': 'SchedulerDeschedCore'})
+            self.assertEqual(fmt['event_data'], {'7': ['DeschedOutOfIdle']})
+            self.assertEqual(fmt['trace_data_keys'],
+                             {'DeschedOutOfIdle': {'width': 1, 'offset': 12}})
+            self.assertEqual(json.loads(path.read_text()), original)
+
     def test_capture_bubble_does_not_extend_hold_by_counter_period(self):
         trace_map = {
             'sample': {'payload_width': 8, 'source_width': 2,
@@ -74,8 +90,8 @@ class HoldTests(unittest.TestCase):
                    (2, 'EciRxReadNew', {'CoreID': 2}),
                    (10, 'EciRxDescSent', {'CoreID': 0}),
                    (11, 'EciTxSubmit', {'CoreID': 0}),
-                   (12, 'YieldAccepted', {'CoreID': 3, 'PreemptOutOfIdle': 0}),
-                   (13, 'YieldAccepted', {'CoreID': 4, 'PreemptOutOfIdle': 1}),
+                   (12, 'YieldAccepted', {'CoreID': 3, 'DeschedOutOfIdle': 0}),
+                   (13, 'YieldAccepted', {'CoreID': 4, 'DeschedOutOfIdle': 1}),
                    (20, 'EciRxNackSent', {'CoreID': 1}),
                    (25, 'EciRxNackSent', {'CoreID': 2})]
         result = holds.summarize(records, 1, 15)
@@ -84,10 +100,10 @@ class HoldTests(unittest.TestCase):
         self.assertEqual(holds.summarize(records, 1, 50)['peer_events_by_simultaneously_stalled_workers'], {})
 
     def test_activation_paths_and_physical_dispatch_are_distinct(self):
-        records = [(1, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 7, 'PreemptOutOfIdle': 1}),
+        records = [(1, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 7, 'DeschedOutOfIdle': 1}),
                    (2, 'SchedulerRequestDispatched', {'CoreID': 2, 'ProcessID': 99}),
-                   (3, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 8, 'PreemptOutOfIdle': 0}),
-                   (4, 'YieldAccepted', {'CoreID': 3, 'DomainCode': 7, 'PreemptOutOfIdle': 0}),
+                   (3, 'YieldAccepted', {'CoreID': 2, 'DomainCode': 8, 'DeschedOutOfIdle': 0}),
+                   (4, 'YieldAccepted', {'CoreID': 3, 'DomainCode': 7, 'DeschedOutOfIdle': 0}),
                    (5, 'SchedulerRequestDispatched', {'CoreID': 3, 'ProcessID': 99})]
         result = holds.summarize(records, 1)
         self.assertEqual(result['accepted_activations'],
@@ -99,7 +115,7 @@ class HoldTests(unittest.TestCase):
     def test_loss_prevents_false_duration_and_handoff_is_marked(self):
         records = [(1, 'EciRxReadNew', {'CoreID': 1}), (2, 'Lost', {'count': 3}),
                    (4, 'EciRxNackSent', {'CoreID': 1}),
-                   (5, 'SchedulerPreemptCore', {'CoreID': 2, 'PreemptOutOfIdle': 0}),
+                   (5, 'SchedulerDeschedCore', {'CoreID': 2, 'DeschedOutOfIdle': 0}),
                    (6, 'EciRxReadFirst', {'CoreID': 2}),
                    (7, 'EciRxNackSent', {'CoreID': 2}),
                    (8, 'EciRxReadNew', {'CoreID': 3})]

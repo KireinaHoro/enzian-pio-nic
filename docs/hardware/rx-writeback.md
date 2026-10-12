@@ -35,7 +35,7 @@ command/response semantics, analyse:
 This optimization remains open; no command/response ABI or performance claim
 is selected here. Schedule it alongside [application performance collection](../research/roadmap.md#application-performance-and-coupled-rxtx-analysis),
 after measuring the independent RX/TX baseline. Application benefit determines
-whether to adopt it; it does not gate the address/PREEMPT implementation.
+whether to adopt it; it does not gate the address/DESCHED implementation.
 
 ## Historical proposal: borrow RX payload instead of staging it
 
@@ -48,7 +48,7 @@ alongside response transmission through the invalidate/return half-cycle:
 remove the full-packet copy from 2F2F cache lines into the worker's `rx_buf`.
 This is a proposal, not an implemented or measured improvement.
 
-With cooperative PREEMPT, the delivered RX packet remains available until the
+With cooperative DESCHED, the delivered RX packet remains available until the
 next RX doorbell or worker yield/reassignment retires it. `core_eci_rx_traced`
 currently copies the payload but only toggles a software parity bit before
 returning; hardware release occurs when the opposite control CL is read.
@@ -89,7 +89,7 @@ Application implications from the inspected sources:
 Measure transport staging separately from decoding, application storage and TX
 copies. Compare both parities, inline/overflow boundaries, packet sizes and
 application workloads against the existing baseline. Validate next-receive
-invalidation, PREEMPT/reassignment and deferred/future ownership; if borrowing
+invalidation, DESCHED/reassignment and deferred/future ownership; if borrowing
 extends through TX, include combined RX/TX coherence-progress checks. The
 existing return-half regression below does not validate borrowed RX buffers or
 response transmission through returned data.

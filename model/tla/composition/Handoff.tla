@@ -90,7 +90,7 @@ Admit(c) == /\ c \in ActiveClients
             /\ assignment[ClientWorker(c)].stage \in {"Run", "Active"}
             /\ ~assignment[ClientWorker(c)].sleeping
             /\ P!Admit(c) /\ UNCHANGED <<assignment,meta>>
-\* PREEMPT completes a normal abstract 2F2F exchange, then remains latched until yield.
+\* DESCHED completes a normal abstract 2F2F exchange, then remains latched until yield.
 Work(c) == /\ P!Work(c) /\ UNCHANGED <<assignment,meta>>
 Inv(c) == /\ P!Inv(c) /\ UNCHANGED <<assignment,meta>>
 ReceiveAck(c) == /\ P!Ack(c) /\ UNCHANGED <<assignment,meta>>

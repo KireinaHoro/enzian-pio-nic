@@ -46,11 +46,11 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
       waitUntil(dmaChecked)
       send(destination)
       val previous = getEciThreadData(old.tid)
-      var preempt = false
-      while (!preempt) {
+      var desched = false
+      while (!desched) {
         val control = dcs.read(previous.baseAddr + ECI_RX_BASE.get + previous.rxNextCl * 128, 64).bytesToBigInt
         previous.flipRx()
-        preempt = (control & 3) == 2
+        desched = (control & 3) == 2
       }
       cooperativeYield(csr, 1)
       assert(worker.currThread.get.proc == domains(destination))
@@ -92,7 +92,7 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
     assert(schedulingIrqs == 1)
     assert(worker.currThread.get.proc == domains(0))
     assert(tryReadPacketDesc(dcs, worker.currThread.get.tid).result.nonEmpty)
-    // Duplicate idle kicks must not consume another PreemptInfo snapshot.
+    // Duplicate idle kicks must not consume another DeschedInfo snapshot.
     genericIrqCb(csr, 8, 1)
     genericIrqCb(csr, 8, 1)
 
@@ -100,12 +100,12 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
       val old = worker.currThread.get
       val etd = getEciThreadData(old.tid)
       send(destination)
-      var preempt = false
-      while (!preempt) {
+      var desched = false
+      while (!desched) {
         val control = dcs.read(etd.baseAddr + ECI_RX_BASE.get + etd.rxNextCl * 128, 64).bytesToBigInt
         etd.flipRx()
-        assert((control & 1) == 0, "PREEMPT consumed a queued network packet")
-        preempt = (control & 3) == 2
+        assert((control & 1) == 0, "DESCHED consumed a queued network packet")
+        desched = (control & 3) == 2
       }
       sleepCycles(100) // Delayed yield retains the old assignment without an IRQ.
       assert(worker.currThread.contains(old) && schedulingIrqs == 1)

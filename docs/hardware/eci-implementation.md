@@ -18,7 +18,7 @@ open: WNS −0.396 ns, 7,227 failing setup endpoints. The old vulnerable 515944
 image must not be substituted for this corrected build.
 
 October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
-cooperative PREEMPT ABI are the sole ECI implementation. Acceptance remains
+cooperative DESCHED ABI are the sole ECI implementation. Acceptance remains
 incomplete: pipelines 515941 and 515944 both passed all gates, preparation and
 hardware/report jobs. Candidate 515944 is `8cc9ad58`, with WNS −0.089 ns and
 474 failing setup endpoints; no timing closure is claimed. Its first verified
@@ -61,10 +61,10 @@ approved by the maintainer; DCS does not propagate AXI errors as a safe applicat
 fault. Sticky domain faults fence claims and trigger domain termination. Old
 cleanup traffic is still serviced. Complete resource-recycling recovery is deferred.
 
-`EciPreemptionControlPlugin` sends an IRQ only for idle activation. Ordinary
-PREEMPT consumes no packet and sends no scheduling IRQ. The serialized info
+`EciDeschedulingControlPlugin` sends an IRQ only for idle activation. Ordinary
+DESCHED consumes no packet and sends no scheduling IRQ. The serialized info
 read acknowledges relinquishment and waits for autonomous cleanup. Other
-AXI-Lite accesses may wait behind it. `PreemptInfo` has no valid bit and is never
+AXI-Lite accesses may wait behind it. `DeschedInfo` has no valid bit and is never
 polled. A read-only yield-request check rejects unauthorized ordinary calls.
 
 The kernel shares activation handling between pinned idle-dispatch threads and

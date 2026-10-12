@@ -113,7 +113,7 @@ static void *lauberhorn_worker_loop(void *arg) {
         } else {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
-        if (received && desc.type == TY_PREEMPT) {
+        if (received && desc.type == TY_DESCHED) {
             if (lh_yield(&activation)) worker_fail(w);
             continue;
         }

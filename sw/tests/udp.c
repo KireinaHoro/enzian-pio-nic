@@ -34,7 +34,7 @@ static int test_tx(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_de
 static bool test_rx(void *base, lauberhorn_core_state_t *state, lauberhorn_pkt_desc_t *desc) {
     receives++;
     if (mode == 0) return false;
-    if (mode == 1 && receives == 1) { desc->type = TY_PREEMPT; return true; }
+    if (mode == 1 && receives == 1) { desc->type = TY_DESCHED; return true; }
     *desc = (lauberhorn_pkt_desc_t){.type = TY_NATIVE_UDP_RX,
         .udp = {.endpoint=55, .saddr=0xc0000201, .daddr=0xc0000202, .sport=32123, .dport=11211, .trace_ref=0x803f},
         .payload_len = mode == 2 ? 0 : 3};

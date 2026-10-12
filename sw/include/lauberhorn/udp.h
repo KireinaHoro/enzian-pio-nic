@@ -32,7 +32,7 @@ int lauberhorn_udp_bind(lauberhorn_t *, lauberhorn_udp_endpoint_t *, uint16_t po
 int lauberhorn_udp_attach(lauberhorn_t *, uint32_t index);
 /* Wait for one contiguous mutable borrowed datagram: 1 packet (including
  * zero length), 0 NACK, -1 error. No payload staging. Only call at the worker
- * idle boundary after prior work/responses drain. PREEMPT yields internally.
+ * idle boundary after prior work/responses drain. DESCHED yields internally.
  * On success, *packet points to the current worker's runtime-owned view. Keep
  * only this pointer, not a copy of the view; neither it nor data may be freed.
  * On NACK/error, *packet is unchanged (including EBUSY during a live borrow).

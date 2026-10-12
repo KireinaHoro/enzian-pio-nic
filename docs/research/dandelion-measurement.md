@@ -20,7 +20,7 @@ zuestoll07. FPGA: pipeline 516232, SHA
 `6f5fa076adbad2002681d3051c7056522929b7a1` (prepare job 2866838, hardware job
 2866839, report job 2866840); corrected module overlay
 `af0f64fe07fa3e2ef6bbfd619423d4bda027b615`, kernel 6.8.0-64-generic.
-RT bandwidth throttling is disabled. No FPGA, address, timing or PREEMPT change
+RT bandwidth throttling is disabled. No FPGA, address, timing or DESCHED change
 was made for this experiment. This routed image does not meet timing closure.
 
 Dandelion `17fbaffbc268610211b1c8469f0b90a1aacf8337`, runtime

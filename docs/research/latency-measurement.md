@@ -612,8 +612,8 @@ its old phase 0/1 comment was not evidence of those probes existing.
 | Partition | Exact boundaries / included work |
 | --- | --- |
 | `irq_to_dispatch` | Idle-kick handler timestamp to dispatcher returning from its wait; excludes exception entry before the handler |
-| `dispatch_to_mmio` | Dispatcher wait return to just before `PreemptInfo`; includes reader mutex and notification read |
-| `preempt_info_mmio` | Blocking `PreemptInfo` read start to completion |
+| `dispatch_to_mmio` | Dispatcher wait return to just before `DeschedInfo`; includes reader mutex and notification read |
+| `desched_info_mmio` | Blocking `DeschedInfo` read start to completion |
 | `claim_wait` | Snapshot completion to thread claim; includes validation, claim lock and any wait for a thread |
 | `affinity_setup` | Around `set_cpus_allowed_ptr` |
 | `activation_publish` | Affinity completion to activation-ready publication timestamp |
@@ -938,7 +938,7 @@ after all four workloads**, containing exactly 4,033 rows (4,000 measured,
 captures are loss-free, all complete hardware windows are saved and hashed, and
 final TAD/kernel health passed. The first boot was rejected for a missing CCPI
 lane report; the second passed all lane/lock gates. No timing, address-layout or
-PREEMPT implementation was changed. Pipeline516232/GSYNC-early-NACK comparison
+DESCHED implementation was changed. Pipeline516232/GSYNC-early-NACK comparison
 remains a separate scheduled follow-up.
 
 
@@ -976,7 +976,7 @@ and [all 153 component percentile rows](../../data/eci/board-evidence/dpdk-buffe
 record the completed comparison. Pipeline 516232 (`6f5fa076`) uses module overlay
 `af0f64fe`, the same buffered runtime `7bc9302b` and cross-built Nix DPDK client
 as the baseline. Zuestoll14 is the DUT and zuestoll07 the client. No new FPGA
-build, timing, address-layout or PREEMPT implementation change was made.
+build, timing, address-layout or DESCHED implementation change was made.
 
 One measured add thread and a separate four-thread mul flush domain ran four
 cohorts. All **4,000 measured RPCs plus 32 warmups** passed. Runtime tracing
@@ -1041,16 +1041,16 @@ FPGA timing closure remain outstanding.
 The preserved 516232 cold capture also contains outgoing `raw_syscalls:sys_enter`
 events for the yield ioctl. The [handoff analysis](../../tools/enzian/handoff_breakdown.py)
 joins each incoming activation to exactly one active outgoing yield syscall on
-the same CPU and one cooperative FPGA PREEMPT request. It verifies the incoming
+the same CPU and one cooperative FPGA DESCHED request. It verifies the incoming
 audit hash, loss-free capture, temporal ordering and per-request conservation.
-Missing/ambiguous syscalls or PREEMPT events fail rather than disappearing.
+Missing/ambiguous syscalls or DESCHED events fail rather than disappearing.
 All 1,000 cold requests correlate; four focused regressions pass.
 
 [Handoff distributions and provenance](../../data/eci/board-evidence/cold-outgoing-handoff-516232-20261005.json)
 and [all percentiles](../../data/eci/board-evidence/cold-outgoing-handoff-516232-20261005.csv)
-add **3.677 us median PREEMPT-request-to-outgoing-syscall-entry** and
+add **3.677 us median DESCHED-request-to-outgoing-syscall-entry** and
 **3.770 us median outgoing-syscall-entry-to-MMIO** before the prior activation
-components. Queue-to-PREEMPT is 20 ns median. The first interval includes FPGA
+components. Queue-to-DESCHED is 20 ns median. The first interval includes FPGA
 notification, outgoing userspace and exception entry; it does not isolate the
 exception instruction. Generic entry timestamps have 1 us resolution and use
 the audited CPU/FPGA epoch fit. These nested intervals retain kernel tracing
@@ -1206,7 +1206,7 @@ nix develop -c python3 data/eci/apps/plot_hot_cold.py \
 
 Nix activation (six tests) and handoff (four tests) regressions passed; the
 parameterized plotter reproduced the old baseline and generated this rerun.
-Timing, layout, PREEMPT and runtime implementations were unchanged.
+Timing, layout, DESCHED and runtime implementations were unchanged.
 
 
 ### Inline nullrpc and pre-doorbell probe follow-up — October 10
@@ -1214,7 +1214,7 @@ Timing, layout, PREEMPT and runtime implementations were unchanged.
 The preceding 518689 rerun used an overflow reservation despite its 8-byte XDR
 reply. The software correction sizes XDR replies before reservation and encodes
 directly into the inline half of the control CL when the bound is at most 64
-bytes. No FPGA, layout, timing or PREEMPT change is required. The encoded-size
+bytes. No FPGA, layout, timing or DESCHED change is required. The encoded-size
 pass belongs to marshal time; it is not hidden in TX preparation.
 
 New CSVs include `server_tx_doorbell_ns`, sampled after the TX descriptor and
@@ -1248,7 +1248,7 @@ unchanged pipeline **518689** hardware `45cbfe52` and its headers/module/map.
 The pinned [Nix recipe](../../tools/enzian/nullrpc_inline_build.nix) rebuilds the
 runtime and application together; the deployment image SHA256 is
 `3e53382af002b176531f07a7885d9d4ca4fa5d790a06575f7d2b350d65a543c2`.
-Timing remains open (WNS −0.950 ns). No hardware, address layout or PREEMPT
+Timing remains open (WNS −0.950 ns). No hardware, address layout or DESCHED
 change was made for this measurement.
 
 The one-thread add/null-RPC service returns eight encoded bytes and now reserves

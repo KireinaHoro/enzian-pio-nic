@@ -9,7 +9,7 @@
 #include "regblock_bases.h"
 #include "worker_regs.h"
 
-#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_desched_dev.h"
 #include "lauberhorn_eci_ownership_dev.h"
 #include "lauberhorn_eci_hostIf_dev.h"
 
@@ -256,12 +256,12 @@ int init_workers()
 		fpi_data->index = cpu - worker_lo;
 		fpi_data->cpu = cpu;
 
-        lauberhorn_eci_preempt_initialize(&fpi_data->preempt_dev,
-            worker_preempt_base(fpi_data->index));
+        lauberhorn_eci_desched_initialize(&fpi_data->desched_dev,
+            worker_desched_base(fpi_data->index));
 
 
 		// Program the real core ID for this worker (destination core for FPI)
-		lauberhorn_eci_preempt_real_core_id_wr(&fpi_data->preempt_dev,
+		lauberhorn_eci_desched_real_core_id_wr(&fpi_data->desched_dev,
 						       cpu);
         err = start_worker_dispatch(fpi_data);
         if (err) goto stop_dispatchers;

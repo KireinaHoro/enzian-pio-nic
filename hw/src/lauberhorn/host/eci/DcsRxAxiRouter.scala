@@ -72,11 +72,11 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     */
   val currCl = in UInt(1 bit)
 
-  /** Whether a preemption happened.  We need to drop [[savedControl]] and [[noReadPktBuf]]
-    * on preemption to prevent a leak, when the new thread attempts to pretend that it is replaying
+  /** Whether a descheduling happened.  We need to drop [[savedControl]] and [[noReadPktBuf]]
+    * on descheduling to prevent a leak, when the new thread attempts to pretend that it is replaying
     * the old request.
     */
-  val doPreempt = in Bool()
+  val doDesched = in Bool()
   val yieldRequested = in Bool()
   val fatalRelease = in Bool()
   val quiescent = out Bool()
@@ -196,9 +196,9 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val savedControl = Reg(Flow(Bits(512 bits)))
   savedControl.valid init False
 
-  when(clearShadow || doPreempt) { shadowMask.foreach(_ := 0) }
+  when(clearShadow || doDesched) { shadowMask.foreach(_ := 0) }
   val newPayload = RegInit(False)
-  when (doPreempt) {
+  when (doDesched) {
     newPayload := False
     currentPktBuf.validBytes := 0
     prefixBytes := 0
@@ -266,7 +266,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
           when(rxDesc.fire) {
             savedControl.payload := EciHostRxCtrlInfo.packFrom(rxDesc.payload, rxTraceId) ## True
           } elsewhen(yieldRequested && !fatalRelease) {
-            savedControl.payload(1) := True // valid=0, PREEMPT=1, no payload
+            savedControl.payload(1) := True // valid=0, DESCHED=1, no payload
           }
 
           // when a packet is present, read from slot in packet buffer

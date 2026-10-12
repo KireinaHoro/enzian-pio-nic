@@ -13,7 +13,7 @@ case class TxPayloadIsolationFixture() extends Component {
     useRegion = false, useQos = false)
   val axi = slave(Axi4(cfg))
   val memory = master(Axi4(cfg))
-  val preempt = in Bool()
+  val desched = in Bool()
   val quiet = out Bool()
   val invalidateDone = in Bool()
   val payloadLines = out UInt(4 bits)
@@ -22,7 +22,7 @@ case class TxPayloadIsolationFixture() extends Component {
   memory <> router.pktBufAxi
   router.currCl := 0
   router.txAddr.bits := 4096
-  router.doPreempt := preempt
+  router.doDesched := desched
   router.invDone := invalidateDone
   payloadLines := router.payloadLines
   router.txDesc.ready := False
@@ -44,7 +44,7 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     val bytes = Array.fill[Byte](8192)(0x5a.toByte)
     var holdResponse = true
     var scrubWrites = 0
-    dut.preempt #= false
+    dut.desched #= false
     dut.invalidateDone #= false
     a.ar.valid #= false; a.aw.valid #= false; a.w.valid #= false
     a.r.ready #= false; a.b.ready #= false
@@ -112,7 +112,7 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
       a.r.ready #= true; step(); a.r.ready #= false
       data
     }.toList
-    dut.preempt #= true; step(); dut.preempt #= false
+    dut.desched #= true; step(); dut.desched #= false
     ar(0x1400)
     while (scrubWrites == 0) step()
     step(12)
@@ -152,7 +152,7 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
     assert(readResult() == List(BigInt(0), BigInt(0)))
     assert(bytes.drop(4096+1536).forall(_ == 0x5a.toByte), "padding write corrupted adjacent slot")
     while (!dut.quiet.toBoolean) step()
-    dut.preempt #= true; step(); dut.preempt #= false
+    dut.desched #= true; step(); dut.desched #= false
     ar(0x1400)
     assert(readResult() == List(BigInt(0), BigInt(0)))
     // Voluntary overflow returns are accepted before commit, even after an
@@ -176,7 +176,7 @@ class TxPayloadIsolationSim extends DutSimFunSuite[TxPayloadIsolationFixture] {
       assert(dut.payloadLines.toInt == lines)
     }
     while (!dut.quiet.toBoolean) step()
-    dut.preempt #= true; step(); dut.preempt #= false
+    dut.desched #= true; step(); dut.desched #= false
     ar(0x1400)
     assert(readResult() == List(BigInt(0), BigInt(0)))
 

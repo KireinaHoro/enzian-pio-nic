@@ -14,7 +14,7 @@ Init == /\ phase = "Idle" /\ pending = FALSE /\ wake = FALSE
 ReserveIdle == /\ phase = "Idle"
                /\ phase' = "IdleReserved" /\ pending' = TRUE /\ irq' = TRUE
                /\ UNCHANGED <<wake,reader,accepted,completed,cleanup,ordinaryIrqs,bus,otherDone,fenced>>
-\* Hard IRQ only wakes dispatch; it never reads PreemptInfo.
+\* Hard IRQ only wakes dispatch; it never reads DeschedInfo.
 Kick == /\ irq /\ ~wake /\ wake' = TRUE
         /\ pending' = IF BadLostKick THEN FALSE ELSE pending
         /\ UNCHANGED <<phase,reader,accepted,completed,cleanup,irq,ordinaryIrqs,bus,otherDone,fenced>>

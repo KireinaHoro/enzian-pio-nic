@@ -127,7 +127,7 @@ composes the same coherence and retained-cache modules with:
 - two physical workers initially assigned to domain A and independently requesting B;
 - fixed initialized pools, NIC reservation accounting and separate kernel
   candidate selection, atomic claim, retry and local activation;
-- PREEMPT/yield, blocking info acceptance, internal readiness, immutable response
+- DESCHED/yield, blocking info acceptance, internal readiness, immutable response
   offer, response consumption and returned RX parity;
 - one sealed cookie per domain and a bounded number of notifications, a callback that can outlive close,
   kernel publication, NIC acceptance, delayed ACK, NIC pending ownership,

@@ -278,7 +278,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // - enable one RPC process with one service that can run on all cores,
     //   creating a thread for every worker core
     // - send 50 * numWorkerCores requests
-    // - cores are preempted as requests come in, they start to read
+    // - cores are descheduled as requests come in, they start to read
     // - eventually all packets are received through all cores
 
     val totalToSend = 50 * NUM_WORKER_CORES
@@ -423,7 +423,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     // - enable one RPC process with one service that can run on all cores
     // - install neighbor table entry for reply
     // - send first packet before core is scheduled
-    // - core is preempted to run proc
+    // - core is descheduled to run proc
     // - read first packet, check timestamps (queued)
     // - write first response, receive response and check
     // - read second packet (stalled)
@@ -843,7 +843,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
           val (funcPtr, getPacket, pid) = srvs(srvToSend)
 
           // This test is designed to allow all cores to receive all packets sent; we need to wait if the queue for the
-          // corresponding PID is about to overflow.  If the scheduler failed to preempt some core to handle a non-empty
+          // corresponding PID is about to overflow.  If the scheduler failed to desched some core to handle a non-empty
           // queue, the core reads will eventually run out of retries.
           val pidIdx = pidToTblIdx(pid)
           println(f"Checking queue capacity for PID $pid%#x (index $pidIdx)")
@@ -926,7 +926,7 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
               threadRetryMap(tid) += 1
             }
           } else {
-            procLog("process finished receiving, waiting for preemption...")
+            procLog("process finished receiving, waiting for descheduling...")
             tryReadPacketDesc(dcsMaster, tid, maxTries = 1).result
           }
         }
@@ -943,15 +943,15 @@ class OncRpcSim extends NicSim with OncRpcSuiteFactory {
     sleepCycles(20000)
     for (w <- 0 until NUM_WORKER_CORES) {
       assert(workerCore(w).currThread.isEmpty)
-      assert(csr.read(ALLOC.readBack("preempt", w + 1)("idleNotification"), 8).bytesToBigInt == 0)
+      assert(csr.read(ALLOC.readBack("desched", w + 1)("idleNotification"), 8).bytesToBigInt == 0)
     }
   }
 
-  /** After preemption, no CLs should be Shared -- otherwise we leak a descriptor from the previous
+  /** After descheduling, no CLs should be Shared -- otherwise we leak a descriptor from the previous
    * application on this core */
-  ignore("rx-preempt-no-leaking") { _ =>
+  ignore("rx-desched-no-leaking") { _ =>
     // Spawn two services.  Send a few requests for the first one, drain all of them, then
-    // send a request to the second service.  After the core finishes preemption, check if
+    // send a request to the second service.  After the core finishes descheduling, check if
     // no info is leaked (the new process only sees a NACK in the opposite CL)
     pending // Unimplemented historical coverage, not a passing regression.
   }

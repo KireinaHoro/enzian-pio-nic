@@ -576,7 +576,7 @@ records outgoing and incoming task/lifetime identities at activation delivery.
 
 ## Historical B4 scheduling and recovery events
 
-The B4 source extends `SchedulerPreemptCore` with `PreviousProcessID` and
+The B4 source extends `SchedulerDeschedCore` with `PreviousProcessID` and
 `EciTxSubmit` with `ExecutionCommand` (0 unchanged, 1 end, 2 begin, 3 end/begin).
 Incoming `SchedulerRequestDispatched` begins an inline interval; completion RX
 does not imply a resumed fiber. `SchedulerWatchdogExpired` marks expiry once,

@@ -31,7 +31,7 @@
 
 #include "config.h"
 
-#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_desched_dev.h"
 #include "lauberhorn_eci_worker_dev.h"
 
 // Always print module name in pr_info, pr_err, etc.
@@ -123,7 +123,7 @@ int check_ownership_abi(void);
 extern spinlock_t claim_lock;
 
 struct worker_fpi_data {
-    lauberhorn_eci_preempt_t preempt_dev;
+    lauberhorn_eci_desched_t desched_dev;
     struct thr_def *thr;
     int index, cpu;
     struct mutex reader;

@@ -113,7 +113,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |
          |datatype host_rx_status lsbfirst(64) "ECI RX status when valid is zero" {
          |  valid 1 "Packet descriptor follows when set";
-         |  preempt 1 "Yield immediately when valid is zero and this bit is set";
+         |  desched 1 "Yield immediately when valid is zero and this bit is set";
          |  _ 6 rsvd;
          |};
          |

@@ -157,7 +157,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
 
   /** Both kernel entry paths consume one snapshot with serialized readers. */
   private def activate[B](bus: B, wcs: WorkerCoreState, outgoing: Option[ThreadDef] = None)(implicit asMaster: AsSimBusMaster[B]): Unit = {
-    val info = asMaster.read(bus, ALLOC.readBack("preempt", wcs.cid)("preemptInfo"), 8).bytesToBigInt
+    val info = asMaster.read(bus, ALLOC.readBack("desched", wcs.cid)("deschedInfo"), 8).bytesToBigInt
     val domain = (info & ((BigInt(1) << 19) - 1)).toInt
     val slot = ((info >> 19) & 31).toInt
     val rx = ((info >> 24) & 1).toInt
@@ -205,7 +205,7 @@ trait GenericHostCPUModel { this: DutSimFunSuite[NicEngine] =>
       wcs.dispatchMutex.lock()
       // Duplicate or delayed kicks cannot cause another side-effecting read.
       if (wcs.currThread.isEmpty &&
-          asMaster.read(bus, ALLOC.readBack("preempt", cid)("idleNotification"), 8).bytesToBigInt != 0) {
+          asMaster.read(bus, ALLOC.readBack("desched", cid)("idleNotification"), 8).bytesToBigInt != 0) {
         assert(wcs.enterISR())
         activate(bus, wcs)
         wcs.exitISR()

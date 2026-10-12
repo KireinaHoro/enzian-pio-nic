@@ -6,7 +6,7 @@
 typedef uintptr_t mackerel_addr_t;
 static inline uint64_t mackerel_read_addr_64(mackerel_addr_t base, int offset) { abort(); }
 static inline void mackerel_write_addr_64(mackerel_addr_t base, int offset, uint64_t value) { abort(); }
-#include "lauberhorn_eci_preempt_dev.h"
+#include "lauberhorn_eci_desched_dev.h"
 #include "config.h"
 #include "eci/core.h"
 #include <assert.h>
@@ -16,12 +16,12 @@ int main(void)
 {
     uint64_t info = (UINT64_C(1) << 25) | (UINT64_C(1) << 24) |
         (UINT64_C(16) << 19) | UINT64_C(0x7ffff);
-    assert(lauberhorn_eci_preempt_preempt_info_domain_code_extract(info) == 0x7ffff);
-    assert(lauberhorn_eci_preempt_preempt_info_domain_slot_extract(info) == 16);
-    assert(lauberhorn_eci_preempt_preempt_info_rx_next_extract(info) == 1);
-    assert(lauberhorn_eci_preempt_preempt_info_tx_next_extract(info) == 1);
+    assert(lauberhorn_eci_desched_desched_info_domain_code_extract(info) == 0x7ffff);
+    assert(lauberhorn_eci_desched_desched_info_domain_slot_extract(info) == 16);
+    assert(lauberhorn_eci_desched_desched_info_rx_next_extract(info) == 1);
+    assert(lauberhorn_eci_desched_desched_info_tx_next_extract(info) == 1);
     unsigned char control[8] = {0};
-    lauberhorn_eci_host_rx_status_preempt_insert(control, 1);
+    lauberhorn_eci_host_rx_status_desched_insert(control, 1);
     assert(control[0] == 2);
     assert(!lauberhorn_eci_host_rx_status_valid_extract(control));
     _Static_assert(lauberhorn_eci_host_ctrl_info_onc_rpc_reply_tx_size == 16, "reply metadata size");

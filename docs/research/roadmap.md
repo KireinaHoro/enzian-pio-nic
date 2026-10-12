@@ -11,7 +11,7 @@ for consolidation into master by the October 8 closeout below.
 
 | Area | Established evidence | Remaining claim or work |
 | --- | --- | --- |
-| Physical-worker addressing and cooperative PREEMPT | Selected 8 KiB layout implemented; bounded models, targeted RTL and finite handoff/board checks passed. [Implementation ledger](../hardware/eci-implementation.md). | Full-system refinement and adversarial progress/isolation acceptance are not established. |
+| Physical-worker addressing and cooperative DESCHED | Selected 8 KiB layout implemented; bounded models, targeted RTL and finite handoff/board checks passed. [Implementation ledger](../hardware/eci-implementation.md). | Full-system refinement and adversarial progress/isolation acceptance are not established. |
 | Payload isolation and inactive-domain access | TX scrub/bounds, RX tail masking and multi-PA fault corrections implemented; pipeline 516112 passed all CI jobs and two cold-boot 100-RPC trials. [Correction record](../hardware/payload-isolation-blocker.md#matched-corrected-build-baseline--october-4). | The original disclosure is a corrected defect, not an active campaign stop. Adversarial multi-domain board stress remains open. |
 | 516232 idle activation | Module per-CPU storage corrected at `af0f64fe`; two fresh cold boots passed 200 measured + 32 warmup RPCs. [Diagnosis and correction](../hardware/gsync-worker-reproduction.md#per-cpu-module-correction--october-5). | Preserve the original failure capture; do not describe the board as still frozen by that failure or claim an independently confirmed upstream kernel bug. |
 | GSYNC early NACK | 240 controlled RPCs passed; 160 permission-change GSYNCs, 107 overlapping one/two fully observed peer holds. Hold-dependent millisecond stalls disappeared. [Board evidence](../hardware/gsync-worker-reproduction.md#corrected-module-early-nack-measurement--october-5). | Three simultaneously stalled peers and arbitrary-interrupt tail guarantees remain untested by this campaign. |
@@ -35,7 +35,7 @@ thread.** The bounded Dandelion campaign includes atomic/composition waterfalls,
 [closeout and two deferred items](#dandelion-closeout-limited-scope-and-deferred-work--october-8).
 Sharding acceptance, loaded multi-domain/overload cases and general recovery
 remain open; they are not gates to starting memcached.
-Do not introduce HOST_WAKE or change the address/PREEMPT contract solely for
+Do not introduce HOST_WAKE or change the address/DESCHED contract solely for
 the next application; investigate concrete application dependencies first.
 
 Complete kill/exit resource recovery, broader adversarial isolation/overload,
@@ -73,7 +73,7 @@ alignment uncertainty, missing intervals and tracing overhead. Dump software
 records after the run. Reuse the hot/cold waterfall conventions, including the
 RX wait beginning before request arrival, and preserve exact artifact provenance.
 Build checks alone do not complete either hardware gate. HOST_WAKE remains on
-hold; no timing or address/PREEMPT redesign is part of this goal.
+hold; no timing or address/DESCHED redesign is part of this goal.
 
 ### Completed bounded follow-up: wide Dandelion fan-out
 
@@ -213,7 +213,7 @@ deleted branch. [Two cold-reset trials passed 200 RPCs](../development/hardware-
 with trace-confirmed RX writeback completion. The
 [30-minute / five-hour CI follow-up](../development/ci.md#scheduled-hardware-build-follow-up)
 now retains pipeline refs until all jobs finish. That historical trial used the former address ABI. The current ECI source now
-uses the selected physical-worker decoder and cooperative PREEMPT contract.
+uses the selected physical-worker decoder and cooperative DESCHED contract.
 
 ## Next steps after the bounded modeling round
 
@@ -243,7 +243,7 @@ the replacement integration from deferred follow-on work.
 | --- | --- | --- |
 | 1 (complete, bounded regression) | Revalidate the simplified DC plus RX write sink on Enzian, retaining the existing router/address ABI. | Pipeline 515802 passed two cold-reset trials / 200 RPCs; a repeated-hash trace shows RX WDDA/LCIA and the next read. Broader stress remains in step 5. |
 | 2 (implemented; expanded acceptance open) | Implement the router-free address path: selected 8 KiB physical-worker blocks, domain-qualified PAs and stable pre-mapped aliases. | HW decoding, generated headers, kmod mappings and runtime accesses agree; both parities, overflow, domain isolation and full response/invalidation addresses are tested. Monotonic domain codes never wrap or get reused across surviving coherence state. |
-| 3 (implemented; expanded acceptance open) | Implement cooperative PREEMPT/`lh_yield()` and the blocking PreemptInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
+| 3 (implemented; expanded acceptance open) | Implement cooperative DESCHED/`lh_yield()` and the blocking DeschedInfo interface across NIC, kmod and runtime. | Mailbox identity/parity come from one committed response; transport fencing, reservations/claims and local activation meet the [implementation checklist](../software/scheduling-implementation-checks.md). Ordinary handoff needs no cache flush, activation commit write or scheduling IRQ. |
 | 4 (deferred) | Design host-event activation and complete whole-domain recovery in a later round. | Neither interface design nor reusable-resource recovery is part of this stage. |
 | 5 (partial) | Validate the integrated replacement with targeted actual-DCS RTL simulations and matched board stress. | Run the [whole-slice cases below](#targeted-dcs-rtl-simulation-after-replacement-rtl-is-available), stalled peers plus bypass, repeated handoffs, wakes and kill cleanup. Add model-derived assertions/event monitors as each component lands, rather than postponing all validation to this stage. Record finite observations separately from liveness assumptions. |
 | 6 (microbenchmark baseline complete; applications open) | Integrate the first-paper applications and collect performance data, then evaluate coupled RX/TX where measurements justify it. | Reproducible functional workloads and baseline comparisons; quantify scheduling costs and application bottlenecks before selecting another transport optimization. |
@@ -265,7 +265,7 @@ Dandelion, then the planned application portfolio in the
 [RX return-half design note](../hardware/rx-writeback.md) describes possible
 commands/status and responses carried by intentionally dirtying an RX CL.
 This is an experiment to establish benefit, not a prerequisite for the address
-or PREEMPT work and not a selected replacement protocol.
+or DESCHED work and not a selected replacement protocol.
 
 - Evaluate [borrowed RX payload spans](../hardware/rx-writeback.md#related-performance-opportunity-borrow-rx-payload-instead-of-staging-it)
   alongside this study: remove worker RX staging where possible, account for
@@ -304,7 +304,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 - Build the full RPC system on published 2F2F; demonstrate low latency and efficiency while retaining OS flexibility and security. [Paper scope and application portfolio](paper-goals.md).
 - Primary baseline: Demikernel. Planned applications: Dandelion, RPC server, userspace NFS, memcached, and consensus such as etcd/Raft.
 - `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](dandelion.md); these are external reference trees, not merged support in this checkout.
-- Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. Ordinary idle RX cooperatively yields on PREEMPT. Unsupported exits and fatal
+- Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. Ordinary idle RX cooperatively yields on DESCHED. Unsupported exits and fatal
   activation failures kill and fence the domain; full resource-recycling recovery
   and deadline activation remain deferred.
 - TCP and Protobuf student platform/report trees are located and documented in [TCP](tcp.md) and [Protobuf](protobuf.md). Merge soon to avoid drift, at lower priority than Dandelion and the other first-paper applications. Fully offloaded gRPC is a possible subsequent paper.
@@ -362,8 +362,8 @@ verification complete.
 Settled context: use the selected router-free 8 KiB worker blocks and monotonic
 19-bit domain-code allocation without reuse. Prefix-reuse certification is deferred;
 exhaustion must not wrap and driver reload must not reuse codes while coherence
-state survives. Ordinary handoff still uses PREEMPT/`lh_yield()` and one blocking
-PreemptInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
+state survives. Ordinary handoff still uses DESCHED/`lh_yield()` and one blocking
+DeschedInfo read, with no kernel 2F2F CL access, ordinary cache flush or activation
 commit write. Ordinary handoffs have no scheduling IRQ. Initial/idle activation uses a sticky
 notification and kick IRQ; fatal-domain notification is separate.
 
@@ -384,7 +384,7 @@ reproduced AW queueing with WREADY low; the production fix now drains and discar
 RX writes independently, and its regression checks WDDA/LCIA and the pending read.
 The [RX-fix follow-up](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02)
 passed two cold-reset trials and directly observed RX completion. Both captures
-are preserved. The address/PREEMPT replacement is now implemented on `feat/cooperative-yield`.
+are preserved. The address/DESCHED replacement is now implemented on `feat/cooperative-yield`.
 See the current evidence ledger for its checks and pending board acceptance.
 
 The [selected LCI-only ROM](../hardware/lauberhorn-rom.md) is now generated by
@@ -496,7 +496,7 @@ model checks, THX credit assumptions and eventual board conformance separately.
 Keep maintainer intent separate from source-backed implementation status. Do not silently turn these remaining choices into requirements or reopen the settled isolated-worker policy.
 
 The [control/retirement interface](../software/scheduling-control-interface.md)
-now specifies one blocking PreemptInfo read per handoff, local userspace activation
+now specifies one blocking DeschedInfo read per handoff, local userspace activation
 and separate whole-domain close/quiescence/retirement. Combined race checking must
 preserve response lifetime and pending wake ownership across close. Retained
 old-domain cache generations now have explicit resource accounting in the

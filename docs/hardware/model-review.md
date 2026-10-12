@@ -70,7 +70,7 @@ proof.
 
 `InterruptGate` retains a release-first diagnostic; `KillExit` permits both
 IRQ-before-release and release-before-IRQ. Interrupts are used for whole-domain
-kill, not cooperative PREEMPT. `TimerMirror` checks command order, not a chosen
+kill, not cooperative DESCHED. `TimerMirror` checks command order, not a chosen
 application timeout policy.
 
 ## Validation and remaining scope

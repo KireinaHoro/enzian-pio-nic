@@ -56,7 +56,7 @@
 	FUNC(worker, num_retired)   \
 	FUNC(worker, num_req)       \
 	FUNC(worker, num_nack)      \
-	FUNC(worker, num_preempted)
+	FUNC(worker, num_descheduled)
 
 #define CMAC_STATUS_LIST(FUNC)         \
 	FUNC(cmac, tx_status)          \

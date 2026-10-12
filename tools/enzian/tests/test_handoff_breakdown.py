@@ -12,9 +12,17 @@ class HandoffBreakdown(unittest.TestCase):
                          activation_path='cooperative',activation_components_ns={'mmio_to_rx':500},activation_total_ns=500)]
         timings=[dict(worker=0,sequence=3,read_begin=14000)]
         entries=[dict(cpu=44,tid=10,enter_ns=12000,exit_ns=18000)]
-        events=[dict(event='SchedulerPreemptCore',time_ns=1020,data=dict(CoreID=1,
-                     PreemptOutOfIdle=0,PreviousProcessID=8,ProcessID=18))]
+        events=[dict(event='SchedulerDeschedCore',time_ns=1020,data=dict(CoreID=1,
+                     DeschedOutOfIdle=0,PreviousProcessID=8,ProcessID=18))]
         return audit,activation,timings,entries,events
+
+    def test_saved_legacy_events(self):
+        args = self.fixture()
+        expected = join(*args)
+        args[-1][0]['event'] = 'SchedulerPreemptCore'
+        fields = args[-1][0]['data']
+        fields['PreemptOutOfIdle'] = fields.pop('DeschedOutOfIdle')
+        self.assertEqual(join(*args), expected)
 
     def test_partition_includes_outgoing_entry_without_double_counting(self):
         result=join(*self.fixture())[0]
@@ -30,7 +38,7 @@ class HandoffBreakdown(unittest.TestCase):
 
     def test_ambiguous_preempt_and_syscall_fail(self):
         args=self.fixture();args[4].append(dict(args[4][0]))
-        with self.assertRaisesRegex(ValueError,'FPGA PREEMPT'):join(*args)
+        with self.assertRaisesRegex(ValueError,'FPGA DESCHED'):join(*args)
         args=self.fixture();args[3].append(dict(args[3][0],tid=11))
         with self.assertRaisesRegex(ValueError,'outgoing yield'):join(*args)
 

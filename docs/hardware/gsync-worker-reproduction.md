@@ -20,7 +20,7 @@ a worker's synchronization can wait behind a peer's blocked RX even though the
 FPGA answers GSYNC immediately. It does not establish which interrupt or
 instruction initiated the historical GSYNCs. The experiment intentionally invokes
 TLB maintenance through `mprotect`; no transport barrier, RTL, address-layout,
-PREEMPT or kernel implementation was changed.
+DESCHED or kernel implementation was changed.
 
 ## Controlled results
 
@@ -65,7 +65,7 @@ attempt; the first two attempts lacked the CCPI lane report and loaded no
 module. The successful attempt verified QLM8..13 and CCPI lanes 0..23. RT
 bandwidth throttling was disabled. The initial add worker remained on datapath
 1; a bounded mul burst activated datapaths 2 and 3, and the probe activated
-datapath 4 / Linux CPU 47. No ordinary PREEMPT was intentionally induced.
+datapath 4 / Linux CPU 47. No ordinary DESCHED was intentionally induced.
 
 An unsupported setup command stopped before starting the probe; the harness
 saved the full 137,679,488-byte trace before correcting it. The final capture
@@ -139,7 +139,7 @@ wins, just as at timeout. Otherwise the router selects an ordinary NACK with
 zero payload, retaining the existing invalidation and AXI response sequencing.
 No per-router sticky release is retained: idle notifications, accepted
 responses and same-line replays are unaffected, and later RX reads retain the
-configured timeout. PREEMPT/fatal-release priority is unchanged.
+configured timeout. DESCHED/fatal-release priority is unchanged.
 
 This addresses the observed case of peers already waiting for RX descriptors.
 It does not promise to catch a read that only reaches `waitDesc` after the pulse,
@@ -211,7 +211,7 @@ At this initial failed-trial stage, two successful trials and early-NACK
 acceptance could not be reported. Controlled GSYNC and new-image hot/cold
 measurements were blocked until the correction below; the
 [buffered 516112 baseline](../research/latency-measurement.md#buffered-hotcold-baseline--october-5)
-remains historical comparison data. No timing, address-layout or PREEMPT
+remains historical comparison data. No timing, address-layout or DESCHED
 implementation change was made. Raw evidence is in `out/board/gsync-516232*`
 and `out/ci-followup/516232/`; the pipeline branch is retained.
 

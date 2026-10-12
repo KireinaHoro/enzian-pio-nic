@@ -293,7 +293,7 @@ Composition tests remain separate because local nested transport has not landed.
 ## Historical B4 recovery evidence
 
 The September B4 campaign used the superseded control-line and recovery ABI.
-Its runner is removed; it must not be used with cooperative PREEMPT images.
+Its runner is removed; it must not be used with cooperative DESCHED images.
 See the [recorded results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
 for the tested revisions. Current unsupported exit and fatal faults kill and
 fence the affected domain, retaining resources until a full coherence reset.

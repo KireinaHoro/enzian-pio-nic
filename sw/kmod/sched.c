@@ -56,10 +56,10 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
         timing.ns[LH_ACT_DISPATCH] = dispatch_ns;
         timing.ns[LH_ACT_READ_BEGIN] = ktime_get_raw_ns();
     }
-    info = lauberhorn_eci_preempt_preempt_info_rawrd(&worker->preempt_dev);
+    info = lauberhorn_eci_desched_desched_info_rawrd(&worker->desched_dev);
     if (timing.enabled) timing.ns[LH_ACT_READ_END] = ktime_get_raw_ns();
-    u32 code = lauberhorn_eci_preempt_preempt_info_domain_code_extract(info);
-    u32 slot = lauberhorn_eci_preempt_preempt_info_domain_slot_extract(info);
+    u32 code = lauberhorn_eci_desched_desched_info_domain_code_extract(info);
+    u32 slot = lauberhorn_eci_desched_desched_info_domain_slot_extract(info);
     struct proc_def *proc = find_proc_slot(slot);
     struct thr_def *next = NULL;
     unsigned long flags;
@@ -108,8 +108,8 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
     if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
     next->activation = (struct lh_activation) {
         .worker_index = worker->index,
-        .rx_next = lauberhorn_eci_preempt_preempt_info_rx_next_extract(info),
-        .tx_next = lauberhorn_eci_preempt_preempt_info_tx_next_extract(info),
+        .rx_next = lauberhorn_eci_desched_desched_info_rx_next_extract(info),
+        .tx_next = lauberhorn_eci_desched_desched_info_tx_next_extract(info),
     };
     worker->thr = next;
     if (timing.enabled) timing.ns[LH_ACT_WAKE] = ktime_get_raw_ns();
@@ -138,7 +138,7 @@ static int dispatch_thread(void *arg)
         mutex_lock(&worker->reader);
         atomic_set(&worker->kick, 0);
         if (!READ_ONCE(worker->thr) &&
-            lauberhorn_eci_preempt_idle_notification_rd(&worker->preempt_dev))
+            lauberhorn_eci_desched_idle_notification_rd(&worker->desched_dev))
             activate(worker, NULL, irq_ns, dispatch_ns);
         mutex_unlock(&worker->reader);
     }
@@ -182,7 +182,7 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
         worker = worker_by_index(index);
         mutex_lock(&worker->reader);
         if (worker->thr != thr ||
-            !lauberhorn_eci_preempt_yield_requested_rd(&worker->preempt_dev)) {
+            !lauberhorn_eci_desched_yield_requested_rd(&worker->desched_dev)) {
             mutex_unlock(&worker->reader);
             fail_domain(proc);
             return -EPROTO;

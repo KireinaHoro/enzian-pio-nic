@@ -78,7 +78,7 @@ class LatencyAccounting(unittest.TestCase):
                   for name,t in [('SchedulerRequestQueued',100),
                                  ('SchedulerProcessRun',50),
                                  ('SchedulerRequestDispatched',150),
-                                 ('PreemptCtrlIpiIssued',10000)]]
+                                 ('DeschedCtrlIpiIssued',10000)]]
         rec = {'events': events[:3], 'SchedulerRequestDispatched':150}
         row = self.row()
         row.update(server_tx_enter_ns=200000, trace_core_delivery_ns=200)

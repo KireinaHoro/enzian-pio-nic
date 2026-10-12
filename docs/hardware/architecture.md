@@ -12,7 +12,7 @@ Scope: current source tree, inspected 2026-09-08. Source paths below are relativ
 | Network parsing/serialization | `hw/src/lauberhorn/net/{Decoder,Encoder,ProtoState}.scala`; protocol-specific directories |
 | Packet storage | `hw/src/lauberhorn/{DmaControlPlugin,PacketBuffer,PacketAlloc}.scala`: descriptors, allocation, AXI DMA, FPGA RAM |
 | Request dispatch | `hw/src/lauberhorn/Scheduler.scala`: process/core state and worker requests; `host/BypassCmdSink.scala`: bypass arbitration |
-| Host protocol abstraction | `hw/src/lauberhorn/host/{DatapathService,DatapathPlugin,PreemptionService}.scala` |
+| Host protocol abstraction | `hw/src/lauberhorn/host/{DatapathService,DatapathPlugin,DeschedulingService}.scala` |
 | Coherent CPU link | `hw/src/lauberhorn/host/eci/`: ECI routing, per-worker 2F2F RX/TX, preemption |
 | Physical ECI integration | `vivado/eci/rtl/lauberhorn_eci.vhd`: NicEngine, even/odd DCS, ECI transport, interrupts, CMAC, trace DMA/DDR |
 
@@ -35,7 +35,7 @@ writebacks during commit. Full invalidation remains at preemption. Mutable RX wr
 retirement. See [RX writeback](rx-writeback.md) and the
 [runtime ownership contract](../software/runtime.md#request-and-transport-ownership).
 
-`EciPreemptionControlPlugin.scala` delivers payload-free PREEMPT through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md); board acceptance remains outstanding.
+`EciDeschedulingControlPlugin.scala` delivers payload-free DESCHED through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md); board acceptance remains outstanding.
 
 ## Defaults and invariants
 
@@ -51,7 +51,7 @@ retirement. See [RX writeback](rx-writeback.md) and the
 
 Main engine logic and tests are Scala/SpinalHDL under `hw/`. The ECI Vivado top is VHDL (`vivado/eci/rtl/lauberhorn_eci.vhd`); DCS and CDC/AXI glue include SystemVerilog, while generated `NicEngine.v`, `lauberhorn_trace_dma.v`, and imported AXI/AXIS modules use Verilog. Generated support RTL is merged into `NicEngine_ips.sv`. Vivado Tcl assembles the mixed-language project.
 
-Besides the data-path plugins listed above, `GenEngineVerilog.scala` installs `PatchSignalNames` (IO naming/Vivado inference), `DebugPlugin` (debug signals), `GlobalCSRPlugin` (magic/version/cycles), and `TracePlugin` (event IDs and ports). `EncoderSource`/`DecoderSink` connect protocol plugins to DMA. ECI installs one preemption plugin per worker, none for bypass. Legacy PCIe installs `PcieBridgeInterfacePlugin`, per-datapath `PcieDatapathPlugin`, and per-worker `PciePreemptionControlPlugin`; the last is unfinished, so this composition is not evidence of a working current PCIe build.
+Besides the data-path plugins listed above, `GenEngineVerilog.scala` installs `PatchSignalNames` (IO naming/Vivado inference), `DebugPlugin` (debug signals), `GlobalCSRPlugin` (magic/version/cycles), and `TracePlugin` (event IDs and ports). `EncoderSource`/`DecoderSink` connect protocol plugins to DMA. ECI installs one preemption plugin per worker, none for bypass. Legacy PCIe installs `PcieBridgeInterfacePlugin`, per-datapath `PcieDatapathPlugin`, and per-worker `PcieDeschedulingControlPlugin`; the last is unfinished, so this composition is not evidence of a working current PCIe build.
 
 ## Elaboration Flow
 

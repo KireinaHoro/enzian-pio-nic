@@ -23,7 +23,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 1
 #define SCHED_CORE_1(FUNC) \
     FUNC(sched, popped_core_1) \
-    FUNC(sched, preempted_core_1) \
+    FUNC(sched, descheduled_core_1) \
     FUNC(sched, dispatched_core_1)
 #else
 #define SCHED_CORE_1(FUNC)
@@ -32,7 +32,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 2
 #define SCHED_CORE_2(FUNC) \
     FUNC(sched, popped_core_2) \
-    FUNC(sched, preempted_core_2) \
+    FUNC(sched, descheduled_core_2) \
     FUNC(sched, dispatched_core_2)
 #else
 #define SCHED_CORE_2(FUNC)
@@ -41,7 +41,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 3
 #define SCHED_CORE_3(FUNC) \
     FUNC(sched, popped_core_3) \
-    FUNC(sched, preempted_core_3) \
+    FUNC(sched, descheduled_core_3) \
     FUNC(sched, dispatched_core_3)
 #else
 #define SCHED_CORE_3(FUNC)
@@ -50,7 +50,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 4
 #define SCHED_CORE_4(FUNC) \
     FUNC(sched, popped_core_4) \
-    FUNC(sched, preempted_core_4) \
+    FUNC(sched, descheduled_core_4) \
     FUNC(sched, dispatched_core_4)
 #else
 #define SCHED_CORE_4(FUNC)
@@ -59,7 +59,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 5
 #define SCHED_CORE_5(FUNC) \
     FUNC(sched, popped_core_5) \
-    FUNC(sched, preempted_core_5) \
+    FUNC(sched, descheduled_core_5) \
     FUNC(sched, dispatched_core_5)
 #else
 #define SCHED_CORE_5(FUNC)
@@ -68,7 +68,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 6
 #define SCHED_CORE_6(FUNC) \
     FUNC(sched, popped_core_6) \
-    FUNC(sched, preempted_core_6) \
+    FUNC(sched, descheduled_core_6) \
     FUNC(sched, dispatched_core_6)
 #else
 #define SCHED_CORE_6(FUNC)
@@ -77,7 +77,7 @@
 #if LAUBERHORN_NUM_WORKER_CORES >= 7
 #define SCHED_CORE_7(FUNC) \
     FUNC(sched, popped_core_7) \
-    FUNC(sched, preempted_core_7) \
+    FUNC(sched, descheduled_core_7) \
     FUNC(sched, dispatched_core_7)
 #else
 #define SCHED_CORE_7(FUNC)

@@ -26,7 +26,7 @@ For the selected endpoint:
   assume a clean cache or make blocked response service fair by definition.
 
 `CachedProgress` releases its `RetainedCache.retiring` charge on LCIA acceptance.
-`CombinedScheduling` composes the same event with PreemptInfo, reservations,
+`CombinedScheduling` composes the same event with DeschedInfo, reservations,
 claims, host notifications and retirement. `Handoff` selects the same endpoint
 for ordinary, RX/TX and stalled-peer transition cases, including its Goal 1
 post-handoff instance. The cleanup also converts `Steady` and `WakeHandoff` to the selected endpoint.

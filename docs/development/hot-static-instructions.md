@@ -70,7 +70,7 @@ are all counted. No claim of instruction/cycle equivalence follows.
 The workload determines the application/runtime branches:
 
 - RX valid, type ONCRPC call (3), no overflow beyond the 48-byte inline area;
-  packet dispatch takes the call arm, not PREEMPT or response handling.
+  packet dispatch takes the call arm, not DESCHED or response handling.
 - Allocation succeeds; three scalar decodes succeed. Current fiber equals the
   main fiber, so tracing uses the inline request record.
 - `flush_spin_us == 0`; `compute_add` and the successful `add_check` are selected.

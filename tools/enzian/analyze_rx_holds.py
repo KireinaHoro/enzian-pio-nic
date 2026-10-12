@@ -105,11 +105,11 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
             unmatched['interrupted_by_loss'] += len(pending)
             pending.clear()
             preempt.clear()
-        elif name == 'SchedulerPreemptCore' and not fields.get('PreemptOutOfIdle', 0):
+        elif name == 'SchedulerDeschedCore' and not fields.get('DeschedOutOfIdle', 0):
             preempt.add(core)
         elif name == 'YieldAccepted':
             preempt.discard(core)
-            kind = 'idle' if fields.get('PreemptOutOfIdle', 0) else 'ordinary'
+            kind = 'idle' if fields.get('DeschedOutOfIdle', 0) else 'ordinary'
             activations[f"{kind}:core={core}:domain={fields.get('DomainCode')}"] += 1
         elif name in ('EciRxReadFirst', 'EciRxReadNew'):
             if core in pending:
@@ -127,7 +127,7 @@ def summarize(records, clock_hz, minimum_hold_cycles=0):
                                   handoff_pending=core in preempt))
         if name == 'SchedulerRequestDispatched':
             dispatches[f"process={fields.get('ProcessID')}:core={core}"] += 1
-        if name in ('EciRxDescSent', 'EciTxSubmit', 'TxCmacExit', 'ActivationDelivered') or (name == 'YieldAccepted' and not fields.get('PreemptOutOfIdle', 0)):
+        if name in ('EciRxDescSent', 'EciTxSubmit', 'TxCmacExit', 'ActivationDelivered') or (name == 'YieldAccepted' and not fields.get('DeschedOutOfIdle', 0)):
             peer_events.append((timestamp, core, name))
     unmatched['open_read_at_capture_end'] = len(pending)
     # Aggregate overlap evidence without constructing a quadratic event product.

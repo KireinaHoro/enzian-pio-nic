@@ -74,7 +74,7 @@ contains physical mailbox identity and separate RX/TX parities as specified in
 [the control interface](../software/scheduling-control-interface.md).
 
 Voluntary kernel entry requires already-delivered host work to finish. Host work
-remains serviceable after PREEMPT while the worker is draining. The original
+remains serviceable after DESCHED while the worker is draining. The original
 composition violated this rule: `Deliver → Begin` disabled service in `Draining`,
 while `Park` waited for runtime responsibility to disappear. The resulting fair
 execution never completed the wake or handoff. `bad-full-host-drain` retains that

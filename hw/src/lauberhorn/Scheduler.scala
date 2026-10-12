@@ -5,7 +5,7 @@ import spinal.lib._
 import spinal.lib.bus.misc.BusSlaveFactory
 import jsteward.blocks.misc.{LookupTable, RegBlockAlloc}
 import lauberhorn.host.eci.{EciDecoupledRxTxProtocol, EciOwnership}
-import lauberhorn.host.{HostReq, HostReqType, HostReqWithTrace, PreemptionService}
+import lauberhorn.host.{HostReq, HostReqType, HostReqWithTrace, DeschedulingService}
 import lauberhorn.Global._
 import lauberhorn.net.invalidTraceId
 import lauberhorn.net.oncrpc.{OncRpcCallRxMeta, OncRpcCallDecoder, OncRpcReplyDecoder}
@@ -35,16 +35,15 @@ case class ProcessDef() extends Bundle {
 }
 
 /**
-  * Level of urgency on preempting a core.  Core preemption is triggered on packet arrival (otherwise a non-cooperative
-  * core can never be preempted), but actually executed in the pop logic to serialize with blocking request delivery.
-  * This command is used to convey intention between the two parts.
+  * Assignment-change intent between packet arrival and request delivery.
+  * ECI executes ordinary descheduling only when the worker waits for RX;
+  * it never interrupts a running handler.
   *
-  *  - [[idle]]: only preempt, when the core is in the IDLE process (i.e. no services)
-  *  - [[ready]]: preempt, when the core is stuck in a read (i.e. not currently processing a request); can also
-  *    preempt a core that is in idle.
-  *  - [[force]]: kill a running process due to timeout
+  *  - [[idle]]: select an unassigned worker
+  *  - [[ready]]: select an idle worker or one waiting for RX
+  *  - [[force]]: legacy kill intent; unsupported by the cooperative ECI path
   */
-object PreemptCmdType extends SpinalEnum {
+object DeschedCmdType extends SpinalEnum {
   val idle, ready, force = newElement()
 }
 
@@ -66,8 +65,8 @@ class Scheduler extends FiberPlugin {
   def MemAddr = UInt(log2Up(totalPkts) bits)
   def ProcTblIdx = UInt(log2Up(NUM_PROCS+1) bits)
 
-  case class PreemptCmd() extends Bundle {
-    val ty = PreemptCmdType()
+  case class DeschedCmd() extends Bundle {
+    val ty = DeschedCmdType()
     val pid = PID()
     val idx = ProcTblIdx
     val hostMsgId = UInt(HostMsgID.width bits)
@@ -173,7 +172,7 @@ class Scheduler extends FiberPlugin {
     /** Packet metadata issued to the downstream [[lauberhorn.host.DatapathPlugin]].
       *
       * Note that this is purely for the datapath and does not contain any scheduling information: switching processes
-      * on a core is requested through the [[corePreempt]] interfaces.
+      * on a core is requested through the [[coreDesched]] interfaces.
       */
     val coreMeta = Seq.fill(NUM_WORKER_CORES)(Stream(HostReqWithTrace()))
     // Explicit withdrawal of an unaccepted descriptor during process stop.
@@ -184,15 +183,15 @@ class Scheduler extends FiberPlugin {
     /**
       * Request a core to switch to a different process.  Interaction with [[coreMeta]] happens in the following order:
       *  - hold requests in [[coreMeta]] (valid === False)
-      *  - issue request on [[corePreempt]] (wait until ready && valid === True)
+      *  - issue request on [[coreDesched]] (wait until ready && valid === True)
       *  - re-assign PID queue, allow requests to continue on [[coreMeta]]
       *
-      * Will be stalled (ready === False) when a preemption is in progress.
+      * Will be stalled (ready === False) when a descheduling is in progress.
       */
-    val corePreempt = host.list[PreemptionService].map { ps =>
-      val p = Stream(ps.PreemptReq())
+    val coreDesched = host.list[DeschedulingService].map { ps =>
+      val p = Stream(ps.DeschedReq())
       p.payload.setAsReg()
-      p >> ps.preemptReq
+      p >> ps.deschedReq
       p
     }
 
@@ -224,7 +223,7 @@ class Scheduler extends FiberPlugin {
     val statistics = new Bundle {
       val pushed, dropped = Reg(UInt(REG_WIDTH bits)) init 0
       val watchdogControls, watchdogExpirations = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
-      val popped, preempted, dispatched = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
+      val popped, descheduled, dispatched = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
     }
     def inc(f: statistics.type => UInt): Unit = f(statistics) := f(statistics) + 1
 
@@ -318,7 +317,7 @@ class Scheduler extends FiberPlugin {
 
     // map of which process is running on which core
     val corePidMap = Vec.fill(NUM_WORKER_CORES) {
-      // all start in IDLE -- preempt request will move them away
+      // all start in IDLE -- desched request will move them away
       Reg(ProcTblIdx) init 0
     }
 
@@ -377,10 +376,10 @@ class Scheduler extends FiberPlugin {
     val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
     val pushResultThrCount = CountOne(pushResultCoreMap)
 
-    // preempt request to popping side
-    val rxPreemptReq = Reg(Flow(PreemptCmd()))
-    rxPreemptReq.valid := False
-    rxPreemptReq.hostMsgId := invalidTraceId(HostMsgID.width)
+    // desched request to popping side
+    val rxDeschedReq = Reg(Flow(DeschedCmd()))
+    rxDeschedReq.valid := False
+    rxDeschedReq.hostMsgId := invalidTraceId(HostMsgID.width)
 
     pushResult.ready := False
     val pushDiscard, queueDiscard = Stream(HostReqWithTrace())
@@ -420,23 +419,23 @@ class Scheduler extends FiberPlugin {
           ProcessID(pushResult.value.pid.bits)) := True
       }
 
-      // A new packet arrived, try to select a core to preempt, but do not block the RX process.
+      // A new packet arrived, try to select a core to desched, but do not block the RX process.
       when (pushResult.fire && pushResult.matched && processEnabled(pushResult.idx) && !queueMetas(pushResult.idx).full &&
             pushResultThrCount < pushResult.value.maxThreads) {
-        rxPreemptReq.pid := pushResult.value.pid
-        rxPreemptReq.idx := pushResult.idx
-        rxPreemptReq.hostMsgId := pushResult.userData.hostMsgId
+        rxDeschedReq.pid := pushResult.value.pid
+        rxDeschedReq.idx := pushResult.idx
+        rxDeschedReq.hostMsgId := pushResult.userData.hostMsgId
 
-        // preempting as ready takes priority
+        // descheduling as ready takes priority
         when (queueMetas(pushResult.idx).almostFull) {
           // queue almost full (V_arrival > V_consume, need to scale up)
-          // in addition to preempting idle cores, also allow preempting a ready one
-          rxPreemptReq.ty := PreemptCmdType.ready
-          rxPreemptReq.valid := True
+          // in addition to descheduling idle cores, also allow descheduling a ready one
+          rxDeschedReq.ty := DeschedCmdType.ready
+          rxDeschedReq.valid := True
         } elsewhen (pushResultCoreMap === 0) {
-          // no process assigned to this queue -- idle preempt
-          rxPreemptReq.ty := PreemptCmdType.idle
-          rxPreemptReq.valid := True
+          // no process assigned to this queue -- idle desched
+          rxDeschedReq.ty := DeschedCmdType.idle
+          rxDeschedReq.valid := True
         }
       }
 
@@ -515,11 +514,11 @@ class Scheduler extends FiberPlugin {
       inTransitBusy(i) := accounting.io.busy
     }
 
-    // Actual old owner is retained through the entire preemption handshake;
+    // Actual old owner is retained through the entire descheduling handshake;
     // corePidMap reserves the next owner earlier to bound parallelism.
     val coreResident = Vec.fill(NUM_WORKER_CORES)(Reg(ProcTblIdx) init 0)
     for(i <- 1 to NUM_PROCS.get) {
-      when((0 until NUM_WORKER_CORES).map(c => coreResident(c) === i && !corePreempt(c).valid).asBits.orR) {
+      when((0 until NUM_WORKER_CORES).map(c => coreResident(c) === i && !coreDesched(c).valid).asBits.orR) {
         softwarePending(i) := False
       }
     }
@@ -535,24 +534,24 @@ class Scheduler extends FiberPlugin {
       RegNext(busy || processEnabled(pid)) init True
     }
 
-    // victim core selection, based on preemption type
+    // victim core selection, based on descheduling type
     val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
-      // idle preemption: a core that is
+      // idle descheduling: a core that is
       // - running the IDLE process, and
-      // - a preemption is not underway
+      // - a descheduling is not underway
       corePidMap(cid) === 0
     }.asBits()
     val coreReadyMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
-      // ready preemption: a core that is
+      // ready descheduling: a core that is
       // - running another PID, and
       // - running some proc but ready (i.e. no request ongoing), and
-      // - a preemption is not underway
-      corePidMap(cid) =/= rxPreemptReq.idx && coreMeta(cid).ready
+      // - a descheduling is not underway
+      corePidMap(cid) =/= rxDeschedReq.idx && coreMeta(cid).ready
     }.asBits()
 
-    val victimCoreMap = rxPreemptReq.ty.mux(
-      PreemptCmdType.idle -> coreIdleMap,
-      PreemptCmdType.ready -> Mux(coreIdleMap.orR, coreIdleMap, coreReadyMap),
+    val victimCoreMap = rxDeschedReq.ty.mux(
+      DeschedCmdType.idle -> coreIdleMap,
+      DeschedCmdType.ready -> Mux(coreIdleMap.orR, coreIdleMap, coreReadyMap),
       // TODO: when do we need the `force` command type?
       //       when we need to kill a running handler?
       default -> B(0),
@@ -584,7 +583,7 @@ class Scheduler extends FiberPlugin {
       // Register scheduler/TX events before the deadline register's enable.
       // Clear both immediately and for the following cycle, discarding events
       // from the previous owner rather than starting them on a new process.
-      watchdog.io.clear := corePreempt(idx).valid || (RegNext(corePreempt(idx).valid) init False)
+      watchdog.io.clear := coreDesched(idx).valid || (RegNext(coreDesched(idx).valid) init False)
       val executionBegin = toCore.fire && toCore.req.ty === HostReqType.oncRpcCallRx
       val executionEnd = Bool()
       executionEnd := False
@@ -609,11 +608,11 @@ class Scheduler extends FiberPlugin {
         watchdogKilled(coreResident(idx)) := True
       }
 
-      corePreempt(idx).valid := False
-      // save the requested preemption target until preemption is actually done
-      val savedPreemptIdx = Reg(ProcTblIdx)
-      val savedPreemptPid = Reg(PID())
-      val savedPreemptHostMsgId = Reg(UInt(HostMsgID.width bits)) init invalidTraceId(HostMsgID.width)
+      coreDesched(idx).valid := False
+      // save the requested descheduling target until descheduling is actually done
+      val savedDeschedIdx = Reg(ProcTblIdx)
+      val savedDeschedPid = Reg(PID())
+      val savedDeschedHostMsgId = Reg(UInt(HostMsgID.width bits)) init invalidTraceId(HostMsgID.width)
 
       val coreTd = CoreID(B(idx + 1, CoreID.width bits))
 
@@ -622,43 +621,43 @@ class Scheduler extends FiberPlugin {
           whenIsActive {
             when (corePopQueueIdx =/= 0 && !processEnabled(corePopQueueIdx)) {
               if (host.list[EciOwnership].isEmpty) {
-              corePreempt(idx).kill := watchdogKilled(corePopQueueIdx)
-              corePreempt(idx).pid.bits := 0
-              corePreempt(idx).outOfIdle := False
-              savedPreemptIdx := 0
-              savedPreemptPid.bits := 0
-              savedPreemptHostMsgId := invalidTraceId(HostMsgID.width)
-              coreTp.trace("SchedulerPreemptCore",
+              coreDesched(idx).kill := watchdogKilled(corePopQueueIdx)
+              coreDesched(idx).pid.bits := 0
+              coreDesched(idx).outOfIdle := False
+              savedDeschedIdx := 0
+              savedDeschedPid.bits := 0
+              savedDeschedHostMsgId := invalidTraceId(HostMsgID.width)
+              coreTp.trace("SchedulerDeschedCore",
                 HostMsgID(invalidTraceId(HostMsgID.width)), ProcessID(U(0, PID_WIDTH bits)),
                 PreviousProcessID(processPids(coreResident(idx)).bits),
-                coreTd, PreemptCommand(PreemptCmdType.force.asBits),
-                PreemptOutOfIdle(False), QueueIndex(corePopQueueIdx),
+                coreTd, DeschedCommand(DeschedCmdType.force.asBits),
+                DeschedOutOfIdle(False), QueueIndex(corePopQueueIdx),
                 QueueFill(queueMetas(corePopQueueIdx).fill))
-              goto(preempt)
+              goto(desched)
               } // ECI fatal lifetimes retain their worker; no recovery handoff.
-            } elsewhen (rxPreemptReq.valid && processEnabled(rxPreemptReq.idx) && victimCoreMapSel(idx)) {
+            } elsewhen (rxDeschedReq.valid && processEnabled(rxDeschedReq.idx) && victimCoreMapSel(idx)) {
               // we are selected as the eviction target
               // capture requested PID since it's a Flow and only valid for one cycle
-              corePreempt(idx).kill := False
-              corePreempt(idx).pid := rxPreemptReq.pid
+              coreDesched(idx).kill := False
+              coreDesched(idx).pid := rxDeschedReq.pid
 
               // Only an idle reservation authorizes a scheduling kick.
-              corePreempt(idx).outOfIdle := coreIdleMap(idx)
+              coreDesched(idx).outOfIdle := coreIdleMap(idx)
 
-              corePidMap(idx) := rxPreemptReq.idx
-              savedPreemptIdx := rxPreemptReq.idx
-              savedPreemptPid := rxPreemptReq.pid
-              savedPreemptHostMsgId := rxPreemptReq.hostMsgId
-              coreTp.trace("SchedulerPreemptCore",
-                HostMsgID(rxPreemptReq.hostMsgId),
-                ProcessID(rxPreemptReq.pid.bits),
+              corePidMap(idx) := rxDeschedReq.idx
+              savedDeschedIdx := rxDeschedReq.idx
+              savedDeschedPid := rxDeschedReq.pid
+              savedDeschedHostMsgId := rxDeschedReq.hostMsgId
+              coreTp.trace("SchedulerDeschedCore",
+                HostMsgID(rxDeschedReq.hostMsgId),
+                ProcessID(rxDeschedReq.pid.bits),
                 PreviousProcessID(processPids(coreResident(idx)).bits),
                 coreTd,
-                PreemptCommand(rxPreemptReq.ty.asBits),
-                PreemptOutOfIdle(coreIdleMap(idx)),
-                QueueIndex(rxPreemptReq.idx),
-                QueueFill(queueMetas(rxPreemptReq.idx).fill))
-              goto(preempt)
+                DeschedCommand(rxDeschedReq.ty.asBits),
+                DeschedOutOfIdle(coreIdleMap(idx)),
+                QueueIndex(rxDeschedReq.idx),
+                QueueFill(queueMetas(rxDeschedReq.idx).fill))
+              goto(desched)
             } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
               // XXX: this goes against the Stream semantics (https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Libraries/stream.html#semantics):
@@ -666,66 +665,66 @@ class Scheduler extends FiberPlugin {
               //      we will only assert valid, when a core is ready.
               //      not a combinatorial dependency, so we are still ok
               //      needed since we don't want to pop a request when core is not ready, since after popping one:
-              //      - allow preempt?  need to somehow put it back in the queue
-              //      - not allow preempt?  no chance in practice to preempt then
+              //      - allow desched?  need to somehow put it back in the queue
+              //      - not allow desched?  no chance in practice to desched then
               popReq.queueIdx := corePopQueueIdx
               popReq.req := True
               when (popReq.grant) {
                 goto(popReqGranted)
               }
-            } elsewhen (!rxPreemptReq.valid && (toCore.ready || coreIdleMap(idx)) &&
+            } elsewhen (!rxDeschedReq.valid && (toCore.ready || coreIdleMap(idx)) &&
                         drainResult.idx =/= 0 && drainResult.valid && drainResult.matched &&
                         processEnabled(drainResult.idx) && !corePidMap.map(_ === drainResult.idx).asBits.orR) {
-              // FIXME: can we simplify and merge this case with the RX preemption case?
+              // FIXME: can we simplify and merge this case with the RX descheduling case?
 
               // When a core completely drained its queue, it needs to check if there are non-empty queues that
               // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
               // the following case:
-              // - process received a request when all cores are busy, couldn't preempt any core
+              // - process received a request when all cores are busy, couldn't desched any core
               // - system later became not busy, but no new requests arrive for process
               // - if we don't scan inactive queues, the request will sit there indefinitely
               // TODO: fairness?
 
-              // we are not popping from the queue here, only preempting;
+              // we are not popping from the queue here, only descheduling;
               // so no need to check again if queue is empty
-              corePreempt(idx).kill := False
-              corePreempt(idx).pid := drainResult.value.pid
-              corePreempt(idx).outOfIdle := coreIdleMap(idx)
-              savedPreemptIdx := drainResult.idx
-              savedPreemptPid := drainResult.value.pid
-              savedPreemptHostMsgId := invalidTraceId(HostMsgID.width)
+              coreDesched(idx).kill := False
+              coreDesched(idx).pid := drainResult.value.pid
+              coreDesched(idx).outOfIdle := coreIdleMap(idx)
+              savedDeschedIdx := drainResult.idx
+              savedDeschedPid := drainResult.value.pid
+              savedDeschedHostMsgId := invalidTraceId(HostMsgID.width)
               drainProcCoreReq(idx) := True
               when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
                 corePidMap(idx) := drainResult.idx
                 drainProcInProgress(drainResult.idx) := True
-                coreTp.trace("SchedulerPreemptCore",
+                coreTp.trace("SchedulerDeschedCore",
                   HostMsgID(invalidTraceId(HostMsgID.width)), // invalid in the drain case
                   ProcessID(drainResult.value.pid.bits),
                   PreviousProcessID(processPids(coreResident(idx)).bits),
                   coreTd,
-                  PreemptCommand(PreemptCmdType.ready.asBits),
-                  PreemptOutOfIdle(coreIdleMap(idx)),
+                  DeschedCommand(DeschedCmdType.ready.asBits),
+                  DeschedOutOfIdle(coreIdleMap(idx)),
                   QueueIndex(drainResult.idx),
                   QueueFill(queueMetas(drainResult.idx).fill))
-                goto(preempt)
+                goto(desched)
               }
             }
           }
         }
-        val preempt: State = new State {
+        val desched: State = new State {
           whenIsActive {
-            corePreempt(idx).valid := True
+            coreDesched(idx).valid := True
             // mark core as in the destination process already;
             // if we wait until ACK, we might dispatch too many cores to the process
-            corePidMap(idx) := savedPreemptIdx
+            corePidMap(idx) := savedDeschedIdx
 
-            when (corePreempt(idx).ready) {
-              coreResident(idx) := savedPreemptIdx
-              drainProcInProgress(savedPreemptIdx) := False
-              inc(_.preempted(idx))
+            when (coreDesched(idx).ready) {
+              coreResident(idx) := savedDeschedIdx
+              drainProcInProgress(savedDeschedIdx) := False
+              inc(_.descheduled(idx))
               coreTp.trace("SchedulerProcessRun",
-                HostMsgID(savedPreemptHostMsgId),
-                ProcessID(savedPreemptPid.bits),
+                HostMsgID(savedDeschedHostMsgId),
+                ProcessID(savedDeschedPid.bits),
                 coreTd)
               goto(idle)
             }

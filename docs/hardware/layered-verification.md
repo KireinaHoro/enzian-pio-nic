@@ -13,7 +13,7 @@ refinement theorem or a proof of the RTL.
 | --- | --- | --- | --- |
 | Single worker (`model/tla/worker`) | Selected DC FSM, extracted THX remote FSM, line messages, AXI read/write completion, serialized 2F2F control/overflow sequencing | Correct message framing and modeled endpoint service capabilities; no shared-resource contention inside one admitted line | Legal transitions, address identity, no premature LCIA, doorbell completion ordering, repeated worker progress, projections to the public contracts |
 | Steady state (`model/tla/steady`) | Colors, queues, finite shared resources, admission, retained cache/directory accounting and stalled workers | Eligible lower-level exchanges satisfy the completion contract | Resource conservation, transaction tracking, compatible settled configurations, admission and completion of independent peers/bypass |
-| Scheduling (`model/tla/scheduling`) | Assignment, reservation/claim, PREEMPT, wake ownership, kill and MMIO/control races | Abstract transport readiness/retirement and progress obligations | Local safety/races/liveness; coupled obligations are checked by composition harnesses |
+| Scheduling (`model/tla/scheduling`) | Assignment, reservation/claim, DESCHED, wake ownership, kill and MMIO/control races | Abstract transport readiness/retirement and progress obligations | Local safety/races/liveness; coupled obligations are checked by composition harnesses |
 
 `model/tla/common` holds generic message/buffer helpers.
 `model/tla/contracts` holds the shared interfaces. Cross-layer wiring lives in
