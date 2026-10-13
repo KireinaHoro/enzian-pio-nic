@@ -1,5 +1,6 @@
 """Shared ACM sigconf paper geometry and typography. Import before pyplot."""
 from pathlib import Path
+from functools import lru_cache
 import os
 import subprocess
 import tempfile
@@ -15,6 +16,7 @@ PREAMBLE = r"\usepackage[T1]{fontenc}\usepackage{libertine}\usepackage[libertine
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7")
 
 
+@lru_cache(maxsize=1)
 def dimensions():
     """Ask the installed paper class, rather than assuming a nominal column."""
     with tempfile.TemporaryDirectory(prefix="paper-geometry-") as directory:
