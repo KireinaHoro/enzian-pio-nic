@@ -44,7 +44,7 @@ let
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
       value = builtins.hashFile "sha256" (generator.src + "/${name}");
-    }) [ "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "Makefile" ]);
+    }) [ "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
   environment = pkgs.buildEnv {
